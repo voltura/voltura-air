@@ -25,11 +25,40 @@ The Windows host installs per user, runs from the tray, manages paired devices, 
 
 ## Requirements
 
-- Windows 11 PC with .NET 10 SDK.
-- Node.js and npm.
+For normal use:
+
+- Windows 11 PC.
 - Phone, tablet, or browser-capable device on the same Wi-Fi/LAN as the PC.
 
+For development and release packaging:
+
+- .NET 10 SDK.
+- Node.js and npm.
+- NSIS 3.12 or later when building Windows installer assets.
+
 For normal installation, download and run the latest `VolturaAir-Setup-<version>-win-x64.exe` from the GitHub release. The installer installs per user, does not require administrator rights, and keeps pairing/settings data when uninstalled.
+
+## Freeware and support
+
+Voltura Air is freeware from Voltura AB. It can be used without payment, account registration, trial limits, or feature locks.
+
+Optional support links are available for users who want to sponsor development:
+
+- Ko-fi: <https://ko-fi.com/voltura>
+- PayPal: <https://www.paypal.me/voltura>
+
+The `.github/FUNDING.yml` file enables GitHub's sponsor button for the repository.
+
+## Windows security warning
+
+Current early builds are not code-signed. Windows may show an unknown publisher or Microsoft Defender SmartScreen warning when the installer or executable is new.
+
+Only download Voltura Air from the official product page or the official GitHub releases page:
+
+- Product page: <https://voltura.se/air>
+- GitHub releases: <https://github.com/voltura/voltura-air/releases/latest>
+
+If the project gets real public adoption, code signing or Microsoft Store distribution can be added later.
 
 ## Build And Test
 

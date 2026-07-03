@@ -136,9 +136,9 @@ export function App() {
 
   useEffect(() => {
     if (state === "needs-pairing" && !pendingPairing) {
-      setPairingScanMessage("Scan the QR code shown on your PC to pair this home screen app.");
+      setPairingScanMessage(message.trim() || "Scan the QR code shown on your PC to pair this home screen app.");
     }
-  }, [pendingPairing, state]);
+  }, [message, pendingPairing, state]);
 
   useEffect(() => {
     const onBeforeInstallPrompt = (event: Event) => {
@@ -490,6 +490,8 @@ export function App() {
           primaryLabel={pendingPairing ? "Pair" : undefined}
         />
       )}
+
+      {state === "rejected" && !isSettingsOpen && <PairingStatus message={message} onPrimaryAction={scanPairingQr} primaryLabel="Take photo of new QR code" />}
 
       {state === "unavailable" && activePc && !isSettingsOpen && (
         <PairingStatus activePcUnavailable message={message} onPrimaryAction={() => selectPc(activePc.id)} onSecondaryAction={scanPairingQr} />

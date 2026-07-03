@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Camera, Power, RefreshCw } from "lucide-react";
 
 const pcUnavailableMessage = "PC not available. Make sure Voltura Air is running and both devices are on the same Wi-Fi/LAN. Retrying…";
-const otherQrPhotoLabel = "Take photo of other QR";
+const otherQrPhotoLabel = "Take photo of other QR code";
 
 type PairingStatusProps = {
   activePcUnavailable?: boolean;

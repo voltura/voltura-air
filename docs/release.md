@@ -76,6 +76,30 @@ If you need to update the release notes too:
 gh release edit v0.1.0 --notes "Updated Windows release assets." --repo voltura/voltura-air
 ```
 
+## Freeware release notes
+
+Voltura Air is distributed as freeware. Release notes should avoid trial, license-key, premium, or paid-upgrade language unless the product model changes later.
+
+Use wording like this for public release notes:
+
+```text
+Voltura Air is free software from Voltura AB. If it helps you, optional support links are available through Ko-fi and PayPal.
+```
+
+Support links are maintained in `.github/FUNDING.yml` and on the static product page.
+
+## Unsigned installer status
+
+Current early release assets are not code-signed. Do not claim that the installer or executable is signed until a signing certificate or Store signing flow has been added.
+
+Use wording like this when publishing download instructions:
+
+```text
+Windows may show an unknown publisher or Microsoft Defender SmartScreen warning because early Voltura Air builds are not code-signed yet. Download only from https://voltura.se/air or the official GitHub releases page.
+```
+
+Avoid adding workaround-heavy instructions that make the app look suspicious. Keep the message honest and direct.
+
 ## GitHub Actions
 
 The `Build and upsert release assets` workflow performs the same release path on a Windows runner:

@@ -58,7 +58,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         _trayIcon.DoubleClick += (_, _) => _form.ShowMainWindow();
 
         TrayIconVisibilityPromoter.PromoteWhenReady(_components, _trayIcon);
-        if (showMainWindow && !_pairingManager.HasActiveController)
+        if (showMainWindow && !_pairingManager.HasActiveController && AppNotificationSettings.ShowPairingWindowOnDisconnect())
         {
             _form.Show();
         }
@@ -227,7 +227,11 @@ public sealed class TrayApplicationContext : ApplicationContext
         {
             _form.BeginInvoke(() =>
             {
-                _form.ShowMainWindow();
+                if (AppNotificationSettings.ShowPairingWindowOnDisconnect())
+                {
+                    _form.ShowMainWindow();
+                }
+
                 ShowConnectionStatusNotification(
                     "Voltura Air disconnected",
                     "No connected devices.",

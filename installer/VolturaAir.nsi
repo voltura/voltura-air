@@ -2,6 +2,10 @@
   !error "APP_VERSION must be provided"
 !endif
 
+!ifndef APP_VERSION_QUAD
+  !error "APP_VERSION_QUAD must be provided"
+!endif
+
 !ifndef RUNTIME
   !define RUNTIME "win-x64"
 !endif
@@ -16,7 +20,11 @@
 
 !define APP_NAME "Voltura Air"
 !define EXE_NAME "VolturaAir.Host.exe"
-!define PUBLISHER "Voltura"
+!define PUBLISHER "Voltura AB"
+!define DEVELOPER "Joakim Skoglund"
+!define PRODUCT_URL "https://voltura.se/air"
+!define SUPPORT_EMAIL "air@voltura.se"
+!define POSTAL_ADDRESS "Voltura AB, H${U+00E4}stholmsv${U+00E4}gen 33, SE-131 71 Nacka, Sweden"
 !define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\Voltura Air"
 !define RUN_KEY "Software\Microsoft\Windows\CurrentVersion\Run"
 
@@ -29,6 +37,16 @@ OutFile "${OUTPUT_FILE}"
 InstallDir "$LOCALAPPDATA\Programs\${APP_NAME}"
 RequestExecutionLevel user
 SetCompressor /SOLID lzma
+VIProductVersion "${APP_VERSION_QUAD}"
+VIAddVersionKey "ProductName" "${APP_NAME}"
+VIAddVersionKey "CompanyName" "${PUBLISHER}"
+VIAddVersionKey "FileDescription" "${APP_NAME} Installer"
+VIAddVersionKey "FileVersion" "${APP_VERSION}"
+VIAddVersionKey "ProductVersion" "${APP_VERSION}"
+VIAddVersionKey "OriginalFilename" "VolturaAir-Setup-${APP_VERSION}-${RUNTIME}.exe"
+VIAddVersionKey "InternalName" "VolturaAirSetup"
+VIAddVersionKey "LegalCopyright" "Copyright (c) ${PUBLISHER}"
+VIAddVersionKey "Comments" "Developer: ${DEVELOPER}; Website: ${PRODUCT_URL}; Email: ${SUPPORT_EMAIL}; Address: ${POSTAL_ADDRESS}"
 
 !define MUI_ABORTWARNING
 !define MUI_ICON "${__FILEDIR__}\..\apps\windows-host\Assets\VolturaAir.ico"
@@ -70,6 +88,10 @@ Section "Install"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayName" "${APP_NAME}"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayVersion" "${APP_VERSION}"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "Publisher" "${PUBLISHER}"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "URLInfoAbout" "${PRODUCT_URL}"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "HelpLink" "${PRODUCT_URL}"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "Contact" "${SUPPORT_EMAIL}"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "Comments" "Developer: ${DEVELOPER}; Address: ${POSTAL_ADDRESS}"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\${EXE_NAME}"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "UninstallString" "$\"$INSTDIR\Uninstall.exe$\""

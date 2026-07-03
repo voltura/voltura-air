@@ -8,6 +8,9 @@
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <ApplicationIcon>Assets\VolturaAir.ico</ApplicationIcon>
     <Version>0.1.0</Version>
+    <Title>Voltura Air</Title>
+    <AssemblyTitle>Voltura Air</AssemblyTitle>
+    <Description>Voltura Air Windows host</Description>
   </PropertyGroup>
 
   <ItemGroup>

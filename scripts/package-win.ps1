@@ -24,6 +24,16 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
     throw "Version was not provided and could not be read from package.json."
 }
 
+$versionCore = ($Version -split "[+-]", 2)[0]
+$versionSegments = @($versionCore -split "\.")
+if ($versionSegments.Count -lt 1 -or $versionSegments.Count -gt 4 -or ($versionSegments | Where-Object { $_ -notmatch "^\d+$" })) {
+    throw "Version '$Version' cannot be converted to a Windows version resource."
+}
+while ($versionSegments.Count -lt 4) {
+    $versionSegments += "0"
+}
+$appVersionQuad = $versionSegments -join "."
+
 $makensis = Get-Command makensis -ErrorAction SilentlyContinue
 $makensisPath = $null
 if ($null -ne $makensis) {
@@ -81,6 +91,7 @@ Compress-Archive -Path (Join-Path $publishDir "*") -DestinationPath $zipPath -Fo
 
 & $makensisPath `
     "/DAPP_VERSION=$Version" `
+    "/DAPP_VERSION_QUAD=$appVersionQuad" `
     "/DRUNTIME=$Runtime" `
     "/DPUBLISH_DIR=$publishDir" `
     "/DOUTPUT_FILE=$installerPath" `

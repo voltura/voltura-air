@@ -9,6 +9,7 @@ const clientIdQueryParam = "d";
 const deviceNameKey = "voltura-air.deviceName";
 const deviceNameQueryParam = "n";
 const pcProfilesKey = "voltura-air.pcProfiles";
+const screenshotModeKey = "voltura-air.screenshotMode";
 const connectionTimeoutMs = 3000;
 const heartbeatIntervalMs = 2500;
 const heartbeatTimeoutMs = 5500;
@@ -24,6 +25,7 @@ export type PcProfile = {
 };
 
 export function useVolturaAirConnection() {
+  const screenshotMode = useMemo(() => isScreenshotMode(window.location.href), []);
   const addressClientId = useMemo(() => getClientIdFromAddress(window.location.href), []);
   const addressPcUrl = useMemo(() => parsePcUrl(window.location.href, window.location.origin), []);
   const initialPairing = useMemo(() => parsePairingLink(window.location.href, window.location.origin), []);
@@ -74,9 +76,9 @@ export function useVolturaAirConnection() {
 
   useEffect(() => {
     if (state === "paired" && activePc) {
-      setMessage(`Connected to ${getPcDisplayName(activePc)}`);
+      setMessage(`Connected to ${getDisplayPcName(activePc, "", screenshotMode)}`);
     }
-  }, [activePc, state]);
+  }, [activePc, screenshotMode, state]);
 
   const send = useCallback((payload: ClientMessage) => {
     const socket = socketRef.current;
@@ -184,10 +186,10 @@ export function useVolturaAirConnection() {
 
       if (hasShownUnavailable) {
         setState("unavailable");
-        setMessage(getPcUnavailableMessage(pc));
+        setMessage(getPcUnavailableMessage(pc, screenshotMode));
       } else {
         setState("connecting");
-        setMessage(`Connecting to ${getPcDisplayName(pc)}...`);
+        setMessage(`Connecting to ${getDisplayPcName(pc, "", screenshotMode)}...`);
       }
 
       const ws = new WebSocket(getWebSocketUrl(pc));
@@ -196,7 +198,7 @@ export function useVolturaAirConnection() {
 
       ws.addEventListener("open", () => {
         setState("connecting");
-        setMessage(`Connecting to ${getPcDisplayName(pc)}...`);
+        setMessage(`Connecting to ${getDisplayPcName(pc, "", screenshotMode)}...`);
         const hello: ClientMessage = {
           type: "pair.hello",
           clientId,
@@ -218,13 +220,15 @@ export function useVolturaAirConnection() {
 
         if (response.type === "pair.accepted") {
           handlePairAccepted(response, pc.id);
-          setPairedPcs((current) => applyPcNameFromHost(current, pc.id, response.pcName));
+          if (!screenshotMode) {
+            setPairedPcs((current) => applyPcNameFromHost(current, pc.id, response.pcName));
+          }
           clearPairTokenFromAddress();
           window.clearTimeout(connectionTimer);
           connectionTimer = undefined;
           hasShownUnavailable = false;
           setState("paired");
-          setMessage(`Connected to ${displayPcName(pc, response.pcName)}`);
+          setMessage(`Connected to ${getDisplayPcName(pc, response.pcName, screenshotMode)}`);
           startHeartbeat(ws);
           flushQueue(ws, queueRef.current);
           return;
@@ -236,7 +240,7 @@ export function useVolturaAirConnection() {
           queueRef.current = [];
           if (response.reason === "missing-token") {
             setState("needs-pairing");
-            setMessage(`Scan ${getPcDisplayName(pc)}'s pairing QR to pair this app.`);
+            setMessage(`Scan ${getDisplayPcName(pc, "", screenshotMode)}'s pairing QR to pair this app.`);
           } else if (response.reason === "invalid-token") {
             setState("needs-pairing");
             setMessage("Pairing code expired. Scan a new QR code.");
@@ -251,18 +255,20 @@ export function useVolturaAirConnection() {
         if (response.type === "status") {
           window.clearTimeout(heartbeatDeadlineTimer);
           heartbeatDeadlineTimer = undefined;
-          if (response.pcName) {
+          if (response.pcName && !screenshotMode) {
             setPairedPcs((current) => applyPcNameFromHost(current, pc.id, response.pcName ?? ""));
           }
 
-          setMessage(response.connected ? `Connected to ${displayPcName(pc, response.pcName ?? "")}` : (response.message ?? "Disconnected"));
+          setMessage(response.connected ? `Connected to ${getDisplayPcName(pc, response.pcName ?? "", screenshotMode)}` : (response.message ?? "Disconnected"));
           return;
         }
 
         if (response.type === "status.pong") {
           window.clearTimeout(heartbeatDeadlineTimer);
           heartbeatDeadlineTimer = undefined;
-          setPairedPcs((current) => applyPcNameFromHost(current, pc.id, response.pcName));
+          if (!screenshotMode) {
+            setPairedPcs((current) => applyPcNameFromHost(current, pc.id, response.pcName));
+          }
           setState("paired");
           return;
         }
@@ -296,7 +302,7 @@ export function useVolturaAirConnection() {
       clearTimers();
       socketRef.current?.close();
     };
-  }, [activePc?.id, activePc?.url, clientId, pairedPcs.length, pairingAttempt]);
+  }, [activePc?.id, activePc?.url, clientId, pairedPcs.length, pairingAttempt, screenshotMode]);
 
   const pairWithToken = useCallback((token: string, pcUrl = window.location.origin, requestedDeviceName?: string) => {
     const nextDeviceName = normalizeDeviceNameInput(requestedDeviceName ?? deviceNameRef.current) ?? getDefaultDeviceName();
@@ -314,9 +320,9 @@ export function useVolturaAirConnection() {
     saveActivePcId(profile.id);
     setActivePcId(profile.id);
     setState("connecting");
-    setMessage(`Pairing with ${getPcDisplayName(profile)}...`);
+    setMessage(`Pairing with ${getDisplayPcName(profile, "", screenshotMode)}...`);
     setPairingAttempt((current) => ({ token, id: current.id + 1 }));
-  }, []);
+  }, [screenshotMode]);
 
   const selectPc = useCallback((pcId: string) => {
     queueRef.current = [];
@@ -565,13 +571,17 @@ function applyPcNameFromHost(profiles: PcProfile[], pcId: string, pcName: string
   return changed ? next : profiles;
 }
 
-function displayPcName(pc: PcProfile, hostName: string): string {
+function getDisplayPcName(pc: PcProfile, hostName: string, screenshotMode = false): string {
+  if (screenshotMode) {
+    return "PC";
+  }
+
   const trimmedHostName = hostName.trim();
   return pc.customName || trimmedHostName.length === 0 ? getPcDisplayName(pc) : trimmedHostName;
 }
 
-function getPcUnavailableMessage(pc: PcProfile): string {
-  return `${getPcDisplayName(pc)} is currently not available. Check that Voltura Air is running on the PC. Retrying...`;
+function getPcUnavailableMessage(pc: PcProfile, screenshotMode = false): string {
+  return `${getDisplayPcName(pc, "", screenshotMode)} is currently not available. Check that Voltura Air is running on the PC. Retrying...`;
 }
 
 function getWebSocketUrl(pc: PcProfile): string {
@@ -670,6 +680,19 @@ function clearPairTokenFromAddress(): void {
 
   url.searchParams.delete("t");
   window.history.replaceState(null, "", url);
+}
+
+function isScreenshotMode(source: string): boolean {
+  try {
+    const url = new URL(source);
+    const value = url.searchParams.get("screenshot") ?? url.searchParams.get("screenshotMode");
+    if (value) {
+      return ["1", "true", "yes"].includes(value.toLowerCase());
+    }
+  } catch {
+  }
+
+  return localStorage.getItem(screenshotModeKey) === "true";
 }
 
 function flushQueue(socket: WebSocket, queue: ClientMessage[]): void {

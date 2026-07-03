@@ -47,6 +47,14 @@ pairing token, LAN address, or machine-specific QR.
 Use the pairing URL written by the host to open the real PWA in Chrome via
 Playwright, click **Pair**, and wait for the connected state.
 
+Append `screenshot=1` to the pairing URL before opening it. Screenshot mode
+keeps the real app layout but displays the connected PC as `PC` instead of the
+local machine name. It can also be enabled with local storage:
+
+```js
+localStorage.setItem("voltura-air.screenshotMode", "true");
+```
+
 Recommended viewport sizes:
 
 ```text
@@ -61,8 +69,8 @@ await page.evaluate(() => localStorage.setItem("voltura-air.themeMode", "dark"))
 await page.reload({ waitUntil: "networkidle" });
 ```
 
-Before committing public screenshots, replace any local PC name in the status
-label with a neutral label such as `Connected to PC`.
+Do not edit the status label in the image after capture. If the label contains a
+machine name, recapture with `screenshot=1`.
 
 ## Output Files
 

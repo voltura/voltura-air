@@ -1,6 +1,6 @@
-# Release Packaging and GitHub Asset Replacement
+# Release Packaging and GitHub Asset Upsert
 
-This document explains how to rebuild the Windows release assets and replace them on an existing GitHub release.
+This document explains how to rebuild the Windows release assets, create the selected GitHub release when needed, and replace same-named assets on later runs.
 
 ## Requirements
 
@@ -47,7 +47,17 @@ To rebuild the zip and installer from an existing publish directory:
 powershell -ExecutionPolicy Bypass -File scripts/package-win.ps1 -SkipBuild
 ```
 
-## Replace GitHub release assets
+## Create or replace GitHub release assets
+
+Create the release if this is the first upload:
+
+```powershell
+gh release create v0.1.0 `
+  --repo voltura/voltura-air `
+  --target main `
+  --title "Voltura Air v0.1.0" `
+  --notes "Windows release assets for Voltura Air v0.1.0."
+```
 
 Upload both assets and overwrite any existing files with the same names:
 
@@ -68,14 +78,15 @@ gh release edit v0.1.0 --notes "Updated Windows release assets." --repo voltura/
 
 ## GitHub Actions
 
-The `Build and replace release assets` workflow performs the same release path on a Windows runner:
+The `Build and upsert release assets` workflow performs the same release path on a Windows runner:
 
 1. Install npm dependencies.
 2. Install NSIS 3.12.0.
 3. Run `npm run build`.
 4. Run `npm test`.
 5. Run `npm run package:win`.
-6. Upload both the portable zip and installer to the selected release.
+6. Create the selected release if it does not exist.
+7. Upload both the portable zip and installer, replacing same-named assets when present.
 
 ## Installer behavior
 

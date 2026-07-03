@@ -14,6 +14,10 @@ updated as the app structure, tooling, and release process become concrete.
 - Preserve user work in the tree; do not revert unrelated changes.
 - Codex may stop local development or app processes when needed for build, test,
   debugging, or file-lock cleanup without asking first.
+- If a task has a preferred validation, inspection, capture, automation tool,
+  or supporting runtime/toolchain that is not installed locally, Codex may
+  install and use it without asking first. Prefer temporary or user-scoped
+  installs unless a project-local dependency is clearly the right fit.
 - When editing Windows Forms UI, account for Windows DPI/scaling. Prefer
   autosizing layouts or scale fixed dimensions, margins, and padding with
   `LogicalToDeviceUnits`, and make sure text is not clipped at non-100%

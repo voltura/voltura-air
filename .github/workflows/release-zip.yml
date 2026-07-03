@@ -1,10 +1,10 @@
-﻿name: Build and replace release assets
+name: Build and upsert release assets
 
 on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: GitHub release tag to update
+        description: GitHub release tag to create or update
         required: true
         default: v0.1.0
       version:
@@ -20,8 +20,8 @@ permissions:
   contents: write
 
 jobs:
-  build-and-replace-release-assets:
-    name: Build and replace release assets
+  build-and-upsert-release-assets:
+    name: Build and upsert release assets
     runs-on: windows-latest
 
     steps:
@@ -93,7 +93,7 @@ jobs:
           path: ${{ steps.package.outputs.installer_path }}
           if-no-files-found: error
 
-      - name: Replace GitHub release assets
+      - name: Create release if missing and upload assets
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -101,4 +101,27 @@ jobs:
           $tag = "${{ inputs.release_tag }}"
           $zipPath = "${{ steps.package.outputs.zip_path }}"
           $installerPath = "${{ steps.package.outputs.installer_path }}"
+          $viewOutput = gh release view $tag --repo $env:GITHUB_REPOSITORY 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            $message = ($viewOutput | Out-String)
+            if ($message -notmatch "release not found|Not Found|404") {
+              Write-Error $message
+              exit 1
+            }
+
+            gh release create $tag `
+              --repo $env:GITHUB_REPOSITORY `
+              --target $env:GITHUB_SHA `
+              --title "Voltura Air $tag" `
+              --notes "Windows release assets for Voltura Air $tag."
+
+            if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+            }
+          }
+
           gh release upload $tag $zipPath $installerPath --clobber --repo $env:GITHUB_REPOSITORY
+
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }

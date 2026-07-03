@@ -3,7 +3,7 @@ import { Camera, Power, RefreshCw } from "lucide-react";
 
 const pcUnavailableMessage = "PC not available. Make sure Voltura Air is running and both devices are on the same Wi-Fi/LAN. Retrying…";
 
- type PairingStatusProps = {
+type PairingStatusProps = {
   activePcUnavailable?: boolean;
   deviceName?: string;
   message: string;

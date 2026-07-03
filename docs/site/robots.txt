@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /air/
+
+Sitemap: https://voltura.se/air/sitemap.xml

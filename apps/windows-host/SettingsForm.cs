@@ -10,6 +10,7 @@ public sealed class SettingsForm : Form
     private readonly Label _subtitleLabel = new();
     private readonly ThemedCheckBox _startWithWindowsCheckBox = new();
     private readonly ThemedCheckBox _showConnectionStatusNotificationsCheckBox = new();
+    private readonly ThemedCheckBox _showPairingWindowOnDisconnectCheckBox = new();
     private readonly Button _connectionSettingsButton = new();
     private readonly Label _applicationSettingsLabel = new();
     private readonly Label _appearanceLabel = new();
@@ -89,10 +90,11 @@ public sealed class SettingsForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 7,
+            RowCount = 8,
             Padding = new Padding(0, ScaleLogical(4), 0, 0)
         };
         content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -111,6 +113,11 @@ public sealed class SettingsForm : Form
         ConfigureSettingsCheckBox(
             _showConnectionStatusNotificationsCheckBox,
             "Show connection status notifications",
+            bottomMargin: 0);
+
+        ConfigureSettingsCheckBox(
+            _showPairingWindowOnDisconnectCheckBox,
+            "Show pairing window on disconnect",
             bottomMargin: ScaleLogical(8));
 
         _connectionSettingsButton.Text = "Connection";
@@ -168,10 +175,11 @@ public sealed class SettingsForm : Form
         content.Controls.Add(_applicationSettingsLabel, 0, 0);
         content.Controls.Add(_startWithWindowsCheckBox, 0, 1);
         content.Controls.Add(_showConnectionStatusNotificationsCheckBox, 0, 2);
-        content.Controls.Add(_connectionSettingsButton, 0, 3);
-        content.Controls.Add(_appearanceLabel, 0, 4);
-        content.Controls.Add(_themeOptions, 0, 5);
-        content.Controls.Add(new Panel { Dock = DockStyle.Fill }, 0, 6);
+        content.Controls.Add(_showPairingWindowOnDisconnectCheckBox, 0, 3);
+        content.Controls.Add(_connectionSettingsButton, 0, 4);
+        content.Controls.Add(_appearanceLabel, 0, 5);
+        content.Controls.Add(_themeOptions, 0, 6);
+        content.Controls.Add(new Panel { Dock = DockStyle.Fill }, 0, 7);
 
         root.Controls.Add(header, 0, 0);
         root.Controls.Add(content, 0, 1);
@@ -183,6 +191,7 @@ public sealed class SettingsForm : Form
     {
         _startWithWindowsCheckBox.Checked = AppStartupSettings.IsEnabled();
         _showConnectionStatusNotificationsCheckBox.Checked = AppNotificationSettings.ShowConnectionStatusNotifications();
+        _showPairingWindowOnDisconnectCheckBox.Checked = AppNotificationSettings.ShowPairingWindowOnDisconnect();
         UpdateThemeSelection(AppThemeSettings.GetMode());
     }
 
@@ -190,6 +199,7 @@ public sealed class SettingsForm : Form
     {
         AppStartupSettings.SetEnabled(_startWithWindowsCheckBox.Checked);
         AppNotificationSettings.SetShowConnectionStatusNotifications(_showConnectionStatusNotificationsCheckBox.Checked);
+        AppNotificationSettings.SetShowPairingWindowOnDisconnect(_showPairingWindowOnDisconnectCheckBox.Checked);
         Hide();
     }
 
@@ -221,6 +231,7 @@ public sealed class SettingsForm : Form
         _subtitleLabel.ForeColor = _theme.MutedText;
         _startWithWindowsCheckBox.ApplyTheme(_theme);
         _showConnectionStatusNotificationsCheckBox.ApplyTheme(_theme);
+        _showPairingWindowOnDisconnectCheckBox.ApplyTheme(_theme);
         _applicationSettingsLabel.ForeColor = _theme.MutedText;
         _appearanceLabel.ForeColor = _theme.MutedText;
         _themeOptions.BackColor = _theme.Window;

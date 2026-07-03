@@ -80,14 +80,14 @@ jobs:
           "installer_path=$installerPath" >> $env:GITHUB_OUTPUT
 
       - name: Upload portable zip artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.package.outputs.zip_name }}
           path: ${{ steps.package.outputs.zip_path }}
           if-no-files-found: error
 
       - name: Upload installer artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.package.outputs.installer_name }}
           path: ${{ steps.package.outputs.installer_path }}

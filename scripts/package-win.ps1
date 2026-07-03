@@ -80,6 +80,9 @@ if (-not (Test-Path $publishedExe)) {
     throw "Expected published executable was not found: $publishedExe"
 }
 
+$installedSizeBytes = (Get-ChildItem $publishDir -Recurse -File | Measure-Object Length -Sum).Sum
+$installedSizeKb = [int][math]::Ceiling($installedSizeBytes / 1KB)
+
 if (Test-Path $zipPath) {
     Remove-Item $zipPath -Force
 }
@@ -92,6 +95,7 @@ Compress-Archive -Path (Join-Path $publishDir "*") -DestinationPath $zipPath -Fo
 & $makensisPath `
     "/DAPP_VERSION=$Version" `
     "/DAPP_VERSION_QUAD=$appVersionQuad" `
+    "/DAPP_ESTIMATED_SIZE_KB=$installedSizeKb" `
     "/DRUNTIME=$Runtime" `
     "/DPUBLISH_DIR=$publishDir" `
     "/DOUTPUT_FILE=$installerPath" `

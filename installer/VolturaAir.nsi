@@ -6,6 +6,10 @@
   !error "APP_VERSION_QUAD must be provided"
 !endif
 
+!ifndef APP_ESTIMATED_SIZE_KB
+  !error "APP_ESTIMATED_SIZE_KB must be provided"
+!endif
+
 !ifndef RUNTIME
   !define RUNTIME "win-x64"
 !endif
@@ -96,6 +100,7 @@ Section "Install"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\${EXE_NAME}"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "UninstallString" "$\"$INSTDIR\Uninstall.exe$\""
   WriteRegStr HKCU "${UNINSTALL_KEY}" "QuietUninstallString" "$\"$INSTDIR\Uninstall.exe$\" /S"
+  WriteRegDWORD HKCU "${UNINSTALL_KEY}" "EstimatedSize" ${APP_ESTIMATED_SIZE_KB}
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoModify" 1
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoRepair" 1
 SectionEnd

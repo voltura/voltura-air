@@ -236,6 +236,27 @@ button span {
   min-width: 0;
 }
 
+@media (max-width: 430px) {
+  .tabs button {
+    gap: 0;
+    padding-inline: 8px;
+  }
+
+  .tabs button span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .tabs button svg {
+    width: 24px;
+    height: 24px;
+  }
+}
+
 .drawer-scrim {
   position: fixed;
   inset: 0;

@@ -49,6 +49,20 @@ Optional support links are available for users who want to sponsor development:
 
 The `.github/FUNDING.yml` file enables GitHub's sponsor button for the repository.
 
+## License
+
+Voltura Air is open source under the [MIT License](LICENSE).
+
+MIT is intentionally permissive: users and contributors can inspect, use, modify, and share the source with minimal friction, while Voltura AB keeps the copyright notice and no-warranty protection.
+
+## Community and security
+
+- Contribution guide: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Code of conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- Security policy: [SECURITY.md](SECURITY.md)
+
+Security reports should not include exploit details in public issues. Follow the security policy instead.
+
 ## Windows security warning
 
 Current early builds are not code-signed. Windows may show an unknown publisher or Microsoft Defender SmartScreen warning when the installer or executable is new.

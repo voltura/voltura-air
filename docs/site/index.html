@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Voltura Air - PC Remote for Phone and Tablet</title>
+    <meta
+      name="description"
+      content="Use your phone or tablet as a wireless trackpad, keyboard, dictation input, and media controller for your PC."
+    >
+    <link rel="icon" href="./assets/voltura-air-icon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="Voltura Air home">
+        <img src="./assets/voltura-air-icon.svg" alt="" width="36" height="36">
+        <span>Voltura Air</span>
+      </a>
+      <nav aria-label="Page sections">
+        <a href="#features">Features</a>
+        <a href="#screens">Screens</a>
+        <a href="#setup">Setup</a>
+        <a href="#download">Download</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="hero-media" aria-hidden="true">
+          <img class="hero-host" src="./assets/voltura-air-host-dark.png" alt="">
+          <img class="hero-phone" src="./assets/voltura-air-iphone-dark.png" alt="">
+          <img class="hero-tablet" src="./assets/voltura-air-ipad.png" alt="">
+        </div>
+        <div class="hero-copy">
+          <p class="eyebrow">Windows tray app and mobile PWA</p>
+          <h1>Voltura Air</h1>
+          <p class="tagline">Control your PC from the sofa.</p>
+          <p class="lede">
+            Use your phone or tablet as a wireless trackpad, keyboard, dictation input, and media controller for your PC.
+          </p>
+          <div class="actions">
+            <a class="button primary" href="https://github.com/voltura/voltura-air/releases/latest">Download for Windows</a>
+            <a class="button secondary" href="#screens">View screens</a>
+          </div>
+        </div>
+      </section>
+
+      <section id="features" class="feature-band" aria-label="Core features">
+        <article>
+          <h2>Wireless trackpad</h2>
+          <p>Move the pointer, tap to click, use left and right buttons, scroll with two fingers, pinch to zoom, and expand the surface when you want more room.</p>
+        </article>
+        <article>
+          <h2>Keyboard and dictation</h2>
+          <p>Type live into Windows, send buffered text, use editing and navigation keys, enable function keys, and dictate when your browser supports speech recognition.</p>
+        </article>
+        <article>
+          <h2>Living-room control</h2>
+          <p>Adjust PC volume, pair securely on the local network, reconnect saved devices, and choose light, dark, or system appearance on both host and client.</p>
+        </article>
+      </section>
+
+      <section id="screens" class="screen-section">
+        <div class="section-heading">
+          <p class="eyebrow">Screens</p>
+          <h2>Phone, tablet, and Windows host</h2>
+        </div>
+        <div class="screen-grid" aria-label="Voltura Air screenshots">
+          <figure class="screen-card wide">
+            <img src="./assets/voltura-air-host.png" alt="Voltura Air Windows host pairing window in light mode">
+            <figcaption>Windows host - light mode</figcaption>
+          </figure>
+          <figure class="screen-card wide">
+            <img src="./assets/voltura-air-host-dark.png" alt="Voltura Air Windows host pairing window in dark mode">
+            <figcaption>Windows host - dark mode</figcaption>
+          </figure>
+          <figure class="screen-card phone">
+            <img src="./assets/voltura-air-iphone.png" alt="Voltura Air trackpad screen on an iPhone in light mode">
+            <figcaption>iPhone - light mode</figcaption>
+          </figure>
+          <figure class="screen-card phone">
+            <img src="./assets/voltura-air-iphone-dark.png" alt="Voltura Air trackpad screen on an iPhone in dark mode">
+            <figcaption>iPhone - dark mode</figcaption>
+          </figure>
+          <figure class="screen-card tablet">
+            <img src="./assets/voltura-air-ipad.png" alt="Voltura Air trackpad screen on an iPad in light mode">
+            <figcaption>iPad - light mode</figcaption>
+          </figure>
+          <figure class="screen-card tablet">
+            <img src="./assets/voltura-air-ipad-dark.png" alt="Voltura Air trackpad screen on an iPad in dark mode">
+            <figcaption>iPad - dark mode</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section id="setup" class="content-section">
+        <div>
+          <p class="eyebrow">Setup</p>
+          <h2>How it works</h2>
+        </div>
+        <ol class="steps">
+          <li>Install and start the Windows host on the PC you want to control.</li>
+          <li>Scan the pairing QR code with a phone or tablet on the same Wi-Fi network.</li>
+          <li>Use the mobile page in the browser or add it to your home screen as an app.</li>
+          <li>Reconnect later from saved devices without scanning again.</li>
+        </ol>
+      </section>
+
+      <section id="privacy" class="content-section split">
+        <div>
+          <p class="eyebrow">Privacy</p>
+          <h2>Local network by design</h2>
+        </div>
+        <p>
+          Voltura Air is LAN-only. The Windows host serves the mobile app directly to devices on your local network,
+          and input messages are sent to the paired PC over a local WebSocket connection. There is no account system,
+          cloud relay, or internet input forwarding.
+        </p>
+      </section>
+
+      <section id="download" class="download-band">
+        <div>
+          <p class="eyebrow">Download</p>
+          <h2>Install on Windows 11</h2>
+          <p>
+            Download the latest <strong>VolturaAir-Setup-&lt;version&gt;-win-x64.exe</strong> from GitHub releases.
+            The installer runs per user and does not require administrator rights.
+          </p>
+        </div>
+        <a class="button primary" href="https://github.com/voltura/voltura-air/releases/latest">Latest release</a>
+      </section>
+    </main>
+
+    <footer>
+      <span>Voltura</span>
+      <a href="https://voltura.se/air">voltura.se/air</a>
+    </footer>
+  </body>
+</html>

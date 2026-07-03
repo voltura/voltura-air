@@ -1,0 +1,123 @@
+using System.Text.Json;
+
+namespace VolturaAir.Host;
+
+public sealed class InputDispatcher
+{
+    private readonly IInputInjector _inputInjector;
+
+    public InputDispatcher(IInputInjector inputInjector)
+    {
+        _inputInjector = inputInjector;
+    }
+
+    public bool Dispatch(JsonElement message)
+    {
+        if (!message.TryGetProperty("type", out var typeProperty))
+        {
+            return false;
+        }
+
+        var type = typeProperty.GetString();
+        switch (type)
+        {
+            case "pointer.move":
+                _inputInjector.MoveMouse(GetNumber(message, "dx"), GetNumber(message, "dy"));
+                return true;
+            case "pointer.button":
+                _inputInjector.MouseButton(GetString(message, "button"), GetString(message, "action"));
+                return true;
+            case "pointer.wheel":
+                _inputInjector.Scroll(GetNumber(message, "dx"), GetNumber(message, "dy"));
+                return true;
+            case "pointer.zoom":
+                _inputInjector.Zoom(GetString(message, "direction"));
+                return true;
+            case "keyboard.text":
+                _inputInjector.TypeText(GetString(message, "text"));
+                return true;
+            case "keyboard.special":
+                DispatchSpecialKey(message);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private void DispatchSpecialKey(JsonElement message)
+    {
+        var key = GetString(message, "key");
+        var modifiers = GetModifiers(message);
+
+        if (TryResolveShortcutAlias(key, out var shortcutKey, out var shortcutModifiers))
+        {
+            _inputInjector.SpecialKey(shortcutKey, shortcutModifiers);
+            return;
+        }
+
+        _inputInjector.SpecialKey(key, modifiers);
+    }
+
+    private static bool TryResolveShortcutAlias(string key, out string shortcutKey, out IReadOnlyList<string> shortcutModifiers)
+    {
+        shortcutKey = key;
+        shortcutModifiers = Array.Empty<string>();
+
+        if (key.Equals("Undo", StringComparison.OrdinalIgnoreCase))
+        {
+            shortcutKey = "Z";
+            shortcutModifiers = new[] { "Control" };
+            return true;
+        }
+
+        if (key.Equals("Redo", StringComparison.OrdinalIgnoreCase))
+        {
+            shortcutKey = "Y";
+            shortcutModifiers = new[] { "Control" };
+            return true;
+        }
+
+        return false;
+    }
+
+    private static int GetNumber(JsonElement message, string propertyName)
+    {
+        return message.TryGetProperty(propertyName, out var value) && value.TryGetDouble(out var number)
+            ? (int)Math.Clamp(Math.Round(number), -5000, 5000)
+            : 0;
+    }
+
+    private static string GetString(JsonElement message, string propertyName)
+    {
+        return message.TryGetProperty(propertyName, out var value) ? value.GetString() ?? string.Empty : string.Empty;
+    }
+
+    private static IReadOnlyList<string> GetModifiers(JsonElement message)
+    {
+        if (!message.TryGetProperty("modifiers", out var modifiers) || modifiers.ValueKind != JsonValueKind.Array)
+        {
+            return Array.Empty<string>();
+        }
+
+        return modifiers.EnumerateArray()
+            .Select(modifier => modifier.GetString())
+            .Where(modifier => !string.IsNullOrWhiteSpace(modifier))
+            .Select(modifier => modifier!)
+            .ToArray();
+    }
+}
+
+public interface IInputInjector : IDisposable
+{
+    void MoveMouse(int dx, int dy);
+
+    void MouseButton(string button, string action);
+
+    void Scroll(int dx, int dy);
+
+    void Zoom(string direction);
+
+    void TypeText(string text);
+
+    void SpecialKey(string key, IReadOnlyList<string> modifiers);
+}

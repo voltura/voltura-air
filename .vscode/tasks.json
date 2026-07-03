@@ -1,0 +1,22 @@
+﻿{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build: mobile web",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "build", "--workspace", "apps/mobile-web"],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "build: windows host",
+      "type": "shell",
+      "command": "dotnet",
+      "args": ["build", "apps/windows-host/VolturaAir.Host.csproj"],
+      "group": "build",
+      "dependsOn": ["build: mobile web"],
+      "problemMatcher": "$msCompile"
+    }
+  ]
+}

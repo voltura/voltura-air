@@ -1,0 +1,104 @@
+﻿name: Build and replace release assets
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: GitHub release tag to update
+        required: true
+        default: v0.1.0
+      version:
+        description: Version used in release asset names
+        required: true
+        default: 0.1.0
+      runtime:
+        description: .NET runtime identifier
+        required: true
+        default: win-x64
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-replace-release-assets:
+    name: Build and replace release assets
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install NSIS
+        shell: pwsh
+        run: choco install nsis --version=3.12.0 -y --no-progress
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify built web compression assets
+        run: npm run verify:web-compression
+
+      - name: Test
+        run: npm test
+
+      - name: Package release assets
+        shell: pwsh
+        run: npm run package:win -- -Version "${{ inputs.version }}" -Runtime "${{ inputs.runtime }}"
+
+      - name: Verify packaged web compression assets
+        shell: pwsh
+        run: node scripts/verify-web-compression.mjs "artifacts/publish/VolturaAir-${{ inputs.runtime }}/wwwroot"
+
+      - name: Collect asset paths
+        id: package
+        shell: pwsh
+        run: |
+          $version = "${{ inputs.version }}"
+          $runtime = "${{ inputs.runtime }}"
+          $zipName = "VolturaAir-$version-$runtime.zip"
+          $installerName = "VolturaAir-Setup-$version-$runtime.exe"
+          $zipPath = "artifacts/publish/$zipName"
+          $installerPath = "artifacts/publish/$installerName"
+
+          "zip_name=$zipName" >> $env:GITHUB_OUTPUT
+          "zip_path=$zipPath" >> $env:GITHUB_OUTPUT
+          "installer_name=$installerName" >> $env:GITHUB_OUTPUT
+          "installer_path=$installerPath" >> $env:GITHUB_OUTPUT
+
+      - name: Upload portable zip artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ steps.package.outputs.zip_name }}
+          path: ${{ steps.package.outputs.zip_path }}
+          if-no-files-found: error
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ steps.package.outputs.installer_name }}
+          path: ${{ steps.package.outputs.installer_path }}
+          if-no-files-found: error
+
+      - name: Replace GitHub release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ inputs.release_tag }}"
+          $zipPath = "${{ steps.package.outputs.zip_path }}"
+          $installerPath = "${{ steps.package.outputs.installer_path }}"
+          gh release upload $tag $zipPath $installerPath --clobber --repo $env:GITHUB_REPOSITORY

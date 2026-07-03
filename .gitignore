@@ -1,0 +1,29 @@
+node_modules/
+dist/
+artifacts/
+bin/
+obj/
+TestResults/
+.vs/
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/extensions.json
+*.user
+*.suo
+*.log
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
+## Additional project-specific ignores
+## React/Vite build output
+/apps/mobile-web/dist/
+
+## Generated web assets copied into host during local builds
+/apps/windows-host/wwwroot/assets/
+/apps/windows-host/wwwroot/index.html
+/apps/windows-host/wwwroot/manifest.webmanifest
+/apps/windows-host/wwwroot/sw.js
+
+## Keep artifacts out of git
+/artifacts/*

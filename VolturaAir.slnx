@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/apps/" />
+  <Folder Name="/apps/windows-host/">
+    <Project Path="apps/windows-host/VolturaAir.Host.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/VolturaAir.Host.Tests/VolturaAir.Host.Tests.csproj" />
+  </Folder>
+</Solution>

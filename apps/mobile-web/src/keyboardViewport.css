@@ -1,0 +1,68 @@
+.keyboard-mode {
+  align-content: start;
+  grid-auto-rows: auto;
+  grid-template-rows: none;
+}
+
+.live-typing-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.live-typing-toggle {
+  min-width: 0;
+}
+
+.keyboard-input-mode-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, 48px);
+  gap: 6px;
+}
+
+.keyboard-input-mode-buttons button {
+  width: 48px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.keyboard-mode textarea {
+  height: clamp(92px, 20svh, 128px);
+  min-height: 92px;
+  max-height: 128px;
+  overflow-y: auto;
+}
+
+.keyboard-mode.live-typing textarea {
+  height: 44px;
+  min-height: 44px;
+  max-height: 44px;
+  overflow: hidden;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  white-space: nowrap;
+}
+
+@supports not (height: 1svh) {
+  .keyboard-mode textarea {
+    height: 112px;
+  }
+}
+
+@media (orientation: landscape) {
+  .keyboard-mode textarea {
+    height: 84px;
+    min-height: 84px;
+    max-height: 84px;
+  }
+
+  .keyboard-mode.live-typing textarea {
+    height: 44px;
+    min-height: 44px;
+    max-height: 44px;
+  }
+}

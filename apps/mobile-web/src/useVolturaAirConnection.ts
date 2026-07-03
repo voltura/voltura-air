@@ -1,0 +1,760 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { parsePairingLink, parsePcUrl } from "./pairingLink";
+import { getPcDisplayName, isIpHost } from "./pcDisplayName";
+import type { AudioStateMessage, ClientMessage, PairAcceptedMessage, ServerMessage } from "./protocol";
+
+const activePcIdKey = "voltura-air.activePcId";
+const clientIdKey = "voltura-air.clientId";
+const clientIdQueryParam = "d";
+const deviceNameKey = "voltura-air.deviceName";
+const deviceNameQueryParam = "n";
+const pcProfilesKey = "voltura-air.pcProfiles";
+const connectionTimeoutMs = 3000;
+const heartbeatIntervalMs = 2500;
+const heartbeatTimeoutMs = 5500;
+const retryDelayMs = 1200;
+
+export type ConnectionState = "connecting" | "paired" | "needs-pairing" | "rejected" | "disconnected" | "unavailable";
+
+export type PcProfile = {
+  customName: boolean;
+  id: string;
+  name: string;
+  url: string;
+};
+
+export function useVolturaAirConnection() {
+  const addressClientId = useMemo(() => getClientIdFromAddress(window.location.href), []);
+  const addressPcUrl = useMemo(() => parsePcUrl(window.location.href, window.location.origin), []);
+  const initialPairing = useMemo(() => parsePairingLink(window.location.href, window.location.origin), []);
+  const addressPcProfile = useMemo(() => createPcProfile(initialPairing?.pcUrl ?? addressPcUrl), [addressPcUrl, initialPairing?.pcUrl]);
+  const shouldUseAddressPc = addressClientId !== null;
+  const clientId = useMemo(() => getOrCreateClientId(window.location.href), []);
+  const [deviceName, setDeviceName] = useState(() => loadDeviceName(window.location.href));
+  const [pairedPcs, setPairedPcs] = useState<PcProfile[]>(() => {
+    const profiles = loadPcProfiles();
+    return shouldUseAddressPc ? upsertPcProfile(profiles, addressPcProfile) : profiles;
+  });
+
+  useEffect(() => {
+    ensureClientMetadataInAddress(clientId, deviceName);
+  }, [clientId, deviceName]);
+
+  useEffect(() => {
+    if (initialPairing) {
+      clearPairTokenFromAddress();
+    }
+  }, [initialPairing]);
+  const [activePcId, setActivePcId] = useState<string | null>(() => shouldUseAddressPc ? addressPcProfile.id : loadActivePcId());
+  const [state, setState] = useState<ConnectionState>("connecting");
+  const [message, setMessage] = useState("Connecting to PC...");
+  const [audioState, setAudioState] = useState<AudioStateMessage | null>(null);
+  const [pairingAttempt, setPairingAttempt] = useState<{ token?: string; id: number }>(() => ({
+    token: undefined,
+    id: 0
+  }));
+  const socketRef = useRef<WebSocket | null>(null);
+  const queueRef = useRef<ClientMessage[]>([]);
+  const deviceNameRef = useRef(deviceName);
+
+  const activePc = useMemo(() => pairedPcs.find((pc) => pc.id === activePcId) ?? null, [activePcId, pairedPcs]);
+
+  useEffect(() => {
+    deviceNameRef.current = deviceName;
+    localStorage.setItem(deviceNameKey, deviceName);
+  }, [deviceName]);
+
+  useEffect(() => {
+    savePcProfiles(pairedPcs);
+  }, [pairedPcs]);
+
+  useEffect(() => {
+    saveActivePcId(activePcId);
+  }, [activePcId]);
+
+  useEffect(() => {
+    if (state === "paired" && activePc) {
+      setMessage(`Connected to ${getPcDisplayName(activePc)}`);
+    }
+  }, [activePc, state]);
+
+  const send = useCallback((payload: ClientMessage) => {
+    const socket = socketRef.current;
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify(payload));
+    }
+  }, []);
+
+  useEffect(() => {
+    let disposed = false;
+    let shouldRetry = true;
+    let retryTimer: number | undefined;
+    let connectionTimer: number | undefined;
+    let heartbeatTimer: number | undefined;
+    let heartbeatDeadlineTimer: number | undefined;
+    let hasShownUnavailable = false;
+
+    if (!activePc) {
+      queueRef.current = [];
+      socketRef.current?.close();
+      setAudioState(null);
+      setState("needs-pairing");
+      setMessage(pairedPcs.length > 0 ? "Choose a PC or scan a pairing QR." : "Scan the PC pairing QR to pair this app.");
+      return () => {
+        disposed = true;
+        clearTimers();
+      };
+    }
+
+    const pc = activePc;
+
+    function clearHeartbeat() {
+      window.clearInterval(heartbeatTimer);
+      window.clearTimeout(heartbeatDeadlineTimer);
+      heartbeatTimer = undefined;
+      heartbeatDeadlineTimer = undefined;
+    }
+
+    function clearTimers() {
+      window.clearTimeout(retryTimer);
+      window.clearTimeout(connectionTimer);
+      clearHeartbeat();
+      retryTimer = undefined;
+      connectionTimer = undefined;
+    }
+
+    function scheduleRetry() {
+      if (retryTimer !== undefined || disposed || !shouldRetry) {
+        return;
+      }
+
+      retryTimer = window.setTimeout(connect, retryDelayMs);
+    }
+
+    function markUnavailable(socket?: WebSocket) {
+      if (disposed || !shouldRetry) {
+        return;
+      }
+
+      hasShownUnavailable = true;
+      queueRef.current = [];
+      setAudioState(null);
+      window.clearTimeout(connectionTimer);
+      connectionTimer = undefined;
+      clearHeartbeat();
+      setState("unavailable");
+      setMessage(getPcUnavailableMessage(pc));
+
+      if (socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING) {
+        socket.close();
+      }
+
+      scheduleRetry();
+    }
+
+    function startHeartbeat(socket: WebSocket) {
+      clearHeartbeat();
+      heartbeatTimer = window.setInterval(() => {
+        if (socket !== socketRef.current || socket.readyState !== WebSocket.OPEN) {
+          markUnavailable(socket);
+          return;
+        }
+
+        try {
+          socket.send(JSON.stringify({ type: "status.ping" }));
+        } catch {
+          markUnavailable(socket);
+          return;
+        }
+
+        window.clearTimeout(heartbeatDeadlineTimer);
+        heartbeatDeadlineTimer = window.setTimeout(() => markUnavailable(socket), heartbeatTimeoutMs);
+      }, heartbeatIntervalMs);
+    }
+
+    function connect() {
+      if (disposed) {
+        return;
+      }
+
+      window.clearTimeout(retryTimer);
+      retryTimer = undefined;
+      window.clearTimeout(connectionTimer);
+      clearHeartbeat();
+
+      if (hasShownUnavailable) {
+        setState("unavailable");
+        setMessage(getPcUnavailableMessage(pc));
+      } else {
+        setState("connecting");
+        setMessage(`Connecting to ${getPcDisplayName(pc)}...`);
+      }
+
+      const ws = new WebSocket(getWebSocketUrl(pc));
+      socketRef.current = ws;
+      connectionTimer = window.setTimeout(() => markUnavailable(ws), connectionTimeoutMs);
+
+      ws.addEventListener("open", () => {
+        setState("connecting");
+        setMessage(`Connecting to ${getPcDisplayName(pc)}...`);
+        const hello: ClientMessage = {
+          type: "pair.hello",
+          clientId,
+          deviceName: deviceNameRef.current.trim() || getDefaultDeviceName(),
+          platform: getPlatformName(),
+          browser: getBrowserName(),
+          displayMode: getDisplayMode(),
+          pairToken: pairingAttempt.token,
+          secret: getStoredSecret(clientId, pc.id) ?? undefined
+        };
+        ws.send(JSON.stringify(hello));
+      });
+
+      ws.addEventListener("message", (event) => {
+        const response = parseServerMessage(event.data);
+        if (!response) {
+          return;
+        }
+
+        if (response.type === "pair.accepted") {
+          handlePairAccepted(response, pc.id);
+          setPairedPcs((current) => applyPcNameFromHost(current, pc.id, response.pcName));
+          clearPairTokenFromAddress();
+          window.clearTimeout(connectionTimer);
+          connectionTimer = undefined;
+          hasShownUnavailable = false;
+          setState("paired");
+          setMessage(`Connected to ${displayPcName(pc, response.pcName)}`);
+          startHeartbeat(ws);
+          flushQueue(ws, queueRef.current);
+          return;
+        }
+
+        if (response.type === "pair.rejected") {
+          shouldRetry = false;
+          clearStoredSecret(clientId, pc.id);
+          queueRef.current = [];
+          if (response.reason === "missing-token") {
+            setState("needs-pairing");
+            setMessage(`Scan ${getPcDisplayName(pc)}'s pairing QR to pair this app.`);
+          } else if (response.reason === "invalid-token") {
+            setState("needs-pairing");
+            setMessage("Pairing code expired. Scan a new QR code.");
+          } else {
+            setState("rejected");
+            setMessage(`Pairing rejected: ${response.reason}`);
+          }
+          ws.close();
+          return;
+        }
+
+        if (response.type === "status") {
+          window.clearTimeout(heartbeatDeadlineTimer);
+          heartbeatDeadlineTimer = undefined;
+          if (response.pcName) {
+            setPairedPcs((current) => applyPcNameFromHost(current, pc.id, response.pcName ?? ""));
+          }
+
+          setMessage(response.connected ? `Connected to ${displayPcName(pc, response.pcName ?? "")}` : (response.message ?? "Disconnected"));
+          return;
+        }
+
+        if (response.type === "status.pong") {
+          window.clearTimeout(heartbeatDeadlineTimer);
+          heartbeatDeadlineTimer = undefined;
+          setPairedPcs((current) => applyPcNameFromHost(current, pc.id, response.pcName));
+          setState("paired");
+          return;
+        }
+
+        if (response.type === "audio.state") {
+          setAudioState(normalizeAudioState(response));
+        }
+      });
+
+      ws.addEventListener("close", () => {
+        if (disposed) {
+          return;
+        }
+
+        if (!shouldRetry) {
+          return;
+        }
+
+        markUnavailable(ws);
+      });
+
+      ws.addEventListener("error", () => {
+        markUnavailable(ws);
+      });
+    }
+
+    connect();
+
+    return () => {
+      disposed = true;
+      clearTimers();
+      socketRef.current?.close();
+    };
+  }, [activePc?.id, activePc?.url, clientId, pairedPcs.length, pairingAttempt]);
+
+  const pairWithToken = useCallback((token: string, pcUrl = window.location.origin, requestedDeviceName?: string) => {
+    const nextDeviceName = normalizeDeviceNameInput(requestedDeviceName ?? deviceNameRef.current) ?? getDefaultDeviceName();
+    deviceNameRef.current = nextDeviceName;
+    localStorage.setItem(deviceNameKey, nextDeviceName);
+    setDeviceName(nextDeviceName);
+
+    const profile = createPcProfile(pcUrl);
+    queueRef.current = [];
+    setPairedPcs((current) => {
+      const next = upsertPcProfile(current, profile);
+      savePcProfiles(next);
+      return next;
+    });
+    saveActivePcId(profile.id);
+    setActivePcId(profile.id);
+    setState("connecting");
+    setMessage(`Pairing with ${getPcDisplayName(profile)}...`);
+    setPairingAttempt((current) => ({ token, id: current.id + 1 }));
+  }, []);
+
+  const selectPc = useCallback((pcId: string) => {
+    queueRef.current = [];
+    setPairingAttempt((current) => ({ token: undefined, id: current.id + 1 }));
+    setActivePcId(pcId);
+  }, []);
+
+  const disconnectActivePc = useCallback(() => {
+    if (!activePcId) {
+      return;
+    }
+
+    queueRef.current = [];
+    socketRef.current?.close();
+    setActivePcId(null);
+    setPairingAttempt((current) => ({ token: undefined, id: current.id + 1 }));
+    setState("needs-pairing");
+    setAudioState(null);
+    setMessage("Disconnected. Choose a saved PC or scan a pairing QR.");
+  }, [activePcId]);
+
+  const forgetPc = useCallback((pcId: string) => {
+    const pc = pairedPcs.find((profile) => profile.id === pcId) ?? null;
+    queueRef.current = [];
+    revokePcPairing(pc, clientId, deviceNameRef.current, activePcId === pcId ? socketRef.current : null);
+    clearStoredSecret(clientId, pcId);
+    setPairedPcs((current) => current.filter((pc) => pc.id !== pcId));
+    if (activePcId === pcId) {
+      socketRef.current?.close();
+      setActivePcId(null);
+      setAudioState(null);
+      setPairingAttempt((current) => ({ token: undefined, id: current.id + 1 }));
+      setState("needs-pairing");
+      setMessage("Disconnected. Choose a PC or scan a pairing QR.");
+    }
+  }, [activePcId, clientId, pairedPcs]);
+
+  const renamePc = useCallback((pcId: string, name: string) => {
+    setPairedPcs((current) =>
+      current.map((pc) =>
+        pc.id === pcId
+          ? {
+              ...pc,
+              customName: true,
+              name
+            }
+          : pc
+      )
+    );
+  }, []);
+
+  const renameDevice = useCallback((name: string) => {
+    setDeviceName(name);
+    if (state === "paired") {
+      send({ type: "device.rename", deviceName: name.trim() || getDefaultDeviceName() });
+    }
+  }, [send, state]);
+
+  return { state, message, send, clientId, deviceName, activePc, pairedPcs, audioState, pairWithToken, selectPc, disconnectActivePc, forgetPc, renamePc, renameDevice };
+}
+
+function getOrCreateClientId(source: string): string {
+  const existing = localStorage.getItem(clientIdKey);
+  if (existing) {
+    return existing;
+  }
+
+  const created = getClientIdFromAddress(source) ?? createClientId();
+  localStorage.setItem(clientIdKey, created);
+  return created;
+}
+
+function getClientIdFromAddress(source: string): string | null {
+  try {
+    const url = new URL(source);
+    return normalizeClientId(url.searchParams.get(clientIdQueryParam));
+  } catch {
+    return normalizeClientId(new URLSearchParams(source).get(clientIdQueryParam));
+  }
+}
+
+function normalizeClientId(value: string | null): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed.length < 8 || trimmed.length > 128 || !/^[a-zA-Z0-9._:-]+$/.test(trimmed)) {
+    return null;
+  }
+
+  return trimmed;
+}
+
+function getDeviceNameFromAddress(source: string): string | null {
+  try {
+    const url = new URL(source);
+    return normalizeDeviceNameInput(url.searchParams.get(deviceNameQueryParam));
+  } catch {
+    return normalizeDeviceNameInput(new URLSearchParams(source).get(deviceNameQueryParam));
+  }
+}
+
+function normalizeDeviceNameInput(value: string | null): string | null {
+  const trimmed = value?.trim();
+  return trimmed && trimmed.length <= 80 ? trimmed : null;
+}
+
+function ensureClientMetadataInAddress(clientId: string, deviceName: string): void {
+  try {
+    const url = new URL(window.location.href);
+    const normalizedDeviceName = deviceName.trim() || getDefaultDeviceName();
+    if (url.searchParams.get(clientIdQueryParam) === clientId && url.searchParams.get(deviceNameQueryParam) === normalizedDeviceName) {
+      return;
+    }
+
+    url.searchParams.set(clientIdQueryParam, clientId);
+    url.searchParams.set(deviceNameQueryParam, normalizedDeviceName);
+    window.history.replaceState(null, "", url);
+  } catch {
+  }
+}
+
+function createClientId(): string {
+  if (crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+
+  if (crypto.getRandomValues) {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  }
+
+  return `client-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+function loadDeviceName(source: string): string {
+  const existing = normalizeDeviceNameInput(localStorage.getItem(deviceNameKey));
+  if (existing) {
+    return existing;
+  }
+
+  const fromAddress = getDeviceNameFromAddress(source);
+  if (fromAddress) {
+    localStorage.setItem(deviceNameKey, fromAddress);
+    return fromAddress;
+  }
+
+  return getDefaultDeviceName();
+}
+
+function loadPcProfiles(): PcProfile[] {
+  const stored = localStorage.getItem(pcProfilesKey);
+  if (!stored) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(stored);
+    return Array.isArray(parsed) ? parsed.map(normalizePcProfile).filter((pc): pc is PcProfile => pc !== null) : [];
+  } catch {
+    return [];
+  }
+}
+
+function loadActivePcId(): string | null {
+  const stored = localStorage.getItem(activePcIdKey);
+  if (!stored) {
+    return null;
+  }
+
+  try {
+    return new URL(stored).origin;
+  } catch {
+    return stored;
+  }
+}
+
+function savePcProfiles(profiles: PcProfile[]): void {
+  localStorage.setItem(pcProfilesKey, JSON.stringify(profiles));
+}
+
+function saveActivePcId(pcId: string | null): void {
+  if (pcId) {
+    localStorage.setItem(activePcIdKey, pcId);
+  } else {
+    localStorage.removeItem(activePcIdKey);
+  }
+}
+
+function normalizePcProfile(value: Partial<PcProfile>): PcProfile | null {
+  if (typeof value.url !== "string") {
+    return null;
+  }
+
+  try {
+    const profile = createPcProfile(value.url);
+    const customName = value.customName === true;
+    const name = typeof value.name === "string" && value.name.trim().length > 0 ? value.name : profile.name;
+    return {
+      ...profile,
+      customName,
+      name: customName || !isIpHost(name) ? name : profile.name
+    };
+  } catch {
+    return null;
+  }
+}
+
+function createPcProfile(pcUrl: string): PcProfile {
+  const url = new URL(pcUrl);
+  const origin = url.origin;
+  return {
+    customName: false,
+    id: origin,
+    name: "PC",
+    url: origin
+  };
+}
+
+function upsertPcProfile(profiles: PcProfile[], profile: PcProfile): PcProfile[] {
+  const existing = profiles.find((pc) => pc.id === profile.id);
+  if (!existing) {
+    return [...profiles, profile];
+  }
+
+  return profiles.map((pc) => (pc.id === profile.id ? { ...profile, customName: pc.customName, name: pc.name } : pc));
+}
+
+function applyPcNameFromHost(profiles: PcProfile[], pcId: string, pcName: string): PcProfile[] {
+  const name = pcName.trim();
+  if (!name) {
+    return profiles;
+  }
+
+  let changed = false;
+  const next = profiles.map((pc) => {
+    if (pc.id !== pcId || pc.customName || pc.name === name) {
+      return pc;
+    }
+
+    changed = true;
+    return { ...pc, name };
+  });
+
+  return changed ? next : profiles;
+}
+
+function displayPcName(pc: PcProfile, hostName: string): string {
+  const trimmedHostName = hostName.trim();
+  return pc.customName || trimmedHostName.length === 0 ? getPcDisplayName(pc) : trimmedHostName;
+}
+
+function getPcUnavailableMessage(pc: PcProfile): string {
+  return `${getPcDisplayName(pc)} is currently not available. Check that Voltura Air is running on the PC. Retrying...`;
+}
+
+function getWebSocketUrl(pc: PcProfile): string {
+  const url = new URL(pc.url);
+  const protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${url.host}/ws`;
+}
+
+function parseServerMessage(data: unknown): ServerMessage | null {
+  if (typeof data !== "string") {
+    return null;
+  }
+
+  try {
+    return JSON.parse(data) as ServerMessage;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeAudioState(message: AudioStateMessage): AudioStateMessage {
+  return {
+    type: "audio.state",
+    volume: Math.max(0, Math.min(100, Math.round(message.volume))),
+    muted: message.muted === true
+  };
+}
+
+function handlePairAccepted(message: PairAcceptedMessage, pcId: string): void {
+  localStorage.setItem(secretKey(message.clientId, pcId), message.secret);
+}
+
+function getStoredSecret(clientId: string, pcId: string): string | null {
+  return localStorage.getItem(secretKey(clientId, pcId));
+}
+
+function clearStoredSecret(clientId: string, pcId: string): void {
+  localStorage.removeItem(secretKey(clientId, pcId));
+}
+
+function revokePcPairing(pc: PcProfile | null, clientId: string, deviceName: string, activeSocket: WebSocket | null): void {
+  if (!pc) {
+    return;
+  }
+
+  if (activeSocket?.readyState === WebSocket.OPEN) {
+    activeSocket.send(JSON.stringify({ type: "pair.disconnect" }));
+    return;
+  }
+
+  const secret = getStoredSecret(clientId, pc.id);
+  if (!secret) {
+    return;
+  }
+
+  const socket = new WebSocket(getWebSocketUrl(pc));
+  let authenticated = false;
+
+  socket.addEventListener("open", () => {
+    socket.send(JSON.stringify({
+      type: "pair.hello",
+      clientId,
+      deviceName: deviceName.trim() || getDefaultDeviceName(),
+      platform: getPlatformName(),
+      browser: getBrowserName(),
+      displayMode: getDisplayMode(),
+      secret
+    }));
+  });
+
+  socket.addEventListener("message", (event) => {
+    const response = parseServerMessage(event.data);
+    if (response?.type !== "pair.accepted" || authenticated) {
+      return;
+    }
+
+    authenticated = true;
+    socket.send(JSON.stringify({ type: "pair.disconnect" }));
+    socket.close();
+  });
+
+  socket.addEventListener("error", () => {
+    socket.close();
+  });
+}
+
+function secretKey(clientId: string, pcId: string): string {
+  return `voltura-air.secret.${clientId}.${pcId}`;
+}
+
+function clearPairTokenFromAddress(): void {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has("t")) {
+    return;
+  }
+
+  url.searchParams.delete("t");
+  window.history.replaceState(null, "", url);
+}
+
+function flushQueue(socket: WebSocket, queue: ClientMessage[]): void {
+  while (queue.length > 0) {
+    const event = queue.shift();
+    if (event) {
+      socket.send(JSON.stringify(event));
+    }
+  }
+}
+
+function getDefaultDeviceName(): string {
+  if (navigator.userAgent.includes("iPad")) {
+    return "iPad";
+  }
+
+  if (navigator.userAgent.includes("iPhone")) {
+    return "iPhone";
+  }
+
+  if (/Android/i.test(navigator.userAgent)) {
+    return /Tablet|SM-T|Nexus 7|Nexus 10/i.test(navigator.userAgent) ? "Android tablet" : "Android phone";
+  }
+
+  return "Mobile device";
+}
+
+function getDisplayMode(): "browser" | "installed" | "unknown" {
+  if (window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true) {
+    return "installed";
+  }
+
+  if (window.matchMedia("(display-mode: browser)").matches) {
+    return "browser";
+  }
+
+  return "unknown";
+}
+
+function getPlatformName(): string {
+  const userAgent = navigator.userAgent;
+  if (/iPad/i.test(userAgent)) {
+    return "iPadOS";
+  }
+
+  if (/iPhone/i.test(userAgent)) {
+    return "iOS";
+  }
+
+  if (/Android/i.test(userAgent)) {
+    return "Android";
+  }
+
+  if (/Windows/i.test(userAgent)) {
+    return "Windows";
+  }
+
+  if (/Mac OS X/i.test(userAgent)) {
+    return "macOS";
+  }
+
+  return "Unknown platform";
+}
+
+function getBrowserName(): string {
+  const userAgent = navigator.userAgent;
+  if (/SamsungBrowser/i.test(userAgent)) {
+    return "Samsung Internet";
+  }
+
+  if (/Edg\//i.test(userAgent)) {
+    return "Edge";
+  }
+
+  if (/CriOS|Chrome/i.test(userAgent) && !/Edg\//i.test(userAgent)) {
+    return "Chrome";
+  }
+
+  if (/FxiOS|Firefox/i.test(userAgent)) {
+    return "Firefox";
+  }
+
+  if (/Safari/i.test(userAgent)) {
+    return "Safari";
+  }
+
+  return "Unknown browser";
+}

@@ -8,6 +8,7 @@ internal static class SettingsFormLayoutShim
 {
     private static readonly HashSet<SettingsForm> AttachedForms = new();
     private static readonly HashSet<Button> AttachedButtons = new();
+    private static readonly HashSet<Control> DetachedWheelControls = new();
     private static readonly HashSet<SettingsForm> UpdatingForms = new();
 
     [ModuleInitializer]
@@ -71,6 +72,7 @@ internal static class SettingsFormLayoutShim
         UpdatingForms.Add(form);
         try
         {
+            DetachOuterPageWheelHandlers(form);
             foreach (var table in Descendants(form).OfType<TableLayoutPanel>())
             {
                 for (var row = 0; row < table.RowStyles.Count; row += 1)
@@ -104,6 +106,30 @@ internal static class SettingsFormLayoutShim
         finally
         {
             UpdatingForms.Remove(form);
+        }
+    }
+
+    private static void DetachOuterPageWheelHandlers(SettingsForm form)
+    {
+        var method = form.GetType().GetMethod("OnPageMouseWheel", BindingFlags.Instance | BindingFlags.NonPublic);
+        if (method is null)
+        {
+            return;
+        }
+
+        var handler = (MouseEventHandler)Delegate.CreateDelegate(typeof(MouseEventHandler), form, method);
+        foreach (var embedded in Descendants(form).Where(control => control is DeviceManagerPanel or ConnectionSettingsPanel))
+        {
+            foreach (var control in DescendantsAndSelf(embedded))
+            {
+                if (!DetachedWheelControls.Add(control))
+                {
+                    continue;
+                }
+
+                control.Disposed += (_, _) => DetachedWheelControls.Remove(control);
+                control.MouseWheel -= handler;
+            }
         }
     }
 
@@ -162,6 +188,15 @@ internal static class SettingsFormLayoutShim
                 track.Visible = false;
                 canvas.Location = Point.Empty;
             }
+        }
+    }
+
+    private static IEnumerable<Control> DescendantsAndSelf(Control root)
+    {
+        yield return root;
+        foreach (var descendant in Descendants(root))
+        {
+            yield return descendant;
         }
     }
 

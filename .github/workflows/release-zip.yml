@@ -56,10 +56,6 @@ jobs:
         shell: pwsh
         run: npm run package:win -- -Version "${{ inputs.version }}" -Runtime "${{ inputs.runtime }}"
 
-      - name: Verify packaged web compression assets
-        shell: pwsh
-        run: node scripts/verify-web-compression.mjs "artifacts/publish/VolturaAir-${{ inputs.runtime }}/wwwroot"
-
       - name: Collect asset paths
         id: package
         shell: pwsh

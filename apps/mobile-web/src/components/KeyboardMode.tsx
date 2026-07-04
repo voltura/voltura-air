@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Moon, Send, Space } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Send, Space } from "lucide-react";
 import { liveKeyboardSentinel } from "../keyboardDelta";
 
 const functionKeys = Array.from({ length: 12 }, (_, index) => `F${index + 1}`);
@@ -356,8 +356,7 @@ export function KeyboardMode({
         <button onClick={() => sendSpecial("Escape")}>Esc</button>
         <button onClick={() => sendSpecial("Win")}>Win</button>
         {showSleepButton && (
-          <button type="button" className="keyboard-sleep-button" onClick={onSleep}>
-            <Moon aria-hidden="true" />
+          <button type="button" onClick={onSleep}>
             <span>Sleep</span>
           </button>
         )}

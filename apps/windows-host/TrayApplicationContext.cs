@@ -41,6 +41,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         _hadActiveController = pairingManager.HasActiveController;
         _form.FormClosed += (_, _) => ExitThread();
         _form.DeviceManagerRequested += OnDeviceManagerRequested;
+        _form.StartupLoadingCompleted += OnStartupLoadingCompleted;
         _settingsForm.DevicePermissionsRequested += OnSettingsDevicePermissionsRequested;
         _deviceManagerForm.DevicePermissionsRequested += OnDevicePermissionsRequested;
         _pairingManager.ConnectionChanged += OnConnectionChanged;
@@ -59,7 +60,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         _trayIcon.DoubleClick += (_, _) => _form.ShowMainWindow();
 
         TrayIconVisibilityPromoter.PromoteWhenReady(_components, _trayIcon);
-        if (showMainWindow && !_pairingManager.HasActiveController && AppNotificationSettings.ShowPairingWindowOnDisconnect())
+        if (showMainWindow)
         {
             _form.Show();
         }
@@ -71,6 +72,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         {
             _pairingManager.ConnectionChanged -= OnConnectionChanged;
             _form.DeviceManagerRequested -= OnDeviceManagerRequested;
+            _form.StartupLoadingCompleted -= OnStartupLoadingCompleted;
             _settingsForm.DevicePermissionsRequested -= OnSettingsDevicePermissionsRequested;
             _deviceManagerForm.DevicePermissionsRequested -= OnDevicePermissionsRequested;
             AppThemeSettings.Changed -= OnAppThemeChanged;
@@ -210,6 +212,14 @@ public sealed class TrayApplicationContext : ApplicationContext
         _permissionsForm.ShowDevice(_deviceManagerForm, e.ClientId, e.DeviceName);
     }
 
+    private void OnStartupLoadingCompleted(object? sender, EventArgs e)
+    {
+        if (!AppNotificationSettings.ShowPairingWindowOnDisconnect() || _pairingManager.HasActiveController)
+        {
+            _form.HideToTray();
+        }
+    }
+
     private void HidePairingWindowIfVisible()
     {
         if (_form.Visible)
@@ -228,7 +238,11 @@ public sealed class TrayApplicationContext : ApplicationContext
             _form.BeginInvoke(() =>
             {
                 _form.ShowPairedStatus();
-                _form.HideToTray();
+                if (!_form.IsStartupLoading)
+                {
+                    _form.HideToTray();
+                }
+
                 ShowConnectionStatusNotification(
                     "Voltura Air paired",
                     $"{_pairingManager.ActiveDeviceSummary} connected.",

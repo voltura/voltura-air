@@ -17,6 +17,7 @@ public sealed class WebHostService : IAsyncDisposable
     private readonly PairingManager _pairingManager;
     private readonly InputDispatcher _inputDispatcher;
     private readonly ISystemAudioController _audioController;
+    private readonly PairingAttemptRateLimiter _pairingAttemptRateLimiter = new();
     private readonly object _connectionsGate = new();
     private readonly Dictionary<string, List<WebSocket>> _activeSockets = new(StringComparer.Ordinal);
     private readonly Dictionary<WebSocket, SemaphoreSlim> _sendGates = new();
@@ -93,8 +94,14 @@ public sealed class WebHostService : IAsyncDisposable
                 return;
             }
 
+            if (!IsAllowedWebSocketOrigin(context.Request))
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                return;
+            }
+
             using var socket = await context.WebSockets.AcceptWebSocketAsync();
-            await HandleSocketAsync(socket, context.RequestAborted);
+            await HandleSocketAsync(socket, GetRateLimitKey(context), context.RequestAborted);
         });
 
         var staticRoot = ResolveStaticRoot();
@@ -163,7 +170,7 @@ public sealed class WebHostService : IAsyncDisposable
         }
     }
 
-    private async Task HandleSocketAsync(WebSocket socket, CancellationToken cancellationToken)
+    private async Task HandleSocketAsync(WebSocket socket, string rateLimitKey, CancellationToken cancellationToken)
     {
         var authenticated = false;
         var authenticatedClientId = string.Empty;
@@ -182,32 +189,51 @@ public sealed class WebHostService : IAsyncDisposable
 
                 using var document = JsonDocument.Parse(message);
                 var root = document.RootElement;
-                var type = root.TryGetProperty("type", out var typeProperty) ? typeProperty.GetString() : null;
+                var type = ClientMessageValidator.TryReadType(root, out var messageType) ? messageType : null;
 
                 if (!authenticated)
                 {
                     if (type != "pair.hello")
                     {
                         await SendSocketAsync(socket, new { type = "pair.rejected", reason = "pair-first" }, cancellationToken);
+                        _pairingAttemptRateLimiter.RecordFailure(rateLimitKey);
                         continue;
                     }
 
-                    var clientId = GetString(root, "clientId");
-                    var deviceName = GetString(root, "deviceName");
+                    if (!ClientMessageValidator.TryValidatePairHello(root, out var hello))
+                    {
+                        _pairingAttemptRateLimiter.RecordFailure(rateLimitKey);
+                        await SendSocketAsync(socket, new { type = "pair.rejected", reason = "invalid-message" }, cancellationToken);
+                        continue;
+                    }
+
+                    var isRateLimited = _pairingAttemptRateLimiter.IsBlocked(rateLimitKey);
                     var result = _pairingManager.Accept(
-                        clientId,
-                        deviceName,
-                        GetOptionalString(root, "pairToken"),
-                        GetOptionalString(root, "secret"),
-                        platform: GetOptionalString(root, "platform"),
-                        browser: GetOptionalString(root, "browser"),
-                        displayMode: GetOptionalString(root, "displayMode"));
+                        hello.ClientId,
+                        hello.DeviceName,
+                        hello.PairToken,
+                        hello.Secret,
+                        platform: hello.Platform,
+                        browser: hello.Browser,
+                        displayMode: hello.DisplayMode);
                     if (!result.Accepted)
                     {
-                        await SendSocketAsync(socket, new { type = "pair.rejected", reason = result.Reason }, cancellationToken);
+                        if (isRateLimited)
+                        {
+                            await SendSocketAsync(socket, new { type = "pair.rejected", reason = "rate-limited" }, cancellationToken);
+                        }
+                        else
+                        {
+                            _pairingAttemptRateLimiter.RecordFailure(rateLimitKey);
+                            await SendSocketAsync(socket, new { type = "pair.rejected", reason = result.Reason }, cancellationToken);
+                        }
+
                         continue;
                     }
 
+                    _pairingAttemptRateLimiter.Reset(rateLimitKey);
+                    var clientId = hello.ClientId;
+                    var deviceName = hello.DeviceName;
                     var secret = result.Secret ?? _pairingManager.RotateSecret(clientId, deviceName);
                     authenticated = true;
                     authenticatedClientId = clientId;
@@ -219,6 +245,12 @@ public sealed class WebHostService : IAsyncDisposable
                     await SendSocketAsync(socket, new { type = "status", connected = true, message = "Connected", pcName, capabilities, host = CreateHostStatus() }, cancellationToken);
                     await SendAudioStateAsync(socket, clientId, cancellationToken);
                     continue;
+                }
+
+                if (!ClientMessageValidator.IsValidAuthenticatedMessage(root))
+                {
+                    await CloseSocketAsync(socket, "Invalid message", WebSocketCloseStatus.PolicyViolation, cancellationToken);
+                    break;
                 }
 
                 if (type == "pair.disconnect")
@@ -263,6 +295,18 @@ public sealed class WebHostService : IAsyncDisposable
                 }
 
                 _inputDispatcher.Dispatch(root);
+            }
+        }
+        catch (JsonException)
+        {
+            if (!authenticated)
+            {
+                _pairingAttemptRateLimiter.RecordFailure(rateLimitKey);
+                await SendSocketAsync(socket, new { type = "pair.rejected", reason = "invalid-message" }, cancellationToken);
+            }
+            else
+            {
+                await CloseSocketAsync(socket, "Invalid message", WebSocketCloseStatus.PolicyViolation, cancellationToken);
             }
         }
         catch (Exception ex) when (ex is WebSocketException or OperationCanceledException or ObjectDisposedException)
@@ -444,7 +488,12 @@ public sealed class WebHostService : IAsyncDisposable
         return Encoding.UTF8.GetString(stream.ToArray());
     }
 
-    private static async Task CloseSocketAsync(WebSocket socket, string reason, CancellationToken cancellationToken)
+    private static Task CloseSocketAsync(WebSocket socket, string reason, CancellationToken cancellationToken)
+    {
+        return CloseSocketAsync(socket, reason, WebSocketCloseStatus.NormalClosure, cancellationToken);
+    }
+
+    private static async Task CloseSocketAsync(WebSocket socket, string reason, WebSocketCloseStatus status, CancellationToken cancellationToken)
     {
         if (socket.State is not (WebSocketState.Open or WebSocketState.CloseReceived))
         {
@@ -453,7 +502,7 @@ public sealed class WebHostService : IAsyncDisposable
 
         try
         {
-            await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, reason, cancellationToken);
+            await socket.CloseAsync(status, reason, cancellationToken);
         }
         catch (Exception ex) when (ex is WebSocketException or ObjectDisposedException or OperationCanceledException)
         {
@@ -530,6 +579,11 @@ public sealed class WebHostService : IAsyncDisposable
         }
 
         return typeProperty.GetString() is "audio.mute.toggle" or "audio.volume.set";
+    }
+
+    private static string GetString(JsonElement root, string propertyName)
+    {
+        return root.TryGetProperty(propertyName, out var value) ? value.GetString() ?? string.Empty : string.Empty;
     }
 
     private static void TrySleepPc()
@@ -615,16 +669,6 @@ public sealed class WebHostService : IAsyncDisposable
             : null;
     }
 
-    private static string GetString(JsonElement root, string propertyName)
-    {
-        return GetOptionalString(root, propertyName) ?? string.Empty;
-    }
-
-    private static string? GetOptionalString(JsonElement root, string propertyName)
-    {
-        return root.TryGetProperty(propertyName, out var value) ? value.GetString() : null;
-    }
-
     private static string ResolveStaticRoot()
     {
         var devRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "mobile-web", "dist"));
@@ -671,6 +715,80 @@ public sealed class WebHostService : IAsyncDisposable
     internal static string BuildWebSocketUrl(string hostAddress, int port)
     {
         return $"ws://{hostAddress}:{port}/ws";
+    }
+
+    internal static bool IsAllowedWebSocketOrigin(HttpRequest request)
+    {
+        var origin = request.Headers.Origin.ToString();
+        if (string.IsNullOrWhiteSpace(origin))
+        {
+            return true;
+        }
+
+        if (!Uri.TryCreate(origin, UriKind.Absolute, out var originUri) ||
+            originUri.Scheme is not ("http" or "https"))
+        {
+            return false;
+        }
+
+        var requestHost = request.Host.Host;
+        var requestPort = request.Host.Port;
+        if (string.Equals(originUri.Host, requestHost, StringComparison.OrdinalIgnoreCase) &&
+            (requestPort is null || originUri.Port == requestPort))
+        {
+            return true;
+        }
+
+        var configuredClientUrl = Environment.GetEnvironmentVariable("VOLTURA_AIR_CLIENT_URL");
+        if (Uri.TryCreate(configuredClientUrl, UriKind.Absolute, out var configuredClientUri) &&
+            SameOrigin(originUri, configuredClientUri))
+        {
+            return true;
+        }
+
+        return IsLoopbackOrPrivateHost(originUri.Host);
+    }
+
+    private static string GetRateLimitKey(HttpContext context)
+    {
+        return context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+    }
+
+    private static bool SameOrigin(Uri first, Uri second)
+    {
+        return string.Equals(first.Scheme, second.Scheme, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(first.Host, second.Host, StringComparison.OrdinalIgnoreCase) &&
+            first.Port == second.Port;
+    }
+
+    private static bool IsLoopbackOrPrivateHost(string host)
+    {
+        if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!IPAddress.TryParse(host, out var address))
+        {
+            return false;
+        }
+
+        if (IPAddress.IsLoopback(address))
+        {
+            return true;
+        }
+
+        if (address.AddressFamily != AddressFamily.InterNetwork)
+        {
+            return address.IsIPv6LinkLocal || address.IsIPv6SiteLocal || address.IsIPv6UniqueLocal;
+        }
+
+        var bytes = address.GetAddressBytes();
+        return bytes[0] == 10 ||
+            bytes[0] == 127 ||
+            (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) ||
+            (bytes[0] == 192 && bytes[1] == 168) ||
+            (bytes[0] == 169 && bytes[1] == 254);
     }
 
     private HostStatusMetadata CreateHostStatus()

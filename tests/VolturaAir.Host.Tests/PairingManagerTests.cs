@@ -5,7 +5,35 @@ namespace VolturaAir.Host.Tests;
 public sealed class PairingManagerTests
 {
     [Fact]
-    public void AcceptsValidTokenAndRejectsExpiredToken()
+    public void AcceptsFreshPairingToken()
+    {
+        using var store = new TempPairingStore();
+        var manager = new PairingManager(store.Store);
+        var now = DateTimeOffset.UtcNow;
+        var token = manager.CreatePairingToken(now);
+
+        var accepted = manager.Accept("client-a", "Phone", token, null, now);
+
+        Assert.True(accepted.Accepted);
+        Assert.Equal("paired-with-new-secret", accepted.Reason);
+        Assert.False(string.IsNullOrWhiteSpace(accepted.Secret));
+        Assert.Equal(1, manager.PairedDeviceCount);
+    }
+
+    [Fact]
+    public void RejectsMissingTokenAndSecret()
+    {
+        using var store = new TempPairingStore();
+        var manager = new PairingManager(store.Store);
+
+        var rejected = manager.Accept("client-a", "Phone", null, null);
+
+        Assert.False(rejected.Accepted);
+        Assert.Equal("missing-token", rejected.Reason);
+    }
+
+    [Fact]
+    public void RejectsExpiredToken()
     {
         using var store = new TempPairingStore();
         var manager = new PairingManager(store.Store);
@@ -16,6 +44,34 @@ public sealed class PairingManagerTests
 
         Assert.False(expired.Accepted);
         Assert.Equal("expired-token", expired.Reason);
+    }
+
+    [Fact]
+    public void RejectsStaleTokenWhenNoCurrentTokenExists()
+    {
+        using var store = new TempPairingStore();
+        var manager = new PairingManager(store.Store);
+
+        var stale = manager.Accept("client-a", "Phone", "old-token", null);
+
+        Assert.False(stale.Accepted);
+        Assert.Equal("stale-token", stale.Reason);
+    }
+
+    [Fact]
+    public void RejectsWrongTokenWithoutConsumingCurrentToken()
+    {
+        using var store = new TempPairingStore();
+        var manager = new PairingManager(store.Store);
+        var now = DateTimeOffset.UtcNow;
+        var token = manager.CreatePairingToken(now);
+
+        var rejected = manager.Accept("client-a", "Phone", "wrong-token", null, now);
+        var accepted = manager.Accept("client-a", "Phone", token, null, now);
+
+        Assert.False(rejected.Accepted);
+        Assert.Equal("invalid-token", rejected.Reason);
+        Assert.True(accepted.Accepted);
     }
 
     [Fact]

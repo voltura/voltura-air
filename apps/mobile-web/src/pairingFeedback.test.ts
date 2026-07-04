@@ -51,6 +51,24 @@ describe("getPairingFeedback", () => {
     expect(feedback.title).toBe("Pairing failed");
     expect(feedback.diagnosticCode).toBe("VAIR-PAIR-STRANGE-NEW-REASON");
   });
+
+  it("maps rate-limited pairing attempts to wait-and-rescan guidance", () => {
+    const feedback = getPairingFeedback("Pairing rejected: rate-limited");
+
+    expect(feedback.reason).toBe("rate-limited");
+    expect(feedback.title).toBe("Too many pairing attempts");
+    expect(feedback.body).toContain("temporarily blocked");
+    expect(feedback.diagnosticCode).toBe("VAIR-PAIR-RATE-LIMITED");
+  });
+
+  it("maps invalid pairing messages to refresh guidance", () => {
+    const feedback = getPairingFeedback("Pairing rejected: invalid-message");
+
+    expect(feedback.reason).toBe("invalid-message");
+    expect(feedback.title).toBe("Pairing request invalid");
+    expect(feedback.body).toContain("expected format");
+    expect(feedback.diagnosticCode).toBe("VAIR-PAIR-INVALID-MESSAGE");
+  });
 });
 
 describe("normalizeManualHostInput", () => {

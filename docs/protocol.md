@@ -45,7 +45,10 @@ Successful response:
   "clientId": "browser-generated-id",
   "pcName": "WINDOWS-PC",
   "secret": "secret-to-store",
-  "paired": true
+  "paired": true,
+  "capabilities": {
+    "sleep": true
+  }
 }
 ```
 
@@ -56,7 +59,10 @@ Connection status response:
   "type": "status",
   "connected": true,
   "message": "Connected",
-  "pcName": "WINDOWS-PC"
+  "pcName": "WINDOWS-PC",
+  "capabilities": {
+    "sleep": true
+  }
 }
 ```
 
@@ -98,7 +104,10 @@ Host response:
 ```json
 {
   "type": "status.pong",
-  "pcName": "WINDOWS-PC"
+  "pcName": "WINDOWS-PC",
+  "capabilities": {
+    "sleep": true
+  }
 }
 ```
 
@@ -153,6 +162,18 @@ Undo and redo shortcut aliases:
 ```
 
 The Windows host translates `Undo` to `Ctrl+Z` and `Redo` to `Ctrl+Y`.
+
+## System
+
+The host reports optional PC features in `capabilities`. The mobile app only
+shows the keyboard sleep button when `capabilities.sleep` is `true` and the
+local **Show sleep button** keyboard setting is enabled.
+
+Put the PC to sleep:
+
+```json
+{ "type": "system.sleep" }
+```
 
 ## Audio
 

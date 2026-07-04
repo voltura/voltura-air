@@ -15,7 +15,7 @@ public sealed class PairingManagerTests
         var expired = manager.Accept("client-a", "Phone", token, null, now.AddMinutes(6));
 
         Assert.False(expired.Accepted);
-        Assert.Equal("invalid-token", expired.Reason);
+        Assert.Equal("expired-token", expired.Reason);
     }
 
     [Fact]
@@ -37,6 +37,22 @@ public sealed class PairingManagerTests
     }
 
     [Fact]
+    public void RejectsRevokedSecretAsSecretRevoked()
+    {
+        using var store = new TempPairingStore();
+        var manager = new PairingManager(store.Store);
+        var now = DateTimeOffset.UtcNow;
+        var token = manager.CreatePairingToken(now);
+        var accepted = manager.Accept("client-a", "Phone", token, null, now);
+
+        manager.DisconnectDevice("client-a");
+        var reconnect = manager.Accept("client-a", "Phone", null, accepted.Secret, now.AddMinutes(1));
+
+        Assert.False(reconnect.Accepted);
+        Assert.Equal("secret-revoked", reconnect.Reason);
+    }
+
+    [Fact]
     public void ConsumesPairingTokenAfterSuccessfulPairing()
     {
         using var store = new TempPairingStore();
@@ -49,7 +65,7 @@ public sealed class PairingManagerTests
 
         Assert.True(first.Accepted);
         Assert.False(second.Accepted);
-        Assert.Equal("missing-token", second.Reason);
+        Assert.Equal("stale-token", second.Reason);
     }
 
     [Fact]

@@ -30,6 +30,9 @@ what the applications can do, not how each feature is implemented.
 - Runs as a React/TypeScript PWA in modern mobile and desktop browsers, and can
   be installed to a phone or tablet home screen.
 - Connects to a Windows host from a QR pairing link or saved PC profile.
+- Shows explicit pairing and reconnect feedback with recovery actions for
+  unreadable QR codes, expired or stale pairing links, unavailable hosts,
+  manual host entry, troubleshooting help, and copyable diagnostics.
 - Stores saved PC profiles, device identity, device name, and per-device client
   preferences in browser storage.
 - Provides trackpad input with tap-to-click, physical left/right buttons,

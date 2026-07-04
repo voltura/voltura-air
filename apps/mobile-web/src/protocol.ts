@@ -36,9 +36,21 @@ export type PairAcceptedMessage = {
   capabilities?: ServerCapabilities;
 };
 
+export type PairRejectionReason =
+  | "pair-first"
+  | "missing-token"
+  | "invalid-token"
+  | "expired-token"
+  | "stale-token"
+  | "device-revoked"
+  | "secret-revoked"
+  | "protocol-version-mismatch"
+  | (string & {});
+
 export type PairRejectedMessage = {
   type: "pair.rejected";
-  reason: string;
+  reason: PairRejectionReason;
+  diagnosticCode?: string;
 };
 
 export type StatusMessage = {

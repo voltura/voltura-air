@@ -79,9 +79,25 @@ Rejected response:
 ```json
 {
   "type": "pair.rejected",
-  "reason": "invalid-token"
+  "reason": "invalid-token",
+  "diagnosticCode": "VAIR-PAIR-INVALID-TOKEN"
 }
 ```
+
+Known pairing rejection reasons:
+
+| Reason | Meaning |
+| --- | --- |
+| `pair-first` | The client sent a non-pairing message before authentication. |
+| `missing-token` | No `pairToken` or valid reconnect `secret` was supplied. |
+| `invalid-token` | A supplied pairing token was not accepted by the host. |
+| `expired-token` | The active pairing token expired before use. |
+| `stale-token` | The token was already consumed or replaced by a newer QR code. |
+| `device-revoked` / `secret-revoked` | The stored device credential is no longer valid. |
+| `protocol-version-mismatch` | The client and host pairing protocol versions are incompatible. |
+
+The mobile client must treat unknown reasons as diagnosable pairing failures and
+show a diagnostic code instead of raw protocol text.
 
 Forget this device on the PC after pairing has been accepted:
 

@@ -74,6 +74,7 @@ export function App() {
     supportsVolumeControl,
     pairWithToken,
     selectPc,
+    connectManualPc,
     disconnectActivePc,
     forgetPc,
     renamePc,
@@ -191,6 +192,13 @@ export function App() {
     setPendingPairing(null);
     setIsSettingsOpen(false);
     pairWithToken(pendingPairing.pairToken, pendingPairing.pcUrl, name);
+  };
+
+  const connectManualHost = (target: string) => {
+    connectManualPc(target);
+    setPendingPairing(null);
+    setIsSettingsOpen(false);
+    setPairingScanMessage("Connecting to manually entered PC...");
   };
 
   const onTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
@@ -518,14 +526,21 @@ export function App() {
           message={pendingPairing ? "Confirm the device name shown on the PC, or change it before pairing." : pairingScanMessage}
           onDeviceNameChange={pendingPairing ? setPairingDeviceName : undefined}
           onPrimaryAction={pendingPairing ? confirmPendingPairing : scanPairingQr}
+          onManualHostSubmit={connectManualHost}
           primaryLabel={pendingPairing ? "Pair" : undefined}
         />
       )}
 
-      {state === "rejected" && !isSettingsOpen && <PairingStatus message={message} onPrimaryAction={scanPairingQr} primaryLabel="Take photo of new QR code" />}
+      {state === "rejected" && !isSettingsOpen && <PairingStatus message={message} onPrimaryAction={scanPairingQr} onManualHostSubmit={connectManualHost} primaryLabel="Take photo of new QR code" />}
 
       {state === "unavailable" && activePc && !isSettingsOpen && (
-        <PairingStatus activePcUnavailable message={message} onPrimaryAction={() => selectPc(activePc.id)} onSecondaryAction={scanPairingQr} />
+        <PairingStatus
+          activePcUnavailable
+          message={message}
+          onPrimaryAction={() => selectPc(activePc.id)}
+          onSecondaryAction={scanPairingQr}
+          onManualHostSubmit={connectManualHost}
+        />
       )}
 
       <SettingsDrawer
@@ -540,6 +555,7 @@ export function App() {
         keyboardSettings={keyboardSettings}
         onClose={() => setIsSettingsOpen(false)}
         onPairingQrSelected={onPairingQrSelected}
+        onManualHostSubmit={connectManualHost}
         pairedPcs={pairedPcs}
         pairingQrInputRef={pairingQrInputRef}
         pairingScanMessage={pairingScanMessage}

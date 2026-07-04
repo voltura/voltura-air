@@ -7,6 +7,7 @@ type PairingStatusProps = {
   deviceName?: string;
   message: string;
   onDeviceNameChange?: (deviceName: string) => void;
+  onManualHostSubmit?: (target: string) => void;
   onPrimaryAction: () => void;
   onSecondaryAction?: () => void;
   primaryLabel?: string;
@@ -17,6 +18,7 @@ export function PairingStatus({
   deviceName,
   message,
   onDeviceNameChange,
+  onManualHostSubmit,
   onPrimaryAction,
   onSecondaryAction,
   primaryLabel
@@ -54,6 +56,14 @@ export function PairingStatus({
     const target = normalizeManualHostInput(manualHost, window.location.href);
     if (!target) {
       setManualHostError("Enter a host URL, IP:port, pairing link, or port number.");
+      return;
+    }
+
+    if (onManualHostSubmit) {
+      onManualHostSubmit(target);
+      setManualHost("");
+      setManualHostError("");
+      setShowManualHost(false);
       return;
     }
 

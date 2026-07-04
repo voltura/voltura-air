@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { Camera, Download, Power, RefreshCw, X } from "lucide-react";
 import { getPcDisplayName } from "../pcDisplayName";
+import { normalizeManualHostInput } from "../pairingFeedback";
 import type { TrackpadSettings } from "../gestures";
 import type { KeyboardSettings } from "../keyboardSettings";
-import type { PcProfile } from "../useVolturaAirConnection";
+import type { PcProfile } from "../pcProfiles";
 
 type ThemeMode = "system" | "light" | "dark";
 
@@ -18,6 +20,7 @@ type SettingsDrawerProps = {
   keyboardSettings: KeyboardSettings;
   onClose: () => void;
   onPairingQrSelected: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onManualHostSubmit: (target: string) => void;
   pairedPcs: PcProfile[];
   pairingQrInputRef: React.RefObject<HTMLInputElement | null>;
   pairingScanMessage: string;
@@ -46,6 +49,7 @@ export function SettingsDrawer({
   keyboardSettings,
   onClose,
   onPairingQrSelected,
+  onManualHostSubmit,
   pairedPcs,
   pairingQrInputRef,
   pairingScanMessage,
@@ -61,6 +65,22 @@ export function SettingsDrawer({
   updateKeyboardSetting,
   updateTrackpadSetting
 }: SettingsDrawerProps) {
+  const [manualHost, setManualHost] = useState("");
+  const [manualHostError, setManualHostError] = useState("");
+
+  const submitManualHost = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const target = normalizeManualHostInput(manualHost, window.location.href);
+    if (!target) {
+      setManualHostError("Enter a host URL, IP:port, pairing link, or port number.");
+      return;
+    }
+
+    onManualHostSubmit(target);
+    setManualHost("");
+    setManualHostError("");
+  };
+
   return (
     <aside className={`settings-drawer ${isOpen ? "open" : ""}`} aria-hidden={!isOpen}>
       <header className="drawer-header">
@@ -98,7 +118,7 @@ export function SettingsDrawer({
                 <div className={`pc-row ${pc.id === activePc?.id ? "active" : ""}`} key={pc.id}>
                   <div className="pc-meta">
                     <input aria-label="PC name" className="pc-name-input" type="text" value={pc.name} onChange={(event) => renamePc(pc.id, event.target.value)} />
-                    <small>{pc.id === activePc?.id ? "Active" : "Saved"}</small>
+                    <small>{pc.id === activePc?.id ? "Active" : "Saved"} · {pc.url}</small>
                   </div>
                   <div className="pc-actions">
                     {pc.id !== activePc?.id && (
@@ -129,6 +149,31 @@ export function SettingsDrawer({
             <Camera aria-hidden="true" />
             <span>Take photo of QR code</span>
           </button>
+        </div>
+
+        <div className="install-card">
+          <div className="install-title">
+            <Power aria-hidden="true" />
+            <span>Add PC manually</span>
+          </div>
+          <p>Use this when the PC IP or port changed, or when a QR page was opened before the host changed network.</p>
+          <form className="manual-pc-form" onSubmit={submitManualHost}>
+            <label className="setting-group">
+              <span>Host or pairing link</span>
+              <input
+                className="text-input"
+                inputMode="url"
+                placeholder="192.168.1.50:51395"
+                value={manualHost}
+                onChange={(event) => {
+                  setManualHost(event.target.value);
+                  setManualHostError("");
+                }}
+              />
+            </label>
+            <button type="submit">Connect to PC</button>
+            {manualHostError && <p className="pairing-inline-error">{manualHostError}</p>}
+          </form>
         </div>
       </section>
 

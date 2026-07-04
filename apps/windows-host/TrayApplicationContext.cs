@@ -6,6 +6,8 @@ public sealed class TrayApplicationContext : ApplicationContext
     private const int TrayMenuRowHeight = 42;
     private const int TrayMenuHorizontalPadding = 12;
     private const int TrayMenuWidthPadding = 48;
+    private const int SettingsWindowDefaultWidth = 1500;
+    private const int SettingsWindowDefaultHeight = 960;
     private const float TrayMenuFontSizeIncrease = 1f;
     private const string ProductSiteUrl = "https://voltura.se/air/";
     private readonly System.ComponentModel.IContainer _components = new System.ComponentModel.Container();
@@ -32,6 +34,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         _pairingManager = pairingManager;
         _deviceManagerForm = new DeviceManagerForm(pairingManager, form.CloneAppIcon(), () => _form.ShowMainWindow());
         _settingsForm = new SettingsForm(form.CloneAppIcon(), pairingManager, webHost, form);
+        ConfigureSettingsWindowDefaults();
         _permissionsForm = new PermissionsForm(pairingManager, form.CloneAppIcon());
         _technicalDetailsForm = new TechnicalDetailsForm(form.CloneAppIcon());
         _deviceManagerChrome = ThemedWindowChrome.Install(_deviceManagerForm, _deviceManagerForm.Icon!);
@@ -159,6 +162,28 @@ public sealed class TrayApplicationContext : ApplicationContext
         }
 
         return new Size(width + ScaleLogical(TrayMenuWidthPadding), ScaleLogical(TrayMenuRowHeight));
+    }
+
+    private void ConfigureSettingsWindowDefaults()
+    {
+        var targetSize = new Size(ScaleLogical(SettingsWindowDefaultWidth), ScaleLogical(SettingsWindowDefaultHeight));
+        var maximumSize = _settingsForm.MaximumSize;
+        var minimumSize = _settingsForm.MinimumSize;
+        var width = Math.Max(minimumSize.Width, targetSize.Width);
+        var height = Math.Max(minimumSize.Height, targetSize.Height);
+
+        if (maximumSize.Width > 0)
+        {
+            width = Math.Min(width, maximumSize.Width);
+        }
+
+        if (maximumSize.Height > 0)
+        {
+            height = Math.Min(height, maximumSize.Height);
+        }
+
+        _settingsForm.StartPosition = FormStartPosition.CenterScreen;
+        _settingsForm.Size = new Size(width, height);
     }
 
     private static void OpenProductSite()

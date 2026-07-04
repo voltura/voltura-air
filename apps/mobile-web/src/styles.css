@@ -306,14 +306,20 @@ button span {
   position: fixed;
   inset: max(78px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom));
   z-index: 9;
+  min-height: 0;
+  max-height: calc(100dvh - 92px);
   display: grid;
-  align-content: center;
+  align-content: start;
   justify-items: center;
   gap: 14px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
   padding: 22px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   text-align: center;
 }
 
@@ -327,12 +333,21 @@ button span {
 
 .pairing-required.connection-unavailable {
   bottom: 4px;
+  max-height: calc(100dvh - 82px);
 }
 
 .pairing-required > svg {
   width: 52px;
   height: 52px;
   color: var(--accent);
+}
+
+.pairing-status-label {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .pairing-required h1 {
@@ -347,9 +362,89 @@ button span {
   line-height: 1.4;
 }
 
+.pairing-diagnostic-code {
+  max-width: min(100%, 28rem);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  padding: 8px 10px;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.82rem;
+}
+
 .pairing-required button {
   width: min(100%, 280px);
   min-height: 54px;
+}
+
+.pairing-actions,
+.pairing-manual-host,
+.manual-pc-form {
+  display: grid;
+  gap: 10px;
+  width: min(100%, 320px);
+}
+
+.pairing-actions button,
+.pairing-manual-host button,
+.manual-pc-form button {
+  width: 100%;
+  min-width: 0;
+}
+
+.pairing-help-list {
+  display: grid;
+  gap: 8px;
+  max-width: 28rem;
+  margin: 0;
+  padding-left: 22px;
+  color: var(--muted);
+  text-align: left;
+  line-height: 1.35;
+}
+
+.pairing-manual-host {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  padding: 12px;
+  text-align: left;
+}
+
+.pairing-manual-host label {
+  display: grid;
+  gap: 8px;
+}
+
+.pairing-manual-host label > span,
+.pairing-device-name span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pairing-manual-host-row {
+  display: grid;
+  gap: 8px;
+}
+
+.pairing-inline-error,
+.pairing-inline-status {
+  max-width: 100%;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.pairing-inline-error {
+  color: var(--danger);
+}
+
+.pairing-inline-status {
+  color: var(--muted);
 }
 
 .pairing-device-name {
@@ -359,12 +454,35 @@ button span {
   text-align: left;
 }
 
-.pairing-device-name span {
-  color: var(--muted);
-  font-size: 0.82rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+@media (max-height: 430px) and (orientation: landscape) {
+  .pairing-required {
+    inset: max(64px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom));
+    max-height: calc(100dvh - 72px);
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .pairing-required.connection-unavailable {
+    max-height: calc(100dvh - 68px);
+  }
+
+  .pairing-required > svg {
+    width: 36px;
+    height: 36px;
+  }
+
+  .pairing-required h1 {
+    font-size: 1.25rem;
+  }
+
+  .pairing-required button {
+    min-height: 44px;
+  }
+
+  .pairing-actions,
+  .pairing-manual-host {
+    width: min(100%, 420px);
+  }
 }
 
 .drawer-header {

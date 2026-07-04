@@ -61,8 +61,23 @@ declare global {
 
 export function App() {
   const initialPairing = useMemo(() => parsePairingLink(window.location.href, window.location.origin), []);
-  const { state, message, send, clientId, deviceName, activePc, pairedPcs, audioState, pairWithToken, selectPc, disconnectActivePc, forgetPc, renamePc, renameDevice } =
-    useVolturaAirConnection();
+  const {
+    state,
+    message,
+    send,
+    clientId,
+    deviceName,
+    activePc,
+    pairedPcs,
+    audioState,
+    supportsSleep,
+    pairWithToken,
+    selectPc,
+    disconnectActivePc,
+    forgetPc,
+    renamePc,
+    renameDevice
+  } = useVolturaAirConnection();
   const [tab, setTab] = useState<Tab>("trackpad");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -200,6 +215,10 @@ export function App() {
     if (text.length > 0) {
       emit({ type: "keyboard.text", text });
     }
+  };
+
+  const sleepPc = () => {
+    emit({ type: "system.sleep" });
   };
 
   useEffect(() => {
@@ -434,6 +453,7 @@ export function App() {
       keyboardTextareaRef={keyboardTextareaRef}
       liveKeyboard={liveKeyboard}
       onKeyboardTextChange={onKeyboardTextChange}
+      onSleep={sleepPc}
       placeLiveKeyboardCaret={placeLiveKeyboardCaret}
       sendEmptyDelete={sendEmptyDelete}
       sendSpecial={sendSpecial}
@@ -443,6 +463,7 @@ export function App() {
       showArrowKeys={keyboardSettings.showArrowKeys}
       showControlKeys={keyboardSettings.showControlKeys}
       showFunctionKeys={keyboardSettings.showFunctionKeys}
+      showSleepButton={keyboardSettings.showSleepButton && supportsSleep}
       toLiveKeyboardValue={toLiveKeyboardValue}
     />
   );

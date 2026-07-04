@@ -4,6 +4,27 @@ Turn your phone, tablet, or browser into a wireless trackpad and keyboard for Wi
 
 Voltura Air turns a browser-capable device into a trackpad, keyboard, dictation surface, and volume remote for a Windows 11 PC.
 
+## Product promise
+
+- Control your Windows PC from any phone, tablet, or modern browser.
+- No mobile app-store install required.
+- Local-first. No account. No cloud needed. No paywall.
+
+## Best for
+
+- PC connected to TV/stereo.
+- Sofa/bed control.
+- Broken or annoying wireless keyboard/trackpad replacement.
+- Presentations.
+- Quick typing/search from phone.
+
+## Not intended for
+
+- Remote support over the internet.
+- Full remote-desktop replacement.
+- Phone notification sync.
+- File backup/sync.
+
 The project is split into two apps:
 
 - `apps/mobile-web`: a React/TypeScript PWA for Android, iPhone, iPad, tablets, ChromeOS, and other modern browsers.

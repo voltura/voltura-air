@@ -95,6 +95,8 @@ public sealed class LanAddressSelectorTests
         return new NetworkSettingsSnapshot(
             NetworkSelectionMode.Automatic,
             ManualHostAddress: null,
+            ManualAdapterId: null,
+            ManualAdapterName: null,
             PortSelectionMode.Automatic,
             ManualPort: null,
             LastAutomaticPort: null,

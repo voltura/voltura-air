@@ -22,6 +22,9 @@ updated as the app structure, tooling, and release process become concrete.
   primitives (`Grid`, `DockPanel`, `StackPanel`, `ScrollViewer`, `ListView`)
   over manual pixel positioning. Keep WinForms usage limited to tray interop or
   legacy code that has not yet been removed. Follow `docs/ui-guidelines.md`.
+- Pairing failures must not leave the mobile app stuck without explanation.
+  Map raw protocol/network errors to friendly feedback, recovery actions, and
+  copyable diagnostics. Follow `docs/pairing-feedback.md`.
 
 ## Repository Structure
 

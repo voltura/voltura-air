@@ -72,22 +72,34 @@ public sealed class HostUiLayoutTests
 
         RunOnStaThread(() =>
         {
+            using var store = new TempPairingStore();
+            using var inputInjector = new NoOpInputInjector();
             using var appIcon = (Icon)SystemIcons.Application.Clone();
-            using var form = new SettingsForm(appIcon);
+            var manager = new PairingManager(store.Store);
+            var webHost = new WebHostService(manager, new InputDispatcher(inputInjector));
+            using var pairingForm = new PairingForm(webHost.ServerUrl, manager);
+            using var form = new SettingsForm(appIcon, manager, webHost, pairingForm);
             using var chrome = ThemedWindowChrome.Install(form, form.Icon!, canMaximize: false, canMinimize: false);
 
-            form.StartPosition = FormStartPosition.Manual;
-            form.Location = new Point(32, 32);
-            form.ShowStandalone(SettingsPage.Permissions);
-            Application.DoEvents();
-            form.PerformLayout();
+            try
+            {
+                form.StartPosition = FormStartPosition.Manual;
+                form.Location = new Point(32, 32);
+                form.ShowStandalone(SettingsPage.Permissions);
+                Application.DoEvents();
+                form.PerformLayout();
 
-            AssertSettingsCloseButtonLayout(form);
-            AssertSettingsPageContentVisible(form, "Allow PC sleep");
-            AssertSettingsPageContentUsesViewportWidth(form, "Allow PC sleep");
-            Assert.DoesNotContain(FindDescendants(form).OfType<Panel>(), panel => panel.AutoScroll);
-            var selectedButton = FindDescendants(form).OfType<Button>().Single(button => button.Text == "Permissions");
-            Assert.True(selectedButton.Font.Bold);
+                AssertSettingsCloseButtonLayout(form);
+                AssertSettingsPageContentVisible(form, "Allow PC sleep");
+                AssertSettingsPageContentUsesViewportWidth(form, "Allow PC sleep");
+                Assert.DoesNotContain(FindDescendants(form).OfType<Panel>(), panel => panel.AutoScroll);
+                var selectedButton = FindDescendants(form).OfType<Button>().Single(button => button.Text == "Permissions");
+                Assert.True(selectedButton.Font.Bold);
+            }
+            finally
+            {
+                webHost.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
         });
     }
 
@@ -179,40 +191,34 @@ public sealed class HostUiLayoutTests
         }
     }
 
-    private static void RunOnStaThread(Action action)
+    private sealed class NoOpInputInjector : IInputInjector
     {
-        Exception? exception = null;
-        var thread = new Thread(() =>
+        public void Dispose()
         {
-            try
-            {
-                action();
-            }
-            catch (Exception ex)
-            {
-                exception = ex;
-            }
-        });
-
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        thread.Join();
-
-        if (exception is not null)
-        {
-            throw exception;
         }
-    }
 
-    private static bool ShouldSkipNativeUiLayoutTests()
-    {
-        return string.Equals(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"), "true", StringComparison.OrdinalIgnoreCase);
-    }
+        public void MoveMouse(int dx, int dy)
+        {
+        }
 
-    private sealed class NoOwner : IWin32Window
-    {
-        public static readonly NoOwner Instance = new();
+        public void MouseButton(string button, string action)
+        {
+        }
 
-        public IntPtr Handle => IntPtr.Zero;
+        public void Scroll(int dx, int dy)
+        {
+        }
+
+        public void Zoom(string direction)
+        {
+        }
+
+        public void TypeText(string text)
+        {
+        }
+
+        public void SpecialKey(string key, IReadOnlyList<string> modifiers)
+        {
+        }
     }
 }

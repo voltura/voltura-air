@@ -33,6 +33,7 @@ internal sealed class ThemedWindowChrome : NativeWindow, IDisposable
     private readonly Panel _shell = new();
     private readonly TableLayoutPanel _layout = new();
     private readonly Panel _titleBar = new();
+    private readonly Panel _captionButtonHost = new();
     private readonly Panel _contentHost = new();
     private readonly PictureBox _icon = new();
     private readonly Label _title = new();
@@ -79,6 +80,7 @@ internal sealed class ThemedWindowChrome : NativeWindow, IDisposable
         _shell.BackColor = theme.Border;
         _layout.BackColor = theme.Window;
         _titleBar.BackColor = theme.Window;
+        _captionButtonHost.BackColor = theme.Window;
         _contentHost.BackColor = theme.Window;
         _title.BackColor = theme.Window;
         _title.ForeColor = theme.Text;
@@ -152,6 +154,13 @@ internal sealed class ThemedWindowChrome : NativeWindow, IDisposable
         _titleBar.MouseDown += StartWindowDrag;
         _titleBar.DoubleClick += ToggleMaximize;
 
+        _captionButtonHost.Dock = DockStyle.Right;
+        _captionButtonHost.Margin = Padding.Empty;
+        _captionButtonHost.Padding = Padding.Empty;
+        _captionButtonHost.Height = Scale(TitleBarHeight);
+        _captionButtonHost.Width = GetCaptionButtonHostWidth();
+        _captionButtonHost.Resize += (_, _) => LayoutTitleBar();
+
         _icon.Image = appIcon.ToBitmap();
         _icon.SizeMode = PictureBoxSizeMode.Zoom;
         _icon.Size = new Size(Scale(IconSize), Scale(IconSize));
@@ -165,7 +174,7 @@ internal sealed class ThemedWindowChrome : NativeWindow, IDisposable
         _title.TextAlign = ContentAlignment.MiddleLeft;
         _title.Location = new Point(Scale(48), 0);
         _title.Height = Scale(TitleBarHeight);
-        _title.Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right;
+        _title.Anchor = AnchorStyles.Left | AnchorStyles.Top;
         _title.MouseDown += StartWindowDrag;
         _title.DoubleClick += ToggleMaximize;
 
@@ -175,11 +184,13 @@ internal sealed class ThemedWindowChrome : NativeWindow, IDisposable
         _minimizeButton.Visible = _canMinimize;
         _maximizeButton.Visible = _canMaximize;
 
+        _captionButtonHost.Controls.Add(_minimizeButton);
+        _captionButtonHost.Controls.Add(_maximizeButton);
+        _captionButtonHost.Controls.Add(_closeButton);
+
         _titleBar.Controls.Add(_title);
         _titleBar.Controls.Add(_icon);
-        _titleBar.Controls.Add(_minimizeButton);
-        _titleBar.Controls.Add(_maximizeButton);
-        _titleBar.Controls.Add(_closeButton);
+        _titleBar.Controls.Add(_captionButtonHost);
         _titleBar.Resize += (_, _) => LayoutTitleBar();
 
         _contentHost.Dock = DockStyle.Fill;
@@ -189,6 +200,8 @@ internal sealed class ThemedWindowChrome : NativeWindow, IDisposable
         _layout.Controls.Add(_titleBar, 0, 0);
         _layout.Controls.Add(_contentHost, 0, 1);
         _shell.Controls.Add(_layout);
+
+        LayoutTitleBar();
     }
 
     private void WrapExistingContent()
@@ -215,8 +228,10 @@ internal sealed class ThemedWindowChrome : NativeWindow, IDisposable
     {
         var buttonHeight = Scale(TitleBarHeight);
         var buttonWidth = Scale(CaptionButtonWidth);
-        var right = _titleBar.ClientSize.Width;
+        _captionButtonHost.Width = GetCaptionButtonHostWidth();
+        _captionButtonHost.Height = buttonHeight;
 
+        var right = _captionButtonHost.ClientSize.Width;
         _closeButton.SetBounds(right - buttonWidth, 0, buttonWidth, buttonHeight);
         right -= buttonWidth;
 
@@ -225,14 +240,28 @@ internal sealed class ThemedWindowChrome : NativeWindow, IDisposable
             _maximizeButton.SetBounds(right - buttonWidth, 0, buttonWidth, buttonHeight);
             right -= buttonWidth;
         }
+        else
+        {
+            _maximizeButton.SetBounds(0, 0, 0, buttonHeight);
+        }
 
         if (_canMinimize)
         {
             _minimizeButton.SetBounds(right - buttonWidth, 0, buttonWidth, buttonHeight);
-            right -= buttonWidth;
+        }
+        else
+        {
+            _minimizeButton.SetBounds(0, 0, 0, buttonHeight);
         }
 
-        _title.Width = Math.Max(1, right - _title.Left - Scale(8));
+        _captionButtonHost.BringToFront();
+        _title.Width = Math.Max(1, _captionButtonHost.Left - _title.Left - Scale(8));
+    }
+
+    private int GetCaptionButtonHostWidth()
+    {
+        var count = 1 + (_canMaximize ? 1 : 0) + (_canMinimize ? 1 : 0);
+        return Scale(CaptionButtonWidth) * count;
     }
 
     private void OnFormResize(object? sender, EventArgs e)
@@ -240,6 +269,7 @@ internal sealed class ThemedWindowChrome : NativeWindow, IDisposable
         _maximizeButton.Kind = _form.WindowState == FormWindowState.Maximized
             ? CaptionButtonKind.Restore
             : CaptionButtonKind.Maximize;
+        LayoutTitleBar();
     }
 
     private int? HitTestResizeGrip(IntPtr lParam)

@@ -36,6 +36,7 @@ internal static class SettingsFormLayoutShim
                 form.Shown += (_, _) => FixSettingsForm(form);
                 form.VisibleChanged += (_, _) => FixSettingsForm(form);
                 form.SizeChanged += (_, _) => ScheduleFix(form);
+                form.DpiChanged += (_, _) => ScheduleFix(form);
             }
 
             AttachNavigationButtons(form);

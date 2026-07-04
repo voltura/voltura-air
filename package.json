@@ -15,6 +15,7 @@
     "test": "npm run test --workspace apps/mobile-web -- --run && dotnet test VolturaAir.slnx",
     "test:web": "npm run test --workspace apps/mobile-web -- --run",
     "test:host": "dotnet test VolturaAir.slnx",
+    "verify:web-compression": "node scripts/verify-web-compression.mjs apps/mobile-web/dist",
     "verify:host-web": "node -e \"const fs=require('fs'); const p='apps/windows-host/bin/Debug/net10.0-windows/wwwroot/index.html'; if (!fs.existsSync(p)) { console.error('Missing '+p); process.exit(1); }\""
   }
 }

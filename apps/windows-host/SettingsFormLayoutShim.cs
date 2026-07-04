@@ -80,16 +80,16 @@ internal static class SettingsFormLayoutShim
                     var control = table.GetControlFromPosition(0, row);
                     if (control is DeviceManagerPanel)
                     {
-                        changed |= SetRowHeight(form, table, row, control, 520);
+                        changed |= SetRowHeight(form, table, row, control, 480);
                     }
                     else if (control is ConnectionSettingsPanel)
                     {
-                        changed |= SetRowHeight(form, table, row, control, 620);
+                        changed |= SetRowHeight(form, table, row, control, 560);
                     }
 
                     if (control is not null && control.GetType().Name == "ThemedCandidateListBox")
                     {
-                        changed |= SetRowHeight(form, table, row, control, 280);
+                        changed |= SetRowHeight(form, table, row, control, 264);
                     }
                 }
             }
@@ -101,7 +101,7 @@ internal static class SettingsFormLayoutShim
                 form.GetType().GetMethod("RefreshPageScrollLayout", BindingFlags.Instance | BindingFlags.NonPublic)?.Invoke(form, null);
             }
 
-            HideOuterScrollbarIfPageFits(form);
+            HideOuterScrollbarForEmbeddedPages(form);
         }
         finally
         {
@@ -118,18 +118,31 @@ internal static class SettingsFormLayoutShim
         }
 
         var handler = (MouseEventHandler)Delegate.CreateDelegate(typeof(MouseEventHandler), form, method);
-        foreach (var embedded in Descendants(form).Where(control => control is DeviceManagerPanel or ConnectionSettingsPanel))
+        foreach (var page in Descendants(form).OfType<TableLayoutPanel>().Where(IsEmbeddedPage))
         {
-            foreach (var control in DescendantsAndSelf(embedded))
+            DetachWheel(page, handler);
+            if (page.Parent is Control canvas)
             {
-                if (!DetachedWheelControls.Add(control))
+                DetachWheel(canvas, handler);
+                if (canvas.Parent is Control viewport)
                 {
-                    continue;
+                    DetachWheel(viewport, handler);
                 }
-
-                control.Disposed += (_, _) => DetachedWheelControls.Remove(control);
-                control.MouseWheel -= handler;
             }
+        }
+    }
+
+    private static void DetachWheel(Control control, MouseEventHandler handler)
+    {
+        foreach (var candidate in DescendantsAndSelf(control))
+        {
+            if (!DetachedWheelControls.Add(candidate))
+            {
+                continue;
+            }
+
+            candidate.Disposed += (_, _) => DetachedWheelControls.Remove(candidate);
+            candidate.MouseWheel -= handler;
         }
     }
 
@@ -170,23 +183,28 @@ internal static class SettingsFormLayoutShim
         return changed;
     }
 
-    private static void HideOuterScrollbarIfPageFits(Control form)
+    private static void HideOuterScrollbarForEmbeddedPages(Control form)
     {
-        foreach (var viewport in Descendants(form).OfType<Panel>())
+        foreach (var page in Descendants(form).OfType<TableLayoutPanel>().Where(IsEmbeddedPage))
         {
-            var canvas = viewport.Controls.OfType<Panel>().FirstOrDefault(panel => panel.Controls.OfType<TableLayoutPanel>().Any());
-            var track = viewport.Controls.OfType<Panel>().FirstOrDefault(panel => !ReferenceEquals(panel, canvas) && panel.Controls.Count == 1 && panel.Controls[0] is Panel);
-            if (canvas is null || track is null || canvas.Controls.Count != 1)
+            if (page.Parent is not Panel canvas || canvas.Parent is not Panel viewport)
             {
                 continue;
             }
 
-            if (canvas.Controls[0].Height <= viewport.ClientSize.Height)
+            var track = viewport.Controls.OfType<Panel>().FirstOrDefault(panel => !ReferenceEquals(panel, canvas) && panel.Controls.Count == 1 && panel.Controls[0] is Panel);
+            if (track is not null)
             {
                 track.Visible = false;
-                canvas.Location = Point.Empty;
             }
+
+            canvas.Location = Point.Empty;
         }
+    }
+
+    private static bool IsEmbeddedPage(TableLayoutPanel table)
+    {
+        return table.Controls.OfType<Control>().Any(control => control is DeviceManagerPanel or ConnectionSettingsPanel);
     }
 
     private static IEnumerable<Control> DescendantsAndSelf(Control root)

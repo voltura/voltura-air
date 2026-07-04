@@ -47,6 +47,7 @@ public sealed class WebHostService : IAsyncDisposable
 
         var addressSelection = LanAddressSelector.Select(LanAddressSelector.GetCandidates(), settings);
         AdvertisedHostAddress = addressSelection?.Address.ToString() ?? GetDnsLanAddressFallback() ?? "127.0.0.1";
+        SelectedAdapterName = GetSelectedAdapterName(addressSelection?.Candidate);
         AddressSelectionWarning = addressSelection?.Warning;
         if (settings.NetworkMode == NetworkSelectionMode.Automatic)
         {
@@ -60,15 +61,20 @@ public sealed class WebHostService : IAsyncDisposable
 
     public string ServerUrl { get; private set; }
 
+    public string WebSocketUrl => BuildWebSocketUrl(AdvertisedHostAddress, Port);
+
     public string AdvertisedHostAddress { get; private set; }
+
+    public string SelectedAdapterName { get; private set; }
 
     public string? AddressSelectionWarning { get; }
 
     public string? PortSelectionWarning { get; }
 
-    public void UpdateAdvertisedHostAddress(string hostAddress)
+    internal void UpdateAdvertisedHostAddress(string hostAddress, LanAddressCandidate? selectedCandidate = null)
     {
         AdvertisedHostAddress = hostAddress;
+        SelectedAdapterName = GetSelectedAdapterName(selectedCandidate);
         ServerUrl = BuildServerUrl(hostAddress, Port);
     }
 
@@ -660,6 +666,18 @@ public sealed class WebHostService : IAsyncDisposable
     internal static string BuildServerUrl(string hostAddress, int port)
     {
         return $"http://{hostAddress}:{port}";
+    }
+
+    internal static string BuildWebSocketUrl(string hostAddress, int port)
+    {
+        return $"ws://{hostAddress}:{port}/ws";
+    }
+
+    private static string GetSelectedAdapterName(LanAddressCandidate? selectedCandidate)
+    {
+        return selectedCandidate is null
+            ? "DNS fallback"
+            : LanAddressSelector.GetAdapterDisplayName(selectedCandidate);
     }
 }
 

@@ -80,16 +80,16 @@ internal static class SettingsFormLayoutShim
                     var control = table.GetControlFromPosition(0, row);
                     if (control is DeviceManagerPanel)
                     {
-                        changed |= SetRowHeight(form, table, row, control, 480);
+                        changed |= SetRowHeight(form, table, row, control, 360);
                     }
                     else if (control is ConnectionSettingsPanel)
                     {
-                        changed |= SetRowHeight(form, table, row, control, 520);
+                        changed |= SetRowHeight(form, table, row, control, 400);
                     }
 
                     if (control is not null && control.GetType().Name == "ThemedCandidateListBox")
                     {
-                        changed |= SetRowHeight(form, table, row, control, 300);
+                        changed |= SetRowHeight(form, table, row, control, 264);
                     }
                 }
             }
@@ -195,7 +195,7 @@ internal static class SettingsFormLayoutShim
                 }
             }
 
-            var buttonWidth = Scale(form, 180);
+            var buttonWidth = Scale(form, 150);
             var buttonHeight = Scale(form, CommandButtonStyle.ButtonHeight);
             var topMargin = Scale(form, CommandButtonStyle.ActionTopPadding);
             if (saveButton.Dock != DockStyle.Right || saveButton.Width != buttonWidth || saveButton.Height != buttonHeight || saveButton.Margin.Top != topMargin)

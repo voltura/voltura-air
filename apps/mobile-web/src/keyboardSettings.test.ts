@@ -8,6 +8,7 @@ describe("normalizeKeyboardSettings", () => {
       showFunctionKeys: false,
       showControlKeys: true,
       showArrowKeys: true,
+      showSleepButton: true,
       enableSplitMode: false
     });
   });

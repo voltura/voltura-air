@@ -39,6 +39,10 @@ Voltura Air's high-level host and client capabilities are listed in
 level so contributors can quickly understand what the app can do without
 turning the README into detailed implementation documentation.
 
+Pairing failure and recovery behavior is documented in
+[docs/pairing-feedback.md](docs/pairing-feedback.md). Protocol message shapes
+are documented in [docs/protocol.md](docs/protocol.md).
+
 ## Requirements
 
 For normal use:
@@ -169,4 +173,4 @@ dotnet run --project apps/windows-host/VolturaAir.Host.csproj
 
 Attach a debugger to the `VolturaAir.Host.exe` process if you need breakpoints while using CLI startup.
 
-See [docs/setup.md](docs/setup.md), [docs/release.md](docs/release.md), and [docs/protocol.md](docs/protocol.md) for details.
+See [docs/setup.md](docs/setup.md), [docs/release.md](docs/release.md), [docs/protocol.md](docs/protocol.md), and [docs/pairing-feedback.md](docs/pairing-feedback.md) for details.

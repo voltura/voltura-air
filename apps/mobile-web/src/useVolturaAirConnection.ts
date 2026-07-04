@@ -29,6 +29,11 @@ const retryDelayMs = 1200;
 
 export type ConnectionState = "connecting" | "paired" | "needs-pairing" | "rejected" | "disconnected" | "unavailable";
 
+export type ConnectionError = {
+  code: string;
+  message: string;
+};
+
 export type { PcProfile } from "./pcProfiles";
 
 export function useVolturaAirConnection() {
@@ -67,6 +72,7 @@ export function useVolturaAirConnection() {
   const [audioState, setAudioState] = useState<AudioStateMessage | null>(null);
   const [supportsSleep, setSupportsSleep] = useState(false);
   const [supportsVolumeControl, setSupportsVolumeControl] = useState(false);
+  const [lastConnectionError, setLastConnectionError] = useState<ConnectionError | null>(null);
   const [pairingAttempt, setPairingAttempt] = useState<{ token?: string; id: number }>(() => ({
     token: undefined,
     id: 0
@@ -178,8 +184,10 @@ export function useVolturaAirConnection() {
       window.clearTimeout(connectionTimer);
       connectionTimer = undefined;
       clearHeartbeat();
+      const unavailableMessage = getPcUnavailableMessage(pc, screenshotMode);
+      setLastConnectionError({ code: "VAIR-PAIR-HOST-UNREACHABLE", message: unavailableMessage });
       setState("unavailable");
-      setMessage(getPcUnavailableMessage(pc));
+      setMessage(unavailableMessage);
 
       if (socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING) {
         socket.close();
@@ -219,8 +227,10 @@ export function useVolturaAirConnection() {
       clearHeartbeat();
 
       if (hasShownUnavailable) {
+        const unavailableMessage = getPcUnavailableMessage(pc, screenshotMode);
+        setLastConnectionError({ code: "VAIR-PAIR-HOST-UNREACHABLE", message: unavailableMessage });
         setState("unavailable");
-        setMessage(getPcUnavailableMessage(pc, screenshotMode));
+        setMessage(unavailableMessage);
       } else {
         setState("connecting");
         setMessage(`Connecting to ${getDisplayPcName(pc, "", screenshotMode)}...`);
@@ -262,6 +272,7 @@ export function useVolturaAirConnection() {
           window.clearTimeout(connectionTimer);
           connectionTimer = undefined;
           hasShownUnavailable = false;
+          setLastConnectionError(null);
           setState("paired");
           setMessage(`Connected to ${getDisplayPcName(pc, response.pcName, screenshotMode)}`);
           startHeartbeat(ws);
@@ -276,8 +287,10 @@ export function useVolturaAirConnection() {
           setSupportsSleep(false);
           setSupportsVolumeControl(false);
           supportsVolumeControlRef.current = false;
+          const rejectedMessage = `Pairing rejected: ${response.reason}`;
+          setLastConnectionError({ code: diagnosticCodeForPairingReason(response.reason), message: rejectedMessage });
           setState(response.reason === "missing-token" ? "needs-pairing" : "rejected");
-          setMessage(`Pairing rejected: ${response.reason}`);
+          setMessage(rejectedMessage);
           ws.close();
           return;
         }
@@ -290,6 +303,9 @@ export function useVolturaAirConnection() {
           }
 
           updateCapabilities(response.capabilities, response.connected);
+          if (response.connected) {
+            setLastConnectionError(null);
+          }
           setMessage(response.connected ? `Connected to ${getDisplayPcName(pc, response.pcName ?? "", screenshotMode)}` : (response.message ?? "Disconnected"));
           return;
         }
@@ -301,6 +317,7 @@ export function useVolturaAirConnection() {
             setPairedPcs((current) => applyPcNameFromHost(current, pc.id, response.pcName));
           }
           updateCapabilities(response.capabilities);
+          setLastConnectionError(null);
           setState("paired");
           return;
         }
@@ -346,6 +363,7 @@ export function useVolturaAirConnection() {
 
     const profile = createPcProfile(pcUrl);
     queueRef.current = [];
+    setLastConnectionError(null);
     setSupportsSleep(false);
     setSupportsVolumeControl(false);
     supportsVolumeControlRef.current = false;
@@ -363,6 +381,7 @@ export function useVolturaAirConnection() {
 
   const selectPc = useCallback((pcId: string) => {
     queueRef.current = [];
+    setLastConnectionError(null);
     setSupportsSleep(false);
     setSupportsVolumeControl(false);
     supportsVolumeControlRef.current = false;
@@ -373,6 +392,7 @@ export function useVolturaAirConnection() {
   const addManualPc = useCallback((pcUrl: string) => {
     const profile = createPcProfile(pcUrl);
     queueRef.current = [];
+    setLastConnectionError(null);
     setSupportsSleep(false);
     setSupportsVolumeControl(false);
     supportsVolumeControlRef.current = false;
@@ -396,6 +416,7 @@ export function useVolturaAirConnection() {
     }
 
     queueRef.current = [];
+    setLastConnectionError(null);
     socketRef.current?.close();
     setActivePcId(null);
     setPairingAttempt((current) => ({ token: undefined, id: current.id + 1 }));
@@ -414,6 +435,7 @@ export function useVolturaAirConnection() {
     clearStoredSecret(clientId, pcId);
     setPairedPcs((current) => forgetPcProfile(current, activePcId, pcId).profiles);
     if (activePcId === pcId) {
+      setLastConnectionError(null);
       socketRef.current?.close();
       setActivePcId(null);
       setAudioState(null);
@@ -437,7 +459,7 @@ export function useVolturaAirConnection() {
     }
   }, [send, state]);
 
-  return { state, message, send, clientId, deviceName, activePc, pairedPcs, audioState, supportsSleep, supportsVolumeControl, pairWithToken, selectPc, addManualPc, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice };
+  return { state, message, send, clientId, deviceName, activePc, pairedPcs, audioState, supportsSleep, supportsVolumeControl, lastConnectionError, pairWithToken, selectPc, addManualPc, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice };
 }
 
 function getOrCreateClientId(source: string): string {
@@ -550,6 +572,11 @@ function getDisplayPcName(pc: PcProfile, hostName: string, screenshotMode = fals
 
 function getPcUnavailableMessage(pc: PcProfile, screenshotMode = false): string {
   return `${getDisplayPcName(pc, "", screenshotMode)} is currently not available. Check that Voltura Air is running on the PC. Retrying...`;
+}
+
+function diagnosticCodeForPairingReason(reason: string): string {
+  const normalized = reason.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toUpperCase();
+  return `VAIR-PAIR-${normalized || "UNKNOWN"}`;
 }
 
 function parseServerMessage(data: unknown): ServerMessage | null {

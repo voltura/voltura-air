@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Camera, Download, Power, RefreshCw, X } from "lucide-react";
+import { Camera, Clipboard, Download, Power, RefreshCw, X } from "lucide-react";
+import { copyTextToClipboard } from "../mobileDiagnostics";
 import { getPcDisplayName } from "../pcDisplayName";
 import { normalizeManualHostInput } from "../pairingFeedback";
 import type { TrackpadSettings } from "../gestures";
@@ -10,6 +11,7 @@ type ThemeMode = "system" | "light" | "dark";
 
 type SettingsDrawerProps = {
   activePc: PcProfile | null;
+  diagnostics: string;
   deviceName: string;
   disconnectActivePc: () => void;
   forgetPc: (pcId: string) => void;
@@ -39,6 +41,7 @@ type SettingsDrawerProps = {
 
 export function SettingsDrawer({
   activePc,
+  diagnostics,
   deviceName,
   disconnectActivePc,
   forgetPc,
@@ -67,6 +70,21 @@ export function SettingsDrawer({
 }: SettingsDrawerProps) {
   const [manualHost, setManualHost] = useState("");
   const [manualHostError, setManualHostError] = useState("");
+  const [copyDiagnosticsStatus, setCopyDiagnosticsStatus] = useState("");
+  const [manualDiagnostics, setManualDiagnostics] = useState("");
+
+  const copyDiagnostics = async () => {
+    setCopyDiagnosticsStatus("");
+    setManualDiagnostics("");
+    const result = await copyTextToClipboard(diagnostics);
+    if (result === "copied") {
+      setCopyDiagnosticsStatus("Diagnostics copied.");
+      return;
+    }
+
+    setManualDiagnostics(diagnostics);
+    setCopyDiagnosticsStatus("Could not copy automatically. Select the diagnostics below and copy manually.");
+  };
 
   const submitManualHost = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -149,6 +167,29 @@ export function SettingsDrawer({
             <Camera aria-hidden="true" />
             <span>Take photo of QR code</span>
           </button>
+        </div>
+
+        <div className="install-card">
+          <div className="install-title">
+            <Clipboard aria-hidden="true" />
+            <span>Diagnostics</span>
+          </div>
+          <p>Copy redacted connection details for troubleshooting. Pairing secrets, device tokens, and hashes are not included.</p>
+          <button type="button" onClick={copyDiagnostics}>
+            <Clipboard aria-hidden="true" />
+            <span>Copy diagnostics</span>
+          </button>
+          {copyDiagnosticsStatus && <p className="pairing-inline-status">{copyDiagnosticsStatus}</p>}
+          {manualDiagnostics && (
+            <textarea
+              aria-label="Diagnostics text"
+              className="text-input diagnostics-textarea"
+              onFocus={(event) => event.currentTarget.select()}
+              readOnly
+              rows={8}
+              value={manualDiagnostics}
+            />
+          )}
         </div>
 
         <div className="install-card">

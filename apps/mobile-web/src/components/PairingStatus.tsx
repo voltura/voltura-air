@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Camera, Power, RefreshCw } from "lucide-react";
+import { copyTextToClipboard } from "../mobileDiagnostics";
 import { buildPairingDiagnostics, getPairingFeedback, normalizeManualHostInput } from "../pairingFeedback";
 
 type PairingStatusProps = {
   activePcUnavailable?: boolean;
   deviceName?: string;
+  diagnostics?: string;
   message: string;
   onDeviceNameChange?: (deviceName: string) => void;
   onManualHostSubmit?: (target: string) => void;
@@ -16,6 +18,7 @@ type PairingStatusProps = {
 export function PairingStatus({
   activePcUnavailable = false,
   deviceName,
+  diagnostics,
   message,
   onDeviceNameChange,
   onManualHostSubmit,
@@ -29,6 +32,7 @@ export function PairingStatus({
   const [manualHost, setManualHost] = useState("");
   const [manualHostError, setManualHostError] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
+  const [manualDiagnostics, setManualDiagnostics] = useState("");
 
   useEffect(() => {
     if (!activePcUnavailable) {
@@ -42,13 +46,16 @@ export function PairingStatus({
 
   const copyDiagnostics = async () => {
     setCopyStatus("");
-    const diagnostics = buildPairingDiagnostics(message, activePcUnavailable, feedback.diagnosticCode);
-    try {
-      await navigator.clipboard.writeText(diagnostics);
+    setManualDiagnostics("");
+    const diagnosticsText = diagnostics ?? buildPairingDiagnostics(message, activePcUnavailable, feedback.diagnosticCode);
+    const result = await copyTextToClipboard(diagnosticsText);
+    if (result === "copied") {
       setCopyStatus("Diagnostics copied.");
-    } catch {
-      setCopyStatus("Could not copy diagnostics in this browser.");
+      return;
     }
+
+    setManualDiagnostics(diagnosticsText);
+    setCopyStatus("Could not copy automatically. Select the diagnostics below and copy manually.");
   };
 
   const submitManualHost = (event: React.FormEvent<HTMLFormElement>) => {
@@ -153,6 +160,16 @@ export function PairingStatus({
         )}
 
         {copyStatus && <p className="pairing-inline-status">{copyStatus}</p>}
+        {manualDiagnostics && (
+          <textarea
+            aria-label="Diagnostics text"
+            className="text-input diagnostics-textarea"
+            onFocus={(event) => event.currentTarget.select()}
+            readOnly
+            rows={8}
+            value={manualDiagnostics}
+          />
+        )}
       </section>
     </>
   );

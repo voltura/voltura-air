@@ -14,7 +14,8 @@ public sealed record PairingRecord(
     DateTimeOffset? LastRenamedAt = null,
     string Platform = "",
     string Browser = "",
-    string DisplayMode = "");
+    string DisplayMode = "",
+    DevicePermissionOverrides? PermissionOverrides = null);
 
 public sealed record PairedDeviceStatus(
     string ClientId,
@@ -27,7 +28,8 @@ public sealed record PairedDeviceStatus(
     DateTimeOffset? LastRenamedAt,
     string Platform,
     string Browser,
-    string DisplayMode)
+    string DisplayMode,
+    DevicePermissionOverrides PermissionOverrides)
 {
     public DateTimeOffset LatestActivityAt => new[] { AddedAt, LastConnectedAt, LastDisconnectedAt, LastRenamedAt }
         .Where(value => value.HasValue)
@@ -106,6 +108,7 @@ public sealed class PairingManager
     }
 
     public event EventHandler? ConnectionChanged;
+    public event EventHandler? PermissionsChanged;
     public event EventHandler<PairingRevokedEventArgs>? PairingRevoked;
 
     public bool IsPaired
@@ -196,6 +199,47 @@ public sealed class PairingManager
         {
             return GetDuplicateCleanupCandidatesCore().ToArray();
         }
+    }
+
+    public DevicePermissionOverrides GetDevicePermissionOverrides(string clientId)
+    {
+        lock (_gate)
+        {
+            return FindRecord(clientId)?.PermissionOverrides ?? new DevicePermissionOverrides();
+        }
+    }
+
+    public HostPermissionSet GetEffectivePermissions(string clientId, HostPermissionSet globalPermissions)
+    {
+        lock (_gate)
+        {
+            return HostPermissions.Resolve(globalPermissions, FindRecord(clientId)?.PermissionOverrides);
+        }
+    }
+
+    public bool SetDevicePermissionOverrides(string clientId, DevicePermissionOverrides permissionOverrides)
+    {
+        lock (_gate)
+        {
+            var index = _records.FindIndex(record => string.Equals(record.ClientId, clientId, StringComparison.Ordinal));
+            if (index < 0)
+            {
+                return false;
+            }
+
+            var normalized = NormalizePermissionOverrides(permissionOverrides);
+            var existing = _records[index];
+            if (existing.PermissionOverrides == normalized)
+            {
+                return false;
+            }
+
+            _records[index] = existing with { PermissionOverrides = normalized };
+            _store.Save(_records);
+        }
+
+        PermissionsChanged?.Invoke(this, EventArgs.Empty);
+        return true;
     }
 
     public int CleanUpDuplicateDevices()
@@ -420,7 +464,8 @@ public sealed class PairingManager
         {
             Platform = NormalizeMetadata(record.Platform),
             Browser = NormalizeMetadata(record.Browser),
-            DisplayMode = NormalizeMetadata(record.DisplayMode)
+            DisplayMode = NormalizeMetadata(record.DisplayMode),
+            PermissionOverrides = NormalizePermissionOverrides(record.PermissionOverrides)
         };
     }
 
@@ -441,9 +486,17 @@ public sealed class PairingManager
                     record.LastRenamedAt,
                     record.Platform,
                     record.Browser,
-                    record.DisplayMode);
+                    record.DisplayMode,
+                    record.PermissionOverrides ?? new DevicePermissionOverrides());
             })
             .ToArray();
+    }
+
+    private static DevicePermissionOverrides NormalizePermissionOverrides(DevicePermissionOverrides? permissionOverrides)
+    {
+        return new DevicePermissionOverrides(
+            permissionOverrides?.AllowPcSleep,
+            permissionOverrides?.AllowVolumeControl);
     }
 
     private IReadOnlyList<PairedDeviceStatus> GetDuplicateCleanupCandidatesCore()
@@ -541,7 +594,8 @@ public sealed class PairingManager
                 LastRenamedAt = existing.LastRenamedAt,
                 Platform = string.IsNullOrWhiteSpace(record.Platform) ? existing.Platform : record.Platform,
                 Browser = string.IsNullOrWhiteSpace(record.Browser) ? existing.Browser : record.Browser,
-                DisplayMode = string.IsNullOrWhiteSpace(record.DisplayMode) ? existing.DisplayMode : record.DisplayMode
+                DisplayMode = string.IsNullOrWhiteSpace(record.DisplayMode) ? existing.DisplayMode : record.DisplayMode,
+                PermissionOverrides = existing.PermissionOverrides
             };
             return;
         }

@@ -24,6 +24,7 @@ export type StatusPingMessage = {
 
 export type ServerCapabilities = {
   sleep?: boolean;
+  volume?: boolean;
 };
 
 export type PairAcceptedMessage = {

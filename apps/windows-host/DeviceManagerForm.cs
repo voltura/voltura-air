@@ -37,8 +37,8 @@ public sealed class DeviceManagerForm : Form
         Icon = _appIcon;
         AutoScaleMode = AutoScaleMode.Dpi;
         StartPosition = FormStartPosition.CenterParent;
-        MinimumSize = new Size(1260, 660);
-        Size = new Size(1320, 680);
+        MinimumSize = new Size(1460, 660);
+        Size = new Size(1500, 680);
 
         BuildLayout();
         ApplyTheme();
@@ -49,6 +49,8 @@ public sealed class DeviceManagerForm : Form
         AppThemeSettings.Changed += OnAppThemeChanged;
         FormClosing += OnFormClosing;
     }
+
+    public event EventHandler<DevicePermissionsRequestedEventArgs>? DevicePermissionsRequested;
 
     public void ShowFor(IWin32Window owner)
     {
@@ -200,13 +202,14 @@ public sealed class DeviceManagerForm : Form
         {
             Width = GetDeviceRowWidth(),
             Height = ScaleLogical(108),
-            ColumnCount = 3,
+            ColumnCount = 4,
             RowCount = 1,
             Margin = new Padding(0, 0, 0, ScaleLogical(8)),
             Padding = new Padding(ScaleLogical(14), ScaleLogical(8), ScaleLogical(12), ScaleLogical(8))
         };
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, ScaleLogical(20)));
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, ScaleLogical(170)));
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, ScaleLogical(200)));
 
         var statusMarker = new Panel
@@ -255,6 +258,18 @@ public sealed class DeviceManagerForm : Form
             AutoEllipsis = true
         };
 
+        var permissionsButton = new Button
+        {
+            Anchor = AnchorStyles.Left | AnchorStyles.Right,
+            Height = ScaleLogical(CommandButtonStyle.ButtonHeight),
+            Text = "Permissions",
+            Margin = new Padding(ScaleLogical(8), 0, 0, 0)
+        };
+        CommandButtonStyle.Configure(permissionsButton);
+        permissionsButton.Click += (_, _) => DevicePermissionsRequested?.Invoke(
+            this,
+            new DevicePermissionsRequestedEventArgs(device.ClientId, device.DeviceName));
+
         var actionButton = new Button
         {
             Anchor = AnchorStyles.Left | AnchorStyles.Right,
@@ -270,9 +285,10 @@ public sealed class DeviceManagerForm : Form
         deviceText.Controls.Add(metadataLabel, 0, 2);
         row.Controls.Add(statusMarker, 0, 0);
         row.Controls.Add(deviceText, 1, 0);
-        row.Controls.Add(actionButton, 2, 0);
+        row.Controls.Add(permissionsButton, 2, 0);
+        row.Controls.Add(actionButton, 3, 0);
         AttachDeviceScrollHandlers(row);
-        ApplyRowTheme(row, deviceText, nameLabel, activityLabel, metadataLabel, actionButton);
+        ApplyRowTheme(row, deviceText, nameLabel, activityLabel, metadataLabel, permissionsButton, actionButton);
         return row;
     }
 
@@ -678,7 +694,7 @@ public sealed class DeviceManagerForm : Form
         RefreshDevices();
     }
 
-    private void ApplyRowTheme(TableLayoutPanel row, TableLayoutPanel deviceText, Label nameLabel, Label activityLabel, Label metadataLabel, Button actionButton)
+    private void ApplyRowTheme(TableLayoutPanel row, TableLayoutPanel deviceText, Label nameLabel, Label activityLabel, Label metadataLabel, Button permissionsButton, Button actionButton)
     {
         row.BackColor = _theme.Surface;
         deviceText.BackColor = _theme.Surface;
@@ -689,6 +705,7 @@ public sealed class DeviceManagerForm : Form
         metadataLabel.BackColor = _theme.Surface;
         metadataLabel.ForeColor = _theme.MutedText;
 
+        CommandButtonStyle.ApplyTheme(permissionsButton, _theme, CommandButtonKind.Normal);
         CommandButtonStyle.ApplyTheme(actionButton, _theme, CommandButtonKind.Danger);
     }
 
@@ -696,4 +713,17 @@ public sealed class DeviceManagerForm : Form
     {
         return LogicalToDeviceUnits(value);
     }
+}
+
+public sealed class DevicePermissionsRequestedEventArgs : EventArgs
+{
+    public DevicePermissionsRequestedEventArgs(string clientId, string deviceName)
+    {
+        ClientId = clientId;
+        DeviceName = deviceName;
+    }
+
+    public string ClientId { get; }
+
+    public string DeviceName { get; }
 }

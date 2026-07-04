@@ -12,6 +12,7 @@ public sealed class SettingsForm : Form
     private readonly ThemedCheckBox _showConnectionStatusNotificationsCheckBox = new();
     private readonly ThemedCheckBox _showPairingWindowOnDisconnectCheckBox = new();
     private readonly Button _connectionSettingsButton = new();
+    private readonly Button _permissionsButton = new();
     private readonly Label _applicationSettingsLabel = new();
     private readonly Label _appearanceLabel = new();
     private readonly TableLayoutPanel _themeOptions = new();
@@ -31,8 +32,8 @@ public sealed class SettingsForm : Form
         Icon = _appIcon;
         AutoScaleMode = AutoScaleMode.Dpi;
         StartPosition = FormStartPosition.CenterParent;
-        MinimumSize = new Size(800, 1040);
-        Size = new Size(800, 1040);
+        MinimumSize = new Size(800, 1120);
+        Size = new Size(800, 1120);
 
         BuildLayout();
         ApplyTheme();
@@ -44,6 +45,7 @@ public sealed class SettingsForm : Form
     }
 
     public event EventHandler? ConnectionSettingsRequested;
+    public event EventHandler? PermissionsRequested;
 
     public void ShowFor(IWin32Window owner)
     {
@@ -55,6 +57,19 @@ public sealed class SettingsForm : Form
         }
 
         Show(owner);
+        BeginInvoke(FocusDefaultControl);
+    }
+
+    public void ShowStandalone()
+    {
+        LoadSettings();
+        if (Visible)
+        {
+            Activate();
+            return;
+        }
+
+        Show();
         BeginInvoke(FocusDefaultControl);
     }
 
@@ -90,7 +105,7 @@ public sealed class SettingsForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 8,
+            RowCount = 9,
             Padding = new Padding(0, ScaleLogical(4), 0, 0)
         };
         content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
@@ -98,6 +113,7 @@ public sealed class SettingsForm : Form
         content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, themeButtonHeight));
         content.RowStyles.Add(new RowStyle(SizeType.Absolute, themeButtonHeight));
         content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         content.RowStyles.Add(new RowStyle(SizeType.Absolute, themeButtonHeight));
@@ -127,6 +143,14 @@ public sealed class SettingsForm : Form
         _connectionSettingsButton.Margin = Padding.Empty;
         CommandButtonStyle.Configure(_connectionSettingsButton);
         _connectionSettingsButton.Click += (_, _) => ConnectionSettingsRequested?.Invoke(this, EventArgs.Empty);
+
+        _permissionsButton.Text = "Permissions";
+        _permissionsButton.Dock = DockStyle.Fill;
+        _permissionsButton.Height = themeButtonHeight;
+        _permissionsButton.MinimumSize = new Size(0, themeButtonHeight);
+        _permissionsButton.Margin = new Padding(0, ScaleLogical(8), 0, 0);
+        CommandButtonStyle.Configure(_permissionsButton);
+        _permissionsButton.Click += (_, _) => PermissionsRequested?.Invoke(this, EventArgs.Empty);
 
         ConfigureSectionLabel(_appearanceLabel, "APPEARANCE", topMargin: ScaleLogical(18));
 
@@ -177,9 +201,10 @@ public sealed class SettingsForm : Form
         content.Controls.Add(_showConnectionStatusNotificationsCheckBox, 0, 2);
         content.Controls.Add(_showPairingWindowOnDisconnectCheckBox, 0, 3);
         content.Controls.Add(_connectionSettingsButton, 0, 4);
-        content.Controls.Add(_appearanceLabel, 0, 5);
-        content.Controls.Add(_themeOptions, 0, 6);
-        content.Controls.Add(new Panel { Dock = DockStyle.Fill }, 0, 7);
+        content.Controls.Add(_permissionsButton, 0, 5);
+        content.Controls.Add(_appearanceLabel, 0, 6);
+        content.Controls.Add(_themeOptions, 0, 7);
+        content.Controls.Add(new Panel { Dock = DockStyle.Fill }, 0, 8);
 
         root.Controls.Add(header, 0, 0);
         root.Controls.Add(content, 0, 1);
@@ -238,6 +263,7 @@ public sealed class SettingsForm : Form
 
         UpdateThemeSelection(AppThemeSettings.GetMode());
         ApplyButtonTheme(_connectionSettingsButton, isPrimary: false);
+        ApplyButtonTheme(_permissionsButton, isPrimary: false);
         ApplyButtonTheme(_saveButton, isPrimary: true);
         ApplyButtonTheme(_closeButton, isPrimary: false);
     }

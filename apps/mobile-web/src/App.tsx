@@ -71,6 +71,7 @@ export function App() {
     pairedPcs,
     audioState,
     supportsSleep,
+    supportsVolumeControl,
     pairWithToken,
     selectPc,
     disconnectActivePc,
@@ -335,10 +336,18 @@ export function App() {
   };
 
   const toggleMute = () => {
+    if (!supportsVolumeControl) {
+      return;
+    }
+
     emit({ type: "audio.mute.toggle" });
   };
 
   const setVolume = (volume: number) => {
+    if (!supportsVolumeControl) {
+      return;
+    }
+
     const nextVolume = Math.max(0, Math.min(100, Math.round(volume)));
     setDisplayedAudioState({
       type: "audio.state",
@@ -441,6 +450,7 @@ export function App() {
       onTouchEnd={onTouchEnd}
       onTouchMove={onTouchMove}
       onTouchStart={onTouchStart}
+      supportsVolumeControl={supportsVolumeControl}
       trackpadSettings={trackpadSettings}
     />
   );

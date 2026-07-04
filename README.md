@@ -13,15 +13,10 @@ The Windows host installs per user, runs from the tray, manages paired devices, 
 
 ## Features
 
-- QR-code pairing with saved reconnects for trusted phones, tablets, and browser-capable devices.
-- Trackpad input with tap-to-click, physical left/right buttons, two-finger scroll, pinch zoom, pointer speed, scroll direction, and an expanded full-screen trackpad mode.
-- Keyboard input with live typing, buffered send, navigation/editing keys, modifier shortcuts, and optional function keys.
-- Dictation through the browser speech recognition API when supported by the browser and origin.
-- PC volume and mute controls from the trackpad screen.
-- Device management on both sides, including saved PC profiles in the mobile app and paired-device cleanup in the Windows host.
-- Light, dark, and system theme modes for the mobile app and Windows host.
-- Windows startup and connection notification settings.
-- Release packaging for a portable zip and per-user NSIS installer.
+Voltura Air's high-level host and client capabilities are listed in
+[docs/features.md](docs/features.md). Keep that page at product capability
+level so future developers can quickly understand what the app can do without
+turning the README into detailed implementation documentation.
 
 ## Requirements
 

@@ -6,6 +6,7 @@ import { TrackpadMode } from "./TrackpadMode";
 const baseProps = {
   audioState: { type: "audio.state" as const, volume: 45, muted: false },
   isExpanded: false,
+  supportsVolumeControl: true,
   trackpadSettings: defaultTrackpadSettings,
   onLeftClick: vi.fn(),
   onRightClick: vi.fn(),
@@ -27,6 +28,12 @@ describe("TrackpadMode volume control", () => {
 
   it("does not render when disabled", () => {
     render(<TrackpadMode {...baseProps} trackpadSettings={{ ...defaultTrackpadSettings, showVolumeControl: false }} />);
+
+    expect(screen.queryByRole("slider", { name: "PC volume" })).toBeNull();
+  });
+
+  it("does not render when the host does not allow volume control", () => {
+    render(<TrackpadMode {...baseProps} supportsVolumeControl={false} />);
 
     expect(screen.queryByRole("slider", { name: "PC volume" })).toBeNull();
   });

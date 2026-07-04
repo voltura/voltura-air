@@ -86,18 +86,6 @@ internal sealed class ThemedCheckBox : CheckBox
         base.OnCheckedChanged(e);
     }
 
-    protected override void OnGotFocus(EventArgs e)
-    {
-        Invalidate();
-        base.OnGotFocus(e);
-    }
-
-    protected override void OnLostFocus(EventArgs e)
-    {
-        Invalidate();
-        base.OnLostFocus(e);
-    }
-
     protected override void OnPaint(PaintEventArgs e)
     {
         e.Graphics.Clear(BackColor);
@@ -134,16 +122,6 @@ internal sealed class ThemedCheckBox : CheckBox
 
         var textColor = Enabled ? ForeColor : _theme.MutedText;
         TextRenderer.DrawText(e.Graphics, Text, Font, textBounds, textColor, TextFlags);
-
-        if (Focused)
-        {
-            var focusBounds = new Rectangle(
-                Math.Max(0, textBounds.Left - ScaleLogical(2)),
-                Math.Max(0, (ClientSize.Height - Font.Height) / 2 - ScaleLogical(4)),
-                Math.Max(1, textBounds.Width),
-                Math.Min(ClientSize.Height, Font.Height + ScaleLogical(8)));
-            ControlPaint.DrawFocusRectangle(e.Graphics, focusBounds, textColor, BackColor);
-        }
     }
 
     private void DrawCheckMark(Graphics graphics, Rectangle boxBounds)

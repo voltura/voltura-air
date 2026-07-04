@@ -19,6 +19,7 @@ public sealed class WebHostService : IAsyncDisposable
     private readonly ISystemAudioController _audioController;
     private readonly object _connectionsGate = new();
     private readonly Dictionary<string, List<WebSocket>> _activeSockets = new(StringComparer.Ordinal);
+    private readonly Dictionary<WebSocket, SemaphoreSlim> _sendGates = new();
     private WebApplication? _app;
 
     public WebHostService(PairingManager pairingManager, InputDispatcher inputDispatcher, ISystemAudioController? audioController = null)
@@ -27,6 +28,8 @@ public sealed class WebHostService : IAsyncDisposable
         _inputDispatcher = inputDispatcher;
         _audioController = audioController ?? new SystemAudioController();
         _pairingManager.PairingRevoked += OnPairingRevoked;
+        _pairingManager.PermissionsChanged += OnPermissionsChanged;
+        AppPermissionSettings.Changed += OnPermissionsChanged;
 
         var settings = AppNetworkSettings.Load();
         var portSelection = PortSelector.Select(settings, IsPortAvailable, FindFreePort);
@@ -142,6 +145,8 @@ public sealed class WebHostService : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         _pairingManager.PairingRevoked -= OnPairingRevoked;
+        _pairingManager.PermissionsChanged -= OnPermissionsChanged;
+        AppPermissionSettings.Changed -= OnPermissionsChanged;
         AbortActiveSockets();
         if (_app is not null)
         {
@@ -174,7 +179,7 @@ public sealed class WebHostService : IAsyncDisposable
                 {
                     if (type != "pair.hello")
                     {
-                        await SendAsync(socket, new { type = "pair.rejected", reason = "pair-first" }, cancellationToken);
+                        await SendSocketAsync(socket, new { type = "pair.rejected", reason = "pair-first" }, cancellationToken);
                         continue;
                     }
 
@@ -190,7 +195,7 @@ public sealed class WebHostService : IAsyncDisposable
                         displayMode: GetOptionalString(root, "displayMode"));
                     if (!result.Accepted)
                     {
-                        await SendAsync(socket, new { type = "pair.rejected", reason = result.Reason }, cancellationToken);
+                        await SendSocketAsync(socket, new { type = "pair.rejected", reason = result.Reason }, cancellationToken);
                         continue;
                     }
 
@@ -200,10 +205,10 @@ public sealed class WebHostService : IAsyncDisposable
                     RegisterSocket(clientId, socket);
                     activeConnection = _pairingManager.TrackConnection(clientId);
                     var pcName = Environment.MachineName;
-                    var capabilities = CreateCapabilities();
-                    await SendAsync(socket, new { type = "pair.accepted", clientId, pcName, secret, paired = true, capabilities }, cancellationToken);
-                    await SendAsync(socket, new { type = "status", connected = true, message = "Connected", pcName, capabilities }, cancellationToken);
-                    await SendAudioStateAsync(socket, cancellationToken);
+                    var capabilities = CreateCapabilities(clientId);
+                    await SendSocketAsync(socket, new { type = "pair.accepted", clientId, pcName, secret, paired = true, capabilities }, cancellationToken);
+                    await SendSocketAsync(socket, new { type = "status", connected = true, message = "Connected", pcName, capabilities }, cancellationToken);
+                    await SendAudioStateAsync(socket, clientId, cancellationToken);
                     continue;
                 }
 
@@ -221,20 +226,26 @@ public sealed class WebHostService : IAsyncDisposable
 
                 if (type == "status.ping")
                 {
-                    await SendAsync(socket, new { type = "status.pong", pcName = Environment.MachineName, capabilities = CreateCapabilities() }, cancellationToken);
-                    await SendAudioStateAsync(socket, cancellationToken);
+                    await SendSocketAsync(socket, new { type = "status.pong", pcName = Environment.MachineName, capabilities = CreateCapabilities(authenticatedClientId) }, cancellationToken);
+                    await SendAudioStateAsync(socket, authenticatedClientId, cancellationToken);
                     continue;
                 }
 
                 if (type == "system.sleep")
                 {
-                    TrySleepPc();
+                    if (CanSleepPc(authenticatedClientId))
+                    {
+                        TrySleepPc();
+                    }
+
                     continue;
                 }
 
-                if (AudioMessageRouter.TryHandle(root, _audioController, out var audioState))
+                if (IsAudioMessage(root))
                 {
-                    if (audioState is not null)
+                    if (CanControlVolume(authenticatedClientId) &&
+                        AudioMessageRouter.TryHandle(root, _audioController, out var audioState) &&
+                        audioState is not null)
                     {
                         await SendAudioStateAsync(socket, audioState, cancellationToken);
                     }
@@ -270,6 +281,7 @@ public sealed class WebHostService : IAsyncDisposable
             }
 
             sockets.Add(socket);
+            _sendGates.TryAdd(socket, new SemaphoreSlim(1, 1));
         }
     }
 
@@ -287,6 +299,11 @@ public sealed class WebHostService : IAsyncDisposable
             {
                 _activeSockets.Remove(clientId);
             }
+
+            if (_sendGates.Remove(socket, out var sendGate))
+            {
+                sendGate.Dispose();
+            }
         }
     }
 
@@ -297,6 +314,12 @@ public sealed class WebHostService : IAsyncDisposable
         {
             sockets = _activeSockets.Values.SelectMany(items => items).ToArray();
             _activeSockets.Clear();
+            foreach (var sendGate in _sendGates.Values)
+            {
+                sendGate.Dispose();
+            }
+
+            _sendGates.Clear();
         }
 
         foreach (var socket in sockets)
@@ -320,10 +343,12 @@ public sealed class WebHostService : IAsyncDisposable
             {
                 sockets = _activeSockets.Values.SelectMany(items => items).ToArray();
                 _activeSockets.Clear();
+                ClearSendGates(sockets);
             }
             else if (_activeSockets.Remove(e.ClientId, out var deviceSockets))
             {
                 sockets = deviceSockets.ToArray();
+                ClearSendGates(sockets);
             }
             else
             {
@@ -332,6 +357,49 @@ public sealed class WebHostService : IAsyncDisposable
         }
 
         _ = Task.Run(() => CloseSocketsAsync(sockets));
+    }
+
+    private void ClearSendGates(IEnumerable<WebSocket> sockets)
+    {
+        foreach (var socket in sockets)
+        {
+            if (_sendGates.Remove(socket, out var sendGate))
+            {
+                sendGate.Dispose();
+            }
+        }
+    }
+
+    private void OnPermissionsChanged(object? sender, EventArgs e)
+    {
+        _ = Task.Run(BroadcastStatusAsync);
+    }
+
+    private async Task BroadcastStatusAsync()
+    {
+        (string ClientId, WebSocket Socket)[] sockets;
+        lock (_connectionsGate)
+        {
+            sockets = _activeSockets
+                .SelectMany(pair => pair.Value.Select(socket => (pair.Key, socket)))
+                .ToArray();
+        }
+
+        var pcName = Environment.MachineName;
+        foreach (var (clientId, socket) in sockets)
+        {
+            try
+            {
+                await SendSocketAsync(
+                    socket,
+                    new { type = "status", connected = true, message = "Connected", pcName, capabilities = CreateCapabilities(clientId) },
+                    CancellationToken.None);
+                await SendAudioStateAsync(socket, clientId, CancellationToken.None);
+            }
+            catch (Exception ex) when (ex is WebSocketException or OperationCanceledException or ObjectDisposedException)
+            {
+            }
+        }
     }
 
     private static async Task CloseSocketsAsync(IEnumerable<WebSocket> sockets)
@@ -389,20 +457,70 @@ public sealed class WebHostService : IAsyncDisposable
         return socket.SendAsync(bytes, WebSocketMessageType.Text, true, cancellationToken);
     }
 
-    private Task SendAudioStateAsync(WebSocket socket, CancellationToken cancellationToken)
+    private async Task SendSocketAsync(WebSocket socket, object payload, CancellationToken cancellationToken)
     {
+        SemaphoreSlim? sendGate;
+        lock (_connectionsGate)
+        {
+            _sendGates.TryGetValue(socket, out sendGate);
+        }
+
+        if (sendGate is null)
+        {
+            await SendAsync(socket, payload, cancellationToken);
+            return;
+        }
+
+        await sendGate.WaitAsync(cancellationToken);
+        try
+        {
+            await SendAsync(socket, payload, cancellationToken);
+        }
+        finally
+        {
+            sendGate.Release();
+        }
+    }
+
+    private Task SendAudioStateAsync(WebSocket socket, string clientId, CancellationToken cancellationToken)
+    {
+        if (!CanControlVolume(clientId))
+        {
+            return Task.CompletedTask;
+        }
+
         var state = AudioMessageRouter.TryGetState(_audioController);
         return state is null ? Task.CompletedTask : SendAudioStateAsync(socket, state, cancellationToken);
     }
 
-    private static Task SendAudioStateAsync(WebSocket socket, AudioState state, CancellationToken cancellationToken)
+    private Task SendAudioStateAsync(WebSocket socket, AudioState state, CancellationToken cancellationToken)
     {
-        return SendAsync(socket, new { type = "audio.state", volume = state.Volume, muted = state.Muted }, cancellationToken);
+        return SendSocketAsync(socket, new { type = "audio.state", volume = state.Volume, muted = state.Muted }, cancellationToken);
     }
 
-    private static object CreateCapabilities()
+    private object CreateCapabilities(string clientId)
     {
-        return new { sleep = true };
+        return new { sleep = CanSleepPc(clientId), volume = CanControlVolume(clientId) };
+    }
+
+    private bool CanSleepPc(string clientId)
+    {
+        return _pairingManager.GetEffectivePermissions(clientId, AppPermissionSettings.Load()).AllowPcSleep;
+    }
+
+    private bool CanControlVolume(string clientId)
+    {
+        return _pairingManager.GetEffectivePermissions(clientId, AppPermissionSettings.Load()).AllowVolumeControl;
+    }
+
+    private static bool IsAudioMessage(JsonElement root)
+    {
+        if (!root.TryGetProperty("type", out var typeProperty))
+        {
+            return false;
+        }
+
+        return typeProperty.GetString() is "audio.mute.toggle" or "audio.volume.set";
     }
 
     private static void TrySleepPc()

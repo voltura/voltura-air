@@ -47,7 +47,8 @@ Successful response:
   "secret": "secret-to-store",
   "paired": true,
   "capabilities": {
-    "sleep": true
+    "sleep": true,
+    "volume": true
   }
 }
 ```
@@ -61,7 +62,8 @@ Connection status response:
   "message": "Connected",
   "pcName": "WINDOWS-PC",
   "capabilities": {
-    "sleep": true
+    "sleep": true,
+    "volume": true
   }
 }
 ```
@@ -106,7 +108,8 @@ Host response:
   "type": "status.pong",
   "pcName": "WINDOWS-PC",
   "capabilities": {
-    "sleep": true
+    "sleep": true,
+    "volume": true
   }
 }
 ```
@@ -165,7 +168,8 @@ The Windows host translates `Undo` to `Ctrl+Z` and `Redo` to `Ctrl+Y`.
 
 ## System
 
-The host reports optional PC features in `capabilities`. The mobile app only
+The host reports optional PC features in `capabilities`. Capability values
+reflect host-enforced permissions for the active device. The mobile app only
 shows the keyboard sleep button when `capabilities.sleep` is `true` and the
 local **Show sleep button** keyboard setting is enabled.
 
@@ -175,7 +179,15 @@ Put the PC to sleep:
 { "type": "system.sleep" }
 ```
 
+The host ignores `system.sleep` when the effective **Allow PC sleep**
+permission is disabled.
+
 ## Audio
+
+The mobile app only shows volume controls when `capabilities.volume` is `true`
+and the local **Show volume control** trackpad setting is enabled. The host
+ignores audio mute and volume commands when the effective **Allow volume
+control** permission is disabled.
 
 The host reports the default Windows output device state after pairing, after
 heartbeat pings, and after accepted audio commands:

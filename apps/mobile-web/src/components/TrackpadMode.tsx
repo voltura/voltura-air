@@ -5,6 +5,7 @@ import type { AudioStateMessage } from "../protocol";
 type TrackpadModeProps = {
   audioState: AudioStateMessage | null;
   isExpanded: boolean;
+  supportsVolumeControl: boolean;
   trackpadSettings: TrackpadSettings;
   onSetVolume: (volume: number) => void;
   onToggleExpanded: () => void;
@@ -19,6 +20,7 @@ type TrackpadModeProps = {
 export function TrackpadMode({
   audioState,
   isExpanded,
+  supportsVolumeControl,
   trackpadSettings,
   onSetVolume,
   onToggleExpanded,
@@ -32,7 +34,7 @@ export function TrackpadMode({
   const stopTouchPropagation = (event: React.TouchEvent<HTMLButtonElement>) => {
     event.stopPropagation();
   };
-  const showVolumeControl = !isExpanded && trackpadSettings.showVolumeControl && audioState !== null;
+  const showVolumeControl = !isExpanded && supportsVolumeControl && trackpadSettings.showVolumeControl && audioState !== null;
 
   return (
     <section className={`trackpad-mode ${isExpanded ? "expanded" : ""} ${showVolumeControl ? "has-volume-control" : ""}`}>

@@ -17,10 +17,12 @@ public sealed class TrayApplicationContext : ApplicationContext
     private readonly ContextMenuStrip _trayMenu;
     private readonly DeviceManagerForm _deviceManagerForm;
     private readonly SettingsForm _settingsForm;
+    private readonly PermissionsForm _permissionsForm;
     private readonly ConnectionSettingsForm _connectionSettingsForm;
     private readonly TechnicalDetailsForm _technicalDetailsForm;
     private readonly ThemedWindowChrome _deviceManagerChrome;
     private readonly ThemedWindowChrome _settingsChrome;
+    private readonly ThemedWindowChrome _permissionsChrome;
     private readonly ThemedWindowChrome _connectionSettingsChrome;
     private readonly ThemedWindowChrome _technicalDetailsChrome;
     private bool _hadActiveController;
@@ -32,16 +34,20 @@ public sealed class TrayApplicationContext : ApplicationContext
         _pairingManager = pairingManager;
         _deviceManagerForm = new DeviceManagerForm(pairingManager, form.CloneAppIcon(), () => _form.ShowMainWindow());
         _settingsForm = new SettingsForm(form.CloneAppIcon());
+        _permissionsForm = new PermissionsForm(pairingManager, form.CloneAppIcon());
         _connectionSettingsForm = new ConnectionSettingsForm(webHost, form, form.CloneAppIcon());
         _technicalDetailsForm = new TechnicalDetailsForm(form.CloneAppIcon());
         _deviceManagerChrome = ThemedWindowChrome.Install(_deviceManagerForm, _deviceManagerForm.Icon!);
         _settingsChrome = ThemedWindowChrome.Install(_settingsForm, _settingsForm.Icon!);
+        _permissionsChrome = ThemedWindowChrome.Install(_permissionsForm, _permissionsForm.Icon!);
         _connectionSettingsChrome = ThemedWindowChrome.Install(_connectionSettingsForm, _connectionSettingsForm.Icon!);
         _technicalDetailsChrome = ThemedWindowChrome.Install(_technicalDetailsForm, _technicalDetailsForm.Icon!);
         _hadActiveController = pairingManager.HasActiveController;
         _form.FormClosed += (_, _) => ExitThread();
         _form.DeviceManagerRequested += OnDeviceManagerRequested;
         _settingsForm.ConnectionSettingsRequested += OnConnectionSettingsRequested;
+        _settingsForm.PermissionsRequested += OnPermissionsRequested;
+        _deviceManagerForm.DevicePermissionsRequested += OnDevicePermissionsRequested;
         _pairingManager.ConnectionChanged += OnConnectionChanged;
         AppThemeSettings.Changed += OnAppThemeChanged;
 
@@ -71,14 +77,18 @@ public sealed class TrayApplicationContext : ApplicationContext
             _pairingManager.ConnectionChanged -= OnConnectionChanged;
             _form.DeviceManagerRequested -= OnDeviceManagerRequested;
             _settingsForm.ConnectionSettingsRequested -= OnConnectionSettingsRequested;
+            _settingsForm.PermissionsRequested -= OnPermissionsRequested;
+            _deviceManagerForm.DevicePermissionsRequested -= OnDevicePermissionsRequested;
             AppThemeSettings.Changed -= OnAppThemeChanged;
             _trayIcon.Visible = false;
             _deviceManagerChrome.Dispose();
             _settingsChrome.Dispose();
+            _permissionsChrome.Dispose();
             _connectionSettingsChrome.Dispose();
             _technicalDetailsChrome.Dispose();
             _deviceManagerForm.Dispose();
             _settingsForm.Dispose();
+            _permissionsForm.Dispose();
             _connectionSettingsForm.Dispose();
             _technicalDetailsForm.Dispose();
             _components.Dispose();
@@ -193,7 +203,17 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private void ShowSettings()
     {
-        _settingsForm.ShowFor(_form);
+        _settingsForm.ShowStandalone();
+    }
+
+    private void OnPermissionsRequested(object? sender, EventArgs e)
+    {
+        _permissionsForm.ShowGlobal(_settingsForm);
+    }
+
+    private void OnDevicePermissionsRequested(object? sender, DevicePermissionsRequestedEventArgs e)
+    {
+        _permissionsForm.ShowDevice(_deviceManagerForm, e.ClientId, e.DeviceName);
     }
 
     private void OnConnectionSettingsRequested(object? sender, EventArgs e)

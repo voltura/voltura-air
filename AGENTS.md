@@ -21,7 +21,9 @@ updated as the app structure, tooling, and release process become concrete.
 - When editing Windows Forms UI, account for Windows DPI/scaling. Prefer
   autosizing layouts or scale fixed dimensions, margins, and padding with
   `LogicalToDeviceUnits`, and make sure text is not clipped at non-100%
-  display scaling.
+  display scaling. Follow `docs/ui-guidelines.md`: action rows must stay
+  visible, growing content must scroll inside a bounded viewport, and UI
+  elements must never overlap or render behind each other.
 
 ## Repository Structure
 

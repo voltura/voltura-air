@@ -88,9 +88,13 @@ public sealed class PairingForm : Form
 
     public event EventHandler? DeviceManagerRequested;
 
+    public event EventHandler? StartupLoadingCompleted;
+
     public string PairingUrl => _pairingUrl;
 
     public string ServerUrl => _serverUrl;
+
+    public bool IsStartupLoading => _startupPanel.Visible;
 
     public Icon CloneAppIcon()
     {
@@ -368,8 +372,6 @@ public sealed class PairingForm : Form
 
         BeginInvoke(() =>
         {
-            EndStartupLoading();
-
             var pairedDeviceCount = _pairingManager.PairedDeviceCount;
             if (pairedDeviceCount != _lastPairedDeviceCount)
             {
@@ -411,6 +413,7 @@ public sealed class PairingForm : Form
 
     private void EndStartupLoading()
     {
+        var wasStartupLoading = _startupPanel.Visible;
         if (_startupLoadingTimer.Enabled)
         {
             _startupLoadingTimer.Stop();
@@ -422,6 +425,10 @@ public sealed class PairingForm : Form
         }
 
         _startupPanel.Visible = false;
+        if (wasStartupLoading)
+        {
+            StartupLoadingCompleted?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     private void RefreshActionButtons()
@@ -560,9 +567,8 @@ public sealed class PairingForm : Form
 
     private void ResizeQrToPanel()
     {
-        if (_qrPanel.ClientSize == _lastQrPanelSize)
+        if (_lastQrPanelSize == _qrPanel.ClientSize)
         {
-            CenterQrPicture();
             return;
         }
 
@@ -572,54 +578,46 @@ public sealed class PairingForm : Form
 
     private void CopyPairingUrl()
     {
-        Clipboard.SetText(_pairingUrl);
-        _statusLabel.Text = "Pairing link copied to clipboard";
-        _statusLabel.ForeColor = _theme.Accent;
-    }
-
-    private static Icon LoadAppIcon()
-    {
-        var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "VolturaAir.ico");
-        return File.Exists(iconPath) ? new Icon(iconPath) : (Icon)SystemIcons.Application.Clone();
+        try
+        {
+            Clipboard.SetText(_pairingUrl);
+            _statusLabel.Text = "Pairing link copied to clipboard.";
+            _statusLabel.ForeColor = _theme.Accent;
+        }
+        catch
+        {
+            _statusLabel.Text = "Could not copy pairing link.";
+            _statusLabel.ForeColor = _theme.Danger;
+        }
     }
 
     private Bitmap CreateStartupIconBitmap()
     {
-        var targetPixels = ScaleLogical(StartupIconPixels);
-        using var source = LoadStartupIconImage();
-        var bitmap = new Bitmap(targetPixels, targetPixels);
+        var pixelSize = ScaleLogical(StartupIconPixels);
+        var bitmap = new Bitmap(pixelSize, pixelSize);
         using var graphics = Graphics.FromImage(bitmap);
-        graphics.Clear(Color.Transparent);
-        graphics.CompositingQuality = CompositingQuality.HighQuality;
-        graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-        graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
-        graphics.SmoothingMode = SmoothingMode.HighQuality;
-        graphics.DrawImage(source, new Rectangle(0, 0, targetPixels, targetPixels));
-        return bitmap;
-    }
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        using var shadowBrush = new SolidBrush(Color.FromArgb(28, _theme.Accent));
+        graphics.FillEllipse(shadowBrush, ScaleLogical(14), ScaleLogical(18), pixelSize - ScaleLogical(28), pixelSize - ScaleLogical(28));
+        using var accentBrush = new SolidBrush(_theme.Accent);
+        using var accentPen = new Pen(_theme.Accent, ScaleLogical(5));
+        using var whitePen = new Pen(_theme.AccentText, ScaleLogical(5));
+        using var whiteBrush = new SolidBrush(_theme.AccentText);
 
-    private Image LoadStartupIconImage()
-    {
-        var imagePath = Path.Combine(AppContext.BaseDirectory, "Assets", "VolturaAir-256.png");
-        return File.Exists(imagePath) ? Image.FromFile(imagePath) : _appIcon.ToBitmap();
+        var cloudBounds = new Rectangle(ScaleLogical(20), ScaleLogical(42), ScaleLogical(92), ScaleLogical(48));
+        graphics.FillEllipse(accentBrush, cloudBounds.Left + ScaleLogical(6), cloudBounds.Top + ScaleLogical(10), ScaleLogical(42), ScaleLogical(42));
+        graphics.FillEllipse(accentBrush, cloudBounds.Left + ScaleLogical(38), cloudBounds.Top, ScaleLogical(42), ScaleLogical(42));
+        graphics.FillEllipse(accentBrush, cloudBounds.Left + ScaleLogical(58), cloudBounds.Top + ScaleLogical(16), ScaleLogical(36), ScaleLogical(36));
+        graphics.FillRectangle(accentBrush, cloudBounds.Left + ScaleLogical(24), cloudBounds.Top + ScaleLogical(34), ScaleLogical(62), ScaleLogical(20));
+        graphics.DrawArc(accentPen, ScaleLogical(34), ScaleLogical(58), ScaleLogical(64), ScaleLogical(48), 205, 130);
+        graphics.DrawArc(whitePen, ScaleLogical(42), ScaleLogical(70), ScaleLogical(48), ScaleLogical(34), 210, 120);
+        graphics.FillEllipse(whiteBrush, ScaleLogical(60), ScaleLogical(92), ScaleLogical(12), ScaleLogical(12));
+        return bitmap;
     }
 
     private static string Plural(int count)
     {
         return count == 1 ? string.Empty : "s";
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            FormClosing -= OnFormClosing;
-            _startupLoadingTimer.Tick -= OnStartupLoadingTimerTick;
-            _startupAnimationTimer.Tick -= OnStartupAnimationTimerTick;
-            _startupAnimationTimer.Dispose();
-        }
-
-        base.Dispose(disposing);
     }
 
     private int ScaleLogical(int value)

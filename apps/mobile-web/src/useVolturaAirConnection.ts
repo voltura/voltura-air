@@ -269,16 +269,8 @@ export function useVolturaAirConnection() {
           setSupportsSleep(false);
           setSupportsVolumeControl(false);
           supportsVolumeControlRef.current = false;
-          if (response.reason === "missing-token") {
-            setState("needs-pairing");
-            setMessage(`Scan ${getDisplayPcName(pc, "", screenshotMode)}'s pairing QR to pair this app.`);
-          } else if (response.reason === "invalid-token") {
-            setState("needs-pairing");
-            setMessage("Pairing code expired. Scan a new QR code.");
-          } else {
-            setState("rejected");
-            setMessage(`Pairing rejected: ${response.reason}`);
-          }
+          setState(response.reason === "missing-token" ? "needs-pairing" : "rejected");
+          setMessage(`Pairing rejected: ${response.reason}`);
           ws.close();
           return;
         }

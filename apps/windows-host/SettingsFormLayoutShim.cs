@@ -27,8 +27,8 @@ internal static class SettingsFormLayoutShim
                     AttachedForms.Remove(form);
                     UpdatingForms.Remove(form);
                 };
-                form.Shown += (_, _) => ScheduleFix(form);
-                form.VisibleChanged += (_, _) => ScheduleFix(form);
+                form.Shown += (_, _) => FixSettingsForm(form);
+                form.VisibleChanged += (_, _) => FixSettingsForm(form);
                 form.SizeChanged += (_, _) => ScheduleFix(form);
             }
 
@@ -46,7 +46,7 @@ internal static class SettingsFormLayoutShim
             }
 
             button.Disposed += (_, _) => AttachedButtons.Remove(button);
-            button.Click += (_, _) => ScheduleFix(form);
+            button.Click += (_, _) => FixSettingsForm(form);
         }
     }
 
@@ -76,14 +76,18 @@ internal static class SettingsFormLayoutShim
                 for (var row = 0; row < table.RowStyles.Count; row += 1)
                 {
                     var control = table.GetControlFromPosition(0, row);
-                    if (control is DeviceManagerPanel or ConnectionSettingsPanel)
+                    if (control is DeviceManagerPanel)
+                    {
+                        changed |= SetRowHeight(form, table, row, control, 360);
+                    }
+                    else if (control is ConnectionSettingsPanel)
                     {
                         changed |= SetRowHeight(form, table, row, control, 500);
                     }
 
                     if (control is not null && control.GetType().Name == "ThemedCandidateListBox")
                     {
-                        changed |= SetRowHeight(form, table, row, control, 220);
+                        changed |= SetRowHeight(form, table, row, control, 180);
                     }
                 }
             }
@@ -91,8 +95,9 @@ internal static class SettingsFormLayoutShim
             if (changed)
             {
                 form.GetType().GetMethod("RefreshPageScrollLayout", BindingFlags.Instance | BindingFlags.NonPublic)?.Invoke(form, null);
-                HideOuterScrollbarIfPageFits(form);
             }
+
+            HideOuterScrollbarIfPageFits(form);
         }
         finally
         {

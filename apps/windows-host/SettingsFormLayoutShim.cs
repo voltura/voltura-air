@@ -6,6 +6,11 @@ namespace VolturaAir.Host;
 
 internal static class SettingsFormLayoutShim
 {
+    private const int DevicePanelPixels = 480;
+    private const int ConnectionPanelPixels = 520;
+    private const int NetworkListPixels = 300;
+    private const int SaveButtonPixels = 180;
+
     private static readonly HashSet<SettingsForm> AttachedForms = new();
     private static readonly HashSet<Button> AttachedButtons = new();
     private static readonly HashSet<Control> DetachedWheelControls = new();
@@ -53,12 +58,10 @@ internal static class SettingsFormLayoutShim
 
     private static void ScheduleFix(SettingsForm form)
     {
-        if (form.IsDisposed || !form.IsHandleCreated)
+        if (!form.IsDisposed && form.IsHandleCreated)
         {
-            return;
+            form.BeginInvoke((System.Windows.Forms.MethodInvoker)(() => FixSettingsForm(form)));
         }
-
-        form.BeginInvoke((System.Windows.Forms.MethodInvoker)(() => FixSettingsForm(form)));
     }
 
     private static void FixSettingsForm(SettingsForm form)
@@ -73,6 +76,7 @@ internal static class SettingsFormLayoutShim
         try
         {
             DetachOuterPageWheelHandlers(form);
+
             foreach (var table in Descendants(form).OfType<TableLayoutPanel>())
             {
                 for (var row = 0; row < table.RowStyles.Count; row += 1)
@@ -80,16 +84,15 @@ internal static class SettingsFormLayoutShim
                     var control = table.GetControlFromPosition(0, row);
                     if (control is DeviceManagerPanel)
                     {
-                        changed |= SetRowHeight(form, table, row, control, 360);
+                        changed |= SetRowHeight(table, row, control, GetEmbeddedPageHeight(table, row, DevicePanelPixels));
                     }
                     else if (control is ConnectionSettingsPanel)
                     {
-                        changed |= SetRowHeight(form, table, row, control, 400);
+                        changed |= SetRowHeight(table, row, control, GetEmbeddedPageHeight(table, row, ConnectionPanelPixels));
                     }
-
-                    if (control is not null && control.GetType().Name == "ThemedCandidateListBox")
+                    else if (control is not null && control.GetType().Name == "ThemedCandidateListBox")
                     {
-                        changed |= SetRowHeight(form, table, row, control, 264);
+                        changed |= SetRowHeight(table, row, control, NetworkListPixels);
                     }
                 }
             }
@@ -109,46 +112,34 @@ internal static class SettingsFormLayoutShim
         }
     }
 
-    private static void DetachOuterPageWheelHandlers(SettingsForm form)
+    private static int GetEmbeddedPageHeight(TableLayoutPanel page, int row, int desiredPixels)
     {
-        var method = form.GetType().GetMethod("OnPageMouseWheel", BindingFlags.Instance | BindingFlags.NonPublic);
-        if (method is null)
+        if (page.Parent is not Panel canvas || canvas.Parent is not Panel viewport)
         {
-            return;
+            return desiredPixels;
         }
 
-        var handler = (MouseEventHandler)Delegate.CreateDelegate(typeof(MouseEventHandler), form, method);
-        foreach (var page in Descendants(form).OfType<TableLayoutPanel>().Where(IsEmbeddedPage))
+        var rows = page.GetRowHeights();
+        if (rows.Length != page.RowStyles.Count)
         {
-            DetachWheel(page, handler);
-            if (page.Parent is Control canvas)
+            return desiredPixels;
+        }
+
+        var otherRows = 0;
+        for (var index = 0; index < rows.Length; index += 1)
+        {
+            if (index != row)
             {
-                DetachWheel(canvas, handler);
-                if (canvas.Parent is Control viewport)
-                {
-                    DetachWheel(viewport, handler);
-                }
+                otherRows += rows[index];
             }
         }
+
+        return Math.Max(1, Math.Min(desiredPixels, viewport.ClientSize.Height - otherRows - 2));
     }
 
-    private static void DetachWheel(Control control, MouseEventHandler handler)
+    private static bool SetRowHeight(TableLayoutPanel table, int row, Control control, int pixels)
     {
-        foreach (var candidate in DescendantsAndSelf(control))
-        {
-            if (!DetachedWheelControls.Add(candidate))
-            {
-                continue;
-            }
-
-            candidate.Disposed += (_, _) => DetachedWheelControls.Remove(candidate);
-            candidate.MouseWheel -= handler;
-        }
-    }
-
-    private static bool SetRowHeight(Control form, TableLayoutPanel table, int row, Control control, int logicalHeight)
-    {
-        var height = Scale(form, logicalHeight);
+        var height = Math.Max(1, pixels);
         var changed = table.RowStyles[row].SizeType != SizeType.Absolute || Math.Abs(table.RowStyles[row].Height - height) > 0.1f || control.Height != height;
         if (!changed)
         {
@@ -157,7 +148,7 @@ internal static class SettingsFormLayoutShim
 
         table.RowStyles[row].SizeType = SizeType.Absolute;
         table.RowStyles[row].Height = height;
-        control.MinimumSize = new Size(control.MinimumSize.Width, Math.Min(control.MinimumSize.Height, height));
+        control.MinimumSize = new Size(control.MinimumSize.Width, 0);
         control.Height = height;
         table.PerformLayout();
         return true;
@@ -178,32 +169,22 @@ internal static class SettingsFormLayoutShim
             changed |= EnsurePortPanelSaveRows(form, portPanel);
             changed |= CollapseOriginalSaveRow(saveButton, portPanel);
 
-            if (!ReferenceEquals(saveButton.Parent, portPanel))
+            if (!ReferenceEquals(saveButton.Parent, portPanel) || portPanel.GetPositionFromControl(saveButton).Row != 7)
             {
                 saveButton.Parent?.Controls.Remove(saveButton);
                 portPanel.Controls.Add(saveButton, 0, 7);
                 changed = true;
             }
-            else
-            {
-                var position = portPanel.GetPositionFromControl(saveButton);
-                if (position.Row != 7 || position.Column != 0)
-                {
-                    portPanel.Controls.Remove(saveButton);
-                    portPanel.Controls.Add(saveButton, 0, 7);
-                    changed = true;
-                }
-            }
 
-            var buttonWidth = Scale(form, 150);
-            var buttonHeight = Scale(form, CommandButtonStyle.ButtonHeight);
-            var topMargin = Scale(form, CommandButtonStyle.ActionTopPadding);
-            if (saveButton.Dock != DockStyle.Right || saveButton.Width != buttonWidth || saveButton.Height != buttonHeight || saveButton.Margin.Top != topMargin)
+            var width = Math.Min(SaveButtonPixels, Math.Max(120, portPanel.ClientSize.Width));
+            var height = Scale(form, CommandButtonStyle.ButtonHeight);
+            var top = Scale(form, CommandButtonStyle.ActionTopPadding);
+            if (saveButton.Dock != DockStyle.Right || saveButton.Width != width || saveButton.Height != height || saveButton.Margin.Top != top)
             {
                 saveButton.Dock = DockStyle.Right;
-                saveButton.Width = buttonWidth;
-                saveButton.Height = buttonHeight;
-                saveButton.Margin = new Padding(0, topMargin, 0, 0);
+                saveButton.Width = width;
+                saveButton.Height = height;
+                saveButton.Margin = new Padding(0, top, 0, 0);
                 changed = true;
             }
         }
@@ -268,10 +249,46 @@ internal static class SettingsFormLayoutShim
         return true;
     }
 
+    private static void DetachOuterPageWheelHandlers(SettingsForm form)
+    {
+        var method = form.GetType().GetMethod("OnPageMouseWheel", BindingFlags.Instance | BindingFlags.NonPublic);
+        if (method is null)
+        {
+            return;
+        }
+
+        var handler = (MouseEventHandler)Delegate.CreateDelegate(typeof(MouseEventHandler), form, method);
+        foreach (var page in Descendants(form).OfType<TableLayoutPanel>().Where(IsEmbeddedPage))
+        {
+            DetachWheel(page, handler);
+            if (page.Parent is Control canvas)
+            {
+                DetachWheel(canvas, handler);
+                if (canvas.Parent is Control viewport)
+                {
+                    DetachWheel(viewport, handler);
+                }
+            }
+        }
+    }
+
+    private static void DetachWheel(Control control, MouseEventHandler handler)
+    {
+        foreach (var candidate in DescendantsAndSelf(control))
+        {
+            if (!DetachedWheelControls.Add(candidate))
+            {
+                continue;
+            }
+
+            candidate.Disposed += (_, _) => DetachedWheelControls.Remove(candidate);
+            candidate.MouseWheel -= handler;
+        }
+    }
+
     private static bool IsPortPanel(TableLayoutPanel table)
     {
-        return table.Controls.OfType<Label>().Any(label => label.Text == "PORT") &&
-            Descendants(table).OfType<Button>().Any(button => button.Text == "Manual port");
+        return table.Controls.OfType<Label>().Any(label => label.Text == "PORT") && Descendants(table).OfType<Button>().Any(button => button.Text == "Manual port");
     }
 
     private static void HideOuterScrollbarForEmbeddedPages(Control form)

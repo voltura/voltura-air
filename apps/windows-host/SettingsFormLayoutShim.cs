@@ -84,12 +84,12 @@ internal static class SettingsFormLayoutShim
                     }
                     else if (control is ConnectionSettingsPanel)
                     {
-                        changed |= SetRowHeight(form, table, row, control, 460);
+                        changed |= SetRowHeight(form, table, row, control, 520);
                     }
 
                     if (control is not null && control.GetType().Name == "ThemedCandidateListBox")
                     {
-                        changed |= SetRowHeight(form, table, row, control, 264);
+                        changed |= SetRowHeight(form, table, row, control, 300);
                     }
                 }
             }
@@ -271,7 +271,7 @@ internal static class SettingsFormLayoutShim
     private static bool IsPortPanel(TableLayoutPanel table)
     {
         return table.Controls.OfType<Label>().Any(label => label.Text == "PORT") &&
-            table.Controls.OfType<Button>().Any(button => button.Text == "Manual port");
+            Descendants(table).OfType<Button>().Any(button => button.Text == "Manual port");
     }
 
     private static void HideOuterScrollbarForEmbeddedPages(Control form)

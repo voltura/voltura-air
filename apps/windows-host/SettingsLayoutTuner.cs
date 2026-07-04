@@ -60,14 +60,31 @@ internal static class SettingsLayoutTuner
             }
         }
 
+        TuneScrollBars(form);
+    }
+
+    private static void TuneScrollBars(Control form)
+    {
+        var trackWidth = ScaleLogical(form, ScrollTrackWidth);
+        var thumbWidth = ScaleLogical(form, ScrollThumbWidth);
+        var thumbLeft = ScaleLogical(form, ScrollThumbLeft);
         foreach (var panel in Descendants(form).OfType<Panel>())
         {
-            if (panel.Controls.Count == 1 && panel.Controls[0] is Panel child && panel.Width <= ScaleLogical(form, 20) && child.Width <= ScaleLogical(form, 8))
+            if (panel.Controls.Count != 1 || panel.Controls[0] is not Panel child || panel.Width > ScaleLogical(form, 20) || child.Width > ScaleLogical(form, 8))
             {
-                panel.Width = ScaleLogical(form, ScrollTrackWidth);
-                child.Width = ScaleLogical(form, ScrollThumbWidth);
-                child.Left = ScaleLogical(form, ScrollThumbLeft);
+                continue;
             }
+
+            panel.Width = trackWidth;
+            if (panel.Parent is not null)
+            {
+                panel.Left = Math.Max(0, panel.Parent.ClientSize.Width - trackWidth);
+            }
+
+            child.Width = thumbWidth;
+            child.Left = thumbLeft;
+            panel.Invalidate();
+            child.Invalidate();
         }
     }
 
@@ -79,11 +96,8 @@ internal static class SettingsLayoutTuner
         }
 
         var width = Math.Max(1, viewport.ClientSize.Width - ScaleLogical(form, PageWidthGutter));
-        if (pageContent.Width != width)
-        {
-            pageContent.MinimumSize = new Size(width, 0);
-            pageContent.Width = width;
-        }
+        pageContent.MinimumSize = new Size(width, 0);
+        pageContent.Width = width;
 
         var preferredHeight = pageContent.GetPreferredSize(new Size(width, 0)).Height;
         pageContent.Height = Math.Max(1, preferredHeight);

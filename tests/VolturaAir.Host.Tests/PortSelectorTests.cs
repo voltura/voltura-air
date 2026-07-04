@@ -71,6 +71,24 @@ public sealed class PortSelectorTests
         Assert.Contains("49152", result.ErrorMessage);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(49151)]
+    [InlineData(65536)]
+    public void ManualModeReportsDynamicPrivatePortRangeForOutOfRangePorts(int port)
+    {
+        var settings = AutomaticSettings() with
+        {
+            PortMode = PortSelectionMode.Manual,
+            ManualPort = port
+        };
+
+        var result = PortSelector.Select(settings, _ => true, () => 60000);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("Manual port must be between 49152 and 65535.", result.ErrorMessage);
+    }
+
     [Fact]
     public void ManualModeRejectsCommonRegisteredPorts()
     {

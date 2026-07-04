@@ -1,6 +1,6 @@
 # Release Packaging and GitHub Asset Upsert
 
-This document explains how to rebuild the Windows release assets, create the selected GitHub release when needed, and replace same-named assets on later runs.
+This document explains how to rebuild the Windows release assets, create the selected GitHub release when needed, and replace same-named assets on repeated runs.
 
 ## Requirements
 
@@ -78,7 +78,7 @@ gh release edit v0.1.0 --notes "Updated Windows release assets." --repo voltura/
 
 ## Freeware release notes
 
-Voltura Air is distributed as freeware. Release notes should avoid trial, license-key, premium, or paid-upgrade language unless the product model changes later.
+Voltura Air is distributed as freeware. Release notes should avoid trial, license-key, premium, and paid-upgrade language.
 
 Use wording like this for public release notes:
 
@@ -90,12 +90,12 @@ Support links are maintained in `.github/FUNDING.yml` and on the static product 
 
 ## Unsigned installer status
 
-Current early release assets are not code-signed. Do not claim that the installer or executable is signed until a signing certificate or Store signing flow has been added.
+Release assets are not code-signed. Do not claim that the installer or executable is signed.
 
 Use wording like this when publishing download instructions:
 
 ```text
-Windows may show an unknown publisher or Microsoft Defender SmartScreen warning because early Voltura Air builds are not code-signed yet. Download only from https://voltura.se/air or the official GitHub releases page.
+Windows may show an unknown publisher or Microsoft Defender SmartScreen warning because Voltura Air release assets are not code-signed. Download only from https://voltura.se/air or the official GitHub releases page.
 ```
 
 Avoid adding workaround-heavy instructions that make the app look suspicious. Keep the message honest and direct.

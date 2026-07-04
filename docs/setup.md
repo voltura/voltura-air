@@ -41,7 +41,16 @@ Use the developer loop while changing the app:
 npm run dev
 ```
 
-This starts Vite on port `5173` for React fast refresh and starts the Windows host with `dotnet run`. The QR code opens the Vite URL on the phone and passes the .NET host URL as compact query parameter `h`, so pairing and input still use the Windows host.
+This starts Vite on port `5173` for browser-based React fast refresh and starts the Windows host with `dotnet run`. The QR code opens the Windows host URL on the phone, so the app and `/ws` use the same host port.
+
+Use the Vite client on a phone when direct mobile hot reload is needed:
+
+```powershell
+$env:VOLTURA_AIR_USE_VITE_CLIENT = "1"
+npm run dev
+```
+
+With `VOLTURA_AIR_USE_VITE_CLIENT=1`, the QR opens the Vite URL and includes the Windows host URL as `h` so pairing and input use the host process.
 
 To debug only one side:
 
@@ -56,7 +65,7 @@ The QR code contains the host URL and a short-lived pairing token. The mobile ap
 
 Paired devices are managed by the Windows host and can reconnect without scanning a new QR code while the saved secret remains available in the browser or installed app storage. The mobile app also keeps saved PC profiles so a phone can reconnect to a known PC or forget old PCs from Settings.
 
-Use the Windows tray menu or pairing window to open Settings focused on **Devices**. The Devices area shows connected and paired devices, lets you disconnect or remove devices, and can clean up older duplicate pairings created by browser/home-screen storage changes.
+Use the Windows tray menu or the Voltura Air window to open **Devices**. The Devices page shows connected and paired devices, lets you disconnect or remove devices, and can clean up duplicate pairings created by browser/home-screen storage changes.
 
 ## Mobile Controls
 
@@ -69,7 +78,7 @@ Mobile settings are stored locally per device and include trackpad behavior, key
 
 ## Windows Host
 
-The tray icon menu can show the QR code, open Settings focused on Devices, open Settings focused on Application preferences, show Technical details, open the product page, or exit the host.
+The tray icon menu can show Voltura Air, open Devices, open Settings, show Technical details, open the product page, or exit the host.
 
 Windows host settings include:
 

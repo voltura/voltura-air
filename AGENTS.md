@@ -18,12 +18,10 @@ updated as the app structure, tooling, and release process become concrete.
   or supporting runtime/toolchain that is not installed locally, Codex may
   install and use it without asking first. Prefer temporary or user-scoped
   installs unless a project-local dependency is clearly the right fit.
-- When editing Windows Forms UI, account for Windows DPI/scaling. Prefer
-  autosizing layouts or scale fixed dimensions, margins, and padding with
-  `LogicalToDeviceUnits`, and make sure text is not clipped at non-100%
-  display scaling. Follow `docs/ui-guidelines.md`: action rows must stay
-  visible, growing content must scroll inside a bounded viewport, and UI
-  elements must never overlap or render behind each other.
+- The Windows host UI is WPF-first. Prefer device-independent WPF layout
+  primitives (`Grid`, `DockPanel`, `StackPanel`, `ScrollViewer`, `ListView`)
+  over manual pixel positioning. Keep WinForms usage limited to tray interop or
+  legacy code that has not yet been removed. Follow `docs/ui-guidelines.md`.
 
 ## Repository Structure
 

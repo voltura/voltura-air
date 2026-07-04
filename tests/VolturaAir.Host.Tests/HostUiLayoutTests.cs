@@ -4,7 +4,7 @@ using VolturaAir.Host;
 
 namespace VolturaAir.Host.Tests;
 
-public sealed class HostUiLayoutTests
+public sealed partial class HostUiLayoutTests
 {
     [Fact]
     public void GlobalPermissionsFormKeepsCloseButtonVisibleAndOutsidePermissionList()
@@ -73,8 +73,8 @@ public sealed class HostUiLayoutTests
         RunOnStaThread(() =>
         {
             using var store = new TempPairingStore();
-            using var inputInjector = new NoOpInputInjector();
             using var appIcon = (Icon)SystemIcons.Application.Clone();
+            using var inputInjector = new SendInputInjector();
             var manager = new PairingManager(store.Store);
             var webHost = new WebHostService(manager, new InputDispatcher(inputInjector));
             using var pairingForm = new PairingForm(webHost.ServerUrl, manager);
@@ -188,37 +188,6 @@ public sealed class HostUiLayoutTests
             {
                 yield return descendant;
             }
-        }
-    }
-
-    private sealed class NoOpInputInjector : IInputInjector
-    {
-        public void Dispose()
-        {
-        }
-
-        public void MoveMouse(int dx, int dy)
-        {
-        }
-
-        public void MouseButton(string button, string action)
-        {
-        }
-
-        public void Scroll(int dx, int dy)
-        {
-        }
-
-        public void Zoom(string direction)
-        {
-        }
-
-        public void TypeText(string text)
-        {
-        }
-
-        public void SpecialKey(string key, IReadOnlyList<string> modifiers)
-        {
         }
     }
 }

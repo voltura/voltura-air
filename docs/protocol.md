@@ -15,6 +15,32 @@ Pairing links use query parameters:
 The mobile app removes `t` from the address after pairing. Non-secret
 parameters can remain in the address.
 
+## Host hints and manual PC profiles
+
+The `h` host hint is connection routing metadata only. It is not a secret and
+must not be treated as proof that a device is paired. A WebSocket session still
+has to authenticate through `pair.hello` with either a valid `pairToken` or a
+stored reconnect `secret`.
+
+The mobile app can also accept a manually entered host from recovery UI or
+Settings. Manual host input may be:
+
+- an origin such as `http://192.168.1.50:51395`;
+- an address and port such as `192.168.1.50:51395`;
+- a full Voltura Air pairing link;
+- a port number, which resolves against the current page host.
+
+After valid manual host input, the mobile app creates or updates a saved PC
+profile, selects it as the active PC, and attempts to connect without navigating
+away from the app. If the manually entered host does not include a pairing token,
+the connection can only complete when the browser already has a valid stored
+secret for that PC. Otherwise the host rejects the request and the user must
+scan a fresh QR code.
+
+Manual host profiles are a recovery path for changed IP addresses, changed
+automatic ports, guest Wi-Fi mistakes, stale QR pages, and firewall/network
+troubleshooting. They do not bypass pairing.
+
 ## Pairing
 
 The client must start every WebSocket session with `pair.hello`. `deviceName`

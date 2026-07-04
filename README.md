@@ -40,8 +40,10 @@ level so contributors can quickly understand what the app can do without
 turning the README into detailed implementation documentation.
 
 Pairing failure and recovery behavior is documented in
-[docs/pairing-feedback.md](docs/pairing-feedback.md). Protocol message shapes
-are documented in [docs/protocol.md](docs/protocol.md).
+[docs/pairing-feedback.md](docs/pairing-feedback.md). Manual network/host
+selection behavior is documented in
+[docs/manual-network-selection.md](docs/manual-network-selection.md). Protocol
+message shapes are documented in [docs/protocol.md](docs/protocol.md).
 
 ## Requirements
 
@@ -173,4 +175,4 @@ dotnet run --project apps/windows-host/VolturaAir.Host.csproj
 
 Attach a debugger to the `VolturaAir.Host.exe` process if you need breakpoints while using CLI startup.
 
-See [docs/setup.md](docs/setup.md), [docs/release.md](docs/release.md), [docs/protocol.md](docs/protocol.md), and [docs/pairing-feedback.md](docs/pairing-feedback.md) for details.
+See [docs/setup.md](docs/setup.md), [docs/release.md](docs/release.md), [docs/protocol.md](docs/protocol.md), [docs/pairing-feedback.md](docs/pairing-feedback.md), and [docs/manual-network-selection.md](docs/manual-network-selection.md) for details.

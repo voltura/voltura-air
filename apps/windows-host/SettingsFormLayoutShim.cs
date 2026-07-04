@@ -33,7 +33,6 @@ internal static class SettingsFormLayoutShim
             }
 
             AttachNavigationButtons(form);
-            FixSettingsForm(form);
         }
     }
 
@@ -79,19 +78,21 @@ internal static class SettingsFormLayoutShim
                     var control = table.GetControlFromPosition(0, row);
                     if (control is DeviceManagerPanel)
                     {
-                        changed |= SetRowHeight(form, table, row, control, 360);
+                        changed |= SetRowHeight(form, table, row, control, 520);
                     }
                     else if (control is ConnectionSettingsPanel)
                     {
-                        changed |= SetRowHeight(form, table, row, control, 500);
+                        changed |= SetRowHeight(form, table, row, control, 620);
                     }
 
                     if (control is not null && control.GetType().Name == "ThemedCandidateListBox")
                     {
-                        changed |= SetRowHeight(form, table, row, control, 180);
+                        changed |= SetRowHeight(form, table, row, control, 320);
                     }
                 }
             }
+
+            changed |= NormalizeConnectionSaveButton(form);
 
             if (changed)
             {
@@ -121,6 +122,26 @@ internal static class SettingsFormLayoutShim
         control.Height = height;
         table.PerformLayout();
         return true;
+    }
+
+    private static bool NormalizeConnectionSaveButton(Control form)
+    {
+        var changed = false;
+        foreach (var panel in Descendants(form).OfType<ConnectionSettingsPanel>())
+        {
+            foreach (var button in Descendants(panel).OfType<Button>().Where(button => button.Text == "Save"))
+            {
+                var width = Scale(form, 180);
+                if (button.Dock != DockStyle.Right || button.Width != width)
+                {
+                    button.Dock = DockStyle.Right;
+                    button.Width = width;
+                    changed = true;
+                }
+            }
+        }
+
+        return changed;
     }
 
     private static void HideOuterScrollbarIfPageFits(Control form)

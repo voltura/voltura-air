@@ -31,7 +31,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         _webHost = webHost;
         _pairingManager = pairingManager;
         _deviceManagerForm = new DeviceManagerForm(pairingManager, form.CloneAppIcon(), () => _form.ShowMainWindow());
-        _settingsForm = new SettingsForm(form.CloneAppIcon(), webHost, form);
+        _settingsForm = new SettingsForm(form.CloneAppIcon(), pairingManager, webHost, form);
         _permissionsForm = new PermissionsForm(pairingManager, form.CloneAppIcon());
         _technicalDetailsForm = new TechnicalDetailsForm(form.CloneAppIcon());
         _deviceManagerChrome = ThemedWindowChrome.Install(_deviceManagerForm, _deviceManagerForm.Icon!);
@@ -41,7 +41,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         _hadActiveController = pairingManager.HasActiveController;
         _form.FormClosed += (_, _) => ExitThread();
         _form.DeviceManagerRequested += OnDeviceManagerRequested;
-        _settingsForm.DeviceManagerRequested += OnSettingsDeviceManagerRequested;
+        _settingsForm.DevicePermissionsRequested += OnSettingsDevicePermissionsRequested;
         _deviceManagerForm.DevicePermissionsRequested += OnDevicePermissionsRequested;
         _pairingManager.ConnectionChanged += OnConnectionChanged;
         AppThemeSettings.Changed += OnAppThemeChanged;
@@ -71,7 +71,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         {
             _pairingManager.ConnectionChanged -= OnConnectionChanged;
             _form.DeviceManagerRequested -= OnDeviceManagerRequested;
-            _settingsForm.DeviceManagerRequested -= OnSettingsDeviceManagerRequested;
+            _settingsForm.DevicePermissionsRequested -= OnSettingsDevicePermissionsRequested;
             _deviceManagerForm.DevicePermissionsRequested -= OnDevicePermissionsRequested;
             AppThemeSettings.Changed -= OnAppThemeChanged;
             _trayIcon.Visible = false;
@@ -200,9 +200,9 @@ public sealed class TrayApplicationContext : ApplicationContext
         HidePairingWindowIfVisible();
     }
 
-    private void OnSettingsDeviceManagerRequested(object? sender, EventArgs e)
+    private void OnSettingsDevicePermissionsRequested(object? sender, DevicePermissionsRequestedEventArgs e)
     {
-        _deviceManagerForm.ShowFor(_settingsForm);
+        _permissionsForm.ShowDevice(_settingsForm, e.ClientId, e.DeviceName);
     }
 
     private void OnDevicePermissionsRequested(object? sender, DevicePermissionsRequestedEventArgs e)

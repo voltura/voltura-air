@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Runtime.CompilerServices;
 
 namespace VolturaAir.Host;
 
@@ -10,10 +11,17 @@ internal sealed class SettingsLayoutTuner : IDisposable
     private const int LogicalScrollThumbWidth = 6;
     private const int LogicalScrollThumbInset = 4;
     private const int LogicalScrollContentGutter = 18;
+    private static readonly Dictionary<SettingsForm, SettingsLayoutTuner> ActiveTuners = new();
 
     private readonly SettingsForm _form;
     private bool _isTuning;
     private bool _isScheduled;
+
+    [ModuleInitializer]
+    internal static void Initialize()
+    {
+        Application.Idle += OnApplicationIdle;
+    }
 
     public SettingsLayoutTuner(SettingsForm form)
     {
@@ -22,6 +30,8 @@ internal sealed class SettingsLayoutTuner : IDisposable
         _form.VisibleChanged += OnSettingsLayoutChanged;
         _form.SizeChanged += OnSettingsLayoutChanged;
         _form.Layout += OnSettingsLayoutChanged;
+        _form.Disposed += OnSettingsDisposed;
+        TuneNow();
     }
 
     public void Dispose()
@@ -30,11 +40,31 @@ internal sealed class SettingsLayoutTuner : IDisposable
         _form.VisibleChanged -= OnSettingsLayoutChanged;
         _form.SizeChanged -= OnSettingsLayoutChanged;
         _form.Layout -= OnSettingsLayoutChanged;
+        _form.Disposed -= OnSettingsDisposed;
     }
 
     public void TuneNow()
     {
         ScheduleTune();
+    }
+
+    private static void OnApplicationIdle(object? sender, EventArgs e)
+    {
+        foreach (var form in Application.OpenForms.OfType<SettingsForm>().ToArray())
+        {
+            if (ActiveTuners.ContainsKey(form))
+            {
+                continue;
+            }
+
+            ActiveTuners[form] = new SettingsLayoutTuner(form);
+        }
+    }
+
+    private void OnSettingsDisposed(object? sender, EventArgs e)
+    {
+        ActiveTuners.Remove(_form);
+        Dispose();
     }
 
     private void OnSettingsLayoutChanged(object? sender, EventArgs e)

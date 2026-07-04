@@ -614,18 +614,12 @@ public sealed class DeviceManagerPanel : UserControl
 
     private void OnConnectionChanged(object? sender, EventArgs e)
     {
-        if (IsDisposed)
+        if (IsDisposed || !IsHandleCreated)
         {
             return;
         }
 
-        if (IsHandleCreated)
-        {
-            BeginInvoke(RefreshDevices);
-            return;
-        }
-
-        RefreshDevices();
+        BeginInvoke(RefreshDevices);
     }
 
     private void ApplyRowTheme(TableLayoutPanel row, TableLayoutPanel deviceText, Label nameLabel, Label activityLabel, Label metadataLabel, Button permissionsButton, Button actionButton)

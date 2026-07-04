@@ -15,7 +15,7 @@ The Windows host installs per user, runs from the tray, manages paired devices, 
 
 Voltura Air's high-level host and client capabilities are listed in
 [docs/features.md](docs/features.md). Keep that page at product capability
-level so future developers can quickly understand what the app can do without
+level so contributors can quickly understand what the app can do without
 turning the README into detailed implementation documentation.
 
 ## Requirements
@@ -60,14 +60,12 @@ Security reports should not include exploit details in public issues. Follow the
 
 ## Windows security warning
 
-Current early builds are not code-signed. Windows may show an unknown publisher or Microsoft Defender SmartScreen warning when the installer or executable is new.
+Release builds are not code-signed. Windows may show an unknown publisher or Microsoft Defender SmartScreen warning when the installer or executable is new.
 
 Only download Voltura Air from the official product page or the official GitHub releases page:
 
 - Product page: <https://voltura.se/air>
 - GitHub releases: <https://github.com/voltura/voltura-air/releases/latest>
-
-If the project gets real public adoption, code signing or Microsoft Store distribution can be added later.
 
 ## Build And Test
 
@@ -93,9 +91,9 @@ npm run build --workspace apps/mobile-web
 dotnet run --project apps/windows-host/VolturaAir.Host.csproj
 ```
 
-The Windows app opens a pairing window and a tray icon near the clock. Scan the QR code from the phone, tablet, or browser-capable device to open the mobile app and pair it with the PC.
+The Windows app opens the Voltura Air window and a tray icon near the clock. Scan the QR code on the Connect page from the phone, tablet, or browser-capable device to open the mobile app and pair it with the PC.
 
-Use the tray icon's context menu to show the QR code, open Settings for devices or application preferences, inspect technical details, open the product page, or exit the host.
+Use the tray icon's context menu to show Voltura Air, open Devices, open Settings, inspect technical details, open the product page, or exit the host.
 
 ## Local Development
 
@@ -105,7 +103,16 @@ Run both dev servers:
 npm run dev
 ```
 
-This starts the React/Vite PWA on port `5173` with client-side hot reload and starts the Windows host through `dotnet run`. The pairing QR opens the Vite LAN URL, but includes the .NET host URL for `/ws`, so the phone uses the hot-reloading client while input messages go to the host process.
+This starts the React/Vite PWA on port `5173` for browser-based hot reload and starts the Windows host through `dotnet run`. The pairing QR opens the Windows host URL so phone testing uses the same app and `/ws` origin as release builds.
+
+Use the Vite client on a phone when direct mobile hot reload is needed:
+
+```powershell
+$env:VOLTURA_AIR_USE_VITE_CLIENT = "1"
+npm run dev
+```
+
+With `VOLTURA_AIR_USE_VITE_CLIENT=1`, the QR opens the Vite LAN URL and includes the Windows host URL for `/ws`.
 
 Run only one side when needed:
 
@@ -114,7 +121,7 @@ npm run dev:web
 npm run dev:host
 ```
 
-`npm run dev:host` stops any existing `VolturaAir.Host.exe` process before starting `dotnet run` so the Debug build output and preferred port are not locked. Override the client URL if needed:
+`npm run dev:host` stops any existing `VolturaAir.Host.exe` process before starting `dotnet run` so the Debug build output and preferred port are not locked. Set a client URL when the phone should load a separate web client:
 
 ```powershell
 $env:VOLTURA_AIR_CLIENT_URL = "http://192.168.1.20:5173"

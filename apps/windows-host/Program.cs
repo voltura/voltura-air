@@ -1,77 +1,74 @@
-using VolturaAir.Host;
+using System.Windows;
+using Forms = System.Windows.Forms;
+using WpfApplication = System.Windows.Application;
+
+namespace VolturaAir.Host;
 
 internal static class Program
 {
+    private static WpfHostRuntime? s_runtime;
+
     [STAThread]
     private static void Main(string[] args)
     {
-        Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
-        ApplicationConfiguration.Initialize();
+        Forms.Application.SetHighDpiMode(Forms.HighDpiMode.PerMonitorV2);
+        Forms.Application.EnableVisualStyles();
+        Forms.Application.SetCompatibleTextRenderingDefault(false);
 
-        var pairingManager = new PairingManager(new PairingStore());
-        using var inputInjector = new SendInputInjector();
-        var inputDispatcher = new InputDispatcher(inputInjector);
-        var clientUrl = GetOption(args, "--client-url") ?? Environment.GetEnvironmentVariable("VOLTURA_AIR_CLIENT_URL");
-        WebHostService? webHost = null;
+        var app = new WpfApplication
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown
+        };
+        app.Exit += OnApplicationExit;
 
+        var startupWindow = new StartupWindow();
+        startupWindow.Show();
+
+        _ = app.Dispatcher.InvokeAsync(() => InitializeAsync(startupWindow, args));
+        app.Run();
+    }
+
+    private static async Task InitializeAsync(StartupWindow startupWindow, string[] args)
+    {
+        var startedAt = DateTimeOffset.UtcNow;
         try
         {
-            webHost = new WebHostService(pairingManager, inputDispatcher);
-            webHost.StartAsync().GetAwaiter().GetResult();
-            var form = new PairingForm(webHost.ServerUrl, pairingManager, clientUrl);
-            WritePairingUrlIfRequested(args, form.PairingUrl);
-            using var windowChrome = ThemedWindowChrome.Install(form, form.Icon!);
-            using var appContext = new TrayApplicationContext(form, webHost, pairingManager, showMainWindow: !args.Contains("--minimized", StringComparer.OrdinalIgnoreCase));
-            Application.Run(appContext);
-        }
-        catch (HostPortUnavailableException ex)
-        {
-            MessageBox.Show(
-                ex.Message,
-                "Voltura Air connection settings",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Error);
-        }
-        finally
-        {
-            if (webHost is not null)
+            s_runtime = await WpfHostRuntime.StartAsync(args);
+            var remaining = TimeSpan.FromMilliseconds(1500) - (DateTimeOffset.UtcNow - startedAt);
+            if (remaining > TimeSpan.Zero)
             {
-                webHost.StopAsync().GetAwaiter().GetResult();
-                webHost.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                await Task.Delay(remaining);
             }
+
+            startupWindow.Close();
+            if (ShouldShowMainWindowOnStartup(args, AppWindowSettings.StartHiddenInTray(), s_runtime.PairingManager.HasActiveController))
+            {
+                s_runtime.MainWindow.ShowPage(HostPage.Connect);
+            }
+        }
+        catch (Exception ex)
+        {
+            startupWindow.ShowError(
+                ex is HostPortUnavailableException ? ex.Message : "An unexpected startup error occurred.",
+                ex.ToString());
         }
     }
 
-    private static string? GetOption(string[] args, string name)
+    internal static bool ShouldShowMainWindowOnStartup(string[] args, bool startHiddenInTraySetting, bool hasActiveController)
     {
-        for (var index = 0; index < args.Length; index += 1)
-        {
-            if (!string.Equals(args[index], name, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            return index + 1 < args.Length ? args[index + 1] : null;
-        }
-
-        return null;
+        return !startHiddenInTraySetting &&
+            !args.Contains("--minimized", StringComparer.OrdinalIgnoreCase) &&
+            !hasActiveController;
     }
 
-    private static void WritePairingUrlIfRequested(string[] args, string pairingUrl)
+    private static void OnApplicationExit(object sender, ExitEventArgs e)
     {
-        var pairingUrlFile = GetOption(args, "--pairing-url-file");
-        if (string.IsNullOrWhiteSpace(pairingUrlFile))
+        if (s_runtime is null)
         {
             return;
         }
 
-        var fullPath = Path.GetFullPath(pairingUrlFile);
-        var directory = Path.GetDirectoryName(fullPath);
-        if (!string.IsNullOrWhiteSpace(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        File.WriteAllText(fullPath, pairingUrl);
+        s_runtime.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        s_runtime = null;
     }
 }

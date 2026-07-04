@@ -3,39 +3,35 @@
 This file tracks near-term product and engineering work that should stay
 visible without becoming detailed implementation documentation.
 
-## Settings UI
+## Windows Host WPF UI
 
 Current state:
 
-- Settings is the primary host configuration surface.
-- Application, Devices, Permissions, Connection, and Appearance are available from
-  the left navigation.
-- Devices is embedded in Settings and contains paired device rows, per-device
-  Permissions actions, duplicate cleanup, disconnect, and remove actions.
-- Connection is embedded in Settings and contains current host URL, network
-  selection, port selection, and save behavior.
-- Standalone Device Manager and Connection Settings forms may remain as internal
-  wrappers around the same panels, but normal Settings navigation should not open
-  extra windows for those pages.
+- The Windows host uses a WPF-first shell with a startup screen and one primary
+  `Voltura Air` window.
+- The main window contains Connect, Devices, Connection, Preferences, and
+  Diagnostics pages.
+- Tray actions open the primary window focused on the relevant page.
+- Devices includes inline per-device permission controls.
+- Connection includes network selection, port selection, and save behavior in
+  the main shell.
 
 Near-term work:
 
-1. Decide whether per-device permissions should remain as a focused dialog or
-   become an in-page detail view under Settings > Devices.
-2. Validate Settings in light mode, dark mode, and system theme mode.
-3. Validate Settings at common Windows display scaling levels, especially 100%,
-   125%, 150%, and laptop-sized screens.
-4. Confirm embedded Devices and Connection pages keep their scroll regions,
-   action rows, spacing, and button sizing clean when the Settings window is near
-   its minimum or maximum size.
-5. Run the full Windows host build and test path before merging Settings shell
+1. Validate the WPF shell in light mode, dark mode, and system theme mode.
+2. Validate the shell at common Windows display scaling levels, especially
+   100%, 125%, 150%, 200%, and laptop-sized screens.
+3. Refine visual polish for the WPF pages: spacing, selected states, empty
+   states, and warning states.
+4. Remove legacy WinForms forms once no tests, docs, or fallback paths depend
+   on them.
+5. Expand automated WPF UI coverage around startup, navigation, connection
+   saving, device actions, and permission inheritance.
+6. Run the full Windows host build and test path before merging UI shell
    changes.
 
 Implementation notes:
 
-- Preserve the existing themed form chrome, controls, and application look and
-  feel.
-- Keep the left navigation visible while switching pages on the right.
-- Do not let content overlap action rows or render behind buttons.
-- Use bounded scroll regions for growing page content.
-- Keep fixed dimensions, gaps, margins, and row heights DPI-scaled.
+- Keep layout adaptive and device-independent.
+- Do not reintroduce custom scrollbars, runtime row resizing, or pixel shims.
+- Keep tray interop small and isolated.

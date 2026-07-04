@@ -15,6 +15,7 @@ internal static class PortSelector
     public const int AutomaticPortSearchCount = 31;
     public const int MinimumUserPort = 49152;
     public const int MaximumPort = 65535;
+    public const string ManualPortRangeMessage = "Manual port must be between 49152 and 65535.";
     private static readonly HashSet<int> ReservedManualPorts =
     [
         80,
@@ -77,7 +78,7 @@ internal static class PortSelector
         {
             if (settings.ManualPort is not { } manualPort || !IsValidPort(manualPort))
             {
-                return new PortSelectionResult(false, 0, IsAutomatic: false, "Manual port must be between 1 and 65535.");
+                return new PortSelectionResult(false, 0, IsAutomatic: false, ManualPortRangeMessage);
             }
 
             var manualPortError = GetManualPortValidationError(manualPort);
@@ -119,12 +120,12 @@ internal static class PortSelector
     {
         if (!IsValidPort(port))
         {
-            return "Manual port must be between 1 and 65535.";
+            return ManualPortRangeMessage;
         }
 
         if (port < MinimumUserPort)
         {
-            return "Manual port must be in the dynamic/private range 49152-65535.";
+            return ManualPortRangeMessage;
         }
 
         if (ReservedManualPorts.Contains(port))

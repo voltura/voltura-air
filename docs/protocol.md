@@ -2,12 +2,18 @@
 
 Voltura Air uses JSON messages over a WebSocket connection at `/ws`.
 
-In hot-reload development, the pairing page can be served by Vite while `/ws`
-stays on the .NET host. In that case the QR URL includes `t` for the pairing
-token and `h` for the PC host URL. The mobile app uses `h` as the PC WebSocket
-origin. After pairing, the short-lived `t` token is removed from the address,
-but non-secret `h` can remain so reloads and Home Screen bookmarks still know
-which .NET host should receive `/ws` traffic.
+Pairing links use query parameters:
+
+- `t`: short-lived pairing token.
+- `h`: optional PC host hint for `/ws` traffic when the web app is served from
+  a different origin than the Windows host. `h` can be a full origin such as
+  `http://192.168.1.20:51395` or a port such as `51395`, which resolves against
+  the current page host.
+- `d`: non-secret client identifier used by browser and Home Screen launches.
+- `n`: non-secret mobile device display name.
+
+The mobile app removes `t` from the address after pairing. Non-secret
+parameters can remain in the address.
 
 ## Pairing
 
@@ -24,7 +30,7 @@ fresh storage container must pair once with a valid `pairToken` before it can
 store its own secret.
 
 When a valid `pairToken` is accepted for an already-known `clientId`, the host
-rotates the secret, revokes old active sockets for that client, and keeps one
+rotates the secret, revokes existing active sockets for that client, and keeps one
 paired-device record instead of adding a duplicate browser/Home Screen entry.
 
 ```json

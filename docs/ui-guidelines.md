@@ -1,46 +1,26 @@
 # UI Guidelines
 
-These notes capture project-level UI decisions for the Windows host so future
-changes do not repeat layout and window-management problems.
+These notes capture project-level UI decisions for the Windows host.
 
-## WinForms Dialog Layout
+## WPF Host UI
 
-- Dialogs must never rely on content overlapping, floating behind action
-  buttons, or extending below the visible work area.
-- Use a root `TableLayoutPanel` with explicit rows for header, content, spacer
-  or fixed gap, and actions.
-- Action buttons belong in a fixed-height bottom row. Content must not share
-  that row or render behind it.
-- Lists or growing content belong in a bounded viewport. When content exceeds
-  the viewport, the viewport scrolls; the dialog action row stays visible.
-- Size fixed dimensions, margins, gaps, and row heights through
-  `LogicalToDeviceUnits` or an existing `ScaleLogical` helper.
-- Account for the custom themed title bar when choosing form sizes. Do not make
-  a dialog taller to expose clipped actions if that can push the action row off
-  screen; instead reduce unnecessary spacer rows or bound the content area.
-- Verify both light and dark themes when adding selected, inherited, disabled,
-  warning, or destructive states.
-- Add or update automated host UI layout tests for WinForms changes that affect
-  form sizing, action rows, scroll regions, or visibility. Prefer deterministic
-  .NET WinForms layout tests in `tests/VolturaAir.Host.Tests` for native host
-  forms; Playwright is useful for the mobile web app but does not inspect
-  native WinForms controls. Native WinForms layout tests must be safe for the
-  GitHub release workflow: if they require an interactive desktop, skip that
-  specific UI assertion when `GITHUB_ACTIONS=true` while keeping it active for
-  local validation.
-
-## Settings Window
-
-Settings uses a single shell with persistent left navigation and a changing
-right content pane. Application, devices, permissions, connection, and
-appearance all belong in that shell for normal navigation.
-
-- The right content pane fills the available space to the right of the
-  navigation; it must not shrink to preferred content width.
-- Page content may grow vertically inside a bounded themed viewport.
-- The Settings action row stays visible and outside the page viewport.
-- Opening Settings from the pairing window hides the pairing window to avoid
-  unnecessary window stacks.
-- Standalone detail forms should remain transitional only. Prefer moving
-  device and connection management into Settings pages when touching those
-  areas.
+- The Windows host UI is WPF-first. WinForms is allowed only for tray interop.
+- Use one primary `Voltura Air` window with page navigation for Connect,
+  Devices, Connection, Preferences, and Diagnostics.
+- Use a real startup window for host initialization. It should appear
+  immediately, stay visible for at least the configured minimum duration, and
+  transition to an error state if startup fails.
+- Prefer WPF device-independent layout over manual pixel work. Use `Grid`
+  with `Auto` rows for headers/actions and `*` rows for growing content.
+- Put `ScrollViewer` only around content that can grow. Action rows and primary
+  navigation must remain outside scrollable regions.
+- Lists should use WPF list controls with virtualization where possible.
+- Do not use custom scrollbars or runtime layout shims to move controls after
+  layout. Fix the layout contract instead.
+- Keep the native Windows title bar unless there is a focused reason to revisit
+  window chrome.
+- Verify light, dark, and system theme modes when adding selected, inherited,
+  disabled, warning, or destructive states.
+- Add or update host UI tests for navigation, startup behavior, settings save
+  behavior, device actions, and permission state. Manual DPI checks should cover
+  100%, 125%, 150%, and 200% display scaling on Windows.

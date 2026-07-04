@@ -29,13 +29,19 @@ export function useVolturaAirConnection() {
   const addressClientId = useMemo(() => getClientIdFromAddress(window.location.href), []);
   const addressPcUrl = useMemo(() => parsePcUrl(window.location.href, window.location.origin), []);
   const initialPairing = useMemo(() => parsePairingLink(window.location.href, window.location.origin), []);
+  const addressHasPcUrl = useMemo(() => hasPcUrlInAddress(window.location.href), []);
   const addressPcProfile = useMemo(() => createPcProfile(initialPairing?.pcUrl ?? addressPcUrl), [addressPcUrl, initialPairing?.pcUrl]);
-  const shouldUseAddressPc = addressClientId !== null;
+  const storedPcProfiles = useMemo(() => loadPcProfiles(), []);
+  const storedActivePcId = useMemo(() => loadActivePcId(), []);
+  const effectiveStoredActivePcId = useMemo(
+    () => getEffectiveStoredActivePcId(storedActivePcId, storedPcProfiles, addressPcProfile.id, window.location.href),
+    [addressPcProfile.id, storedActivePcId, storedPcProfiles]
+  );
+  const shouldUseAddressPc = initialPairing !== null || addressHasPcUrl || (addressClientId !== null && storedActivePcId === null && storedPcProfiles.length === 0);
   const clientId = useMemo(() => getOrCreateClientId(window.location.href), []);
   const [deviceName, setDeviceName] = useState(() => loadDeviceName(window.location.href));
   const [pairedPcs, setPairedPcs] = useState<PcProfile[]>(() => {
-    const profiles = loadPcProfiles();
-    return shouldUseAddressPc ? upsertPcProfile(profiles, addressPcProfile) : profiles;
+    return shouldUseAddressPc ? upsertPcProfile(storedPcProfiles, addressPcProfile) : storedPcProfiles;
   });
 
   useEffect(() => {
@@ -48,7 +54,7 @@ export function useVolturaAirConnection() {
     }
   }, [initialPairing]);
 
-  const [activePcId, setActivePcId] = useState<string | null>(() => shouldUseAddressPc ? addressPcProfile.id : loadActivePcId());
+  const [activePcId, setActivePcId] = useState<string | null>(() => shouldUseAddressPc ? addressPcProfile.id : effectiveStoredActivePcId);
   const [state, setState] = useState<ConnectionState>("connecting");
   const [message, setMessage] = useState("Connecting to PC...");
   const [audioState, setAudioState] = useState<AudioStateMessage | null>(null);
@@ -445,6 +451,15 @@ function getClientIdFromAddress(source: string): string | null {
   }
 }
 
+function hasPcUrlInAddress(source: string): boolean {
+  try {
+    const url = new URL(source);
+    return url.searchParams.has("h");
+  } catch {
+    return new URLSearchParams(source).has("h");
+  }
+}
+
 function normalizeClientId(value: string | null): string | null {
   const trimmed = value?.trim();
   if (!trimmed || trimmed.length < 8 || trimmed.length > 128 || !/^[a-zA-Z0-9._:-]+$/.test(trimmed)) {
@@ -554,6 +569,14 @@ function saveActivePcId(pcId: string | null): void {
   }
 }
 
+function getEffectiveStoredActivePcId(storedActivePcId: string | null, profiles: PcProfile[], addressPcId: string, source: string): string | null {
+  if (!import.meta.env.DEV || storedActivePcId !== addressPcId || !isViteClientAddress(source)) {
+    return storedActivePcId;
+  }
+
+  return profiles.find((profile) => profile.id !== addressPcId)?.id ?? storedActivePcId;
+}
+
 function normalizePcProfile(value: Partial<PcProfile>): PcProfile | null {
   if (typeof value.url !== "string") {
     return null;
@@ -582,6 +605,14 @@ function createPcProfile(pcUrl: string): PcProfile {
     name: "PC",
     url: origin
   };
+}
+
+function isViteClientAddress(source: string): boolean {
+  try {
+    return new URL(source).port === "5173";
+  } catch {
+    return false;
+  }
 }
 
 function upsertPcProfile(profiles: PcProfile[], profile: PcProfile): PcProfile[] {

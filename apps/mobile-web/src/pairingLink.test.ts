@@ -16,6 +16,20 @@ describe("parsePairingLink", () => {
     });
   });
 
+  it("resolves a compact host port against the link origin", () => {
+    expect(parsePairingLink("http://phone.local:5173/?t=abc&h=51395", "http://fallback")).toEqual({
+      pairToken: "abc",
+      pcUrl: "http://phone.local:51395"
+    });
+  });
+
+  it("resolves a raw compact host port against the supplied fallback PC URL", () => {
+    expect(parsePairingLink("t=abc&h=51395", "http://phone.local:5173/app")).toEqual({
+      pairToken: "abc",
+      pcUrl: "http://phone.local:51395"
+    });
+  });
+
   it("reads raw query parameters with the supplied fallback PC URL", () => {
     expect(parsePairingLink("t=abc", "http://fallback/app")).toEqual({
       pairToken: "abc",

@@ -7,7 +7,8 @@ internal sealed record PortSelectionResult(
     bool Succeeded,
     int Port,
     bool IsAutomatic,
-    string? ErrorMessage);
+    string? ErrorMessage,
+    string? Warning = null);
 
 internal static class PortSelector
 {
@@ -99,11 +100,18 @@ internal static class PortSelector
         {
             if (isPortAvailable(port))
             {
-                return new PortSelectionResult(true, port, IsAutomatic: true, ErrorMessage: null);
+                var warning = GetAutomaticPortWarning(port, settings.LastAutomaticPort);
+                return new PortSelectionResult(true, port, IsAutomatic: true, ErrorMessage: null, warning);
             }
         }
 
-        return new PortSelectionResult(true, findFreePort(), IsAutomatic: true, ErrorMessage: null);
+        var fallbackPort = findFreePort();
+        return new PortSelectionResult(
+            true,
+            fallbackPort,
+            IsAutomatic: true,
+            ErrorMessage: null,
+            Warning: $"Preferred Voltura Air ports were unavailable. Using port {fallbackPort} instead. Scan a fresh QR code.");
     }
 
     public static bool IsValidPort(int port)
@@ -177,5 +185,15 @@ internal static class PortSelector
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
         listener.Stop();
         return port;
+    }
+
+    private static string? GetAutomaticPortWarning(int selectedPort, int? lastAutomaticPort)
+    {
+        if (selectedPort == PreferredPort || selectedPort == lastAutomaticPort)
+        {
+            return null;
+        }
+
+        return $"Preferred port {PreferredPort} was unavailable. Using port {selectedPort} instead. Scan a fresh QR code.";
     }
 }

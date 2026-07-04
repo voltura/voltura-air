@@ -84,7 +84,7 @@ internal static class SettingsFormLayoutShim
                     }
                     else if (control is ConnectionSettingsPanel)
                     {
-                        changed |= SetRowHeight(form, table, row, control, 560);
+                        changed |= SetRowHeight(form, table, row, control, 500);
                     }
 
                     if (control is not null && control.GetType().Name == "ThemedCandidateListBox")

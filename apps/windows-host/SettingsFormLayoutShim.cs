@@ -89,7 +89,7 @@ internal static class SettingsFormLayoutShim
 
                     if (control is not null && control.GetType().Name == "ThemedCandidateListBox")
                     {
-                        changed |= SetRowHeight(form, table, row, control, 320);
+                        changed |= SetRowHeight(form, table, row, control, 280);
                     }
                 }
             }
@@ -181,8 +181,6 @@ internal static class SettingsFormLayoutShim
                 continue;
             }
 
-            track.BackColor = form.BackColor;
-            track.Controls[0].BackColor = form.BackColor;
             if (canvas.Controls[0].Height <= viewport.ClientSize.Height)
             {
                 track.Visible = false;

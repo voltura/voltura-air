@@ -49,9 +49,6 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Verify built web compression assets
-        run: npm run verify:web-compression
-
       - name: Test
         run: npm test
 

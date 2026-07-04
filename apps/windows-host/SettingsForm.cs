@@ -14,12 +14,16 @@ public enum SettingsPage
 
 public sealed class SettingsForm : Form
 {
-    private const int LogicalFormWidth = 1600;
-    private const int LogicalFormHeight = 1080;
-    private const int LogicalNavWidth = 240;
+    private const int LogicalFormWidth = 1720;
+    private const int LogicalFormHeight = 1120;
+    private const int LogicalMinimumFormWidth = 1220;
+    private const int LogicalMinimumFormHeight = 760;
+    private const int LogicalScreenMargin = 48;
+    private const int LogicalNavWidth = 200;
     private const int LogicalNavButtonHeight = 56;
     private const int LogicalCloseButtonWidth = 180;
     private const int LogicalPageGap = 12;
+    private const int LogicalConnectionPanelHeight = 660;
 
     private readonly Icon _appIcon;
     private readonly Label _titleLabel = new();
@@ -44,7 +48,7 @@ public sealed class SettingsForm : Form
     private readonly Button _lightThemeButton = new();
     private readonly Button _darkThemeButton = new();
     private readonly Button _openDeviceManagerButton = new();
-    private readonly Button _openConnectionSettingsButton = new();
+    private readonly ConnectionSettingsPanel _connectionSettingsPanel;
     private readonly Button _closeButton = new();
     private readonly List<Button> _navigationButtons = new();
     private readonly List<ThemedCheckBox> _checkBoxes = new();
@@ -56,17 +60,17 @@ public sealed class SettingsForm : Form
     private int _pageScrollDragStartOffset;
     private bool _isLoading;
 
-    public SettingsForm(Icon appIcon)
+    public SettingsForm(Icon appIcon, WebHostService webHost, PairingForm pairingForm)
     {
         _appIcon = appIcon;
         _theme = WindowsTheme.Current();
+        _connectionSettingsPanel = new ConnectionSettingsPanel(webHost, pairingForm);
 
         Text = "Voltura Air settings";
         Icon = _appIcon;
         AutoScaleMode = AutoScaleMode.Dpi;
         StartPosition = FormStartPosition.CenterParent;
-        MinimumSize = new Size(LogicalFormWidth, LogicalFormHeight);
-        Size = new Size(LogicalFormWidth, LogicalFormHeight);
+        ApplyFormSizeLimits();
 
         BuildLayout();
         WireSettingsAutosave();
@@ -78,8 +82,6 @@ public sealed class SettingsForm : Form
         AppThemeSettings.Changed += OnAppThemeChanged;
         FormClosing += OnFormClosing;
     }
-
-    public event EventHandler? ConnectionSettingsRequested;
 
     public event EventHandler? DeviceManagerRequested;
 
@@ -122,6 +124,22 @@ public sealed class SettingsForm : Form
         }
 
         base.Dispose(disposing);
+    }
+
+    private void ApplyFormSizeLimits()
+    {
+        var workingArea = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, LogicalFormWidth, LogicalFormHeight);
+        var outerMargin = ScaleLogical(LogicalScreenMargin);
+        var maxWidth = Math.Max(1, workingArea.Width - outerMargin);
+        var maxHeight = Math.Max(1, workingArea.Height - outerMargin);
+        var minimumWidth = Math.Min(ScaleLogical(LogicalMinimumFormWidth), maxWidth);
+        var minimumHeight = Math.Min(ScaleLogical(LogicalMinimumFormHeight), maxHeight);
+        var targetWidth = Math.Min(ScaleLogical(LogicalFormWidth), maxWidth);
+        var targetHeight = Math.Min(ScaleLogical(LogicalFormHeight), maxHeight);
+
+        MaximumSize = new Size(maxWidth, maxHeight);
+        MinimumSize = new Size(minimumWidth, minimumHeight);
+        Size = new Size(Math.Max(minimumWidth, targetWidth), Math.Max(minimumHeight, targetHeight));
     }
 
     private void BuildLayout()
@@ -336,11 +354,9 @@ public sealed class SettingsForm : Form
 
     private void BuildConnectionPage(TableLayoutPanel pageContent)
     {
-        AddPageHeader(pageContent, "Connection", "Host connection settings.");
-        ConfigureCommandButton(_openConnectionSettingsButton, "Open connection settings");
-        _openConnectionSettingsButton.Click -= OnOpenConnectionSettingsClick;
-        _openConnectionSettingsButton.Click += OnOpenConnectionSettingsClick;
-        AddButtonRow(pageContent, _openConnectionSettingsButton);
+        AddPageHeader(pageContent, "Connection", "Choose the local network address Voltura Air advertises to phones and tablets.");
+        _connectionSettingsPanel.RefreshSettings();
+        AddControlRow(pageContent, _connectionSettingsPanel, SizeType.Absolute, ScaleLogical(LogicalConnectionPanelHeight));
         AddPageFiller(pageContent);
     }
 
@@ -526,6 +542,7 @@ public sealed class SettingsForm : Form
         var permissions = AppPermissionSettings.Load();
         _allowPcSleepCheckBox.Checked = permissions.AllowPcSleep;
         _allowVolumeControlCheckBox.Checked = permissions.AllowVolumeControl;
+        _connectionSettingsPanel.RefreshSettings();
         UpdateThemeSelection(AppThemeSettings.GetMode());
         _isLoading = false;
     }
@@ -554,11 +571,6 @@ public sealed class SettingsForm : Form
     private void OnOpenDeviceManagerClick(object? sender, EventArgs e)
     {
         DeviceManagerRequested?.Invoke(this, EventArgs.Empty);
-    }
-
-    private void OnOpenConnectionSettingsClick(object? sender, EventArgs e)
-    {
-        ConnectionSettingsRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private void OnFormClosing(object? sender, FormClosingEventArgs e)
@@ -630,13 +642,13 @@ public sealed class SettingsForm : Form
             checkBox.ApplyTheme(_theme);
         }
 
+        _connectionSettingsPanel.ApplyTheme(_theme);
         _pageCanvas.BackColor = _theme.Window;
         _pageScrollTrack.BackColor = _theme.Window;
         _pageScrollThumb.BackColor = _theme.MutedText;
         ApplyNavigationTheme();
         UpdateThemeSelection(AppThemeSettings.GetMode());
         CommandButtonStyle.ApplyTheme(_openDeviceManagerButton, _theme, CommandButtonKind.Normal);
-        CommandButtonStyle.ApplyTheme(_openConnectionSettingsButton, _theme, CommandButtonKind.Normal);
         CommandButtonStyle.ApplyTheme(_closeButton, _theme, CommandButtonKind.Normal);
         RefreshPageScrollLayout();
     }
@@ -823,7 +835,7 @@ public sealed class SettingsForm : Form
             ReferenceEquals(control, _lightThemeButton) ||
             ReferenceEquals(control, _darkThemeButton) ||
             ReferenceEquals(control, _openDeviceManagerButton) ||
-            ReferenceEquals(control, _openConnectionSettingsButton);
+            ReferenceEquals(control, _connectionSettingsPanel);
     }
 
     private void FocusDefaultControl()

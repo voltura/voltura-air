@@ -84,7 +84,7 @@ internal static class SettingsFormLayoutShim
                     }
                     else if (control is ConnectionSettingsPanel)
                     {
-                        changed |= SetRowHeight(form, table, row, control, 500);
+                        changed |= SetRowHeight(form, table, row, control, 460);
                     }
 
                     if (control is not null && control.GetType().Name == "ThemedCandidateListBox")
@@ -94,7 +94,7 @@ internal static class SettingsFormLayoutShim
                 }
             }
 
-            changed |= NormalizeConnectionSaveButton(form);
+            changed |= MoveConnectionSaveButton(form);
 
             if (changed)
             {
@@ -163,24 +163,115 @@ internal static class SettingsFormLayoutShim
         return true;
     }
 
-    private static bool NormalizeConnectionSaveButton(Control form)
+    private static bool MoveConnectionSaveButton(Control form)
     {
         var changed = false;
         foreach (var panel in Descendants(form).OfType<ConnectionSettingsPanel>())
         {
-            foreach (var button in Descendants(panel).OfType<Button>().Where(button => button.Text == "Save"))
+            var saveButton = Descendants(panel).OfType<Button>().FirstOrDefault(button => button.Text == "Save");
+            var portPanel = Descendants(panel).OfType<TableLayoutPanel>().FirstOrDefault(IsPortPanel);
+            if (saveButton is null || portPanel is null)
             {
-                var width = Scale(form, 180);
-                if (button.Dock != DockStyle.Right || button.Width != width)
+                continue;
+            }
+
+            changed |= EnsurePortPanelSaveRows(form, portPanel);
+            changed |= CollapseOriginalSaveRow(saveButton, portPanel);
+
+            if (!ReferenceEquals(saveButton.Parent, portPanel))
+            {
+                saveButton.Parent?.Controls.Remove(saveButton);
+                portPanel.Controls.Add(saveButton, 0, 7);
+                changed = true;
+            }
+            else
+            {
+                var position = portPanel.GetPositionFromControl(saveButton);
+                if (position.Row != 7 || position.Column != 0)
                 {
-                    button.Dock = DockStyle.Right;
-                    button.Width = width;
+                    portPanel.Controls.Remove(saveButton);
+                    portPanel.Controls.Add(saveButton, 0, 7);
                     changed = true;
                 }
+            }
+
+            var buttonWidth = Scale(form, 180);
+            var buttonHeight = Scale(form, CommandButtonStyle.ButtonHeight);
+            var topMargin = Scale(form, CommandButtonStyle.ActionTopPadding);
+            if (saveButton.Dock != DockStyle.Right || saveButton.Width != buttonWidth || saveButton.Height != buttonHeight || saveButton.Margin.Top != topMargin)
+            {
+                saveButton.Dock = DockStyle.Right;
+                saveButton.Width = buttonWidth;
+                saveButton.Height = buttonHeight;
+                saveButton.Margin = new Padding(0, topMargin, 0, 0);
+                changed = true;
             }
         }
 
         return changed;
+    }
+
+    private static bool EnsurePortPanelSaveRows(Control form, TableLayoutPanel portPanel)
+    {
+        var changed = false;
+        if (portPanel.RowCount < 8)
+        {
+            portPanel.RowCount = 8;
+            changed = true;
+        }
+
+        while (portPanel.RowStyles.Count < 8)
+        {
+            portPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            changed = true;
+        }
+
+        changed |= SetRowStyle(portPanel.RowStyles[6], SizeType.Percent, 100f);
+        changed |= SetRowStyle(portPanel.RowStyles[7], SizeType.Absolute, Scale(form, CommandButtonStyle.ActionRowHeight));
+        return changed;
+    }
+
+    private static bool CollapseOriginalSaveRow(Control saveButton, TableLayoutPanel portPanel)
+    {
+        var oldParent = saveButton.Parent;
+        if (oldParent is null || ReferenceEquals(oldParent, portPanel) || oldParent.Parent is not TableLayoutPanel oldLayout)
+        {
+            return false;
+        }
+
+        var changed = false;
+        var position = oldLayout.GetPositionFromControl(oldParent);
+        if (position.Row >= 0 && position.Row < oldLayout.RowStyles.Count)
+        {
+            changed |= SetRowStyle(oldLayout.RowStyles[position.Row], SizeType.Absolute, 0f);
+        }
+
+        if (oldParent.Visible)
+        {
+            oldParent.Visible = false;
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private static bool SetRowStyle(RowStyle style, SizeType sizeType, float height)
+    {
+        var changed = style.SizeType != sizeType || Math.Abs(style.Height - height) > 0.1f;
+        if (!changed)
+        {
+            return false;
+        }
+
+        style.SizeType = sizeType;
+        style.Height = height;
+        return true;
+    }
+
+    private static bool IsPortPanel(TableLayoutPanel table)
+    {
+        return table.Controls.OfType<Label>().Any(label => label.Text == "PORT") &&
+            table.Controls.OfType<Button>().Any(button => button.Text == "Manual port");
     }
 
     private static void HideOuterScrollbarForEmbeddedPages(Control form)

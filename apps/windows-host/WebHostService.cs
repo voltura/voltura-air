@@ -39,6 +39,7 @@ public sealed class WebHostService : IAsyncDisposable
         }
 
         Port = portSelection.Port;
+        PortSelectionWarning = portSelection.Warning;
         if (portSelection.IsAutomatic)
         {
             AppNetworkSettings.SetLastAutomaticPort(Port);
@@ -62,6 +63,8 @@ public sealed class WebHostService : IAsyncDisposable
     public string AdvertisedHostAddress { get; private set; }
 
     public string? AddressSelectionWarning { get; }
+
+    public string? PortSelectionWarning { get; }
 
     public void UpdateAdvertisedHostAddress(string hostAddress)
     {

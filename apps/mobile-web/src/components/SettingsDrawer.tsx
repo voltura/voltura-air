@@ -210,6 +210,11 @@ export function SettingsDrawer({
         </label>
 
         <label className="toggle-row">
+          <span>Show sleep button</span>
+          <input type="checkbox" checked={keyboardSettings.showSleepButton} onChange={(event) => updateKeyboardSetting("showSleepButton", event.target.checked)} />
+        </label>
+
+        <label className="toggle-row">
           <span>Enable split mode</span>
           <input type="checkbox" checked={keyboardSettings.enableSplitMode} onChange={(event) => updateKeyboardSetting("enableSplitMode", event.target.checked)} />
         </label>

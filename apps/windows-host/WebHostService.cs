@@ -200,8 +200,9 @@ public sealed class WebHostService : IAsyncDisposable
                     RegisterSocket(clientId, socket);
                     activeConnection = _pairingManager.TrackConnection(clientId);
                     var pcName = Environment.MachineName;
-                    await SendAsync(socket, new { type = "pair.accepted", clientId, pcName, secret, paired = true }, cancellationToken);
-                    await SendAsync(socket, new { type = "status", connected = true, message = "Connected", pcName }, cancellationToken);
+                    var capabilities = CreateCapabilities();
+                    await SendAsync(socket, new { type = "pair.accepted", clientId, pcName, secret, paired = true, capabilities }, cancellationToken);
+                    await SendAsync(socket, new { type = "status", connected = true, message = "Connected", pcName, capabilities }, cancellationToken);
                     await SendAudioStateAsync(socket, cancellationToken);
                     continue;
                 }
@@ -220,8 +221,14 @@ public sealed class WebHostService : IAsyncDisposable
 
                 if (type == "status.ping")
                 {
-                    await SendAsync(socket, new { type = "status.pong", pcName = Environment.MachineName }, cancellationToken);
+                    await SendAsync(socket, new { type = "status.pong", pcName = Environment.MachineName, capabilities = CreateCapabilities() }, cancellationToken);
                     await SendAudioStateAsync(socket, cancellationToken);
+                    continue;
+                }
+
+                if (type == "system.sleep")
+                {
+                    TrySleepPc();
                     continue;
                 }
 
@@ -391,6 +398,22 @@ public sealed class WebHostService : IAsyncDisposable
     private static Task SendAudioStateAsync(WebSocket socket, AudioState state, CancellationToken cancellationToken)
     {
         return SendAsync(socket, new { type = "audio.state", volume = state.Volume, muted = state.Muted }, cancellationToken);
+    }
+
+    private static object CreateCapabilities()
+    {
+        return new { sleep = true };
+    }
+
+    private static void TrySleepPc()
+    {
+        try
+        {
+            System.Windows.Forms.Application.SetSuspendState(System.Windows.Forms.PowerState.Suspend, force: false, disableWakeEvent: false);
+        }
+        catch (InvalidOperationException)
+        {
+        }
     }
 
     private static async Task<bool> TryServeCompressedJavaScriptAsync(HttpContext context, string staticRoot)

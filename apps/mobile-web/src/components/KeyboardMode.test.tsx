@@ -10,21 +10,25 @@ const repeatIntervalMs = 55;
 type HarnessProps = {
   initialText?: string;
   liveKeyboard?: boolean;
+  onSleep?: () => void;
   sendSpecial?: (key: string, modifiers?: string[]) => void;
   sendText?: (text: string) => void;
   showArrowKeys?: boolean;
   showControlKeys?: boolean;
   showFunctionKeys?: boolean;
+  showSleepButton?: boolean;
 };
 
 function KeyboardModeHarness({
   initialText = "",
   liveKeyboard = true,
+  onSleep = vi.fn(),
   sendSpecial = vi.fn(),
   sendText = vi.fn(),
   showArrowKeys = true,
   showControlKeys = true,
-  showFunctionKeys = false
+  showFunctionKeys = false,
+  showSleepButton = false
 }: HarnessProps) {
   const [keyboardText, setKeyboardText] = useState(initialText);
   const [isLive, setIsLive] = useState(liveKeyboard);
@@ -43,6 +47,7 @@ function KeyboardModeHarness({
         setKeyboardText(next);
         committedKeyboardTextRef.current = next;
       }}
+      onSleep={onSleep}
       placeLiveKeyboardCaret={vi.fn()}
       sendEmptyDelete={vi.fn(() => false)}
       sendSpecial={sendSpecial}
@@ -52,6 +57,7 @@ function KeyboardModeHarness({
       showArrowKeys={showArrowKeys}
       showControlKeys={showControlKeys}
       showFunctionKeys={showFunctionKeys}
+      showSleepButton={showSleepButton}
       toLiveKeyboardValue={toLiveKeyboardValue}
     />
   );
@@ -257,5 +263,22 @@ describe("KeyboardMode function keys", () => {
 
     expect(screen.getByRole("button", { name: "F12" })).toBeTruthy();
     expect(sendSpecial).toHaveBeenCalledExactlyOnceWith("F1");
+  });
+});
+
+describe("KeyboardMode sleep button", () => {
+  it("hides the sleep button by default", () => {
+    render(<KeyboardModeHarness />);
+
+    expect(screen.queryByRole("button", { name: "Sleep" })).toBeNull();
+  });
+
+  it("calls onSleep when the sleep button is shown", () => {
+    const onSleep = vi.fn();
+    render(<KeyboardModeHarness onSleep={onSleep} showSleepButton />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Sleep" }));
+
+    expect(onSleep).toHaveBeenCalledOnce();
   });
 });

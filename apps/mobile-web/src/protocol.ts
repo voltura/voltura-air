@@ -22,12 +22,17 @@ export type StatusPingMessage = {
   type: "status.ping";
 };
 
+export type ServerCapabilities = {
+  sleep?: boolean;
+};
+
 export type PairAcceptedMessage = {
   type: "pair.accepted";
   clientId: string;
   pcName: string;
   secret: string;
   paired: true;
+  capabilities?: ServerCapabilities;
 };
 
 export type PairRejectedMessage = {
@@ -40,11 +45,13 @@ export type StatusMessage = {
   connected: boolean;
   message?: string;
   pcName?: string;
+  capabilities?: ServerCapabilities;
 };
 
 export type StatusPongMessage = {
   type: "status.pong";
   pcName: string;
+  capabilities?: ServerCapabilities;
 };
 
 export type PointerMoveMessage = {
@@ -81,6 +88,10 @@ export type KeyboardSpecialMessage = {
   modifiers?: string[];
 };
 
+export type SystemSleepMessage = {
+  type: "system.sleep";
+};
+
 export type AudioMuteToggleMessage = {
   type: "audio.mute.toggle";
 };
@@ -107,6 +118,7 @@ export type ClientMessage =
   | PointerZoomMessage
   | KeyboardTextMessage
   | KeyboardSpecialMessage
+  | SystemSleepMessage
   | AudioMuteToggleMessage
   | AudioVolumeSetMessage;
 

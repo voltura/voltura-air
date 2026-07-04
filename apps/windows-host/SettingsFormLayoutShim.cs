@@ -57,7 +57,7 @@ internal static class SettingsFormLayoutShim
             return;
         }
 
-        form.BeginInvoke((MethodInvoker)(() => FixSettingsForm(form)));
+        form.BeginInvoke((System.Windows.Forms.MethodInvoker)(() => FixSettingsForm(form)));
     }
 
     private static void FixSettingsForm(SettingsForm form)

@@ -1,6 +1,4 @@
-using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Windows.Forms;
 
 namespace VolturaAir.Host;
 
@@ -23,13 +21,7 @@ public sealed class SendInputInjector : IInputInjector
 
     public void MoveMouse(int dx, int dy)
     {
-        if (TrySendMouse(dx, dy, 0, MouseEventFMove))
-        {
-            return;
-        }
-
-        var position = Cursor.Position;
-        Cursor.Position = new Point(position.X + dx, position.Y + dy);
+        SendMouse(dx, dy, 0, MouseEventFMove);
     }
 
     public void MouseButton(string button, string action)
@@ -40,24 +32,17 @@ public sealed class SendInputInjector : IInputInjector
 
         if (action.Equals("down", StringComparison.OrdinalIgnoreCase))
         {
-            if (!TrySendMouse(0, 0, 0, downFlag))
-            {
-                MouseEvent(downFlag, 0, 0, 0, 0);
-            }
+            SendMouse(0, 0, 0, downFlag);
         }
         else if (action.Equals("up", StringComparison.OrdinalIgnoreCase))
         {
-            if (!TrySendMouse(0, 0, 0, upFlag))
-            {
-                MouseEvent(upFlag, 0, 0, 0, 0);
-            }
+            SendMouse(0, 0, 0, upFlag);
         }
-        else if (!TrySendInputs(
-            MouseInput(0, 0, 0, downFlag),
-            MouseInput(0, 0, 0, upFlag)))
+        else
         {
-            MouseEvent(downFlag, 0, 0, 0, 0);
-            MouseEvent(upFlag, 0, 0, 0, 0);
+            SendInputs(
+                MouseInput(0, 0, 0, downFlag),
+                MouseInput(0, 0, 0, upFlag));
         }
     }
 
@@ -65,20 +50,12 @@ public sealed class SendInputInjector : IInputInjector
     {
         if (dy != 0)
         {
-            var wheelDelta = Math.Clamp(dy * WheelScale, -1200, 1200);
-            if (!TrySendMouse(0, 0, wheelDelta, MouseEventFWheel))
-            {
-                MouseEvent(MouseEventFWheel, 0, 0, wheelDelta, 0);
-            }
+            SendMouse(0, 0, Math.Clamp(dy * WheelScale, -1200, 1200), MouseEventFWheel);
         }
 
         if (dx != 0)
         {
-            var wheelDelta = Math.Clamp(dx * WheelScale, -1200, 1200);
-            if (!TrySendMouse(0, 0, wheelDelta, MouseEventFHWheel))
-            {
-                MouseEvent(MouseEventFHWheel, 0, 0, wheelDelta, 0);
-            }
+            SendMouse(0, 0, Math.Clamp(dx * WheelScale, -1200, 1200), MouseEventFHWheel);
         }
     }
 
@@ -96,27 +73,19 @@ public sealed class SendInputInjector : IInputInjector
             return;
         }
 
-        if (!TrySendInputs(
+        SendInputs(
             KeyboardInput(ControlKey, 0, 0),
             MouseInput(0, 0, wheelDelta, MouseEventFWheel),
-            KeyboardInput(ControlKey, 0, KeyEventFKeyUp)))
-        {
-            KeybdEvent((byte)ControlKey, 0, 0, 0);
-            MouseEvent(MouseEventFWheel, 0, 0, wheelDelta, 0);
-            KeybdEvent((byte)ControlKey, 0, KeyEventFKeyUp, 0);
-        }
+            KeyboardInput(ControlKey, 0, KeyEventFKeyUp));
     }
 
     public void TypeText(string text)
     {
         foreach (var codeUnit in text)
         {
-            if (!TrySendInputs(
+            SendInputs(
                 KeyboardInput(0, codeUnit, KeyEventFUnicode),
-                KeyboardInput(0, codeUnit, KeyEventFUnicode | KeyEventFKeyUp)))
-            {
-                SendKeys.SendWait(EscapeSendKeysText(codeUnit.ToString()));
-            }
+                KeyboardInput(0, codeUnit, KeyEventFUnicode | KeyEventFKeyUp));
         }
     }
 
@@ -138,23 +107,7 @@ public sealed class SendInputInjector : IInputInjector
         inputs.Add(KeyboardInput((ushort)virtualKey, 0, 0));
         inputs.Add(KeyboardInput((ushort)virtualKey, 0, KeyEventFKeyUp));
         inputs.AddRange(modifierKeys.Reverse().Select(modifier => KeyboardInput((ushort)modifier, 0, KeyEventFKeyUp)));
-        if (TrySendInputs(inputs.ToArray()))
-        {
-            return;
-        }
-
-        foreach (var modifier in modifierKeys)
-        {
-            KeybdEvent((byte)modifier, 0, 0, 0);
-        }
-
-        KeybdEvent((byte)virtualKey, 0, 0, 0);
-        KeybdEvent((byte)virtualKey, 0, KeyEventFKeyUp, 0);
-
-        foreach (var modifier in modifierKeys.Reverse())
-        {
-            KeybdEvent((byte)modifier, 0, KeyEventFKeyUp, 0);
-        }
+        SendInputs(inputs.ToArray());
     }
 
     public void Dispose()
@@ -173,23 +126,18 @@ public sealed class SendInputInjector : IInputInjector
         };
     }
 
-    private static bool TrySendMouse(int dx, int dy, int mouseData, uint flags)
+    private static void SendMouse(int dx, int dy, int mouseData, uint flags)
     {
-        return TrySendInputs(MouseInput(dx, dy, mouseData, flags));
+        SendInputs(MouseInput(dx, dy, mouseData, flags));
     }
 
-    private static bool TrySendInputs(params Input[] inputs)
+    private static void SendInputs(params Input[] inputs)
     {
         var sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<Input>());
-        if (sent == inputs.Length)
+        if (sent != inputs.Length)
         {
-            return true;
+            throw new InvalidOperationException("Windows did not accept all input events.");
         }
-
-        var error = Marshal.GetLastWin32Error();
-        Debug.WriteLine($"SendInput accepted {sent}/{inputs.Length} input events. LastError={error}.");
-        Console.Error.WriteLine($"Voltura Air input warning: Windows accepted {sent}/{inputs.Length} input events. LastError={error}.");
-        return false;
     }
 
     private static Input MouseInput(int dx, int dy, int mouseData, uint flags)
@@ -227,27 +175,8 @@ public sealed class SendInputInjector : IInputInjector
         };
     }
 
-    private static string EscapeSendKeysText(string text)
-    {
-        return text
-            .Replace("{", "{{}", StringComparison.Ordinal)
-            .Replace("}", "{}}", StringComparison.Ordinal)
-            .Replace("+", "{+}", StringComparison.Ordinal)
-            .Replace("^", "{^}", StringComparison.Ordinal)
-            .Replace("%", "{%}", StringComparison.Ordinal)
-            .Replace("~", "{~}", StringComparison.Ordinal)
-            .Replace("(", "{(}", StringComparison.Ordinal)
-            .Replace(")", "{)}", StringComparison.Ordinal);
-    }
-
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint inputCount, Input[] inputs, int size);
-
-    [DllImport("user32.dll", EntryPoint = "mouse_event")]
-    private static extern void MouseEvent(uint flags, int dx, int dy, int data, nint extraInfo);
-
-    [DllImport("user32.dll", EntryPoint = "keybd_event")]
-    private static extern void KeybdEvent(byte virtualKey, byte scanCode, uint flags, nint extraInfo);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct Input

@@ -24,6 +24,13 @@ If the PC changed IP address or automatic port, click **New code** on the PC and
 
 Pairing QR codes are short-lived and single-use. Click **New code** on the PC and scan the latest QR code. Avoid using a QR page that was left open before the PC changed network or port.
 
+## Too many pairing attempts
+
+The Windows host temporarily rate-limits repeated failed unauthenticated pairing
+attempts from the same remote address. Wait a moment, click **New code**, and
+scan again. Successful fresh pairing and saved-secret reconnects are not counted
+as failures.
+
 ## Wrong network adapter selected
 
 Open **Connection** in the Windows host and choose the adapter that is on the same Wi-Fi/LAN as the phone or tablet. Avoid VPN, tunnel, and virtual adapters unless that is intentionally the reachable network.
@@ -43,6 +50,12 @@ If the PC says the device was disconnected, the stored mobile credential is no l
 ## App version mismatch
 
 If the mobile app and Windows host report a protocol/version mismatch, refresh the mobile app from the PC and scan a fresh QR code. If the mobile app was installed to the home screen, use **Refresh app** in mobile Settings.
+
+## Pairing request invalid
+
+If the PC reports an invalid pairing request, refresh the mobile app from the PC
+and scan a fresh QR code. The host rejects malformed `pair.hello` messages and
+closes unknown or malformed authenticated messages before dispatching input.
 
 ## What to include in a bug report
 

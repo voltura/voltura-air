@@ -1,6 +1,9 @@
 # Protocol
 
-Voltura Air uses JSON messages over a WebSocket connection at `/ws`.
+Voltura Air uses JSON messages over a WebSocket connection at `/ws`. The host
+accepts missing WebSocket `Origin` headers, same-origin requests, configured
+development client origins, and loopback/private LAN origins. Clearly unrelated
+public origins are rejected before the WebSocket is accepted.
 
 Pairing links use query parameters:
 
@@ -45,7 +48,9 @@ troubleshooting. They do not bypass pairing.
 
 The client must start every WebSocket session with `pair.hello`. `deviceName`
 is the current display name for the mobile device. On a first-time pairing the
-client also sends `pairToken`; on reconnect it sends the stored `secret`.
+client also sends a short-lived single-use `pairToken`; on reconnect it sends
+the stored `secret`. The Windows host stores only a hash of the reconnect
+secret.
 
 The mobile app stores a generated `clientId` in browser storage and also keeps
 that same non-secret value in the page URL as `d`. This lets a browser-created
@@ -141,9 +146,15 @@ Known pairing rejection reasons:
 | `stale-token` | The token was already consumed or replaced by a newer QR code. |
 | `device-revoked` / `secret-revoked` | The stored device credential is no longer valid. |
 | `protocol-version-mismatch` | The client and host pairing protocol versions are incompatible. |
+| `rate-limited` | Too many failed unauthenticated pairing attempts were made from the same remote address. |
+| `invalid-message` | The pairing request was not valid JSON protocol shape. |
 
 The mobile client must treat unknown reasons as diagnosable pairing failures and
 show a diagnostic code instead of raw protocol text.
+
+After authentication, the host accepts only known message types with the expected
+JSON shape. Unknown or malformed authenticated messages are closed with a
+WebSocket policy violation and are not dispatched as input.
 
 Forget this device on the PC after pairing has been accepted:
 

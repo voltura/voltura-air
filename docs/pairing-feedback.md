@@ -33,6 +33,8 @@ Pairing failures should be mapped to friendly messages, not raw protocol strings
 | `invalid-token` | The pairing token is invalid, old, replaced, or from another PC. | Scan a fresh QR code from the PC. |
 | `device-revoked` / `secret-revoked` | The saved device credential is no longer valid. | Scan a fresh QR code to pair again. |
 | `protocol-version-mismatch` | The mobile app and host do not speak the same protocol version. | Refresh the mobile app from the PC and scan again. |
+| `rate-limited` | The PC temporarily blocked repeated failed pairing attempts. | Wait a moment, click **New code** on the PC, and scan again. |
+| `invalid-message` | The host rejected the pairing request because it was not in the expected format. | Refresh the mobile app from the PC and scan a fresh QR code. |
 | `pair-first` | The host received a non-pairing message before authentication. | Scan a fresh QR code and reconnect. |
 | Unknown raw reason | Host sent an unrecognized rejection. | Show a `VAIR-PAIR-*` diagnostic code and let the user copy diagnostics. |
 | `host-unreachable` / PC not available | The browser cannot open or keep the WebSocket connection to the PC host. | Try reconnect, scan a fresh QR code, enter the current host/IP:port manually, check same Wi-Fi/LAN, and allow Windows Firewall on private networks. |
@@ -98,6 +100,8 @@ Prefer specific host rejection reasons when they can be distinguished safely:
 - `invalid-token` when a token was sent but does not match the active token.
 - `device-revoked` or `secret-revoked` when a previously paired device no longer has valid credentials.
 - `protocol-version-mismatch` when the client and host protocol versions are incompatible.
+- `rate-limited` when repeated failed unauthenticated pairing attempts are temporarily blocked.
+- `invalid-message` when `pair.hello` is malformed.
 - `pair-first` when the first client message is not `pair.hello`.
 
 Network reachability failures usually happen before the protocol can return a

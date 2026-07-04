@@ -9,6 +9,8 @@ export type PairingFailureReason =
   | "host-rejected-device"
   | "device-revoked"
   | "protocol-version-mismatch"
+  | "rate-limited"
+  | "invalid-message"
   | "unknown";
 
 export type PairingFeedback = {
@@ -190,6 +192,14 @@ function feedbackForRejectedReason(reason: string): PairingFeedback {
     return feedbackForReason("protocol-version-mismatch");
   }
 
+  if (reason === "rate-limited") {
+    return feedbackForReason("rate-limited");
+  }
+
+  if (reason === "invalid-message") {
+    return feedbackForReason("invalid-message");
+  }
+
   if (reason === "pair-first") {
     return {
       title: "Pairing required",
@@ -282,6 +292,28 @@ function feedbackForReason(reason: PairingFailureReason): PairingFeedback {
         body: "The mobile app and PC host do not speak the same pairing protocol. Refresh the mobile app from the PC and try again.",
         diagnosticCode: "VAIR-PAIR-PROTOCOL-MISMATCH",
         hints: ["Open Settings in the mobile app and use Refresh app, then scan a fresh QR code."],
+        primaryLabel: "Scan new QR code",
+        reason,
+        severity: "error",
+        showRecoveryActions: true
+      };
+    case "rate-limited":
+      return {
+        title: "Too many pairing attempts",
+        body: "The PC temporarily blocked pairing attempts for safety. Wait a moment, then click New code on the PC and scan again.",
+        diagnosticCode: "VAIR-PAIR-RATE-LIMITED",
+        hints: ["Wait briefly before trying again.", "Click New code on the PC before scanning again."],
+        primaryLabel: "Scan new QR code",
+        reason,
+        severity: "warning",
+        showRecoveryActions: true
+      };
+    case "invalid-message":
+      return {
+        title: "Pairing request invalid",
+        body: "The PC rejected the pairing request because it was not in the expected format. Refresh the mobile app from the PC, then scan a fresh QR code.",
+        diagnosticCode: "VAIR-PAIR-INVALID-MESSAGE",
+        hints: ["Refresh the mobile app from the PC.", "Scan a fresh QR code after refreshing."],
         primaryLabel: "Scan new QR code",
         reason,
         severity: "error",

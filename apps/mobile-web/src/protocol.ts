@@ -55,6 +55,8 @@ export type PairRejectionReason =
   | "device-revoked"
   | "secret-revoked"
   | "protocol-version-mismatch"
+  | "rate-limited"
+  | "invalid-message"
   | (string & {});
 
 export type PairRejectedMessage = {

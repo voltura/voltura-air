@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Camera, Power, RefreshCw } from "lucide-react";
 import { buildPairingDiagnostics, getPairingFeedback, normalizeManualHostInput } from "../pairingFeedback";
 
@@ -28,9 +28,15 @@ export function PairingStatus({
   const [manualHostError, setManualHostError] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
 
-  if (activePcUnavailable && document.activeElement instanceof HTMLElement) {
-    document.activeElement.blur();
-  }
+  useEffect(() => {
+    if (!activePcUnavailable) {
+      return;
+    }
+
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  }, [activePcUnavailable]);
 
   const copyDiagnostics = async () => {
     setCopyStatus("");

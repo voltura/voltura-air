@@ -81,7 +81,15 @@ export function getPairingFeedback(message: string, activePcUnavailable = false)
     };
   }
 
-  if (/pairing code expired|qr code expired/i.test(normalizedMessage)) {
+  if (/^scan .+'s pairing qr to pair this app\.?$/i.test(normalizedMessage)) {
+    return feedbackForReason("missing-token");
+  }
+
+  if (/pairing code expired/i.test(normalizedMessage)) {
+    return feedbackForReason("invalid-token");
+  }
+
+  if (/qr code expired/i.test(normalizedMessage)) {
     return feedbackForReason("expired-token");
   }
 

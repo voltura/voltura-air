@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Send, Space } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Moon, Send, Space } from "lucide-react";
 import { liveKeyboardSentinel } from "../keyboardDelta";
 
 const functionKeys = Array.from({ length: 12 }, (_, index) => `F${index + 1}`);
@@ -15,6 +15,7 @@ type KeyboardModeProps = {
   keyboardTextareaRef: React.RefObject<HTMLTextAreaElement | null>;
   liveKeyboard: boolean;
   onKeyboardTextChange: (next: string) => void;
+  onSleep: () => void;
   placeLiveKeyboardCaret: () => void;
   sendEmptyDelete: (inputTypeOrKey: string, timeStamp: number) => boolean;
   sendSpecial: (key: string, modifiers?: string[]) => void;
@@ -24,6 +25,7 @@ type KeyboardModeProps = {
   showArrowKeys: boolean;
   showControlKeys: boolean;
   showFunctionKeys: boolean;
+  showSleepButton: boolean;
   toLiveKeyboardValue: (value: string) => string;
   isComposingRef: React.MutableRefObject<boolean>;
 };
@@ -34,6 +36,7 @@ export function KeyboardMode({
   keyboardTextareaRef,
   liveKeyboard,
   onKeyboardTextChange,
+  onSleep,
   placeLiveKeyboardCaret,
   sendEmptyDelete,
   sendSpecial,
@@ -43,6 +46,7 @@ export function KeyboardMode({
   showArrowKeys,
   showControlKeys,
   showFunctionKeys,
+  showSleepButton,
   toLiveKeyboardValue,
   isComposingRef
 }: KeyboardModeProps) {
@@ -351,6 +355,12 @@ export function KeyboardMode({
         <button {...getRepeatableKeyProps("Tab")}>Tab</button>
         <button onClick={() => sendSpecial("Escape")}>Esc</button>
         <button onClick={() => sendSpecial("Win")}>Win</button>
+        {showSleepButton && (
+          <button type="button" onClick={onSleep}>
+            <Moon aria-hidden="true" />
+            <span>Sleep</span>
+          </button>
+        )}
         <button onClick={sendSpace} aria-label="Space">
           <Space aria-hidden="true" />
         </button>

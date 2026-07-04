@@ -40,6 +40,9 @@ Name "${APP_NAME}"
 OutFile "${OUTPUT_FILE}"
 InstallDir "$LOCALAPPDATA\Programs\${APP_NAME}"
 RequestExecutionLevel user
+XPStyle on
+ManifestDPIAware true
+ManifestSupportedOS all
 SetCompressor /SOLID lzma
 VIProductVersion "${APP_VERSION_QUAD}"
 VIAddVersionKey "ProductName" "${APP_NAME}"

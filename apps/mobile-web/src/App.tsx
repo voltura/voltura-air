@@ -17,6 +17,7 @@ import {
 } from "./keyboardDelta";
 import { parsePairingLink, type PairingLink } from "./pairingLink";
 import type { AudioStateMessage, ClientMessage, KeyboardSpecialMessage } from "./protocol";
+import { buildMobileDiagnostics } from "./mobileDiagnostics";
 import { decodeQrImage } from "./qrCode";
 import { useVolturaAirConnection } from "./useVolturaAirConnection";
 
@@ -72,8 +73,11 @@ export function App() {
     audioState,
     supportsSleep,
     supportsVolumeControl,
+    lastConnectionError,
+    hostStatus,
     pairWithToken,
     selectPc,
+    connectManualPc,
     disconnectActivePc,
     forgetPc,
     renamePc,
@@ -191,6 +195,13 @@ export function App() {
     setPendingPairing(null);
     setIsSettingsOpen(false);
     pairWithToken(pendingPairing.pairToken, pendingPairing.pcUrl, name);
+  };
+
+  const connectManualHost = (target: string) => {
+    connectManualPc(target);
+    setPendingPairing(null);
+    setIsSettingsOpen(false);
+    setPairingScanMessage("Connecting to manually entered PC...");
   };
 
   const onTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
@@ -489,6 +500,16 @@ export function App() {
     </div>
   );
 
+  const mobileDiagnostics = useMemo(() => buildMobileDiagnostics({
+    activePc,
+    connectionState: state,
+    lastErrorCode: lastConnectionError?.code ?? null,
+    lastErrorMessage: lastConnectionError?.message ?? null,
+    message,
+    pairedPcCount: pairedPcs.length,
+    hostStatus
+  }), [activePc, hostStatus, lastConnectionError?.code, lastConnectionError?.message, message, pairedPcs.length, state]);
+
   const shouldShowSplitMode =
     canUseSplitMode && ((tab === "trackpad" && trackpadSettings.enableSplitMode) || (tab === "keyboard" && keyboardSettings.enableSplitMode));
 
@@ -514,22 +535,32 @@ export function App() {
 
       {state === "needs-pairing" && !isSettingsOpen && (
         <PairingStatus
+          diagnostics={mobileDiagnostics}
           deviceName={pendingPairing ? pairingDeviceName : undefined}
           message={pendingPairing ? "Confirm the device name shown on the PC, or change it before pairing." : pairingScanMessage}
           onDeviceNameChange={pendingPairing ? setPairingDeviceName : undefined}
           onPrimaryAction={pendingPairing ? confirmPendingPairing : scanPairingQr}
+          onManualHostSubmit={connectManualHost}
           primaryLabel={pendingPairing ? "Pair" : undefined}
         />
       )}
 
-      {state === "rejected" && !isSettingsOpen && <PairingStatus message={message} onPrimaryAction={scanPairingQr} primaryLabel="Take photo of new QR code" />}
+      {state === "rejected" && !isSettingsOpen && <PairingStatus diagnostics={mobileDiagnostics} message={message} onPrimaryAction={scanPairingQr} onManualHostSubmit={connectManualHost} primaryLabel="Take photo of new QR code" />}
 
       {state === "unavailable" && activePc && !isSettingsOpen && (
-        <PairingStatus activePcUnavailable message={message} onPrimaryAction={() => selectPc(activePc.id)} onSecondaryAction={scanPairingQr} />
+        <PairingStatus
+          activePcUnavailable
+          diagnostics={mobileDiagnostics}
+          message={message}
+          onPrimaryAction={() => selectPc(activePc.id)}
+          onSecondaryAction={scanPairingQr}
+          onManualHostSubmit={connectManualHost}
+        />
       )}
 
       <SettingsDrawer
         activePc={activePc}
+        diagnostics={mobileDiagnostics}
         deviceName={deviceName}
         disconnectActivePc={disconnectActivePc}
         forgetPc={forgetPc}
@@ -540,6 +571,7 @@ export function App() {
         keyboardSettings={keyboardSettings}
         onClose={() => setIsSettingsOpen(false)}
         onPairingQrSelected={onPairingQrSelected}
+        onManualHostSubmit={connectManualHost}
         pairedPcs={pairedPcs}
         pairingQrInputRef={pairingQrInputRef}
         pairingScanMessage={pairingScanMessage}

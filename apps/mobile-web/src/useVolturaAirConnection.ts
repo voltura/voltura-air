@@ -1,14 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { parsePairingLink, parsePcUrl } from "./pairingLink";
-import { getPcDisplayName, isIpHost } from "./pcDisplayName";
-import type { AudioStateMessage, ClientMessage, PairAcceptedMessage, ServerCapabilities, ServerMessage } from "./protocol";
+import { getPcDisplayName } from "./pcDisplayName";
+import {
+  applyPcNameFromHost,
+  createPcProfile,
+  forgetPcProfile,
+  getEffectiveStoredActivePcId,
+  getWebSocketUrl,
+  loadActivePcId,
+  loadPcProfiles,
+  saveActivePcId,
+  savePcProfiles,
+  renamePcProfile,
+  upsertPcProfile,
+  type PcProfile
+} from "./pcProfiles";
+import type { AudioStateMessage, ClientMessage, HostStatusMetadata, PairAcceptedMessage, ServerCapabilities, ServerMessage } from "./protocol";
 
-const activePcIdKey = "voltura-air.activePcId";
 const clientIdKey = "voltura-air.clientId";
 const clientIdQueryParam = "d";
 const deviceNameKey = "voltura-air.deviceName";
 const deviceNameQueryParam = "n";
-const pcProfilesKey = "voltura-air.pcProfiles";
 const screenshotModeKey = "voltura-air.screenshotMode";
 const connectionTimeoutMs = 3000;
 const heartbeatIntervalMs = 2500;
@@ -17,12 +29,12 @@ const retryDelayMs = 1200;
 
 export type ConnectionState = "connecting" | "paired" | "needs-pairing" | "rejected" | "disconnected" | "unavailable";
 
-export type PcProfile = {
-  customName: boolean;
-  id: string;
-  name: string;
-  url: string;
+export type ConnectionError = {
+  code: string;
+  message: string;
 };
+
+export type { PcProfile } from "./pcProfiles";
 
 export function useVolturaAirConnection() {
   const screenshotMode = useMemo(() => isScreenshotMode(window.location.href), []);
@@ -60,6 +72,8 @@ export function useVolturaAirConnection() {
   const [audioState, setAudioState] = useState<AudioStateMessage | null>(null);
   const [supportsSleep, setSupportsSleep] = useState(false);
   const [supportsVolumeControl, setSupportsVolumeControl] = useState(false);
+  const [lastConnectionError, setLastConnectionError] = useState<ConnectionError | null>(null);
+  const [hostStatus, setHostStatus] = useState<HostStatusMetadata | null>(null);
   const [pairingAttempt, setPairingAttempt] = useState<{ token?: string; id: number }>(() => ({
     token: undefined,
     id: 0
@@ -108,6 +122,13 @@ export function useVolturaAirConnection() {
     }
   }, []);
 
+  function updateHostStatus(metadata: HostStatusMetadata | undefined) {
+    const normalized = normalizeHostStatus(metadata);
+    if (normalized) {
+      setHostStatus(normalized);
+    }
+  }
+
   useEffect(() => {
     let disposed = false;
     let shouldRetry = true;
@@ -124,6 +145,7 @@ export function useVolturaAirConnection() {
       setSupportsSleep(false);
       setSupportsVolumeControl(false);
       supportsVolumeControlRef.current = false;
+      setHostStatus(null);
       setState("needs-pairing");
       setMessage(pairedPcs.length > 0 ? "Choose a PC or scan a pairing QR." : "Scan the PC pairing QR to pair this app.");
       return () => {
@@ -171,8 +193,10 @@ export function useVolturaAirConnection() {
       window.clearTimeout(connectionTimer);
       connectionTimer = undefined;
       clearHeartbeat();
+      const unavailableMessage = getPcUnavailableMessage(pc, screenshotMode);
+      setLastConnectionError({ code: "VAIR-PAIR-HOST-UNREACHABLE", message: unavailableMessage });
       setState("unavailable");
-      setMessage(getPcUnavailableMessage(pc));
+      setMessage(unavailableMessage);
 
       if (socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING) {
         socket.close();
@@ -212,8 +236,10 @@ export function useVolturaAirConnection() {
       clearHeartbeat();
 
       if (hasShownUnavailable) {
+        const unavailableMessage = getPcUnavailableMessage(pc, screenshotMode);
+        setLastConnectionError({ code: "VAIR-PAIR-HOST-UNREACHABLE", message: unavailableMessage });
         setState("unavailable");
-        setMessage(getPcUnavailableMessage(pc, screenshotMode));
+        setMessage(unavailableMessage);
       } else {
         setState("connecting");
         setMessage(`Connecting to ${getDisplayPcName(pc, "", screenshotMode)}...`);
@@ -248,6 +274,7 @@ export function useVolturaAirConnection() {
         if (response.type === "pair.accepted") {
           handlePairAccepted(response, pc.id);
           updateCapabilities(response.capabilities);
+          updateHostStatus(response.host);
           if (!screenshotMode) {
             setPairedPcs((current) => applyPcNameFromHost(current, pc.id, response.pcName));
           }
@@ -255,6 +282,7 @@ export function useVolturaAirConnection() {
           window.clearTimeout(connectionTimer);
           connectionTimer = undefined;
           hasShownUnavailable = false;
+          setLastConnectionError(null);
           setState("paired");
           setMessage(`Connected to ${getDisplayPcName(pc, response.pcName, screenshotMode)}`);
           startHeartbeat(ws);
@@ -269,8 +297,10 @@ export function useVolturaAirConnection() {
           setSupportsSleep(false);
           setSupportsVolumeControl(false);
           supportsVolumeControlRef.current = false;
+          const rejectedMessage = `Pairing rejected: ${response.reason}`;
+          setLastConnectionError({ code: diagnosticCodeForPairingReason(response.reason), message: rejectedMessage });
           setState(response.reason === "missing-token" ? "needs-pairing" : "rejected");
-          setMessage(`Pairing rejected: ${response.reason}`);
+          setMessage(rejectedMessage);
           ws.close();
           return;
         }
@@ -283,6 +313,10 @@ export function useVolturaAirConnection() {
           }
 
           updateCapabilities(response.capabilities, response.connected);
+          updateHostStatus(response.host);
+          if (response.connected) {
+            setLastConnectionError(null);
+          }
           setMessage(response.connected ? `Connected to ${getDisplayPcName(pc, response.pcName ?? "", screenshotMode)}` : (response.message ?? "Disconnected"));
           return;
         }
@@ -294,6 +328,8 @@ export function useVolturaAirConnection() {
             setPairedPcs((current) => applyPcNameFromHost(current, pc.id, response.pcName));
           }
           updateCapabilities(response.capabilities);
+          updateHostStatus(response.host);
+          setLastConnectionError(null);
           setState("paired");
           return;
         }
@@ -339,6 +375,8 @@ export function useVolturaAirConnection() {
 
     const profile = createPcProfile(pcUrl);
     queueRef.current = [];
+    setLastConnectionError(null);
+    setHostStatus(null);
     setSupportsSleep(false);
     setSupportsVolumeControl(false);
     supportsVolumeControlRef.current = false;
@@ -356,6 +394,8 @@ export function useVolturaAirConnection() {
 
   const selectPc = useCallback((pcId: string) => {
     queueRef.current = [];
+    setLastConnectionError(null);
+    setHostStatus(null);
     setSupportsSleep(false);
     setSupportsVolumeControl(false);
     supportsVolumeControlRef.current = false;
@@ -363,12 +403,35 @@ export function useVolturaAirConnection() {
     setActivePcId(pcId);
   }, []);
 
+  const addManualPc = useCallback((pcUrl: string) => {
+    const profile = createPcProfile(pcUrl);
+    queueRef.current = [];
+    setLastConnectionError(null);
+    setHostStatus(null);
+    setSupportsSleep(false);
+    setSupportsVolumeControl(false);
+    supportsVolumeControlRef.current = false;
+    setPairedPcs((current) => {
+      const next = upsertPcProfile(current, profile);
+      savePcProfiles(next);
+      return next;
+    });
+    saveActivePcId(profile.id);
+    setActivePcId(profile.id);
+    setPairingAttempt((current) => ({ token: undefined, id: current.id + 1 }));
+    setState("connecting");
+    setMessage(`Connecting to ${getDisplayPcName(profile, "", screenshotMode)}...`);
+  }, [screenshotMode]);
+
+  const connectManualPc = addManualPc;
+
   const disconnectActivePc = useCallback(() => {
     if (!activePcId) {
       return;
     }
 
     queueRef.current = [];
+    setLastConnectionError(null);
     socketRef.current?.close();
     setActivePcId(null);
     setPairingAttempt((current) => ({ token: undefined, id: current.id + 1 }));
@@ -385,8 +448,9 @@ export function useVolturaAirConnection() {
     queueRef.current = [];
     revokePcPairing(pc, clientId, deviceNameRef.current, activePcId === pcId ? socketRef.current : null);
     clearStoredSecret(clientId, pcId);
-    setPairedPcs((current) => current.filter((pc) => pc.id !== pcId));
+    setPairedPcs((current) => forgetPcProfile(current, activePcId, pcId).profiles);
     if (activePcId === pcId) {
+      setLastConnectionError(null);
       socketRef.current?.close();
       setActivePcId(null);
       setAudioState(null);
@@ -400,17 +464,7 @@ export function useVolturaAirConnection() {
   }, [activePcId, clientId, pairedPcs]);
 
   const renamePc = useCallback((pcId: string, name: string) => {
-    setPairedPcs((current) =>
-      current.map((pc) =>
-        pc.id === pcId
-          ? {
-              ...pc,
-              customName: true,
-              name
-            }
-          : pc
-      )
-    );
+    setPairedPcs((current) => renamePcProfile(current, pcId, name));
   }, []);
 
   const renameDevice = useCallback((name: string) => {
@@ -420,7 +474,7 @@ export function useVolturaAirConnection() {
     }
   }, [send, state]);
 
-  return { state, message, send, clientId, deviceName, activePc, pairedPcs, audioState, supportsSleep, supportsVolumeControl, pairWithToken, selectPc, disconnectActivePc, forgetPc, renamePc, renameDevice };
+  return { state, message, send, clientId, deviceName, activePc, pairedPcs, audioState, supportsSleep, supportsVolumeControl, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice };
 }
 
 function getOrCreateClientId(source: string): string {
@@ -522,119 +576,6 @@ function loadDeviceName(source: string): string {
   return getDefaultDeviceName();
 }
 
-function loadPcProfiles(): PcProfile[] {
-  const stored = localStorage.getItem(pcProfilesKey);
-  if (!stored) {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(stored);
-    return Array.isArray(parsed) ? parsed.map(normalizePcProfile).filter((pc): pc is PcProfile => pc !== null) : [];
-  } catch {
-    return [];
-  }
-}
-
-function loadActivePcId(): string | null {
-  const stored = localStorage.getItem(activePcIdKey);
-  if (!stored) {
-    return null;
-  }
-
-  try {
-    return new URL(stored).origin;
-  } catch {
-    return stored;
-  }
-}
-
-function savePcProfiles(profiles: PcProfile[]): void {
-  localStorage.setItem(pcProfilesKey, JSON.stringify(profiles));
-}
-
-function saveActivePcId(pcId: string | null): void {
-  if (pcId) {
-    localStorage.setItem(activePcIdKey, pcId);
-  } else {
-    localStorage.removeItem(activePcIdKey);
-  }
-}
-
-function getEffectiveStoredActivePcId(storedActivePcId: string | null, profiles: PcProfile[], addressPcId: string, source: string): string | null {
-  if (!import.meta.env.DEV || storedActivePcId !== addressPcId || !isViteClientAddress(source)) {
-    return storedActivePcId;
-  }
-
-  return profiles.find((profile) => profile.id !== addressPcId)?.id ?? storedActivePcId;
-}
-
-function normalizePcProfile(value: Partial<PcProfile>): PcProfile | null {
-  if (typeof value.url !== "string") {
-    return null;
-  }
-
-  try {
-    const profile = createPcProfile(value.url);
-    const customName = value.customName === true;
-    const name = typeof value.name === "string" && value.name.trim().length > 0 ? value.name : profile.name;
-    return {
-      ...profile,
-      customName,
-      name: customName || !isIpHost(name) ? name : profile.name
-    };
-  } catch {
-    return null;
-  }
-}
-
-function createPcProfile(pcUrl: string): PcProfile {
-  const url = new URL(pcUrl);
-  const origin = url.origin;
-  return {
-    customName: false,
-    id: origin,
-    name: "PC",
-    url: origin
-  };
-}
-
-function isViteClientAddress(source: string): boolean {
-  try {
-    return new URL(source).port === "5173";
-  } catch {
-    return false;
-  }
-}
-
-function upsertPcProfile(profiles: PcProfile[], profile: PcProfile): PcProfile[] {
-  const existing = profiles.find((pc) => pc.id === profile.id);
-  if (!existing) {
-    return [...profiles, profile];
-  }
-
-  return profiles.map((pc) => (pc.id === profile.id ? { ...profile, customName: pc.customName, name: pc.name } : pc));
-}
-
-function applyPcNameFromHost(profiles: PcProfile[], pcId: string, pcName: string): PcProfile[] {
-  const name = pcName.trim();
-  if (!name) {
-    return profiles;
-  }
-
-  let changed = false;
-  const next = profiles.map((pc) => {
-    if (pc.id !== pcId || pc.customName || pc.name === name) {
-      return pc;
-    }
-
-    changed = true;
-    return { ...pc, name };
-  });
-
-  return changed ? next : profiles;
-}
-
 function getDisplayPcName(pc: PcProfile, hostName: string, screenshotMode = false): string {
   if (screenshotMode) {
     return "PC";
@@ -648,10 +589,31 @@ function getPcUnavailableMessage(pc: PcProfile, screenshotMode = false): string 
   return `${getDisplayPcName(pc, "", screenshotMode)} is currently not available. Check that Voltura Air is running on the PC. Retrying...`;
 }
 
-function getWebSocketUrl(pc: PcProfile): string {
-  const url = new URL(pc.url);
-  const protocol = url.protocol === "https:" ? "wss:" : "ws:";
-  return `${protocol}//${url.host}/ws`;
+function diagnosticCodeForPairingReason(reason: string): string {
+  const normalized = reason.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toUpperCase();
+  return `VAIR-PAIR-${normalized || "UNKNOWN"}`;
+}
+
+function normalizeHostStatus(metadata: HostStatusMetadata | undefined): HostStatusMetadata | null {
+  if (!metadata) {
+    return null;
+  }
+
+  const normalized: HostStatusMetadata = {
+    hostVersion: normalizeOptionalString(metadata.hostVersion),
+    pcName: normalizeOptionalString(metadata.pcName),
+    selectedAdapterName: normalizeOptionalString(metadata.selectedAdapterName),
+    selectedIp: normalizeOptionalString(metadata.selectedIp),
+    selectedPort: Number.isFinite(metadata.selectedPort) ? metadata.selectedPort : undefined,
+    webSocketUrl: normalizeOptionalString(metadata.webSocketUrl)
+  };
+
+  return Object.values(normalized).some((value) => value !== undefined) ? normalized : null;
+}
+
+function normalizeOptionalString(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
 }
 
 function parseServerMessage(data: unknown): ServerMessage | null {

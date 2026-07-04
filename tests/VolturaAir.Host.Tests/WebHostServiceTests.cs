@@ -18,6 +18,8 @@ public sealed class WebHostServiceTests
             AppNetworkSettings.Save(new NetworkSettingsSnapshot(
                 NetworkSelectionMode.Automatic,
                 ManualHostAddress: null,
+                ManualAdapterId: null,
+                ManualAdapterName: null,
                 PortSelectionMode.Automatic,
                 ManualPort: null,
                 LastAutomaticPort: null,

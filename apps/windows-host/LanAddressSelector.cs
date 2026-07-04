@@ -6,6 +6,7 @@ namespace VolturaAir.Host;
 
 internal sealed record LanAddressCandidate(
     IPAddress Address,
+    string AdapterId,
     string AdapterName,
     string AdapterDescription,
     NetworkInterfaceType AdapterType,
@@ -92,7 +93,8 @@ internal static class LanAddressSelector
                     adapter.Name,
                     adapter.Description,
                     adapter.NetworkInterfaceType,
-                    hasIpv4Gateway));
+                    hasIpv4Gateway,
+                    adapter.Id));
             }
         }
 
@@ -104,10 +106,12 @@ internal static class LanAddressSelector
         string adapterName,
         string adapterDescription,
         NetworkInterfaceType adapterType,
-        bool hasIpv4Gateway)
+        bool hasIpv4Gateway,
+        string? adapterId = null)
     {
         return new LanAddressCandidate(
             address,
+            string.IsNullOrWhiteSpace(adapterId) ? adapterName : adapterId,
             adapterName,
             adapterDescription,
             adapterType,
@@ -122,32 +126,7 @@ internal static class LanAddressSelector
         var ordered = OrderCandidates(candidates).ToArray();
         if (settings.NetworkMode == NetworkSelectionMode.Manual)
         {
-            if (IPAddress.TryParse(settings.ManualHostAddress, out var manualAddress))
-            {
-                var manualCandidate = ordered.FirstOrDefault(candidate => candidate.Address.Equals(manualAddress));
-                if (manualCandidate is not null)
-                {
-                    return new LanAddressSelectionResult(manualCandidate.Address, manualCandidate, true, null);
-                }
-
-                var automatic = ordered.FirstOrDefault();
-                return automatic is null
-                    ? null
-                    : new LanAddressSelectionResult(
-                        automatic.Address,
-                        automatic,
-                        UsedManualAddress: false,
-                        "Saved network address is not currently available. Using recommended network instead.");
-            }
-
-            var fallback = ordered.FirstOrDefault();
-            return fallback is null
-                ? null
-                : new LanAddressSelectionResult(
-                    fallback.Address,
-                    fallback,
-                    UsedManualAddress: false,
-                    "Saved network address is not valid. Using recommended network instead.");
+            return SelectManual(ordered, settings);
         }
 
         if (IPAddress.TryParse(settings.LastAutomaticHostAddress, out var lastAutomaticAddress))
@@ -155,14 +134,22 @@ internal static class LanAddressSelector
             var lastAutomaticCandidate = ordered.FirstOrDefault(candidate => candidate.Address.Equals(lastAutomaticAddress));
             if (lastAutomaticCandidate is not null)
             {
-                return new LanAddressSelectionResult(lastAutomaticCandidate.Address, lastAutomaticCandidate, UsedManualAddress: false, Warning: null);
+                return new LanAddressSelectionResult(
+                    lastAutomaticCandidate.Address,
+                    lastAutomaticCandidate,
+                    UsedManualAddress: false,
+                    Warning: BuildAdapterWarning(lastAutomaticCandidate, ordered.Length));
             }
         }
 
         var selected = ordered.FirstOrDefault();
         return selected is null
             ? null
-            : new LanAddressSelectionResult(selected.Address, selected, UsedManualAddress: false, Warning: null);
+            : new LanAddressSelectionResult(
+                selected.Address,
+                selected,
+                UsedManualAddress: false,
+                Warning: BuildAdapterWarning(selected, ordered.Length));
     }
 
     public static int ScoreLanAddressCandidate(
@@ -227,6 +214,79 @@ internal static class LanAddressSelector
     public static bool IsLikelyVpnOrVirtualAdapter(string adapterText)
     {
         return VpnOrVirtualMarkers.Any(marker => adapterText.Contains(marker, StringComparison.OrdinalIgnoreCase));
+    }
+
+    internal static string GetAdapterDisplayName(LanAddressCandidate candidate)
+    {
+        var description = string.IsNullOrWhiteSpace(candidate.AdapterDescription)
+            ? candidate.AdapterName
+            : candidate.AdapterDescription;
+        return $"{candidate.AdapterName} ({description})";
+    }
+
+    private static LanAddressSelectionResult? SelectManual(
+        IReadOnlyList<LanAddressCandidate> ordered,
+        NetworkSettingsSnapshot settings)
+    {
+        var savedAdapterId = settings.ManualAdapterId?.Trim();
+        if (!string.IsNullOrWhiteSpace(savedAdapterId))
+        {
+            var adapterMatch = ordered.FirstOrDefault(candidate => string.Equals(candidate.AdapterId, savedAdapterId, StringComparison.OrdinalIgnoreCase));
+            if (adapterMatch is not null)
+            {
+                var addressChanged = IPAddress.TryParse(settings.ManualHostAddress, out var manualAddress) && !adapterMatch.Address.Equals(manualAddress);
+                var warning = addressChanged
+                    ? "Saved network adapter now uses a different IP address. Using the current adapter address."
+                    : BuildAdapterWarning(adapterMatch, ordered.Count);
+
+                return new LanAddressSelectionResult(adapterMatch.Address, adapterMatch, UsedManualAddress: true, warning);
+            }
+
+            return SelectFallback(
+                ordered,
+                "Saved network adapter is not currently available. Using recommended network instead.");
+        }
+
+        if (IPAddress.TryParse(settings.ManualHostAddress, out var manualHostAddress))
+        {
+            var manualCandidate = ordered.FirstOrDefault(candidate => candidate.Address.Equals(manualHostAddress));
+            if (manualCandidate is not null)
+            {
+                return new LanAddressSelectionResult(
+                    manualCandidate.Address,
+                    manualCandidate,
+                    UsedManualAddress: true,
+                    Warning: BuildAdapterWarning(manualCandidate, ordered.Count));
+            }
+
+            return SelectFallback(
+                ordered,
+                "Saved network address is not currently available. Using recommended network instead.");
+        }
+
+        return SelectFallback(
+            ordered,
+            "Saved network address is not valid. Using recommended network instead.");
+    }
+
+    private static LanAddressSelectionResult? SelectFallback(IReadOnlyList<LanAddressCandidate> ordered, string warning)
+    {
+        var fallback = ordered.FirstOrDefault();
+        return fallback is null
+            ? null
+            : new LanAddressSelectionResult(fallback.Address, fallback, UsedManualAddress: false, warning);
+    }
+
+    private static string? BuildAdapterWarning(LanAddressCandidate candidate, int candidateCount)
+    {
+        if (candidate.IsLikelyVpnOrVirtual)
+        {
+            return "Selected network looks like VPN or virtual networking and may not be reachable from your phone or tablet.";
+        }
+
+        return candidateCount > 1
+            ? $"Multiple network adapters found. Voltura Air selected {GetAdapterDisplayName(candidate)}. If your phone cannot connect, choose the adapter connected to the same Wi-Fi/LAN."
+            : null;
     }
 
     private static IOrderedEnumerable<LanAddressCandidate> OrderCandidates(IEnumerable<LanAddressCandidate> candidates)

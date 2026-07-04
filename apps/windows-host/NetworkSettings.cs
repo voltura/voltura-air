@@ -17,6 +17,8 @@ internal enum PortSelectionMode
 internal sealed record NetworkSettingsSnapshot(
     NetworkSelectionMode NetworkMode,
     string? ManualHostAddress,
+    string? ManualAdapterId,
+    string? ManualAdapterName,
     PortSelectionMode PortMode,
     int? ManualPort,
     int? LastAutomaticPort,
@@ -27,6 +29,8 @@ internal static class AppNetworkSettings
     private const string SettingsKeyPath = @"Software\VolturaAir";
     private const string NetworkModeValueName = "NetworkMode";
     private const string ManualHostAddressValueName = "ManualHostAddress";
+    private const string ManualAdapterIdValueName = "ManualAdapterId";
+    private const string ManualAdapterNameValueName = "ManualAdapterName";
     private const string PortModeValueName = "PortMode";
     private const string ManualPortValueName = "ManualPort";
     private const string LastAutomaticPortValueName = "LastAutomaticPort";
@@ -38,6 +42,8 @@ internal static class AppNetworkSettings
         return new NetworkSettingsSnapshot(
             ParseEnum(key?.GetValue(NetworkModeValueName) as string, NetworkSelectionMode.Automatic),
             key?.GetValue(ManualHostAddressValueName) as string,
+            key?.GetValue(ManualAdapterIdValueName) as string,
+            key?.GetValue(ManualAdapterNameValueName) as string,
             ParseEnum(key?.GetValue(PortModeValueName) as string, PortSelectionMode.Automatic),
             ReadPort(key, ManualPortValueName),
             ReadPort(key, LastAutomaticPortValueName),
@@ -51,6 +57,8 @@ internal static class AppNetworkSettings
 
         key.SetValue(NetworkModeValueName, settings.NetworkMode.ToString(), RegistryValueKind.String);
         SetOptionalString(key, ManualHostAddressValueName, settings.ManualHostAddress);
+        SetOptionalString(key, ManualAdapterIdValueName, settings.ManualAdapterId);
+        SetOptionalString(key, ManualAdapterNameValueName, settings.ManualAdapterName);
         key.SetValue(PortModeValueName, settings.PortMode.ToString(), RegistryValueKind.String);
         SetOptionalPort(key, ManualPortValueName, settings.ManualPort);
         SetOptionalPort(key, LastAutomaticPortValueName, settings.LastAutomaticPort);

@@ -322,12 +322,22 @@ public sealed class PairingManager
             }
             else
             {
-                if (_currentToken is null || pairToken is null)
+                if (pairToken is null)
                 {
-                    return new PairingResult(false, null, "missing-token");
+                    return new PairingResult(false, null, secret is null ? "missing-token" : "secret-revoked");
                 }
 
-                if (_currentToken.ExpiresAt <= acceptedAt || !CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(_currentToken.Value), Encoding.UTF8.GetBytes(pairToken)))
+                if (_currentToken is null)
+                {
+                    return new PairingResult(false, null, "stale-token");
+                }
+
+                if (_currentToken.ExpiresAt <= acceptedAt)
+                {
+                    return new PairingResult(false, null, "expired-token");
+                }
+
+                if (!CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(_currentToken.Value), Encoding.UTF8.GetBytes(pairToken)))
                 {
                     return new PairingResult(false, null, "invalid-token");
                 }

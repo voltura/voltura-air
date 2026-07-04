@@ -23,6 +23,7 @@ public sealed class SettingsForm : Form
     private const int LogicalNavButtonHeight = 56;
     private const int LogicalCloseButtonWidth = 180;
     private const int LogicalPageGap = 12;
+    private const int LogicalDevicePanelHeight = 660;
     private const int LogicalConnectionPanelHeight = 660;
 
     private readonly Icon _appIcon;
@@ -47,7 +48,7 @@ public sealed class SettingsForm : Form
     private readonly Button _systemThemeButton = new();
     private readonly Button _lightThemeButton = new();
     private readonly Button _darkThemeButton = new();
-    private readonly Button _openDeviceManagerButton = new();
+    private readonly DeviceManagerPanel _deviceManagerPanel;
     private readonly ConnectionSettingsPanel _connectionSettingsPanel;
     private readonly Button _closeButton = new();
     private readonly List<Button> _navigationButtons = new();
@@ -60,10 +61,11 @@ public sealed class SettingsForm : Form
     private int _pageScrollDragStartOffset;
     private bool _isLoading;
 
-    public SettingsForm(Icon appIcon, WebHostService webHost, PairingForm pairingForm)
+    public SettingsForm(Icon appIcon, PairingManager pairingManager, WebHostService webHost, PairingForm pairingForm)
     {
         _appIcon = appIcon;
         _theme = WindowsTheme.Current();
+        _deviceManagerPanel = new DeviceManagerPanel(pairingManager, _appIcon, () => pairingForm.ShowMainWindow());
         _connectionSettingsPanel = new ConnectionSettingsPanel(webHost, pairingForm);
 
         Text = "Voltura Air settings";
@@ -78,12 +80,13 @@ public sealed class SettingsForm : Form
         LoadSettings();
         SelectPage(SettingsPage.Application);
 
+        _deviceManagerPanel.DevicePermissionsRequested += OnDevicePermissionsRequested;
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
         AppThemeSettings.Changed += OnAppThemeChanged;
         FormClosing += OnFormClosing;
     }
 
-    public event EventHandler? DeviceManagerRequested;
+    public event EventHandler<DevicePermissionsRequestedEventArgs>? DevicePermissionsRequested;
 
     public void ShowFor(IWin32Window owner, SettingsPage page = SettingsPage.Application)
     {
@@ -117,6 +120,7 @@ public sealed class SettingsForm : Form
     {
         if (disposing)
         {
+            _deviceManagerPanel.DevicePermissionsRequested -= OnDevicePermissionsRequested;
             SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
             AppThemeSettings.Changed -= OnAppThemeChanged;
             FormClosing -= OnFormClosing;
@@ -337,10 +341,8 @@ public sealed class SettingsForm : Form
     private void BuildDevicesPage(TableLayoutPanel pageContent)
     {
         AddPageHeader(pageContent, "Devices", "Connected and paired devices.");
-        ConfigureCommandButton(_openDeviceManagerButton, "Open device manager");
-        _openDeviceManagerButton.Click -= OnOpenDeviceManagerClick;
-        _openDeviceManagerButton.Click += OnOpenDeviceManagerClick;
-        AddButtonRow(pageContent, _openDeviceManagerButton);
+        _deviceManagerPanel.RefreshDevices();
+        AddControlRow(pageContent, _deviceManagerPanel, SizeType.Absolute, ScaleLogical(LogicalDevicePanelHeight));
         AddPageFiller(pageContent);
     }
 
@@ -446,21 +448,6 @@ public sealed class SettingsForm : Form
         AddControlRow(pageContent, row, SizeType.Absolute, preferredHeight + ScaleLogical(LogicalPageGap));
     }
 
-    private void AddButtonRow(TableLayoutPanel pageContent, Button button)
-    {
-        var rowHeight = ScaleLogical(CommandButtonStyle.ButtonHeight + LogicalPageGap);
-        var row = new Panel
-        {
-            Dock = DockStyle.Top,
-            Height = rowHeight,
-            MinimumSize = new Size(0, rowHeight),
-            Margin = Padding.Empty,
-            Padding = new Padding(0, 0, 0, ScaleLogical(LogicalPageGap))
-        };
-        row.Controls.Add(button);
-        AddControlRow(pageContent, row, SizeType.Absolute, rowHeight);
-    }
-
     private void AddPageFiller(TableLayoutPanel pageContent)
     {
     }
@@ -471,14 +458,6 @@ public sealed class SettingsForm : Form
         pageContent.RowStyles.Add(new RowStyle(sizeType, height));
         pageContent.RowCount++;
         pageContent.Controls.Add(control, 0, row);
-    }
-
-    private void ConfigureCommandButton(Button button, string text)
-    {
-        button.Text = text;
-        button.Dock = DockStyle.Fill;
-        button.Margin = Padding.Empty;
-        CommandButtonStyle.Configure(button);
     }
 
     private void ConfigureThemeButton(Button button, string text, AppThemeMode mode, bool isFirst, bool isLast)
@@ -542,6 +521,7 @@ public sealed class SettingsForm : Form
         var permissions = AppPermissionSettings.Load();
         _allowPcSleepCheckBox.Checked = permissions.AllowPcSleep;
         _allowVolumeControlCheckBox.Checked = permissions.AllowVolumeControl;
+        _deviceManagerPanel.RefreshDevices();
         _connectionSettingsPanel.RefreshSettings();
         UpdateThemeSelection(AppThemeSettings.GetMode());
         _isLoading = false;
@@ -568,9 +548,9 @@ public sealed class SettingsForm : Form
         }
     }
 
-    private void OnOpenDeviceManagerClick(object? sender, EventArgs e)
+    private void OnDevicePermissionsRequested(object? sender, DevicePermissionsRequestedEventArgs e)
     {
-        DeviceManagerRequested?.Invoke(this, EventArgs.Empty);
+        DevicePermissionsRequested?.Invoke(this, e);
     }
 
     private void OnFormClosing(object? sender, FormClosingEventArgs e)
@@ -642,13 +622,13 @@ public sealed class SettingsForm : Form
             checkBox.ApplyTheme(_theme);
         }
 
+        _deviceManagerPanel.ApplyTheme(_theme);
         _connectionSettingsPanel.ApplyTheme(_theme);
         _pageCanvas.BackColor = _theme.Window;
         _pageScrollTrack.BackColor = _theme.Window;
         _pageScrollThumb.BackColor = _theme.MutedText;
         ApplyNavigationTheme();
         UpdateThemeSelection(AppThemeSettings.GetMode());
-        CommandButtonStyle.ApplyTheme(_openDeviceManagerButton, _theme, CommandButtonKind.Normal);
         CommandButtonStyle.ApplyTheme(_closeButton, _theme, CommandButtonKind.Normal);
         RefreshPageScrollLayout();
     }
@@ -834,7 +814,7 @@ public sealed class SettingsForm : Form
             ReferenceEquals(control, _systemThemeButton) ||
             ReferenceEquals(control, _lightThemeButton) ||
             ReferenceEquals(control, _darkThemeButton) ||
-            ReferenceEquals(control, _openDeviceManagerButton) ||
+            ReferenceEquals(control, _deviceManagerPanel) ||
             ReferenceEquals(control, _connectionSettingsPanel);
     }
 

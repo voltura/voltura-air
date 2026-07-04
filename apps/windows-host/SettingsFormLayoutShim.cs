@@ -33,6 +33,7 @@ internal static class SettingsFormLayoutShim
             }
 
             AttachNavigationButtons(form);
+            FixSettingsForm(form);
         }
     }
 
@@ -133,6 +134,8 @@ internal static class SettingsFormLayoutShim
                 continue;
             }
 
+            track.BackColor = form.BackColor;
+            track.Controls[0].BackColor = form.BackColor;
             if (canvas.Controls[0].Height <= viewport.ClientSize.Height)
             {
                 track.Visible = false;

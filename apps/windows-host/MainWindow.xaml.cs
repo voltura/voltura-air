@@ -32,6 +32,7 @@ public partial class MainWindow : Window
     private readonly WebHostService _webHost;
     private readonly string _initialClientUrl;
     private readonly bool _usesServerUrlAsClientUrl;
+    private readonly bool _usePublicScreenshotPairingUrl;
     private readonly List<Button> _navigationButtons;
     private HostPage _activePage;
     private string _serverUrl;
@@ -51,10 +52,11 @@ public partial class MainWindow : Window
     private bool _isLoadingPreferences;
     private bool _allowClose;
 
-    public MainWindow(PairingManager pairingManager, WebHostService webHost, string? clientUrl)
+    public MainWindow(PairingManager pairingManager, WebHostService webHost, string? clientUrl, bool usePublicScreenshotPairingUrl = false)
     {
         _pairingManager = pairingManager;
         _webHost = webHost;
+        _usePublicScreenshotPairingUrl = usePublicScreenshotPairingUrl;
         _serverUrl = webHost.ServerUrl;
         _usesServerUrlAsClientUrl = string.IsNullOrWhiteSpace(clientUrl);
         _initialClientUrl = string.IsNullOrWhiteSpace(clientUrl) ? webHost.ServerUrl : clientUrl.TrimEnd('/');
@@ -191,7 +193,7 @@ public partial class MainWindow : Window
             Padding = new Thickness(24),
             Child = new Image
             {
-                Source = CreateQrSource(_pairingUrl),
+                Source = CreateQrSource(GetVisiblePairingUrl()),
                 Stretch = Stretch.Uniform,
                 MaxWidth = 560,
                 MaxHeight = 560,
@@ -226,7 +228,7 @@ public partial class MainWindow : Window
                 Margin = new Thickness(0, 12, 0, 0),
                 Children =
                 {
-                    CreateCardText("Pairing link", _pairingUrl, monospace: true),
+                    CreateCardText("Pairing link", GetVisiblePairingUrl(), monospace: true),
                     CreateCardText("Host URL", _webHost.ServerUrl, monospace: true),
                     CreateCardText("Selected IP", _webHost.AdvertisedHostAddress, monospace: true),
                     CreateCardText("Selected port", _webHost.Port.ToString(CultureInfo.InvariantCulture), monospace: true)
@@ -237,7 +239,7 @@ public partial class MainWindow : Window
 
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 18, 0, 0) };
         actions.Children.Add(CreateButton("New code", (_, _) => NewPairing(), primary: true));
-        actions.Children.Add(CreateButton("Copy link", (_, _) => System.Windows.Clipboard.SetText(_pairingUrl)));
+        actions.Children.Add(CreateButton("Copy link", (_, _) => System.Windows.Clipboard.SetText(GetVisiblePairingUrl())));
         side.Children.Add(actions);
         root.Children.Add(side);
         return root;
@@ -396,6 +398,12 @@ public partial class MainWindow : Window
         volume.Unchecked += (_, _) => SaveGlobalPermissions(sleep, volume);
         panel.Children.Add(sleep);
         panel.Children.Add(volume);
+
+        panel.Children.Add(CreateSectionHeading("Developer tools"));
+        var gestureDebug = CreateCheckBox("Show gesture debug screen in the mobile app", AppDeveloperSettings.EnableGestureDebug());
+        gestureDebug.Checked += (_, _) => AppDeveloperSettings.SetEnableGestureDebug(true);
+        gestureDebug.Unchecked += (_, _) => AppDeveloperSettings.SetEnableGestureDebug(false);
+        panel.Children.Add(gestureDebug);
 
         panel.Children.Add(CreateSectionHeading("Appearance"));
         var activeTheme = AppThemeSettings.GetMode();
@@ -640,6 +648,11 @@ public partial class MainWindow : Window
         }
 
         return url.Uri.ToString();
+    }
+
+    private string GetVisiblePairingUrl()
+    {
+        return _usePublicScreenshotPairingUrl ? ProductSiteUrl : _pairingUrl;
     }
 
     internal static string CreateHostHint(string clientUrl, string serverUrl)

@@ -88,6 +88,7 @@ body,
 
 body {
   overflow: hidden;
+  overscroll-behavior: none;
 }
 
 button,
@@ -516,12 +517,52 @@ button span {
   gap: 10px;
 }
 
-.settings-section h3 {
-  margin: 6px 0 0;
+.settings-section summary {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+  list-style: none;
+  padding: 12px;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.settings-section summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-section summary::after {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg);
+  transition: transform 120ms ease;
+}
+
+.settings-section[open] summary::after {
+  transform: translateY(3px) rotate(225deg);
+}
+
+.settings-section summary span {
   color: var(--muted);
   font-size: 0.78rem;
+  font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.settings-section-body {
+  display: grid;
+  gap: 10px;
+  padding-top: 10px;
 }
 
 .trackpad-mode,
@@ -587,7 +628,11 @@ button span {
   background-size: 28px 28px;
   display: grid;
   place-items: center;
+  overscroll-behavior: none;
   touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -642,6 +687,13 @@ button span {
   min-height: calc(58px + env(safe-area-inset-bottom));
   padding-bottom: 10px;
   font-weight: 700;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.trackpad-mode.large-click-buttons .mouse-buttons button {
+  min-height: calc(82px + env(safe-area-inset-bottom));
 }
 
 .trackpad-click-zones {
@@ -664,6 +716,13 @@ button span {
   background: transparent;
   font-weight: 700;
   touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.trackpad-mode.large-click-buttons .trackpad-click-zones button {
+  min-height: calc(96px + env(safe-area-inset-bottom));
 }
 
 .trackpad-click-zones button + button {
@@ -673,6 +732,128 @@ button span {
 .keyboard-mode {
   min-height: max-content;
   grid-template-rows: auto minmax(88px, 0.8fr) auto auto auto auto;
+}
+
+.gesture-debug-mode {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  align-content: start;
+  gap: 10px;
+}
+
+.gesture-debug-surface {
+  height: clamp(150px, 32svh, 240px);
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, var(--trackpad-grid) 1px, transparent 1px),
+    linear-gradient(var(--trackpad-grid) 1px, transparent 1px),
+    var(--surface);
+  background-size: 28px 28px;
+  color: var(--muted);
+  font-weight: 700;
+  overscroll-behavior: none;
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .gesture-debug-surface {
+    height: clamp(110px, 28svh, 170px);
+  }
+
+  .gesture-debug-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+.gesture-debug-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.gesture-debug-grid div,
+.gesture-debug-log {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.gesture-debug-grid div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+}
+
+.gesture-debug-grid span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.gesture-debug-grid strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gesture-debug-log {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.gesture-debug-log-header {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.gesture-debug-log h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.gesture-debug-log-header button {
+  min-height: 38px;
+}
+
+.gesture-debug-log ol {
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  margin: 0;
+  padding: 10px;
+  overflow-y: auto;
+}
+
+.gesture-debug-log li {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+}
+
+.gesture-debug-log code {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+  font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.82rem;
+  white-space: nowrap;
 }
 
 .dictation-mode {

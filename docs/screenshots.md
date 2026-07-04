@@ -8,15 +8,16 @@ installer artwork in `installer/assets`.
 - Windows host debug/release build from `apps/windows-host`.
 - Chrome for deterministic browser captures.
 - Playwright installed in a temporary capture folder, not as a repo dependency.
-- Python with Pillow from the Codex bundled runtime for image post-processing.
-- The temporary Node `qrcode` package for replacing the host pairing QR with a
-  public QR for `https://voltura.se/air`.
 
-Use a temporary capture workspace such as:
+Regenerate public static-site screenshots with:
 
 ```powershell
-$tempDir = Join-Path $env:TEMP "voltura-air-capture"
+npm run screenshots:site
 ```
+
+The script uses a temporary capture workspace under `%TEMP%`, installs
+capture-only dependencies there, launches the Windows host, pairs a browser
+client, and writes the public PNG files to `docs/site/assets`.
 
 ## Host Capture
 
@@ -25,22 +26,32 @@ settings. For screenshot automation, set the registry value before launching:
 
 ```powershell
 New-Item -Path HKCU:\Software\VolturaAir -Force | Out-Null
-Set-ItemProperty -Path HKCU:\Software\VolturaAir -Name ThemeMode -Value Light -Type String
-Set-ItemProperty -Path HKCU:\Software\VolturaAir -Name ThemeMode -Value Dark -Type String
-Set-ItemProperty -Path HKCU:\Software\VolturaAir -Name ThemeMode -Value System -Type String
+New-ItemProperty -Path HKCU:\Software\VolturaAir -Name ThemeMode -Value Light -PropertyType String -Force | Out-Null
+New-ItemProperty -Path HKCU:\Software\VolturaAir -Name ThemeMode -Value Dark -PropertyType String -Force | Out-Null
+New-ItemProperty -Path HKCU:\Software\VolturaAir -Name ThemeMode -Value System -PropertyType String -Force | Out-Null
 ```
 
-The host has a developer automation flag for writing the current pairing URL to
-a local file:
+The host has developer automation flags for rendering public-safe screenshots
+and writing the real pairing URL to a local file:
 
 ```powershell
 apps\windows-host\bin\Debug\net10.0-windows\VolturaAir.Host.exe `
+  --site-screenshot-mode `
+  --pairing-store-root "$tempDir\appdata" `
   --pairing-url-file "$tempDir\pairing-url.txt"
 ```
 
-For public host screenshots, capture the real window and replace only the QR
-bitmap with a QR that points to `https://voltura.se/air`. Do not publish a live
-pairing token, LAN address, or machine-specific QR.
+In `--site-screenshot-mode`, the host window renders the visible QR code and
+visible pairing link as `https://voltura.se/air/`. The `--pairing-url-file`
+output remains the real local pairing URL so automation can pair the mobile
+browser. `--pairing-store-root` keeps capture-only pairing data out of the
+user's real device list. Do not publish a live pairing token, LAN address, or
+machine-specific QR.
+
+The host screenshot is captured from the visible Windows window bounds. The
+capture script brings the host window forward, takes a screen capture, and crops
+to the actual app window. It temporarily disables connection notifications and
+restores the previous notification settings when it exits.
 
 ## Mobile Client Capture
 
@@ -83,6 +94,7 @@ docs/site/assets/voltura-air-iphone.png
 docs/site/assets/voltura-air-iphone-dark.png
 docs/site/assets/voltura-air-ipad.png
 docs/site/assets/voltura-air-ipad-dark.png
+docs/site/assets/voltura-air-split.png
 ```
 
 Installer artwork:

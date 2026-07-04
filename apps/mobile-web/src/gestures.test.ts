@@ -20,6 +20,28 @@ describe("GestureRecognizer", () => {
     expect(events).toEqual([{ type: "pointer.move", dx: 6.75, dy: -2.7 }]);
   });
 
+  it("can smooth pointer movement", () => {
+    const recognizer = new GestureRecognizer();
+
+    recognizer.start([{ id: 1, x: 100, y: 100 }], 0);
+    expect(recognizer.move([{ id: 1, x: 110, y: 100 }], 20, { ...defaultTrackpadSettings, pointerSmoothing: true })).toEqual([
+      { type: "pointer.move", dx: 13.5, dy: 0 }
+    ]);
+
+    expect(recognizer.move([{ id: 1, x: 110, y: 110 }], 40, { ...defaultTrackpadSettings, pointerSmoothing: true })).toEqual([
+      { type: "pointer.move", dx: 8.78, dy: 4.73 }
+    ]);
+  });
+
+  it("can accelerate faster pointer movement", () => {
+    const recognizer = new GestureRecognizer();
+
+    recognizer.start([{ id: 1, x: 100, y: 100 }], 0);
+    const events = recognizer.move([{ id: 1, x: 120, y: 100 }], 20, { ...defaultTrackpadSettings, pointerAcceleration: true });
+
+    expect(events).toEqual([{ type: "pointer.move", dx: 35.68, dy: 0 }]);
+  });
+
   it("turns a short one-finger tap into a left click", () => {
     const recognizer = new GestureRecognizer();
 
@@ -145,6 +167,28 @@ describe("GestureRecognizer", () => {
     expect(events).toEqual([{ type: "pointer.wheel", dx: 0, dy: 22 }]);
   });
 
+  it("can accelerate faster scroll movement", () => {
+    const recognizer = new GestureRecognizer();
+
+    recognizer.start(
+      [
+        { id: 1, x: 100, y: 100 },
+        { id: 2, x: 160, y: 100 }
+      ],
+      0
+    );
+    const events = recognizer.move(
+      [
+        { id: 1, x: 100, y: 132 },
+        { id: 2, x: 160, y: 132 }
+      ],
+      20,
+      { ...defaultTrackpadSettings, scrollAcceleration: true }
+    );
+
+    expect(events).toEqual([{ type: "pointer.wheel", dx: 0, dy: -59.84 }]);
+  });
+
   it("turns a two-finger tap into a right click", () => {
     const recognizer = new GestureRecognizer();
 
@@ -186,7 +230,7 @@ describe("GestureRecognizer", () => {
 });
 
 describe("normalizeTrackpadSettings", () => {
-  it("defaults showVolumeControl on and split mode off for old stored settings", () => {
+  it("defaults new settings for old stored settings", () => {
     expect(normalizeTrackpadSettings({ pointerSpeed: 40 })).toEqual({
       ...defaultTrackpadSettings,
       pointerSpeed: 40,

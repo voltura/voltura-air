@@ -106,8 +106,8 @@ nav a:hover {
   inset: 0;
   z-index: -2;
   background:
-    linear-gradient(90deg, rgba(16, 20, 24, 0.96) 0%, rgba(16, 20, 24, 0.8) 42%, rgba(16, 20, 24, 0.46) 100%),
-    linear-gradient(180deg, rgba(16, 20, 24, 0.1), rgba(16, 20, 24, 0.92));
+    linear-gradient(90deg, rgba(16, 20, 24, 0.98) 0%, rgba(16, 20, 24, 0.94) 38%, rgba(16, 20, 24, 0.6) 66%, rgba(16, 20, 24, 0.28) 100%),
+    linear-gradient(180deg, rgba(16, 20, 24, 0.12), rgba(16, 20, 24, 0.9));
 }
 
 .hero-media {
@@ -115,6 +115,7 @@ nav a:hover {
   inset: 0;
   z-index: -3;
   overflow: hidden;
+  clip-path: inset(0 0 0 60%);
 }
 
 .hero-media img {
@@ -122,33 +123,25 @@ nav a:hover {
   display: block;
   border-radius: 8px;
   box-shadow: 0 28px 70px var(--shadow);
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .hero-host {
-  width: min(34vw, 390px);
-  top: 8%;
-  right: 28%;
-  opacity: 0.88;
+  width: min(46vw, 700px);
+  top: 11%;
+  right: 3%;
 }
 
 .hero-phone {
-  width: min(30vw, 330px);
-  right: 6%;
-  top: 14%;
-  max-height: 82%;
+  width: min(22vw, 320px);
+  right: 8%;
+  bottom: 7%;
+  max-height: 78%;
   object-position: top;
 }
 
-.hero-tablet {
-  width: min(42vw, 540px);
-  right: -8%;
-  bottom: -18%;
-  opacity: 0.5;
-}
-
 .hero-copy {
-  max-width: 650px;
+  max-width: 600px;
   position: relative;
   z-index: 1;
 }
@@ -278,40 +271,29 @@ figcaption {
 
 .screen-card img {
   width: 100%;
-  height: 100%;
+  height: auto;
   display: block;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
   box-shadow: 0 20px 54px var(--shadow);
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .screen-card.wide {
   grid-column: span 3;
 }
 
-.screen-card.wide img {
-  aspect-ratio: 4 / 3;
-  object-position: top left;
-}
-
 .screen-card.phone {
   grid-column: span 2;
-}
-
-.screen-card.phone img {
-  aspect-ratio: 9 / 16;
-  object-position: top;
 }
 
 .screen-card.tablet {
   grid-column: span 3;
 }
 
-.screen-card.tablet img {
-  aspect-ratio: 4 / 5;
-  object-position: top;
+.screen-card.split-view {
+  grid-column: span 6;
 }
 
 figcaption {
@@ -387,8 +369,12 @@ footer a:hover {
       linear-gradient(180deg, rgba(16, 20, 24, 0.34) 0%, rgba(16, 20, 24, 0.92) 58%, rgba(16, 20, 24, 0.98) 100%);
   }
 
+  .hero-media {
+    clip-path: none;
+  }
+
   .hero-host {
-    width: min(64vw, 360px);
+    width: min(88vw, 560px);
     top: 4%;
     left: 5%;
     right: auto;
@@ -398,12 +384,6 @@ footer a:hover {
     width: min(48vw, 260px);
     right: 8%;
     top: 11%;
-  }
-
-  .hero-tablet {
-    width: min(76vw, 500px);
-    right: -18%;
-    bottom: 18%;
   }
 
   .feature-band,
@@ -419,7 +399,8 @@ footer a:hover {
 
   .screen-card.wide,
   .screen-card.phone,
-  .screen-card.tablet {
+  .screen-card.tablet,
+  .screen-card.split-view {
     grid-column: span 6;
   }
 }

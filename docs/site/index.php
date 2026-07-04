@@ -66,7 +66,6 @@
         <div class="hero-media" aria-hidden="true">
           <img class="hero-host" src="./assets/voltura-air-host-dark.png" alt="">
           <img class="hero-phone" src="./assets/voltura-air-iphone-dark.png" alt="">
-          <img class="hero-tablet" src="./assets/voltura-air-ipad.png" alt="">
         </div>
         <div class="hero-copy">
           <p class="eyebrow">Local-first Windows PC remote</p>
@@ -170,6 +169,10 @@
           <figure class="screen-card tablet">
             <img src="./assets/voltura-air-ipad-dark.png" alt="Voltura Air trackpad screen on an iPad in dark mode">
             <figcaption>iPad - dark mode</figcaption>
+          </figure>
+          <figure class="screen-card split-view">
+            <img src="./assets/voltura-air-split.png" alt="Voltura Air split keyboard and trackpad mode on a tablet in landscape orientation">
+            <figcaption>Tablet split mode</figcaption>
           </figure>
         </div>
       </section>
@@ -290,9 +293,10 @@
     </main>
 
     <footer>
-      <span>Voltura</span>
+      <a href="https://voltura.se/" aria-label="Voltura AB home">Voltura AB</a>
       <a href="https://github.com/voltura/voltura-air">GitHub</a>
       <a href="https://github.com/voltura/voltura-air/blob/main/LICENSE">MIT License</a>
+      <a href="https://www.linkedin.com/in/joakim-voltura/">LinkedIn</a>
       <a href="https://ko-fi.com/voltura">Ko-fi</a>
       <a href="https://www.paypal.me/voltura">PayPal</a>
       <a href="https://voltura.se/air">voltura.se/air</a>

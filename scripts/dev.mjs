@@ -1,13 +1,20 @@
 import { spawn, spawnSync } from "node:child_process";
 
 const clientPort = readPreferredClientPort();
-const childEnv = { ...process.env, VOLTURA_AIR_CLIENT_PORT: String(clientPort) };
+const childEnv = {
+  ...process.env,
+  VOLTURA_AIR_CLIENT_PORT: String(clientPort)
+};
 const children = [];
 let shuttingDown = false;
 
 runCommand("npm", ["run", "build", "--workspace", "apps/mobile-web"], childEnv);
 stopWindowsNodeListenersOnDevPorts(clientPort, 20);
-children.push(spawnCommand("npm", ["run", "dev", "--workspace", "apps/mobile-web", "--", "--port", String(clientPort)], childEnv));
+children.push(spawnCommand(
+  "node",
+  ["../../node_modules/vite/bin/vite.js", "--host", "0.0.0.0", "--strictPort", "--port", String(clientPort)],
+  childEnv,
+  { cwd: "apps/mobile-web" }));
 children.push(spawnCommand("npm", ["run", "dev:host"], childEnv));
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
@@ -30,9 +37,7 @@ for (const child of children) {
       return;
     }
 
-    if (code && code !== 0) {
-      shutdown("SIGTERM", code);
-    }
+    shutdown("SIGTERM", code ?? 0);
   });
 }
 
@@ -56,11 +61,11 @@ function runCommand(command, args, env) {
   }
 }
 
-function spawnCommand(command, args, env) {
+function spawnCommand(command, args, env, options = {}) {
   const commandLine = [command, ...args].join(" ");
   const child = process.platform === "win32"
-    ? spawn("cmd.exe", ["/d", "/s", "/c", commandLine], { stdio: "inherit", env, windowsHide: false })
-    : spawn(command, args, { stdio: "inherit", env });
+    ? spawn("cmd.exe", ["/d", "/s", "/c", commandLine], { stdio: "inherit", env, windowsHide: false, ...options })
+    : spawn(command, args, { stdio: "inherit", env, ...options });
 
   child.commandLine = commandLine;
   return child;

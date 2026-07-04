@@ -8,11 +8,12 @@ const baseProps = {
   isExpanded: false,
   supportsVolumeControl: true,
   trackpadSettings: defaultTrackpadSettings,
-  onLeftClick: vi.fn(),
-  onRightClick: vi.fn(),
+  onMouseButtonDown: vi.fn(),
+  onMouseButtonUp: vi.fn(),
   onSetVolume: vi.fn(),
   onToggleExpanded: vi.fn(),
   onToggleMute: vi.fn(),
+  onTouchCancel: vi.fn(),
   onTouchEnd: vi.fn(),
   onTouchMove: vi.fn(),
   onTouchStart: vi.fn()
@@ -54,5 +55,42 @@ describe("TrackpadMode volume control", () => {
 
     expect(onToggleMute).toHaveBeenCalledOnce();
     expect(onSetVolume).toHaveBeenCalledWith(77);
+  });
+});
+
+describe("TrackpadMode click buttons", () => {
+  it("renders left then right by default", () => {
+    render(<TrackpadMode {...baseProps} />);
+
+    const buttons = screen.getAllByRole("button", { name: /left|right/i });
+
+    expect(buttons.map((button) => button.textContent)).toEqual(["Left", "Right"]);
+  });
+
+  it("renders right then left for left-handed layout", () => {
+    render(<TrackpadMode {...baseProps} trackpadSettings={{ ...defaultTrackpadSettings, leftHandedButtons: true }} />);
+
+    const buttons = screen.getAllByRole("button", { name: /left|right/i });
+
+    expect(buttons.map((button) => button.textContent)).toEqual(["Right", "Left"]);
+  });
+
+  it("marks large click button layout", () => {
+    render(<TrackpadMode {...baseProps} trackpadSettings={{ ...defaultTrackpadSettings, largeClickButtons: true }} />);
+
+    expect(document.querySelector(".trackpad-mode")?.classList.contains("large-click-buttons")).toBe(true);
+  });
+
+  it("sends button down and up so buttons can be held while moving", () => {
+    const onMouseButtonDown = vi.fn();
+    const onMouseButtonUp = vi.fn();
+    render(<TrackpadMode {...baseProps} onMouseButtonDown={onMouseButtonDown} onMouseButtonUp={onMouseButtonUp} />);
+
+    const leftButton = screen.getByRole("button", { name: "Left" });
+    fireEvent.pointerDown(leftButton, { pointerId: 7 });
+    fireEvent.pointerUp(leftButton, { pointerId: 7 });
+
+    expect(onMouseButtonDown).toHaveBeenCalledWith("left");
+    expect(onMouseButtonUp).toHaveBeenCalledWith("left");
   });
 });

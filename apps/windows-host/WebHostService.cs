@@ -31,6 +31,7 @@ public sealed class WebHostService : IAsyncDisposable
         _pairingManager.PairingRevoked += OnPairingRevoked;
         _pairingManager.PermissionsChanged += OnPermissionsChanged;
         AppPermissionSettings.Changed += OnPermissionsChanged;
+        AppDeveloperSettings.Changed += OnPermissionsChanged;
 
         var settings = AppNetworkSettings.Load();
         var portSelection = PortSelector.Select(settings, IsPortAvailable, FindFreePort);
@@ -163,6 +164,7 @@ public sealed class WebHostService : IAsyncDisposable
         _pairingManager.PairingRevoked -= OnPairingRevoked;
         _pairingManager.PermissionsChanged -= OnPermissionsChanged;
         AppPermissionSettings.Changed -= OnPermissionsChanged;
+        AppDeveloperSettings.Changed -= OnPermissionsChanged;
         AbortActiveSockets();
         if (_app is not null)
         {
@@ -558,7 +560,7 @@ public sealed class WebHostService : IAsyncDisposable
 
     private object CreateCapabilities(string clientId)
     {
-        return new { sleep = CanSleepPc(clientId), volume = CanControlVolume(clientId) };
+        return new { sleep = CanSleepPc(clientId), volume = CanControlVolume(clientId), gestureDebug = AppDeveloperSettings.EnableGestureDebug() };
     }
 
     private bool CanSleepPc(string clientId)

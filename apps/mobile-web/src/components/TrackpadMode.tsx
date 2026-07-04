@@ -1,6 +1,9 @@
+import { useRef } from "react";
 import { Maximize2, Minimize2, MousePointer2, Volume2, VolumeX } from "lucide-react";
 import type { TrackpadSettings } from "../gestures";
 import type { AudioStateMessage } from "../protocol";
+
+type MouseButtonName = "left" | "right";
 
 type TrackpadModeProps = {
   audioState: AudioStateMessage | null;
@@ -10,11 +13,12 @@ type TrackpadModeProps = {
   onSetVolume: (volume: number) => void;
   onToggleExpanded: () => void;
   onToggleMute: () => void;
+  onTouchCancel: (event: React.TouchEvent<HTMLDivElement>) => void;
   onTouchEnd: (event: React.TouchEvent<HTMLDivElement>) => void;
   onTouchMove: (event: React.TouchEvent<HTMLDivElement>) => void;
   onTouchStart: (event: React.TouchEvent<HTMLDivElement>) => void;
-  onLeftClick: () => void;
-  onRightClick: () => void;
+  onMouseButtonDown: (button: MouseButtonName) => void;
+  onMouseButtonUp: (button: MouseButtonName) => void;
 };
 
 export function TrackpadMode({
@@ -25,19 +29,64 @@ export function TrackpadMode({
   onSetVolume,
   onToggleExpanded,
   onToggleMute,
+  onTouchCancel,
   onTouchEnd,
   onTouchMove,
   onTouchStart,
-  onLeftClick,
-  onRightClick
+  onMouseButtonDown,
+  onMouseButtonUp
 }: TrackpadModeProps) {
+  const activeButtonPointers = useRef(new Map<number, MouseButtonName>());
   const stopTouchPropagation = (event: React.TouchEvent<HTMLButtonElement>) => {
     event.stopPropagation();
   };
+  const stopContextMenu = (event: React.MouseEvent) => {
+    event.preventDefault();
+  };
+  const clickButtons = trackpadSettings.leftHandedButtons
+    ? [
+        { label: "Right", button: "right" as const },
+        { label: "Left", button: "left" as const }
+      ]
+    : [
+        { label: "Left", button: "left" as const },
+        { label: "Right", button: "right" as const }
+      ];
   const showVolumeControl = !isExpanded && supportsVolumeControl && trackpadSettings.showVolumeControl && audioState !== null;
 
+  const pressMouseButton = (event: React.PointerEvent<HTMLButtonElement>, button: MouseButtonName) => {
+    event.preventDefault();
+    event.stopPropagation();
+    activeButtonPointers.current.set(event.pointerId, button);
+    if (typeof event.currentTarget.setPointerCapture === "function") {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+    onMouseButtonDown(button);
+  };
+
+  const releaseMouseButton = (event: React.PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const button = activeButtonPointers.current.get(event.pointerId);
+    if (!button) {
+      return;
+    }
+
+    activeButtonPointers.current.delete(event.pointerId);
+    if (
+      typeof event.currentTarget.hasPointerCapture === "function" &&
+      typeof event.currentTarget.releasePointerCapture === "function" &&
+      event.currentTarget.hasPointerCapture(event.pointerId)
+    ) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    onMouseButtonUp(button);
+  };
+
   return (
-    <section className={`trackpad-mode ${isExpanded ? "expanded" : ""} ${showVolumeControl ? "has-volume-control" : ""}`}>
+    <section
+      className={`trackpad-mode ${isExpanded ? "expanded" : ""} ${showVolumeControl ? "has-volume-control" : ""} ${trackpadSettings.largeClickButtons ? "large-click-buttons" : ""}`}
+    >
       {showVolumeControl && (
         <div className={`volume-control ${audioState.muted ? "muted" : ""}`}>
           <button
@@ -66,7 +115,7 @@ export function TrackpadMode({
           </div>
         </div>
       )}
-      <div className="trackpad-surface" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+      <div className="trackpad-surface" onContextMenu={stopContextMenu} onTouchCancel={onTouchCancel} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
         <button
           className="trackpad-expand-button"
           type="button"
@@ -85,23 +134,36 @@ export function TrackpadMode({
         <MousePointer2 aria-hidden="true" />
         {isExpanded && (
           <div className="trackpad-click-zones" aria-label="Mouse buttons">
-            <button type="button" onClick={onLeftClick} onTouchStart={stopTouchPropagation} onTouchMove={stopTouchPropagation} onTouchEnd={stopTouchPropagation}>
-              Left
-            </button>
-            <button type="button" onClick={onRightClick} onTouchStart={stopTouchPropagation} onTouchMove={stopTouchPropagation} onTouchEnd={stopTouchPropagation}>
-              Right
-            </button>
+            {clickButtons.map((button) => (
+              <button
+                key={button.label}
+                type="button"
+                onPointerCancel={releaseMouseButton}
+                onPointerDown={(event) => pressMouseButton(event, button.button)}
+                onPointerUp={releaseMouseButton}
+                onTouchEnd={stopTouchPropagation}
+                onTouchMove={stopTouchPropagation}
+                onTouchStart={stopTouchPropagation}
+              >
+                {button.label}
+              </button>
+            ))}
           </div>
         )}
       </div>
       {!isExpanded && (
         <div className="mouse-buttons">
-          <button onClick={onLeftClick}>
-            <span>Left</span>
-          </button>
-          <button onClick={onRightClick}>
-            <span>Right</span>
-          </button>
+          {clickButtons.map((button) => (
+            <button
+              key={button.label}
+              onPointerCancel={releaseMouseButton}
+              onPointerDown={(event) => pressMouseButton(event, button.button)}
+              onPointerUp={releaseMouseButton}
+              type="button"
+            >
+              <span>{button.label}</span>
+            </button>
+          ))}
         </div>
       )}
     </section>

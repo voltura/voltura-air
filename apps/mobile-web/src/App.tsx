@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Circle, Keyboard, Menu, Mic, MousePointer2 } from "lucide-react";
 import { DictationMode } from "./components/DictationMode";
+import { GestureDebugMode } from "./components/GestureDebugMode";
 import { KeyboardMode } from "./components/KeyboardMode";
 import { PairingStatus } from "./components/PairingStatus";
 import { SettingsDrawer } from "./components/SettingsDrawer";
@@ -21,7 +22,7 @@ import { buildMobileDiagnostics } from "./mobileDiagnostics";
 import { decodeQrImage } from "./qrCode";
 import { useVolturaAirConnection } from "./useVolturaAirConnection";
 
-type Tab = "trackpad" | "keyboard" | "dictation";
+type Tab = "trackpad" | "keyboard" | "dictation" | "debug";
 type ThemeMode = "system" | "light" | "dark";
 const liveKeyboardKey = "voltura-air.liveKeyboard";
 const liveKeyboardDefaultMigrationKey = "voltura-air.liveKeyboardDefaultOn";
@@ -71,6 +72,7 @@ export function App() {
     activePc,
     pairedPcs,
     audioState,
+    supportsGestureDebug,
     supportsSleep,
     supportsVolumeControl,
     lastConnectionError,
@@ -87,7 +89,6 @@ export function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(() => isRunningStandalone());
-  const [trackpadSettings, setTrackpadSettings] = useState(() => loadTrackpadSettings(clientId));
   const [keyboardSettings, setKeyboardSettings] = useState(() => loadKeyboardSettings(clientId));
   const [displayedAudioState, setDisplayedAudioState] = useState<AudioStateMessage | null>(audioState);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => loadThemeMode());
@@ -111,6 +112,12 @@ export function App() {
   const speechRef = useRef<SpeechRecognition | null>(null);
 
   const canUseSpeech = useMemo(() => Boolean(window.SpeechRecognition || window.webkitSpeechRecognition), []);
+  const trackpadSettingsStorageKey = useMemo(() => trackpadSettingsKey(clientId, activePc?.id ?? null), [activePc?.id, clientId]);
+  const [trackpadSettingsState, setTrackpadSettingsState] = useState(() => ({
+    settings: loadTrackpadSettings(clientId, activePc?.id ?? null),
+    storageKey: trackpadSettingsStorageKey
+  }));
+  const trackpadSettings = trackpadSettingsState.settings;
 
   useEffect(() => {
     setDisplayedAudioState(audioState);
@@ -121,8 +128,21 @@ export function App() {
   }, [deviceName]);
 
   useEffect(() => {
-    localStorage.setItem(trackpadSettingsKey(clientId), JSON.stringify(trackpadSettings));
-  }, [clientId, trackpadSettings]);
+    setTrackpadSettingsState((current) =>
+      current.storageKey === trackpadSettingsStorageKey
+        ? current
+        : {
+            settings: loadTrackpadSettings(clientId, activePc?.id ?? null),
+            storageKey: trackpadSettingsStorageKey
+          }
+    );
+  }, [activePc?.id, clientId, trackpadSettingsStorageKey]);
+
+  useEffect(() => {
+    if (trackpadSettingsState.storageKey === trackpadSettingsStorageKey) {
+      localStorage.setItem(trackpadSettingsStorageKey, JSON.stringify(trackpadSettingsState.settings));
+    }
+  }, [trackpadSettingsState, trackpadSettingsStorageKey]);
 
   useEffect(() => {
     localStorage.setItem(keyboardSettingsKey(clientId), JSON.stringify(keyboardSettings));
@@ -159,6 +179,12 @@ export function App() {
       setPairingScanMessage(message.trim() || "Scan the QR code shown on your PC to pair this home screen app.");
     }
   }, [message, pendingPairing, state]);
+
+  useEffect(() => {
+    if (!supportsGestureDebug && tab === "debug") {
+      setTab("trackpad");
+    }
+  }, [supportsGestureDebug, tab]);
 
   useEffect(() => {
     const onBeforeInstallPrompt = (event: Event) => {
@@ -206,17 +232,26 @@ export function App() {
 
   const onTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
     event.preventDefault();
-    recognizerRef.current.start(touchesFromList(event.touches), event.timeStamp);
+    recognizerRef.current.start(touchesFromList(event.targetTouches), event.timeStamp);
   };
 
   const onTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
     event.preventDefault();
-    recognizerRef.current.move(touchesFromList(event.touches), event.timeStamp, trackpadSettings).forEach(emit);
+    recognizerRef.current.move(touchesFromList(event.targetTouches), event.timeStamp, trackpadSettings).forEach(emit);
   };
 
   const onTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
     event.preventDefault();
-    recognizerRef.current.end(event.timeStamp, trackpadSettings).forEach(emit);
+    const outputs = recognizerRef.current.end(event.timeStamp, trackpadSettings);
+    if (outputs.some((output) => output.type === "pointer.button" && output.action === "click")) {
+      triggerHapticFeedback(trackpadSettings);
+    }
+    outputs.forEach(emit);
+  };
+
+  const onTouchCancel = (event: React.TouchEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    recognizerRef.current.cancel();
   };
 
   const sendSpecial = (key: string, modifiers?: string[]) => {
@@ -339,7 +374,10 @@ export function App() {
   };
 
   const updateTrackpadSetting = <Key extends keyof TrackpadSettings>(key: Key, value: TrackpadSettings[Key]) => {
-    setTrackpadSettings((current) => ({ ...current, [key]: value }));
+    setTrackpadSettingsState((current) => ({
+      ...current,
+      settings: { ...current.settings, [key]: value }
+    }));
   };
 
   const updateKeyboardSetting = <Key extends keyof KeyboardSettings>(key: Key, value: KeyboardSettings[Key]) => {
@@ -404,6 +442,11 @@ export function App() {
     pairingQrInputRef.current?.click();
   };
 
+  const forgetPcAndSettings = (pcId: string) => {
+    clearTrackpadSettings(clientId, pcId);
+    forgetPc(pcId);
+  };
+
   const onPairingQrSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -453,11 +496,17 @@ export function App() {
     <TrackpadMode
       audioState={displayedAudioState}
       isExpanded={isTrackpadExpanded}
-      onLeftClick={() => emit({ type: "pointer.button", button: "left", action: "click" })}
-      onRightClick={() => emit({ type: "pointer.button", button: "right", action: "click" })}
+      onMouseButtonDown={(button) => {
+        triggerHapticFeedback(trackpadSettings);
+        emit({ type: "pointer.button", button, action: "down" });
+      }}
+      onMouseButtonUp={(button) => {
+        emit({ type: "pointer.button", button, action: "up" });
+      }}
       onSetVolume={setVolume}
       onToggleExpanded={() => setIsTrackpadExpanded((current) => !current)}
       onToggleMute={toggleMute}
+      onTouchCancel={onTouchCancel}
       onTouchEnd={onTouchEnd}
       onTouchMove={onTouchMove}
       onTouchStart={onTouchStart}
@@ -563,13 +612,17 @@ export function App() {
         diagnostics={mobileDiagnostics}
         deviceName={deviceName}
         disconnectActivePc={disconnectActivePc}
-        forgetPc={forgetPc}
+        forgetPc={forgetPcAndSettings}
         installApp={installApp}
         installPrompt={installPrompt}
         isInstalled={isInstalled}
         isOpen={isSettingsOpen}
         keyboardSettings={keyboardSettings}
         onClose={() => setIsSettingsOpen(false)}
+        onOpenGestureDebug={supportsGestureDebug ? () => {
+          setTab("debug");
+          setIsSettingsOpen(false);
+        } : undefined}
         onPairingQrSelected={onPairingQrSelected}
         onManualHostSubmit={connectManualHost}
         pairedPcs={pairedPcs}
@@ -582,6 +635,7 @@ export function App() {
         scanPairingQr={scanPairingQr}
         selectPc={selectPc}
         setThemeMode={setThemeMode}
+        showGestureDebug={supportsGestureDebug}
         themeMode={themeMode}
         trackpadSettings={trackpadSettings}
         updateKeyboardSetting={updateKeyboardSetting}
@@ -617,12 +671,14 @@ export function App() {
           stopSpeech={stopSpeech}
         />
       )}
+
+      {supportsGestureDebug && tab === "debug" && <GestureDebugMode trackpadSettings={trackpadSettings} />}
     </main>
   );
 }
 
-function trackpadSettingsKey(clientId: string): string {
-  return `voltura-air.trackpadSettings.${clientId}`;
+function trackpadSettingsKey(clientId: string, pcId: string | null): string {
+  return pcId ? `voltura-air.trackpadSettings.${clientId}.${pcId}` : baseTrackpadSettingsKey(clientId);
 }
 
 function keyboardSettingsKey(clientId: string): string {
@@ -650,8 +706,8 @@ function resolveTheme(themeMode: ThemeMode, systemPrefersDark: boolean): "light"
   return themeMode === "system" ? (systemPrefersDark ? "dark" : "light") : themeMode;
 }
 
-function loadTrackpadSettings(clientId: string): TrackpadSettings {
-  const stored = localStorage.getItem(trackpadSettingsKey(clientId));
+function loadTrackpadSettings(clientId: string, pcId: string | null): TrackpadSettings {
+  const stored = localStorage.getItem(trackpadSettingsKey(clientId, pcId));
   if (!stored) {
     return defaultTrackpadSettings;
   }
@@ -661,6 +717,14 @@ function loadTrackpadSettings(clientId: string): TrackpadSettings {
   } catch {
     return defaultTrackpadSettings;
   }
+}
+
+function baseTrackpadSettingsKey(clientId: string): string {
+  return `voltura-air.trackpadSettings.${clientId}`;
+}
+
+function clearTrackpadSettings(clientId: string, pcId: string): void {
+  localStorage.removeItem(trackpadSettingsKey(clientId, pcId));
 }
 
 function loadKeyboardSettings(clientId: string): KeyboardSettings {
@@ -678,4 +742,10 @@ function loadKeyboardSettings(clientId: string): KeyboardSettings {
 
 function isRunningStandalone(): boolean {
   return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+}
+
+function triggerHapticFeedback(settings: TrackpadSettings): void {
+  if (settings.hapticFeedback && typeof navigator.vibrate === "function") {
+    navigator.vibrate(12);
+  }
 }

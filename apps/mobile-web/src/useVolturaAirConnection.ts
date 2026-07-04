@@ -70,6 +70,7 @@ export function useVolturaAirConnection() {
   const [state, setState] = useState<ConnectionState>("connecting");
   const [message, setMessage] = useState("Connecting to PC...");
   const [audioState, setAudioState] = useState<AudioStateMessage | null>(null);
+  const [supportsGestureDebug, setSupportsGestureDebug] = useState(false);
   const [supportsSleep, setSupportsSleep] = useState(false);
   const [supportsVolumeControl, setSupportsVolumeControl] = useState(false);
   const [lastConnectionError, setLastConnectionError] = useState<ConnectionError | null>(null);
@@ -81,6 +82,7 @@ export function useVolturaAirConnection() {
   const socketRef = useRef<WebSocket | null>(null);
   const queueRef = useRef<ClientMessage[]>([]);
   const deviceNameRef = useRef(deviceName);
+  const pairingAttemptRef = useRef(pairingAttempt);
   const supportsVolumeControlRef = useRef(false);
 
   const activePc = useMemo(() => pairedPcs.find((pc) => pc.id === activePcId) ?? null, [activePcId, pairedPcs]);
@@ -89,6 +91,10 @@ export function useVolturaAirConnection() {
     deviceNameRef.current = deviceName;
     localStorage.setItem(deviceNameKey, deviceName);
   }, [deviceName]);
+
+  useEffect(() => {
+    pairingAttemptRef.current = pairingAttempt;
+  }, [pairingAttempt]);
 
   useEffect(() => {
     savePcProfiles(pairedPcs);
@@ -114,6 +120,7 @@ export function useVolturaAirConnection() {
   const updateCapabilities = useCallback((capabilities: ServerCapabilities | undefined, connected = true) => {
     const nextSupportsSleep = connected && hasSleepCapability(capabilities);
     const nextSupportsVolumeControl = connected && hasVolumeCapability(capabilities);
+    setSupportsGestureDebug(connected && hasGestureDebugCapability(capabilities));
     setSupportsSleep(nextSupportsSleep);
     setSupportsVolumeControl(nextSupportsVolumeControl);
     supportsVolumeControlRef.current = nextSupportsVolumeControl;
@@ -142,6 +149,7 @@ export function useVolturaAirConnection() {
       queueRef.current = [];
       socketRef.current?.close();
       setAudioState(null);
+      setSupportsGestureDebug(false);
       setSupportsSleep(false);
       setSupportsVolumeControl(false);
       supportsVolumeControlRef.current = false;
@@ -187,6 +195,7 @@ export function useVolturaAirConnection() {
       hasShownUnavailable = true;
       queueRef.current = [];
       setAudioState(null);
+      setSupportsGestureDebug(false);
       setSupportsSleep(false);
       setSupportsVolumeControl(false);
       supportsVolumeControlRef.current = false;
@@ -252,6 +261,7 @@ export function useVolturaAirConnection() {
       ws.addEventListener("open", () => {
         setState("connecting");
         setMessage(`Connecting to ${getDisplayPcName(pc, "", screenshotMode)}...`);
+        const currentPairingAttempt = pairingAttemptRef.current;
         const hello: ClientMessage = {
           type: "pair.hello",
           clientId,
@@ -259,7 +269,7 @@ export function useVolturaAirConnection() {
           platform: getPlatformName(),
           browser: getBrowserName(),
           displayMode: getDisplayMode(),
-          pairToken: pairingAttempt.token,
+          pairToken: currentPairingAttempt.token,
           secret: getStoredSecret(clientId, pc.id) ?? undefined
         };
         ws.send(JSON.stringify(hello));
@@ -279,6 +289,7 @@ export function useVolturaAirConnection() {
             setPairedPcs((current) => applyPcNameFromHost(current, pc.id, response.pcName));
           }
           clearPairTokenFromAddress();
+          clearPairingAttemptToken();
           window.clearTimeout(connectionTimer);
           connectionTimer = undefined;
           hasShownUnavailable = false;
@@ -292,8 +303,11 @@ export function useVolturaAirConnection() {
 
         if (response.type === "pair.rejected") {
           shouldRetry = false;
-          clearStoredSecret(clientId, pc.id);
+          if (shouldClearStoredSecretForRejection(response.reason)) {
+            clearStoredSecret(clientId, pc.id);
+          }
           queueRef.current = [];
+          setSupportsGestureDebug(false);
           setSupportsSleep(false);
           setSupportsVolumeControl(false);
           supportsVolumeControlRef.current = false;
@@ -365,7 +379,16 @@ export function useVolturaAirConnection() {
       clearTimers();
       socketRef.current?.close();
     };
-  }, [activePc?.id, activePc?.url, clientId, pairedPcs.length, pairingAttempt, screenshotMode, updateCapabilities]);
+  }, [activePc?.id, activePc?.url, clientId, pairedPcs.length, pairingAttempt.id, screenshotMode, updateCapabilities]);
+
+  function clearPairingAttemptToken() {
+    if (pairingAttemptRef.current.token === undefined) {
+      return;
+    }
+
+    pairingAttemptRef.current = { ...pairingAttemptRef.current, token: undefined };
+    setPairingAttempt((current) => current.token === undefined ? current : { ...current, token: undefined });
+  }
 
   const pairWithToken = useCallback((token: string, pcUrl = window.location.origin, requestedDeviceName?: string) => {
     const nextDeviceName = normalizeDeviceNameInput(requestedDeviceName ?? deviceNameRef.current) ?? getDefaultDeviceName();
@@ -377,6 +400,7 @@ export function useVolturaAirConnection() {
     queueRef.current = [];
     setLastConnectionError(null);
     setHostStatus(null);
+    setSupportsGestureDebug(false);
     setSupportsSleep(false);
     setSupportsVolumeControl(false);
     supportsVolumeControlRef.current = false;
@@ -396,6 +420,7 @@ export function useVolturaAirConnection() {
     queueRef.current = [];
     setLastConnectionError(null);
     setHostStatus(null);
+    setSupportsGestureDebug(false);
     setSupportsSleep(false);
     setSupportsVolumeControl(false);
     supportsVolumeControlRef.current = false;
@@ -408,6 +433,7 @@ export function useVolturaAirConnection() {
     queueRef.current = [];
     setLastConnectionError(null);
     setHostStatus(null);
+    setSupportsGestureDebug(false);
     setSupportsSleep(false);
     setSupportsVolumeControl(false);
     supportsVolumeControlRef.current = false;
@@ -437,6 +463,7 @@ export function useVolturaAirConnection() {
     setPairingAttempt((current) => ({ token: undefined, id: current.id + 1 }));
     setState("needs-pairing");
     setAudioState(null);
+    setSupportsGestureDebug(false);
     setSupportsSleep(false);
     setSupportsVolumeControl(false);
     supportsVolumeControlRef.current = false;
@@ -454,6 +481,7 @@ export function useVolturaAirConnection() {
       socketRef.current?.close();
       setActivePcId(null);
       setAudioState(null);
+      setSupportsGestureDebug(false);
       setSupportsSleep(false);
       setSupportsVolumeControl(false);
       supportsVolumeControlRef.current = false;
@@ -474,7 +502,7 @@ export function useVolturaAirConnection() {
     }
   }, [send, state]);
 
-  return { state, message, send, clientId, deviceName, activePc, pairedPcs, audioState, supportsSleep, supportsVolumeControl, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice };
+  return { state, message, send, clientId, deviceName, activePc, pairedPcs, audioState, supportsGestureDebug, supportsSleep, supportsVolumeControl, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice };
 }
 
 function getOrCreateClientId(source: string): string {
@@ -644,6 +672,10 @@ function hasVolumeCapability(capabilities: ServerCapabilities | undefined): bool
   return capabilities?.volume === true;
 }
 
+function hasGestureDebugCapability(capabilities: ServerCapabilities | undefined): boolean {
+  return capabilities?.gestureDebug === true;
+}
+
 function handlePairAccepted(message: PairAcceptedMessage, pcId: string): void {
   localStorage.setItem(secretKey(message.clientId, pcId), message.secret);
 }
@@ -654,6 +686,10 @@ function getStoredSecret(clientId: string, pcId: string): string | null {
 
 function clearStoredSecret(clientId: string, pcId: string): void {
   localStorage.removeItem(secretKey(clientId, pcId));
+}
+
+export function shouldClearStoredSecretForRejection(reason: string): boolean {
+  return reason === "device-revoked" || reason === "secret-revoked";
 }
 
 function revokePcPairing(pc: PcProfile | null, clientId: string, deviceName: string, activeSocket: WebSocket | null): void {

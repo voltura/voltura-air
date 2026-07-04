@@ -66,6 +66,33 @@ public sealed class WebHostServiceTests
     }
 
     [Fact]
+    public async Task WebSocketDoesNotAdvertiseGestureDebugByDefault()
+    {
+        var originalGestureDebug = AppDeveloperSettings.EnableGestureDebug();
+
+        try
+        {
+            AppDeveloperSettings.SetEnableGestureDebug(false);
+            await using var fixture = await WebHostFixture.StartAsync();
+            var token = fixture.Manager.CreatePairingToken();
+
+            var paired = await SendHelloAsync(fixture.WebHost.Port, new
+            {
+                type = "pair.hello",
+                clientId = $"client-{Guid.NewGuid():N}",
+                deviceName = "Phone",
+                pairToken = token
+            });
+
+            Assert.False(paired.GetProperty("capabilities").GetProperty("gestureDebug").GetBoolean());
+        }
+        finally
+        {
+            AppDeveloperSettings.SetEnableGestureDebug(originalGestureDebug);
+        }
+    }
+
+    [Fact]
     public async Task WebSocketRejectsMalformedPairHelloAsInvalidMessage()
     {
         await using var fixture = await WebHostFixture.StartAsync();

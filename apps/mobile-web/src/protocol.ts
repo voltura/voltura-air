@@ -23,6 +23,7 @@ export type StatusPingMessage = {
 };
 
 export type ServerCapabilities = {
+  gestureDebug?: boolean;
   sleep?: boolean;
   volume?: boolean;
 };

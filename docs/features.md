@@ -33,11 +33,16 @@ what the applications can do, not how each feature is implemented.
 - Shows explicit pairing and reconnect feedback with recovery actions for
   unreadable QR codes, expired or stale pairing links, unavailable hosts,
   manual host entry, troubleshooting help, and copyable diagnostics.
-- Stores saved PC profiles, device identity, device name, and per-device client
-  preferences in browser storage.
+- Stores saved PC profiles, device identity, device name, per-device client
+  preferences, and per-saved-PC trackpad preferences in browser storage.
 - Provides trackpad input with tap-to-click, physical left/right buttons,
-  two-finger scroll, horizontal scroll, pinch zoom, pointer speed, scroll
-  direction, and expanded full-screen trackpad mode.
+  optional left-handed and larger button layouts, held-button dragging for
+  moving or resizing windows, two-finger scroll, horizontal scroll, pinch zoom,
+  pointer speed, optional pointer smoothing, optional pointer/scroll
+  acceleration, scroll direction, optional haptic click feedback, and expanded
+  full-screen trackpad mode.
+- Provides a host-enabled gesture debug screen for inspecting touch movement
+  and recognizer output without sending input to the PC.
 - Provides keyboard input with live typing, buffered send, navigation/editing
   keys, modifier shortcuts, optional arrow keys, optional control keys, and
   optional function keys.

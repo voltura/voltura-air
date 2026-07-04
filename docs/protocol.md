@@ -84,6 +84,7 @@ Successful response:
   "secret": "secret-to-store",
   "paired": true,
   "capabilities": {
+    "gestureDebug": false,
     "sleep": true,
     "volume": true
   },
@@ -107,6 +108,7 @@ Connection status response:
   "message": "Connected",
   "pcName": "WINDOWS-PC",
   "capabilities": {
+    "gestureDebug": false,
     "sleep": true,
     "volume": true
   },
@@ -187,6 +189,7 @@ Host response:
   "type": "status.pong",
   "pcName": "WINDOWS-PC",
   "capabilities": {
+    "gestureDebug": false,
     "sleep": true,
     "volume": true
   },
@@ -209,10 +212,20 @@ Pointer movement:
 { "type": "pointer.move", "dx": 12, "dy": -4 }
 ```
 
-Mouse button:
+Mouse button. `action: "click"` sends a complete press/release click. `down`
+and `up` are used when the mobile app needs to hold a button while pointer
+movement continues, such as dragging or resizing a window.
 
 ```json
 { "type": "pointer.button", "button": "left", "action": "click" }
+```
+
+```json
+{ "type": "pointer.button", "button": "left", "action": "down" }
+```
+
+```json
+{ "type": "pointer.button", "button": "left", "action": "up" }
 ```
 
 Wheel scroll:
@@ -227,7 +240,8 @@ Zoom gesture. `direction: "in"` is a two-finger spread/pinch-out and zooms in. `
 { "type": "pointer.zoom", "direction": "in" }
 ```
 
-The mobile app has a **Pinch zoom** trackpad setting. It is enabled by default and controls whether pinch/spread gestures emit `pointer.zoom` messages.
+The mobile app has a **Pinch zoom** trackpad setting. It controls whether
+pinch/spread gestures emit `pointer.zoom` messages.
 
 Text input:
 
@@ -256,7 +270,9 @@ The Windows host translates `Undo` to `Ctrl+Z` and `Redo` to `Ctrl+Y`.
 ## System
 
 The host reports optional PC features in `capabilities`. Capability values
-reflect host-enforced permissions for the active device. The mobile app only
+reflect host-enforced permissions and host settings for the active device.
+`capabilities.gestureDebug` defaults to `false`; the mobile app only shows the
+gesture debug entry when the host explicitly enables it. The mobile app only
 shows the keyboard sleep button when `capabilities.sleep` is `true` and the
 local **Show sleep button** keyboard setting is enabled.
 

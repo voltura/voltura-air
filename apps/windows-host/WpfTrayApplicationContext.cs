@@ -49,7 +49,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _trayMenu.Items.Add("Preferences", null, (_, _) => _mainWindow.ShowPage(HostPage.Preferences));
         _trayMenu.Items.Add("Open product page", null, (_, _) => OpenProductSite());
         _trayMenu.Items.Add(new Forms.ToolStripSeparator());
-        _trayMenu.Items.Add("Exit", null, (_, _) => WpfApplication.Current.Shutdown());
+        _trayMenu.Items.Add("Exit", null, (_, _) => ExitApplication());
     }
 
     private void ApplyMenuTheme()
@@ -136,6 +136,35 @@ internal sealed class WpfTrayApplicationContext : IDisposable
             FileName = ProductSiteUrl,
             UseShellExecute = true
         });
+    }
+
+    private void ExitApplication()
+    {
+        try
+        {
+            _mainWindow.AllowClose();
+            _trayIcon.Visible = false;
+
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5));
+                Environment.Exit(0);
+            });
+
+            var application = WpfApplication.Current;
+            if (application.Dispatcher.CheckAccess())
+            {
+                application.Shutdown();
+            }
+            else
+            {
+                application.Dispatcher.BeginInvoke(() => application.Shutdown());
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            Environment.Exit(0);
+        }
     }
 
     private static Icon LoadTrayIcon()

@@ -26,16 +26,18 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
 
     public static async Task<WpfHostRuntime> StartAsync(string[] args)
     {
-        var pairingManager = new PairingManager(new PairingStore());
+        var pairingStoreRoot = GetOption(args, "--pairing-store-root");
+        var pairingManager = new PairingManager(new PairingStore(string.IsNullOrWhiteSpace(pairingStoreRoot) ? null : pairingStoreRoot));
         var inputInjector = new SendInputInjector();
         var inputDispatcher = new InputDispatcher(inputInjector);
         var clientUrl = GetOption(args, "--client-url") ?? Environment.GetEnvironmentVariable("VOLTURA_AIR_CLIENT_URL");
+        var usePublicScreenshotPairingUrl = HasOption(args, "--site-screenshot-mode");
         var webHost = new WebHostService(pairingManager, inputDispatcher);
 
         try
         {
             await webHost.StartAsync();
-            var mainWindow = new MainWindow(pairingManager, webHost, clientUrl);
+            var mainWindow = new MainWindow(pairingManager, webHost, clientUrl, usePublicScreenshotPairingUrl);
             WritePairingUrlIfRequested(args, mainWindow.PairingUrl);
             var trayContext = new WpfTrayApplicationContext(mainWindow, webHost, pairingManager);
             return new WpfHostRuntime(inputInjector, webHost, pairingManager, mainWindow, trayContext);
@@ -71,6 +73,11 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         }
 
         return null;
+    }
+
+    private static bool HasOption(string[] args, string name)
+    {
+        return args.Contains(name, StringComparer.OrdinalIgnoreCase);
     }
 
     private static void WritePairingUrlIfRequested(string[] args, string pairingUrl)

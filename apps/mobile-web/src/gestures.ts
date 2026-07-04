@@ -13,10 +13,16 @@ export type TrackpadSettings = {
   horizontalScroll: boolean;
   scrollDirection: "normal" | "inverted";
   pointerSpeed: number;
+  pointerSmoothing: boolean;
+  pointerAcceleration: boolean;
+  scrollAcceleration: boolean;
   tapToClick: boolean;
   zoomGestures: boolean;
   showVolumeControl: boolean;
   enableSplitMode: boolean;
+  hapticFeedback: boolean;
+  leftHandedButtons: boolean;
+  largeClickButtons: boolean;
 };
 
 type Mode = "idle" | "pointer" | "twoFinger" | "cancelled";
@@ -28,16 +34,23 @@ const scrollTapDistance = 12;
 const pointerSensitivity = 1.35;
 const wheelSensitivity = 1.1;
 const zoomDistanceThreshold = 3;
+const pointerSmoothingWeight = 0.35;
 
 export const defaultTrackpadSettings: TrackpadSettings = {
   verticalScroll: true,
   horizontalScroll: true,
   scrollDirection: "normal",
   pointerSpeed: 100,
+  pointerSmoothing: false,
+  pointerAcceleration: false,
+  scrollAcceleration: false,
   tapToClick: true,
   zoomGestures: false,
   showVolumeControl: true,
-  enableSplitMode: false
+  enableSplitMode: false,
+  hapticFeedback: false,
+  leftHandedButtons: false,
+  largeClickButtons: false
 };
 
 export function normalizeTrackpadSettings(value: Partial<TrackpadSettings>): TrackpadSettings {
@@ -46,10 +59,16 @@ export function normalizeTrackpadSettings(value: Partial<TrackpadSettings>): Tra
     horizontalScroll: typeof value.horizontalScroll === "boolean" ? value.horizontalScroll : defaultTrackpadSettings.horizontalScroll,
     scrollDirection: value.scrollDirection === "inverted" ? "inverted" : "normal",
     pointerSpeed: typeof value.pointerSpeed === "number" ? Math.max(10, Math.min(100, value.pointerSpeed)) : defaultTrackpadSettings.pointerSpeed,
+    pointerSmoothing: typeof value.pointerSmoothing === "boolean" ? value.pointerSmoothing : defaultTrackpadSettings.pointerSmoothing,
+    pointerAcceleration: typeof value.pointerAcceleration === "boolean" ? value.pointerAcceleration : defaultTrackpadSettings.pointerAcceleration,
+    scrollAcceleration: typeof value.scrollAcceleration === "boolean" ? value.scrollAcceleration : defaultTrackpadSettings.scrollAcceleration,
     tapToClick: typeof value.tapToClick === "boolean" ? value.tapToClick : defaultTrackpadSettings.tapToClick,
     zoomGestures: typeof value.zoomGestures === "boolean" ? value.zoomGestures : defaultTrackpadSettings.zoomGestures,
     showVolumeControl: typeof value.showVolumeControl === "boolean" ? value.showVolumeControl : defaultTrackpadSettings.showVolumeControl,
-    enableSplitMode: typeof value.enableSplitMode === "boolean" ? value.enableSplitMode : defaultTrackpadSettings.enableSplitMode
+    enableSplitMode: typeof value.enableSplitMode === "boolean" ? value.enableSplitMode : defaultTrackpadSettings.enableSplitMode,
+    hapticFeedback: typeof value.hapticFeedback === "boolean" ? value.hapticFeedback : defaultTrackpadSettings.hapticFeedback,
+    leftHandedButtons: typeof value.leftHandedButtons === "boolean" ? value.leftHandedButtons : defaultTrackpadSettings.leftHandedButtons,
+    largeClickButtons: typeof value.largeClickButtons === "boolean" ? value.largeClickButtons : defaultTrackpadSettings.largeClickButtons
   };
 }
 
@@ -59,13 +78,20 @@ export class GestureRecognizer {
   private startPoints: TouchPoint[] = [];
   private lastPoints: TouchPoint[] = [];
   private maxDistance = 0;
+  private smoothedPointerDelta: { dx: number; dy: number } | null = null;
 
   start(points: TouchPoint[], time: number): void {
     this.startTime = time;
     this.startPoints = clonePoints(points);
     this.lastPoints = clonePoints(points);
     this.maxDistance = 0;
+    this.smoothedPointerDelta = null;
     this.mode = points.length === 1 ? "pointer" : points.length === 2 ? "twoFinger" : "cancelled";
+  }
+
+  cancel(): void {
+    this.mode = "idle";
+    this.smoothedPointerDelta = null;
   }
 
   move(points: TouchPoint[], time: number, settings: TrackpadSettings = defaultTrackpadSettings): GestureOutput[] {
@@ -84,10 +110,23 @@ export class GestureRecognizer {
       this.maxDistance = Math.max(this.maxDistance, distance(current, this.startPoints[0]));
       this.lastPoints = clonePoints(points);
 
-      const dx = current.x - previous.x;
-      const dy = current.y - previous.y;
+      let dx = current.x - previous.x;
+      let dy = current.y - previous.y;
       if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) {
         return [];
+      }
+
+      if (settings.pointerAcceleration) {
+        const factor = accelerationFactor(Math.hypot(dx, dy), 28, 0.45);
+        dx *= factor;
+        dy *= factor;
+      }
+
+      if (settings.pointerSmoothing) {
+        const smoothed = smoothDelta(dx, dy, this.smoothedPointerDelta);
+        this.smoothedPointerDelta = smoothed;
+        dx = smoothed.dx;
+        dy = smoothed.dy;
       }
 
       return [
@@ -113,8 +152,8 @@ export class GestureRecognizer {
       this.maxDistance = Math.max(this.maxDistance, distance(currentCenter, startCenter));
       this.lastPoints = clonePoints(points);
 
-      const dx = currentCenter.x - previousCenter.x;
-      const dy = currentCenter.y - previousCenter.y;
+      let dx = currentCenter.x - previousCenter.x;
+      let dy = currentCenter.y - previousCenter.y;
       const spanDelta = currentSpan - previousSpan;
 
       if (settings.zoomGestures && Math.abs(spanDelta) >= zoomDistanceThreshold && Math.abs(spanDelta) > Math.max(Math.abs(dx), Math.abs(dy)) * 0.5) {
@@ -123,6 +162,12 @@ export class GestureRecognizer {
 
       if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) {
         return [];
+      }
+
+      if (settings.scrollAcceleration) {
+        const factor = accelerationFactor(Math.hypot(dx, dy), 32, 0.7);
+        dx *= factor;
+        dy *= factor;
       }
 
       const direction = settings.scrollDirection === "inverted" ? 1 : -1;
@@ -186,9 +231,25 @@ function distance(a: TouchPoint, b: TouchPoint): number {
 }
 
 function round(value: number): number {
-  return Math.round(value * 100) / 100;
+  const rounded = Math.round(value * 100) / 100;
+  return Object.is(rounded, -0) ? 0 : rounded;
 }
 
 function speedFactor(pointerSpeed: number): number {
   return Math.max(10, Math.min(100, pointerSpeed)) / 100;
+}
+
+function accelerationFactor(distance: number, fullSpeedDistance: number, maximumBoost: number): number {
+  return 1 + Math.min(distance / fullSpeedDistance, 1) * maximumBoost;
+}
+
+function smoothDelta(dx: number, dy: number, previous: { dx: number; dy: number } | null): { dx: number; dy: number } {
+  if (!previous) {
+    return { dx, dy };
+  }
+
+  return {
+    dx: previous.dx * (1 - pointerSmoothingWeight) + dx * pointerSmoothingWeight,
+    dy: previous.dy * (1 - pointerSmoothingWeight) + dy * pointerSmoothingWeight
+  };
 }

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Camera, Clipboard, Download, Power, RefreshCw, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Camera, Clipboard, Download, MousePointer2, Power, RefreshCw, X } from "lucide-react";
 import { copyTextToClipboard } from "../mobileDiagnostics";
 import { getPcDisplayName } from "../pcDisplayName";
 import { normalizeManualHostInput } from "../pairingFeedback";
@@ -8,6 +8,7 @@ import type { KeyboardSettings } from "../keyboardSettings";
 import type { PcProfile } from "../pcProfiles";
 
 type ThemeMode = "system" | "light" | "dark";
+type SettingsSection = "connection" | "trackpad" | "keyboard" | "appearance" | "app";
 
 type SettingsDrawerProps = {
   activePc: PcProfile | null;
@@ -23,6 +24,7 @@ type SettingsDrawerProps = {
   onClose: () => void;
   onPairingQrSelected: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onManualHostSubmit: (target: string) => void;
+  onOpenGestureDebug?: () => void;
   pairedPcs: PcProfile[];
   pairingQrInputRef: React.RefObject<HTMLInputElement | null>;
   pairingScanMessage: string;
@@ -33,6 +35,7 @@ type SettingsDrawerProps = {
   scanPairingQr: () => void;
   selectPc: (pcId: string) => void;
   setThemeMode: React.Dispatch<React.SetStateAction<ThemeMode>>;
+  showGestureDebug: boolean;
   themeMode: ThemeMode;
   trackpadSettings: TrackpadSettings;
   updateKeyboardSetting: <Key extends keyof KeyboardSettings>(key: Key, value: KeyboardSettings[Key]) => void;
@@ -53,6 +56,7 @@ export function SettingsDrawer({
   onClose,
   onPairingQrSelected,
   onManualHostSubmit,
+  onOpenGestureDebug,
   pairedPcs,
   pairingQrInputRef,
   pairingScanMessage,
@@ -63,6 +67,7 @@ export function SettingsDrawer({
   scanPairingQr,
   selectPc,
   setThemeMode,
+  showGestureDebug,
   themeMode,
   trackpadSettings,
   updateKeyboardSetting,
@@ -72,6 +77,7 @@ export function SettingsDrawer({
   const [manualHostError, setManualHostError] = useState("");
   const [copyDiagnosticsStatus, setCopyDiagnosticsStatus] = useState("");
   const [manualDiagnostics, setManualDiagnostics] = useState("");
+  const [openSection, setOpenSection] = useState<SettingsSection | null>(null);
 
   const copyDiagnostics = async () => {
     setCopyDiagnosticsStatus("");
@@ -99,6 +105,17 @@ export function SettingsDrawer({
     setManualHostError("");
   };
 
+  useEffect(() => {
+    if (!isOpen) {
+      setOpenSection(null);
+    }
+  }, [isOpen]);
+
+  const toggleSection = (event: React.MouseEvent<HTMLElement>, section: SettingsSection) => {
+    event.preventDefault();
+    setOpenSection((current) => (current === section ? null : section));
+  };
+
   return (
     <aside className={`settings-drawer ${isOpen ? "open" : ""}`} aria-hidden={!isOpen}>
       <header className="drawer-header">
@@ -111,14 +128,17 @@ export function SettingsDrawer({
         </button>
       </header>
 
-      <section className="settings-section">
-        <h3>Connection</h3>
-        <label className="setting-group">
+      <details className="settings-section" key={`connection-${isOpen ? "open" : "closed"}`} open={openSection === "connection"}>
+        <summary onClick={(event) => toggleSection(event, "connection")}>
+          <span>Connection</span>
+        </summary>
+        <div className="settings-section-body">
+          <label className="setting-group">
           <span>This device name</span>
           <input className="text-input" type="text" value={deviceName} onChange={(event) => renameDevice(event.target.value)} placeholder="Joakim's iPhone" />
-        </label>
+          </label>
 
-        <div className="install-card">
+          <div className="install-card">
           <div className="install-title">
             <Power aria-hidden="true" />
             <span>PC connection</span>
@@ -154,9 +174,9 @@ export function SettingsDrawer({
               ))}
             </div>
           )}
-        </div>
+          </div>
 
-        <div className="install-card">
+          <div className="install-card">
           <div className="install-title">
             <Camera aria-hidden="true" />
             <span>Pair from QR code</span>
@@ -167,9 +187,9 @@ export function SettingsDrawer({
             <Camera aria-hidden="true" />
             <span>Take photo of QR code</span>
           </button>
-        </div>
+          </div>
 
-        <div className="install-card">
+          <div className="install-card">
           <div className="install-title">
             <Clipboard aria-hidden="true" />
             <span>Diagnostics</span>
@@ -190,9 +210,9 @@ export function SettingsDrawer({
               value={manualDiagnostics}
             />
           )}
-        </div>
+          </div>
 
-        <div className="install-card">
+          <div className="install-card">
           <div className="install-title">
             <Power aria-hidden="true" />
             <span>Add PC manually</span>
@@ -215,14 +235,40 @@ export function SettingsDrawer({
             <button type="submit">Connect to PC</button>
             {manualHostError && <p className="pairing-inline-error">{manualHostError}</p>}
           </form>
+          </div>
         </div>
-      </section>
+      </details>
 
-      <section className="settings-section">
-        <h3>Trackpad</h3>
-        <label className="toggle-row">
+      <details className="settings-section" key={`trackpad-${isOpen ? "open" : "closed"}`} open={openSection === "trackpad"}>
+        <summary onClick={(event) => toggleSection(event, "trackpad")}>
+          <span>Trackpad</span>
+        </summary>
+        <div className="settings-section-body">
+          {showGestureDebug && onOpenGestureDebug && (
+            <button type="button" onClick={onOpenGestureDebug}>
+              <MousePointer2 aria-hidden="true" />
+              <span>Open gesture debug</span>
+            </button>
+          )}
+
+          <label className="toggle-row">
           <span>Tap to click</span>
           <input type="checkbox" checked={trackpadSettings.tapToClick} onChange={(event) => updateTrackpadSetting("tapToClick", event.target.checked)} />
+          </label>
+
+        <label className="toggle-row">
+          <span>Pointer smoothing</span>
+          <input type="checkbox" checked={trackpadSettings.pointerSmoothing} onChange={(event) => updateTrackpadSetting("pointerSmoothing", event.target.checked)} />
+        </label>
+
+        <label className="toggle-row">
+          <span>Pointer acceleration</span>
+          <input type="checkbox" checked={trackpadSettings.pointerAcceleration} onChange={(event) => updateTrackpadSetting("pointerAcceleration", event.target.checked)} />
+        </label>
+
+        <label className="toggle-row">
+          <span>Scroll acceleration</span>
+          <input type="checkbox" checked={trackpadSettings.scrollAcceleration} onChange={(event) => updateTrackpadSetting("scrollAcceleration", event.target.checked)} />
         </label>
 
         <label className="toggle-row">
@@ -250,19 +296,34 @@ export function SettingsDrawer({
           <input type="checkbox" checked={trackpadSettings.enableSplitMode} onChange={(event) => updateTrackpadSetting("enableSplitMode", event.target.checked)} />
         </label>
 
+        <label className="toggle-row">
+          <span>Haptic feedback</span>
+          <input type="checkbox" checked={trackpadSettings.hapticFeedback} onChange={(event) => updateTrackpadSetting("hapticFeedback", event.target.checked)} />
+        </label>
+
+        <label className="toggle-row">
+          <span>Left-handed button layout</span>
+          <input type="checkbox" checked={trackpadSettings.leftHandedButtons} onChange={(event) => updateTrackpadSetting("leftHandedButtons", event.target.checked)} />
+        </label>
+
+        <label className="toggle-row">
+          <span>Large click buttons</span>
+          <input type="checkbox" checked={trackpadSettings.largeClickButtons} onChange={(event) => updateTrackpadSetting("largeClickButtons", event.target.checked)} />
+        </label>
+
         <div className="setting-group">
           <span>Scroll direction</span>
           <div className="segmented-control">
             <button type="button" className={trackpadSettings.scrollDirection === "normal" ? "active" : ""} onClick={() => updateTrackpadSetting("scrollDirection", "normal")}>
-              Normal
+              Natural scrolling
             </button>
             <button type="button" className={trackpadSettings.scrollDirection === "inverted" ? "active" : ""} onClick={() => updateTrackpadSetting("scrollDirection", "inverted")}>
-              Inverted
+              Traditional scrolling
             </button>
           </div>
         </div>
 
-        <label className="setting-group">
+          <label className="setting-group">
           <span>Pointer speed</span>
           <div className="range-row">
             <input
@@ -275,15 +336,19 @@ export function SettingsDrawer({
             />
             <output>{trackpadSettings.pointerSpeed}%</output>
           </div>
-        </label>
-      </section>
+          </label>
+        </div>
+      </details>
 
-      <section className="settings-section">
-        <h3>Keyboard</h3>
-        <label className="toggle-row">
+      <details className="settings-section" key={`keyboard-${isOpen ? "open" : "closed"}`} open={openSection === "keyboard"}>
+        <summary onClick={(event) => toggleSection(event, "keyboard")}>
+          <span>Keyboard</span>
+        </summary>
+        <div className="settings-section-body">
+          <label className="toggle-row">
           <span>Show function keys</span>
           <input type="checkbox" checked={keyboardSettings.showFunctionKeys} onChange={(event) => updateKeyboardSetting("showFunctionKeys", event.target.checked)} />
-        </label>
+          </label>
 
         <label className="toggle-row">
           <span>Show control keys</span>
@@ -300,15 +365,19 @@ export function SettingsDrawer({
           <input type="checkbox" checked={keyboardSettings.showSleepButton} onChange={(event) => updateKeyboardSetting("showSleepButton", event.target.checked)} />
         </label>
 
-        <label className="toggle-row">
+          <label className="toggle-row">
           <span>Enable split mode</span>
           <input type="checkbox" checked={keyboardSettings.enableSplitMode} onChange={(event) => updateKeyboardSetting("enableSplitMode", event.target.checked)} />
-        </label>
-      </section>
+          </label>
+        </div>
+      </details>
 
-      <section className="settings-section">
-        <h3>Appearance</h3>
-        <div className="setting-group">
+      <details className="settings-section" key={`appearance-${isOpen ? "open" : "closed"}`} open={openSection === "appearance"}>
+        <summary onClick={(event) => toggleSection(event, "appearance")}>
+          <span>Appearance</span>
+        </summary>
+        <div className="settings-section-body">
+          <div className="setting-group">
           <span>Theme</span>
           <div className="segmented-control three">
             <button type="button" className={themeMode === "system" ? "active" : ""} onClick={() => setThemeMode("system")}>
@@ -321,12 +390,16 @@ export function SettingsDrawer({
               Dark
             </button>
           </div>
+          </div>
         </div>
-      </section>
+      </details>
 
-      <section className="settings-section">
-        <h3>App</h3>
-        <div className="install-card">
+      <details className="settings-section" key={`app-${isOpen ? "open" : "closed"}`} open={openSection === "app"}>
+        <summary onClick={(event) => toggleSection(event, "app")}>
+          <span>App</span>
+        </summary>
+        <div className="settings-section-body">
+          <div className="install-card">
           <div className="install-title">
             <Download aria-hidden="true" />
             <span>Home screen app</span>
@@ -359,8 +432,9 @@ export function SettingsDrawer({
             <RefreshCw aria-hidden="true" />
             <span>Refresh app</span>
           </button>
+          </div>
         </div>
-      </section>
+      </details>
     </aside>
   );
 }

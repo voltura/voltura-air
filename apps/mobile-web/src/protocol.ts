@@ -27,6 +27,15 @@ export type ServerCapabilities = {
   volume?: boolean;
 };
 
+export type HostStatusMetadata = {
+  hostVersion?: string;
+  pcName?: string;
+  selectedAdapterName?: string;
+  selectedIp?: string;
+  selectedPort?: number;
+  webSocketUrl?: string;
+};
+
 export type PairAcceptedMessage = {
   type: "pair.accepted";
   clientId: string;
@@ -34,6 +43,7 @@ export type PairAcceptedMessage = {
   secret: string;
   paired: true;
   capabilities?: ServerCapabilities;
+  host?: HostStatusMetadata;
 };
 
 export type PairRejectionReason =
@@ -59,12 +69,14 @@ export type StatusMessage = {
   message?: string;
   pcName?: string;
   capabilities?: ServerCapabilities;
+  host?: HostStatusMetadata;
 };
 
 export type StatusPongMessage = {
   type: "status.pong";
   pcName: string;
   capabilities?: ServerCapabilities;
+  host?: HostStatusMetadata;
 };
 
 export type PointerMoveMessage = {

@@ -1,5 +1,6 @@
 import { getPcDisplayName } from "./pcDisplayName";
 import { getWebSocketUrl, type PcProfile } from "./pcProfiles";
+import type { HostStatusMetadata } from "./protocol";
 
 type MobileDiagnosticsInput = {
   activePc: PcProfile | null;
@@ -8,6 +9,7 @@ type MobileDiagnosticsInput = {
   lastErrorMessage?: string | null;
   message: string;
   pairedPcCount: number;
+  hostStatus?: HostStatusMetadata | null;
 };
 
 const sensitiveQueryKeys = new Set(["t", "token", "pairtoken", "pair-token", "secret", "secrethash", "secret-hash", "hash", "d", "device", "deviceid", "device-id"]);
@@ -15,14 +17,16 @@ const sensitiveObjectKeyPattern = /(token|secret|hash|clientid|client-id|devicei
 
 export function buildMobileDiagnostics(input: MobileDiagnosticsInput): string {
   const activePcUrl = parseUrl(input.activePc?.url ?? null);
-  const currentWebSocketUrl = input.activePc ? getWebSocketUrl(input.activePc) : null;
+  const fallbackWebSocketUrl = input.activePc ? getWebSocketUrl(input.activePc) : null;
+  const currentWebSocketUrl = input.hostStatus?.webSocketUrl ?? fallbackWebSocketUrl;
   const diagnostics = redactSensitiveValues({
     product: "Voltura Air",
+    hostVersion: input.hostStatus?.hostVersion ?? null,
     webClientVersion: __APP_VERSION__,
-    pcName: input.activePc ? getPcDisplayName(input.activePc) : null,
-    selectedAdapterName: null,
-    selectedIp: activePcUrl?.hostname ?? null,
-    selectedPort: activePcUrl?.port ? Number.parseInt(activePcUrl.port, 10) : defaultPortForProtocol(activePcUrl?.protocol),
+    pcName: input.hostStatus?.pcName ?? (input.activePc ? getPcDisplayName(input.activePc) : null),
+    selectedAdapterName: input.hostStatus?.selectedAdapterName ?? null,
+    selectedIp: input.hostStatus?.selectedIp ?? activePcUrl?.hostname ?? null,
+    selectedPort: input.hostStatus?.selectedPort ?? (activePcUrl?.port ? Number.parseInt(activePcUrl.port, 10) : defaultPortForProtocol(activePcUrl?.protocol)),
     activePcUrl: activePcUrl ? sanitizeUrl(activePcUrl.toString()) : null,
     currentWebSocketUrl: currentWebSocketUrl ? sanitizeUrl(currentWebSocketUrl) : null,
     pairingState: input.connectionState,

@@ -215,8 +215,8 @@ public sealed class WebHostService : IAsyncDisposable
                     activeConnection = _pairingManager.TrackConnection(clientId);
                     var pcName = Environment.MachineName;
                     var capabilities = CreateCapabilities(clientId);
-                    await SendSocketAsync(socket, new { type = "pair.accepted", clientId, pcName, secret, paired = true, capabilities }, cancellationToken);
-                    await SendSocketAsync(socket, new { type = "status", connected = true, message = "Connected", pcName, capabilities }, cancellationToken);
+                    await SendSocketAsync(socket, new { type = "pair.accepted", clientId, pcName, secret, paired = true, capabilities, host = CreateHostStatus() }, cancellationToken);
+                    await SendSocketAsync(socket, new { type = "status", connected = true, message = "Connected", pcName, capabilities, host = CreateHostStatus() }, cancellationToken);
                     await SendAudioStateAsync(socket, clientId, cancellationToken);
                     continue;
                 }
@@ -235,7 +235,7 @@ public sealed class WebHostService : IAsyncDisposable
 
                 if (type == "status.ping")
                 {
-                    await SendSocketAsync(socket, new { type = "status.pong", pcName = Environment.MachineName, capabilities = CreateCapabilities(authenticatedClientId) }, cancellationToken);
+                    await SendSocketAsync(socket, new { type = "status.pong", pcName = Environment.MachineName, capabilities = CreateCapabilities(authenticatedClientId), host = CreateHostStatus() }, cancellationToken);
                     await SendAudioStateAsync(socket, authenticatedClientId, cancellationToken);
                     continue;
                 }
@@ -401,7 +401,7 @@ public sealed class WebHostService : IAsyncDisposable
             {
                 await SendSocketAsync(
                     socket,
-                    new { type = "status", connected = true, message = "Connected", pcName, capabilities = CreateCapabilities(clientId) },
+                    new { type = "status", connected = true, message = "Connected", pcName, capabilities = CreateCapabilities(clientId), host = CreateHostStatus() },
                     CancellationToken.None);
                 await SendAudioStateAsync(socket, clientId, CancellationToken.None);
             }
@@ -673,6 +673,18 @@ public sealed class WebHostService : IAsyncDisposable
         return $"ws://{hostAddress}:{port}/ws";
     }
 
+    private HostStatusMetadata CreateHostStatus()
+    {
+        var pcName = Environment.MachineName;
+        return new HostStatusMetadata(
+            AppVersion.Display,
+            pcName,
+            SelectedAdapterName,
+            AdvertisedHostAddress,
+            Port,
+            WebSocketUrl);
+    }
+
     private static string GetSelectedAdapterName(LanAddressCandidate? selectedCandidate)
     {
         return selectedCandidate is null
@@ -680,6 +692,14 @@ public sealed class WebHostService : IAsyncDisposable
             : LanAddressSelector.GetAdapterDisplayName(selectedCandidate);
     }
 }
+
+internal sealed record HostStatusMetadata(
+    string HostVersion,
+    string PcName,
+    string SelectedAdapterName,
+    string SelectedIp,
+    int SelectedPort,
+    string WebSocketUrl);
 
 public sealed class HostPortUnavailableException : Exception
 {

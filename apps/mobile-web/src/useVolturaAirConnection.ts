@@ -15,7 +15,7 @@ import {
   upsertPcProfile,
   type PcProfile
 } from "./pcProfiles";
-import type { AudioStateMessage, ClientMessage, PairAcceptedMessage, ServerCapabilities, ServerMessage } from "./protocol";
+import type { AudioStateMessage, ClientMessage, HostStatusMetadata, PairAcceptedMessage, ServerCapabilities, ServerMessage } from "./protocol";
 
 const clientIdKey = "voltura-air.clientId";
 const clientIdQueryParam = "d";
@@ -73,6 +73,7 @@ export function useVolturaAirConnection() {
   const [supportsSleep, setSupportsSleep] = useState(false);
   const [supportsVolumeControl, setSupportsVolumeControl] = useState(false);
   const [lastConnectionError, setLastConnectionError] = useState<ConnectionError | null>(null);
+  const [hostStatus, setHostStatus] = useState<HostStatusMetadata | null>(null);
   const [pairingAttempt, setPairingAttempt] = useState<{ token?: string; id: number }>(() => ({
     token: undefined,
     id: 0
@@ -121,6 +122,13 @@ export function useVolturaAirConnection() {
     }
   }, []);
 
+  function updateHostStatus(metadata: HostStatusMetadata | undefined) {
+    const normalized = normalizeHostStatus(metadata);
+    if (normalized) {
+      setHostStatus(normalized);
+    }
+  }
+
   useEffect(() => {
     let disposed = false;
     let shouldRetry = true;
@@ -137,6 +145,7 @@ export function useVolturaAirConnection() {
       setSupportsSleep(false);
       setSupportsVolumeControl(false);
       supportsVolumeControlRef.current = false;
+      setHostStatus(null);
       setState("needs-pairing");
       setMessage(pairedPcs.length > 0 ? "Choose a PC or scan a pairing QR." : "Scan the PC pairing QR to pair this app.");
       return () => {
@@ -265,6 +274,7 @@ export function useVolturaAirConnection() {
         if (response.type === "pair.accepted") {
           handlePairAccepted(response, pc.id);
           updateCapabilities(response.capabilities);
+          updateHostStatus(response.host);
           if (!screenshotMode) {
             setPairedPcs((current) => applyPcNameFromHost(current, pc.id, response.pcName));
           }
@@ -303,6 +313,7 @@ export function useVolturaAirConnection() {
           }
 
           updateCapabilities(response.capabilities, response.connected);
+          updateHostStatus(response.host);
           if (response.connected) {
             setLastConnectionError(null);
           }
@@ -317,6 +328,7 @@ export function useVolturaAirConnection() {
             setPairedPcs((current) => applyPcNameFromHost(current, pc.id, response.pcName));
           }
           updateCapabilities(response.capabilities);
+          updateHostStatus(response.host);
           setLastConnectionError(null);
           setState("paired");
           return;
@@ -364,6 +376,7 @@ export function useVolturaAirConnection() {
     const profile = createPcProfile(pcUrl);
     queueRef.current = [];
     setLastConnectionError(null);
+    setHostStatus(null);
     setSupportsSleep(false);
     setSupportsVolumeControl(false);
     supportsVolumeControlRef.current = false;
@@ -382,6 +395,7 @@ export function useVolturaAirConnection() {
   const selectPc = useCallback((pcId: string) => {
     queueRef.current = [];
     setLastConnectionError(null);
+    setHostStatus(null);
     setSupportsSleep(false);
     setSupportsVolumeControl(false);
     supportsVolumeControlRef.current = false;
@@ -393,6 +407,7 @@ export function useVolturaAirConnection() {
     const profile = createPcProfile(pcUrl);
     queueRef.current = [];
     setLastConnectionError(null);
+    setHostStatus(null);
     setSupportsSleep(false);
     setSupportsVolumeControl(false);
     supportsVolumeControlRef.current = false;
@@ -459,7 +474,7 @@ export function useVolturaAirConnection() {
     }
   }, [send, state]);
 
-  return { state, message, send, clientId, deviceName, activePc, pairedPcs, audioState, supportsSleep, supportsVolumeControl, lastConnectionError, pairWithToken, selectPc, addManualPc, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice };
+  return { state, message, send, clientId, deviceName, activePc, pairedPcs, audioState, supportsSleep, supportsVolumeControl, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice };
 }
 
 function getOrCreateClientId(source: string): string {
@@ -577,6 +592,28 @@ function getPcUnavailableMessage(pc: PcProfile, screenshotMode = false): string 
 function diagnosticCodeForPairingReason(reason: string): string {
   const normalized = reason.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toUpperCase();
   return `VAIR-PAIR-${normalized || "UNKNOWN"}`;
+}
+
+function normalizeHostStatus(metadata: HostStatusMetadata | undefined): HostStatusMetadata | null {
+  if (!metadata) {
+    return null;
+  }
+
+  const normalized: HostStatusMetadata = {
+    hostVersion: normalizeOptionalString(metadata.hostVersion),
+    pcName: normalizeOptionalString(metadata.pcName),
+    selectedAdapterName: normalizeOptionalString(metadata.selectedAdapterName),
+    selectedIp: normalizeOptionalString(metadata.selectedIp),
+    selectedPort: Number.isFinite(metadata.selectedPort) ? metadata.selectedPort : undefined,
+    webSocketUrl: normalizeOptionalString(metadata.webSocketUrl)
+  };
+
+  return Object.values(normalized).some((value) => value !== undefined) ? normalized : null;
+}
+
+function normalizeOptionalString(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
 }
 
 function parseServerMessage(data: unknown): ServerMessage | null {

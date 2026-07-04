@@ -74,6 +74,7 @@ export function App() {
     supportsSleep,
     supportsVolumeControl,
     lastConnectionError,
+    hostStatus,
     pairWithToken,
     selectPc,
     connectManualPc,
@@ -505,8 +506,9 @@ export function App() {
     lastErrorCode: lastConnectionError?.code ?? null,
     lastErrorMessage: lastConnectionError?.message ?? null,
     message,
-    pairedPcCount: pairedPcs.length
-  }), [activePc, lastConnectionError?.code, lastConnectionError?.message, message, pairedPcs.length, state]);
+    pairedPcCount: pairedPcs.length,
+    hostStatus
+  }), [activePc, hostStatus, lastConnectionError?.code, lastConnectionError?.message, message, pairedPcs.length, state]);
 
   const shouldShowSplitMode =
     canUseSplitMode && ((tab === "trackpad" && trackpadSettings.enableSplitMode) || (tab === "keyboard" && keyboardSettings.enableSplitMode));

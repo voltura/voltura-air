@@ -81,6 +81,14 @@ Successful response:
   "capabilities": {
     "sleep": true,
     "volume": true
+  },
+  "host": {
+    "hostVersion": "0.1.0",
+    "pcName": "WINDOWS-PC",
+    "selectedAdapterName": "Wi-Fi - Intel(R) Wi-Fi 6 AX200",
+    "selectedIp": "192.168.1.50",
+    "selectedPort": 51395,
+    "webSocketUrl": "ws://192.168.1.50:51395/ws"
   }
 }
 ```
@@ -96,9 +104,21 @@ Connection status response:
   "capabilities": {
     "sleep": true,
     "volume": true
+  },
+  "host": {
+    "hostVersion": "0.1.0",
+    "pcName": "WINDOWS-PC",
+    "selectedAdapterName": "Wi-Fi - Intel(R) Wi-Fi 6 AX200",
+    "selectedIp": "192.168.1.50",
+    "selectedPort": 51395,
+    "webSocketUrl": "ws://192.168.1.50:51395/ws"
   }
 }
 ```
+
+Host metadata is included after authentication in `pair.accepted`, `status`, and `status.pong`.
+It is diagnostics metadata only. It is not a secret and must not be used as authentication state.
+The adapter name can reveal local hardware/vendor details, so it should only be copied when the user explicitly chooses **Copy diagnostics**.
 
 Rejected response:
 
@@ -158,6 +178,14 @@ Host response:
   "capabilities": {
     "sleep": true,
     "volume": true
+  },
+  "host": {
+    "hostVersion": "0.1.0",
+    "pcName": "WINDOWS-PC",
+    "selectedAdapterName": "Wi-Fi - Intel(R) Wi-Fi 6 AX200",
+    "selectedIp": "192.168.1.50",
+    "selectedPort": 51395,
+    "webSocketUrl": "ws://192.168.1.50:51395/ws"
   }
 }
 ```

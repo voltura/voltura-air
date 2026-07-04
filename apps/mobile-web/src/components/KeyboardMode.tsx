@@ -356,7 +356,7 @@ export function KeyboardMode({
         <button onClick={() => sendSpecial("Escape")}>Esc</button>
         <button onClick={() => sendSpecial("Win")}>Win</button>
         {showSleepButton && (
-          <button type="button" onClick={onSleep}>
+          <button type="button" className="keyboard-sleep-button" onClick={onSleep}>
             <Moon aria-hidden="true" />
             <span>Sleep</span>
           </button>

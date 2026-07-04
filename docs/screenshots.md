@@ -12,7 +12,7 @@ installer artwork in `installer/assets`.
 - The temporary Node `qrcode` package for replacing the host pairing QR with a
   public QR for `https://voltura.se/air`.
 
-The temporary capture workspace used during the rebrand was:
+Use a temporary capture workspace such as:
 
 ```powershell
 $tempDir = Join-Path $env:TEMP "voltura-air-capture"

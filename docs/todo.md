@@ -1,22 +1,20 @@
 # TODO
 
-This file tracks near-term product and engineering follow-ups that should stay
+This file tracks near-term product and engineering work that should stay
 visible without becoming detailed implementation documentation.
 
 ## Settings UI Redesign
 
-Goal: reduce stacks of floating settings windows and make host configuration
-feel like one coherent Windows settings surface.
+Goal: keep host configuration in one coherent Settings surface and reduce
+stacks of floating windows.
 
-1. Refactor `SettingsForm` into a Settings shell with persistent left
-   navigation and a changing right content pane.
-2. Move current application and appearance controls into Settings pages.
-3. Move global permissions into a Settings permissions page instead of opening
-   a separate global permissions window.
-4. Move connection settings into a Settings connection page, either during the
-   same cleanup or as a follow-up if the first pass should stay smaller.
-5. Keep per-device permissions reachable from Device Manager as a focused
-   device-specific editor.
+1. Move connection settings fully into the Settings `Connection` page so normal
+   navigation no longer opens a standalone connection settings form.
+2. Move device management fully into the Settings `Devices` page so normal
+   navigation no longer opens a standalone device manager form.
+3. Keep per-device permissions reachable from the embedded Devices page as a
+   focused device-specific editor, then decide whether that editor should also
+   become an in-page detail view.
 
 Implementation notes:
 
@@ -27,3 +25,6 @@ Implementation notes:
 - Use bounded scroll regions for growing page content.
 - Keep fixed dimensions, gaps, margins, and row heights DPI-scaled.
 - Validate in both light and dark mode.
+- Standalone forms may remain as internal transition helpers while migrating,
+  but the intended UX is one Settings shell for application, devices,
+  permissions, connection, and appearance.

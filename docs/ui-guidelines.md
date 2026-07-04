@@ -29,19 +29,18 @@ changes do not repeat layout and window-management problems.
   specific UI assertion when `GITHUB_ACTIONS=true` while keeping it active for
   local validation.
 
-## Settings Window Direction
+## Settings Window
 
-When the current floating settings dialogs are revisited, prefer a single
-Settings shell with persistent left navigation and a changing right pane:
+Settings uses a single shell with persistent left navigation and a changing
+right content pane. Application, devices, permissions, connection, and
+appearance all belong in that shell for normal navigation.
 
-1. Refactor `SettingsForm` into left navigation plus content pane.
-2. Move current application and appearance controls into Settings pages.
-3. Move global permissions into a Settings permissions page.
-4. Move connection settings into a Settings connection page, either during the
-   same cleanup or as a follow-up.
-5. Keep per-device permissions reachable from Device Manager as a focused
-   device-specific editor.
-
-The goal is to avoid stacks of floating windows for general application
-settings while keeping device-specific actions close to the device row that
-opened them.
+- The right content pane fills the available space to the right of the
+  navigation; it must not shrink to preferred content width.
+- Page content may grow vertically inside a bounded themed viewport.
+- The Settings action row stays visible and outside the page viewport.
+- Opening Settings from the pairing window hides the pairing window to avoid
+  unnecessary window stacks.
+- Standalone detail forms should remain transitional only. Prefer moving
+  device and connection management into Settings pages when touching those
+  areas.

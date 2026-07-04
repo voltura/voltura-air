@@ -46,7 +46,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         _form.FormClosed += (_, _) => ExitThread();
         _form.DeviceManagerRequested += OnDeviceManagerRequested;
         _settingsForm.ConnectionSettingsRequested += OnConnectionSettingsRequested;
-        _settingsForm.PermissionsRequested += OnPermissionsRequested;
+        _settingsForm.DeviceManagerRequested += OnSettingsDeviceManagerRequested;
         _deviceManagerForm.DevicePermissionsRequested += OnDevicePermissionsRequested;
         _pairingManager.ConnectionChanged += OnConnectionChanged;
         AppThemeSettings.Changed += OnAppThemeChanged;
@@ -77,7 +77,7 @@ public sealed class TrayApplicationContext : ApplicationContext
             _pairingManager.ConnectionChanged -= OnConnectionChanged;
             _form.DeviceManagerRequested -= OnDeviceManagerRequested;
             _settingsForm.ConnectionSettingsRequested -= OnConnectionSettingsRequested;
-            _settingsForm.PermissionsRequested -= OnPermissionsRequested;
+            _settingsForm.DeviceManagerRequested -= OnSettingsDeviceManagerRequested;
             _deviceManagerForm.DevicePermissionsRequested -= OnDevicePermissionsRequested;
             AppThemeSettings.Changed -= OnAppThemeChanged;
             _trayIcon.Visible = false;
@@ -198,17 +198,19 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private void ShowDeviceManager()
     {
-        _deviceManagerForm.ShowFor(_form);
+        _settingsForm.ShowStandalone(SettingsPage.Devices);
+        HidePairingWindowIfVisible();
     }
 
     private void ShowSettings()
     {
-        _settingsForm.ShowStandalone();
+        _settingsForm.ShowStandalone(SettingsPage.Application);
+        HidePairingWindowIfVisible();
     }
 
-    private void OnPermissionsRequested(object? sender, EventArgs e)
+    private void OnSettingsDeviceManagerRequested(object? sender, EventArgs e)
     {
-        _permissionsForm.ShowGlobal(_settingsForm);
+        _deviceManagerForm.ShowFor(_settingsForm);
     }
 
     private void OnDevicePermissionsRequested(object? sender, DevicePermissionsRequestedEventArgs e)
@@ -223,7 +225,15 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private void ShowConnectionSettings()
     {
-        _connectionSettingsForm.ShowFor(_form);
+        _connectionSettingsForm.ShowFor(_settingsForm);
+    }
+
+    private void HidePairingWindowIfVisible()
+    {
+        if (_form.Visible)
+        {
+            _form.HideToTray();
+        }
     }
 
     private void OnConnectionChanged(object? sender, EventArgs e)

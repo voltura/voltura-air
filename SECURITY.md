@@ -34,5 +34,5 @@ When testing or deploying:
 
 - Download only from the official product page or official GitHub releases.
 - Pair only devices you trust.
-- Remove old paired devices from the Windows host device manager.
+- Remove stale paired devices from the Windows host Settings Devices page.
 - Do not forward the Voltura Air host port from your router to the internet.

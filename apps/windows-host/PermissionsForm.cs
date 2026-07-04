@@ -6,7 +6,8 @@ namespace VolturaAir.Host;
 public sealed class PermissionsForm : Form
 {
     private const int LogicalFormWidth = 1180;
-    private const int LogicalFormHeight = 780;
+    private const int LogicalMinimumFormHeight = 780;
+    private const int LogicalInitialFormHeight = 900;
     private const int LogicalPermissionRowHeight = 64;
     private const int LogicalPermissionRowGap = 8;
     private const int LogicalCloseButtonWidth = 360;
@@ -64,8 +65,8 @@ public sealed class PermissionsForm : Form
         Icon = _appIcon;
         AutoScaleMode = AutoScaleMode.Dpi;
         StartPosition = FormStartPosition.CenterParent;
-        MinimumSize = new Size(LogicalFormWidth, LogicalFormHeight);
-        Size = new Size(LogicalFormWidth, LogicalFormHeight);
+        MinimumSize = new Size(LogicalFormWidth, LogicalMinimumFormHeight);
+        Size = new Size(LogicalFormWidth, LogicalInitialFormHeight);
 
         BuildLayout();
         ApplyTheme();

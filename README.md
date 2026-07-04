@@ -95,7 +95,7 @@ dotnet run --project apps/windows-host/VolturaAir.Host.csproj
 
 The Windows app opens a pairing window and a tray icon near the clock. Scan the QR code from the phone, tablet, or browser-capable device to open the mobile app and pair it with the PC.
 
-Use the tray icon's context menu to show the QR code, open the device manager, edit settings, inspect technical details, open the product page, or exit the host.
+Use the tray icon's context menu to show the QR code, open Settings for devices or application preferences, inspect technical details, open the product page, or exit the host.
 
 ## Local Development
 

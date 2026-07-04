@@ -5,15 +5,14 @@ what the applications can do, not how each feature is implemented.
 
 ## Windows Host
 
-- Runs as a Windows tray application and can show the pairing QR code, settings,
-  device manager, technical details, product page, and exit command from the
-  tray menu.
+- Runs as a Windows tray application and can show the pairing QR code, Settings
+  pages, technical details, product page, and exit command from the tray menu.
 - Hosts the mobile web app on the local network and receives authenticated
   WebSocket commands from paired devices.
 - Pairs devices through a short-lived QR pairing token, then allows saved
   reconnects with a stored secret.
 - Manages paired devices, active connections, disconnect/remove actions, and
-  duplicate cleanup.
+  duplicate cleanup from the host Settings surface.
 - Enforces host-side permissions for connected devices, with global defaults
   and per-device overrides.
 - Injects pointer, keyboard, shortcut, and text input into Windows.
@@ -21,8 +20,8 @@ what the applications can do, not how each feature is implemented.
   allows them.
 - Controls the default Windows output device volume and mute state.
 - Supports light, dark, and system theme modes.
-- Provides startup, connection notification, pairing-window, network, and
-  permission settings.
+- Provides startup, connection notification, pairing-window, network,
+  permission, device, and appearance settings.
 - Supports release packaging through a portable zip and per-user NSIS installer.
 
 ## Mobile Web Client

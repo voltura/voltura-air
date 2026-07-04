@@ -85,8 +85,8 @@ Forget this device on the PC after pairing has been accepted:
 
 Rename this device on the PC after pairing has been accepted. The host updates
 the paired device record, stores the rename timestamp, refreshes connected UI
-such as the tray/device manager, and uses that timestamp for latest-activity
-ordering.
+such as the tray and Settings Devices page, and uses that timestamp for
+latest-activity ordering.
 
 ```json
 { "type": "device.rename", "deviceName": "Joakim iPhone" }

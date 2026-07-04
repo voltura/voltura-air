@@ -209,6 +209,10 @@ public partial class MainWindow : Window
         {
             side.Children.Add(CreateNotice(_webHost.AddressSelectionWarning, isError: false));
         }
+        if (!string.IsNullOrWhiteSpace(_webHost.PortSelectionWarning))
+        {
+            side.Children.Add(CreateNotice(_webHost.PortSelectionWarning, isError: false));
+        }
 
         var details = new Expander
         {
@@ -223,7 +227,9 @@ public partial class MainWindow : Window
                 Children =
                 {
                     CreateCardText("Pairing link", _pairingUrl, monospace: true),
-                    CreateCardText("Host URL", _webHost.ServerUrl, monospace: true)
+                    CreateCardText("Host URL", _webHost.ServerUrl, monospace: true),
+                    CreateCardText("Selected IP", _webHost.AdvertisedHostAddress, monospace: true),
+                    CreateCardText("Selected port", _webHost.Port.ToString(CultureInfo.InvariantCulture), monospace: true)
                 }
             }
         };
@@ -335,7 +341,9 @@ public partial class MainWindow : Window
         portPanel.Children.Add(_manualPortValidationText);
         UpdatePortInputState();
         portPanel.Children.Add(CreateCardText("Current host URL", _webHost.ServerUrl, monospace: true));
-        _connectionStatusText = CreateMutedText(selection?.Warning ?? _webHost.AddressSelectionWarning ?? string.Empty);
+        portPanel.Children.Add(CreateCardText("Selected IP", _webHost.AdvertisedHostAddress, monospace: true));
+        portPanel.Children.Add(CreateCardText("Selected port", _webHost.Port.ToString(CultureInfo.InvariantCulture), monospace: true));
+        _connectionStatusText = CreateMutedText(selection?.Warning ?? _webHost.AddressSelectionWarning ?? _webHost.PortSelectionWarning ?? string.Empty);
         portPanel.Children.Add(_connectionStatusText);
         root.Children.Add(portPanel);
 
@@ -524,6 +532,8 @@ public partial class MainWindow : Window
         var networkMode = _networkAutomaticButton.IsChecked == true ? NetworkSelectionMode.Automatic : NetworkSelectionMode.Manual;
         var portMode = _portAutomaticButton.IsChecked == true ? PortSelectionMode.Automatic : PortSelectionMode.Manual;
         string? manualAddress = null;
+        string? manualAdapterId = null;
+        string? manualAdapterName = null;
         if (networkMode == NetworkSelectionMode.Manual)
         {
             if (_networkCandidateList.SelectedItem is not ListBoxItem { Tag: CandidateListItem selected })
@@ -533,6 +543,8 @@ public partial class MainWindow : Window
             }
 
             manualAddress = selected.Candidate.Address.ToString();
+            manualAdapterId = selected.Candidate.AdapterId;
+            manualAdapterName = LanAddressSelector.GetAdapterDisplayName(selected.Candidate);
         }
 
         int? manualPort = null;
@@ -569,6 +581,8 @@ public partial class MainWindow : Window
         {
             NetworkMode = networkMode,
             ManualHostAddress = manualAddress,
+            ManualAdapterId = manualAdapterId,
+            ManualAdapterName = manualAdapterName,
             PortMode = portMode,
             ManualPort = manualPort
         };

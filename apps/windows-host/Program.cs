@@ -5,6 +5,7 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
         ApplicationConfiguration.Initialize();
 
         var pairingManager = new PairingManager(new PairingStore());

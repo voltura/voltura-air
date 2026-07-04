@@ -14,6 +14,7 @@ public sealed class PortSelectorTests
         Assert.True(result.Succeeded);
         Assert.True(result.IsAutomatic);
         Assert.Equal(51410, result.Port);
+        Assert.Null(result.Warning);
     }
 
     [Fact]
@@ -25,6 +26,8 @@ public sealed class PortSelectorTests
 
         Assert.True(result.Succeeded);
         Assert.Equal(PortSelector.PreferredPort + 1, result.Port);
+        Assert.Contains(PortSelector.PreferredPort.ToString(), result.Warning);
+        Assert.Contains((PortSelector.PreferredPort + 1).ToString(), result.Warning);
     }
 
     [Fact]
@@ -32,15 +35,16 @@ public sealed class PortSelectorTests
     {
         var settings = AutomaticSettings();
 
-        var result = PortSelector.Select(settings, _ => false, () => 60000);
+        var result = PortSelector.Select(settings, port => port < 0, () => 60000);
 
         Assert.True(result.Succeeded);
         Assert.True(result.IsAutomatic);
         Assert.Equal(60000, result.Port);
+        Assert.Contains("Preferred Voltura Air ports", result.Warning);
     }
 
     [Fact]
-    public void ManualModeDoesNotSilentlyFallBackWhenPortIsOccupied()
+    public void ManualModeDoesNotFallBackWhenPortIsOccupied()
     {
         var settings = AutomaticSettings() with
         {
@@ -48,7 +52,7 @@ public sealed class PortSelectorTests
             ManualPort = 51395
         };
 
-        var result = PortSelector.Select(settings, _ => false, () => 60000);
+        var result = PortSelector.Select(settings, port => port < 0, () => 60000);
 
         Assert.False(result.Succeeded);
         Assert.False(result.IsAutomatic);
@@ -127,6 +131,8 @@ public sealed class PortSelectorTests
         return new NetworkSettingsSnapshot(
             NetworkSelectionMode.Automatic,
             ManualHostAddress: null,
+            ManualAdapterId: null,
+            ManualAdapterName: null,
             PortSelectionMode.Automatic,
             ManualPort: null,
             LastAutomaticPort: null,

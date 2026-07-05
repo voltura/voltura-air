@@ -46,6 +46,28 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <Style TargetType="Border">
+            <Style.Triggers>
+                <MultiTrigger>
+                    <MultiTrigger.Conditions>
+                        <Condition Property="HorizontalAlignment" Value="Right" />
+                        <Condition Property="VerticalAlignment" Value="Bottom" />
+                    </MultiTrigger.Conditions>
+                    <Setter Property="MinWidth" Value="180" />
+                    <Setter Property="MinHeight" Value="48" />
+                    <Setter Property="Panel.ZIndex" Value="20" />
+                    <Setter Property="Effect">
+                        <Setter.Value>
+                            <DropShadowEffect BlurRadius="24"
+                                              Direction="270"
+                                              Opacity="0.3"
+                                              ShadowDepth="5"
+                                              Color="#000000" />
+                        </Setter.Value>
+                    </Setter>
+                </MultiTrigger>
+            </Style.Triggers>
+        </Style>
         <Style TargetType="TextBox">
             <Setter Property="MinHeight" Value="34" />
             <Setter Property="Padding" Value="10,6" />

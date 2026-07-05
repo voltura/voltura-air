@@ -43,6 +43,8 @@ npm run dev
 
 This starts Vite on port `5173` for browser-based React fast refresh and starts the Windows host with `dotnet run`. The QR code opens the Windows host URL on the phone, so the app and `/ws` use the same host port.
 
+For installed mobile-app testing, enable **Preferences** -> **Developer tools** -> **Developer mode** in the Windows host. When developer mode is enabled, auto refresh keys off the current host run instead of the release version.
+
 Use the Vite client on a phone when direct mobile hot reload is needed:
 
 ```powershell
@@ -70,11 +72,12 @@ Use the Windows tray menu or the Voltura Air window to open **Devices**. The Dev
 ## Mobile Controls
 
 - **Trackpad** supports pointer movement, tap-to-click, left/right click buttons, two-finger scrolling, pinch zoom, pointer speed, scroll direction, and an expanded trackpad surface.
-- **Keyboard** supports live typing, buffered text send, Backspace/Delete/Enter/Tab/Escape, arrow navigation, common modifier shortcuts, and optional function keys.
+- **Keyboard** supports live typing, buffered text send, Backspace/Delete/Enter/Tab/Escape, arrow navigation, common modifier shortcuts, optional function keys, and single-key app shortcuts such as `F` for video fullscreen.
+- **Remote** supports media playback, press-and-hold seek, video fullscreen, browser fullscreen, volume, mute, Standard/YouTube/Kodi shortcut modes, Kodi stop/info/subtitle shortcuts, a default navigation ring with repeatable directional zones and a mini-trackpad center that sends Enter in Kodi mode, optional legacy D-pad with OK, Start, Alt+Tab, and Browser Back.
 - **Dictate** sends browser speech recognition text to Windows when the browser supports speech recognition for the current origin.
 - **PC volume** controls appear on the trackpad screen when the host can read the default Windows output device state.
 
-Mobile settings are stored locally per device and include trackpad behavior, keyboard function keys, saved PCs, device name, theme, and home-screen app refresh/install actions.
+Mobile settings are stored locally per device and include trackpad behavior, keyboard function keys, remote behavior, app auto refresh, saved PCs, device name, theme, and home-screen app refresh/install actions.
 
 ## Windows Host
 
@@ -85,6 +88,7 @@ Windows host settings include:
 - Start Voltura Air when signing in to Windows.
 - Show or hide connection status notifications.
 - Host-enforced global and per-device permissions.
+- Default Remote mode for newly connected mobile clients.
 - Connection settings for host networking.
 - System, light, and dark appearance modes.
 

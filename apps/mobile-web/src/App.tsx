@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Circle, Keyboard, Menu, Mic, MousePointer2 } from "lucide-react";
+import { Circle, Keyboard, Menu, Mic, MousePointer2, Tv } from "lucide-react";
 import { DictationMode } from "./components/DictationMode";
 import { GestureDebugMode } from "./components/GestureDebugMode";
 import { KeyboardMode } from "./components/KeyboardMode";
 import { PairingStatus } from "./components/PairingStatus";
+import { RemoteMode } from "./components/RemoteMode";
 import { SettingsDrawer } from "./components/SettingsDrawer";
 import { TrackpadMode } from "./components/TrackpadMode";
+import { defaultAppSettings, normalizeAppSettings, type AppSettings } from "./appSettings";
 import { defaultTrackpadSettings, GestureRecognizer, normalizeTrackpadSettings, touchesFromList, type TrackpadSettings } from "./gestures";
 import { defaultKeyboardSettings, normalizeKeyboardSettings, type KeyboardSettings } from "./keyboardSettings";
 import {
@@ -20,13 +22,23 @@ import { parsePairingLink, type PairingLink } from "./pairingLink";
 import type { AudioStateMessage, ClientMessage, KeyboardSpecialMessage } from "./protocol";
 import { buildMobileDiagnostics } from "./mobileDiagnostics";
 import { decodeQrImage } from "./qrCode";
+import { defaultRemoteSettings, resolveRemoteSettings, type RemoteModeId, type RemoteSettings } from "./remoteSettings";
 import { useVolturaAirConnection } from "./useVolturaAirConnection";
 
-type Tab = "trackpad" | "keyboard" | "dictation" | "debug";
+type Tab = "trackpad" | "keyboard" | "remote" | "dictation" | "debug";
+type MainTab = Exclude<Tab, "debug">;
 type ThemeMode = "system" | "light" | "dark";
 const liveKeyboardKey = "voltura-air.liveKeyboard";
 const liveKeyboardDefaultMigrationKey = "voltura-air.liveKeyboardDefaultOn";
 const splitModeMediaQuery = "(orientation: landscape) and (min-width: 640px)";
+const autoRefreshSessionPrefix = "voltura-air.autoRefresh";
+
+const modeTabs: Array<{ id: MainTab; label: string; ariaLabel: string; Icon: typeof MousePointer2 }> = [
+  { id: "trackpad", label: "Trackpad", ariaLabel: "Trackpad mode", Icon: MousePointer2 },
+  { id: "keyboard", label: "Keyboard", ariaLabel: "Keyboard mode", Icon: Keyboard },
+  { id: "remote", label: "Remote", ariaLabel: "Remote mode", Icon: Tv },
+  { id: "dictation", label: "Dictate", ariaLabel: "Dictation mode", Icon: Mic }
+];
 
 type SpeechRecognitionConstructor = new () => SpeechRecognition;
 
@@ -103,6 +115,7 @@ export function App() {
   const [dictationText, setDictationText] = useState("");
   const [isListening, setIsListening] = useState(false);
   const [isTrackpadExpanded, setIsTrackpadExpanded] = useState(false);
+  const [areModeTabsCollapsed, setAreModeTabsCollapsed] = useState(false);
   const committedKeyboardTextRef = useRef("");
   const isComposingRef = useRef(false);
   const lastEmptyDeleteRef = useRef<{ key: string; timeStamp: number } | null>(null);
@@ -118,6 +131,19 @@ export function App() {
     storageKey: trackpadSettingsStorageKey
   }));
   const trackpadSettings = trackpadSettingsState.settings;
+  const hostDefaultRemoteMode = hostStatus?.defaultRemoteMode;
+  const remoteSettingsStorageKey = useMemo(() => remoteSettingsKey(clientId, activePc?.id ?? null), [activePc?.id, clientId]);
+  const [remoteSettingsState, setRemoteSettingsState] = useState(() => ({
+    ...loadRemoteSettings(clientId, activePc?.id ?? null, hostDefaultRemoteMode),
+    storageKey: remoteSettingsStorageKey
+  }));
+  const remoteSettings = remoteSettingsState.settings;
+  const appSettingsStorageKey = useMemo(() => appSettingsKey(clientId, activePc?.id ?? null), [activePc?.id, clientId]);
+  const [appSettingsState, setAppSettingsState] = useState(() => ({
+    settings: loadAppSettings(clientId, activePc?.id ?? null),
+    storageKey: appSettingsStorageKey
+  }));
+  const appSettings = appSettingsState.settings;
 
   useEffect(() => {
     setDisplayedAudioState(audioState);
@@ -143,6 +169,40 @@ export function App() {
       localStorage.setItem(trackpadSettingsStorageKey, JSON.stringify(trackpadSettingsState.settings));
     }
   }, [trackpadSettingsState, trackpadSettingsStorageKey]);
+
+  useEffect(() => {
+    setRemoteSettingsState((current) =>
+      current.storageKey === remoteSettingsStorageKey && (current.isStored || current.settings.mode === (hostDefaultRemoteMode ?? defaultRemoteSettings.mode))
+        ? current
+        : {
+            ...loadRemoteSettings(clientId, activePc?.id ?? null, hostDefaultRemoteMode),
+            storageKey: remoteSettingsStorageKey
+          }
+    );
+  }, [activePc?.id, clientId, hostDefaultRemoteMode, remoteSettingsStorageKey]);
+
+  useEffect(() => {
+    if (remoteSettingsState.storageKey === remoteSettingsStorageKey && remoteSettingsState.isStored) {
+      localStorage.setItem(remoteSettingsStorageKey, JSON.stringify(remoteSettingsState.settings));
+    }
+  }, [remoteSettingsState, remoteSettingsStorageKey]);
+
+  useEffect(() => {
+    setAppSettingsState((current) =>
+      current.storageKey === appSettingsStorageKey
+        ? current
+        : {
+            settings: loadAppSettings(clientId, activePc?.id ?? null),
+            storageKey: appSettingsStorageKey
+          }
+    );
+  }, [activePc?.id, appSettingsStorageKey, clientId]);
+
+  useEffect(() => {
+    if (appSettingsState.storageKey === appSettingsStorageKey) {
+      localStorage.setItem(appSettingsStorageKey, JSON.stringify(appSettingsState.settings));
+    }
+  }, [appSettingsState, appSettingsStorageKey]);
 
   useEffect(() => {
     localStorage.setItem(keyboardSettingsKey(clientId), JSON.stringify(keyboardSettings));
@@ -185,6 +245,12 @@ export function App() {
       setTab("trackpad");
     }
   }, [supportsGestureDebug, tab]);
+
+  useEffect(() => {
+    if (tab === "debug") {
+      setAreModeTabsCollapsed(false);
+    }
+  }, [tab]);
 
   useEffect(() => {
     const onBeforeInstallPrompt = (event: Event) => {
@@ -384,6 +450,21 @@ export function App() {
     setKeyboardSettings((current) => ({ ...current, [key]: value }));
   };
 
+  const updateRemoteSetting = <Key extends keyof RemoteSettings>(key: Key, value: RemoteSettings[Key]) => {
+    setRemoteSettingsState((current) => ({
+      ...current,
+      isStored: true,
+      settings: { ...current.settings, [key]: value }
+    }));
+  };
+
+  const updateAppSetting = <Key extends keyof AppSettings>(key: Key, value: AppSettings[Key]) => {
+    setAppSettingsState((current) => ({
+      ...current,
+      settings: { ...current.settings, [key]: value }
+    }));
+  };
+
   const toggleMute = () => {
     if (!supportsVolumeControl) {
       return;
@@ -438,12 +519,32 @@ export function App() {
     window.location.replace(freshUrl);
   };
 
+  useEffect(() => {
+    if (!appSettings.autoRefresh || state !== "paired" || !activePc || !hostStatus) {
+      return;
+    }
+
+    if (hostStatus.developerMode && !hostStatus.developerSessionId) {
+      return;
+    }
+
+    const refreshKey = getAutoRefreshSessionKey(clientId, activePc.id, hostStatus?.hostVersion, hostStatus?.developerMode, hostStatus?.developerSessionId);
+    if (sessionStorage.getItem(refreshKey) === "true") {
+      return;
+    }
+
+    sessionStorage.setItem(refreshKey, "true");
+    void refreshInstalledApp();
+  }, [activePc, appSettings.autoRefresh, clientId, hostStatus, hostStatus?.developerMode, hostStatus?.developerSessionId, hostStatus?.hostVersion, state]);
+
   const scanPairingQr = () => {
     pairingQrInputRef.current?.click();
   };
 
   const forgetPcAndSettings = (pcId: string) => {
     clearTrackpadSettings(clientId, pcId);
+    clearRemoteSettings(clientId, pcId);
+    clearAppSettings(clientId, pcId);
     forgetPc(pcId);
   };
 
@@ -538,6 +639,16 @@ export function App() {
     />
   );
 
+  const renderRemoteMode = () => (
+    <RemoteMode
+      audioState={displayedAudioState}
+      onPointerButtonClick={(button) => emit({ type: "pointer.button", button, action: "click" })}
+      onPointerMove={(dx, dy) => emit({ type: "pointer.move", dx, dy })}
+      remoteSettings={remoteSettings}
+      sendSpecial={sendSpecial}
+    />
+  );
+
   const renderSplitMode = () => (
     <div className="split-mode-shell">
       <div className="split-keyboard-pane" aria-label="Split keyboard panel">
@@ -561,11 +672,34 @@ export function App() {
 
   const shouldShowSplitMode =
     canUseSplitMode && ((tab === "trackpad" && trackpadSettings.enableSplitMode) || (tab === "keyboard" && keyboardSettings.enableSplitMode));
+  const activeModeTab = modeTabs.find((modeTab) => modeTab.id === tab);
+  const ActiveModeIcon = activeModeTab?.Icon;
+
+  const selectModeTab = (nextTab: MainTab) => {
+    if (tab === nextTab) {
+      setAreModeTabsCollapsed(true);
+      return;
+    }
+
+    setTab(nextTab);
+    setAreModeTabsCollapsed(false);
+  };
 
   return (
-    <main className={`app-shell ${tab === "trackpad" ? "trackpad-active" : ""} ${shouldShowSplitMode ? "split-mode-active" : ""}`}>
+    <main className={`app-shell ${tab === "trackpad" ? "trackpad-active" : ""} ${tab === "remote" ? "remote-active" : ""} ${shouldShowSplitMode ? "split-mode-active" : ""} ${areModeTabsCollapsed ? "mode-tabs-collapsed" : ""}`}>
       <header className="top-bar">
         <div className="brand-group">
+          {areModeTabsCollapsed && ActiveModeIcon && activeModeTab && (
+            <button
+              className="icon-button active"
+              type="button"
+              aria-label={`Show mode buttons, ${activeModeTab.label} mode active`}
+              title={`Show mode buttons (${activeModeTab.label})`}
+              onClick={() => setAreModeTabsCollapsed(false)}
+            >
+              <ActiveModeIcon aria-hidden="true" />
+            </button>
+          )}
           <button className="icon-button" type="button" aria-label="Open settings" onClick={() => setIsSettingsOpen(true)}>
             <Menu aria-hidden="true" />
           </button>
@@ -609,6 +743,7 @@ export function App() {
 
       <SettingsDrawer
         activePc={activePc}
+        appSettings={appSettings}
         diagnostics={mobileDiagnostics}
         deviceName={deviceName}
         disconnectActivePc={disconnectActivePc}
@@ -621,6 +756,7 @@ export function App() {
         onClose={() => setIsSettingsOpen(false)}
         onOpenGestureDebug={supportsGestureDebug ? () => {
           setTab("debug");
+          setAreModeTabsCollapsed(false);
           setIsSettingsOpen(false);
         } : undefined}
         onPairingQrSelected={onPairingQrSelected}
@@ -632,6 +768,7 @@ export function App() {
         refreshMessage={refreshMessage}
         renameDevice={renameDevice}
         renamePc={renamePc}
+        remoteSettings={remoteSettings}
         scanPairingQr={scanPairingQr}
         selectPc={selectPc}
         setThemeMode={setThemeMode}
@@ -639,26 +776,26 @@ export function App() {
         themeMode={themeMode}
         trackpadSettings={trackpadSettings}
         updateKeyboardSetting={updateKeyboardSetting}
+        updateRemoteSetting={updateRemoteSetting}
+        updateAppSetting={updateAppSetting}
         updateTrackpadSetting={updateTrackpadSetting}
       />
 
-      <nav className="tabs" aria-label="Mode">
-        <button className={tab === "trackpad" ? "active" : ""} onClick={() => setTab("trackpad")}>
-          <MousePointer2 aria-hidden="true" />
-          <span>Trackpad</span>
-        </button>
-        <button className={tab === "keyboard" ? "active" : ""} onClick={() => setTab("keyboard")}>
-          <Keyboard aria-hidden="true" />
-          <span>Keyboard</span>
-        </button>
-        <button className={tab === "dictation" ? "active" : ""} onClick={() => setTab("dictation")}>
-          <Mic aria-hidden="true" />
-          <span>Dictate</span>
-        </button>
-      </nav>
+      {!areModeTabsCollapsed && (
+        <nav className="tabs" aria-label="Mode">
+          {modeTabs.map(({ id, label, ariaLabel, Icon }) => (
+            <button key={id} aria-label={ariaLabel} className={tab === id ? "active" : ""} onClick={() => selectModeTab(id)}>
+              <Icon aria-hidden="true" />
+              <span>{label}</span>
+            </button>
+          ))}
+        </nav>
+      )}
 
       {(tab === "trackpad" || tab === "keyboard") &&
         (shouldShowSplitMode ? renderSplitMode() : tab === "trackpad" ? renderTrackpadMode() : renderKeyboardMode())}
+
+      {tab === "remote" && renderRemoteMode()}
 
       {tab === "dictation" && (
         <DictationMode
@@ -679,6 +816,14 @@ export function App() {
 
 function trackpadSettingsKey(clientId: string, pcId: string | null): string {
   return pcId ? `voltura-air.trackpadSettings.${clientId}.${pcId}` : baseTrackpadSettingsKey(clientId);
+}
+
+function remoteSettingsKey(clientId: string, pcId: string | null): string {
+  return pcId ? `voltura-air.remoteSettings.${clientId}.${pcId}` : baseRemoteSettingsKey(clientId);
+}
+
+function appSettingsKey(clientId: string, pcId: string | null): string {
+  return pcId ? `voltura-air.appSettings.${clientId}.${pcId}` : baseAppSettingsKey(clientId);
 }
 
 function keyboardSettingsKey(clientId: string): string {
@@ -725,6 +870,44 @@ function baseTrackpadSettingsKey(clientId: string): string {
 
 function clearTrackpadSettings(clientId: string, pcId: string): void {
   localStorage.removeItem(trackpadSettingsKey(clientId, pcId));
+}
+
+function loadRemoteSettings(clientId: string, pcId: string | null, hostDefaultMode?: RemoteModeId): { settings: RemoteSettings; isStored: boolean } {
+  return resolveRemoteSettings(localStorage.getItem(remoteSettingsKey(clientId, pcId)), hostDefaultMode);
+}
+
+function baseRemoteSettingsKey(clientId: string): string {
+  return `voltura-air.remoteSettings.${clientId}`;
+}
+
+function clearRemoteSettings(clientId: string, pcId: string): void {
+  localStorage.removeItem(remoteSettingsKey(clientId, pcId));
+}
+
+function loadAppSettings(clientId: string, pcId: string | null): AppSettings {
+  const stored = localStorage.getItem(appSettingsKey(clientId, pcId));
+  if (!stored) {
+    return defaultAppSettings;
+  }
+
+  try {
+    return normalizeAppSettings(JSON.parse(stored));
+  } catch {
+    return defaultAppSettings;
+  }
+}
+
+function baseAppSettingsKey(clientId: string): string {
+  return `voltura-air.appSettings.${clientId}`;
+}
+
+function clearAppSettings(clientId: string, pcId: string): void {
+  localStorage.removeItem(appSettingsKey(clientId, pcId));
+}
+
+function getAutoRefreshSessionKey(clientId: string, pcId: string, hostVersion?: string, developerMode?: boolean, developerSessionId?: string): string {
+  const refreshScope = developerMode ? `dev.${developerSessionId || "enabled"}` : `version.${hostVersion || "unknown"}`;
+  return `${autoRefreshSessionPrefix}.${clientId}.${pcId}.${refreshScope}`;
 }
 
 function loadKeyboardSettings(clientId: string): KeyboardSettings {

@@ -109,7 +109,7 @@
         </article>
         <article>
           <h2>Living-room control</h2>
-          <p>Adjust PC volume, pair securely on the local network, reconnect saved devices, and recover visibly if heartbeat or input delivery stops being confirmed.</p>
+          <p>Use media, YouTube, Kodi, fullscreen, browser, volume, navigation-ring, and mini-trackpad controls with Kodi-friendly Enter, stop, info, and subtitle shortcuts, pair securely on the local network, auto-refresh the installed web app, and recover visibly if input delivery stops being confirmed.</p>
         </article>
       </section>
 

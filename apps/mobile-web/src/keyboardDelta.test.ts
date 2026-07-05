@@ -13,6 +13,15 @@ describe("getKeyboardDeltaMessages", () => {
     expect(getKeyboardDeltaMessages("hel", "hello")).toEqual([{ type: "keyboard.text", text: "lo" }]);
   });
 
+  it("sends a typed f as a virtual key so app shortcuts can react", () => {
+    expect(getKeyboardDeltaMessages("", "f")).toEqual([{ type: "keyboard.special", key: "F" }]);
+    expect(getKeyboardDeltaMessages("", "F")).toEqual([{ type: "keyboard.special", key: "F", modifiers: ["Shift"] }]);
+  });
+
+  it("keeps multi-character insertions on the text path", () => {
+    expect(getKeyboardDeltaMessages("", "foo")).toEqual([{ type: "keyboard.text", text: "foo" }]);
+  });
+
   it("sends backspace for removed text", () => {
     expect(getKeyboardDeltaMessages("hello", "hel")).toEqual([
       { type: "keyboard.special", key: "Backspace" },

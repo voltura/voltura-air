@@ -1,3 +1,5 @@
+import type { RemoteModeId } from "./remoteSettings";
+
 export type PairHelloMessage = {
   type: "pair.hello";
   clientId: string;
@@ -30,6 +32,9 @@ export type ServerCapabilities = {
 };
 
 export type HostStatusMetadata = {
+  defaultRemoteMode?: RemoteModeId;
+  developerMode?: boolean;
+  developerSessionId?: string;
   hostVersion?: string;
   pcName?: string;
   selectedAdapterName?: string;

@@ -16,6 +16,7 @@ import {
   type PcProfile
 } from "./pcProfiles";
 import type { AudioStateMessage, ClientMessage, HostStatusMetadata, PairAcceptedMessage, ServerCapabilities, ServerMessage } from "./protocol";
+import { normalizeRemoteMode } from "./remoteSettings";
 
 const clientIdKey = "voltura-air.clientId";
 const clientIdQueryParam = "d";
@@ -720,6 +721,9 @@ function normalizeHostStatus(metadata: HostStatusMetadata | undefined): HostStat
   }
 
   const normalized: HostStatusMetadata = {
+    defaultRemoteMode: metadata.defaultRemoteMode === undefined ? undefined : normalizeRemoteMode(metadata.defaultRemoteMode),
+    developerMode: metadata.developerMode === true ? true : undefined,
+    developerSessionId: normalizeOptionalString(metadata.developerSessionId),
     hostVersion: normalizeOptionalString(metadata.hostVersion),
     pcName: normalizeOptionalString(metadata.pcName),
     selectedAdapterName: normalizeOptionalString(metadata.selectedAdapterName),

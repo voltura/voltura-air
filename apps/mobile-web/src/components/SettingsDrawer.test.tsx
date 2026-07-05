@@ -1,11 +1,14 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { defaultAppSettings } from "../appSettings";
 import { defaultTrackpadSettings } from "../gestures";
 import { defaultKeyboardSettings } from "../keyboardSettings";
+import { defaultRemoteSettings } from "../remoteSettings";
 import { SettingsDrawer } from "./SettingsDrawer";
 
 const baseProps = {
   activePc: null,
+  appSettings: defaultAppSettings,
   diagnostics: "{}",
   deviceName: "Phone",
   disconnectActivePc: vi.fn(),
@@ -26,13 +29,16 @@ const baseProps = {
   refreshMessage: "Reload from the PC if the home screen app looks stale.",
   renameDevice: vi.fn(),
   renamePc: vi.fn(),
+  remoteSettings: defaultRemoteSettings,
   scanPairingQr: vi.fn(),
   selectPc: vi.fn(),
   setThemeMode: vi.fn(),
   showGestureDebug: false,
   themeMode: "system" as const,
   trackpadSettings: defaultTrackpadSettings,
+  updateAppSetting: vi.fn(),
   updateKeyboardSetting: vi.fn(),
+  updateRemoteSetting: vi.fn(),
   updateTrackpadSetting: vi.fn()
 };
 
@@ -47,6 +53,7 @@ describe("SettingsDrawer", () => {
     expect(screen.getByText("Connection")).toBeTruthy();
     expect(screen.getByText("Trackpad")).toBeTruthy();
     expect(screen.getByText("Keyboard")).toBeTruthy();
+    expect(screen.getByText("Remote")).toBeTruthy();
     expect(screen.getByText("Appearance")).toBeTruthy();
     expect(screen.getByText("App")).toBeTruthy();
     expect(Array.from(document.querySelectorAll("details")).every((details) => !details.open)).toBe(true);
@@ -61,6 +68,36 @@ describe("SettingsDrawer", () => {
     fireEvent.click(screen.getByText("Keyboard"));
     expect(screen.getByText("Trackpad").closest("details")?.open).toBe(false);
     expect(screen.getByText("Keyboard").closest("details")?.open).toBe(true);
+  });
+
+  it("updates the remote navigation ring setting", () => {
+    const updateRemoteSetting = vi.fn();
+    render(<SettingsDrawer {...baseProps} updateRemoteSetting={updateRemoteSetting} />);
+
+    fireEvent.click(screen.getByText("Remote"));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Navigation ring" }));
+
+    expect(updateRemoteSetting).toHaveBeenCalledExactlyOnceWith("navigationRing", false);
+  });
+
+  it("updates the remote mode setting", () => {
+    const updateRemoteSetting = vi.fn();
+    render(<SettingsDrawer {...baseProps} updateRemoteSetting={updateRemoteSetting} />);
+
+    fireEvent.click(screen.getByText("Remote"));
+    fireEvent.click(screen.getByRole("button", { name: "Kodi" }));
+
+    expect(updateRemoteSetting).toHaveBeenCalledExactlyOnceWith("mode", "kodi");
+  });
+
+  it("updates the app auto refresh setting", () => {
+    const updateAppSetting = vi.fn();
+    render(<SettingsDrawer {...baseProps} updateAppSetting={updateAppSetting} />);
+
+    fireEvent.click(screen.getByText("App"));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Auto refresh" }));
+
+    expect(updateAppSetting).toHaveBeenCalledExactlyOnceWith("autoRefresh", false);
   });
 
   it("hides gesture debug unless the host enables it", () => {

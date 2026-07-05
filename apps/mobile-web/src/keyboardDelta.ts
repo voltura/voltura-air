@@ -29,7 +29,7 @@ export function getKeyboardDeltaMessages(previous: string, next: string): Client
     messages.push({ type: "keyboard.special", key: "Backspace" });
   }
 
-  messages.push(...textToMessages(insertedText));
+  messages.push(...textToMessages(insertedText, insertedText.length === 1));
   return messages;
 }
 
@@ -61,7 +61,7 @@ export function getEmptyDeleteMessage(inputTypeOrKey: string, currentText: strin
   return null;
 }
 
-function textToMessages(text: string): ClientMessage[] {
+function textToMessages(text: string, preferShortcutKeys: boolean): ClientMessage[] {
   const messages: ClientMessage[] = [];
   let buffer = "";
 
@@ -72,6 +72,17 @@ function textToMessages(text: string): ClientMessage[] {
         buffer = "";
       }
       messages.push({ type: "keyboard.special", key: "Enter" });
+    } else if (preferShortcutKeys && character.toLowerCase() === "f") {
+      if (buffer.length > 0) {
+        messages.push({ type: "keyboard.text", text: buffer });
+        buffer = "";
+      }
+
+      messages.push(
+        character === "F"
+          ? { type: "keyboard.special", key: "F", modifiers: ["Shift"] }
+          : { type: "keyboard.special", key: "F" }
+      );
     } else {
       buffer += character;
     }

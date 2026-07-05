@@ -93,6 +93,62 @@ public sealed class WebHostServiceTests
     }
 
     [Fact]
+    public async Task WebSocketAdvertisesDeveloperModeWhenEnabled()
+    {
+        var originalDeveloperMode = AppDeveloperSettings.DeveloperMode();
+
+        try
+        {
+            AppDeveloperSettings.SetDeveloperMode(true);
+            await using var fixture = await WebHostFixture.StartAsync();
+            var token = fixture.Manager.CreatePairingToken();
+
+            var paired = await SendHelloAsync(fixture.WebHost.Port, new
+            {
+                type = "pair.hello",
+                clientId = $"client-{Guid.NewGuid():N}",
+                deviceName = "Phone",
+                pairToken = token
+            });
+
+            var host = paired.GetProperty("host");
+            Assert.True(host.GetProperty("developerMode").GetBoolean());
+            Assert.False(string.IsNullOrWhiteSpace(host.GetProperty("developerSessionId").GetString()));
+        }
+        finally
+        {
+            AppDeveloperSettings.SetDeveloperMode(originalDeveloperMode);
+        }
+    }
+
+    [Fact]
+    public async Task WebSocketAdvertisesDefaultRemoteMode()
+    {
+        var originalRemoteMode = AppRemoteSettings.GetDefaultRemoteMode();
+
+        try
+        {
+            AppRemoteSettings.SetDefaultRemoteMode(AppRemoteMode.Kodi);
+            await using var fixture = await WebHostFixture.StartAsync();
+            var token = fixture.Manager.CreatePairingToken();
+
+            var paired = await SendHelloAsync(fixture.WebHost.Port, new
+            {
+                type = "pair.hello",
+                clientId = $"client-{Guid.NewGuid():N}",
+                deviceName = "Phone",
+                pairToken = token
+            });
+
+            Assert.Equal("kodi", paired.GetProperty("host").GetProperty("defaultRemoteMode").GetString());
+        }
+        finally
+        {
+            AppRemoteSettings.SetDefaultRemoteMode(originalRemoteMode);
+        }
+    }
+
+    [Fact]
     public async Task WebSocketRejectsMalformedPairHelloAsInvalidMessage()
     {
         await using var fixture = await WebHostFixture.StartAsync();

@@ -13,6 +13,7 @@ namespace VolturaAir.Host;
 
 public sealed class WebHostService : IAsyncDisposable
 {
+    private static readonly string DeveloperSessionId = Guid.NewGuid().ToString("N");
     private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(3);
     private readonly PairingManager _pairingManager;
     private readonly InputDispatcher _inputDispatcher;
@@ -32,6 +33,7 @@ public sealed class WebHostService : IAsyncDisposable
         _pairingManager.PermissionsChanged += OnPermissionsChanged;
         AppPermissionSettings.Changed += OnPermissionsChanged;
         AppDeveloperSettings.Changed += OnPermissionsChanged;
+        AppRemoteSettings.Changed += OnPermissionsChanged;
 
         var settings = AppNetworkSettings.Load();
         var portSelection = PortSelector.Select(settings, IsPortAvailable, FindFreePort);
@@ -165,6 +167,7 @@ public sealed class WebHostService : IAsyncDisposable
         _pairingManager.PermissionsChanged -= OnPermissionsChanged;
         AppPermissionSettings.Changed -= OnPermissionsChanged;
         AppDeveloperSettings.Changed -= OnPermissionsChanged;
+        AppRemoteSettings.Changed -= OnPermissionsChanged;
         AbortActiveSockets();
         if (_app is not null)
         {
@@ -863,13 +866,17 @@ public sealed class WebHostService : IAsyncDisposable
     private HostStatusMetadata CreateHostStatus()
     {
         var pcName = Environment.MachineName;
+        var developerMode = AppDeveloperSettings.DeveloperMode();
         return new HostStatusMetadata(
             AppVersion.Display,
             pcName,
             SelectedAdapterName,
             AdvertisedHostAddress,
             Port,
-            WebSocketUrl);
+            WebSocketUrl,
+            AppRemoteSettings.ToProtocolId(AppRemoteSettings.GetDefaultRemoteMode()),
+            developerMode,
+            developerMode ? DeveloperSessionId : null);
     }
 
     private static string GetSelectedAdapterName(LanAddressCandidate? selectedCandidate)
@@ -886,7 +893,10 @@ internal sealed record HostStatusMetadata(
     string SelectedAdapterName,
     string SelectedIp,
     int SelectedPort,
-    string WebSocketUrl);
+    string WebSocketUrl,
+    string DefaultRemoteMode,
+    bool DeveloperMode,
+    string? DeveloperSessionId);
 
 public sealed class HostPortUnavailableException : Exception
 {

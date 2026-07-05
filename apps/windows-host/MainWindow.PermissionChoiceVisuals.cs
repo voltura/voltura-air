@@ -1,7 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
 using Button = System.Windows.Controls.Button;
+using Brush = System.Windows.Media.Brush;
 
 namespace VolturaAir.Host;
 

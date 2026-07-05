@@ -92,9 +92,10 @@ npm run dev:ui
 ```
 
 The command reuses the real host pairing flow, but opens Chrome against the Vite
-client with isolated temporary pairing and browser storage. After it auto-pairs
-and reaches the connected state, use Chrome DevTools device toolbar
-(`Ctrl+Shift+M`) to inspect phone and tablet viewports, presets, and rotation.
+client with isolated temporary pairing and browser storage. It starts maximized,
+opens DevTools, enables device mode, and selects
+`Voltura 393x852 - iPhone Pro` by default. Set `VOLTURA_AIR_DEV_UI_DEVICE` to
+one of the seeded `Voltura ...` device names to start with another preset.
 These checks are useful before refreshing screenshots, but they do not replace
 real device testing for touch behavior, installed-PWA behavior, or LAN
 connectivity.

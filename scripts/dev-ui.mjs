@@ -5,6 +5,7 @@ import fs from "node:fs/promises";
 import { networkInterfaces, tmpdir } from "node:os";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
+import { devUiDevices, getDevUiDevice } from "./dev-ui-devices.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const tempDir = path.join(tmpdir(), "voltura-air-dev-ui");
@@ -14,6 +15,7 @@ const browserProfileDir = path.join(tempDir, "chrome-profile");
 const pairingUrlFile = path.join(tempDir, "pairing-url.txt");
 const clientPort = readPreferredClientPort();
 const clientUrl = process.env.VOLTURA_AIR_CLIENT_URL ?? `http://${getLanAddress()}:${clientPort}`;
+const debugDevice = getDevUiDevice();
 const childEnv = {
   ...process.env,
   VOLTURA_AIR_CLIENT_PORT: String(clientPort),
@@ -43,6 +45,7 @@ async function main() {
   await fs.rm(path.join(tempAppDataDir, "Voltura Air"), { recursive: true, force: true });
   await fs.rm(browserProfileDir, { recursive: true, force: true });
   await fs.rm(pairingUrlFile, { force: true });
+  await seedBrowserProfile(debugDevice);
 
   await ensureDebugDependencies();
   stopWindowsNodeListenersOnDevPorts(clientPort, 20);
@@ -50,6 +53,7 @@ async function main() {
 
   console.log("Starting Voltura Air UI debug session...");
   console.log(`Vite client: ${clientUrl}`);
+  console.log(`Chrome device: ${debugDevice.title}`);
   console.log(`Debug storage: ${tempDir}`);
 
   children.push(spawnCommand(
@@ -107,6 +111,7 @@ async function launchConnectedBrowser(chromium, pairingUrl) {
 
   browserContext = await launchPersistentContext(chromium);
   const page = browserContext.pages()[0] ?? await browserContext.newPage();
+  await applyDeviceEmulation(page, debugDevice);
   await page.goto(url.href, { waitUntil: "networkidle" });
   await clickPairIfPresent(page);
   await waitForConnected(page);
@@ -118,10 +123,8 @@ async function launchPersistentContext(chromium) {
     channel: "chrome",
     headless: false,
     devtools: true,
-    viewport: { width: 393, height: 852 },
-    deviceScaleFactor: 3,
-    isMobile: true,
-    hasTouch: true
+    viewport: null,
+    args: ["--start-maximized", "--auto-open-devtools-for-tabs", "--test-type"]
   };
 
   try {
@@ -134,10 +137,54 @@ async function launchPersistentContext(chromium) {
   }
 }
 
+async function seedBrowserProfile(device) {
+  const preferences = {
+    browser: {
+      window_placement: {
+        maximized: true
+      }
+    },
+    devtools: {
+      preferences: {
+        currentDockState: JSON.stringify("right"),
+        "custom-emulated-device-list": JSON.stringify(devUiDevices),
+        customEmulatedDeviceList: JSON.stringify(devUiDevices),
+        "emulation.device-mode-value": JSON.stringify({
+          device: device.title,
+          orientation: "vertical",
+          mode: ""
+        }),
+        "emulation.device-scale": "0.86",
+        "emulation.show-device-mode": "true"
+      }
+    }
+  };
+
+  await writeJson(path.join(browserProfileDir, "Preferences"), preferences);
+  await writeJson(path.join(browserProfileDir, "Default", "Preferences"), preferences);
+}
+
+async function applyDeviceEmulation(page, device) {
+  const vertical = device.screen.vertical;
+  const client = await page.context().newCDPSession(page);
+  await client.send("Emulation.setDeviceMetricsOverride", {
+    width: vertical.width,
+    height: vertical.height,
+    deviceScaleFactor: device.screen["device-pixel-ratio"],
+    mobile: device.capabilities.includes("mobile"),
+    screenWidth: vertical.width,
+    screenHeight: vertical.height
+  });
+  await client.send("Emulation.setTouchEmulationEnabled", {
+    enabled: device.capabilities.includes("touch"),
+    maxTouchPoints: device.capabilities.includes("touch") ? 1 : 0
+  });
+}
+
 async function clickPairIfPresent(page) {
   const pair = page.getByRole("button", { name: "Pair" });
   if (await pair.isVisible({ timeout: 10000 }).catch(() => false)) {
-    await pair.click();
+    await pair.evaluate((button) => button.click());
   }
 }
 
@@ -303,6 +350,11 @@ function isNodeProcess(pid) {
 
   const imageName = result.stdout.trim().match(/^"([^"]+)"/)?.[1]?.toLowerCase();
   return imageName === "node.exe";
+}
+
+async function writeJson(filePath, value) {
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, JSON.stringify(value));
 }
 
 function getLanAddress() {

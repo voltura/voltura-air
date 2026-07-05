@@ -5,6 +5,17 @@ import path from "node:path";
 
 const browserProfileDir = path.join(tmpdir(), "voltura-air-dev-ui", "chrome-profile");
 const originalRm = fs.rm.bind(fs);
+export const defaultDevUiDeviceName = "Voltura 393x852 - iPhone Pro";
+export const devUiDevices = [
+  device("Voltura 360x780 - Compact Android", 360, 780, 3, "phone"),
+  device("Voltura 375x667 - iPhone SE Small", 375, 667, 2, "phone"),
+  device("Voltura 390x844 - Common iPhone", 390, 844, 3, "phone"),
+  device(defaultDevUiDeviceName, 393, 852, 3, "phone"),
+  device("Voltura 412x915 - Large Android", 412, 915, 3, "phone"),
+  device("Voltura 430x932 - iPhone Pro Max", 430, 932, 3, "phone"),
+  device("Voltura 768x1024 - Small Tablet", 768, 1024, 2, "tablet"),
+  device("Voltura 820x1180 - iPad Air", 820, 1180, 2, "tablet")
+];
 
 fs.rm = async function rmAndSeedDevUiDevices(target, options) {
   const result = await originalRm(target, options);
@@ -16,20 +27,15 @@ fs.rm = async function rmAndSeedDevUiDevices(target, options) {
   return result;
 };
 
-async function seedDevUiDevices(userDataDir) {
-  const devices = [
-    device("Voltura 360x780 - Compact Android", 360, 780, 3, "phone"),
-    device("Voltura 375x667 - iPhone SE Small", 375, 667, 2, "phone"),
-    device("Voltura 390x844 - Common iPhone", 390, 844, 3, "phone"),
-    device("Voltura 393x852 - iPhone Pro", 393, 852, 3, "phone"),
-    device("Voltura 412x915 - Large Android", 412, 915, 3, "phone"),
-    device("Voltura 430x932 - iPhone Pro Max", 430, 932, 3, "phone"),
-    device("Voltura 768x1024 - Small Tablet", 768, 1024, 2, "tablet"),
-    device("Voltura 820x1180 - iPad Air", 820, 1180, 2, "tablet")
-  ];
+export function getDevUiDevice(name = process.env.VOLTURA_AIR_DEV_UI_DEVICE) {
+  return devUiDevices.find((item) => item.title === (name ?? defaultDevUiDeviceName)) ??
+    devUiDevices.find((item) => item.title === defaultDevUiDeviceName) ??
+    devUiDevices[0];
+}
 
-  await upsertPreferences(path.join(userDataDir, "Default", "Preferences"), devices);
-  await upsertPreferences(path.join(userDataDir, "Preferences"), devices);
+async function seedDevUiDevices(userDataDir) {
+  await upsertPreferences(path.join(userDataDir, "Default", "Preferences"), devUiDevices);
+  await upsertPreferences(path.join(userDataDir, "Preferences"), devUiDevices);
 }
 
 async function upsertPreferences(preferencesPath, devices) {

@@ -155,9 +155,11 @@ For PC-based manual UI checks in Chrome, run:
 npm run dev:ui
 ```
 
-This starts the Vite PWA and Windows host, opens a connected Chrome session,
-and leaves DevTools available for the device toolbar (`Ctrl+Shift+M`), viewport
-presets, and rotation checks. The command uses isolated temporary pairing and
+This starts the Vite PWA and Windows host, opens a connected maximized Chrome
+session with DevTools and device mode enabled, and selects
+`Voltura 393x852 - iPhone Pro` by default. Set
+`VOLTURA_AIR_DEV_UI_DEVICE` to one of the seeded `Voltura ...` device names to
+start with another preset. The command uses isolated temporary pairing and
 browser storage, so debug devices are disposable and do not change the normal
 Voltura Air device list. Chrome device emulation is a fast development
 complement, not a replacement for real phone, tablet, installed-PWA, and LAN

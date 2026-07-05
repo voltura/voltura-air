@@ -4,7 +4,7 @@ Voltura Air is free Windows software from Voltura AB.
 
 ## Summary
 
-Voltura Air turns a phone, tablet, or browser-capable device into a wireless trackpad, keyboard, dictation input, and volume remote for a Windows 11 PC.
+Voltura Air turns a phone, tablet, or browser-capable device into a wireless trackpad, keyboard, dictation surface, and media remote for a Windows 11 PC.
 
 ## Links
 
@@ -20,6 +20,8 @@ Voltura Air turns a phone, tablet, or browser-capable device into a wireless tra
 - Open source under the MIT License.
 - Local-network design: no account system, no cloud relay, and no internet input forwarding.
 - The Windows host serves the mobile app to trusted devices on the same Wi-Fi or LAN.
+- The mobile web app includes Trackpad, Keyboard, Remote, Dictate, and tablet split modes.
+- Remote mode includes media, volume, YouTube, Kodi, browser back, Start, Alt+Tab, and menu navigation controls.
 - Windows release builds are not code-signed, so Windows may show an unknown publisher or SmartScreen warning.
 
 - It detects stale connections and input delivery failures, then shows unavailable/retrying instead of leaving dead controls on screen.

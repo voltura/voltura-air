@@ -6,7 +6,7 @@
     <title>Voltura Air - Free PC Remote for Phone and Tablet</title>
     <meta
       name="description"
-      content="Control your Windows PC from any phone, tablet, or modern browser. No mobile app-store install required. Local-first freeware from Voltura AB."
+      content="Use your phone or tablet as a wireless trackpad, keyboard, dictation surface, and media remote for your Windows PC. Freeware, local-first, and no mobile app-store install required."
     >
     <meta name="author" content="Voltura AB">
     <meta name="application-name" content="Voltura Air">
@@ -24,7 +24,7 @@
     <meta property="og:title" content="Voltura Air - Free PC Remote for Phone and Tablet">
     <meta
       property="og:description"
-      content="Control your Windows PC from any phone, tablet, or modern browser. No mobile app-store install required. Local-first. No account. No cloud needed. No paywall."
+      content="Use your phone or tablet as a wireless trackpad, keyboard, dictation surface, and media remote for your Windows PC. Freeware, local-first, and no mobile app-store install required."
     >
     <meta property="og:url" content="https://voltura.se/air/">
     <meta property="og:image" content="https://voltura.se/air/assets/voltura-air-host-dark.png">
@@ -36,7 +36,7 @@
     <meta name="twitter:title" content="Voltura Air - Free PC Remote for Phone and Tablet">
     <meta
       name="twitter:description"
-      content="Control your Windows PC from any phone, tablet, or modern browser. No mobile app-store install required. Local-first. No account. No cloud needed. No paywall."
+      content="Use your phone or tablet as a wireless trackpad, keyboard, dictation surface, and media remote for your Windows PC. Freeware, local-first, and no mobile app-store install required."
     >
     <meta name="twitter:image" content="https://voltura.se/air/assets/voltura-air-host-dark.png">
     <meta name="twitter:image:alt" content="Voltura Air Windows host and mobile remote control screens">
@@ -51,12 +51,11 @@
         <span>Voltura Air</span>
       </a>
       <nav aria-label="Page sections">
-        <a href="#promise">Promise</a>
         <a href="#features">Features</a>
-        <a href="#best-for">Best for</a>
+        <a href="#uses">Use cases</a>
         <a href="#screens">Screens</a>
         <a href="#setup">Setup</a>
-        <a href="#faq">FAQ</a>
+        <a href="#trust">Trust</a>
         <a href="#download">Download</a>
       </nav>
     </header>
@@ -68,76 +67,82 @@
           <img class="hero-phone" src="./assets/voltura-air-iphone-dark.png" alt="">
         </div>
         <div class="hero-copy">
-          <p class="eyebrow">Local-first Windows PC remote</p>
+          <p class="eyebrow">Free Windows PC remote</p>
           <h1>Voltura Air</h1>
-          <p class="tagline">Control your Windows PC from any phone, tablet, or modern browser.</p>
+          <p class="tagline">Turn your phone into a trackpad, keyboard, and couch remote.</p>
           <p class="lede">
-            No mobile app-store install required. Local-first. No account. No cloud needed. No paywall.
-            Voltura Air is freeware from Voltura AB.
+            Control a Windows 11 PC from the sofa, bed, desk, or meeting room.
+            Scan a QR code, open the mobile web app, and use the device already in your hand.
           </p>
           <div class="actions">
             <a class="button primary" href="https://github.com/voltura/voltura-air/releases/latest">Download for Windows</a>
-            <a class="button secondary" href="#support">Support development</a>
-            <a class="button secondary" href="#screens">View screens</a>
+            <a class="button secondary" href="#features">See features</a>
+            <a class="button secondary" href="#screens">View screenshots</a>
           </div>
         </div>
       </section>
 
       <section id="promise" class="feature-band" aria-label="Product promise">
         <article>
-          <h2>Any screen nearby</h2>
-          <p>Control your Windows PC from any phone, tablet, or modern browser.</p>
+          <h2>No phone app to install</h2>
+          <p>Open Voltura Air in a modern mobile browser or add it to your home screen where supported.</p>
         </article>
         <article>
-          <h2>No app-store install</h2>
-          <p>No mobile app-store install required.</p>
+          <h2>Made for nearby PCs</h2>
+          <p>Great for a TV PC, music setup, presentation laptop, or any Windows PC just out of reach.</p>
         </article>
         <article>
-          <h2>Local-first freeware</h2>
-          <p>Local-first. No account. No cloud needed. No paywall.</p>
+          <h2>Freeware by design</h2>
+          <p>No account, subscription, trial limit, mobile app-store install, or feature paywall.</p>
         </article>
       </section>
 
       <section id="features" class="feature-band" aria-label="Core features">
         <article>
           <h2>Wireless trackpad</h2>
-          <p>Move the pointer, tap to click, use left and right buttons, scroll with two fingers, pinch to zoom, and expand the surface when you want more room.</p>
+          <p>Move the pointer, tap to click, right-click, scroll with two fingers, pinch to zoom, and expand the surface when you want more room.</p>
         </article>
         <article>
-          <h2>Keyboard and dictation</h2>
-          <p>Type live into Windows, send buffered text, use editing and navigation keys, enable function keys, and dictate when your browser supports speech recognition.</p>
+          <h2>Phone keyboard</h2>
+          <p>Type into Windows from your phone, send prepared text, use common shortcuts, and switch on function or arrow keys when you need them.</p>
         </article>
         <article>
-          <h2>Living-room control</h2>
-          <p>Use media, YouTube, Kodi, fullscreen, browser, volume, navigation-ring, and mini-trackpad controls with Kodi-friendly Enter, stop, info, and subtitle shortcuts, pair securely on the local network, auto-refresh the installed web app, and recover visibly if input delivery stops being confirmed.</p>
+          <h2>Couch remote</h2>
+          <p>Control media playback, fullscreen, volume, YouTube, Kodi, browser back, Start, Alt+Tab, and menu navigation without reaching for a keyboard.</p>
+        </article>
+        <article>
+          <h2>Tablet split mode</h2>
+          <p>Use a tablet in landscape as a larger keyboard and trackpad surface for faster couch typing and browsing.</p>
+        </article>
+        <article>
+          <h2>Dictation</h2>
+          <p>Speak on your phone and send recognized text to the focused app on your PC when your browser supports speech recognition.</p>
+        </article>
+        <article>
+          <h2>Pair once, reconnect</h2>
+          <p>Pair with a QR code, save trusted devices, reconnect later, and remove old devices from the Windows host.</p>
         </article>
       </section>
 
-      <section id="best-for" class="content-section split">
+      <section id="uses" class="content-section split">
         <div>
           <p class="eyebrow">Use cases</p>
-          <h2>Best for</h2>
+          <h2>Small remote, real PC control</h2>
         </div>
-        <ul>
-          <li>PC connected to TV/stereo.</li>
-          <li>Sofa/bed control.</li>
-          <li>Broken or annoying wireless keyboard/trackpad replacement.</li>
-          <li>Presentations.</li>
-          <li>Quick typing/search from phone.</li>
-        </ul>
-      </section>
-
-      <section id="not-intended-for" class="content-section split">
         <div>
-          <p class="eyebrow">Scope</p>
-          <h2>Not intended for</h2>
+          <p>
+            Voltura Air is for the everyday moments where the PC is right there,
+            but the mouse or keyboard is not. It keeps the controls simple enough
+            for quick use and capable enough for browsing, media, typing, and slides.
+          </p>
+          <ul>
+            <li>Control a TV or stereo PC from the sofa.</li>
+            <li>Type searches, messages, URLs, and short notes from your phone.</li>
+            <li>Use a tablet as a roomy couch keyboard and trackpad.</li>
+            <li>Navigate YouTube, Kodi, music, video, and presentation controls.</li>
+            <li>Keep a backup input device ready when a wireless keyboard is missing or annoying.</li>
+          </ul>
         </div>
-        <ul>
-          <li>Remote support over the internet.</li>
-          <li>Full remote-desktop replacement.</li>
-          <li>Phone notification sync.</li>
-          <li>File backup/sync.</li>
-        </ul>
       </section>
 
       <section id="screens" class="screen-section">
@@ -184,64 +189,53 @@
       <section id="setup" class="content-section">
         <div>
           <p class="eyebrow">Setup</p>
-          <h2>How it works</h2>
+          <h2>Ready in a few steps</h2>
         </div>
         <ol class="steps">
           <li>Install and start the Windows host on the PC you want to control.</li>
-          <li>Scan the pairing QR code with a phone or tablet on the same Wi-Fi network.</li>
-          <li>Use the mobile page in the browser or add it to your home screen as an app.</li>
-          <li>Reconnect from saved devices without scanning again.</li>
+          <li>Scan the pairing QR code with a phone or tablet on the same Wi-Fi/LAN.</li>
+          <li>Use Trackpad, Keyboard, Remote, Dictate, or tablet split mode from the mobile page.</li>
+          <li>Add it to your home screen and reconnect later from saved devices.</li>
         </ol>
       </section>
 
-      <section id="faq" class="content-section split">
+      <section id="trust" class="content-section split">
         <div>
-          <p class="eyebrow">Connection FAQ</p>
-          <h2>Common connection fixes</h2>
+          <p class="eyebrow">Trust</p>
+          <h2>Local-first, understandable, removable</h2>
         </div>
         <p>
-          Most connection failures are caused by different Wi-Fi/LAN networks, Windows Firewall, stale QR codes,
-          changed IP addresses, changed ports, VPNs, guest Wi-Fi, or a stale installed mobile app.
+          Voltura Air is built for nearby control on your own network. It is not
+          a cloud remote-desktop service, and it does not need an account to work.
+          Pairing, saved devices, permissions, and diagnostics are visible in the
+          Windows host so you can understand what is connected.
         </p>
       </section>
 
-      <section class="feature-band" aria-label="Connection troubleshooting frequently asked questions">
+      <section class="feature-band" aria-label="Trust and support details">
         <article>
-          <h2>The phone cannot reach the PC</h2>
-          <p>Make sure Voltura Air is running, both devices are on the same Wi-Fi/LAN, and Windows Firewall allows the host on private networks. The mobile app shows unavailable/retrying when the host cannot be reached or input delivery is not confirmed.</p>
+          <h2>Local network control</h2>
+          <p>The Windows host serves the mobile app to devices on your LAN. No internet relay is needed for normal use.</p>
         </article>
         <article>
-          <h2>The QR code stopped working</h2>
-          <p>Click New code on the PC and scan again. Pairing QR codes are short-lived, include the app version, and can be replaced when network or port settings change.</p>
+          <h2>Clear pairing</h2>
+          <p>Pair with a short-lived QR code, reconnect from saved devices, and remove devices you no longer trust.</p>
         </article>
         <article>
-          <h2>The PC IP or port changed</h2>
-          <p>Scan a fresh QR code, or use Enter host manually in the mobile app with the current IP and port shown by the Windows host.</p>
-        </article>
-        <article>
-          <h2>VPN or guest Wi-Fi is active</h2>
-          <p>Choose the PC network adapter that is reachable from the phone. Guest Wi-Fi, VPN, tunnel, and virtual adapters often isolate devices.</p>
-        </article>
-        <article>
-          <h2>Support asks for diagnostics</h2>
-          <p>Use Copy diagnostics in the Windows host or mobile app. Diagnostics are redacted and should not include pairing secrets, device tokens, or secret hashes.</p>
-        </article>
-        <article>
-          <h2>The home screen app looks stale</h2>
-          <p>Scan a fresh QR code from the PC so Chrome can fetch the current app shell. Open Settings in the mobile app and use Refresh app if pairing still fails.</p>
+          <h2>Helpful recovery</h2>
+          <p>If the phone cannot reach the PC, the app gives recovery actions such as reconnect, scan a new QR code, enter host manually, and copy diagnostics.</p>
         </article>
       </section>
 
       <section id="privacy" class="content-section split">
         <div>
-          <p class="eyebrow">Privacy</p>
-          <h2>Local network by design</h2>
+          <p class="eyebrow">Boundaries</p>
+          <h2>Focused on nearby control</h2>
         </div>
         <p>
-          Voltura Air is LAN-only. The Windows host serves the mobile app directly to devices on your local network,
-          and input messages are sent to the paired PC over a local WebSocket connection. The mobile app uses lightweight
-          health checks and quiet idle behavior instead of polling status and audio constantly. There is no account system,
-          cloud relay, or internet input forwarding.
+          Voltura Air is not a remote support tool, cloud file-sync app, phone
+          notification bridge, or full remote desktop. It is a practical local
+          remote for the Windows PC in the room.
         </p>
       </section>
 
@@ -266,12 +260,12 @@
       <section id="support" class="content-section split">
         <div>
           <p class="eyebrow">Freeware</p>
-          <h2>Free to use, optional to support</h2>
+          <h2>Free to use</h2>
         </div>
         <div>
           <p>
             Voltura Air can be used without payment, account registration, trial limits, or feature locks.
-            If it helps you, optional donations help support continued development.
+            Optional donations help support continued development, but they are never required to unlock the app.
           </p>
           <div class="actions">
             <a class="button primary" href="https://ko-fi.com/voltura">Support on Ko-fi</a>

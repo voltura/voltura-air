@@ -1,7 +1,7 @@
 # Voltura Air - Product TODO / Roadmap
 
 Updated: 2026-07-05  
-Scope: current `voltura/voltura-air` `main` branch plus recent completed work.
+Scope: current `voltura/voltura-air` `main` branch plus recent completed work. This file should track implemented behavior in the repository, not stale PR or connector state.
 
 This file separates the current implemented baseline from remaining roadmap work. It is written for a solo developer building a freeware/open-source Windows utility. Prioritize adoption, reliability, trust, and visible user value over cloning every competitor.
 
@@ -188,8 +188,8 @@ This file separates the current implemented baseline from remaining roadmap work
 - [x] Split mode shows keyboard and trackpad side-by-side.
 - [x] Split mode hides mode tabs/status/top chrome automatically to maximize usable space.
 - [x] Split mode hides volume control automatically.
-- [ ] Treat tablet/landscape split mode as a signature product feature in public copy.
-- [ ] Add a product screenshot/demo of split mode.
+- [x] Treat tablet/landscape split mode as a signature product feature in public copy.
+- [x] Add a product screenshot/demo of split mode.
 - [ ] Ensure split mode works well in landscape on phones. Manual.
 - [ ] Ensure split mode works well on tablets. Manual.
 - [ ] Add setting: left/right trackpad placement.
@@ -210,7 +210,7 @@ This file separates the current implemented baseline from remaining roadmap work
 Goal: a user should instantly understand why the app is useful from one screenshot.
 
 - [x] Add new mode: "Remote" or "Couch Remote".
-- [ ] Add large controls:
+- [x] Add large controls:
   - [x] Play / pause.
   - [x] Previous.
   - [x] Next.
@@ -221,7 +221,7 @@ Goal: a user should instantly understand why the app is useful from one screensh
   - [x] Fullscreen.
   - [x] Space.
   - [x] Esc / Back.
-- [ ] Add D-pad:
+- [x] Add D-pad/navigation control:
   - [x] Up.
   - [x] Down.
   - [x] Left.
@@ -331,7 +331,8 @@ Start with phone-to-PC only.
 
 - [ ] Add shortcuts:
   - [ ] Show desktop.
-  - [ ] Alt+Tab.
+  - [x] Alt+Tab.
+    - Partial: Remote mode exposes Alt+Tab; Keyboard mode does not expose an Alt+Tab shortcut button yet.
   - [ ] Shift+Alt+Tab.
   - [ ] Close window.
   - [ ] Minimize window.
@@ -415,17 +416,17 @@ Start with phone-to-PC only.
 - [x] Add high-level feature documentation.
 - [x] Add pairing/security/protocol docs.
 - [x] Add release packaging docs.
-- [ ] Confirm/update static product website source.
-  - Note: `docs/site/index.html` was not found through the GitHub connector when checked against `main`; if the website lives outside this repo, update it separately.
-- [ ] Add landing page sections:
-  - [ ] What it does.
-  - [ ] Why use it.
-  - [ ] How pairing works.
-  - [ ] Privacy/security.
-  - [ ] Troubleshooting.
-  - [ ] Download.
-  - [ ] GitHub/source link.
-  - [ ] Support development links.
+- [x] Confirm/update static product website source.
+  - Current source lives at `docs/site/index.php`.
+- [x] Add landing page sections:
+  - [x] What it does.
+  - [x] Why use it.
+  - [x] How pairing works.
+  - [x] Privacy/security.
+  - [x] Troubleshooting.
+  - [x] Download.
+  - [x] GitHub/source link.
+  - [x] Support development links.
 - [ ] Add demo GIF/video:
   - [ ] QR scan.
   - [ ] Cursor move.
@@ -438,20 +439,10 @@ Start with phone-to-PC only.
   - [ ] Remote Mouse.
   - [ ] KDE Connect.
   - [ ] Chrome Remote Desktop.
-- [ ] Add FAQ:
-  - [ ] Do I need to install an app on my phone?
-  - [ ] Does it work outside my home network?
-  - [ ] Does it use the cloud?
-  - [ ] Does it log what I type?
-  - [ ] Why does Windows warn about the installer?
-  - [ ] How do I remove a paired device?
-  - [ ] Why can't my phone connect?
-- [ ] Add privacy page:
-  - [ ] No account.
-  - [ ] No default analytics.
-  - [ ] No cloud relay for local use.
-  - [ ] Paired devices stored locally.
-  - [ ] No intentional input logging.
+- [ ] Add full public FAQ.
+  - Partial: `docs/site/index.php` has a connection FAQ covering network reachability, stale QR codes, changed IP/port, VPN/guest Wi-Fi, diagnostics, and stale home-screen app shells. It does not yet cover every product/privacy/device-management question.
+- [ ] Add full privacy page.
+  - Partial: `docs/site/index.php` includes local-network privacy copy. A standalone maintained privacy page is still open if the public site needs one.
 
 ### P2.7 Release trust
 
@@ -567,10 +558,10 @@ Only consider if PWA limitations block important features.
 ## Recommended next issue order
 
 1. Finish local validation for connection reliability and input acknowledgement.
-2. Dedicated Couch Remote mode.
-3. Add missing keyboard/navigation buttons: Ctrl+X, Alt+Tab, Shift+Alt+Tab, Delete, Home, End, Page Up, Page Down.
+2. Couch Remote polish: Show desktop, button visibility settings, and manual app validation.
+3. Add missing on-screen keyboard/navigation buttons: Ctrl+X, Alt+Tab, Shift+Alt+Tab, Delete, Home, End, Page Up, Page Down.
 4. Add dedicated Paste Text to PC screen with warning, long-text confirm, snippets, and send-enter option.
-5. Polish split mode as a signature feature: screenshots, website copy, tests, tablet/phone manual verification.
+5. Polish split mode as a signature feature: tests, tablet/phone manual verification, and optional layout settings.
 6. Add presentation mode.
 7. Add website/FAQ/privacy page and demo assets.
 8. Add release trust improvements: checksums, release notes template, known limitations.

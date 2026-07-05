@@ -9,7 +9,7 @@ https://voltura.se/air/
 ```
 
 Upload the contents of `docs/site` to an `air` directory in the web root for `voltura.se`.
-The repository can stay private because the hosted site is just static HTML, CSS, and public image assets.
+The repository can stay private because the hosted site is just static PHP/HTML, CSS, and public image assets.
 
 The page is a product/download page for the current Windows app. Keep release links and feature copy aligned with the latest GitHub release and installed app behavior.
 

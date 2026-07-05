@@ -130,6 +130,7 @@ Voltura Air turns a phone, tablet, or modern browser into a local-network remote
 - Translates shortcut aliases:
   - Undo -> Ctrl+Z.
   - Redo -> Ctrl+Y.
+- Note: some host-supported keys, including Delete, Home, End, Page Up, and Page Down, are protocol/host capabilities but are not yet exposed as dedicated on-screen buttons in Keyboard mode.
 
 ### Audio and system actions
 
@@ -246,6 +247,7 @@ Voltura Air turns a phone, tablet, or modern browser into a local-network remote
   - Ctrl+V.
   - Ctrl+Z.
   - Ctrl+Y.
+- Keys forwarded from a physical or browser-provided mobile keyboard can include Delete when the browser emits a supported delete event, but there is no dedicated on-screen Delete button yet.
 - Keyboard settings:
   - show function keys,
   - show control keys,

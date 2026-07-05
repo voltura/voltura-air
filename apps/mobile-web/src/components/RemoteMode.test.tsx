@@ -1,9 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { RemoteMode } from "./RemoteMode";
 
-function renderRemote(overrides: Partial<React.ComponentProps<typeof RemoteMode>> = {}) {
-  const props: React.ComponentProps<typeof RemoteMode> = {
+function renderRemote(overrides: Partial<ComponentProps<typeof RemoteMode>> = {}) {
+  const props: ComponentProps<typeof RemoteMode> = {
     audioState: { type: "audio.state", volume: 50, muted: false },
     supportsVolumeControl: true,
     onSetVolume: vi.fn(),

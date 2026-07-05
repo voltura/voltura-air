@@ -31,6 +31,12 @@ class MockWebSocket {
   }
 }
 
+function dispatchSocketEvent(socket: MockWebSocket, type: string, event: { data?: string } = {}) {
+  act(() => {
+    socket.dispatch(type, event);
+  });
+}
+
 function createStorage(): Storage {
   const items = new Map<string, string>();
   return {
@@ -89,17 +95,17 @@ describe("useVolturaAirConnection", () => {
     localStorage.setItem("voltura-air.clientId", "client-a");
     localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
     localStorage.setItem("voltura-air.activePcId", pc.id);
-    localStorage.setItem(`voltura-air.secret.client-a.${pc.id}`, "old-secret");
+    localStorage.setItem(`voltura-air.secret.client-a.${pc.id}`, "stored-credential");
 
     const { result } = renderHook(() => useVolturaAirConnection());
 
     await waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
     const socket = MockWebSocket.instances[0];
     socket.readyState = MockWebSocket.OPEN;
-    socket.dispatch("open");
-    expect(socket.send).toHaveBeenCalledWith(expect.stringContaining("\"secret\":\"old-secret\""));
+    dispatchSocketEvent(socket, "open");
+    expect(socket.send).toHaveBeenCalledWith(expect.stringContaining("\"secret\":\"stored-credential\""));
 
-    socket.dispatch("message", { data: JSON.stringify({ type: "pair.rejected", reason: "secret-revoked" }) });
+    dispatchSocketEvent(socket, "message", { data: JSON.stringify({ type: "pair.rejected", reason: "secret-revoked" }) });
 
     await waitFor(() => expect(result.current.state).toBe("needs-pairing"));
     expect(result.current.message).toBe("Saved pairing was removed on the PC. Scan a fresh QR code to pair again.");
@@ -112,20 +118,20 @@ describe("useVolturaAirConnection", () => {
     localStorage.setItem("voltura-air.clientId", "client-a");
     localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
     localStorage.setItem("voltura-air.activePcId", pc.id);
-    localStorage.setItem(`voltura-air.secret.client-a.${pc.id}`, "old-secret");
+    localStorage.setItem(`voltura-air.secret.client-a.${pc.id}`, "stored-credential");
 
     const { result } = renderHook(() => useVolturaAirConnection());
 
     await waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
     const socket = MockWebSocket.instances[0];
     socket.readyState = MockWebSocket.OPEN;
-    socket.dispatch("open");
-    socket.dispatch("message", {
+    dispatchSocketEvent(socket, "open");
+    dispatchSocketEvent(socket, "message", {
       data: JSON.stringify({
         type: "pair.accepted",
         clientId: "client-a",
         pcName: "PC",
-        secret: "new-secret",
+        secret: "fresh-credential",
         paired: true,
         host: { pointerSpeed: 65 }
       })

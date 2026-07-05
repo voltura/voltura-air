@@ -5,6 +5,7 @@ import "./styles.css";
 import "./pairingFeedback.css";
 import "./keyboardViewport.css";
 import "./splitMode.css";
+import "./remoteMode.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

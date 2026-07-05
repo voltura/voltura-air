@@ -86,6 +86,26 @@ jobs:
           path: ${{ steps.package.outputs.installer_path }}
           if-no-files-found: error
 
+      - name: Refresh release tag
+        shell: pwsh
+        run: |
+          $tag = "${{ inputs.release_tag }}"
+          git check-ref-format "refs/tags/$tag"
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Invalid release tag '$tag'."
+            exit $LASTEXITCODE
+          }
+
+          git tag --force $tag $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+          git push --force origin "refs/tags/$tag"
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
       - name: Create release if missing and upload assets
         shell: pwsh
         env:

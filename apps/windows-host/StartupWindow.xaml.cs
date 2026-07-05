@@ -13,6 +13,7 @@ public partial class StartupWindow : Window
         InitializeComponent();
         WpfTheme.Apply(this);
         SetIcon(this);
+        SetStartupAppImage();
     }
 
     public void ShowError(string message, string details)
@@ -44,6 +45,15 @@ public partial class StartupWindow : Window
         if (File.Exists(iconPath))
         {
             window.Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri(iconPath));
+        }
+    }
+
+    private void SetStartupAppImage()
+    {
+        var imagePath = Path.Combine(AppContext.BaseDirectory, "Assets", "VolturaAir-256.png");
+        if (File.Exists(imagePath))
+        {
+            StartupAppImage.Source = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri(imagePath));
         }
     }
 }

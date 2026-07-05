@@ -74,14 +74,22 @@ updated as the app structure, tooling, and release process become concrete.
 ## Release
 
 - Use the root package/host version for GitHub release tags, formatted as
-  `v<version>` (for example, `v0.1.0`).
-- Before publishing a release, run a new release build of the .net application and run `npm run build` and `npm test`.
-- Publish the Windows host with the mobile web assets already built:
-  `dotnet publish apps/windows-host/VolturaAir.Host.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/publish/VolturaAir-win-x64`.
-- Zip the publish directory as `artifacts/VolturaAir-<version>-win-x64.zip`.
-- Use GitHub CLI to create the release and upload the binary asset:
-  `gh release create v<version> artifacts/VolturaAir-<version>-win-x64.zip --repo voltura/voltura-air --title "Voltura Air v<version>" --notes "..."`
-- See `docs/release.md` for a step-by-step release packaging and GitHub asset replacement guide.
+  `v<version>` (for example, `v0.2.0`).
+- For a version bump, keep root `package.json`, `apps/mobile-web/package.json`,
+  `package-lock.json`, `.github/workflows/release-zip.yml`,
+  `apps/windows-host/VolturaAir.Host.csproj`, version-related tests, and docs in
+  sync.
+- After changing package versions, run `npm install` so `package-lock.json`
+  records the same root and workspace versions.
+- Before publishing a release, run `npm run build`, `npm test`, and
+  `npm run package:win` sequentially.
+- `npm run package:win` reads the default release version from the root
+  `package.json`. Pass `-Version <version> -Runtime win-x64` only when overriding
+  the defaults.
+- The GitHub Actions workflow `.github/workflows/release-zip.yml` can create or
+  update a release and upload both the portable zip and installer assets.
+- See `docs/release.md` for the full version bump, packaging, GitHub asset
+  replacement, release-note, unsigned-installer, and sanity-check guide.
 
 ## Git
 

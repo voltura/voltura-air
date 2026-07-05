@@ -1,0 +1,173 @@
+.remote-mode {
+  min-height: max-content;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  align-content: start;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.remote-section {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  padding: 12px;
+}
+
+.remote-section-title {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.remote-section-title span {
+  font-weight: 800;
+}
+
+.remote-section-title small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+}
+
+.remote-primary-grid,
+.remote-volume-grid,
+.remote-utility-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.remote-primary-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.remote-primary-grid button,
+.remote-volume-grid button,
+.remote-utility-grid button,
+.remote-dpad button {
+  min-width: 0;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.remote-primary-grid button {
+  min-height: 62px;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 6px;
+  font-weight: 700;
+}
+
+.remote-primary-grid button.primary {
+  grid-column: span 1;
+  color: var(--on-accent);
+  background: var(--accent-strong);
+  border-color: var(--accent);
+}
+
+.remote-primary-grid button.primary svg {
+  width: 18px;
+  height: 18px;
+}
+
+.remote-primary-grid button.primary svg + svg {
+  margin-left: -8px;
+}
+
+.remote-volume-grid,
+.remote-utility-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.remote-volume-grid button,
+.remote-utility-grid button {
+  min-height: 54px;
+  padding-inline: 8px;
+  font-weight: 700;
+}
+
+.remote-dpad {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(64px, 86px));
+  grid-template-areas:
+    ". up ."
+    "left ok right"
+    ". down .";
+  justify-content: center;
+  gap: 8px;
+}
+
+.remote-dpad button {
+  min-height: 58px;
+  padding: 0;
+  font-weight: 800;
+}
+
+.remote-dpad-up {
+  grid-area: up;
+}
+
+.remote-dpad-left {
+  grid-area: left;
+}
+
+.remote-dpad-ok {
+  grid-area: ok;
+  color: var(--on-accent);
+  background: var(--accent-strong);
+  border-color: var(--accent);
+}
+
+.remote-dpad-right {
+  grid-area: right;
+}
+
+.remote-dpad-down {
+  grid-area: down;
+}
+
+@media (max-width: 380px) {
+  .remote-primary-grid button,
+  .remote-volume-grid button,
+  .remote-utility-grid button {
+    gap: 3px;
+    padding-inline: 4px;
+    font-size: 0.82rem;
+  }
+
+  .remote-primary-grid svg,
+  .remote-volume-grid svg,
+  .remote-utility-grid svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .remote-mode {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr);
+    align-items: start;
+  }
+
+  .remote-media-section {
+    grid-row: span 3;
+  }
+
+  .remote-primary-grid button {
+    min-height: 50px;
+  }
+
+  .remote-dpad {
+    grid-template-columns: repeat(3, minmax(48px, 72px));
+  }
+
+  .remote-dpad button {
+    min-height: 46px;
+  }
+}

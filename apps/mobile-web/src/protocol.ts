@@ -82,36 +82,54 @@ export type StatusPongMessage = {
   host?: HostStatusMetadata;
 };
 
+export type InputAckMessage = {
+  type: "input.ack";
+  seq?: number;
+};
+
+export type InputErrorMessage = {
+  type: "input.error";
+  seq?: number;
+  code?: string;
+  message: string;
+};
+
 export type PointerMoveMessage = {
   type: "pointer.move";
+  seq?: number;
   dx: number;
   dy: number;
 };
 
 export type PointerButtonMessage = {
   type: "pointer.button";
+  seq?: number;
   button: "left" | "right";
   action: "down" | "up" | "click";
 };
 
 export type PointerWheelMessage = {
   type: "pointer.wheel";
+  seq?: number;
   dx: number;
   dy: number;
 };
 
 export type PointerZoomMessage = {
   type: "pointer.zoom";
+  seq?: number;
   direction: "in" | "out";
 };
 
 export type KeyboardTextMessage = {
   type: "keyboard.text";
+  seq?: number;
   text: string;
 };
 
 export type KeyboardSpecialMessage = {
   type: "keyboard.special";
+  seq?: number;
   key: string;
   modifiers?: string[];
 };
@@ -150,4 +168,4 @@ export type ClientMessage =
   | AudioMuteToggleMessage
   | AudioVolumeSetMessage;
 
-export type ServerMessage = PairAcceptedMessage | PairRejectedMessage | StatusMessage | StatusPongMessage | AudioStateMessage;
+export type ServerMessage = PairAcceptedMessage | PairRejectedMessage | StatusMessage | StatusPongMessage | InputAckMessage | InputErrorMessage | AudioStateMessage;

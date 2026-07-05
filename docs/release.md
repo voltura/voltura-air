@@ -1,6 +1,6 @@
 # Release Packaging and GitHub Asset Upsert
 
-This document explains how to prepare a new Voltura Air version, rebuild the Windows release assets, create the selected GitHub release when needed, and replace same-named assets on repeated runs.
+This document explains how to prepare a new Voltura Air version, rebuild the Windows release assets, create the selected GitHub release when needed, refresh the release tag for source archives, and replace same-named assets on repeated runs.
 
 ## Requirements
 
@@ -107,8 +107,9 @@ The `Build and upsert release assets` workflow performs the same release path on
 3. Run `npm run build`.
 4. Run `npm test`.
 5. Run `npm run package:win -- -Version <version> -Runtime <runtime>`.
-6. Create the selected release if it does not exist.
-7. Upload both the portable zip and installer, replacing same-named assets when present.
+6. Refresh the selected release tag so GitHub source archives point to the current workflow commit.
+7. Create the selected release if it does not exist.
+8. Upload both the portable zip and installer, replacing same-named assets when present.
 
 When dispatching the workflow for `0.2.0`, use:
 
@@ -169,6 +170,7 @@ Before announcing the release:
 
 - confirm the workflow run completed successfully;
 - confirm both GitHub release assets exist and use the expected names;
+- confirm the release source downloads are based on the same commit as the zip and installer build;
 - download the installer from the release page and install it on a clean or disposable Windows profile;
 - confirm the app shows the expected version in the UI and host diagnostics;
 - confirm a phone can pair from the fresh QR code and reconnect after the host restarts;

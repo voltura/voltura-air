@@ -28,6 +28,7 @@ namespace VolturaAir.Host;
 public partial class MainWindow : Window
 {
     private const string ProductSiteUrl = "https://voltura.se/air/";
+    private const double FullDeviceRowMinimumWidth = 760;
 
     private readonly PairingManager _pairingManager;
     private readonly WebHostService _webHost;
@@ -1045,10 +1046,35 @@ public partial class MainWindow : Window
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 180 });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.2, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         grid.Children.Add(CreateListCell("Device", device.Name, 0, strong: true, trim: true));
         grid.Children.Add(CreateListCell("Status", device.Status, 1, trim: true));
+        var activity = CreateListCell("Activity", device.Activity, 2, trim: true);
+        var details = CreateListCell("Details", string.IsNullOrWhiteSpace(device.Metadata) ? "No metadata" : device.Metadata, 3, trim: true);
+        grid.Children.Add(activity);
+        grid.Children.Add(details);
+
+        grid.SizeChanged += (_, _) => UpdateDeviceListRowColumns(grid, activity, details);
+        grid.Loaded += (_, _) => UpdateDeviceListRowColumns(grid, activity, details);
         return CreateListRowShell(grid);
+    }
+
+    private static void UpdateDeviceListRowColumns(Grid grid, params UIElement[] optionalCells)
+    {
+        var showFullRow = grid.ActualWidth >= FullDeviceRowMinimumWidth;
+        grid.ColumnDefinitions[0].Width = showFullRow
+            ? new GridLength(1.5, GridUnitType.Star)
+            : new GridLength(1, GridUnitType.Star);
+        grid.ColumnDefinitions[1].Width = new GridLength(150);
+        grid.ColumnDefinitions[2].Width = showFullRow ? new GridLength(1.2, GridUnitType.Star) : new GridLength(0);
+        grid.ColumnDefinitions[3].Width = showFullRow ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+
+        foreach (var cell in optionalCells)
+        {
+            cell.Visibility = showFullRow ? Visibility.Visible : Visibility.Collapsed;
+        }
     }
 
     private UIElement CreateCandidateListRow(CandidateListItem candidate)

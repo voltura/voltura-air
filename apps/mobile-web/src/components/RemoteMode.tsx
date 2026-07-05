@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import {
   ArrowDown,
   ArrowLeft,
@@ -30,7 +31,7 @@ type RemoteModeProps = {
 type RemoteButtonProps = {
   label: string;
   onClick: () => void;
-  children?: React.ReactNode;
+  children?: ReactNode;
   className?: string;
   disabled?: boolean;
   title?: string;

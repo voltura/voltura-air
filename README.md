@@ -149,6 +149,20 @@ npm run dev
 
 With `VOLTURA_AIR_USE_VITE_CLIENT=1`, the QR opens the Vite LAN URL and includes the Windows host URL for `/ws`.
 
+For PC-based manual UI checks in Chrome, run:
+
+```powershell
+npm run dev:ui
+```
+
+This starts the Vite PWA and Windows host, opens a connected Chrome session,
+and leaves DevTools available for the device toolbar (`Ctrl+Shift+M`), viewport
+presets, and rotation checks. The command uses isolated temporary pairing and
+browser storage, so debug devices are disposable and do not change the normal
+Voltura Air device list. Chrome device emulation is a fast development
+complement, not a replacement for real phone, tablet, installed-PWA, and LAN
+tests.
+
 Run only one side when needed:
 
 ```powershell

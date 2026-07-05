@@ -83,6 +83,22 @@ await page.reload({ waitUntil: "networkidle" });
 Do not edit the status label in the image after capture. If the label contains a
 machine name, recapture with `screenshot=1`.
 
+## Manual UI Debug
+
+For human checks while developing the mobile web UI, run:
+
+```powershell
+npm run dev:ui
+```
+
+The command reuses the real host pairing flow, but opens Chrome against the Vite
+client with isolated temporary pairing and browser storage. After it auto-pairs
+and reaches the connected state, use Chrome DevTools device toolbar
+(`Ctrl+Shift+M`) to inspect phone and tablet viewports, presets, and rotation.
+These checks are useful before refreshing screenshots, but they do not replace
+real device testing for touch behavior, installed-PWA behavior, or LAN
+connectivity.
+
 ## Output Files
 
 Static site assets:

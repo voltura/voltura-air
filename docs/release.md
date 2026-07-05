@@ -30,14 +30,12 @@ Before creating release assets, update these version references:
 - protocol/docs examples that show `hostVersion`, release tags, or release asset names;
 - `AGENTS.md` if the release process or commands changed.
 
-Then inspect the tree for stale references:
+Then inspect the tree for stale references by replacing `<previous-version>` with the version you are releasing from:
 
 ```powershell
-git grep "0.1.0"
-git grep "v0.1.0"
+git grep "<previous-version>"
+git grep "v<previous-version>"
 ```
-
-Replace `0.1.0` with the previous release version when preparing a future release.
 
 ## Build, test, and package locally
 

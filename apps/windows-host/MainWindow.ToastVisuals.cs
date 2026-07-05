@@ -33,47 +33,47 @@ public partial class MainWindow
     {
         toast.Tag = StyledToastTag;
         toast.Background = (WpfBrush)Resources["SurfaceBrush"];
-        toast.BorderBrush = (WpfBrush)Resources["AccentBrush"];
+        toast.BorderBrush = (WpfBrush)Resources["BorderBrush"];
         toast.BorderThickness = new Thickness(1);
-        toast.CornerRadius = new CornerRadius(14);
+        toast.CornerRadius = new CornerRadius(4);
         toast.Padding = new Thickness(0);
         toast.Margin = new Thickness(0, 0, 0, 18);
-        toast.MinWidth = 240;
-        toast.MaxWidth = 360;
+        toast.MinWidth = 260;
+        toast.MaxWidth = 380;
         toast.Effect = new DropShadowEffect
         {
-            BlurRadius = 28,
+            BlurRadius = 26,
             Direction = 270,
-            Opacity = 0.28,
-            ShadowDepth = 7,
+            Opacity = 0.32,
+            ShadowDepth = 8,
             Color = Colors.Black
         };
         WpfPanel.SetZIndex(toast, 50);
 
         var layout = new Grid();
-        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(5) });
+        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(4) });
         layout.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var accentStrip = new Border
         {
             Background = (WpfBrush)Resources["AccentBrush"],
-            CornerRadius = new CornerRadius(14, 0, 0, 14)
+            CornerRadius = new CornerRadius(4, 0, 0, 4)
         };
         Grid.SetColumn(accentStrip, 0);
         layout.Children.Add(accentStrip);
 
         var badge = new Border
         {
-            Width = 28,
-            Height = 28,
-            Margin = new Thickness(14, 10, 10, 10),
-            CornerRadius = new CornerRadius(14),
+            Width = 22,
+            Height = 22,
+            Margin = new Thickness(14, 12, 10, 12),
+            CornerRadius = new CornerRadius(11),
             Background = (WpfBrush)Resources["AccentBrush"],
             Child = new TextBlock
             {
                 Text = "✓",
-                FontSize = 16,
+                FontSize = 13,
                 FontWeight = FontWeights.Bold,
                 Foreground = (WpfBrush)Resources["AccentTextBrush"],
                 HorizontalAlignment = WpfHorizontalAlignment.Center,
@@ -91,7 +91,7 @@ public partial class MainWindow
         text.Children.Add(new TextBlock
         {
             Text = "Clipboard",
-            FontSize = 12,
+            FontSize = 11,
             FontWeight = FontWeights.SemiBold,
             Foreground = (WpfBrush)Resources["MutedTextBrush"]
         });
@@ -99,7 +99,7 @@ public partial class MainWindow
         {
             Text = message,
             Margin = new Thickness(0, 2, 0, 0),
-            FontSize = 14,
+            FontSize = 13,
             FontWeight = FontWeights.SemiBold,
             TextWrapping = TextWrapping.Wrap,
             Foreground = (WpfBrush)Resources["TextBrush"]

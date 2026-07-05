@@ -25,7 +25,7 @@
                 CornerRadius="24"
                 HorizontalAlignment="Center"
                 Background="Transparent">
-            <Image Source="Assets/VolturaAir-256.png"
+            <Image x:Name="StartupAppImage"
                    Width="96"
                    Height="96"
                    Stretch="Uniform"

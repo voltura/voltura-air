@@ -1,19 +1,21 @@
 # Voltura Air - Features
 
-Updated: 2026-07-05  
+Updated: 2026-07-06  
 Scope: current `voltura/voltura-air` `main` branch. This file describes implemented product capabilities, not future roadmap promises.
 
-Voltura Air turns a phone, tablet, or modern browser into a local-network remote control surface for a Windows PC.
+Voltura Air turns any phone, tablet, or modern browser into a local-network remote control surface for a Windows PC.
 
 ## Product promise
 
-- Control your Windows PC from any phone, tablet, or modern browser.
+- Control your Windows PC from any phone, tablet, or touch browser.
 - No mobile app-store install required.
-- Local-first. No account. No cloud needed. No paywall.
+- Works on your own Wi-Fi/LAN. No account. No cloud needed.
+- Freeware with no trial limits or feature locks.
 
 ## Best for
 
 - PC connected to TV/stereo.
+- YouTube, Kodi, and other couch/TV control.
 - Sofa/bed control.
 - Broken or annoying wireless keyboard/trackpad replacement.
 - Presentations where basic keyboard/trackpad control is enough.
@@ -383,9 +385,9 @@ These are roadmap candidates, not current product capabilities.
 
 ## Strongest current selling points
 
-- Browser-based phone/tablet control: no mobile app-store install.
-- Local-first: no account, no cloud relay, no paywall.
-- Practical couch-PC use: trackpad, keyboard, dictation, volume, and sleep.
+- Browser-based phone/tablet/touch-browser control: no mobile app-store install.
+- Local Wi-Fi/LAN control: no account, no cloud relay, no paywall.
+- Practical couch-PC use: trackpad, keyboard, dictation, YouTube/Kodi remote modes, volume, and sleep.
 - QR pairing with saved reconnect.
 - Recovery UX for stale QR codes, changed IP/port, and unreachable host.
 - Stronger trust baseline than a quick LAN remote: pairing tokens, hashed reconnect secret, origin checks, message validation, permissions, and redacted diagnostics.

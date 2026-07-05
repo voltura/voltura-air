@@ -1,3 +1,5 @@
+using System.Drawing;
+using System.Runtime.InteropServices;
 using System.Windows;
 using Forms = System.Windows.Forms;
 using DrawingFontStyle = System.Drawing.FontStyle;
@@ -16,7 +18,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
     private readonly WebHostService _webHost;
     private readonly Forms.NotifyIcon _trayIcon;
     private readonly Forms.ContextMenuStrip _trayMenu = new();
-    private readonly Icon _trayIconImage;
+    private readonly IReadOnlyDictionary<TrayConnectionState, Icon> _trayIcons;
     private CancellationTokenSource? _pendingDisconnectNotification;
     private bool _hadActiveController;
     private bool _disposed;
@@ -31,16 +33,23 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         AppThemeSettings.Changed += OnAppThemeChanged;
 
         BuildMenu();
-        _trayIconImage = LoadTrayIcon();
+        _trayIcons = LoadTrayIcons();
         _trayIcon = new Forms.NotifyIcon
         {
             ContextMenuStrip = _trayMenu,
-            Icon = _trayIconImage,
+            Icon = GetTrayIcon(GetTrayConnectionState()),
             Text = BuildTrayTooltip(),
             Visible = true
         };
         _trayIcon.DoubleClick += (_, _) => _mainWindow.ShowPage(HostPage.Connect);
         ApplyMenuTheme();
+    }
+
+    private enum TrayConnectionState
+    {
+        NoDevicesRegistered,
+        Disconnected,
+        Connected
     }
 
     private void BuildMenu()
@@ -73,7 +82,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
     private void OnConnectionChanged(object? sender, EventArgs e)
     {
         var hasActiveController = _pairingManager.HasActiveController;
-        WpfApplication.Current.Dispatcher.BeginInvoke(() => _trayIcon.Text = BuildTrayTooltip());
+        WpfApplication.Current.Dispatcher.BeginInvoke(ApplyTrayConnectionState);
 
         if (!_hadActiveController && hasActiveController)
         {
@@ -175,13 +184,64 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         WpfApplication.Current.Dispatcher.BeginInvoke(ApplyMenuTheme);
     }
 
+    private void ApplyTrayConnectionState()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        var state = GetTrayConnectionState();
+        _trayIcon.Text = BuildTrayTooltip(state);
+        _trayIcon.Icon = GetTrayIcon(state);
+    }
+
+    private TrayConnectionState GetTrayConnectionState()
+    {
+        if (_pairingManager.HasActiveController)
+        {
+            return TrayConnectionState.Connected;
+        }
+
+        return _pairingManager.IsPaired
+            ? TrayConnectionState.Disconnected
+            : TrayConnectionState.NoDevicesRegistered;
+    }
+
+    private Icon GetTrayIcon(TrayConnectionState state)
+    {
+        return _trayIcons.TryGetValue(state, out var icon)
+            ? icon
+            : _trayIcons[TrayConnectionState.NoDevicesRegistered];
+    }
+
     private string BuildTrayTooltip()
     {
-        var status = _pairingManager.HasActiveController
-            ? $"Connected: {_pairingManager.ActiveDeviceSummary}"
-            : "No connected devices";
+        return BuildTrayTooltip(GetTrayConnectionState());
+    }
+
+    private string BuildTrayTooltip(TrayConnectionState state)
+    {
+        var status = state switch
+        {
+            TrayConnectionState.Connected => BuildConnectedTooltipStatus(),
+            TrayConnectionState.Disconnected => "no devices connected",
+            _ => "no devices paired yet"
+        };
 
         return TruncateTrayTooltip($"Voltura Air - {status}");
+    }
+
+    private string BuildConnectedTooltipStatus()
+    {
+        var activeDeviceCount = _pairingManager.ActiveDeviceNames.Count;
+        if (activeDeviceCount <= 0)
+        {
+            return "connected";
+        }
+
+        var deviceLabel = activeDeviceCount == 1 ? "device" : "devices";
+        return $"{activeDeviceCount} {deviceLabel} connected: {_pairingManager.ActiveDeviceSummary}";
     }
 
     private static string TruncateTrayTooltip(string value)
@@ -227,11 +287,94 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         }
     }
 
+    private static IReadOnlyDictionary<TrayConnectionState, Icon> LoadTrayIcons()
+    {
+        var normal = LoadTrayIcon();
+        return new Dictionary<TrayConnectionState, Icon>
+        {
+            [TrayConnectionState.NoDevicesRegistered] = normal,
+            [TrayConnectionState.Disconnected] = CreateTintedTrayIcon(normal, Color.FromArgb(215, 88, 88)),
+            [TrayConnectionState.Connected] = CreateTintedTrayIcon(normal, Color.FromArgb(72, 166, 92))
+        };
+    }
+
     private static Icon LoadTrayIcon()
     {
         var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "VolturaAirTray.ico");
         return File.Exists(iconPath) ? new Icon(iconPath) : (Icon)SystemIcons.Application.Clone();
     }
+
+    private static Icon CreateTintedTrayIcon(Icon sourceIcon, Color tint)
+    {
+        try
+        {
+            using var source = sourceIcon.ToBitmap();
+            using var tinted = TintBitmap(source, tint);
+            return CreateIconFromBitmap(tinted);
+        }
+        catch
+        {
+            return (Icon)sourceIcon.Clone();
+        }
+    }
+
+    private static Bitmap TintBitmap(Bitmap source, Color tint)
+    {
+        var target = new Bitmap(source.Width, source.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+
+        for (var y = 0; y < source.Height; y++)
+        {
+            for (var x = 0; x < source.Width; x++)
+            {
+                var pixel = source.GetPixel(x, y);
+                if (pixel.A == 0)
+                {
+                    target.SetPixel(x, y, Color.Transparent);
+                    continue;
+                }
+
+                var luminance = ((0.2126 * pixel.R) + (0.7152 * pixel.G) + (0.0722 * pixel.B)) / 255d;
+                var shade = 0.42d + (luminance * 0.72d);
+                target.SetPixel(
+                    x,
+                    y,
+                    Color.FromArgb(
+                        pixel.A,
+                        ClampToByte(tint.R * shade),
+                        ClampToByte(tint.G * shade),
+                        ClampToByte(tint.B * shade)));
+            }
+        }
+
+        return target;
+    }
+
+    private static int ClampToByte(double value)
+    {
+        if (value <= 0)
+        {
+            return 0;
+        }
+
+        return value >= 255 ? 255 : (int)Math.Round(value);
+    }
+
+    private static Icon CreateIconFromBitmap(Bitmap bitmap)
+    {
+        var handle = bitmap.GetHicon();
+        try
+        {
+            using var icon = Icon.FromHandle(handle);
+            return (Icon)icon.Clone();
+        }
+        finally
+        {
+            DestroyIcon(handle);
+        }
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool DestroyIcon(IntPtr hIcon);
 
     public void Dispose()
     {
@@ -247,6 +390,10 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _trayIcon.Visible = false;
         _trayIcon.Dispose();
         _trayMenu.Dispose();
-        _trayIconImage.Dispose();
+
+        foreach (var icon in _trayIcons.Values.Distinct())
+        {
+            icon.Dispose();
+        }
     }
 }

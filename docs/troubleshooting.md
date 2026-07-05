@@ -68,3 +68,19 @@ Include:
 - what changed recently: network, firewall, IP address, port, browser, or app version.
 
 Do not include screenshots or text containing live pairing tokens, secrets, or secret hashes.
+
+
+## Connected but input does nothing
+
+When the host supports input acknowledgements, the mobile app adds sequence
+numbers to pointer and keyboard events. The host confirms dispatched input with
+`input.ack`. If acknowledgements stop, or Windows rejects injected input, the
+mobile app shows unavailable/retrying and reconnects.
+
+Check these items first:
+
+- Voltura Air is still running on the PC.
+- The PC is not on a secure desktop, UAC prompt, lock screen, or other Windows
+  surface that rejects normal input injection.
+- The phone did not switch network, sleep the browser, or lose LAN reachability.
+- Refresh the mobile page or scan a fresh QR code if browser storage was cleaned.

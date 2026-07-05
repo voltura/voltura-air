@@ -120,3 +120,17 @@ The `Build and upsert release assets` workflow performs the same release path on
 - Leaves Windows startup behavior to the in-app setting.
 - Removes installed program files and shortcuts on uninstall.
 - Keeps pairing and settings data under `%APPDATA%\Voltura Air`.
+
+
+## Connection reliability release checks
+
+Before publishing a release that touches pairing, WebSocket handling, protocol,
+or input dispatch, verify these cases manually in addition to automated tests:
+
+- normal QR pairing and saved-device reconnect;
+- expired, stale, invalid, and missing pairing token feedback;
+- host closed while the mobile app is connected;
+- phone browser/PWA backgrounded and resumed;
+- network interruption or IP/port change;
+- input dispatch failure path shows unavailable/retrying instead of dead controls;
+- browser storage cleanup requires re-pairing or reconnects visibly.

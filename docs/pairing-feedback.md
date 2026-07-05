@@ -38,10 +38,16 @@ Pairing failures should be mapped to friendly messages, not raw protocol strings
 | `pair-first` | The host received a non-pairing message before authentication. | Scan a fresh QR code and reconnect. |
 | Unknown raw reason | Host sent an unrecognized rejection. | Show a `VAIR-PAIR-*` diagnostic code and let the user copy diagnostics. |
 | `host-unreachable` / PC not available | The browser cannot open or keep the WebSocket connection to the PC host. | Try reconnect, scan a fresh QR code, enter the current host/IP:port manually, check same Wi-Fi/LAN, and allow Windows Firewall on private networks. |
+| `input-ack-timeout` | The WebSocket heartbeat may still be alive, but the host stopped confirming recent input events. | Move to unavailable/retrying and reconnect automatically. |
+| `input-dispatch-failed` | The host received input but Windows did not accept the injected input events. | Show unavailable/retrying and reconnect automatically. |
 
 When the browser cannot open the WebSocket at all, treat the failure as
 `host-unreachable`. Do not pretend to know whether the exact cause is firewall,
 wrong Wi-Fi, mobile data, VPN, stale QR, changed IP, or changed port.
+
+Input acknowledgements are part of connection health. If the host advertises
+`capabilities.inputAck`, the mobile app must not stay visually paired when recent
+pointer or keyboard input is not acknowledged.
 
 ## Recovery actions
 

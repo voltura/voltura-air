@@ -45,6 +45,10 @@ selection behavior is documented in
 [docs/manual-network-selection.md](docs/manual-network-selection.md). Protocol
 message shapes are documented in [docs/protocol.md](docs/protocol.md).
 
+Connection reliability is part of the product surface. The mobile client must not
+stay visually connected when the host is unavailable, the heartbeat stalls, or
+input delivery stops being acknowledged.
+
 ## Requirements
 
 For normal use:

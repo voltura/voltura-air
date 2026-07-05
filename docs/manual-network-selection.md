@@ -30,6 +30,8 @@ The mobile app should accept:
 
 After a valid manual host is entered, the mobile app should create or update a saved PC profile, select it as active, and attempt to connect without navigating away from the app. Saved profiles should remain deletable through **Forget**.
 
+A reachable WebSocket is not the only health signal. When the host advertises input acknowledgement support, missing input acknowledgements should move the app to unavailable/retrying just like heartbeat failures.
+
 ## Testing focus
 
 - Adapter identity survives DHCP IP change.

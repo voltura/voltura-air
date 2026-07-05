@@ -296,7 +296,14 @@ public sealed class WebHostService : IAsyncDisposable
                     continue;
                 }
 
-                _inputDispatcher.Dispatch(root);
+                if (IsInputMessage(type))
+                {
+                    await HandleInputMessageAsync(socket, root, authenticatedClientId, cancellationToken);
+                    continue;
+                }
+
+                await CloseSocketAsync(socket, "Unsupported message", WebSocketCloseStatus.PolicyViolation, cancellationToken);
+                break;
             }
         }
         catch (JsonException)
@@ -322,6 +329,30 @@ public sealed class WebHostService : IAsyncDisposable
             }
 
             activeConnection?.Dispose();
+        }
+    }
+
+    private async Task HandleInputMessageAsync(WebSocket socket, JsonElement root, string clientId, CancellationToken cancellationToken)
+    {
+        var sequence = TryGetInputSequence(root, out var parsedSequence) ? parsedSequence : (long?)null;
+
+        try
+        {
+            if (!_inputDispatcher.Dispatch(root))
+            {
+                await SendInputErrorAsync(socket, sequence, "VAIR-INPUT-UNSUPPORTED", "Unsupported input message.", cancellationToken);
+                await CloseSocketAsync(socket, "Unsupported input message", WebSocketCloseStatus.PolicyViolation, cancellationToken);
+                return;
+            }
+
+            await SendInputAckAsync(socket, sequence, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not WebSocketException and not OperationCanceledException and not ObjectDisposedException)
+        {
+            const string message = "Windows did not accept input events.";
+            await SendInputErrorAsync(socket, sequence, "VAIR-INPUT-DISPATCH-FAILED", message, cancellationToken);
+            await SendDisconnectedStatusAsync(socket, clientId, $"{message} Retrying...", cancellationToken);
+            await CloseSocketAsync(socket, "Input dispatch failed", WebSocketCloseStatus.InternalServerError, cancellationToken);
         }
     }
 
@@ -558,9 +589,31 @@ public sealed class WebHostService : IAsyncDisposable
         return SendSocketAsync(socket, new { type = "audio.state", volume = state.Volume, muted = state.Muted }, cancellationToken);
     }
 
+    private Task SendInputAckAsync(WebSocket socket, long? sequence, CancellationToken cancellationToken)
+    {
+        return sequence.HasValue
+            ? SendSocketAsync(socket, new { type = "input.ack", seq = sequence.Value }, cancellationToken)
+            : SendSocketAsync(socket, new { type = "input.ack" }, cancellationToken);
+    }
+
+    private Task SendInputErrorAsync(WebSocket socket, long? sequence, string code, string message, CancellationToken cancellationToken)
+    {
+        return sequence.HasValue
+            ? SendSocketAsync(socket, new { type = "input.error", seq = sequence.Value, code, message }, cancellationToken)
+            : SendSocketAsync(socket, new { type = "input.error", code, message }, cancellationToken);
+    }
+
+    private Task SendDisconnectedStatusAsync(WebSocket socket, string clientId, string message, CancellationToken cancellationToken)
+    {
+        return SendSocketAsync(
+            socket,
+            new { type = "status", connected = false, message, pcName = Environment.MachineName, capabilities = CreateCapabilities(clientId), host = CreateHostStatus() },
+            cancellationToken);
+    }
+
     private object CreateCapabilities(string clientId)
     {
-        return new { sleep = CanSleepPc(clientId), volume = CanControlVolume(clientId), gestureDebug = AppDeveloperSettings.EnableGestureDebug() };
+        return new { sleep = CanSleepPc(clientId), volume = CanControlVolume(clientId), gestureDebug = AppDeveloperSettings.EnableGestureDebug(), inputAck = true };
     }
 
     private bool CanSleepPc(string clientId)
@@ -573,6 +626,11 @@ public sealed class WebHostService : IAsyncDisposable
         return _pairingManager.GetEffectivePermissions(clientId, AppPermissionSettings.Load()).AllowVolumeControl;
     }
 
+    private static bool IsInputMessage(string? type)
+    {
+        return type is "pointer.move" or "pointer.button" or "pointer.wheel" or "pointer.zoom" or "keyboard.text" or "keyboard.special";
+    }
+
     private static bool IsAudioMessage(JsonElement root)
     {
         if (!root.TryGetProperty("type", out var typeProperty))
@@ -581,6 +639,15 @@ public sealed class WebHostService : IAsyncDisposable
         }
 
         return typeProperty.GetString() is "audio.mute.toggle" or "audio.volume.set";
+    }
+
+    private static bool TryGetInputSequence(JsonElement root, out long sequence)
+    {
+        sequence = 0;
+        return root.TryGetProperty("seq", out var sequenceProperty) &&
+            sequenceProperty.ValueKind == JsonValueKind.Number &&
+            sequenceProperty.TryGetInt64(out sequence) &&
+            sequence > 0;
     }
 
     private static string GetString(JsonElement root, string propertyName)

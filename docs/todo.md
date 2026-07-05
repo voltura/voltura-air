@@ -5,6 +5,17 @@ Scope: current `voltura/voltura-air` `main` branch plus recent completed work.
 
 This file separates the current implemented baseline from remaining roadmap work. It is written for a solo developer building a freeware/open-source Windows utility. Prioritize adoption, reliability, trust, and visible user value over cloning every competitor.
 
+## Current release blocker
+
+- [ ] Finish and validate connection reliability before publishing the next public installer:
+  - [x] stale heartbeat moves the mobile app to unavailable/retrying;
+  - [x] host `connected: false` status moves the mobile app to unavailable/retrying;
+  - [x] protocol supports optional input `seq`, `input.ack`, and `input.error`;
+  - [x] host validates optional input sequence numbers;
+  - [x] host acknowledges dispatched input and reports dispatch failures;
+  - [x] mobile client tracks pending input acknowledgements when the host advertises `capabilities.inputAck`;
+  - [ ] run local build/test/manual validation on Windows before merge/release.
+
 ## Status legend
 
 - `[x]` Implemented enough to count as done on `main`.
@@ -559,16 +570,17 @@ Only consider if PWA limitations block important features.
 
 ## Recommended next issue order
 
-1. Dedicated Couch Remote mode.
-2. Add missing keyboard/navigation buttons: Ctrl+X, Alt+Tab, Shift+Alt+Tab, Delete, Home, End, Page Up, Page Down.
-3. Add dedicated Paste Text to PC screen with warning, long-text confirm, snippets, and send-enter option.
-4. Polish split mode as a signature feature: screenshots, website copy, tests, tablet/phone manual verification.
-5. Add presentation mode.
-6. Add website/FAQ/privacy page and demo assets.
-7. Add release trust improvements: checksums, release notes template, known limitations.
-8. Add issue templates and labels.
-9. Investigate code signing.
-10. Later: Wake-on-LAN, screen preview, file transfer, gyroscope mouse, gamepad mode.
+1. Finish local validation for connection reliability and input acknowledgement.
+2. Dedicated Couch Remote mode.
+3. Add missing keyboard/navigation buttons: Ctrl+X, Alt+Tab, Shift+Alt+Tab, Delete, Home, End, Page Up, Page Down.
+4. Add dedicated Paste Text to PC screen with warning, long-text confirm, snippets, and send-enter option.
+5. Polish split mode as a signature feature: screenshots, website copy, tests, tablet/phone manual verification.
+6. Add presentation mode.
+7. Add website/FAQ/privacy page and demo assets.
+8. Add release trust improvements: checksums, release notes template, known limitations.
+9. Add issue templates and labels.
+10. Investigate code signing.
+11. Later: Wake-on-LAN, screen preview, file transfer, gyroscope mouse, gamepad mode.
 
 ---
 

@@ -26,6 +26,23 @@ updated as the app structure, tooling, and release process become concrete.
   Map raw protocol/network errors to friendly feedback, recovery actions, and
   copyable diagnostics. Follow `docs/pairing-feedback.md`.
 
+## ChatGPT.com / Connector Editing Workflow
+
+- If GitHub connector editing blocks a large or multi-file replacement, do not
+  keep retrying fragile partial patches. Ask for a zip of the exact branch files,
+  edit them locally in the VM, and return a repo-relative replacement zip.
+- When returning edited files from ChatGPT.com, preserve repo-relative paths such
+  as `apps/mobile-web/src/...`, `apps/windows-host/...`, and `docs/...` so the
+  user can expand the zip at the repository root.
+- Prefer complete file replacement for complex TypeScript, C#, markdown, or site
+  changes when that is safer than a sequence of brittle search/replace patches.
+- Be explicit when a PR is incomplete. Do not mark work as done until code, docs,
+  and validation instructions match the actual branch state.
+- When connection, pairing, protocol, release, screenshot, setup, troubleshooting,
+  or UI behavior changes, update the affected files under `docs/`, the static
+  site under `docs/site`, `README.md`, and this file when workflow guidance
+  changes. Keep docs current-state focused; avoid historical change notes.
+
 ## Repository Structure
 
 - `apps/mobile-web` contains the React/TypeScript PWA.

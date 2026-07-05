@@ -111,3 +111,15 @@ npm run build
 npm test
 npm run package:win
 ```
+
+
+## Connection-state screenshots
+
+Keep screenshots current for the public site and release notes when UI changes
+affect connection feedback. Capture at least:
+
+- normal paired trackpad/keyboard state;
+- unavailable/retrying state;
+- rejected pairing state with recovery actions;
+- manual host entry and troubleshooting help on a small phone viewport;
+- tablet split mode.

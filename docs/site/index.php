@@ -212,7 +212,7 @@
         </article>
         <article>
           <h2>The QR code stopped working</h2>
-          <p>Click New code on the PC and scan again. Pairing QR codes are short-lived and can be replaced when network or port settings change.</p>
+          <p>Click New code on the PC and scan again. Pairing QR codes are short-lived, include the app version, and can be replaced when network or port settings change.</p>
         </article>
         <article>
           <h2>The PC IP or port changed</h2>
@@ -228,7 +228,7 @@
         </article>
         <article>
           <h2>The home screen app looks stale</h2>
-          <p>Open Settings in the mobile app and use Refresh app, then scan a fresh QR code from the PC if pairing still fails.</p>
+          <p>Scan a fresh QR code from the PC so Chrome can fetch the current app shell. Open Settings in the mobile app and use Refresh app if pairing still fails.</p>
         </article>
       </section>
 
@@ -239,7 +239,8 @@
         </div>
         <p>
           Voltura Air is LAN-only. The Windows host serves the mobile app directly to devices on your local network,
-          and input messages are sent to the paired PC over a local WebSocket connection. There is no account system,
+          and input messages are sent to the paired PC over a local WebSocket connection. The mobile app uses lightweight
+          health checks and quiet idle behavior instead of polling status and audio constantly. There is no account system,
           cloud relay, or internet input forwarding.
         </p>
       </section>

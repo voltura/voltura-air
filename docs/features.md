@@ -134,8 +134,7 @@ Voltura Air turns a phone, tablet, or modern browser into a local-network remote
 ### Audio and system actions
 
 - Reads default Windows output device volume/mute state.
-- Sends current audio state after pairing.
-- Sends current audio state after heartbeat/status pings.
+- Sends current audio state after explicit audio requests and accepted audio commands.
 - Sets default output device volume.
 - Toggles mute.
 - Supports PC sleep when allowed by host permissions.
@@ -159,12 +158,15 @@ Voltura Air turns a phone, tablet, or modern browser into a local-network remote
 - Stores theme preference.
 - Supports light, dark, and system theme modes.
 - Provides app refresh/cache reset flow for installed PWA cases.
+- Uses versioned QR links and service-worker caches so fresh host QR codes
+  refresh stale mobile app shells.
 - Can automatically refresh the installed web app once after reconnecting to a PC.
 - Host developer mode makes auto refresh track the current host run instead of the release version.
 
 ### Pairing and reconnect UX
 
-- Detects stale heartbeat or missing input acknowledgements and moves to unavailable/retrying.
+- Detects stale health checks or missing input acknowledgements and moves to unavailable/retrying.
+- Uses faster health checks during active input, slower checks while idle, and closes the mobile WebSocket while backgrounded.
 - Treats host `connected: false` status as a real unavailable state.
 - Opens from a QR pairing link.
 - Can take a photo of a QR code for pairing/re-pairing.

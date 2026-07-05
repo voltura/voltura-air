@@ -13,11 +13,17 @@ visible pairing feedback from state plus message text:
 | `connecting` | The app is opening `/ws` and sending `pair.hello`. |
 | `paired` | The WebSocket is authenticated and commands can be sent. |
 | `rejected` | The host accepted the WebSocket but rejected pairing/reconnect. |
-| `unavailable` | The browser cannot reach the active PC host, or heartbeat failed after a previous connection. |
+| `unavailable` | The browser cannot reach the active PC host, or health checks failed after a previous connection. |
 | `disconnected` | The user intentionally disconnected from the active PC. |
 
 When a QR link contains a pairing token, the app asks the user to confirm the
 mobile device name before it sends the pairing request.
+
+QR links include the host app version. The Windows host serves `index.html`,
+`sw.js`, and the web manifest with no-store cache headers, and the mobile
+service worker keys its cache by app version. Navigation requests are cached as
+the app shell instead of the full QR URL, so pairing-token URLs are not replayed
+from Cache Storage.
 
 ## Failure mapping
 
@@ -38,7 +44,7 @@ Pairing failures should be mapped to friendly messages, not raw protocol strings
 | `pair-first` | The host received a non-pairing message before authentication. | Scan a fresh QR code and reconnect. |
 | Unknown raw reason | Host sent an unrecognized rejection. | Show a `VAIR-PAIR-*` diagnostic code and let the user copy diagnostics. |
 | `host-unreachable` / PC not available | The browser cannot open or keep the WebSocket connection to the PC host. | Try reconnect, scan a fresh QR code, enter the current host/IP:port manually, check same Wi-Fi/LAN, and allow Windows Firewall on private networks. |
-| `input-ack-timeout` | The WebSocket heartbeat may still be alive, but the host stopped confirming recent input events. | Move to unavailable/retrying and reconnect automatically. |
+| `input-ack-timeout` | The WebSocket health check may still be alive, but the host stopped confirming recent input events. | Move to unavailable/retrying and reconnect automatically. |
 | `input-dispatch-failed` | The host received input but Windows did not accept the injected input events. | Show unavailable/retrying and reconnect automatically. |
 
 When the browser cannot open the WebSocket at all, treat the failure as

@@ -125,10 +125,12 @@ public sealed class WebHostService : IAsyncDisposable
             });
             app.UseStaticFiles(new StaticFileOptions
             {
-                FileProvider = new PhysicalFileProvider(staticRoot)
+                FileProvider = new PhysicalFileProvider(staticRoot),
+                OnPrepareResponse = context => SetStaticCacheHeaders(context.Context.Response, context.Context.Request.Path.Value)
             });
             app.MapFallback(async context =>
             {
+                SetStaticCacheHeaders(context.Response, "index.html");
                 context.Response.ContentType = "text/html";
                 await context.Response.SendFileAsync(Path.Combine(staticRoot, "index.html"));
             });
@@ -247,8 +249,6 @@ public sealed class WebHostService : IAsyncDisposable
                     var pcName = Environment.MachineName;
                     var capabilities = CreateCapabilities(clientId);
                     await SendSocketAsync(socket, new { type = "pair.accepted", clientId, pcName, secret, paired = true, capabilities, host = CreateHostStatus() }, cancellationToken);
-                    await SendSocketAsync(socket, new { type = "status", connected = true, message = "Connected", pcName, capabilities, host = CreateHostStatus() }, cancellationToken);
-                    await SendAudioStateAsync(socket, clientId, cancellationToken);
                     continue;
                 }
 
@@ -270,9 +270,20 @@ public sealed class WebHostService : IAsyncDisposable
                     continue;
                 }
 
-                if (type == "status.ping")
+                if (type == "health.ping")
                 {
-                    await SendSocketAsync(socket, new { type = "status.pong", pcName = Environment.MachineName, capabilities = CreateCapabilities(authenticatedClientId), host = CreateHostStatus() }, cancellationToken);
+                    await SendSocketAsync(socket, new { type = "health.pong" }, cancellationToken);
+                    continue;
+                }
+
+                if (type == "status.get")
+                {
+                    await SendConnectedStatusAsync(socket, authenticatedClientId, cancellationToken);
+                    continue;
+                }
+
+                if (type == "audio.get")
+                {
                     await SendAudioStateAsync(socket, authenticatedClientId, cancellationToken);
                     continue;
                 }
@@ -474,16 +485,11 @@ public sealed class WebHostService : IAsyncDisposable
                 .ToArray();
         }
 
-        var pcName = Environment.MachineName;
         foreach (var (clientId, socket) in sockets)
         {
             try
             {
-                await SendSocketAsync(
-                    socket,
-                    new { type = "status", connected = true, message = "Connected", pcName, capabilities = CreateCapabilities(clientId), host = CreateHostStatus() },
-                    CancellationToken.None);
-                await SendAudioStateAsync(socket, clientId, CancellationToken.None);
+                await SendConnectedStatusAsync(socket, clientId, CancellationToken.None);
             }
             catch (Exception ex) when (ex is WebSocketException or OperationCanceledException or ObjectDisposedException)
             {
@@ -596,7 +602,7 @@ public sealed class WebHostService : IAsyncDisposable
     {
         return sequence.HasValue
             ? SendSocketAsync(socket, new { type = "input.ack", seq = sequence.Value }, cancellationToken)
-            : SendSocketAsync(socket, new { type = "input.ack" }, cancellationToken);
+            : Task.CompletedTask;
     }
 
     private Task SendInputErrorAsync(WebSocket socket, long? sequence, string code, string message, CancellationToken cancellationToken)
@@ -611,6 +617,14 @@ public sealed class WebHostService : IAsyncDisposable
         return SendSocketAsync(
             socket,
             new { type = "status", connected = false, message, pcName = Environment.MachineName, capabilities = CreateCapabilities(clientId), host = CreateHostStatus() },
+            cancellationToken);
+    }
+
+    private Task SendConnectedStatusAsync(WebSocket socket, string clientId, CancellationToken cancellationToken)
+    {
+        return SendSocketAsync(
+            socket,
+            new { type = "status", connected = true, message = "Connected", pcName = Environment.MachineName, capabilities = CreateCapabilities(clientId), host = CreateHostStatus() },
             cancellationToken);
     }
 
@@ -690,24 +704,25 @@ public sealed class WebHostService : IAsyncDisposable
 
         if (AcceptsEncoding(context.Request, "br") && File.Exists($"{filePath}.br"))
         {
-            await ServeCompressedJavaScriptAsync(context, $"{filePath}.br", "br");
+            await ServeCompressedJavaScriptAsync(context, $"{filePath}.br", "br", path);
             return true;
         }
 
         if (AcceptsEncoding(context.Request, "gzip") && File.Exists($"{filePath}.gz"))
         {
-            await ServeCompressedJavaScriptAsync(context, $"{filePath}.gz", "gzip");
+            await ServeCompressedJavaScriptAsync(context, $"{filePath}.gz", "gzip", path);
             return true;
         }
 
         return false;
     }
 
-    private static async Task ServeCompressedJavaScriptAsync(HttpContext context, string filePath, string encoding)
+    private static async Task ServeCompressedJavaScriptAsync(HttpContext context, string filePath, string encoding, string requestPath)
     {
         context.Response.ContentType = "application/javascript";
         context.Response.Headers["Content-Encoding"] = encoding;
         context.Response.Headers["Vary"] = "Accept-Encoding";
+        SetStaticCacheHeaders(context.Response, requestPath);
         context.Response.ContentLength = new FileInfo(filePath).Length;
 
         if (HttpMethods.IsHead(context.Request.Method))
@@ -716,6 +731,25 @@ public sealed class WebHostService : IAsyncDisposable
         }
 
         await context.Response.SendFileAsync(filePath);
+    }
+
+    private static void SetStaticCacheHeaders(HttpResponse response, string? requestPath)
+    {
+        var fileName = Path.GetFileName(requestPath);
+        if (string.Equals(fileName, "index.html", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(fileName, "sw.js", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(fileName, "manifest.webmanifest", StringComparison.OrdinalIgnoreCase))
+        {
+            response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
+            response.Headers["Pragma"] = "no-cache";
+            response.Headers["Expires"] = "0";
+            return;
+        }
+
+        if (requestPath?.Contains("/assets/", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            response.Headers["Cache-Control"] = "public, max-age=31536000, immutable";
+        }
     }
 
     private static bool AcceptsEncoding(HttpRequest request, string expectedEncoding)

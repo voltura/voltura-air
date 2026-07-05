@@ -8,6 +8,9 @@ public origins are rejected before the WebSocket is accepted.
 Pairing links use query parameters:
 
 - `t`: short-lived pairing token.
+- `v`: mobile app version expected by the Windows host. The host includes this
+  on QR links so browsers and installed PWAs can fetch the current app shell
+  instead of reusing stale cached code.
 - `h`: optional PC host hint for `/ws` traffic when the web app is served from
   a different origin than the Windows host. `h` can be a full origin such as
   `http://192.168.1.20:51395` or a port such as `51395`, which resolves against
@@ -101,7 +104,13 @@ Successful response:
 }
 ```
 
-Connection status response:
+Request current connection status after pairing has been accepted:
+
+```json
+{ "type": "status.get" }
+```
+
+Host response:
 
 ```json
 {
@@ -127,7 +136,7 @@ Connection status response:
 }
 ```
 
-Host metadata is included after authentication in `pair.accepted`, `status`, and `status.pong`.
+Host metadata is included after authentication in `pair.accepted` and `status`.
 It is diagnostics metadata only. It is not a secret and must not be used as authentication state.
 The adapter name can reveal local hardware/vendor details, so it should only be copied when the user explicitly chooses **Copy diagnostics**.
 `defaultRemoteMode` is the host's advisory initial Remote mode for that PC (`standard`, `youtube`, or `kodi`). The mobile app uses it only when the current phone/browser has no saved Remote mode override for that PC.
@@ -182,35 +191,22 @@ latest-activity ordering.
 The host trims `deviceName`; if the client sends a blank name, the host stores
 `Mobile device`.
 
-Connection heartbeat after pairing has been accepted:
+Lightweight connection health check after pairing has been accepted:
 
 ```json
-{ "type": "status.ping" }
+{ "type": "health.ping" }
 ```
 
 Host response:
 
 ```json
-{
-  "type": "status.pong",
-  "pcName": "WINDOWS-PC",
-  "capabilities": {
-    "gestureDebug": false,
-    "inputAck": true,
-    "sleep": true,
-    "volume": true
-  },
-  "host": {
-    "hostVersion": "0.1.0",
-    "pcName": "WINDOWS-PC",
-    "defaultRemoteMode": "standard",
-    "selectedAdapterName": "Wi-Fi - Intel(R) Wi-Fi 6 AX200",
-    "selectedIp": "192.168.1.50",
-    "selectedPort": 51395,
-    "webSocketUrl": "ws://192.168.1.50:51395/ws"
-  }
-}
+{ "type": "health.pong" }
 ```
+
+`health.pong` is only a liveness signal. It does not carry host metadata,
+capabilities, or audio state. The mobile app keeps faster checks while input is
+active, slows checks after the foreground app is idle, and closes the WebSocket
+while the browser page or installed app is backgrounded.
 
 ## Input Events
 
@@ -337,8 +333,14 @@ and the local **Show volume control** trackpad setting is enabled. The host
 ignores audio mute and volume commands when the effective **Allow volume
 control** permission is disabled.
 
-The host reports the default Windows output device state after pairing, after
-heartbeat pings, and after accepted audio commands:
+Request the default Windows output device state:
+
+```json
+{ "type": "audio.get" }
+```
+
+The host reports the default Windows output device state after `audio.get` and
+after accepted audio commands:
 
 ```json
 { "type": "audio.state", "volume": 72, "muted": false }

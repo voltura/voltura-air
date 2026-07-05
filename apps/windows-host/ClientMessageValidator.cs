@@ -71,7 +71,9 @@ internal static class ClientMessageValidator
         {
             "pair.disconnect" => true,
             "device.rename" => TryGetRequiredString(root, "deviceName", MaxDeviceNameLength, allowEmpty: true, out _),
-            "status.ping" => true,
+            "health.ping" => true,
+            "status.get" => true,
+            "audio.get" => true,
             "system.sleep" => true,
             "audio.mute.toggle" => true,
             "audio.volume.set" => TryGetNumber(root, "volume", 0, 100, out _),

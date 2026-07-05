@@ -110,16 +110,55 @@ public sealed partial class HostUiLayoutTests
                 window.ShowPage(HostPage.Connect);
                 window.UpdateLayout();
                 var initialPairingUrl = window.PairingUrl;
-                var token = new Uri(initialPairingUrl).Query.TrimStart('?')
+                var initialParameters = new Uri(initialPairingUrl).Query.TrimStart('?')
                     .Split('&', StringSplitOptions.RemoveEmptyEntries)
                     .Select(part => part.Split('=', 2))
-                    .First(part => part[0] == "t")[1];
+                    .ToDictionary(part => part[0], part => part[1]);
+                var token = initialParameters["t"];
 
+                Assert.Equal(AppVersion.Display, Uri.UnescapeDataString(initialParameters["v"]));
                 var accepted = manager.Accept("client-a", "Phone", Uri.UnescapeDataString(token), null);
                 DoWpfEvents();
 
                 Assert.True(accepted.Accepted);
                 Assert.NotEqual(initialPairingUrl, window.PairingUrl);
+            }
+            finally
+            {
+                window.Close();
+                webHost.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        });
+    }
+
+    [Fact]
+    public void MainWindowShowsFeedbackAfterCopyingPairingLink()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            using var store = new TempPairingStore();
+            using var inputInjector = new SendInputInjector();
+            var manager = new PairingManager(store.Store);
+            var webHost = new WebHostService(manager, new InputDispatcher(inputInjector));
+            var window = new MainWindow(manager, webHost, clientUrl: null);
+            try
+            {
+                window.Show();
+                window.ShowPage(HostPage.Connect);
+                window.UpdateLayout();
+
+                var copyLink = FindWpfDescendants<Button>(window)
+                    .Single(button => button.Content?.ToString() == "Copy link");
+                copyLink.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                DoWpfEvents();
+
+                Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "Link copied");
             }
             finally
             {

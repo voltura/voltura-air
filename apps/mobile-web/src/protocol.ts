@@ -20,8 +20,16 @@ export type DeviceRenameMessage = {
   deviceName: string;
 };
 
-export type StatusPingMessage = {
-  type: "status.ping";
+export type HealthPingMessage = {
+  type: "health.ping";
+};
+
+export type StatusGetMessage = {
+  type: "status.get";
+};
+
+export type AudioGetMessage = {
+  type: "audio.get";
 };
 
 export type ServerCapabilities = {
@@ -81,11 +89,8 @@ export type StatusMessage = {
   host?: HostStatusMetadata;
 };
 
-export type StatusPongMessage = {
-  type: "status.pong";
-  pcName: string;
-  capabilities?: ServerCapabilities;
-  host?: HostStatusMetadata;
+export type HealthPongMessage = {
+  type: "health.pong";
 };
 
 export type InputAckMessage = {
@@ -163,7 +168,9 @@ export type ClientMessage =
   | PairHelloMessage
   | PairDisconnectMessage
   | DeviceRenameMessage
-  | StatusPingMessage
+  | HealthPingMessage
+  | StatusGetMessage
+  | AudioGetMessage
   | PointerMoveMessage
   | PointerButtonMessage
   | PointerWheelMessage
@@ -174,4 +181,4 @@ export type ClientMessage =
   | AudioMuteToggleMessage
   | AudioVolumeSetMessage;
 
-export type ServerMessage = PairAcceptedMessage | PairRejectedMessage | StatusMessage | StatusPongMessage | InputAckMessage | InputErrorMessage | AudioStateMessage;
+export type ServerMessage = PairAcceptedMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | AudioStateMessage;

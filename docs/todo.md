@@ -8,7 +8,7 @@ This file separates the current implemented baseline from remaining roadmap work
 ## Current release blocker
 
 - [ ] Finish and validate connection reliability before publishing the next public installer:
-  - [x] stale heartbeat moves the mobile app to unavailable/retrying;
+  - [x] stale health checks move the mobile app to unavailable/retrying;
   - [x] host `connected: false` status moves the mobile app to unavailable/retrying;
   - [x] protocol supports optional input `seq`, `input.ack`, and `input.error`;
   - [x] host validates optional input sequence numbers;

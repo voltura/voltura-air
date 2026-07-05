@@ -65,6 +65,11 @@ npm run dev:host
 
 The QR code contains the host URL and a short-lived pairing token. The mobile app sends that token over the WebSocket connection. The Windows host returns a client secret, stores a hash of it in `%AppData%\Voltura Air`, and the mobile app stores the secret in browser storage for reconnects.
 
+The QR link also includes the current app version. The host serves the mobile
+app shell and service worker with no-store cache headers, and the installed PWA
+uses versioned service-worker caches so scanning a fresh QR code should fetch
+the matching mobile app instead of running stale cached code.
+
 Paired devices are managed by the Windows host and can reconnect without scanning a new QR code while the saved secret remains available in the browser or installed app storage. The mobile app also keeps saved PC profiles so a phone can reconnect to a known PC or forget old PCs from Settings.
 
 Use the Windows tray menu or the Voltura Air window to open **Devices**. The Devices page shows connected and paired devices, lets you disconnect or remove devices, and can clean up duplicate pairings created by browser/home-screen storage changes.
@@ -102,8 +107,10 @@ Windows host settings include:
 
 ## Connection health
 
-After pairing, the mobile app keeps checking the host with heartbeat messages.
-When the host advertises input acknowledgement support, recent pointer and
-keyboard input must also be acknowledged. If heartbeat or input acknowledgement
-fails, the mobile app shows unavailable/retrying instead of leaving dead controls
-on screen.
+After pairing, the mobile app keeps checking the host with lightweight health
+messages. It checks more quickly while input is active, slows down after the
+foreground app is idle, and closes the WebSocket while the browser page or
+installed app is backgrounded. When the host advertises input acknowledgement
+support, recent pointer and keyboard input must also be acknowledged. If health
+checks or input acknowledgements fail, the mobile app shows unavailable/retrying
+instead of leaving dead controls on screen.

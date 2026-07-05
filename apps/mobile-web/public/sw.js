@@ -1,4 +1,5 @@
-const cacheName = "voltura-air-v3";
+const appVersion = new URL(self.location.href).searchParams.get("v") || "dev";
+const cacheName = `voltura-air-${appVersion}`;
 const shellFiles = ["/", "/manifest.webmanifest", "/icon.svg", "/apple-touch-icon.png"];
 
 self.addEventListener("install", (event) => {
@@ -27,14 +28,17 @@ self.addEventListener("fetch", (event) => {
       .then((response) => {
         if (response.ok) {
           const copy = response.clone();
-          caches.open(cacheName).then((cache) => cache.put(event.request, copy));
+          const cacheKey = isNavigationRequest ? "/" : event.request;
+          caches.open(cacheName).then((cache) => cache.put(cacheKey, copy));
         }
         return response;
       })
       .catch(async () => {
-        const cached = await caches.match(event.request);
-        if (cached) {
-          return cached;
+        if (!isNavigationRequest) {
+          const cached = await caches.match(event.request);
+          if (cached) {
+            return cached;
+          }
         }
 
         if (isNavigationRequest) {

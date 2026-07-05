@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using QRCoder;
 using Button = System.Windows.Controls.Button;
 using CheckBox = System.Windows.Controls.CheckBox;
@@ -48,6 +49,8 @@ public partial class MainWindow : Window
     private TextBox? _manualPortTextBox;
     private TextBlock? _manualPortValidationText;
     private TextBlock? _connectionStatusText;
+    private Border? _toast;
+    private DispatcherTimer? _toastTimer;
     private int _lastPairedDeviceCount;
     private bool _isLoadingPreferences;
     private bool _allowClose;
@@ -239,7 +242,7 @@ public partial class MainWindow : Window
 
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 18, 0, 0) };
         actions.Children.Add(CreateButton("New code", (_, _) => NewPairing(), primary: true));
-        actions.Children.Add(CreateButton("Copy link", (_, _) => System.Windows.Clipboard.SetText(GetVisiblePairingUrl())));
+        actions.Children.Add(CreateButton("Copy link", (_, _) => CopyToClipboard(GetVisiblePairingUrl(), "Link copied")));
         side.Children.Add(actions);
         root.Children.Add(side);
         return root;
@@ -458,7 +461,7 @@ public partial class MainWindow : Window
         });
 
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 16, 0, 0) };
-        actions.Children.Add(CreateButton("Copy diagnostics", (_, _) => System.Windows.Clipboard.SetText(BuildDiagnosticsText()), primary: true));
+        actions.Children.Add(CreateButton("Copy diagnostics", (_, _) => CopyToClipboard(BuildDiagnosticsText(), "Diagnostics copied"), primary: true));
         actions.Children.Add(CreateButton("Open product page", (_, _) => OpenProductSite()));
         Grid.SetRow(actions, 1);
         root.Children.Add(actions);
@@ -657,7 +660,7 @@ public partial class MainWindow : Window
         var token = _pairingManager.CreatePairingToken();
         var url = new UriBuilder(_clientUrl)
         {
-            Query = $"t={Uri.EscapeDataString(token)}"
+            Query = $"t={Uri.EscapeDataString(token)}&v={Uri.EscapeDataString(AppVersion.Display)}"
         };
 
         if (!string.Equals(_clientUrl, _serverUrl, StringComparison.OrdinalIgnoreCase))
@@ -975,7 +978,7 @@ public partial class MainWindow : Window
 
         grid.Children.Add(CreateListCell("Name", detail.Name, 0, strong: true));
         grid.Children.Add(CreateListCell("Value", detail.Value, 1, monospace: true));
-        var copy = CreateButton("Copy", (_, _) => System.Windows.Clipboard.SetText(detail.Value));
+        var copy = CreateButton("Copy", (_, _) => CopyToClipboard(detail.Value, "Copied"));
         copy.Margin = new Thickness(12, 8, 0, 8);
         Grid.SetColumn(copy, 2);
         grid.Children.Add(copy);
@@ -1287,6 +1290,53 @@ public partial class MainWindow : Window
         };
         button.Click += handler;
         return button;
+    }
+
+    private void CopyToClipboard(string value, string confirmation)
+    {
+        System.Windows.Clipboard.SetText(value);
+        ShowToast(confirmation);
+    }
+
+    private void ShowToast(string message)
+    {
+        if (_toast is not null)
+        {
+            MainContentRoot.Children.Remove(_toast);
+        }
+
+        _toastTimer?.Stop();
+        _toast = new Border
+        {
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Background = (Brush)Resources["SurfaceRaisedBrush"],
+            BorderBrush = (Brush)Resources["AccentBrush"],
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(14, 10, 14, 10),
+            Margin = new Thickness(0, 0, 0, 8),
+            Child = new TextBlock
+            {
+                Text = message,
+                Foreground = (Brush)Resources["TextBrush"],
+                FontWeight = FontWeights.SemiBold
+            }
+        };
+        Grid.SetRow(_toast, 1);
+        MainContentRoot.Children.Add(_toast);
+
+        _toastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.4) };
+        _toastTimer.Tick += (_, _) =>
+        {
+            _toastTimer?.Stop();
+            if (_toast is not null)
+            {
+                MainContentRoot.Children.Remove(_toast);
+                _toast = null;
+            }
+        };
+        _toastTimer.Start();
     }
 
     private CheckBox CreateCheckBox(string text, bool isChecked)

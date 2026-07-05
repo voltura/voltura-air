@@ -306,7 +306,7 @@
             </Grid>
         </Border>
 
-        <Grid Grid.Column="1" Margin="28">
+        <Grid x:Name="MainContentRoot" Grid.Column="1" Margin="28">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />

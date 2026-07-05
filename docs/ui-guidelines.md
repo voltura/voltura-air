@@ -29,7 +29,7 @@ These notes capture project-level UI decisions for the Windows host.
 ## Connection feedback
 
 Connection errors are first-class UI states. Do not leave the user on an active
-trackpad or keyboard surface when the host reports disconnected status, heartbeat
+trackpad or keyboard surface when the host reports disconnected status, health checks
 fails, input acknowledgement times out, or input dispatch fails. Show a clear
 unavailable/retrying panel with recovery actions and keep it scrollable on small
 phones and short landscape screens.

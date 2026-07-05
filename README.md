@@ -46,8 +46,12 @@ selection behavior is documented in
 message shapes are documented in [docs/protocol.md](docs/protocol.md).
 
 Connection reliability is part of the product surface. The mobile client must not
-stay visually connected when the host is unavailable, the heartbeat stalls, or
-input delivery stops being acknowledged.
+stay visually connected when the host is unavailable, health checks fail, or
+input delivery stops being acknowledged. Foreground idle checks should stay
+lightweight so a paired phone can rest without polling status and audio state.
+QR links include the host app version, and the host serves the mobile app shell
+and service worker with no-store cache headers so fresh pairing codes are not
+masked by stale installed-PWA code.
 
 ## Requirements
 

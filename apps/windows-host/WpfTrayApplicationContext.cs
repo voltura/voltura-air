@@ -1,5 +1,4 @@
 using System.Drawing;
-using System.Runtime.InteropServices;
 using System.Windows;
 using Forms = System.Windows.Forms;
 using DrawingFontStyle = System.Drawing.FontStyle;
@@ -296,15 +295,15 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         return new Dictionary<TrayConnectionState, Icon>
         {
             [TrayConnectionState.NoDevicesRegistered] = normal,
-            [TrayConnectionState.Disconnected] = LoadTrayIconOrTint(DisconnectedTrayIconFileName, normal, Color.FromArgb(215, 88, 88)),
-            [TrayConnectionState.Connected] = LoadTrayIconOrTint(ConnectedTrayIconFileName, normal, Color.FromArgb(72, 166, 92))
+            [TrayConnectionState.Disconnected] = LoadTrayIconOrDefault(DisconnectedTrayIconFileName, normal),
+            [TrayConnectionState.Connected] = LoadTrayIconOrDefault(ConnectedTrayIconFileName, normal)
         };
     }
 
-    private static Icon LoadTrayIconOrTint(string fileName, Icon fallbackSource, Color fallbackTint)
+    private static Icon LoadTrayIconOrDefault(string fileName, Icon fallback)
     {
         var iconPath = GetAssetPath(fileName);
-        return File.Exists(iconPath) ? new Icon(iconPath) : CreateTintedTrayIcon(fallbackSource, fallbackTint);
+        return File.Exists(iconPath) ? new Icon(iconPath) : (Icon)fallback.Clone();
     }
 
     private static Icon LoadTrayIcon(string fileName)
@@ -317,78 +316,6 @@ internal sealed class WpfTrayApplicationContext : IDisposable
     {
         return Path.Combine(AppContext.BaseDirectory, "Assets", fileName);
     }
-
-    private static Icon CreateTintedTrayIcon(Icon sourceIcon, Color tint)
-    {
-        try
-        {
-            using var source = sourceIcon.ToBitmap();
-            using var tinted = TintBitmap(source, tint);
-            return CreateIconFromBitmap(tinted);
-        }
-        catch
-        {
-            return (Icon)sourceIcon.Clone();
-        }
-    }
-
-    private static Bitmap TintBitmap(Bitmap source, Color tint)
-    {
-        var target = new Bitmap(source.Width, source.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-
-        for (var y = 0; y < source.Height; y++)
-        {
-            for (var x = 0; x < source.Width; x++)
-            {
-                var pixel = source.GetPixel(x, y);
-                if (pixel.A == 0)
-                {
-                    target.SetPixel(x, y, Color.Transparent);
-                    continue;
-                }
-
-                var luminance = ((0.2126 * pixel.R) + (0.7152 * pixel.G) + (0.0722 * pixel.B)) / 255d;
-                var shade = 0.42d + (luminance * 0.72d);
-                target.SetPixel(
-                    x,
-                    y,
-                    Color.FromArgb(
-                        pixel.A,
-                        ClampToByte(tint.R * shade),
-                        ClampToByte(tint.G * shade),
-                        ClampToByte(tint.B * shade)));
-            }
-        }
-
-        return target;
-    }
-
-    private static int ClampToByte(double value)
-    {
-        if (value <= 0)
-        {
-            return 0;
-        }
-
-        return value >= 255 ? 255 : (int)Math.Round(value);
-    }
-
-    private static Icon CreateIconFromBitmap(Bitmap bitmap)
-    {
-        var handle = bitmap.GetHicon();
-        try
-        {
-            using var icon = Icon.FromHandle(handle);
-            return (Icon)icon.Clone();
-        }
-        finally
-        {
-            DestroyIcon(handle);
-        }
-    }
-
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern bool DestroyIcon(IntPtr hIcon);
 
     public void Dispose()
     {

@@ -72,8 +72,8 @@ describe("RemoteMode", () => {
   it("disables volume controls when the host does not allow volume control", () => {
     renderRemote({ supportsVolumeControl: false });
 
-    expect(screen.getByRole("button", { name: "Volume down" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Mute PC" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Volume up" })).toBeDisabled();
+    expect((screen.getByRole("button", { name: "Volume down" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Mute PC" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Volume up" }) as HTMLButtonElement).disabled).toBe(true);
   });
 });

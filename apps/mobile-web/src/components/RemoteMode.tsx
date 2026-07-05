@@ -1,11 +1,13 @@
-import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ButtonHTMLAttributes, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import {
   ArrowDown,
   ArrowLeft,
   ArrowRight,
   ArrowUp,
+  Captions,
   CornerDownLeft,
   FastForward,
+  Info,
   Maximize2,
   Pause,
   Play,
@@ -13,6 +15,7 @@ import {
   Search,
   SkipBack,
   SkipForward,
+  SquareX,
   Volume2,
   VolumeX
 } from "lucide-react";
@@ -44,6 +47,9 @@ type RemoteShortcutMap = {
   appFullscreen: RemoteShortcut;
   browserFullscreen: RemoteShortcut;
   space: RemoteShortcut;
+  stop?: RemoteShortcut;
+  info?: RemoteShortcut;
+  subtitles?: RemoteShortcut;
 };
 
 const remoteShortcutMaps: Record<RemoteModeId, RemoteShortcutMap> = {
@@ -87,7 +93,10 @@ const remoteShortcutMaps: Record<RemoteModeId, RemoteShortcutMap> = {
     back: { key: "Backspace" },
     appFullscreen: { key: "Tab" },
     browserFullscreen: { key: "\\" },
-    space: { key: "Space" }
+    space: { key: "Space" },
+    stop: { key: "X" },
+    info: { key: "I" },
+    subtitles: { key: "T" }
   }
 };
 
@@ -144,6 +153,7 @@ export function RemoteMode({
   const navigationPanelPointerRef = useRef<MiniTrackpadPointer | null>(null);
   const pendingMiniTapRef = useRef<PendingMiniTap | null>(null);
   const modeCopy = getRemoteModeCopy(remoteSettings.mode);
+  const isKodiMode = remoteSettings.mode === "kodi";
 
   const stopRepeatingPress = () => {
     if (repeatTimeoutRef.current !== null) {
@@ -184,6 +194,9 @@ export function RemoteMode({
   const sendAppFullscreen = () => sendShortcut(shortcuts.appFullscreen);
   const sendBrowserFullscreen = () => sendShortcut(shortcuts.browserFullscreen);
   const sendSpace = () => sendShortcut(shortcuts.space);
+  const sendStopPlayback = () => shortcuts.stop && sendShortcut(shortcuts.stop);
+  const sendInfo = () => shortcuts.info && sendShortcut(shortcuts.info);
+  const sendSubtitles = () => shortcuts.subtitles && sendShortcut(shortcuts.subtitles);
 
   useEffect(
     () => () => {
@@ -246,12 +259,23 @@ export function RemoteMode({
     };
   };
 
-  const pressMiniTrackpad = (event: React.PointerEvent<HTMLButtonElement>) => {
+  const queueMiniTrackpadTap = (x: number, y: number, time: number) => {
+    if (isKodiMode) {
+      clearPendingMiniTap();
+      sendSpecial("Enter");
+      return;
+    }
+
+    queuePointerTap(x, y, time);
+  };
+
+  const pressMiniTrackpad = (event: PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) {
       return;
     }
 
     event.preventDefault();
+    event.stopPropagation();
     event.currentTarget.setPointerCapture?.(event.pointerId);
     miniTrackpadPointerRef.current = {
       id: event.pointerId,
@@ -263,13 +287,14 @@ export function RemoteMode({
     };
   };
 
-  const moveMiniTrackpad = (event: React.PointerEvent<HTMLButtonElement>) => {
+  const moveMiniTrackpad = (event: PointerEvent<HTMLDivElement>) => {
     const pointer = miniTrackpadPointerRef.current;
     if (!pointer || pointer.id !== event.pointerId) {
       return;
     }
 
     event.preventDefault();
+    event.stopPropagation();
     const dx = event.clientX - pointer.lastX;
     const dy = event.clientY - pointer.lastY;
     pointer.lastX = event.clientX;
@@ -283,13 +308,14 @@ export function RemoteMode({
     onPointerMove(round(dx * miniTrackpadSensitivity), round(dy * miniTrackpadSensitivity));
   };
 
-  const releaseMiniTrackpad = (event: React.PointerEvent<HTMLButtonElement>) => {
+  const releaseMiniTrackpad = (event: PointerEvent<HTMLDivElement>) => {
     const pointer = miniTrackpadPointerRef.current;
     if (!pointer || pointer.id !== event.pointerId) {
       return;
     }
 
     event.preventDefault();
+    event.stopPropagation();
     miniTrackpadPointerRef.current = null;
     if (
       typeof event.currentTarget.hasPointerCapture === "function" &&
@@ -303,19 +329,35 @@ export function RemoteMode({
       return;
     }
 
-    queuePointerTap(event.clientX, event.clientY, event.timeStamp);
+    queueMiniTrackpadTap(event.clientX, event.clientY, event.timeStamp);
   };
 
-  const cancelMiniTrackpad = (event: React.PointerEvent<HTMLButtonElement>) => {
+  const cancelMiniTrackpad = (event: PointerEvent<HTMLDivElement>) => {
     const pointer = miniTrackpadPointerRef.current;
     if (!pointer || pointer.id !== event.pointerId) {
       return;
     }
 
+    event.stopPropagation();
     miniTrackpadPointerRef.current = null;
   };
 
-  const pressNavigationPanel = (event: React.PointerEvent<HTMLDivElement>) => {
+  const clickMiniTrackpadFromKeyboard = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+
+    event.preventDefault();
+    if (isKodiMode) {
+      clearPendingMiniTap();
+      sendSpecial("Enter");
+      return;
+    }
+
+    onPointerButtonClick("left");
+  };
+
+  const pressNavigationPanel = (event: PointerEvent<HTMLDivElement>) => {
     if (!remoteSettings.navigationRing || event.button !== 0 || isInteractiveTarget(event.target)) {
       return;
     }
@@ -332,7 +374,7 @@ export function RemoteMode({
     };
   };
 
-  const moveNavigationPanel = (event: React.PointerEvent<HTMLDivElement>) => {
+  const moveNavigationPanel = (event: PointerEvent<HTMLDivElement>) => {
     const pointer = navigationPanelPointerRef.current;
     if (!pointer || pointer.id !== event.pointerId) {
       return;
@@ -352,7 +394,7 @@ export function RemoteMode({
     onPointerMove(round(dx * miniTrackpadSensitivity), round(dy * miniTrackpadSensitivity));
   };
 
-  const releaseNavigationPanel = (event: React.PointerEvent<HTMLDivElement>) => {
+  const releaseNavigationPanel = (event: PointerEvent<HTMLDivElement>) => {
     const pointer = navigationPanelPointerRef.current;
     if (!pointer || pointer.id !== event.pointerId) {
       return;
@@ -375,7 +417,7 @@ export function RemoteMode({
     queuePointerTap(event.clientX, event.clientY, event.timeStamp);
   };
 
-  const cancelNavigationPanel = (event: React.PointerEvent<HTMLDivElement>) => {
+  const cancelNavigationPanel = (event: PointerEvent<HTMLDivElement>) => {
     const pointer = navigationPanelPointerRef.current;
     if (!pointer || pointer.id !== event.pointerId) {
       return;
@@ -421,11 +463,13 @@ export function RemoteMode({
         <button type="button" className="remote-ring-zone remote-ring-down" aria-label="D-pad down" {...getRepeatablePressProps(() => sendSpecial("ArrowDown"))}>
           <ArrowDown aria-hidden="true" />
         </button>
-        <button
-          type="button"
+        <div
+          role="button"
+          tabIndex={0}
           className="remote-mini-trackpad"
           aria-label="Mini trackpad"
           onClick={(event) => event.preventDefault()}
+          onKeyDown={clickMiniTrackpadFromKeyboard}
           onPointerCancel={cancelMiniTrackpad}
           onPointerDown={pressMiniTrackpad}
           onPointerLeave={cancelMiniTrackpad}
@@ -433,7 +477,7 @@ export function RemoteMode({
           onPointerUp={releaseMiniTrackpad}
         >
           <span aria-hidden="true" />
-        </button>
+        </div>
       </div>
     );
   };
@@ -480,10 +524,16 @@ export function RemoteMode({
             <Maximize2 aria-hidden="true" />
             <span>Fullscreen</span>
           </RemoteButton>
-          <RemoteButton label="Browser fullscreen" title={modeCopy.browserFullscreenTitle} onClick={sendBrowserFullscreen}>
-            <Maximize2 aria-hidden="true" />
-            <span>Browser Full</span>
-          </RemoteButton>
+          {isKodiMode ? (
+            <RemoteButton label="End playback" title="Kodi stop playback" className="remote-icon-button" onClick={sendStopPlayback}>
+              <SquareX aria-hidden="true" />
+            </RemoteButton>
+          ) : (
+            <RemoteButton label="Browser fullscreen" title={modeCopy.browserFullscreenTitle} onClick={sendBrowserFullscreen}>
+              <Maximize2 aria-hidden="true" />
+              <span>Browser Full</span>
+            </RemoteButton>
+          )}
         </div>
       </div>
 
@@ -518,9 +568,28 @@ export function RemoteMode({
       >
         <div className="remote-section-title">
           <span>Navigation</span>
-          <small>{remoteSettings.navigationRing ? "Ring navigation with a center mini-trackpad." : "D-pad for menus, players, slides, and full-screen dialogs."}</small>
+          <small>{remoteSettings.navigationRing ? "Ring and mini-trackpad." : "D-pad menu navigation."}</small>
         </div>
+        {isKodiMode && (
+          <>
+            <RemoteButton label="Toggle subtitles" title="Kodi subtitles" className="remote-nav-action remote-nav-action-subtitles" onClick={sendSubtitles}>
+              <Captions aria-hidden="true" />
+            </RemoteButton>
+            <RemoteButton label="Info" title="Kodi info" className="remote-nav-action remote-nav-action-info" onClick={sendInfo}>
+              <Info aria-hidden="true" />
+            </RemoteButton>
+          </>
+        )}
         {renderNavigationControl()}
+        <button
+          type="button"
+          className="remote-fn-button remote-floating-fn"
+          aria-controls={utilityPanelId}
+          aria-expanded={showUtilityPanel}
+          onClick={() => setShowUtilityPanel(true)}
+        >
+          Fn
+        </button>
       </div>
 
       <div id={utilityPanelId} className="remote-section remote-utility-section">
@@ -541,16 +610,16 @@ export function RemoteMode({
             <span>Back</span>
           </RemoteButton>
         </div>
+        <button
+          type="button"
+          className="remote-fn-button remote-floating-fn"
+          aria-controls={utilityPanelId}
+          aria-expanded={showUtilityPanel}
+          onClick={() => setShowUtilityPanel(false)}
+        >
+          Main
+        </button>
       </div>
-      <button
-        type="button"
-        className="remote-fn-button remote-floating-fn"
-        aria-controls={utilityPanelId}
-        aria-expanded={showUtilityPanel}
-        onClick={() => setShowUtilityPanel((isOpen) => !isOpen)}
-      >
-        {showUtilityPanel ? "Main" : "Fn"}
-      </button>
     </section>
   );
 }
@@ -596,7 +665,7 @@ function getRemoteModeCopy(mode: RemoteModeId) {
 }
 
 function isInteractiveTarget(target: EventTarget): boolean {
-  return target instanceof Element && target.closest("button, a, input, textarea, select") !== null;
+  return target instanceof Element && target.closest("button, a, input, textarea, select, [role='button']") !== null;
 }
 
 function RemoteButton({ label, onClick, pressProps, children, className, disabled = false, title }: RemoteButtonProps) {

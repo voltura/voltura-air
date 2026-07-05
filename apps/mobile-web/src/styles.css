@@ -170,6 +170,14 @@ svg {
   overflow: hidden;
 }
 
+.app-shell.mode-tabs-collapsed {
+  grid-template-rows: auto 1fr;
+}
+
+.app-shell.remote-active.mode-tabs-collapsed {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
 .top-bar,
 .tabs,
 .command-row,
@@ -245,7 +253,7 @@ button span {
 
 .tabs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   container-type: inline-size;
 }
 

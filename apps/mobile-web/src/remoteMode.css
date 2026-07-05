@@ -106,6 +106,11 @@
   margin-left: -8px;
 }
 
+.remote-primary-grid button.remote-icon-button svg {
+  width: 24px;
+  height: 24px;
+}
+
 .remote-volume-grid,
 .remote-utility-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -121,7 +126,7 @@
 .remote-navigation-section {
   position: relative;
   grid-template-rows: auto minmax(0, 1fr);
-  justify-items: center;
+  justify-items: stretch;
   align-content: stretch;
   touch-action: none;
   overflow: hidden;
@@ -174,12 +179,38 @@
 
 .remote-floating-fn {
   position: absolute;
-  right: max(18px, calc(env(safe-area-inset-right) + 18px));
-  bottom: max(18px, calc(env(safe-area-inset-bottom) + 18px));
+  right: 10px;
+  bottom: 10px;
   z-index: 3;
   min-width: 54px;
   min-height: 40px;
   box-shadow: 0 8px 24px color-mix(in srgb, var(--drawer-shadow) 42%, transparent);
+}
+
+.remote-nav-action {
+  position: absolute;
+  z-index: 3;
+  width: 44px;
+  height: 40px;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--drawer-shadow) 34%, transparent);
+}
+
+.remote-nav-action svg {
+  width: 22px;
+  height: 22px;
+}
+
+.remote-nav-action-subtitles {
+  top: 48px;
+  left: 10px;
+}
+
+.remote-nav-action-info {
+  left: 10px;
+  bottom: 10px;
 }
 
 .remote-utility-section {
@@ -227,8 +258,17 @@
   }
 
   .remote-floating-fn {
-    right: max(14px, calc(env(safe-area-inset-right) + 14px));
-    bottom: max(14px, calc(env(safe-area-inset-bottom) + 14px));
+    right: 8px;
+    bottom: 8px;
+  }
+
+  .remote-nav-action {
+    width: 40px;
+    height: 36px;
+  }
+
+  .remote-nav-action-subtitles {
+    top: 42px;
   }
 
   .remote-primary-grid,
@@ -379,11 +419,16 @@
 @media (orientation: landscape) and (max-height: 520px) {
   .remote-mode {
     grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr);
-    align-items: start;
+    grid-template-rows: auto minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .remote-section-title {
+    display: none;
   }
 
   .remote-media-section {
-    grid-row: span 3;
+    grid-row: 1 / span 2;
   }
 
   .remote-primary-grid button {
@@ -398,7 +443,16 @@
     min-height: 46px;
   }
 
+  .remote-navigation-section {
+    min-height: 150px;
+    padding-bottom: 6px;
+  }
+
   .remote-navigation-ring {
-    width: min(28vw, 34svh, 150px);
+    width: min(34vw, 46svh, 190px);
+  }
+
+  .remote-nav-action-subtitles {
+    top: 8px;
   }
 }

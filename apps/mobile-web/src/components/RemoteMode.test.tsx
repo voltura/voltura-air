@@ -115,7 +115,9 @@ describe("RemoteMode", () => {
     ["Seek forward", "ArrowRight", undefined],
     ["Esc or back", "Backspace", undefined],
     ["Fullscreen", "Tab", undefined],
-    ["Browser fullscreen", "\\", undefined],
+    ["End playback", "X", undefined],
+    ["Info", "I", undefined],
+    ["Toggle subtitles", "T", undefined],
     ["Volume down", "-", undefined],
     ["Mute PC", "F8", undefined],
     ["Volume up", "+", undefined]
@@ -131,6 +133,12 @@ describe("RemoteMode", () => {
     }
 
     expect(sendSpecial).toHaveBeenCalledExactlyOnceWith(key);
+  });
+
+  it("hides the separate browser fullscreen button in Kodi mode", () => {
+    renderRemote({ remoteSettings: { navigationRing: true, mode: "kodi" } });
+
+    expect(screen.queryByRole("button", { name: "Browser fullscreen" })).toBeNull();
   });
 
   it("keeps remote volume buttons enabled without audio state", () => {
@@ -267,6 +275,34 @@ describe("RemoteMode mini trackpad", () => {
     });
 
     expect(onPointerButtonClick).toHaveBeenCalledExactlyOnceWith("left");
+  });
+
+  it("turns a Kodi mini trackpad tap into Enter instead of a left click", () => {
+    const onPointerButtonClick = vi.fn();
+    const sendSpecial = vi.fn();
+    renderRemote({ remoteSettings: { navigationRing: true, mode: "kodi" }, onPointerButtonClick, sendSpecial });
+
+    const trackpad = screen.getByRole("button", { name: "Mini trackpad" });
+    fireEvent.pointerDown(trackpad, { button: 0, pointerId: 1, clientX: 10, clientY: 20 });
+    fireEvent.pointerUp(trackpad, { pointerId: 1, clientX: 10, clientY: 20, timeStamp: 100 });
+
+    act(() => {
+      vi.advanceTimersByTime(280);
+    });
+
+    expect(sendSpecial).toHaveBeenCalledExactlyOnceWith("Enter");
+    expect(onPointerButtonClick).not.toHaveBeenCalled();
+  });
+
+  it("turns Kodi mini trackpad keyboard activation into Enter", () => {
+    const onPointerButtonClick = vi.fn();
+    const sendSpecial = vi.fn();
+    renderRemote({ remoteSettings: { navigationRing: true, mode: "kodi" }, onPointerButtonClick, sendSpecial });
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Mini trackpad" }), { key: "Enter" });
+
+    expect(sendSpecial).toHaveBeenCalledExactlyOnceWith("Enter");
+    expect(onPointerButtonClick).not.toHaveBeenCalled();
   });
 
   it("turns a double tap into a right click without sending the pending left click", () => {

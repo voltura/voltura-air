@@ -26,11 +26,19 @@ import { defaultRemoteSettings, resolveRemoteSettings, type RemoteModeId, type R
 import { useVolturaAirConnection } from "./useVolturaAirConnection";
 
 type Tab = "trackpad" | "keyboard" | "remote" | "dictation" | "debug";
+type MainTab = Exclude<Tab, "debug">;
 type ThemeMode = "system" | "light" | "dark";
 const liveKeyboardKey = "voltura-air.liveKeyboard";
 const liveKeyboardDefaultMigrationKey = "voltura-air.liveKeyboardDefaultOn";
 const splitModeMediaQuery = "(orientation: landscape) and (min-width: 640px)";
 const autoRefreshSessionPrefix = "voltura-air.autoRefresh";
+
+const modeTabs: Array<{ id: MainTab; label: string; ariaLabel: string; Icon: typeof MousePointer2 }> = [
+  { id: "trackpad", label: "Trackpad", ariaLabel: "Trackpad mode", Icon: MousePointer2 },
+  { id: "keyboard", label: "Keyboard", ariaLabel: "Keyboard mode", Icon: Keyboard },
+  { id: "remote", label: "Remote", ariaLabel: "Remote mode", Icon: Tv },
+  { id: "dictation", label: "Dictate", ariaLabel: "Dictation mode", Icon: Mic }
+];
 
 type SpeechRecognitionConstructor = new () => SpeechRecognition;
 
@@ -107,6 +115,7 @@ export function App() {
   const [dictationText, setDictationText] = useState("");
   const [isListening, setIsListening] = useState(false);
   const [isTrackpadExpanded, setIsTrackpadExpanded] = useState(false);
+  const [areModeTabsCollapsed, setAreModeTabsCollapsed] = useState(false);
   const committedKeyboardTextRef = useRef("");
   const isComposingRef = useRef(false);
   const lastEmptyDeleteRef = useRef<{ key: string; timeStamp: number } | null>(null);
@@ -236,6 +245,12 @@ export function App() {
       setTab("trackpad");
     }
   }, [supportsGestureDebug, tab]);
+
+  useEffect(() => {
+    if (tab === "debug") {
+      setAreModeTabsCollapsed(false);
+    }
+  }, [tab]);
 
   useEffect(() => {
     const onBeforeInstallPrompt = (event: Event) => {
@@ -657,11 +672,34 @@ export function App() {
 
   const shouldShowSplitMode =
     canUseSplitMode && ((tab === "trackpad" && trackpadSettings.enableSplitMode) || (tab === "keyboard" && keyboardSettings.enableSplitMode));
+  const activeModeTab = modeTabs.find((modeTab) => modeTab.id === tab);
+  const ActiveModeIcon = activeModeTab?.Icon;
+
+  const selectModeTab = (nextTab: MainTab) => {
+    if (tab === nextTab) {
+      setAreModeTabsCollapsed(true);
+      return;
+    }
+
+    setTab(nextTab);
+    setAreModeTabsCollapsed(false);
+  };
 
   return (
-    <main className={`app-shell ${tab === "trackpad" ? "trackpad-active" : ""} ${tab === "remote" ? "remote-active" : ""} ${shouldShowSplitMode ? "split-mode-active" : ""}`}>
+    <main className={`app-shell ${tab === "trackpad" ? "trackpad-active" : ""} ${tab === "remote" ? "remote-active" : ""} ${shouldShowSplitMode ? "split-mode-active" : ""} ${areModeTabsCollapsed ? "mode-tabs-collapsed" : ""}`}>
       <header className="top-bar">
         <div className="brand-group">
+          {areModeTabsCollapsed && ActiveModeIcon && activeModeTab && (
+            <button
+              className="icon-button active"
+              type="button"
+              aria-label={`Show mode buttons, ${activeModeTab.label} mode active`}
+              title={`Show mode buttons (${activeModeTab.label})`}
+              onClick={() => setAreModeTabsCollapsed(false)}
+            >
+              <ActiveModeIcon aria-hidden="true" />
+            </button>
+          )}
           <button className="icon-button" type="button" aria-label="Open settings" onClick={() => setIsSettingsOpen(true)}>
             <Menu aria-hidden="true" />
           </button>
@@ -718,6 +756,7 @@ export function App() {
         onClose={() => setIsSettingsOpen(false)}
         onOpenGestureDebug={supportsGestureDebug ? () => {
           setTab("debug");
+          setAreModeTabsCollapsed(false);
           setIsSettingsOpen(false);
         } : undefined}
         onPairingQrSelected={onPairingQrSelected}
@@ -742,24 +781,16 @@ export function App() {
         updateTrackpadSetting={updateTrackpadSetting}
       />
 
-      <nav className="tabs" aria-label="Mode">
-        <button aria-label="Trackpad mode" className={tab === "trackpad" ? "active" : ""} onClick={() => setTab("trackpad")}>
-          <MousePointer2 aria-hidden="true" />
-          <span>Trackpad</span>
-        </button>
-        <button aria-label="Keyboard mode" className={tab === "keyboard" ? "active" : ""} onClick={() => setTab("keyboard")}>
-          <Keyboard aria-hidden="true" />
-          <span>Keyboard</span>
-        </button>
-        <button aria-label="Remote mode" className={tab === "remote" ? "active" : ""} onClick={() => setTab("remote")}>
-          <Tv aria-hidden="true" />
-          <span>Remote</span>
-        </button>
-        <button aria-label="Dictation mode" className={tab === "dictation" ? "active" : ""} onClick={() => setTab("dictation")}>
-          <Mic aria-hidden="true" />
-          <span>Dictate</span>
-        </button>
-      </nav>
+      {!areModeTabsCollapsed && (
+        <nav className="tabs" aria-label="Mode">
+          {modeTabs.map(({ id, label, ariaLabel, Icon }) => (
+            <button key={id} aria-label={ariaLabel} className={tab === id ? "active" : ""} onClick={() => selectModeTab(id)}>
+              <Icon aria-hidden="true" />
+              <span>{label}</span>
+            </button>
+          ))}
+        </nav>
+      )}
 
       {(tab === "trackpad" || tab === "keyboard") &&
         (shouldShowSplitMode ? renderSplitMode() : tab === "trackpad" ? renderTrackpadMode() : renderKeyboardMode())}

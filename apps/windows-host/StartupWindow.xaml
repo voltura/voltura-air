@@ -24,13 +24,13 @@
                 Height="96"
                 CornerRadius="24"
                 HorizontalAlignment="Center"
-                Background="{DynamicResource AccentBrush}">
-            <TextBlock Text="VA"
-                       FontSize="30"
-                       FontWeight="Bold"
-                       Foreground="White"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center" />
+                Background="Transparent">
+            <Image Source="Assets/VolturaAir-256.png"
+                   Width="96"
+                   Height="96"
+                   Stretch="Uniform"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center" />
         </Border>
 
         <TextBlock Grid.Row="2"

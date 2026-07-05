@@ -170,7 +170,7 @@ public partial class MainWindow : Window
                 break;
             case HostPage.Preferences:
                 PageTitleText.Text = "Preferences";
-                PageSubtitleText.Text = "Startup, notifications, global permissions, and appearance.";
+                PageSubtitleText.Text = "Startup, alerts, permissions, device defaults, and theme.";
                 PageContent.Content = BuildPreferencesPage();
                 break;
             case HostPage.Diagnostics:
@@ -378,6 +378,7 @@ public partial class MainWindow : Window
         var panel = (StackPanel)root.Content;
         var globalPermissions = AppPermissionSettings.Load();
 
+        panel.Children.Add(CreateSectionHeading("Application"));
         var start = CreateCheckBox("Start Voltura Air when I sign in to Windows", AppStartupSettings.IsEnabled());
         start.Checked += (_, _) => AppStartupSettings.SetEnabled(true);
         start.Unchecked += (_, _) => AppStartupSettings.SetEnabled(false);
@@ -398,6 +399,17 @@ public partial class MainWindow : Window
         showOnDisconnect.Unchecked += (_, _) => AppNotificationSettings.SetShowPairingWindowOnDisconnect(false);
         panel.Children.Add(showOnDisconnect);
 
+        panel.Children.Add(CreateSectionHeading("Appearance"));
+        var activeTheme = AppThemeSettings.GetMode();
+        var systemTheme = CreateSegmentButton("System", activeTheme == AppThemeMode.System);
+        var lightTheme = CreateSegmentButton("Light", activeTheme == AppThemeMode.Light);
+        var darkTheme = CreateSegmentButton("Dark", activeTheme == AppThemeMode.Dark);
+        WireSegmentGroup(systemTheme, lightTheme, darkTheme);
+        systemTheme.Click += (_, _) => SetThemeMode(AppThemeMode.System);
+        lightTheme.Click += (_, _) => SetThemeMode(AppThemeMode.Light);
+        darkTheme.Click += (_, _) => SetThemeMode(AppThemeMode.Dark);
+        panel.Children.Add(CreateSegmentRow(systemTheme, lightTheme, darkTheme));
+
         panel.Children.Add(CreateSectionHeading("Global permissions"));
         var sleep = CreateCheckBox("Allow paired devices to request PC sleep", globalPermissions.AllowPcSleep);
         var volume = CreateCheckBox("Allow paired devices to control volume", globalPermissions.AllowVolumeControl);
@@ -408,11 +420,11 @@ public partial class MainWindow : Window
         panel.Children.Add(sleep);
         panel.Children.Add(volume);
 
-        panel.Children.Add(CreateSectionHeading("Trackpad"));
+        panel.Children.Add(CreateSectionHeading("Trackpad defaults"));
         panel.Children.Add(CreateMutedText("Default pointer speed for paired devices unless a device has its own override."));
         AddGlobalPointerSpeedSetting(panel);
 
-        panel.Children.Add(CreateSectionHeading("Remote"));
+        panel.Children.Add(CreateSectionHeading("Remote defaults"));
         panel.Children.Add(CreateMutedText("Choose the initial Remote mode for newly connected phones. Mobile settings can still override this per PC."));
         var activeRemoteMode = AppRemoteSettings.GetDefaultRemoteMode();
         var standardRemote = CreateSegmentButton("Standard", activeRemoteMode == AppRemoteMode.Standard);
@@ -435,17 +447,6 @@ public partial class MainWindow : Window
         gestureDebug.Checked += (_, _) => AppDeveloperSettings.SetEnableGestureDebug(true);
         gestureDebug.Unchecked += (_, _) => AppDeveloperSettings.SetEnableGestureDebug(false);
         panel.Children.Add(gestureDebug);
-
-        panel.Children.Add(CreateSectionHeading("Appearance"));
-        var activeTheme = AppThemeSettings.GetMode();
-        var systemTheme = CreateSegmentButton("System", activeTheme == AppThemeMode.System);
-        var lightTheme = CreateSegmentButton("Light", activeTheme == AppThemeMode.Light);
-        var darkTheme = CreateSegmentButton("Dark", activeTheme == AppThemeMode.Dark);
-        WireSegmentGroup(systemTheme, lightTheme, darkTheme);
-        systemTheme.Click += (_, _) => SetThemeMode(AppThemeMode.System);
-        lightTheme.Click += (_, _) => SetThemeMode(AppThemeMode.Light);
-        darkTheme.Click += (_, _) => SetThemeMode(AppThemeMode.Dark);
-        panel.Children.Add(CreateSegmentRow(systemTheme, lightTheme, darkTheme));
 
         _isLoadingPreferences = false;
         return root;

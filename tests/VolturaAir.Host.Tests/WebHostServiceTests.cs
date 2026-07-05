@@ -168,12 +168,13 @@ public sealed class WebHostServiceTests
         var health = await SendAndReceiveAsync(socket, new { type = "health.ping" });
         var status = await SendAndReceiveAsync(socket, new { type = "status.get" });
         var audioState = await SendAndReceiveAsync(socket, new { type = "audio.get" });
+        var expectedPointerSpeed = AppPointerSettings.GetDefaultPointerSpeed();
 
         Assert.Equal("pair.accepted", paired.GetProperty("type").GetString());
         Assert.Equal("health.pong", health.GetProperty("type").GetString());
         Assert.Equal("status", status.GetProperty("type").GetString());
         Assert.True(status.GetProperty("connected").GetBoolean());
-        Assert.Equal(100, status.GetProperty("host").GetProperty("pointerSpeed").GetInt32());
+        Assert.Equal(expectedPointerSpeed, status.GetProperty("host").GetProperty("pointerSpeed").GetInt32());
         Assert.Equal("audio.state", audioState.GetProperty("type").GetString());
         Assert.Equal(38, audioState.GetProperty("volume").GetInt32());
         Assert.False(audioState.GetProperty("muted").GetBoolean());

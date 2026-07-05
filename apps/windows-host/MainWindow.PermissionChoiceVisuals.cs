@@ -7,6 +7,8 @@ namespace VolturaAir.Host;
 
 public partial class MainWindow
 {
+    private const string PermissionChoiceCheckPrefix = "✓ ";
+
     private bool _permissionChoiceVisualsHooked;
 
     protected override void OnContentRendered(EventArgs e)
@@ -19,31 +21,51 @@ public partial class MainWindow
         }
 
         _permissionChoiceVisualsHooked = true;
-        PageContent.LayoutUpdated += (_, _) => ApplyInheritedPermissionChoiceVisuals();
+        PageContent.LayoutUpdated += (_, _) => ApplyPermissionChoiceVisuals();
     }
 
-    private void ApplyInheritedPermissionChoiceVisuals()
+    private void ApplyPermissionChoiceVisuals()
     {
-        if (_activePage != HostPage.Devices || _deviceDetailsPanel is null)
+        if (_activePage != HostPage.Devices ||
+            _deviceDetailsPanel is null ||
+            _devicesList?.SelectedItem is not ListBoxItem { Tag: DeviceListItem selected })
+        {
+            return;
+        }
+
+        var device = _pairingManager.GetDevices().FirstOrDefault(item => item.ClientId == selected.ClientId);
+        if (device is null)
         {
             return;
         }
 
         var globalPermissions = AppPermissionSettings.Load();
-        ApplyInheritedPermissionChoiceVisuals("PC sleep", globalPermissions.AllowPcSleep);
-        ApplyInheritedPermissionChoiceVisuals("Volume control", globalPermissions.AllowVolumeControl);
+        ApplyPermissionChoiceVisuals("PC sleep", device.PermissionOverrides.AllowPcSleep, globalPermissions.AllowPcSleep);
+        ApplyPermissionChoiceVisuals("Volume control", device.PermissionOverrides.AllowVolumeControl, globalPermissions.AllowVolumeControl);
     }
 
-    private void ApplyInheritedPermissionChoiceVisuals(string label, bool inheritedAllow)
+    private void ApplyPermissionChoiceVisuals(string label, bool? overrideValue, bool inheritedAllow)
     {
         var row = FindPermissionChoiceRow(label);
-        if (row is null || !IsUseGlobalSelected(row))
+        if (row is null)
         {
             return;
         }
 
-        ApplyMutedInheritedVisual(FindPermissionButton(row, "Allow"), inheritedAllow);
-        ApplyMutedInheritedVisual(FindPermissionButton(row, "Block"), !inheritedAllow);
+        var allowButton = FindPermissionButton(row, "Allow");
+        var blockButton = FindPermissionButton(row, "Block");
+        ResetPermissionButtonVisual(allowButton, "Allow");
+        ResetPermissionButtonVisual(blockButton, "Block");
+
+        var effectiveAllow = overrideValue ?? inheritedAllow;
+        if (effectiveAllow)
+        {
+            ApplyEffectivePermissionVisual(allowButton, "Allow", isInherited: overrideValue is null, danger: false);
+        }
+        else
+        {
+            ApplyEffectivePermissionVisual(blockButton, "Block", isInherited: overrideValue is null, danger: true);
+        }
     }
 
     private StackPanel? FindPermissionChoiceRow(string label)
@@ -66,29 +88,51 @@ public partial class MainWindow
         return null;
     }
 
-    private bool IsUseGlobalSelected(StackPanel row)
-    {
-        var useGlobalButton = FindPermissionButton(row, "Use global");
-        return useGlobalButton is not null &&
-            Equals(useGlobalButton.Background, (Brush)Resources["AccentBrush"]);
-    }
-
     private static Button? FindPermissionButton(StackPanel row, string text)
     {
         return row.Children
             .OfType<Button>()
-            .FirstOrDefault(button => string.Equals(button.Content as string, text, StringComparison.Ordinal));
+            .FirstOrDefault(button => string.Equals(GetPermissionButtonText(button), text, StringComparison.Ordinal));
     }
 
-    private void ApplyMutedInheritedVisual(Button? button, bool isInherited)
+    private static string GetPermissionButtonText(Button button)
     {
-        if (button is null || !isInherited)
+        return button.Content is string text && text.StartsWith(PermissionChoiceCheckPrefix, StringComparison.Ordinal)
+            ? text[PermissionChoiceCheckPrefix.Length..]
+            : button.Content as string ?? string.Empty;
+    }
+
+    private void ResetPermissionButtonVisual(Button? button, string text)
+    {
+        if (button is null)
         {
             return;
         }
 
-        button.Foreground = (Brush)Resources["MutedTextBrush"];
-        button.BorderBrush = (Brush)Resources["MutedTextBrush"];
-        button.Opacity = 0.78;
+        button.Content = text;
+        button.FontWeight = FontWeights.Normal;
+        button.BorderThickness = new Thickness(1);
+        button.Opacity = 1;
+    }
+
+    private void ApplyEffectivePermissionVisual(Button? button, string text, bool isInherited, bool danger)
+    {
+        if (button is null)
+        {
+            return;
+        }
+
+        button.Content = PermissionChoiceCheckPrefix + text;
+        button.FontWeight = FontWeights.SemiBold;
+
+        if (!isInherited)
+        {
+            return;
+        }
+
+        var brush = danger ? (Brush)Resources["DangerBrush"] : (Brush)Resources["AccentBrush"];
+        button.Foreground = brush;
+        button.BorderBrush = brush;
+        button.BorderThickness = new Thickness(2);
     }
 }

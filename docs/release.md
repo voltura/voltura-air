@@ -1,6 +1,6 @@
 # Release Packaging and GitHub Asset Upsert
 
-This document explains how to rebuild the Windows release assets, create the selected GitHub release when needed, and replace same-named assets on repeated runs.
+This document explains how to prepare a new Voltura Air version, rebuild the Windows release assets, create the selected GitHub release when needed, and replace same-named assets on repeated runs.
 
 ## Requirements
 
@@ -15,7 +15,31 @@ To install NSIS with Chocolatey:
 choco install nsis --version=3.12.0 -y
 ```
 
-## Build, test, and package
+## Version bump checklist
+
+For a normal release, use the same semantic version everywhere. The GitHub release tag must be `v<version>`, for example `v0.2.0`.
+
+Before creating release assets, update these version references:
+
+- root `package.json` `version`;
+- `apps/mobile-web/package.json` `version`;
+- `package-lock.json` package entries by running `npm install` after changing package versions;
+- `apps/windows-host/VolturaAir.Host.csproj` `<Version>`;
+- `.github/workflows/release-zip.yml` workflow dispatch defaults for `release_tag` and `version`;
+- tests or snapshots that stub or assert `__APP_VERSION__`, such as `apps/mobile-web/src/components/SettingsDrawer.test.tsx`;
+- protocol/docs examples that show `hostVersion`, release tags, or release asset names;
+- `AGENTS.md` if the release process or commands changed.
+
+Then inspect the tree for stale references:
+
+```powershell
+git grep "0.1.0"
+git grep "v0.1.0"
+```
+
+Replace `0.1.0` with the previous release version when preparing a future release.
+
+## Build, test, and package locally
 
 From the repository root, run the release verification commands sequentially:
 
@@ -26,43 +50,43 @@ npm test
 npm run package:win
 ```
 
-`npm run package:win` builds the mobile web client, publishes the self-contained Windows host, creates the portable zip, and compiles the NSIS installer.
+`npm run package:win` builds the mobile web client, publishes the self-contained Windows host, creates the portable zip, and compiles the NSIS installer. When `-Version` is omitted, `scripts/package-win.ps1` reads the version from the root `package.json`.
 
-The default output files are:
+For version `0.2.0` and runtime `win-x64`, the default output files are:
 
 ```text
-artifacts/publish/VolturaAir-0.1.0-win-x64.zip
-artifacts/publish/VolturaAir-Setup-0.1.0-win-x64.exe
+artifacts/publish/VolturaAir-0.2.0-win-x64.zip
+artifacts/publish/VolturaAir-Setup-0.2.0-win-x64.exe
 ```
 
 To package a specific version or runtime:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/package-win.ps1 -Version 0.1.0 -Runtime win-x64
+powershell -ExecutionPolicy Bypass -File scripts/package-win.ps1 -Version 0.2.0 -Runtime win-x64
 ```
 
 To rebuild the zip and installer from an existing publish directory:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/package-win.ps1 -SkipBuild
+powershell -ExecutionPolicy Bypass -File scripts/package-win.ps1 -Version 0.2.0 -Runtime win-x64 -SkipBuild
 ```
 
-## Create or replace GitHub release assets
+## Create or replace GitHub release assets manually
 
 Create the release if this is the first upload:
 
 ```powershell
-gh release create v0.1.0 `
+gh release create v0.2.0 `
   --repo voltura/voltura-air `
   --target main `
-  --title "Voltura Air v0.1.0" `
-  --notes "Windows release assets for Voltura Air v0.1.0."
+  --title "Voltura Air v0.2.0" `
+  --notes "Windows release assets for Voltura Air v0.2.0."
 ```
 
 Upload both assets and overwrite any existing files with the same names:
 
 ```powershell
-$version = "0.1.0"
+$version = "0.2.0"
 gh release upload v$version `
   artifacts/publish/VolturaAir-$version-win-x64.zip `
   artifacts/publish/VolturaAir-Setup-$version-win-x64.exe `
@@ -73,7 +97,27 @@ gh release upload v$version `
 If you need to update the release notes too:
 
 ```powershell
-gh release edit v0.1.0 --notes "Updated Windows release assets." --repo voltura/voltura-air
+gh release edit v0.2.0 --notes "Updated Windows release assets." --repo voltura/voltura-air
+```
+
+## GitHub Actions release path
+
+The `Build and upsert release assets` workflow performs the same release path on a Windows runner:
+
+1. Install npm dependencies with `npm ci`.
+2. Install NSIS 3.12.0.
+3. Run `npm run build`.
+4. Run `npm test`.
+5. Run `npm run package:win -- -Version <version> -Runtime <runtime>`.
+6. Create the selected release if it does not exist.
+7. Upload both the portable zip and installer, replacing same-named assets when present.
+
+When dispatching the workflow for `0.2.0`, use:
+
+```text
+release_tag: v0.2.0
+version: 0.2.0
+runtime: win-x64
 ```
 
 ## Freeware release notes
@@ -100,18 +144,6 @@ Windows may show an unknown publisher or Microsoft Defender SmartScreen warning 
 
 Avoid adding workaround-heavy instructions that make the app look suspicious. Keep the message honest and direct.
 
-## GitHub Actions
-
-The `Build and upsert release assets` workflow performs the same release path on a Windows runner:
-
-1. Install npm dependencies.
-2. Install NSIS 3.12.0.
-3. Run `npm run build`.
-4. Run `npm test`.
-5. Run `npm run package:win`.
-6. Create the selected release if it does not exist.
-7. Upload both the portable zip and installer, replacing same-named assets when present.
-
 ## Installer behavior
 
 - Installs per user under `%LOCALAPPDATA%\Programs\Voltura Air`.
@@ -121,11 +153,9 @@ The `Build and upsert release assets` workflow performs the same release path on
 - Removes installed program files and shortcuts on uninstall.
 - Keeps pairing and settings data under `%APPDATA%\Voltura Air`.
 
-
 ## Connection reliability release checks
 
-Before publishing a release that touches pairing, WebSocket handling, protocol,
-or input dispatch, verify these cases manually in addition to automated tests:
+Before publishing a release that touches pairing, WebSocket handling, protocol, or input dispatch, verify these cases manually in addition to automated tests:
 
 - normal QR pairing and saved-device reconnect;
 - expired, stale, invalid, and missing pairing token feedback;
@@ -134,3 +164,14 @@ or input dispatch, verify these cases manually in addition to automated tests:
 - network interruption or IP/port change;
 - input dispatch failure path shows unavailable/retrying instead of dead controls;
 - browser storage cleanup requires re-pairing or reconnects visibly.
+
+## Final release sanity checks
+
+Before announcing the release:
+
+- confirm the workflow run completed successfully;
+- confirm both GitHub release assets exist and use the expected names;
+- download the installer from the release page and install it on a clean or disposable Windows profile;
+- confirm the app shows the expected version in the UI and host diagnostics;
+- confirm a phone can pair from the fresh QR code and reconnect after the host restarts;
+- update public-facing release/download text if the static site or README changed.

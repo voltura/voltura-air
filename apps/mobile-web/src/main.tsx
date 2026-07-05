@@ -6,6 +6,7 @@ import "./pairingFeedback.css";
 import "./keyboardViewport.css";
 import "./splitMode.css";
 import "./remoteMode.css";
+import "./remoteNavigationTrackpad.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

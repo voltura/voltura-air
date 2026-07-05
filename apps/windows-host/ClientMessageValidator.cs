@@ -73,6 +73,7 @@ internal static class ClientMessageValidator
             "device.rename" => TryGetRequiredString(root, "deviceName", MaxDeviceNameLength, allowEmpty: true, out _),
             "health.ping" => true,
             "status.get" => true,
+            "pointer.speed.set" => TryGetNumber(root, "pointerSpeed", DevicePointerProfile.MinPointerSpeed, DevicePointerProfile.MaxPointerSpeed, out _),
             "audio.get" => true,
             "system.sleep" => true,
             "audio.mute.toggle" => true,

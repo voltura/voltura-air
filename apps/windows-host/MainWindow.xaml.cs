@@ -263,8 +263,14 @@ public partial class MainWindow : Window
         root.Children.Add(_devicesList);
 
         _deviceDetailsPanel = CreateSectionPanel();
-        Grid.SetColumn(_deviceDetailsPanel, 2);
-        root.Children.Add(_deviceDetailsPanel);
+        var detailsScroll = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Content = _deviceDetailsPanel
+        };
+        Grid.SetColumn(detailsScroll, 2);
+        root.Children.Add(detailsScroll);
 
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 16, 0, 0) };
         actions.Children.Add(CreateButton("Clean up duplicates", (_, _) => CleanUpDuplicates()));
@@ -402,6 +408,10 @@ public partial class MainWindow : Window
         panel.Children.Add(sleep);
         panel.Children.Add(volume);
 
+        panel.Children.Add(CreateSectionHeading("Trackpad"));
+        panel.Children.Add(CreateMutedText("Default pointer speed for paired devices unless a device has its own override."));
+        AddGlobalPointerSpeedSetting(panel);
+
         panel.Children.Add(CreateSectionHeading("Remote"));
         panel.Children.Add(CreateMutedText("Choose the initial Remote mode for newly connected phones. Mobile settings can still override this per PC."));
         var activeRemoteMode = AppRemoteSettings.GetDefaultRemoteMode();
@@ -494,6 +504,9 @@ public partial class MainWindow : Window
         _deviceDetailsPanel.Children.Add(CreateCardText("Activity", selected.Activity));
         _deviceDetailsPanel.Children.Add(CreateCardText("Details", selected.Metadata.Length == 0 ? "No device metadata" : selected.Metadata));
 
+        _deviceDetailsPanel.Children.Add(CreateSectionHeading("Trackpad profile"));
+        AddPointerSpeedProfile(_deviceDetailsPanel, device);
+
         _deviceDetailsPanel.Children.Add(CreateSectionHeading("Permissions"));
         AddPermissionChoices(_deviceDetailsPanel, device, "PC sleep", PermissionKind.PcSleep);
         AddPermissionChoices(_deviceDetailsPanel, device, "Volume control", PermissionKind.VolumeControl);
@@ -505,6 +518,44 @@ public partial class MainWindow : Window
             SelectPage(HostPage.Devices);
         }, danger: true));
         _deviceDetailsPanel.Children.Add(actions);
+    }
+
+    private void AddPointerSpeedProfile(StackPanel parent, PairedDeviceStatus device)
+    {
+        parent.Children.Add(CreateLabel("Pointer speed override"));
+        parent.Children.Add(CreateMutedText(device.PointerSpeedOverride is null
+            ? $"Using global default: {device.PointerSpeed.ToString(CultureInfo.InvariantCulture)}%."
+            : $"Override active. Effective speed: {device.PointerSpeed.ToString(CultureInfo.InvariantCulture)}%."));
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 8) };
+        var slider = new Slider
+        {
+            Minimum = DevicePointerProfile.MinPointerSpeed,
+            Maximum = DevicePointerProfile.MaxPointerSpeed,
+            TickFrequency = 5,
+            IsSnapToTickEnabled = true,
+            Width = 220,
+            Value = device.PointerSpeed,
+            Margin = new Thickness(0, 0, 12, 0)
+        };
+        var output = new TextBlock
+        {
+            Text = $"{device.PointerSpeed.ToString(CultureInfo.InvariantCulture)}%",
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = (Brush)Resources["TextBrush"],
+            MinWidth = 48
+        };
+        slider.ValueChanged += (_, _) =>
+        {
+            output.Text = $"{Math.Round(slider.Value).ToString(CultureInfo.InvariantCulture)}%";
+        };
+        row.Children.Add(slider);
+        row.Children.Add(output);
+        parent.Children.Add(row);
+
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
+        actions.Children.Add(CreateButton("Save speed", (_, _) => SetDevicePointerSpeedOverride(device.ClientId, (int)Math.Round(slider.Value)), primary: true));
+        actions.Children.Add(CreateButton("Use Global", (_, _) => SetDevicePointerSpeedOverride(device.ClientId, null)));
+        parent.Children.Add(actions);
     }
 
     private void AddPermissionChoices(StackPanel parent, PairedDeviceStatus device, string title, PermissionKind kind)
@@ -525,6 +576,53 @@ public partial class MainWindow : Window
             ? current with { AllowPcSleep = value }
             : current with { AllowVolumeControl = value };
         _pairingManager.SetDevicePermissionOverrides(clientId, updated);
+        RefreshDevicesAndSelect(clientId);
+    }
+
+    private void SetDevicePointerSpeedOverride(string clientId, int? pointerSpeed)
+    {
+        _pairingManager.SetDevicePointerSpeedOverride(clientId, pointerSpeed);
+        RefreshDevicesAndSelect(clientId);
+    }
+
+    private void AddGlobalPointerSpeedSetting(StackPanel parent)
+    {
+        parent.Children.Add(CreateLabel("Default pointer speed"));
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 12) };
+        var currentSpeed = AppPointerSettings.GetDefaultPointerSpeed();
+        var slider = new Slider
+        {
+            Minimum = DevicePointerProfile.MinPointerSpeed,
+            Maximum = DevicePointerProfile.MaxPointerSpeed,
+            TickFrequency = 5,
+            IsSnapToTickEnabled = true,
+            Width = 220,
+            Value = currentSpeed,
+            Margin = new Thickness(0, 0, 12, 0)
+        };
+        var output = new TextBlock
+        {
+            Text = $"{currentSpeed.ToString(CultureInfo.InvariantCulture)}%",
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = (Brush)Resources["TextBrush"],
+            MinWidth = 48
+        };
+        slider.ValueChanged += (_, _) =>
+        {
+            var speed = (int)Math.Round(slider.Value);
+            output.Text = $"{speed.ToString(CultureInfo.InvariantCulture)}%";
+            if (!_isLoadingPreferences)
+            {
+                AppPointerSettings.SetDefaultPointerSpeed(speed);
+            }
+        };
+        row.Children.Add(slider);
+        row.Children.Add(output);
+        parent.Children.Add(row);
+    }
+
+    private void RefreshDevicesAndSelect(string clientId)
+    {
         SelectPage(HostPage.Devices);
         if (_devicesList is not null)
         {
@@ -944,15 +1042,11 @@ public partial class MainWindow : Window
     private UIElement CreateDeviceListRow(DeviceListItem device)
     {
         var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2.2, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(128) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2.2, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2.4, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 180 });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
 
-        grid.Children.Add(CreateListCell("Device", device.Name, 0, strong: true));
-        grid.Children.Add(CreateListCell("Status", device.Status, 1));
-        grid.Children.Add(CreateListCell("Last activity", device.Activity, 2));
-        grid.Children.Add(CreateListCell("Details", string.IsNullOrWhiteSpace(device.Metadata) ? "No metadata" : device.Metadata, 3));
+        grid.Children.Add(CreateListCell("Device", device.Name, 0, strong: true, trim: true));
+        grid.Children.Add(CreateListCell("Status", device.Status, 1, trim: true));
         return CreateListRowShell(grid);
     }
 
@@ -985,7 +1079,7 @@ public partial class MainWindow : Window
         return CreateListRowShell(grid);
     }
 
-    private UIElement CreateListCell(string label, string value, int column, bool strong = false, bool monospace = false)
+    private UIElement CreateListCell(string label, string value, int column, bool strong = false, bool monospace = false, bool trim = false)
     {
         var stack = new StackPanel { Margin = new Thickness(0, 0, 14, 0) };
         stack.Children.Add(new TextBlock
@@ -993,13 +1087,16 @@ public partial class MainWindow : Window
             Text = label,
             FontSize = 11,
             FontWeight = FontWeights.SemiBold,
-            Foreground = (Brush)Resources["MutedTextBrush"]
+            Foreground = (Brush)Resources["MutedTextBrush"],
+            TextTrimming = trim ? TextTrimming.CharacterEllipsis : TextTrimming.None,
+            TextWrapping = trim ? TextWrapping.NoWrap : TextWrapping.Wrap
         });
         stack.Children.Add(new TextBlock
         {
             Text = value,
             Margin = new Thickness(0, 4, 0, 0),
-            TextWrapping = TextWrapping.Wrap,
+            TextWrapping = trim ? TextWrapping.NoWrap : TextWrapping.Wrap,
+            TextTrimming = trim ? TextTrimming.CharacterEllipsis : TextTrimming.None,
             FontSize = 13,
             FontWeight = strong ? FontWeights.SemiBold : FontWeights.Normal,
             FontFamily = monospace ? new FontFamily("Cascadia Mono, Consolas") : SystemFonts.MessageFontFamily,

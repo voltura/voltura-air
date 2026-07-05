@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace VolturaAir.Host;
 
@@ -15,7 +16,8 @@ public sealed record PairingRecord(
     string Platform = "",
     string Browser = "",
     string DisplayMode = "",
-    DevicePermissionOverrides? PermissionOverrides = null);
+    DevicePermissionOverrides? PermissionOverrides = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? PointerSpeedOverride = null);
 
 public sealed record PairedDeviceStatus(
     string ClientId,
@@ -29,7 +31,9 @@ public sealed record PairedDeviceStatus(
     string Platform,
     string Browser,
     string DisplayMode,
-    DevicePermissionOverrides PermissionOverrides)
+    DevicePermissionOverrides PermissionOverrides,
+    int? PointerSpeedOverride,
+    int PointerSpeed)
 {
     public DateTimeOffset LatestActivityAt => new[] { AddedAt, LastConnectedAt, LastDisconnectedAt, LastRenamedAt }
         .Where(value => value.HasValue)
@@ -37,6 +41,19 @@ public sealed record PairedDeviceStatus(
         .DefaultIfEmpty(DateTimeOffset.MinValue)
         .Max();
 }
+
+public static class DevicePointerProfile
+{
+    public const int MinPointerSpeed = 10;
+    public const int MaxPointerSpeed = 100;
+    public const int DefaultPointerSpeed = 100;
+
+    public static int NormalizePointerSpeed(int pointerSpeed)
+    {
+        return Math.Max(MinPointerSpeed, Math.Min(MaxPointerSpeed, pointerSpeed));
+    }
+}
+
 public sealed class PairingRevokedEventArgs : EventArgs
 {
     public PairingRevokedEventArgs(string? clientId)
@@ -109,6 +126,7 @@ public sealed class PairingManager
 
     public event EventHandler? ConnectionChanged;
     public event EventHandler? PermissionsChanged;
+    public event EventHandler? DeviceProfileChanged;
     public event EventHandler<PairingRevokedEventArgs>? PairingRevoked;
 
     public bool IsPaired
@@ -215,6 +233,40 @@ public sealed class PairingManager
         {
             return HostPermissions.Resolve(globalPermissions, FindRecord(clientId)?.PermissionOverrides);
         }
+    }
+
+    public int GetDevicePointerSpeed(string clientId)
+    {
+        lock (_gate)
+        {
+            return GetEffectivePointerSpeed(FindRecord(clientId));
+        }
+    }
+
+    public bool SetDevicePointerSpeedOverride(string clientId, int? pointerSpeed)
+    {
+        lock (_gate)
+        {
+            var index = _records.FindIndex(record => string.Equals(record.ClientId, clientId, StringComparison.Ordinal));
+            if (index < 0)
+            {
+                return false;
+            }
+
+            int? normalized = pointerSpeed is null ? null : DevicePointerProfile.NormalizePointerSpeed(pointerSpeed.Value);
+            var existing = _records[index];
+            if (existing.PointerSpeedOverride == normalized)
+            {
+                return false;
+            }
+
+            _records[index] = existing with { PointerSpeedOverride = normalized };
+            _store.Save(_records);
+        }
+
+        DeviceProfileChanged?.Invoke(this, EventArgs.Empty);
+        ConnectionChanged?.Invoke(this, EventArgs.Empty);
+        return true;
     }
 
     public bool SetDevicePermissionOverrides(string clientId, DevicePermissionOverrides permissionOverrides)
@@ -475,7 +527,8 @@ public sealed class PairingManager
             Platform = NormalizeMetadata(record.Platform),
             Browser = NormalizeMetadata(record.Browser),
             DisplayMode = NormalizeMetadata(record.DisplayMode),
-            PermissionOverrides = NormalizePermissionOverrides(record.PermissionOverrides)
+            PermissionOverrides = NormalizePermissionOverrides(record.PermissionOverrides),
+            PointerSpeedOverride = NormalizePointerSpeedOverride(record.PointerSpeedOverride)
         };
     }
 
@@ -497,7 +550,9 @@ public sealed class PairingManager
                     record.Platform,
                     record.Browser,
                     record.DisplayMode,
-                    record.PermissionOverrides ?? new DevicePermissionOverrides());
+                    record.PermissionOverrides ?? new DevicePermissionOverrides(),
+                    record.PointerSpeedOverride,
+                    GetEffectivePointerSpeed(record));
             })
             .ToArray();
     }
@@ -605,7 +660,8 @@ public sealed class PairingManager
                 Platform = string.IsNullOrWhiteSpace(record.Platform) ? existing.Platform : record.Platform,
                 Browser = string.IsNullOrWhiteSpace(record.Browser) ? existing.Browser : record.Browser,
                 DisplayMode = string.IsNullOrWhiteSpace(record.DisplayMode) ? existing.DisplayMode : record.DisplayMode,
-                PermissionOverrides = existing.PermissionOverrides
+                PermissionOverrides = existing.PermissionOverrides,
+                PointerSpeedOverride = existing.PointerSpeedOverride
             };
             return;
         }
@@ -623,6 +679,21 @@ public sealed class PairingManager
     {
         var trimmed = value?.Trim();
         return string.IsNullOrWhiteSpace(trimmed) ? string.Empty : trimmed.Length > 80 ? trimmed[..80] : trimmed;
+    }
+
+    private static int? NormalizePointerSpeedOverride(int? pointerSpeedOverride)
+    {
+        if (pointerSpeedOverride is not null)
+        {
+            return DevicePointerProfile.NormalizePointerSpeed(pointerSpeedOverride.Value);
+        }
+
+        return null;
+    }
+
+    private static int GetEffectivePointerSpeed(PairingRecord? record)
+    {
+        return record?.PointerSpeedOverride ?? AppPointerSettings.GetDefaultPointerSpeed();
     }
 
     private static string SummarizeDevices(IEnumerable<string> deviceNames)

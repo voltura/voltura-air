@@ -135,6 +135,7 @@ export function useVolturaAirConnection() {
     setSupportsGestureDebug(false);
     setSupportsSleep(false);
     setSupportsVolumeControl(false);
+    setHostStatus(null);
     supportsVolumeControlRef.current = false;
     supportsInputAckRef.current = false;
   }, []);
@@ -715,7 +716,19 @@ export function useVolturaAirConnection() {
     }
   }, [send, state]);
 
-  return { state, message, send, requestAudioState, clientId, deviceName, activePc, pairedPcs, audioState, supportsGestureDebug, supportsSleep, supportsVolumeControl, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice };
+  const setHostPointerSpeed = useCallback((pointerSpeed: number) => {
+    const normalized = normalizePointerSpeed(pointerSpeed);
+    if (normalized === undefined) {
+      return;
+    }
+
+    setHostStatus((current) => (current ? { ...current, pointerSpeed: normalized } : current));
+    if (state === "paired") {
+      send({ type: "pointer.speed.set", pointerSpeed: normalized });
+    }
+  }, [send, state]);
+
+  return { state, message, send, requestAudioState, clientId, deviceName, activePc, pairedPcs, audioState, supportsGestureDebug, supportsSleep, supportsVolumeControl, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice, setHostPointerSpeed };
 }
 
 function getOrCreateClientId(source: string): string {
@@ -860,6 +873,7 @@ function normalizeHostStatus(metadata: HostStatusMetadata | undefined): HostStat
     developerSessionId: normalizeOptionalString(metadata.developerSessionId),
     hostVersion: normalizeOptionalString(metadata.hostVersion),
     pcName: normalizeOptionalString(metadata.pcName),
+    pointerSpeed: normalizePointerSpeed(metadata.pointerSpeed),
     selectedAdapterName: normalizeOptionalString(metadata.selectedAdapterName),
     selectedIp: normalizeOptionalString(metadata.selectedIp),
     selectedPort: Number.isFinite(metadata.selectedPort) ? metadata.selectedPort : undefined,
@@ -872,6 +886,18 @@ function normalizeHostStatus(metadata: HostStatusMetadata | undefined): HostStat
 function normalizeOptionalString(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function normalizePointerSpeed(value: unknown): number | undefined {
+  if (typeof value !== "number") {
+    return undefined;
+  }
+
+  if (!Number.isFinite(value)) {
+    return undefined;
+  }
+
+  return Math.max(10, Math.min(100, Math.round(value)));
 }
 
 function parseServerMessage(data: unknown): ServerMessage | null {

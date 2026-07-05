@@ -99,7 +99,8 @@ Successful response:
     "selectedAdapterName": "Wi-Fi - Intel(R) Wi-Fi 6 AX200",
     "selectedIp": "192.168.1.50",
     "selectedPort": 51395,
-    "webSocketUrl": "ws://192.168.1.50:51395/ws"
+    "webSocketUrl": "ws://192.168.1.50:51395/ws",
+    "pointerSpeed": 100
   }
 }
 ```
@@ -131,15 +132,17 @@ Host response:
     "selectedAdapterName": "Wi-Fi - Intel(R) Wi-Fi 6 AX200",
     "selectedIp": "192.168.1.50",
     "selectedPort": 51395,
-    "webSocketUrl": "ws://192.168.1.50:51395/ws"
+    "webSocketUrl": "ws://192.168.1.50:51395/ws",
+    "pointerSpeed": 100
   }
 }
 ```
 
 Host metadata is included after authentication in `pair.accepted` and `status`.
-It is diagnostics metadata only. It is not a secret and must not be used as authentication state.
+It is not a secret and must not be used as authentication state. Most fields are diagnostics metadata; `defaultRemoteMode` and `pointerSpeed` are authenticated host profile hints used by the mobile app.
 The adapter name can reveal local hardware/vendor details, so it should only be copied when the user explicitly chooses **Copy diagnostics**.
 `defaultRemoteMode` is the host's advisory initial Remote mode for that PC (`standard`, `youtube`, or `kodi`). The mobile app uses it only when the current phone/browser has no saved Remote mode override for that PC.
+`pointerSpeed` is the effective pointer speed for the authenticated paired device: the host default unless that device has an override. It is included only on authenticated `pair.accepted` and `status` messages. When the Windows host profile changes, the host may push the same lightweight `status` message to active sockets; the mobile app does not add a polling loop, timer, or extra battery cost for pointer-speed sync.
 When host developer mode is enabled in **Preferences** -> **Developer tools**, host metadata also includes `developerMode: true` and a `developerSessionId` for the current host run. The mobile app uses this to auto-refresh installed web app code during development even when the release version has not changed.
 
 Rejected response:
@@ -190,6 +193,12 @@ latest-activity ordering.
 
 The host trims `deviceName`; if the client sends a blank name, the host stores
 `Mobile device`.
+
+Set this device's pointer speed override on the PC after pairing has been accepted. This is sent only from a user action such as changing the mobile pointer speed slider:
+
+```json
+{ "type": "pointer.speed.set", "pointerSpeed": 65 }
+```
 
 Lightweight connection health check after pairing has been accepted:
 

@@ -100,7 +100,7 @@ This file separates the current implemented baseline from remaining roadmap work
 
 ### P1.1 Trackpad polish
 
-- [x] Pointer speed setting.
+- [x] Pointer speed setting with host default and per-device override.
 - [x] Pointer smoothing option.
 - [x] Pointer acceleration option.
 - [x] Scroll acceleration option.
@@ -120,8 +120,7 @@ This file separates the current implemented baseline from remaining roadmap work
 - [x] Optional pinch zoom gesture.
 - [x] Expanded full-screen trackpad mode.
 - [x] Per saved-PC/client local trackpad preferences.
-- [ ] True host-managed per-device pointer speed profile.
-  - Partial: mobile stores trackpad settings by local client/saved PC, but the host device manager does not own a pointer-speed profile.
+- [x] True per-device pointer speed profile with host default and phone/host override updates.
 - [ ] Verify pinch zoom in common apps:
   - [ ] Chrome/Edge. Manual.
   - [ ] Photos. Manual.
@@ -401,9 +400,9 @@ Start with phone-to-PC only.
 - [x] Rename device option.
 - [x] Rename saved PC option.
 - [ ] Store settings per paired device on host.
-  - Partial: host stores permission overrides per paired device; mobile stores UI/input preferences locally.
+  - Partial: host stores permission overrides and pointer speed per paired device; mobile stores remaining UI/input preferences locally.
 - [ ] Store preferred mode per device.
-- [ ] Store pointer speed per device on host.
+- [x] Store pointer speed per device on host.
 - [ ] Store layout preference per device on host.
 
 ---

@@ -31,9 +31,11 @@ public sealed class WebHostService : IAsyncDisposable
         _audioController = audioController ?? new SystemAudioController();
         _pairingManager.PairingRevoked += OnPairingRevoked;
         _pairingManager.PermissionsChanged += OnPermissionsChanged;
+        _pairingManager.DeviceProfileChanged += OnPermissionsChanged;
         AppPermissionSettings.Changed += OnPermissionsChanged;
         AppDeveloperSettings.Changed += OnPermissionsChanged;
         AppRemoteSettings.Changed += OnPermissionsChanged;
+        AppPointerSettings.Changed += OnPermissionsChanged;
 
         var settings = AppNetworkSettings.Load();
         var portSelection = PortSelector.Select(settings, IsPortAvailable, FindFreePort);
@@ -167,9 +169,11 @@ public sealed class WebHostService : IAsyncDisposable
     {
         _pairingManager.PairingRevoked -= OnPairingRevoked;
         _pairingManager.PermissionsChanged -= OnPermissionsChanged;
+        _pairingManager.DeviceProfileChanged -= OnPermissionsChanged;
         AppPermissionSettings.Changed -= OnPermissionsChanged;
         AppDeveloperSettings.Changed -= OnPermissionsChanged;
         AppRemoteSettings.Changed -= OnPermissionsChanged;
+        AppPointerSettings.Changed -= OnPermissionsChanged;
         AbortActiveSockets();
         if (_app is not null)
         {
@@ -248,7 +252,7 @@ public sealed class WebHostService : IAsyncDisposable
                     activeConnection = _pairingManager.TrackConnection(clientId);
                     var pcName = Environment.MachineName;
                     var capabilities = CreateCapabilities(clientId);
-                    await SendSocketAsync(socket, new { type = "pair.accepted", clientId, pcName, secret, paired = true, capabilities, host = CreateHostStatus() }, cancellationToken);
+                    await SendSocketAsync(socket, new { type = "pair.accepted", clientId, pcName, secret, paired = true, capabilities, host = CreateHostStatus(clientId) }, cancellationToken);
                     continue;
                 }
 
@@ -279,6 +283,12 @@ public sealed class WebHostService : IAsyncDisposable
                 if (type == "status.get")
                 {
                     await SendConnectedStatusAsync(socket, authenticatedClientId, cancellationToken);
+                    continue;
+                }
+
+                if (type == "pointer.speed.set")
+                {
+                    _pairingManager.SetDevicePointerSpeedOverride(authenticatedClientId, GetInt(root, "pointerSpeed"));
                     continue;
                 }
 
@@ -616,7 +626,7 @@ public sealed class WebHostService : IAsyncDisposable
     {
         return SendSocketAsync(
             socket,
-            new { type = "status", connected = false, message, pcName = Environment.MachineName, capabilities = CreateCapabilities(clientId), host = CreateHostStatus() },
+            new { type = "status", connected = false, message, pcName = Environment.MachineName, capabilities = CreateCapabilities(clientId), host = CreateHostStatus(clientId) },
             cancellationToken);
     }
 
@@ -624,7 +634,7 @@ public sealed class WebHostService : IAsyncDisposable
     {
         return SendSocketAsync(
             socket,
-            new { type = "status", connected = true, message = "Connected", pcName = Environment.MachineName, capabilities = CreateCapabilities(clientId), host = CreateHostStatus() },
+            new { type = "status", connected = true, message = "Connected", pcName = Environment.MachineName, capabilities = CreateCapabilities(clientId), host = CreateHostStatus(clientId) },
             cancellationToken);
     }
 
@@ -670,6 +680,13 @@ public sealed class WebHostService : IAsyncDisposable
     private static string GetString(JsonElement root, string propertyName)
     {
         return root.TryGetProperty(propertyName, out var value) ? value.GetString() ?? string.Empty : string.Empty;
+    }
+
+    private static int GetInt(JsonElement root, string propertyName)
+    {
+        return root.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number)
+            ? number
+            : 0;
     }
 
     private static void TrySleepPc()
@@ -897,7 +914,7 @@ public sealed class WebHostService : IAsyncDisposable
             (bytes[0] == 169 && bytes[1] == 254);
     }
 
-    private HostStatusMetadata CreateHostStatus()
+    private HostStatusMetadata CreateHostStatus(string clientId)
     {
         var pcName = Environment.MachineName;
         var developerMode = AppDeveloperSettings.DeveloperMode();
@@ -909,6 +926,7 @@ public sealed class WebHostService : IAsyncDisposable
             Port,
             WebSocketUrl,
             AppRemoteSettings.ToProtocolId(AppRemoteSettings.GetDefaultRemoteMode()),
+            _pairingManager.GetDevicePointerSpeed(clientId),
             developerMode,
             developerMode ? DeveloperSessionId : null);
     }
@@ -929,6 +947,7 @@ internal sealed record HostStatusMetadata(
     int SelectedPort,
     string WebSocketUrl,
     string DefaultRemoteMode,
+    int PointerSpeed,
     bool DeveloperMode,
     string? DeveloperSessionId);
 

@@ -96,7 +96,8 @@ export function App() {
     disconnectActivePc,
     forgetPc,
     renamePc,
-    renameDevice
+    renameDevice,
+    setHostPointerSpeed
   } = useVolturaAirConnection();
   const [tab, setTab] = useState<Tab>("trackpad");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -135,6 +136,11 @@ export function App() {
     storageKey: trackpadSettingsStorageKey
   }));
   const trackpadSettings = trackpadSettingsState.settings;
+  const hostPointerSpeed = hostStatus?.pointerSpeed;
+  const effectiveTrackpadSettings = useMemo(
+    () => (typeof hostPointerSpeed === "number" ? { ...trackpadSettings, pointerSpeed: hostPointerSpeed } : trackpadSettings),
+    [hostPointerSpeed, trackpadSettings]
+  );
   const hostDefaultRemoteMode = hostStatus?.defaultRemoteMode;
   const remoteSettingsStorageKey = useMemo(() => remoteSettingsKey(clientId, activePc?.id ?? null), [activePc?.id, clientId]);
   const [remoteSettingsState, setRemoteSettingsState] = useState(() => ({
@@ -375,14 +381,14 @@ export function App() {
 
   const onTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
     event.preventDefault();
-    recognizerRef.current.move(touchesFromList(event.targetTouches), event.timeStamp, trackpadSettings).forEach(emit);
+    recognizerRef.current.move(touchesFromList(event.targetTouches), event.timeStamp, effectiveTrackpadSettings).forEach(emit);
   };
 
   const onTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
     event.preventDefault();
-    const outputs = recognizerRef.current.end(event.timeStamp, trackpadSettings);
+    const outputs = recognizerRef.current.end(event.timeStamp, effectiveTrackpadSettings);
     if (outputs.some((output) => output.type === "pointer.button" && output.action === "click")) {
-      triggerHapticFeedback(trackpadSettings);
+      triggerHapticFeedback(effectiveTrackpadSettings);
     }
     outputs.forEach(emit);
   };
@@ -516,6 +522,10 @@ export function App() {
       ...current,
       settings: { ...current.settings, [key]: value }
     }));
+
+    if (key === "pointerSpeed" && typeof value === "number") {
+      setHostPointerSpeed(value);
+    }
   };
 
   const updateKeyboardSetting = <Key extends keyof KeyboardSettings>(key: Key, value: KeyboardSettings[Key]) => {
@@ -670,7 +680,7 @@ export function App() {
       audioState={displayedAudioState}
       isExpanded={isTrackpadExpanded}
       onMouseButtonDown={(button) => {
-        triggerHapticFeedback(trackpadSettings);
+        triggerHapticFeedback(effectiveTrackpadSettings);
         emit({ type: "pointer.button", button, action: "down" });
       }}
       onMouseButtonUp={(button) => {
@@ -684,7 +694,7 @@ export function App() {
       onTouchMove={onTouchMove}
       onTouchStart={onTouchStart}
       supportsVolumeControl={supportsVolumeControl}
-      trackpadSettings={trackpadSettings}
+      trackpadSettings={effectiveTrackpadSettings}
     />
   );
 
@@ -846,7 +856,7 @@ export function App() {
         setThemeMode={setThemeMode}
         showGestureDebug={supportsGestureDebug}
         themeMode={themeMode}
-        trackpadSettings={trackpadSettings}
+        trackpadSettings={effectiveTrackpadSettings}
         updateKeyboardSetting={updateKeyboardSetting}
         updateRemoteSetting={updateRemoteSetting}
         updateAppSetting={updateAppSetting}
@@ -881,7 +891,7 @@ export function App() {
         />
       )}
 
-      {supportsGestureDebug && tab === "debug" && <GestureDebugMode trackpadSettings={trackpadSettings} />}
+      {supportsGestureDebug && tab === "debug" && <GestureDebugMode trackpadSettings={effectiveTrackpadSettings} />}
     </main>
   );
 }

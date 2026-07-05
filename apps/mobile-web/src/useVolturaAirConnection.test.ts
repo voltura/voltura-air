@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { shouldClearStoredSecretForRejection, useVolturaAirConnection } from "./useVolturaAirConnection";
 
@@ -104,5 +104,42 @@ describe("useVolturaAirConnection", () => {
     await waitFor(() => expect(result.current.state).toBe("needs-pairing"));
     expect(result.current.message).toBe("Saved pairing was removed on the PC. Scan a fresh QR code to pair again.");
     expect(localStorage.getItem(`voltura-air.secret.client-a.${pc.id}`)).toBeNull();
+  });
+
+  it("stores host pointer speed from metadata and sends user speed changes", async () => {
+    const pcUrl = "http://pc.local:51395";
+    const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };
+    localStorage.setItem("voltura-air.clientId", "client-a");
+    localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
+    localStorage.setItem("voltura-air.activePcId", pc.id);
+    localStorage.setItem(`voltura-air.secret.client-a.${pc.id}`, "old-secret");
+
+    const { result } = renderHook(() => useVolturaAirConnection());
+
+    await waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+    const socket = MockWebSocket.instances[0];
+    socket.readyState = MockWebSocket.OPEN;
+    socket.dispatch("open");
+    socket.dispatch("message", {
+      data: JSON.stringify({
+        type: "pair.accepted",
+        clientId: "client-a",
+        pcName: "PC",
+        secret: "new-secret",
+        paired: true,
+        host: { pointerSpeed: 65 }
+      })
+    });
+
+    await waitFor(() => expect(result.current.hostStatus?.pointerSpeed).toBe(65));
+    expect(socket.send).toHaveBeenCalledWith(expect.stringContaining("\"type\":\"status.get\""));
+    expect(socket.send).not.toHaveBeenCalledWith(expect.stringContaining("pointerSpeed"));
+
+    act(() => {
+      result.current.setHostPointerSpeed(45);
+    });
+
+    await waitFor(() => expect(result.current.hostStatus?.pointerSpeed).toBe(45));
+    expect(socket.send).toHaveBeenCalledWith(JSON.stringify({ type: "pointer.speed.set", pointerSpeed: 45 }));
   });
 });

@@ -28,6 +28,11 @@ export type StatusGetMessage = {
   type: "status.get";
 };
 
+export type PointerSpeedSetMessage = {
+  type: "pointer.speed.set";
+  pointerSpeed: number;
+};
+
 export type AudioGetMessage = {
   type: "audio.get";
 };
@@ -45,6 +50,7 @@ export type HostStatusMetadata = {
   developerSessionId?: string;
   hostVersion?: string;
   pcName?: string;
+  pointerSpeed?: number;
   selectedAdapterName?: string;
   selectedIp?: string;
   selectedPort?: number;
@@ -170,6 +176,7 @@ export type ClientMessage =
   | DeviceRenameMessage
   | HealthPingMessage
   | StatusGetMessage
+  | PointerSpeedSetMessage
   | AudioGetMessage
   | PointerMoveMessage
   | PointerButtonMessage

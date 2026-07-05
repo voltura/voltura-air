@@ -317,6 +317,92 @@ public sealed class PairingManagerTests
     }
 
     [Fact]
+    public void DevicePointerSpeedInheritsGlobalDefault()
+    {
+        using var store = new TempPairingStore();
+        var manager = new PairingManager(store.Store);
+        var now = DateTimeOffset.UtcNow;
+
+        var token = manager.CreatePairingToken(now);
+        manager.Accept("client-a", "Phone", token, null, now);
+
+        var device = Assert.Single(manager.GetDevices());
+
+        Assert.Equal(AppPointerSettings.GetDefaultPointerSpeed(), manager.GetDevicePointerSpeed("client-a"));
+        Assert.Equal(AppPointerSettings.GetDefaultPointerSpeed(), device.PointerSpeed);
+        Assert.Null(device.PointerSpeedOverride);
+        Assert.Null(Assert.Single(store.Store.Load()).PointerSpeedOverride);
+    }
+
+    [Fact]
+    public void GlobalPointerSpeedDefaultsTo100()
+    {
+        Assert.Equal(100, DevicePointerProfile.DefaultPointerSpeed);
+    }
+
+    [Fact]
+    public void DevicePointerSpeedOverrideWinsOverGlobalDefault()
+    {
+        using var store = new TempPairingStore();
+        var manager = new PairingManager(store.Store);
+        var now = DateTimeOffset.UtcNow;
+
+        var token = manager.CreatePairingToken(now);
+        manager.Accept("client-a", "Phone", token, null, now);
+
+        var changed = manager.SetDevicePointerSpeedOverride("client-a", 65);
+        var clamped = manager.SetDevicePointerSpeedOverride("client-a", 999);
+        var device = Assert.Single(manager.GetDevices());
+
+        Assert.True(changed);
+        Assert.True(clamped);
+        Assert.Equal(100, manager.GetDevicePointerSpeed("client-a"));
+        Assert.Equal(100, device.PointerSpeed);
+        Assert.Equal(100, device.PointerSpeedOverride);
+        Assert.Equal(100, Assert.Single(store.Store.Load()).PointerSpeedOverride);
+    }
+
+    [Fact]
+    public void ClearingDevicePointerSpeedOverrideReturnsToGlobalDefault()
+    {
+        using var store = new TempPairingStore();
+        var manager = new PairingManager(store.Store);
+        var now = DateTimeOffset.UtcNow;
+
+        var token = manager.CreatePairingToken(now);
+        manager.Accept("client-a", "Phone", token, null, now);
+        manager.SetDevicePointerSpeedOverride("client-a", 55);
+
+        var changed = manager.SetDevicePointerSpeedOverride("client-a", null);
+        var device = Assert.Single(manager.GetDevices());
+
+        Assert.True(changed);
+        Assert.Equal(AppPointerSettings.GetDefaultPointerSpeed(), manager.GetDevicePointerSpeed("client-a"));
+        Assert.Equal(AppPointerSettings.GetDefaultPointerSpeed(), device.PointerSpeed);
+        Assert.Null(device.PointerSpeedOverride);
+        Assert.Null(Assert.Single(store.Store.Load()).PointerSpeedOverride);
+    }
+
+    [Fact]
+    public void ExistingClientPairingPreservesPointerSpeedProfile()
+    {
+        using var store = new TempPairingStore();
+        var manager = new PairingManager(store.Store);
+        var now = DateTimeOffset.UtcNow;
+        var firstToken = manager.CreatePairingToken(now);
+        manager.Accept("client-a", "Phone", firstToken, null, now);
+        manager.SetDevicePointerSpeedOverride("client-a", 55);
+
+        var secondToken = manager.CreatePairingToken(now.AddMinutes(1));
+        var repaired = manager.Accept("client-a", "Phone", secondToken, null, now.AddMinutes(1));
+
+        Assert.True(repaired.Accepted);
+        Assert.Equal(55, manager.GetDevicePointerSpeed("client-a"));
+        Assert.Equal(55, Assert.Single(manager.GetDevices()).PointerSpeed);
+        Assert.Equal(55, Assert.Single(manager.GetDevices()).PointerSpeedOverride);
+    }
+
+    [Fact]
     public void DisconnectDeviceRemovesOnlySelectedDevice()
     {
         using var store = new TempPairingStore();

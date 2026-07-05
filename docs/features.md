@@ -88,6 +88,7 @@ Voltura Air turns a phone, tablet, or modern browser into a local-network remote
 - Supports disconnect/remove.
 - Supports duplicate cleanup.
 - Supports per-device permission overrides.
+- Supports a host default pointer speed with per-device overrides.
 
 ### Permissions and capabilities
 
@@ -210,6 +211,7 @@ Voltura Air turns a phone, tablet, or modern browser into a local-network remote
 - Two-finger horizontal scroll.
 - Optional pinch zoom.
 - Pointer speed setting.
+- Pointer speed uses the Windows host default unless the paired device has an override; changing it on the phone updates that device override on the host.
 - Optional pointer smoothing.
 - Optional pointer acceleration.
 - Optional scroll acceleration.
@@ -364,7 +366,7 @@ These are roadmap candidates, not current product capabilities.
 - Custom shortcut panels.
 - Host-approved custom app launch buttons.
 - Preferred mode per device.
-- Host-managed pointer/layout profiles per paired device.
+- Host-managed layout profiles per paired device.
 - Wake-on-LAN.
 - Screen viewer / screen preview / remote desktop.
 - File transfer.

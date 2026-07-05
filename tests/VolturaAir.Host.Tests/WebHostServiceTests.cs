@@ -173,10 +173,66 @@ public sealed class WebHostServiceTests
         Assert.Equal("health.pong", health.GetProperty("type").GetString());
         Assert.Equal("status", status.GetProperty("type").GetString());
         Assert.True(status.GetProperty("connected").GetBoolean());
+        Assert.Equal(100, status.GetProperty("host").GetProperty("pointerSpeed").GetInt32());
         Assert.Equal("audio.state", audioState.GetProperty("type").GetString());
         Assert.Equal(38, audioState.GetProperty("volume").GetInt32());
         Assert.False(audioState.GetProperty("muted").GetBoolean());
         Assert.Equal(1, audio.GetStateCalls);
+    }
+
+    [Fact]
+    public async Task WebSocketBroadcastsPointerSpeedProfileChangesWithoutClientPolling()
+    {
+        await using var fixture = await WebHostFixture.StartAsync();
+        var clientId = $"client-{Guid.NewGuid():N}";
+        var token = fixture.Manager.CreatePairingToken();
+        using var socket = new ClientWebSocket();
+        await socket.ConnectAsync(new Uri($"ws://127.0.0.1:{fixture.WebHost.Port}/ws"), CancellationToken.None);
+
+        var paired = await SendAndReceiveAsync(socket, new
+        {
+            type = "pair.hello",
+            clientId,
+            deviceName = "Phone",
+            pairToken = token
+        });
+
+        fixture.Manager.SetDevicePointerSpeedOverride(clientId, 65);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var pushedStatusText = await ReceiveTextAsync(socket, timeout.Token);
+        using var pushedStatus = JsonDocument.Parse(pushedStatusText);
+
+        Assert.Equal("pair.accepted", paired.GetProperty("type").GetString());
+        Assert.Equal("status", pushedStatus.RootElement.GetProperty("type").GetString());
+        Assert.Equal(65, pushedStatus.RootElement.GetProperty("host").GetProperty("pointerSpeed").GetInt32());
+    }
+
+    [Fact]
+    public async Task WebSocketStoresClientPointerSpeedAsDeviceOverride()
+    {
+        await using var fixture = await WebHostFixture.StartAsync();
+        var clientId = $"client-{Guid.NewGuid():N}";
+        var token = fixture.Manager.CreatePairingToken();
+        using var socket = new ClientWebSocket();
+        await socket.ConnectAsync(new Uri($"ws://127.0.0.1:{fixture.WebHost.Port}/ws"), CancellationToken.None);
+
+        var paired = await SendAndReceiveAsync(socket, new
+        {
+            type = "pair.hello",
+            clientId,
+            deviceName = "Phone",
+            pairToken = token
+        });
+        await SendAsync(socket, new { type = "pointer.speed.set", pointerSpeed = 45 });
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var pushedStatusText = await ReceiveTextAsync(socket, timeout.Token);
+        using var pushedStatus = JsonDocument.Parse(pushedStatusText);
+
+        Assert.Equal("pair.accepted", paired.GetProperty("type").GetString());
+        Assert.Equal(45, fixture.Manager.GetDevicePointerSpeed(clientId));
+        Assert.Equal(45, Assert.Single(fixture.Manager.GetDevices()).PointerSpeedOverride);
+        Assert.Equal("status", pushedStatus.RootElement.GetProperty("type").GetString());
+        Assert.Equal(45, pushedStatus.RootElement.GetProperty("host").GetProperty("pointerSpeed").GetInt32());
     }
 
     [Fact]
@@ -376,14 +432,14 @@ public sealed class WebHostServiceTests
         return socket.SendAsync(bytes, WebSocketMessageType.Text, true, CancellationToken.None);
     }
 
-    private static async Task<string> ReceiveTextAsync(ClientWebSocket socket)
+    private static async Task<string> ReceiveTextAsync(ClientWebSocket socket, CancellationToken cancellationToken = default)
     {
         using var stream = new MemoryStream();
         var buffer = new byte[8192];
         WebSocketReceiveResult result;
         do
         {
-            result = await socket.ReceiveAsync(buffer, CancellationToken.None);
+            result = await socket.ReceiveAsync(buffer, cancellationToken);
             stream.Write(buffer, 0, result.Count);
         } while (!result.EndOfMessage);
 

@@ -2,6 +2,10 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using WpfBrush = System.Windows.Media.Brush;
+using WpfHorizontalAlignment = System.Windows.HorizontalAlignment;
+using WpfPanel = System.Windows.Controls.Panel;
+using WpfVerticalAlignment = System.Windows.VerticalAlignment;
 
 namespace VolturaAir.Host;
 
@@ -14,8 +18,8 @@ public partial class MainWindow
         foreach (UIElement child in MainContentRoot.Children)
         {
             if (child is Border toast &&
-                toast.HorizontalAlignment == HorizontalAlignment.Right &&
-                toast.VerticalAlignment == VerticalAlignment.Bottom &&
+                toast.HorizontalAlignment == WpfHorizontalAlignment.Right &&
+                toast.VerticalAlignment == WpfVerticalAlignment.Bottom &&
                 !Equals(toast.Tag, StyledToastTag) &&
                 toast.Child is TextBlock messageBlock)
             {
@@ -27,8 +31,8 @@ public partial class MainWindow
     private void ApplyToastVisual(Border toast, string message)
     {
         toast.Tag = StyledToastTag;
-        toast.Background = (Brush)Resources["SurfaceBrush"];
-        toast.BorderBrush = (Brush)Resources["AccentBrush"];
+        toast.Background = (WpfBrush)Resources["SurfaceBrush"];
+        toast.BorderBrush = (WpfBrush)Resources["AccentBrush"];
         toast.BorderThickness = new Thickness(1);
         toast.CornerRadius = new CornerRadius(14);
         toast.Padding = new Thickness(0);
@@ -43,7 +47,7 @@ public partial class MainWindow
             ShadowDepth = 7,
             Color = Colors.Black
         };
-        Panel.SetZIndex(toast, 50);
+        WpfPanel.SetZIndex(toast, 50);
 
         var layout = new Grid();
         layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(5) });
@@ -52,7 +56,7 @@ public partial class MainWindow
 
         var accentStrip = new Border
         {
-            Background = (Brush)Resources["AccentBrush"],
+            Background = (WpfBrush)Resources["AccentBrush"],
             CornerRadius = new CornerRadius(14, 0, 0, 14)
         };
         Grid.SetColumn(accentStrip, 0);
@@ -64,15 +68,15 @@ public partial class MainWindow
             Height = 28,
             Margin = new Thickness(14, 10, 10, 10),
             CornerRadius = new CornerRadius(14),
-            Background = (Brush)Resources["AccentBrush"],
+            Background = (WpfBrush)Resources["AccentBrush"],
             Child = new TextBlock
             {
                 Text = "✓",
                 FontSize = 16,
                 FontWeight = FontWeights.Bold,
-                Foreground = (Brush)Resources["AccentTextBrush"],
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
+                Foreground = (WpfBrush)Resources["AccentTextBrush"],
+                HorizontalAlignment = WpfHorizontalAlignment.Center,
+                VerticalAlignment = WpfVerticalAlignment.Center
             }
         };
         Grid.SetColumn(badge, 1);
@@ -81,14 +85,14 @@ public partial class MainWindow
         var text = new StackPanel
         {
             Margin = new Thickness(0, 10, 16, 10),
-            VerticalAlignment = VerticalAlignment.Center
+            VerticalAlignment = WpfVerticalAlignment.Center
         };
         text.Children.Add(new TextBlock
         {
             Text = "Clipboard",
             FontSize = 12,
             FontWeight = FontWeights.SemiBold,
-            Foreground = (Brush)Resources["MutedTextBrush"]
+            Foreground = (WpfBrush)Resources["MutedTextBrush"]
         });
         text.Children.Add(new TextBlock
         {
@@ -97,7 +101,7 @@ public partial class MainWindow
             FontSize = 14,
             FontWeight = FontWeights.SemiBold,
             TextWrapping = TextWrapping.Wrap,
-            Foreground = (Brush)Resources["TextBrush"]
+            Foreground = (WpfBrush)Resources["TextBrush"]
         });
         Grid.SetColumn(text, 2);
         layout.Children.Add(text);

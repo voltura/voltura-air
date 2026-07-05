@@ -173,17 +173,12 @@
 }
 
 .remote-floating-fn {
-  grid-column: 1;
-  grid-row: 3;
-  align-self: end;
-  justify-self: end;
-  position: relative;
-  right: auto;
-  bottom: auto;
-  z-index: 2;
+  position: absolute;
+  right: max(18px, calc(env(safe-area-inset-right) + 18px));
+  bottom: max(18px, calc(env(safe-area-inset-bottom) + 18px));
+  z-index: 3;
   min-width: 54px;
   min-height: 40px;
-  margin: 0 9px 9px 0;
   box-shadow: 0 8px 24px color-mix(in srgb, var(--drawer-shadow) 42%, transparent);
 }
 
@@ -194,11 +189,6 @@
 .remote-mode.remote-utility-open .remote-utility-section {
   display: grid;
   padding-bottom: 56px;
-}
-
-.remote-mode.remote-utility-open .remote-floating-fn {
-  grid-column: 1 / -1;
-  grid-row: 1;
 }
 
 @media (max-width: 560px), (max-height: 760px) {
@@ -220,7 +210,6 @@
     display: grid;
     align-content: start;
   }
-
 }
 
 @media (max-height: 720px) {
@@ -238,7 +227,8 @@
   }
 
   .remote-floating-fn {
-    margin: 0 7px 7px 0;
+    right: max(14px, calc(env(safe-area-inset-right) + 14px));
+    bottom: max(14px, calc(env(safe-area-inset-bottom) + 14px));
   }
 
   .remote-primary-grid,
@@ -410,16 +400,5 @@
 
   .remote-navigation-ring {
     width: min(28vw, 34svh, 150px);
-  }
-
-  .remote-floating-fn {
-    grid-column: 2;
-    grid-row: 2;
-  }
-
-  .remote-mode.remote-utility-open .remote-utility-section,
-  .remote-mode.remote-utility-open .remote-floating-fn {
-    grid-column: 1 / -1;
-    grid-row: 1;
   }
 }

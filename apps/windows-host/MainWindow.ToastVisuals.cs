@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using WpfBrush = System.Windows.Media.Brush;
 using WpfHorizontalAlignment = System.Windows.HorizontalAlignment;
 using WpfPanel = System.Windows.Controls.Panel;

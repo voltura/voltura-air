@@ -92,6 +92,7 @@ Voltura Air turns a phone, tablet, or modern browser into a local-network remote
 ### Permissions and capabilities
 
 - Reports host capabilities to the mobile client.
+- Reports the host default Remote mode to the mobile client.
 - Supports host-enforced permission for PC sleep.
 - Supports host-enforced permission for volume control.
 - Combines global defaults with per-device overrides.
@@ -121,7 +122,11 @@ Voltura Air turns a phone, tablet, or modern browser into a local-network remote
   - Page Down.
   - Space.
   - Win/Windows.
+  - Single-letter shortcuts such as F.
   - F1-F12.
+  - Browser Back.
+  - Media previous/play-pause/next/stop.
+  - Volume mute/down/up.
 - Translates shortcut aliases:
   - Undo -> Ctrl+Z.
   - Redo -> Ctrl+Y.
@@ -149,9 +154,13 @@ Voltura Air turns a phone, tablet, or modern browser into a local-network remote
 - Stores saved PC profiles.
 - Stores per-saved-PC/client trackpad preferences.
 - Stores keyboard preferences.
+- Stores per-saved-PC/client remote preferences.
+- Stores per-saved-PC/client app preferences.
 - Stores theme preference.
 - Supports light, dark, and system theme modes.
 - Provides app refresh/cache reset flow for installed PWA cases.
+- Can automatically refresh the installed web app once after reconnecting to a PC.
+- Host developer mode makes auto refresh track the current host run instead of the release version.
 
 ### Pairing and reconnect UX
 
@@ -218,6 +227,7 @@ Voltura Air turns a phone, tablet, or modern browser into a local-network remote
 - Send button is hidden when Live typing is enabled.
 - Text/numeric mobile keyboard toggle.
 - Composition/IME handling foundation.
+- Single-key app shortcuts such as `F` are sent as virtual key presses in live typing.
 - Repeatable Backspace.
 - Repeatable Enter.
 - Repeatable Tab.
@@ -240,6 +250,48 @@ Voltura Air turns a phone, tablet, or modern browser into a local-network remote
   - show arrow keys,
   - show sleep button,
   - enable split mode.
+
+### Remote mode
+
+- Media previous/play-pause/next.
+- Repeatable seek backward/forward through arrow-key shortcuts.
+- Space.
+- Esc/Back.
+- Video/app fullscreen through `F`.
+- Browser fullscreen through `F11`.
+- Repeatable Windows volume down/up keys and mute key.
+- Standard mode uses Windows media, volume, fullscreen, and navigation keys.
+- YouTube mode maps remote controls to browser player shortcuts:
+  - previous/next video through Shift+P/Shift+N,
+  - play/pause through `K`,
+  - seek through `J`/`L`,
+  - volume through Arrow Down/Arrow Up,
+  - mute through `M`.
+- Kodi mode maps remote controls to common Kodi keyboard shortcuts:
+  - previous/next item or chapter through Page Down/Page Up,
+  - play/pause through `Space`,
+  - seek/navigation through arrow keys,
+  - back through `Backspace`,
+  - fullscreen playback through `Tab`,
+  - Kodi fullscreen/windowed through `\`,
+  - volume through `-`/`+`,
+  - mute through `F8`.
+- Default navigation ring:
+  - repeatable up/left/right/down ring zones,
+  - center mini-trackpad for pointer movement,
+  - center single tap for left click,
+  - center double tap for right click,
+  - navigation panel background drag for pointer movement,
+  - navigation panel background single tap for left click,
+  - navigation panel background double tap for right click.
+- Optional legacy D-pad with OK.
+- Start.
+- Alt+Tab.
+- Browser Back.
+- Compact phone layouts keep the main remote surface within the viewport and move Windows helper controls behind a lower-right Fn switch.
+- Remote settings:
+  - navigation ring.
+  - Remote mode: Standard, YouTube, or Kodi.
 
 ### Dictation mode
 
@@ -297,7 +349,6 @@ Voltura Air turns a phone, tablet, or modern browser into a local-network remote
 
 These are roadmap candidates, not current product capabilities.
 
-- Dedicated Couch Remote mode.
 - Dedicated Presentation mode.
 - Dedicated Paste Text to PC / clipboard-transfer screen.
 - PC-to-phone clipboard read/sync.

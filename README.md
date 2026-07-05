@@ -2,7 +2,7 @@
 
 Turn your phone, tablet, or browser into a wireless trackpad and keyboard for Windows.
 
-Voltura Air turns a browser-capable device into a trackpad, keyboard, dictation surface, and volume remote for a Windows 11 PC.
+Voltura Air turns a browser-capable device into a trackpad, keyboard, dictation surface, and media remote with Standard, YouTube, and Kodi modes for a Windows 11 PC.
 
 ## Product promise
 

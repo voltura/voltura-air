@@ -109,6 +109,15 @@ button {
   gap: 8px;
   padding: 10px 14px;
   touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+button * {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 button:active,
@@ -152,6 +161,13 @@ svg {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+}
+
+.app-shell.remote-active {
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 8px;
+  padding-bottom: max(6px, env(safe-area-inset-bottom));
+  overflow: hidden;
 }
 
 .top-bar,
@@ -230,6 +246,7 @@ button span {
 .tabs {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  container-type: inline-size;
 }
 
 .tabs button {
@@ -237,7 +254,28 @@ button span {
   min-width: 0;
 }
 
-@media (max-width: 430px) {
+@container (max-width: 520px) {
+  .tabs button {
+    gap: 0;
+    padding-inline: 8px;
+  }
+
+  .tabs button span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .tabs button svg {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+@media (max-width: 560px) {
   .tabs button {
     gap: 0;
     padding-inline: 8px;

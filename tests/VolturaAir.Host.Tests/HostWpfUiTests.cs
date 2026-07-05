@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Threading;
 using VolturaAir.Host;
@@ -75,6 +76,9 @@ public sealed partial class HostUiLayoutTests
                 window.UpdateLayout();
                 Assert.Contains(FindWpfDescendants<CheckBox>(window), checkBox => checkBox.Content?.ToString() == "Start Voltura Air hidden in the tray");
                 Assert.Contains(FindWpfDescendants<CheckBox>(window), checkBox => checkBox.Content?.ToString() == "Show Voltura Air when the last device disconnects");
+                Assert.Contains(FindWpfDescendants<CheckBox>(window), checkBox => checkBox.Content?.ToString() == "Developer mode");
+                Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "Default remote mode");
+                Assert.Contains(FindWpfDescendants<ToggleButton>(window), button => button.Content?.ToString() == "Kodi");
             }
             finally
             {

@@ -3,15 +3,18 @@ import { Camera, Clipboard, Download, MousePointer2, Power, RefreshCw, X } from 
 import { copyTextToClipboard } from "../mobileDiagnostics";
 import { getPcDisplayName } from "../pcDisplayName";
 import { normalizeManualHostInput } from "../pairingFeedback";
+import type { AppSettings } from "../appSettings";
 import type { TrackpadSettings } from "../gestures";
 import type { KeyboardSettings } from "../keyboardSettings";
 import type { PcProfile } from "../pcProfiles";
+import type { RemoteSettings } from "../remoteSettings";
 
 type ThemeMode = "system" | "light" | "dark";
-type SettingsSection = "connection" | "trackpad" | "keyboard" | "appearance" | "app";
+type SettingsSection = "connection" | "trackpad" | "keyboard" | "remote" | "appearance" | "app";
 
 type SettingsDrawerProps = {
   activePc: PcProfile | null;
+  appSettings: AppSettings;
   diagnostics: string;
   deviceName: string;
   disconnectActivePc: () => void;
@@ -32,18 +35,22 @@ type SettingsDrawerProps = {
   refreshMessage: string;
   renameDevice: (name: string) => void;
   renamePc: (pcId: string, name: string) => void;
+  remoteSettings: RemoteSettings;
   scanPairingQr: () => void;
   selectPc: (pcId: string) => void;
   setThemeMode: React.Dispatch<React.SetStateAction<ThemeMode>>;
   showGestureDebug: boolean;
   themeMode: ThemeMode;
   trackpadSettings: TrackpadSettings;
+  updateAppSetting: <Key extends keyof AppSettings>(key: Key, value: AppSettings[Key]) => void;
   updateKeyboardSetting: <Key extends keyof KeyboardSettings>(key: Key, value: KeyboardSettings[Key]) => void;
+  updateRemoteSetting: <Key extends keyof RemoteSettings>(key: Key, value: RemoteSettings[Key]) => void;
   updateTrackpadSetting: <Key extends keyof TrackpadSettings>(key: Key, value: TrackpadSettings[Key]) => void;
 };
 
 export function SettingsDrawer({
   activePc,
+  appSettings,
   diagnostics,
   deviceName,
   disconnectActivePc,
@@ -64,13 +71,16 @@ export function SettingsDrawer({
   refreshMessage,
   renameDevice,
   renamePc,
+  remoteSettings,
   scanPairingQr,
   selectPc,
   setThemeMode,
   showGestureDebug,
   themeMode,
   trackpadSettings,
+  updateAppSetting,
   updateKeyboardSetting,
+  updateRemoteSetting,
   updateTrackpadSetting
 }: SettingsDrawerProps) {
   const [manualHost, setManualHost] = useState("");
@@ -372,6 +382,33 @@ export function SettingsDrawer({
         </div>
       </details>
 
+      <details className="settings-section" key={`remote-${isOpen ? "open" : "closed"}`} open={openSection === "remote"}>
+        <summary onClick={(event) => toggleSection(event, "remote")}>
+          <span>Remote</span>
+        </summary>
+        <div className="settings-section-body">
+          <label className="toggle-row">
+          <span>Navigation ring</span>
+          <input type="checkbox" checked={remoteSettings.navigationRing} onChange={(event) => updateRemoteSetting("navigationRing", event.target.checked)} />
+          </label>
+
+          <div className="setting-group">
+          <span>Remote mode</span>
+          <div className="segmented-control three" aria-label="Remote mode">
+            <button type="button" className={remoteSettings.mode === "standard" ? "active" : ""} onClick={() => updateRemoteSetting("mode", "standard")}>
+              Standard
+            </button>
+            <button type="button" className={remoteSettings.mode === "youtube" ? "active" : ""} onClick={() => updateRemoteSetting("mode", "youtube")}>
+              YouTube
+            </button>
+            <button type="button" className={remoteSettings.mode === "kodi" ? "active" : ""} onClick={() => updateRemoteSetting("mode", "kodi")}>
+              Kodi
+            </button>
+          </div>
+          </div>
+        </div>
+      </details>
+
       <details className="settings-section" key={`appearance-${isOpen ? "open" : "closed"}`} open={openSection === "appearance"}>
         <summary onClick={(event) => toggleSection(event, "appearance")}>
           <span>Appearance</span>
@@ -428,6 +465,10 @@ export function SettingsDrawer({
             </ol>
           )}
           <p>{refreshMessage}</p>
+          <label className="toggle-row">
+            <span>Auto refresh</span>
+            <input type="checkbox" checked={appSettings.autoRefresh} onChange={(event) => updateAppSetting("autoRefresh", event.target.checked)} />
+          </label>
           <button type="button" onClick={refreshInstalledApp}>
             <RefreshCw aria-hidden="true" />
             <span>Refresh app</span>

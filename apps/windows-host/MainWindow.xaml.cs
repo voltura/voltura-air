@@ -399,7 +399,25 @@ public partial class MainWindow : Window
         panel.Children.Add(sleep);
         panel.Children.Add(volume);
 
+        panel.Children.Add(CreateSectionHeading("Remote"));
+        panel.Children.Add(CreateMutedText("Choose the initial Remote mode for newly connected phones. Mobile settings can still override this per PC."));
+        var activeRemoteMode = AppRemoteSettings.GetDefaultRemoteMode();
+        var standardRemote = CreateSegmentButton("Standard", activeRemoteMode == AppRemoteMode.Standard);
+        var youtubeRemote = CreateSegmentButton("YouTube", activeRemoteMode == AppRemoteMode.Youtube);
+        var kodiRemote = CreateSegmentButton("Kodi", activeRemoteMode == AppRemoteMode.Kodi);
+        WireSegmentGroup(standardRemote, youtubeRemote, kodiRemote);
+        standardRemote.Click += (_, _) => SetDefaultRemoteMode(AppRemoteMode.Standard);
+        youtubeRemote.Click += (_, _) => SetDefaultRemoteMode(AppRemoteMode.Youtube);
+        kodiRemote.Click += (_, _) => SetDefaultRemoteMode(AppRemoteMode.Kodi);
+        panel.Children.Add(CreateLabel("Default remote mode"));
+        panel.Children.Add(CreateSegmentRow(standardRemote, youtubeRemote, kodiRemote));
+
         panel.Children.Add(CreateSectionHeading("Developer tools"));
+        var developerMode = CreateCheckBox("Developer mode", AppDeveloperSettings.DeveloperMode());
+        developerMode.Checked += (_, _) => AppDeveloperSettings.SetDeveloperMode(true);
+        developerMode.Unchecked += (_, _) => AppDeveloperSettings.SetDeveloperMode(false);
+        panel.Children.Add(developerMode);
+
         var gestureDebug = CreateCheckBox("Show gesture debug screen in the mobile app", AppDeveloperSettings.EnableGestureDebug());
         gestureDebug.Checked += (_, _) => AppDeveloperSettings.SetEnableGestureDebug(true);
         gestureDebug.Unchecked += (_, _) => AppDeveloperSettings.SetEnableGestureDebug(false);
@@ -1050,6 +1068,14 @@ public partial class MainWindow : Window
         if (!_isLoadingPreferences)
         {
             AppThemeSettings.SetMode(mode);
+        }
+    }
+
+    private void SetDefaultRemoteMode(AppRemoteMode mode)
+    {
+        if (!_isLoadingPreferences)
+        {
+            AppRemoteSettings.SetDefaultRemoteMode(mode);
         }
     }
 

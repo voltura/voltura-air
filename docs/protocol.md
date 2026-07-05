@@ -92,6 +92,7 @@ Successful response:
   "host": {
     "hostVersion": "0.1.0",
     "pcName": "WINDOWS-PC",
+    "defaultRemoteMode": "standard",
     "selectedAdapterName": "Wi-Fi - Intel(R) Wi-Fi 6 AX200",
     "selectedIp": "192.168.1.50",
     "selectedPort": 51395,
@@ -117,6 +118,7 @@ Connection status response:
   "host": {
     "hostVersion": "0.1.0",
     "pcName": "WINDOWS-PC",
+    "defaultRemoteMode": "standard",
     "selectedAdapterName": "Wi-Fi - Intel(R) Wi-Fi 6 AX200",
     "selectedIp": "192.168.1.50",
     "selectedPort": 51395,
@@ -128,6 +130,8 @@ Connection status response:
 Host metadata is included after authentication in `pair.accepted`, `status`, and `status.pong`.
 It is diagnostics metadata only. It is not a secret and must not be used as authentication state.
 The adapter name can reveal local hardware/vendor details, so it should only be copied when the user explicitly chooses **Copy diagnostics**.
+`defaultRemoteMode` is the host's advisory initial Remote mode for that PC (`standard`, `youtube`, or `kodi`). The mobile app uses it only when the current phone/browser has no saved Remote mode override for that PC.
+When host developer mode is enabled in **Preferences** -> **Developer tools**, host metadata also includes `developerMode: true` and a `developerSessionId` for the current host run. The mobile app uses this to auto-refresh installed web app code during development even when the release version has not changed.
 
 Rejected response:
 
@@ -199,6 +203,7 @@ Host response:
   "host": {
     "hostVersion": "0.1.0",
     "pcName": "WINDOWS-PC",
+    "defaultRemoteMode": "standard",
     "selectedAdapterName": "Wi-Fi - Intel(R) Wi-Fi 6 AX200",
     "selectedIp": "192.168.1.50",
     "selectedPort": 51395,
@@ -256,6 +261,14 @@ Special key:
 
 ```json
 { "type": "keyboard.special", "seq": 128, "key": "Enter", "modifiers": ["Control"] }
+```
+
+Single-letter shortcuts can be sent as special keys when an app needs a real
+virtual-key press instead of Unicode text input. For example, the mobile live
+keyboard maps a one-character `f` insertion to:
+
+```json
+{ "type": "keyboard.special", "key": "F" }
 ```
 
 Undo and redo shortcut aliases:

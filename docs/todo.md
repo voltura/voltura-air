@@ -209,42 +209,38 @@ This file separates the current implemented baseline from remaining roadmap work
 
 Goal: a user should instantly understand why the app is useful from one screenshot.
 
-- [ ] Add new mode: "Remote" or "Couch Remote".
-  - Partial: current app has trackpad, keyboard, dictation, sleep, and volume/mute controls, but not a dedicated remote mode.
+- [x] Add new mode: "Remote" or "Couch Remote".
 - [ ] Add large controls:
-  - [ ] Play / pause.
-  - [ ] Previous.
-  - [ ] Next.
-  - [ ] Seek backward.
-  - [ ] Seek forward.
+  - [x] Play / pause.
+  - [x] Previous.
+  - [x] Next.
+  - [x] Seek backward.
+  - [x] Seek forward.
   - [x] Volume down/up.
-    - Partial: current UI has a volume slider, not dedicated large buttons.
   - [x] Mute.
-  - [ ] Fullscreen.
+  - [x] Fullscreen.
   - [x] Space.
   - [x] Esc / Back.
 - [ ] Add D-pad:
-  - [ ] Up.
-    - Partial: keyboard arrow pad exists, but not a remote-mode D-pad.
-  - [ ] Down.
-    - Partial: keyboard arrow pad exists, but not a remote-mode D-pad.
-  - [ ] Left.
-    - Partial: keyboard arrow pad exists, but not a remote-mode D-pad.
-  - [ ] Right.
-    - Partial: keyboard arrow pad exists, but not a remote-mode D-pad.
+  - [x] Up.
+  - [x] Down.
+  - [x] Left.
+  - [x] Right.
   - [x] Enter / OK.
-    - Partial: keyboard Enter exists, but not a remote-mode OK button.
+  - [x] Navigation ring.
+  - [x] Mini-trackpad center.
 - [ ] Add utility buttons:
   - [ ] Show desktop.
   - [x] Start/Search.
-    - Partial: Win key exists; not a dedicated remote search button.
-  - [ ] Alt+Tab.
-  - [ ] Browser Back.
+  - [x] Alt+Tab.
+  - [x] Browser Back.
 - [ ] Add settings:
   - [ ] Hide dangerous power actions.
-  - [ ] Choose default mode after reconnect.
+  - [x] Choose default mode from Windows host Preferences.
   - [ ] Choose which buttons are visible.
-- [ ] Add automated tests for remote button message mapping.
+  - [x] Toggle navigation ring.
+  - [x] Choose Standard, YouTube, or Kodi mode.
+- [x] Add automated tests for remote button message mapping.
 - [ ] Add manual tests with:
   - [ ] YouTube in browser.
   - [ ] Netflix/streaming site in browser if available.

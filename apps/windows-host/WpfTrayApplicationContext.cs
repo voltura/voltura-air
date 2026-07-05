@@ -8,6 +8,7 @@ namespace VolturaAir.Host;
 internal sealed class WpfTrayApplicationContext : IDisposable
 {
     private const int MaxTrayTooltipLength = 63;
+    private const int DisconnectNotificationDelayMs = 1800;
     private const string ProductSiteUrl = "https://voltura.se/air/";
 
     private readonly MainWindow _mainWindow;
@@ -16,6 +17,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
     private readonly Forms.NotifyIcon _trayIcon;
     private readonly Forms.ContextMenuStrip _trayMenu = new();
     private readonly Icon _trayIconImage;
+    private CancellationTokenSource? _pendingDisconnectNotification;
     private bool _hadActiveController;
     private bool _disposed;
 
@@ -75,31 +77,89 @@ internal sealed class WpfTrayApplicationContext : IDisposable
 
         if (!_hadActiveController && hasActiveController)
         {
-            WpfApplication.Current.Dispatcher.BeginInvoke(() =>
+            var cancelledTransientDisconnect = CancelPendingDisconnectNotification();
+            if (!cancelledTransientDisconnect)
             {
-                ShowConnectionStatusNotification(
-                    "Voltura Air paired",
-                    $"{_pairingManager.ActiveDeviceSummary} connected.",
-                    Forms.ToolTipIcon.Info);
-            });
+                WpfApplication.Current.Dispatcher.BeginInvoke(() =>
+                {
+                    ShowConnectionStatusNotification(
+                        "Voltura Air paired",
+                        $"{_pairingManager.ActiveDeviceSummary} connected.",
+                        Forms.ToolTipIcon.Info);
+                });
+            }
         }
         else if (_hadActiveController && !hasActiveController)
         {
-            WpfApplication.Current.Dispatcher.BeginInvoke(() =>
-            {
-                if (AppNotificationSettings.ShowPairingWindowOnDisconnect())
-                {
-                    _mainWindow.ShowPage(HostPage.Connect);
-                }
-
-                ShowConnectionStatusNotification(
-                    "Voltura Air disconnected",
-                    "No connected devices.",
-                    Forms.ToolTipIcon.Info);
-            });
+            ScheduleDisconnectNotification();
         }
 
         _hadActiveController = hasActiveController;
+    }
+
+    private void ScheduleDisconnectNotification()
+    {
+        CancelPendingDisconnectNotification();
+
+        var pending = new CancellationTokenSource();
+        _pendingDisconnectNotification = pending;
+        var token = pending.Token;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(DisconnectNotificationDelayMs, token);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+
+            if (token.IsCancellationRequested || _disposed)
+            {
+                return;
+            }
+
+            _ = WpfApplication.Current.Dispatcher.BeginInvoke(() => ShowPendingDisconnectNotification(pending));
+        });
+    }
+
+    private bool CancelPendingDisconnectNotification()
+    {
+        var pending = _pendingDisconnectNotification;
+        if (pending is null)
+        {
+            return false;
+        }
+
+        _pendingDisconnectNotification = null;
+        pending.Cancel();
+        return true;
+    }
+
+    private void ShowPendingDisconnectNotification(CancellationTokenSource pending)
+    {
+        if (_disposed || !ReferenceEquals(_pendingDisconnectNotification, pending))
+        {
+            return;
+        }
+
+        _pendingDisconnectNotification = null;
+        if (_pairingManager.HasActiveController)
+        {
+            return;
+        }
+
+        if (AppNotificationSettings.ShowPairingWindowOnDisconnect())
+        {
+            _mainWindow.ShowPage(HostPage.Connect);
+        }
+
+        ShowConnectionStatusNotification(
+            "Voltura Air disconnected",
+            "No connected devices.",
+            Forms.ToolTipIcon.Info);
     }
 
     private void ShowConnectionStatusNotification(string title, string message, Forms.ToolTipIcon icon)
@@ -181,6 +241,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         }
 
         _disposed = true;
+        CancelPendingDisconnectNotification();
         _pairingManager.ConnectionChanged -= OnConnectionChanged;
         AppThemeSettings.Changed -= OnAppThemeChanged;
         _trayIcon.Visible = false;

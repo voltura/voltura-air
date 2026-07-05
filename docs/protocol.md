@@ -85,6 +85,7 @@ Successful response:
   "paired": true,
   "capabilities": {
     "gestureDebug": false,
+    "inputAck": true,
     "sleep": true,
     "volume": true
   },
@@ -109,6 +110,7 @@ Connection status response:
   "pcName": "WINDOWS-PC",
   "capabilities": {
     "gestureDebug": false,
+    "inputAck": true,
     "sleep": true,
     "volume": true
   },
@@ -190,6 +192,7 @@ Host response:
   "pcName": "WINDOWS-PC",
   "capabilities": {
     "gestureDebug": false,
+    "inputAck": true,
     "sleep": true,
     "volume": true
   },
@@ -209,7 +212,7 @@ Host response:
 Pointer movement:
 
 ```json
-{ "type": "pointer.move", "dx": 12, "dy": -4 }
+{ "type": "pointer.move", "seq": 123, "dx": 12, "dy": -4 }
 ```
 
 Mouse button. `action: "click"` sends a complete press/release click. `down`
@@ -217,7 +220,7 @@ and `up` are used when the mobile app needs to hold a button while pointer
 movement continues, such as dragging or resizing a window.
 
 ```json
-{ "type": "pointer.button", "button": "left", "action": "click" }
+{ "type": "pointer.button", "seq": 124, "button": "left", "action": "click" }
 ```
 
 ```json
@@ -231,13 +234,13 @@ movement continues, such as dragging or resizing a window.
 Wheel scroll:
 
 ```json
-{ "type": "pointer.wheel", "dx": 0, "dy": -18 }
+{ "type": "pointer.wheel", "seq": 125, "dx": 0, "dy": -18 }
 ```
 
 Zoom gesture. `direction: "in"` is a two-finger spread/pinch-out and zooms in. `direction: "out"` is a two-finger pinch-in and zooms out.
 
 ```json
-{ "type": "pointer.zoom", "direction": "in" }
+{ "type": "pointer.zoom", "seq": 126, "direction": "in" }
 ```
 
 The mobile app has a **Pinch zoom** trackpad setting. It controls whether
@@ -246,13 +249,13 @@ pinch/spread gestures emit `pointer.zoom` messages.
 Text input:
 
 ```json
-{ "type": "keyboard.text", "text": "Hello" }
+{ "type": "keyboard.text", "seq": 127, "text": "Hello" }
 ```
 
 Special key:
 
 ```json
-{ "type": "keyboard.special", "key": "Enter", "modifiers": ["Control"] }
+{ "type": "keyboard.special", "seq": 128, "key": "Enter", "modifiers": ["Control"] }
 ```
 
 Undo and redo shortcut aliases:
@@ -267,12 +270,41 @@ Undo and redo shortcut aliases:
 
 The Windows host translates `Undo` to `Ctrl+Z` and `Redo` to `Ctrl+Y`.
 
+Input delivery acknowledgement:
+
+When `capabilities.inputAck` is `true`, the mobile client adds a positive `seq`
+number to pointer and keyboard input messages. After the host dispatches the
+input to Windows, it sends `input.ack` for the same sequence.
+
+```json
+{ "type": "input.ack", "seq": 123 }
+```
+
+If the host accepts the WebSocket message but cannot dispatch the input to
+Windows, it sends `input.error`, reports a disconnected status, and closes the
+socket so the mobile client can show unavailable/retrying instead of dead
+controls.
+
+```json
+{
+  "type": "input.error",
+  "seq": 123,
+  "code": "VAIR-INPUT-DISPATCH-FAILED",
+  "message": "Windows did not accept input events."
+}
+```
+
+The mobile client treats missing acknowledgements for recent input as an
+unhealthy connection and reconnects. Heartbeat success alone is not enough to
+keep the UI in the paired state when input delivery is not being confirmed.
+
 ## System
 
 The host reports optional PC features in `capabilities`. Capability values
 reflect host-enforced permissions and host settings for the active device.
-`capabilities.gestureDebug` defaults to `false`; the mobile app only shows the
-gesture debug entry when the host explicitly enables it. The mobile app only
+`capabilities.gestureDebug` defaults to `false`; `capabilities.inputAck` is
+`true` when the host confirms input delivery with `input.ack` / `input.error`.
+The mobile app only shows the gesture debug entry when the host explicitly enables it. The mobile app only
 shows the keyboard sleep button when `capabilities.sleep` is `true` and the
 local **Show sleep button** keyboard setting is enabled.
 

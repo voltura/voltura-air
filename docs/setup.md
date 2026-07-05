@@ -94,3 +94,12 @@ Windows host settings include:
 - The web app is served over HTTP for local development. Some browser speech APIs are stricter over insecure origins, so dictation support depends on the browser.
 - Windows may block input injection into elevated/admin windows when the host is not also elevated.
 - Firewalls can block inbound LAN traffic. Allow the host app through Windows Defender Firewall when prompted.
+
+
+## Connection health
+
+After pairing, the mobile app keeps checking the host with heartbeat messages.
+When the host advertises input acknowledgement support, recent pointer and
+keyboard input must also be acknowledged. If heartbeat or input acknowledgement
+fails, the mobile app shows unavailable/retrying instead of leaving dead controls
+on screen.

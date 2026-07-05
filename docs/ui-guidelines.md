@@ -24,3 +24,12 @@ These notes capture project-level UI decisions for the Windows host.
 - Add or update host UI tests for navigation, startup behavior, settings save
   behavior, device actions, and permission state. Manual DPI checks should cover
   100%, 125%, 150%, and 200% display scaling on Windows.
+
+
+## Connection feedback
+
+Connection errors are first-class UI states. Do not leave the user on an active
+trackpad or keyboard surface when the host reports disconnected status, heartbeat
+fails, input acknowledgement times out, or input dispatch fails. Show a clear
+unavailable/retrying panel with recovery actions and keep it scrollable on small
+phones and short landscape screens.

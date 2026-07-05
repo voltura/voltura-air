@@ -100,6 +100,8 @@ Voltura Air turns a phone, tablet, or modern browser into a local-network remote
 
 ### Input injection
 
+- Acknowledges dispatched input events when the host advertises input acknowledgement support.
+- Reports input dispatch failures to the mobile client instead of silently leaving dead controls.
 - Moves the Windows pointer.
 - Sends left/right mouse button down/up/click.
 - Sends vertical and horizontal wheel scroll.
@@ -153,6 +155,8 @@ Voltura Air turns a phone, tablet, or modern browser into a local-network remote
 
 ### Pairing and reconnect UX
 
+- Detects stale heartbeat or missing input acknowledgements and moves to unavailable/retrying.
+- Treats host `connected: false` status as a real unavailable state.
 - Opens from a QR pairing link.
 - Can take a photo of a QR code for pairing/re-pairing.
 - Can confirm/change device name before pairing.

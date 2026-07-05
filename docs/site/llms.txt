@@ -21,3 +21,5 @@ Voltura Air turns a phone, tablet, or browser-capable device into a wireless tra
 - Local-network design: no account system, no cloud relay, and no internet input forwarding.
 - The Windows host serves the mobile app to trusted devices on the same Wi-Fi or LAN.
 - Windows release builds are not code-signed, so Windows may show an unknown publisher or SmartScreen warning.
+
+- It detects stale connections and input delivery failures, then shows unavailable/retrying instead of leaving dead controls on screen.

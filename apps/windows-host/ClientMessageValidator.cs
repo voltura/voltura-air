@@ -75,15 +75,19 @@ internal static class ClientMessageValidator
             "system.sleep" => true,
             "audio.mute.toggle" => true,
             "audio.volume.set" => TryGetNumber(root, "volume", 0, 100, out _),
-            "pointer.move" => TryGetNumber(root, "dx", -MaxPointerDelta, MaxPointerDelta, out _) &&
+            "pointer.move" => HasValidOptionalSequence(root) &&
+                TryGetNumber(root, "dx", -MaxPointerDelta, MaxPointerDelta, out _) &&
                 TryGetNumber(root, "dy", -MaxPointerDelta, MaxPointerDelta, out _),
-            "pointer.button" => TryGetOneOf(root, "button", "left", "right") &&
+            "pointer.button" => HasValidOptionalSequence(root) &&
+                TryGetOneOf(root, "button", "left", "right") &&
                 TryGetOneOf(root, "action", "down", "up", "click"),
-            "pointer.wheel" => TryGetNumber(root, "dx", -MaxPointerDelta, MaxPointerDelta, out _) &&
+            "pointer.wheel" => HasValidOptionalSequence(root) &&
+                TryGetNumber(root, "dx", -MaxPointerDelta, MaxPointerDelta, out _) &&
                 TryGetNumber(root, "dy", -MaxPointerDelta, MaxPointerDelta, out _),
-            "pointer.zoom" => TryGetOneOf(root, "direction", "in", "out"),
-            "keyboard.text" => TryGetRequiredString(root, "text", MaxTextLength, allowEmpty: true, out _),
-            "keyboard.special" => TryGetRequiredString(root, "key", MaxKeyLength, allowEmpty: false, out _) &&
+            "pointer.zoom" => HasValidOptionalSequence(root) && TryGetOneOf(root, "direction", "in", "out"),
+            "keyboard.text" => HasValidOptionalSequence(root) && TryGetRequiredString(root, "text", MaxTextLength, allowEmpty: true, out _),
+            "keyboard.special" => HasValidOptionalSequence(root) &&
+                TryGetRequiredString(root, "key", MaxKeyLength, allowEmpty: false, out _) &&
                 TryGetOptionalStringArray(root, "modifiers", MaxModifierCount, MaxModifierLength),
             _ => false
         };
@@ -126,6 +130,12 @@ internal static class ClientMessageValidator
             property.TryGetDouble(out value) &&
             value >= min &&
             value <= max;
+    }
+
+    private static bool HasValidOptionalSequence(JsonElement root)
+    {
+        return !root.TryGetProperty("seq", out var property) ||
+            (property.ValueKind == JsonValueKind.Number && property.TryGetInt64(out var value) && value > 0);
     }
 
     private static bool TryGetOneOf(JsonElement root, string propertyName, params string[] allowedValues)

@@ -109,7 +109,7 @@
         </article>
         <article>
           <h2>Living-room control</h2>
-          <p>Adjust PC volume, pair securely on the local network, reconnect saved devices, and choose light, dark, or system appearance on both host and client.</p>
+          <p>Adjust PC volume, pair securely on the local network, reconnect saved devices, and recover visibly if heartbeat or input delivery stops being confirmed.</p>
         </article>
       </section>
 
@@ -204,7 +204,7 @@
       <section class="feature-band" aria-label="Connection troubleshooting frequently asked questions">
         <article>
           <h2>The phone cannot reach the PC</h2>
-          <p>Make sure Voltura Air is running, both devices are on the same Wi-Fi/LAN, and Windows Firewall allows the host on private networks.</p>
+          <p>Make sure Voltura Air is running, both devices are on the same Wi-Fi/LAN, and Windows Firewall allows the host on private networks. The mobile app shows unavailable/retrying when the host cannot be reached or input delivery is not confirmed.</p>
         </article>
         <article>
           <h2>The QR code stopped working</h2>

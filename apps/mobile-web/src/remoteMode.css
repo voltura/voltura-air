@@ -11,7 +11,7 @@
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: 8px;
   align-content: start;
-  padding-bottom: calc(env(safe-area-inset-bottom) + 52px);
+  padding-bottom: 0;
   overflow: hidden;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
@@ -119,9 +119,13 @@
 }
 
 .remote-navigation-section {
+  position: relative;
+  grid-template-rows: auto minmax(0, 1fr);
+  justify-items: center;
+  align-content: stretch;
   touch-action: none;
-  align-content: center;
   overflow: hidden;
+  padding-bottom: 56px;
 }
 
 .remote-dpad {
@@ -132,6 +136,7 @@
     "left ok right"
     ". down .";
   justify-content: center;
+  align-self: center;
   gap: 8px;
 }
 
@@ -143,8 +148,9 @@
 
 .remote-navigation-ring {
   position: relative;
+  align-self: center;
   justify-self: center;
-  width: min(46svh, 68vw, 230px);
+  width: min(42svh, 64vw, 216px);
   max-width: 100%;
   aspect-ratio: 1;
   border: 1px solid var(--border);
@@ -167,12 +173,17 @@
 }
 
 .remote-floating-fn {
-  position: absolute;
-  right: max(10px, env(safe-area-inset-right));
-  bottom: max(10px, env(safe-area-inset-bottom));
+  grid-column: 1;
+  grid-row: 3;
+  align-self: end;
+  justify-self: end;
+  position: relative;
+  right: auto;
+  bottom: auto;
   z-index: 2;
   min-width: 54px;
   min-height: 40px;
+  margin: 0 9px 9px 0;
   box-shadow: 0 8px 24px color-mix(in srgb, var(--drawer-shadow) 42%, transparent);
 }
 
@@ -182,6 +193,12 @@
 
 .remote-mode.remote-utility-open .remote-utility-section {
   display: grid;
+  padding-bottom: 56px;
+}
+
+.remote-mode.remote-utility-open .remote-floating-fn {
+  grid-column: 1 / -1;
+  grid-row: 1;
 }
 
 @media (max-width: 560px), (max-height: 760px) {
@@ -216,6 +233,14 @@
     padding: 7px;
   }
 
+  .remote-navigation-section {
+    padding-bottom: 52px;
+  }
+
+  .remote-floating-fn {
+    margin: 0 7px 7px 0;
+  }
+
   .remote-primary-grid,
   .remote-volume-grid,
   .remote-utility-grid {
@@ -233,7 +258,7 @@
   }
 
   .remote-navigation-ring {
-    width: min(42svh, 66vw, 196px);
+    width: min(36svh, 58vw, 176px);
   }
 }
 
@@ -384,6 +409,17 @@
   }
 
   .remote-navigation-ring {
-    width: min(32vw, 42svh, 176px);
+    width: min(28vw, 34svh, 150px);
+  }
+
+  .remote-floating-fn {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .remote-mode.remote-utility-open .remote-utility-section,
+  .remote-mode.remote-utility-open .remote-floating-fn {
+    grid-column: 1 / -1;
+    grid-row: 1;
   }
 }

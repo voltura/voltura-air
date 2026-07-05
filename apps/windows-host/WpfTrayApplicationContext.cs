@@ -12,6 +12,9 @@ internal sealed class WpfTrayApplicationContext : IDisposable
     private const int MaxTrayTooltipLength = 63;
     private const int DisconnectNotificationDelayMs = 1800;
     private const string ProductSiteUrl = "https://voltura.se/air/";
+    private const string DefaultTrayIconFileName = "VolturaAirTray.ico";
+    private const string ConnectedTrayIconFileName = "VolturaAirTrayConnected.ico";
+    private const string DisconnectedTrayIconFileName = "VolturaAirTrayDisconnected.ico";
 
     private readonly MainWindow _mainWindow;
     private readonly PairingManager _pairingManager;
@@ -289,19 +292,30 @@ internal sealed class WpfTrayApplicationContext : IDisposable
 
     private static IReadOnlyDictionary<TrayConnectionState, Icon> LoadTrayIcons()
     {
-        var normal = LoadTrayIcon();
+        var normal = LoadTrayIcon(DefaultTrayIconFileName);
         return new Dictionary<TrayConnectionState, Icon>
         {
             [TrayConnectionState.NoDevicesRegistered] = normal,
-            [TrayConnectionState.Disconnected] = CreateTintedTrayIcon(normal, Color.FromArgb(215, 88, 88)),
-            [TrayConnectionState.Connected] = CreateTintedTrayIcon(normal, Color.FromArgb(72, 166, 92))
+            [TrayConnectionState.Disconnected] = LoadTrayIconOrTint(DisconnectedTrayIconFileName, normal, Color.FromArgb(215, 88, 88)),
+            [TrayConnectionState.Connected] = LoadTrayIconOrTint(ConnectedTrayIconFileName, normal, Color.FromArgb(72, 166, 92))
         };
     }
 
-    private static Icon LoadTrayIcon()
+    private static Icon LoadTrayIconOrTint(string fileName, Icon fallbackSource, Color fallbackTint)
     {
-        var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "VolturaAirTray.ico");
+        var iconPath = GetAssetPath(fileName);
+        return File.Exists(iconPath) ? new Icon(iconPath) : CreateTintedTrayIcon(fallbackSource, fallbackTint);
+    }
+
+    private static Icon LoadTrayIcon(string fileName)
+    {
+        var iconPath = GetAssetPath(fileName);
         return File.Exists(iconPath) ? new Icon(iconPath) : (Icon)SystemIcons.Application.Clone();
+    }
+
+    private static string GetAssetPath(string fileName)
+    {
+        return Path.Combine(AppContext.BaseDirectory, "Assets", fileName);
     }
 
     private static Icon CreateTintedTrayIcon(Icon sourceIcon, Color tint)

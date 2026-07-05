@@ -44,7 +44,7 @@ const baseProps = {
 
 describe("SettingsDrawer", () => {
   beforeEach(() => {
-    vi.stubGlobal("__APP_VERSION__", "0.1.0");
+    vi.stubGlobal("__APP_VERSION__", "0.2.0");
   });
 
   it("groups settings into folded accordions by default", () => {

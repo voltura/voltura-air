@@ -10,7 +10,7 @@
     "build": "npm run build --workspace apps/mobile-web && dotnet build VolturaAir.slnx",
     "dev": "node scripts/dev.mjs",
     "dev:host": "node scripts/dev-host.mjs",
-    "dev:ui": "node scripts/dev-ui.mjs",
+    "dev:ui": "node scripts/dev-ui-with-devices.mjs",
     "dev:web": "npm run dev --workspace apps/mobile-web",
     "package:win": "powershell -ExecutionPolicy Bypass -File scripts/package-win.ps1",
     "screenshots:site": "node scripts/capture-site-screenshots.mjs",

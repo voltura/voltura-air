@@ -92,6 +92,7 @@ docs/site/assets/voltura-air-host.png
 docs/site/assets/voltura-air-host-dark.png
 docs/site/assets/voltura-air-iphone.png
 docs/site/assets/voltura-air-iphone-dark.png
+docs/site/assets/voltura-air-iphone-kodi-dark.png
 docs/site/assets/voltura-air-ipad.png
 docs/site/assets/voltura-air-ipad-dark.png
 docs/site/assets/voltura-air-split.png
@@ -119,6 +120,8 @@ Keep screenshots current for the public site and release notes when UI changes
 affect connection feedback. Capture at least:
 
 - normal paired trackpad/keyboard state;
+- Kodi remote mode on an iPhone portrait viewport with dark mode, navigation
+  ring enabled, and the mode tab row collapsed;
 - unavailable/retrying state;
 - rejected pairing state with recovery actions;
 - manual host entry and troubleshooting help on a small phone viewport;

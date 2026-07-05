@@ -19,6 +19,7 @@ const outputs = {
   hostDark: path.join(assetsDir, "voltura-air-host-dark.png"),
   iphoneLight: path.join(assetsDir, "voltura-air-iphone.png"),
   iphoneDark: path.join(assetsDir, "voltura-air-iphone-dark.png"),
+  iphoneKodiDark: path.join(assetsDir, "voltura-air-iphone-kodi-dark.png"),
   ipadLight: path.join(assetsDir, "voltura-air-ipad.png"),
   ipadDark: path.join(assetsDir, "voltura-air-ipad-dark.png"),
   split: path.join(assetsDir, "voltura-air-split.png")
@@ -115,6 +116,8 @@ async function captureMobileScreens(chromium, pairingUrl) {
     await setMobileTheme(page, "dark");
     await page.screenshot({ path: outputs.iphoneDark });
 
+    await captureKodiRemote(page);
+
     await page.setViewportSize({ width: 820, height: 1180 });
     await setMobileTheme(page, "light");
     await page.screenshot({ path: outputs.ipadLight });
@@ -142,6 +145,29 @@ async function captureMobileScreens(chromium, pairingUrl) {
   } finally {
     await browser.close();
   }
+}
+
+async function captureKodiRemote(page) {
+  await page.setViewportSize({ width: 393, height: 852 });
+  await page.evaluate(() => {
+    localStorage.setItem("voltura-air.themeMode", "dark");
+    const clientId = localStorage.getItem("voltura-air.clientId");
+    const pcId = localStorage.getItem("voltura-air.activePcId");
+    if (clientId) {
+      localStorage.setItem(`voltura-air.remoteSettings.${clientId}`, JSON.stringify({ navigationRing: true, mode: "kodi" }));
+    }
+    if (clientId && pcId) {
+      localStorage.setItem(`voltura-air.remoteSettings.${clientId}.${pcId}`, JSON.stringify({ navigationRing: true, mode: "kodi" }));
+    }
+  });
+  await page.reload({ waitUntil: "networkidle" });
+  await waitForConnected(page);
+  const remoteTab = page.getByRole("button", { name: "Remote mode" });
+  await remoteTab.click();
+  await page.locator(".remote-navigation-ring").waitFor({ timeout: 5000 });
+  await remoteTab.click();
+  await page.locator(".app-shell.mode-tabs-collapsed.remote-active").waitFor({ timeout: 5000 });
+  await page.screenshot({ path: outputs.iphoneKodiDark });
 }
 
 async function launchBrowser(chromium) {

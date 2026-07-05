@@ -162,6 +162,10 @@
             <img src="./assets/voltura-air-iphone-dark.png" alt="Voltura Air trackpad screen on an iPhone in dark mode">
             <figcaption>iPhone - dark mode</figcaption>
           </figure>
+          <figure class="screen-card phone">
+            <img src="./assets/voltura-air-iphone-kodi-dark.png" alt="Voltura Air Kodi remote screen on an iPhone in dark mode with navigation ring controls">
+            <figcaption>iPhone Kodi remote</figcaption>
+          </figure>
           <figure class="screen-card tablet">
             <img src="./assets/voltura-air-ipad.png" alt="Voltura Air trackpad screen on an iPad in light mode">
             <figcaption>iPad - light mode</figcaption>

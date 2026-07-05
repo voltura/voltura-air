@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Circle, Keyboard, Menu, Mic, MousePointer2 } from "lucide-react";
+import { Circle, Keyboard, Menu, Mic, MousePointer2, Tv } from "lucide-react";
 import { DictationMode } from "./components/DictationMode";
 import { GestureDebugMode } from "./components/GestureDebugMode";
 import { KeyboardMode } from "./components/KeyboardMode";
 import { PairingStatus } from "./components/PairingStatus";
+import { RemoteMode } from "./components/RemoteMode";
 import { SettingsDrawer } from "./components/SettingsDrawer";
 import { TrackpadMode } from "./components/TrackpadMode";
 import { defaultTrackpadSettings, GestureRecognizer, normalizeTrackpadSettings, touchesFromList, type TrackpadSettings } from "./gestures";
@@ -22,7 +23,7 @@ import { buildMobileDiagnostics } from "./mobileDiagnostics";
 import { decodeQrImage } from "./qrCode";
 import { useVolturaAirConnection } from "./useVolturaAirConnection";
 
-type Tab = "trackpad" | "keyboard" | "dictation" | "debug";
+type Tab = "trackpad" | "keyboard" | "remote" | "dictation" | "debug";
 type ThemeMode = "system" | "light" | "dark";
 const liveKeyboardKey = "voltura-air.liveKeyboard";
 const liveKeyboardDefaultMigrationKey = "voltura-air.liveKeyboardDefaultOn";
@@ -538,6 +539,16 @@ export function App() {
     />
   );
 
+  const renderRemoteMode = () => (
+    <RemoteMode
+      audioState={displayedAudioState}
+      onSetVolume={setVolume}
+      onToggleMute={toggleMute}
+      sendSpecial={sendSpecial}
+      supportsVolumeControl={supportsVolumeControl}
+    />
+  );
+
   const renderSplitMode = () => (
     <div className="split-mode-shell">
       <div className="split-keyboard-pane" aria-label="Split keyboard panel">
@@ -651,6 +662,10 @@ export function App() {
           <Keyboard aria-hidden="true" />
           <span>Keyboard</span>
         </button>
+        <button className={tab === "remote" ? "active" : ""} onClick={() => setTab("remote")}>
+          <Tv aria-hidden="true" />
+          <span>Remote</span>
+        </button>
         <button className={tab === "dictation" ? "active" : ""} onClick={() => setTab("dictation")}>
           <Mic aria-hidden="true" />
           <span>Dictate</span>
@@ -659,6 +674,8 @@ export function App() {
 
       {(tab === "trackpad" || tab === "keyboard") &&
         (shouldShowSplitMode ? renderSplitMode() : tab === "trackpad" ? renderTrackpadMode() : renderKeyboardMode())}
+
+      {tab === "remote" && renderRemoteMode()}
 
       {tab === "dictation" && (
         <DictationMode

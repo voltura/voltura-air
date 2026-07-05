@@ -54,8 +54,8 @@ public partial class MainWindow
 
         var allowButton = FindPermissionButton(row, "Allow");
         var blockButton = FindPermissionButton(row, "Block");
-        ResetPermissionButtonVisual(allowButton, "Allow");
-        ResetPermissionButtonVisual(blockButton, "Block");
+        ResetPermissionButtonVisual(allowButton, "Allow", primary: overrideValue == true, danger: false);
+        ResetPermissionButtonVisual(blockButton, "Block", primary: overrideValue == false, danger: overrideValue == false);
 
         var effectiveAllow = overrideValue ?? inheritedAllow;
         if (effectiveAllow)
@@ -102,7 +102,7 @@ public partial class MainWindow
             : button.Content as string ?? string.Empty;
     }
 
-    private void ResetPermissionButtonVisual(Button? button, string text)
+    private void ResetPermissionButtonVisual(Button? button, string text, bool primary, bool danger)
     {
         if (button is null)
         {
@@ -110,8 +110,11 @@ public partial class MainWindow
         }
 
         button.Content = text;
-        button.FontWeight = FontWeights.Normal;
+        button.Background = primary ? (Brush)Resources["AccentBrush"] : (Brush)Resources["SurfaceRaisedBrush"];
+        button.Foreground = primary ? (Brush)Resources["AccentTextBrush"] : danger ? (Brush)Resources["DangerBrush"] : (Brush)Resources["TextBrush"];
+        button.BorderBrush = primary ? (Brush)Resources["AccentBrush"] : (Brush)Resources["BorderBrush"];
         button.BorderThickness = new Thickness(1);
+        button.FontWeight = FontWeights.Normal;
         button.Opacity = 1;
     }
 

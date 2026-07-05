@@ -1,14 +1,15 @@
 # Voltura Air
 
-Turn your phone, tablet, or browser into a wireless trackpad and keyboard for Windows.
+Turn any phone, tablet, or touch browser into a wireless remote for your Windows PC.
 
-Voltura Air turns a browser-capable device into a trackpad, keyboard, dictation surface, and media remote with Standard, YouTube, and Kodi modes for a Windows 11 PC, including Kodi-friendly navigation where the remote mini-trackpad center sends Enter and compact controls expose stop, info, and subtitles.
+Use it as a trackpad, keyboard, dictation surface, and media remote — including YouTube and Kodi modes for couch and TV control. No app-store install, account, or cloud needed.
 
 ## Product promise
 
-- Control your Windows PC from any phone, tablet, or modern browser.
+- Control your Windows PC from any phone, tablet, or touch browser.
 - No mobile app-store install required.
-- Local-first. No account. No cloud needed. No paywall.
+- Works on your own Wi-Fi/LAN. No account. No cloud needed.
+- Freeware with no trial limits or feature locks.
 
 ## Best for
 

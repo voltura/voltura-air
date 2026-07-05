@@ -24,6 +24,7 @@ export type StatusPingMessage = {
 
 export type ServerCapabilities = {
   gestureDebug?: boolean;
+  inputAck?: boolean;
   sleep?: boolean;
   volume?: boolean;
 };

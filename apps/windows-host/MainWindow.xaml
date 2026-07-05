@@ -328,7 +328,10 @@
             </Grid>
         </Border>
 
-        <Grid x:Name="MainContentRoot" Grid.Column="1" Margin="28">
+        <Grid x:Name="MainContentRoot"
+              Grid.Column="1"
+              Margin="28"
+              LayoutUpdated="OnMainContentRootLayoutUpdated">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />

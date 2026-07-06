@@ -1,5 +1,4 @@
 using System.Runtime.InteropServices;
-using System.Windows.Automation;
 
 namespace VolturaAir.Host;
 
@@ -36,7 +35,12 @@ public sealed partial class RemoteActionExecutor
 
     private static bool IsBrowserFullscreen(IntPtr windowHandle)
     {
-        return IsWindowCoveringMonitor(windowHandle) && !HasVisibleBrowserChrome(windowHandle);
+        if (windowHandle == IntPtr.Zero || IsIconic(windowHandle) || IsZoomed(windowHandle))
+        {
+            return false;
+        }
+
+        return IsWindowCoveringMonitor(windowHandle);
     }
 
     private static bool IsWindowHandleAvailable(IntPtr windowHandle)
@@ -74,81 +78,6 @@ public sealed partial class RemoteActionExecutor
             && Math.Abs(windowRect.Bottom - monitorInfo.Monitor.Bottom) <= tolerance;
     }
 
-    private static bool HasVisibleBrowserChrome(IntPtr windowHandle)
-    {
-        try
-        {
-            var browserWindow = AutomationElement.FromHandle(windowHandle);
-            if (browserWindow is null)
-            {
-                return true;
-            }
-
-            return HasVisibleControlType(browserWindow, ControlType.TabItem) || HasVisibleBrowserAddressControl(browserWindow);
-        }
-        catch (Exception ex) when (ex is ElementNotAvailableException or InvalidOperationException or UnauthorizedAccessException or COMException)
-        {
-            return true;
-        }
-    }
-
-    private static bool HasVisibleControlType(AutomationElement root, ControlType controlType)
-    {
-        var elements = root.FindAll(
-            TreeScope.Descendants,
-            new PropertyCondition(AutomationElement.ControlTypeProperty, controlType));
-
-        foreach (AutomationElement element in elements)
-        {
-            if (!element.Current.IsOffscreen)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool HasVisibleBrowserAddressControl(AutomationElement root)
-    {
-        var editFields = root.FindAll(
-            TreeScope.Descendants,
-            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Edit));
-
-        foreach (AutomationElement editField in editFields)
-        {
-            if (editField.Current.IsOffscreen || !editField.TryGetCurrentPattern(ValuePattern.Pattern, out var pattern) || pattern is not ValuePattern valuePattern)
-            {
-                continue;
-            }
-
-            if (LooksLikeBrowserAddressControl(editField, valuePattern.Current.Value))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool LooksLikeBrowserAddressControl(AutomationElement editField, string value)
-    {
-        var name = editField.Current.Name;
-        if (!string.IsNullOrWhiteSpace(name)
-            && (name.Contains("address", StringComparison.OrdinalIgnoreCase)
-                || name.Contains("adress", StringComparison.OrdinalIgnoreCase)
-                || name.Contains("url", StringComparison.OrdinalIgnoreCase)
-                || name.Contains("omnibox", StringComparison.OrdinalIgnoreCase)))
-        {
-            return true;
-        }
-
-        var trimmed = value.Trim();
-        return Uri.TryCreate(trimmed, UriKind.Absolute, out var uri)
-            && (uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
-                || uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase));
-    }
-
     private static bool TryActivateWindow(IntPtr windowHandle, bool maximize = false)
     {
         if (windowHandle == IntPtr.Zero)
@@ -166,12 +95,23 @@ public sealed partial class RemoteActionExecutor
         }
         else
         {
-            ShowWindow(windowHandle, ShowWindowShow);
+            TryBringWindowForwardPreservingState(windowHandle);
+            return true;
+        }
+
+        return TryBringWindowForwardPreservingState(windowHandle);
+    }
+
+    private static bool TryBringWindowForwardPreservingState(IntPtr windowHandle)
+    {
+        if (windowHandle == IntPtr.Zero)
+        {
+            return false;
         }
 
         BringWindowToTop(windowHandle);
-        SetWindowPos(windowHandle, TopMostWindow, 0, 0, 0, 0, SetWindowPosNoMove | SetWindowPosNoSize | SetWindowPosShowWindow);
-        SetWindowPos(windowHandle, NoTopMostWindow, 0, 0, 0, 0, SetWindowPosNoMove | SetWindowPosNoSize | SetWindowPosShowWindow);
+        SetWindowPos(windowHandle, TopMostWindow, 0, 0, 0, 0, SetWindowPosNoMove | SetWindowPosNoSize);
+        SetWindowPos(windowHandle, NoTopMostWindow, 0, 0, 0, 0, SetWindowPosNoMove | SetWindowPosNoSize);
         SetForegroundWindow(windowHandle);
         return true;
     }
@@ -194,15 +134,11 @@ public sealed partial class RemoteActionExecutor
 
     private const int ShowWindowMaximize = 3;
 
-    private const int ShowWindowShow = 5;
-
     private const int ShowWindowRestore = 9;
 
     private const int SetWindowPosNoSize = 0x0001;
 
     private const int SetWindowPosNoMove = 0x0002;
-
-    private const int SetWindowPosShowWindow = 0x0040;
 
     private const uint MonitorDefaultToNearest = 0x00000002;
 
@@ -236,6 +172,9 @@ public sealed partial class RemoteActionExecutor
 
     [DllImport("user32.dll")]
     private static extern bool IsIconic(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsZoomed(IntPtr hWnd);
 
     [DllImport("user32.dll")]
     private static extern bool IsWindow(IntPtr hWnd);

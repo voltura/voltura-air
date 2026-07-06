@@ -17,7 +17,7 @@ public sealed partial class RemoteActionExecutor
 
     private static void EnsureBrowserFullscreen(IntPtr windowHandle)
     {
-        if (windowHandle == IntPtr.Zero || IsWindowFullscreen(windowHandle))
+        if (windowHandle == IntPtr.Zero)
         {
             return;
         }
@@ -26,12 +26,6 @@ public sealed partial class RemoteActionExecutor
         {
             TryActivateWindow(windowHandle);
             Thread.Sleep(BrowserFocusSettleMilliseconds);
-
-            if (IsWindowFullscreen(windowHandle))
-            {
-                return;
-            }
-
             SendBrowserFullscreenShortcut();
             Thread.Sleep(BrowserFullscreenSettleMilliseconds);
 
@@ -99,11 +93,11 @@ public sealed partial class RemoteActionExecutor
         }
     }
 
-    private const int BrowserFullscreenAttempts = 2;
+    private const int BrowserFullscreenAttempts = 1;
 
-    private const int BrowserFocusSettleMilliseconds = 250;
+    private const int BrowserFocusSettleMilliseconds = 500;
 
-    private const int BrowserFullscreenSettleMilliseconds = 600;
+    private const int BrowserFullscreenSettleMilliseconds = 800;
 
     private const int ShowWindowMaximize = 3;
 

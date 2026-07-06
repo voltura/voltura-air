@@ -292,7 +292,7 @@ public sealed partial class RemoteActionExecutor
     {
         public string BuildNewTabArguments(string url)
         {
-            return $"--new-tab {QuoteProcessArgument(url)}";
+            return $"--new-tab --start-fullscreen {QuoteProcessArgument(url)}";
         }
     }
 }

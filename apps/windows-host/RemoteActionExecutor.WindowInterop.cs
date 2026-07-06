@@ -39,6 +39,11 @@ public sealed partial class RemoteActionExecutor
         return IsWindowCoveringMonitor(windowHandle) && !HasVisibleBrowserChrome(windowHandle);
     }
 
+    private static bool IsWindowHandleAvailable(IntPtr windowHandle)
+    {
+        return windowHandle != IntPtr.Zero && IsWindow(windowHandle);
+    }
+
     private static bool IsWindowCoveringMonitor(IntPtr windowHandle)
     {
         if (!GetWindowRect(windowHandle, out var windowRect))
@@ -231,6 +236,9 @@ public sealed partial class RemoteActionExecutor
 
     [DllImport("user32.dll")]
     private static extern bool IsIconic(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsWindow(IntPtr hWnd);
 
     [DllImport("user32.dll")]
     private static extern bool BringWindowToTop(IntPtr hWnd);

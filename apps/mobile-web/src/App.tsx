@@ -19,7 +19,7 @@ import {
   toLiveKeyboardValue
 } from "./keyboardDelta";
 import { parsePairingLink, type PairingLink } from "./pairingLink";
-import type { AudioStateMessage, ClientMessage, KeyboardSpecialMessage } from "./protocol";
+import type { AudioStateMessage, ClientMessage, KeyboardSpecialMessage, RemoteLaunchAction } from "./protocol";
 import { buildMobileDiagnostics } from "./mobileDiagnostics";
 import { decodeQrImage } from "./qrCode";
 import { defaultRemoteSettings, resolveRemoteSettings, type RemoteModeId, type RemoteSettings } from "./remoteSettings";
@@ -88,6 +88,7 @@ export function App() {
     supportsGestureDebug,
     supportsSleep,
     supportsVolumeControl,
+    supportsRemoteLaunch,
     lastConnectionError,
     hostStatus,
     pairWithToken,
@@ -532,7 +533,33 @@ export function App() {
     setKeyboardSettings((current) => ({ ...current, [key]: value }));
   };
 
+  const launchRemoteAction = (action: RemoteLaunchAction) => {
+    if (supportsRemoteLaunch) {
+      emit({ type: "remote.launch", action });
+    }
+  };
+
+  const maybeLaunchRemoteMode = (mode: unknown, settings: RemoteSettings) => {
+    if (!supportsRemoteLaunch) {
+      return;
+    }
+
+    if (mode === "youtube" && settings.openYoutube) {
+      launchRemoteAction("openYoutube");
+      return;
+    }
+
+    if (mode === "kodi" && settings.startKodi) {
+      launchRemoteAction("startOrActivateKodi");
+    }
+  };
+
   const updateRemoteSetting = <Key extends keyof RemoteSettings>(key: Key, value: RemoteSettings[Key]) => {
+    const nextSettings = { ...remoteSettings, [key]: value } as RemoteSettings;
+    if (key === "mode" && value !== remoteSettings.mode) {
+      maybeLaunchRemoteMode(value, nextSettings);
+    }
+
     setRemoteSettingsState((current) => ({
       ...current,
       isStored: true,
@@ -758,6 +785,10 @@ export function App() {
   const ActiveModeIcon = activeModeTab?.Icon;
 
   const selectModeTab = (nextTab: MainTab) => {
+    if (nextTab === "remote") {
+      maybeLaunchRemoteMode(remoteSettings.mode, remoteSettings);
+    }
+
     if (tab === nextTab) {
       setAreModeTabsCollapsed(true);
       return;
@@ -855,6 +886,7 @@ export function App() {
         selectPc={selectPc}
         setThemeMode={setThemeMode}
         showGestureDebug={supportsGestureDebug}
+        supportsRemoteLaunch={supportsRemoteLaunch}
         themeMode={themeMode}
         trackpadSettings={effectiveTrackpadSettings}
         updateKeyboardSetting={updateKeyboardSetting}

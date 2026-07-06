@@ -82,9 +82,9 @@ const remoteShortcutMaps: Record<RemoteModeId, RemoteShortcutMap> = {
     space: { key: "Space" }
   },
   kodi: {
-    previous: { key: "PageDown" },
+    previous: { key: "MediaPreviousTrack" },
     playPause: { key: "Space" },
-    next: { key: "PageUp" },
+    next: { key: "MediaNextTrack" },
     seekBackward: { key: "ArrowLeft" },
     seekForward: { key: "ArrowRight" },
     volumeDown: { key: "-" },

@@ -21,6 +21,7 @@ internal static class ClientMessageValidator
     private const int MaxKeyLength = 80;
     private const int MaxModifierLength = 40;
     private const int MaxModifierCount = 8;
+    private const int MaxRemoteActionLength = 80;
     private const double MaxPointerDelta = 5000;
 
     public static bool TryReadType(JsonElement root, out string? type)
@@ -76,6 +77,8 @@ internal static class ClientMessageValidator
             "pointer.speed.set" => TryGetNumber(root, "pointerSpeed", DevicePointerProfile.MinPointerSpeed, DevicePointerProfile.MaxPointerSpeed, out _),
             "audio.get" => true,
             "system.sleep" => true,
+            "remote.launch" => TryGetRequiredString(root, "action", MaxRemoteActionLength, allowEmpty: false, out var action) &&
+                RemoteLaunchActions.IsSupported(action),
             "audio.mute.toggle" => true,
             "audio.volume.set" => TryGetNumber(root, "volume", 0, 100, out _),
             "pointer.move" => HasValidOptionalSequence(root) &&

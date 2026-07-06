@@ -63,7 +63,7 @@ describe("RemoteMode", () => {
       <RemoteMode
         {...{
           audioState: { type: "audio.state", volume: 50, muted: false },
-          remoteSettings: { navigationRing: false, mode: "standard" },
+          remoteSettings: { ...defaultRemoteSettings, navigationRing: false, mode: "standard" },
           onPointerButtonClick: vi.fn(),
           onPointerMove: vi.fn(),
           sendSpecial: vi.fn()
@@ -77,7 +77,7 @@ describe("RemoteMode", () => {
 
   it("sends OK as Enter in legacy D-pad mode", () => {
     const sendSpecial = vi.fn();
-    renderRemote({ remoteSettings: { navigationRing: false, mode: "standard" }, sendSpecial });
+    renderRemote({ remoteSettings: { ...defaultRemoteSettings, navigationRing: false, mode: "standard" }, sendSpecial });
 
     fireEvent.click(screen.getByRole("button", { name: "OK" }));
 
@@ -95,7 +95,7 @@ describe("RemoteMode", () => {
     ["Volume up", "ArrowUp", undefined]
   ] as const)("sends YouTube shortcut for %s when YouTube mode is enabled", (buttonName, key, modifiers) => {
     const sendSpecial = vi.fn();
-    renderRemote({ remoteSettings: { navigationRing: true, mode: "youtube" }, sendSpecial });
+    renderRemote({ remoteSettings: { ...defaultRemoteSettings, navigationRing: true, mode: "youtube" }, sendSpecial });
 
     fireEvent.click(screen.getByRole("button", { name: buttonName }));
 
@@ -108,9 +108,9 @@ describe("RemoteMode", () => {
   });
 
   it.each([
-    ["Previous track", "PageDown", undefined],
+    ["Previous track", "MediaPreviousTrack", undefined],
     ["Play or pause", "Space", undefined],
-    ["Next track", "PageUp", undefined],
+    ["Next track", "MediaNextTrack", undefined],
     ["Seek backward", "ArrowLeft", undefined],
     ["Seek forward", "ArrowRight", undefined],
     ["Esc or back", "Backspace", undefined],
@@ -123,7 +123,7 @@ describe("RemoteMode", () => {
     ["Volume up", "+", undefined]
   ] as const)("sends Kodi shortcut for %s when Kodi mode is enabled", (buttonName, key, modifiers) => {
     const sendSpecial = vi.fn();
-    renderRemote({ remoteSettings: { navigationRing: true, mode: "kodi" }, sendSpecial });
+    renderRemote({ remoteSettings: { ...defaultRemoteSettings, navigationRing: true, mode: "kodi" }, sendSpecial });
 
     fireEvent.click(screen.getByRole("button", { name: buttonName }));
 
@@ -136,7 +136,7 @@ describe("RemoteMode", () => {
   });
 
   it("hides the separate browser fullscreen button in Kodi mode", () => {
-    renderRemote({ remoteSettings: { navigationRing: true, mode: "kodi" } });
+    renderRemote({ remoteSettings: { ...defaultRemoteSettings, navigationRing: true, mode: "kodi" } });
 
     expect(screen.queryByRole("button", { name: "Browser fullscreen" })).toBeNull();
   });
@@ -221,7 +221,7 @@ describe("RemoteMode repeatable controls", () => {
 
   it("repeats YouTube volume shortcuts until release", () => {
     const sendSpecial = vi.fn();
-    renderRemote({ remoteSettings: { navigationRing: true, mode: "youtube" }, sendSpecial });
+    renderRemote({ remoteSettings: { ...defaultRemoteSettings, navigationRing: true, mode: "youtube" }, sendSpecial });
 
     const button = screen.getByRole("button", { name: "Volume down" });
     fireEvent.pointerDown(button, { button: 0, pointerId: 1 });
@@ -280,7 +280,7 @@ describe("RemoteMode mini trackpad", () => {
   it("turns a Kodi mini trackpad tap into Enter instead of a left click", () => {
     const onPointerButtonClick = vi.fn();
     const sendSpecial = vi.fn();
-    renderRemote({ remoteSettings: { navigationRing: true, mode: "kodi" }, onPointerButtonClick, sendSpecial });
+    renderRemote({ remoteSettings: { ...defaultRemoteSettings, navigationRing: true, mode: "kodi" }, onPointerButtonClick, sendSpecial });
 
     const trackpad = screen.getByRole("button", { name: "Mini trackpad" });
     fireEvent.pointerDown(trackpad, { button: 0, pointerId: 1, clientX: 10, clientY: 20 });
@@ -297,7 +297,7 @@ describe("RemoteMode mini trackpad", () => {
   it("turns Kodi mini trackpad keyboard activation into Enter", () => {
     const onPointerButtonClick = vi.fn();
     const sendSpecial = vi.fn();
-    renderRemote({ remoteSettings: { navigationRing: true, mode: "kodi" }, onPointerButtonClick, sendSpecial });
+    renderRemote({ remoteSettings: { ...defaultRemoteSettings, navigationRing: true, mode: "kodi" }, onPointerButtonClick, sendSpecial });
 
     fireEvent.keyDown(screen.getByRole("button", { name: "Mini trackpad" }), { key: "Enter" });
 

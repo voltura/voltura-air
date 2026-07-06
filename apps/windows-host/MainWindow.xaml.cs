@@ -414,12 +414,16 @@ public partial class MainWindow : Window
         panel.Children.Add(CreateSectionHeading("Global permissions"));
         var sleep = CreateCheckBox("Allow paired devices to request PC sleep", globalPermissions.AllowPcSleep);
         var volume = CreateCheckBox("Allow paired devices to control volume", globalPermissions.AllowVolumeControl);
-        sleep.Checked += (_, _) => SaveGlobalPermissions(sleep, volume);
-        sleep.Unchecked += (_, _) => SaveGlobalPermissions(sleep, volume);
-        volume.Checked += (_, _) => SaveGlobalPermissions(sleep, volume);
-        volume.Unchecked += (_, _) => SaveGlobalPermissions(sleep, volume);
+        var remoteLaunch = CreateCheckBox("Allow paired devices to start applications", globalPermissions.AllowRemoteAppLaunch);
+        sleep.Checked += (_, _) => SaveGlobalPermissions(sleep, volume, remoteLaunch);
+        sleep.Unchecked += (_, _) => SaveGlobalPermissions(sleep, volume, remoteLaunch);
+        volume.Checked += (_, _) => SaveGlobalPermissions(sleep, volume, remoteLaunch);
+        volume.Unchecked += (_, _) => SaveGlobalPermissions(sleep, volume, remoteLaunch);
+        remoteLaunch.Checked += (_, _) => SaveGlobalPermissions(sleep, volume, remoteLaunch);
+        remoteLaunch.Unchecked += (_, _) => SaveGlobalPermissions(sleep, volume, remoteLaunch);
         panel.Children.Add(sleep);
         panel.Children.Add(volume);
+        panel.Children.Add(remoteLaunch);
 
         panel.Children.Add(CreateSectionHeading("Trackpad defaults"));
         panel.Children.Add(CreateMutedText("Default pointer speed for paired devices unless a device has its own override."));
@@ -437,6 +441,7 @@ public partial class MainWindow : Window
         kodiRemote.Click += (_, _) => SetDefaultRemoteMode(AppRemoteMode.Kodi);
         panel.Children.Add(CreateLabel("Default remote mode"));
         panel.Children.Add(CreateSegmentRow(standardRemote, youtubeRemote, kodiRemote));
+        AddYoutubeUrlSetting(panel);
 
         panel.Children.Add(CreateSectionHeading("Developer tools"));
         var developerMode = CreateCheckBox("Developer mode", AppDeveloperSettings.DeveloperMode());
@@ -634,7 +639,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void SaveGlobalPermissions(CheckBox sleep, CheckBox volume)
+    private void SaveGlobalPermissions(CheckBox sleep, CheckBox volume, CheckBox remoteLaunch)
     {
         if (_isLoadingPreferences)
         {
@@ -643,7 +648,37 @@ public partial class MainWindow : Window
 
         AppPermissionSettings.Save(new HostPermissionSet(
             AllowPcSleep: sleep.IsChecked == true,
-            AllowVolumeControl: volume.IsChecked == true));
+            AllowVolumeControl: volume.IsChecked == true,
+            AllowRemoteAppLaunch: remoteLaunch.IsChecked == true));
+    }
+
+    private void AddYoutubeUrlSetting(StackPanel parent)
+    {
+        parent.Children.Add(CreateLabel("YouTube URL"));
+        parent.Children.Add(CreateMutedText("Used when a paired device triggers the YouTube remote launch action. The URL stays on this PC."));
+
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 12) };
+        var input = new TextBox
+        {
+            Text = AppRemoteSettings.GetYoutubeUrl(),
+            Width = 360,
+            Margin = new Thickness(0, 0, 12, 0)
+        };
+        row.Children.Add(input);
+        row.Children.Add(CreateButton("Save URL", (_, _) => SaveYoutubeUrl(input), primary: true));
+        parent.Children.Add(row);
+    }
+
+    private void SaveYoutubeUrl(TextBox input)
+    {
+        if (AppRemoteSettings.TrySetYoutubeUrl(input.Text, out var normalizedUrl))
+        {
+            input.Text = normalizedUrl;
+            ShowToast("YouTube URL updated");
+            return;
+        }
+
+        ShowToast("Enter a valid http or https URL");
     }
 
     private void SaveConnectionSettings()

@@ -9,6 +9,7 @@ public sealed class HostPermissionsTests
     {
         Assert.False(HostPermissions.DefaultGlobal.AllowPcSleep);
         Assert.True(HostPermissions.DefaultGlobal.AllowVolumeControl);
+        Assert.True(HostPermissions.DefaultGlobal.AllowRemoteAppLaunch);
     }
 
     [Fact]
@@ -19,6 +20,16 @@ public sealed class HostPermissionsTests
 
         Assert.True(globallyAllowed.AllowPcSleep);
         Assert.False(globallyBlocked.AllowPcSleep);
+    }
+
+    [Fact]
+    public void DeviceInheritsGlobalRemoteAppLaunchByDefault()
+    {
+        var globallyAllowed = HostPermissions.Resolve(new HostPermissionSet(AllowRemoteAppLaunch: true), new DevicePermissionOverrides());
+        var globallyBlocked = HostPermissions.Resolve(new HostPermissionSet(AllowRemoteAppLaunch: false), new DevicePermissionOverrides());
+
+        Assert.True(globallyAllowed.AllowRemoteAppLaunch);
+        Assert.False(globallyBlocked.AllowRemoteAppLaunch);
     }
 
     [Fact]

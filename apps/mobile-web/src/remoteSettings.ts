@@ -5,17 +5,23 @@ export type RemoteModeId = (typeof remoteModeIds)[number];
 export type RemoteSettings = {
   navigationRing: boolean;
   mode: RemoteModeId;
+  openYoutube: boolean;
+  startKodi: boolean;
 };
 
 export const defaultRemoteSettings: RemoteSettings = {
   navigationRing: true,
-  mode: "standard"
+  mode: "standard",
+  openYoutube: true,
+  startKodi: true
 };
 
 export function normalizeRemoteSettings(value: Partial<RemoteSettings> & { youtubeMode?: unknown } = {}): RemoteSettings {
   return {
     navigationRing: typeof value.navigationRing === "boolean" ? value.navigationRing : defaultRemoteSettings.navigationRing,
-    mode: normalizeRemoteMode(value.mode, value.youtubeMode)
+    mode: normalizeRemoteMode(value.mode, value.youtubeMode),
+    openYoutube: typeof value.openYoutube === "boolean" ? value.openYoutube : defaultRemoteSettings.openYoutube,
+    startKodi: typeof value.startKodi === "boolean" ? value.startKodi : defaultRemoteSettings.startKodi
   };
 }
 

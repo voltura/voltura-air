@@ -90,7 +90,8 @@ Successful response:
     "gestureDebug": false,
     "inputAck": true,
     "sleep": true,
-    "volume": true
+    "volume": true,
+    "remoteLaunch": true
   },
   "host": {
     "hostVersion": "0.2.0",
@@ -123,7 +124,8 @@ Host response:
     "gestureDebug": false,
     "inputAck": true,
     "sleep": true,
-    "volume": true
+    "volume": true,
+    "remoteLaunch": true
   },
   "host": {
     "hostVersion": "0.2.0",
@@ -142,6 +144,7 @@ Host metadata is included after authentication in `pair.accepted` and `status`.
 It is not a secret and must not be used as authentication state. Most fields are diagnostics metadata; `defaultRemoteMode` and `pointerSpeed` are authenticated host profile hints used by the mobile app.
 The adapter name can reveal local hardware/vendor details, so it should only be copied when the user explicitly chooses **Copy diagnostics**.
 `defaultRemoteMode` is the host's advisory initial Remote mode for that PC (`standard`, `youtube`, or `kodi`). The mobile app uses it only when the current phone/browser has no saved Remote mode override for that PC.
+`remoteLaunch` is an authenticated capability. When `true`, the host allows this paired device to trigger the fixed host-defined launch actions documented below. The host does not expose the configured YouTube URL through this metadata.
 `pointerSpeed` is the effective pointer speed for the authenticated paired device: the host default unless that device has an override. It is included only on authenticated `pair.accepted` and `status` messages. When the Windows host profile changes, the host may push the same lightweight `status` message to active sockets; the mobile app does not add a polling loop, timer, or extra battery cost for pointer-speed sync.
 When host developer mode is enabled in **Preferences** -> **Developer tools**, host metadata also includes `developerMode: true` and a `developerSessionId` for the current host run. The mobile app uses this to auto-refresh installed web app code during development even when the release version has not changed.
 
@@ -288,6 +291,18 @@ Undo and redo shortcut aliases:
 
 The Windows host translates `Undo` to `Ctrl+Z` and `Redo` to `Ctrl+Y`.
 
+Remote launch actions are fixed host-defined actions. They are only accepted after authentication, only when `capabilities.remoteLaunch` is `true`, and only for supported action names. The client must not send executable paths, process names, shell commands, or URLs.
+
+```json
+{ "type": "remote.launch", "action": "openYoutube" }
+```
+
+```json
+{ "type": "remote.launch", "action": "startOrActivateKodi" }
+```
+
+`openYoutube` opens Chrome with the host-configured YouTube URL. `startOrActivateKodi` focuses Kodi when it is already running or starts Kodi when it is not. Unsupported action names are rejected as invalid protocol shape. The host ignores valid launch actions when the effective **Allow paired devices to start applications** permission is disabled.
+
 Input delivery acknowledgement:
 
 When `capabilities.inputAck` is `true`, the mobile client adds a positive `seq`
@@ -324,7 +339,8 @@ reflect host-enforced permissions and host settings for the active device.
 `true` when the host confirms input delivery with `input.ack` / `input.error`.
 The mobile app only shows the gesture debug entry when the host explicitly enables it. The mobile app only
 shows the keyboard sleep button when `capabilities.sleep` is `true` and the
-local **Show sleep button** keyboard setting is enabled.
+local **Show sleep button** keyboard setting is enabled. The mobile app only
+shows Remote launch settings when `capabilities.remoteLaunch` is `true`.
 
 Put the PC to sleep:
 

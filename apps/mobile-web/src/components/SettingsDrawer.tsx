@@ -40,6 +40,7 @@ type SettingsDrawerProps = {
   selectPc: (pcId: string) => void;
   setThemeMode: React.Dispatch<React.SetStateAction<ThemeMode>>;
   showGestureDebug: boolean;
+  supportsRemoteLaunch: boolean;
   themeMode: ThemeMode;
   trackpadSettings: TrackpadSettings;
   updateAppSetting: <Key extends keyof AppSettings>(key: Key, value: AppSettings[Key]) => void;
@@ -76,6 +77,7 @@ export function SettingsDrawer({
   selectPc,
   setThemeMode,
   showGestureDebug,
+  supportsRemoteLaunch,
   themeMode,
   trackpadSettings,
   updateAppSetting,
@@ -406,6 +408,20 @@ export function SettingsDrawer({
             </button>
           </div>
           </div>
+
+          {supportsRemoteLaunch && (
+            <>
+              <label className="toggle-row">
+                <span>Open YouTube from Remote mode</span>
+                <input type="checkbox" checked={remoteSettings.openYoutube} onChange={(event) => updateRemoteSetting("openYoutube", event.target.checked)} />
+              </label>
+
+              <label className="toggle-row">
+                <span>Start Kodi from Remote mode</span>
+                <input type="checkbox" checked={remoteSettings.startKodi} onChange={(event) => updateRemoteSetting("startKodi", event.target.checked)} />
+              </label>
+            </>
+          )}
         </div>
       </details>
 

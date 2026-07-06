@@ -1,501 +1,97 @@
-import { useEffect, useState } from "react";
-import { Camera, Clipboard, Download, MousePointer2, Power, RefreshCw, X } from "lucide-react";
-import { copyTextToClipboard } from "../mobileDiagnostics";
-import { getPcDisplayName } from "../pcDisplayName";
-import { normalizeManualHostInput } from "../pairingFeedback";
-import type { AppSettings } from "../appSettings";
-import type { TrackpadSettings } from "../gestures";
-import type { KeyboardSettings } from "../keyboardSettings";
-import type { PcProfile } from "../pcProfiles";
-import type { RemoteSettings } from "../remoteSettings";
+import { useEffect, useState, type MouseEvent } from "react";
+import { X } from "lucide-react";
+import {
+  AppSettingsSection,
+  AppearanceSettingsSection,
+  ConnectionSettingsSection,
+  KeyboardSettingsSection,
+  RemoteSettingsSection,
+  SettingsSectionDetails,
+  TrackpadSettingsSection
+} from "./SettingsDrawerSections";
+import type { SettingsDrawerProps, SettingsSection } from "./SettingsDrawerTypes";
 
-type ThemeMode = "system" | "light" | "dark";
-type SettingsSection = "connection" | "trackpad" | "keyboard" | "remote" | "appearance" | "app";
-
-type SettingsDrawerProps = {
-  activePc: PcProfile | null;
-  appSettings: AppSettings;
-  diagnostics: string;
-  deviceName: string;
-  disconnectActivePc: () => void;
-  forgetPc: (pcId: string) => void;
-  installApp: () => void;
-  installPrompt: Event | null;
-  isInstalled: boolean;
-  isOpen: boolean;
-  keyboardSettings: KeyboardSettings;
-  onClose: () => void;
-  onPairingQrSelected: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  onManualHostSubmit: (target: string) => void;
-  onOpenGestureDebug?: () => void;
-  pairedPcs: PcProfile[];
-  pairingQrInputRef: React.RefObject<HTMLInputElement | null>;
-  pairingScanMessage: string;
-  refreshInstalledApp: () => void;
-  refreshMessage: string;
-  renameDevice: (name: string) => void;
-  renamePc: (pcId: string, name: string) => void;
-  remoteSettings: RemoteSettings;
-  scanPairingQr: () => void;
-  selectPc: (pcId: string) => void;
-  setThemeMode: React.Dispatch<React.SetStateAction<ThemeMode>>;
-  showGestureDebug: boolean;
-  supportsRemoteLaunch: boolean;
-  themeMode: ThemeMode;
-  trackpadSettings: TrackpadSettings;
-  updateAppSetting: <Key extends keyof AppSettings>(key: Key, value: AppSettings[Key]) => void;
-  updateKeyboardSetting: <Key extends keyof KeyboardSettings>(key: Key, value: KeyboardSettings[Key]) => void;
-  updateRemoteSetting: <Key extends keyof RemoteSettings>(key: Key, value: RemoteSettings[Key]) => void;
-  updateTrackpadSetting: <Key extends keyof TrackpadSettings>(key: Key, value: TrackpadSettings[Key]) => void;
-};
-
-export function SettingsDrawer({
-  activePc,
-  appSettings,
-  diagnostics,
-  deviceName,
-  disconnectActivePc,
-  forgetPc,
-  installApp,
-  installPrompt,
-  isInstalled,
-  isOpen,
-  keyboardSettings,
-  onClose,
-  onPairingQrSelected,
-  onManualHostSubmit,
-  onOpenGestureDebug,
-  pairedPcs,
-  pairingQrInputRef,
-  pairingScanMessage,
-  refreshInstalledApp,
-  refreshMessage,
-  renameDevice,
-  renamePc,
-  remoteSettings,
-  scanPairingQr,
-  selectPc,
-  setThemeMode,
-  showGestureDebug,
-  supportsRemoteLaunch,
-  themeMode,
-  trackpadSettings,
-  updateAppSetting,
-  updateKeyboardSetting,
-  updateRemoteSetting,
-  updateTrackpadSetting
-}: SettingsDrawerProps) {
-  const [manualHost, setManualHost] = useState("");
-  const [manualHostError, setManualHostError] = useState("");
-  const [copyDiagnosticsStatus, setCopyDiagnosticsStatus] = useState("");
-  const [manualDiagnostics, setManualDiagnostics] = useState("");
+export function SettingsDrawer(props: SettingsDrawerProps) {
   const [openSection, setOpenSection] = useState<SettingsSection | null>(null);
 
-  const copyDiagnostics = async () => {
-    setCopyDiagnosticsStatus("");
-    setManualDiagnostics("");
-    const result = await copyTextToClipboard(diagnostics);
-    if (result === "copied") {
-      setCopyDiagnosticsStatus("Diagnostics copied.");
-      return;
-    }
-
-    setManualDiagnostics(diagnostics);
-    setCopyDiagnosticsStatus("Could not copy automatically. Select the diagnostics below and copy manually.");
-  };
-
-  const submitManualHost = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const target = normalizeManualHostInput(manualHost, window.location.href);
-    if (!target) {
-      setManualHostError("Enter a host URL, IP:port, pairing link, or port number.");
-      return;
-    }
-
-    onManualHostSubmit(target);
-    setManualHost("");
-    setManualHostError("");
-  };
-
   useEffect(() => {
-    if (!isOpen) {
+    if (!props.isOpen) {
       setOpenSection(null);
     }
-  }, [isOpen]);
+  }, [props.isOpen]);
 
-  const toggleSection = (event: React.MouseEvent<HTMLElement>, section: SettingsSection) => {
+  const toggleSection = (event: MouseEvent<HTMLElement>, section: SettingsSection) => {
     event.preventDefault();
     setOpenSection((current) => (current === section ? null : section));
   };
 
   return (
-    <aside className={`settings-drawer ${isOpen ? "open" : ""}`} aria-hidden={!isOpen}>
+    <aside className={`settings-drawer ${props.isOpen ? "open" : ""}`} aria-hidden={!props.isOpen}>
       <header className="drawer-header">
         <div className="drawer-title">
           <h2>Settings</h2>
           <span>v{__APP_VERSION__}</span>
         </div>
-        <button className="icon-button" type="button" aria-label="Close settings" onClick={onClose}>
+        <button className="icon-button" type="button" aria-label="Close settings" onClick={props.onClose}>
           <X aria-hidden="true" />
         </button>
       </header>
 
-      <details className="settings-section" key={`connection-${isOpen ? "open" : "closed"}`} open={openSection === "connection"}>
-        <summary onClick={(event) => toggleSection(event, "connection")}>
-          <span>Connection</span>
-        </summary>
-        <div className="settings-section-body">
-          <label className="setting-group">
-          <span>This device name</span>
-          <input className="text-input" type="text" value={deviceName} onChange={(event) => renameDevice(event.target.value)} placeholder="Joakim's iPhone" />
-          </label>
+      <SettingsSectionDetails section="connection" label="Connection" isOpen={openSection === "connection"} onToggle={toggleSection}>
+        <ConnectionSettingsSection
+          activePc={props.activePc}
+          deviceName={props.deviceName}
+          diagnostics={props.diagnostics}
+          disconnectActivePc={props.disconnectActivePc}
+          forgetPc={props.forgetPc}
+          onManualHostSubmit={props.onManualHostSubmit}
+          onPairingQrSelected={props.onPairingQrSelected}
+          pairedPcs={props.pairedPcs}
+          pairingQrInputRef={props.pairingQrInputRef}
+          pairingScanMessage={props.pairingScanMessage}
+          renameDevice={props.renameDevice}
+          renamePc={props.renamePc}
+          scanPairingQr={props.scanPairingQr}
+          selectPc={props.selectPc}
+        />
+      </SettingsSectionDetails>
 
-          <div className="install-card">
-          <div className="install-title">
-            <Power aria-hidden="true" />
-            <span>PC connection</span>
-          </div>
-          <p>{activePc ? `Active PC: ${getPcDisplayName(activePc)}` : "No active PC. Choose a saved PC or scan a pairing QR."}</p>
-          {activePc && (
-            <button type="button" className="danger-button" onClick={disconnectActivePc}>
-              <Power aria-hidden="true" />
-              <span>Disconnect this PC</span>
-            </button>
-          )}
-          {pairedPcs.length > 0 && (
-            <div className="pc-list">
-              {pairedPcs.map((pc) => (
-                <div className={`pc-row ${pc.id === activePc?.id ? "active" : ""}`} key={pc.id}>
-                  <div className="pc-meta">
-                    <input aria-label="PC name" className="pc-name-input" type="text" value={pc.name} onChange={(event) => renamePc(pc.id, event.target.value)} />
-                    <small>{pc.id === activePc?.id ? "Active" : "Saved"} · {pc.url}</small>
-                  </div>
-                  <div className="pc-actions">
-                    {pc.id !== activePc?.id && (
-                      <button type="button" onClick={() => selectPc(pc.id)}>
-                        <RefreshCw aria-hidden="true" />
-                        <span>Connect</span>
-                      </button>
-                    )}
-                    <button type="button" className="danger-button" onClick={() => forgetPc(pc.id)}>
-                      <X aria-hidden="true" />
-                      <span>Forget</span>
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          </div>
+      <SettingsSectionDetails section="trackpad" label="Trackpad" isOpen={openSection === "trackpad"} onToggle={toggleSection}>
+        <TrackpadSettingsSection
+          onOpenGestureDebug={props.onOpenGestureDebug}
+          showGestureDebug={props.showGestureDebug}
+          trackpadSettings={props.trackpadSettings}
+          updateTrackpadSetting={props.updateTrackpadSetting}
+        />
+      </SettingsSectionDetails>
 
-          <div className="install-card">
-          <div className="install-title">
-            <Camera aria-hidden="true" />
-            <span>Pair from QR code</span>
-          </div>
-          <p>{pairingScanMessage}</p>
-          <input ref={pairingQrInputRef} className="visually-hidden" type="file" accept="image/*" capture="environment" onChange={onPairingQrSelected} />
-          <button type="button" onClick={scanPairingQr}>
-            <Camera aria-hidden="true" />
-            <span>Take photo of QR code</span>
-          </button>
-          </div>
+      <SettingsSectionDetails section="keyboard" label="Keyboard" isOpen={openSection === "keyboard"} onToggle={toggleSection}>
+        <KeyboardSettingsSection keyboardSettings={props.keyboardSettings} updateKeyboardSetting={props.updateKeyboardSetting} />
+      </SettingsSectionDetails>
 
-          <div className="install-card">
-          <div className="install-title">
-            <Clipboard aria-hidden="true" />
-            <span>Diagnostics</span>
-          </div>
-          <p>Copy redacted connection details for troubleshooting. Pairing secrets, device tokens, and hashes are not included.</p>
-          <button type="button" onClick={copyDiagnostics}>
-            <Clipboard aria-hidden="true" />
-            <span>Copy diagnostics</span>
-          </button>
-          {copyDiagnosticsStatus && <p className="pairing-inline-status">{copyDiagnosticsStatus}</p>}
-          {manualDiagnostics && (
-            <textarea
-              aria-label="Diagnostics text"
-              className="text-input diagnostics-textarea"
-              onFocus={(event) => event.currentTarget.select()}
-              readOnly
-              rows={8}
-              value={manualDiagnostics}
-            />
-          )}
-          </div>
+      <SettingsSectionDetails section="remote" label="Remote" isOpen={openSection === "remote"} onToggle={toggleSection}>
+        <RemoteSettingsSection
+          remoteSettings={props.remoteSettings}
+          supportsRemoteLaunch={props.supportsRemoteLaunch}
+          updateRemoteSetting={props.updateRemoteSetting}
+        />
+      </SettingsSectionDetails>
 
-          <div className="install-card">
-          <div className="install-title">
-            <Power aria-hidden="true" />
-            <span>Add PC manually</span>
-          </div>
-          <p>Use this when the PC IP or port changed, or when a QR page was opened before the host changed network.</p>
-          <form className="manual-pc-form" onSubmit={submitManualHost}>
-            <label className="setting-group">
-              <span>Host or pairing link</span>
-              <input
-                className="text-input"
-                inputMode="url"
-                placeholder="192.168.1.50:51395"
-                value={manualHost}
-                onChange={(event) => {
-                  setManualHost(event.target.value);
-                  setManualHostError("");
-                }}
-              />
-            </label>
-            <button type="submit">Connect to PC</button>
-            {manualHostError && <p className="pairing-inline-error">{manualHostError}</p>}
-          </form>
-          </div>
-        </div>
-      </details>
+      <SettingsSectionDetails section="appearance" label="Appearance" isOpen={openSection === "appearance"} onToggle={toggleSection}>
+        <AppearanceSettingsSection setThemeMode={props.setThemeMode} themeMode={props.themeMode} />
+      </SettingsSectionDetails>
 
-      <details className="settings-section" key={`trackpad-${isOpen ? "open" : "closed"}`} open={openSection === "trackpad"}>
-        <summary onClick={(event) => toggleSection(event, "trackpad")}>
-          <span>Trackpad</span>
-        </summary>
-        <div className="settings-section-body">
-          {showGestureDebug && onOpenGestureDebug && (
-            <button type="button" onClick={onOpenGestureDebug}>
-              <MousePointer2 aria-hidden="true" />
-              <span>Open gesture debug</span>
-            </button>
-          )}
-
-          <label className="toggle-row">
-          <span>Tap to click</span>
-          <input type="checkbox" checked={trackpadSettings.tapToClick} onChange={(event) => updateTrackpadSetting("tapToClick", event.target.checked)} />
-          </label>
-
-        <label className="toggle-row">
-          <span>Pointer smoothing</span>
-          <input type="checkbox" checked={trackpadSettings.pointerSmoothing} onChange={(event) => updateTrackpadSetting("pointerSmoothing", event.target.checked)} />
-        </label>
-
-        <label className="toggle-row">
-          <span>Pointer acceleration</span>
-          <input type="checkbox" checked={trackpadSettings.pointerAcceleration} onChange={(event) => updateTrackpadSetting("pointerAcceleration", event.target.checked)} />
-        </label>
-
-        <label className="toggle-row">
-          <span>Scroll acceleration</span>
-          <input type="checkbox" checked={trackpadSettings.scrollAcceleration} onChange={(event) => updateTrackpadSetting("scrollAcceleration", event.target.checked)} />
-        </label>
-
-        <label className="toggle-row">
-          <span>Vertical scrolling</span>
-          <input type="checkbox" checked={trackpadSettings.verticalScroll} onChange={(event) => updateTrackpadSetting("verticalScroll", event.target.checked)} />
-        </label>
-
-        <label className="toggle-row">
-          <span>Horizontal scrolling</span>
-          <input type="checkbox" checked={trackpadSettings.horizontalScroll} onChange={(event) => updateTrackpadSetting("horizontalScroll", event.target.checked)} />
-        </label>
-
-        <label className="toggle-row">
-          <span>Pinch zoom</span>
-          <input type="checkbox" checked={trackpadSettings.zoomGestures} onChange={(event) => updateTrackpadSetting("zoomGestures", event.target.checked)} />
-        </label>
-
-        <label className="toggle-row">
-          <span>Show volume control</span>
-          <input type="checkbox" checked={trackpadSettings.showVolumeControl} onChange={(event) => updateTrackpadSetting("showVolumeControl", event.target.checked)} />
-        </label>
-
-        <label className="toggle-row">
-          <span>Enable split mode</span>
-          <input type="checkbox" checked={trackpadSettings.enableSplitMode} onChange={(event) => updateTrackpadSetting("enableSplitMode", event.target.checked)} />
-        </label>
-
-        <label className="toggle-row">
-          <span>Haptic feedback</span>
-          <input type="checkbox" checked={trackpadSettings.hapticFeedback} onChange={(event) => updateTrackpadSetting("hapticFeedback", event.target.checked)} />
-        </label>
-
-        <label className="toggle-row">
-          <span>Left-handed button layout</span>
-          <input type="checkbox" checked={trackpadSettings.leftHandedButtons} onChange={(event) => updateTrackpadSetting("leftHandedButtons", event.target.checked)} />
-        </label>
-
-        <label className="toggle-row">
-          <span>Large click buttons</span>
-          <input type="checkbox" checked={trackpadSettings.largeClickButtons} onChange={(event) => updateTrackpadSetting("largeClickButtons", event.target.checked)} />
-        </label>
-
-        <div className="setting-group">
-          <span>Scroll direction</span>
-          <div className="segmented-control">
-            <button type="button" className={trackpadSettings.scrollDirection === "normal" ? "active" : ""} onClick={() => updateTrackpadSetting("scrollDirection", "normal")}>
-              Natural scrolling
-            </button>
-            <button type="button" className={trackpadSettings.scrollDirection === "inverted" ? "active" : ""} onClick={() => updateTrackpadSetting("scrollDirection", "inverted")}>
-              Traditional scrolling
-            </button>
-          </div>
-        </div>
-
-          <label className="setting-group">
-          <span>Pointer speed</span>
-          <div className="range-row">
-            <input
-              type="range"
-              min="10"
-              max="100"
-              step="5"
-              value={trackpadSettings.pointerSpeed}
-              onChange={(event) => updateTrackpadSetting("pointerSpeed", Number(event.target.value))}
-            />
-            <output>{trackpadSettings.pointerSpeed}%</output>
-          </div>
-          </label>
-        </div>
-      </details>
-
-      <details className="settings-section" key={`keyboard-${isOpen ? "open" : "closed"}`} open={openSection === "keyboard"}>
-        <summary onClick={(event) => toggleSection(event, "keyboard")}>
-          <span>Keyboard</span>
-        </summary>
-        <div className="settings-section-body">
-          <label className="toggle-row">
-          <span>Show function keys</span>
-          <input type="checkbox" checked={keyboardSettings.showFunctionKeys} onChange={(event) => updateKeyboardSetting("showFunctionKeys", event.target.checked)} />
-          </label>
-
-        <label className="toggle-row">
-          <span>Show control keys</span>
-          <input type="checkbox" checked={keyboardSettings.showControlKeys} onChange={(event) => updateKeyboardSetting("showControlKeys", event.target.checked)} />
-        </label>
-
-        <label className="toggle-row">
-          <span>Show arrow keys</span>
-          <input type="checkbox" checked={keyboardSettings.showArrowKeys} onChange={(event) => updateKeyboardSetting("showArrowKeys", event.target.checked)} />
-        </label>
-
-        <label className="toggle-row">
-          <span>Show sleep button</span>
-          <input type="checkbox" checked={keyboardSettings.showSleepButton} onChange={(event) => updateKeyboardSetting("showSleepButton", event.target.checked)} />
-        </label>
-
-          <label className="toggle-row">
-          <span>Enable split mode</span>
-          <input type="checkbox" checked={keyboardSettings.enableSplitMode} onChange={(event) => updateKeyboardSetting("enableSplitMode", event.target.checked)} />
-          </label>
-        </div>
-      </details>
-
-      <details className="settings-section" key={`remote-${isOpen ? "open" : "closed"}`} open={openSection === "remote"}>
-        <summary onClick={(event) => toggleSection(event, "remote")}>
-          <span>Remote</span>
-        </summary>
-        <div className="settings-section-body">
-          <label className="toggle-row">
-          <span>Navigation ring</span>
-          <input type="checkbox" checked={remoteSettings.navigationRing} onChange={(event) => updateRemoteSetting("navigationRing", event.target.checked)} />
-          </label>
-
-          <div className="setting-group">
-          <span>Remote mode</span>
-          <div className="segmented-control three" aria-label="Remote mode">
-            <button type="button" className={remoteSettings.mode === "standard" ? "active" : ""} onClick={() => updateRemoteSetting("mode", "standard")}>
-              Standard
-            </button>
-            <button type="button" className={remoteSettings.mode === "youtube" ? "active" : ""} onClick={() => updateRemoteSetting("mode", "youtube")}>
-              YouTube
-            </button>
-            <button type="button" className={remoteSettings.mode === "kodi" ? "active" : ""} onClick={() => updateRemoteSetting("mode", "kodi")}>
-              Kodi
-            </button>
-          </div>
-          </div>
-
-          {supportsRemoteLaunch && (
-            <>
-              <label className="toggle-row">
-                <span>Open YouTube from Remote mode</span>
-                <input type="checkbox" checked={remoteSettings.openYoutube} onChange={(event) => updateRemoteSetting("openYoutube", event.target.checked)} />
-              </label>
-
-              <label className="toggle-row">
-                <span>Start Kodi from Remote mode</span>
-                <input type="checkbox" checked={remoteSettings.startKodi} onChange={(event) => updateRemoteSetting("startKodi", event.target.checked)} />
-              </label>
-            </>
-          )}
-        </div>
-      </details>
-
-      <details className="settings-section" key={`appearance-${isOpen ? "open" : "closed"}`} open={openSection === "appearance"}>
-        <summary onClick={(event) => toggleSection(event, "appearance")}>
-          <span>Appearance</span>
-        </summary>
-        <div className="settings-section-body">
-          <div className="setting-group">
-          <span>Theme</span>
-          <div className="segmented-control three">
-            <button type="button" className={themeMode === "system" ? "active" : ""} onClick={() => setThemeMode("system")}>
-              System
-            </button>
-            <button type="button" className={themeMode === "light" ? "active" : ""} onClick={() => setThemeMode("light")}>
-              Light
-            </button>
-            <button type="button" className={themeMode === "dark" ? "active" : ""} onClick={() => setThemeMode("dark")}>
-              Dark
-            </button>
-          </div>
-          </div>
-        </div>
-      </details>
-
-      <details className="settings-section" key={`app-${isOpen ? "open" : "closed"}`} open={openSection === "app"}>
-        <summary onClick={(event) => toggleSection(event, "app")}>
-          <span>App</span>
-        </summary>
-        <div className="settings-section-body">
-          <div className="install-card">
-          <div className="install-title">
-            <Download aria-hidden="true" />
-            <span>Home screen app</span>
-          </div>
-          {isInstalled ? (
-            <p>Voltura Air is already running like an installed app.</p>
-          ) : installPrompt ? (
-            <>
-              <p>Add Voltura Air to this device for a normal app icon and faster launching.</p>
-              <button type="button" onClick={installApp}>
-                <Download aria-hidden="true" />
-                <span>Install app</span>
-              </button>
-            </>
-          ) : isAppleTouchDevice() ? (
-            <ol className="install-steps">
-              <li>Tap Share.</li>
-              <li>Tap Add to Home Screen.</li>
-              <li>Tap Add.</li>
-            </ol>
-          ) : (
-            <ol className="install-steps">
-              <li>Open the browser menu.</li>
-              <li>Choose Add to Home screen or Install app.</li>
-              <li>Confirm the shortcut.</li>
-            </ol>
-          )}
-          <p>{refreshMessage}</p>
-          <label className="toggle-row">
-            <span>Auto refresh</span>
-            <input type="checkbox" checked={appSettings.autoRefresh} onChange={(event) => updateAppSetting("autoRefresh", event.target.checked)} />
-          </label>
-          <button type="button" onClick={refreshInstalledApp}>
-            <RefreshCw aria-hidden="true" />
-            <span>Refresh app</span>
-          </button>
-          </div>
-        </div>
-      </details>
+      <SettingsSectionDetails section="app" label="App" isOpen={openSection === "app"} onToggle={toggleSection}>
+        <AppSettingsSection
+          appSettings={props.appSettings}
+          installApp={props.installApp}
+          installPrompt={props.installPrompt}
+          isInstalled={props.isInstalled}
+          refreshInstalledApp={props.refreshInstalledApp}
+          refreshMessage={props.refreshMessage}
+          updateAppSetting={props.updateAppSetting}
+        />
+      </SettingsSectionDetails>
     </aside>
   );
-}
-
-function isAppleTouchDevice(): boolean {
-  return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 }

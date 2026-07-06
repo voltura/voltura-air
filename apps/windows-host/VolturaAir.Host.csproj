@@ -41,6 +41,18 @@
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
   </ItemGroup>
+
+  <Target Name="InvalidateStaleWpfMarkupCache" BeforeTargets="MarkupCompilePass1">
+    <ItemGroup>
+      <MissingWpfGeneratedSource Include="$(IntermediateOutputPath)MainWindow.g.cs" Condition="!Exists('$(IntermediateOutputPath)MainWindow.g.cs')" />
+      <MissingWpfGeneratedSource Include="$(IntermediateOutputPath)StartupWindow.g.cs" Condition="!Exists('$(IntermediateOutputPath)StartupWindow.g.cs')" />
+      <MissingWpfGeneratedSource Include="$(IntermediateOutputPath)$(AssemblyName)_Content.g.cs" Condition="!Exists('$(IntermediateOutputPath)$(AssemblyName)_Content.g.cs')" />
+      <StaleWpfMarkupCache Include="$(IntermediateOutputPath)$(AssemblyName)_MarkupCompile*.cache" Condition="'@(MissingWpfGeneratedSource)' != ''" />
+    </ItemGroup>
+
+    <Delete Files="@(StaleWpfMarkupCache)" />
+  </Target>
+
   <!-- Build the React client automatically when building inside Visual Studio. -->
   <Target Name="BuildClient" BeforeTargets="Build" Condition=" '$(BuildingInsideVisualStudio)' == 'true' AND Exists('$(MSBuildThisFileDirectory)..\mobile-web\package.json') ">
     <Message Text="Building mobile-web client (npm) as part of Visual Studio build..." Importance="high" />

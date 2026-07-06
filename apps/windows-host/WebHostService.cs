@@ -20,9 +20,7 @@ public sealed class WebHostService : IAsyncDisposable
     private readonly ISystemAudioController _audioController;
     private readonly IRemoteActionExecutor _remoteActionExecutor;
     private readonly PairingAttemptRateLimiter _pairingAttemptRateLimiter = new();
-    private readonly object _connectionsGate = new();
-    private readonly Dictionary<string, List<WebSocket>> _activeSockets = new(StringComparer.Ordinal);
-    private readonly Dictionary<WebSocket, SemaphoreSlim> _sendGates = new();
+    private readonly WebSocketConnectionRegistry _connections = new();
     private WebApplication? _app;
 
     public WebHostService(PairingManager pairingManager, InputDispatcher inputDispatcher, ISystemAudioController? audioController = null, IRemoteActionExecutor? remoteActionExecutor = null)
@@ -111,7 +109,7 @@ public sealed class WebHostService : IAsyncDisposable
             await HandleSocketAsync(socket, GetRateLimitKey(context), context.RequestAborted);
         });
 
-        var staticRoot = ResolveStaticRoot();
+        var staticRoot = WebHostStaticFiles.ResolveStaticRoot();
         if (Directory.Exists(staticRoot))
         {
             app.UseDefaultFiles(new DefaultFilesOptions
@@ -120,7 +118,7 @@ public sealed class WebHostService : IAsyncDisposable
             });
             app.Use(async (context, next) =>
             {
-                if (await TryServeCompressedJavaScriptAsync(context, staticRoot))
+                if (await WebHostStaticFiles.TryServeCompressedJavaScriptAsync(context, staticRoot))
                 {
                     return;
                 }
@@ -130,11 +128,11 @@ public sealed class WebHostService : IAsyncDisposable
             app.UseStaticFiles(new StaticFileOptions
             {
                 FileProvider = new PhysicalFileProvider(staticRoot),
-                OnPrepareResponse = context => SetStaticCacheHeaders(context.Context.Response, context.Context.Request.Path.Value)
+                OnPrepareResponse = context => WebHostStaticFiles.SetStaticCacheHeaders(context.Context.Response, context.Context.Request.Path.Value)
             });
             app.MapFallback(async context =>
             {
-                SetStaticCacheHeaders(context.Response, "index.html");
+                WebHostStaticFiles.SetStaticCacheHeaders(context.Response, "index.html");
                 context.Response.ContentType = "text/html";
                 await context.Response.SendFileAsync(Path.Combine(staticRoot, "index.html"));
             });
@@ -177,6 +175,7 @@ public sealed class WebHostService : IAsyncDisposable
         AppRemoteSettings.Changed -= OnPermissionsChanged;
         AppPointerSettings.Changed -= OnPermissionsChanged;
         AbortActiveSockets();
+        _connections.Dispose();
         if (_app is not null)
         {
             await _app.DisposeAsync();
@@ -394,55 +393,17 @@ public sealed class WebHostService : IAsyncDisposable
 
     private void RegisterSocket(string clientId, WebSocket socket)
     {
-        lock (_connectionsGate)
-        {
-            if (!_activeSockets.TryGetValue(clientId, out var sockets))
-            {
-                sockets = new List<WebSocket>();
-                _activeSockets[clientId] = sockets;
-            }
-
-            sockets.Add(socket);
-            _sendGates.TryAdd(socket, new SemaphoreSlim(1, 1));
-        }
+        _connections.Register(clientId, socket);
     }
 
     private void UnregisterSocket(string clientId, WebSocket socket)
     {
-        lock (_connectionsGate)
-        {
-            if (!_activeSockets.TryGetValue(clientId, out var sockets))
-            {
-                return;
-            }
-
-            sockets.Remove(socket);
-            if (sockets.Count == 0)
-            {
-                _activeSockets.Remove(clientId);
-            }
-
-            if (_sendGates.Remove(socket, out var sendGate))
-            {
-                sendGate.Dispose();
-            }
-        }
+        _connections.Unregister(clientId, socket);
     }
 
     private void AbortActiveSockets()
     {
-        WebSocket[] sockets;
-        lock (_connectionsGate)
-        {
-            sockets = _activeSockets.Values.SelectMany(items => items).ToArray();
-            _activeSockets.Clear();
-            foreach (var sendGate in _sendGates.Values)
-            {
-                sendGate.Dispose();
-            }
-
-            _sendGates.Clear();
-        }
+        var sockets = _connections.TakeAll();
 
         foreach (var socket in sockets)
         {
@@ -458,38 +419,13 @@ public sealed class WebHostService : IAsyncDisposable
 
     private void OnPairingRevoked(object? sender, PairingRevokedEventArgs e)
     {
-        WebSocket[] sockets;
-        lock (_connectionsGate)
+        var sockets = _connections.TakeRevoked(e.ClientId);
+        if (sockets.Length == 0)
         {
-            if (e.ClientId is null)
-            {
-                sockets = _activeSockets.Values.SelectMany(items => items).ToArray();
-                _activeSockets.Clear();
-                ClearSendGates(sockets);
-            }
-            else if (_activeSockets.Remove(e.ClientId, out var deviceSockets))
-            {
-                sockets = deviceSockets.ToArray();
-                ClearSendGates(sockets);
-            }
-            else
-            {
-                return;
-            }
+            return;
         }
 
         _ = Task.Run(() => CloseSocketsAsync(sockets));
-    }
-
-    private void ClearSendGates(IEnumerable<WebSocket> sockets)
-    {
-        foreach (var socket in sockets)
-        {
-            if (_sendGates.Remove(socket, out var sendGate))
-            {
-                sendGate.Dispose();
-            }
-        }
     }
 
     private void OnPermissionsChanged(object? sender, EventArgs e)
@@ -499,13 +435,7 @@ public sealed class WebHostService : IAsyncDisposable
 
     private async Task BroadcastStatusAsync()
     {
-        (string ClientId, WebSocket Socket)[] sockets;
-        lock (_connectionsGate)
-        {
-            sockets = _activeSockets
-                .SelectMany(pair => pair.Value.Select(socket => (pair.Key, socket)))
-                .ToArray();
-        }
+        var sockets = _connections.Snapshot();
 
         foreach (var (clientId, socket) in sockets)
         {
@@ -581,12 +511,7 @@ public sealed class WebHostService : IAsyncDisposable
 
     private async Task SendSocketAsync(WebSocket socket, object payload, CancellationToken cancellationToken)
     {
-        SemaphoreSlim? sendGate;
-        lock (_connectionsGate)
-        {
-            _sendGates.TryGetValue(socket, out sendGate);
-        }
-
+        var sendGate = _connections.GetSendGate(socket);
         if (sendGate is null)
         {
             await SendAsync(socket, payload, cancellationToken);
@@ -722,110 +647,6 @@ public sealed class WebHostService : IAsyncDisposable
         catch (InvalidOperationException)
         {
         }
-    }
-
-    private static async Task<bool> TryServeCompressedJavaScriptAsync(HttpContext context, string staticRoot)
-    {
-        if (!HttpMethods.IsGet(context.Request.Method) && !HttpMethods.IsHead(context.Request.Method))
-        {
-            return false;
-        }
-
-        var path = context.Request.Path.Value;
-        if (path is null || !path.EndsWith(".js", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        var filePath = ResolveStaticFilePath(staticRoot, path);
-        if (filePath is null)
-        {
-            return false;
-        }
-
-        if (AcceptsEncoding(context.Request, "br") && File.Exists($"{filePath}.br"))
-        {
-            await ServeCompressedJavaScriptAsync(context, $"{filePath}.br", "br", path);
-            return true;
-        }
-
-        if (AcceptsEncoding(context.Request, "gzip") && File.Exists($"{filePath}.gz"))
-        {
-            await ServeCompressedJavaScriptAsync(context, $"{filePath}.gz", "gzip", path);
-            return true;
-        }
-
-        return false;
-    }
-
-    private static async Task ServeCompressedJavaScriptAsync(HttpContext context, string filePath, string encoding, string requestPath)
-    {
-        context.Response.ContentType = "application/javascript";
-        context.Response.Headers["Content-Encoding"] = encoding;
-        context.Response.Headers["Vary"] = "Accept-Encoding";
-        SetStaticCacheHeaders(context.Response, requestPath);
-        context.Response.ContentLength = new FileInfo(filePath).Length;
-
-        if (HttpMethods.IsHead(context.Request.Method))
-        {
-            return;
-        }
-
-        await context.Response.SendFileAsync(filePath);
-    }
-
-    private static void SetStaticCacheHeaders(HttpResponse response, string? requestPath)
-    {
-        var fileName = Path.GetFileName(requestPath);
-        if (string.Equals(fileName, "index.html", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(fileName, "sw.js", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(fileName, "manifest.webmanifest", StringComparison.OrdinalIgnoreCase))
-        {
-            response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
-            response.Headers["Pragma"] = "no-cache";
-            response.Headers["Expires"] = "0";
-            return;
-        }
-
-        if (requestPath?.Contains("/assets/", StringComparison.OrdinalIgnoreCase) == true)
-        {
-            response.Headers["Cache-Control"] = "public, max-age=31536000, immutable";
-        }
-    }
-
-    private static bool AcceptsEncoding(HttpRequest request, string expectedEncoding)
-    {
-        var acceptEncoding = request.Headers["Accept-Encoding"].ToString();
-        return acceptEncoding
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Any(encoding => encoding.Equals(expectedEncoding, StringComparison.OrdinalIgnoreCase) || encoding.StartsWith($"{expectedEncoding};", StringComparison.OrdinalIgnoreCase));
-    }
-
-    private static string? ResolveStaticFilePath(string staticRoot, string requestPath)
-    {
-        if (requestPath.Contains("..", StringComparison.Ordinal))
-        {
-            return null;
-        }
-
-        var rootPath = Path.GetFullPath(staticRoot);
-        var relativePath = requestPath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
-        var fullPath = Path.GetFullPath(Path.Combine(rootPath, relativePath));
-        return fullPath.StartsWith(rootPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
-            ? fullPath
-            : null;
-    }
-
-    private static string ResolveStaticRoot()
-    {
-        var devRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "mobile-web", "dist"));
-        if (Directory.Exists(devRoot))
-        {
-            return devRoot;
-        }
-
-        var outputRoot = Path.Combine(AppContext.BaseDirectory, "wwwroot");
-        return outputRoot;
     }
 
     internal static bool IsPortAvailable(int port)

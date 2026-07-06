@@ -1,0 +1,46 @@
+import type { ChangeEvent, Dispatch, RefObject, SetStateAction } from "react";
+import type { AppSettings } from "../appSettings";
+import type { TrackpadSettings } from "../gestures";
+import type { KeyboardSettings } from "../keyboardSettings";
+import type { PcProfile } from "../pcProfiles";
+import type { RemoteSettings } from "../remoteSettings";
+
+export type ThemeMode = "system" | "light" | "dark";
+export type SettingsSection = "connection" | "trackpad" | "keyboard" | "remote" | "appearance" | "app";
+
+export type SettingsDrawerProps = {
+  activePc: PcProfile | null;
+  appSettings: AppSettings;
+  diagnostics: string;
+  deviceName: string;
+  disconnectActivePc: () => void;
+  forgetPc: (pcId: string) => void;
+  installApp: () => void;
+  installPrompt: Event | null;
+  isInstalled: boolean;
+  isOpen: boolean;
+  keyboardSettings: KeyboardSettings;
+  onClose: () => void;
+  onPairingQrSelected: (event: ChangeEvent<HTMLInputElement>) => void;
+  onManualHostSubmit: (target: string) => void;
+  onOpenGestureDebug?: () => void;
+  pairedPcs: PcProfile[];
+  pairingQrInputRef: RefObject<HTMLInputElement | null>;
+  pairingScanMessage: string;
+  refreshInstalledApp: () => void;
+  refreshMessage: string;
+  renameDevice: (name: string) => void;
+  renamePc: (pcId: string, name: string) => void;
+  remoteSettings: RemoteSettings;
+  scanPairingQr: () => void;
+  selectPc: (pcId: string) => void;
+  setThemeMode: Dispatch<SetStateAction<ThemeMode>>;
+  showGestureDebug: boolean;
+  supportsRemoteLaunch: boolean;
+  themeMode: ThemeMode;
+  trackpadSettings: TrackpadSettings;
+  updateAppSetting: <Key extends keyof AppSettings>(key: Key, value: AppSettings[Key]) => void;
+  updateKeyboardSetting: <Key extends keyof KeyboardSettings>(key: Key, value: KeyboardSettings[Key]) => void;
+  updateRemoteSetting: <Key extends keyof RemoteSettings>(key: Key, value: RemoteSettings[Key]) => void;
+  updateTrackpadSetting: <Key extends keyof TrackpadSettings>(key: Key, value: TrackpadSettings[Key]) => void;
+};

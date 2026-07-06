@@ -1,5 +1,5 @@
-import { networkInterfaces } from "node:os";
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
+import { getLanAddress, stopExistingHost } from "./dev-shared.mjs";
 
 const clientPort = process.env.VOLTURA_AIR_CLIENT_PORT ?? "5173";
 const args = [
@@ -34,23 +34,3 @@ child.on("exit", (code, signal) => {
 
   process.exit(code ?? 0);
 });
-
-function getLanAddress() {
-  for (const items of Object.values(networkInterfaces())) {
-    for (const item of items ?? []) {
-      if (item.family === "IPv4" && !item.internal) {
-        return item.address;
-      }
-    }
-  }
-
-  return "127.0.0.1";
-}
-
-function stopExistingHost() {
-  if (process.platform !== "win32") {
-    return;
-  }
-
-  spawnSync("taskkill", ["/IM", "VolturaAir.Host.exe", "/F", "/T"], { stdio: "ignore" });
-}

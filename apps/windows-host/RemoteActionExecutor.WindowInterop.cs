@@ -22,13 +22,23 @@ public sealed partial class RemoteActionExecutor
             return;
         }
 
-        Thread.Sleep(150);
-        TryActivateWindow(windowHandle);
-        Thread.Sleep(150);
-
-        if (!IsWindowFullscreen(windowHandle))
+        for (var attempt = 0; attempt < BrowserFullscreenAttempts; attempt++)
         {
-            PressVirtualKey(VirtualKeyF11);
+            TryActivateWindowForKeyboardInput(windowHandle);
+            Thread.Sleep(150);
+
+            if (IsWindowFullscreen(windowHandle))
+            {
+                return;
+            }
+
+            SendVirtualKey(VirtualKeyF11);
+            Thread.Sleep(350);
+
+            if (IsWindowFullscreen(windowHandle))
+            {
+                return;
+            }
         }
     }
 
@@ -62,29 +72,95 @@ public sealed partial class RemoteActionExecutor
             && Math.Abs(windowRect.Bottom - monitorInfo.Monitor.Bottom) <= tolerance;
     }
 
-    private static void PressVirtualKey(byte virtualKey)
+    private static bool TryActivateWindow(IntPtr windowHandle, bool maximize = false)
     {
-        keybd_event(virtualKey, 0, 0, UIntPtr.Zero);
-        keybd_event(virtualKey, 0, KeyEventKeyUp, UIntPtr.Zero);
+        return TryActivateWindowForKeyboardInput(windowHandle, maximize);
     }
 
-    private static bool TryActivateWindow(IntPtr windowHandle, bool maximize = false)
+    private static bool TryActivateWindowForKeyboardInput(IntPtr windowHandle, bool maximize = false)
     {
         if (windowHandle == IntPtr.Zero)
         {
             return false;
         }
 
-        ShowWindow(windowHandle, maximize ? ShowWindowMaximize : ShowWindowRestore);
-        BringWindowToTop(windowHandle);
-        SetWindowPos(windowHandle, TopMostWindow, 0, 0, 0, 0, SetWindowPosNoMove | SetWindowPosNoSize | SetWindowPosShowWindow);
-        SetWindowPos(windowHandle, NoTopMostWindow, 0, 0, 0, 0, SetWindowPosNoMove | SetWindowPosNoSize | SetWindowPosShowWindow);
-        return SetForegroundWindow(windowHandle) || GetForegroundWindow() == windowHandle;
+        var currentThreadId = GetCurrentThreadId();
+        var targetThreadId = GetWindowThreadProcessId(windowHandle, out _);
+        var foregroundWindow = GetForegroundWindow();
+        var foregroundThreadId = foregroundWindow == IntPtr.Zero ? 0 : GetWindowThreadProcessId(foregroundWindow, out _);
+
+        var attachedToTarget = targetThreadId != 0 && targetThreadId != currentThreadId && AttachThreadInput(currentThreadId, targetThreadId, true);
+        var attachedToForeground = foregroundThreadId != 0 && foregroundThreadId != currentThreadId && foregroundThreadId != targetThreadId && AttachThreadInput(currentThreadId, foregroundThreadId, true);
+
+        try
+        {
+            ShowWindow(windowHandle, maximize ? ShowWindowMaximize : ShowWindowShow);
+            BringWindowToTop(windowHandle);
+            SetWindowPos(windowHandle, TopMostWindow, 0, 0, 0, 0, SetWindowPosNoMove | SetWindowPosNoSize | SetWindowPosShowWindow);
+            SetWindowPos(windowHandle, NoTopMostWindow, 0, 0, 0, 0, SetWindowPosNoMove | SetWindowPosNoSize | SetWindowPosShowWindow);
+            SetActiveWindow(windowHandle);
+            SetFocus(windowHandle);
+            SetForegroundWindow(windowHandle);
+        }
+        finally
+        {
+            if (attachedToForeground)
+            {
+                AttachThreadInput(currentThreadId, foregroundThreadId, false);
+            }
+
+            if (attachedToTarget)
+            {
+                AttachThreadInput(currentThreadId, targetThreadId, false);
+            }
+        }
+
+        return IsForegroundWindowOrRoot(windowHandle);
     }
+
+    private static bool IsForegroundWindowOrRoot(IntPtr windowHandle)
+    {
+        var foregroundWindow = GetForegroundWindow();
+        return foregroundWindow == windowHandle || GetAncestor(foregroundWindow, GetAncestorRoot) == windowHandle;
+    }
+
+    private static void SendVirtualKey(ushort virtualKey)
+    {
+        var inputs = new[]
+        {
+            new Input
+            {
+                Type = InputKeyboard,
+                Data = new InputUnion
+                {
+                    Keyboard = new KeyboardInput
+                    {
+                        VirtualKey = virtualKey
+                    }
+                }
+            },
+            new Input
+            {
+                Type = InputKeyboard,
+                Data = new InputUnion
+                {
+                    Keyboard = new KeyboardInput
+                    {
+                        VirtualKey = virtualKey,
+                        Flags = KeyEventKeyUp
+                    }
+                }
+            }
+        };
+
+        SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<Input>());
+    }
+
+    private const int BrowserFullscreenAttempts = 2;
 
     private const int ShowWindowMaximize = 3;
 
-    private const int ShowWindowRestore = 9;
+    private const int ShowWindowShow = 5;
 
     private const int SetWindowPosNoSize = 0x0001;
 
@@ -94,9 +170,13 @@ public sealed partial class RemoteActionExecutor
 
     private const uint MonitorDefaultToNearest = 0x00000002;
 
+    private const uint GetAncestorRoot = 2;
+
+    private const uint InputKeyboard = 1;
+
     private const uint KeyEventKeyUp = 0x0002;
 
-    private const byte VirtualKeyF11 = 0x7A;
+    private const ushort VirtualKeyF11 = 0x7A;
 
     private static readonly nint TopMostWindow = -1;
 
@@ -118,6 +198,30 @@ public sealed partial class RemoteActionExecutor
         public Rect Monitor;
         public Rect WorkArea;
         public uint Flags;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Input
+    {
+        public uint Type;
+        public InputUnion Data;
+    }
+
+    [StructLayout(LayoutKind.Explicit)]
+    private struct InputUnion
+    {
+        [FieldOffset(0)]
+        public KeyboardInput Keyboard;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct KeyboardInput
+    {
+        public ushort VirtualKey;
+        public ushort ScanCode;
+        public uint Flags;
+        public uint Time;
+        public UIntPtr ExtraInfo;
     }
 
     [DllImport("user32.dll")]
@@ -145,5 +249,23 @@ public sealed partial class RemoteActionExecutor
     private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MonitorInfo lpmi);
 
     [DllImport("user32.dll")]
-    private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    [DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
+
+    [DllImport("user32.dll")]
+    private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool attach);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetActiveWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetFocus(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetAncestor(IntPtr hWnd, uint gaFlags);
+
+    [DllImport("user32.dll")]
+    private static extern uint SendInput(uint inputCount, Input[] inputs, int inputSize);
 }

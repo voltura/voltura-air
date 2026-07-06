@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Windows.Automation;
 using Microsoft.Win32;
 
 namespace VolturaAir.Host;
@@ -36,13 +37,22 @@ public sealed class RemoteActionExecutor : IRemoteActionExecutor
 
     private static bool TryOpenYoutube()
     {
-        if (!TryStartProcess("chrome.exe", AppRemoteSettings.GetYoutubeUrl()))
+        var youtubeUrl = AppRemoteSettings.GetYoutubeUrl();
+        if (TryActivateExistingYoutubeTab(youtubeUrl))
         {
-            return false;
+            return true;
         }
 
-        TryActivateChromeWhenReady(TimeSpan.FromSeconds(2));
-        return true;
+        foreach (var browser in BrowserCandidates)
+        {
+            if (TryStartProcess(browser.ExecutableName, youtubeUrl))
+            {
+                TryActivateBrowserWhenReady(browser.ProcessName, TimeSpan.FromSeconds(2), ensureFullscreen: true);
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool TryStartOrActivateKodi()
@@ -273,19 +283,19 @@ public sealed class RemoteActionExecutor : IRemoteActionExecutor
         }
     }
 
-    private static bool TryActivateChromeWhenReady(TimeSpan timeout)
+    private static bool TryActivateBrowserWhenReady(string processName, TimeSpan timeout, bool ensureFullscreen = false)
     {
         var deadline = DateTimeOffset.UtcNow.Add(timeout);
         do
         {
-            var existing = Process.GetProcessesByName("chrome")
+            var existing = Process.GetProcessesByName(processName)
                 .Where(process => process.MainWindowHandle != IntPtr.Zero)
                 .OrderByDescending(GetStartTimeSafe)
                 .FirstOrDefault();
 
             if (existing is not null)
             {
-                return TryActivateWindow(existing.MainWindowHandle);
+                return TryActivateBrowserWindow(existing.MainWindowHandle, ensureFullscreen);
             }
 
             Thread.Sleep(100);
@@ -293,6 +303,97 @@ public sealed class RemoteActionExecutor : IRemoteActionExecutor
         while (DateTimeOffset.UtcNow < deadline);
 
         return false;
+    }
+
+    private static bool TryActivateExistingYoutubeTab(string youtubeUrl)
+    {
+        var youtubeHost = TryGetUriHost(youtubeUrl);
+
+        foreach (var browser in BrowserCandidates)
+        {
+            var browserWindows = Process.GetProcessesByName(browser.ProcessName)
+                .Where(process => process.MainWindowHandle != IntPtr.Zero)
+                .OrderByDescending(GetStartTimeSafe)
+                .ToArray();
+
+            foreach (var process in browserWindows)
+            {
+                if (IsYoutubeBrowserTabName(process.MainWindowTitle, youtubeHost) && TryActivateBrowserWindow(process.MainWindowHandle, ensureFullscreen: true))
+                {
+                    return true;
+                }
+            }
+
+            foreach (var process in browserWindows)
+            {
+                if (TrySelectYoutubeBrowserTab(process.MainWindowHandle, youtubeHost))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TrySelectYoutubeBrowserTab(IntPtr browserWindowHandle, string? youtubeHost)
+    {
+        try
+        {
+            var browserWindow = AutomationElement.FromHandle(browserWindowHandle);
+            if (browserWindow is null)
+            {
+                return false;
+            }
+
+            var tabItems = browserWindow.FindAll(
+                TreeScope.Descendants,
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TabItem));
+
+            for (var index = tabItems.Count - 1; index >= 0; index--)
+            {
+                if (tabItems[index] is not AutomationElement tabItem || !IsYoutubeBrowserTabName(tabItem.Current.Name, youtubeHost))
+                {
+                    continue;
+                }
+
+                TryActivateWindow(browserWindowHandle);
+                if (tabItem.TryGetCurrentPattern(SelectionItemPattern.Pattern, out var pattern) && pattern is SelectionItemPattern selectionItemPattern)
+                {
+                    selectionItemPattern.Select();
+                }
+                else
+                {
+                    tabItem.SetFocus();
+                }
+
+                Thread.Sleep(100);
+                return TryActivateBrowserWindow(browserWindowHandle, ensureFullscreen: true);
+            }
+        }
+        catch (Exception ex) when (ex is ElementNotAvailableException or InvalidOperationException or UnauthorizedAccessException or COMException)
+        {
+            return false;
+        }
+
+        return false;
+    }
+
+    private static string? TryGetUriHost(string url)
+    {
+        return Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.Host : null;
+    }
+
+    private static bool IsYoutubeBrowserTabName(string? name, string? youtubeHost)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return false;
+        }
+
+        return name.Contains("YouTube", StringComparison.OrdinalIgnoreCase)
+            || name.Contains("youtube.com", StringComparison.OrdinalIgnoreCase)
+            || (!string.IsNullOrWhiteSpace(youtubeHost) && name.Contains(youtubeHost, StringComparison.OrdinalIgnoreCase));
     }
 
     private static DateTime GetStartTimeSafe(Process process)
@@ -305,6 +406,73 @@ public sealed class RemoteActionExecutor : IRemoteActionExecutor
         {
             return DateTime.MinValue;
         }
+    }
+
+    private static bool TryActivateBrowserWindow(IntPtr windowHandle, bool ensureFullscreen = false)
+    {
+        var activated = TryActivateWindow(windowHandle);
+        if (activated && ensureFullscreen)
+        {
+            EnsureBrowserFullscreen(windowHandle);
+        }
+
+        return activated;
+    }
+
+    private static void EnsureBrowserFullscreen(IntPtr windowHandle)
+    {
+        if (windowHandle == IntPtr.Zero || IsWindowFullscreen(windowHandle))
+        {
+            return;
+        }
+
+        Thread.Sleep(150);
+        if (GetForegroundWindow() != windowHandle)
+        {
+            TryActivateWindow(windowHandle);
+            Thread.Sleep(100);
+        }
+
+        if (GetForegroundWindow() == windowHandle && !IsWindowFullscreen(windowHandle))
+        {
+            PressVirtualKey(VirtualKeyF11);
+        }
+    }
+
+    private static bool IsWindowFullscreen(IntPtr windowHandle)
+    {
+        if (!GetWindowRect(windowHandle, out var windowRect))
+        {
+            return false;
+        }
+
+        var monitorHandle = MonitorFromWindow(windowHandle, MonitorDefaultToNearest);
+        if (monitorHandle == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        var monitorInfo = new MonitorInfo
+        {
+            Size = Marshal.SizeOf<MonitorInfo>()
+        };
+
+        if (!GetMonitorInfo(monitorHandle, ref monitorInfo))
+        {
+            return false;
+        }
+
+        const int tolerance = 2;
+        return Math.Abs(windowRect.Left - monitorInfo.Monitor.Left) <= tolerance
+            && Math.Abs(windowRect.Top - monitorInfo.Monitor.Top) <= tolerance
+            && Math.Abs(windowRect.Right - monitorInfo.Monitor.Right) <= tolerance
+            && Math.Abs(windowRect.Bottom - monitorInfo.Monitor.Bottom) <= tolerance;
+    }
+
+    private static void PressVirtualKey(byte virtualKey)
+    {
+        keybd_event(virtualKey, 0, 0, UIntPtr.Zero);
+        keybd_event(virtualKey, 0, KeyEventKeyUp, UIntPtr.Zero);
     }
 
     private static bool TryActivateWindow(IntPtr windowHandle, bool maximize = false)
@@ -321,16 +489,47 @@ public sealed class RemoteActionExecutor : IRemoteActionExecutor
         return SetForegroundWindow(windowHandle) || GetForegroundWindow() == windowHandle;
     }
 
+    private static readonly BrowserCandidate[] BrowserCandidates =
+    [
+        new("chrome", "chrome.exe"),
+        new("brave", "brave.exe"),
+        new("opera", "opera.exe"),
+        new("msedge", "msedge.exe")
+    ];
+
     private const string KodiStoreAppShellId = @"shell:AppsFolder\XBMCFoundation.Kodi_4n2hpmxwrvr6p!Kodi";
     private const int ShowWindowMaximize = 3;
     private const int ShowWindowRestore = 9;
     private const int SetWindowPosNoSize = 0x0001;
     private const int SetWindowPosNoMove = 0x0002;
     private const int SetWindowPosShowWindow = 0x0040;
+    private const uint MonitorDefaultToNearest = 0x00000002;
+    private const uint KeyEventKeyUp = 0x0002;
+    private const byte VirtualKeyF11 = 0x7A;
     private static readonly nint TopMostWindow = -1;
     private static readonly nint NoTopMostWindow = -2;
 
+    private sealed record BrowserCandidate(string ProcessName, string ExecutableName);
+
     private sealed record LaunchCandidate(string FileName, string? Arguments);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Rect
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MonitorInfo
+    {
+        public int Size;
+        public Rect Monitor;
+        public Rect WorkArea;
+        public uint Flags;
+    }
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -346,4 +545,16 @@ public sealed class RemoteActionExecutor : IRemoteActionExecutor
 
     [DllImport("user32.dll")]
     private static extern bool SetWindowPos(IntPtr hWnd, nint hWndInsertAfter, int x, int y, int cx, int cy, uint flags);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetWindowRect(IntPtr hWnd, out Rect lpRect);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MonitorInfo lpmi);
+
+    [DllImport("user32.dll")]
+    private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
 }

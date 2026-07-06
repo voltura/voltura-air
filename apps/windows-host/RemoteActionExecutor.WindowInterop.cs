@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Windows.Automation;
 
 namespace VolturaAir.Host;
 
@@ -22,21 +23,23 @@ public sealed partial class RemoteActionExecutor
             return;
         }
 
-        for (var attempt = 0; attempt < BrowserFullscreenAttempts; attempt++)
+        TryActivateWindow(windowHandle);
+        Thread.Sleep(BrowserFocusSettleMilliseconds);
+        if (IsBrowserFullscreen(windowHandle))
         {
-            TryActivateWindow(windowHandle);
-            Thread.Sleep(BrowserFocusSettleMilliseconds);
-            SendBrowserFullscreenShortcut();
-            Thread.Sleep(BrowserFullscreenSettleMilliseconds);
-
-            if (IsWindowFullscreen(windowHandle))
-            {
-                return;
-            }
+            return;
         }
+
+        SendBrowserFullscreenShortcut();
+        Thread.Sleep(BrowserFullscreenSettleMilliseconds);
     }
 
-    private static bool IsWindowFullscreen(IntPtr windowHandle)
+    private static bool IsBrowserFullscreen(IntPtr windowHandle)
+    {
+        return IsWindowCoveringMonitor(windowHandle) && !HasVisibleBrowserChrome(windowHandle);
+    }
+
+    private static bool IsWindowCoveringMonitor(IntPtr windowHandle)
     {
         if (!GetWindowRect(windowHandle, out var windowRect))
         {
@@ -66,6 +69,41 @@ public sealed partial class RemoteActionExecutor
             && Math.Abs(windowRect.Bottom - monitorInfo.Monitor.Bottom) <= tolerance;
     }
 
+    private static bool HasVisibleBrowserChrome(IntPtr windowHandle)
+    {
+        try
+        {
+            var browserWindow = AutomationElement.FromHandle(windowHandle);
+            if (browserWindow is null)
+            {
+                return true;
+            }
+
+            return HasVisibleControlType(browserWindow, ControlType.TabItem) || HasVisibleControlType(browserWindow, ControlType.Edit);
+        }
+        catch (Exception ex) when (ex is ElementNotAvailableException or InvalidOperationException or UnauthorizedAccessException or COMException)
+        {
+            return true;
+        }
+    }
+
+    private static bool HasVisibleControlType(AutomationElement root, ControlType controlType)
+    {
+        var elements = root.FindAll(
+            TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.ControlTypeProperty, controlType));
+
+        foreach (AutomationElement element in elements)
+        {
+            if (!element.Current.IsOffscreen)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static bool TryActivateWindow(IntPtr windowHandle, bool maximize = false)
     {
         if (windowHandle == IntPtr.Zero)
@@ -92,8 +130,6 @@ public sealed partial class RemoteActionExecutor
         {
         }
     }
-
-    private const int BrowserFullscreenAttempts = 1;
 
     private const int BrowserFocusSettleMilliseconds = 500;
 

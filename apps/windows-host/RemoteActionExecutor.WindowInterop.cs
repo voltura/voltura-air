@@ -79,7 +79,7 @@ public sealed partial class RemoteActionExecutor
                 return true;
             }
 
-            return HasVisibleControlType(browserWindow, ControlType.TabItem) || HasVisibleControlType(browserWindow, ControlType.Edit);
+            return HasVisibleControlType(browserWindow, ControlType.TabItem) || HasVisibleBrowserAddressControl(browserWindow);
         }
         catch (Exception ex) when (ex is ElementNotAvailableException or InvalidOperationException or UnauthorizedAccessException or COMException)
         {
@@ -104,6 +104,46 @@ public sealed partial class RemoteActionExecutor
         return false;
     }
 
+    private static bool HasVisibleBrowserAddressControl(AutomationElement root)
+    {
+        var editFields = root.FindAll(
+            TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Edit));
+
+        foreach (AutomationElement editField in editFields)
+        {
+            if (editField.Current.IsOffscreen || !editField.TryGetCurrentPattern(ValuePattern.Pattern, out var pattern) || pattern is not ValuePattern valuePattern)
+            {
+                continue;
+            }
+
+            if (LooksLikeBrowserAddressControl(editField, valuePattern.Current.Value))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool LooksLikeBrowserAddressControl(AutomationElement editField, string value)
+    {
+        var name = editField.Current.Name;
+        if (!string.IsNullOrWhiteSpace(name)
+            && (name.Contains("address", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("adress", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("url", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("omnibox", StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        var trimmed = value.Trim();
+        return Uri.TryCreate(trimmed, UriKind.Absolute, out var uri)
+            && (uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+                || uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase));
+    }
+
     private static bool TryActivateWindow(IntPtr windowHandle, bool maximize = false)
     {
         if (windowHandle == IntPtr.Zero)
@@ -111,7 +151,19 @@ public sealed partial class RemoteActionExecutor
             return false;
         }
 
-        ShowWindow(windowHandle, maximize ? ShowWindowMaximize : ShowWindowRestore);
+        if (maximize)
+        {
+            ShowWindow(windowHandle, ShowWindowMaximize);
+        }
+        else if (IsIconic(windowHandle))
+        {
+            ShowWindow(windowHandle, ShowWindowRestore);
+        }
+        else
+        {
+            ShowWindow(windowHandle, ShowWindowShow);
+        }
+
         BringWindowToTop(windowHandle);
         SetWindowPos(windowHandle, TopMostWindow, 0, 0, 0, 0, SetWindowPosNoMove | SetWindowPosNoSize | SetWindowPosShowWindow);
         SetWindowPos(windowHandle, NoTopMostWindow, 0, 0, 0, 0, SetWindowPosNoMove | SetWindowPosNoSize | SetWindowPosShowWindow);
@@ -136,6 +188,8 @@ public sealed partial class RemoteActionExecutor
     private const int BrowserFullscreenSettleMilliseconds = 800;
 
     private const int ShowWindowMaximize = 3;
+
+    private const int ShowWindowShow = 5;
 
     private const int ShowWindowRestore = 9;
 
@@ -174,6 +228,9 @@ public sealed partial class RemoteActionExecutor
 
     [DllImport("user32.dll")]
     private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsIconic(IntPtr hWnd);
 
     [DllImport("user32.dll")]
     private static extern bool BringWindowToTop(IntPtr hWnd);

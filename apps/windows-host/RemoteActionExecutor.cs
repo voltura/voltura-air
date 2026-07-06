@@ -45,10 +45,12 @@ public sealed partial class RemoteActionExecutor : IRemoteActionExecutor
                 continue;
             }
 
-            // The browser accepted the launch request. Wait until the YouTube tab is
-            // visible before focusing/fullscreening so we do not fullscreen an old tab.
-            TryActivateYoutubeBrowserWhenReady(browser.ProcessName, youtubeUrl, TimeSpan.FromSeconds(5));
-            return true;
+            // The browser accepted the launch request. Prefer waiting until the
+            // YouTube tab is visible, but still fullscreen the browser window if
+            // Chromium accepted the new-tab request without exposing enough UIA
+            // state for the address/tab verification loop.
+            return TryActivateYoutubeBrowserWhenReady(browser.ProcessName, youtubeUrl, TimeSpan.FromSeconds(5))
+                || TryActivateMostRecentBrowserWindow(browser.ProcessName, ensureFullscreen: true);
         }
 
         return false;

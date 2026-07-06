@@ -1,4 +1,6 @@
 using System.Runtime.InteropServices;
+using System.Windows;
+using System.Windows.Automation;
 
 namespace VolturaAir.Host;
 
@@ -70,12 +72,99 @@ public sealed partial class RemoteActionExecutor
 
     private static bool IsBrowserFullscreen(IntPtr windowHandle)
     {
-        if (windowHandle == IntPtr.Zero || IsIconic(windowHandle) || IsZoomed(windowHandle))
+        if (windowHandle == IntPtr.Zero || IsIconic(windowHandle) || IsZoomed(windowHandle) || !IsWindowCoveringMonitor(windowHandle))
         {
             return false;
         }
 
-        return IsWindowCoveringMonitor(windowHandle);
+        return TryGetVisibleBrowserShell(windowHandle, out var hasVisibleBrowserShell) && !hasVisibleBrowserShell;
+    }
+
+    private static bool TryGetVisibleBrowserShell(IntPtr windowHandle, out bool hasVisibleBrowserShell)
+    {
+        hasVisibleBrowserShell = false;
+
+        try
+        {
+            var browserWindow = AutomationElement.FromHandle(windowHandle);
+            if (browserWindow is null)
+            {
+                return false;
+            }
+
+            var rootBounds = browserWindow.Current.BoundingRectangle;
+            hasVisibleBrowserShell = HasVisibleBrowserShellElement(browserWindow, ControlType.TabItem, rootBounds)
+                || HasVisibleBrowserShellElement(browserWindow, ControlType.ToolBar, rootBounds)
+                || HasVisibleBrowserAddressControl(browserWindow, rootBounds);
+            return true;
+        }
+        catch (Exception ex) when (ex is ElementNotAvailableException or InvalidOperationException or UnauthorizedAccessException or COMException)
+        {
+            return false;
+        }
+    }
+
+    private static bool HasVisibleBrowserShellElement(AutomationElement root, ControlType controlType, Rect rootBounds)
+    {
+        var elements = root.FindAll(
+            TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.ControlTypeProperty, controlType));
+
+        foreach (AutomationElement element in elements)
+        {
+            if (IsVisibleBrowserShellElement(element, rootBounds))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool HasVisibleBrowserAddressControl(AutomationElement root, Rect rootBounds)
+    {
+        var editFields = root.FindAll(
+            TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Edit));
+
+        foreach (AutomationElement editField in editFields)
+        {
+            if (!IsVisibleBrowserShellElement(editField, rootBounds) || !LooksLikeBrowserAddressControl(editField))
+            {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsVisibleBrowserShellElement(AutomationElement element, Rect rootBounds)
+    {
+        if (element.Current.IsOffscreen)
+        {
+            return false;
+        }
+
+        var bounds = element.Current.BoundingRectangle;
+        if (bounds.IsEmpty || bounds.Width <= 1 || bounds.Height <= 1)
+        {
+            return false;
+        }
+
+        return bounds.Top >= rootBounds.Top - BrowserShellTopTolerance
+            && bounds.Top <= rootBounds.Top + BrowserShellMaxTopOffset;
+    }
+
+    private static bool LooksLikeBrowserAddressControl(AutomationElement editField)
+    {
+        var name = editField.Current.Name;
+        return !string.IsNullOrWhiteSpace(name)
+            && (name.Contains("address", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("adress", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("url", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("omnibox", StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool IsWindowHandleAvailable(IntPtr windowHandle)
@@ -208,6 +297,10 @@ public sealed partial class RemoteActionExecutor
 
     private const int BrowserFullscreenSettleMilliseconds = 850;
 
+    private const int BrowserShellTopTolerance = 8;
+
+    private const int BrowserShellMaxTopOffset = 180;
+
     private const int ShowWindowMaximize = 3;
 
     private const int ShowWindowRestore = 9;
@@ -231,7 +324,7 @@ public sealed partial class RemoteActionExecutor
     private static readonly nint NoTopMostWindow = -2;
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct Rect
+    private struct Win32Rect
     {
         public int Left;
         public int Top;
@@ -243,8 +336,8 @@ public sealed partial class RemoteActionExecutor
     private struct MonitorInfo
     {
         public int Size;
-        public Rect Monitor;
-        public Rect WorkArea;
+        public Win32Rect Monitor;
+        public Win32Rect WorkArea;
         public uint Flags;
     }
 
@@ -273,7 +366,7 @@ public sealed partial class RemoteActionExecutor
     private static extern bool SetWindowPos(IntPtr hWnd, nint hWndInsertAfter, int x, int y, int cx, int cy, uint flags);
 
     [DllImport("user32.dll")]
-    private static extern bool GetWindowRect(IntPtr hWnd, out Rect lpRect);
+    private static extern bool GetWindowRect(IntPtr hWnd, out Win32Rect lpRect);
 
     [DllImport("user32.dll")]
     private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);

@@ -412,6 +412,11 @@ public partial class MainWindow : Window
         panel.Children.Add(CreateSegmentRow(systemTheme, lightTheme, darkTheme));
 
         panel.Children.Add(CreateSectionHeading("Global permissions"));
+        var allowClientControl = CreateCheckBox("Allow paired devices to control Voltura Air host", AppClientControlSettings.IsEnabled());
+        allowClientControl.Checked += (_, _) => AppClientControlSettings.SetEnabled(true);
+        allowClientControl.Unchecked += (_, _) => AppClientControlSettings.SetEnabled(false);
+        panel.Children.Add(allowClientControl);
+        panel.Children.Add(CreateMutedText("When this is off, paired devices can still control Windows, media, YouTube, Kodi, and other apps, but client-injected input is ignored while it would target this Voltura Air host window or tray menu. Native minimize, maximize, and close controls still work."));
         var sleep = CreateCheckBox("Allow paired devices to request PC sleep", globalPermissions.AllowPcSleep);
         var volume = CreateCheckBox("Allow paired devices to control volume", globalPermissions.AllowVolumeControl);
         var remoteLaunch = CreateCheckBox("Allow paired devices to start applications", globalPermissions.AllowRemoteAppLaunch);

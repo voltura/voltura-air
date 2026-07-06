@@ -56,13 +56,23 @@ internal sealed class WpfTrayApplicationContext : IDisposable
 
     private void BuildMenu()
     {
-        var showQrCodeItem = _trayMenu.Items.Add("Show Voltura Air", null, (_, _) => _mainWindow.ShowPage(HostPage.Connect));
+        var showQrCodeItem = _trayMenu.Items.Add("Show Voltura Air", null, (_, _) => RunTrayCommand(() => _mainWindow.ShowPage(HostPage.Connect)));
         showQrCodeItem.Font = new Font(showQrCodeItem.Font, DrawingFontStyle.Bold);
-        _trayMenu.Items.Add("Devices", null, (_, _) => _mainWindow.ShowPage(HostPage.Devices));
-        _trayMenu.Items.Add("Preferences", null, (_, _) => _mainWindow.ShowPage(HostPage.Preferences));
-        _trayMenu.Items.Add("Open product page", null, (_, _) => OpenProductSite());
+        _trayMenu.Items.Add("Devices", null, (_, _) => RunTrayCommand(() => _mainWindow.ShowPage(HostPage.Devices)));
+        _trayMenu.Items.Add("Preferences", null, (_, _) => RunTrayCommand(() => _mainWindow.ShowPage(HostPage.Preferences)));
+        _trayMenu.Items.Add("Open product page", null, (_, _) => RunTrayCommand(OpenProductSite));
         _trayMenu.Items.Add(new Forms.ToolStripSeparator());
-        _trayMenu.Items.Add("Exit", null, (_, _) => ExitApplication());
+        _trayMenu.Items.Add("Exit", null, (_, _) => RunTrayCommand(ExitApplication));
+    }
+
+    private static void RunTrayCommand(Action action)
+    {
+        if (HostUiInputGuard.IsRecentProtectedClientInput())
+        {
+            return;
+        }
+
+        action();
     }
 
     private void ApplyMenuTheme()

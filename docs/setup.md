@@ -93,6 +93,7 @@ Windows host settings include:
 - Start Voltura Air when signing in to Windows.
 - Show or hide connection status notifications.
 - Host-enforced global and per-device permissions.
+- Global permission for whether paired-device input may change the Voltura Air host UI and tray menu; when disabled, native minimize, maximize, and close controls still work.
 - Default pointer speed for paired devices, with optional per-device overrides.
 - Default Remote mode for newly connected mobile clients.
 - Connection settings for host networking.

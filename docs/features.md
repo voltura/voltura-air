@@ -99,6 +99,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Supports host-enforced permission for PC sleep.
 - Supports host-enforced permission for volume control.
 - Supports host-enforced permission for fixed Remote launch actions.
+- Supports a global permission for client-injected input to interact with the Voltura Air host UI and tray menu; when disabled, clients can still control the PC while host minimize, maximize, and close controls remain available.
 - Combines global defaults with per-device overrides.
 - Hides or disables unsupported actions on mobile through capability reporting.
 - Ignores unauthorized sleep/volume/launch commands even if a client sends them manually.

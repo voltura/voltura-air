@@ -13,17 +13,17 @@ public sealed class InputDispatcher
 
     public bool Dispatch(JsonElement message)
     {
-        if (!AppClientControlSettings.IsEnabled())
-        {
-            return true;
-        }
-
         if (!message.TryGetProperty("type", out var typeProperty))
         {
             return false;
         }
 
         var type = typeProperty.GetString();
+        if (HostUiInputGuard.ShouldBlockClientInput(type, message))
+        {
+            return true;
+        }
+
         switch (type)
         {
             case "pointer.move":

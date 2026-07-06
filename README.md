@@ -33,6 +33,8 @@ The project is split into two apps:
 
 The Windows host installs per user, runs from the tray, manages paired devices, and serves the mobile app over the local network. The mobile app can be used directly in the browser or installed to the home screen.
 
+The host has a global permission for whether paired-device input may interact with the Voltura Air host UI and tray menu. When disabled, paired devices can still control Windows and other apps, while native host window controls such as minimize, maximize, and close remain available.
+
 ## Features
 
 Voltura Air's high-level host and client capabilities are listed in

@@ -1,3 +1,6 @@
+# Local dev notes - tasks i want to prioritize first
+Kodi S key shortcut on Kodi remote, S brings up the Power options menu, allowing the user to quit kodi, or restart the pc or shut it down etc.
+
 # Voltura Air - Product TODO / Roadmap
 
 Updated: 2026-07-05  

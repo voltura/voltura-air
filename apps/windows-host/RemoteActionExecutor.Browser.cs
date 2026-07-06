@@ -96,9 +96,8 @@ public sealed partial class RemoteActionExecutor
             return false;
         }
 
-        TryActivateWindow(windowHandle);
+        TryBringWindowForwardPreservingState(windowHandle);
         Thread.Sleep(150);
-        EnsureBrowserFullscreen(windowHandle);
         return true;
     }
 

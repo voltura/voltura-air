@@ -13,6 +13,11 @@ public sealed class InputDispatcher
 
     public bool Dispatch(JsonElement message)
     {
+        if (!AppClientControlSettings.IsEnabled())
+        {
+            return true;
+        }
+
         if (!message.TryGetProperty("type", out var typeProperty))
         {
             return false;

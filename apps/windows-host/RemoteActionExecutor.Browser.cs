@@ -6,6 +6,9 @@ namespace VolturaAir.Host;
 
 public sealed partial class RemoteActionExecutor
 {
+    private static readonly object LastYoutubeBrowserWindowGate = new();
+    private static IntPtr _lastYoutubeBrowserWindowHandle;
+
     private static bool TryActivateYoutubeBrowserWhenReady(string processName, string youtubeUrl, TimeSpan timeout)
     {
         var youtubeHost = TryGetUriHost(youtubeUrl);
@@ -39,6 +42,11 @@ public sealed partial class RemoteActionExecutor
 
     private static bool TryActivateExistingYoutubeTab(string youtubeUrl)
     {
+        if (TryActivateRememberedFullscreenYoutubeBrowser())
+        {
+            return true;
+        }
+
         var youtubeHost = TryGetUriHost(youtubeUrl);
 
         foreach (var browser in BrowserCandidates)
@@ -72,6 +80,79 @@ public sealed partial class RemoteActionExecutor
         }
 
         return false;
+    }
+
+    private static bool TryActivateRememberedFullscreenYoutubeBrowser()
+    {
+        var windowHandle = GetRememberedYoutubeBrowserWindowHandle();
+        if (!IsWindowHandleAvailable(windowHandle))
+        {
+            ForgetRememberedYoutubeBrowserWindow(windowHandle);
+            return false;
+        }
+
+        if (!IsBrowserFullscreen(windowHandle))
+        {
+            return false;
+        }
+
+        TryActivateWindow(windowHandle);
+        Thread.Sleep(150);
+        EnsureBrowserFullscreen(windowHandle);
+        return true;
+    }
+
+    private static bool TryActivateMostRecentBrowserWindow(string processName, bool ensureFullscreen)
+    {
+        foreach (var process in GetBrowserWindows(processName))
+        {
+            if (!TryActivateWindow(process.MainWindowHandle))
+            {
+                continue;
+            }
+
+            if (ensureFullscreen)
+            {
+                EnsureBrowserFullscreen(process.MainWindowHandle);
+            }
+
+            RememberYoutubeBrowserWindow(process.MainWindowHandle);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static void RememberYoutubeBrowserWindow(IntPtr windowHandle)
+    {
+        if (windowHandle == IntPtr.Zero)
+        {
+            return;
+        }
+
+        lock (LastYoutubeBrowserWindowGate)
+        {
+            _lastYoutubeBrowserWindowHandle = windowHandle;
+        }
+    }
+
+    private static IntPtr GetRememberedYoutubeBrowserWindowHandle()
+    {
+        lock (LastYoutubeBrowserWindowGate)
+        {
+            return _lastYoutubeBrowserWindowHandle;
+        }
+    }
+
+    private static void ForgetRememberedYoutubeBrowserWindow(IntPtr windowHandle)
+    {
+        lock (LastYoutubeBrowserWindowGate)
+        {
+            if (_lastYoutubeBrowserWindowHandle == windowHandle)
+            {
+                _lastYoutubeBrowserWindowHandle = IntPtr.Zero;
+            }
+        }
     }
 
     private static Process[] GetBrowserWindows(string processName)
@@ -143,6 +224,7 @@ public sealed partial class RemoteActionExecutor
             return false;
         }
 
+        RememberYoutubeBrowserWindow(browserWindowHandle);
         EnsureBrowserFullscreen(browserWindowHandle);
         return true;
     }
@@ -216,6 +298,7 @@ public sealed partial class RemoteActionExecutor
         var name = editField.Current.Name;
         if (!string.IsNullOrWhiteSpace(name)
             && (name.Contains("address", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("adress", StringComparison.OrdinalIgnoreCase)
                 || name.Contains("url", StringComparison.OrdinalIgnoreCase)
                 || name.Contains("omnibox", StringComparison.OrdinalIgnoreCase)))
         {

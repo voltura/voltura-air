@@ -24,7 +24,7 @@ public sealed partial class RemoteActionExecutor
 
         for (var attempt = 0; attempt < BrowserFullscreenAttempts; attempt++)
         {
-            TryActivateWindowForKeyboardInput(windowHandle);
+            var hasKeyboardFocus = TryActivateWindowForKeyboardInput(windowHandle);
             Thread.Sleep(150);
 
             if (IsWindowFullscreen(windowHandle))
@@ -32,7 +32,18 @@ public sealed partial class RemoteActionExecutor
                 return;
             }
 
-            SendVirtualKey(VirtualKeyF11);
+            if (hasKeyboardFocus)
+            {
+                SendVirtualKey(VirtualKeyF11);
+                Thread.Sleep(350);
+
+                if (IsWindowFullscreen(windowHandle))
+                {
+                    return;
+                }
+            }
+
+            PostVirtualKey(windowHandle, VirtualKeyF11, F11ScanCode);
             Thread.Sleep(350);
 
             if (IsWindowFullscreen(windowHandle))
@@ -74,7 +85,13 @@ public sealed partial class RemoteActionExecutor
 
     private static bool TryActivateWindow(IntPtr windowHandle, bool maximize = false)
     {
-        return TryActivateWindowForKeyboardInput(windowHandle, maximize);
+        if (windowHandle == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        TryActivateWindowForKeyboardInput(windowHandle, maximize);
+        return true;
     }
 
     private static bool TryActivateWindowForKeyboardInput(IntPtr windowHandle, bool maximize = false)
@@ -94,7 +111,7 @@ public sealed partial class RemoteActionExecutor
 
         try
         {
-            ShowWindow(windowHandle, maximize ? ShowWindowMaximize : ShowWindowShow);
+            ShowWindow(windowHandle, maximize ? ShowWindowMaximize : ShowWindowRestore);
             BringWindowToTop(windowHandle);
             SetWindowPos(windowHandle, TopMostWindow, 0, 0, 0, 0, SetWindowPosNoMove | SetWindowPosNoSize | SetWindowPosShowWindow);
             SetWindowPos(windowHandle, NoTopMostWindow, 0, 0, 0, 0, SetWindowPosNoMove | SetWindowPosNoSize | SetWindowPosShowWindow);
@@ -115,6 +132,14 @@ public sealed partial class RemoteActionExecutor
             }
         }
 
+        if (IsForegroundWindowOrRoot(windowHandle))
+        {
+            return true;
+        }
+
+        SendVirtualKey(VirtualKeyAlt);
+        Thread.Sleep(50);
+        SetForegroundWindow(windowHandle);
         return IsForegroundWindowOrRoot(windowHandle);
     }
 
@@ -128,39 +153,55 @@ public sealed partial class RemoteActionExecutor
     {
         var inputs = new[]
         {
-            new Input
-            {
-                Type = InputKeyboard,
-                Data = new InputUnion
-                {
-                    Keyboard = new KeyboardInput
-                    {
-                        VirtualKey = virtualKey
-                    }
-                }
-            },
-            new Input
-            {
-                Type = InputKeyboard,
-                Data = new InputUnion
-                {
-                    Keyboard = new KeyboardInput
-                    {
-                        VirtualKey = virtualKey,
-                        Flags = KeyEventKeyUp
-                    }
-                }
-            }
+            CreateKeyboardInput(virtualKey, scanCode: 0, flags: 0),
+            CreateKeyboardInput(virtualKey, scanCode: 0, flags: KeyEventKeyUp)
         };
 
         SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<Input>());
     }
 
-    private const int BrowserFullscreenAttempts = 2;
+    private static Input CreateKeyboardInput(ushort virtualKey, ushort scanCode, uint flags)
+    {
+        return new Input
+        {
+            Type = InputKeyboard,
+            Data = new InputUnion
+            {
+                Keyboard = new KeyboardInput
+                {
+                    VirtualKey = virtualKey,
+                    ScanCode = scanCode,
+                    Flags = flags
+                }
+            }
+        };
+    }
+
+    private static void PostVirtualKey(IntPtr windowHandle, ushort virtualKey, ushort scanCode)
+    {
+        var keyDownLParam = BuildKeyMessageLParam(scanCode, keyUp: false);
+        var keyUpLParam = BuildKeyMessageLParam(scanCode, keyUp: true);
+        PostMessage(windowHandle, WindowMessageKeyDown, (nuint)virtualKey, keyDownLParam);
+        PostMessage(windowHandle, WindowMessageKeyUp, (nuint)virtualKey, keyUpLParam);
+    }
+
+    private static nint BuildKeyMessageLParam(ushort scanCode, bool keyUp)
+    {
+        var value = 1u | ((uint)scanCode << 16);
+        if (keyUp)
+        {
+            value |= 1u << 30;
+            value |= 1u << 31;
+        }
+
+        return unchecked((nint)(int)value);
+    }
+
+    private const int BrowserFullscreenAttempts = 3;
 
     private const int ShowWindowMaximize = 3;
 
-    private const int ShowWindowShow = 5;
+    private const int ShowWindowRestore = 9;
 
     private const int SetWindowPosNoSize = 0x0001;
 
@@ -176,7 +217,15 @@ public sealed partial class RemoteActionExecutor
 
     private const uint KeyEventKeyUp = 0x0002;
 
+    private const uint WindowMessageKeyDown = 0x0100;
+
+    private const uint WindowMessageKeyUp = 0x0101;
+
+    private const ushort VirtualKeyAlt = 0x12;
+
     private const ushort VirtualKeyF11 = 0x7A;
+
+    private const ushort F11ScanCode = 0x57;
 
     private static readonly nint TopMostWindow = -1;
 
@@ -211,7 +260,24 @@ public sealed partial class RemoteActionExecutor
     private struct InputUnion
     {
         [FieldOffset(0)]
+        public MouseInput Mouse;
+
+        [FieldOffset(0)]
         public KeyboardInput Keyboard;
+
+        [FieldOffset(0)]
+        public HardwareInput Hardware;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MouseInput
+    {
+        public int Dx;
+        public int Dy;
+        public uint MouseData;
+        public uint Flags;
+        public uint Time;
+        public UIntPtr ExtraInfo;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -222,6 +288,14 @@ public sealed partial class RemoteActionExecutor
         public uint Flags;
         public uint Time;
         public UIntPtr ExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct HardwareInput
+    {
+        public uint Message;
+        public ushort LowParam;
+        public ushort HighParam;
     }
 
     [DllImport("user32.dll")]
@@ -268,4 +342,7 @@ public sealed partial class RemoteActionExecutor
 
     [DllImport("user32.dll")]
     private static extern uint SendInput(uint inputCount, Input[] inputs, int inputSize);
+
+    [DllImport("user32.dll")]
+    private static extern bool PostMessage(IntPtr hWnd, uint msg, nuint wParam, nint lParam);
 }

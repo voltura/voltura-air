@@ -22,22 +22,50 @@ public sealed partial class RemoteActionExecutor
             return;
         }
 
-        for (var attempt = 0; attempt < BrowserFullscreenAttempts; attempt++)
+        TryRequestBrowserFullscreen(windowHandle);
+        if (!IsBrowserFullscreen(windowHandle))
         {
-            TryFocusWindowForKeyboardInput(windowHandle);
-            Thread.Sleep(BrowserFocusSettleMilliseconds);
-            if (IsBrowserFullscreen(windowHandle))
-            {
-                return;
-            }
-
-            SendBrowserFullscreenShortcut();
-            Thread.Sleep(BrowserFullscreenSettleMilliseconds);
-            if (IsBrowserFullscreen(windowHandle))
-            {
-                return;
-            }
+            ScheduleBrowserFullscreenRetries(windowHandle);
         }
+    }
+
+    private static void TryRequestBrowserFullscreen(IntPtr windowHandle)
+    {
+        if (windowHandle == IntPtr.Zero || IsBrowserFullscreen(windowHandle))
+        {
+            return;
+        }
+
+        TryFocusWindowForKeyboardInput(windowHandle);
+        Thread.Sleep(BrowserFocusSettleMilliseconds);
+        if (IsBrowserFullscreen(windowHandle))
+        {
+            return;
+        }
+
+        SendBrowserFullscreenShortcut();
+        Thread.Sleep(BrowserFullscreenSettleMilliseconds);
+    }
+
+    private static void ScheduleBrowserFullscreenRetries(IntPtr windowHandle)
+    {
+        _ = Task.Run(async () =>
+        {
+            foreach (var delay in BrowserFullscreenRetryDelays)
+            {
+                await Task.Delay(delay).ConfigureAwait(false);
+                if (!IsWindowHandleAvailable(windowHandle) || IsBrowserFullscreen(windowHandle))
+                {
+                    return;
+                }
+
+                TryRequestBrowserFullscreen(windowHandle);
+                if (IsBrowserFullscreen(windowHandle))
+                {
+                    return;
+                }
+            }
+        });
     }
 
     private static bool IsBrowserFullscreen(IntPtr windowHandle)
@@ -176,8 +204,6 @@ public sealed partial class RemoteActionExecutor
         }
     }
 
-    private const int BrowserFullscreenAttempts = 2;
-
     private const int BrowserFocusSettleMilliseconds = 250;
 
     private const int BrowserFullscreenSettleMilliseconds = 850;
@@ -193,6 +219,12 @@ public sealed partial class RemoteActionExecutor
     private const uint MonitorDefaultToNearest = 0x00000002;
 
     private const uint GetAncestorRoot = 2;
+
+    private static readonly TimeSpan[] BrowserFullscreenRetryDelays =
+    [
+        TimeSpan.FromMilliseconds(700),
+        TimeSpan.FromMilliseconds(1400)
+    ];
 
     private static readonly nint TopMostWindow = -1;
 

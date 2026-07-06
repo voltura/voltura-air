@@ -98,9 +98,10 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Reports the host default Remote mode to the mobile client.
 - Supports host-enforced permission for PC sleep.
 - Supports host-enforced permission for volume control.
+- Supports host-enforced permission for fixed Remote launch actions.
 - Combines global defaults with per-device overrides.
 - Hides or disables unsupported actions on mobile through capability reporting.
-- Ignores unauthorized sleep/volume commands even if a client sends them manually.
+- Ignores unauthorized sleep/volume/launch commands even if a client sends them manually.
 
 ### Input injection
 
@@ -276,7 +277,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
   - volume through Arrow Down/Arrow Up,
   - mute through `M`.
 - Kodi mode maps remote controls to common Kodi keyboard shortcuts:
-  - previous/next item or chapter through Page Down/Page Up,
+  - previous/next item or chapter through Windows previous/next media keys,
   - play/pause through `Space`,
   - seek/navigation through arrow keys,
   - stop playback through `X`,
@@ -304,6 +305,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Remote settings:
   - navigation ring.
   - Remote mode: Standard, YouTube, or Kodi.
+  - optional client-local launch toggles for Open YouTube and Start Kodi when the host allows paired devices to start applications.
 
 ### Dictation mode
 

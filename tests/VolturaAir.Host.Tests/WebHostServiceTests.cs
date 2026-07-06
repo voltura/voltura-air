@@ -236,6 +236,114 @@ public sealed class WebHostServiceTests
         Assert.Equal(45, pushedStatus.RootElement.GetProperty("host").GetProperty("pointerSpeed").GetInt32());
     }
 
+
+    [Fact]
+    public async Task WebSocketExecutesRemoteLaunchActionWhenGloballyAllowed()
+    {
+        var originalPermissions = AppPermissionSettings.Load();
+        var remoteActions = new FakeRemoteActionExecutor();
+
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowRemoteAppLaunch = true });
+            await using var fixture = await WebHostFixture.StartAsync(remoteActionExecutor: remoteActions);
+            var clientId = $"client-{Guid.NewGuid():N}";
+            var token = fixture.Manager.CreatePairingToken();
+            using var socket = new ClientWebSocket();
+            await socket.ConnectAsync(new Uri($"ws://127.0.0.1:{fixture.WebHost.Port}/ws"), CancellationToken.None);
+
+            var paired = await SendAndReceiveAsync(socket, new
+            {
+                type = "pair.hello",
+                clientId,
+                deviceName = "Phone",
+                pairToken = token
+            });
+            await SendAsync(socket, new { type = "remote.launch", action = "openYoutube" });
+            var status = await SendAndReceiveAsync(socket, new { type = "status.get" });
+
+            Assert.Equal("pair.accepted", paired.GetProperty("type").GetString());
+            Assert.True(paired.GetProperty("capabilities").GetProperty("remoteLaunch").GetBoolean());
+            Assert.Equal("status", status.GetProperty("type").GetString());
+            Assert.Equal(new[] { "openYoutube" }, remoteActions.Actions);
+        }
+        finally
+        {
+            AppPermissionSettings.Save(originalPermissions);
+        }
+    }
+
+    [Fact]
+    public async Task WebSocketBlocksRemoteLaunchActionWhenGloballyDisabled()
+    {
+        var originalPermissions = AppPermissionSettings.Load();
+        var remoteActions = new FakeRemoteActionExecutor();
+
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowRemoteAppLaunch = false });
+            await using var fixture = await WebHostFixture.StartAsync(remoteActionExecutor: remoteActions);
+            var clientId = $"client-{Guid.NewGuid():N}";
+            var token = fixture.Manager.CreatePairingToken();
+            using var socket = new ClientWebSocket();
+            await socket.ConnectAsync(new Uri($"ws://127.0.0.1:{fixture.WebHost.Port}/ws"), CancellationToken.None);
+
+            var paired = await SendAndReceiveAsync(socket, new
+            {
+                type = "pair.hello",
+                clientId,
+                deviceName = "Phone",
+                pairToken = token
+            });
+            await SendAsync(socket, new { type = "remote.launch", action = "openYoutube" });
+            var status = await SendAndReceiveAsync(socket, new { type = "status.get" });
+
+            Assert.Equal("pair.accepted", paired.GetProperty("type").GetString());
+            Assert.False(paired.GetProperty("capabilities").GetProperty("remoteLaunch").GetBoolean());
+            Assert.Equal("status", status.GetProperty("type").GetString());
+            Assert.Empty(remoteActions.Actions);
+        }
+        finally
+        {
+            AppPermissionSettings.Save(originalPermissions);
+        }
+    }
+
+    [Fact]
+    public async Task WebSocketRejectsUnsupportedRemoteLaunchActions()
+    {
+        var originalPermissions = AppPermissionSettings.Load();
+        var remoteActions = new FakeRemoteActionExecutor();
+
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowRemoteAppLaunch = true });
+            await using var fixture = await WebHostFixture.StartAsync(remoteActionExecutor: remoteActions);
+            var clientId = $"client-{Guid.NewGuid():N}";
+            var token = fixture.Manager.CreatePairingToken();
+            using var socket = new ClientWebSocket();
+            await socket.ConnectAsync(new Uri($"ws://127.0.0.1:{fixture.WebHost.Port}/ws"), CancellationToken.None);
+
+            var paired = await SendAndReceiveAsync(socket, new
+            {
+                type = "pair.hello",
+                clientId,
+                deviceName = "Phone",
+                pairToken = token
+            });
+            await SendAsync(socket, new { type = "remote.launch", action = "cmd.exe" });
+            var closeStatus = await ReceiveCloseStatusAsync(socket);
+
+            Assert.Equal("pair.accepted", paired.GetProperty("type").GetString());
+            Assert.Equal(WebSocketCloseStatus.PolicyViolation, closeStatus);
+            Assert.Empty(remoteActions.Actions);
+        }
+        finally
+        {
+            AppPermissionSettings.Save(originalPermissions);
+        }
+    }
+
     [Fact]
     public async Task WebSocketRejectsMalformedPairHelloAsInvalidMessage()
     {
@@ -500,7 +608,7 @@ public sealed class WebHostServiceTests
 
         public WebHostService WebHost { get; }
 
-        public static async Task<WebHostFixture> StartAsync(ISystemAudioController? audioController = null)
+        public static async Task<WebHostFixture> StartAsync(ISystemAudioController? audioController = null, IRemoteActionExecutor? remoteActionExecutor = null)
         {
             var originalSettings = AppNetworkSettings.Load();
             var store = new TempPairingStore();
@@ -517,7 +625,7 @@ public sealed class WebHostServiceTests
                 LastAutomaticPort: null,
                 LastAutomaticHostAddress: originalSettings.LastAutomaticHostAddress));
 
-            var webHost = new WebHostService(manager, new InputDispatcher(inputInjector), audioController);
+            var webHost = new WebHostService(manager, new InputDispatcher(inputInjector), audioController, remoteActionExecutor);
             await webHost.StartAsync();
             return new WebHostFixture(originalSettings, store, inputInjector, manager, webHost);
         }
@@ -529,6 +637,17 @@ public sealed class WebHostServiceTests
             Store.Dispose();
             InputInjector.Dispose();
             AppNetworkSettings.Save(_originalSettings);
+        }
+    }
+
+    private sealed class FakeRemoteActionExecutor : IRemoteActionExecutor
+    {
+        public List<string> Actions { get; } = new();
+
+        public bool TryExecute(string action)
+        {
+            Actions.Add(action);
+            return true;
         }
     }
 

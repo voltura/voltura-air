@@ -73,6 +73,7 @@ export function useVolturaAirConnection() {
   const [supportsGestureDebug, setSupportsGestureDebug] = useState(false);
   const [supportsSleep, setSupportsSleep] = useState(false);
   const [supportsVolumeControl, setSupportsVolumeControl] = useState(false);
+  const [supportsRemoteLaunch, setSupportsRemoteLaunch] = useState(false);
   const [lastConnectionError, setLastConnectionError] = useState<ConnectionError | null>(null);
   const [hostStatus, setHostStatus] = useState<HostStatusMetadata | null>(null);
   const [pairingAttempt, setPairingAttempt] = useState<{ token?: string; id: number }>(() => ({
@@ -135,6 +136,7 @@ export function useVolturaAirConnection() {
     setSupportsGestureDebug(false);
     setSupportsSleep(false);
     setSupportsVolumeControl(false);
+    setSupportsRemoteLaunch(false);
     setHostStatus(null);
     supportsVolumeControlRef.current = false;
     supportsInputAckRef.current = false;
@@ -191,10 +193,12 @@ export function useVolturaAirConnection() {
   const updateCapabilities = useCallback((capabilities: ServerCapabilities | undefined, connected = true) => {
     const nextSupportsSleep = connected && hasSleepCapability(capabilities);
     const nextSupportsVolumeControl = connected && hasVolumeCapability(capabilities);
+    const nextSupportsRemoteLaunch = connected && hasRemoteLaunchCapability(capabilities);
     const nextSupportsInputAck = connected && hasInputAckCapability(capabilities);
     setSupportsGestureDebug(connected && hasGestureDebugCapability(capabilities));
     setSupportsSleep(nextSupportsSleep);
     setSupportsVolumeControl(nextSupportsVolumeControl);
+    setSupportsRemoteLaunch(nextSupportsRemoteLaunch);
     supportsVolumeControlRef.current = nextSupportsVolumeControl;
     supportsInputAckRef.current = nextSupportsInputAck;
     if (!nextSupportsVolumeControl) {
@@ -728,7 +732,7 @@ export function useVolturaAirConnection() {
     }
   }, [send, state]);
 
-  return { state, message, send, requestAudioState, clientId, deviceName, activePc, pairedPcs, audioState, supportsGestureDebug, supportsSleep, supportsVolumeControl, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice, setHostPointerSpeed };
+  return { state, message, send, requestAudioState, clientId, deviceName, activePc, pairedPcs, audioState, supportsGestureDebug, supportsSleep, supportsVolumeControl, supportsRemoteLaunch, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice, setHostPointerSpeed };
 }
 
 function getOrCreateClientId(source: string): string {
@@ -930,6 +934,10 @@ function hasVolumeCapability(capabilities: ServerCapabilities | undefined): bool
 
 function hasInputAckCapability(capabilities: ServerCapabilities | undefined): boolean {
   return capabilities?.inputAck === true;
+}
+
+function hasRemoteLaunchCapability(capabilities: ServerCapabilities | undefined): boolean {
+  return capabilities?.remoteLaunch === true;
 }
 
 function hasGestureDebugCapability(capabilities: ServerCapabilities | undefined): boolean {

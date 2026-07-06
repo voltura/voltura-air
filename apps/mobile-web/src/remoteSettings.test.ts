@@ -6,7 +6,9 @@ describe("normalizeRemoteSettings", () => {
     expect(normalizeRemoteSettings({})).toEqual(defaultRemoteSettings);
     expect(defaultRemoteSettings).toEqual({
       navigationRing: true,
-      mode: "standard"
+      mode: "standard",
+      openYoutube: true,
+      startKodi: true
     });
   });
 
@@ -16,6 +18,13 @@ describe("normalizeRemoteSettings", () => {
 
   it("preserves stored remote mode settings", () => {
     expect(normalizeRemoteSettings({ mode: "kodi" }).mode).toBe("kodi");
+  });
+
+  it("preserves local launch action settings", () => {
+    expect(normalizeRemoteSettings({ openYoutube: false, startKodi: false })).toMatchObject({
+      openYoutube: false,
+      startKodi: false
+    });
   });
 
   it("migrates enabled legacy YouTube mode settings", () => {
@@ -31,7 +40,9 @@ describe("normalizeRemoteSettings", () => {
       isStored: false,
       settings: {
         navigationRing: true,
-        mode: "kodi"
+        mode: "kodi",
+        openYoutube: true,
+        startKodi: true
       }
     });
   });
@@ -41,7 +52,9 @@ describe("normalizeRemoteSettings", () => {
       isStored: true,
       settings: {
         navigationRing: false,
-        mode: "youtube"
+        mode: "youtube",
+        openYoutube: true,
+        startKodi: true
       }
     });
   });

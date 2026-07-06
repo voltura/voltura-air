@@ -34,6 +34,7 @@ const baseProps = {
   selectPc: vi.fn(),
   setThemeMode: vi.fn(),
   showGestureDebug: false,
+  supportsRemoteLaunch: false,
   themeMode: "system" as const,
   trackpadSettings: defaultTrackpadSettings,
   updateAppSetting: vi.fn(),
@@ -88,6 +89,30 @@ describe("SettingsDrawer", () => {
     fireEvent.click(screen.getByRole("button", { name: "Kodi" }));
 
     expect(updateRemoteSetting).toHaveBeenCalledExactlyOnceWith("mode", "kodi");
+  });
+
+
+  it("shows launch action settings only when the host allows remote launch", () => {
+    const { rerender } = render(<SettingsDrawer {...baseProps} />);
+
+    fireEvent.click(screen.getByText("Remote"));
+    expect(screen.queryByRole("checkbox", { name: "Open YouTube from Remote mode" })).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: "Start Kodi from Remote mode" })).toBeNull();
+
+    rerender(<SettingsDrawer {...baseProps} supportsRemoteLaunch />);
+
+    expect(screen.getByRole("checkbox", { name: "Open YouTube from Remote mode" })).toBeTruthy();
+    expect(screen.getByRole("checkbox", { name: "Start Kodi from Remote mode" })).toBeTruthy();
+  });
+
+  it("updates local remote launch action settings", () => {
+    const updateRemoteSetting = vi.fn();
+    render(<SettingsDrawer {...baseProps} supportsRemoteLaunch updateRemoteSetting={updateRemoteSetting} />);
+
+    fireEvent.click(screen.getByText("Remote"));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Open YouTube from Remote mode" }));
+
+    expect(updateRemoteSetting).toHaveBeenCalledExactlyOnceWith("openYoutube", false);
   });
 
   it("updates the app auto refresh setting", () => {

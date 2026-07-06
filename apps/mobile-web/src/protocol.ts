@@ -40,6 +40,7 @@ export type AudioGetMessage = {
 export type ServerCapabilities = {
   gestureDebug?: boolean;
   inputAck?: boolean;
+  remoteLaunch?: boolean;
   sleep?: boolean;
   volume?: boolean;
 };
@@ -155,6 +156,13 @@ export type SystemSleepMessage = {
   type: "system.sleep";
 };
 
+export type RemoteLaunchAction = "openYoutube" | "startOrActivateKodi";
+
+export type RemoteLaunchMessage = {
+  type: "remote.launch";
+  action: RemoteLaunchAction;
+};
+
 export type AudioMuteToggleMessage = {
   type: "audio.mute.toggle";
 };
@@ -185,6 +193,7 @@ export type ClientMessage =
   | KeyboardTextMessage
   | KeyboardSpecialMessage
   | SystemSleepMessage
+  | RemoteLaunchMessage
   | AudioMuteToggleMessage
   | AudioVolumeSetMessage;
 

@@ -18,17 +18,19 @@ public sealed class WebHostService : IAsyncDisposable
     private readonly PairingManager _pairingManager;
     private readonly InputDispatcher _inputDispatcher;
     private readonly ISystemAudioController _audioController;
+    private readonly IRemoteActionExecutor _remoteActionExecutor;
     private readonly PairingAttemptRateLimiter _pairingAttemptRateLimiter = new();
     private readonly object _connectionsGate = new();
     private readonly Dictionary<string, List<WebSocket>> _activeSockets = new(StringComparer.Ordinal);
     private readonly Dictionary<WebSocket, SemaphoreSlim> _sendGates = new();
     private WebApplication? _app;
 
-    public WebHostService(PairingManager pairingManager, InputDispatcher inputDispatcher, ISystemAudioController? audioController = null)
+    public WebHostService(PairingManager pairingManager, InputDispatcher inputDispatcher, ISystemAudioController? audioController = null, IRemoteActionExecutor? remoteActionExecutor = null)
     {
         _pairingManager = pairingManager;
         _inputDispatcher = inputDispatcher;
         _audioController = audioController ?? new SystemAudioController();
+        _remoteActionExecutor = remoteActionExecutor ?? new RemoteActionExecutor();
         _pairingManager.PairingRevoked += OnPairingRevoked;
         _pairingManager.PermissionsChanged += OnPermissionsChanged;
         _pairingManager.DeviceProfileChanged += OnPermissionsChanged;
@@ -303,6 +305,16 @@ public sealed class WebHostService : IAsyncDisposable
                     if (CanSleepPc(authenticatedClientId))
                     {
                         TrySleepPc();
+                    }
+
+                    continue;
+                }
+
+                if (type == "remote.launch")
+                {
+                    if (CanLaunchRemoteApps(authenticatedClientId))
+                    {
+                        _remoteActionExecutor.TryExecute(GetString(root, "action"));
                     }
 
                     continue;
@@ -640,7 +652,14 @@ public sealed class WebHostService : IAsyncDisposable
 
     private object CreateCapabilities(string clientId)
     {
-        return new { sleep = CanSleepPc(clientId), volume = CanControlVolume(clientId), gestureDebug = AppDeveloperSettings.EnableGestureDebug(), inputAck = true };
+        return new
+        {
+            sleep = CanSleepPc(clientId),
+            volume = CanControlVolume(clientId),
+            remoteLaunch = CanLaunchRemoteApps(clientId),
+            gestureDebug = AppDeveloperSettings.EnableGestureDebug(),
+            inputAck = true
+        };
     }
 
     private bool CanSleepPc(string clientId)
@@ -651,6 +670,11 @@ public sealed class WebHostService : IAsyncDisposable
     private bool CanControlVolume(string clientId)
     {
         return _pairingManager.GetEffectivePermissions(clientId, AppPermissionSettings.Load()).AllowVolumeControl;
+    }
+
+    private bool CanLaunchRemoteApps(string clientId)
+    {
+        return _pairingManager.GetEffectivePermissions(clientId, AppPermissionSettings.Load()).AllowRemoteAppLaunch;
     }
 
     private static bool IsInputMessage(string? type)

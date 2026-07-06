@@ -7,6 +7,7 @@ public static class AppPermissionSettings
     private const string SettingsKeyPath = @"Software\VolturaAir";
     private const string AllowPcSleepValueName = "AllowPcSleep";
     private const string AllowVolumeControlValueName = "AllowVolumeControl";
+    private const string AllowRemoteAppLaunchValueName = "AllowRemoteAppLaunch";
 
     public static event EventHandler? Changed;
 
@@ -15,7 +16,8 @@ public static class AppPermissionSettings
         using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: false);
         return new HostPermissionSet(
             AllowPcSleep: GetBooleanValue(key, AllowPcSleepValueName, HostPermissions.DefaultGlobal.AllowPcSleep),
-            AllowVolumeControl: GetBooleanValue(key, AllowVolumeControlValueName, HostPermissions.DefaultGlobal.AllowVolumeControl));
+            AllowVolumeControl: GetBooleanValue(key, AllowVolumeControlValueName, HostPermissions.DefaultGlobal.AllowVolumeControl),
+            AllowRemoteAppLaunch: GetBooleanValue(key, AllowRemoteAppLaunchValueName, HostPermissions.DefaultGlobal.AllowRemoteAppLaunch));
     }
 
     public static void Save(HostPermissionSet permissions)
@@ -26,6 +28,7 @@ public static class AppPermissionSettings
 
         key.SetValue(AllowPcSleepValueName, permissions.AllowPcSleep ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowVolumeControlValueName, permissions.AllowVolumeControl ? 1 : 0, RegistryValueKind.DWord);
+        key.SetValue(AllowRemoteAppLaunchValueName, permissions.AllowRemoteAppLaunch ? 1 : 0, RegistryValueKind.DWord);
 
         if (current != permissions)
         {

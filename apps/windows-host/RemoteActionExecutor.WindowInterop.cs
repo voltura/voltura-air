@@ -22,15 +22,22 @@ public sealed partial class RemoteActionExecutor
             return;
         }
 
-        TryActivateWindow(windowHandle);
-        Thread.Sleep(BrowserFocusSettleMilliseconds);
-        if (IsBrowserFullscreen(windowHandle))
+        for (var attempt = 0; attempt < BrowserFullscreenAttempts; attempt++)
         {
-            return;
-        }
+            TryFocusWindowForKeyboardInput(windowHandle);
+            Thread.Sleep(BrowserFocusSettleMilliseconds);
+            if (IsBrowserFullscreen(windowHandle))
+            {
+                return;
+            }
 
-        SendBrowserFullscreenShortcut();
-        Thread.Sleep(BrowserFullscreenSettleMilliseconds);
+            SendBrowserFullscreenShortcut();
+            Thread.Sleep(BrowserFullscreenSettleMilliseconds);
+            if (IsBrowserFullscreen(windowHandle))
+            {
+                return;
+            }
+        }
     }
 
     private static bool IsBrowserFullscreen(IntPtr windowHandle)
@@ -93,13 +100,8 @@ public sealed partial class RemoteActionExecutor
         {
             ShowWindow(windowHandle, ShowWindowRestore);
         }
-        else
-        {
-            TryBringWindowForwardPreservingState(windowHandle);
-            return true;
-        }
 
-        return TryBringWindowForwardPreservingState(windowHandle);
+        return TryFocusWindowForKeyboardInput(windowHandle);
     }
 
     private static bool TryBringWindowForwardPreservingState(IntPtr windowHandle)
@@ -116,6 +118,52 @@ public sealed partial class RemoteActionExecutor
         return true;
     }
 
+    private static bool TryFocusWindowForKeyboardInput(IntPtr windowHandle)
+    {
+        if (windowHandle == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        var currentThreadId = GetCurrentThreadId();
+        var targetThreadId = GetWindowThreadProcessId(windowHandle, out _);
+        var foregroundWindow = GetForegroundWindow();
+        var foregroundThreadId = foregroundWindow == IntPtr.Zero ? 0 : GetWindowThreadProcessId(foregroundWindow, out _);
+
+        var attachedToTarget = targetThreadId != 0 && targetThreadId != currentThreadId && AttachThreadInput(currentThreadId, targetThreadId, true);
+        var attachedToForeground = foregroundThreadId != 0 && foregroundThreadId != currentThreadId && foregroundThreadId != targetThreadId && AttachThreadInput(currentThreadId, foregroundThreadId, true);
+
+        try
+        {
+            BringWindowToTop(windowHandle);
+            SetWindowPos(windowHandle, TopMostWindow, 0, 0, 0, 0, SetWindowPosNoMove | SetWindowPosNoSize);
+            SetWindowPos(windowHandle, NoTopMostWindow, 0, 0, 0, 0, SetWindowPosNoMove | SetWindowPosNoSize);
+            SetActiveWindow(windowHandle);
+            SetFocus(windowHandle);
+            SetForegroundWindow(windowHandle);
+        }
+        finally
+        {
+            if (attachedToForeground)
+            {
+                AttachThreadInput(currentThreadId, foregroundThreadId, false);
+            }
+
+            if (attachedToTarget)
+            {
+                AttachThreadInput(currentThreadId, targetThreadId, false);
+            }
+        }
+
+        return IsForegroundWindowOrRoot(windowHandle);
+    }
+
+    private static bool IsForegroundWindowOrRoot(IntPtr windowHandle)
+    {
+        var foregroundWindow = GetForegroundWindow();
+        return foregroundWindow == windowHandle || GetAncestor(foregroundWindow, GetAncestorRoot) == windowHandle;
+    }
+
     private static void SendBrowserFullscreenShortcut()
     {
         try
@@ -128,9 +176,11 @@ public sealed partial class RemoteActionExecutor
         }
     }
 
-    private const int BrowserFocusSettleMilliseconds = 500;
+    private const int BrowserFullscreenAttempts = 2;
 
-    private const int BrowserFullscreenSettleMilliseconds = 800;
+    private const int BrowserFocusSettleMilliseconds = 250;
+
+    private const int BrowserFullscreenSettleMilliseconds = 850;
 
     private const int ShowWindowMaximize = 3;
 
@@ -141,6 +191,8 @@ public sealed partial class RemoteActionExecutor
     private const int SetWindowPosNoMove = 0x0002;
 
     private const uint MonitorDefaultToNearest = 0x00000002;
+
+    private const uint GetAncestorRoot = 2;
 
     private static readonly nint TopMostWindow = -1;
 
@@ -168,6 +220,9 @@ public sealed partial class RemoteActionExecutor
     private static extern bool SetForegroundWindow(IntPtr hWnd);
 
     [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
     private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
     [DllImport("user32.dll")]
@@ -193,4 +248,22 @@ public sealed partial class RemoteActionExecutor
 
     [DllImport("user32.dll")]
     private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MonitorInfo lpmi);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    [DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
+
+    [DllImport("user32.dll")]
+    private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool attach);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetActiveWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetFocus(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetAncestor(IntPtr hWnd, uint gaFlags);
 }

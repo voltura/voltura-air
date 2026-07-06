@@ -23,13 +23,10 @@ public sealed partial class RemoteActionExecutor
         }
 
         Thread.Sleep(150);
-        if (GetForegroundWindow() != windowHandle)
-        {
-            TryActivateWindow(windowHandle);
-            Thread.Sleep(100);
-        }
+        TryActivateWindow(windowHandle);
+        Thread.Sleep(150);
 
-        if (GetForegroundWindow() == windowHandle && !IsWindowFullscreen(windowHandle))
+        if (!IsWindowFullscreen(windowHandle))
         {
             PressVirtualKey(VirtualKeyF11);
         }

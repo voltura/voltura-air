@@ -25,10 +25,6 @@ public sealed partial class RemoteActionExecutor
         }
 
         TryRequestBrowserFullscreen(windowHandle);
-        if (!IsBrowserFullscreen(windowHandle))
-        {
-            ScheduleBrowserFullscreenRetries(windowHandle);
-        }
     }
 
     private static void TryRequestBrowserFullscreen(IntPtr windowHandle)
@@ -47,27 +43,6 @@ public sealed partial class RemoteActionExecutor
 
         SendBrowserFullscreenShortcut();
         Thread.Sleep(BrowserFullscreenSettleMilliseconds);
-    }
-
-    private static void ScheduleBrowserFullscreenRetries(IntPtr windowHandle)
-    {
-        _ = Task.Run(async () =>
-        {
-            foreach (var delay in BrowserFullscreenRetryDelays)
-            {
-                await Task.Delay(delay).ConfigureAwait(false);
-                if (!IsWindowHandleAvailable(windowHandle) || IsBrowserFullscreen(windowHandle))
-                {
-                    return;
-                }
-
-                TryRequestBrowserFullscreen(windowHandle);
-                if (IsBrowserFullscreen(windowHandle))
-                {
-                    return;
-                }
-            }
-        });
     }
 
     private static bool IsBrowserFullscreen(IntPtr windowHandle)
@@ -312,12 +287,6 @@ public sealed partial class RemoteActionExecutor
     private const uint MonitorDefaultToNearest = 0x00000002;
 
     private const uint GetAncestorRoot = 2;
-
-    private static readonly TimeSpan[] BrowserFullscreenRetryDelays =
-    [
-        TimeSpan.FromMilliseconds(700),
-        TimeSpan.FromMilliseconds(1400)
-    ];
 
     private static readonly nint TopMostWindow = -1;
 

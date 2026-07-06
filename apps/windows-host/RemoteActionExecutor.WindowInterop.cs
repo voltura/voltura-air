@@ -1,6 +1,4 @@
 using System.Runtime.InteropServices;
-using System.Windows;
-using System.Windows.Automation;
 
 namespace VolturaAir.Host;
 
@@ -47,99 +45,25 @@ public sealed partial class RemoteActionExecutor
 
     private static bool IsBrowserFullscreen(IntPtr windowHandle)
     {
-        if (windowHandle == IntPtr.Zero || IsIconic(windowHandle) || IsZoomed(windowHandle) || !IsWindowCoveringMonitor(windowHandle))
+        if (windowHandle == IntPtr.Zero || IsIconic(windowHandle) || !IsWindowCoveringMonitor(windowHandle))
         {
             return false;
         }
 
-        return TryGetVisibleBrowserShell(windowHandle, out var hasVisibleBrowserShell) && !hasVisibleBrowserShell;
+        return IsBorderlessBrowserWindow(windowHandle);
     }
 
-    private static bool TryGetVisibleBrowserShell(IntPtr windowHandle, out bool hasVisibleBrowserShell)
+    private static bool IsBorderlessBrowserWindow(IntPtr windowHandle)
     {
-        hasVisibleBrowserShell = false;
-
-        try
-        {
-            var browserWindow = AutomationElement.FromHandle(windowHandle);
-            if (browserWindow is null)
-            {
-                return false;
-            }
-
-            var rootBounds = browserWindow.Current.BoundingRectangle;
-            hasVisibleBrowserShell = HasVisibleBrowserShellElement(browserWindow, ControlType.TabItem, rootBounds)
-                || HasVisibleBrowserShellElement(browserWindow, ControlType.ToolBar, rootBounds)
-                || HasVisibleBrowserAddressControl(browserWindow, rootBounds);
-            return true;
-        }
-        catch (Exception ex) when (ex is ElementNotAvailableException or InvalidOperationException or UnauthorizedAccessException or COMException)
-        {
-            return false;
-        }
-    }
-
-    private static bool HasVisibleBrowserShellElement(AutomationElement root, ControlType controlType, Rect rootBounds)
-    {
-        var elements = root.FindAll(
-            TreeScope.Descendants,
-            new PropertyCondition(AutomationElement.ControlTypeProperty, controlType));
-
-        foreach (AutomationElement element in elements)
-        {
-            if (IsVisibleBrowserShellElement(element, rootBounds))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool HasVisibleBrowserAddressControl(AutomationElement root, Rect rootBounds)
-    {
-        var editFields = root.FindAll(
-            TreeScope.Descendants,
-            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Edit));
-
-        foreach (AutomationElement editField in editFields)
-        {
-            if (!IsVisibleBrowserShellElement(editField, rootBounds) || !LooksLikeBrowserAddressControl(editField))
-            {
-                continue;
-            }
-
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool IsVisibleBrowserShellElement(AutomationElement element, Rect rootBounds)
-    {
-        if (element.Current.IsOffscreen)
+        var style = GetWindowLongPtr(windowHandle, GetWindowLongStyle).ToInt64();
+        if (style == 0)
         {
             return false;
         }
 
-        var bounds = element.Current.BoundingRectangle;
-        if (bounds.IsEmpty || bounds.Width <= 1 || bounds.Height <= 1)
-        {
-            return false;
-        }
-
-        return bounds.Top >= rootBounds.Top - BrowserShellTopTolerance
-            && bounds.Top <= rootBounds.Top + BrowserShellMaxTopOffset;
-    }
-
-    private static bool LooksLikeBrowserAddressControl(AutomationElement editField)
-    {
-        var name = editField.Current.Name;
-        return !string.IsNullOrWhiteSpace(name)
-            && (name.Contains("address", StringComparison.OrdinalIgnoreCase)
-                || name.Contains("adress", StringComparison.OrdinalIgnoreCase)
-                || name.Contains("url", StringComparison.OrdinalIgnoreCase)
-                || name.Contains("omnibox", StringComparison.OrdinalIgnoreCase));
+        var hasCaption = (style & WindowStyleCaption) == WindowStyleCaption;
+        var hasThickFrame = (style & WindowStyleThickFrame) == WindowStyleThickFrame;
+        return !hasCaption && !hasThickFrame;
     }
 
     private static bool IsWindowHandleAvailable(IntPtr windowHandle)
@@ -272,10 +196,6 @@ public sealed partial class RemoteActionExecutor
 
     private const int BrowserFullscreenSettleMilliseconds = 850;
 
-    private const int BrowserShellTopTolerance = 8;
-
-    private const int BrowserShellMaxTopOffset = 180;
-
     private const int ShowWindowMaximize = 3;
 
     private const int ShowWindowRestore = 9;
@@ -283,6 +203,12 @@ public sealed partial class RemoteActionExecutor
     private const int SetWindowPosNoSize = 0x0001;
 
     private const int SetWindowPosNoMove = 0x0002;
+
+    private const int GetWindowLongStyle = -16;
+
+    private const long WindowStyleCaption = 0x00C00000L;
+
+    private const long WindowStyleThickFrame = 0x00040000L;
 
     private const uint MonitorDefaultToNearest = 0x00000002;
 
@@ -323,9 +249,6 @@ public sealed partial class RemoteActionExecutor
     private static extern bool IsIconic(IntPtr hWnd);
 
     [DllImport("user32.dll")]
-    private static extern bool IsZoomed(IntPtr hWnd);
-
-    [DllImport("user32.dll")]
     private static extern bool IsWindow(IntPtr hWnd);
 
     [DllImport("user32.dll")]
@@ -342,6 +265,9 @@ public sealed partial class RemoteActionExecutor
 
     [DllImport("user32.dll")]
     private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MonitorInfo lpmi);
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtr")]
+    private static extern nint GetWindowLongPtr(IntPtr hWnd, int nIndex);
 
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);

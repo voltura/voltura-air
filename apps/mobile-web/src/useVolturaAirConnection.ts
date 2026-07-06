@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getBrowserName, getDefaultDeviceName, getDisplayMode, getPlatformName, isScreenshotMode } from "./clientEnvironment";
 import { parsePairingLink, parsePcUrl } from "./pairingLink";
 import { getPcDisplayName } from "./pcDisplayName";
 import {
@@ -22,7 +23,6 @@ const clientIdKey = "voltura-air.clientId";
 const clientIdQueryParam = "d";
 const deviceNameKey = "voltura-air.deviceName";
 const deviceNameQueryParam = "n";
-const screenshotModeKey = "voltura-air.screenshotMode";
 const connectionTimeoutMs = 3000;
 const interactiveHealthCheckMs = 10000;
 const passiveHealthCheckMs = 60000;
@@ -1056,19 +1056,6 @@ function clearPairTokenFromAddress(): void {
   window.history.replaceState(null, "", url);
 }
 
-function isScreenshotMode(source: string): boolean {
-  try {
-    const url = new URL(source);
-    const value = url.searchParams.get("screenshot") ?? url.searchParams.get("screenshotMode");
-    if (value) {
-      return ["1", "true", "yes"].includes(value.toLowerCase());
-    }
-  } catch {
-  }
-
-  return localStorage.getItem(screenshotModeKey) === "true";
-}
-
 function flushQueue(socket: WebSocket, queue: ClientMessage[]): void {
   while (queue.length > 0) {
     const event = queue.shift();
@@ -1076,82 +1063,4 @@ function flushQueue(socket: WebSocket, queue: ClientMessage[]): void {
       socket.send(JSON.stringify(event));
     }
   }
-}
-
-function getDefaultDeviceName(): string {
-  if (navigator.userAgent.includes("iPad")) {
-    return "iPad";
-  }
-
-  if (navigator.userAgent.includes("iPhone")) {
-    return "iPhone";
-  }
-
-  if (/Android/i.test(navigator.userAgent)) {
-    return /Tablet|SM-T|Nexus 7|Nexus 10/i.test(navigator.userAgent) ? "Android tablet" : "Android phone";
-  }
-
-  return "Mobile device";
-}
-
-function getDisplayMode(): "browser" | "installed" | "unknown" {
-  if (window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true) {
-    return "installed";
-  }
-
-  if (window.matchMedia("(display-mode: browser)").matches) {
-    return "browser";
-  }
-
-  return "unknown";
-}
-
-function getPlatformName(): string {
-  const userAgent = navigator.userAgent;
-  if (/iPad/i.test(userAgent)) {
-    return "iPadOS";
-  }
-
-  if (/iPhone/i.test(userAgent)) {
-    return "iOS";
-  }
-
-  if (/Android/i.test(userAgent)) {
-    return "Android";
-  }
-
-  if (/Windows/i.test(userAgent)) {
-    return "Windows";
-  }
-
-  if (/Mac OS X/i.test(userAgent)) {
-    return "macOS";
-  }
-
-  return "Unknown platform";
-}
-
-function getBrowserName(): string {
-  const userAgent = navigator.userAgent;
-  if (/SamsungBrowser/i.test(userAgent)) {
-    return "Samsung Internet";
-  }
-
-  if (/Edg\//i.test(userAgent)) {
-    return "Edge";
-  }
-
-  if (/CriOS|Chrome/i.test(userAgent) && !/Edg\//i.test(userAgent)) {
-    return "Chrome";
-  }
-
-  if (/FxiOS|Firefox/i.test(userAgent)) {
-    return "Firefox";
-  }
-
-  if (/Safari/i.test(userAgent)) {
-    return "Safari";
-  }
-
-  return "Unknown browser";
 }

@@ -7,9 +7,29 @@ import { PairingStatus } from "./components/PairingStatus";
 import { RemoteMode } from "./components/RemoteMode";
 import { SettingsDrawer } from "./components/SettingsDrawer";
 import { TrackpadMode } from "./components/TrackpadMode";
-import { defaultAppSettings, normalizeAppSettings, type AppSettings } from "./appSettings";
-import { defaultTrackpadSettings, GestureRecognizer, normalizeTrackpadSettings, touchesFromList, type TrackpadSettings } from "./gestures";
-import { defaultKeyboardSettings, normalizeKeyboardSettings, type KeyboardSettings } from "./keyboardSettings";
+import type { AppSettings } from "./appSettings";
+import {
+  clearAppSettings,
+  clearRemoteSettings,
+  clearTrackpadSettings,
+  appSettingsKey,
+  getAutoRefreshSessionKey,
+  keyboardSettingsKey,
+  loadAppSettings,
+  loadKeyboardSettings,
+  loadLiveKeyboardDefault,
+  loadRemoteSettings,
+  loadThemeMode,
+  loadTrackpadSettings,
+  remoteSettingsKey,
+  resolveTheme,
+  saveLiveKeyboardPreference,
+  saveThemeMode,
+  trackpadSettingsKey,
+  type ThemeMode
+} from "./appStorage";
+import { GestureRecognizer, touchesFromList, type TrackpadSettings } from "./gestures";
+import type { KeyboardSettings } from "./keyboardSettings";
 import {
   didDeleteLiveKeyboardSentinel,
   fromLiveKeyboardValue,
@@ -22,16 +42,12 @@ import { parsePairingLink, type PairingLink } from "./pairingLink";
 import type { AudioStateMessage, ClientMessage, KeyboardSpecialMessage, RemoteLaunchAction } from "./protocol";
 import { buildMobileDiagnostics } from "./mobileDiagnostics";
 import { decodeQrImage } from "./qrCode";
-import { defaultRemoteSettings, resolveRemoteSettings, type RemoteModeId, type RemoteSettings } from "./remoteSettings";
+import { defaultRemoteSettings, type RemoteSettings } from "./remoteSettings";
 import { useVolturaAirConnection } from "./useVolturaAirConnection";
 
 type Tab = "trackpad" | "keyboard" | "remote" | "dictation" | "debug";
 type MainTab = Exclude<Tab, "debug">;
-type ThemeMode = "system" | "light" | "dark";
-const liveKeyboardKey = "voltura-air.liveKeyboard";
-const liveKeyboardDefaultMigrationKey = "voltura-air.liveKeyboardDefaultOn";
 const splitModeMediaQuery = "(orientation: landscape) and (min-width: 640px)";
-const autoRefreshSessionPrefix = "voltura-air.autoRefresh";
 
 const modeTabs: Array<{ id: MainTab; label: string; ariaLabel: string; Icon: typeof MousePointer2 }> = [
   { id: "trackpad", label: "Trackpad", ariaLabel: "Trackpad mode", Icon: MousePointer2 },
@@ -242,7 +258,7 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(themeModeKey, themeMode);
+    saveThemeMode(themeMode);
     if (themeMode === "system") {
       document.documentElement.removeAttribute("data-theme");
     } else {
@@ -421,7 +437,7 @@ export function App() {
 
   const setLiveTyping = (enabled: boolean) => {
     setLiveKeyboard(enabled);
-    localStorage.setItem(liveKeyboardKey, String(enabled));
+    saveLiveKeyboardPreference(enabled);
     committedKeyboardTextRef.current = keyboardText;
   };
 
@@ -926,115 +942,6 @@ export function App() {
       {supportsGestureDebug && tab === "debug" && <GestureDebugMode trackpadSettings={effectiveTrackpadSettings} />}
     </main>
   );
-}
-
-function trackpadSettingsKey(clientId: string, pcId: string | null): string {
-  return pcId ? `voltura-air.trackpadSettings.${clientId}.${pcId}` : baseTrackpadSettingsKey(clientId);
-}
-
-function remoteSettingsKey(clientId: string, pcId: string | null): string {
-  return pcId ? `voltura-air.remoteSettings.${clientId}.${pcId}` : baseRemoteSettingsKey(clientId);
-}
-
-function appSettingsKey(clientId: string, pcId: string | null): string {
-  return pcId ? `voltura-air.appSettings.${clientId}.${pcId}` : baseAppSettingsKey(clientId);
-}
-
-function keyboardSettingsKey(clientId: string): string {
-  return `voltura-air.keyboardSettings.${clientId}`;
-}
-
-function loadLiveKeyboardDefault(): boolean {
-  if (localStorage.getItem(liveKeyboardDefaultMigrationKey) !== "true") {
-    localStorage.setItem(liveKeyboardDefaultMigrationKey, "true");
-    localStorage.setItem(liveKeyboardKey, "true");
-    return true;
-  }
-
-  return localStorage.getItem(liveKeyboardKey) !== "false";
-}
-
-const themeModeKey = "voltura-air.themeMode";
-
-function loadThemeMode(): ThemeMode {
-  const stored = localStorage.getItem(themeModeKey);
-  return stored === "light" || stored === "dark" ? stored : "system";
-}
-
-function resolveTheme(themeMode: ThemeMode, systemPrefersDark: boolean): "light" | "dark" {
-  return themeMode === "system" ? (systemPrefersDark ? "dark" : "light") : themeMode;
-}
-
-function loadTrackpadSettings(clientId: string, pcId: string | null): TrackpadSettings {
-  const stored = localStorage.getItem(trackpadSettingsKey(clientId, pcId));
-  if (!stored) {
-    return defaultTrackpadSettings;
-  }
-
-  try {
-    return normalizeTrackpadSettings(JSON.parse(stored));
-  } catch {
-    return defaultTrackpadSettings;
-  }
-}
-
-function baseTrackpadSettingsKey(clientId: string): string {
-  return `voltura-air.trackpadSettings.${clientId}`;
-}
-
-function clearTrackpadSettings(clientId: string, pcId: string): void {
-  localStorage.removeItem(trackpadSettingsKey(clientId, pcId));
-}
-
-function loadRemoteSettings(clientId: string, pcId: string | null, hostDefaultMode?: RemoteModeId): { settings: RemoteSettings; isStored: boolean } {
-  return resolveRemoteSettings(localStorage.getItem(remoteSettingsKey(clientId, pcId)), hostDefaultMode);
-}
-
-function baseRemoteSettingsKey(clientId: string): string {
-  return `voltura-air.remoteSettings.${clientId}`;
-}
-
-function clearRemoteSettings(clientId: string, pcId: string): void {
-  localStorage.removeItem(remoteSettingsKey(clientId, pcId));
-}
-
-function loadAppSettings(clientId: string, pcId: string | null): AppSettings {
-  const stored = localStorage.getItem(appSettingsKey(clientId, pcId));
-  if (!stored) {
-    return defaultAppSettings;
-  }
-
-  try {
-    return normalizeAppSettings(JSON.parse(stored));
-  } catch {
-    return defaultAppSettings;
-  }
-}
-
-function baseAppSettingsKey(clientId: string): string {
-  return `voltura-air.appSettings.${clientId}`;
-}
-
-function clearAppSettings(clientId: string, pcId: string): void {
-  localStorage.removeItem(appSettingsKey(clientId, pcId));
-}
-
-function getAutoRefreshSessionKey(clientId: string, pcId: string, hostVersion?: string, developerMode?: boolean, developerSessionId?: string): string {
-  const refreshScope = developerMode ? `dev.${developerSessionId || "enabled"}` : `version.${hostVersion || "unknown"}`;
-  return `${autoRefreshSessionPrefix}.${clientId}.${pcId}.${refreshScope}`;
-}
-
-function loadKeyboardSettings(clientId: string): KeyboardSettings {
-  const stored = localStorage.getItem(keyboardSettingsKey(clientId));
-  if (!stored) {
-    return defaultKeyboardSettings;
-  }
-
-  try {
-    return normalizeKeyboardSettings(JSON.parse(stored));
-  } catch {
-    return defaultKeyboardSettings;
-  }
 }
 
 function isRunningStandalone(): boolean {

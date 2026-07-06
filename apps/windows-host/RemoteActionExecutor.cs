@@ -40,11 +40,15 @@ public sealed partial class RemoteActionExecutor : IRemoteActionExecutor
 
         foreach (var browser in BrowserCandidates)
         {
-            if (TryStartProcess(browser.ExecutableName, youtubeUrl))
+            if (!TryStartProcess(browser.ExecutableName, browser.BuildNewTabArguments(youtubeUrl)))
             {
-                TryActivateBrowserWhenReady(browser.ProcessName, TimeSpan.FromSeconds(2), ensureFullscreen: true);
-                return true;
+                continue;
             }
+
+            // The browser accepted the launch request. Wait until the YouTube tab is
+            // visible before focusing/fullscreening so we do not fullscreen an old tab.
+            TryActivateYoutubeBrowserWhenReady(browser.ProcessName, youtubeUrl, TimeSpan.FromSeconds(5));
+            return true;
         }
 
         return false;

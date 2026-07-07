@@ -1,0 +1,2 @@
+const sendPowerMenu = () => sendSpecial("S");
+<RemoteButton label="Power menu" title="Kodi power menu" onClick={sendPowerMenu} />

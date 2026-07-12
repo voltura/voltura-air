@@ -347,7 +347,7 @@ export function KeyboardMode({
 
   const sendSpace = () => {
     if (liveKeyboard) {
-      sendText(" ");
+      sendSpecial("Space");
       insertLiveKeyboardText(" ");
       return;
     }

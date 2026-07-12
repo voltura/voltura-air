@@ -6,7 +6,7 @@ import type { PcProfile } from "../pcProfiles";
 import type { RemoteSettings } from "../remoteSettings";
 
 export type ThemeMode = "system" | "light" | "dark";
-export type SettingsSection = "connection" | "trackpad" | "keyboard" | "remote" | "appearance" | "app";
+export type SettingsSection = "connection" | "trackpad" | "keyboard" | "split" | "remote" | "appearance" | "app";
 
 export type SettingsDrawerProps = {
   activePc: PcProfile | null;

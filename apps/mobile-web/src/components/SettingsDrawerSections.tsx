@@ -5,8 +5,7 @@ import { getPcDisplayName } from "../pcDisplayName";
 import { normalizeManualHostInput } from "../pairingFeedback";
 import type { SettingsDrawerProps, SettingsSection } from "./SettingsDrawerTypes";
 import { InfoButton } from "./InfoButton";
-
-const splitModeDescription = "Shows the keyboard and trackpad side by side. It is intended mainly for landscape phones and tablets.";
+import { supportsHapticFeedback } from "../hapticFeedback";
 
 type SettingsSectionDetailsProps = {
   children: ReactNode;
@@ -205,7 +204,8 @@ export function TrackpadSettingsSection({
   trackpadSettings,
   updateTrackpadSetting
 }: Pick<SettingsDrawerProps, "onOpenGestureDebug" | "showGestureDebug" | "trackpadSettings" | "updateTrackpadSetting">) {
-  const splitModeId = useId();
+  const hapticFeedbackId = useId();
+  const hapticFeedbackSupported = supportsHapticFeedback();
 
   return (
     <>
@@ -258,16 +258,17 @@ export function TrackpadSettingsSection({
 
       <div className="toggle-row">
         <span className="setting-label-with-info">
-          <label htmlFor={splitModeId}>Enable split mode</label>
-          <InfoButton title="Split mode" description={splitModeDescription} />
+          <label htmlFor={hapticFeedbackId}>Haptic feedback{hapticFeedbackSupported ? "" : " (not supported)"}</label>
+          <InfoButton title="Haptic feedback" description="Vibrates on trackpad taps and click-button presses. It is only available when this browser and device expose vibration to web apps." />
         </span>
-        <input id={splitModeId} type="checkbox" checked={trackpadSettings.enableSplitMode} onChange={(event) => updateTrackpadSetting("enableSplitMode", event.target.checked)} />
+        <input
+          id={hapticFeedbackId}
+          type="checkbox"
+          checked={hapticFeedbackSupported && trackpadSettings.hapticFeedback}
+          disabled={!hapticFeedbackSupported}
+          onChange={(event) => updateTrackpadSetting("hapticFeedback", event.target.checked)}
+        />
       </div>
-
-      <label className="toggle-row">
-        <span>Haptic feedback</span>
-        <input type="checkbox" checked={trackpadSettings.hapticFeedback} onChange={(event) => updateTrackpadSetting("hapticFeedback", event.target.checked)} />
-      </label>
 
       <label className="toggle-row">
         <span>Left-handed button layout</span>
@@ -313,8 +314,6 @@ export function KeyboardSettingsSection({
   keyboardSettings,
   updateKeyboardSetting
 }: Pick<SettingsDrawerProps, "keyboardSettings" | "updateKeyboardSetting">) {
-  const splitModeId = useId();
-
   return (
     <>
       <label className="toggle-row">
@@ -337,13 +336,6 @@ export function KeyboardSettingsSection({
         <input type="checkbox" checked={keyboardSettings.showSleepButton} onChange={(event) => updateKeyboardSetting("showSleepButton", event.target.checked)} />
       </label>
 
-      <div className="toggle-row">
-        <span className="setting-label-with-info">
-          <label htmlFor={splitModeId}>Enable split mode</label>
-          <InfoButton title="Split mode" description={splitModeDescription} />
-        </span>
-        <input id={splitModeId} type="checkbox" checked={keyboardSettings.enableSplitMode} onChange={(event) => updateKeyboardSetting("enableSplitMode", event.target.checked)} />
-      </div>
     </>
   );
 }

@@ -3,15 +3,13 @@ export type KeyboardSettings = {
   showControlKeys: boolean;
   showArrowKeys: boolean;
   showSleepButton: boolean;
-  enableSplitMode: boolean;
 };
 
 export const defaultKeyboardSettings: KeyboardSettings = {
   showFunctionKeys: false,
   showControlKeys: true,
   showArrowKeys: true,
-  showSleepButton: true,
-  enableSplitMode: false
+  showSleepButton: true
 };
 
 export function normalizeKeyboardSettings(value: Partial<KeyboardSettings>): KeyboardSettings {
@@ -19,7 +17,6 @@ export function normalizeKeyboardSettings(value: Partial<KeyboardSettings>): Key
     showFunctionKeys: typeof value.showFunctionKeys === "boolean" ? value.showFunctionKeys : defaultKeyboardSettings.showFunctionKeys,
     showControlKeys: typeof value.showControlKeys === "boolean" ? value.showControlKeys : defaultKeyboardSettings.showControlKeys,
     showArrowKeys: typeof value.showArrowKeys === "boolean" ? value.showArrowKeys : defaultKeyboardSettings.showArrowKeys,
-    showSleepButton: typeof value.showSleepButton === "boolean" ? value.showSleepButton : defaultKeyboardSettings.showSleepButton,
-    enableSplitMode: typeof value.enableSplitMode === "boolean" ? value.enableSplitMode : defaultKeyboardSettings.enableSplitMode
+    showSleepButton: typeof value.showSleepButton === "boolean" ? value.showSleepButton : defaultKeyboardSettings.showSleepButton
   };
 }

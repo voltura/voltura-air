@@ -20,6 +20,9 @@ export type TrackpadSettings = {
   zoomGestures: boolean;
   showVolumeControl: boolean;
   enableSplitMode: boolean;
+  splitTrackpadPlacement: "left" | "right";
+  splitShowModeButtons: boolean;
+  splitShowStatusRow: boolean;
   hapticFeedback: boolean;
   leftHandedButtons: boolean;
   largeClickButtons: boolean;
@@ -48,6 +51,9 @@ export const defaultTrackpadSettings: TrackpadSettings = {
   zoomGestures: false,
   showVolumeControl: true,
   enableSplitMode: false,
+  splitTrackpadPlacement: "right",
+  splitShowModeButtons: false,
+  splitShowStatusRow: false,
   hapticFeedback: false,
   leftHandedButtons: false,
   largeClickButtons: false
@@ -66,6 +72,9 @@ export function normalizeTrackpadSettings(value: Partial<TrackpadSettings>): Tra
     zoomGestures: typeof value.zoomGestures === "boolean" ? value.zoomGestures : defaultTrackpadSettings.zoomGestures,
     showVolumeControl: typeof value.showVolumeControl === "boolean" ? value.showVolumeControl : defaultTrackpadSettings.showVolumeControl,
     enableSplitMode: typeof value.enableSplitMode === "boolean" ? value.enableSplitMode : defaultTrackpadSettings.enableSplitMode,
+    splitTrackpadPlacement: value.splitTrackpadPlacement === "left" ? "left" : "right",
+    splitShowModeButtons: typeof value.splitShowModeButtons === "boolean" ? value.splitShowModeButtons : defaultTrackpadSettings.splitShowModeButtons,
+    splitShowStatusRow: typeof value.splitShowStatusRow === "boolean" ? value.splitShowStatusRow : defaultTrackpadSettings.splitShowStatusRow,
     hapticFeedback: typeof value.hapticFeedback === "boolean" ? value.hapticFeedback : defaultTrackpadSettings.hapticFeedback,
     leftHandedButtons: typeof value.leftHandedButtons === "boolean" ? value.leftHandedButtons : defaultTrackpadSettings.leftHandedButtons,
     largeClickButtons: typeof value.largeClickButtons === "boolean" ? value.largeClickButtons : defaultTrackpadSettings.largeClickButtons

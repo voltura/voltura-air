@@ -21,11 +21,46 @@
     display: none;
   }
 
+  .app-shell.split-mode-active.split-show-status-row .top-bar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-shell.split-mode-active.split-show-status-row .brand-group {
+    display: none;
+  }
+
+  .app-shell.split-mode-active.split-show-status-row .status {
+    justify-content: flex-start;
+  }
+
+  .app-shell.split-mode-active.split-show-mode-buttons .top-mode-tabs {
+    display: grid;
+  }
+
+  .app-shell.split-mode-active.split-show-status-row,
+  .app-shell.split-mode-active.split-show-mode-buttons {
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .app-shell.split-mode-active.split-show-status-row.split-show-mode-buttons {
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
   .split-mode-shell {
     display: grid;
     grid-template-columns: minmax(356px, 0.95fr) minmax(240px, 1.05fr);
     gap: 10px;
     overflow: hidden;
+  }
+
+  .split-mode-shell.split-trackpad-left {
+    grid-template-columns: minmax(240px, 1.05fr) minmax(356px, 0.95fr);
+  }
+
+  .split-mode-shell.split-trackpad-left .split-trackpad-pane {
+    order: -1;
   }
 
   .split-keyboard-pane,
@@ -60,6 +95,14 @@
 
   .split-keyboard-pane .keyboard-input-mode-buttons {
     width: 100%;
+  }
+
+  .split-keyboard-pane .key-backspace-label-full {
+    display: none;
+  }
+
+  .split-keyboard-pane .key-backspace-label-short {
+    display: inline;
   }
 
   .split-trackpad-pane {

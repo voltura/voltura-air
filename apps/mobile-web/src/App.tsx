@@ -18,16 +18,17 @@ import type { AudioStateMessage, RemoteLaunchAction } from "./protocol";
 import { buildMobileDiagnostics } from "./mobileDiagnostics";
 import type { RemoteSettings } from "./remoteSettings";
 import { useVolturaAirConnection } from "./useVolturaAirConnection";
-import { triggerHapticFeedback, usePointerInput } from "./input/usePointerInput";
+import { usePointerInput } from "./input/usePointerInput";
+import { triggerHapticFeedback } from "./hapticFeedback";
 import { useKeyboardInput } from "./input/useKeyboardInput";
 import { usePcSettings } from "./settings/usePcSettings";
 import { useSpeechDictation } from "./input/useSpeechDictation";
 import { usePwaLifecycle } from "./pwa/usePwaLifecycle";
 import { usePairingController } from "./pairing/usePairingController";
+import { supportsSplitModeLayout } from "./splitModeLayout";
 
 type Tab = "trackpad" | "keyboard" | "remote" | "dictation" | "debug";
 type MainTab = Exclude<Tab, "debug">;
-const splitModeMediaQuery = "(orientation: landscape) and (min-width: 640px)";
 
 const modeTabs: Array<{ id: MainTab; label: string; ariaLabel: string; Icon: typeof MousePointer2 }> = [
   { id: "trackpad", label: "Trackpad", ariaLabel: "Trackpad mode", Icon: MousePointer2 },
@@ -68,7 +69,7 @@ export function App() {
   const [displayedAudioState, setDisplayedAudioState] = useState<AudioStateMessage | null>(audioState);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => loadThemeMode());
   const [systemPrefersDark, setSystemPrefersDark] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
-  const [canUseSplitMode, setCanUseSplitMode] = useState(() => window.matchMedia(splitModeMediaQuery).matches);
+  const [canUseSplitMode, setCanUseSplitMode] = useState(() => supportsSplitModeLayout(window.innerWidth, window.innerHeight));
   const [isTrackpadExpanded, setIsTrackpadExpanded] = useState(false);
   const [areModeTabsCollapsed, setAreModeTabsCollapsed] = useState(false);
   const [isModeSelectorOpen, setIsModeSelectorOpen] = useState(false);
@@ -142,11 +143,10 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia(splitModeMediaQuery);
-    const onChange = () => setCanUseSplitMode(mediaQuery.matches);
-    onChange();
-    mediaQuery.addEventListener("change", onChange);
-    return () => mediaQuery.removeEventListener("change", onChange);
+    const onResize = () => setCanUseSplitMode(supportsSplitModeLayout(window.innerWidth, window.innerHeight));
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
 
   useEffect(() => {
@@ -181,6 +181,10 @@ export function App() {
 
     if (key === "pointerSpeed" && typeof value === "number") {
       setHostPointerSpeed(value);
+    }
+
+    if (key === "hapticFeedback" && value === true) {
+      triggerHapticFeedback({ ...effectiveTrackpadSettings, hapticFeedback: true });
     }
   };
 
@@ -322,7 +326,7 @@ export function App() {
   );
 
   const renderSplitMode = () => (
-    <div className="split-mode-shell">
+    <div className={`split-mode-shell split-trackpad-${trackpadSettings.splitTrackpadPlacement}`}>
       <div className="split-keyboard-pane" aria-label="Split keyboard panel">
         {renderKeyboardMode()}
       </div>
@@ -342,8 +346,7 @@ export function App() {
     hostStatus
   }), [activePc, hostStatus, lastConnectionError?.code, lastConnectionError?.message, message, pairedPcs.length, state]);
 
-  const shouldShowSplitMode =
-    canUseSplitMode && ((tab === "trackpad" && trackpadSettings.enableSplitMode) || (tab === "keyboard" && keyboardSettings.enableSplitMode));
+  const shouldShowSplitMode = canUseSplitMode && trackpadSettings.enableSplitMode && (tab === "trackpad" || tab === "keyboard");
   const activeModeTab = modeTabs.find((modeTab) => modeTab.id === tab);
   const ActiveModeIcon = activeModeTab?.Icon;
   const canShowModeNavigation = state === "paired";
@@ -366,7 +369,7 @@ export function App() {
   };
 
   return (
-    <main className={`app-shell ${canShowModeNavigation ? "has-mode-navigation" : ""} ${tab === "trackpad" ? "trackpad-active" : ""} ${tab === "remote" ? "remote-active" : ""} ${shouldShowSplitMode ? "split-mode-active" : ""} ${areModeTabsCollapsed ? "mode-tabs-collapsed" : ""} ${isModeSelectorOpen ? "mode-selector-open" : ""}`}>
+    <main className={`app-shell ${canShowModeNavigation ? "has-mode-navigation" : ""} ${tab === "trackpad" ? "trackpad-active" : ""} ${tab === "remote" ? "remote-active" : ""} ${shouldShowSplitMode ? "split-mode-active" : ""} ${shouldShowSplitMode && trackpadSettings.splitShowModeButtons ? "split-show-mode-buttons" : ""} ${shouldShowSplitMode && trackpadSettings.splitShowStatusRow ? "split-show-status-row" : ""} ${areModeTabsCollapsed ? "mode-tabs-collapsed" : ""} ${isModeSelectorOpen ? "mode-selector-open" : ""}`}>
       <header className="top-bar">
         <div className="brand-group">
           <button className="icon-button" type="button" aria-label="Open settings" onClick={() => setIsSettingsOpen(true)}>

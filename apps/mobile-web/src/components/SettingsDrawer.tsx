@@ -10,6 +10,7 @@ import {
   TrackpadSettingsSection
 } from "./SettingsDrawerSections";
 import type { SettingsDrawerProps, SettingsSection } from "./SettingsDrawerTypes";
+import { SplitModeSettings } from "./SplitModeSettings";
 
 export function SettingsDrawer(props: SettingsDrawerProps) {
   const [openSection, setOpenSection] = useState<SettingsSection | null>(null);
@@ -67,6 +68,10 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
 
       <SettingsSectionDetails section="keyboard" label="Keyboard" isOpen={openSection === "keyboard"} onToggle={toggleSection}>
         <KeyboardSettingsSection keyboardSettings={props.keyboardSettings} updateKeyboardSetting={props.updateKeyboardSetting} />
+      </SettingsSectionDetails>
+
+      <SettingsSectionDetails section="split" label="Split mode" isOpen={openSection === "split"} onToggle={toggleSection}>
+        <SplitModeSettings settings={props.trackpadSettings} updateSetting={props.updateTrackpadSetting} />
       </SettingsSectionDetails>
 
       <SettingsSectionDetails section="remote" label="Remote" isOpen={openSection === "remote"} onToggle={toggleSection}>

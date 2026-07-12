@@ -382,6 +382,14 @@ describe("KeyboardMode function keys", () => {
 });
 
 describe("KeyboardMode command callbacks", () => {
+  it("provides full and compact Backspace labels without changing its accessible name", () => {
+    render(<KeyboardModeHarness />);
+
+    const backspaceButton = screen.getByRole("button", { name: "Backspace" });
+    expect(backspaceButton.querySelector(".key-backspace-label-full")?.textContent).toBe("Backspace");
+    expect(backspaceButton.querySelector(".key-backspace-label-short")?.textContent).toBe("Back");
+  });
+
   it("places the buffered Send button directly after the input row", () => {
     render(<KeyboardModeHarness liveKeyboard={false} />);
 

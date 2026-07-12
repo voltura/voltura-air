@@ -112,7 +112,7 @@
         </article>
         <article>
           <h2>Tablet split mode</h2>
-          <p>Use a tablet in landscape as a larger keyboard and trackpad surface for faster couch typing and browsing.</p>
+          <p>Turn a landscape tablet into a combined couch keyboard and trackpad, with left- or right-side trackpad placement for comfortable typing and browsing.</p>
         </article>
         <article>
           <h2>Dictation</h2>

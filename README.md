@@ -18,6 +18,7 @@ Use it as a trackpad, keyboard, dictation surface, and media remote — includin
 - Broken or annoying wireless keyboard/trackpad replacement.
 - Presentations.
 - Quick typing/search from phone.
+- A combined couch keyboard and trackpad on a landscape tablet, with the trackpad on either side.
 
 ## Not intended for
 

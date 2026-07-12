@@ -230,7 +230,7 @@ describe("GestureRecognizer", () => {
 });
 
 describe("normalizeTrackpadSettings", () => {
-  it("defaults new settings for old stored settings", () => {
+  it("fills omitted settings from the defaults", () => {
     expect(normalizeTrackpadSettings({ pointerSpeed: 40 })).toEqual({
       ...defaultTrackpadSettings,
       pointerSpeed: 40,
@@ -245,5 +245,17 @@ describe("normalizeTrackpadSettings", () => {
 
   it("preserves enabled split mode setting", () => {
     expect(normalizeTrackpadSettings({ enableSplitMode: true }).enableSplitMode).toBe(true);
+  });
+
+  it("preserves split layout preferences", () => {
+    expect(normalizeTrackpadSettings({
+      splitTrackpadPlacement: "left",
+      splitShowModeButtons: true,
+      splitShowStatusRow: true
+    })).toMatchObject({
+      splitTrackpadPlacement: "left",
+      splitShowModeButtons: true,
+      splitShowStatusRow: true
+    });
   });
 });

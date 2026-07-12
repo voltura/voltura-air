@@ -46,6 +46,7 @@ const baseProps = {
 describe("SettingsDrawer", () => {
   beforeEach(() => {
     vi.stubGlobal("__APP_VERSION__", "test-version");
+    Object.defineProperty(navigator, "vibrate", { configurable: true, value: vi.fn(() => true) });
   });
 
   it("groups settings into folded accordions by default", () => {
@@ -54,6 +55,7 @@ describe("SettingsDrawer", () => {
     expect(screen.getByText("Connection")).toBeTruthy();
     expect(screen.getByText("Trackpad")).toBeTruthy();
     expect(screen.getByText("Keyboard")).toBeTruthy();
+    expect(screen.getByText("Split mode")).toBeTruthy();
     expect(screen.getByText("Remote")).toBeTruthy();
     expect(screen.getByText("Appearance")).toBeTruthy();
     expect(screen.getByText("App")).toBeTruthy();
@@ -71,21 +73,26 @@ describe("SettingsDrawer", () => {
     expect(screen.getByText("Keyboard").closest("details")?.open).toBe(true);
   });
 
-  it("explains split mode without adding function-key help", () => {
+  it("keeps all split controls in the dedicated split mode accordion", () => {
     render(<SettingsDrawer {...baseProps} />);
 
-    const trackpadSection = screen.getByText("Trackpad").closest("details") as HTMLElement;
-    fireEvent.click(screen.getByText("Trackpad"));
-    fireEvent.click(within(trackpadSection).getByRole("button", { name: "About Split mode" }));
+    const splitSection = screen.getByText("Split mode").closest("details") as HTMLElement;
+    fireEvent.click(screen.getByText("Split mode"));
+    fireEvent.click(within(splitSection).getByRole("button", { name: "About Split mode" }));
 
     expect(screen.getByRole("dialog", { name: "Split mode" })).toBeTruthy();
     expect(screen.getByText("Shows the keyboard and trackpad side by side. It is intended mainly for landscape phones and tablets.")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "OK" }));
+    expect(within(splitSection).getByRole("checkbox", { name: "Enable split mode" })).toBeTruthy();
+
+    const trackpadSection = screen.getByText("Trackpad").closest("details") as HTMLElement;
+    fireEvent.click(screen.getByText("Trackpad"));
+    expect(within(trackpadSection).queryByRole("checkbox", { name: "Enable split mode" })).toBeNull();
+
     const keyboardSection = screen.getByText("Keyboard").closest("details") as HTMLElement;
     fireEvent.click(screen.getByText("Keyboard"));
-
-    expect(within(keyboardSection).getByRole("button", { name: "About Split mode" })).toBeTruthy();
+    expect(within(keyboardSection).queryByRole("checkbox", { name: "Enable split mode" })).toBeNull();
     expect(screen.queryByRole("button", { name: "About Show function keys" })).toBeNull();
   });
 
@@ -97,6 +104,32 @@ describe("SettingsDrawer", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Navigation ring" }));
 
     expect(updateRemoteSetting).toHaveBeenCalledExactlyOnceWith("navigationRing", false);
+  });
+
+  it("updates split mode layout settings", () => {
+    const updateTrackpadSetting = vi.fn();
+    render(<SettingsDrawer {...baseProps} updateTrackpadSetting={updateTrackpadSetting} />);
+
+    fireEvent.click(screen.getByText("Split mode"));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Enable split mode" }));
+    fireEvent.click(screen.getByRole("button", { name: "Left" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Show mode buttons in split mode" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Show status row in split mode" }));
+
+    expect(updateTrackpadSetting).toHaveBeenNthCalledWith(1, "enableSplitMode", true);
+    expect(updateTrackpadSetting).toHaveBeenNthCalledWith(2, "splitTrackpadPlacement", "left");
+    expect(updateTrackpadSetting).toHaveBeenNthCalledWith(3, "splitShowModeButtons", true);
+    expect(updateTrackpadSetting).toHaveBeenNthCalledWith(4, "splitShowStatusRow", true);
+  });
+
+  it("updates haptic feedback when browser vibration is available", () => {
+    const updateTrackpadSetting = vi.fn();
+    render(<SettingsDrawer {...baseProps} updateTrackpadSetting={updateTrackpadSetting} />);
+
+    fireEvent.click(screen.getByText("Trackpad"));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Haptic feedback" }));
+
+    expect(updateTrackpadSetting).toHaveBeenCalledExactlyOnceWith("hapticFeedback", true);
   });
 
   it("updates the remote mode setting", () => {

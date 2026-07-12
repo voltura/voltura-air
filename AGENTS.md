@@ -12,6 +12,9 @@ updated as the app structure, tooling, and release process become concrete.
 - Prefer the project's established patterns once source files and tooling exist.
 - Do not add production dependencies without a clear reason in the change summary.
 - Preserve user work in the tree; do not revert unrelated changes.
+- Design settings and persisted data from a clean state. Do not add migrations,
+  preserve earlier setting shapes, or retain backward compatibility unless the
+  user explicitly requests it.
 - Codex may stop local development or app processes when needed for build, test,
   debugging, or file-lock cleanup without asking first.
 - Codex may start local debug, development, preview, host, or app processes when

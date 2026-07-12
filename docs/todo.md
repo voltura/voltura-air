@@ -1,6 +1,6 @@
 # Voltura Air - TODO / Roadmap
 
-Updated: 2026-07-12  
+Updated: 2026-07-13
 Scope: work that is not yet implemented on the current `voltura/voltura-air` `main` branch.
 
 This file tracks remaining product, quality, documentation, and distribution work only. Implemented capabilities belong in [features.md](features.md) and should be removed from this roadmap when completed.
@@ -11,24 +11,6 @@ Prioritize reliability, usability, trust, and visible user value. Manual and rea
 
 - `[ ]` Open work.
 - `Optional verification:` Useful manual coverage that is not a release requirement by itself.
-
----
-
-## 1. Input quality and layout
-
-### 1.3 Split mode polish
-
-- [ ] Add left/right trackpad placement.
-- [ ] Add a setting for showing or hiding mode buttons in split mode.
-- [ ] Add a setting for showing or hiding the status row in split mode.
-- [ ] Add layout breakpoint tests for phone and tablet sizes.
-- [ ] Add product copy describing tablet use as a combined couch keyboard and trackpad.
-
-Optional verification:
-
-- Landscape phone layouts.
-- Small, medium, and large tablet layouts.
-- Installed iOS and Android PWA layouts.
 
 ---
 
@@ -267,15 +249,14 @@ Do not start these items until the core input, connection, and remote experience
 ## Recommended next issue order
 
 1. Add keyboard compatibility tests and improve keyboard help text.
-2. Finish configurable split-mode layout and breakpoint coverage.
-3. Add the dedicated Paste Text to PC screen.
-4. Add Presentation mode.
-5. Add focused-window and browser helper controls.
-6. Expand the public FAQ, privacy information, and demo assets.
-7. Add release checksums, release-note structure, and known limitations.
-8. Add issue templates and project labels.
-9. Investigate code signing.
-10. Evaluate future features only after the core roadmap is stable.
+2. Add the dedicated Paste Text to PC screen.
+3. Add Presentation mode.
+4. Add focused-window and browser helper controls.
+5. Expand the public FAQ, privacy information, and demo assets.
+6. Add release checksums, release-note structure, and known limitations.
+7. Add issue templates and project labels.
+8. Investigate code signing.
+9. Evaluate future features only after the core roadmap is stable.
 
 ---
 
@@ -285,7 +266,6 @@ Do not start these items until the core input, connection, and remote experience
 
 - Keyboard compatibility and clarity.
 - Trackpad compatibility coverage.
-- Split-mode settings and tests.
 
 ### Milestone 2: Productivity
 

@@ -142,4 +142,20 @@ describe("App header and mode navigation", () => {
     expect(screen.queryByRole("button", { name: "Change mode" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Keyboard mode" })).toBeNull();
   });
+
+  it("applies stored split mode placement and chrome preferences on a landscape tablet", () => {
+    localStorage.setItem("voltura-air.trackpadSettings.client-a.pc-a", JSON.stringify({
+      enableSplitMode: true,
+      splitTrackpadPlacement: "left",
+      splitShowModeButtons: true,
+      splitShowStatusRow: true
+    }));
+
+    render(<App />);
+
+    expect(document.querySelector(".app-shell")?.classList).toContain("split-mode-active");
+    expect(document.querySelector(".app-shell")?.classList).toContain("split-show-mode-buttons");
+    expect(document.querySelector(".app-shell")?.classList).toContain("split-show-status-row");
+    expect(document.querySelector(".split-mode-shell")?.classList).toContain("split-trackpad-left");
+  });
 });

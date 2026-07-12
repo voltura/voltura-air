@@ -2,6 +2,7 @@ import { useEffect, useRef, type TouchEvent } from "react";
 import type { ConnectionState } from "../connection/connectionTypes";
 import { GestureRecognizer, touchesFromList, type TrackpadSettings } from "../gestures";
 import type { ClientMessage, KeyboardSpecialMessage } from "../protocol";
+import { triggerHapticFeedback } from "../hapticFeedback";
 
 type PointerInputOptions = {
   send: (payload: ClientMessage) => void;
@@ -121,12 +122,6 @@ export function usePointerInput({ send, state, trackpadSettings }: PointerInputO
   const sleepPc = () => emit({ type: "system.sleep" });
 
   return { emit, onTouchCancel, onTouchEnd, onTouchMove, onTouchStart, sendSpecial, sendText, sleepPc };
-}
-
-export function triggerHapticFeedback(settings: TrackpadSettings): void {
-  if (settings.hapticFeedback && typeof navigator.vibrate === "function") {
-    navigator.vibrate(12);
-  }
 }
 
 function roundDelta(value: number): number {

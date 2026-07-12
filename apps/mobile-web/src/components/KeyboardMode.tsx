@@ -485,7 +485,10 @@ export function KeyboardMode({
         <button className="key-win" onClick={() => sendSpecial("Win")}>Win</button>
         <button className="key-space" onClick={sendSpace} aria-label="Space">Space</button>
         <button className="key-enter" {...getRepeatableKeyProps("Enter")}>Enter</button>
-        <button className="key-backspace" {...getRepeatableKeyProps("Backspace")}>Backspace</button>
+        <button className="key-backspace" aria-label="Backspace" {...getRepeatableKeyProps("Backspace")}>
+          <span className="key-backspace-label-full" aria-hidden="true">Backspace</span>
+          <span className="key-backspace-label-short" aria-hidden="true">Back</span>
+        </button>
         <button className="key-delete" {...getRepeatableKeyProps("Delete")}>Delete</button>
         {showSleepButton && (
           <button className="key-sleep" type="button" onClick={onSleep}>

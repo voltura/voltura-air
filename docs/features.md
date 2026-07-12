@@ -220,7 +220,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Optional pointer acceleration.
 - Optional scroll acceleration.
 - Natural/traditional scroll direction setting.
-- Optional haptic feedback where browser vibration support allows it.
+- Optional haptic feedback on trackpad taps and click-button presses, with an immediate preview when enabled and a clear unsupported state when the browser cannot vibrate.
 - Optional left-handed button layout.
 - Optional large click buttons.
 - Optional volume/mute control.
@@ -232,6 +232,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 ### Keyboard mode
 
 - Live typing mode.
+- Uses the shorter `Back` label for the Backspace key in split or width-constrained layouts while preserving the Backspace action.
 - Buffered send mode.
 - Send button is hidden when Live typing is enabled.
 - Text/numeric mobile keyboard toggle.
@@ -322,9 +323,10 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Enables a side-by-side keyboard + trackpad layout.
 - Intended for tablet/landscape use.
 - Activates in landscape at wider viewport sizes.
-- Can be enabled from Trackpad settings.
-- Can be enabled from Keyboard settings.
-- Hides app chrome/mode tabs/status row in split mode to maximize usable space.
+- Has a dedicated Split mode settings category for enabling and configuring the layout.
+- Lets the user place the trackpad on the left or right.
+- Lets the user independently show or hide the mode buttons and connection status row.
+- Hides mode buttons and the status row by default to maximize usable space.
 - Hides volume control in split mode.
 - Keeps the keyboard pane scrollable while keeping the trackpad pane fixed.
 

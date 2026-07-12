@@ -4,6 +4,7 @@
 }
 
 .keyboard-primary-keys {
+  container-type: inline-size;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   grid-template-areas:
     "esc tab enter backspace"
@@ -47,6 +48,20 @@
 
 .key-backspace {
   grid-area: backspace;
+}
+
+.key-backspace-label-short {
+  display: none;
+}
+
+@container (max-width: 480px) {
+  .key-backspace-label-full {
+    display: none;
+  }
+
+  .key-backspace-label-short {
+    display: inline;
+  }
 }
 
 .key-delete {

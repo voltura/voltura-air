@@ -80,22 +80,23 @@ export function usePwaLifecycle({ activePc, autoRefresh, clientId, hostStatus, s
   };
 
   useEffect(() => {
-    if (!autoRefresh || state !== "paired" || !activePc || !hostStatus) {
+    if (!autoRefresh || state !== "paired" || !activePc) {
       return;
     }
 
-    if (hostStatus.developerMode && !hostStatus.developerSessionId) {
+    const webClientBuildId = hostStatus?.webClientBuildId;
+    if (!webClientBuildId || webClientBuildId === __WEB_BUILD_ID__) {
       return;
     }
 
-    const refreshKey = getAutoRefreshSessionKey(clientId, activePc.id, hostStatus.hostVersion, hostStatus.developerMode, hostStatus.developerSessionId);
+    const refreshKey = getAutoRefreshSessionKey(clientId, activePc.id, webClientBuildId);
     if (sessionStorage.getItem(refreshKey) === "true") {
       return;
     }
 
     sessionStorage.setItem(refreshKey, "true");
     void refreshInstalledApp();
-  }, [activePc, autoRefresh, clientId, hostStatus, hostStatus?.developerMode, hostStatus?.developerSessionId, hostStatus?.hostVersion, state]);
+  }, [activePc, autoRefresh, clientId, hostStatus?.webClientBuildId, state]);
 
   return { installApp, installPrompt, isInstalled, refreshInstalledApp, refreshMessage };
 }

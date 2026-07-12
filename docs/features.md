@@ -284,6 +284,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
   - stop playback through `X`,
   - info through `I`,
   - subtitles through `T`,
+  - power menu through `S`,
   - back through `Backspace`,
   - fullscreen playback / return to current playback through `Tab`,
   - volume through `-`/`+`,
@@ -307,6 +308,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
   - navigation ring.
   - Remote mode: Standard, YouTube, or Kodi.
   - optional client-local launch toggles for Open YouTube and Start Kodi when the host allows paired devices to start applications.
+  - selecting YouTube or Kodi from settings closes settings and opens the Remote screen for that mode.
 
 ### Dictation mode
 

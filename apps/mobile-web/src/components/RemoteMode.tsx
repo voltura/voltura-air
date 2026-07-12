@@ -11,6 +11,7 @@ import {
   Maximize2,
   Pause,
   Play,
+  Power,
   Rewind,
   Search,
   SkipBack,
@@ -50,6 +51,7 @@ type RemoteShortcutMap = {
   stop?: RemoteShortcut;
   info?: RemoteShortcut;
   subtitles?: RemoteShortcut;
+  powerMenu?: RemoteShortcut;
 };
 
 const remoteShortcutMaps: Record<RemoteModeId, RemoteShortcutMap> = {
@@ -96,7 +98,8 @@ const remoteShortcutMaps: Record<RemoteModeId, RemoteShortcutMap> = {
     space: { key: "Space" },
     stop: { key: "X" },
     info: { key: "I" },
-    subtitles: { key: "T" }
+    subtitles: { key: "T" },
+    powerMenu: { key: "S" }
   }
 };
 
@@ -197,6 +200,7 @@ export function RemoteMode({
   const sendStopPlayback = () => shortcuts.stop && sendShortcut(shortcuts.stop);
   const sendInfo = () => shortcuts.info && sendShortcut(shortcuts.info);
   const sendSubtitles = () => shortcuts.subtitles && sendShortcut(shortcuts.subtitles);
+  const sendPowerMenu = () => shortcuts.powerMenu && sendShortcut(shortcuts.powerMenu);
 
   useEffect(
     () => () => {
@@ -509,9 +513,15 @@ export function RemoteMode({
             <Rewind aria-hidden="true" />
             <span>Seek -</span>
           </RemoteButton>
-          <RemoteButton label="Space" title={modeCopy.spaceTitle} onClick={sendSpace}>
-            <span>Space</span>
-          </RemoteButton>
+          {isKodiMode ? (
+            <RemoteButton label="End playback" title="Kodi stop playback" className="remote-icon-button" onClick={sendStopPlayback}>
+              <SquareX aria-hidden="true" />
+            </RemoteButton>
+          ) : (
+            <RemoteButton label="Space" title={modeCopy.spaceTitle} onClick={sendSpace}>
+              <span>Space</span>
+            </RemoteButton>
+          )}
           <RemoteButton label="Seek forward" title={modeCopy.seekForwardTitle} pressProps={getRepeatablePressProps(sendSeekForward)}>
             <FastForward aria-hidden="true" />
             <span>Seek +</span>
@@ -525,8 +535,8 @@ export function RemoteMode({
             <span>Fullscreen</span>
           </RemoteButton>
           {isKodiMode ? (
-            <RemoteButton label="End playback" title="Kodi stop playback" className="remote-icon-button" onClick={sendStopPlayback}>
-              <SquareX aria-hidden="true" />
+            <RemoteButton label="Power menu" title="Kodi power menu" className="remote-icon-button" onClick={sendPowerMenu}>
+              <Power aria-hidden="true" />
             </RemoteButton>
           ) : (
             <RemoteButton label="Browser fullscreen" title={modeCopy.browserFullscreenTitle} onClick={sendBrowserFullscreen}>

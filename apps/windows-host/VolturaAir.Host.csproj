@@ -15,6 +15,10 @@
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Title>Voltura Air</Title>
     <AssemblyTitle>Voltura Air</AssemblyTitle>
+    <Product>Voltura Air</Product>
+    <Company>Voltura AB</Company>
+    <Authors>Voltura AB</Authors>
+    <Copyright>Copyright (c) Voltura AB</Copyright>
     <Description>Voltura Air Windows host</Description>
   </PropertyGroup>
 

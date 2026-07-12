@@ -530,9 +530,9 @@ export function RemoteMode({
             <CornerDownLeft aria-hidden="true" />
             <span>Esc / Back</span>
           </RemoteButton>
-          <RemoteButton label="Fullscreen" title={modeCopy.appFullscreenTitle} onClick={sendAppFullscreen}>
+          <RemoteButton label={modeCopy.appFullscreenLabel} title={modeCopy.appFullscreenTitle} onClick={sendAppFullscreen}>
             <Maximize2 aria-hidden="true" />
-            <span>Fullscreen</span>
+            <span>{modeCopy.appFullscreenLabel}</span>
           </RemoteButton>
           {isKodiMode ? (
             <RemoteButton label="Power menu" title="Kodi power menu" className="remote-icon-button" onClick={sendPowerMenu}>
@@ -648,6 +648,7 @@ function getRemoteModeCopy(mode: RemoteModeId) {
         seekBackwardTitle: "YouTube rewind shortcut",
         seekForwardTitle: "YouTube forward shortcut",
         spaceTitle: "Space / common browser play-pause",
+        appFullscreenLabel: "Fullscreen",
         appFullscreenTitle: "YouTube/app fullscreen shortcut",
         browserFullscreenTitle: "Chrome/browser fullscreen shortcut"
       };
@@ -658,6 +659,7 @@ function getRemoteModeCopy(mode: RemoteModeId) {
         seekBackwardTitle: "Kodi skip backward / left",
         seekForwardTitle: "Kodi skip forward / right",
         spaceTitle: "Kodi pause/play",
+        appFullscreenLabel: "Fullscreen",
         appFullscreenTitle: "Kodi fullscreen playback",
         browserFullscreenTitle: "Kodi fullscreen/windowed"
       };
@@ -668,6 +670,7 @@ function getRemoteModeCopy(mode: RemoteModeId) {
         seekBackwardTitle: "Seek backward / left arrow",
         seekForwardTitle: "Seek forward / right arrow",
         spaceTitle: "Space / common browser play-pause",
+        appFullscreenLabel: "Fullscreen (F)",
         appFullscreenTitle: "Video/app fullscreen shortcut",
         browserFullscreenTitle: "Chrome/browser fullscreen shortcut"
       };

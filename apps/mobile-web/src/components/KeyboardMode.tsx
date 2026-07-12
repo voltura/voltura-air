@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Send, Space } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Send } from "lucide-react";
 import { liveKeyboardSentinel } from "../keyboardDelta";
 
 const functionKeys = Array.from({ length: 12 }, (_, index) => `F${index + 1}`);
@@ -15,14 +15,17 @@ type ShortcutKey = {
 };
 
 const shortcutKeys: ShortcutKey[] = [
-  { label: "Ctrl A", key: "A", modifiers: ["Control"] },
-  { label: "Ctrl C", key: "C", modifiers: ["Control"] },
-  { label: "Ctrl V", key: "V", modifiers: ["Control"] },
-  { label: "Ctrl X", key: "X", modifiers: ["Control"] },
-  { label: "Ctrl Z", key: "Undo" },
-  { label: "Ctrl Y", key: "Redo" },
-  { label: "Alt Tab", key: "Tab", modifiers: ["Alt"] },
-  { label: "Shift Alt Tab", key: "Tab", modifiers: ["Shift", "Alt"] }
+  { label: "Select all", key: "A", modifiers: ["Control"] },
+  { label: "Cut", key: "X", modifiers: ["Control"] },
+  { label: "Copy", key: "C", modifiers: ["Control"] },
+  { label: "Paste", key: "V", modifiers: ["Control"] },
+  { label: "Undo", key: "Undo" },
+  { label: "Redo", key: "Redo" }
+];
+
+const appSwitchShortcutKeys: ShortcutKey[] = [
+  { label: "Next app", key: "Tab", modifiers: ["Alt"] },
+  { label: "Previous app", key: "Tab", modifiers: ["Shift", "Alt"] }
 ];
 
 type KeyboardModeProps = {
@@ -375,50 +378,75 @@ export function KeyboardMode({
   return (
     <section className={`keyboard-mode ${liveKeyboard ? "live-typing" : ""}`}>
       <div className="live-typing-row">
-        <label className="toggle-row live-typing-toggle">
+        <label className="live-typing-switch">
           <span>Live typing</span>
-          <input type="checkbox" checked={liveKeyboard} onChange={handleLiveTypingChange} />
+          <input type="checkbox" role="switch" aria-checked={liveKeyboard} checked={liveKeyboard} onChange={handleLiveTypingChange} />
+          <span className="switch-track" aria-hidden="true">
+            <span className="switch-thumb" />
+          </span>
         </label>
-        <div className="keyboard-input-mode-buttons" aria-label="Device keyboard type">
-          <button type="button" className={keyboardInputMode === "text" ? "active" : ""} aria-label="Show regular keyboard" onClick={() => showKeyboardInputMode("text")}>
+        <textarea
+          ref={keyboardTextareaRef}
+          inputMode={keyboardInputMode}
+          rows={liveKeyboard ? 1 : undefined}
+          value={liveKeyboard ? toLiveKeyboardValue(keyboardText) : keyboardText}
+          onChange={(event) => onKeyboardTextChange(event.target.value)}
+          onFocus={placeLiveKeyboardCaret}
+          onClick={placeLiveKeyboardCaret}
+          onBeforeInput={(event) => {
+            const inputType = (event.nativeEvent as InputEvent).inputType;
+            if (sendEmptyDelete(inputType, event.timeStamp)) {
+              event.preventDefault();
+            }
+          }}
+          onKeyDown={(event) => {
+            if ((event.key === "Backspace" || event.key === "Delete") && sendEmptyDelete(event.key, event.timeStamp)) {
+              event.preventDefault();
+            }
+          }}
+          onCompositionStart={() => {
+            isComposingRef.current = true;
+          }}
+          onCompositionEnd={(event) => {
+            isComposingRef.current = false;
+            onKeyboardTextChange(event.currentTarget.value);
+          }}
+          placeholder="Tap here and type..."
+        />
+        <div className="keyboard-input-mode-buttons segmented-control" role="tablist" aria-label="Device keyboard type">
+          <button
+            type="button"
+            className={keyboardInputMode === "text" ? "active" : ""}
+            aria-label="Show regular keyboard"
+            aria-selected={keyboardInputMode === "text"}
+            role="tab"
+            onClick={() => showKeyboardInputMode("text")}
+          >
             ABC
           </button>
-          <button type="button" className={keyboardInputMode === "numeric" ? "active" : ""} aria-label="Show numeric keyboard" onClick={() => showKeyboardInputMode("numeric")}>
+          <button
+            type="button"
+            className={keyboardInputMode === "numeric" ? "active" : ""}
+            aria-label="Show numeric keyboard"
+            aria-selected={keyboardInputMode === "numeric"}
+            role="tab"
+            onClick={() => showKeyboardInputMode("numeric")}
+          >
             123
           </button>
         </div>
       </div>
-      <textarea
-        ref={keyboardTextareaRef}
-        inputMode={keyboardInputMode}
-        rows={liveKeyboard ? 1 : undefined}
-        value={liveKeyboard ? toLiveKeyboardValue(keyboardText) : keyboardText}
-        onChange={(event) => onKeyboardTextChange(event.target.value)}
-        onFocus={placeLiveKeyboardCaret}
-        onClick={placeLiveKeyboardCaret}
-        onBeforeInput={(event) => {
-          const inputType = (event.nativeEvent as InputEvent).inputType;
-          if (sendEmptyDelete(inputType, event.timeStamp)) {
-            event.preventDefault();
-          }
-        }}
-        onKeyDown={(event) => {
-          if ((event.key === "Backspace" || event.key === "Delete") && sendEmptyDelete(event.key, event.timeStamp)) {
-            event.preventDefault();
-          }
-        }}
-        onCompositionStart={() => {
-          isComposingRef.current = true;
-        }}
-        onCompositionEnd={(event) => {
-          isComposingRef.current = false;
-          onKeyboardTextChange(event.currentTarget.value);
-        }}
-        placeholder={liveKeyboard ? "Typing is sent directly to Windows" : "Type here, then send to Windows"}
-      />
-      <div className="command-row">
+      <div className={`command-row keyboard-primary-keys ${!liveKeyboard ? "has-send-key" : ""} ${showSleepButton ? "has-sleep-key" : ""}`} aria-label="Primary keyboard keys">
+        <button className="key-esc" onClick={() => sendSpecial("Escape")}>Esc</button>
+        <button className="key-tab" {...getRepeatableKeyProps("Tab")}>Tab</button>
+        <button className="key-win" onClick={() => sendSpecial("Win")}>Win</button>
+        <button className="key-space" onClick={sendSpace} aria-label="Space">Space</button>
+        <button className="key-enter" {...getRepeatableKeyProps("Enter")}>Enter</button>
+        <button className="key-backspace" {...getRepeatableKeyProps("Backspace")}>Backspace</button>
+        <button className="key-delete" {...getRepeatableKeyProps("Delete")}>Delete</button>
         {!liveKeyboard && (
           <button
+            className="key-send"
             onClick={() => {
               sendText(keyboardText);
               setKeyboardText("");
@@ -429,20 +457,11 @@ export function KeyboardMode({
             <span>Send</span>
           </button>
         )}
-        <button {...getRepeatableKeyProps("Backspace")}>Backspace</button>
-        <button {...getRepeatableKeyProps("Enter")}>Enter</button>
-        <button {...getRepeatableKeyProps("Tab")}>Tab</button>
-        <button onClick={() => sendSpecial("Escape")}>Esc</button>
-        <button onClick={() => sendSpecial("Win")}>Win</button>
         {showSleepButton && (
-          <button type="button" onClick={onSleep}>
+          <button className="key-sleep" type="button" onClick={onSleep}>
             <span>Sleep</span>
           </button>
         )}
-        <button onClick={sendSpace} aria-label="Space">
-          <Space aria-hidden="true" />
-        </button>
-        <button {...getRepeatableKeyProps("Delete")}>Delete</button>
       </div>
       {showFunctionKeys && (
         <div className="function-key-row" aria-label="Function keys">
@@ -454,36 +473,55 @@ export function KeyboardMode({
         </div>
       )}
       {showArrowKeys && (
-        <div className="arrow-pad">
-          <button {...getRepeatableKeyProps("PageDown")} aria-label="Page Down">
-            PgDn
-          </button>
-          <button {...getRepeatableKeyProps("ArrowUp")} aria-label="Arrow up">
-            <ArrowUp aria-hidden="true" />
-          </button>
-          <button {...getRepeatableKeyProps("PageUp")} aria-label="Page Up">
-            PgUp
-          </button>
-          <button {...getRepeatableKeyProps("Home")}>Home</button>
-          <button {...getRepeatableKeyProps("ArrowLeft")} aria-label="Arrow left">
-            <ArrowLeft aria-hidden="true" />
-          </button>
-          <button {...getRepeatableKeyProps("ArrowDown")} aria-label="Arrow down">
-            <ArrowDown aria-hidden="true" />
-          </button>
-          <button {...getRepeatableKeyProps("ArrowRight")} aria-label="Arrow right">
-            <ArrowRight aria-hidden="true" />
-          </button>
-          <button {...getRepeatableKeyProps("End")}>End</button>
+        <div className="keyboard-navigation-keys" aria-label="Navigation keys">
+          <div className="navigation-key-block" aria-label="Document navigation keys">
+            <button className="nav-home" {...getRepeatableKeyProps("Home")}>Home</button>
+            <button className="nav-page-up" {...getRepeatableKeyProps("PageUp")} aria-label="Page Up">
+              PgUp
+            </button>
+            <button className="nav-page-down" {...getRepeatableKeyProps("PageDown")} aria-label="Page Down">
+              PgDn
+            </button>
+            <button className="nav-end" {...getRepeatableKeyProps("End")}>End</button>
+          </div>
+          <div className="arrow-pad" aria-label="Arrow keys">
+            <button className="arrow-up" {...getRepeatableKeyProps("ArrowUp")} aria-label="Arrow up">
+              <ArrowUp aria-hidden="true" />
+            </button>
+            <button className="arrow-left" {...getRepeatableKeyProps("ArrowLeft")} aria-label="Arrow left">
+              <ArrowLeft aria-hidden="true" />
+            </button>
+            <button className="arrow-down" {...getRepeatableKeyProps("ArrowDown")} aria-label="Arrow down">
+              <ArrowDown aria-hidden="true" />
+            </button>
+            <button className="arrow-right" {...getRepeatableKeyProps("ArrowRight")} aria-label="Arrow right">
+              <ArrowRight aria-hidden="true" />
+            </button>
+          </div>
         </div>
       )}
       {showControlKeys && (
-        <div className="function-key-row shortcut-row" aria-label="Keyboard shortcuts">
-          {shortcutKeys.map(({ label, key, modifiers }) => (
-            <button key={label} onClick={() => sendShortcut(key, modifiers)} title={key === "Undo" ? "Undo" : key === "Redo" ? "Redo" : undefined}>
-              {label}
-            </button>
-          ))}
+        <div className="keyboard-shortcut-groups" aria-label="Keyboard shortcuts">
+          <div className="shortcut-row" aria-label="Editing shortcuts">
+            {shortcutKeys.map(({ label, key, modifiers }) => (
+              <button key={label} onClick={() => sendShortcut(key, modifiers)} title={key === "Undo" ? "Undo" : key === "Redo" ? "Redo" : undefined}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="app-switch-row" aria-label="App switching shortcuts">
+            {appSwitchShortcutKeys.map(({ label, key, modifiers }) => (
+              <button
+                key={label}
+                className="app-switch-button"
+                aria-label={`${label} ${modifiers?.includes("Shift") ? "Shift+Alt+Tab" : "Alt+Tab"}`}
+                onClick={() => sendShortcut(key, modifiers)}
+              >
+                <span>{label}</span>
+                <small>{modifiers?.includes("Shift") ? "Shift+Alt+Tab" : "Alt+Tab"}</small>
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </section>

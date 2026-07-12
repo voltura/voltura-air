@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Circle, Keyboard, Menu, Mic, MousePointer2, Tv } from "lucide-react";
+import { ChevronDown, Circle, Keyboard, Menu, Mic, MousePointer2, Tv } from "lucide-react";
 import { DictationMode } from "./components/DictationMode";
 import { GestureDebugMode } from "./components/GestureDebugMode";
 import { KeyboardMode } from "./components/KeyboardMode";
@@ -39,6 +39,7 @@ import {
   toLiveKeyboardValue
 } from "./keyboardDelta";
 import { parsePairingLink, type PairingLink } from "./pairingLink";
+import { getPcDisplayName } from "./pcDisplayName";
 import type { AudioStateMessage, ClientMessage, KeyboardSpecialMessage, RemoteLaunchAction } from "./protocol";
 import { buildMobileDiagnostics } from "./mobileDiagnostics";
 import { decodeQrImage } from "./qrCode";
@@ -135,6 +136,7 @@ export function App() {
   const [isListening, setIsListening] = useState(false);
   const [isTrackpadExpanded, setIsTrackpadExpanded] = useState(false);
   const [areModeTabsCollapsed, setAreModeTabsCollapsed] = useState(false);
+  const [isModeSelectorOpen, setIsModeSelectorOpen] = useState(false);
   const committedKeyboardTextRef = useRef("");
   const isComposingRef = useRef(false);
   const lastEmptyDeleteRef = useRef<{ key: string; timeStamp: number } | null>(null);
@@ -283,6 +285,7 @@ export function App() {
   useEffect(() => {
     if (tab === "debug") {
       setAreModeTabsCollapsed(false);
+      setIsModeSelectorOpen(false);
     }
   }, [tab]);
 
@@ -806,6 +809,8 @@ export function App() {
     canUseSplitMode && ((tab === "trackpad" && trackpadSettings.enableSplitMode) || (tab === "keyboard" && keyboardSettings.enableSplitMode));
   const activeModeTab = modeTabs.find((modeTab) => modeTab.id === tab);
   const ActiveModeIcon = activeModeTab?.Icon;
+  const canShowModeNavigation = state === "paired";
+  const connectionPcName = state === "paired" && activePc ? getPcDisplayName(activePc) : message;
 
   const selectModeTab = (nextTab: MainTab) => {
     if (nextTab === "remote") {
@@ -814,28 +819,19 @@ export function App() {
 
     if (tab === nextTab) {
       setAreModeTabsCollapsed(true);
+      setIsModeSelectorOpen(false);
       return;
     }
 
     setTab(nextTab);
     setAreModeTabsCollapsed(false);
+    setIsModeSelectorOpen(false);
   };
 
   return (
-    <main className={`app-shell ${tab === "trackpad" ? "trackpad-active" : ""} ${tab === "remote" ? "remote-active" : ""} ${shouldShowSplitMode ? "split-mode-active" : ""} ${areModeTabsCollapsed ? "mode-tabs-collapsed" : ""}`}>
+    <main className={`app-shell ${canShowModeNavigation ? "has-mode-navigation" : ""} ${tab === "trackpad" ? "trackpad-active" : ""} ${tab === "remote" ? "remote-active" : ""} ${shouldShowSplitMode ? "split-mode-active" : ""} ${areModeTabsCollapsed ? "mode-tabs-collapsed" : ""} ${isModeSelectorOpen ? "mode-selector-open" : ""}`}>
       <header className="top-bar">
         <div className="brand-group">
-          {areModeTabsCollapsed && ActiveModeIcon && activeModeTab && (
-            <button
-              className="icon-button active"
-              type="button"
-              aria-label={`Show mode buttons, ${activeModeTab.label} mode active`}
-              title={`Show mode buttons (${activeModeTab.label})`}
-              onClick={() => setAreModeTabsCollapsed(false)}
-            >
-              <ActiveModeIcon aria-hidden="true" />
-            </button>
-          )}
           <button className="icon-button" type="button" aria-label="Open settings" onClick={() => setIsSettingsOpen(true)}>
             <Menu aria-hidden="true" />
           </button>
@@ -843,12 +839,41 @@ export function App() {
             <MousePointer2 aria-hidden="true" />
             <span>Voltura Air</span>
           </div>
+          {canShowModeNavigation && ActiveModeIcon && activeModeTab && (
+            <button
+              className="compact-mode-button"
+              type="button"
+              aria-expanded={isModeSelectorOpen}
+              aria-haspopup="menu"
+              aria-label="Change mode"
+              title={`Change mode (${activeModeTab.label})`}
+              onClick={() => setIsModeSelectorOpen((current) => !current)}
+            >
+              <ActiveModeIcon aria-hidden="true" />
+              <ChevronDown aria-hidden="true" />
+            </button>
+          )}
         </div>
-        <div className={`status ${state}`}>
+        <div className={`status ${state}`} title={message}>
           <Circle aria-hidden="true" />
-          <span>{message}</span>
+          <span className="status-full">{message}</span>
+          <span className="status-compact">{connectionPcName}</span>
         </div>
       </header>
+
+      {canShowModeNavigation && isModeSelectorOpen && (
+        <>
+          <button className="mode-selector-scrim" type="button" aria-label="Close mode selector" onClick={() => setIsModeSelectorOpen(false)} />
+          <div className="mode-selector-popover" role="menu" aria-label="Change mode">
+            {modeTabs.map(({ id, label, ariaLabel, Icon }) => (
+              <button key={id} role="menuitemradio" aria-checked={tab === id} aria-label={ariaLabel} className={tab === id ? "active" : ""} onClick={() => selectModeTab(id)}>
+                <Icon aria-hidden="true" />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       {isSettingsOpen && <button className="drawer-scrim" type="button" aria-label="Close settings" onClick={() => setIsSettingsOpen(false)} />}
 
@@ -918,16 +943,7 @@ export function App() {
         updateTrackpadSetting={updateTrackpadSetting}
       />
 
-      {!areModeTabsCollapsed && (
-        <nav className="tabs" aria-label="Mode">
-          {modeTabs.map(({ id, label, ariaLabel, Icon }) => (
-            <button key={id} aria-label={ariaLabel} className={tab === id ? "active" : ""} onClick={() => selectModeTab(id)}>
-              <Icon aria-hidden="true" />
-              <span>{label}</span>
-            </button>
-          ))}
-        </nav>
-      )}
+      {canShowModeNavigation && <ModeTabs className="tabs top-mode-tabs" tab={tab} selectModeTab={selectModeTab} />}
 
       {(tab === "trackpad" || tab === "keyboard") &&
         (shouldShowSplitMode ? renderSplitMode() : tab === "trackpad" ? renderTrackpadMode() : renderKeyboardMode())}
@@ -947,7 +963,22 @@ export function App() {
       )}
 
       {supportsGestureDebug && tab === "debug" && <GestureDebugMode trackpadSettings={effectiveTrackpadSettings} />}
+
+      {canShowModeNavigation && <ModeTabs className="tabs bottom-mode-tabs" tab={tab} selectModeTab={selectModeTab} />}
     </main>
+  );
+}
+
+function ModeTabs({ className, tab, selectModeTab }: { className: string; tab: Tab; selectModeTab: (nextTab: MainTab) => void }) {
+  return (
+    <nav className={className} aria-label="Mode">
+      {modeTabs.map(({ id, label, ariaLabel, Icon }) => (
+        <button key={id} aria-label={ariaLabel} aria-selected={tab === id} className={tab === id ? "active" : ""} onClick={() => selectModeTab(id)}>
+          <Icon aria-hidden="true" />
+          <span>{label}</span>
+        </button>
+      ))}
+    </nav>
   );
 }
 

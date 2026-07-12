@@ -1,7 +1,0 @@
-.remote-navigation-section:has(.remote-navigation-ring) {
-  background:
-    linear-gradient(90deg, var(--trackpad-grid) 1px, transparent 1px),
-    linear-gradient(var(--trackpad-grid) 1px, transparent 1px),
-    color-mix(in srgb, var(--surface) 92%, transparent);
-  background-size: 28px 28px;
-}

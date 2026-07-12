@@ -25,23 +25,35 @@ export function DictationMode({
   };
 
   return (
-    <section className="dictation-mode">
-      <textarea value={dictationText} onChange={(event) => setDictationText(event.target.value)} placeholder="Dictated or typed text appears here" />
-      <div className="command-row">
-        <button onClick={isListening ? stopSpeech : startSpeech} disabled={!canUseSpeech}>
+    <section className={`dictation-mode ${isListening ? "is-listening" : ""} ${canUseSpeech ? "" : "speech-unavailable"}`}>
+      <div className="dictation-status">
+        <Mic aria-hidden="true" />
+        <div>
+          <strong>{isListening ? "Listening" : canUseSpeech ? "Ready to dictate" : "Speech recognition unavailable"}</strong>
+          <p>{canUseSpeech ? "Speak, edit the text, then send it to Windows." : "Use your phone keyboard dictation in the text box, then send."}</p>
+        </div>
+      </div>
+      <textarea
+        aria-label="Dictation text"
+        className="dictation-textarea"
+        value={dictationText}
+        onChange={(event) => setDictationText(event.target.value)}
+        placeholder="Dictated or typed text appears here"
+      />
+      <div className="dictation-actions" aria-label="Dictation controls">
+        <button className="dictation-listen-button" onClick={isListening ? stopSpeech : startSpeech} disabled={!canUseSpeech}>
           {isListening ? <Power aria-hidden="true" /> : <Mic aria-hidden="true" />}
           <span>{isListening ? "Stop" : "Listen"}</span>
         </button>
-        <button onClick={sendDictationText}>
+        <button className="dictation-send-button" onClick={sendDictationText}>
           <Send aria-hidden="true" />
           <span>Send</span>
         </button>
-        <button onClick={() => setDictationText("")}>
+        <button className="dictation-clear-button" onClick={() => setDictationText("")}>
           <RotateCcw aria-hidden="true" />
           <span>Clear</span>
         </button>
       </div>
-      {!canUseSpeech && <p className="hint">Browser speech recognition is unavailable. Use your phone keyboard dictation in the text box, then send.</p>}
     </section>
   );
 }

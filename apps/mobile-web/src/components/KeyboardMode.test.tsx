@@ -68,26 +68,45 @@ describe("KeyboardMode live typing", () => {
     render(<KeyboardModeHarness liveKeyboard={false} />);
 
     const textarea = screen.getByRole("textbox");
-    fireEvent.click(screen.getByRole("checkbox", { name: "Live typing" }));
+    const liveTypingSwitch = screen.getByRole("switch", { name: "Live typing" });
+    expect(liveTypingSwitch.getAttribute("aria-checked")).toBe("false");
+
+    fireEvent.click(liveTypingSwitch);
 
     expect(document.activeElement).toBe(textarea);
+    expect(liveTypingSwitch.getAttribute("aria-checked")).toBe("true");
   });
 
   it("switches the device keyboard input mode and focuses the text input", () => {
     render(<KeyboardModeHarness />);
 
     const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
-    expect(textarea.inputMode).toBe("text");
+    const textModeButton = screen.getByRole("tab", { name: "Show regular keyboard" });
+    const numericModeButton = screen.getByRole("tab", { name: "Show numeric keyboard" });
 
-    fireEvent.click(screen.getByRole("button", { name: "Show numeric keyboard" }));
+    expect(textarea.inputMode).toBe("text");
+    expect(textModeButton.getAttribute("aria-selected")).toBe("true");
+    expect(numericModeButton.getAttribute("aria-selected")).toBe("false");
+
+    fireEvent.click(numericModeButton);
 
     expect(textarea.inputMode).toBe("numeric");
     expect(document.activeElement).toBe(textarea);
+    expect(textModeButton.getAttribute("aria-selected")).toBe("false");
+    expect(numericModeButton.getAttribute("aria-selected")).toBe("true");
 
-    fireEvent.click(screen.getByRole("button", { name: "Show regular keyboard" }));
+    fireEvent.click(textModeButton);
 
     expect(textarea.inputMode).toBe("text");
     expect(document.activeElement).toBe(textarea);
+    expect(textModeButton.getAttribute("aria-selected")).toBe("true");
+    expect(numericModeButton.getAttribute("aria-selected")).toBe("false");
+  });
+
+  it("uses a direct typing placeholder", () => {
+    render(<KeyboardModeHarness />);
+
+    expect(screen.getByPlaceholderText("Tap here and type...")).toBeTruthy();
   });
 
   it("mirrors Backspace, Enter, Tab, and Space buttons into the live textbox", () => {
@@ -240,14 +259,14 @@ describe("KeyboardMode repeatable keys", () => {
 
 describe("KeyboardMode shortcut keys", () => {
   it.each([
-    ["Ctrl A", "A", ["Control"]],
-    ["Ctrl C", "C", ["Control"]],
-    ["Ctrl V", "V", ["Control"]],
-    ["Ctrl X", "X", ["Control"]],
-    ["Ctrl Z", "Undo", undefined],
-    ["Ctrl Y", "Redo", undefined],
-    ["Alt Tab", "Tab", ["Alt"]],
-    ["Shift Alt Tab", "Tab", ["Shift", "Alt"]]
+    ["Select all", "A", ["Control"]],
+    ["Cut", "X", ["Control"]],
+    ["Copy", "C", ["Control"]],
+    ["Paste", "V", ["Control"]],
+    ["Undo", "Undo", undefined],
+    ["Redo", "Redo", undefined],
+    [/Next app/, "Tab", ["Alt"]],
+    [/Previous app/, "Tab", ["Shift", "Alt"]]
   ] as const)("sends %s", (buttonName, key, modifiers) => {
     const sendSpecial = vi.fn();
     render(<KeyboardModeHarness sendSpecial={sendSpecial} />);
@@ -265,10 +284,17 @@ describe("KeyboardMode shortcut keys", () => {
   it("hides shortcut keys when control keys are disabled", () => {
     render(<KeyboardModeHarness showControlKeys={false} />);
 
-    expect(screen.queryByRole("button", { name: "Ctrl A" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Ctrl Y" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Alt Tab" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Select all" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Redo" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Next app/ })).toBeNull();
     expect(screen.queryByLabelText("Keyboard shortcuts")).toBeNull();
+  });
+
+  it("renders app switching shortcuts with secondary notation", () => {
+    render(<KeyboardModeHarness />);
+
+    expect(screen.getByRole("button", { name: /Next app Alt\+Tab/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Previous app Shift\+Alt\+Tab/ })).toBeTruthy();
   });
 });
 
@@ -323,6 +349,34 @@ describe("KeyboardMode function keys", () => {
 
     expect(screen.getByRole("button", { name: "F12" })).toBeTruthy();
     expect(sendSpecial).toHaveBeenCalledExactlyOnceWith("F1");
+  });
+});
+
+describe("KeyboardMode command callbacks", () => {
+  it.each([
+    ["Esc", "Escape", undefined],
+    ["Win", "Win", undefined],
+    ["F1", "F1", undefined],
+    ["Ctrl+A", "A", ["Control"]],
+    ["Ctrl+X", "X", ["Control"]],
+    ["Ctrl+C", "C", ["Control"]],
+    ["Ctrl+V", "V", ["Control"]],
+    ["Ctrl+Z", "Undo", undefined],
+    ["Ctrl+Y", "Redo", undefined],
+    [/Next app/, "Tab", ["Alt"]],
+    [/Previous app/, "Tab", ["Shift", "Alt"]]
+  ] as const)("preserves %s command callback", (buttonName, key, modifiers) => {
+    const sendSpecial = vi.fn();
+    render(<KeyboardModeHarness sendSpecial={sendSpecial} showFunctionKeys />);
+
+    fireEvent.click(screen.getByRole("button", { name: buttonName }));
+
+    if (modifiers) {
+      expect(sendSpecial).toHaveBeenCalledExactlyOnceWith(key, modifiers);
+      return;
+    }
+
+    expect(sendSpecial).toHaveBeenCalledExactlyOnceWith(key);
   });
 });
 

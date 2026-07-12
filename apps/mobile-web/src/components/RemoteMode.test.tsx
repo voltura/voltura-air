@@ -30,7 +30,7 @@ describe("RemoteMode", () => {
     ["Space", "Space", undefined],
     ["Seek forward", "ArrowRight", undefined],
     ["Esc or back", "Escape", undefined],
-    ["Fullscreen", "F", undefined],
+    ["Fullscreen (F)", "F", undefined],
     ["Browser fullscreen", "F11", undefined],
     ["Volume down", "VolumeDown", undefined],
     ["Mute PC", "VolumeMute", undefined],

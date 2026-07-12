@@ -19,9 +19,11 @@ updated as the app structure, tooling, and release process become concrete.
   taking the next port; the user normally starts debugging from VS Code with
   `npm run dev`.
 - If a task has a preferred validation, inspection, capture, automation tool,
-  or supporting runtime/toolchain that is not installed locally, Codex may
-  install and use it without asking first. Prefer temporary or user-scoped
-  installs unless a project-local dependency is clearly the right fit.
+  or supporting runtime/toolchain that is not installed locally, Codex may and
+  should install and use it without asking first. Do not take shortcuts or
+  assume results because a tool is missing; install the needed tool, use it, and
+  report what was installed. Prefer temporary or user-scoped installs unless a
+  project-local dependency is clearly the right fit.
 - The Windows host UI is WPF-first. Prefer device-independent WPF layout
   primitives (`Grid`, `DockPanel`, `StackPanel`, `ScrollViewer`, `ListView`)
   over manual pixel positioning. Keep WinForms usage limited to tray interop or
@@ -74,6 +76,15 @@ updated as the app structure, tooling, and release process become concrete.
 - GitHub CLI (`gh`) is available in the Codex shell. It is installed through
   WinGet and exposed to the current Codex environment through
   `%APPDATA%\npm\gh.cmd`.
+- Playwright is available for the mobile workspace through the
+  `@playwright/test` dev dependency in `apps/mobile-web/package.json`. Run it
+  from the repository root with
+  `npm exec --workspace apps/mobile-web -- playwright ...`, or from
+  `apps/mobile-web` with `npx playwright ...`.
+- Playwright Chromium browser binaries are installed in the user Playwright
+  cache (`%LOCALAPPDATA%\ms-playwright`). If a browser binary is missing on a
+  new machine or cache, run `npx playwright install chromium` from
+  `apps/mobile-web`.
 
 ## Release
 

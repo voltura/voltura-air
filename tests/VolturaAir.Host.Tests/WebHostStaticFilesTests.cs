@@ -28,14 +28,35 @@ public sealed class WebHostStaticFilesTests
     public void StaticCacheHeadersKeepEntryPointsFreshAndFingerprintAssetsImmutable()
     {
         var indexContext = new DefaultHttpContext();
+        var buildIdContext = new DefaultHttpContext();
         var assetContext = new DefaultHttpContext();
 
         WebHostStaticFiles.SetStaticCacheHeaders(indexContext.Response, "index.html");
+        WebHostStaticFiles.SetStaticCacheHeaders(buildIdContext.Response, "web-build-id.txt");
         WebHostStaticFiles.SetStaticCacheHeaders(assetContext.Response, "/assets/app.js");
 
         Assert.Equal("no-store, no-cache, must-revalidate", indexContext.Response.Headers.CacheControl.ToString());
         Assert.Equal("no-cache", indexContext.Response.Headers.Pragma.ToString());
         Assert.Equal("0", indexContext.Response.Headers.Expires.ToString());
+        Assert.Equal("no-store, no-cache, must-revalidate", buildIdContext.Response.Headers.CacheControl.ToString());
         Assert.Equal("public, max-age=31536000, immutable", assetContext.Response.Headers.CacheControl.ToString());
+    }
+
+    [Fact]
+    public void ReadsTrimmedWebClientBuildId()
+    {
+        var staticRoot = Path.Combine(Path.GetTempPath(), $"voltura-air-static-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(staticRoot);
+
+        try
+        {
+            File.WriteAllText(Path.Combine(staticRoot, "web-build-id.txt"), " build-a\n");
+
+            Assert.Equal("build-a", WebHostStaticFiles.ReadWebClientBuildId(staticRoot));
+        }
+        finally
+        {
+            Directory.Delete(staticRoot, recursive: true);
+        }
     }
 }

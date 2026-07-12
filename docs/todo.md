@@ -1,376 +1,339 @@
-# Voltura Air - Product TODO / Roadmap
+# Voltura Air - TODO / Roadmap
 
-Updated: 2026-07-05  
-Scope: current `voltura/voltura-air` `main` branch plus recent completed work. This file should track implemented behavior in the repository, not stale PR or connector state.
+Updated: 2026-07-12  
+Scope: work that is not yet implemented on the current `voltura/voltura-air` `main` branch.
 
-This file separates the current implemented baseline from remaining roadmap work. It is written for a solo developer building a freeware/open-source Windows utility. Prioritize adoption, reliability, trust, and visible user value over cloning every competitor.
+This file tracks remaining product, quality, documentation, and distribution work only. Implemented capabilities belong in [features.md](features.md) and should be removed from this roadmap when completed.
+
+Prioritize reliability, usability, trust, and visible user value. Manual and real-device verification listed here is optional unless it is needed to reproduce a bug or make a specific release decision.
 
 ## Status legend
 
-- `[x]` Implemented enough to count as done on `main`.
-- `[ ]` Still open.
-- `Partial:` Some foundation exists, but the roadmap item is not fully done.
-- `Manual:` Requires real-device/manual app testing, not just code.
+- `[ ]` Open work.
+- `Optional verification:` Useful manual coverage that is not a release requirement by itself.
 
 ---
 
-## P1 - Make the current input experience excellent
+## 1. Input quality and layout
 
-### P1.1 Trackpad polish
+### 1.1 Keyboard compatibility and clarity
 
-- [ ] Verify pinch zoom in common apps:
-  - [ ] Chrome/Edge. Manual.
-  - [ ] Photos. Manual.
-  - [ ] PDF viewer. Manual.
-  - [ ] Office/PowerPoint. Manual.
-- [ ] Test on:
-  - [ ] iPhone Safari. Manual.
-  - [ ] Android Chrome. Manual.
-  - [ ] iPad Safari. Manual.
-  - [ ] Android tablet Chrome. Manual.
-  - [ ] ChromeOS browser. Manual.
-
-### P1.2 Keyboard correctness
-
-- [ ] Add Swedish keyboard layout verification.
-  - Partial: Unicode text injection should help normal Swedish text, but this still needs explicit test cases and real app verification.
-- [ ] Add AltGr support tests.
-- [ ] Add dead-key support tests.
-
-- [ ] Add compact vs full keyboard controls.
-  - Partial: current settings can show/hide function, control, arrow, and sleep buttons; there is no single compact/full preset.
-
-- [ ] Improve wording/help text for:
+- [ ] Add automated Swedish keyboard layout coverage.
+- [ ] Add AltGr shortcut coverage.
+- [ ] Add dead-key and composition coverage.
+- [ ] Add compact and full keyboard presets.
+- [ ] Improve help text for:
   - [ ] Live typing.
   - [ ] Buffered send.
   - [ ] Function keys.
   - [ ] Split mode.
 
-### P1.3 Split mode as signature feature
+Optional verification:
 
-- [ ] Ensure split mode works well in landscape on phones. Manual.
-- [ ] Ensure split mode works well on tablets. Manual.
-- [ ] Add setting: left/right trackpad placement.
-- [ ] Add setting: show/hide mode buttons in split mode.
-  - Partial: currently hidden automatically, not user-configurable.
-- [ ] Add setting: show/hide status row in split mode.
-  - Partial: currently hidden automatically, not user-configurable.
-- [ ] Add tests for split-mode layout breakpoints.
-- [ ] Add copy:
-  - [ ] "Use a tablet like a full couch keyboard and trackpad."
+- Swedish and AltGr input in Notepad, browsers, Office, Teams, and similar apps.
+- iPhone Safari, Android Chrome, iPad Safari, Android tablet Chrome, and ChromeOS.
 
----
+### 1.2 Trackpad compatibility
 
-## P1 - Add visible adoption features
+- [ ] Add regression coverage for pinch-zoom gesture translation where practical.
 
-### P1.4 Couch / TV remote mode
+Optional verification:
 
-- [ ] Add utility buttons:
-  - [ ] Show desktop.
-- [ ] Add settings:
-  - [ ] Hide dangerous power actions.
-  - [ ] Choose which buttons are visible.
-- [ ] Add manual tests with:
-  - [ ] YouTube in browser.
-  - [ ] Netflix/streaming site in browser if available.
-  - [ ] VLC or Windows Media Player if available.
-  - [ ] PowerPoint presentation.
+- Pinch zoom in Chrome or Edge, Photos, a PDF viewer, and Office or PowerPoint.
+- Pointer, scrolling, dragging, and zoom behavior across supported phone and tablet browsers.
 
-### P1.5 Phone-to-PC text and clipboard transfer
+### 1.3 Split mode polish
 
-Start with phone-to-PC only.
+- [ ] Add left/right trackpad placement.
+- [ ] Add a setting for showing or hiding mode buttons in split mode.
+- [ ] Add a setting for showing or hiding the status row in split mode.
+- [ ] Add layout breakpoint tests for phone and tablet sizes.
+- [ ] Add product copy describing tablet use as a combined couch keyboard and trackpad.
 
-- [ ] Add dedicated "Paste text to PC" screen.
-- [ ] Add send modes:
-  - [ ] Paste as text.
-  - [ ] Send Enter after paste.
-- [ ] Add safety:
-  - [ ] Show target warning: "Text goes to the focused app on your PC."
-  - [ ] Confirm before sending very long text.
-- [ ] Add common snippets:
-  - [ ] Email address.
-  - [ ] URL.
-  - [ ] One-time code.
-- [ ] Add optional setting to clear text after send.
-  - Partial: buffered keyboard send currently clears after sending.
-- [ ] Later:
-  - [ ] Optional PC-to-phone clipboard read behind explicit host permission.
-  - [ ] Optional clipboard sync toggle.
-- [ ] Tests:
-  - [ ] Notepad.
-  - [ ] Browser address bar.
-  - [ ] Login/password field.
-  - [ ] Teams/Slack text input.
-  - [ ] Apps that block paste but allow typing.
+Optional verification:
 
-### P1.6 Power and session controls
-
-- [ ] Add safe action: Lock PC.
-- [ ] Add safe action: Turn off display if feasible.
-- [ ] Add dangerous actions with hold-to-confirm:
-  - [ ] Restart PC.
-  - [ ] Shut down PC.
-  - [ ] Sign out.
-- [ ] Add mobile confirmation UI for power actions.
-  - Partial: Sleep button exists behind host capability/permission, but no confirmation screen.
-- [x] Add host-side confirmation/allowlist setting.
-  - Partial: host-side permission/capability exists; there is no separate confirmation prompt.
-- [x] Add docs explaining how to disable power controls.
-  - Partial: protocol/docs describe capability/permission behavior, but a user-facing power-controls doc could still be clearer.
+- Landscape phone layouts.
+- Small, medium, and large tablet layouts.
+- Installed iOS and Android PWA layouts.
 
 ---
 
-## P2 - Presentation and productivity
+## 2. Remote and Windows controls
 
-### P2.1 Presentation mode
+### 2.1 App, window, and browser helpers
 
-- [ ] Add mode: "Presentation".
-- [ ] Add controls:
-  - [ ] Next slide.
-    - Partial: keyboard arrow/space/enter may work in some presentation apps.
-  - [ ] Previous slide.
-    - Partial: keyboard arrow keys may work in some presentation apps.
-  - [ ] Start slideshow.
-  - [x] End slideshow / Esc.
-    - Partial: Esc exists in keyboard mode, not dedicated presentation mode.
-  - [ ] Black screen.
-  - [ ] White screen if useful.
-  - [ ] Pointer mode.
-- [ ] Add optional timer.
-- [ ] Add optional vibration on timer milestone where browser support allows it.
-- [ ] Add large no-look buttons.
-- [ ] Add manual tests:
-  - [ ] PowerPoint.
-  - [ ] Google Slides.
-  - [ ] Browser PDF presentation.
-- [ ] Add website use case:
-  - [ ] "Forgot your presenter remote? Use your phone."
-
-### P2.2 App and window helper
-
-- [ ] Add shortcuts:
-  - [ ] Show desktop.
-  - [ ] Close window.
-  - [ ] Minimize window.
-  - [x] Open Start menu.
-    - Partial: Win key exists.
-  - [x] Open Windows Search.
-    - Partial: Win key exists; no dedicated search button.
-- [ ] Add browser shortcuts:
+- [ ] Add Show desktop.
+- [ ] Add Close focused window.
+- [ ] Add Minimize focused window.
+- [ ] Add browser shortcuts for:
   - [ ] New tab.
   - [ ] Close tab.
   - [ ] Reopen closed tab.
   - [ ] Next tab.
   - [ ] Previous tab.
   - [ ] Reload.
-  - [ ] Fullscreen.
-- [ ] Add optional host-configured app launch buttons:
+- [ ] Add settings for choosing which helper buttons are visible.
+
+Optional verification:
+
+- YouTube and another streaming site in a browser.
+- VLC or Windows Media Player.
+- PowerPoint.
+
+### 2.2 Power and session controls
+
+- [ ] Add Lock PC.
+- [ ] Investigate a safe Turn off display action.
+- [ ] Add hold-to-confirm actions for:
+  - [ ] Restart PC.
+  - [ ] Shut down PC.
+  - [ ] Sign out.
+- [ ] Add mobile confirmation UI for destructive power actions.
+- [ ] Extend host permissions so every new power action is explicitly controlled.
+- [ ] Add clear user-facing documentation for enabling and disabling power controls.
+
+### 2.3 Configurable app launch
+
+- [ ] Add host-configured launch buttons for common applications.
+- [ ] Support optional presets for:
   - [ ] Browser.
   - [ ] Spotify.
   - [ ] VLC.
   - [ ] PowerPoint.
-  - [ ] Custom path/command.
-- [ ] Require explicit host enablement for custom commands.
-
-### P2.3 Link sharing
-
-- [ ] Add "Open URL on PC" feature.
-- [ ] Validate URL before sending.
-- [ ] Add manual text URL entry on mobile.
-- [ ] Add QR-friendly demo:
-  - [ ] Open website from phone on PC.
-- [ ] Later:
-  - [ ] PWA share target support if practical.
-  - [ ] Browser extension only if there is strong demand.
+- [ ] Support a custom path or command.
+- [ ] Require explicit host approval for every custom command.
+- [ ] Validate configured paths and reject unsafe or malformed commands.
 
 ---
 
-## P2 - Customization
+## 3. Text, clipboard, and link transfer
 
-### P2.4 Custom shortcut panels
+### 3.1 Dedicated Paste Text to PC
+
+- [ ] Add a dedicated Paste Text to PC screen.
+- [ ] Add send modes for:
+  - [ ] Paste as text.
+  - [ ] Paste as text and send Enter.
+- [ ] Warn that text is sent to the currently focused PC application.
+- [ ] Confirm before sending very long text.
+- [ ] Add optional saved snippets such as:
+  - [ ] Email address.
+  - [ ] URL.
+  - [ ] One-time code.
+- [ ] Add an option to clear the field after sending.
+
+Optional verification:
+
+- Notepad.
+- Browser address bars.
+- Login and password fields.
+- Teams or Slack inputs.
+- Applications that block paste but allow typing.
+
+### 3.2 Clipboard expansion
+
+- [ ] Investigate PC-to-phone clipboard reading behind explicit host permission.
+- [ ] Consider an optional clipboard synchronization mode only if it can remain predictable and secure.
+
+### 3.3 Open URL on PC
+
+- [ ] Add Open URL on PC.
+- [ ] Validate and normalize URLs before opening them.
+- [ ] Add manual URL entry on mobile.
+- [ ] Consider PWA share-target support if browser support and complexity are acceptable.
+- [ ] Consider a browser extension only if there is clear demand.
+
+---
+
+## 4. Presentation mode
+
+- [ ] Add a dedicated Presentation mode.
+- [ ] Add large no-look controls for:
+  - [ ] Next slide.
+  - [ ] Previous slide.
+  - [ ] Start slideshow.
+  - [ ] End slideshow.
+  - [ ] Black screen.
+  - [ ] White screen, if useful.
+  - [ ] Pointer mode.
+- [ ] Add an optional presentation timer.
+- [ ] Add optional vibration at timer milestones where supported.
+- [ ] Add website copy for using a phone as an emergency presenter remote.
+
+Optional verification:
+
+- Microsoft PowerPoint.
+- Google Slides.
+- Browser PDF presentation mode.
+
+---
+
+## 5. Customization and device preferences
+
+### 5.1 Custom shortcut panels
 
 - [ ] Add user-defined shortcut buttons.
-- [ ] Button action types:
+- [ ] Support action types for:
   - [ ] Keystroke.
   - [ ] Key sequence.
   - [ ] Type text.
   - [ ] Open URL.
   - [ ] Host-approved command.
-- [ ] Add built-in presets:
+- [ ] Add built-in presets for:
   - [ ] Media PC.
   - [ ] Browser.
   - [ ] Presentation.
   - [ ] Developer.
   - [ ] Swedish keyboard.
-- [ ] Add import/export JSON.
+- [ ] Add JSON import and export.
 - [ ] Add reset to defaults.
-- [ ] Add tests for serialization and old settings migration.
-- [ ] Add warning for host-approved commands.
+- [ ] Add serialization and settings-migration tests.
+- [ ] Add clear warnings for host-approved commands.
 
-### P2.5 Per-device profiles
+### 5.2 Remaining per-device preferences
 
-- [ ] Store settings per paired device on host.
-  - Partial: host stores permission overrides and pointer speed per paired device; mobile stores remaining UI/input preferences locally.
-- [ ] Store preferred mode per device.
-- [ ] Store layout preference per device on host.
+- [ ] Store the preferred mobile mode per paired device.
+- [ ] Store host-managed layout preferences per paired device.
+- [ ] Define migration behavior when new per-device settings are introduced.
 
 ---
 
-## P2 - Trust, distribution, and marketing
+## 6. Public project and release trust
 
-### P2.6 Website and public documentation
+### 6.1 Website and public documentation
 
-- [ ] Add demo GIF/video:
+- [ ] Add a demo GIF or video covering:
   - [ ] QR scan.
-  - [ ] Cursor move.
+  - [ ] Cursor movement.
   - [ ] Typing.
   - [ ] Split mode.
-  - [ ] Media remote.
-- [ ] Add comparison table:
-  - [ ] Voltura Air.
-  - [ ] Unified Remote.
-  - [ ] Remote Mouse.
-  - [ ] KDE Connect.
-  - [ ] Chrome Remote Desktop.
-- [ ] Add full public FAQ.
-  - Partial: `docs/site/index.php` has a connection FAQ covering network reachability, stale QR codes, changed IP/port, VPN/guest Wi-Fi, diagnostics, and stale home-screen app shells. It does not yet cover every product/privacy/device-management question.
-- [ ] Add full privacy page.
-  - Partial: `docs/site/index.php` includes local-network privacy copy. A standalone maintained privacy page is still open if the public site needs one.
+  - [ ] Remote mode.
+- [ ] Add a comparison table covering relevant alternatives without overstating Voltura Air.
+- [ ] Expand the public FAQ to cover privacy, permissions, device management, installation, and common recovery cases.
+- [ ] Add a standalone privacy page if the public site needs one.
+- [ ] Add a README roadmap section that links to this file.
 
-### P2.7 Release trust
+### 6.2 Release trust and distribution
 
-- [ ] Investigate code-signing certificate cost/options.
-- [ ] Add signed installer when practical.
 - [ ] Add SHA256 checksums to releases.
-- [ ] Add release notes template.
-- [ ] Add "known limitations" section per release.
-- [ ] Add update notification in host.
-- [ ] Later:
-  - [ ] Auto-update.
-  - [ ] Microsoft Store distribution.
+- [ ] Add a release-notes template.
+- [ ] Add a known-limitations section to each release.
+- [ ] Add an update notification in the Windows host.
+- [ ] Investigate code-signing certificate cost and maintenance.
+- [ ] Sign installer and executable assets when practical.
+- [ ] Consider auto-update only after update notification and release integrity are reliable.
+- [ ] Consider Microsoft Store distribution only if maintenance and signing requirements are justified.
 
-### P2.8 Open-source growth
+### 6.3 Open-source project setup
 
-- [ ] Add issue templates:
+- [ ] Add issue templates for:
   - [ ] Bug report.
   - [ ] Feature request.
   - [ ] Connection problem.
-- [ ] Add labels:
-  - [ ] good first issue.
-  - [ ] pairing.
-  - [ ] keyboard.
-  - [ ] trackpad.
-  - [ ] website.
-  - [ ] security.
-  - [ ] docs.
-- [x] Add architecture overview and dependency diagram (`docs/architecture.md`).
-- [ ] Add "roadmap" section that links to this TODO.
+- [ ] Add and maintain labels for:
+  - [ ] Good first issue.
+  - [ ] Pairing.
+  - [ ] Keyboard.
+  - [ ] Trackpad.
+  - [ ] Website.
+  - [ ] Security.
+  - [ ] Documentation.
 
 ---
 
-## P3 - Future / experimental
+## 7. Future and experimental work
 
-### P3.1 Wake-on-LAN
+Do not start these items until the core input, connection, and remote experience is stable.
 
-- [ ] Add setting to store MAC address.
-- [ ] Add WOL packet sender.
-- [ ] Add "Wake PC" button on saved PC profile.
-- [ ] Add docs:
-  - [ ] BIOS/UEFI requirement.
-  - [ ] Network adapter requirement.
-  - [ ] Windows power settings.
-- [ ] Add clear warning that WOL depends on hardware/network setup.
+### 7.1 Wake-on-LAN
 
-### P3.2 Screen viewer
+- [ ] Add a setting to store a PC MAC address.
+- [ ] Add a Wake-on-LAN packet sender.
+- [ ] Add a Wake PC action to saved PC profiles.
+- [ ] Document BIOS or UEFI, network adapter, and Windows power requirements.
+- [ ] Explain clearly that Wake-on-LAN depends on hardware and network configuration.
 
-Do not start until core features are solid.
+### 7.2 Screen preview
 
-- [ ] Research feasibility:
-  - [ ] Capture API.
-  - [ ] Encoding.
-  - [ ] Browser display latency.
-  - [ ] Privacy warning.
-  - [ ] Local network bandwidth.
-- [ ] Decide if feature should be:
-  - [ ] Still image refresh.
-  - [ ] Low-FPS screen preview.
-  - [ ] Full remote desktop.
-- [ ] Add explicit opt-in.
-- [ ] Add red privacy warning in host.
-- [ ] Avoid internet relay.
+- [ ] Research Windows capture APIs, encoding, latency, browser rendering, privacy, and LAN bandwidth.
+- [ ] Decide between still-image refresh, low-FPS preview, or a broader remote-desktop feature.
+- [ ] Require explicit opt-in and prominent host-side privacy indication.
+- [ ] Keep the feature local-network only.
 
-### P3.3 File transfer
+### 7.3 File transfer
 
-- [ ] Start with small explicit sends only.
-- [ ] Consider phone-to-PC file upload.
-- [ ] Consider PC download folder.
-- [ ] Add file size limits.
-- [ ] Add malware/security warning.
-- [ ] Avoid automatic sync.
+- [ ] Start with small, explicit phone-to-PC sends only.
+- [ ] Define a safe PC download folder.
+- [ ] Add file-size limits.
+- [ ] Add malware and security warnings.
+- [ ] Avoid automatic file synchronization.
 
-### P3.4 Gyroscope / air mouse
+### 7.4 Gyroscope or air mouse
 
-- [ ] Prototype with browser device motion APIs.
+- [ ] Prototype browser device-motion input.
 - [ ] Check iOS permission requirements.
-- [ ] Check Android behavior.
-- [ ] Add calibration screen.
-- [ ] Treat as experimental until it feels good.
+- [ ] Check Android browser behavior.
+- [ ] Add calibration.
+- [ ] Keep the feature experimental until it is reliable.
 
-### P3.5 Gamepad mode
+### 7.5 Gamepad mode
 
-- [ ] Add basic virtual controller layout.
-- [ ] Evaluate Windows input injection limitations.
-- [ ] Avoid promising serious gaming quality unless latency and compatibility are proven.
+- [ ] Prototype a basic virtual controller layout.
+- [ ] Evaluate Windows controller-input injection options and limitations.
+- [ ] Avoid promising gaming-grade latency or compatibility until proven.
 
-### P3.6 Native mobile apps
+### 7.6 Native mobile apps
 
-Only consider if PWA limitations block important features.
-
-- [ ] Identify exact limitation first:
-  - [ ] Physical volume buttons.
-  - [ ] Background reconnect.
-  - [ ] Share target.
-  - [ ] Clipboard access.
-  - [ ] Device motion permissions.
-- [ ] Decide whether a thin native wrapper is enough.
-- [ ] Avoid maintaining full separate native apps unless adoption justifies it.
+- [ ] Identify the exact PWA limitation that would justify native work.
+- [ ] Evaluate whether a thin native wrapper is sufficient.
+- [ ] Avoid separate full iOS and Android apps unless adoption clearly justifies the maintenance cost.
 
 ---
 
 ## Recommended next issue order
 
-3. Add dedicated Paste Text to PC screen with warning, long-text confirm, snippets, and send-enter option.
-4. Polish split mode as a signature feature: tests, tablet/phone manual verification, and optional layout settings.
-5. Add presentation mode.
-6. Add website/FAQ/privacy page and demo assets.
-7. Add release trust improvements: checksums, release notes template, known limitations.
-8. Add issue templates and labels.
+1. Add keyboard compatibility tests and improve keyboard help text.
+2. Finish configurable split-mode layout and breakpoint coverage.
+3. Add the dedicated Paste Text to PC screen.
+4. Add Presentation mode.
+5. Add focused-window and browser helper controls.
+6. Expand the public FAQ, privacy information, and demo assets.
+7. Add release checksums, release-note structure, and known limitations.
+8. Add issue templates and project labels.
 9. Investigate code signing.
-10. Later: Wake-on-LAN, screen preview, file transfer, gyroscope mouse, gamepad mode.
+10. Evaluate future features only after the core roadmap is stable.
 
 ---
 
-## Suggested GitHub milestones
+## Suggested milestones
 
-### Milestone 3: Productivity
+### Milestone 1: Input and layout
 
+- Keyboard compatibility and clarity.
+- Trackpad compatibility coverage.
+- Split-mode settings and tests.
+
+### Milestone 2: Productivity
+
+- Paste Text to PC.
 - Presentation mode.
-- Dedicated text/clipboard transfer.
-- Shortcut panels.
-- Per-device preferences.
+- App, window, and browser helpers.
+- Custom shortcut panels.
+- Remaining per-device preferences.
 
-### Milestone 4: Public trust
+### Milestone 3: Public trust
 
-- Code signing investigation.
-- Release checksums.
-- Privacy page.
-- Troubleshooting docs.
+- Website demos and expanded public documentation.
+- Release checksums and release-note structure.
 - Update notification.
+- Code-signing investigation.
+- Issue templates and labels.
 
-### Milestone 5: Experiments
+### Milestone 4: Experiments
 
 - Wake-on-LAN.
 - Screen preview.
 - File transfer.
-- Gyroscope mouse.
+- Gyroscope or air mouse.
 - Gamepad mode.
+- Native mobile apps.

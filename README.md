@@ -6,6 +6,8 @@ Use it as a trackpad, keyboard, dictation surface, and media remote — includin
 
 ## Product promise
 
+Remote mode includes an Fn panel for common Windows window actions and browser tab/page shortcuts, with grouped visibility settings to keep the panel compact and a landscape layout that preserves volume and navigation controls.
+
 - Control your Windows PC from any phone, tablet, or touch browser.
 - No mobile app-store install required.
 - Works on your own Wi-Fi/LAN. No account. No cloud needed.

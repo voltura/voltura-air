@@ -13,7 +13,6 @@ import {
   Play,
   Power,
   Rewind,
-  Search,
   SkipBack,
   SkipForward,
   SquareX,
@@ -26,6 +25,7 @@ import { remoteShortcutMaps, type RemoteShortcut } from "./remote/remoteShortcut
 import { getRemoteModeCopy } from "./remote/remoteModeCopy";
 import { RemoteButton, type RepeatablePressProps } from "./remote/RemoteButton";
 import { isInteractiveRemoteTarget, roundRemoteDelta } from "./remote/remotePointerMath";
+import { RemoteUtilityPanel } from "./remote/RemoteUtilityPanel";
 
 const repeatStartDelayMs = 400;
 const repeatIntervalMs = 55;
@@ -521,34 +521,13 @@ export function RemoteMode({
         </button>
       </div>
 
-      <div id={utilityPanelId} className="remote-section remote-utility-section">
-        <div className="remote-section-title">
-          <span>Windows</span>
-          <small>Fast helper keys for couch use.</small>
-        </div>
-        <div className="remote-utility-grid" aria-label="Windows helper controls">
-          <RemoteButton label="Start or search" onClick={() => sendSpecial("Win")}>
-            <Search aria-hidden="true" />
-            <span>Start</span>
-          </RemoteButton>
-          <RemoteButton label="Alt Tab" onClick={() => sendSpecial("Tab", ["Alt"])}>
-            <span>Alt Tab</span>
-          </RemoteButton>
-          <RemoteButton label="Browser back" onClick={() => sendSpecial("BrowserBack")}>
-            <CornerDownLeft aria-hidden="true" />
-            <span>Back</span>
-          </RemoteButton>
-        </div>
-        <button
-          type="button"
-          className="remote-fn-button remote-floating-fn"
-          aria-controls={utilityPanelId}
-          aria-expanded={showUtilityPanel}
-          onClick={() => setShowUtilityPanel(false)}
-        >
-          Main
-        </button>
-      </div>
+      <RemoteUtilityPanel
+        id={utilityPanelId}
+        isOpen={showUtilityPanel}
+        onClose={() => setShowUtilityPanel(false)}
+        remoteSettings={remoteSettings}
+        sendSpecial={sendSpecial}
+      />
     </section>
   );
 }

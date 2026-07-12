@@ -213,6 +213,12 @@
 
 .remote-utility-section {
   display: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.remote-helper-section-title {
+  margin-top: 8px;
 }
 
 .remote-mode.remote-utility-open .remote-utility-section {
@@ -427,6 +433,34 @@
 
   .remote-media-section {
     grid-row: 1 / span 2;
+  }
+
+  .remote-mode.remote-utility-open {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .remote-mode.remote-utility-open .remote-volume-section,
+  .remote-mode.remote-utility-open .remote-navigation-section {
+    display: grid;
+  }
+
+  .remote-mode.remote-utility-open .remote-navigation-section .remote-floating-fn {
+    display: none;
+  }
+
+  .remote-mode.remote-utility-open .remote-utility-section {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    align-content: start;
+    padding-bottom: 7px;
+  }
+
+  .remote-volume-grid button,
+  .remote-utility-grid button {
+    gap: 3px;
+    padding-inline: 4px;
+    font-size: 0.86rem;
   }
 
   .remote-primary-grid button {

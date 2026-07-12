@@ -21,7 +21,7 @@ Voltura Air turns a phone, tablet, or browser-capable device into a wireless tra
 - Local-network design: no account system, no cloud relay, and no internet input forwarding.
 - The Windows host serves the mobile app to trusted devices on the same Wi-Fi or LAN.
 - The mobile web app includes Trackpad, Keyboard, Remote, Dictate, and a tablet split mode that works as a combined couch keyboard and trackpad.
-- Remote mode includes media, volume, YouTube, Kodi, browser back, Start, Alt+Tab, and menu navigation controls.
+- Remote mode includes media, volume, YouTube, Kodi, menu navigation, Windows window actions, and browser tab/page controls; phone landscape keeps volume and navigation visible beside the helper panel.
 - Windows release builds are not code-signed, so Windows may show an unknown publisher or SmartScreen warning.
 
 - It detects stale connections and input delivery failures, then shows unavailable/retrying instead of leaving dead controls on screen.

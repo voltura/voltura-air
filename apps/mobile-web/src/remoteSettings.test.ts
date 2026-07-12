@@ -8,6 +8,8 @@ describe("normalizeRemoteSettings", () => {
       navigationRing: true,
       mode: "standard",
       openYoutube: true,
+      showBrowserHelpers: true,
+      showWindowHelpers: true,
       startKodi: true
     });
   });
@@ -27,6 +29,13 @@ describe("normalizeRemoteSettings", () => {
     });
   });
 
+  it("preserves grouped helper visibility settings", () => {
+    expect(normalizeRemoteSettings({ showBrowserHelpers: false, showWindowHelpers: false })).toMatchObject({
+      showBrowserHelpers: false,
+      showWindowHelpers: false
+    });
+  });
+
   it("migrates enabled legacy YouTube mode settings", () => {
     expect(normalizeRemoteSettings({ youtubeMode: true }).mode).toBe("youtube");
   });
@@ -42,6 +51,8 @@ describe("normalizeRemoteSettings", () => {
         navigationRing: true,
         mode: "kodi",
         openYoutube: true,
+        showBrowserHelpers: true,
+        showWindowHelpers: true,
         startKodi: true
       }
     });
@@ -54,6 +65,8 @@ describe("normalizeRemoteSettings", () => {
         navigationRing: false,
         mode: "youtube",
         openYoutube: true,
+        showBrowserHelpers: true,
+        showWindowHelpers: true,
         startKodi: true
       }
     });

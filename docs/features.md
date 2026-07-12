@@ -303,11 +303,13 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Optional legacy D-pad with OK.
 - Start.
 - Alt+Tab.
-- Browser Back.
-- Compact phone layouts keep the main remote surface within the viewport and move Windows helper controls behind a lower-right Fn switch.
+- Show desktop, close the focused window, and minimize the focused window.
+- Browser Back, new tab, close tab, reopen closed tab, next/previous tab, and reload.
+- Compact phone layouts keep the main remote surface within the viewport and move Windows and browser helper controls behind an Fn switch. In phone landscape, helpers replace the media column while volume and navigation remain visible.
 - Remote settings:
   - navigation ring.
   - Remote mode: Standard, YouTube, or Kodi.
+  - grouped visibility toggles for extra window actions and extra browser tab/page actions; Start, Alt+Tab, and Browser Back remain available as essential helpers.
   - optional client-local launch toggles for Open YouTube and Start Kodi when the host allows paired devices to start applications.
   - selecting YouTube or Kodi from settings closes settings and opens the Remote screen for that mode.
 

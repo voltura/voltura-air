@@ -106,6 +106,16 @@ describe("SettingsDrawer", () => {
     expect(updateRemoteSetting).toHaveBeenCalledExactlyOnceWith("navigationRing", false);
   });
 
+  it("updates grouped helper visibility settings", () => {
+    const updateRemoteSetting = vi.fn();
+    render(<SettingsDrawer {...baseProps} updateRemoteSetting={updateRemoteSetting} />);
+
+    fireEvent.click(screen.getByText("Remote"));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Browser tabs and reload" }));
+
+    expect(updateRemoteSetting).toHaveBeenCalledExactlyOnceWith("showBrowserHelpers", false);
+  });
+
   it("updates split mode layout settings", () => {
     const updateTrackpadSetting = vi.fn();
     render(<SettingsDrawer {...baseProps} updateTrackpadSetting={updateTrackpadSetting} />);

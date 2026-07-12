@@ -6,6 +6,8 @@ export type RemoteSettings = {
   navigationRing: boolean;
   mode: RemoteModeId;
   openYoutube: boolean;
+  showBrowserHelpers: boolean;
+  showWindowHelpers: boolean;
   startKodi: boolean;
 };
 
@@ -13,6 +15,8 @@ export const defaultRemoteSettings: RemoteSettings = {
   navigationRing: true,
   mode: "standard",
   openYoutube: true,
+  showBrowserHelpers: true,
+  showWindowHelpers: true,
   startKodi: true
 };
 
@@ -21,6 +25,8 @@ export function normalizeRemoteSettings(value: Partial<RemoteSettings> & { youtu
     navigationRing: typeof value.navigationRing === "boolean" ? value.navigationRing : defaultRemoteSettings.navigationRing,
     mode: normalizeRemoteMode(value.mode, value.youtubeMode),
     openYoutube: typeof value.openYoutube === "boolean" ? value.openYoutube : defaultRemoteSettings.openYoutube,
+    showBrowserHelpers: typeof value.showBrowserHelpers === "boolean" ? value.showBrowserHelpers : defaultRemoteSettings.showBrowserHelpers,
+    showWindowHelpers: typeof value.showWindowHelpers === "boolean" ? value.showWindowHelpers : defaultRemoteSettings.showWindowHelpers,
     startKodi: typeof value.startKodi === "boolean" ? value.startKodi : defaultRemoteSettings.startKodi
   };
 }

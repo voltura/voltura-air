@@ -16,27 +16,7 @@ Prioritize reliability, usability, trust, and visible user value. Manual and rea
 
 ## 2. Remote and Windows controls
 
-### 2.1 App, window, and browser helpers
-
-- [ ] Add Show desktop.
-- [ ] Add Close focused window.
-- [ ] Add Minimize focused window.
-- [ ] Add browser shortcuts for:
-  - [ ] New tab.
-  - [ ] Close tab.
-  - [ ] Reopen closed tab.
-  - [ ] Next tab.
-  - [ ] Previous tab.
-  - [ ] Reload.
-- [ ] Add settings for choosing which helper buttons are visible.
-
-Optional verification:
-
-- YouTube and another streaming site in a browser.
-- VLC or Windows Media Player.
-- PowerPoint.
-
-### 2.2 Power and session controls
+### 2.1 Power and session controls
 
 - [ ] Add Lock PC.
 - [ ] Investigate a safe Turn off display action.
@@ -48,7 +28,7 @@ Optional verification:
 - [ ] Extend host permissions so every new power action is explicitly controlled.
 - [ ] Add clear user-facing documentation for enabling and disabling power controls.
 
-### 2.3 Configurable app launch
+### 2.2 Configurable app launch
 
 - [ ] Add host-configured launch buttons for common applications.
 - [ ] Support optional presets for:
@@ -251,12 +231,11 @@ Do not start these items until the core input, connection, and remote experience
 1. Add keyboard compatibility tests and improve keyboard help text.
 2. Add the dedicated Paste Text to PC screen.
 3. Add Presentation mode.
-4. Add focused-window and browser helper controls.
-5. Expand the public FAQ, privacy information, and demo assets.
-6. Add release checksums, release-note structure, and known limitations.
-7. Add issue templates and project labels.
-8. Investigate code signing.
-9. Evaluate future features only after the core roadmap is stable.
+4. Expand the public FAQ, privacy information, and demo assets.
+5. Add release checksums, release-note structure, and known limitations.
+6. Add issue templates and project labels.
+7. Investigate code signing.
+8. Evaluate future features only after the core roadmap is stable.
 
 ---
 
@@ -271,7 +250,6 @@ Do not start these items until the core input, connection, and remote experience
 
 - Paste Text to PC.
 - Presentation mode.
-- App, window, and browser helpers.
 - Custom shortcut panels.
 - Remaining per-device preferences.
 

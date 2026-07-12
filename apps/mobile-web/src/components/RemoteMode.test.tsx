@@ -36,8 +36,17 @@ describe("RemoteMode", () => {
     ["Mute PC", "VolumeMute", undefined],
     ["Volume up", "VolumeUp", undefined],
     ["Start or search", "Win", undefined],
-    ["Alt Tab", "Tab", ["Alt"]],
-    ["Browser back", "BrowserBack", undefined]
+    ["Alt+Tab", "Tab", ["Alt"]],
+    ["Show desktop", "D", ["Win"]],
+    ["Close focused window", "F4", ["Alt"]],
+    ["Minimize focused window", "ArrowDown", ["Win"]],
+    ["Browser back", "BrowserBack", undefined],
+    ["New tab", "T", ["Control"]],
+    ["Close tab", "W", ["Control"]],
+    ["Reopen closed tab", "T", ["Control", "Shift"]],
+    ["Next tab", "Tab", ["Control"]],
+    ["Previous tab", "Tab", ["Control", "Shift"]],
+    ["Reload page", "R", ["Control"]]
   ] as const)("sends %s", (buttonName, key, modifiers) => {
     const sendSpecial = vi.fn();
     renderRemote({ sendSpecial });
@@ -189,6 +198,18 @@ describe("RemoteMode", () => {
     fireEvent.click(screen.getByRole("button", { name: "Main" }));
 
     expect(remoteMode.classList.contains("remote-utility-open")).toBe(false);
+  });
+
+  it("keeps essential helpers while hiding optional helper groups", () => {
+    renderRemote({
+      remoteSettings: { ...defaultRemoteSettings, showBrowserHelpers: false, showWindowHelpers: false }
+    });
+
+    expect(screen.getByRole("button", { name: "Start or search" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Alt+Tab" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Browser back" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Show desktop" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "New tab" })).toBeNull();
   });
 });
 

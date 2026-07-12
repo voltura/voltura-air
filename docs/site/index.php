@@ -108,7 +108,7 @@
         </article>
         <article>
           <h2>Couch remote</h2>
-          <p>Control media playback, fullscreen, volume, YouTube, Kodi, browser back, Start, Alt+Tab, and menu navigation without reaching for a keyboard.</p>
+          <p>Control media playback, fullscreen, volume, YouTube, Kodi, focused Windows apps, and browser tabs without reaching for a keyboard. Landscape keeps volume and navigation beside the helper panel.</p>
         </article>
         <article>
           <h2>Tablet split mode</h2>

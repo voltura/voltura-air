@@ -367,6 +367,18 @@ export function RemoteSettingsSection({
         </div>
       </div>
 
+      <div className="setting-group">
+        <span>Extra helper buttons</span>
+        <label className="toggle-row">
+          <span>Window actions</span>
+          <input type="checkbox" checked={remoteSettings.showWindowHelpers} onChange={(event) => updateRemoteSetting("showWindowHelpers", event.target.checked)} />
+        </label>
+        <label className="toggle-row">
+          <span>Browser tabs and reload</span>
+          <input type="checkbox" checked={remoteSettings.showBrowserHelpers} onChange={(event) => updateRemoteSetting("showBrowserHelpers", event.target.checked)} />
+        </label>
+      </div>
+
       {supportsRemoteLaunch && (
         <>
           <label className="toggle-row">

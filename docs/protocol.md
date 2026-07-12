@@ -94,7 +94,7 @@ Successful response:
     "remoteLaunch": true
   },
   "host": {
-    "hostVersion": "0.2.0",
+    "hostVersion": "1.2.3",
     "pcName": "WINDOWS-PC",
     "defaultRemoteMode": "standard",
     "selectedAdapterName": "Wi-Fi - Intel(R) Wi-Fi 6 AX200",
@@ -128,7 +128,7 @@ Host response:
     "remoteLaunch": true
   },
   "host": {
-    "hostVersion": "0.2.0",
+    "hostVersion": "1.2.3",
     "pcName": "WINDOWS-PC",
     "defaultRemoteMode": "standard",
     "selectedAdapterName": "Wi-Fi - Intel(R) Wi-Fi 6 AX200",

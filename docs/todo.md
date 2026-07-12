@@ -263,7 +263,7 @@ Start with phone-to-PC only.
   - [ ] website.
   - [ ] security.
   - [ ] docs.
-- [ ] Add architecture overview diagram.
+- [x] Add architecture overview and dependency diagram (`docs/architecture.md`).
 - [ ] Add "roadmap" section that links to this TODO.
 
 ---

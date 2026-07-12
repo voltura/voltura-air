@@ -1,0 +1,294 @@
+.command-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
+}
+
+.keyboard-primary-keys {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-areas:
+    "esc tab enter backspace"
+    "win space space delete";
+}
+
+.keyboard-primary-keys.has-sleep-key {
+  grid-template-areas:
+    "esc tab enter backspace"
+    "win space space delete"
+    "sleep sleep sleep sleep";
+}
+
+.keyboard-primary-keys button {
+  min-width: 0;
+  min-height: 48px;
+  padding-inline: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.key-esc {
+  grid-area: esc;
+}
+
+.key-tab {
+  grid-area: tab;
+}
+
+.key-win {
+  grid-area: win;
+}
+
+.key-space {
+  grid-area: space;
+}
+
+.key-enter {
+  grid-area: enter;
+}
+
+.key-backspace {
+  grid-area: backspace;
+}
+
+.key-delete {
+  grid-area: delete;
+}
+
+.keyboard-send-row {
+  display: grid;
+}
+
+.keyboard-send-row .key-send {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+}
+
+.key-sleep {
+  grid-area: sleep;
+}
+
+.keyboard-mode button,
+.dictation-mode button {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.function-key-row {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.function-key-row button {
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 4px;
+  font-size: 0.86rem;
+}
+
+.keyboard-shortcut-groups {
+  display: grid;
+  gap: 8px;
+}
+
+.shortcut-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.shortcut-row button,
+.app-switch-row button {
+  min-width: 0;
+  min-height: 48px;
+  padding-inline: 8px;
+}
+
+.app-switch-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.arrow-pad {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 56px));
+  grid-template-areas:
+    ". up ."
+    "left down right";
+  width: min(100%, 184px);
+  justify-content: center;
+  justify-self: center;
+  gap: 8px;
+}
+
+.arrow-pad button {
+  width: 100%;
+  min-width: 0;
+  height: 48px;
+  padding: 0;
+  font-size: 0.78rem;
+}
+
+.arrow-up {
+  grid-area: up;
+}
+
+.arrow-left {
+  grid-area: left;
+}
+
+.arrow-down {
+  grid-area: down;
+}
+
+.arrow-right {
+  grid-area: right;
+}
+
+.keyboard-navigation-keys {
+  display: grid;
+  width: min(100%, 280px);
+  justify-content: center;
+  justify-self: center;
+  gap: 8px;
+}
+
+.navigation-key-block {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 64px));
+  grid-template-areas: "home page-up page-down end";
+  gap: 8px;
+}
+
+.navigation-key-block button {
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 4px;
+  font-size: 0.78rem;
+}
+
+.nav-home {
+  grid-area: home;
+}
+
+.nav-page-up {
+  grid-area: page-up;
+}
+
+.nav-page-down {
+  grid-area: page-down;
+}
+
+.nav-end {
+  grid-area: end;
+}
+
+.hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+@media (min-width: 720px) {
+  .app-shell {
+    padding: 18px;
+    gap: 14px;
+  }
+
+  .trackpad-surface > svg {
+    width: 54px;
+    height: 54px;
+  }
+}
+
+@media (orientation: landscape) {
+  .app-shell {
+    grid-template-rows: auto auto minmax(0, 1fr);
+    overflow-y: hidden;
+  }
+
+  .keyboard-primary-keys {
+    grid-template-columns: 0.8fr 0.8fr 0.8fr 1.5fr 1fr 1.35fr 1fr;
+    grid-template-areas: "esc tab win space enter backspace delete";
+  }
+
+  .keyboard-primary-keys.has-sleep-key {
+    grid-template-columns: 0.8fr 0.8fr 0.8fr 1.5fr 1fr 1.35fr 1fr minmax(0, 1fr);
+    grid-template-areas: "esc tab win space enter backspace delete sleep";
+  }
+
+  .keyboard-navigation-keys {
+    width: auto;
+    grid-template-columns: auto auto;
+    align-items: end;
+  }
+
+  .navigation-key-block {
+    grid-template-columns: repeat(2, minmax(0, 64px));
+    grid-template-areas:
+      "home page-up"
+      "page-down end";
+    align-self: end;
+  }
+
+  .shortcut-row {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .dictation-mode {
+    width: 100%;
+    grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      "status editor"
+      "actions editor";
+  }
+
+  .dictation-status {
+    align-self: start;
+  }
+
+  .dictation-actions {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+  }
+
+  .dictation-actions button {
+    min-height: 54px;
+  }
+}
+
+@media (max-height: 430px) and (orientation: landscape) {
+  .app-shell {
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .top-mode-tabs {
+    display: none;
+  }
+
+  .compact-mode-button {
+    display: inline-flex;
+  }
+
+  .mode-selector-popover {
+    top: max(58px, calc(env(safe-area-inset-top) + 48px));
+    left: max(12px, env(safe-area-inset-left));
+  }
+
+  .keyboard-mode {
+    gap: 8px;
+  }
+
+  .keyboard-primary-keys button,
+  .shortcut-row button,
+  .app-switch-row button,
+  .navigation-key-block button,
+  .arrow-pad button {
+    min-height: 44px;
+    height: 44px;
+  }
+}

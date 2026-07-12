@@ -1,0 +1,73 @@
+import { useCallback, useRef, useState, type RefObject } from "react";
+import type { AudioStateMessage, HostStatusMetadata, ServerCapabilities } from "../protocol";
+import {
+  hasGestureDebugCapability,
+  hasInputAckCapability,
+  hasRemoteLaunchCapability,
+  hasSleepCapability,
+  hasVolumeCapability,
+  normalizeHostStatus
+} from "./connectionProtocol";
+
+export function useConnectionRuntimeState(pendingInputAcksRef: RefObject<Map<number, number>>) {
+  const [audioState, setAudioState] = useState<AudioStateMessage | null>(null);
+  const [supportsGestureDebug, setSupportsGestureDebug] = useState(false);
+  const [supportsSleep, setSupportsSleep] = useState(false);
+  const [supportsVolumeControl, setSupportsVolumeControl] = useState(false);
+  const [supportsRemoteLaunch, setSupportsRemoteLaunch] = useState(false);
+  const [hostStatus, setHostStatus] = useState<HostStatusMetadata | null>(null);
+  const supportsVolumeControlRef = useRef(false);
+  const supportsInputAckRef = useRef(false);
+
+  const clearRuntimeState = useCallback(() => {
+    pendingInputAcksRef.current.clear();
+    setAudioState(null);
+    setSupportsGestureDebug(false);
+    setSupportsSleep(false);
+    setSupportsVolumeControl(false);
+    setSupportsRemoteLaunch(false);
+    setHostStatus(null);
+    supportsVolumeControlRef.current = false;
+    supportsInputAckRef.current = false;
+  }, [pendingInputAcksRef]);
+
+  const updateCapabilities = useCallback((capabilities: ServerCapabilities | undefined, connected = true) => {
+    const nextSupportsVolumeControl = connected && hasVolumeCapability(capabilities);
+    const nextSupportsInputAck = connected && hasInputAckCapability(capabilities);
+    setSupportsGestureDebug(connected && hasGestureDebugCapability(capabilities));
+    setSupportsSleep(connected && hasSleepCapability(capabilities));
+    setSupportsVolumeControl(nextSupportsVolumeControl);
+    setSupportsRemoteLaunch(connected && hasRemoteLaunchCapability(capabilities));
+    supportsVolumeControlRef.current = nextSupportsVolumeControl;
+    supportsInputAckRef.current = nextSupportsInputAck;
+    if (!nextSupportsVolumeControl) {
+      setAudioState(null);
+    }
+    if (!nextSupportsInputAck) {
+      pendingInputAcksRef.current.clear();
+    }
+  }, [pendingInputAcksRef]);
+
+  const updateHostStatus = useCallback((metadata: HostStatusMetadata | undefined) => {
+    const normalized = normalizeHostStatus(metadata);
+    if (normalized) {
+      setHostStatus(normalized);
+    }
+  }, []);
+
+  return {
+    audioState,
+    clearRuntimeState,
+    hostStatus,
+    setAudioState,
+    setHostStatus,
+    supportsGestureDebug,
+    supportsInputAckRef,
+    supportsRemoteLaunch,
+    supportsSleep,
+    supportsVolumeControl,
+    supportsVolumeControlRef,
+    updateCapabilities,
+    updateHostStatus
+  };
+}

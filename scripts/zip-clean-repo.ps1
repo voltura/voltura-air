@@ -1,6 +1,7 @@
 param(
     [string]$OutputZip = "",
-    [string]$Branch = ""
+    [string]$Branch = "",
+    [switch]$Bare
 )
 
 $ErrorActionPreference = "Stop"
@@ -15,6 +16,36 @@ function Invoke-Git {
     if ($LASTEXITCODE -ne 0) {
         throw "git $($Arguments -join ' ') failed with exit code $LASTEXITCODE."
     }
+}
+
+function Remove-BareSourceAssets {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$SourceRoot
+    )
+
+    $removedCount = 0
+    $docsSiteAssets = Join-Path $SourceRoot "docs\site\assets"
+    if (Test-Path $docsSiteAssets) {
+        $imageExtensions = @(".bmp", ".gif", ".ico", ".jpeg", ".jpg", ".png", ".svg", ".webp")
+        $imageFiles = @(
+            Get-ChildItem -Path $docsSiteAssets -Recurse -File |
+                Where-Object { $imageExtensions -contains $_.Extension.ToLowerInvariant() }
+        )
+
+        foreach ($imageFile in $imageFiles) {
+            Remove-Item $imageFile.FullName -Force
+            $removedCount++
+        }
+    }
+
+    $installerWelcomeImage = Join-Path $SourceRoot "installer\assets\installer-welcome.bmp"
+    if (Test-Path $installerWelcomeImage) {
+        Remove-Item $installerWelcomeImage -Force
+        $removedCount++
+    }
+
+    return $removedCount
 }
 
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
@@ -39,11 +70,13 @@ if ($Branch -eq "HEAD") {
     throw "The repository is in detached HEAD state. Pass -Branch explicitly or check out a branch first."
 }
 
+$sourceKind = if ($Bare) { "bare-source" } else { "source" }
+
 if ([string]::IsNullOrWhiteSpace($OutputZip)) {
     $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $safeBranch = $Branch -replace '[\\/:*?"<>|]', '_'
     $outputDir = Join-Path $repoRoot "artifacts\source"
-    $OutputZip = Join-Path $outputDir "$repoName-source-$safeBranch-$timestamp.zip"
+    $OutputZip = Join-Path $outputDir "$repoName-$sourceKind-$safeBranch-$timestamp.zip"
 }
 
 $OutputZip = [System.IO.Path]::GetFullPath($OutputZip)
@@ -57,6 +90,7 @@ $tempClone = Join-Path $tempRoot $repoName
 
 Write-Host "Repo root: $repoRoot"
 Write-Host "Branch:    $Branch"
+Write-Host "Mode:      $sourceKind"
 Write-Host "Output:    $OutputZip"
 Write-Host "Temp dir:  $tempClone"
 
@@ -78,6 +112,11 @@ try {
     $gitDir = Join-Path $tempClone ".git"
     if (Test-Path $gitDir) {
         Remove-Item $gitDir -Recurse -Force
+    }
+
+    if ($Bare) {
+        $removedCount = Remove-BareSourceAssets -SourceRoot $tempClone
+        Write-Host "Bare source exclusions removed $removedCount committed asset file(s)."
     }
 
     if (Test-Path $OutputZip) {

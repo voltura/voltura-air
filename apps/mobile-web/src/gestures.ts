@@ -94,7 +94,7 @@ export class GestureRecognizer {
     this.smoothedPointerDelta = null;
   }
 
-  move(points: TouchPoint[], time: number, settings: TrackpadSettings = defaultTrackpadSettings): GestureOutput[] {
+  move(points: TouchPoint[], _time: number, settings: TrackpadSettings = defaultTrackpadSettings): GestureOutput[] {
     if (this.mode === "cancelled" || this.mode === "idle") {
       return [];
     }

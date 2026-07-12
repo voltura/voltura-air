@@ -1,0 +1,50 @@
+import { describe, expect, it } from "vitest";
+import type { ClientMessage } from "../protocol";
+import {
+  getPcDisconnectedMessage,
+  normalizeHostStatus,
+  shouldTrackInputAck,
+  trimPendingInputAcks
+} from "./connectionProtocol";
+
+describe("connection protocol policy", () => {
+  it("throttles movement acknowledgements without throttling discrete input", () => {
+    const move = { type: "pointer.move", dx: 1, dy: 2 } satisfies ClientMessage;
+    const key = { type: "keyboard.special", key: "Enter" } satisfies ClientMessage;
+
+    expect(shouldTrackInputAck(move, 1_000, 900)).toBe(false);
+    expect(shouldTrackInputAck(move, 1_100, 900)).toBe(true);
+    expect(shouldTrackInputAck(key, 1_000, 999)).toBe(true);
+  });
+
+  it("bounds pending acknowledgement history to the newest 64 entries", () => {
+    const pending = new Map(Array.from({ length: 70 }, (_, index) => [index + 1, index]));
+
+    trimPendingInputAcks(pending);
+
+    expect(pending.size).toBe(64);
+    expect([...pending.keys()][0]).toBe(7);
+    expect([...pending.keys()].at(-1)).toBe(70);
+  });
+
+  it("normalizes host metadata without exposing invalid values", () => {
+    expect(normalizeHostStatus({
+      defaultRemoteMode: "unknown" as never,
+      developerMode: false,
+      hostVersion: " 0.2.0 ",
+      pointerSpeed: 500,
+      selectedPort: Number.NaN
+    })).toEqual({
+      defaultRemoteMode: "standard",
+      hostVersion: "0.2.0",
+      pointerSpeed: 100
+    });
+  });
+
+  it("does not append a second retry suffix to disconnect feedback", () => {
+    const pc = { id: "pc", url: "https://pc.example", name: "Office", customName: true };
+
+    expect(getPcDisconnectedMessage(pc, "Connection lost. Retrying...")).toBe("Connection lost. Retrying...");
+    expect(getPcDisconnectedMessage(pc, "Connection lost.")).toBe("Connection lost. Retrying...");
+  });
+});

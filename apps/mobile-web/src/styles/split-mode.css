@@ -1,0 +1,65 @@
+/* Split mode */
+
+.split-mode-shell {
+  min-height: 0;
+}
+
+.pairing-required.connection-unavailable {
+  top: 4px;
+}
+
+@media (orientation: landscape) and (min-width: 640px) {
+  .app-shell.split-mode-active {
+    grid-template-rows: minmax(0, 1fr);
+    gap: 0;
+    overflow: hidden;
+  }
+
+  .app-shell.split-mode-active .top-bar,
+  .app-shell.split-mode-active .tabs,
+  .app-shell.split-mode-active .volume-control {
+    display: none;
+  }
+
+  .split-mode-shell {
+    display: grid;
+    grid-template-columns: minmax(280px, 0.95fr) minmax(320px, 1.05fr);
+    gap: 10px;
+    overflow: hidden;
+  }
+
+  .split-keyboard-pane,
+  .split-trackpad-pane {
+    min-width: 0;
+    min-height: 0;
+    display: grid;
+  }
+
+  .split-keyboard-pane {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-right: 2px;
+    overscroll-behavior: contain;
+  }
+
+  .split-keyboard-pane .keyboard-mode {
+    min-height: 0;
+    align-content: start;
+  }
+
+  .split-trackpad-pane {
+    overflow: hidden;
+  }
+
+  .split-trackpad-pane .trackpad-mode,
+  .split-trackpad-pane .trackpad-mode.has-volume-control {
+    min-height: 0;
+    height: 100%;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .split-trackpad-pane .trackpad-surface {
+    min-height: 0;
+  }
+}
+

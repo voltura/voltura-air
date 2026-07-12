@@ -1,0 +1,105 @@
+import { useEffect, useState } from "react";
+import { getAutoRefreshSessionKey } from "../appStorage";
+import type { ConnectionState } from "../connection/connectionTypes";
+import type { PcProfile } from "../pcProfiles";
+import type { HostStatusMetadata } from "../protocol";
+
+export type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+};
+
+declare global {
+  interface Navigator {
+    standalone?: boolean;
+  }
+}
+
+type PwaLifecycleOptions = {
+  activePc: PcProfile | null;
+  autoRefresh: boolean;
+  clientId: string;
+  hostStatus: HostStatusMetadata | null;
+  state: ConnectionState;
+};
+
+export function usePwaLifecycle({ activePc, autoRefresh, clientId, hostStatus, state }: PwaLifecycleOptions) {
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isInstalled, setIsInstalled] = useState(() => isRunningStandalone());
+  const [refreshMessage, setRefreshMessage] = useState("Reload from the PC if the home screen app looks stale.");
+
+  useEffect(() => {
+    const onBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as BeforeInstallPromptEvent);
+    };
+    const onAppInstalled = () => {
+      setIsInstalled(true);
+      setInstallPrompt(null);
+    };
+
+    window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+    window.addEventListener("appinstalled", onAppInstalled);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", onAppInstalled);
+    };
+  }, []);
+
+  const installApp = async () => {
+    if (!installPrompt) {
+      return;
+    }
+
+    await installPrompt.prompt();
+    const choice = await installPrompt.userChoice;
+    if (choice.outcome === "accepted") {
+      setIsInstalled(true);
+    }
+    setInstallPrompt(null);
+  };
+
+  const refreshInstalledApp = async () => {
+    setRefreshMessage("Refreshing app...");
+
+    if ("serviceWorker" in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((registration) => registration.unregister()));
+    }
+
+    if ("caches" in window) {
+      const cacheNames = await caches.keys();
+      await Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName)));
+    }
+
+    const freshUrl = new URL(window.location.href);
+    freshUrl.searchParams.delete("t");
+    freshUrl.searchParams.set("refresh", Date.now().toString());
+    window.location.replace(freshUrl);
+  };
+
+  useEffect(() => {
+    if (!autoRefresh || state !== "paired" || !activePc || !hostStatus) {
+      return;
+    }
+
+    if (hostStatus.developerMode && !hostStatus.developerSessionId) {
+      return;
+    }
+
+    const refreshKey = getAutoRefreshSessionKey(clientId, activePc.id, hostStatus.hostVersion, hostStatus.developerMode, hostStatus.developerSessionId);
+    if (sessionStorage.getItem(refreshKey) === "true") {
+      return;
+    }
+
+    sessionStorage.setItem(refreshKey, "true");
+    void refreshInstalledApp();
+  }, [activePc, autoRefresh, clientId, hostStatus, hostStatus?.developerMode, hostStatus?.developerSessionId, hostStatus?.hostVersion, state]);
+
+  return { installApp, installPrompt, isInstalled, refreshInstalledApp, refreshMessage };
+}
+
+function isRunningStandalone(): boolean {
+  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+}

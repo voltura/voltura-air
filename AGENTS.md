@@ -57,6 +57,8 @@ updated as the app structure, tooling, and release process become concrete.
 - `installer` contains the NSIS installer script for Windows release builds.
 - `scripts` contains local development and packaging automation.
 - `docs` contains setup, protocol, and troubleshooting notes.
+- `docs/architecture.md` documents subsystem boundaries, dependency direction,
+  compatibility invariants, and the source-file size policy.
 - Add narrower `AGENTS.md` or `AGENTS.override.md` files in subdirectories when a
   specific area needs different commands or conventions.
 
@@ -66,6 +68,7 @@ updated as the app structure, tooling, and release process become concrete.
 - Run `npm run build` for the mobile PWA and Windows host.
 - Run `npm test` for the mobile and host test suites.
 - Run `npm run package:win` when verifying Windows release packaging.
+- Run `npm run size:report` to review actively maintained source files above 20 KB.
 - Run build and test commands sequentially. Do not run `npm run build`,
   `npm test`, `dotnet build`, or `dotnet test` in parallel with each other,
   because the .NET host project writes to shared output files and parallel runs

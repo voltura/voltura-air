@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ButtonHTMLAttributes, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import {
   ArrowDown,
   ArrowLeft,
@@ -21,7 +21,11 @@ import {
   VolumeX
 } from "lucide-react";
 import type { AudioStateMessage } from "../protocol";
-import type { RemoteModeId, RemoteSettings } from "../remoteSettings";
+import type { RemoteSettings } from "../remoteSettings";
+import { remoteShortcutMaps, type RemoteShortcut } from "./remote/remoteShortcuts";
+import { getRemoteModeCopy } from "./remote/remoteModeCopy";
+import { RemoteButton, type RepeatablePressProps } from "./remote/RemoteButton";
+import { isInteractiveRemoteTarget, roundRemoteDelta } from "./remote/remotePointerMath";
 
 const repeatStartDelayMs = 400;
 const repeatIntervalMs = 55;
@@ -29,79 +33,6 @@ const miniTrackpadSensitivity = 1.35;
 const miniTrackpadTapDistance = 8;
 const miniTrackpadDoubleTapMs = 280;
 const miniTrackpadDoubleTapDistance = 24;
-
-type RemoteShortcut = {
-  key: string;
-  modifiers?: string[];
-};
-
-type RemoteShortcutMap = {
-  previous: RemoteShortcut;
-  playPause: RemoteShortcut;
-  next: RemoteShortcut;
-  seekBackward: RemoteShortcut;
-  seekForward: RemoteShortcut;
-  volumeDown: RemoteShortcut;
-  mute: RemoteShortcut;
-  volumeUp: RemoteShortcut;
-  back: RemoteShortcut;
-  appFullscreen: RemoteShortcut;
-  browserFullscreen: RemoteShortcut;
-  space: RemoteShortcut;
-  stop?: RemoteShortcut;
-  info?: RemoteShortcut;
-  subtitles?: RemoteShortcut;
-  powerMenu?: RemoteShortcut;
-};
-
-const remoteShortcutMaps: Record<RemoteModeId, RemoteShortcutMap> = {
-  standard: {
-    previous: { key: "MediaPreviousTrack" },
-    playPause: { key: "MediaPlayPause" },
-    next: { key: "MediaNextTrack" },
-    seekBackward: { key: "ArrowLeft" },
-    seekForward: { key: "ArrowRight" },
-    volumeDown: { key: "VolumeDown" },
-    mute: { key: "VolumeMute" },
-    volumeUp: { key: "VolumeUp" },
-    back: { key: "Escape" },
-    appFullscreen: { key: "F" },
-    browserFullscreen: { key: "F11" },
-    space: { key: "Space" }
-  },
-  youtube: {
-    previous: { key: "P", modifiers: ["Shift"] },
-    playPause: { key: "K" },
-    next: { key: "N", modifiers: ["Shift"] },
-    seekBackward: { key: "J" },
-    seekForward: { key: "L" },
-    volumeDown: { key: "ArrowDown" },
-    mute: { key: "M" },
-    volumeUp: { key: "ArrowUp" },
-    back: { key: "Escape" },
-    appFullscreen: { key: "F" },
-    browserFullscreen: { key: "F11" },
-    space: { key: "Space" }
-  },
-  kodi: {
-    previous: { key: "MediaPreviousTrack" },
-    playPause: { key: "Space" },
-    next: { key: "MediaNextTrack" },
-    seekBackward: { key: "ArrowLeft" },
-    seekForward: { key: "ArrowRight" },
-    volumeDown: { key: "-" },
-    mute: { key: "F8" },
-    volumeUp: { key: "+" },
-    back: { key: "Backspace" },
-    appFullscreen: { key: "Tab" },
-    browserFullscreen: { key: "\\" },
-    space: { key: "Space" },
-    stop: { key: "X" },
-    info: { key: "I" },
-    subtitles: { key: "T" },
-    powerMenu: { key: "S" }
-  }
-};
 
 type MouseButtonName = "left" | "right";
 
@@ -112,18 +43,6 @@ type RemoteModeProps = {
   onPointerMove: (dx: number, dy: number) => void;
   sendSpecial: (key: string, modifiers?: string[]) => void;
 };
-
-type RemoteButtonProps = {
-  label: string;
-  onClick?: () => void;
-  pressProps?: RepeatablePressProps;
-  children?: ReactNode;
-  className?: string;
-  disabled?: boolean;
-  title?: string;
-};
-
-type RepeatablePressProps = Pick<ButtonHTMLAttributes<HTMLButtonElement>, "onPointerDown" | "onPointerUp" | "onPointerCancel" | "onPointerLeave" | "onClick">;
 
 type MiniTrackpadPointer = {
   id: number;
@@ -309,7 +228,7 @@ export function RemoteMode({
       return;
     }
 
-    onPointerMove(round(dx * miniTrackpadSensitivity), round(dy * miniTrackpadSensitivity));
+    onPointerMove(roundRemoteDelta(dx * miniTrackpadSensitivity), roundRemoteDelta(dy * miniTrackpadSensitivity));
   };
 
   const releaseMiniTrackpad = (event: PointerEvent<HTMLDivElement>) => {
@@ -362,7 +281,7 @@ export function RemoteMode({
   };
 
   const pressNavigationPanel = (event: PointerEvent<HTMLDivElement>) => {
-    if (!remoteSettings.navigationRing || event.button !== 0 || isInteractiveTarget(event.target)) {
+    if (!remoteSettings.navigationRing || event.button !== 0 || isInteractiveRemoteTarget(event.target)) {
       return;
     }
 
@@ -395,7 +314,7 @@ export function RemoteMode({
       return;
     }
 
-    onPointerMove(round(dx * miniTrackpadSensitivity), round(dy * miniTrackpadSensitivity));
+    onPointerMove(roundRemoteDelta(dx * miniTrackpadSensitivity), roundRemoteDelta(dy * miniTrackpadSensitivity));
   };
 
   const releaseNavigationPanel = (event: PointerEvent<HTMLDivElement>) => {
@@ -631,60 +550,5 @@ export function RemoteMode({
         </button>
       </div>
     </section>
-  );
-}
-
-function round(value: number): number {
-  const rounded = Math.round(value * 100) / 100;
-  return Object.is(rounded, -0) ? 0 : rounded;
-}
-
-function getRemoteModeCopy(mode: RemoteModeId) {
-  switch (mode) {
-    case "youtube":
-      return {
-        media: "YouTube shortcuts.",
-        volume: "YouTube player volume.",
-        seekBackwardTitle: "YouTube rewind shortcut",
-        seekForwardTitle: "YouTube forward shortcut",
-        spaceTitle: "Space / common browser play-pause",
-        appFullscreenLabel: "Fullscreen",
-        appFullscreenTitle: "YouTube/app fullscreen shortcut",
-        browserFullscreenTitle: "Chrome/browser fullscreen shortcut"
-      };
-    case "kodi":
-      return {
-        media: "Kodi keyboard shortcuts.",
-        volume: "Kodi volume keys.",
-        seekBackwardTitle: "Kodi skip backward / left",
-        seekForwardTitle: "Kodi skip forward / right",
-        spaceTitle: "Kodi pause/play",
-        appFullscreenLabel: "Fullscreen",
-        appFullscreenTitle: "Kodi fullscreen playback",
-        browserFullscreenTitle: "Kodi fullscreen/windowed"
-      };
-    default:
-      return {
-        media: "TV, video, music, and slides.",
-        volume: "Uses Windows volume keys.",
-        seekBackwardTitle: "Seek backward / left arrow",
-        seekForwardTitle: "Seek forward / right arrow",
-        spaceTitle: "Space / common browser play-pause",
-        appFullscreenLabel: "Fullscreen (F)",
-        appFullscreenTitle: "Video/app fullscreen shortcut",
-        browserFullscreenTitle: "Chrome/browser fullscreen shortcut"
-      };
-  }
-}
-
-function isInteractiveTarget(target: EventTarget): boolean {
-  return target instanceof Element && target.closest("button, a, input, textarea, select, [role='button']") !== null;
-}
-
-function RemoteButton({ label, onClick, pressProps, children, className, disabled = false, title }: RemoteButtonProps) {
-  return (
-    <button type="button" aria-label={label} className={className} disabled={disabled} title={title} {...(pressProps ?? { onClick })}>
-      {children ?? <span>{label}</span>}
-    </button>
   );
 }

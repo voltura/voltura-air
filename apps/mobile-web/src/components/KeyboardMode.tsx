@@ -29,7 +29,7 @@ const appSwitchShortcutKeys: ShortcutKey[] = [
 ];
 
 type KeyboardModeProps = {
-  committedKeyboardTextRef: React.MutableRefObject<string>;
+  committedKeyboardTextRef: React.RefObject<string>;
   keyboardText: string;
   keyboardTextareaRef: React.RefObject<HTMLTextAreaElement | null>;
   liveKeyboard: boolean;
@@ -46,7 +46,7 @@ type KeyboardModeProps = {
   showFunctionKeys: boolean;
   showSleepButton: boolean;
   toLiveKeyboardValue: (value: string) => string;
-  isComposingRef: React.MutableRefObject<boolean>;
+  isComposingRef: React.RefObject<boolean>;
 };
 
 export function KeyboardMode({

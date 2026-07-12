@@ -46,6 +46,21 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Validate release inputs
+        shell: pwsh
+        run: |
+          $packageVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $inputVersion = "${{ inputs.version }}"
+          $inputTag = "${{ inputs.release_tag }}"
+
+          if ($inputVersion -ne $packageVersion) {
+            throw "Workflow version '$inputVersion' does not match package.json version '$packageVersion'. Run npm run release -- <version> and commit the prepared files first."
+          }
+
+          if ($inputTag -ne "v$packageVersion") {
+            throw "Workflow release tag '$inputTag' must be 'v$packageVersion'."
+          }
+
       - name: Build
         run: npm run build
 
@@ -55,6 +70,14 @@ jobs:
       - name: Package release assets
         shell: pwsh
         run: npm run package:win -- -Version "${{ inputs.version }}" -Runtime "${{ inputs.runtime }}"
+
+      - name: Validate Windows file metadata
+        shell: pwsh
+        run: |
+          & .\scripts\verify-windows-version.ps1 `
+            -Version "${{ inputs.version }}" `
+            -Runtime "${{ inputs.runtime }}" `
+            -RequireHostDll
 
       - name: Collect asset paths
         id: package

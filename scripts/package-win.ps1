@@ -24,15 +24,19 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
     throw "Version was not provided and could not be read from package.json."
 }
 
+$semVerPattern = '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$'
+if ($Version -notmatch $semVerPattern) {
+    throw "Version '$Version' is not a supported semantic version. Use a value such as 0.3.0 or 0.3.0-beta.1."
+}
+
 $versionCore = ($Version -split "[+-]", 2)[0]
 $versionSegments = @($versionCore -split "\.")
-if ($versionSegments.Count -lt 1 -or $versionSegments.Count -gt 4 -or ($versionSegments | Where-Object { $_ -notmatch "^\d+$" })) {
-    throw "Version '$Version' cannot be converted to a Windows version resource."
+foreach ($segment in $versionSegments) {
+    if ([int64]$segment -gt 65535) {
+        throw "Version '$Version' cannot be used for Windows version resources. Each numeric part must be between 0 and 65535."
+    }
 }
-while ($versionSegments.Count -lt 4) {
-    $versionSegments += "0"
-}
-$appVersionQuad = $versionSegments -join "."
+$appVersionQuad = "$versionCore.0"
 
 $makensis = Get-Command makensis -ErrorAction SilentlyContinue
 $makensisPath = $null
@@ -108,6 +112,19 @@ if ($LASTEXITCODE -ne 0) {
 if (-not (Test-Path $installerPath)) {
     throw "Expected installer was not created: $installerPath"
 }
+
+$verifyVersionScript = Join-Path $repoRoot "scripts\verify-windows-version.ps1"
+$verifyVersionArguments = @{
+    Version = $Version
+    Runtime = $Runtime
+    PublishDir = $publishDir
+    InstallerPath = $installerPath
+}
+if (-not $SkipBuild) {
+    $verifyVersionArguments.RequireHostDll = $true
+}
+
+& $verifyVersionScript @verifyVersionArguments
 
 Write-Host "Created portable zip: $zipPath"
 Write-Host "Created installer: $installerPath"

@@ -88,6 +88,59 @@ function Set-RegexValue {
     Set-RepoText $RelativePath ($regex.Replace($text, $replacement))
 }
 
+function Assert-PackageLockVersions {
+    param(
+        [Parameter(Mandatory = $true)][string]$Content,
+        [Parameter(Mandatory = $true)][string]$ExpectedVersion
+    )
+
+    $nodeCommand = Get-Command node -ErrorAction SilentlyContinue
+    if ($null -eq $nodeCommand) {
+        throw "Node.js is required to validate package-lock.json. Run this command through npm from a Node.js-enabled shell."
+    }
+
+    $temporaryPath = [System.IO.Path]::GetTempFileName()
+    try {
+        [System.IO.File]::WriteAllText($temporaryPath, $Content, $utf8NoBom)
+
+        # Windows PowerShell 5.1 ConvertFrom-Json cannot reliably parse npm lockfiles
+        # that contain property names differing only by case. Node parses the file
+        # with the same JSON semantics npm uses.
+        $validationScript = @'
+const fs = require("fs");
+const lockPath = process.argv[1];
+const expectedVersion = process.argv[2];
+const lock = JSON.parse(fs.readFileSync(lockPath, "utf8"));
+const checks = [
+  ["top-level version", lock.version],
+  ["root package entry", lock.packages && lock.packages[""] && lock.packages[""].version],
+  ["mobile workspace entry", lock.packages && lock.packages["apps/mobile-web"] && lock.packages["apps/mobile-web"].version]
+];
+const failures = checks.filter(([, actual]) => actual !== expectedVersion);
+if (failures.length > 0) {
+  for (const [label, actual] of failures) {
+    console.error(`${label} is '${actual === undefined ? "<missing>" : actual}', expected '${expectedVersion}'.`);
+  }
+  process.exit(1);
+}
+'@
+
+        $nodeOutput = & $nodeCommand.Source -e $validationScript $temporaryPath $ExpectedVersion 2>&1
+        $nodeExitCode = $LASTEXITCODE
+        if ($nodeExitCode -ne 0) {
+            $details = ($nodeOutput | Out-String).Trim()
+            if ([string]::IsNullOrWhiteSpace($details)) {
+                $details = "Node exited with code $nodeExitCode."
+            }
+
+            throw "package-lock.json validation failed: $details"
+        }
+    }
+    finally {
+        Remove-Item -LiteralPath $temporaryPath -Force -ErrorAction SilentlyContinue
+    }
+}
+
 $rootPackagePath = 'package.json'
 $mobilePackagePath = 'apps\mobile-web\package.json'
 $packageLockPath = 'package-lock.json'
@@ -172,7 +225,6 @@ Set-RegexValue `
 
 $updatedRootPackage = Get-RepoText $rootPackagePath | ConvertFrom-Json
 $updatedMobilePackage = Get-RepoText $mobilePackagePath | ConvertFrom-Json
-$updatedPackageLock = Get-RepoText $packageLockPath | ConvertFrom-Json
 $updatedHostProject = [xml](Get-RepoText $hostProjectPath)
 
 if ([string]$updatedRootPackage.version -ne $Version) {
@@ -181,15 +233,9 @@ if ([string]$updatedRootPackage.version -ne $Version) {
 if ([string]$updatedMobilePackage.version -ne $Version) {
     throw "apps/mobile-web/package.json did not validate with version '$Version'."
 }
-if ([string]$updatedPackageLock.version -ne $Version) {
-    throw "package-lock.json top-level version did not validate with version '$Version'."
-}
-if ([string]$updatedPackageLock.packages.PSObject.Properties[''].Value.version -ne $Version) {
-    throw "package-lock.json root package entry did not validate with version '$Version'."
-}
-if ([string]$updatedPackageLock.packages.'apps/mobile-web'.version -ne $Version) {
-    throw "package-lock.json mobile workspace entry did not validate with version '$Version'."
-}
+Assert-PackageLockVersions `
+    -Content (Get-RepoText $packageLockPath) `
+    -ExpectedVersion $Version
 if ([string]$updatedHostProject.Project.PropertyGroup.Version -ne $Version) {
     throw "VolturaAir.Host.csproj did not validate with version '$Version'."
 }

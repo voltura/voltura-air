@@ -85,11 +85,11 @@ export function usePwaLifecycle({ activePc, autoRefresh, clientId, hostStatus, s
     }
 
     const webClientBuildId = hostStatus?.webClientBuildId;
-    if (!webClientBuildId || webClientBuildId === __WEB_BUILD_ID__) {
+    if (!shouldRefreshWebClient(webClientBuildId)) {
       return;
     }
 
-    const refreshKey = getAutoRefreshSessionKey(clientId, activePc.id, webClientBuildId);
+    const refreshKey = getAutoRefreshSessionKey(clientId, activePc.id, webClientBuildId!);
     if (sessionStorage.getItem(refreshKey) === "true") {
       return;
     }
@@ -99,6 +99,10 @@ export function usePwaLifecycle({ activePc, autoRefresh, clientId, hostStatus, s
   }, [activePc, autoRefresh, clientId, hostStatus?.webClientBuildId, state]);
 
   return { installApp, installPrompt, isInstalled, refreshInstalledApp, refreshMessage };
+}
+
+export function shouldRefreshWebClient(webClientBuildId: string | undefined): webClientBuildId is string {
+  return Boolean(webClientBuildId && webClientBuildId !== __WEB_BUILD_ID__);
 }
 
 function isRunningStandalone(): boolean {

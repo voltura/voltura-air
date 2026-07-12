@@ -99,34 +99,65 @@ function Assert-PackageLockVersions {
         throw "Node.js is required to validate package-lock.json. Run this command through npm from a Node.js-enabled shell."
     }
 
-    $temporaryPath = [System.IO.Path]::GetTempFileName()
+    $temporaryJsonPath = Join-Path ([System.IO.Path]::GetTempPath()) (
+        "voltura-air-release-lock-{0}.json" -f [guid]::NewGuid().ToString('N')
+    )
+    $temporaryScriptPath = Join-Path ([System.IO.Path]::GetTempPath()) (
+        "voltura-air-release-lock-validator-{0}.cjs" -f [guid]::NewGuid().ToString('N')
+    )
+
     try {
-        [System.IO.File]::WriteAllText($temporaryPath, $Content, $utf8NoBom)
+        [System.IO.File]::WriteAllText($temporaryJsonPath, $Content, $utf8NoBom)
 
         # Windows PowerShell 5.1 ConvertFrom-Json cannot reliably parse npm lockfiles
-        # that contain property names differing only by case. Node parses the file
-        # with the same JSON semantics npm uses.
+        # that contain property names differing only by case. Write a temporary Node
+        # script instead of using node -e so PowerShell does not mangle multiline JS.
         $validationScript = @'
 const fs = require("fs");
-const lockPath = process.argv[1];
-const expectedVersion = process.argv[2];
-const lock = JSON.parse(fs.readFileSync(lockPath, "utf8"));
+const lockPath = process.argv[2];
+const expectedVersion = process.argv[3];
+
+let lock;
+try {
+  lock = JSON.parse(fs.readFileSync(lockPath, "utf8"));
+} catch (error) {
+  console.log("package-lock.json is not valid JSON: " + error.message);
+  process.exit(1);
+}
+
 const checks = [
   ["top-level version", lock.version],
   ["root package entry", lock.packages && lock.packages[""] && lock.packages[""].version],
   ["mobile workspace entry", lock.packages && lock.packages["apps/mobile-web"] && lock.packages["apps/mobile-web"].version]
 ];
-const failures = checks.filter(([, actual]) => actual !== expectedVersion);
-if (failures.length > 0) {
-  for (const [label, actual] of failures) {
-    console.error(`${label} is '${actual === undefined ? "<missing>" : actual}', expected '${expectedVersion}'.`);
+
+let failed = false;
+for (const check of checks) {
+  const label = check[0];
+  const actual = check[1];
+  if (actual !== expectedVersion) {
+    const displayActual = actual === undefined ? "<missing>" : actual;
+    console.log(label + " is '" + displayActual + "', expected '" + expectedVersion + "'.");
+    failed = true;
   }
+}
+
+if (failed) {
   process.exit(1);
 }
 '@
+        [System.IO.File]::WriteAllText($temporaryScriptPath, $validationScript, $utf8NoBom)
 
-        $nodeOutput = & $nodeCommand.Source -e $validationScript $temporaryPath $ExpectedVersion 2>&1
-        $nodeExitCode = $LASTEXITCODE
+        $previousErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = "Continue"
+            $nodeOutput = & $nodeCommand.Source $temporaryScriptPath $temporaryJsonPath $ExpectedVersion 2>&1
+            $nodeExitCode = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+        }
+
         if ($nodeExitCode -ne 0) {
             $details = ($nodeOutput | Out-String).Trim()
             if ([string]::IsNullOrWhiteSpace($details)) {
@@ -137,7 +168,8 @@ if (failures.length > 0) {
         }
     }
     finally {
-        Remove-Item -LiteralPath $temporaryPath -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $temporaryJsonPath -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $temporaryScriptPath -Force -ErrorAction SilentlyContinue
     }
 }
 

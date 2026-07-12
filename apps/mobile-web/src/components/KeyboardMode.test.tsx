@@ -357,12 +357,12 @@ describe("KeyboardMode command callbacks", () => {
     ["Esc", "Escape", undefined],
     ["Win", "Win", undefined],
     ["F1", "F1", undefined],
-    ["Ctrl+A", "A", ["Control"]],
-    ["Ctrl+X", "X", ["Control"]],
-    ["Ctrl+C", "C", ["Control"]],
-    ["Ctrl+V", "V", ["Control"]],
-    ["Ctrl+Z", "Undo", undefined],
-    ["Ctrl+Y", "Redo", undefined],
+    ["Select all", "A", ["Control"]],
+    ["Cut", "X", ["Control"]],
+    ["Copy", "C", ["Control"]],
+    ["Paste", "V", ["Control"]],
+    ["Undo", "Undo", undefined],
+    ["Redo", "Redo", undefined],
     [/Next app/, "Tab", ["Alt"]],
     [/Previous app/, "Tab", ["Shift", "Alt"]]
   ] as const)("preserves %s command callback", (buttonName, key, modifiers) => {

@@ -91,23 +91,30 @@ updated as the app structure, tooling, and release process become concrete.
 
 ## Release
 
-- Use the root package/host version for GitHub release tags, formatted as
-  `v<version>` (for example, `v0.2.0`).
-- For a version bump, keep root `package.json`, `apps/mobile-web/package.json`,
-  `package-lock.json`, `.github/workflows/release-zip.yml`,
-  `apps/windows-host/VolturaAir.Host.csproj`, version-related tests, and docs in
-  sync.
-- After changing package versions, run `npm install` so `package-lock.json`
-  records the same root and workspace versions.
+- Prepare a release version from the repository root with
+  `npm run release -- <version>` (for example, `npm run release -- 0.3.0`).
+- The release command validates semantic version syntax and synchronizes root
+  `package.json`, `apps/mobile-web/package.json`, the root and workspace entries
+  in `package-lock.json`, the host package, assembly, file, and informational
+  versions in `apps/windows-host/VolturaAir.Host.csproj`, and the workflow
+  dispatch defaults in `.github/workflows/release-zip.yml`.
+- Do not treat `.vscode/launch.json` or `.vscode/tasks.json` schema versions as
+  application versions. The NSIS installer, packaging filenames, and Vite client
+  version consume the synchronized sources at build time. The host project keeps
+  explicit `AssemblyVersion`, `FileVersion`, and `InformationalVersion` values so
+  Windows File Explorer shows the release version on built EXE and DLL files.
 - Before publishing a release, run `npm run build`, `npm test`, and
-  `npm run package:win` sequentially.
+  `npm run package:win` sequentially. Packaging validates File Explorer metadata
+  for the host EXE, host DLL, and NSIS installer with
+  `scripts/verify-windows-version.ps1`.
 - `npm run package:win` reads the default release version from the root
   `package.json`. Pass `-Version <version> -Runtime win-x64` only when overriding
   the defaults.
-- The GitHub Actions workflow `.github/workflows/release-zip.yml` can create or
-  update a release and upload both the portable zip and installer assets.
-- See `docs/release.md` for the full version bump, packaging, GitHub asset
-  replacement, release-note, unsigned-installer, and sanity-check guide.
+- The GitHub Actions workflow `.github/workflows/release-zip.yml` validates that
+  its version and tag inputs match the committed root package version, then can
+  create or update a release and upload both the portable zip and installer.
+- See `docs/release.md` for the full preparation, verification, packaging,
+  GitHub asset replacement, unsigned-installer, and sanity-check guide.
 
 ## Git
 

@@ -290,15 +290,34 @@ describe("KeyboardMode shortcut keys", () => {
     expect(screen.queryByLabelText("Keyboard shortcuts")).toBeNull();
   });
 
-  it("renders app switching shortcuts with secondary notation", () => {
+  it("renders app switching shortcuts without visible key-combo notation", () => {
     render(<KeyboardModeHarness />);
 
-    expect(screen.getByRole("button", { name: /Next app Alt\+Tab/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Previous app Shift\+Alt\+Tab/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Next app" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Previous app" })).toBeTruthy();
+    expect(screen.queryByText("Alt+Tab")).toBeNull();
+    expect(screen.queryByText("Shift+Alt+Tab")).toBeNull();
   });
 });
 
 describe("KeyboardMode navigation keys", () => {
+  it("adds Space to the local textarea without sending text in buffered mode", () => {
+    const sendText = vi.fn();
+    render(<KeyboardModeHarness initialText="ab" liveKeyboard={false} sendText={sendText} />);
+
+    const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+    textarea.focus();
+    textarea.setSelectionRange(1, 1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Space" }));
+
+    expect(textarea.value).toBe("a b");
+    expect(textarea.selectionStart).toBe(2);
+    expect(textarea.selectionEnd).toBe(2);
+    expect(document.activeElement).toBe(textarea);
+    expect(sendText).not.toHaveBeenCalled();
+  });
+
   it("edits and moves through the local textarea in buffered mode", () => {
     render(<KeyboardModeHarness initialText={"ab\ncd"} liveKeyboard={false} />);
 
@@ -353,6 +372,17 @@ describe("KeyboardMode function keys", () => {
 });
 
 describe("KeyboardMode command callbacks", () => {
+  it("places the buffered Send button directly after the input row", () => {
+    render(<KeyboardModeHarness liveKeyboard={false} />);
+
+    const liveTypingRow = screen.getByRole("textbox").closest(".live-typing-row");
+    const sendButton = screen.getByRole("button", { name: "Send" });
+    const primaryKeys = screen.getByLabelText("Primary keyboard keys");
+
+    expect(liveTypingRow?.nextElementSibling?.contains(sendButton)).toBe(true);
+    expect(primaryKeys.contains(sendButton)).toBe(false);
+  });
+
   it.each([
     ["Esc", "Escape", undefined],
     ["Win", "Win", undefined],

@@ -812,13 +812,13 @@ export function App() {
   const canShowModeNavigation = state === "paired";
   const connectionPcName = state === "paired" && activePc ? getPcDisplayName(activePc) : message;
 
-  const selectModeTab = (nextTab: MainTab) => {
+  const selectModeTab = (nextTab: MainTab, source: "tabs" | "selector" = "tabs") => {
     if (nextTab === "remote") {
       maybeLaunchRemoteMode(remoteSettings.mode, remoteSettings);
     }
 
     if (tab === nextTab) {
-      setAreModeTabsCollapsed(true);
+      setAreModeTabsCollapsed(source === "selector" ? false : true);
       setIsModeSelectorOpen(false);
       return;
     }
@@ -866,7 +866,7 @@ export function App() {
           <button className="mode-selector-scrim" type="button" aria-label="Close mode selector" onClick={() => setIsModeSelectorOpen(false)} />
           <div className="mode-selector-popover" role="menu" aria-label="Change mode">
             {modeTabs.map(({ id, label, ariaLabel, Icon }) => (
-              <button key={id} role="menuitemradio" aria-checked={tab === id} aria-label={ariaLabel} className={tab === id ? "active" : ""} onClick={() => selectModeTab(id)}>
+              <button key={id} role="menuitemradio" aria-checked={tab === id} aria-label={ariaLabel} className={tab === id ? "active" : ""} onClick={() => selectModeTab(id, "selector")}>
                 <Icon aria-hidden="true" />
                 <span>{label}</span>
               </button>
@@ -964,7 +964,7 @@ export function App() {
 
       {supportsGestureDebug && tab === "debug" && <GestureDebugMode trackpadSettings={effectiveTrackpadSettings} />}
 
-      {canShowModeNavigation && <ModeTabs className="tabs bottom-mode-tabs" tab={tab} selectModeTab={selectModeTab} />}
+      {canShowModeNavigation && !areModeTabsCollapsed && <ModeTabs className="tabs bottom-mode-tabs" tab={tab} selectModeTab={selectModeTab} />}
     </main>
   );
 }

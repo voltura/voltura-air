@@ -474,6 +474,10 @@ button span {
   display: none;
 }
 
+.app-shell.mode-tabs-collapsed.has-mode-navigation {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 .app-shell.mode-tabs-collapsed .compact-mode-button {
   display: inline-flex;
 }
@@ -1523,18 +1527,19 @@ textarea:focus {
     "win space space delete";
 }
 
-.keyboard-primary-keys.has-send-key,
 .keyboard-primary-keys.has-sleep-key {
   grid-template-areas:
     "esc tab enter backspace"
     "win space space delete"
-    "send send sleep sleep";
+    "sleep sleep sleep sleep";
 }
 
 .keyboard-primary-keys button {
   min-width: 0;
   min-height: 48px;
   padding-inline: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .key-esc {
@@ -1565,8 +1570,14 @@ textarea:focus {
   grid-area: delete;
 }
 
-.key-send {
-  grid-area: send;
+.keyboard-send-row {
+  display: grid;
+}
+
+.keyboard-send-row .key-send {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
 }
 
 .key-sleep {
@@ -1615,24 +1626,6 @@ textarea:focus {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-}
-
-.app-switch-button {
-  display: grid;
-  gap: 2px;
-  align-content: center;
-  justify-items: center;
-  min-width: 0;
-}
-
-.app-switch-button small {
-  max-width: 100%;
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .arrow-pad {
@@ -1742,15 +1735,9 @@ textarea:focus {
     grid-template-areas: "esc tab win space enter backspace delete";
   }
 
-  .keyboard-primary-keys.has-send-key,
   .keyboard-primary-keys.has-sleep-key {
     grid-template-columns: 0.8fr 0.8fr 0.8fr 1.5fr 1fr 1.35fr 1fr minmax(0, 1fr);
-    grid-template-areas: "esc tab win space enter backspace delete send";
-  }
-
-  .keyboard-primary-keys.has-send-key.has-sleep-key {
-    grid-template-columns: 0.8fr 0.8fr 0.8fr 1.5fr 1fr 1.35fr 1fr minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-areas: "esc tab win space enter backspace delete send sleep";
+    grid-template-areas: "esc tab win space enter backspace delete sleep";
   }
 
   .keyboard-navigation-keys {
@@ -2047,13 +2034,59 @@ textarea:focus {
 }
 
 .keyboard-mode.live-typing textarea {
-  height: 44px;
-  min-height: 44px;
-  max-height: 44px;
+  height: 50px;
+  min-height: 50px;
+  max-height: 50px;
   overflow: hidden;
   padding-top: 10px;
   padding-bottom: 10px;
   white-space: nowrap;
+}
+
+@media (orientation: portrait) {
+  .keyboard-mode textarea {
+    height: clamp(76px, 16svh, 104px);
+    min-height: 76px;
+    max-height: 104px;
+  }
+
+  .keyboard-mode.live-typing textarea {
+    height: 50px;
+    min-height: 50px;
+    max-height: 50px;
+  }
+
+  .live-typing-row {
+    grid-template-columns: max-content minmax(0, 1fr) 152px;
+    grid-template-areas: "switch input selector";
+  }
+
+  .keyboard-input-mode-buttons {
+    width: 152px;
+    min-width: 0;
+  }
+}
+
+@media (orientation: portrait) and (max-width: 380px) {
+  .keyboard-primary-keys {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-areas:
+      "esc tab enter"
+      "win space backspace"
+      "delete delete delete";
+  }
+
+  .keyboard-primary-keys.has-sleep-key {
+    grid-template-areas:
+      "esc tab enter"
+      "win space backspace"
+      "delete sleep sleep";
+  }
+
+  .keyboard-primary-keys button {
+    padding-inline: 6px;
+    font-size: 0.86rem;
+  }
 }
 
 @supports not (height: 1svh) {
@@ -2070,9 +2103,9 @@ textarea:focus {
   }
 
   .keyboard-mode.live-typing textarea {
-    height: 44px;
-    min-height: 44px;
-    max-height: 44px;
+    height: 50px;
+    min-height: 50px;
+    max-height: 50px;
   }
 }
 

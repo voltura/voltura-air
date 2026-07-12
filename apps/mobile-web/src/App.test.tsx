@@ -114,6 +114,23 @@ describe("App header and mode navigation", () => {
     expect(primaryKeys.parentElement).toBe(beforeParent);
   });
 
+  it("collapses the bottom mode row from the active tab and restores it from the compact selector", () => {
+    render(<App />);
+
+    const appShell = document.querySelector(".app-shell");
+    const activeTrackpadButtons = screen.getAllByRole("button", { name: "Trackpad mode" });
+    fireEvent.click(activeTrackpadButtons[activeTrackpadButtons.length - 1]);
+
+    expect(appShell?.classList.contains("mode-tabs-collapsed")).toBe(true);
+    expect(document.querySelector(".bottom-mode-tabs")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Change mode" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Trackpad mode" }));
+
+    expect(appShell?.classList.contains("mode-tabs-collapsed")).toBe(false);
+    expect(document.querySelector(".bottom-mode-tabs")).toBeTruthy();
+  });
+
   it("does not reserve mode navigation on the PC unavailable screen", () => {
     mockConnection({
       state: "unavailable",

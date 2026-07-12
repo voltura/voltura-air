@@ -255,7 +255,7 @@ describe("useVolturaAirConnection", () => {
     expect(socket.close).not.toHaveBeenCalled();
   });
 
-  it("surfaces unexpected current socket closes while reconnecting", async () => {
+  it("keeps stopped hosts on the stable unavailable screen after a socket close", async () => {
     const pcUrl = "http://pc.local:51395";
     const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };
     localStorage.setItem("voltura-air.clientId", "client-a");
@@ -284,6 +284,6 @@ describe("useVolturaAirConnection", () => {
 
     expect(result.current.state).toBe("unavailable");
     expect(result.current.lastConnectionError?.code).toBe("VAIR-PAIR-SOCKET-CLOSED");
-    expect(result.current.message).toBe("PC closed the controller connection (Invalid message). Reconnecting...");
+    expect(result.current.message).toBe("PC is currently not available. Check that Voltura Air is running on the PC. Retrying...");
   });
 });

@@ -320,6 +320,21 @@ export function KeyboardMode({
     setBufferedKeyboardText(value, nextCaret);
   };
 
+  const insertBufferedKeyboardText = (text: string) => {
+    const textarea = keyboardTextareaRef.current;
+    if (!textarea) {
+      return;
+    }
+
+    const value = textarea.value;
+    const selectionStart = textarea.selectionStart ?? value.length;
+    const selectionEnd = textarea.selectionEnd ?? selectionStart;
+    const start = Math.min(selectionStart, selectionEnd);
+    const end = Math.max(selectionStart, selectionEnd);
+    const nextCaret = start + text.length;
+    setBufferedKeyboardText(`${value.slice(0, start)}${text}${value.slice(end)}`, nextCaret);
+  };
+
   const pressRepeatableKey = (key: RepeatableKey) => {
     if (liveKeyboard) {
       sendSpecial(key);
@@ -331,10 +346,13 @@ export function KeyboardMode({
   };
 
   const sendSpace = () => {
-    sendText(" ");
     if (liveKeyboard) {
+      sendText(" ");
       insertLiveKeyboardText(" ");
+      return;
     }
+
+    insertBufferedKeyboardText(" ");
   };
 
   const sendShortcut = (key: string, modifiers?: string[]) => {
@@ -436,15 +454,8 @@ export function KeyboardMode({
           </button>
         </div>
       </div>
-      <div className={`command-row keyboard-primary-keys ${!liveKeyboard ? "has-send-key" : ""} ${showSleepButton ? "has-sleep-key" : ""}`} aria-label="Primary keyboard keys">
-        <button className="key-esc" onClick={() => sendSpecial("Escape")}>Esc</button>
-        <button className="key-tab" {...getRepeatableKeyProps("Tab")}>Tab</button>
-        <button className="key-win" onClick={() => sendSpecial("Win")}>Win</button>
-        <button className="key-space" onClick={sendSpace} aria-label="Space">Space</button>
-        <button className="key-enter" {...getRepeatableKeyProps("Enter")}>Enter</button>
-        <button className="key-backspace" {...getRepeatableKeyProps("Backspace")}>Backspace</button>
-        <button className="key-delete" {...getRepeatableKeyProps("Delete")}>Delete</button>
-        {!liveKeyboard && (
+      {!liveKeyboard && (
+        <div className="keyboard-send-row">
           <button
             className="key-send"
             onClick={() => {
@@ -456,7 +467,16 @@ export function KeyboardMode({
             <Send aria-hidden="true" />
             <span>Send</span>
           </button>
-        )}
+        </div>
+      )}
+      <div className={`command-row keyboard-primary-keys ${showSleepButton ? "has-sleep-key" : ""}`} aria-label="Primary keyboard keys">
+        <button className="key-esc" onClick={() => sendSpecial("Escape")}>Esc</button>
+        <button className="key-tab" {...getRepeatableKeyProps("Tab")}>Tab</button>
+        <button className="key-win" onClick={() => sendSpecial("Win")}>Win</button>
+        <button className="key-space" onClick={sendSpace} aria-label="Space">Space</button>
+        <button className="key-enter" {...getRepeatableKeyProps("Enter")}>Enter</button>
+        <button className="key-backspace" {...getRepeatableKeyProps("Backspace")}>Backspace</button>
+        <button className="key-delete" {...getRepeatableKeyProps("Delete")}>Delete</button>
         {showSleepButton && (
           <button className="key-sleep" type="button" onClick={onSleep}>
             <span>Sleep</span>
@@ -513,12 +533,10 @@ export function KeyboardMode({
             {appSwitchShortcutKeys.map(({ label, key, modifiers }) => (
               <button
                 key={label}
-                className="app-switch-button"
-                aria-label={`${label} ${modifiers?.includes("Shift") ? "Shift+Alt+Tab" : "Alt+Tab"}`}
+                aria-label={label}
                 onClick={() => sendShortcut(key, modifiers)}
               >
                 <span>{label}</span>
-                <small>{modifiers?.includes("Shift") ? "Shift+Alt+Tab" : "Alt+Tab"}</small>
               </button>
             ))}
           </div>

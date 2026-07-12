@@ -569,12 +569,12 @@ export function useVolturaAirConnection() {
         }
       });
 
-      ws.addEventListener("close", (event) => {
+      ws.addEventListener("close", () => {
         if (disposed || !shouldRetry || backgroundSuspended || ws !== socketRef.current) {
           return;
         }
 
-        markUnavailable(ws, getPcConnectionClosedMessage(pc, event.code, event.reason, screenshotMode), "VAIR-PAIR-SOCKET-CLOSED");
+        markUnavailable(ws, getPcUnavailableMessage(pc, screenshotMode), "VAIR-PAIR-SOCKET-CLOSED");
       });
 
       ws.addEventListener("error", () => {
@@ -867,11 +867,6 @@ function getPcUnavailableMessage(pc: PcProfile, screenshotMode = false): string 
 function getPcDisconnectedMessage(pc: PcProfile, reason: string | undefined, screenshotMode = false): string {
   const baseMessage = reason?.trim() || `${getDisplayPcName(pc, "", screenshotMode)} disconnected.`;
   return /retrying/i.test(baseMessage) ? baseMessage : `${baseMessage} Retrying...`;
-}
-
-function getPcConnectionClosedMessage(pc: PcProfile, code: number, reason: string | undefined, screenshotMode = false): string {
-  const detail = reason?.trim() ? ` (${reason.trim()})` : code > 0 ? ` (code ${code})` : "";
-  return `${getDisplayPcName(pc, "", screenshotMode)} closed the controller connection${detail}. Reconnecting...`;
 }
 
 function getInputAckTimeoutMessage(pc: PcProfile, screenshotMode = false): string {

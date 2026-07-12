@@ -108,9 +108,8 @@ export function loadKeyboardSettings(clientId: string): KeyboardSettings {
   }
 }
 
-export function getAutoRefreshSessionKey(clientId: string, pcId: string, hostVersion?: string, developerMode?: boolean, developerSessionId?: string): string {
-  const refreshScope = developerMode ? `dev.${developerSessionId || "enabled"}` : `version.${hostVersion || "unknown"}`;
-  return `${autoRefreshSessionPrefix}.${clientId}.${pcId}.${refreshScope}`;
+export function getAutoRefreshSessionKey(clientId: string, pcId: string, webClientBuildId: string): string {
+  return `${autoRefreshSessionPrefix}.${clientId}.${pcId}.build.${webClientBuildId}`;
 }
 
 function baseTrackpadSettingsKey(clientId: string): string {

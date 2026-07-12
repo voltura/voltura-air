@@ -1,5 +1,5 @@
-const appVersion = new URL(self.location.href).searchParams.get("v") || "dev";
-const cacheName = `voltura-air-${appVersion}`;
+const webBuildId = new URL(self.location.href).searchParams.get("build") || "dev";
+const cacheName = `voltura-air-${webBuildId}`;
 const shellFiles = ["/", "/manifest.webmanifest", "/icon.svg", "/apple-touch-icon.png"];
 
 self.addEventListener("install", (event) => {

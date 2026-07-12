@@ -95,6 +95,7 @@ Successful response:
   },
   "host": {
     "hostVersion": "1.2.3",
+    "webClientBuildId": "0f7c918ea4b24dd687ed15c30745d8cf",
     "pcName": "WINDOWS-PC",
     "defaultRemoteMode": "standard",
     "selectedAdapterName": "Wi-Fi - Intel(R) Wi-Fi 6 AX200",
@@ -129,6 +130,7 @@ Host response:
   },
   "host": {
     "hostVersion": "1.2.3",
+    "webClientBuildId": "0f7c918ea4b24dd687ed15c30745d8cf",
     "pcName": "WINDOWS-PC",
     "defaultRemoteMode": "standard",
     "selectedAdapterName": "Wi-Fi - Intel(R) Wi-Fi 6 AX200",
@@ -146,7 +148,8 @@ The adapter name can reveal local hardware/vendor details, so it should only be 
 `defaultRemoteMode` is the host's advisory initial Remote mode for that PC (`standard`, `youtube`, or `kodi`). The mobile app uses it only when the current phone/browser has no saved Remote mode override for that PC.
 `remoteLaunch` is an authenticated capability. When `true`, the host allows this paired device to trigger the fixed host-defined launch actions documented below. The host does not expose the configured YouTube URL through this metadata.
 `pointerSpeed` is the effective pointer speed for the authenticated paired device: the host default unless that device has an override. It is included only on authenticated `pair.accepted` and `status` messages. When the Windows host profile changes, the host may push the same lightweight `status` message to active sockets; the mobile app does not add a polling loop, timer, or extra battery cost for pointer-speed sync.
-When host developer mode is enabled in **Preferences** -> **Developer tools**, host metadata also includes `developerMode: true` and a `developerSessionId` for the current host run. The mobile app uses this to auto-refresh installed web app code during development even when the release version has not changed.
+`webClientBuildId` identifies the exact compiled mobile web bundle currently served by the host. Vite generates a new opaque ID for every build, and the same ID is embedded in the JavaScript bundle and written to `web-build-id.txt`. When auto-refresh is enabled, the client clears its service worker and caches and reloads only when the host build ID differs from the ID embedded in the running client. This build ID is separate from `hostVersion` and does not affect installer or release versioning.
+When host developer mode is enabled in **Preferences** -> **Developer tools**, host metadata also includes `developerMode: true` and a `developerSessionId` for the current host run.
 
 Rejected response:
 

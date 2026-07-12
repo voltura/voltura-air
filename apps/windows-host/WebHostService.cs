@@ -298,8 +298,10 @@ public sealed partial class WebHostService : IAsyncDisposable
     {
         var pcName = Environment.MachineName;
         var developerMode = AppDeveloperSettings.DeveloperMode();
+        var webClientBuildId = WebHostStaticFiles.ReadWebClientBuildId(WebHostStaticFiles.ResolveStaticRoot());
         return new HostStatusMetadata(
             AppVersion.Display,
+            webClientBuildId,
             pcName,
             SelectedAdapterName,
             AdvertisedHostAddress,
@@ -337,6 +339,7 @@ public sealed class ControllerSocketClosedEventArgs : EventArgs
 
 internal sealed record HostStatusMetadata(
     string HostVersion,
+    string? WebClientBuildId,
     string PcName,
     string SelectedAdapterName,
     string SelectedIp,

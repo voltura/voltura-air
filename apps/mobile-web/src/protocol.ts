@@ -50,6 +50,7 @@ export type HostStatusMetadata = {
   developerMode?: boolean;
   developerSessionId?: string;
   hostVersion?: string;
+  webClientBuildId?: string;
   pcName?: string;
   pointerSpeed?: number;
   selectedAdapterName?: string;

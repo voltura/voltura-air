@@ -4,6 +4,8 @@ namespace VolturaAir.Host;
 
 internal static class WebHostStaticFiles
 {
+    private const string WebBuildIdFileName = "web-build-id.txt";
+
     public static async Task<bool> TryServeCompressedJavaScriptAsync(HttpContext context, string staticRoot)
     {
         if (!HttpMethods.IsGet(context.Request.Method) && !HttpMethods.IsHead(context.Request.Method))
@@ -43,7 +45,8 @@ internal static class WebHostStaticFiles
         var fileName = Path.GetFileName(requestPath);
         if (string.Equals(fileName, "index.html", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(fileName, "sw.js", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(fileName, "manifest.webmanifest", StringComparison.OrdinalIgnoreCase))
+            string.Equals(fileName, "manifest.webmanifest", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(fileName, WebBuildIdFileName, StringComparison.OrdinalIgnoreCase))
         {
             response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
             response.Headers["Pragma"] = "no-cache";
@@ -66,6 +69,29 @@ internal static class WebHostStaticFiles
         }
 
         return Path.Combine(AppContext.BaseDirectory, "wwwroot");
+    }
+
+    public static string? ReadWebClientBuildId(string staticRoot)
+    {
+        try
+        {
+            var buildIdPath = Path.Combine(staticRoot, WebBuildIdFileName);
+            if (!File.Exists(buildIdPath))
+            {
+                return null;
+            }
+
+            var buildId = File.ReadAllText(buildIdPath).Trim();
+            return buildId.Length > 0 ? buildId : null;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
+        }
     }
 
     internal static string? ResolveStaticFilePath(string staticRoot, string requestPath)

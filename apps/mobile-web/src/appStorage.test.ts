@@ -60,8 +60,7 @@ describe("appStorage", () => {
     expect(resolveTheme("light", true)).toBe("light");
   });
 
-  it("scopes auto refresh by host version or developer session", () => {
-    expect(getAutoRefreshSessionKey("client-a", "pc-a", "0.2.0", false)).toBe("voltura-air.autoRefresh.client-a.pc-a.version.0.2.0");
-    expect(getAutoRefreshSessionKey("client-a", "pc-a", "0.2.0", true, "session-a")).toBe("voltura-air.autoRefresh.client-a.pc-a.dev.session-a");
+  it("scopes auto refresh by web build ID", () => {
+    expect(getAutoRefreshSessionKey("client-a", "pc-a", "build-a")).toBe("voltura-air.autoRefresh.client-a.pc-a.build.build-a");
   });
 });

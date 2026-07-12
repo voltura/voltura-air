@@ -1,10 +1,12 @@
 import { spawn, spawnSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { readPreferredClientPort, stopChild, stopWindowsNodeListenersOnDevPorts } from "./dev-shared.mjs";
 
 const clientPort = readPreferredClientPort();
 const childEnv = {
   ...process.env,
-  VOLTURA_AIR_CLIENT_PORT: String(clientPort)
+  VOLTURA_AIR_CLIENT_PORT: String(clientPort),
+  VOLTURA_AIR_WEB_BUILD_ID: process.env.VOLTURA_AIR_WEB_BUILD_ID?.trim() || randomUUID()
 };
 const children = [];
 let shuttingDown = false;

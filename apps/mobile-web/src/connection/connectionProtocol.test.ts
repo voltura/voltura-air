@@ -32,11 +32,13 @@ describe("connection protocol policy", () => {
       defaultRemoteMode: "unknown" as never,
       developerMode: false,
       hostVersion: " 0.2.0 ",
+      webClientBuildId: " build-a ",
       pointerSpeed: 500,
       selectedPort: Number.NaN
     })).toEqual({
       defaultRemoteMode: "standard",
       hostVersion: "0.2.0",
+      webClientBuildId: "build-a",
       pointerSpeed: 100
     });
   });

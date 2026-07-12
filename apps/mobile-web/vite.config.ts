@@ -1,4 +1,5 @@
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { brotliCompressSync, constants, gzipSync } from "node:zlib";
@@ -6,14 +7,16 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 
 const packageJson = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as { version: string };
+const webBuildId = process.env.VOLTURA_AIR_WEB_BUILD_ID?.trim() || randomUUID();
 
 ignoreDevSocketResets();
 
 export default defineConfig({
   define: {
-    __APP_VERSION__: JSON.stringify(packageJson.version)
+    __APP_VERSION__: JSON.stringify(packageJson.version),
+    __WEB_BUILD_ID__: JSON.stringify(webBuildId)
   },
-  plugins: [react(), compressedJavaScriptAssets()]
+  plugins: [react(), webBuildIdFile(webBuildId), compressedJavaScriptAssets()]
 });
 
 function ignoreDevSocketResets(): void {
@@ -30,6 +33,24 @@ function ignoreDevSocketResets(): void {
 
     throw error;
   });
+}
+
+function webBuildIdFile(buildId: string): Plugin {
+  const writeBuildId = () => {
+    const distDir = fileURLToPath(new URL("./dist", import.meta.url));
+    mkdirSync(distDir, { recursive: true });
+    writeFileSync(join(distDir, "web-build-id.txt"), `${buildId}\n`);
+  };
+
+  return {
+    name: "web-build-id-file",
+    configureServer() {
+      writeBuildId();
+    },
+    closeBundle() {
+      writeBuildId();
+    }
+  };
 }
 
 function compressedJavaScriptAssets(): Plugin {

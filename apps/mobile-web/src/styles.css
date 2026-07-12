@@ -1178,34 +1178,54 @@ textarea:focus {
 
 .arrow-pad {
   display: grid;
-  grid-template-columns: repeat(3, 56px);
+  grid-template-columns: repeat(5, minmax(0, 56px));
   grid-template-areas:
-    ". up ."
-    "left down right";
+    ". page-down up page-up ."
+    "home left down right end";
+  width: min(100%, 312px);
   justify-content: center;
+  justify-self: center;
   gap: 8px;
 }
 
 .arrow-pad button {
-  width: 56px;
+  width: 100%;
+  min-width: 0;
   height: 48px;
   padding: 0;
+  font-size: 0.78rem;
 }
 
 .arrow-pad button:nth-child(1) {
-  grid-area: up;
+  grid-area: page-down;
 }
 
 .arrow-pad button:nth-child(2) {
-  grid-area: left;
+  grid-area: up;
 }
 
 .arrow-pad button:nth-child(3) {
-  grid-area: down;
+  grid-area: page-up;
 }
 
 .arrow-pad button:nth-child(4) {
+  grid-area: home;
+}
+
+.arrow-pad button:nth-child(5) {
+  grid-area: left;
+}
+
+.arrow-pad button:nth-child(6) {
+  grid-area: down;
+}
+
+.arrow-pad button:nth-child(7) {
   grid-area: right;
+}
+
+.arrow-pad button:nth-child(8) {
+  grid-area: end;
 }
 
 .hint {

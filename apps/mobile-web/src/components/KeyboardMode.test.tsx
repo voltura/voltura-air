@@ -115,6 +115,31 @@ describe("KeyboardMode live typing", () => {
     expect(textarea.value).toBe(`${liveKeyboardSentinel}a\n\t `);
     expect(sendText).toHaveBeenCalledWith(" ");
   });
+
+  it("mirrors Delete and navigation buttons into the live textbox", () => {
+    const sendSpecial = vi.fn();
+    render(<KeyboardModeHarness initialText={"ab\ncd"} sendSpecial={sendSpecial} />);
+
+    const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+    textarea.focus();
+    textarea.setSelectionRange(1 + liveKeyboardSentinel.length, 1 + liveKeyboardSentinel.length);
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(textarea.value).toBe(`${liveKeyboardSentinel}a\ncd`);
+    expect(sendSpecial).toHaveBeenLastCalledWith("Delete");
+
+    fireEvent.click(screen.getByRole("button", { name: "Page Down" }));
+    expect(sendSpecial).toHaveBeenLastCalledWith("PageDown");
+
+    fireEvent.click(screen.getByRole("button", { name: "Home" }));
+    expect(sendSpecial).toHaveBeenLastCalledWith("Home");
+
+    fireEvent.click(screen.getByRole("button", { name: "End" }));
+    expect(sendSpecial).toHaveBeenLastCalledWith("End");
+
+    fireEvent.click(screen.getByRole("button", { name: "Page Up" }));
+    expect(sendSpecial).toHaveBeenLastCalledWith("PageUp");
+  });
 });
 
 describe("KeyboardMode repeatable keys", () => {
@@ -185,6 +210,11 @@ describe("KeyboardMode repeatable keys", () => {
   it.each([
     ["Enter", "Enter"],
     ["Tab", "Tab"],
+    ["Delete", "Delete"],
+    ["Home", "Home"],
+    ["End", "End"],
+    ["Page Up", "PageUp"],
+    ["Page Down", "PageDown"],
     ["Arrow up", "ArrowUp"],
     ["Arrow down", "ArrowDown"],
     ["Arrow left", "ArrowLeft"],
@@ -213,8 +243,11 @@ describe("KeyboardMode shortcut keys", () => {
     ["Ctrl A", "A", ["Control"]],
     ["Ctrl C", "C", ["Control"]],
     ["Ctrl V", "V", ["Control"]],
+    ["Ctrl X", "X", ["Control"]],
     ["Ctrl Z", "Undo", undefined],
-    ["Ctrl Y", "Redo", undefined]
+    ["Ctrl Y", "Redo", undefined],
+    ["Alt Tab", "Tab", ["Alt"]],
+    ["Shift Alt Tab", "Tab", ["Shift", "Alt"]]
   ] as const)("sends %s", (buttonName, key, modifiers) => {
     const sendSpecial = vi.fn();
     render(<KeyboardModeHarness sendSpecial={sendSpecial} />);
@@ -234,7 +267,34 @@ describe("KeyboardMode shortcut keys", () => {
 
     expect(screen.queryByRole("button", { name: "Ctrl A" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Ctrl Y" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Alt Tab" })).toBeNull();
     expect(screen.queryByLabelText("Keyboard shortcuts")).toBeNull();
+  });
+});
+
+describe("KeyboardMode navigation keys", () => {
+  it("edits and moves through the local textarea in buffered mode", () => {
+    render(<KeyboardModeHarness initialText={"ab\ncd"} liveKeyboard={false} />);
+
+    const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+    textarea.focus();
+    textarea.setSelectionRange(1, 1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(textarea.value).toBe("a\ncd");
+    expect(textarea.selectionStart).toBe(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Page Down" }));
+    expect(textarea.selectionStart).toBe(textarea.value.length);
+
+    fireEvent.click(screen.getByRole("button", { name: "Home" }));
+    expect(textarea.selectionStart).toBe(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "End" }));
+    expect(textarea.selectionStart).toBe(textarea.value.length);
+
+    fireEvent.click(screen.getByRole("button", { name: "Page Up" }));
+    expect(textarea.selectionStart).toBe(0);
   });
 });
 

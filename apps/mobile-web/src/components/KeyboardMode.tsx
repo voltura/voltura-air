@@ -6,8 +6,24 @@ const functionKeys = Array.from({ length: 12 }, (_, index) => `F${index + 1}`);
 const repeatStartDelayMs = 400;
 const repeatIntervalMs = 55;
 
-type RepeatableKey = "Backspace" | "Enter" | "Tab" | "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight";
+type RepeatableKey = "Backspace" | "Delete" | "Enter" | "Tab" | "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "Home" | "End" | "PageUp" | "PageDown";
 type KeyboardInputMode = "text" | "numeric";
+type ShortcutKey = {
+  label: string;
+  key: string;
+  modifiers?: string[];
+};
+
+const shortcutKeys: ShortcutKey[] = [
+  { label: "Ctrl A", key: "A", modifiers: ["Control"] },
+  { label: "Ctrl C", key: "C", modifiers: ["Control"] },
+  { label: "Ctrl V", key: "V", modifiers: ["Control"] },
+  { label: "Ctrl X", key: "X", modifiers: ["Control"] },
+  { label: "Ctrl Z", key: "Undo" },
+  { label: "Ctrl Y", key: "Redo" },
+  { label: "Alt Tab", key: "Tab", modifiers: ["Alt"] },
+  { label: "Shift Alt Tab", key: "Tab", modifiers: ["Shift", "Alt"] }
+];
 
 type KeyboardModeProps = {
   committedKeyboardTextRef: React.MutableRefObject<string>;
@@ -182,8 +198,35 @@ export function KeyboardMode({
       return;
     }
 
+    if (key === "Delete") {
+      if (start !== end) {
+        setLiveKeyboardText(`${keyboardText.slice(0, start)}${keyboardText.slice(end)}`, start);
+        return;
+      }
+
+      if (end < keyboardText.length) {
+        setLiveKeyboardText(`${keyboardText.slice(0, start)}${keyboardText.slice(end + 1)}`, start);
+      }
+      return;
+    }
+
     if (key === "Enter" || key === "Tab") {
       insertLiveKeyboardText(key === "Enter" ? "\n" : "\t");
+      return;
+    }
+
+    if (key === "Home") {
+      setLiveKeyboardText(keyboardText, getLineStart(keyboardText, start));
+      return;
+    }
+
+    if (key === "End") {
+      setLiveKeyboardText(keyboardText, getLineEnd(keyboardText, end));
+      return;
+    }
+
+    if (key === "PageUp" || key === "PageDown") {
+      setLiveKeyboardText(keyboardText, key === "PageUp" ? 0 : keyboardText.length);
       return;
     }
 
@@ -226,10 +269,37 @@ export function KeyboardMode({
       return;
     }
 
+    if (key === "Delete") {
+      if (start !== end) {
+        setBufferedKeyboardText(`${value.slice(0, start)}${value.slice(end)}`, start);
+        return;
+      }
+
+      if (end < value.length) {
+        setBufferedKeyboardText(`${value.slice(0, start)}${value.slice(end + 1)}`, start);
+      }
+      return;
+    }
+
     if (key === "Enter" || key === "Tab") {
       const insertedText = key === "Enter" ? "\n" : "\t";
       const nextCaret = start + insertedText.length;
       setBufferedKeyboardText(`${value.slice(0, start)}${insertedText}${value.slice(end)}`, nextCaret);
+      return;
+    }
+
+    if (key === "Home") {
+      setBufferedKeyboardText(value, getLineStart(value, start));
+      return;
+    }
+
+    if (key === "End") {
+      setBufferedKeyboardText(value, getLineEnd(value, end));
+      return;
+    }
+
+    if (key === "PageUp" || key === "PageDown") {
+      setBufferedKeyboardText(value, key === "PageUp" ? 0 : value.length);
       return;
     }
 
@@ -262,6 +332,15 @@ export function KeyboardMode({
     if (liveKeyboard) {
       insertLiveKeyboardText(" ");
     }
+  };
+
+  const sendShortcut = (key: string, modifiers?: string[]) => {
+    if (modifiers) {
+      sendSpecial(key, modifiers);
+      return;
+    }
+
+    sendSpecial(key);
   };
 
   const getRepeatableKeyProps = (key: RepeatableKey) => ({
@@ -363,6 +442,7 @@ export function KeyboardMode({
         <button onClick={sendSpace} aria-label="Space">
           <Space aria-hidden="true" />
         </button>
+        <button {...getRepeatableKeyProps("Delete")}>Delete</button>
       </div>
       {showFunctionKeys && (
         <div className="function-key-row" aria-label="Function keys">
@@ -375,9 +455,16 @@ export function KeyboardMode({
       )}
       {showArrowKeys && (
         <div className="arrow-pad">
+          <button {...getRepeatableKeyProps("PageDown")} aria-label="Page Down">
+            PgDn
+          </button>
           <button {...getRepeatableKeyProps("ArrowUp")} aria-label="Arrow up">
             <ArrowUp aria-hidden="true" />
           </button>
+          <button {...getRepeatableKeyProps("PageUp")} aria-label="Page Up">
+            PgUp
+          </button>
+          <button {...getRepeatableKeyProps("Home")}>Home</button>
           <button {...getRepeatableKeyProps("ArrowLeft")} aria-label="Arrow left">
             <ArrowLeft aria-hidden="true" />
           </button>
@@ -387,27 +474,33 @@ export function KeyboardMode({
           <button {...getRepeatableKeyProps("ArrowRight")} aria-label="Arrow right">
             <ArrowRight aria-hidden="true" />
           </button>
+          <button {...getRepeatableKeyProps("End")}>End</button>
         </div>
       )}
       {showControlKeys && (
-        <div className="function-key-row shortcut-row" style={{ gridTemplateColumns: "repeat(5, minmax(0, 1fr))" }} aria-label="Keyboard shortcuts">
-          <button onClick={() => sendSpecial("A", ["Control"])}>Ctrl A</button>
-          <button onClick={() => sendSpecial("C", ["Control"])}>Ctrl C</button>
-          <button onClick={() => sendSpecial("V", ["Control"])}>Ctrl V</button>
-          <button onClick={() => sendSpecial("Undo")} title="Undo">
-            Ctrl Z
-          </button>
-          <button onClick={() => sendSpecial("Redo")} title="Redo">
-            Ctrl Y
-          </button>
+        <div className="function-key-row shortcut-row" aria-label="Keyboard shortcuts">
+          {shortcutKeys.map(({ label, key, modifiers }) => (
+            <button key={label} onClick={() => sendShortcut(key, modifiers)} title={key === "Undo" ? "Undo" : key === "Redo" ? "Redo" : undefined}>
+              {label}
+            </button>
+          ))}
         </div>
       )}
     </section>
   );
 }
 
+function getLineStart(value: string, caret: number): number {
+  return value.lastIndexOf("\n", Math.max(0, caret - 1)) + 1;
+}
+
+function getLineEnd(value: string, caret: number): number {
+  const nextLineBreak = value.indexOf("\n", caret);
+  return nextLineBreak === -1 ? value.length : nextLineBreak;
+}
+
 function getVerticalCaretPosition(value: string, caret: number, direction: -1 | 1): number {
-  const currentLineStart = value.lastIndexOf("\n", caret - 1) + 1;
+  const currentLineStart = getLineStart(value, caret);
   const currentColumn = caret - currentLineStart;
 
   if (direction === -1) {

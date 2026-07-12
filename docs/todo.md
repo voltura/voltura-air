@@ -5,17 +5,6 @@ Scope: current `voltura/voltura-air` `main` branch plus recent completed work. T
 
 This file separates the current implemented baseline from remaining roadmap work. It is written for a solo developer building a freeware/open-source Windows utility. Prioritize adoption, reliability, trust, and visible user value over cloning every competitor.
 
-## Current release blocker
-
-- [ ] Finish and validate connection reliability before publishing the next public installer:
-  - [x] stale health checks move the mobile app to unavailable/retrying;
-  - [x] host `connected: false` status moves the mobile app to unavailable/retrying;
-  - [x] protocol supports optional input `seq`, `input.ack`, and `input.error`;
-  - [x] host validates optional input sequence numbers;
-  - [x] host acknowledges dispatched input and reports dispatch failures;
-  - [x] mobile client tracks pending input acknowledgements when the host advertises `capabilities.inputAck`;
-  - [ ] run local build/test/manual validation on Windows before merge/release.
-
 ## Status legend
 
 - `[x]` Implemented enough to count as done on `main`.
@@ -25,102 +14,10 @@ This file separates the current implemented baseline from remaining roadmap work
 
 ---
 
-## Already implemented baseline
-
-### Product positioning and docs
-
-- [x] README product promise:
-  - Control your Windows PC from any phone, tablet, or modern browser.
-  - No mobile app-store install required.
-  - Local-first. No account. No cloud needed. No paywall.
-- [x] README "Best for" section.
-- [x] README "Not intended for" section.
-- [x] High-level feature map in `docs/features.md`.
-- [x] Protocol documentation in `docs/protocol.md`.
-- [x] Pairing feedback documentation in `docs/pairing-feedback.md`.
-- [x] Manual network/host selection documentation in `docs/manual-network-selection.md`.
-- [x] Release packaging documentation in `docs/release.md`.
-- [x] Contributing, code of conduct, security policy, license, and funding files.
-
-### Windows host foundation
-
-- [x] WPF tray application.
-- [x] Connect page.
-- [x] Devices page.
-- [x] Connection page.
-- [x] Preferences page.
-- [x] Diagnostics page.
-- [x] Light/dark/system theme support.
-- [x] Per-user installer packaging.
-- [x] Portable zip packaging.
-- [x] NSIS DPI-awareness work.
-- [x] Local web host for the mobile PWA.
-- [x] WebSocket command handling.
-- [x] Authenticated pairing before input dispatch.
-- [x] Short-lived QR pairing token.
-- [x] Stored reconnect secret hashed on the host.
-- [x] Saved paired devices.
-- [x] Active connection tracking.
-- [x] Device disconnect/remove.
-- [x] Duplicate device cleanup.
-- [x] Device rename.
-- [x] Device metadata: platform, browser, display mode.
-- [x] Host-side capability reporting.
-- [x] Host-side permission model for sleep and volume.
-- [x] Global/default permission settings.
-- [x] Per-device permission overrides.
-- [x] WebSocket origin restrictions.
-- [x] Pairing attempt rate limiting.
-- [x] Protocol validation before input dispatch.
-- [x] Manual network adapter selection.
-- [x] Automatic network adapter selection with warnings.
-- [x] Manual port setting with validation.
-- [x] Automatic port fallback from preferred port.
-
-### Mobile web foundation
-
-- [x] React/TypeScript PWA.
-- [x] Browser use without app-store install.
-- [x] Home-screen install support where browsers allow it.
-- [x] Saved PC profiles.
-- [x] Manual host entry.
-- [x] Pairing from QR photo.
-- [x] Friendly pairing/reconnect feedback.
-- [x] Copyable redacted diagnostics.
-- [x] Troubleshooting/recovery UI.
-- [x] Device rename.
-- [x] PC rename.
-- [x] Forget saved PC.
-- [x] Refresh installed PWA cache.
-- [x] Light/dark/system theme support.
-
----
-
 ## P1 - Make the current input experience excellent
 
 ### P1.1 Trackpad polish
 
-- [x] Pointer speed setting with host default and per-device override.
-- [x] Pointer smoothing option.
-- [x] Pointer acceleration option.
-- [x] Scroll acceleration option.
-- [x] Scroll direction wording:
-  - [x] Natural scrolling.
-  - [x] Traditional scrolling.
-- [x] Gesture test/debug screen.
-- [x] Prevent browser page scrolling while using trackpad.
-- [x] Prevent accidental text/image selection while using trackpad.
-- [x] Haptic feedback where browser support allows it.
-- [x] Left-handed button layout option.
-- [x] Large click buttons option.
-- [x] Physical left/right click buttons.
-- [x] Hold left/right mouse button while moving pointer for drag/resize.
-- [x] Two-finger vertical scroll.
-- [x] Horizontal scroll.
-- [x] Optional pinch zoom gesture.
-- [x] Expanded full-screen trackpad mode.
-- [x] Per saved-PC/client local trackpad preferences.
-- [x] True per-device pointer speed profile with host default and phone/host override updates.
 - [ ] Verify pinch zoom in common apps:
   - [ ] Chrome/Edge. Manual.
   - [ ] Photos. Manual.
@@ -135,43 +32,14 @@ This file separates the current implemented baseline from remaining roadmap work
 
 ### P1.2 Keyboard correctness
 
-- [x] Live typing mode.
-- [x] Buffered send mode.
-- [x] Send button hidden when Live typing is enabled.
-- [x] Mobile composition/IME handling foundation.
-- [x] Old stored keyboard settings migration tests.
-- [x] Optional function keys.
-- [x] Optional arrow keys.
-- [x] Optional control/shortcut row.
-- [x] Shortcut button: Ctrl+C.
-- [x] Shortcut button: Ctrl+V.
-- [ ] Shortcut button: Ctrl+X.
-- [x] Shortcut button: Ctrl+A.
-- [x] Shortcut button: Ctrl+Z.
-- [x] Shortcut button: Ctrl+Y.
-- [ ] Shortcut button: Alt+Tab.
-- [ ] Shortcut button: Shift+Alt+Tab.
-- [x] Shortcut button: Win.
-- [x] Shortcut button: Esc.
-- [x] Button: Enter.
-- [x] Button: Tab.
-- [x] Button: Backspace.
-- [ ] Button: Delete.
-  - Partial: host supports `Delete`, but the mobile keyboard UI does not expose a Delete button yet.
-- [ ] Button: Home.
-  - Partial: host supports `Home`, but the mobile keyboard UI does not expose a Home button yet.
-- [ ] Button: End.
-  - Partial: host supports `End`, but the mobile keyboard UI does not expose an End button yet.
-- [ ] Button: Page Up.
-  - Partial: host supports `PageUp`, but the mobile keyboard UI does not expose a Page Up button yet.
-- [ ] Button: Page Down.
-  - Partial: host supports `PageDown`, but the mobile keyboard UI does not expose a Page Down button yet.
 - [ ] Add Swedish keyboard layout verification.
   - Partial: Unicode text injection should help normal Swedish text, but this still needs explicit test cases and real app verification.
 - [ ] Add AltGr support tests.
 - [ ] Add dead-key support tests.
+
 - [ ] Add compact vs full keyboard controls.
   - Partial: current settings can show/hide function, control, arrow, and sleep buttons; there is no single compact/full preset.
+
 - [ ] Improve wording/help text for:
   - [ ] Live typing.
   - [ ] Buffered send.
@@ -180,15 +48,6 @@ This file separates the current implemented baseline from remaining roadmap work
 
 ### P1.3 Split mode as signature feature
 
-- [x] Split mode exists.
-- [x] Split mode can be enabled/disabled from Trackpad settings.
-- [x] Split mode can be enabled/disabled from Keyboard settings.
-- [x] Split mode activates in landscape when wide enough.
-- [x] Split mode shows keyboard and trackpad side-by-side.
-- [x] Split mode hides mode tabs/status/top chrome automatically to maximize usable space.
-- [x] Split mode hides volume control automatically.
-- [x] Treat tablet/landscape split mode as a signature product feature in public copy.
-- [x] Add a product screenshot/demo of split mode.
 - [ ] Ensure split mode works well in landscape on phones. Manual.
 - [ ] Ensure split mode works well on tablets. Manual.
 - [ ] Add setting: left/right trackpad placement.
@@ -206,40 +65,11 @@ This file separates the current implemented baseline from remaining roadmap work
 
 ### P1.4 Couch / TV remote mode
 
-Goal: a user should instantly understand why the app is useful from one screenshot.
-
-- [x] Add new mode: "Remote" or "Couch Remote".
-- [x] Add large controls:
-  - [x] Play / pause.
-  - [x] Previous.
-  - [x] Next.
-  - [x] Seek backward.
-  - [x] Seek forward.
-  - [x] Volume down/up.
-  - [x] Mute.
-  - [x] Fullscreen.
-  - [x] Space.
-  - [x] Esc / Back.
-- [x] Add D-pad/navigation control:
-  - [x] Up.
-  - [x] Down.
-  - [x] Left.
-  - [x] Right.
-  - [x] Enter / OK.
-  - [x] Navigation ring.
-  - [x] Mini-trackpad center.
 - [ ] Add utility buttons:
   - [ ] Show desktop.
-  - [x] Start/Search.
-  - [x] Alt+Tab.
-  - [x] Browser Back.
 - [ ] Add settings:
   - [ ] Hide dangerous power actions.
-  - [x] Choose default mode from Windows host Preferences.
   - [ ] Choose which buttons are visible.
-  - [x] Toggle navigation ring.
-  - [x] Choose Standard, YouTube, or Kodi mode.
-- [x] Add automated tests for remote button message mapping.
 - [ ] Add manual tests with:
   - [ ] YouTube in browser.
   - [ ] Netflix/streaming site in browser if available.
@@ -250,15 +80,9 @@ Goal: a user should instantly understand why the app is useful from one screensh
 
 Start with phone-to-PC only.
 
-- [x] Phone-to-PC text input foundation.
-  - Current keyboard mode supports live typing and buffered text send.
 - [ ] Add dedicated "Paste text to PC" screen.
-- [x] Add large text area on mobile.
-  - Existing keyboard/dictation text areas cover this partly.
 - [ ] Add send modes:
   - [ ] Paste as text.
-  - [x] Type text slowly.
-    - Partial: host sends Unicode input events; there is no explicit slow typing mode.
   - [ ] Send Enter after paste.
 - [ ] Add safety:
   - [ ] Show target warning: "Text goes to the focused app on your PC."
@@ -281,8 +105,6 @@ Start with phone-to-PC only.
 
 ### P1.6 Power and session controls
 
-- [x] Add host setting/permission: enable/disable PC sleep.
-- [x] Add safe action: Sleep PC.
 - [ ] Add safe action: Lock PC.
 - [ ] Add safe action: Turn off display if feasible.
 - [ ] Add dangerous actions with hold-to-confirm:
@@ -293,8 +115,6 @@ Start with phone-to-PC only.
   - Partial: Sleep button exists behind host capability/permission, but no confirmation screen.
 - [x] Add host-side confirmation/allowlist setting.
   - Partial: host-side permission/capability exists; there is no separate confirmation prompt.
-- [x] Add tests/logic that unpaired devices cannot trigger power actions.
-  - Authentication is required before `system.sleep` is processed.
 - [x] Add docs explaining how to disable power controls.
   - Partial: protocol/docs describe capability/permission behavior, but a user-facing power-controls doc could still be clearer.
 
@@ -330,9 +150,6 @@ Start with phone-to-PC only.
 
 - [ ] Add shortcuts:
   - [ ] Show desktop.
-  - [x] Alt+Tab.
-    - Partial: Remote mode exposes Alt+Tab; Keyboard mode does not expose an Alt+Tab shortcut button yet.
-  - [ ] Shift+Alt+Tab.
   - [ ] Close window.
   - [ ] Minimize window.
   - [x] Open Start menu.
@@ -392,17 +209,9 @@ Start with phone-to-PC only.
 
 ### P2.5 Per-device profiles
 
-- [x] Store saved PC profiles on mobile.
-- [x] Store device identity on mobile.
-- [x] Store device name.
-- [x] Store per-saved-PC/client trackpad preferences.
-- [x] Show device type/browser/display mode in host paired device records.
-- [x] Rename device option.
-- [x] Rename saved PC option.
 - [ ] Store settings per paired device on host.
   - Partial: host stores permission overrides and pointer speed per paired device; mobile stores remaining UI/input preferences locally.
 - [ ] Store preferred mode per device.
-- [x] Store pointer speed per device on host.
 - [ ] Store layout preference per device on host.
 
 ---
@@ -411,21 +220,6 @@ Start with phone-to-PC only.
 
 ### P2.6 Website and public documentation
 
-- [x] Add landing/product promise copy to README.
-- [x] Add high-level feature documentation.
-- [x] Add pairing/security/protocol docs.
-- [x] Add release packaging docs.
-- [x] Confirm/update static product website source.
-  - Current source lives at `docs/site/index.php`.
-- [x] Add landing page sections:
-  - [x] What it does.
-  - [x] Why use it.
-  - [x] How pairing works.
-  - [x] Privacy/security.
-  - [x] Troubleshooting.
-  - [x] Download.
-  - [x] GitHub/source link.
-  - [x] Support development links.
 - [ ] Add demo GIF/video:
   - [ ] QR scan.
   - [ ] Cursor move.
@@ -445,11 +239,6 @@ Start with phone-to-PC only.
 
 ### P2.7 Release trust
 
-- [x] Document unsigned installer status.
-- [x] Document release build/package/upload workflow.
-- [x] Package portable zip.
-- [x] Package NSIS installer.
-- [x] Add optional support/funding links.
 - [ ] Investigate code-signing certificate cost/options.
 - [ ] Add signed installer when practical.
 - [ ] Add SHA256 checksums to releases.
@@ -462,12 +251,6 @@ Start with phone-to-PC only.
 
 ### P2.8 Open-source growth
 
-- [x] Add CONTRIBUTING quickstart.
-- [x] Add security policy.
-- [x] Add code of conduct.
-- [x] Add MIT license.
-- [x] Add funding file.
-- [x] Add protocol examples.
 - [ ] Add issue templates:
   - [ ] Bug report.
   - [ ] Feature request.
@@ -556,41 +339,18 @@ Only consider if PWA limitations block important features.
 
 ## Recommended next issue order
 
-1. Finish local validation for connection reliability and input acknowledgement.
-2. Couch Remote polish: Show desktop, button visibility settings, and manual app validation.
-3. Add missing on-screen keyboard/navigation buttons: Ctrl+X, Alt+Tab, Shift+Alt+Tab, Delete, Home, End, Page Up, Page Down.
-4. Add dedicated Paste Text to PC screen with warning, long-text confirm, snippets, and send-enter option.
-5. Polish split mode as a signature feature: tests, tablet/phone manual verification, and optional layout settings.
-6. Add presentation mode.
-7. Add website/FAQ/privacy page and demo assets.
-8. Add release trust improvements: checksums, release notes template, known limitations.
-9. Add issue templates and labels.
-10. Investigate code signing.
-11. Later: Wake-on-LAN, screen preview, file transfer, gyroscope mouse, gamepad mode.
+3. Add dedicated Paste Text to PC screen with warning, long-text confirm, snippets, and send-enter option.
+4. Polish split mode as a signature feature: tests, tablet/phone manual verification, and optional layout settings.
+5. Add presentation mode.
+6. Add website/FAQ/privacy page and demo assets.
+7. Add release trust improvements: checksums, release notes template, known limitations.
+8. Add issue templates and labels.
+9. Investigate code signing.
+10. Later: Wake-on-LAN, screen preview, file transfer, gyroscope mouse, gamepad mode.
 
 ---
 
 ## Suggested GitHub milestones
-
-### Milestone 1: Reliable local control
-
-Status: mostly done, but keep polishing.
-
-- Trackpad polish.
-- Keyboard correctness.
-- Pairing/reconnect reliability.
-- Manual host/network recovery.
-- Security baseline.
-
-### Milestone 2: Couch remote
-
-Status: next strongest adoption milestone.
-
-- Dedicated media remote.
-- D-pad.
-- App/window helper.
-- Safe power/session controls.
-- Website screenshots/demo.
 
 ### Milestone 3: Productivity
 

@@ -14,6 +14,10 @@ updated as the app structure, tooling, and release process become concrete.
 - Preserve user work in the tree; do not revert unrelated changes.
 - Codex may stop local development or app processes when needed for build, test,
   debugging, or file-lock cleanup without asking first.
+- Do not start debug/dev servers unless explicitly asked. If a required dev
+  server port is already in use, stop the relevant running process instead of
+  taking the next port; the user normally starts debugging from VS Code with
+  `npm run dev`.
 - If a task has a preferred validation, inspection, capture, automation tool,
   or supporting runtime/toolchain that is not installed locally, Codex may
   install and use it without asking first. Prefer temporary or user-scoped

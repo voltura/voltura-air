@@ -112,6 +112,7 @@ describe("RemoteMode", () => {
     ["Play or pause", "Space", undefined],
     ["Next track", "MediaNextTrack", undefined],
     ["Seek backward", "ArrowLeft", undefined],
+    ["Power menu", "S", undefined],
     ["Seek forward", "ArrowRight", undefined],
     ["Esc or back", "Backspace", undefined],
     ["Fullscreen", "Tab", undefined],
@@ -139,6 +140,34 @@ describe("RemoteMode", () => {
     renderRemote({ remoteSettings: { ...defaultRemoteSettings, navigationRing: true, mode: "kodi" } });
 
     expect(screen.queryByRole("button", { name: "Browser fullscreen" })).toBeNull();
+  });
+
+  it("replaces Space with Stop and puts the power menu beside Fullscreen only in Kodi mode", () => {
+    const { rerender } = renderRemote({ remoteSettings: { ...defaultRemoteSettings, navigationRing: true, mode: "kodi" } });
+
+    expect(screen.getByRole("button", { name: "Power menu" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Space" })).toBeNull();
+    expect(
+      screen
+        .getAllByRole("button")
+        .map((button) => button.getAttribute("aria-label"))
+        .slice(3, 9)
+    ).toEqual(["Seek backward", "End playback", "Seek forward", "Esc or back", "Fullscreen", "Power menu"]);
+
+    rerender(
+      <RemoteMode
+        {...{
+          audioState: { type: "audio.state", volume: 50, muted: false },
+          remoteSettings: { ...defaultRemoteSettings, navigationRing: true, mode: "standard" },
+          onPointerButtonClick: vi.fn(),
+          onPointerMove: vi.fn(),
+          sendSpecial: vi.fn()
+        }}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Space" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Power menu" })).toBeNull();
   });
 
   it("keeps remote volume buttons enabled without audio state", () => {

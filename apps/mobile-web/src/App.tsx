@@ -572,8 +572,15 @@ export function App() {
 
   const updateRemoteSetting = <Key extends keyof RemoteSettings>(key: Key, value: RemoteSettings[Key]) => {
     const nextSettings = { ...remoteSettings, [key]: value } as RemoteSettings;
-    if (key === "mode" && value !== remoteSettings.mode) {
-      maybeLaunchRemoteMode(value, nextSettings);
+    if (key === "mode") {
+      if (value === "youtube" || value === "kodi") {
+        selectModeTab("remote");
+        setIsSettingsOpen(false);
+      }
+
+      if (value !== remoteSettings.mode) {
+        maybeLaunchRemoteMode(value, nextSettings);
+      }
     }
 
     setRemoteSettingsState((current) => ({

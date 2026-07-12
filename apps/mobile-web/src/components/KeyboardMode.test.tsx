@@ -132,7 +132,8 @@ describe("KeyboardMode live typing", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Space" }));
     expect(textarea.value).toBe(`${liveKeyboardSentinel}a\n\t `);
-    expect(sendText).toHaveBeenCalledWith(" ");
+    expect(sendSpecial).toHaveBeenCalledWith("Space");
+    expect(sendText).not.toHaveBeenCalled();
   });
 
   it("mirrors Delete and navigation buttons into the live textbox", () => {

@@ -64,6 +64,15 @@ function KeyboardModeHarness({
 }
 
 describe("KeyboardMode live typing", () => {
+  it("explains live typing and buffered send in a compact info dialog", () => {
+    render(<KeyboardModeHarness />);
+
+    fireEvent.click(screen.getByRole("button", { name: "About Live typing" }));
+
+    expect(screen.getByRole("dialog", { name: "Live typing" })).toBeTruthy();
+    expect(screen.getByText("Sends each character to the focused application on your PC as you type. Turn it off to compose text on your device first, then press Send.")).toBeTruthy();
+  });
+
   it("focuses the text input when live typing is enabled", () => {
     render(<KeyboardModeHarness liveKeyboard={false} />);
 

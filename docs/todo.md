@@ -16,32 +16,6 @@ Prioritize reliability, usability, trust, and visible user value. Manual and rea
 
 ## 1. Input quality and layout
 
-### 1.1 Keyboard compatibility and clarity
-
-- [ ] Add automated Swedish keyboard layout coverage.
-- [ ] Add AltGr shortcut coverage.
-- [ ] Add dead-key and composition coverage.
-- [ ] Add compact and full keyboard presets.
-- [ ] Improve help text for:
-  - [ ] Live typing.
-  - [ ] Buffered send.
-  - [ ] Function keys.
-  - [ ] Split mode.
-
-Optional verification:
-
-- Swedish and AltGr input in Notepad, browsers, Office, Teams, and similar apps.
-- iPhone Safari, Android Chrome, iPad Safari, Android tablet Chrome, and ChromeOS.
-
-### 1.2 Trackpad compatibility
-
-- [ ] Add regression coverage for pinch-zoom gesture translation where practical.
-
-Optional verification:
-
-- Pinch zoom in Chrome or Edge, Photos, a PDF viewer, and Office or PowerPoint.
-- Pointer, scrolling, dragging, and zoom behavior across supported phone and tablet browsers.
-
 ### 1.3 Split mode polish
 
 - [ ] Add left/right trackpad placement.

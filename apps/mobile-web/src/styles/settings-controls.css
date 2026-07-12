@@ -16,7 +16,73 @@
   width: max-content;
   min-width: max-content;
   gap: 12px;
+}
+
+.setting-label-with-info,
+.switch-control {
+  display: inline-flex;
+  align-items: center;
+}
+
+.setting-label-with-info {
+  min-width: 0;
+  gap: 6px;
+}
+
+.setting-label-with-info label,
+.switch-control {
   cursor: pointer;
+}
+
+.info-button {
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  flex: 0 0 30px;
+  border-radius: 999px;
+  color: var(--muted);
+  background: transparent;
+  padding: 0;
+}
+
+.info-button svg {
+  width: 17px;
+  height: 17px;
+}
+
+.info-dialog {
+  width: min(360px, calc(100vw - 32px));
+  max-width: none;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: 0 18px 48px var(--drawer-shadow);
+  padding: 20px;
+}
+
+.info-dialog::backdrop {
+  background: var(--scrim);
+}
+
+.info-dialog h2 {
+  margin: 0 0 10px;
+  font-size: 1.15rem;
+}
+
+.info-dialog p {
+  margin: 0 0 18px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.info-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.info-dialog-actions button {
+  min-width: 88px;
 }
 
 .live-typing-switch input {

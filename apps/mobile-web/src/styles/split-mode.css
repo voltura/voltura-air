@@ -23,7 +23,7 @@
 
   .split-mode-shell {
     display: grid;
-    grid-template-columns: minmax(280px, 0.95fr) minmax(320px, 1.05fr);
+    grid-template-columns: minmax(356px, 0.95fr) minmax(240px, 1.05fr);
     gap: 10px;
     overflow: hidden;
   }
@@ -43,8 +43,23 @@
   }
 
   .split-keyboard-pane .keyboard-mode {
+    width: 100%;
+    min-width: 0;
     min-height: 0;
     align-content: start;
+  }
+
+  .split-keyboard-pane .live-typing-row {
+    min-width: 0;
+    grid-template-columns: max-content minmax(0, 1fr) clamp(104px, 30%, 152px);
+  }
+
+  .split-keyboard-pane .live-typing-row textarea {
+    min-width: 0;
+  }
+
+  .split-keyboard-pane .keyboard-input-mode-buttons {
+    width: 100%;
   }
 
   .split-trackpad-pane {
@@ -62,4 +77,3 @@
     min-height: 0;
   }
 }
-

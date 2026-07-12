@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Send } from "lucide-react";
 import { liveKeyboardSentinel } from "../keyboardDelta";
+import { InfoButton } from "./InfoButton";
 
 const functionKeys = Array.from({ length: 12 }, (_, index) => `F${index + 1}`);
 const repeatStartDelayMs = 400;
@@ -73,6 +74,7 @@ export function KeyboardMode({
   const repeatIntervalRef = useRef<number | null>(null);
   const ignoreNextClickRef = useRef(false);
   const [keyboardInputMode, setKeyboardInputMode] = useState<KeyboardInputMode>("text");
+  const liveTypingId = useId();
 
   const stopRepeatingKey = () => {
     if (repeatTimeoutRef.current !== null) {
@@ -396,13 +398,21 @@ export function KeyboardMode({
   return (
     <section className={`keyboard-mode ${liveKeyboard ? "live-typing" : ""}`}>
       <div className="live-typing-row">
-        <label className="live-typing-switch">
-          <span>Live typing</span>
-          <input type="checkbox" role="switch" aria-checked={liveKeyboard} checked={liveKeyboard} onChange={handleLiveTypingChange} />
-          <span className="switch-track" aria-hidden="true">
-            <span className="switch-thumb" />
+        <div className="live-typing-switch">
+          <span className="setting-label-with-info">
+            <label htmlFor={liveTypingId}>Live typing</label>
+            <InfoButton
+              title="Live typing"
+              description="Sends each character to the focused application on your PC as you type. Turn it off to compose text on your device first, then press Send."
+            />
           </span>
-        </label>
+          <label className="switch-control" htmlFor={liveTypingId}>
+            <input id={liveTypingId} type="checkbox" role="switch" aria-checked={liveKeyboard} checked={liveKeyboard} onChange={handleLiveTypingChange} />
+            <span className="switch-track" aria-hidden="true">
+              <span className="switch-thumb" />
+            </span>
+          </label>
+        </div>
         <textarea
           ref={keyboardTextareaRef}
           inputMode={keyboardInputMode}

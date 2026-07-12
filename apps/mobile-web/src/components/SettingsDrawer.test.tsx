@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultAppSettings } from "../appSettings";
 import { defaultTrackpadSettings } from "../gestures";
@@ -69,6 +69,24 @@ describe("SettingsDrawer", () => {
     fireEvent.click(screen.getByText("Keyboard"));
     expect(screen.getByText("Trackpad").closest("details")?.open).toBe(false);
     expect(screen.getByText("Keyboard").closest("details")?.open).toBe(true);
+  });
+
+  it("explains split mode without adding function-key help", () => {
+    render(<SettingsDrawer {...baseProps} />);
+
+    const trackpadSection = screen.getByText("Trackpad").closest("details") as HTMLElement;
+    fireEvent.click(screen.getByText("Trackpad"));
+    fireEvent.click(within(trackpadSection).getByRole("button", { name: "About Split mode" }));
+
+    expect(screen.getByRole("dialog", { name: "Split mode" })).toBeTruthy();
+    expect(screen.getByText("Shows the keyboard and trackpad side by side. It is intended mainly for landscape phones and tablets.")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "OK" }));
+    const keyboardSection = screen.getByText("Keyboard").closest("details") as HTMLElement;
+    fireEvent.click(screen.getByText("Keyboard"));
+
+    expect(within(keyboardSection).getByRole("button", { name: "About Split mode" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "About Show function keys" })).toBeNull();
   });
 
   it("updates the remote navigation ring setting", () => {

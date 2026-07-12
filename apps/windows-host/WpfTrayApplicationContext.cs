@@ -32,6 +32,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _pairingManager = pairingManager;
         _hadActiveController = pairingManager.HasActiveController;
         _pairingManager.ConnectionChanged += OnConnectionChanged;
+        _webHost.ControllerSocketClosed += OnControllerSocketClosed;
         AppThemeSettings.Changed += OnAppThemeChanged;
 
         BuildMenu();
@@ -191,6 +192,22 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         }
     }
 
+    private void OnControllerSocketClosed(object? sender, ControllerSocketClosedEventArgs e)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        WpfApplication.Current.Dispatcher.BeginInvoke(() =>
+        {
+            ShowConnectionStatusNotification(
+                "Voltura Air connection closed",
+                $"A controller connection was closed: {e.Reason}. The phone will reconnect automatically.",
+                Forms.ToolTipIcon.Warning);
+        });
+    }
+
     private void OnAppThemeChanged(object? sender, EventArgs e)
     {
         WpfApplication.Current.Dispatcher.BeginInvoke(ApplyMenuTheme);
@@ -337,6 +354,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _disposed = true;
         CancelPendingDisconnectNotification();
         _pairingManager.ConnectionChanged -= OnConnectionChanged;
+        _webHost.ControllerSocketClosed -= OnControllerSocketClosed;
         AppThemeSettings.Changed -= OnAppThemeChanged;
         _trayIcon.Visible = false;
         _trayIcon.Dispose();

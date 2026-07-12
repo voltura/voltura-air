@@ -83,7 +83,7 @@ public sealed partial class WebHostService
 
                 if (!ClientMessageValidator.IsValidAuthenticatedMessage(root))
                 {
-                    await CloseSocketAsync(socket, "Invalid message", WebSocketCloseStatus.PolicyViolation, cancellationToken);
+                    await CloseAuthenticatedSocketAsync(socket, authenticatedClientId, "Invalid message", WebSocketCloseStatus.PolicyViolation, cancellationToken);
                     break;
                 }
 
@@ -161,7 +161,7 @@ public sealed partial class WebHostService
                     continue;
                 }
 
-                await CloseSocketAsync(socket, "Unsupported message", WebSocketCloseStatus.PolicyViolation, cancellationToken);
+                await CloseAuthenticatedSocketAsync(socket, authenticatedClientId, "Unsupported message", WebSocketCloseStatus.PolicyViolation, cancellationToken);
                 break;
             }
         }
@@ -174,7 +174,7 @@ public sealed partial class WebHostService
             }
             else
             {
-                await CloseSocketAsync(socket, "Invalid message", WebSocketCloseStatus.PolicyViolation, cancellationToken);
+                await CloseAuthenticatedSocketAsync(socket, authenticatedClientId, "Invalid message", WebSocketCloseStatus.PolicyViolation, cancellationToken);
             }
         }
         catch (Exception ex) when (ex is WebSocketException or OperationCanceledException or ObjectDisposedException)
@@ -200,7 +200,7 @@ public sealed partial class WebHostService
             if (!_inputDispatcher.Dispatch(root))
             {
                 await SendInputErrorAsync(socket, sequence, "VAIR-INPUT-UNSUPPORTED", "Unsupported input message.", cancellationToken);
-                await CloseSocketAsync(socket, "Unsupported input message", WebSocketCloseStatus.PolicyViolation, cancellationToken);
+                await CloseAuthenticatedSocketAsync(socket, clientId, "Unsupported input message", WebSocketCloseStatus.PolicyViolation, cancellationToken);
                 return;
             }
 
@@ -208,11 +208,31 @@ public sealed partial class WebHostService
         }
         catch (Exception ex) when (ex is not WebSocketException and not OperationCanceledException and not ObjectDisposedException)
         {
-            const string message = "Windows did not accept input events.";
-            await SendInputErrorAsync(socket, sequence, "VAIR-INPUT-DISPATCH-FAILED", message, cancellationToken);
-            await SendDisconnectedStatusAsync(socket, clientId, $"{message} Retrying...", cancellationToken);
-            await CloseSocketAsync(socket, "Input dispatch failed", WebSocketCloseStatus.InternalServerError, cancellationToken);
+            var code = ex is InputDispatchException ? "VAIR-INPUT-NATIVE-SEND-FAILED" : "VAIR-INPUT-DISPATCH-FAILED";
+            var message = "Windows did not accept this input action. Try again.";
+            WriteInputDispatchDiagnostic(ClientMessageValidator.TryReadType(root, out var messageType) ? messageType ?? "unknown" : "unknown", root, ex);
+            await SendInputErrorAsync(socket, sequence, code, message, cancellationToken);
         }
+    }
+
+    private static void WriteInputDispatchDiagnostic(string type, JsonElement root, Exception exception)
+    {
+        if (exception is InputDispatchException inputException)
+        {
+            Console.Error.WriteLine(
+                "Voltura Air input dispatch failed: type={0}, key={1}, modifiers={2}, requested={3}, accepted={4}, win32={5}, cleanupAttempted={6}, cleanupSucceeded={7}",
+                type,
+                GetString(root, "key"),
+                GetModifierDiagnostic(root),
+                inputException.RequestedCount,
+                inputException.AcceptedCount,
+                inputException.Win32Error,
+                inputException.CleanupAttempted,
+                inputException.CleanupSucceeded);
+            return;
+        }
+
+        Console.Error.WriteLine("Voltura Air input dispatch failed: type={0}, error={1}", type, exception.Message);
     }
 
     private void RegisterSocket(string clientId, WebSocket socket)
@@ -453,6 +473,22 @@ public sealed partial class WebHostService
     private static string GetString(JsonElement root, string propertyName)
     {
         return root.TryGetProperty(propertyName, out var value) ? value.GetString() ?? string.Empty : string.Empty;
+    }
+
+    private async Task CloseAuthenticatedSocketAsync(WebSocket socket, string clientId, string reason, WebSocketCloseStatus status, CancellationToken cancellationToken)
+    {
+        ControllerSocketClosed?.Invoke(this, new ControllerSocketClosedEventArgs(clientId, reason, status));
+        await CloseSocketAsync(socket, reason, status, cancellationToken);
+    }
+
+    private static string GetModifierDiagnostic(JsonElement root)
+    {
+        if (!root.TryGetProperty("modifiers", out var modifiers) || modifiers.ValueKind != JsonValueKind.Array)
+        {
+            return string.Empty;
+        }
+
+        return string.Join("+", modifiers.EnumerateArray().Select(modifier => modifier.GetString()).Where(value => !string.IsNullOrWhiteSpace(value)));
     }
 
     private static int GetInt(JsonElement root, string propertyName)

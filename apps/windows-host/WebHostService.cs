@@ -77,6 +77,8 @@ public sealed partial class WebHostService : IAsyncDisposable
 
     public string? PortSelectionWarning { get; }
 
+    public event EventHandler<ControllerSocketClosedEventArgs>? ControllerSocketClosed;
+
     internal void UpdateAdvertisedHostAddress(string hostAddress, LanAddressCandidate? selectedCandidate = null)
     {
         AdvertisedHostAddress = hostAddress;
@@ -315,6 +317,22 @@ public sealed partial class WebHostService : IAsyncDisposable
             ? "DNS fallback"
             : LanAddressSelector.GetAdapterDisplayName(selectedCandidate);
     }
+}
+
+public sealed class ControllerSocketClosedEventArgs : EventArgs
+{
+    public ControllerSocketClosedEventArgs(string clientId, string reason, WebSocketCloseStatus status)
+    {
+        ClientId = clientId;
+        Reason = reason;
+        Status = status;
+    }
+
+    public string ClientId { get; }
+
+    public string Reason { get; }
+
+    public WebSocketCloseStatus Status { get; }
 }
 
 internal sealed record HostStatusMetadata(

@@ -6,6 +6,7 @@ export type PairingFailureReason =
   | "missing-token"
   | "invalid-token"
   | "host-unreachable"
+  | "socket-closed"
   | "host-rejected-device"
   | "device-revoked"
   | "protocol-version-mismatch"
@@ -36,6 +37,23 @@ const defaultPairingFeedback: PairingFeedback = {
 export function getPairingFeedback(message: string, activePcUnavailable = false): PairingFeedback {
   const normalizedMessage = message.trim();
   if (activePcUnavailable) {
+    if (/closed the controller connection/i.test(normalizedMessage)) {
+      return {
+        title: "Connection closed",
+        body: normalizedMessage,
+        diagnosticCode: "VAIR-PAIR-SOCKET-CLOSED",
+        hints: [
+          "Voltura Air will reconnect automatically.",
+          "If this repeats, copy diagnostics and check the PC for a connection notification.",
+          "Refresh the mobile app from the PC if the protocol may be out of date."
+        ],
+        primaryLabel: "Try reconnect",
+        reason: "socket-closed",
+        severity: "warning",
+        showRecoveryActions: true
+      };
+    }
+
     return {
       title: "PC not available",
       body: "Could not reach the PC. Make sure Voltura Air is running, both devices are on the same Wi-Fi/LAN, and Windows Firewall allows the host.",

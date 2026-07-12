@@ -18,6 +18,18 @@ public sealed class SendInputInjector : IInputInjector
     private const ushort ControlKey = 0x11;
     private const int WheelScale = 9;
     private const int ZoomWheelDelta = 120;
+    private readonly object _sendGate = new();
+    private readonly ISendInputNative _native;
+
+    public SendInputInjector()
+        : this(new User32SendInputNative())
+    {
+    }
+
+    internal SendInputInjector(ISendInputNative native)
+    {
+        _native = native;
+    }
 
     public void MoveMouse(int dx, int dy)
     {
@@ -41,6 +53,7 @@ public sealed class SendInputInjector : IInputInjector
         else
         {
             SendInputs(
+                "mouse.button",
                 MouseInput(0, 0, 0, downFlag),
                 MouseInput(0, 0, 0, upFlag));
         }
@@ -74,6 +87,7 @@ public sealed class SendInputInjector : IInputInjector
         }
 
         SendInputs(
+            "pointer.zoom",
             KeyboardInput(ControlKey, 0, 0),
             MouseInput(0, 0, wheelDelta, MouseEventFWheel),
             KeyboardInput(ControlKey, 0, KeyEventFKeyUp));
@@ -84,6 +98,7 @@ public sealed class SendInputInjector : IInputInjector
         foreach (var codeUnit in text)
         {
             SendInputs(
+                "keyboard.text",
                 KeyboardInput(0, codeUnit, KeyEventFUnicode),
                 KeyboardInput(0, codeUnit, KeyEventFUnicode | KeyEventFKeyUp));
         }
@@ -107,7 +122,15 @@ public sealed class SendInputInjector : IInputInjector
         inputs.Add(KeyboardInput((ushort)virtualKey, 0, 0));
         inputs.Add(KeyboardInput((ushort)virtualKey, 0, KeyEventFKeyUp));
         inputs.AddRange(modifierKeys.Reverse().Select(modifier => KeyboardInput((ushort)modifier, 0, KeyEventFKeyUp)));
-        SendInputs(inputs.ToArray());
+        try
+        {
+            SendInputs("keyboard.special", inputs.ToArray());
+        }
+        catch (InputDispatchException ex)
+        {
+            var cleanupSucceeded = TryReleaseKeyboardChord((ushort)virtualKey, modifierKeys);
+            throw ex.WithCleanup(cleanupAttempted: true, cleanupSucceeded);
+        }
     }
 
     public void Dispose()
@@ -126,17 +149,47 @@ public sealed class SendInputInjector : IInputInjector
         };
     }
 
-    private static void SendMouse(int dx, int dy, int mouseData, uint flags)
+    private void SendMouse(int dx, int dy, int mouseData, uint flags)
     {
-        SendInputs(MouseInput(dx, dy, mouseData, flags));
+        SendInputs("mouse", MouseInput(dx, dy, mouseData, flags));
     }
 
-    private static void SendInputs(params Input[] inputs)
+    private void SendInputs(string operation, params Input[] inputs)
     {
-        var sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<Input>());
-        if (sent != inputs.Length)
+        lock (_sendGate)
         {
-            throw new InvalidOperationException("Windows did not accept all input events.");
+            var sent = _native.Send(inputs, Marshal.SizeOf<Input>(), out var win32Error);
+            if (sent != inputs.Length)
+            {
+                throw new InputDispatchException(
+                    "Windows did not accept all input events.",
+                    operation,
+                    inputs.Length,
+                    (int)sent,
+                    win32Error);
+            }
+        }
+    }
+
+    private bool TryReleaseKeyboardChord(ushort virtualKey, IReadOnlyList<int> modifierKeys)
+    {
+        var releaseKeys = modifierKeys
+            .Reverse()
+            .Select(key => (ushort)key)
+            .Concat(new[] { virtualKey, ControlKey, (ushort)0x10, (ushort)0x12, (ushort)0x5B })
+            .Where(key => key != 0)
+            .Distinct()
+            .Select(key => KeyboardInput(key, 0, KeyEventFKeyUp))
+            .ToArray();
+
+        try
+        {
+            SendInputs("keyboard.cleanup", releaseKeys);
+            return true;
+        }
+        catch (InputDispatchException)
+        {
+            return false;
         }
     }
 
@@ -175,18 +228,15 @@ public sealed class SendInputInjector : IInputInjector
         };
     }
 
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern uint SendInput(uint inputCount, Input[] inputs, int size);
-
     [StructLayout(LayoutKind.Sequential)]
-    private struct Input
+    internal struct Input
     {
         public uint Type;
         public InputUnion Data;
     }
 
     [StructLayout(LayoutKind.Explicit)]
-    private struct InputUnion
+    internal struct InputUnion
     {
         [FieldOffset(0)]
         public MouseInputData Mouse;
@@ -196,7 +246,7 @@ public sealed class SendInputInjector : IInputInjector
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct MouseInputData
+    internal struct MouseInputData
     {
         public int Dx;
         public int Dy;
@@ -207,7 +257,7 @@ public sealed class SendInputInjector : IInputInjector
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct KeyboardInputData
+    internal struct KeyboardInputData
     {
         public ushort VirtualKey;
         public ushort ScanCode;
@@ -261,4 +311,60 @@ public sealed class SendInputInjector : IInputInjector
         ["F11"] = 0x7A,
         ["F12"] = 0x7B
     };
+}
+
+public sealed class InputDispatchException : InvalidOperationException
+{
+    public InputDispatchException(
+        string message,
+        string operation,
+        int requestedCount,
+        int acceptedCount,
+        int win32Error,
+        bool cleanupAttempted = false,
+        bool cleanupSucceeded = false)
+        : base(message)
+    {
+        Operation = operation;
+        RequestedCount = requestedCount;
+        AcceptedCount = acceptedCount;
+        Win32Error = win32Error;
+        CleanupAttempted = cleanupAttempted;
+        CleanupSucceeded = cleanupSucceeded;
+    }
+
+    public string Operation { get; }
+
+    public int RequestedCount { get; }
+
+    public int AcceptedCount { get; }
+
+    public int Win32Error { get; }
+
+    public bool CleanupAttempted { get; }
+
+    public bool CleanupSucceeded { get; }
+
+    public InputDispatchException WithCleanup(bool cleanupAttempted, bool cleanupSucceeded)
+    {
+        return new InputDispatchException(Message, Operation, RequestedCount, AcceptedCount, Win32Error, cleanupAttempted, cleanupSucceeded);
+    }
+}
+
+internal interface ISendInputNative
+{
+    uint Send(SendInputInjector.Input[] inputs, int size, out int win32Error);
+}
+
+internal sealed class User32SendInputNative : ISendInputNative
+{
+    public uint Send(SendInputInjector.Input[] inputs, int size, out int win32Error)
+    {
+        var sent = SendInput((uint)inputs.Length, inputs, size);
+        win32Error = Marshal.GetLastWin32Error();
+        return sent;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern uint SendInput(uint inputCount, SendInputInjector.Input[] inputs, int size);
 }

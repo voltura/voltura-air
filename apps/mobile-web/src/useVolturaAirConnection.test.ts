@@ -10,13 +10,13 @@ class MockWebSocket {
   static instances: MockWebSocket[] = [];
 
   readyState = MockWebSocket.CONNECTING;
-  listeners = new Map<string, Array<(event: { data?: string }) => void>>();
+  listeners = new Map<string, Array<(event: { code?: number; data?: string; reason?: string }) => void>>();
 
   constructor(public url: string) {
     MockWebSocket.instances.push(this);
   }
 
-  addEventListener = vi.fn((type: string, listener: (event: { data?: string }) => void) => {
+  addEventListener = vi.fn((type: string, listener: (event: { code?: number; data?: string; reason?: string }) => void) => {
     this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
   });
   close = vi.fn(() => {
@@ -24,14 +24,14 @@ class MockWebSocket {
   });
   send = vi.fn();
 
-  dispatch(type: string, event: { data?: string } = {}) {
+  dispatch(type: string, event: { code?: number; data?: string; reason?: string } = {}) {
     for (const listener of this.listeners.get(type) ?? []) {
       listener(event);
     }
   }
 }
 
-function dispatchSocketEvent(socket: MockWebSocket, type: string, event: { data?: string } = {}) {
+function dispatchSocketEvent(socket: MockWebSocket, type: string, event: { code?: number; data?: string; reason?: string } = {}) {
   act(() => {
     socket.dispatch(type, event);
   });
@@ -147,5 +147,143 @@ describe("useVolturaAirConnection", () => {
 
     await waitFor(() => expect(result.current.hostStatus?.pointerSpeed).toBe(45));
     expect(socket.send).toHaveBeenCalledWith(JSON.stringify({ type: "pointer.speed.set", pointerSpeed: 45 }));
+  });
+
+  it("ignores state-changing messages from obsolete sockets", async () => {
+    const pcUrl = "http://pc.local:51395";
+    const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };
+    localStorage.setItem("voltura-air.clientId", "client-a");
+    localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
+    localStorage.setItem("voltura-air.activePcId", pc.id);
+    localStorage.setItem(`voltura-air.secret.client-a.${pc.id}`, "stored-credential");
+
+    const { result } = renderHook(() => useVolturaAirConnection());
+
+    await waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+    const staleSocket = MockWebSocket.instances[0];
+
+    act(() => {
+      result.current.addManualPc("http://pc-two.local:51395");
+    });
+
+    await waitFor(() => expect(MockWebSocket.instances).toHaveLength(2));
+    dispatchSocketEvent(staleSocket, "open");
+    dispatchSocketEvent(staleSocket, "message", {
+      data: JSON.stringify({
+        type: "pair.accepted",
+        clientId: "client-a",
+        pcName: "Stale PC",
+        secret: "stale-secret",
+        paired: true
+      })
+    });
+
+    expect(result.current.state).toBe("connecting");
+    expect(result.current.message).not.toContain("Stale PC");
+    expect(localStorage.getItem(`voltura-air.secret.client-a.${pc.id}`)).toBe("stored-credential");
+  });
+
+  it("marks the connection unavailable when an input action is attempted on a closed socket", async () => {
+    const pcUrl = "http://pc.local:51395";
+    const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };
+    localStorage.setItem("voltura-air.clientId", "client-a");
+    localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
+    localStorage.setItem("voltura-air.activePcId", pc.id);
+    localStorage.setItem(`voltura-air.secret.client-a.${pc.id}`, "stored-credential");
+
+    const { result } = renderHook(() => useVolturaAirConnection());
+
+    await waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+    const socket = MockWebSocket.instances[0];
+    socket.readyState = MockWebSocket.OPEN;
+    dispatchSocketEvent(socket, "open");
+    dispatchSocketEvent(socket, "message", {
+      data: JSON.stringify({
+        type: "pair.accepted",
+        clientId: "client-a",
+        pcName: "PC",
+        secret: "fresh-credential",
+        paired: true,
+        capabilities: { inputAck: true }
+      })
+    });
+
+    await waitFor(() => expect(result.current.state).toBe("paired"));
+    socket.readyState = MockWebSocket.CLOSED;
+
+    act(() => {
+      result.current.send({ type: "pointer.move", dx: 4, dy: 2 });
+    });
+
+    expect(result.current.state).toBe("unavailable");
+    expect(result.current.lastConnectionError?.code).toBe("VAIR-PAIR-CLIENT-SEND-FAILED");
+    expect(socket.send).not.toHaveBeenCalledWith(expect.stringContaining("\"type\":\"pointer.move\""));
+  });
+
+  it("surfaces current input errors without disconnecting the socket", async () => {
+    const pcUrl = "http://pc.local:51395";
+    const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };
+    localStorage.setItem("voltura-air.clientId", "client-a");
+    localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
+    localStorage.setItem("voltura-air.activePcId", pc.id);
+    localStorage.setItem(`voltura-air.secret.client-a.${pc.id}`, "stored-credential");
+
+    const { result } = renderHook(() => useVolturaAirConnection());
+
+    await waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+    const socket = MockWebSocket.instances[0];
+    socket.readyState = MockWebSocket.OPEN;
+    dispatchSocketEvent(socket, "open");
+    dispatchSocketEvent(socket, "message", {
+      data: JSON.stringify({
+        type: "pair.accepted",
+        clientId: "client-a",
+        pcName: "PC",
+        secret: "fresh-credential",
+        paired: true,
+        capabilities: { inputAck: true }
+      })
+    });
+
+    dispatchSocketEvent(socket, "message", {
+      data: JSON.stringify({ type: "input.error", seq: 1, code: "VAIR-INPUT-NATIVE-SEND-FAILED", message: "Windows did not accept this input action. Try again." })
+    });
+
+    expect(result.current.state).toBe("paired");
+    expect(result.current.message).toBe("Windows did not accept this input action. Try again.");
+    expect(result.current.lastConnectionError?.code).toBe("VAIR-INPUT-NATIVE-SEND-FAILED");
+    expect(socket.close).not.toHaveBeenCalled();
+  });
+
+  it("surfaces unexpected current socket closes while reconnecting", async () => {
+    const pcUrl = "http://pc.local:51395";
+    const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };
+    localStorage.setItem("voltura-air.clientId", "client-a");
+    localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
+    localStorage.setItem("voltura-air.activePcId", pc.id);
+    localStorage.setItem(`voltura-air.secret.client-a.${pc.id}`, "stored-credential");
+
+    const { result } = renderHook(() => useVolturaAirConnection());
+
+    await waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+    const socket = MockWebSocket.instances[0];
+    socket.readyState = MockWebSocket.OPEN;
+    dispatchSocketEvent(socket, "open");
+    dispatchSocketEvent(socket, "message", {
+      data: JSON.stringify({
+        type: "pair.accepted",
+        clientId: "client-a",
+        pcName: "PC",
+        secret: "fresh-credential",
+        paired: true
+      })
+    });
+
+    socket.readyState = MockWebSocket.CLOSED;
+    dispatchSocketEvent(socket, "close", { code: 1008, reason: "Invalid message" });
+
+    expect(result.current.state).toBe("unavailable");
+    expect(result.current.lastConnectionError?.code).toBe("VAIR-PAIR-SOCKET-CLOSED");
+    expect(result.current.message).toBe("PC closed the controller connection (Invalid message). Reconnecting...");
   });
 });

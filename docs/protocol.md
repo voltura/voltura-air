@@ -314,18 +314,27 @@ input to Windows, it sends `input.ack` for the same sequence.
 ```
 
 If the host accepts the WebSocket message but cannot dispatch the input to
-Windows, it sends `input.error`, reports a disconnected status, and closes the
-socket so the mobile client can show unavailable/retrying instead of dead
-controls.
+Windows, it sends `input.error` for that action and keeps the authenticated
+socket open. The mobile client shows the failed action, drops that action, and
+continues with later pointer or keyboard input. The host reserves socket closure
+for malformed protocol, authentication failure, revoked pairing, shutdown, or
+other connection-level failures.
 
 ```json
 {
   "type": "input.error",
   "seq": 123,
-  "code": "VAIR-INPUT-DISPATCH-FAILED",
-  "message": "Windows did not accept input events."
+  "code": "VAIR-INPUT-NATIVE-SEND-FAILED",
+  "message": "Windows did not accept this input action. Try again."
 }
 ```
+
+When the host must close an authenticated controller socket for invalid
+protocol, the Windows tray shows a connection-closed notification when
+connection status notifications are enabled. The mobile client treats the close
+as unavailable/reconnecting, shows the WebSocket close reason or code when
+available, and does not replay dropped physical-control commands after the
+reconnect.
 
 The mobile client treats missing acknowledgements for recent input as an
 unhealthy connection and reconnects. Heartbeat success alone is not enough to

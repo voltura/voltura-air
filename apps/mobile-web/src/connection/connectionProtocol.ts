@@ -49,6 +49,7 @@ export function normalizeHostStatus(metadata: HostStatusMetadata | undefined): H
     developerMode: metadata.developerMode === true ? true : undefined,
     developerSessionId: normalizeOptionalString(metadata.developerSessionId),
     hostVersion: normalizeOptionalString(metadata.hostVersion),
+    webClientBuildId: normalizeOptionalString(metadata.webClientBuildId),
     pcName: normalizeOptionalString(metadata.pcName),
     pointerSpeed: normalizePointerSpeed(metadata.pointerSpeed),
     selectedAdapterName: normalizeOptionalString(metadata.selectedAdapterName),

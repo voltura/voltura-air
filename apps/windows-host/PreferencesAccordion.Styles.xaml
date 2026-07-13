@@ -42,13 +42,21 @@
                                                                   RecognizesAccessKey="True"
                                                                   TextElement.FontSize="15"
                                                                   TextElement.FontWeight="SemiBold" />
-                                                <TextBlock x:Name="Chevron"
-                                                           Grid.Column="1"
-                                                           Text="⌄"
-                                                           FontSize="17"
-                                                           Margin="14,-2,0,0"
-                                                           VerticalAlignment="Center"
-                                                           Foreground="{DynamicResource MutedTextBrush}" />
+                                                <Path x:Name="Chevron"
+                                                      Grid.Column="1"
+                                                      Width="10"
+                                                      Height="6"
+                                                      Margin="14,0,1,0"
+                                                      VerticalAlignment="Center"
+                                                      Data="M 1,1 L 5,5 L 9,1"
+                                                      Fill="Transparent"
+                                                      Stroke="{DynamicResource MutedTextBrush}"
+                                                      StrokeThickness="1.75"
+                                                      StrokeStartLineCap="Round"
+                                                      StrokeEndLineCap="Round"
+                                                      StrokeLineJoin="Round"
+                                                      Stretch="None"
+                                                      IsHitTestVisible="False" />
                                             </Grid>
                                         </Border>
                                         <ControlTemplate.Triggers>
@@ -60,8 +68,8 @@
                                             </Trigger>
                                             <Trigger Property="IsChecked" Value="True">
                                                 <Setter TargetName="HeaderChrome" Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
-                                                <Setter TargetName="Chevron" Property="Text" Value="⌃" />
-                                                <Setter TargetName="Chevron" Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                                <Setter TargetName="Chevron" Property="Data" Value="M 1,5 L 5,1 L 9,5" />
+                                                <Setter TargetName="Chevron" Property="Stroke" Value="{DynamicResource AccentBrush}" />
                                             </Trigger>
                                         </ControlTemplate.Triggers>
                                     </ControlTemplate>

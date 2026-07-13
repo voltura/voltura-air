@@ -92,6 +92,9 @@ public sealed partial class HostUiLayoutTests
                     combo => ReferenceEquals(window.Resources["ModernComboBoxStyle"], combo.Style));
                 var preferenceSections = FindWpfDescendants<Expander>(window).ToArray();
                 Assert.Equal(7, preferenceSections.Length);
+                var preferencesScroller = Assert.Single(FindWpfDescendants<ScrollViewer>(window));
+                Assert.Equal(ScrollBarVisibility.Visible, preferencesScroller.VerticalScrollBarVisibility);
+                Assert.Equal(ScrollBarVisibility.Disabled, preferencesScroller.HorizontalScrollBarVisibility);
                 Assert.All(preferenceSections, section =>
                 {
                     Assert.False(section.IsExpanded);

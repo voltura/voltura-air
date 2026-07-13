@@ -208,7 +208,10 @@ public partial class MainWindow
         _isLoadingPreferences = true;
         var root = new ScrollViewer
         {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            // Reserve the scrollbar gutter so expanding a section never
+            // changes the accordion width.
+            VerticalScrollBarVisibility = ScrollBarVisibility.Visible,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             Content = CreateSectionPanel()
         };
         var panel = (StackPanel)root.Content;

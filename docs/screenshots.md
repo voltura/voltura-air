@@ -48,10 +48,11 @@ browser. `--pairing-store-root` keeps capture-only pairing data out of the
 user's real device list. Do not publish a live pairing token, LAN address, or
 machine-specific QR.
 
-The host screenshot is captured from the visible Windows window bounds. The
-capture script brings the host window forward, takes a screen capture, and crops
-to the actual app window. It temporarily disables connection notifications and
-restores the previous notification settings when it exits.
+The host screenshot is rendered directly from the Voltura Air window handle so
+foreground or topmost applications cannot replace the host image. Screen-copy
+capture is used only if direct window rendering is unavailable. The script
+temporarily disables connection notifications and restores the previous
+notification settings when it exits.
 
 ## Mobile Client Capture
 

@@ -322,6 +322,7 @@ public static class NativeWindowCapture {
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+  [DllImport("user32.dll", SetLastError = true)] public static extern bool PrintWindow(IntPtr hWnd, IntPtr hdcBlt, uint nFlags);
   [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out RECT pvAttribute, int cbAttribute);
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
 }
@@ -349,7 +350,15 @@ if ($width -lt 1160 -or $height -lt 760) {
 }
 $bitmap = New-Object System.Drawing.Bitmap($width, $height)
 $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-$graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, [System.Drawing.Size]::new($width, $height))
+$hdc = $graphics.GetHdc()
+try {
+  $captured = [NativeWindowCapture]::PrintWindow($hwnd, $hdc, 2)
+} finally {
+  $graphics.ReleaseHdc($hdc)
+}
+if (-not $captured) {
+  $graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, [System.Drawing.Size]::new($width, $height))
+}
 $graphics.Dispose()
 $bitmap.Save($OutputPath, [System.Drawing.Imaging.ImageFormat]::Png)
 $bitmap.Dispose()

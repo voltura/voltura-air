@@ -308,6 +308,8 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Show desktop, close the focused window, and minimize the focused window.
 - Browser Back, new tab, close tab, reopen closed tab, next/previous tab, and reload.
 - Compact phone layouts keep the main remote surface within the viewport and move Windows and browser helper controls behind an Fn switch. In phone landscape, helpers replace the media column while volume and navigation remain visible.
+- Portrait-tablet layouts keep the mode row at its natural button height so the trackpad or active mode retains the remaining space.
+- Tapping the active mode hides the full mode row and exposes the compact header selector without reducing the active mode's usable area.
 - Remote settings:
   - navigation ring.
   - Remote mode: Standard, YouTube, or Kodi.

@@ -449,6 +449,11 @@ button span {
 }
 
 @media (min-width: 561px), (orientation: landscape) {
+  .app-shell,
+  .app-shell.remote-active {
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
   .bottom-mode-tabs {
     display: none;
   }

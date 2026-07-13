@@ -417,6 +417,15 @@ footer a:hover {
     padding: 34px 18px;
   }
 
+  .hero::before {
+    background:
+      linear-gradient(180deg, rgba(16, 20, 24, 0.7) 0%, rgba(16, 20, 24, 0.96) 42%, rgba(16, 20, 24, 0.99) 100%);
+  }
+
+  .hero-media {
+    opacity: 0.18;
+  }
+
   .hero-phone {
     width: min(58vw, 230px);
   }

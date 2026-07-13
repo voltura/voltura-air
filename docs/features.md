@@ -364,7 +364,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 ## Current documentation
 
 - `README.md` - product promise, best-for/not-intended sections, requirements, build/test, release links.
-- `docs/features.md` - high-level current feature map.
+- `docs/features.md` - detailed current-state capability inventory and explicit list of features that must not be promised yet.
 - `docs/protocol.md` - WebSocket protocol and message examples.
 - `docs/pairing-feedback.md` - pairing failure UX and diagnostics model.
 - `docs/manual-network-selection.md` - network, port, and manual host behavior.
@@ -423,7 +423,8 @@ These are roadmap candidates, not current product capabilities.
 
 - Browser-based phone/tablet/touch-browser control: no mobile app-store install.
 - Local Wi-Fi/LAN control: no account, no cloud relay, no paywall.
-- Practical couch-PC use: trackpad, keyboard, dictation, YouTube/Kodi remote modes, volume, and sleep.
+- Practical couch-PC use: trackpad, keyboard, dictation, YouTube/Kodi remote modes, volume, and power/session controls.
+- Host-managed Keep awake modes with an optional Keep screen on setting and a simple permissioned mobile toggle.
 - QR pairing with saved reconnect.
 - Recovery UX for stale QR codes, changed IP/port, and unreachable host.
 - Stronger trust baseline than a quick LAN remote: pairing tokens, hashed reconnect secret, origin checks, message validation, permissions, and redacted diagnostics.

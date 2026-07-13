@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Voltura Air - Free PC Remote for Phone and Tablet</title>
+    <title>Voltura Air - Free Local Remote for Windows 11</title>
     <meta
       name="description"
-      content="Use your phone or tablet as a wireless trackpad, keyboard, dictation surface, and media remote for your Windows PC. Freeware, local-first, and no mobile app-store install required."
+      content="Control a Windows 11 PC from your phone or tablet with a trackpad, keyboard, media remote, dictation, and safe power controls. Local-first, free, and no mobile app install required."
     >
     <meta name="author" content="Voltura AB">
     <meta name="application-name" content="Voltura Air">
@@ -21,10 +21,10 @@
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="Voltura Air">
     <meta property="og:locale" content="en_US">
-    <meta property="og:title" content="Voltura Air - Free PC Remote for Phone and Tablet">
+    <meta property="og:title" content="Voltura Air - Free Local Remote for Windows 11">
     <meta
       property="og:description"
-      content="Use your phone or tablet as a wireless trackpad, keyboard, dictation surface, and media remote for your Windows PC. Freeware, local-first, and no mobile app-store install required."
+      content="Control a Windows 11 PC from your phone or tablet with a trackpad, keyboard, media remote, dictation, and safe power controls. Local-first, free, and no mobile app install required."
     >
     <meta property="og:url" content="https://voltura.se/air/">
     <meta property="og:image" content="https://voltura.se/air/assets/voltura-air-host-dark.png">
@@ -33,10 +33,10 @@
     <meta property="og:image:alt" content="Voltura Air Windows host and mobile remote control screens">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Voltura Air - Free PC Remote for Phone and Tablet">
+    <meta name="twitter:title" content="Voltura Air - Free Local Remote for Windows 11">
     <meta
       name="twitter:description"
-      content="Use your phone or tablet as a wireless trackpad, keyboard, dictation surface, and media remote for your Windows PC. Freeware, local-first, and no mobile app-store install required."
+      content="Control a Windows 11 PC from your phone or tablet with a trackpad, keyboard, media remote, dictation, and safe power controls. Local-first, free, and no mobile app install required."
     >
     <meta name="twitter:image" content="https://voltura.se/air/assets/voltura-air-host-dark.png">
     <meta name="twitter:image:alt" content="Voltura Air Windows host and mobile remote control screens">
@@ -67,12 +67,12 @@
           <img class="hero-phone" src="./assets/voltura-air-iphone-dark.png" alt="">
         </div>
         <div class="hero-copy">
-          <p class="eyebrow">Free Windows PC remote</p>
+          <p class="eyebrow">Local-first Windows 11 remote</p>
           <h1>Voltura Air</h1>
-          <p class="tagline">Turn your phone into a trackpad, keyboard, and couch remote.</p>
+          <p class="tagline">Control your PC from the device already in your hand.</p>
           <p class="lede">
-            Control a Windows 11 PC from the sofa, bed, desk, or meeting room.
-            Scan a QR code, open the mobile web app, and use the device already in your hand.
+            Use your phone or tablet as a trackpad, keyboard, media remote, and more.
+            Pair with a QR code on your local network - no account, cloud service, or mobile app install.
           </p>
           <div class="actions">
             <a class="button primary" href="https://github.com/voltura/voltura-air/releases/latest">Download for Windows</a>
@@ -88,12 +88,12 @@
           <p>Open Voltura Air in a modern mobile browser or add it to your home screen where supported.</p>
         </article>
         <article>
-          <h2>Made for nearby PCs</h2>
-          <p>Great for a TV PC, music setup, presentation laptop, or any Windows PC just out of reach.</p>
+          <h2>Made for Windows 11</h2>
+          <p>A lightweight Windows host manages pairing, trusted devices, permissions, appearance, and diagnostics.</p>
         </article>
         <article>
-          <h2>Freeware by design</h2>
-          <p>No account, subscription, trial limit, mobile app-store install, or feature paywall.</p>
+          <h2>Free and open source</h2>
+          <p>No account, subscription, trial limit, or feature paywall. The source is available under the MIT License.</p>
         </article>
       </section>
 
@@ -108,7 +108,7 @@
         </article>
         <article>
           <h2>Couch remote</h2>
-          <p>Control media playback, fullscreen, volume, YouTube, Kodi, focused Windows apps, and browser tabs without reaching for a keyboard. Tap Switch app for the previous app, hold and slide through the visual window switcher, or open Task view. Taller portrait phones retain the navigation ring below the helper panel, while landscape keeps volume and navigation beside it.</p>
+          <p>Control media, volume, fullscreen, YouTube, Kodi, focused apps, browser tabs, window switching, and Task view without reaching for a keyboard.</p>
         </article>
         <article>
           <h2>Tablet split mode</h2>
@@ -119,12 +119,16 @@
           <p>Speak on your phone and send recognized text to the focused app on your PC when your browser supports speech recognition.</p>
         </article>
         <article>
-          <h2>Pair once, reconnect</h2>
-          <p>Pair with a QR code, save trusted devices, reconnect later, and remove old devices from the Windows host.</p>
+          <h2>Trusted devices</h2>
+          <p>Pair with a short-lived QR code, reconnect securely later, review device access, and remove devices from the Windows host at any time.</p>
         </article>
         <article>
-          <h2>Safe power controls</h2>
-          <p>Keep the PC awake, lock Windows, turn off display output, or explicitly allow session-ending actions. Clear mobile feedback, host permissions, and hold-to-confirm protect every request.</p>
+          <h2>Keep awake</h2>
+          <p>Keep the PC awake for a duration, until a chosen time, or indefinitely without changing its power plan. Optionally keep the screen on and use the same state from the mobile power sheet.</p>
+        </article>
+        <article>
+          <h2>Power and session controls</h2>
+          <p>Lock Windows, start a configured screen saver, black out or turn off displays, and permit sign out, restart, or shutdown only when you want those actions available.</p>
         </article>
       </section>
 
@@ -142,8 +146,8 @@
           <ul>
             <li>Control a TV or stereo PC from the sofa.</li>
             <li>Type searches, messages, URLs, and short notes from your phone.</li>
-            <li>Use a tablet as a roomy couch keyboard and trackpad, with compact mode controls that leave the main surface usable.</li>
-            <li>Navigate YouTube, Kodi, music, video, and presentation controls, including Kodi video/UI and fullscreen/windowed toggles.</li>
+            <li>Use a tablet as a roomy couch keyboard and trackpad.</li>
+            <li>Navigate YouTube, Kodi, music, video, presentations, and open Windows apps.</li>
             <li>Keep a backup input device ready when a wireless keyboard is missing or annoying.</li>
           </ul>
         </div>
@@ -208,42 +212,34 @@
           <p class="eyebrow">Trust</p>
           <h2>Local-first, understandable, removable</h2>
         </div>
-        <p>
-          Voltura Air is built for nearby control on your own network. It is not
-          a cloud remote-desktop service, and it does not need an account to work.
-          Pairing, saved devices, permissions, and diagnostics are visible in the
-          Windows host so you can understand what is connected. Lock, display
-          off, sign out, restart, and shut down each have an explicit host
-          permission. Blackout display keeps Windows and remote control awake
-          behind a black curtain that closes on any local or remote input, while
-          screen saver appears only when Windows has one configured. Keep awake
-          can run for an interval, until a date and time, or indefinitely without
-          changing the Windows power plan; the mobile sheet offers one permissioned
-          toggle and uses the host's screen setting. Session-ending actions require
-          a deliberate hold on the mobile confirmation screen. The host also detects when Windows
-          locking is explicitly disabled for the signed-in user, can write an
-          explicit current-user enable value and refresh policy without
-          administrator rights or a UAC prompt. Turning off a display warns that
-          HDMI output will stop and that some PCs enter sleep or Modern Standby,
-          disconnect Voltura Air, and require physical keyboard or mouse input to
-          wake; Windows may then require authentication. Optional sanitized application
-          logging is off by default and has a themed, filterable Diagnostics viewer
-          for remote commands, host actions, responses, and Windows failures.
-        </p>
+        <div>
+          <p>
+            Voltura Air is built for nearby control on your own network. It does
+            not need an account or an internet relay for normal use, and it is not
+            a cloud remote-desktop service.
+          </p>
+          <ul>
+            <li>See paired devices in the Windows host and remove access at any time.</li>
+            <li>Set global defaults and tighter permissions for individual devices.</li>
+            <li>Keep risky power and session actions unavailable unless explicitly enabled.</li>
+            <li>Use deliberate mobile confirmation for sign out, restart, and shutdown.</li>
+            <li>Enable sanitized application logging only when you need diagnostics.</li>
+          </ul>
+        </div>
       </section>
 
       <section class="feature-band" aria-label="Trust and support details">
         <article>
-          <h2>Local network control</h2>
+          <h2>Local by default</h2>
           <p>The Windows host serves the mobile app to devices on your LAN. No internet relay is needed for normal use.</p>
         </article>
         <article>
-          <h2>Clear pairing</h2>
-          <p>Pair with a short-lived QR code, reconnect from saved devices, and remove devices you no longer trust.</p>
+          <h2>Permissions you control</h2>
+          <p>Host-wide and per-device permissions keep sensitive controls visible, intentional, and easy to revoke.</p>
         </article>
         <article>
           <h2>Helpful recovery</h2>
-          <p>If the phone cannot reach the PC, the app gives recovery actions such as reconnect, scan a new QR code, enter host manually, and copy diagnostics. A valid new scan pauses the stale retry and opens pairing confirmation.</p>
+          <p>If the phone cannot reach the PC, friendly recovery actions help you reconnect, scan a new QR code, enter the host manually, or copy useful diagnostics.</p>
         </article>
       </section>
 
@@ -299,8 +295,8 @@
           <p class="eyebrow">Download</p>
           <h2>Install on Windows 11</h2>
           <p>
-            Download the latest <strong>VolturaAir-Setup-&lt;version&gt;-win-x64.exe</strong> from GitHub releases.
-            The installer runs per user and does not require administrator rights.
+            Choose the per-user installer or portable Windows build from GitHub releases.
+            The installer does not require administrator rights.
           </p>
           <p>
             Release builds are not code-signed, so Windows may show an unknown publisher or Microsoft Defender SmartScreen warning.

@@ -23,6 +23,14 @@ updated as the app structure, tooling, and release process become concrete.
   asks to keep them running. If a required port is already in use, reuse the
   relevant running process when practical or stop it instead of taking the next
   port; the user normally starts debugging from VS Code with `npm run dev`.
+- Any temporary host that uses a temporary or empty pairing store for tests,
+  screenshots, or UI validation must pass `--isolated-test-mode`. This mode uses
+  a separate single-instance scope, binds only to `127.0.0.1`, advertises
+  loopback, and does not persist automatic network or port choices. Never expose
+  a temporary pairing store on the LAN because a real phone can interpret its
+  rejection as revoked pairing and delete its saved reconnect secret.
+- Automated host protocol tests must use ASP.NET Core's in-memory `TestServer`;
+  they must not open a TCP listener or create Windows Firewall permissions.
 - If a task has a preferred validation, inspection, capture, automation tool,
   or supporting runtime/toolchain that is not installed locally, Codex may and
   should install and use it without asking first. Do not take shortcuts or

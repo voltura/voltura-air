@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.TestHost;
 using VolturaAir.Host;
 
 namespace VolturaAir.Host.Tests;
@@ -8,7 +9,6 @@ public sealed class WebHostServiceTests
     [Fact]
     public async Task WebSocketAcceptsPairingTokenAndStoredSecretReconnect()
     {
-        var originalSettings = AppNetworkSettings.Load();
         using var store = new TempPairingStore();
         using var inputInjector = new FakeInputInjector();
         var manager = new PairingManager(store.Store);
@@ -16,22 +16,16 @@ public sealed class WebHostServiceTests
 
         try
         {
-            AppNetworkSettings.Save(new NetworkSettingsSnapshot(
-                NetworkSelectionMode.Automatic,
-                ManualHostAddress: null,
-                ManualAdapterId: null,
-                ManualAdapterName: null,
-                PortSelectionMode.Automatic,
-                ManualPort: null,
-                LastAutomaticPort: null,
-                LastAutomaticHostAddress: originalSettings.LastAutomaticHostAddress));
-
-            webHost = new WebHostService(manager, new InputDispatcher(inputInjector));
+            webHost = new WebHostService(
+                manager,
+                new InputDispatcher(inputInjector),
+                isolatedTestMode: true,
+                configureWebHost: builder => builder.UseTestServer());
             await webHost.StartAsync();
             var clientId = $"client-{Guid.NewGuid():N}";
             var token = manager.CreatePairingToken();
 
-            var paired = await SendHelloAsync(webHost.Port, new
+            var paired = await SendHelloAsync(webHost, new
             {
                 type = "pair.hello",
                 clientId,
@@ -40,7 +34,7 @@ public sealed class WebHostServiceTests
             });
             var secret = paired.GetProperty("secret").GetString();
 
-            var reconnected = await SendHelloAsync(webHost.Port, new
+            var reconnected = await SendHelloAsync(webHost, new
             {
                 type = "pair.hello",
                 clientId,
@@ -60,8 +54,6 @@ public sealed class WebHostServiceTests
                 await webHost.StopAsync();
                 await webHost.DisposeAsync();
             }
-
-            AppNetworkSettings.Save(originalSettings);
         }
     }
 
@@ -76,7 +68,7 @@ public sealed class WebHostServiceTests
             await using var fixture = await WebHostFixture.StartAsync();
             var token = fixture.Manager.CreatePairingToken();
 
-            var paired = await SendHelloAsync(fixture.WebHost.Port, new
+            var paired = await SendHelloAsync(fixture.WebHost, new
             {
                 type = "pair.hello",
                 clientId = $"client-{Guid.NewGuid():N}",
@@ -103,7 +95,7 @@ public sealed class WebHostServiceTests
             await using var fixture = await WebHostFixture.StartAsync();
             var token = fixture.Manager.CreatePairingToken();
 
-            var paired = await SendHelloAsync(fixture.WebHost.Port, new
+            var paired = await SendHelloAsync(fixture.WebHost, new
             {
                 type = "pair.hello",
                 clientId = $"client-{Guid.NewGuid():N}",
@@ -132,7 +124,7 @@ public sealed class WebHostServiceTests
             await using var fixture = await WebHostFixture.StartAsync();
             var token = fixture.Manager.CreatePairingToken();
 
-            var paired = await SendHelloAsync(fixture.WebHost.Port, new
+            var paired = await SendHelloAsync(fixture.WebHost, new
             {
                 type = "pair.hello",
                 clientId = $"client-{Guid.NewGuid():N}",
@@ -155,8 +147,7 @@ public sealed class WebHostServiceTests
         await using var fixture = await WebHostFixture.StartAsync(audio);
         var clientId = $"client-{Guid.NewGuid():N}";
         var token = fixture.Manager.CreatePairingToken();
-        using var socket = new ClientWebSocket();
-        await socket.ConnectAsync(new Uri($"ws://127.0.0.1:{fixture.WebHost.Port}/ws"), CancellationToken.None);
+        using var socket = await ConnectAsync(fixture.WebHost);
 
         var paired = await SendAndReceiveAsync(socket, new
         {
@@ -187,8 +178,7 @@ public sealed class WebHostServiceTests
         await using var fixture = await WebHostFixture.StartAsync();
         var clientId = $"client-{Guid.NewGuid():N}";
         var token = fixture.Manager.CreatePairingToken();
-        using var socket = new ClientWebSocket();
-        await socket.ConnectAsync(new Uri($"ws://127.0.0.1:{fixture.WebHost.Port}/ws"), CancellationToken.None);
+        using var socket = await ConnectAsync(fixture.WebHost);
 
         var paired = await SendAndReceiveAsync(socket, new
         {
@@ -214,8 +204,7 @@ public sealed class WebHostServiceTests
         await using var fixture = await WebHostFixture.StartAsync();
         var clientId = $"client-{Guid.NewGuid():N}";
         var token = fixture.Manager.CreatePairingToken();
-        using var socket = new ClientWebSocket();
-        await socket.ConnectAsync(new Uri($"ws://127.0.0.1:{fixture.WebHost.Port}/ws"), CancellationToken.None);
+        using var socket = await ConnectAsync(fixture.WebHost);
 
         var paired = await SendAndReceiveAsync(socket, new
         {
@@ -249,8 +238,7 @@ public sealed class WebHostServiceTests
             await using var fixture = await WebHostFixture.StartAsync(remoteActionExecutor: remoteActions);
             var clientId = $"client-{Guid.NewGuid():N}";
             var token = fixture.Manager.CreatePairingToken();
-            using var socket = new ClientWebSocket();
-            await socket.ConnectAsync(new Uri($"ws://127.0.0.1:{fixture.WebHost.Port}/ws"), CancellationToken.None);
+            using var socket = await ConnectAsync(fixture.WebHost);
 
             var paired = await SendAndReceiveAsync(socket, new
             {
@@ -285,8 +273,7 @@ public sealed class WebHostServiceTests
             await using var fixture = await WebHostFixture.StartAsync(remoteActionExecutor: remoteActions);
             var clientId = $"client-{Guid.NewGuid():N}";
             var token = fixture.Manager.CreatePairingToken();
-            using var socket = new ClientWebSocket();
-            await socket.ConnectAsync(new Uri($"ws://127.0.0.1:{fixture.WebHost.Port}/ws"), CancellationToken.None);
+            using var socket = await ConnectAsync(fixture.WebHost);
 
             var paired = await SendAndReceiveAsync(socket, new
             {
@@ -321,8 +308,7 @@ public sealed class WebHostServiceTests
             await using var fixture = await WebHostFixture.StartAsync(remoteActionExecutor: remoteActions);
             var clientId = $"client-{Guid.NewGuid():N}";
             var token = fixture.Manager.CreatePairingToken();
-            using var socket = new ClientWebSocket();
-            await socket.ConnectAsync(new Uri($"ws://127.0.0.1:{fixture.WebHost.Port}/ws"), CancellationToken.None);
+            using var socket = await ConnectAsync(fixture.WebHost);
 
             var paired = await SendAndReceiveAsync(socket, new
             {
@@ -350,7 +336,7 @@ public sealed class WebHostServiceTests
         await using var fixture = await WebHostFixture.StartAsync();
         var token = fixture.Manager.CreatePairingToken();
 
-        var rejected = await SendHelloAsync(fixture.WebHost.Port, new
+        var rejected = await SendHelloAsync(fixture.WebHost, new
         {
             type = "pair.hello",
             deviceName = "Phone",
@@ -366,7 +352,7 @@ public sealed class WebHostServiceTests
     {
         await using var fixture = await WebHostFixture.StartAsync();
 
-        var rejected = await SendHelloAsync(fixture.WebHost.Port, new
+        var rejected = await SendHelloAsync(fixture.WebHost, new
         {
             type = "pair.hello",
             clientId = $"client-{Guid.NewGuid():N}",
@@ -381,8 +367,7 @@ public sealed class WebHostServiceTests
     public async Task WebSocketRateLimitsRepeatedFailedPairingAttempts()
     {
         await using var fixture = await WebHostFixture.StartAsync();
-        using var socket = new ClientWebSocket();
-        await socket.ConnectAsync(new Uri($"ws://127.0.0.1:{fixture.WebHost.Port}/ws"), CancellationToken.None);
+        using var socket = await ConnectAsync(fixture.WebHost);
 
         JsonElement response = default;
         for (var attempt = 0; attempt < PairingAttemptRateLimiter.DefaultMaxFailures + 1; attempt++)
@@ -406,7 +391,7 @@ public sealed class WebHostServiceTests
         await using var fixture = await WebHostFixture.StartAsync();
         var clientId = $"client-{Guid.NewGuid():N}";
         var token = fixture.Manager.CreatePairingToken();
-        var paired = await SendHelloAsync(fixture.WebHost.Port, new
+        var paired = await SendHelloAsync(fixture.WebHost, new
         {
             type = "pair.hello",
             clientId,
@@ -415,8 +400,7 @@ public sealed class WebHostServiceTests
         });
         var secret = paired.GetProperty("secret").GetString();
 
-        using var failedSocket = new ClientWebSocket();
-        await failedSocket.ConnectAsync(new Uri($"ws://127.0.0.1:{fixture.WebHost.Port}/ws"), CancellationToken.None);
+        using var failedSocket = await ConnectAsync(fixture.WebHost);
         for (var attempt = 0; attempt < PairingAttemptRateLimiter.DefaultMaxFailures; attempt++)
         {
             await SendAndReceiveAsync(failedSocket, new
@@ -428,7 +412,7 @@ public sealed class WebHostServiceTests
             });
         }
 
-        var reconnected = await SendHelloAsync(fixture.WebHost.Port, new
+        var reconnected = await SendHelloAsync(fixture.WebHost, new
         {
             type = "pair.hello",
             clientId,
@@ -446,8 +430,7 @@ public sealed class WebHostServiceTests
         await using var fixture = await WebHostFixture.StartAsync();
         var clientId = $"client-{Guid.NewGuid():N}";
         var token = fixture.Manager.CreatePairingToken();
-        using var socket = new ClientWebSocket();
-        await socket.ConnectAsync(new Uri($"ws://127.0.0.1:{fixture.WebHost.Port}/ws"), CancellationToken.None);
+        using var socket = await ConnectAsync(fixture.WebHost);
 
         var paired = await SendAndReceiveAsync(socket, new
         {
@@ -472,9 +455,8 @@ public sealed class WebHostServiceTests
         var closeEvent = new TaskCompletionSource<ControllerSocketClosedEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
         var clientId = $"client-{Guid.NewGuid():N}";
         var token = fixture.Manager.CreatePairingToken();
-        using var socket = new ClientWebSocket();
+        using var socket = await ConnectAsync(fixture.WebHost);
         fixture.WebHost.ControllerSocketClosed += (_, args) => closeEvent.TrySetResult(args);
-        await socket.ConnectAsync(new Uri($"ws://127.0.0.1:{fixture.WebHost.Port}/ws"), CancellationToken.None);
 
         var paired = await SendAndReceiveAsync(socket, new
         {
@@ -510,8 +492,7 @@ public sealed class WebHostServiceTests
             cleanupSucceeded: true));
         var clientId = $"client-{Guid.NewGuid():N}";
         var token = fixture.Manager.CreatePairingToken();
-        using var socket = new ClientWebSocket();
-        await socket.ConnectAsync(new Uri($"ws://127.0.0.1:{fixture.WebHost.Port}/ws"), CancellationToken.None);
+        using var socket = await ConnectAsync(fixture.WebHost);
 
         var paired = await SendAndReceiveAsync(socket, new
         {
@@ -560,17 +541,16 @@ public sealed class WebHostServiceTests
         Assert.False(WebHostService.IsAllowedWebSocketOrigin(CreateOriginRequest("https://example.com")));
     }
 
-    private static async Task<JsonElement> SendHelloAsync(int port, object payload)
+    private static async Task<JsonElement> SendHelloAsync(WebHostService webHost, object payload)
     {
-        using var socket = new ClientWebSocket();
-        await socket.ConnectAsync(new Uri($"ws://127.0.0.1:{port}/ws"), CancellationToken.None);
+        using var socket = await ConnectAsync(webHost);
 
         var response = await SendAndReceiveAsync(socket, payload);
         await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
         return response;
     }
 
-    private static async Task<JsonElement> SendAndReceiveAsync(ClientWebSocket socket, object payload)
+    private static async Task<JsonElement> SendAndReceiveAsync(WebSocket socket, object payload)
     {
         await SendAsync(socket, payload);
         var response = await ReceiveTextAsync(socket);
@@ -578,13 +558,13 @@ public sealed class WebHostServiceTests
         return document.RootElement.Clone();
     }
 
-    private static Task SendAsync(ClientWebSocket socket, object payload)
+    private static Task SendAsync(WebSocket socket, object payload)
     {
         var bytes = JsonSerializer.SerializeToUtf8Bytes(payload, JsonOptions.Default);
         return socket.SendAsync(bytes, WebSocketMessageType.Text, true, CancellationToken.None);
     }
 
-    private static async Task<string> ReceiveTextAsync(ClientWebSocket socket, CancellationToken cancellationToken = default)
+    private static async Task<string> ReceiveTextAsync(WebSocket socket, CancellationToken cancellationToken = default)
     {
         using var stream = new MemoryStream();
         var buffer = new byte[8192];
@@ -598,7 +578,7 @@ public sealed class WebHostServiceTests
         return Encoding.UTF8.GetString(stream.ToArray());
     }
 
-    private static async Task<WebSocketCloseStatus?> ReceiveCloseStatusAsync(ClientWebSocket socket)
+    private static async Task<WebSocketCloseStatus?> ReceiveCloseStatusAsync(WebSocket socket)
     {
         var buffer = new byte[8192];
         while (socket.State == WebSocketState.Open || socket.State == WebSocketState.CloseReceived)
@@ -611,6 +591,12 @@ public sealed class WebHostServiceTests
         }
 
         return socket.CloseStatus;
+    }
+
+    private static Task<WebSocket> ConnectAsync(WebHostService webHost)
+    {
+        var app = webHost.Application ?? throw new InvalidOperationException("The in-memory web host has not started.");
+        return app.GetTestServer().CreateWebSocketClient().ConnectAsync(new Uri("ws://localhost/ws"), CancellationToken.None);
     }
 
     private static HttpRequest CreateOriginRequest(string? origin)
@@ -627,16 +613,12 @@ public sealed class WebHostServiceTests
 
     private sealed class WebHostFixture : IAsyncDisposable
     {
-        private readonly NetworkSettingsSnapshot _originalSettings;
-
         private WebHostFixture(
-            NetworkSettingsSnapshot originalSettings,
             TempPairingStore store,
             FakeInputInjector inputInjector,
             PairingManager manager,
             WebHostService webHost)
         {
-            _originalSettings = originalSettings;
             Store = store;
             InputInjector = inputInjector;
             Manager = manager;
@@ -653,24 +635,19 @@ public sealed class WebHostServiceTests
 
         public static async Task<WebHostFixture> StartAsync(ISystemAudioController? audioController = null, IRemoteActionExecutor? remoteActionExecutor = null)
         {
-            var originalSettings = AppNetworkSettings.Load();
             var store = new TempPairingStore();
             var inputInjector = new FakeInputInjector();
             var manager = new PairingManager(store.Store);
 
-            AppNetworkSettings.Save(new NetworkSettingsSnapshot(
-                NetworkSelectionMode.Automatic,
-                ManualHostAddress: null,
-                ManualAdapterId: null,
-                ManualAdapterName: null,
-                PortSelectionMode.Automatic,
-                ManualPort: null,
-                LastAutomaticPort: null,
-                LastAutomaticHostAddress: originalSettings.LastAutomaticHostAddress));
-
-            var webHost = new WebHostService(manager, new InputDispatcher(inputInjector), audioController, remoteActionExecutor);
+            var webHost = new WebHostService(
+                manager,
+                new InputDispatcher(inputInjector),
+                audioController,
+                remoteActionExecutor,
+                isolatedTestMode: true,
+                configureWebHost: builder => builder.UseTestServer());
             await webHost.StartAsync();
-            return new WebHostFixture(originalSettings, store, inputInjector, manager, webHost);
+            return new WebHostFixture(store, inputInjector, manager, webHost);
         }
 
         public async ValueTask DisposeAsync()
@@ -679,7 +656,6 @@ public sealed class WebHostServiceTests
             await WebHost.DisposeAsync();
             Store.Dispose();
             InputInjector.Dispose();
-            AppNetworkSettings.Save(_originalSettings);
         }
     }
 

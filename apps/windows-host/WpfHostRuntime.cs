@@ -32,7 +32,8 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         var inputDispatcher = new InputDispatcher(inputInjector);
         var clientUrl = GetOption(args, "--client-url") ?? Environment.GetEnvironmentVariable("VOLTURA_AIR_CLIENT_URL");
         var usePublicScreenshotPairingUrl = HasOption(args, "--site-screenshot-mode");
-        var webHost = new WebHostService(pairingManager, inputDispatcher);
+        var isolatedTestMode = HasOption(args, "--isolated-test-mode");
+        var webHost = new WebHostService(pairingManager, inputDispatcher, isolatedTestMode: isolatedTestMode);
 
         try
         {

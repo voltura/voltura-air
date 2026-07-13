@@ -7,7 +7,6 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { devUiDevices, getDevUiDevice } from "./dev-ui-devices.mjs";
 import {
-  getLanAddress,
   readPreferredClientPort,
   resolveCommand,
   stopChild,
@@ -22,7 +21,9 @@ const tempAppDataDir = path.join(tempDir, "appdata");
 const browserProfileDir = path.join(tempDir, "chrome-profile");
 const pairingUrlFile = path.join(tempDir, "pairing-url.txt");
 const clientPort = readPreferredClientPort();
-const clientUrl = process.env.VOLTURA_AIR_CLIENT_URL ?? `http://${getLanAddress()}:${clientPort}`;
+const smokeTest = process.argv.includes("--smoke-test");
+const clientUrl = process.env.VOLTURA_AIR_CLIENT_URL ?? `http://127.0.0.1:${clientPort}`;
+const clientHost = new URL(clientUrl).hostname;
 const debugDevice = getDevUiDevice();
 const childEnv = {
   ...process.env,
@@ -66,7 +67,7 @@ async function main() {
 
   children.push(spawnCommand(
     "node",
-    ["../../node_modules/vite/bin/vite.js", "--host", "0.0.0.0", "--strictPort", "--port", String(clientPort)],
+    ["../../node_modules/vite/bin/vite.js", "--host", clientHost, "--strictPort", "--port", String(clientPort)],
     childEnv,
     { cwd: path.join(repoRoot, "apps", "mobile-web") }));
 
@@ -82,7 +83,8 @@ async function main() {
     "--pairing-store-root",
     tempAppDataDir,
     "--pairing-url-file",
-    pairingUrlFile
+    pairingUrlFile,
+    "--isolated-test-mode"
   ], {
     ...childEnv,
     APPDATA: tempAppDataDir
@@ -91,9 +93,15 @@ async function main() {
   const pairingUrl = await waitForTextFile(pairingUrlFile, 30000);
   const requireFromTemp = createRequire(path.join(tempNodeDir, "package.json"));
   const { chromium } = requireFromTemp("playwright");
-  const page = await launchConnectedBrowser(chromium, pairingUrl);
+  const page = await launchBrowser(chromium, pairingUrl);
 
-  console.log("Chrome is connected to the local Voltura Air host.");
+  if (smokeTest) {
+    console.log("Voltura Air UI smoke test connected successfully.");
+    shutdown("SIGTERM", 0);
+    return;
+  }
+
+  console.log("Chrome is open with the isolated local Voltura Air host.");
   console.log("Use Ctrl+Shift+M in DevTools to toggle the device toolbar.");
   console.log("Close Chrome or press Ctrl+C here to stop the debug session.");
 
@@ -113,7 +121,7 @@ async function ensureDebugDependencies() {
   await run("npm", ["install", "--no-audit", "--no-fund", "--no-save", "playwright"], { cwd: tempNodeDir });
 }
 
-async function launchConnectedBrowser(chromium, pairingUrl) {
+async function launchBrowser(chromium, pairingUrl) {
   const url = new URL(pairingUrl);
   url.searchParams.set("debug", "1");
 
@@ -122,17 +130,19 @@ async function launchConnectedBrowser(chromium, pairingUrl) {
   await applyDeviceEmulation(page, debugDevice);
   await page.goto(url.href, { waitUntil: "networkidle" });
   await clickPairIfPresent(page);
-  await waitForConnected(page);
+  if (smokeTest) {
+    await waitForConnected(page);
+  }
   return page;
 }
 
 async function launchPersistentContext(chromium) {
   const options = {
     channel: "chrome",
-    headless: false,
-    devtools: true,
-    viewport: null,
-    args: ["--start-maximized", "--auto-open-devtools-for-tabs", "--test-type"]
+    headless: smokeTest,
+    devtools: !smokeTest,
+    viewport: smokeTest ? { width: debugDevice.screen.vertical.width, height: debugDevice.screen.vertical.height } : null,
+    args: smokeTest ? ["--test-type"] : ["--start-maximized", "--auto-open-devtools-for-tabs", "--test-type"]
   };
 
   try {
@@ -197,7 +207,7 @@ async function clickPairIfPresent(page) {
 }
 
 async function waitForConnected(page) {
-  await page.getByText(/^Connected to /).waitFor({ timeout: 15000 });
+  await page.locator(".status.paired").waitFor({ state: "visible", timeout: 15000 });
 }
 
 async function waitForTextFile(filePath, timeoutMs) {

@@ -48,6 +48,17 @@ The host protocol layer validates and routes messages. `InputDispatcher`, `Audio
 | Styles | Keep styles separated in cascade order by shell, pairing, settings, input mode, split mode, and remote mode | production build and component tests |
 | Diagnostics and scripts | Preserve diagnostic fields and redaction behavior, and maintain root-level source-size reporting | diagnostics tests and `npm run size:report` |
 
+Temporary hosts with empty pairing stores use `--isolated-test-mode`. The mode
+has a separate single-instance scope, listens and advertises on loopback only,
+and does not write automatic network or port selections. This prevents tests,
+screenshots, and UI validation from impersonating the real LAN host and causing
+paired phones to discard valid reconnect credentials.
+
+Automated host protocol tests additionally use ASP.NET Core's in-memory
+`TestServer`, so the normal test suite opens no host TCP listener and needs no
+Windows Firewall exception. Explicit browser UI previews still use the
+loopback-only isolated host because a browser needs a real local endpoint.
+
 Host subsystems receive inspection and validation before client changes when work spans both runtime halves. Reorganization only occurs when it improves a clear boundary, removes duplication, or reduces complexity. Each extraction preserves the dependency direction shown above and removes the replaced implementation after tests pass.
 
 ## Compatibility invariants

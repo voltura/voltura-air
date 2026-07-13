@@ -7,10 +7,20 @@ namespace VolturaAir.Host;
 internal static class Program
 {
     private static WpfHostRuntime? s_runtime;
+    private static int s_activationRequested;
 
     [STAThread]
     private static void Main(string[] args)
     {
+        var instanceScope = args.Contains("--isolated-test-mode", StringComparer.OrdinalIgnoreCase)
+            ? "IsolatedTest"
+            : null;
+        using var singleInstance = SingleInstanceCoordinator.TryAcquire(RequestMainWindow, instanceScope);
+        if (singleInstance is null)
+        {
+            return;
+        }
+
         Forms.Application.SetHighDpiMode(Forms.HighDpiMode.PerMonitorV2);
         Forms.Application.EnableVisualStyles();
         Forms.Application.SetCompatibleTextRenderingDefault(false);
@@ -41,7 +51,7 @@ internal static class Program
             }
 
             startupWindow.Close();
-            if (ShouldShowMainWindowOnStartup(args, AppWindowSettings.StartHiddenInTray(), s_runtime.PairingManager.HasActiveController))
+            if (ConsumeActivationRequest() || ShouldShowMainWindowOnStartup(args, AppWindowSettings.StartHiddenInTray(), s_runtime.PairingManager.HasActiveController))
             {
                 s_runtime.MainWindow.ShowPage(HostPage.Connect);
             }
@@ -52,6 +62,31 @@ internal static class Program
                 ex is HostPortUnavailableException ? ex.Message : "An unexpected startup error occurred.",
                 ex.ToString());
         }
+    }
+
+    private static void RequestMainWindow()
+    {
+        Interlocked.Exchange(ref s_activationRequested, 1);
+        var runtime = s_runtime;
+        if (runtime is not null)
+        {
+            _ = runtime.MainWindow.Dispatcher.BeginInvoke(ShowRequestedMainWindow);
+        }
+    }
+
+    private static void ShowRequestedMainWindow()
+    {
+        if (s_runtime is null || !ConsumeActivationRequest())
+        {
+            return;
+        }
+
+        s_runtime.MainWindow.ShowPage(HostPage.Connect);
+    }
+
+    private static bool ConsumeActivationRequest()
+    {
+        return Interlocked.Exchange(ref s_activationRequested, 0) != 0;
     }
 
     internal static bool ShouldShowMainWindowOnStartup(string[] args, bool startHiddenInTraySetting, bool hasActiveController)

@@ -108,7 +108,7 @@
         </article>
         <article>
           <h2>Couch remote</h2>
-          <p>Control media playback, fullscreen, volume, YouTube, Kodi, focused Windows apps, and browser tabs without reaching for a keyboard. Tap Switch app for the previous app, hold and slide through the visual window switcher, or open Task view. Landscape keeps volume and navigation beside the helper panel.</p>
+          <p>Control media playback, fullscreen, volume, YouTube, Kodi, focused Windows apps, and browser tabs without reaching for a keyboard. Tap Switch app for the previous app, hold and slide through the visual window switcher, or open Task view. Taller portrait phones retain the navigation ring below the helper panel, while landscape keeps volume and navigation beside it.</p>
         </article>
         <article>
           <h2>Tablet split mode</h2>
@@ -192,7 +192,7 @@
           <h2>Ready in a few steps</h2>
         </div>
         <ol class="steps">
-          <li>Install and start the Windows host on the PC you want to control.</li>
+          <li>Install and start the Windows host on the PC you want to control. Launching it again reopens the existing host window instead of starting a second server.</li>
           <li>Scan the pairing QR code with a phone or tablet on the same Wi-Fi/LAN.</li>
           <li>Use Trackpad, Keyboard, Remote, Dictate, or tablet split mode from the mobile page.</li>
           <li>Add it to your home screen and reconnect later from saved devices.</li>

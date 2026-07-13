@@ -6,7 +6,7 @@ Use it as a trackpad, keyboard, dictation surface, and media remote — includin
 
 ## Product promise
 
-Remote mode includes an Fn panel for common Windows window actions and browser tab/page shortcuts. Kodi mode separates its video/UI toggle from its fullscreen/windowed control and places supporting actions around the navigation ring. Switch app supports quick previous-app taps plus hold-and-slide visual app selection, and Task view opens the persistent Windows window overview. Phone and portrait-tablet layouts preserve the main control surface; tapping the active mode collapses the full mode row into a compact selector.
+Remote mode includes an Fn panel for common Windows window actions and browser tab/page shortcuts. Kodi mode separates its video/UI toggle from its fullscreen/windowed control and places supporting actions around the navigation ring. Switch app supports quick previous-app taps plus hold-and-slide visual app selection, and Task view opens the persistent Windows window overview. Taller portrait phones retain a compact navigation ring below the Fn helpers while hiding volume when space is constrained; phone landscape keeps volume and navigation beside the helpers. Phone and portrait-tablet layouts preserve the main control surface, and tapping the active mode collapses the full mode row into a compact selector.
 
 - Control your Windows PC from any phone, tablet, or touch browser.
 - No mobile app-store install required.
@@ -34,7 +34,7 @@ The project is split into two apps:
 - `apps/mobile-web`: a React/TypeScript PWA for Android, iPhone, iPad, tablets, ChromeOS, and other modern browsers.
 - `apps/windows-host`: a .NET 10 Windows tray app that shows a QR code, hosts the PWA on the LAN, receives WebSocket commands, and injects input into Windows.
 
-The Windows host installs per user, runs from the tray, manages paired devices, and serves the mobile app over the local network. The mobile app can be used directly in the browser or installed to the home screen.
+The Windows host installs per user, runs from the tray, manages paired devices, and serves the mobile app over the local network. Only one host instance runs for the signed-in Windows user; launching Voltura Air again opens and focuses the existing host window. The mobile app can be used directly in the browser or installed to the home screen.
 
 The host has a global permission for whether paired-device input may interact with the Voltura Air host UI and tray menu. When disabled, paired devices can still control Windows and other apps, while native host window controls such as minimize, maximize, and close remain available.
 
@@ -172,6 +172,11 @@ browser storage, so debug devices are disposable and do not change the normal
 Voltura Air device list. Chrome device emulation is a fast development
 complement, not a replacement for real phone, tablet, installed-PWA, and LAN
 tests.
+
+`dev:ui` is an interactive manual session. Playwright is used only to launch and
+configure Chrome; the command does not assert UI state. Run `npm run test:ui`
+when an explicit headless connection smoke test is wanted. Both commands use
+loopback-only services and isolated temporary pairing data.
 
 Run only one side when needed:
 

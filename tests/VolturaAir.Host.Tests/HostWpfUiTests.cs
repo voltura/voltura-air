@@ -52,7 +52,7 @@ public sealed partial class HostUiLayoutTests
             using var store = new TempPairingStore();
             using var inputInjector = new SendInputInjector();
             var manager = new PairingManager(store.Store);
-            var webHost = new WebHostService(manager, new InputDispatcher(inputInjector));
+            var webHost = new WebHostService(manager, new InputDispatcher(inputInjector), isolatedTestMode: true);
             var window = new MainWindow(manager, webHost, clientUrl: null);
             try
             {
@@ -102,7 +102,7 @@ public sealed partial class HostUiLayoutTests
             using var store = new TempPairingStore();
             using var inputInjector = new SendInputInjector();
             var manager = new PairingManager(store.Store);
-            var webHost = new WebHostService(manager, new InputDispatcher(inputInjector));
+            var webHost = new WebHostService(manager, new InputDispatcher(inputInjector), isolatedTestMode: true);
             var window = new MainWindow(manager, webHost, clientUrl: null);
             try
             {
@@ -145,7 +145,7 @@ public sealed partial class HostUiLayoutTests
             using var store = new TempPairingStore();
             using var inputInjector = new SendInputInjector();
             var manager = new PairingManager(store.Store);
-            var webHost = new WebHostService(manager, new InputDispatcher(inputInjector));
+            var webHost = new WebHostService(manager, new InputDispatcher(inputInjector), isolatedTestMode: true);
             var window = new MainWindow(manager, webHost, clientUrl: null);
             try
             {

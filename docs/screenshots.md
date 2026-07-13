@@ -8,6 +8,13 @@ installer artwork in `installer/assets`.
 - Windows host debug/release build from `apps/windows-host`.
 - Chrome for deterministic browser captures.
 - Playwright installed in a temporary capture folder, not as a repo dependency.
+- The temporary host runs with `--isolated-test-mode`, so its empty pairing store
+  is reachable only from the local PC and cannot revoke a real phone pairing.
+- A Windows Firewall prompt is unnecessary for this loopback-only preview and
+  can be denied. Automated protocol tests use an in-memory server and should not
+  display a firewall prompt at all.
+- `npm run dev:ui` is an interactive Chrome session and makes no UI assertions.
+  `npm run test:ui` is the separate headless paired-connection smoke test.
 
 Regenerate public static-site screenshots with:
 

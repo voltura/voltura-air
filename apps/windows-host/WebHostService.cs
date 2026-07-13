@@ -21,14 +21,23 @@ public sealed partial class WebHostService : IAsyncDisposable
     private readonly IRemoteActionExecutor _remoteActionExecutor;
     private readonly PairingAttemptRateLimiter _pairingAttemptRateLimiter = new();
     private readonly WebSocketConnectionRegistry _connections = new();
+    private readonly Action<IWebHostBuilder>? _configureWebHost;
+    private readonly string _listenAddress;
     private WebApplication? _app;
 
-    public WebHostService(PairingManager pairingManager, InputDispatcher inputDispatcher, ISystemAudioController? audioController = null, IRemoteActionExecutor? remoteActionExecutor = null)
+    public WebHostService(
+        PairingManager pairingManager,
+        InputDispatcher inputDispatcher,
+        ISystemAudioController? audioController = null,
+        IRemoteActionExecutor? remoteActionExecutor = null,
+        bool isolatedTestMode = false,
+        Action<IWebHostBuilder>? configureWebHost = null)
     {
         _pairingManager = pairingManager;
         _inputDispatcher = inputDispatcher;
         _audioController = audioController ?? new SystemAudioController();
         _remoteActionExecutor = remoteActionExecutor ?? new RemoteActionExecutor();
+        _configureWebHost = configureWebHost;
         _pairingManager.PairingRevoked += OnPairingRevoked;
         _pairingManager.PermissionsChanged += OnPermissionsChanged;
         _pairingManager.DeviceProfileChanged += OnPermissionsChanged;
@@ -46,18 +55,29 @@ public sealed partial class WebHostService : IAsyncDisposable
 
         Port = portSelection.Port;
         PortSelectionWarning = portSelection.Warning;
-        if (portSelection.IsAutomatic)
+        if (portSelection.IsAutomatic && !isolatedTestMode)
         {
             AppNetworkSettings.SetLastAutomaticPort(Port);
         }
 
-        var addressSelection = LanAddressSelector.Select(LanAddressSelector.GetCandidates(), settings);
-        AdvertisedHostAddress = addressSelection?.Address.ToString() ?? GetDnsLanAddressFallback() ?? "127.0.0.1";
-        SelectedAdapterName = GetSelectedAdapterName(addressSelection?.Candidate);
-        AddressSelectionWarning = addressSelection?.Warning;
-        if (settings.NetworkMode == NetworkSelectionMode.Automatic)
+        if (isolatedTestMode)
         {
-            AppNetworkSettings.SetLastAutomaticHostAddress(AdvertisedHostAddress);
+            _listenAddress = "127.0.0.1";
+            AdvertisedHostAddress = "127.0.0.1";
+            SelectedAdapterName = "Loopback (isolated test)";
+            AddressSelectionWarning = null;
+        }
+        else
+        {
+            _listenAddress = "0.0.0.0";
+            var addressSelection = LanAddressSelector.Select(LanAddressSelector.GetCandidates(), settings);
+            AdvertisedHostAddress = addressSelection?.Address.ToString() ?? GetDnsLanAddressFallback() ?? "127.0.0.1";
+            SelectedAdapterName = GetSelectedAdapterName(addressSelection?.Candidate);
+            AddressSelectionWarning = addressSelection?.Warning;
+            if (settings.NetworkMode == NetworkSelectionMode.Automatic)
+            {
+                AppNetworkSettings.SetLastAutomaticHostAddress(AdvertisedHostAddress);
+            }
         }
 
         ServerUrl = BuildServerUrl(AdvertisedHostAddress, Port);
@@ -77,6 +97,10 @@ public sealed partial class WebHostService : IAsyncDisposable
 
     public string? PortSelectionWarning { get; }
 
+    internal string ListenAddress => _listenAddress;
+
+    internal WebApplication? Application => _app;
+
     public event EventHandler<ControllerSocketClosedEventArgs>? ControllerSocketClosed;
 
     internal void UpdateAdvertisedHostAddress(string hostAddress, LanAddressCandidate? selectedCandidate = null)
@@ -89,7 +113,14 @@ public sealed partial class WebHostService : IAsyncDisposable
     public async Task StartAsync()
     {
         var builder = WebApplication.CreateBuilder();
-        builder.WebHost.UseUrls($"http://0.0.0.0:{Port}");
+        if (_configureWebHost is null)
+        {
+            builder.WebHost.UseUrls($"http://{_listenAddress}:{Port}");
+        }
+        else
+        {
+            _configureWebHost(builder.WebHost);
+        }
         var app = builder.Build();
         app.UseWebSockets();
 

@@ -292,6 +292,31 @@
   }
 }
 
+@media (orientation: portrait) and (max-width: 560px) and (min-height: 760px) {
+  .remote-mode.remote-utility-open:has(.remote-navigation-ring) {
+    grid-template-rows: max-content minmax(184px, 1fr);
+  }
+
+  .remote-mode.remote-utility-open .remote-navigation-section:has(.remote-navigation-ring) {
+    display: grid;
+    grid-row: 2;
+    padding-bottom: 7px;
+  }
+
+  .remote-mode.remote-utility-open .remote-utility-section {
+    grid-row: 1;
+    padding-bottom: 7px;
+  }
+
+  .remote-mode.remote-utility-open .remote-navigation-section .remote-floating-fn {
+    display: none;
+  }
+
+  .remote-mode.remote-utility-open .remote-navigation-ring {
+    width: min(27svh, 56vw, 216px);
+  }
+}
+
 @media (max-height: 720px) {
   .remote-mode {
     gap: 6px;

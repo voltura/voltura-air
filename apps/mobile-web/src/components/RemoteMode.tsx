@@ -27,11 +27,11 @@ import { getRemoteModeCopy } from "./remote/remoteModeCopy";
 import { RemoteButton, type RepeatablePressProps } from "./remote/RemoteButton";
 import { isInteractiveRemoteTarget, roundRemoteDelta } from "./remote/remotePointerMath";
 import { RemoteUtilityPanel } from "./remote/RemoteUtilityPanel";
-import { PowerControlEntry } from "./remote/PowerControlEntry";
+import { PowerControlEntry, type AwakeControlProps } from "./remote/PowerControlEntry";
 
-const repeatStartDelayMs = 400;
-const repeatIntervalMs = 55;
-const miniTrackpadSensitivity = 1.35;
+const repeatDelayMs = 400;
+const repeatMs = 55;
+const trackpadScale = 1.35;
 const miniTrackpadTapDistance = 8;
 const miniTrackpadDoubleTapMs = 280;
 const miniTrackpadDoubleTapDistance = 24;
@@ -40,6 +40,7 @@ type MouseButtonName = "left" | "right";
 
 type RemoteModeProps = {
   audioState: AudioStateMessage | null;
+  awakeControl?: AwakeControlProps;
   remoteSettings: RemoteSettings;
   onPointerButtonClick: (button: MouseButtonName) => void;
   onPointerMove: (dx: number, dy: number) => void;
@@ -68,6 +69,7 @@ type PendingMiniTap = {
 
 export function RemoteMode({
   audioState,
+  awakeControl,
   remoteSettings,
   onPointerButtonClick,
   onPointerMove,
@@ -152,8 +154,8 @@ export function RemoteMode({
       action();
       repeatTimeoutRef.current = window.setTimeout(() => {
         action();
-        repeatIntervalRef.current = window.setInterval(action, repeatIntervalMs);
-      }, repeatStartDelayMs);
+        repeatIntervalRef.current = window.setInterval(action, repeatMs);
+      }, repeatDelayMs);
     },
     onPointerUp: stopRepeatingPress,
     onPointerCancel: stopRepeatingPress,
@@ -238,7 +240,7 @@ export function RemoteMode({
       return;
     }
 
-    onPointerMove(roundRemoteDelta(dx * miniTrackpadSensitivity), roundRemoteDelta(dy * miniTrackpadSensitivity));
+    onPointerMove(roundRemoteDelta(dx * trackpadScale), roundRemoteDelta(dy * trackpadScale));
   };
 
   const releaseMiniTrackpad = (event: PointerEvent<HTMLDivElement>) => {
@@ -324,7 +326,7 @@ export function RemoteMode({
       return;
     }
 
-    onPointerMove(roundRemoteDelta(dx * miniTrackpadSensitivity), roundRemoteDelta(dy * miniTrackpadSensitivity));
+    onPointerMove(roundRemoteDelta(dx * trackpadScale), roundRemoteDelta(dy * trackpadScale));
   };
 
   const releaseNavigationPanel = (event: PointerEvent<HTMLDivElement>) => {
@@ -525,6 +527,7 @@ export function RemoteMode({
         )}
         {renderNavigationControl()}
         <PowerControlEntry
+          {...awakeControl}
           capabilities={powerCapabilities}
           onAction={onPowerAction}
           onOpen={() => setShowUtilityPanel(false)}

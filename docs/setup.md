@@ -90,7 +90,7 @@ Mobile settings are stored locally per device and include trackpad behavior, key
 
 Voltura Air runs one host process for the signed-in Windows user. Launching the app again brings the existing host window to the front instead of starting another server on a different port.
 
-The tray icon menu can show Voltura Air, open Devices, open Settings, show Technical details, open the product page, or exit the host.
+The tray icon menu can show Voltura Air, open Devices or Preferences, control Keep awake, open the product page, or exit the host. **Keep awake** offers the selected Windows power plan, 30-minute, 1-hour, 2-hour, expiration, and indefinite choices. **Until…** opens the full host configuration.
 
 Windows host settings include:
 
@@ -98,8 +98,9 @@ Windows host settings include:
 - Show or hide connection status notifications.
 - Host-enforced global and per-device permissions.
 - Preferences sections start collapsed and only one opens at a time. Power and session permissions are configured under **Preferences > Global permissions**. Lock PC and Blackout display are enabled by default. Screen saver is enabled and shown only when Windows has an enabled, configured `.scr` program. Turn off display, Sign out, Restart PC, and Shut down PC are disabled until explicitly enabled.
+- **Preferences > Keep awake** configures Off, indefinite, interval, and date/time expiration modes plus **Keep screen on**. It uses a temporary Windows execution-state request without editing the selected power plan or requiring administrator rights. Manual sleep, lid close, and the Windows lock screen still take precedence. Exiting Voltura Air releases the request.
 - **Preferences > Windows locking** reports whether `HKCU\Software\Microsoft\Windows\CurrentVersion\Policies\System\DisableLockWorkstation` explicitly disables locking for the signed-in user. When the policy value is missing or zero, **Test Lock PC** calls `LockWorkStation` directly without writing the registry. When a DWORD value explicitly disables locking, **Enable Windows locking** confirms locally, writes value `0` through the 64-bit current-user registry view, broadcasts `WM_SETTINGCHANGE` for `Policy`, verifies the readback, and tests `LockWorkStation`. It does not require administrator rights or UAC and does not read or change automatic Windows sign-in settings.
-- A paired device can inherit those global power permissions or override each one from **Devices > Permissions**. Disabled actions remain visible in the mobile Power sheet with a host-disabled explanation.
+- A paired device can inherit global power and Keep awake permissions or override each one from **Devices > Permissions**. Remote Keep awake control is off by default. The mobile Power sheet provides one Keep awake toggle and always uses the host's Keep screen on setting.
 - Sign out, restart, and shut down always require holding the mobile confirmation button for 1.6 seconds. Releasing or moving away cancels the action.
 - Global permission for whether paired-device input may change the Voltura Air host UI and tray menu; when disabled, native minimize, maximize, and close controls still work.
 - Default pointer speed for paired devices, with optional per-device overrides.

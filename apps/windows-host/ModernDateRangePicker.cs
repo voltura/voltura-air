@@ -236,7 +236,7 @@ public sealed class ModernDateRangePicker : UserControl
     private Button CreateNavigationButton(string content, int months, string accessibleName)
     {
         var button = new Button { Content = content };
-        button.SetResourceReference(FrameworkElement.StyleProperty, "DateRangeNavigationButtonStyle");
+        button.SetResourceReference(FrameworkElement.StyleProperty, "ModernCalendarNavigationButtonStyle");
         button.Click += (_, _) =>
         {
             _displayMonth = _displayMonth.AddMonths(months);
@@ -361,7 +361,7 @@ public sealed class ModernDateRangePicker : UserControl
     private Button CreateDayButton(DateTime date)
     {
         var button = new Button { Content = date.Day.ToString(CultureInfo.CurrentCulture) };
-        button.SetResourceReference(FrameworkElement.StyleProperty, "DateRangeDayButtonStyle");
+        button.SetResourceReference(FrameworkElement.StyleProperty, "ModernCalendarDayButtonStyle");
         ToolTipService.SetToolTip(button, date.ToString("D", CultureInfo.CurrentCulture));
         AutomationProperties.SetName(button, date.ToString("D", CultureInfo.CurrentCulture));
         button.Click += (_, _) => SelectDate(date);

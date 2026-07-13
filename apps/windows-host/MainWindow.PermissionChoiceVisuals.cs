@@ -44,6 +44,7 @@ public partial class MainWindow
         ApplyPermissionChoiceVisuals("Volume control", device.PermissionOverrides.AllowVolumeControl, globalPermissions.AllowVolumeControl);
         ApplyPermissionChoiceVisuals("Lock PC", device.PermissionOverrides.AllowPcLock, globalPermissions.AllowPcLock);
         ApplyPermissionChoiceVisuals("Turn off display", device.PermissionOverrides.AllowDisplayOff, globalPermissions.AllowDisplayOff);
+        ApplyPermissionChoiceVisuals("Keep awake", device.PermissionOverrides.AllowAwakeControl, globalPermissions.AllowAwakeControl);
         ApplyPermissionChoiceVisuals("Sign out", device.PermissionOverrides.AllowSignOut, globalPermissions.AllowSignOut);
         ApplyPermissionChoiceVisuals("Restart PC", device.PermissionOverrides.AllowRestart, globalPermissions.AllowRestart);
         ApplyPermissionChoiceVisuals("Shut down PC", device.PermissionOverrides.AllowShutdown, globalPermissions.AllowShutdown);

@@ -178,6 +178,30 @@
   white-space: normal;
 }
 
+.awake-state-pill {
+  min-width: 44px;
+  padding: 5px 9px;
+  border: 1px solid;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+  letter-spacing: 0.05em;
+}
+
+.awake-state-pill.on {
+  border-color: color-mix(in srgb, var(--success) 58%, var(--border));
+  background: color-mix(in srgb, var(--success) 16%, var(--surface));
+  color: var(--success);
+}
+
+.awake-state-pill.off {
+  border-color: color-mix(in srgb, var(--danger) 58%, var(--border));
+  background: color-mix(in srgb, var(--danger) 14%, var(--surface));
+  color: var(--danger);
+}
+
 .power-action-safety {
   padding: 4px 7px;
   border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));

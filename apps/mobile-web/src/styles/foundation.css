@@ -93,9 +93,9 @@ body {
   overscroll-behavior: none;
 }
 
-@supports (height: 100lvh) {
+@supports (height: 100dvh) {
   :root {
-    --app-viewport-height: 100lvh;
+    --app-viewport-height: 100dvh;
   }
 }
 

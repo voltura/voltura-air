@@ -47,7 +47,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
   - Preferences.
   - Diagnostics.
 - Organizes Preferences as themed accordion sections that are collapsed on entry and allow only one expanded section at a time.
-- Provides tray actions for opening the app, product page, and exit.
+- Provides tray actions for opening the app, controlling Keep awake, opening the product page, and exit.
 - Supports light, dark, and system theme modes.
 - Supports per-user installation without administrator rights.
 - Supports portable zip packaging.
@@ -102,6 +102,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Supports host-enforced permission for volume control.
 - Supports host-enforced permission for fixed Remote launch actions.
 - Supports separate host-enforced permissions for Lock PC, Blackout display, Turn off display, Screen saver, Sign out, Restart PC, and Shut down PC.
+- Supports a default-off global Keep awake control permission with per-device overrides.
 - Detects an explicit current-user Windows workstation-lock block and reports it separately from the Lock PC permission; a missing value is not treated as proof that locking works.
 - Lets the signed-in user explicitly enable and test Windows locking locally without elevation or UAC, then broadcasts a Windows policy refresh.
 - Supports a global permission for client-injected input to interact with the Voltura Air host UI and tray menu; when disabled, clients can still control the PC while host minimize, maximize, and close controls remain available.
@@ -156,6 +157,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Starts the native Windows screen saver only when Windows reports screen saving enabled and a configured `.scr` program exists. The action is omitted from host and mobile UI when unavailable.
 - Turns off connected displays through the Windows monitor-power command when allowed, including HDMI output to TVs and receivers. The mobile client requires confirmation and explains that some PCs treat this command as sleep or Modern Standby. On those systems the host and network connection can suspend, Voltura Air cannot wake the PC remotely, and physical keyboard or mouse input is required. Windows may then require PIN, fingerprint, or another configured sign-in method; the action does not sign out the user.
 - Signs out, restarts, or shuts down through fixed Windows system commands when explicitly allowed.
+- Keeps Windows awake without changing the selected power plan, with Off, timed, date/time expiration, and indefinite modes plus an optional host-owned Keep screen on setting. Timed deadlines survive host restarts, expired modes return to Off, and exit releases the Windows request.
 
 ---
 
@@ -282,6 +284,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 ### Remote mode
 
 - A single compact Power entry opens a responsive Power & session sheet instead of adding permanent power buttons to the main grid.
+- The Power & session sheet shows one basic Keep awake toggle when the host reports Awake state. It uses the host's Keep screen on setting and cannot alter it.
 - Lock PC, Blackout display, and an available Screen saver use direct action rows. Blackout closes the Power sheet immediately so it does not obscure the restored display; its result remains available when Power is reopened. Lock and Screen saver remain open while awaiting the host. Turn off display, Sign out, Restart PC, and Shut down PC open a dedicated warning screen and require an uninterrupted 1.6-second hold.
 - Host-disabled actions remain visible with a host-disabled explanation, except Screen saver, which is omitted when Windows does not expose an enabled, configured saver.
 - Media previous/play-pause/next.

@@ -40,6 +40,8 @@ The host has a global permission for whether paired-device input may interact wi
 
 Power and session controls have separate global and per-device permissions. Lock PC and Blackout display are enabled by default; screen saver is shown only when Windows has one enabled and configured; display off, sign out, restart, and shut down require explicit host approval. Blackout covers every monitor with black while Windows, networking, and Voltura Air remain active, then closes on any local or remote input. The host detects explicit current-user workstation-lock policy. When policy disables locking, a local non-elevated **Enable Windows locking** action writes DWORD zero and refreshes policy; when the value is missing or zero, **Test Lock PC** tests Windows directly without an unnecessary registry write. Host results appear inline on mobile. Sign out, restart, and shut down require hold-to-confirm. Turning off a display also cuts HDMI output to TVs and receivers and requires confirmation because some Windows PCs treat the monitor-power command as sleep or Modern Standby. On those PCs Voltura Air disconnects and cannot provide remote wake; physical keyboard or mouse input is required, and Windows may show its sign-in screen after resuming.
 
+The host also provides **Keep awake** without changing the selected Windows power plan. The tray offers Off, 30-minute, 1-hour, 2-hour, expiration, and indefinite modes; **Preferences > Keep awake** provides custom intervals, date/time expiration, and the host-owned **Keep screen on** setting. Remote control is off by default and can be allowed globally or per paired device. Mobile exposes one basic Keep awake toggle and always uses the screen setting chosen on the host.
+
 Preferences uses themed, single-open accordion sections. An optional sanitized application log is available there and is off by default. Diagnostics opens on a themed, filterable Application log view for remote commands, host actions, outcomes, responses, and Windows errors; the log itself scrolls while the filter and action controls remain reachable.
 
 ## Features
@@ -140,7 +142,7 @@ dotnet run --project apps/windows-host/VolturaAir.Host.csproj
 
 The Windows app opens the Voltura Air window and a tray icon near the clock. Scan the QR code on the Connect page from the phone, tablet, or browser-capable device to open the mobile app and pair it with the PC.
 
-Use the tray icon's context menu to show Voltura Air, open Devices, open Settings, inspect technical details, open the product page, or exit the host.
+Use the tray icon's context menu to show Voltura Air, open Devices or Preferences, control Keep awake, open the product page, or exit the host.
 
 ## Local Development
 

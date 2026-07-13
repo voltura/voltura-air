@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ClientMessage } from "../protocol";
 import {
   getPowerCapabilities,
+  getAwakeCapability,
   getPcDisconnectedMessage,
   normalizeHostStatus,
   shouldTrackInputAck,
@@ -57,6 +58,14 @@ describe("connection protocol policy", () => {
     expect(getPowerCapabilities({ power })).toEqual(power);
     expect(getPowerCapabilities({ power: { ...power, restart: undefined as never } })).toBeNull();
     expect(getPowerCapabilities(undefined)).toBeNull();
+  });
+
+  it("accepts only complete Awake capability state", () => {
+    const awake = { canControl: true, active: true, mode: "timed" as const, expiresAt: "2026-07-13T12:00:00Z" };
+
+    expect(getAwakeCapability({ awake })).toEqual(awake);
+    expect(getAwakeCapability({ awake: { ...awake, mode: "unknown" as never } })).toBeNull();
+    expect(getAwakeCapability(undefined)).toBeNull();
   });
 
   it("keeps recognized Windows lock availability metadata", () => {

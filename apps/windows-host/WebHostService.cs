@@ -20,6 +20,7 @@ public sealed partial class WebHostService : IAsyncDisposable
     private readonly ISystemAudioController _audioController;
     private readonly IRemoteActionExecutor _remoteActionExecutor;
     private readonly ISystemPowerController _powerController;
+    private readonly IAwakeService _awakeService;
     private readonly IWorkstationLockPolicy _workstationLockPolicy;
     private readonly IAppLog _appLog;
     private readonly PairingAttemptRateLimiter _pairingAttemptRateLimiter = new();
@@ -34,6 +35,7 @@ public sealed partial class WebHostService : IAsyncDisposable
         ISystemAudioController? audioController = null,
         IRemoteActionExecutor? remoteActionExecutor = null,
         ISystemPowerController? powerController = null,
+        IAwakeService? awakeService = null,
         IWorkstationLockPolicy? workstationLockPolicy = null,
         IAppLog? appLog = null,
         bool isolatedTestMode = false,
@@ -45,6 +47,9 @@ public sealed partial class WebHostService : IAsyncDisposable
         _remoteActionExecutor = remoteActionExecutor ?? new RemoteActionExecutor();
         _powerController = powerController ?? (isolatedTestMode ? new NoOpSystemPowerController() : new SystemPowerController());
         _appLog = appLog ?? (isolatedTestMode ? NullAppLog.Instance : new AppLog());
+        _awakeService = awakeService ?? (isolatedTestMode
+            ? new NoOpAwakeService()
+            : VolturaAir.Host.AwakeService.CreateWindows(_appLog));
         _workstationLockPolicy = workstationLockPolicy ?? new WorkstationLockPolicy(_appLog);
         _configureWebHost = configureWebHost;
         _pairingManager.PairingRevoked += OnPairingRevoked;
@@ -55,6 +60,7 @@ public sealed partial class WebHostService : IAsyncDisposable
         AppRemoteSettings.Changed += OnPermissionsChanged;
         AppPointerSettings.Changed += OnPermissionsChanged;
         _workstationLockPolicy.Changed += OnPermissionsChanged;
+        _awakeService.StateChanged += OnAwakeStateChanged;
 
         var settings = AppNetworkSettings.Load();
         var portSelection = PortSelector.Select(settings, IsPortAvailable, FindFreePort);
@@ -114,6 +120,8 @@ public sealed partial class WebHostService : IAsyncDisposable
     internal IWorkstationLockPolicy WorkstationLockPolicy => _workstationLockPolicy;
 
     internal ISystemPowerController PowerController => _powerController;
+
+    internal IAwakeService AwakeService => _awakeService;
 
     internal IAppLog AppLog => _appLog;
 
@@ -224,6 +232,7 @@ public sealed partial class WebHostService : IAsyncDisposable
         AppRemoteSettings.Changed -= OnPermissionsChanged;
         AppPointerSettings.Changed -= OnPermissionsChanged;
         _workstationLockPolicy.Changed -= OnPermissionsChanged;
+        _awakeService.StateChanged -= OnAwakeStateChanged;
         AbortActiveSockets();
         _connections.Dispose();
         if (_app is not null)
@@ -235,6 +244,8 @@ public sealed partial class WebHostService : IAsyncDisposable
         {
             disposablePowerController.Dispose();
         }
+
+        _awakeService.Dispose();
     }
 
     internal static bool IsPortAvailable(int port)

@@ -19,6 +19,40 @@ describe("PowerControlSheet", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
+  it("offers one basic Keep awake toggle and leaves screen behavior to the host", () => {
+    const onAwakeChange = vi.fn();
+    render(
+      <PowerControlSheet
+        awake={{ canControl: true, active: false, mode: "off" }}
+        capabilities={allAllowed}
+        onAction={vi.fn()}
+        onAwakeChange={onAwakeChange}
+        onClose={vi.fn()}
+        pendingAction={null}
+        result={null}
+      />
+    );
+
+    const keepAwake = screen.getByRole("button", { name: /Keep awake/ });
+    expect(keepAwake.textContent).toContain("using the host screen setting");
+    expect(screen.getByLabelText("Keep awake is off").classList.contains("off")).toBe(true);
+    expect(screen.queryByText(/Keep screen on/)).toBeNull();
+    fireEvent.click(keepAwake);
+    expect(onAwakeChange).toHaveBeenCalledExactlyOnceWith(true);
+  });
+
+  it("shows active Keep awake state and host permission", () => {
+    const { rerender } = render(
+      <PowerControlSheet awake={{ canControl: true, active: true, mode: "timed" }} capabilities={allAllowed} onAction={vi.fn()} onClose={vi.fn()} pendingAction={null} result={null} />
+    );
+    expect(screen.getByRole("button", { name: /Keep awake/ }).textContent).toContain("On.");
+    expect(screen.getByLabelText("Keep awake is on").classList.contains("on")).toBe(true);
+
+    rerender(<PowerControlSheet awake={{ canControl: false, active: false, mode: "off" }} capabilities={allAllowed} onAction={vi.fn()} onClose={vi.fn()} pendingAction={null} result={null} />);
+    expect(screen.getByRole("button", { name: /Keep awake/ }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByLabelText("Keep awake is off").classList.contains("off")).toBe(true);
+  });
+
   it("shows every action and explains host-disabled permissions", () => {
     render(
       <PowerControlSheet

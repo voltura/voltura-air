@@ -38,10 +38,14 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         ISystemPowerController powerController = isolatedTestMode
             ? new NoOpSystemPowerController()
             : new SystemPowerController(new WindowsDisplayActionController(System.Windows.Application.Current.Dispatcher, appLog));
+        IAwakeService awakeService = isolatedTestMode
+            ? new NoOpAwakeService()
+            : AwakeService.CreateWindows(appLog);
         var webHost = new WebHostService(
             pairingManager,
             inputDispatcher,
             powerController: powerController,
+            awakeService: awakeService,
             workstationLockPolicy: workstationLockPolicy,
             appLog: appLog,
             isolatedTestMode: isolatedTestMode);
@@ -55,9 +59,10 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 clientUrl,
                 usePublicScreenshotPairingUrl,
                 workstationLockPolicy,
+                awakeService,
                 appLog: appLog);
             WritePairingUrlIfRequested(args, mainWindow.PairingUrl);
-            var trayContext = new WpfTrayApplicationContext(mainWindow, webHost, pairingManager);
+            var trayContext = new WpfTrayApplicationContext(mainWindow, webHost, pairingManager, awakeService);
             return new WpfHostRuntime(inputInjector, webHost, pairingManager, mainWindow, trayContext);
         }
         catch

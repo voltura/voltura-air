@@ -16,7 +16,9 @@ These notes capture project-level UI decisions for the Windows host.
   navigation must remain outside scrollable regions.
 - Preferences uses themed accordion sections. Start them collapsed, allow only
   one section to be expanded, and keep each header a full-width keyboard and
-  pointer target while individual actions remain content-sized.
+  pointer target while individual actions remain content-sized. Order sections
+  from broad application and appearance settings through control defaults and
+  host behavior, then permissions, platform policy, and advanced tools.
 - Diagnostics uses a top-level view switch. In the Application log view, the
   record region is the only vertical scroller; filters, status, and Refresh,
   Copy, Open folder, and Delete actions remain visible. Log filters apply as
@@ -44,16 +46,23 @@ fail, input acknowledgement times out, or input dispatch fails. Show a clear
 unavailable/retrying panel with recovery actions and keep it scrollable on small
 phones and short landscape screens.
 
-## Remote power and display actions
+## Remote action surfaces
 
-- Keep Lock PC and a configured screen saver in the Power sheet while their host
-  acknowledgement or error is pending. Close the sheet after Blackout display is
-  requested so it does not obscure the restored display; retain its result for
-  the next time Power is opened.
-- Show **Turn on screen saver** only when the host reports that Windows has an
-  enabled, configured screen saver. Do not show a permanently disabled row for
-  a feature the PC does not expose.
-- Treat **Blackout display** as the dependable keep-awake alternative: it covers
-  all monitors with host-owned black windows and closes on local or remote input.
-- Keep **Turn off display** behind confirmation and explain that Windows may
-  interpret the native monitor-power command as sleep or Modern Standby.
+- Keep the mobile surface focused on current state and the smallest useful
+  action set. Detailed policy and platform-specific configuration belong to the
+  Windows host; do not duplicate them in the mobile client.
+- Place related actions in one responsive sheet when permanent buttons would
+  crowd the primary control surface. Preserve the user's context when the sheet
+  opens and return focus predictably when it closes.
+- Show supported but host-disabled actions with a permission explanation. Omit
+  actions for capabilities the host or Windows does not expose at all.
+- Keep reversible, low-risk actions direct. Use a dedicated warning state and an
+  explicit confirmation gesture for disruptive or session-ending actions.
+- Show pending, success, and failure state where the action was initiated. Keep
+  the surface open while acknowledgement is useful; close it when leaving it
+  open would obscure the action's result, while preserving feedback for later.
+- Use tray menus for quick access and common presets. Put complete configuration
+  in Preferences, and have both surfaces operate on the same service-owned state.
+- Tray submenu arrows and selected-state checkmarks use the active theme text
+  color. Checked menus reserve a DPI-scaled indicator gutter so the glyph never
+  overlaps labels; separators align with that gutter.

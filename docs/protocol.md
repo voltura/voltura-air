@@ -480,6 +480,60 @@ Failure codes distinguish `VAIR-POWER-DENIED`,
 These action-level failures are recoverable and do not close the authenticated
 WebSocket. A malformed message still violates protocol policy.
 
+## Keep awake
+
+The host reports the shared Awake state and the active device's effective
+permission in `capabilities.awake`. State is reported even when control is
+blocked so the mobile Power & session sheet can show whether the PC is already
+being kept awake.
+
+```json
+{
+  "awake": {
+    "canControl": false,
+    "active": true,
+    "mode": "timed",
+    "expiresAt": "2026-07-13T19:30:00.0000000Z"
+  }
+}
+```
+
+`mode` is `off`, `indefinite`, `timed`, or `expiration`. `expiresAt` is a UTC
+ISO-8601 timestamp for timed and expiration modes and `null` otherwise. Tray,
+Preferences, timer expiry, and remote changes all update the same host-owned
+state. The host broadcasts a fresh `status` message to connected clients when
+that state changes.
+
+The official mobile client intentionally exposes only a basic on/off action:
+
+```json
+{ "type": "awake.set", "enabled": true }
+```
+
+`enabled: true` selects indefinite mode and `enabled: false` selects Off. The
+request never carries display behavior; the existing **Keep screen on** choice
+from the Windows host remains authoritative. The host rejects the request when
+the effective global/per-device **Allow paired devices to control Keep awake**
+permission is off.
+
+Every valid request receives a result and keeps the authenticated socket open:
+
+```json
+{
+  "type": "awake.result",
+  "enabled": true,
+  "succeeded": false,
+  "code": "VAIR-AWAKE-DENIED",
+  "message": "Keep awake control is disabled by the PC host."
+}
+```
+
+Failure codes are `VAIR-AWAKE-DENIED` and
+`VAIR-AWAKE-EXECUTION-FAILED`. A malformed `enabled` value violates normal
+protocol validation. Keep awake uses the signed-in user's Windows execution
+state, does not edit the selected power plan, does not require elevation, and
+does not override manual sleep, lid close, or lock-screen behavior.
+
 ## Audio
 
 The mobile app only shows volume controls when `capabilities.volume` is `true`

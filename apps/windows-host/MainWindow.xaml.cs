@@ -34,6 +34,7 @@ public partial class MainWindow : Window
     private readonly WebHostService _webHost;
     private readonly IWorkstationLockPolicy _workstationLockPolicy;
     private readonly ISystemPowerController _powerController;
+    private readonly IAwakeService _awakeService;
     private readonly IAppLog _appLog;
     private readonly string _initialClientUrl;
     private readonly bool _usesServerUrlAsClientUrl;
@@ -57,6 +58,7 @@ public partial class MainWindow : Window
     private DispatcherTimer? _toastTimer;
     private int _lastPairedDeviceCount;
     private bool _isLoadingPreferences;
+    private bool _openAwakePreferences;
     private bool _allowClose;
 
     public MainWindow(
@@ -65,6 +67,7 @@ public partial class MainWindow : Window
         string? clientUrl,
         bool usePublicScreenshotPairingUrl = false,
         IWorkstationLockPolicy? workstationLockPolicy = null,
+        IAwakeService? awakeService = null,
         ISystemPowerController? powerController = null,
         IAppLog? appLog = null)
     {
@@ -72,6 +75,7 @@ public partial class MainWindow : Window
         _webHost = webHost;
         _workstationLockPolicy = workstationLockPolicy ?? webHost.WorkstationLockPolicy;
         _powerController = powerController ?? webHost.PowerController;
+        _awakeService = awakeService ?? webHost.AwakeService;
         _appLog = appLog ?? webHost.AppLog;
         _usePublicScreenshotPairingUrl = usePublicScreenshotPairingUrl;
         _serverUrl = webHost.ServerUrl;
@@ -96,6 +100,7 @@ public partial class MainWindow : Window
 
         _pairingManager.ConnectionChanged += OnConnectionChanged;
         AppThemeSettings.Changed += OnThemeChanged;
+        _awakeService.StateChanged += OnAwakeStateChanged;
         SelectPage(HostPage.Connect);
     }
 
@@ -144,6 +149,7 @@ public partial class MainWindow : Window
     {
         _pairingManager.ConnectionChanged -= OnConnectionChanged;
         AppThemeSettings.Changed -= OnThemeChanged;
+        _awakeService.StateChanged -= OnAwakeStateChanged;
         base.OnClosed(e);
     }
 
@@ -198,10 +204,10 @@ public partial class MainWindow : Window
     private void CopyToClipboard(string value, string confirmation)
     {
         System.Windows.Clipboard.SetText(value);
-        ShowToast(confirmation);
+        ShowToast(confirmation, "Clipboard");
     }
 
-    private void ShowToast(string message)
+    private void ShowToast(string message, string? title = null)
     {
         if (_toast is not null)
         {
@@ -211,6 +217,7 @@ public partial class MainWindow : Window
         _toastTimer?.Stop();
         _toast = new Border
         {
+            Tag = title ?? GetToastTitle(),
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Bottom,
             Background = (Brush)Resources["SurfaceRaisedBrush"],
@@ -241,6 +248,16 @@ public partial class MainWindow : Window
         };
         _toastTimer.Start();
     }
+
+    private string GetToastTitle() => _activePage switch
+    {
+        HostPage.Connect => "Connect",
+        HostPage.Devices => "Devices",
+        HostPage.Connection => "Connection",
+        HostPage.Preferences => "Preferences",
+        HostPage.Diagnostics => "Diagnostics",
+        _ => "Voltura Air"
+    };
 
     private CheckBox CreateCheckBox(string text, bool isChecked)
     {
@@ -309,9 +326,27 @@ public partial class MainWindow : Window
         BlackoutDisplay,
         DisplayOff,
         ScreenSaver,
+        AwakeControl,
         SignOut,
         Restart,
         Shutdown
+    }
+
+    public void ShowAwakePreferences()
+    {
+        _openAwakePreferences = true;
+        ShowPage(HostPage.Preferences);
+    }
+
+    private void OnAwakeStateChanged(object? sender, EventArgs e)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (_activePage == HostPage.Preferences && IsVisible)
+            {
+                SelectPage(HostPage.Preferences);
+            }
+        });
     }
 }
 

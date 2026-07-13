@@ -252,46 +252,6 @@ public partial class MainWindow
         darkTheme.Click += (_, _) => SetThemeMode(AppThemeMode.Dark);
         appearancePanel.Children.Add(CreateSegmentRow(systemTheme, lightTheme, darkTheme));
 
-        var permissionsPanel = AddPreferencesSection(panel, sections, "Global permissions");
-        var allowClientControl = CreateCheckBox("Allow paired devices to control Voltura Air host", AppClientControlSettings.IsEnabled());
-        allowClientControl.Checked += (_, _) => AppClientControlSettings.SetEnabled(true);
-        allowClientControl.Unchecked += (_, _) => AppClientControlSettings.SetEnabled(false);
-        permissionsPanel.Children.Add(allowClientControl);
-        permissionsPanel.Children.Add(CreateMutedText("When this is off, paired devices can still control Windows, media, YouTube, Kodi, and other apps, but client-injected input is ignored while it would target this Voltura Air host window or tray menu. Native minimize, maximize, and close controls still work."));
-        var sleep = CreateCheckBox("Allow paired devices to request PC sleep", globalPermissions.AllowPcSleep);
-        var volume = CreateCheckBox("Allow paired devices to control volume", globalPermissions.AllowVolumeControl);
-        var remoteLaunch = CreateCheckBox("Allow paired devices to start applications", globalPermissions.AllowRemoteAppLaunch);
-        var pcLock = CreateCheckBox("Allow paired devices to lock the PC", globalPermissions.AllowPcLock);
-        var blackoutDisplay = CreateCheckBox("Allow paired devices to blackout displays", globalPermissions.AllowBlackoutDisplay);
-        var displayOff = CreateCheckBox("Allow paired devices to turn off displays", globalPermissions.AllowDisplayOff);
-        var screenSaver = CreateCheckBox("Allow paired devices to start the screen saver", globalPermissions.AllowScreenSaver);
-        var signOut = CreateCheckBox("Allow paired devices to sign out", globalPermissions.AllowSignOut);
-        var restart = CreateCheckBox("Allow paired devices to restart the PC", globalPermissions.AllowRestart);
-        var shutdown = CreateCheckBox("Allow paired devices to shut down the PC", globalPermissions.AllowShutdown);
-        void SavePermissions() => SaveGlobalPermissions(sleep, volume, remoteLaunch, pcLock, blackoutDisplay, displayOff, screenSaver, signOut, restart, shutdown);
-        foreach (var permission in new[] { sleep, volume, remoteLaunch, pcLock, blackoutDisplay, displayOff, screenSaver, signOut, restart, shutdown })
-        {
-            permission.Checked += (_, _) => SavePermissions();
-            permission.Unchecked += (_, _) => SavePermissions();
-        }
-        permissionsPanel.Children.Add(sleep);
-        permissionsPanel.Children.Add(volume);
-        permissionsPanel.Children.Add(remoteLaunch);
-        permissionsPanel.Children.Add(pcLock);
-        permissionsPanel.Children.Add(blackoutDisplay);
-        permissionsPanel.Children.Add(displayOff);
-        if (_powerController.IsActionAvailable(SystemPowerActions.ScreenSaver))
-        {
-            permissionsPanel.Children.Add(screenSaver);
-        }
-        permissionsPanel.Children.Add(signOut);
-        permissionsPanel.Children.Add(restart);
-        permissionsPanel.Children.Add(shutdown);
-        permissionsPanel.Children.Add(CreateMutedText("Lock and blackout are enabled by default. The screen-saver permission appears when Windows has a screen saver configured. Display off, sign out, restart, and shut down require explicit host approval. Display off and session-ending actions require hold-to-confirm on the mobile device."));
-
-        var windowsLockingPanel = AddPreferencesSection(panel, sections, "Windows locking");
-        AddWindowsLockPolicySetting(windowsLockingPanel);
-
         var trackpadPanel = AddPreferencesSection(panel, sections, "Trackpad defaults");
         trackpadPanel.Children.Add(CreateMutedText("Default pointer speed for paired devices unless a device has its own override."));
         AddGlobalPointerSpeedSetting(trackpadPanel);
@@ -309,6 +269,57 @@ public partial class MainWindow
         remotePanel.Children.Add(CreateLabel("Default remote mode"));
         remotePanel.Children.Add(CreateSegmentRow(standardRemote, youtubeRemote, kodiRemote));
         AddYoutubeUrlSetting(remotePanel);
+
+        var awakePanel = AddPreferencesSection(panel, sections, "Keep awake");
+        var awakeSection = (Expander)panel.Children[^1];
+        AddAwakeSettings(awakePanel);
+        if (_openAwakePreferences)
+        {
+            awakeSection.IsExpanded = true;
+            _openAwakePreferences = false;
+        }
+
+        var permissionsPanel = AddPreferencesSection(panel, sections, "Global permissions");
+        var allowClientControl = CreateCheckBox("Allow paired devices to control Voltura Air host", AppClientControlSettings.IsEnabled());
+        allowClientControl.Checked += (_, _) => AppClientControlSettings.SetEnabled(true);
+        allowClientControl.Unchecked += (_, _) => AppClientControlSettings.SetEnabled(false);
+        permissionsPanel.Children.Add(allowClientControl);
+        permissionsPanel.Children.Add(CreateMutedText("When this is off, paired devices can still control Windows, media, YouTube, Kodi, and other apps, but client-injected input is ignored while it would target this Voltura Air host window or tray menu. Native minimize, maximize, and close controls still work."));
+        var sleep = CreateCheckBox("Allow paired devices to request PC sleep", globalPermissions.AllowPcSleep);
+        var volume = CreateCheckBox("Allow paired devices to control volume", globalPermissions.AllowVolumeControl);
+        var remoteLaunch = CreateCheckBox("Allow paired devices to start applications", globalPermissions.AllowRemoteAppLaunch);
+        var pcLock = CreateCheckBox("Allow paired devices to lock the PC", globalPermissions.AllowPcLock);
+        var blackoutDisplay = CreateCheckBox("Allow paired devices to blackout displays", globalPermissions.AllowBlackoutDisplay);
+        var displayOff = CreateCheckBox("Allow paired devices to turn off displays", globalPermissions.AllowDisplayOff);
+        var screenSaver = CreateCheckBox("Allow paired devices to start the screen saver", globalPermissions.AllowScreenSaver);
+        var awakeControl = CreateCheckBox("Allow paired devices to control Keep awake", globalPermissions.AllowAwakeControl);
+        var signOut = CreateCheckBox("Allow paired devices to sign out", globalPermissions.AllowSignOut);
+        var restart = CreateCheckBox("Allow paired devices to restart the PC", globalPermissions.AllowRestart);
+        var shutdown = CreateCheckBox("Allow paired devices to shut down the PC", globalPermissions.AllowShutdown);
+        void SavePermissions() => SaveGlobalPermissions(sleep, volume, remoteLaunch, pcLock, blackoutDisplay, displayOff, screenSaver, awakeControl, signOut, restart, shutdown);
+        foreach (var permission in new[] { sleep, volume, remoteLaunch, pcLock, blackoutDisplay, displayOff, screenSaver, awakeControl, signOut, restart, shutdown })
+        {
+            permission.Checked += (_, _) => SavePermissions();
+            permission.Unchecked += (_, _) => SavePermissions();
+        }
+        permissionsPanel.Children.Add(sleep);
+        permissionsPanel.Children.Add(volume);
+        permissionsPanel.Children.Add(remoteLaunch);
+        permissionsPanel.Children.Add(pcLock);
+        permissionsPanel.Children.Add(blackoutDisplay);
+        permissionsPanel.Children.Add(displayOff);
+        if (_powerController.IsActionAvailable(SystemPowerActions.ScreenSaver))
+        {
+            permissionsPanel.Children.Add(screenSaver);
+        }
+        permissionsPanel.Children.Add(awakeControl);
+        permissionsPanel.Children.Add(signOut);
+        permissionsPanel.Children.Add(restart);
+        permissionsPanel.Children.Add(shutdown);
+        permissionsPanel.Children.Add(CreateMutedText("Lock and blackout are enabled by default. The screen-saver permission appears when Windows has a screen saver configured. Display off, sign out, restart, and shut down require explicit host approval. Display off and session-ending actions require hold-to-confirm on the mobile device."));
+
+        var windowsLockingPanel = AddPreferencesSection(panel, sections, "Windows locking");
+        AddWindowsLockPolicySetting(windowsLockingPanel);
 
         var developerPanel = AddPreferencesSection(panel, sections, "Developer tools");
         var developerMode = CreateCheckBox("Developer mode", AppDeveloperSettings.DeveloperMode());

@@ -14,6 +14,7 @@ public sealed class HostPermissionsTests
         Assert.True(HostPermissions.DefaultGlobal.AllowBlackoutDisplay);
         Assert.False(HostPermissions.DefaultGlobal.AllowDisplayOff);
         Assert.True(HostPermissions.DefaultGlobal.AllowScreenSaver);
+        Assert.False(HostPermissions.DefaultGlobal.AllowAwakeControl);
         Assert.False(HostPermissions.DefaultGlobal.AllowSignOut);
         Assert.False(HostPermissions.DefaultGlobal.AllowRestart);
         Assert.False(HostPermissions.DefaultGlobal.AllowShutdown);
@@ -84,6 +85,20 @@ public sealed class HostPermissionsTests
     }
 
     [Fact]
+    public void DeviceAwakeOverrideWinsOverGlobal()
+    {
+        var allowed = HostPermissions.Resolve(
+            new HostPermissionSet(AllowAwakeControl: false),
+            new DevicePermissionOverrides(AllowAwakeControl: true));
+        var blocked = HostPermissions.Resolve(
+            new HostPermissionSet(AllowAwakeControl: true),
+            new DevicePermissionOverrides(AllowAwakeControl: false));
+
+        Assert.True(allowed.AllowAwakeControl);
+        Assert.False(blocked.AllowAwakeControl);
+    }
+
+    [Fact]
     public void DevicePowerOverridesWinOverEachGlobalPermission()
     {
         var global = new HostPermissionSet(
@@ -99,6 +114,7 @@ public sealed class HostPermissionsTests
             AllowBlackoutDisplay: true,
             AllowDisplayOff: false,
             AllowScreenSaver: true,
+            AllowAwakeControl: true,
             AllowSignOut: true,
             AllowRestart: false,
             AllowShutdown: true);
@@ -130,6 +146,7 @@ public sealed class HostPermissionsTests
             AllowBlackoutDisplay: true,
             AllowDisplayOff: true,
             AllowScreenSaver: true,
+            AllowAwakeControl: true,
             AllowSignOut: true,
             AllowRestart: true,
             AllowShutdown: true));
@@ -141,6 +158,7 @@ public sealed class HostPermissionsTests
         Assert.True(reloaded.AllowBlackoutDisplay);
         Assert.True(reloaded.AllowDisplayOff);
         Assert.True(reloaded.AllowScreenSaver);
+        Assert.True(reloaded.AllowAwakeControl);
         Assert.True(reloaded.AllowSignOut);
         Assert.True(reloaded.AllowRestart);
         Assert.True(reloaded.AllowShutdown);
@@ -151,6 +169,7 @@ public sealed class HostPermissionsTests
         Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowBlackoutDisplay);
         Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowDisplayOff);
         Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowScreenSaver);
+        Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowAwakeControl);
         Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowSignOut);
         Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowRestart);
         Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowShutdown);

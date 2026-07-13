@@ -78,6 +78,8 @@ internal static class ClientMessageValidator
             "audio.get" => true,
             "system.sleep" => true,
             "system.power" => TryGetRequiredString(root, "action", MaxRemoteActionLength, allowEmpty: false, out _),
+            "awake.set" => root.TryGetProperty("enabled", out var enabled) &&
+                enabled.ValueKind is JsonValueKind.True or JsonValueKind.False,
             "remote.launch" => TryGetRequiredString(root, "action", MaxRemoteActionLength, allowEmpty: false, out var action) &&
                 RemoteLaunchActions.IsSupported(action),
             "audio.mute.toggle" => true,

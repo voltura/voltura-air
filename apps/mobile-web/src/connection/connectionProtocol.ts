@@ -1,6 +1,6 @@
 import { getPcDisplayName } from "../pcDisplayName";
 import type { PcProfile } from "../pcProfiles";
-import type { AudioStateMessage, ClientMessage, HostStatusMetadata, PowerCapabilities, ServerCapabilities, ServerMessage } from "../protocol";
+import type { AudioStateMessage, AwakeCapability, ClientMessage, HostStatusMetadata, PowerCapabilities, ServerCapabilities, ServerMessage } from "../protocol";
 import { normalizeRemoteMode } from "../remoteSettings";
 
 const movementAckIntervalMs = 200;
@@ -95,6 +95,20 @@ export function normalizeAudioState(message: AudioStateMessage): AudioStateMessa
 }
 
 export const hasSleepCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.sleep === true;
+export const getAwakeCapability = (capabilities: ServerCapabilities | undefined): AwakeCapability | null => {
+  const awake = capabilities?.awake;
+  if (!awake || typeof awake.canControl !== "boolean" || typeof awake.active !== "boolean" ||
+    !["off", "indefinite", "timed", "expiration"].includes(awake.mode)) {
+    return null;
+  }
+
+  return {
+    canControl: awake.canControl,
+    active: awake.active,
+    mode: awake.mode,
+    expiresAt: typeof awake.expiresAt === "string" ? awake.expiresAt : undefined
+  };
+};
 export const getPowerCapabilities = (capabilities: ServerCapabilities | undefined): PowerCapabilities | null => {
   const power = capabilities?.power;
   if (!power ||

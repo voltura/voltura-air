@@ -197,6 +197,7 @@ public partial class MainWindow
         CheckBox blackoutDisplay,
         CheckBox displayOff,
         CheckBox screenSaver,
+        CheckBox awakeControl,
         CheckBox signOut,
         CheckBox restart,
         CheckBox shutdown)
@@ -214,6 +215,7 @@ public partial class MainWindow
             AllowBlackoutDisplay: blackoutDisplay.IsChecked == true,
             AllowDisplayOff: displayOff.IsChecked == true,
             AllowScreenSaver: screenSaver.IsChecked == true,
+            AllowAwakeControl: awakeControl.IsChecked == true,
             AllowSignOut: signOut.IsChecked == true,
             AllowRestart: restart.IsChecked == true,
             AllowShutdown: shutdown.IsChecked == true));

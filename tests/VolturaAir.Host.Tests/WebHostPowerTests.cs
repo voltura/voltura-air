@@ -7,6 +7,61 @@ namespace VolturaAir.Host.Tests;
 public sealed class WebHostPowerTests
 {
     [Fact]
+    public async Task AppliesPermissionGatedBasicAwakeControlWithoutChangingHostScreenSetting()
+    {
+        var originalPermissions = AppPermissionSettings.Load();
+        var awake = new NoOpAwakeService(new AwakeState(AwakeMode.Off, true, 60, null));
+
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowAwakeControl = true });
+            await using var fixture = await PowerHostFixture.StartAsync(new FakeSystemPowerController(), awakeService: awake);
+            using var socket = await fixture.ConnectAsync();
+            var paired = await fixture.PairAsync(socket);
+
+            var capability = paired.GetProperty("capabilities").GetProperty("awake");
+            Assert.True(capability.GetProperty("canControl").GetBoolean());
+            Assert.False(capability.GetProperty("active").GetBoolean());
+
+            await SendAsync(socket, new { type = "awake.set", enabled = true });
+            var result = await ReceiveTypeAsync(socket, "awake.result");
+
+            Assert.True(result.GetProperty("succeeded").GetBoolean());
+            Assert.Equal(AwakeMode.Indefinite, awake.State.Mode);
+            Assert.True(awake.State.KeepScreenOn);
+        }
+        finally
+        {
+            AppPermissionSettings.Save(originalPermissions);
+        }
+    }
+
+    [Fact]
+    public async Task RejectsAwakeControlWhenHostPermissionIsOff()
+    {
+        var originalPermissions = AppPermissionSettings.Load();
+        var awake = new NoOpAwakeService();
+
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowAwakeControl = false });
+            await using var fixture = await PowerHostFixture.StartAsync(new FakeSystemPowerController(), awakeService: awake);
+            using var socket = await fixture.ConnectAsync();
+            var paired = await fixture.PairAsync(socket);
+
+            Assert.False(paired.GetProperty("capabilities").GetProperty("awake").GetProperty("canControl").GetBoolean());
+            var result = await SendAndReceiveAsync(socket, new { type = "awake.set", enabled = true });
+
+            Assert.Equal("VAIR-AWAKE-DENIED", result.GetProperty("code").GetString());
+            Assert.Equal(AwakeMode.Off, awake.State.Mode);
+        }
+        finally
+        {
+            AppPermissionSettings.Save(originalPermissions);
+        }
+    }
+
+    [Fact]
     public async Task ExecutesOnlyExplicitlyAllowedPowerActions()
     {
         var originalPermissions = AppPermissionSettings.Load();
@@ -218,6 +273,19 @@ public sealed class WebHostPowerTests
         return document.RootElement.Clone();
     }
 
+    private static async Task<JsonElement> ReceiveTypeAsync(WebSocket socket, string type)
+    {
+        while (true)
+        {
+            var response = await ReceiveTextAsync(socket);
+            using var document = JsonDocument.Parse(response);
+            if (document.RootElement.GetProperty("type").GetString() == type)
+            {
+                return document.RootElement.Clone();
+            }
+        }
+    }
+
     private static Task SendAsync(WebSocket socket, object payload)
     {
         var bytes = JsonSerializer.SerializeToUtf8Bytes(payload, JsonOptions.Default);
@@ -272,7 +340,8 @@ public sealed class WebHostPowerTests
         public static async Task<PowerHostFixture> StartAsync(
             ISystemPowerController powerController,
             IWorkstationLockPolicy? workstationLockPolicy = null,
-            IAppLog? appLog = null)
+            IAppLog? appLog = null,
+            IAwakeService? awakeService = null)
         {
             var store = new TempPairingStore();
             var inputInjector = new FakeInputInjector();
@@ -281,6 +350,7 @@ public sealed class WebHostPowerTests
                 manager,
                 new InputDispatcher(inputInjector),
                 powerController: powerController,
+                awakeService: awakeService,
                 workstationLockPolicy: workstationLockPolicy ?? new FakeWorkstationLockPolicy(WorkstationLockPolicyState.NotExplicitlyDisabled),
                 appLog: appLog,
                 isolatedTestMode: true,

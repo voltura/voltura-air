@@ -44,6 +44,10 @@ updated as the app structure, tooling, and release process become concrete.
 - Pairing failures must not leave the mobile app stuck without explanation.
   Map raw protocol/network errors to friendly feedback, recovery actions, and
   copyable diagnostics. Follow `docs/pairing-feedback.md`.
+- Keep-awake execution state is thread-scoped. All native set, reapply, and clear
+  calls must remain owned by the dedicated Awake service thread; tray, WPF, and
+  protocol surfaces must use `IAwakeService` and must not edit Windows power
+  plans or require elevation.
 
 ## ChatGPT.com / Connector Editing Workflow
 

@@ -1,15 +1,19 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
-import { LockKeyhole, LogOut, Monitor, MonitorOff, Power, RotateCcw, ShieldAlert, Sparkles, X } from "lucide-react";
-import type { PowerCapabilities, SystemPowerAction, SystemPowerResultMessage } from "../../protocol";
+import { Coffee, LockKeyhole, LogOut, Monitor, MonitorOff, Power, RotateCcw, ShieldAlert, Sparkles, X } from "lucide-react";
+import type { AwakeCapability, AwakeResultMessage, PowerCapabilities, SystemPowerAction, SystemPowerResultMessage } from "../../protocol";
 
 const holdDurationMs = 1600;
 const holdTickMs = 40;
 
 type PowerControlSheetProps = {
+  awake?: AwakeCapability | null;
+  awakeResult?: AwakeResultMessage | null;
   capabilities: PowerCapabilities;
+  onAwakeChange?: (enabled: boolean) => void;
   onAction: (action: SystemPowerAction) => void;
   onClose: () => void;
   pendingAction: SystemPowerAction | null;
+  pendingAwakeChange?: boolean | null;
   result: SystemPowerResultMessage | null;
 };
 
@@ -44,7 +48,7 @@ const destructiveActions: PowerActionDefinition[] = [
   { action: "shutdown", label: "Shut down PC", description: "Turn this PC off now.", warning: "Unsaved work may be lost.", destructive: true, Icon: Power }
 ];
 
-export function PowerControlSheet({ capabilities, onAction, onClose, pendingAction: pendingRequest, result }: PowerControlSheetProps) {
+export function PowerControlSheet({ awake = null, awakeResult = null, capabilities, onAction, onAwakeChange = () => {}, onClose, pendingAction: pendingRequest, pendingAwakeChange = null, result }: PowerControlSheetProps) {
   const [pendingAction, setPendingAction] = useState<PowerActionDefinition | null>(null);
 
   useEffect(() => {
@@ -103,6 +107,24 @@ export function PowerControlSheet({ capabilities, onAction, onClose, pendingActi
         ) : (
           <div className="power-sheet-content">
             <div className="power-action-list" aria-label="Power and session actions">
+              {awake && (
+                <button className="power-action-row" type="button" disabled={!awake.canControl || pendingAwakeChange !== null} onClick={() => onAwakeChange(!awake.active)}>
+                  <span className="power-action-icon"><Coffee aria-hidden="true" /></span>
+                  <span className="power-action-copy">
+                    <strong>Keep awake</strong>
+                    <small>{pendingAwakeChange !== null
+                      ? "Waiting for the PC…"
+                      : !awake.canControl
+                        ? "Disabled by the host."
+                        : awake.active
+                          ? "On. Tap to use the selected Windows power plan."
+                          : "Off. Tap to keep the PC awake using the host screen setting."}</small>
+                  </span>
+                  <span className={`awake-state-pill ${awake.active ? "on" : "off"}`} aria-label={`Keep awake is ${awake.active ? "on" : "off"}`}>
+                    {awake.active ? "ON" : "OFF"}
+                  </span>
+                </button>
+              )}
               {standardActions.filter((definition) => definition.action !== "screenSaver" || capabilities.screenSaverAvailable).map((definition) => (
                 <PowerActionRow key={definition.action} definition={definition} disabledReason={getDisabledReason(definition, capabilities)} pending={pendingRequest === definition.action} onChoose={chooseAction} />
               ))}
@@ -120,6 +142,12 @@ export function PowerControlSheet({ capabilities, onAction, onClose, pendingActi
               </div>
             </div>
             {pendingRequest && <div className="power-action-feedback pending" role="status">Waiting for the PC to respond…</div>}
+            {pendingAwakeChange !== null && <div className="power-action-feedback pending" role="status">Waiting for the PC to respond…</div>}
+            {awakeResult && (
+              <div className={`power-action-feedback ${awakeResult.succeeded ? "success" : "error"}`} role={awakeResult.succeeded ? "status" : "alert"}>
+                {awakeResult.message}
+              </div>
+            )}
             {result && (
               <div className={`power-action-feedback ${result.succeeded ? "success" : "error"}`} role={result.succeeded ? "status" : "alert"}>
                 {result.message}

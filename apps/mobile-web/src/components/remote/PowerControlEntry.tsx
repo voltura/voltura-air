@@ -1,9 +1,16 @@
 import { useState } from "react";
 import { Power } from "lucide-react";
-import type { PowerCapabilities, SystemPowerAction, SystemPowerResultMessage } from "../../protocol";
+import type { AwakeCapability, AwakeResultMessage, PowerCapabilities, SystemPowerAction, SystemPowerResultMessage } from "../../protocol";
 import { PowerControlSheet } from "./PowerControlSheet";
 
-type PowerControlEntryProps = {
+export type AwakeControlProps = {
+  awake?: AwakeCapability | null;
+  awakeResult?: AwakeResultMessage | null;
+  onAwakeChange?: (enabled: boolean) => void;
+  pendingAwakeChange?: boolean | null;
+};
+
+type PowerControlEntryProps = AwakeControlProps & {
   capabilities: PowerCapabilities | null;
   onAction: (action: SystemPowerAction) => void;
   onOpen: () => void;
@@ -11,7 +18,7 @@ type PowerControlEntryProps = {
   result: SystemPowerResultMessage | null;
 };
 
-export function PowerControlEntry({ capabilities, onAction, onOpen, pendingAction, result }: PowerControlEntryProps) {
+export function PowerControlEntry({ awake = null, awakeResult = null, capabilities, onAction, onAwakeChange = () => {}, onOpen, pendingAction, pendingAwakeChange = null, result }: PowerControlEntryProps) {
   const [isOpen, setIsOpen] = useState(false);
   if (!capabilities) {
     return null;
@@ -32,7 +39,7 @@ export function PowerControlEntry({ capabilities, onAction, onOpen, pendingActio
         <Power aria-hidden="true" />
         <span>Power</span>
       </button>
-      {isOpen && <PowerControlSheet capabilities={capabilities} onAction={onAction} onClose={() => setIsOpen(false)} pendingAction={pendingAction} result={result} />}
+      {isOpen && <PowerControlSheet awake={awake} awakeResult={awakeResult} capabilities={capabilities} onAction={onAction} onAwakeChange={onAwakeChange} onClose={() => setIsOpen(false)} pendingAction={pendingAction} pendingAwakeChange={pendingAwakeChange} result={result} />}
     </>
   );
 }

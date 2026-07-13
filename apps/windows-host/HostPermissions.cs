@@ -8,6 +8,7 @@ public sealed record HostPermissionSet(
     bool AllowBlackoutDisplay = true,
     bool AllowDisplayOff = false,
     bool AllowScreenSaver = true,
+    bool AllowAwakeControl = false,
     bool AllowSignOut = false,
     bool AllowRestart = false,
     bool AllowShutdown = false);
@@ -19,6 +20,7 @@ public sealed record DevicePermissionOverrides(
     bool? AllowBlackoutDisplay = null,
     bool? AllowDisplayOff = null,
     bool? AllowScreenSaver = null,
+    bool? AllowAwakeControl = null,
     bool? AllowSignOut = null,
     bool? AllowRestart = null,
     bool? AllowShutdown = null);
@@ -33,6 +35,7 @@ public static class HostPermissions
         AllowBlackoutDisplay: true,
         AllowDisplayOff: false,
         AllowScreenSaver: true,
+        AllowAwakeControl: false,
         AllowSignOut: false,
         AllowRestart: false,
         AllowShutdown: false);
@@ -47,6 +50,7 @@ public static class HostPermissions
             AllowBlackoutDisplay: deviceOverrides?.AllowBlackoutDisplay ?? global.AllowBlackoutDisplay,
             AllowDisplayOff: deviceOverrides?.AllowDisplayOff ?? global.AllowDisplayOff,
             AllowScreenSaver: deviceOverrides?.AllowScreenSaver ?? global.AllowScreenSaver,
+            AllowAwakeControl: deviceOverrides?.AllowAwakeControl ?? global.AllowAwakeControl,
             AllowSignOut: deviceOverrides?.AllowSignOut ?? global.AllowSignOut,
             AllowRestart: deviceOverrides?.AllowRestart ?? global.AllowRestart,
             AllowShutdown: deviceOverrides?.AllowShutdown ?? global.AllowShutdown);

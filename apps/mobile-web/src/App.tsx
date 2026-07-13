@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, Circle, Keyboard, Menu, Mic, MousePointer2, Tv } from "lucide-react";
+import { ChevronDown, Circle, Menu, MousePointer2 } from "lucide-react";
 import { DictationMode } from "./components/DictationMode";
 import { GestureDebugMode } from "./components/GestureDebugMode";
 import { KeyboardMode } from "./components/KeyboardMode";
@@ -26,16 +26,7 @@ import { useSpeechDictation } from "./input/useSpeechDictation";
 import { usePwaLifecycle } from "./pwa/usePwaLifecycle";
 import { usePairingController } from "./pairing/usePairingController";
 import { supportsSplitModeLayout } from "./splitModeLayout";
-
-type Tab = "trackpad" | "keyboard" | "remote" | "dictation" | "debug";
-type MainTab = Exclude<Tab, "debug">;
-
-const modeTabs: Array<{ id: MainTab; label: string; ariaLabel: string; Icon: typeof MousePointer2 }> = [
-  { id: "trackpad", label: "Trackpad", ariaLabel: "Trackpad mode", Icon: MousePointer2 },
-  { id: "keyboard", label: "Keyboard", ariaLabel: "Keyboard mode", Icon: Keyboard },
-  { id: "remote", label: "Remote", ariaLabel: "Remote mode", Icon: Tv },
-  { id: "dictation", label: "Dictate", ariaLabel: "Dictation mode", Icon: Mic }
-];
+import { modeTabs, type AppTab as Tab, type MainAppTab as MainTab } from "./appModeTabs";
 
 export function App() {
   const initialPairing = useMemo(() => parsePairingLink(window.location.href, window.location.origin), []);
@@ -45,13 +36,17 @@ export function App() {
     send,
     requestAudioState,
     requestPowerAction,
+    requestAwakeChange,
     pendingPowerAction,
     powerActionResult,
+    pendingAwakeChange,
+    awakeResult,
     clientId,
     deviceName,
     activePc,
     pairedPcs,
     audioState,
+    awakeCapability,
     powerCapabilities,
     supportsGestureDebug,
     supportsSleep,
@@ -323,6 +318,7 @@ export function App() {
   const renderRemoteMode = () => (
     <RemoteMode
       audioState={displayedAudioState}
+      awakeControl={{ awake: awakeCapability, awakeResult, onAwakeChange: requestAwakeChange, pendingAwakeChange }}
       onPointerButtonClick={(button) => emit({ type: "pointer.button", button, action: "click" })}
       onPointerMove={(dx, dy) => emit({ type: "pointer.move", dx, dy })}
       onPowerAction={requestPowerAction}

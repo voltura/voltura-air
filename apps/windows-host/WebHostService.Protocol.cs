@@ -141,6 +141,12 @@ public sealed partial class WebHostService
                     continue;
                 }
 
+                if (type == "awake.set")
+                {
+                    await HandleAwakeSetAsync(socket, authenticatedClientId, root.GetProperty("enabled").GetBoolean(), cancellationToken);
+                    continue;
+                }
+
                 if (type == "remote.launch")
                 {
                     if (CanLaunchRemoteApps(authenticatedClientId))
@@ -389,6 +395,7 @@ public sealed partial class WebHostService
         {
             sleep = CanSleepPc(clientId),
             power = CreatePowerCapabilities(clientId),
+            awake = CreateAwakeCapability(clientId),
             volume = CanControlVolume(clientId),
             remoteLaunch = CanLaunchRemoteApps(clientId),
             gestureDebug = AppDeveloperSettings.EnableGestureDebug(),

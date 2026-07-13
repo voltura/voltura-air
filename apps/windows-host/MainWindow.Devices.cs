@@ -44,6 +44,7 @@ public partial class MainWindow
         AddPermissionChoices(_deviceDetailsPanel, device, "Lock PC", PermissionKind.PcLock);
         AddPermissionChoices(_deviceDetailsPanel, device, "Blackout display", PermissionKind.BlackoutDisplay);
         AddPermissionChoices(_deviceDetailsPanel, device, "Turn off display", PermissionKind.DisplayOff);
+        AddPermissionChoices(_deviceDetailsPanel, device, "Keep awake", PermissionKind.AwakeControl);
         if (_powerController.IsActionAvailable(SystemPowerActions.ScreenSaver))
         {
             AddPermissionChoices(_deviceDetailsPanel, device, "Screen saver", PermissionKind.ScreenSaver);
@@ -121,6 +122,7 @@ public partial class MainWindow
             PermissionKind.BlackoutDisplay => current with { AllowBlackoutDisplay = value },
             PermissionKind.DisplayOff => current with { AllowDisplayOff = value },
             PermissionKind.ScreenSaver => current with { AllowScreenSaver = value },
+            PermissionKind.AwakeControl => current with { AllowAwakeControl = value },
             PermissionKind.SignOut => current with { AllowSignOut = value },
             PermissionKind.Restart => current with { AllowRestart = value },
             PermissionKind.Shutdown => current with { AllowShutdown = value },
@@ -140,6 +142,7 @@ public partial class MainWindow
             PermissionKind.BlackoutDisplay => permissions.AllowBlackoutDisplay,
             PermissionKind.DisplayOff => permissions.AllowDisplayOff,
             PermissionKind.ScreenSaver => permissions.AllowScreenSaver,
+            PermissionKind.AwakeControl => permissions.AllowAwakeControl,
             PermissionKind.SignOut => permissions.AllowSignOut,
             PermissionKind.Restart => permissions.AllowRestart,
             PermissionKind.Shutdown => permissions.AllowShutdown,

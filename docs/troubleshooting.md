@@ -135,3 +135,18 @@ when confirming this case.
 If the display wakes to fingerprint or PIN, Windows locked the existing session
 according to its sign-in policy; Voltura Air did not sign the user out. Running
 apps should still be present after authentication.
+
+## Keep awake does not stay active
+
+Open **Preferences > Keep awake** and confirm the current mode and status. Off
+uses the selected Windows power plan; interval and expiration modes return to
+Off when their deadline passes. Exiting Voltura Air also releases the request.
+
+Keep awake prevents idle sleep only while Voltura Air runs in the signed-in
+user session. It does not override choosing Sleep, closing a laptop lid, a
+power-button action, or Windows lock-screen behavior. **Keep screen on** adds a
+display requirement and uses more power, but it remains a host-only setting.
+If the mobile Keep awake row is disabled, enable **Allow paired devices to
+control Keep awake** globally or for that device. Enable the application log
+and inspect Diagnostics for `keep_awake`, `awake.set`, or an
+`VAIR-AWAKE-EXECUTION-FAILED` result when Windows rejects a request.

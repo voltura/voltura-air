@@ -82,6 +82,8 @@ public sealed partial class HostUiLayoutTests
                 Assert.Contains(FindWpfDescendants<CheckBox>(window), checkBox => checkBox.Content?.ToString() == "Developer mode");
                 Assert.Contains(FindWpfDescendants<CheckBox>(window), checkBox => checkBox.Content?.ToString() == "Allow paired devices to lock the PC");
                 Assert.Contains(FindWpfDescendants<CheckBox>(window), checkBox => checkBox.Content?.ToString() == "Allow paired devices to turn off displays");
+                Assert.Contains(FindWpfDescendants<CheckBox>(window), checkBox => checkBox.Content?.ToString() == "Allow paired devices to control Keep awake");
+                Assert.Contains(FindWpfDescendants<CheckBox>(window), checkBox => checkBox.Content?.ToString() == "Keep screen on while Keep awake is active");
                 Assert.Contains(FindWpfDescendants<CheckBox>(window), checkBox => checkBox.Content?.ToString() == "Allow paired devices to sign out");
                 Assert.Contains(FindWpfDescendants<CheckBox>(window), checkBox => checkBox.Content?.ToString() == "Allow paired devices to restart the PC");
                 Assert.Contains(FindWpfDescendants<CheckBox>(window), checkBox => checkBox.Content?.ToString() == "Allow paired devices to shut down the PC");
@@ -90,30 +92,30 @@ public sealed partial class HostUiLayoutTests
                 Assert.Contains(
                     FindWpfDescendants<ComboBox>(window),
                     combo => ReferenceEquals(window.Resources["ModernComboBoxStyle"], combo.Style));
-                var preferenceSections = FindWpfDescendants<Expander>(window).ToArray();
-                Assert.Equal(7, preferenceSections.Length);
-                var preferencesScroller = Assert.Single(FindWpfDescendants<ScrollViewer>(window));
-                Assert.Equal(ScrollBarVisibility.Visible, preferencesScroller.VerticalScrollBarVisibility);
-                Assert.Equal(ScrollBarVisibility.Disabled, preferencesScroller.HorizontalScrollBarVisibility);
-                Assert.All(preferenceSections, section =>
+                var sections = FindWpfDescendants<Expander>(window).ToArray();
+                Assert.Equal(8, sections.Length);
+                var scroller = Assert.Single(FindWpfDescendants<ScrollViewer>(window));
+                Assert.Equal(ScrollBarVisibility.Visible, scroller.VerticalScrollBarVisibility);
+                Assert.Equal(ScrollBarVisibility.Disabled, scroller.HorizontalScrollBarVisibility);
+                Assert.All(sections, section =>
                 {
                     Assert.False(section.IsExpanded);
                     Assert.Same(window.Resources["PreferencesAccordionStyle"], section.Style);
                 });
-                preferenceSections[0].IsExpanded = true;
-                preferenceSections[1].IsExpanded = true;
-                Assert.False(preferenceSections[0].IsExpanded);
-                Assert.True(preferenceSections[1].IsExpanded);
-                Assert.Single(preferenceSections, section => section.IsExpanded);
+                sections[0].IsExpanded = true;
+                sections[1].IsExpanded = true;
+                Assert.False(sections[0].IsExpanded);
+                Assert.True(sections[1].IsExpanded);
+                Assert.Single(sections, section => section.IsExpanded);
 
                 window.ShowPage(HostPage.Diagnostics);
                 window.UpdateLayout();
-                var applicationLogView = FindWpfDescendants<ToggleButton>(window)
+                var appLogView = FindWpfDescendants<ToggleButton>(window)
                     .Single(button => button.Content?.ToString() == "Application log");
-                var systemDetailsView = FindWpfDescendants<ToggleButton>(window)
+                var systemView = FindWpfDescendants<ToggleButton>(window)
                     .Single(button => button.Content?.ToString() == "System details");
-                Assert.True(applicationLogView.IsChecked);
-                Assert.False(systemDetailsView.IsChecked);
+                Assert.True(appLogView.IsChecked);
+                Assert.False(systemView.IsChecked);
                 Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "Application log");
                 Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "No matching log entries.");
                 Assert.DoesNotContain(FindWpfDescendants<Button>(window), button => button.Content?.ToString() == "Apply filters");
@@ -131,15 +133,15 @@ public sealed partial class HostUiLayoutTests
                     combo => Assert.Same(window.Resources["ModernComboBoxStyle"], combo.Style));
                 Assert.Empty(FindWpfDescendants<TextBox>(window));
 
-                systemDetailsView.RaiseEvent(new RoutedEventArgs(ToggleButton.ClickEvent));
+                systemView.RaiseEvent(new RoutedEventArgs(ToggleButton.ClickEvent));
                 window.UpdateLayout();
-                Assert.True(systemDetailsView.IsChecked);
+                Assert.True(systemView.IsChecked);
                 Assert.Empty(FindWpfDescendants<ModernDateRangePicker>(window));
                 Assert.Contains(FindWpfDescendants<Button>(window), button => button.Content?.ToString() == "Copy diagnostics");
 
-                applicationLogView.RaiseEvent(new RoutedEventArgs(ToggleButton.ClickEvent));
+                appLogView.RaiseEvent(new RoutedEventArgs(ToggleButton.ClickEvent));
                 window.UpdateLayout();
-                Assert.True(applicationLogView.IsChecked);
+                Assert.True(appLogView.IsChecked);
                 Assert.Single(FindWpfDescendants<ModernDateRangePicker>(window));
             }
             finally

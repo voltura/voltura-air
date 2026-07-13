@@ -124,7 +124,7 @@
         </article>
         <article>
           <h2>Safe power controls</h2>
-          <p>Lock Windows, turn off display output, or explicitly allow session-ending actions. Clear mobile feedback, host permissions, and hold-to-confirm protect every request.</p>
+          <p>Keep the PC awake, lock Windows, turn off display output, or explicitly allow session-ending actions. Clear mobile feedback, host permissions, and hold-to-confirm protect every request.</p>
         </article>
       </section>
 
@@ -216,8 +216,11 @@
           off, sign out, restart, and shut down each have an explicit host
           permission. Blackout display keeps Windows and remote control awake
           behind a black curtain that closes on any local or remote input, while
-          screen saver appears only when Windows has one configured. Session-ending
-          actions require a deliberate hold on the mobile confirmation screen. The host also detects when Windows
+          screen saver appears only when Windows has one configured. Keep awake
+          can run for an interval, until a date and time, or indefinitely without
+          changing the Windows power plan; the mobile sheet offers one permissioned
+          toggle and uses the host's screen setting. Session-ending actions require
+          a deliberate hold on the mobile confirmation screen. The host also detects when Windows
           locking is explicitly disabled for the signed-in user, can write an
           explicit current-user enable value and refresh policy without
           administrator rights or a UAC prompt. Turning off a display warns that

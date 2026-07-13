@@ -12,6 +12,7 @@ public static class AppPermissionSettings
     private const string AllowBlackoutDisplayValueName = "AllowBlackoutDisplay";
     private const string AllowDisplayOffValueName = "AllowDisplayOff";
     private const string AllowScreenSaverValueName = "AllowScreenSaver";
+    private const string AllowAwakeControlValueName = "AllowAwakeControl";
     private const string AllowSignOutValueName = "AllowSignOut";
     private const string AllowRestartValueName = "AllowRestart";
     private const string AllowShutdownValueName = "AllowShutdown";
@@ -29,6 +30,7 @@ public static class AppPermissionSettings
             AllowBlackoutDisplay: GetBooleanValue(key, AllowBlackoutDisplayValueName, HostPermissions.DefaultGlobal.AllowBlackoutDisplay),
             AllowDisplayOff: GetBooleanValue(key, AllowDisplayOffValueName, HostPermissions.DefaultGlobal.AllowDisplayOff),
             AllowScreenSaver: GetBooleanValue(key, AllowScreenSaverValueName, HostPermissions.DefaultGlobal.AllowScreenSaver),
+            AllowAwakeControl: GetBooleanValue(key, AllowAwakeControlValueName, HostPermissions.DefaultGlobal.AllowAwakeControl),
             AllowSignOut: GetBooleanValue(key, AllowSignOutValueName, HostPermissions.DefaultGlobal.AllowSignOut),
             AllowRestart: GetBooleanValue(key, AllowRestartValueName, HostPermissions.DefaultGlobal.AllowRestart),
             AllowShutdown: GetBooleanValue(key, AllowShutdownValueName, HostPermissions.DefaultGlobal.AllowShutdown));
@@ -47,6 +49,7 @@ public static class AppPermissionSettings
         key.SetValue(AllowBlackoutDisplayValueName, permissions.AllowBlackoutDisplay ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowDisplayOffValueName, permissions.AllowDisplayOff ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowScreenSaverValueName, permissions.AllowScreenSaver ? 1 : 0, RegistryValueKind.DWord);
+        key.SetValue(AllowAwakeControlValueName, permissions.AllowAwakeControl ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowSignOutValueName, permissions.AllowSignOut ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowRestartValueName, permissions.AllowRestart ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowShutdownValueName, permissions.AllowShutdown ? 1 : 0, RegistryValueKind.DWord);

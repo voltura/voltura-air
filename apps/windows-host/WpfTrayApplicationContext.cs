@@ -18,22 +18,30 @@ internal sealed class WpfTrayApplicationContext : IDisposable
     private readonly MainWindow _mainWindow;
     private readonly PairingManager _pairingManager;
     private readonly WebHostService _webHost;
+    private readonly IAwakeService _awakeService;
     private readonly Forms.NotifyIcon _trayIcon;
     private readonly Forms.ContextMenuStrip _trayMenu = new();
     private readonly IReadOnlyDictionary<TrayConnectionState, Icon> _trayIcons;
+    private Forms.ToolStripMenuItem _awakeOffItem = null!;
+    private Forms.ToolStripMenuItem _awakeTimedItem = null!;
+    private Forms.ToolStripMenuItem _awakeExpirationItem = null!;
+    private Forms.ToolStripMenuItem _awakeIndefiniteItem = null!;
+    private Forms.ToolStripMenuItem _awakeKeepScreenOnItem = null!;
     private CancellationTokenSource? _pendingDisconnectNotification;
     private bool _hadActiveController;
     private bool _disposed;
 
-    public WpfTrayApplicationContext(MainWindow mainWindow, WebHostService webHost, PairingManager pairingManager)
+    public WpfTrayApplicationContext(MainWindow mainWindow, WebHostService webHost, PairingManager pairingManager, IAwakeService awakeService)
     {
         _mainWindow = mainWindow;
         _webHost = webHost;
         _pairingManager = pairingManager;
+        _awakeService = awakeService;
         _hadActiveController = pairingManager.HasActiveController;
         _pairingManager.ConnectionChanged += OnConnectionChanged;
         _webHost.ControllerSocketClosed += OnControllerSocketClosed;
         AppThemeSettings.Changed += OnAppThemeChanged;
+        _awakeService.StateChanged += OnAwakeStateChanged;
 
         BuildMenu();
         _trayIcons = LoadTrayIcons();
@@ -61,9 +69,57 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         showQrCodeItem.Font = new Font(showQrCodeItem.Font, DrawingFontStyle.Bold);
         _trayMenu.Items.Add("Devices", null, (_, _) => RunTrayCommand(() => _mainWindow.ShowPage(HostPage.Devices)));
         _trayMenu.Items.Add("Preferences", null, (_, _) => RunTrayCommand(() => _mainWindow.ShowPage(HostPage.Preferences)));
+        BuildAwakeMenu();
         _trayMenu.Items.Add("Open product page", null, (_, _) => RunTrayCommand(OpenProductSite));
         _trayMenu.Items.Add(new Forms.ToolStripSeparator());
         _trayMenu.Items.Add("Exit", null, (_, _) => RunTrayCommand(ExitApplication));
+    }
+
+    private void BuildAwakeMenu()
+    {
+        var awakeMenu = new Forms.ToolStripMenuItem("Keep awake");
+        _awakeOffItem = new Forms.ToolStripMenuItem("Use selected power plan", null, (_, _) => RunTrayCommand(() => ApplyAwake(_awakeService.SetOff())));
+        _awakeTimedItem = new Forms.ToolStripMenuItem("For an interval");
+        AddAwakeInterval(_awakeTimedItem, "30 minutes", 30);
+        AddAwakeInterval(_awakeTimedItem, "1 hour", 60);
+        AddAwakeInterval(_awakeTimedItem, "2 hours", 120);
+        _awakeExpirationItem = new Forms.ToolStripMenuItem("Until...", null, (_, _) => RunTrayCommand(_mainWindow.ShowAwakePreferences));
+        _awakeIndefiniteItem = new Forms.ToolStripMenuItem("Indefinitely", null, (_, _) => RunTrayCommand(() => ApplyAwake(_awakeService.SetIndefinite())));
+        _awakeKeepScreenOnItem = new Forms.ToolStripMenuItem("Keep screen on", null, (_, _) => RunTrayCommand(() =>
+            ApplyAwake(_awakeService.SetKeepScreenOn(!_awakeService.State.KeepScreenOn))));
+
+        awakeMenu.DropDownItems.Add(_awakeOffItem);
+        awakeMenu.DropDownItems.Add(_awakeTimedItem);
+        awakeMenu.DropDownItems.Add(_awakeExpirationItem);
+        awakeMenu.DropDownItems.Add(_awakeIndefiniteItem);
+        awakeMenu.DropDownItems.Add(new Forms.ToolStripSeparator());
+        awakeMenu.DropDownItems.Add(_awakeKeepScreenOnItem);
+        _trayMenu.Items.Add(awakeMenu);
+        ApplyAwakeMenuState();
+    }
+
+    private void AddAwakeInterval(Forms.ToolStripMenuItem parent, string label, int minutes)
+    {
+        parent.DropDownItems.Add(label, null, (_, _) => RunTrayCommand(() => ApplyAwake(_awakeService.SetTimed(TimeSpan.FromMinutes(minutes)))));
+    }
+
+    private void ApplyAwake(AwakeOperationResult result)
+    {
+        if (!result.Succeeded)
+        {
+            _trayIcon.ShowBalloonTip(3000, "Keep awake", result.Error ?? "Windows rejected the request.", Forms.ToolTipIcon.Warning);
+        }
+    }
+
+    private void ApplyAwakeMenuState()
+    {
+        var state = _awakeService.State;
+        _awakeOffItem.Checked = state.Mode == AwakeMode.Off;
+        _awakeTimedItem.Checked = state.Mode == AwakeMode.Timed;
+        _awakeExpirationItem.Checked = state.Mode == AwakeMode.Expiration;
+        _awakeIndefiniteItem.Checked = state.Mode == AwakeMode.Indefinite;
+        _awakeKeepScreenOnItem.Checked = state.KeepScreenOn;
+        _awakeKeepScreenOnItem.Enabled = state.IsActive;
     }
 
     private static void RunTrayCommand(Action action)
@@ -85,7 +141,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _trayMenu.ForeColor = theme.Text;
         _trayMenu.ShowImageMargin = false;
 
-        foreach (Forms.ToolStripItem item in _trayMenu.Items)
+        foreach (var item in EnumerateMenuItems(_trayMenu.Items))
         {
             item.BackColor = theme.Surface;
             item.ForeColor = theme.Text;
@@ -192,6 +248,21 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         }
     }
 
+    private static IEnumerable<Forms.ToolStripItem> EnumerateMenuItems(Forms.ToolStripItemCollection items)
+    {
+        foreach (Forms.ToolStripItem item in items)
+        {
+            yield return item;
+            if (item is Forms.ToolStripDropDownItem dropDown)
+            {
+                foreach (var child in EnumerateMenuItems(dropDown.DropDownItems))
+                {
+                    yield return child;
+                }
+            }
+        }
+    }
+
     private void OnControllerSocketClosed(object? sender, ControllerSocketClosedEventArgs e)
     {
         if (_disposed)
@@ -211,6 +282,11 @@ internal sealed class WpfTrayApplicationContext : IDisposable
     private void OnAppThemeChanged(object? sender, EventArgs e)
     {
         WpfApplication.Current.Dispatcher.BeginInvoke(ApplyMenuTheme);
+    }
+
+    private void OnAwakeStateChanged(object? sender, EventArgs e)
+    {
+        WpfApplication.Current.Dispatcher.BeginInvoke(ApplyAwakeMenuState);
     }
 
     private void ApplyTrayConnectionState()
@@ -356,6 +432,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _pairingManager.ConnectionChanged -= OnConnectionChanged;
         _webHost.ControllerSocketClosed -= OnControllerSocketClosed;
         AppThemeSettings.Changed -= OnAppThemeChanged;
+        _awakeService.StateChanged -= OnAwakeStateChanged;
         _trayIcon.Visible = false;
         _trayIcon.Dispose();
         _trayMenu.Dispose();

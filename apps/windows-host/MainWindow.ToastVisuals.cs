@@ -24,12 +24,12 @@ public partial class MainWindow
                 !Equals(toast.Tag, StyledToastTag) &&
                 toast.Child is TextBlock messageBlock)
             {
-                ApplyToastVisual(toast, messageBlock.Text);
+                ApplyToastVisual(toast, toast.Tag as string ?? "Voltura Air", messageBlock.Text);
             }
         }
     }
 
-    private void ApplyToastVisual(Border toast, string message)
+    private void ApplyToastVisual(Border toast, string title, string message)
     {
         toast.Tag = StyledToastTag;
         toast.Background = (WpfBrush)Resources["SurfaceBrush"];
@@ -90,7 +90,7 @@ public partial class MainWindow
         };
         text.Children.Add(new TextBlock
         {
-            Text = "Clipboard",
+            Text = title,
             FontSize = 11,
             FontWeight = FontWeights.SemiBold,
             Foreground = (WpfBrush)Resources["MutedTextBrush"]

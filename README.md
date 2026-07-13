@@ -29,6 +29,8 @@ Remote mode includes an Fn panel for common Windows window actions and browser t
 - Phone notification sync.
 - File backup/sync.
 
+## How it works
+
 The project is split into two apps:
 
 - `apps/mobile-web`: a React/TypeScript PWA for Android, iPhone, iPad, tablets, ChromeOS, and other modern browsers.

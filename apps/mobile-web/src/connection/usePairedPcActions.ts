@@ -103,6 +103,19 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
     setMessage(`Connecting to ${getDisplayPcName(profile, "", screenshotMode)}...`);
   }, [clearRuntimeState, screenshotMode, setActivePcId, setHostStatus, setLastConnectionError, setMessage, setPairedPcs, setPairingAttempt, setState]);
 
+  const beginNewPairing = useCallback(() => {
+    clearRuntimeState();
+    setLastConnectionError(null);
+    setHostStatus(null);
+    const previousSocket = socketRef.current;
+    socketRef.current = null;
+    previousSocket?.close();
+    setActivePcId(null);
+    setPairingAttempt((current) => ({ token: undefined, id: current.id + 1 }));
+    setState("needs-pairing");
+    setMessage("Confirm the newly scanned pairing QR code.");
+  }, [clearRuntimeState, setActivePcId, setHostStatus, setLastConnectionError, setMessage, setPairingAttempt, setState, socketRef]);
+
   const disconnectActivePc = useCallback(() => {
     if (!activePcId) {
       return;
@@ -158,6 +171,7 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
 
   return {
     addManualPc,
+    beginNewPairing,
     connectManualPc: addManualPc,
     disconnectActivePc,
     forgetPc,

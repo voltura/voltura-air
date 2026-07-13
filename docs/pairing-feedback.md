@@ -73,6 +73,11 @@ The pairing screen should expose the relevant actions directly near the error:
 - **Open troubleshooting help** for same Wi-Fi/LAN, firewall, stale QR, and changed host/port guidance.
 - **Copy diagnostics** for repeat failures.
 
+When **Scan new QR code** succeeds from `unavailable`, detach the old socket
+before closing it, keep the old PC saved, move to `needs-pairing`, and show the
+new QR's device-name confirmation. Late close or error events from the old
+socket must not restore the unavailable screen.
+
 Manual host entry should not just navigate away. A valid manual host should
 create or update a saved PC profile, select it as active, and attempt to connect
 inside the app. Saved profiles remain removable with **Forget**.

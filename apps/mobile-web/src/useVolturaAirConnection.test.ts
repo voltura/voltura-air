@@ -286,4 +286,33 @@ describe("useVolturaAirConnection", () => {
     expect(result.current.lastConnectionError?.code).toBe("VAIR-PAIR-SOCKET-CLOSED");
     expect(result.current.message).toBe("PC is currently not available. Check that Voltura Air is running on the PC. Retrying...");
   });
+
+  it("ignores the old socket closing after a new QR pairing begins", async () => {
+    const pcUrl = "http://pc.local:51395";
+    const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };
+    localStorage.setItem("voltura-air.clientId", "client-a");
+    localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
+    localStorage.setItem("voltura-air.activePcId", pc.id);
+    localStorage.setItem(`voltura-air.secret.client-a.${pc.id}`, "stored-credential");
+
+    const { result } = renderHook(() => useVolturaAirConnection());
+
+    await waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+    const oldSocket = MockWebSocket.instances[0];
+    oldSocket.readyState = MockWebSocket.OPEN;
+    dispatchSocketEvent(oldSocket, "open");
+    oldSocket.readyState = MockWebSocket.CLOSED;
+    dispatchSocketEvent(oldSocket, "close");
+    await waitFor(() => expect(result.current.state).toBe("unavailable"));
+
+    act(() => {
+      result.current.beginNewPairing();
+    });
+    dispatchSocketEvent(oldSocket, "close");
+
+    await waitFor(() => expect(result.current.state).toBe("needs-pairing"));
+    expect(result.current.activePc).toBeNull();
+    expect(result.current.pairedPcs).toContainEqual(pc);
+    expect(result.current.message).toBe("Choose a PC or scan a pairing QR.");
+  });
 });

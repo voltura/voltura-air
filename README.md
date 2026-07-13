@@ -6,7 +6,7 @@ Use it as a trackpad, keyboard, dictation surface, and media remote — includin
 
 ## Product promise
 
-Remote mode includes an Fn panel for common Windows window actions and browser tab/page shortcuts, with grouped visibility settings to keep the panel compact and a landscape layout that preserves volume and navigation controls.
+Remote mode includes an Fn panel for common Windows window actions and browser tab/page shortcuts. Switch app supports quick previous-app taps plus hold-and-slide visual app selection, and Task view opens the persistent Windows window overview. Grouped visibility settings keep the panel compact, while the landscape layout preserves volume and navigation controls.
 
 - Control your Windows PC from any phone, tablet, or touch browser.
 - No mobile app-store install required.
@@ -58,6 +58,8 @@ lightweight so a paired phone can rest without polling status and audio state.
 QR links include the host app version, and the host serves the mobile app shell
 and service worker with no-store cache headers so fresh pairing codes are not
 masked by stale installed-PWA code.
+Scanning a valid new QR while a saved PC is unavailable pauses that stale retry,
+keeps the old PC saved, and opens the new pairing confirmation screen.
 
 ## Requirements
 

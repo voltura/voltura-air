@@ -108,7 +108,7 @@
         </article>
         <article>
           <h2>Couch remote</h2>
-          <p>Control media playback, fullscreen, volume, YouTube, Kodi, focused Windows apps, and browser tabs without reaching for a keyboard. Landscape keeps volume and navigation beside the helper panel.</p>
+          <p>Control media playback, fullscreen, volume, YouTube, Kodi, focused Windows apps, and browser tabs without reaching for a keyboard. Tap Switch app for the previous app, hold and slide through the visual window switcher, or open Task view. Landscape keeps volume and navigation beside the helper panel.</p>
         </article>
         <article>
           <h2>Tablet split mode</h2>
@@ -223,7 +223,7 @@
         </article>
         <article>
           <h2>Helpful recovery</h2>
-          <p>If the phone cannot reach the PC, the app gives recovery actions such as reconnect, scan a new QR code, enter host manually, and copy diagnostics.</p>
+          <p>If the phone cannot reach the PC, the app gives recovery actions such as reconnect, scan a new QR code, enter host manually, and copy diagnostics. A valid new scan pauses the stale retry and opens pairing confirmation.</p>
         </article>
       </section>
 

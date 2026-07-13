@@ -49,6 +49,7 @@ function mockConnection(overrides: Partial<ReturnType<typeof useVolturaAirConnec
     hostStatus: null,
     pairWithToken: vi.fn(),
     selectPc: vi.fn(),
+    beginNewPairing: vi.fn(),
     connectManualPc: vi.fn(),
     addManualPc: vi.fn(),
     disconnectActivePc: vi.fn(),

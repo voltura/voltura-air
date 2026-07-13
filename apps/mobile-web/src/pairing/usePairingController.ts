@@ -4,6 +4,7 @@ import { parsePairingLink, type PairingLink } from "../pairingLink";
 import { decodeQrImage } from "../qrCode";
 
 type PairingControllerOptions = {
+  beginNewPairing: () => void;
   connectManualPc: (target: string) => void;
   deviceName: string;
   initialPairing: PairingLink | null;
@@ -14,7 +15,7 @@ type PairingControllerOptions = {
 };
 
 export function usePairingController(options: PairingControllerOptions) {
-  const { connectManualPc, deviceName, initialPairing, message, pairWithToken, setIsSettingsOpen, state } = options;
+  const { beginNewPairing, connectManualPc, deviceName, initialPairing, message, pairWithToken, setIsSettingsOpen, state } = options;
   const [pairingScanMessage, setPairingScanMessage] = useState("Scan the QR code shown on your PC.");
   const [pendingPairing, setPendingPairing] = useState<PairingLink | null>(initialPairing);
   const [pairingDeviceName, setPairingDeviceName] = useState(deviceName);
@@ -81,6 +82,7 @@ export function usePairingController(options: PairingControllerOptions) {
         return;
       }
 
+      beginNewPairing();
       setPendingPairing(pairingInfo);
       setPairingDeviceName(deviceName);
       setPairingScanMessage("Confirm the device name shown on the PC, or change it before pairing.");

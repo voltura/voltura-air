@@ -20,6 +20,8 @@ Check these first:
 
 If the PC changed IP address or automatic port, click **New code** on the PC and scan again. You can also use **Enter host manually** on the mobile pairing screen or in mobile Settings.
 
+After a valid new QR photo is read, the mobile app stops the unavailable PC retry and shows **Confirm this device**. The old PC remains saved. If the app returns directly to the unavailable screen instead, refresh the mobile app from the PC and retry with the latest code.
+
 ## QR code expired, already used, or invalid
 
 Pairing QR codes are short-lived and single-use. Click **New code** on the PC and scan the latest QR code. Avoid using a QR page that was left open before the PC changed network or port.

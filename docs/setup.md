@@ -72,13 +72,15 @@ the matching mobile app instead of running stale cached code.
 
 Paired devices are managed by the Windows host and can reconnect without scanning a new QR code while the saved secret remains available in the browser or installed app storage. The mobile app also keeps saved PC profiles so a phone can reconnect to a known PC or forget old PCs from Settings.
 
+When an active PC is unavailable, scanning a valid fresh QR code stops retrying that PC and opens the device-name confirmation for the newly scanned PC. The unavailable PC remains in the saved-PC list and can be selected again later.
+
 Use the Windows tray menu or the Voltura Air window to open **Devices**. The Devices page shows connected and paired devices, lets you set a per-device pointer speed override, lets you disconnect or remove devices, and can clean up duplicate pairings created by browser/home-screen storage changes.
 
 ## Mobile Controls
 
 - **Trackpad** supports pointer movement, tap-to-click, left/right click buttons, two-finger scrolling, pinch zoom, host default/device override pointer speed, scroll direction, and an expanded trackpad surface.
 - **Keyboard** supports live typing, buffered text send, on-screen Backspace/Enter/Tab/Escape/Win/Space, arrow navigation, common modifier shortcuts, optional function keys, and single-key app shortcuts such as `F` for video fullscreen. Delete can be forwarded from a physical/browser keyboard when the browser emits it, but there is no dedicated on-screen Delete button yet.
-- **Remote** supports media playback, press-and-hold seek, video fullscreen, browser fullscreen, volume, mute, Standard/YouTube/Kodi shortcut modes, Kodi stop/info/subtitle/power-menu shortcuts, a default navigation ring with repeatable directional zones and a mini-trackpad center that sends Enter in Kodi mode, optional legacy D-pad with OK, and an Fn panel with Windows window actions and browser tab/page shortcuts. In phone landscape, the Fn panel replaces the media column and keeps volume and navigation available beside it.
+- **Remote** supports media playback, press-and-hold seek, video fullscreen, browser fullscreen, volume, mute, Standard/YouTube/Kodi shortcut modes, Kodi stop/info/subtitle/power-menu shortcuts, a default navigation ring with repeatable directional zones and a mini-trackpad center that sends Enter in Kodi mode, optional legacy D-pad with OK, and an Fn panel with Windows window actions and browser tab/page shortcuts. Tap **Switch app** to return to the previous app, or hold it until the visual Windows switcher appears, slide left or right, and release to open the selected app. **Task view** opens the persistent Windows window overview. In phone landscape, the Fn panel replaces the media column and keeps volume and navigation available beside it.
 - **Dictate** sends browser speech recognition text to Windows when the browser supports speech recognition for the current origin.
 - **PC volume** controls appear on the trackpad screen when the host can read the default Windows output device state.
 

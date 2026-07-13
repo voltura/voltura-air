@@ -57,6 +57,7 @@ export function App() {
     hostStatus,
     pairWithToken,
     selectPc,
+    beginNewPairing,
     connectManualPc,
     disconnectActivePc,
     forgetPc,
@@ -103,7 +104,7 @@ export function App() {
     pendingPairing,
     scanPairingQr,
     setPairingDeviceName
-  } = usePairingController({ connectManualPc, deviceName, initialPairing, message, pairWithToken, setIsSettingsOpen, state });
+  } = usePairingController({ beginNewPairing, connectManualPc, deviceName, initialPairing, message, pairWithToken, setIsSettingsOpen, state });
   const { emit, onTouchCancel, onTouchEnd, onTouchMove, onTouchStart, sendSpecial, sendText, sleepPc } = usePointerInput({
     send,
     state,

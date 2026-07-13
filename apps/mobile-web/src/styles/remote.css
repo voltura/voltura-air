@@ -121,6 +121,46 @@
   font-weight: 700;
 }
 
+.remote-utility-grid button.remote-switch-app {
+  touch-action: none;
+}
+
+.remote-utility-grid button.remote-switch-app.active {
+  color: var(--on-accent);
+  background: var(--accent-strong);
+  border-color: var(--accent);
+}
+
+.remote-switcher-hint {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  bottom: 68px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 22%);
+  text-align: center;
+  pointer-events: none;
+}
+
+.remote-switcher-hint strong {
+  font-size: 0.88rem;
+}
+
+.remote-switcher-hint span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
 .remote-navigation-section {
   position: relative;
   grid-template-rows: auto minmax(0, 1fr);

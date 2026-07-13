@@ -559,6 +559,7 @@ export function useVolturaAirConnection() {
 
   const {
     addManualPc,
+    beginNewPairing,
     connectManualPc,
     disconnectActivePc,
     forgetPc,
@@ -587,7 +588,7 @@ export function useVolturaAirConnection() {
     state
   });
 
-  return { state, message, send, requestAudioState, clientId, deviceName, activePc, pairedPcs, audioState, supportsGestureDebug, supportsSleep, supportsVolumeControl, supportsRemoteLaunch, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice, setHostPointerSpeed };
+  return { state, message, send, requestAudioState, clientId, deviceName, activePc, pairedPcs, audioState, supportsGestureDebug, supportsSleep, supportsVolumeControl, supportsRemoteLaunch, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, beginNewPairing, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice, setHostPointerSpeed };
 }
 
 

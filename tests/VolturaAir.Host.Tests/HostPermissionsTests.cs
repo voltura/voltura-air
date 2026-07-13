@@ -41,6 +41,20 @@ public sealed class HostPermissionsTests
     }
 
     [Fact]
+    public void DeviceRemoteAppLaunchOverrideWinsOverGlobal()
+    {
+        var allowed = HostPermissions.Resolve(
+            new HostPermissionSet(AllowRemoteAppLaunch: false),
+            new DevicePermissionOverrides(AllowRemoteAppLaunch: true));
+        var blocked = HostPermissions.Resolve(
+            new HostPermissionSet(AllowRemoteAppLaunch: true),
+            new DevicePermissionOverrides(AllowRemoteAppLaunch: false));
+
+        Assert.True(allowed.AllowRemoteAppLaunch);
+        Assert.False(blocked.AllowRemoteAppLaunch);
+    }
+
+    [Fact]
     public void DeviceInheritsGlobalVolumeControlByDefault()
     {
         var globallyAllowed = HostPermissions.Resolve(new HostPermissionSet(AllowVolumeControl: true), new DevicePermissionOverrides());
@@ -142,6 +156,7 @@ public sealed class HostPermissionsTests
         var saved = manager.SetDevicePermissionOverrides("client-a", new DevicePermissionOverrides(
             AllowPcSleep: true,
             AllowVolumeControl: true,
+            AllowRemoteAppLaunch: true,
             AllowPcLock: true,
             AllowBlackoutDisplay: true,
             AllowDisplayOff: true,
@@ -154,6 +169,7 @@ public sealed class HostPermissionsTests
         var removed = manager.DisconnectDevice("client-a");
 
         Assert.True(saved);
+        Assert.True(reloaded.AllowRemoteAppLaunch);
         Assert.True(reloaded.AllowPcLock);
         Assert.True(reloaded.AllowBlackoutDisplay);
         Assert.True(reloaded.AllowDisplayOff);
@@ -165,6 +181,7 @@ public sealed class HostPermissionsTests
         Assert.True(removed);
         Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowPcSleep);
         Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowVolumeControl);
+        Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowRemoteAppLaunch);
         Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowPcLock);
         Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowBlackoutDisplay);
         Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowDisplayOff);

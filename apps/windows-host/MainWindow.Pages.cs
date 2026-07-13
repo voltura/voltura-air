@@ -270,6 +270,15 @@ public partial class MainWindow
         remotePanel.Children.Add(CreateSegmentRow(standardRemote, youtubeRemote, kodiRemote));
         AddYoutubeUrlSetting(remotePanel);
 
+        var appLaunchPanel = AddPreferencesSection(panel, sections, "Application launch buttons");
+        var appLaunchSection = (Expander)panel.Children[^1];
+        AddAppLaunchSettings(appLaunchPanel);
+        if (_openAppLaunchPreferences)
+        {
+            appLaunchSection.IsExpanded = true;
+            _openAppLaunchPreferences = false;
+        }
+
         var awakePanel = AddPreferencesSection(panel, sections, "Keep awake");
         var awakeSection = (Expander)panel.Children[^1];
         AddAwakeSettings(awakePanel);

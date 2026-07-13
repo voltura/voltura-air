@@ -46,6 +46,14 @@ public sealed class EventMultiSelectFilter : UserControl
             menu.Items.Add(item);
         }
 
+        menu.Opened += (_, _) =>
+        {
+            var itemStyle = (Style)_button.FindResource("EventMultiSelectMenuItemStyle");
+            foreach (var item in _items)
+            {
+                item.Style = itemStyle;
+            }
+        };
         _button.ContextMenu = menu;
         _button.Click += (_, _) => menu.IsOpen = true;
         Content = _button;

@@ -82,6 +82,8 @@ internal static class ClientMessageValidator
                 enabled.ValueKind is JsonValueKind.True or JsonValueKind.False,
             "remote.launch" => TryGetRequiredString(root, "action", MaxRemoteActionLength, allowEmpty: false, out var action) &&
                 RemoteLaunchActions.IsSupported(action),
+            "app.launch" => TryGetRequiredString(root, "actionId", AppLaunchSettings.MaxIdLength, allowEmpty: false, out var actionId) &&
+                IsValidAppLaunchActionId(actionId),
             "audio.mute.toggle" => true,
             "audio.volume.set" => TryGetNumber(root, "volume", 0, 100, out _),
             "pointer.move" => HasValidOptionalSequence(root) &&
@@ -100,6 +102,11 @@ internal static class ClientMessageValidator
                 TryGetOptionalStringArray(root, "modifiers", MaxModifierCount, MaxModifierLength),
             _ => false
         };
+    }
+
+    private static bool IsValidAppLaunchActionId(string actionId)
+    {
+        return actionId.All(character => char.IsAsciiLetterOrDigit(character) || character is '.' or '-' or '_');
     }
 
     private static bool TryGetRequiredString(JsonElement root, string propertyName, int maxLength, bool allowEmpty, out string value)

@@ -13,14 +13,29 @@ public sealed class InputDispatcher
 
     public bool Dispatch(JsonElement message)
     {
+        return Dispatch(message, out _);
+    }
+
+    public bool Dispatch(JsonElement message, out InputDispatchOutcome outcome)
+    {
+        outcome = InputDispatchOutcome.Executed;
         if (!message.TryGetProperty("type", out var typeProperty))
         {
             return false;
         }
 
         var type = typeProperty.GetString();
-        if (HostUiInputGuard.ShouldBlockClientInput(type, message))
+        if (type == "keyboard.special" && HostUiInputGuard.IsMinimizeWindowShortcut(message))
         {
+            outcome = HostUiInputGuard.TryMinimizeForegroundWindow()
+                ? InputDispatchOutcome.Executed
+                : InputDispatchOutcome.Failed;
+            return true;
+        }
+
+        if (HostUiInputGuard.ShouldBlockClientInput(type, message, out var protectedCommandExecuted))
+        {
+            outcome = protectedCommandExecuted ? InputDispatchOutcome.Executed : InputDispatchOutcome.Blocked;
             return true;
         }
 
@@ -110,6 +125,13 @@ public sealed class InputDispatcher
             .Select(modifier => modifier!)
             .ToArray();
     }
+}
+
+public enum InputDispatchOutcome
+{
+    Executed,
+    Blocked,
+    Failed
 }
 
 public interface IInputInjector : IDisposable

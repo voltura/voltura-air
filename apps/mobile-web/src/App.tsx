@@ -37,6 +37,9 @@ export function App() {
     requestAudioState,
     requestPowerAction,
     requestAwakeChange,
+    requestAppLaunch,
+    pendingAppLaunchId,
+    appLaunchResult,
     pendingPowerAction,
     powerActionResult,
     pendingAwakeChange,
@@ -317,11 +320,14 @@ export function App() {
 
   const renderRemoteMode = () => (
     <RemoteMode
+      appLaunchActions={hostStatus?.appLaunchActions ?? []}
       audioState={displayedAudioState}
       awakeControl={{ awake: awakeCapability, awakeResult, onAwakeChange: requestAwakeChange, pendingAwakeChange }}
       onPointerButtonClick={(button) => emit({ type: "pointer.button", button, action: "click" })}
       onPointerMove={(dx, dy) => emit({ type: "pointer.move", dx, dy })}
       onPowerAction={requestPowerAction}
+      onAppLaunch={requestAppLaunch}
+      pendingAppLaunchId={pendingAppLaunchId}
       pendingPowerAction={pendingPowerAction}
       powerActionResult={powerActionResult}
       powerCapabilities={powerCapabilities}
@@ -510,6 +516,15 @@ export function App() {
       {supportsGestureDebug && tab === "debug" && <GestureDebugMode trackpadSettings={effectiveTrackpadSettings} />}
 
       {canShowModeNavigation && !areModeTabsCollapsed && <ModeTabs className="tabs bottom-mode-tabs" tab={tab} selectModeTab={selectModeTab} />}
+
+      {pendingAppLaunchId !== null && (
+        <div className="app-toast pending" role="status">Waiting for the PC to respond…</div>
+      )}
+      {pendingAppLaunchId === null && appLaunchResult && (
+        <div className={`app-toast ${appLaunchResult.succeeded ? "success" : "error"}`} role={appLaunchResult.succeeded ? "status" : "alert"}>
+          {appLaunchResult.message}
+        </div>
+      )}
     </main>
   );
 }

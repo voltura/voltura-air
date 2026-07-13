@@ -22,6 +22,7 @@ import { useConnectionPersistence } from "./connection/useConnectionPersistence"
 import { useInitialConnectionProfileState } from "./connection/useInitialConnectionProfileState";
 import { useAwakeControl } from "./connection/useAwakeControl";
 import { usePowerControl } from "./connection/usePowerControl";
+import { useAppLaunch } from "./connection/useAppLaunch";
 import { requestHostState, trySendClientMessage } from "./connection/connectionSocketMessages";
 import { getNextHealthCheckDelay, hasExpiredInputAck, staleConnectionMs } from "./connection/connectionHealthPolicy";
 
@@ -74,6 +75,7 @@ export function useVolturaAirConnection() {
   });
   const { awakeResult, completeAwakeChange, pendingAwakeChange, requestAwakeChange } = useAwakeControl(state, send);
   const { completePowerAction, pendingPowerAction, powerActionResult, requestPowerAction } = usePowerControl(state, send);
+  const { appLaunchResult, completeAppLaunch, pendingAppLaunchId, requestAppLaunch } = useAppLaunch(state, send);
   useConnectionPersistence({
     activePcId,
     clientId,
@@ -434,6 +436,17 @@ export function useVolturaAirConnection() {
           return;
         }
 
+        if (response.type === "app.launch.result") {
+          touchHealthy();
+          completeAppLaunch(response);
+          setMessage(response.message);
+          setLastConnectionError(response.succeeded
+            ? null
+            : { code: response.code ?? "VAIR-APP-LAUNCH-FAILED", message: response.message });
+          scheduleHealthCheck(ws);
+          return;
+        }
+
         if (response.type === "audio.state") {
           touchHealthy();
           if (supportsVolumeControlRef.current) {
@@ -521,7 +534,7 @@ export function useVolturaAirConnection() {
     setPairingAttempt, setState, socketRef, state
   });
 
-  return { state, message, send, requestAudioState, requestPowerAction, requestAwakeChange, pendingPowerAction, powerActionResult, pendingAwakeChange, awakeResult, clientId, deviceName, activePc, pairedPcs, audioState, awakeCapability, powerCapabilities, supportsGestureDebug, supportsSleep, supportsVolumeControl, supportsRemoteLaunch, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, beginNewPairing, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice, setHostPointerSpeed };
+  return { state, message, send, requestAudioState, requestPowerAction, requestAwakeChange, requestAppLaunch, pendingAppLaunchId, appLaunchResult, pendingPowerAction, powerActionResult, pendingAwakeChange, awakeResult, clientId, deviceName, activePc, pairedPcs, audioState, awakeCapability, powerCapabilities, supportsGestureDebug, supportsSleep, supportsVolumeControl, supportsRemoteLaunch, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, beginNewPairing, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice, setHostPointerSpeed };
 }
 
 

@@ -99,6 +99,16 @@ body {
   }
 }
 
+:root[data-display-mode="installed"] {
+  --app-viewport-height: 100vh;
+}
+
+@supports (height: 100lvh) {
+  :root[data-display-mode="installed"] {
+    --app-viewport-height: 100lvh;
+  }
+}
+
 button,
 textarea,
 input {
@@ -307,6 +317,40 @@ button span {
   color: var(--danger);
 }
 
+.app-toast {
+  position: fixed;
+  z-index: 1000;
+  top: max(12px, env(safe-area-inset-top, 0px));
+  left: max(12px, env(safe-area-inset-left, 0px));
+  width: min(420px, calc(100vw - 24px));
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 11px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 22%);
+  font-size: 0.86rem;
+  text-align: left;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+
+.app-toast.pending {
+  color: var(--muted);
+}
+
+.app-toast.success {
+  color: var(--success);
+  border-color: color-mix(in srgb, var(--success) 52%, var(--border));
+  background: color-mix(in srgb, var(--success) 12%, var(--surface));
+}
+
+.app-toast.error {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--border));
+}
+
 .tabs {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -503,8 +547,8 @@ button span {
   inset: 0 auto 0 0;
   z-index: 11;
   width: min(86vw, 360px);
-  height: 100dvh;
-  max-height: 100dvh;
+  height: var(--app-viewport-height);
+  max-height: var(--app-viewport-height);
   display: flex;
   flex-direction: column;
   gap: 12px;

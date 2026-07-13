@@ -68,6 +68,66 @@
         <Setter Property="CaretBrush" Value="{DynamicResource TextBrush}" />
         <Setter Property="BorderThickness" Value="1" />
     </Style>
+    <Style x:Key="CompactIconButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+        <Setter Property="Width" Value="38" />
+        <Setter Property="Height" Value="38" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style x:Key="EventMultiSelectMenuItemStyle" TargetType="MenuItem">
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="MenuItem">
+                    <Border x:Name="ItemChrome"
+                            Margin="4,2"
+                            Padding="10,8"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="6">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="20" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Path x:Name="Checkmark"
+                                  Width="11"
+                                  Height="9"
+                                  HorizontalAlignment="Left"
+                                  VerticalAlignment="Center"
+                                  Data="M 1,4.5 L 4,7.5 L 10,1"
+                                  Fill="Transparent"
+                                  Stroke="{DynamicResource AccentBrush}"
+                                  StrokeThickness="2"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  StrokeLineJoin="Round"
+                                  Stretch="None"
+                                  Visibility="Collapsed" />
+                            <ContentPresenter Grid.Column="1"
+                                              VerticalAlignment="Center"
+                                              ContentSource="Header"
+                                              RecognizesAccessKey="True" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="ItemChrome" Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Checkmark" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="ItemChrome" Property="Opacity" Value="0.55" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
     <Style x:Key="FilterTextBoxStyle" TargetType="TextBox">
         <Setter Property="MinHeight" Value="38" />
         <Setter Property="Padding" Value="12,7" />
@@ -395,8 +455,7 @@
                             BorderBrush="{DynamicResource BorderBrush}"
                             BorderThickness="1"
                             CornerRadius="8"
-                            Padding="12"
-                            Margin="0,0,0,10">
+                            Padding="12">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="24" />

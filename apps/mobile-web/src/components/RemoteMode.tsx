@@ -20,7 +20,7 @@ import {
   Volume2,
   VolumeX
 } from "lucide-react";
-import type { AudioStateMessage, PowerCapabilities, SystemPowerAction, SystemPowerResultMessage } from "../protocol";
+import type { AppLaunchActionSummary, AudioStateMessage, PowerCapabilities, SystemPowerAction, SystemPowerResultMessage } from "../protocol";
 import type { RemoteSettings } from "../remoteSettings";
 import { remoteShortcutMaps, type RemoteShortcut } from "./remote/remoteShortcuts";
 import { getRemoteModeCopy } from "./remote/remoteModeCopy";
@@ -39,12 +39,15 @@ const miniTrackpadDoubleTapDistance = 24;
 type MouseButtonName = "left" | "right";
 
 type RemoteModeProps = {
+  appLaunchActions: AppLaunchActionSummary[];
   audioState: AudioStateMessage | null;
   awakeControl?: AwakeControlProps;
   remoteSettings: RemoteSettings;
   onPointerButtonClick: (button: MouseButtonName) => void;
   onPointerMove: (dx: number, dy: number) => void;
   onPowerAction: (action: SystemPowerAction) => void;
+  onAppLaunch: (actionId: string) => void;
+  pendingAppLaunchId: string | null;
   pendingPowerAction: SystemPowerAction | null;
   powerActionResult: SystemPowerResultMessage | null;
   powerCapabilities: PowerCapabilities | null;
@@ -68,12 +71,15 @@ type PendingMiniTap = {
 };
 
 export function RemoteMode({
+  appLaunchActions,
   audioState,
   awakeControl,
   remoteSettings,
   onPointerButtonClick,
   onPointerMove,
   onPowerAction,
+  onAppLaunch,
+  pendingAppLaunchId,
   pendingPowerAction,
   powerActionResult,
   powerCapabilities,
@@ -548,9 +554,12 @@ export function RemoteMode({
       </div>
 
       <RemoteUtilityPanel
+        appLaunchActions={appLaunchActions}
         id={utilityPanelId}
         isOpen={showUtilityPanel}
         onClose={() => setShowUtilityPanel(false)}
+        onAppLaunch={onAppLaunch}
+        pendingAppLaunchId={pendingAppLaunchId}
         remoteSettings={remoteSettings}
         sendSpecial={sendSpecial}
       />

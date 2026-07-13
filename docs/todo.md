@@ -14,22 +14,6 @@ Prioritize reliability, usability, trust, and visible user value. Manual and rea
 
 ---
 
-## 2. Remote and Windows controls
-
-### 2.1 Configurable app launch
-
-- [ ] Add host-configured launch buttons for common applications.
-- [ ] Support optional presets for:
-  - [ ] Browser.
-  - [ ] Spotify.
-  - [ ] VLC.
-  - [ ] PowerPoint.
-- [ ] Support a custom path or command.
-- [ ] Require explicit host approval for every custom command.
-- [ ] Validate configured paths and reject unsafe or malformed commands.
-
----
-
 ## 3. Text, clipboard, and link transfer
 
 ### 3.1 Dedicated Paste Text to PC
@@ -214,23 +198,17 @@ Do not start these items until the core input, connection, and remote experience
 
 ## Recommended next issue order
 
-1. Add keyboard compatibility tests and improve keyboard help text.
-2. Add the dedicated Paste Text to PC screen.
-3. Add Presentation mode.
-4. Expand the public FAQ, privacy information, and demo assets.
-5. Add release checksums, release-note structure, and known limitations.
-6. Add issue templates and project labels.
-7. Investigate code signing.
-8. Evaluate future features only after the core roadmap is stable.
+1. Add the dedicated Paste Text to PC screen.
+2. Add Presentation mode.
+3. Expand the public FAQ, privacy information, and demo assets.
+4. Add release checksums, release-note structure, and known limitations.
+5. Add issue templates and project labels.
+6. Investigate code signing.
+7. Evaluate future features only after the core roadmap is stable.
 
 ---
 
 ## Suggested milestones
-
-### Milestone 1: Input and layout
-
-- Keyboard compatibility and clarity.
-- Trackpad compatibility coverage.
 
 ### Milestone 2: Productivity
 

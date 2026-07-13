@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type PointerEvent } from "react";
-import { ArrowLeft, ArrowRight, CornerDownLeft, Monitor, Plus, RefreshCw, RotateCcw, Search, SquareX } from "lucide-react";
+import { AppWindow, ArrowLeft, ArrowRight, CornerDownLeft, Monitor, Plus, RefreshCw, RotateCcw, Search, SquareX } from "lucide-react";
+import type { AppLaunchActionSummary } from "../../protocol";
 import type { RemoteSettings } from "../../remoteSettings";
 import { RemoteButton, type RepeatablePressProps } from "./RemoteButton";
 
@@ -14,14 +15,30 @@ type SwitcherPointer = {
 };
 
 type RemoteUtilityPanelProps = {
+  appLaunchActions: AppLaunchActionSummary[];
   id: string;
   isOpen: boolean;
   onClose: () => void;
+  onAppLaunch: (actionId: string) => void;
+  pendingAppLaunchId: string | null;
   remoteSettings: RemoteSettings;
   sendSpecial: (key: string, modifiers?: string[]) => void;
 };
 
-export function RemoteUtilityPanel({ id, isOpen, onClose, remoteSettings, sendSpecial }: RemoteUtilityPanelProps) {
+function getAppLaunchLabelClass(label: string): string {
+  const length = [...label].length;
+  if (length >= 9) {
+    return "remote-app-launch-label remote-app-launch-label-long";
+  }
+
+  if (length >= 7) {
+    return "remote-app-launch-label remote-app-launch-label-medium";
+  }
+
+  return "remote-app-launch-label";
+}
+
+export function RemoteUtilityPanel({ appLaunchActions, id, isOpen, onAppLaunch, onClose, pendingAppLaunchId, remoteSettings, sendSpecial }: RemoteUtilityPanelProps) {
   const [isSwitcherActive, setIsSwitcherActive] = useState(false);
   const switcherHintId = useId();
   const switcherPointerRef = useRef<SwitcherPointer | null>(null);
@@ -246,6 +263,27 @@ export function RemoteUtilityPanel({ id, isOpen, onClose, remoteSettings, sendSp
           </>
         )}
       </div>
+      {appLaunchActions.length > 0 && (
+        <>
+          <div className="remote-section-title remote-helper-section-title">
+            <span>Applications</span>
+            <small>Buttons approved on this PC.</small>
+          </div>
+          <div className="remote-utility-grid remote-app-launch-grid" aria-label="Application launch controls">
+            {appLaunchActions.map((action) => (
+              <RemoteButton
+                key={action.id}
+                label={`Start ${action.label}`}
+                disabled={pendingAppLaunchId !== null}
+                onClick={() => onAppLaunch(action.id)}
+              >
+                <AppWindow aria-hidden="true" />
+                <span className={getAppLaunchLabelClass(action.label)}>{pendingAppLaunchId === action.id ? "Starting…" : action.label}</span>
+              </RemoteButton>
+            ))}
+          </div>
+        </>
+      )}
       <button type="button" className="remote-fn-button remote-floating-fn" aria-controls={id} aria-expanded={isOpen} onClick={onClose}>
         Main
       </button>

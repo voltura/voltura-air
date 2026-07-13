@@ -1,6 +1,6 @@
 import { getPcDisplayName } from "../pcDisplayName";
 import type { PcProfile } from "../pcProfiles";
-import type { AudioStateMessage, AwakeCapability, ClientMessage, HostStatusMetadata, PowerCapabilities, ServerCapabilities, ServerMessage } from "../protocol";
+import type { AppLaunchActionSummary, AudioStateMessage, AwakeCapability, ClientMessage, HostStatusMetadata, PowerCapabilities, ServerCapabilities, ServerMessage } from "../protocol";
 import { normalizeRemoteMode } from "../remoteSettings";
 
 const movementAckIntervalMs = 200;
@@ -45,6 +45,7 @@ export function normalizeHostStatus(metadata: HostStatusMetadata | undefined): H
   }
 
   const normalized: HostStatusMetadata = {
+    appLaunchActions: normalizeAppLaunchActions(metadata.appLaunchActions),
     defaultRemoteMode: metadata.defaultRemoteMode === undefined ? undefined : normalizeRemoteMode(metadata.defaultRemoteMode),
     developerMode: metadata.developerMode === true ? true : undefined,
     developerSessionId: normalizeOptionalString(metadata.developerSessionId),
@@ -59,6 +60,32 @@ export function normalizeHostStatus(metadata: HostStatusMetadata | undefined): H
   };
 
   return Object.values(normalized).some((value) => value !== undefined) ? normalized : null;
+}
+
+export function normalizeAppLaunchActions(value: unknown): AppLaunchActionSummary[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const actions: AppLaunchActionSummary[] = [];
+  const ids = new Set<string>();
+  for (const candidate of value) {
+    if (actions.length >= 16 || typeof candidate !== "object" || candidate === null) {
+      continue;
+    }
+
+    const { id, label, kind } = candidate as Partial<AppLaunchActionSummary>;
+    if (typeof id !== "string" || id.length < 1 || id.length > 64 || !/^[a-zA-Z0-9._-]+$/.test(id) || ids.has(id) ||
+      typeof label !== "string" || label.trim().length < 1 || label.trim().length > 10 ||
+      !["browser", "spotify", "vlc", "powerpoint", "custom"].includes(kind ?? "")) {
+      continue;
+    }
+
+    ids.add(id);
+    actions.push({ id, label: label.trim(), kind: kind! });
+  }
+
+  return actions;
 }
 
 function normalizeOptionalString(value: string | undefined): string | undefined {

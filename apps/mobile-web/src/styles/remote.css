@@ -266,6 +266,32 @@
   margin-top: 8px;
 }
 
+.remote-app-launch-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(120px, 100%), 1fr));
+}
+
+.remote-app-launch-grid button {
+  flex-direction: column;
+  gap: 2px;
+  padding-block: 5px;
+}
+
+.remote-app-launch-label {
+  min-width: 0;
+  white-space: nowrap;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.remote-app-launch-label-medium {
+  font-size: 0.82rem;
+}
+
+.remote-app-launch-label-long {
+  font-size: 0.74rem;
+  letter-spacing: -0.01em;
+}
+
 .remote-mode.remote-utility-open .remote-utility-section {
   display: grid;
   padding-bottom: 56px;

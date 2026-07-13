@@ -87,6 +87,27 @@ Check these items first:
 - The phone did not switch network, sleep the browser, or lose LAN reachability.
 - Refresh the mobile page or scan a fresh QR code if browser storage was cleaned.
 
+## An application button is missing or fails
+
+Open **Preferences > Application launch buttons** on the Windows host. Only
+enabled presets and locally approved custom buttons are sent to the phone. Also
+check **Preferences > Global permissions** and the paired device's permission
+override for **Allow paired devices to start applications**. When that effective
+permission is off, the host does not advertise any application buttons.
+
+Spotify, VLC, and PowerPoint presets require the corresponding application to
+be installed and registered with Windows. A custom button must point to an
+existing absolute `.exe` path. If that file is moved or removed after approval,
+the host rejects the launch until the entry is edited and approved again.
+Arguments are passed directly to the selected executable; command shells,
+scripts, relative paths, and paths received from phones are not supported.
+
+The mobile Fn panel reports permission, missing application, stale button,
+invalid target, and Windows start failures without disconnecting. Enable
+**Preferences > Write application log** for the opaque action ID and outcome.
+Custom paths and arguments are excluded from the log. Launch result feedback
+under the buttons clears automatically after four seconds.
+
 ## Lock PC is disabled or fails
 
 Open the Windows host and go to **Preferences > Windows locking**. If the policy

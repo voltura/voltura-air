@@ -48,6 +48,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
   - Diagnostics.
 - Organizes Preferences as themed accordion sections that are collapsed on entry and allow only one expanded section at a time.
 - Provides tray actions for opening the app, controlling Keep awake, opening the product page, and exit.
+- Keeps the host window hidden when the last paired device disconnects by default; reopening it on disconnect is an opt-in preference.
 - Supports light, dark, and system theme modes.
 - Supports per-user installation without administrator rights.
 - Supports portable zip packaging.
@@ -100,12 +101,17 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Reports the host default Remote mode to the mobile client.
 - Supports host-enforced permission for PC sleep.
 - Supports host-enforced permission for volume control.
-- Supports host-enforced permission for fixed Remote launch actions.
+- Supports host-enforced permission for fixed Remote launch actions and host-configured application buttons.
+- Configures optional Browser, Spotify, VLC, and PowerPoint launch presets in Windows Preferences.
+- Lets the host choose a 1–10 character mobile button label for every enabled preset and custom application command; preset label edits save automatically and inputs stop accepting text at 10 characters.
+- Configures custom `.exe` launch buttons with optional arguments after a local host warning confirmation on every add or edit.
+- Keeps custom paths and arguments on the PC; paired devices receive and send only opaque action IDs and display labels.
+- Revalidates custom paths before every launch and reports start, permission, stale-button, invalid-target, not-found, and launch failures to mobile.
 - Supports separate host-enforced permissions for Lock PC, Blackout display, Turn off display, Screen saver, Sign out, Restart PC, and Shut down PC.
 - Supports a default-off global Keep awake control permission with per-device overrides.
 - Detects an explicit current-user Windows workstation-lock block and reports it separately from the Lock PC permission; a missing value is not treated as proof that locking works.
 - Lets the signed-in user explicitly enable and test Windows locking locally without elevation or UAC, then broadcasts a Windows policy refresh.
-- Supports a global permission for client-injected input to interact with the Voltura Air host UI and tray menu; when disabled, clients can still control the PC while host minimize, maximize, and close controls remain available.
+- Supports a global permission for client-injected input to interact with the Voltura Air host UI and tray menu; when disabled, clients can still control the PC while host minimize, maximize, and close controls remain available. The Remote mode **Minimize** button may also minimize the focused Voltura Air window without granting broader host-UI control.
 - Combines global defaults with per-device overrides.
 - Hides or disables unsupported actions on mobile through capability reporting.
 - Ignores unauthorized sleep, volume, launch, and power/session commands even if a client sends them manually.
@@ -152,7 +158,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Locks the current Windows session with `LockWorkStation` when permission and the current-user policy allow it.
 - Reports accepted, denied, unsupported, policy-disabled, policy-unavailable, and failed power/session requests without disconnecting the client.
 - Offers opt-in daily JSON Lines application logging for troubleshooting. Logging is off by default and records remote command flow plus local host actions such as Windows-lock policy writes, readback failures, and native lock tests without typed text, pointer coordinates, or pairing credentials.
-- Opens Diagnostics directly on a dedicated Application log view, with System details available from a clear top-level switch. The log uses themed activity cards, a two-month date-range picker plus event, source, action, and client filters, filtered copy, open-folder, and confirmed delete actions; retention is configurable from 1 to 30 days with a 2-day default. Only the record area scrolls, so the filter and action controls remain reachable.
+- Opens Diagnostics directly on a dedicated Application log view, with System details available from a clear top-level switch. The log view exposes its **Write application log** toggle directly and clearly distinguishes disabled logging from an empty filtered result. It uses themed activity cards, a two-month date-range picker plus event, source, action, and client filters, filtered copy, open-folder, confirmed delete actions, and an optional session-only **Automatic log refresh** toggle that is off by default. Retention is configurable from 1 to 30 days with a 2-day default. Input commands record both receipt and their sanitized executed or blocked outcome, including the Remote mode minimize action, without logging typed text. Only the record area scrolls, so the filter and action controls remain reachable.
 - Blacks out every connected monitor with a topmost black WPF curtain without changing display power state. Windows, networking, and remote control remain active; any local or remote mouse/keyboard interaction removes the curtain, and touch or pen input also dismisses it locally.
 - Starts the native Windows screen saver only when Windows reports screen saving enabled and a configured `.scr` program exists. The action is omitted from host and mobile UI when unavailable.
 - Turns off connected displays through the Windows monitor-power command when allowed, including HDMI output to TVs and receivers. The mobile client requires confirmation and explains that some PCs treat this command as sleep or Modern Standby. On those systems the host and network connection can suspend, Voltura Air cannot wake the PC remotely, and physical keyboard or mouse input is required. Windows may then require PIN, fingerprint, or another configured sign-in method; the action does not sign out the user.
@@ -328,9 +334,12 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Start.
 - Switch app: tap for an ordinary Alt+Tab, or hold, slide left/right through the visual Windows switcher, and release to open the selected app.
 - Task view through Win+Tab.
-- Show desktop, close the focused window, and minimize the focused window.
+- Show desktop, close the focused window, and minimize the focused top-level window directly, including when it is maximized.
 - Browser Back, new tab, close tab, reopen closed tab, next/previous tab, and reload.
+- Host-approved application buttons in a responsive Fn grid, with complete non-ellipsized labels, pending feedback, and PC result feedback that clears after four seconds.
+- Application launch can inherit the global host permission or be explicitly allowed/blocked per paired device.
 - Compact phone layouts keep the main remote surface within the viewport and move Windows and browser helper controls behind an Fn switch. Taller portrait phones retain a compact navigation ring below the Fn helpers while volume remains hidden; shorter portrait phones use the helpers-only view. In phone landscape, helpers replace the media column while volume and navigation remain visible.
+- Browser tabs use the dynamic viewport height, while installed/standalone PWAs use the large viewport height to avoid stale browser-chrome sizing reducing the app surface.
 - Portrait-tablet layouts keep the mode row at its natural button height so the trackpad or active mode retains the remaining space.
 - Tapping the active mode hides the full mode row and exposes the compact header selector without reducing the active mode's usable area.
 - Remote settings:

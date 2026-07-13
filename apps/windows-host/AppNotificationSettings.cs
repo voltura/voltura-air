@@ -10,7 +10,7 @@ public static class AppNotificationSettings
 
     public static bool ShowConnectionStatusNotifications()
     {
-        return GetEnabledValue(ConnectionStatusNotificationsValueName);
+        return GetEnabledValue(ConnectionStatusNotificationsValueName, defaultValue: true);
     }
 
     public static void SetShowConnectionStatusNotifications(bool enabled)
@@ -20,7 +20,7 @@ public static class AppNotificationSettings
 
     public static bool ShowPairingWindowOnDisconnect()
     {
-        return GetEnabledValue(PairingWindowOnDisconnectValueName);
+        return GetEnabledValue(PairingWindowOnDisconnectValueName, defaultValue: false);
     }
 
     public static void SetShowPairingWindowOnDisconnect(bool enabled)
@@ -28,10 +28,10 @@ public static class AppNotificationSettings
         SetEnabledValue(PairingWindowOnDisconnectValueName, enabled);
     }
 
-    private static bool GetEnabledValue(string valueName)
+    private static bool GetEnabledValue(string valueName, bool defaultValue)
     {
         using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: false);
-        return key?.GetValue(valueName) is not int value || value != 0;
+        return key?.GetValue(valueName) is int value ? value != 0 : defaultValue;
     }
 
     private static void SetEnabledValue(string valueName, bool enabled)

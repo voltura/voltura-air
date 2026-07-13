@@ -16,6 +16,7 @@ public sealed record HostPermissionSet(
 public sealed record DevicePermissionOverrides(
     bool? AllowPcSleep = null,
     bool? AllowVolumeControl = null,
+    bool? AllowRemoteAppLaunch = null,
     bool? AllowPcLock = null,
     bool? AllowBlackoutDisplay = null,
     bool? AllowDisplayOff = null,
@@ -45,7 +46,7 @@ public static class HostPermissions
         return new HostPermissionSet(
             AllowPcSleep: deviceOverrides?.AllowPcSleep ?? global.AllowPcSleep,
             AllowVolumeControl: deviceOverrides?.AllowVolumeControl ?? global.AllowVolumeControl,
-            AllowRemoteAppLaunch: global.AllowRemoteAppLaunch,
+            AllowRemoteAppLaunch: deviceOverrides?.AllowRemoteAppLaunch ?? global.AllowRemoteAppLaunch,
             AllowPcLock: deviceOverrides?.AllowPcLock ?? global.AllowPcLock,
             AllowBlackoutDisplay: deviceOverrides?.AllowBlackoutDisplay ?? global.AllowBlackoutDisplay,
             AllowDisplayOff: deviceOverrides?.AllowDisplayOff ?? global.AllowDisplayOff,

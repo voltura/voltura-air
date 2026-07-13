@@ -18,10 +18,17 @@ internal static class HostUiInputGuard
     private const int ScMinimize = 0xF020;
     private const int ScMaximize = 0xF030;
     private const int ScRestore = 0xF120;
+    private const int ShowWindowMinimize = 6;
     private static long _lastClientPointerInputTicks;
 
     public static bool ShouldBlockClientInput(string? messageType, JsonElement message)
     {
+        return ShouldBlockClientInput(messageType, message, out _);
+    }
+
+    public static bool ShouldBlockClientInput(string? messageType, JsonElement message, out bool protectedCommandExecuted)
+    {
+        protectedCommandExecuted = false;
         if (AppClientControlSettings.IsEnabled())
         {
             return false;
@@ -29,11 +36,54 @@ internal static class HostUiInputGuard
 
         return messageType switch
         {
-            "keyboard.text" or "keyboard.special" => IsForegroundVolturaHostWindow(),
+            "keyboard.text" => IsForegroundVolturaHostWindow(),
+            "keyboard.special" => ShouldBlockSpecialKey(message, out protectedCommandExecuted),
             "pointer.button" => ShouldBlockPointerButton(message),
             "pointer.wheel" or "pointer.zoom" => ShouldBlockPointerWheelOrZoom(),
             _ => false
         };
+    }
+
+    private static bool ShouldBlockSpecialKey(JsonElement message, out bool protectedCommandExecuted)
+    {
+        protectedCommandExecuted = false;
+        var foregroundWindow = GetForegroundWindow();
+        if (!IsVolturaHostWindow(foregroundWindow))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    internal static bool TryMinimizeForegroundWindow()
+    {
+        var foregroundWindow = GetRootWindow(GetForegroundWindow());
+        if (foregroundWindow == nint.Zero)
+        {
+            return false;
+        }
+
+        _ = ShowWindow(foregroundWindow, ShowWindowMinimize);
+        return IsIconic(foregroundWindow);
+    }
+
+    internal static bool IsMinimizeWindowShortcut(JsonElement message)
+    {
+        if (!message.TryGetProperty("key", out var keyProperty) ||
+            !string.Equals(keyProperty.GetString(), "ArrowDown", StringComparison.OrdinalIgnoreCase) ||
+            !message.TryGetProperty("modifiers", out var modifiers) ||
+            modifiers.ValueKind != JsonValueKind.Array)
+        {
+            return false;
+        }
+
+        var values = modifiers.EnumerateArray()
+            .Select(modifier => modifier.GetString())
+            .Where(modifier => !string.IsNullOrWhiteSpace(modifier))
+            .ToArray();
+
+        return values.Length == 1 && string.Equals(values[0], "Win", StringComparison.OrdinalIgnoreCase);
     }
 
     public static bool IsRecentProtectedClientInput()
@@ -208,6 +258,12 @@ internal static class HostUiInputGuard
 
     [DllImport("user32.dll")]
     private static extern bool IsZoomed(nint windowHandle);
+
+    [DllImport("user32.dll")]
+    private static extern bool ShowWindow(nint windowHandle, int command);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsIconic(nint windowHandle);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct Point

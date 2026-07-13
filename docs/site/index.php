@@ -108,7 +108,7 @@
         </article>
         <article>
           <h2>Couch remote</h2>
-          <p>Control media, volume, fullscreen, YouTube, Kodi, focused apps, browser tabs, window switching, and Task view without reaching for a keyboard.</p>
+          <p>Control media, volume, fullscreen, YouTube, Kodi, focused apps, browser tabs, window switching, Task view, and host-approved application launch buttons with short host-customized labels.</p>
         </article>
         <article>
           <h2>Tablet split mode</h2>
@@ -222,6 +222,7 @@
             <li>See paired devices in the Windows host and remove access at any time.</li>
             <li>Set global defaults and tighter permissions for individual devices.</li>
             <li>Keep risky power and session actions unavailable unless explicitly enabled.</li>
+            <li>Choose which application buttons appear; custom paths stay on the PC and require local approval.</li>
             <li>Use deliberate mobile confirmation for sign out, restart, and shutdown.</li>
             <li>Enable sanitized application logging only when you need diagnostics.</li>
           </ul>

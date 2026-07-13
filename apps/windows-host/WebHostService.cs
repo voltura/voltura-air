@@ -19,6 +19,7 @@ public sealed partial class WebHostService : IAsyncDisposable
     private readonly InputDispatcher _inputDispatcher;
     private readonly ISystemAudioController _audioController;
     private readonly IRemoteActionExecutor _remoteActionExecutor;
+    private readonly IAppLaunchService _appLaunchService;
     private readonly ISystemPowerController _powerController;
     private readonly IAwakeService _awakeService;
     private readonly IWorkstationLockPolicy _workstationLockPolicy;
@@ -38,6 +39,7 @@ public sealed partial class WebHostService : IAsyncDisposable
         IAwakeService? awakeService = null,
         IWorkstationLockPolicy? workstationLockPolicy = null,
         IAppLog? appLog = null,
+        IAppLaunchService? appLaunchService = null,
         bool isolatedTestMode = false,
         Action<IWebHostBuilder>? configureWebHost = null)
     {
@@ -45,6 +47,7 @@ public sealed partial class WebHostService : IAsyncDisposable
         _inputDispatcher = inputDispatcher;
         _audioController = audioController ?? new SystemAudioController();
         _remoteActionExecutor = remoteActionExecutor ?? new RemoteActionExecutor();
+        _appLaunchService = appLaunchService ?? new AppLaunchService();
         _powerController = powerController ?? (isolatedTestMode ? new NoOpSystemPowerController() : new SystemPowerController());
         _appLog = appLog ?? (isolatedTestMode ? NullAppLog.Instance : new AppLog());
         _awakeService = awakeService ?? (isolatedTestMode
@@ -58,6 +61,7 @@ public sealed partial class WebHostService : IAsyncDisposable
         AppPermissionSettings.Changed += OnPermissionsChanged;
         AppDeveloperSettings.Changed += OnPermissionsChanged;
         AppRemoteSettings.Changed += OnPermissionsChanged;
+        AppLaunchSettings.Changed += OnPermissionsChanged;
         AppPointerSettings.Changed += OnPermissionsChanged;
         _workstationLockPolicy.Changed += OnPermissionsChanged;
         _awakeService.StateChanged += OnAwakeStateChanged;
@@ -230,6 +234,7 @@ public sealed partial class WebHostService : IAsyncDisposable
         AppPermissionSettings.Changed -= OnPermissionsChanged;
         AppDeveloperSettings.Changed -= OnPermissionsChanged;
         AppRemoteSettings.Changed -= OnPermissionsChanged;
+        AppLaunchSettings.Changed -= OnPermissionsChanged;
         AppPointerSettings.Changed -= OnPermissionsChanged;
         _workstationLockPolicy.Changed -= OnPermissionsChanged;
         _awakeService.StateChanged -= OnAwakeStateChanged;
@@ -372,6 +377,7 @@ public sealed partial class WebHostService : IAsyncDisposable
             Port,
             WebSocketUrl,
             AppRemoteSettings.ToProtocolId(AppRemoteSettings.GetDefaultRemoteMode()),
+            CanLaunchRemoteApps(clientId) ? _appLaunchService.GetActions() : [],
             _pairingManager.GetDevicePointerSpeed(clientId),
             developerMode,
             developerMode ? DeveloperSessionId : null);
@@ -410,6 +416,7 @@ internal sealed record HostStatusMetadata(
     int SelectedPort,
     string WebSocketUrl,
     string DefaultRemoteMode,
+    IReadOnlyList<AppLaunchActionSummary> AppLaunchActions,
     int PointerSpeed,
     bool DeveloperMode,
     string? DeveloperSessionId);

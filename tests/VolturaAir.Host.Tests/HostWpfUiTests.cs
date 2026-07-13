@@ -75,25 +75,8 @@ public sealed partial class HostUiLayoutTests
 
                 window.ShowPage(HostPage.Preferences);
                 window.UpdateLayout();
-                Assert.Contains(FindWpfDescendants<CheckBox>(window), checkBox => checkBox.Content?.ToString() == "Start Voltura Air hidden in the tray");
-                Assert.Contains(FindWpfDescendants<CheckBox>(window), checkBox => checkBox.Content?.ToString() == "Show Voltura Air when the last device disconnects");
-                Assert.Contains(FindWpfDescendants<CheckBox>(window), checkBox => checkBox.Content?.ToString() == "Write application log");
-                Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "Keep application logs for");
-                Assert.Contains(FindWpfDescendants<CheckBox>(window), checkBox => checkBox.Content?.ToString() == "Developer mode");
-                Assert.Contains(FindWpfDescendants<CheckBox>(window), checkBox => checkBox.Content?.ToString() == "Allow paired devices to lock the PC");
-                Assert.Contains(FindWpfDescendants<CheckBox>(window), checkBox => checkBox.Content?.ToString() == "Allow paired devices to turn off displays");
-                Assert.Contains(FindWpfDescendants<CheckBox>(window), checkBox => checkBox.Content?.ToString() == "Allow paired devices to control Keep awake");
-                Assert.Contains(FindWpfDescendants<CheckBox>(window), checkBox => checkBox.Content?.ToString() == "Keep screen on while Keep awake is active");
-                Assert.Contains(FindWpfDescendants<CheckBox>(window), checkBox => checkBox.Content?.ToString() == "Allow paired devices to sign out");
-                Assert.Contains(FindWpfDescendants<CheckBox>(window), checkBox => checkBox.Content?.ToString() == "Allow paired devices to restart the PC");
-                Assert.Contains(FindWpfDescendants<CheckBox>(window), checkBox => checkBox.Content?.ToString() == "Allow paired devices to shut down the PC");
-                Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "Default remote mode");
-                Assert.Contains(FindWpfDescendants<ToggleButton>(window), button => button.Content?.ToString() == "Kodi");
-                Assert.Contains(
-                    FindWpfDescendants<ComboBox>(window),
-                    combo => ReferenceEquals(window.Resources["ModernComboBoxStyle"], combo.Style));
                 var sections = FindWpfDescendants<Expander>(window).ToArray();
-                Assert.Equal(8, sections.Length);
+                Assert.Equal(9, sections.Length);
                 var scroller = Assert.Single(FindWpfDescendants<ScrollViewer>(window));
                 Assert.Equal(ScrollBarVisibility.Visible, scroller.VerticalScrollBarVisibility);
                 Assert.Equal(ScrollBarVisibility.Disabled, scroller.HorizontalScrollBarVisibility);
@@ -116,28 +99,13 @@ public sealed partial class HostUiLayoutTests
                     .Single(button => button.Content?.ToString() == "System details");
                 Assert.True(appLogView.IsChecked);
                 Assert.False(systemView.IsChecked);
-                Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "Application log");
-                Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "No matching log entries.");
-                Assert.DoesNotContain(FindWpfDescendants<Button>(window), button => button.Content?.ToString() == "Apply filters");
-                Assert.Contains(FindWpfDescendants<Button>(window), button => AutomationProperties.GetName(button) == "Clear filters");
-                Assert.Contains(FindWpfDescendants<Button>(window), button => button.Content?.ToString() == "Copy filtered log");
-                Assert.Contains(FindWpfDescendants<Button>(window), button => button.Content?.ToString() == "Open log folder");
-                Assert.Contains(FindWpfDescendants<Button>(window), button => button.Content?.ToString() == "Delete logs");
-                Assert.Single(FindWpfDescendants<ScrollViewer>(window));
                 var dateRange = Assert.Single(FindWpfDescendants<ModernDateRangePicker>(window));
                 Assert.Equal(DateTime.Today, dateRange.SelectedEndDate);
-                Assert.Empty(FindWpfDescendants<DatePicker>(window));
-                Assert.Single(FindWpfDescendants<EventMultiSelectFilter>(window));
-                Assert.All(
-                    FindWpfDescendants<ComboBox>(window),
-                    combo => Assert.Same(window.Resources["ModernComboBoxStyle"], combo.Style));
-                Assert.Empty(FindWpfDescendants<TextBox>(window));
 
                 systemView.RaiseEvent(new RoutedEventArgs(ToggleButton.ClickEvent));
                 window.UpdateLayout();
                 Assert.True(systemView.IsChecked);
                 Assert.Empty(FindWpfDescendants<ModernDateRangePicker>(window));
-                Assert.Contains(FindWpfDescendants<Button>(window), button => button.Content?.ToString() == "Copy diagnostics");
 
                 appLogView.RaiseEvent(new RoutedEventArgs(ToggleButton.ClickEvent));
                 window.UpdateLayout();

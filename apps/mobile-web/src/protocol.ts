@@ -67,6 +67,7 @@ export type PowerCapabilities = {
 };
 
 export type HostStatusMetadata = {
+  appLaunchActions?: AppLaunchActionSummary[];
   defaultRemoteMode?: RemoteModeId;
   developerMode?: boolean;
   developerSessionId?: string;
@@ -178,6 +179,14 @@ export type SystemSleepMessage = {
   type: "system.sleep";
 };
 
+export type AppLaunchActionKind = "browser" | "spotify" | "vlc" | "powerpoint" | "custom";
+
+export type AppLaunchActionSummary = {
+  id: string;
+  label: string;
+  kind: AppLaunchActionKind;
+};
+
 export type SystemPowerAction = "lock" | "blackoutDisplay" | "displayOff" | "screenSaver" | "signOut" | "restart" | "shutdown";
 
 export type SystemPowerMessage = {
@@ -213,6 +222,19 @@ export type RemoteLaunchMessage = {
   action: RemoteLaunchAction;
 };
 
+export type AppLaunchMessage = {
+  type: "app.launch";
+  actionId: string;
+};
+
+export type AppLaunchResultMessage = {
+  type: "app.launch.result";
+  actionId: string;
+  succeeded: boolean;
+  code?: string;
+  message: string;
+};
+
 export type AudioMuteToggleMessage = {
   type: "audio.mute.toggle";
 };
@@ -246,7 +268,8 @@ export type ClientMessage =
   | SystemPowerMessage
   | AwakeSetMessage
   | RemoteLaunchMessage
+  | AppLaunchMessage
   | AudioMuteToggleMessage
   | AudioVolumeSetMessage;
 
-export type ServerMessage = PairAcceptedMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | SystemPowerResultMessage | AwakeResultMessage | AudioStateMessage;
+export type ServerMessage = PairAcceptedMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | AudioStateMessage;

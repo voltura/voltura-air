@@ -169,12 +169,16 @@ public partial class MainWindow
         var controls = new StackPanel();
         controls.Children.Add(CreateSectionHeading("Application log"));
         controls.Children.Add(CreateMutedText("View and filter sanitized remote-command and Windows-host activity. The newest 250 matching entries are shown."));
+        var loggingToggle = CreateCheckBox("Write application log", AppLoggingSettings.IsEnabled());
+        loggingToggle.Margin = new Thickness(0, 8, 0, 8);
+        controls.Children.Add(loggingToggle);
 
         var today = DateTime.Today;
         var dateRange = new ModernDateRangePicker(today.AddDays(-(AppLoggingSettings.GetMaxAgeDays() - 1)), today);
         var eventFilter = new EventMultiSelectFilter(
             ("Host actions", "host_action"),
             ("Commands received", "command_received"),
+            ("Command outcomes", "command_outcome"),
             ("Actions taken", "action_taken"),
             ("Responses sent", "response_sent"));
         var sourceFilter = CreateLogFilter(
@@ -247,7 +251,10 @@ public partial class MainWindow
             logRows.Children.Clear();
             if (filtered.Length == 0)
             {
-                logRows.Children.Add(CreateLogEmptyState("No matching log entries."));
+                logRows.Children.Add(CreateLogEmptyState(
+                    AppLoggingSettings.IsEnabled()
+                        ? "No matching log entries."
+                        : "Application logging is off. Enable Write application log above to record new activity."));
             }
             else
             {
@@ -258,8 +265,11 @@ public partial class MainWindow
             }
 
             logScroller.ScrollToTop();
-            status.Foreground = (Brush)Resources["MutedTextBrush"];
-            var state = AppLoggingSettings.IsEnabled() ? "Logging is enabled." : "Logging is off; existing entries remain available.";
+            var loggingEnabled = AppLoggingSettings.IsEnabled();
+            status.Foreground = (Brush)Resources[loggingEnabled ? "MutedTextBrush" : "DangerBrush"];
+            var state = loggingEnabled
+                ? "Logging is enabled."
+                : "Logging is off. No new activity is being written; existing entries remain available.";
             var limitNote = result.Truncated || filtered.Length == 250 ? " Only the newest matching entries are shown." : string.Empty;
             status.Text = $"{state} Showing {filtered.Length.ToString(CultureInfo.InvariantCulture)} entries.{limitNote}";
         }
@@ -276,8 +286,20 @@ public partial class MainWindow
         eventFilter.SelectionChanged += (_, _) => RefreshForFilterChange();
         sourceFilter.SelectionChanged += (_, _) => RefreshForFilterChange();
         actionFilter.SelectionChanged += (_, _) => RefreshForFilterChange();
+        loggingToggle.Checked += (_, _) =>
+        {
+            AppLoggingSettings.SetEnabled(true);
+            _appLog.Write(new AppLogEntry("host_action", "windows_host", Action: "application_logging", Outcome: "enabled"));
+            RefreshLog();
+        };
+        loggingToggle.Unchecked += (_, _) =>
+        {
+            _appLog.Write(new AppLogEntry("host_action", "windows_host", Action: "application_logging", Outcome: "disabled"));
+            AppLoggingSettings.SetEnabled(false);
+            RefreshLog();
+        };
 
-        var clearFilters = CreateButton("×", (_, _) =>
+        var clearFilters = CreateButton(string.Empty, (_, _) =>
         {
             updatingFilters = true;
             dateRange.SetRange(today.AddDays(-(AppLoggingSettings.GetMaxAgeDays() - 1)), today);
@@ -287,8 +309,31 @@ public partial class MainWindow
             updatingFilters = false;
             RefreshLog();
         });
-        clearFilters.Width = 38;
-        clearFilters.Padding = new Thickness(0);
+        clearFilters.Style = (Style)Resources["CompactIconButtonStyle"];
+        clearFilters.Content = new Grid
+        {
+            Width = 16,
+            Height = 16,
+            Children =
+            {
+                new System.Windows.Shapes.Path
+                {
+                    Data = Geometry.Parse("M 3,3 L 13,13"),
+                    Stroke = (Brush)Resources["TextBrush"],
+                    StrokeThickness = 1.8,
+                    StrokeStartLineCap = PenLineCap.Round,
+                    StrokeEndLineCap = PenLineCap.Round
+                },
+                new System.Windows.Shapes.Path
+                {
+                    Data = Geometry.Parse("M 13,3 L 3,13"),
+                    Stroke = (Brush)Resources["TextBrush"],
+                    StrokeThickness = 1.8,
+                    StrokeStartLineCap = PenLineCap.Round,
+                    StrokeEndLineCap = PenLineCap.Round
+                }
+            }
+        };
         clearFilters.Margin = new Thickness(0, 19, 0, 8);
         clearFilters.FocusVisualStyle = null;
         clearFilters.ToolTip = "Clear filters";
@@ -309,6 +354,23 @@ public partial class MainWindow
         }));
         actions.Children.Add(CreateButton("Open log folder", (_, _) => OpenApplicationLogFolder()));
         actions.Children.Add(CreateButton("Delete logs", (_, _) => DeleteApplicationLogs(RefreshLog), danger: true));
+        var automaticRefresh = CreateCheckBox("Automatic log refresh", isChecked: false);
+        automaticRefresh.Margin = new Thickness(8, 0, 0, 0);
+        automaticRefresh.VerticalAlignment = VerticalAlignment.Center;
+        actions.Children.Add(automaticRefresh);
+
+        var automaticRefreshTimer = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(2)
+        };
+        automaticRefreshTimer.Tick += (_, _) => RefreshLog();
+        automaticRefresh.Checked += (_, _) =>
+        {
+            RefreshLog();
+            automaticRefreshTimer.Start();
+        };
+        automaticRefresh.Unchecked += (_, _) => automaticRefreshTimer.Stop();
+        root.Unloaded += (_, _) => automaticRefreshTimer.Stop();
         Grid.SetRow(actions, 2);
         root.Children.Add(actions);
 

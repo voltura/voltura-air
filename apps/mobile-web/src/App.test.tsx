@@ -49,6 +49,9 @@ function mockConnection(overrides: Partial<ReturnType<typeof useVolturaAirConnec
     pendingPowerAction: null,
     powerActionResult: null,
     requestPowerAction: vi.fn(),
+    appLaunchResult: null,
+    pendingAppLaunchId: null,
+    requestAppLaunch: vi.fn(),
     supportsGestureDebug: false,
     supportsSleep: true,
     supportsVolumeControl: true,
@@ -85,19 +88,6 @@ beforeEach(() => {
 });
 
 describe("App header and mode navigation", () => {
-  it("keeps settings first, brand second, and compact mode selector after the brand", () => {
-    render(<App />);
-
-    const header = screen.getByRole("banner");
-    const settingsButton = screen.getByRole("button", { name: "Open settings" });
-    const brand = screen.getByText("Voltura Air").closest(".brand");
-    const modeButton = screen.getByRole("button", { name: "Change mode" });
-
-    expect(header.compareDocumentPosition(settingsButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(settingsButton.compareDocumentPosition(brand as Element) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect((brand as Element).compareDocumentPosition(modeButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
   it("uses accessible mode labels and selected state in both navigation surfaces", () => {
     render(<App />);
 

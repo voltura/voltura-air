@@ -19,7 +19,7 @@ public sealed partial class WebHostService
         try
         {
             _ = _powerController.DismissBlackoutIfActive();
-            if (!_inputDispatcher.Dispatch(root))
+            if (!_inputDispatcher.Dispatch(root, out var dispatchOutcome))
             {
                 await SendInputErrorAsync(socket, sequence, "VAIR-INPUT-UNSUPPORTED", "Unsupported input message.", cancellationToken);
                 await CloseAuthenticatedSocketAsync(
@@ -29,6 +29,25 @@ public sealed partial class WebHostService
                     WebSocketCloseStatus.PolicyViolation,
                     cancellationToken);
                 return;
+            }
+
+            if (ShouldLogClientCommand(messageType))
+            {
+                LogCommandOutcome(
+                    clientId,
+                    messageType,
+                    messageType switch
+                    {
+                        "pointer.button" => "pointer_button",
+                        "keyboard.text" => "text_input",
+                        _ => GetLoggedCommandAction(messageType, root)
+                    },
+                    dispatchOutcome switch
+                    {
+                        InputDispatchOutcome.Executed => "executed",
+                        InputDispatchOutcome.Blocked => "blocked",
+                        _ => "failed"
+                    });
             }
 
             await SendInputAckAsync(socket, sequence, cancellationToken);

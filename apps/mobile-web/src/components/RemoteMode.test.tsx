@@ -9,12 +9,15 @@ const repeatIntervalMs = 55;
 
 function renderRemote(overrides: Partial<ComponentProps<typeof RemoteMode>> = {}) {
   const props: ComponentProps<typeof RemoteMode> = {
+    appLaunchActions: [],
     audioState: { type: "audio.state", volume: 50, muted: false },
     remoteSettings: defaultRemoteSettings,
     onPointerButtonClick: vi.fn(),
     onPointerMove: vi.fn(),
+    onAppLaunch: vi.fn(),
     onPowerAction: vi.fn(),
     pendingPowerAction: null,
+    pendingAppLaunchId: null,
     powerActionResult: null,
     powerCapabilities: null,
     sendSpecial: vi.fn(),
@@ -76,12 +79,15 @@ describe("RemoteMode", () => {
     rerender(
       <RemoteMode
         {...{
+          appLaunchActions: [],
           audioState: { type: "audio.state", volume: 50, muted: false },
           remoteSettings: { ...defaultRemoteSettings, navigationRing: false, mode: "standard" },
           onPointerButtonClick: vi.fn(),
           onPointerMove: vi.fn(),
+          onAppLaunch: vi.fn(),
           onPowerAction: vi.fn(),
           pendingPowerAction: null,
+          pendingAppLaunchId: null,
           powerActionResult: null,
           powerCapabilities: null,
           sendSpecial: vi.fn()
@@ -184,12 +190,15 @@ describe("RemoteMode", () => {
     rerender(
       <RemoteMode
         {...{
+          appLaunchActions: [],
           audioState: { type: "audio.state", volume: 50, muted: false },
           remoteSettings: { ...defaultRemoteSettings, navigationRing: true, mode: "standard" },
           onPointerButtonClick: vi.fn(),
           onPointerMove: vi.fn(),
+          onAppLaunch: vi.fn(),
           onPowerAction: vi.fn(),
           pendingPowerAction: null,
+          pendingAppLaunchId: null,
           powerActionResult: null,
           powerCapabilities: null,
           sendSpecial: vi.fn()
@@ -233,6 +242,56 @@ describe("RemoteMode", () => {
     expect(screen.getByRole("button", { name: "Browser back" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Show desktop" })).toBeNull();
     expect(screen.queryByRole("button", { name: "New tab" })).toBeNull();
+  });
+
+  it("shows only host-approved application buttons and sends their opaque IDs", () => {
+    const onAppLaunch = vi.fn();
+    renderRemote({
+      appLaunchActions: [
+        { id: "preset.browser", label: "WWW", kind: "browser" },
+        { id: "preset.powerpoint", label: "PPT", kind: "powerpoint" },
+        { id: "custom.media", label: "Media Room", kind: "custom" }
+      ],
+      onAppLaunch
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start Media Room" }));
+
+    expect(screen.getByRole("button", { name: "Start WWW" }).textContent).toContain("WWW");
+    expect(screen.getByRole("button", { name: "Start PPT" }).textContent).toContain("PPT");
+    expect(onAppLaunch).toHaveBeenCalledExactlyOnceWith("custom.media");
+    expect(screen.queryByText(/\.exe/i)).toBeNull();
+  });
+
+  it("disables application buttons while pending and shows host result feedback", () => {
+    const action = { id: "preset.browser", label: "Browser", kind: "browser" } as const;
+    const { rerender } = renderRemote({ appLaunchActions: [action], pendingAppLaunchId: action.id });
+
+    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
+    expect((screen.getByRole("button", { name: "Start Browser" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole("status").textContent).toContain("Waiting for the PC");
+
+    rerender(
+      <RemoteMode
+        {...{
+          audioState: null,
+          appLaunchActions: [action],
+          remoteSettings: defaultRemoteSettings,
+          onAppLaunch: vi.fn(),
+          onPointerButtonClick: vi.fn(),
+          onPointerMove: vi.fn(),
+          onPowerAction: vi.fn(),
+          pendingAppLaunchId: null,
+          pendingPowerAction: null,
+          powerActionResult: null,
+          powerCapabilities: null,
+          sendSpecial: vi.fn()
+        }}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
+    expect(screen.getByRole("alert").textContent).toBe("Browser could not be started.");
   });
 });
 

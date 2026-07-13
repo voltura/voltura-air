@@ -28,7 +28,7 @@ public sealed partial class HostUiLayoutTests
 
                 var sections = FindWpfDescendants<Expander>(window).ToArray();
                 Assert.Equal(
-                    "Application|Appearance|Trackpad defaults|Remote defaults|Keep awake|Global permissions|Windows locking|Developer tools",
+                    "Application|Appearance|Trackpad defaults|Remote defaults|Application launch buttons|Keep awake|Global permissions|Windows locking|Developer tools",
                     string.Join('|', sections.Select(section => section.Header)));
                 Assert.Single(FindWpfDescendants<ModernDatePicker>(window));
                 Assert.Empty(FindWpfDescendants<DatePicker>(window));

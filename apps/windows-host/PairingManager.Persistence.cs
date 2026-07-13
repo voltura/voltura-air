@@ -42,16 +42,17 @@ public sealed partial class PairingManager
     private static DevicePermissionOverrides NormalizePermissionOverrides(DevicePermissionOverrides? permissionOverrides)
     {
         return new DevicePermissionOverrides(
-            permissionOverrides?.AllowPcSleep,
-            permissionOverrides?.AllowVolumeControl,
-            permissionOverrides?.AllowPcLock,
-            permissionOverrides?.AllowBlackoutDisplay,
-            permissionOverrides?.AllowDisplayOff,
-            permissionOverrides?.AllowScreenSaver,
-            permissionOverrides?.AllowAwakeControl,
-            permissionOverrides?.AllowSignOut,
-            permissionOverrides?.AllowRestart,
-            permissionOverrides?.AllowShutdown);
+            AllowPcSleep: permissionOverrides?.AllowPcSleep,
+            AllowVolumeControl: permissionOverrides?.AllowVolumeControl,
+            AllowRemoteAppLaunch: permissionOverrides?.AllowRemoteAppLaunch,
+            AllowPcLock: permissionOverrides?.AllowPcLock,
+            AllowBlackoutDisplay: permissionOverrides?.AllowBlackoutDisplay,
+            AllowDisplayOff: permissionOverrides?.AllowDisplayOff,
+            AllowScreenSaver: permissionOverrides?.AllowScreenSaver,
+            AllowAwakeControl: permissionOverrides?.AllowAwakeControl,
+            AllowSignOut: permissionOverrides?.AllowSignOut,
+            AllowRestart: permissionOverrides?.AllowRestart,
+            AllowShutdown: permissionOverrides?.AllowShutdown);
     }
 
     private IReadOnlyList<PairedDeviceStatus> GetDuplicateCleanupCandidatesCore()

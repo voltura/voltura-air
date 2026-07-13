@@ -79,6 +79,8 @@ The host also provides **Keep awake** without changing the selected Windows powe
 
 Preferences uses themed, single-open accordion sections. An optional sanitized application log is available there and is off by default. Diagnostics opens on a themed, filterable Application log view for remote commands, host actions, outcomes, responses, and Windows errors; the log itself scrolls while the filter and action controls remain reachable.
 
+The Windows host can add Browser, Spotify, VLC, PowerPoint, and custom executable buttons to the mobile Remote Fn panel. Every configured button has a host-managed label of up to 10 characters; preset labels can be changed in Preferences and custom labels are set in the command editor. Custom paths and arguments stay on the PC, require a local warning confirmation on every add or edit, and are revalidated before launch. Phones receive and send only opaque action IDs and labels, and the existing global/per-device application-launch permission remains authoritative.
+
 ## Features
 
 Voltura Air's high-level host and client capabilities are listed in

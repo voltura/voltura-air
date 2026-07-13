@@ -21,6 +21,7 @@ public sealed class ModernDateRangePicker : UserControl
     private readonly Popup _popup;
     private readonly StackPanel _monthPanels;
     private readonly TextBlock _selectionSummary;
+    private System.Windows.Shapes.Path _triggerChevron = null!;
     private DateTime _displayMonth;
     private DateTime _workingStart;
     private DateTime _workingEnd;
@@ -42,6 +43,8 @@ public sealed class ModernDateRangePicker : UserControl
         _selectionSummary.SetResourceReference(TextBlock.ForegroundProperty, "MutedTextBrush");
         _monthPanels = new StackPanel { Orientation = Orientation.Horizontal };
         _popup = CreatePopup();
+        _popup.Opened += (_, _) => SetTriggerChevron(isOpen: true);
+        _popup.Closed += (_, _) => SetTriggerChevron(isOpen: false);
 
         var root = new Grid();
         root.Children.Add(_trigger);
@@ -90,16 +93,32 @@ public sealed class ModernDateRangePicker : UserControl
             VerticalAlignment = VerticalAlignment.Center
         };
         chevron.SetResourceReference(TextBlock.ForegroundProperty, "MutedTextBrush");
+        _triggerChevron = new System.Windows.Shapes.Path
+        {
+            Width = 10,
+            Height = 6,
+            Margin = new Thickness(14, 0, 1, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Data = Geometry.Parse("M 1,1 L 5,5 L 9,1"),
+            Fill = System.Windows.Media.Brushes.Transparent,
+            StrokeThickness = 1.75,
+            StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap = PenLineCap.Round,
+            StrokeLineJoin = PenLineJoin.Round,
+            Stretch = Stretch.None,
+            IsHitTestVisible = false
+        };
+        _triggerChevron.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, "MutedTextBrush");
 
         var content = new Grid();
         content.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         content.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         Grid.SetColumn(label, 1);
-        Grid.SetColumn(chevron, 2);
+        Grid.SetColumn(_triggerChevron, 2);
         content.Children.Add(icon);
         content.Children.Add(label);
-        content.Children.Add(chevron);
+        content.Children.Add(_triggerChevron);
 
         var button = new Button
         {
@@ -110,6 +129,14 @@ public sealed class ModernDateRangePicker : UserControl
         button.Click += (_, _) => Open();
         AutomationProperties.SetName(button, "Choose application log date range");
         return button;
+    }
+
+    private void SetTriggerChevron(bool isOpen)
+    {
+        _triggerChevron.Data = Geometry.Parse(isOpen ? "M 1,5 L 5,1 L 9,5" : "M 1,1 L 5,5 L 9,1");
+        _triggerChevron.SetResourceReference(
+            System.Windows.Shapes.Shape.StrokeProperty,
+            isOpen ? "AccentBrush" : "MutedTextBrush");
     }
 
     private Popup CreatePopup()

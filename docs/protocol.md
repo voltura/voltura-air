@@ -168,7 +168,8 @@ Host metadata is included after authentication in `pair.accepted` and `status`.
 It is not a secret and must not be used as authentication state. Most fields are diagnostics metadata; `defaultRemoteMode` and `pointerSpeed` are authenticated host profile hints used by the mobile app.
 The adapter name can reveal local hardware/vendor details, so it should only be copied when the user explicitly chooses **Copy diagnostics**.
 `defaultRemoteMode` is the host's advisory initial Remote mode for that PC (`standard`, `youtube`, or `kodi`). The mobile app uses it only when the current phone/browser has no saved Remote mode override for that PC.
-`remoteLaunch` is an authenticated capability. When `true`, the host allows this paired device to trigger the fixed host-defined launch actions documented below. The host does not expose the configured YouTube URL through this metadata.
+`remoteLaunch` is an authenticated capability. When `true`, the host allows this paired device to trigger the fixed host-defined launch actions documented below and exposes its approved configurable buttons through `host.appLaunchActions`. The host does not expose the configured YouTube URL, executable paths, or arguments through this metadata.
+`appLaunchActions` is an authenticated array of `{ id, label, kind }` summaries. It is empty when the effective **Allow paired devices to start applications** permission is disabled. `id` is an opaque host-owned identifier; clients must not derive a path or command from it. `label` is the host-managed 1–10 character button label. `kind` is one of `browser`, `spotify`, `vlc`, `powerpoint`, or `custom` and is presentation metadata only.
 `pointerSpeed` is the effective pointer speed for the authenticated paired device: the host default unless that device has an override. It is included only on authenticated `pair.accepted` and `status` messages. When the Windows host profile changes, the host may push the same lightweight `status` message to active sockets; the mobile app does not add a polling loop, timer, or extra battery cost for pointer-speed sync.
 `webClientBuildId` identifies the exact compiled mobile web bundle currently served by the host. Vite generates a new opaque ID for every build, and the same ID is embedded in the JavaScript bundle and written to `web-build-id.txt`. When auto-refresh is enabled, the client clears its service worker and caches and reloads only when the host build ID differs from the ID embedded in the running client. This build ID is separate from `hostVersion` and does not affect installer or release versioning.
 When host developer mode is enabled in **Preferences** -> **Developer tools**, host metadata also includes `developerMode: true` and a `developerSessionId` for the current host run.
@@ -327,6 +328,45 @@ Remote launch actions are fixed host-defined actions. They are only accepted aft
 ```
 
 `openYoutube` opens Chrome with the host-configured YouTube URL. `startOrActivateKodi` focuses Kodi when it is already running or starts Kodi when it is not. Unsupported action names are rejected as invalid protocol shape. The host ignores valid launch actions when the effective **Allow paired devices to start applications** permission is disabled.
+
+Configurable application buttons use a separate message. The client sends only
+an `actionId` that was advertised in authenticated host metadata. It must never
+send a path, URL, process name, arguments, or shell command.
+
+```json
+{
+  "host": {
+    "appLaunchActions": [
+      { "id": "preset.browser", "label": "WWW", "kind": "browser" },
+      { "id": "custom.1234", "label": "Notes", "kind": "custom" }
+    ]
+  }
+}
+```
+
+```json
+{ "type": "app.launch", "actionId": "custom.1234" }
+```
+
+The host authenticates the socket, applies the effective launch permission,
+resolves the opaque ID against its current settings, revalidates custom paths,
+and returns a result without closing the connection for an execution failure.
+
+```json
+{
+  "type": "app.launch.result",
+  "actionId": "custom.1234",
+  "succeeded": true,
+  "code": "started",
+  "message": "Started Notes."
+}
+```
+
+Failure codes currently include `permission-denied`, `not-configured`,
+`invalid-target`, `not-found`, and `start-failed`. A malformed ID is a protocol
+shape violation and closes the authenticated socket. Custom `.exe` paths and
+arguments are approved, stored, validated, and executed only by the Windows
+host; they are excluded from protocol metadata and application logs.
 
 Input delivery acknowledgement:
 

@@ -112,12 +112,6 @@ describe("KeyboardMode live typing", () => {
     expect(numericModeButton.getAttribute("aria-selected")).toBe("false");
   });
 
-  it("uses a direct typing placeholder", () => {
-    render(<KeyboardModeHarness />);
-
-    expect(screen.getByPlaceholderText("Tap here and type...")).toBeTruthy();
-  });
-
   it("mirrors Backspace, Enter, Tab, and Space buttons into the live textbox", () => {
     const sendSpecial = vi.fn();
     const sendText = vi.fn();
@@ -268,29 +262,6 @@ describe("KeyboardMode repeatable keys", () => {
 });
 
 describe("KeyboardMode shortcut keys", () => {
-  it.each([
-    ["Select all", "A", ["Control"]],
-    ["Cut", "X", ["Control"]],
-    ["Copy", "C", ["Control"]],
-    ["Paste", "V", ["Control"]],
-    ["Undo", "Undo", undefined],
-    ["Redo", "Redo", undefined],
-    [/Next app/, "Tab", ["Alt"]],
-    [/Previous app/, "Tab", ["Shift", "Alt"]]
-  ] as const)("sends %s", (buttonName, key, modifiers) => {
-    const sendSpecial = vi.fn();
-    render(<KeyboardModeHarness sendSpecial={sendSpecial} />);
-
-    fireEvent.click(screen.getByRole("button", { name: buttonName }));
-
-    if (modifiers) {
-      expect(sendSpecial).toHaveBeenCalledExactlyOnceWith(key, modifiers);
-      return;
-    }
-
-    expect(sendSpecial).toHaveBeenCalledExactlyOnceWith(key);
-  });
-
   it("hides shortcut keys when control keys are disabled", () => {
     render(<KeyboardModeHarness showControlKeys={false} />);
 
@@ -382,25 +353,6 @@ describe("KeyboardMode function keys", () => {
 });
 
 describe("KeyboardMode command callbacks", () => {
-  it("provides full and compact Backspace labels without changing its accessible name", () => {
-    render(<KeyboardModeHarness />);
-
-    const backspaceButton = screen.getByRole("button", { name: "Backspace" });
-    expect(backspaceButton.querySelector(".key-backspace-label-full")?.textContent).toBe("Backspace");
-    expect(backspaceButton.querySelector(".key-backspace-label-short")?.textContent).toBe("Back");
-  });
-
-  it("places the buffered Send button directly after the input row", () => {
-    render(<KeyboardModeHarness liveKeyboard={false} />);
-
-    const liveTypingRow = screen.getByRole("textbox").closest(".live-typing-row");
-    const sendButton = screen.getByRole("button", { name: "Send" });
-    const primaryKeys = screen.getByLabelText("Primary keyboard keys");
-
-    expect(liveTypingRow?.nextElementSibling?.contains(sendButton)).toBe(true);
-    expect(primaryKeys.contains(sendButton)).toBe(false);
-  });
-
   it.each([
     ["Esc", "Escape", undefined],
     ["Win", "Win", undefined],

@@ -149,22 +149,37 @@ public sealed partial class WebHostService
 
                 if (type == "remote.launch")
                 {
+                    var action = GetString(root, "action");
+                    var outcome = "blocked";
                     if (CanLaunchRemoteApps(authenticatedClientId))
                     {
-                        _remoteActionExecutor.TryExecute(GetString(root, "action"));
+                        outcome = _remoteActionExecutor.TryExecute(action) ? "executed" : "failed";
                     }
 
+                    LogCommandOutcome(authenticatedClientId, type, action, outcome);
+
+                    continue;
+                }
+
+                if (type == "app.launch")
+                {
+                    await HandleAppLaunchAsync(socket, authenticatedClientId, GetString(root, "actionId"), cancellationToken);
                     continue;
                 }
 
                 if (IsAudioMessage(root))
                 {
+                    var action = type == "audio.mute.toggle" ? "toggle_mute" : "set_volume";
+                    var outcome = "blocked";
                     if (CanControlVolume(authenticatedClientId) &&
                         AudioMessageRouter.TryHandle(root, _audioController, out var audioState) &&
                         audioState is not null)
                     {
                         await SendAudioStateAsync(socket, audioState, cancellationToken);
+                        outcome = "executed";
                     }
+
+                    LogCommandOutcome(authenticatedClientId, type!, action, outcome);
 
                     continue;
                 }
@@ -445,6 +460,30 @@ public sealed partial class WebHostService
     private static string GetString(JsonElement root, string propertyName)
     {
         return root.TryGetProperty(propertyName, out var value) ? value.GetString() ?? string.Empty : string.Empty;
+    }
+
+    private Task HandleAppLaunchAsync(WebSocket socket, string clientId, string actionId, CancellationToken cancellationToken)
+    {
+        var result = CanLaunchRemoteApps(clientId)
+            ? _appLaunchService.Execute(actionId)
+            : new AppLaunchExecutionResult(false, "permission-denied", "Application launch is disabled for this device on the PC.");
+
+        _appLog.Write(new AppLogEntry(
+            Event: "command_outcome",
+            Source: "windows_host",
+            ClientId: clientId,
+            MessageType: "app.launch",
+            Action: actionId,
+            Outcome: result.Succeeded ? "succeeded" : result.Code));
+
+        return SendSocketAsync(socket, new
+        {
+            type = "app.launch.result",
+            actionId,
+            succeeded = result.Succeeded,
+            code = result.Code,
+            message = result.Message
+        }, cancellationToken);
     }
 
     private async Task CloseAuthenticatedSocketAsync(WebSocket socket, string clientId, string reason, WebSocketCloseStatus status, CancellationToken cancellationToken)

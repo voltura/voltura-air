@@ -41,6 +41,11 @@ updated as the app structure, tooling, and release process become concrete.
   primitives (`Grid`, `DockPanel`, `StackPanel`, `ScrollViewer`, `ListView`)
   over manual pixel positioning. Keep WinForms usage limited to tray interop or
   legacy code that has not yet been removed. Follow `docs/ui-guidelines.md`.
+- The Windows host references both WPF and WinForms/System.Drawing. In C# files,
+  proactively qualify or alias collision-prone framework types such as `Brushes`,
+  `Color`, `Image`, `Button`, `CheckBox`, `Application`, `DataFormats`, and
+  `HorizontalAlignment`. Do not rely on an unqualified type name when imports or
+  implicit/global usings can make the reference ambiguous.
 - Pairing failures must not leave the mobile app stuck without explanation.
   Map raw protocol/network errors to friendly feedback, recovery actions, and
   copyable diagnostics. Follow `docs/pairing-feedback.md`.

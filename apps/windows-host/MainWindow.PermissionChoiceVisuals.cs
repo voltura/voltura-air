@@ -42,6 +42,7 @@ public partial class MainWindow
         var globalPermissions = AppPermissionSettings.Load();
         ApplyPermissionChoiceVisuals("PC sleep", device.PermissionOverrides.AllowPcSleep, globalPermissions.AllowPcSleep);
         ApplyPermissionChoiceVisuals("Volume control", device.PermissionOverrides.AllowVolumeControl, globalPermissions.AllowVolumeControl);
+        ApplyPermissionChoiceVisuals("Application launch", device.PermissionOverrides.AllowRemoteAppLaunch, globalPermissions.AllowRemoteAppLaunch);
         ApplyPermissionChoiceVisuals("Lock PC", device.PermissionOverrides.AllowPcLock, globalPermissions.AllowPcLock);
         ApplyPermissionChoiceVisuals("Turn off display", device.PermissionOverrides.AllowDisplayOff, globalPermissions.AllowDisplayOff);
         ApplyPermissionChoiceVisuals("Keep awake", device.PermissionOverrides.AllowAwakeControl, globalPermissions.AllowAwakeControl);

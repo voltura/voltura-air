@@ -126,6 +126,7 @@ public partial class MainWindow
         {
             "host_action" => "Host action",
             "command_received" => "Command received",
+            "command_outcome" => "Command outcome",
             "action_taken" => "Action taken",
             "response_sent" => "Response sent",
             _ => eventName

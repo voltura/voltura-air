@@ -4,6 +4,7 @@ import {
   getPowerCapabilities,
   getAwakeCapability,
   getPcDisconnectedMessage,
+  normalizeAppLaunchActions,
   normalizeHostStatus,
   shouldTrackInputAck,
   trimPendingInputAcks
@@ -50,6 +51,20 @@ describe("connection protocol policy", () => {
 
     expect(getPcDisconnectedMessage(pc, "Connection lost. Retrying...")).toBe("Connection lost. Retrying...");
     expect(getPcDisconnectedMessage(pc, "Connection lost.")).toBe("Connection lost. Retrying...");
+  });
+
+  it("keeps only bounded host-approved application launch summaries", () => {
+    expect(normalizeAppLaunchActions([
+      { id: "preset.browser", label: " Browser ", kind: "browser" },
+      { id: "custom.notes", label: "Notes", kind: "custom" },
+      { id: "custom.notes", label: "Duplicate", kind: "custom" },
+      { id: "custom.long", label: "ElevenChars", kind: "custom" },
+      { id: "../unsafe", label: "Unsafe", kind: "custom" },
+      { id: "preset.bad", label: "Bad", kind: "shell" }
+    ])).toEqual([
+      { id: "preset.browser", label: "Browser", kind: "browser" },
+      { id: "custom.notes", label: "Notes", kind: "custom" }
+    ]);
   });
 
   it("accepts only complete boolean power capability sets", () => {

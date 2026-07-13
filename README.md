@@ -1,5 +1,9 @@
 # Voltura Air
 
+<p align="center">
+  <img src="apps/windows-host/Assets/VolturaAir-256.png" alt="Voltura Air application icon" width="128">
+</p>
+
 Turn any phone, tablet, or touch browser into a wireless remote for your Windows PC.
 
 Use it as a trackpad, keyboard, dictation surface, and media remote — including YouTube and Kodi modes for couch and TV control. No app-store install, account, or cloud needed.
@@ -21,6 +25,35 @@ Remote mode includes an Fn panel for common Windows window actions and browser t
 - Presentations.
 - Quick typing/search from phone.
 - A combined couch keyboard and trackpad on a landscape tablet, with the trackpad on either side.
+
+## Screenshots
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/site/assets/voltura-air-host-dark.png">
+    <img src="docs/site/assets/voltura-air-host.png" alt="Voltura Air Windows host pairing screen" width="900">
+  </picture>
+  <br>
+  <sub>Windows host pairing screen</sub>
+</p>
+
+<table>
+  <tr>
+    <td align="center" width="34%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/site/assets/voltura-air-iphone-dark.png">
+        <img src="docs/site/assets/voltura-air-iphone.png" alt="Voltura Air trackpad on a phone" width="320">
+      </picture>
+      <br>
+      <sub>Phone trackpad</sub>
+    </td>
+    <td align="center" width="66%">
+      <img src="docs/site/assets/voltura-air-split.png" alt="Voltura Air split keyboard and trackpad on a landscape tablet">
+      <br>
+      <sub>Landscape split keyboard and trackpad</sub>
+    </td>
+  </tr>
+</table>
 
 ## Not intended for
 

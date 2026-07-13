@@ -40,9 +40,22 @@ export type AudioGetMessage = {
 export type ServerCapabilities = {
   gestureDebug?: boolean;
   inputAck?: boolean;
+  power?: PowerCapabilities;
   remoteLaunch?: boolean;
   sleep?: boolean;
   volume?: boolean;
+};
+
+export type PowerCapabilities = {
+  lock: boolean;
+  lockAvailability?: "notExplicitlyDisabled" | "disabledByPolicy" | "unavailable";
+  blackoutDisplay: boolean;
+  displayOff: boolean;
+  screenSaver: boolean;
+  screenSaverAvailable: boolean;
+  signOut: boolean;
+  restart: boolean;
+  shutdown: boolean;
 };
 
 export type HostStatusMetadata = {
@@ -157,6 +170,21 @@ export type SystemSleepMessage = {
   type: "system.sleep";
 };
 
+export type SystemPowerAction = "lock" | "blackoutDisplay" | "displayOff" | "screenSaver" | "signOut" | "restart" | "shutdown";
+
+export type SystemPowerMessage = {
+  type: "system.power";
+  action: SystemPowerAction;
+};
+
+export type SystemPowerResultMessage = {
+  type: "system.power.result";
+  action: string;
+  succeeded: boolean;
+  code?: string;
+  message: string;
+};
+
 export type RemoteLaunchAction = "openYoutube" | "startOrActivateKodi";
 
 export type RemoteLaunchMessage = {
@@ -194,8 +222,9 @@ export type ClientMessage =
   | KeyboardTextMessage
   | KeyboardSpecialMessage
   | SystemSleepMessage
+  | SystemPowerMessage
   | RemoteLaunchMessage
   | AudioMuteToggleMessage
   | AudioVolumeSetMessage;
 
-export type ServerMessage = PairAcceptedMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | AudioStateMessage;
+export type ServerMessage = PairAcceptedMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | SystemPowerResultMessage | AudioStateMessage;

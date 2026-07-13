@@ -122,6 +122,10 @@
           <h2>Pair once, reconnect</h2>
           <p>Pair with a QR code, save trusted devices, reconnect later, and remove old devices from the Windows host.</p>
         </article>
+        <article>
+          <h2>Safe power controls</h2>
+          <p>Lock Windows, turn off display output, or explicitly allow session-ending actions. Clear mobile feedback, host permissions, and hold-to-confirm protect every request.</p>
+        </article>
       </section>
 
       <section id="uses" class="content-section split">
@@ -208,7 +212,20 @@
           Voltura Air is built for nearby control on your own network. It is not
           a cloud remote-desktop service, and it does not need an account to work.
           Pairing, saved devices, permissions, and diagnostics are visible in the
-          Windows host so you can understand what is connected.
+          Windows host so you can understand what is connected. Lock, display
+          off, sign out, restart, and shut down each have an explicit host
+          permission. Blackout display keeps Windows and remote control awake
+          behind a black curtain that closes on any local or remote input, while
+          screen saver appears only when Windows has one configured. Session-ending
+          actions require a deliberate hold on the mobile confirmation screen. The host also detects when Windows
+          locking is explicitly disabled for the signed-in user, can write an
+          explicit current-user enable value and refresh policy without
+          administrator rights or a UAC prompt. Turning off a display warns that
+          HDMI output will stop and that some PCs enter sleep or Modern Standby,
+          disconnect Voltura Air, and require physical keyboard or mouse input to
+          wake; Windows may then require authentication. Optional sanitized application
+          logging is off by default and has a themed, filterable Diagnostics viewer
+          for remote commands, host actions, responses, and Windows failures.
         </p>
       </section>
 

@@ -4,6 +4,7 @@ using VolturaAir.Host;
 
 namespace VolturaAir.Host.Tests;
 
+[Collection(AppPermissionSettingsCollection.Name)]
 public sealed class WebHostServiceTests
 {
     [Fact]

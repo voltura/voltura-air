@@ -255,6 +255,105 @@ describe("useVolturaAirConnection", () => {
     expect(socket.close).not.toHaveBeenCalled();
   });
 
+  it("prevents duplicate power requests and surfaces failures without disconnecting the socket", async () => {
+    const pcUrl = "http://pc.local:51395";
+    const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };
+    localStorage.setItem("voltura-air.clientId", "client-a");
+    localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
+    localStorage.setItem("voltura-air.activePcId", pc.id);
+    localStorage.setItem(`voltura-air.secret.client-a.${pc.id}`, "stored-credential");
+
+    const { result } = renderHook(() => useVolturaAirConnection());
+
+    await waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+    const socket = MockWebSocket.instances[0];
+    socket.readyState = MockWebSocket.OPEN;
+    dispatchSocketEvent(socket, "open");
+    dispatchSocketEvent(socket, "message", {
+      data: JSON.stringify({
+        type: "pair.accepted",
+        clientId: "client-a",
+        pcName: "PC",
+        secret: "fresh-credential",
+        paired: true
+      })
+    });
+
+    act(() => {
+      result.current.requestPowerAction("lock");
+      result.current.requestPowerAction("lock");
+    });
+
+    const lockRequests = socket.send.mock.calls
+      .map(([payload]) => JSON.parse(payload as string) as { type?: string })
+      .filter((payload) => payload.type === "system.power");
+    expect(lockRequests).toHaveLength(1);
+    expect(result.current.pendingPowerAction).toBe("lock");
+
+    dispatchSocketEvent(socket, "message", {
+      data: JSON.stringify({
+        type: "system.power.result",
+        action: "lock",
+        succeeded: false,
+        code: "VAIR-POWER-LOCK-DISABLED",
+        message: "Windows locking is disabled. Enable it in the Voltura Air host settings."
+      })
+    });
+
+    expect(result.current.state).toBe("paired");
+    expect(result.current.message).toContain("Windows locking is disabled");
+    expect(result.current.lastConnectionError?.code).toBe("VAIR-POWER-LOCK-DISABLED");
+    expect(result.current.pendingPowerAction).toBeNull();
+    expect(result.current.powerActionResult?.succeeded).toBe(false);
+    expect(socket.close).not.toHaveBeenCalled();
+  });
+
+  it("reports the host unavailable promptly when display off suspends the connection", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const pcUrl = "http://pc.local:51395";
+      const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };
+      localStorage.setItem("voltura-air.clientId", "client-a");
+      localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
+      localStorage.setItem("voltura-air.activePcId", pc.id);
+      localStorage.setItem(`voltura-air.secret.client-a.${pc.id}`, "stored-credential");
+
+      const { result } = renderHook(() => useVolturaAirConnection());
+
+      await waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const socket = MockWebSocket.instances[0];
+      socket.readyState = MockWebSocket.OPEN;
+      dispatchSocketEvent(socket, "open");
+      dispatchSocketEvent(socket, "message", {
+        data: JSON.stringify({
+          type: "pair.accepted",
+          clientId: "client-a",
+          pcName: "PC",
+          secret: "fresh-credential",
+          paired: true
+        })
+      });
+
+      act(() => result.current.requestPowerAction("displayOff"));
+      dispatchSocketEvent(socket, "message", {
+        data: JSON.stringify({
+          type: "system.power.result",
+          action: "displayOff",
+          succeeded: true,
+          message: "Windows accepted the display-off request. Physical input may be required to wake."
+        })
+      });
+
+      act(() => vi.advanceTimersByTime(7500));
+      expect(result.current.state).toBe("unavailable");
+      expect(socket.close).toHaveBeenCalledTimes(1);
+      expect(socket.send).toHaveBeenCalledWith(JSON.stringify({ type: "health.ping" }));
+    }
+    finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("keeps stopped hosts on the stable unavailable screen after a socket close", async () => {
     const pcUrl = "http://pc.local:51395";
     const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };

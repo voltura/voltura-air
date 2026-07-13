@@ -212,30 +212,33 @@ public partial class MainWindow
             Content = CreateSectionPanel()
         };
         var panel = (StackPanel)root.Content;
+        var sections = new List<Expander>();
         var globalPermissions = AppPermissionSettings.Load();
 
-        panel.Children.Add(CreateSectionHeading("Application"));
+        var applicationPanel = AddPreferencesSection(panel, sections, "Application");
         var start = CreateCheckBox("Start Voltura Air when I sign in to Windows", AppStartupSettings.IsEnabled());
         start.Checked += (_, _) => AppStartupSettings.SetEnabled(true);
         start.Unchecked += (_, _) => AppStartupSettings.SetEnabled(false);
-        panel.Children.Add(start);
+        applicationPanel.Children.Add(start);
 
         var startHidden = CreateCheckBox("Start Voltura Air hidden in the tray", AppWindowSettings.StartHiddenInTray());
         startHidden.Checked += (_, _) => AppWindowSettings.SetStartHiddenInTray(true);
         startHidden.Unchecked += (_, _) => AppWindowSettings.SetStartHiddenInTray(false);
-        panel.Children.Add(startHidden);
+        applicationPanel.Children.Add(startHidden);
 
         var notify = CreateCheckBox("Show connection status notifications", AppNotificationSettings.ShowConnectionStatusNotifications());
         notify.Checked += (_, _) => AppNotificationSettings.SetShowConnectionStatusNotifications(true);
         notify.Unchecked += (_, _) => AppNotificationSettings.SetShowConnectionStatusNotifications(false);
-        panel.Children.Add(notify);
+        applicationPanel.Children.Add(notify);
 
         var showOnDisconnect = CreateCheckBox("Show Voltura Air when the last device disconnects", AppNotificationSettings.ShowPairingWindowOnDisconnect());
         showOnDisconnect.Checked += (_, _) => AppNotificationSettings.SetShowPairingWindowOnDisconnect(true);
         showOnDisconnect.Unchecked += (_, _) => AppNotificationSettings.SetShowPairingWindowOnDisconnect(false);
-        panel.Children.Add(showOnDisconnect);
+        applicationPanel.Children.Add(showOnDisconnect);
 
-        panel.Children.Add(CreateSectionHeading("Appearance"));
+        AddApplicationLoggingSettings(applicationPanel);
+
+        var appearancePanel = AddPreferencesSection(panel, sections, "Appearance");
         var activeTheme = AppThemeSettings.GetMode();
         var systemTheme = CreateSegmentButton("System", activeTheme == AppThemeMode.System);
         var lightTheme = CreateSegmentButton("Light", activeTheme == AppThemeMode.Light);
@@ -244,33 +247,54 @@ public partial class MainWindow
         systemTheme.Click += (_, _) => SetThemeMode(AppThemeMode.System);
         lightTheme.Click += (_, _) => SetThemeMode(AppThemeMode.Light);
         darkTheme.Click += (_, _) => SetThemeMode(AppThemeMode.Dark);
-        panel.Children.Add(CreateSegmentRow(systemTheme, lightTheme, darkTheme));
+        appearancePanel.Children.Add(CreateSegmentRow(systemTheme, lightTheme, darkTheme));
 
-        panel.Children.Add(CreateSectionHeading("Global permissions"));
+        var permissionsPanel = AddPreferencesSection(panel, sections, "Global permissions");
         var allowClientControl = CreateCheckBox("Allow paired devices to control Voltura Air host", AppClientControlSettings.IsEnabled());
         allowClientControl.Checked += (_, _) => AppClientControlSettings.SetEnabled(true);
         allowClientControl.Unchecked += (_, _) => AppClientControlSettings.SetEnabled(false);
-        panel.Children.Add(allowClientControl);
-        panel.Children.Add(CreateMutedText("When this is off, paired devices can still control Windows, media, YouTube, Kodi, and other apps, but client-injected input is ignored while it would target this Voltura Air host window or tray menu. Native minimize, maximize, and close controls still work."));
+        permissionsPanel.Children.Add(allowClientControl);
+        permissionsPanel.Children.Add(CreateMutedText("When this is off, paired devices can still control Windows, media, YouTube, Kodi, and other apps, but client-injected input is ignored while it would target this Voltura Air host window or tray menu. Native minimize, maximize, and close controls still work."));
         var sleep = CreateCheckBox("Allow paired devices to request PC sleep", globalPermissions.AllowPcSleep);
         var volume = CreateCheckBox("Allow paired devices to control volume", globalPermissions.AllowVolumeControl);
         var remoteLaunch = CreateCheckBox("Allow paired devices to start applications", globalPermissions.AllowRemoteAppLaunch);
-        sleep.Checked += (_, _) => SaveGlobalPermissions(sleep, volume, remoteLaunch);
-        sleep.Unchecked += (_, _) => SaveGlobalPermissions(sleep, volume, remoteLaunch);
-        volume.Checked += (_, _) => SaveGlobalPermissions(sleep, volume, remoteLaunch);
-        volume.Unchecked += (_, _) => SaveGlobalPermissions(sleep, volume, remoteLaunch);
-        remoteLaunch.Checked += (_, _) => SaveGlobalPermissions(sleep, volume, remoteLaunch);
-        remoteLaunch.Unchecked += (_, _) => SaveGlobalPermissions(sleep, volume, remoteLaunch);
-        panel.Children.Add(sleep);
-        panel.Children.Add(volume);
-        panel.Children.Add(remoteLaunch);
+        var pcLock = CreateCheckBox("Allow paired devices to lock the PC", globalPermissions.AllowPcLock);
+        var blackoutDisplay = CreateCheckBox("Allow paired devices to blackout displays", globalPermissions.AllowBlackoutDisplay);
+        var displayOff = CreateCheckBox("Allow paired devices to turn off displays", globalPermissions.AllowDisplayOff);
+        var screenSaver = CreateCheckBox("Allow paired devices to start the screen saver", globalPermissions.AllowScreenSaver);
+        var signOut = CreateCheckBox("Allow paired devices to sign out", globalPermissions.AllowSignOut);
+        var restart = CreateCheckBox("Allow paired devices to restart the PC", globalPermissions.AllowRestart);
+        var shutdown = CreateCheckBox("Allow paired devices to shut down the PC", globalPermissions.AllowShutdown);
+        void SavePermissions() => SaveGlobalPermissions(sleep, volume, remoteLaunch, pcLock, blackoutDisplay, displayOff, screenSaver, signOut, restart, shutdown);
+        foreach (var permission in new[] { sleep, volume, remoteLaunch, pcLock, blackoutDisplay, displayOff, screenSaver, signOut, restart, shutdown })
+        {
+            permission.Checked += (_, _) => SavePermissions();
+            permission.Unchecked += (_, _) => SavePermissions();
+        }
+        permissionsPanel.Children.Add(sleep);
+        permissionsPanel.Children.Add(volume);
+        permissionsPanel.Children.Add(remoteLaunch);
+        permissionsPanel.Children.Add(pcLock);
+        permissionsPanel.Children.Add(blackoutDisplay);
+        permissionsPanel.Children.Add(displayOff);
+        if (_powerController.IsActionAvailable(SystemPowerActions.ScreenSaver))
+        {
+            permissionsPanel.Children.Add(screenSaver);
+        }
+        permissionsPanel.Children.Add(signOut);
+        permissionsPanel.Children.Add(restart);
+        permissionsPanel.Children.Add(shutdown);
+        permissionsPanel.Children.Add(CreateMutedText("Lock and blackout are enabled by default. The screen-saver permission appears when Windows has a screen saver configured. Display off, sign out, restart, and shut down require explicit host approval. Display off and session-ending actions require hold-to-confirm on the mobile device."));
 
-        panel.Children.Add(CreateSectionHeading("Trackpad defaults"));
-        panel.Children.Add(CreateMutedText("Default pointer speed for paired devices unless a device has its own override."));
-        AddGlobalPointerSpeedSetting(panel);
+        var windowsLockingPanel = AddPreferencesSection(panel, sections, "Windows locking");
+        AddWindowsLockPolicySetting(windowsLockingPanel);
 
-        panel.Children.Add(CreateSectionHeading("Remote defaults"));
-        panel.Children.Add(CreateMutedText("Choose the initial Remote mode for newly connected phones. Mobile settings can still override this per PC."));
+        var trackpadPanel = AddPreferencesSection(panel, sections, "Trackpad defaults");
+        trackpadPanel.Children.Add(CreateMutedText("Default pointer speed for paired devices unless a device has its own override."));
+        AddGlobalPointerSpeedSetting(trackpadPanel);
+
+        var remotePanel = AddPreferencesSection(panel, sections, "Remote defaults");
+        remotePanel.Children.Add(CreateMutedText("Choose the initial Remote mode for newly connected phones. Mobile settings can still override this per PC."));
         var activeRemoteMode = AppRemoteSettings.GetDefaultRemoteMode();
         var standardRemote = CreateSegmentButton("Standard", activeRemoteMode == AppRemoteMode.Standard);
         var youtubeRemote = CreateSegmentButton("YouTube", activeRemoteMode == AppRemoteMode.Youtube);
@@ -279,49 +303,23 @@ public partial class MainWindow
         standardRemote.Click += (_, _) => SetDefaultRemoteMode(AppRemoteMode.Standard);
         youtubeRemote.Click += (_, _) => SetDefaultRemoteMode(AppRemoteMode.Youtube);
         kodiRemote.Click += (_, _) => SetDefaultRemoteMode(AppRemoteMode.Kodi);
-        panel.Children.Add(CreateLabel("Default remote mode"));
-        panel.Children.Add(CreateSegmentRow(standardRemote, youtubeRemote, kodiRemote));
-        AddYoutubeUrlSetting(panel);
+        remotePanel.Children.Add(CreateLabel("Default remote mode"));
+        remotePanel.Children.Add(CreateSegmentRow(standardRemote, youtubeRemote, kodiRemote));
+        AddYoutubeUrlSetting(remotePanel);
 
-        panel.Children.Add(CreateSectionHeading("Developer tools"));
+        var developerPanel = AddPreferencesSection(panel, sections, "Developer tools");
         var developerMode = CreateCheckBox("Developer mode", AppDeveloperSettings.DeveloperMode());
         developerMode.Checked += (_, _) => AppDeveloperSettings.SetDeveloperMode(true);
         developerMode.Unchecked += (_, _) => AppDeveloperSettings.SetDeveloperMode(false);
-        panel.Children.Add(developerMode);
+        developerPanel.Children.Add(developerMode);
 
         var gestureDebug = CreateCheckBox("Show gesture debug screen in the mobile app", AppDeveloperSettings.EnableGestureDebug());
         gestureDebug.Checked += (_, _) => AppDeveloperSettings.SetEnableGestureDebug(true);
         gestureDebug.Unchecked += (_, _) => AppDeveloperSettings.SetEnableGestureDebug(false);
-        panel.Children.Add(gestureDebug);
+        developerPanel.Children.Add(gestureDebug);
 
         _isLoadingPreferences = false;
         return root;
     }
 
-    private UIElement BuildDiagnosticsPage()
-    {
-        var details = GetDiagnostics();
-        var root = new Grid();
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-        var rows = new StackPanel();
-        foreach (var detail in details)
-        {
-            rows.Children.Add(CreateDiagnosticRow(detail));
-        }
-
-        root.Children.Add(new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = rows
-        });
-
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 16, 0, 0) };
-        actions.Children.Add(CreateButton("Copy diagnostics", (_, _) => CopyToClipboard(BuildDiagnosticsText(), "Diagnostics copied"), primary: true));
-        actions.Children.Add(CreateButton("Open product page", (_, _) => OpenProductSite()));
-        Grid.SetRow(actions, 1);
-        root.Children.Add(actions);
-        return root;
-    }
 }

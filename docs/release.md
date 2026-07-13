@@ -179,6 +179,10 @@ verify these cases manually in addition to automated tests:
 - phone browser or installed PWA backgrounded and resumed;
 - network interruption or IP/port change;
 - input dispatch failure shows unavailable or retrying state instead of dead controls;
+- Lock PC shows an accepted result or a specific permission, policy, unsupported, or Windows failure without closing the WebSocket;
+- Blackout display covers all monitors without suspending the host and closes on local or remote input;
+- Screen saver is visible only with an enabled, configured Windows screen saver and invokes the native Windows command;
+- Turn off display warns that HDMI output will stop and that some PCs enter sleep or Modern Standby, requires confirmation, and reports the PC unavailable normally when Windows suspends the host; physical input may be required to wake;
 - browser storage cleanup requires re-pairing or reconnects visibly.
 
 ## Final release sanity checks
@@ -196,4 +200,6 @@ Before announcing the release:
 - inspect `VolturaAir.Host.exe` and `VolturaAir.Host.dll` in File Explorer and
   confirm File version and Product version match the release;
 - confirm a phone can pair from a fresh QR code and reconnect after host restart;
+- confirm Preferences accordions are themed in light and dark mode, start collapsed, and keep only one section open;
+- confirm Diagnostics keeps log filters and actions visible while only log records scroll, and verify log enable, retention, filtering, copy, folder, and delete behavior;
 - update public release/download text when product-facing behavior changed.

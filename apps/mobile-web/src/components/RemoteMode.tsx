@@ -20,13 +20,14 @@ import {
   Volume2,
   VolumeX
 } from "lucide-react";
-import type { AudioStateMessage } from "../protocol";
+import type { AudioStateMessage, PowerCapabilities, SystemPowerAction, SystemPowerResultMessage } from "../protocol";
 import type { RemoteSettings } from "../remoteSettings";
 import { remoteShortcutMaps, type RemoteShortcut } from "./remote/remoteShortcuts";
 import { getRemoteModeCopy } from "./remote/remoteModeCopy";
 import { RemoteButton, type RepeatablePressProps } from "./remote/RemoteButton";
 import { isInteractiveRemoteTarget, roundRemoteDelta } from "./remote/remotePointerMath";
 import { RemoteUtilityPanel } from "./remote/RemoteUtilityPanel";
+import { PowerControlEntry } from "./remote/PowerControlEntry";
 
 const repeatStartDelayMs = 400;
 const repeatIntervalMs = 55;
@@ -42,6 +43,10 @@ type RemoteModeProps = {
   remoteSettings: RemoteSettings;
   onPointerButtonClick: (button: MouseButtonName) => void;
   onPointerMove: (dx: number, dy: number) => void;
+  onPowerAction: (action: SystemPowerAction) => void;
+  pendingPowerAction: SystemPowerAction | null;
+  powerActionResult: SystemPowerResultMessage | null;
+  powerCapabilities: PowerCapabilities | null;
   sendSpecial: (key: string, modifiers?: string[]) => void;
 };
 
@@ -66,6 +71,10 @@ export function RemoteMode({
   remoteSettings,
   onPointerButtonClick,
   onPointerMove,
+  onPowerAction,
+  pendingPowerAction,
+  powerActionResult,
+  powerCapabilities,
   sendSpecial
 }: RemoteModeProps) {
   const [showUtilityPanel, setShowUtilityPanel] = useState(false);
@@ -515,12 +524,21 @@ export function RemoteMode({
           </>
         )}
         {renderNavigationControl()}
+        <PowerControlEntry
+          capabilities={powerCapabilities}
+          onAction={onPowerAction}
+          onOpen={() => setShowUtilityPanel(false)}
+          pendingAction={pendingPowerAction}
+          result={powerActionResult}
+        />
         <button
           type="button"
           className="remote-fn-button remote-floating-fn"
           aria-controls={utilityPanelId}
           aria-expanded={showUtilityPanel}
-          onClick={() => setShowUtilityPanel(true)}
+          onClick={() => {
+            setShowUtilityPanel(true);
+          }}
         >
           Fn
         </button>

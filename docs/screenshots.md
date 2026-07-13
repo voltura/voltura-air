@@ -14,7 +14,11 @@ installer artwork in `installer/assets`.
   can be denied. Automated protocol tests use an in-memory server and should not
   display a firewall prompt at all.
 - `npm run dev:ui` is an interactive Chrome session and makes no UI assertions.
-  `npm run test:ui` is the separate headless paired-connection smoke test.
+  `npm run test:ui` is the separate headless paired-connection smoke test and
+  checks the Power sheet at seeded phone/tablet portrait and landscape sizes.
+- Isolated UI sessions use a no-op power controller, so exercising Power sheet
+  controls cannot lock, turn off the display, sign out, restart, or shut down
+  the development PC.
 
 Regenerate public static-site screenshots with:
 
@@ -60,6 +64,12 @@ foreground or topmost applications cannot replace the host image. Screen-copy
 capture is used only if direct window rendering is unavailable. The script
 temporarily disables connection notifications and restores the previous
 notification settings when it exits.
+
+When host Preferences or Diagnostics changes, capture both themes with one
+Preferences accordion expanded and with **Diagnostics > Application log**
+showing the filter controls, themed activity rows, and the pinned bottom action
+row. Do not enable Windows locking or invoke a power action just to create a
+screenshot.
 
 ## Mobile Client Capture
 
@@ -145,6 +155,10 @@ Keep screenshots current for the public site and release notes when UI changes
 affect connection feedback. Capture at least:
 
 - normal paired trackpad/keyboard state;
+- Remote Power sheet with the HDMI/display-off warning visible;
+- Remote Power sheet showing **Blackout display** and, on a PC with a configured
+  saver, **Turn on screen saver**. Do not add the screen-saver row to captures
+  from a PC where Windows reports it unavailable;
 - Kodi remote mode on an iPhone portrait viewport with dark mode, navigation
   ring enabled, and the mode tab row collapsed;
 - unavailable/retrying state;

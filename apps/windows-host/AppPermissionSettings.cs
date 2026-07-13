@@ -8,6 +8,13 @@ public static class AppPermissionSettings
     private const string AllowPcSleepValueName = "AllowPcSleep";
     private const string AllowVolumeControlValueName = "AllowVolumeControl";
     private const string AllowRemoteAppLaunchValueName = "AllowRemoteAppLaunch";
+    private const string AllowPcLockValueName = "AllowPcLock";
+    private const string AllowBlackoutDisplayValueName = "AllowBlackoutDisplay";
+    private const string AllowDisplayOffValueName = "AllowDisplayOff";
+    private const string AllowScreenSaverValueName = "AllowScreenSaver";
+    private const string AllowSignOutValueName = "AllowSignOut";
+    private const string AllowRestartValueName = "AllowRestart";
+    private const string AllowShutdownValueName = "AllowShutdown";
 
     public static event EventHandler? Changed;
 
@@ -17,7 +24,14 @@ public static class AppPermissionSettings
         return new HostPermissionSet(
             AllowPcSleep: GetBooleanValue(key, AllowPcSleepValueName, HostPermissions.DefaultGlobal.AllowPcSleep),
             AllowVolumeControl: GetBooleanValue(key, AllowVolumeControlValueName, HostPermissions.DefaultGlobal.AllowVolumeControl),
-            AllowRemoteAppLaunch: GetBooleanValue(key, AllowRemoteAppLaunchValueName, HostPermissions.DefaultGlobal.AllowRemoteAppLaunch));
+            AllowRemoteAppLaunch: GetBooleanValue(key, AllowRemoteAppLaunchValueName, HostPermissions.DefaultGlobal.AllowRemoteAppLaunch),
+            AllowPcLock: GetBooleanValue(key, AllowPcLockValueName, HostPermissions.DefaultGlobal.AllowPcLock),
+            AllowBlackoutDisplay: GetBooleanValue(key, AllowBlackoutDisplayValueName, HostPermissions.DefaultGlobal.AllowBlackoutDisplay),
+            AllowDisplayOff: GetBooleanValue(key, AllowDisplayOffValueName, HostPermissions.DefaultGlobal.AllowDisplayOff),
+            AllowScreenSaver: GetBooleanValue(key, AllowScreenSaverValueName, HostPermissions.DefaultGlobal.AllowScreenSaver),
+            AllowSignOut: GetBooleanValue(key, AllowSignOutValueName, HostPermissions.DefaultGlobal.AllowSignOut),
+            AllowRestart: GetBooleanValue(key, AllowRestartValueName, HostPermissions.DefaultGlobal.AllowRestart),
+            AllowShutdown: GetBooleanValue(key, AllowShutdownValueName, HostPermissions.DefaultGlobal.AllowShutdown));
     }
 
     public static void Save(HostPermissionSet permissions)
@@ -29,6 +43,13 @@ public static class AppPermissionSettings
         key.SetValue(AllowPcSleepValueName, permissions.AllowPcSleep ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowVolumeControlValueName, permissions.AllowVolumeControl ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowRemoteAppLaunchValueName, permissions.AllowRemoteAppLaunch ? 1 : 0, RegistryValueKind.DWord);
+        key.SetValue(AllowPcLockValueName, permissions.AllowPcLock ? 1 : 0, RegistryValueKind.DWord);
+        key.SetValue(AllowBlackoutDisplayValueName, permissions.AllowBlackoutDisplay ? 1 : 0, RegistryValueKind.DWord);
+        key.SetValue(AllowDisplayOffValueName, permissions.AllowDisplayOff ? 1 : 0, RegistryValueKind.DWord);
+        key.SetValue(AllowScreenSaverValueName, permissions.AllowScreenSaver ? 1 : 0, RegistryValueKind.DWord);
+        key.SetValue(AllowSignOutValueName, permissions.AllowSignOut ? 1 : 0, RegistryValueKind.DWord);
+        key.SetValue(AllowRestartValueName, permissions.AllowRestart ? 1 : 0, RegistryValueKind.DWord);
+        key.SetValue(AllowShutdownValueName, permissions.AllowShutdown ? 1 : 0, RegistryValueKind.DWord);
 
         if (current != permissions)
         {

@@ -6,7 +6,7 @@ import {
   upsertPcProfile,
   type PcProfile
 } from "./pcProfiles";
-import type { ClientMessage } from "./protocol";
+import type { ClientMessage, SystemPowerAction, SystemPowerResultMessage } from "./protocol";
 import {
   clearPairTokenFromAddress,
   loadDeviceName
@@ -42,6 +42,8 @@ const healthCheckTimeoutMs = 6500;
 const retryDelayMs = 1200;
 const staleConnectionMs = passiveHealthCheckMs + healthCheckTimeoutMs + 5000;
 const inputAckTimeoutMs = 3500;
+const powerActionTimeoutMs = 5000;
+const displayOffHealthCheckDelayMs = 1000;
 
 export type { PcProfile } from "./pcProfiles";
 export type { ConnectionError, ConnectionState } from "./connection/connectionTypes";
@@ -66,6 +68,8 @@ export function useVolturaAirConnection() {
   const [state, setState] = useState<ConnectionState>("connecting");
   const [message, setMessage] = useState("Connecting to PC...");
   const [lastConnectionError, setLastConnectionError] = useState<ConnectionError | null>(null);
+  const [pendingPowerAction, setPendingPowerAction] = useState<SystemPowerAction | null>(null);
+  const [powerActionResult, setPowerActionResult] = useState<SystemPowerResultMessage | null>(null);
   const [pairingAttempt, setPairingAttempt] = useState<PairingAttempt>(() => ({
     token: undefined,
     id: 0
@@ -80,10 +84,12 @@ export function useVolturaAirConnection() {
   const rescheduleHealthCheckRef = useRef<(() => void) | null>(null);
   const nextInputSequenceRef = useRef(1);
   const pendingInputAcksRef = useRef<Map<number, number>>(new Map());
+  const pendingPowerActionRef = useRef<SystemPowerAction | null>(null);
   const {
     audioState,
     clearRuntimeState,
     hostStatus,
+    powerCapabilities,
     setAudioState,
     setHostStatus,
     supportsGestureDebug,
@@ -118,6 +124,43 @@ export function useVolturaAirConnection() {
   });
 
   const activePc = useMemo(() => pairedPcs.find((pc) => pc.id === activePcId) ?? null, [activePcId, pairedPcs]);
+
+  useEffect(() => {
+    if (pendingPowerAction === null) {
+      return;
+    }
+
+    const action = pendingPowerAction;
+    const timeout = window.setTimeout(() => {
+      if (pendingPowerActionRef.current !== action) {
+        return;
+      }
+
+      pendingPowerActionRef.current = null;
+      setPendingPowerAction(null);
+      setPowerActionResult({
+        type: "system.power.result",
+        action,
+        succeeded: false,
+        code: "VAIR-POWER-RESPONSE-TIMEOUT",
+        message: action === "lock"
+          ? "The PC did not respond to the lock request. Check the host command log and try again."
+          : "The PC did not respond to the power request. Check the host application log and try again."
+      });
+    }, powerActionTimeoutMs);
+
+    return () => window.clearTimeout(timeout);
+  }, [pendingPowerAction]);
+
+  useEffect(() => {
+    if (state === "paired") {
+      return;
+    }
+
+    pendingPowerActionRef.current = null;
+    setPendingPowerAction(null);
+    setPowerActionResult(null);
+  }, [state]);
 
   useEffect(() => {
     if (state === "paired" && activePc) {
@@ -470,6 +513,24 @@ export function useVolturaAirConnection() {
           return;
         }
 
+        if (response.type === "system.power.result") {
+          touchHealthy();
+          pendingPowerActionRef.current = null;
+          setPendingPowerAction(null);
+          setPowerActionResult(response);
+          setMessage(response.message);
+          setLastConnectionError(response.succeeded
+            ? null
+            : { code: response.code ?? "VAIR-POWER-EXECUTION-FAILED", message: response.message });
+          if (response.action === "displayOff" && response.succeeded) {
+            window.clearTimeout(healthCheckTimer);
+            healthCheckTimer = window.setTimeout(() => sendHealthCheck(ws), displayOffHealthCheckDelayMs);
+          } else {
+            scheduleHealthCheck(ws);
+          }
+          return;
+        }
+
         if (response.type === "audio.state") {
           touchHealthy();
           if (supportsVolumeControlRef.current) {
@@ -588,7 +649,18 @@ export function useVolturaAirConnection() {
     state
   });
 
-  return { state, message, send, requestAudioState, clientId, deviceName, activePc, pairedPcs, audioState, supportsGestureDebug, supportsSleep, supportsVolumeControl, supportsRemoteLaunch, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, beginNewPairing, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice, setHostPointerSpeed };
+  const requestPowerAction = (action: SystemPowerAction) => {
+    if (state !== "paired" || pendingPowerActionRef.current !== null) {
+      return;
+    }
+
+    pendingPowerActionRef.current = action;
+    setPendingPowerAction(action);
+    setPowerActionResult(null);
+    send({ type: "system.power", action });
+  };
+
+  return { state, message, send, requestAudioState, requestPowerAction, pendingPowerAction, powerActionResult, clientId, deviceName, activePc, pairedPcs, audioState, powerCapabilities, supportsGestureDebug, supportsSleep, supportsVolumeControl, supportsRemoteLaunch, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, beginNewPairing, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice, setHostPointerSpeed };
 }
 
 

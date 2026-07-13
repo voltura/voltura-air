@@ -16,19 +16,7 @@ Prioritize reliability, usability, trust, and visible user value. Manual and rea
 
 ## 2. Remote and Windows controls
 
-### 2.1 Power and session controls
-
-- [ ] Add Lock PC.
-- [ ] Investigate a safe Turn off display action.
-- [ ] Add hold-to-confirm actions for:
-  - [ ] Restart PC.
-  - [ ] Shut down PC.
-  - [ ] Sign out.
-- [ ] Add mobile confirmation UI for destructive power actions.
-- [ ] Extend host permissions so every new power action is explicitly controlled.
-- [ ] Add clear user-facing documentation for enabling and disabling power controls.
-
-### 2.2 Configurable app launch
+### 2.1 Configurable app launch
 
 - [ ] Add host-configured launch buttons for common applications.
 - [ ] Support optional presets for:
@@ -123,14 +111,12 @@ Optional verification:
   - [ ] Swedish keyboard.
 - [ ] Add JSON import and export.
 - [ ] Add reset to defaults.
-- [ ] Add serialization and settings-migration tests.
 - [ ] Add clear warnings for host-approved commands.
 
 ### 5.2 Remaining per-device preferences
 
 - [ ] Store the preferred mobile mode per paired device.
 - [ ] Store host-managed layout preferences per paired device.
-- [ ] Define migration behavior when new per-device settings are introduced.
 
 ---
 

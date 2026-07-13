@@ -33,12 +33,29 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         var clientUrl = GetOption(args, "--client-url") ?? Environment.GetEnvironmentVariable("VOLTURA_AIR_CLIENT_URL");
         var usePublicScreenshotPairingUrl = HasOption(args, "--site-screenshot-mode");
         var isolatedTestMode = HasOption(args, "--isolated-test-mode");
-        var webHost = new WebHostService(pairingManager, inputDispatcher, isolatedTestMode: isolatedTestMode);
+        IAppLog appLog = isolatedTestMode ? NullAppLog.Instance : new AppLog();
+        var workstationLockPolicy = new WorkstationLockPolicy(appLog);
+        ISystemPowerController powerController = isolatedTestMode
+            ? new NoOpSystemPowerController()
+            : new SystemPowerController(new WindowsDisplayActionController(System.Windows.Application.Current.Dispatcher, appLog));
+        var webHost = new WebHostService(
+            pairingManager,
+            inputDispatcher,
+            powerController: powerController,
+            workstationLockPolicy: workstationLockPolicy,
+            appLog: appLog,
+            isolatedTestMode: isolatedTestMode);
 
         try
         {
             await webHost.StartAsync();
-            var mainWindow = new MainWindow(pairingManager, webHost, clientUrl, usePublicScreenshotPairingUrl);
+            var mainWindow = new MainWindow(
+                pairingManager,
+                webHost,
+                clientUrl,
+                usePublicScreenshotPairingUrl,
+                workstationLockPolicy,
+                appLog: appLog);
             WritePairingUrlIfRequested(args, mainWindow.PairingUrl);
             var trayContext = new WpfTrayApplicationContext(mainWindow, webHost, pairingManager);
             return new WpfHostRuntime(inputInjector, webHost, pairingManager, mainWindow, trayContext);

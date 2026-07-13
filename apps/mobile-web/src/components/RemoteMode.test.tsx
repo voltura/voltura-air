@@ -13,6 +13,10 @@ function renderRemote(overrides: Partial<ComponentProps<typeof RemoteMode>> = {}
     remoteSettings: defaultRemoteSettings,
     onPointerButtonClick: vi.fn(),
     onPointerMove: vi.fn(),
+    onPowerAction: vi.fn(),
+    pendingPowerAction: null,
+    powerActionResult: null,
+    powerCapabilities: null,
     sendSpecial: vi.fn(),
     ...overrides
   };
@@ -76,6 +80,10 @@ describe("RemoteMode", () => {
           remoteSettings: { ...defaultRemoteSettings, navigationRing: false, mode: "standard" },
           onPointerButtonClick: vi.fn(),
           onPointerMove: vi.fn(),
+          onPowerAction: vi.fn(),
+          pendingPowerAction: null,
+          powerActionResult: null,
+          powerCapabilities: null,
           sendSpecial: vi.fn()
         }}
       />
@@ -180,6 +188,10 @@ describe("RemoteMode", () => {
           remoteSettings: { ...defaultRemoteSettings, navigationRing: true, mode: "standard" },
           onPointerButtonClick: vi.fn(),
           onPointerMove: vi.fn(),
+          onPowerAction: vi.fn(),
+          pendingPowerAction: null,
+          powerActionResult: null,
+          powerCapabilities: null,
           sendSpecial: vi.fn()
         }}
       />

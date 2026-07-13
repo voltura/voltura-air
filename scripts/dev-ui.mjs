@@ -96,7 +96,8 @@ async function main() {
   const page = await launchBrowser(chromium, pairingUrl);
 
   if (smokeTest) {
-    console.log("Voltura Air UI smoke test connected successfully.");
+    await verifyResponsivePowerLayout(page);
+    console.log("Voltura Air UI smoke test connected and passed responsive Power sheet checks.");
     shutdown("SIGTERM", 0);
     return;
   }
@@ -134,6 +135,44 @@ async function launchBrowser(chromium, pairingUrl) {
     await waitForConnected(page);
   }
   return page;
+}
+
+async function verifyResponsivePowerLayout(page) {
+  await page.getByRole("button", { name: "Remote mode", exact: true }).click();
+  await page.getByRole("button", { name: "Power", exact: true }).click();
+
+  const viewports = [
+    { name: "phone portrait", width: 393, height: 852 },
+    { name: "compact phone portrait", width: 375, height: 667 },
+    { name: "phone landscape", width: 852, height: 393 },
+    { name: "tablet portrait", width: 768, height: 1024 },
+    { name: "tablet landscape", width: 1024, height: 768 }
+  ];
+
+  for (const viewport of viewports) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    const result = await page.evaluate(() => {
+      const sheet = document.querySelector(".power-sheet");
+      const content = document.querySelector(".power-sheet-content");
+      const rows = Array.from(document.querySelectorAll(".power-action-row"));
+      if (!(sheet instanceof HTMLElement) || !(content instanceof HTMLElement)) {
+        return { error: "Power sheet was not visible." };
+      }
+
+      const bounds = sheet.getBoundingClientRect();
+      return {
+        actionCount: rows.length,
+        contentScrolls: content.scrollHeight > content.clientHeight + 1,
+        horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+        minActionHeight: Math.min(...rows.map((row) => row.getBoundingClientRect().height)),
+        outsideViewport: bounds.left < -1 || bounds.top < -1 || bounds.right > window.innerWidth + 1 || bounds.bottom > window.innerHeight + 1
+      };
+    });
+
+    if ("error" in result || result.actionCount !== 7 || result.horizontalOverflow || result.minActionHeight < 44 || result.outsideViewport) {
+      throw new Error(`Responsive Power sheet check failed for ${viewport.name}: ${JSON.stringify(result)}`);
+    }
+  }
 }
 
 async function launchPersistentContext(chromium) {

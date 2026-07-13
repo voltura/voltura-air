@@ -46,6 +46,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
   - Connection.
   - Preferences.
   - Diagnostics.
+- Organizes Preferences as themed accordion sections that are collapsed on entry and allow only one expanded section at a time.
 - Provides tray actions for opening the app, product page, and exit.
 - Supports light, dark, and system theme modes.
 - Supports per-user installation without administrator rights.
@@ -100,10 +101,13 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Supports host-enforced permission for PC sleep.
 - Supports host-enforced permission for volume control.
 - Supports host-enforced permission for fixed Remote launch actions.
+- Supports separate host-enforced permissions for Lock PC, Blackout display, Turn off display, Screen saver, Sign out, Restart PC, and Shut down PC.
+- Detects an explicit current-user Windows workstation-lock block and reports it separately from the Lock PC permission; a missing value is not treated as proof that locking works.
+- Lets the signed-in user explicitly enable and test Windows locking locally without elevation or UAC, then broadcasts a Windows policy refresh.
 - Supports a global permission for client-injected input to interact with the Voltura Air host UI and tray menu; when disabled, clients can still control the PC while host minimize, maximize, and close controls remain available.
 - Combines global defaults with per-device overrides.
 - Hides or disables unsupported actions on mobile through capability reporting.
-- Ignores unauthorized sleep/volume/launch commands even if a client sends them manually.
+- Ignores unauthorized sleep, volume, launch, and power/session commands even if a client sends them manually.
 
 ### Input injection
 
@@ -144,6 +148,14 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Sets default output device volume.
 - Toggles mute.
 - Supports PC sleep when allowed by host permissions.
+- Locks the current Windows session with `LockWorkStation` when permission and the current-user policy allow it.
+- Reports accepted, denied, unsupported, policy-disabled, policy-unavailable, and failed power/session requests without disconnecting the client.
+- Offers opt-in daily JSON Lines application logging for troubleshooting. Logging is off by default and records remote command flow plus local host actions such as Windows-lock policy writes, readback failures, and native lock tests without typed text, pointer coordinates, or pairing credentials.
+- Opens Diagnostics directly on a dedicated Application log view, with System details available from a clear top-level switch. The log uses themed activity cards, a two-month date-range picker plus event, source, action, and client filters, filtered copy, open-folder, and confirmed delete actions; retention is configurable from 1 to 30 days with a 2-day default. Only the record area scrolls, so the filter and action controls remain reachable.
+- Blacks out every connected monitor with a topmost black WPF curtain without changing display power state. Windows, networking, and remote control remain active; any local or remote mouse/keyboard interaction removes the curtain, and touch or pen input also dismisses it locally.
+- Starts the native Windows screen saver only when Windows reports screen saving enabled and a configured `.scr` program exists. The action is omitted from host and mobile UI when unavailable.
+- Turns off connected displays through the Windows monitor-power command when allowed, including HDMI output to TVs and receivers. The mobile client requires confirmation and explains that some PCs treat this command as sleep or Modern Standby. On those systems the host and network connection can suspend, Voltura Air cannot wake the PC remotely, and physical keyboard or mouse input is required. Windows may then require PIN, fingerprint, or another configured sign-in method; the action does not sign out the user.
+- Signs out, restarts, or shuts down through fixed Windows system commands when explicitly allowed.
 
 ---
 
@@ -269,6 +281,9 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 
 ### Remote mode
 
+- A single compact Power entry opens a responsive Power & session sheet instead of adding permanent power buttons to the main grid.
+- Lock PC, Blackout display, and an available Screen saver use direct action rows. Blackout closes the Power sheet immediately so it does not obscure the restored display; its result remains available when Power is reopened. Lock and Screen saver remain open while awaiting the host. Turn off display, Sign out, Restart PC, and Shut down PC open a dedicated warning screen and require an uninterrupted 1.6-second hold.
+- Host-disabled actions remain visible with a host-disabled explanation, except Screen saver, which is omitted when Windows does not expose an enabled, configured saver.
 - Media previous/play-pause/next.
 - Repeatable seek backward/forward through arrow-key shortcuts.
 - Space.

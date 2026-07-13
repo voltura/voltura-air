@@ -19,6 +19,9 @@ public sealed partial class WebHostService : IAsyncDisposable
     private readonly InputDispatcher _inputDispatcher;
     private readonly ISystemAudioController _audioController;
     private readonly IRemoteActionExecutor _remoteActionExecutor;
+    private readonly ISystemPowerController _powerController;
+    private readonly IWorkstationLockPolicy _workstationLockPolicy;
+    private readonly IAppLog _appLog;
     private readonly PairingAttemptRateLimiter _pairingAttemptRateLimiter = new();
     private readonly WebSocketConnectionRegistry _connections = new();
     private readonly Action<IWebHostBuilder>? _configureWebHost;
@@ -30,6 +33,9 @@ public sealed partial class WebHostService : IAsyncDisposable
         InputDispatcher inputDispatcher,
         ISystemAudioController? audioController = null,
         IRemoteActionExecutor? remoteActionExecutor = null,
+        ISystemPowerController? powerController = null,
+        IWorkstationLockPolicy? workstationLockPolicy = null,
+        IAppLog? appLog = null,
         bool isolatedTestMode = false,
         Action<IWebHostBuilder>? configureWebHost = null)
     {
@@ -37,6 +43,9 @@ public sealed partial class WebHostService : IAsyncDisposable
         _inputDispatcher = inputDispatcher;
         _audioController = audioController ?? new SystemAudioController();
         _remoteActionExecutor = remoteActionExecutor ?? new RemoteActionExecutor();
+        _powerController = powerController ?? (isolatedTestMode ? new NoOpSystemPowerController() : new SystemPowerController());
+        _appLog = appLog ?? (isolatedTestMode ? NullAppLog.Instance : new AppLog());
+        _workstationLockPolicy = workstationLockPolicy ?? new WorkstationLockPolicy(_appLog);
         _configureWebHost = configureWebHost;
         _pairingManager.PairingRevoked += OnPairingRevoked;
         _pairingManager.PermissionsChanged += OnPermissionsChanged;
@@ -45,6 +54,7 @@ public sealed partial class WebHostService : IAsyncDisposable
         AppDeveloperSettings.Changed += OnPermissionsChanged;
         AppRemoteSettings.Changed += OnPermissionsChanged;
         AppPointerSettings.Changed += OnPermissionsChanged;
+        _workstationLockPolicy.Changed += OnPermissionsChanged;
 
         var settings = AppNetworkSettings.Load();
         var portSelection = PortSelector.Select(settings, IsPortAvailable, FindFreePort);
@@ -100,6 +110,12 @@ public sealed partial class WebHostService : IAsyncDisposable
     internal string ListenAddress => _listenAddress;
 
     internal WebApplication? Application => _app;
+
+    internal IWorkstationLockPolicy WorkstationLockPolicy => _workstationLockPolicy;
+
+    internal ISystemPowerController PowerController => _powerController;
+
+    internal IAppLog AppLog => _appLog;
 
     public event EventHandler<ControllerSocketClosedEventArgs>? ControllerSocketClosed;
 
@@ -207,11 +223,17 @@ public sealed partial class WebHostService : IAsyncDisposable
         AppDeveloperSettings.Changed -= OnPermissionsChanged;
         AppRemoteSettings.Changed -= OnPermissionsChanged;
         AppPointerSettings.Changed -= OnPermissionsChanged;
+        _workstationLockPolicy.Changed -= OnPermissionsChanged;
         AbortActiveSockets();
         _connections.Dispose();
         if (_app is not null)
         {
             await _app.DisposeAsync();
+        }
+
+        if (_powerController is IDisposable disposablePowerController)
+        {
+            disposablePowerController.Dispose();
         }
     }
 

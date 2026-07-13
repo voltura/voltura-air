@@ -89,6 +89,17 @@ Successful response:
   "capabilities": {
     "gestureDebug": false,
     "inputAck": true,
+    "power": {
+      "lock": true,
+      "lockAvailability": "notExplicitlyDisabled",
+      "blackoutDisplay": true,
+      "displayOff": false,
+      "screenSaver": true,
+      "screenSaverAvailable": false,
+      "signOut": false,
+      "restart": false,
+      "shutdown": false
+    },
     "sleep": true,
     "volume": true,
     "remoteLaunch": true
@@ -124,6 +135,17 @@ Host response:
   "capabilities": {
     "gestureDebug": false,
     "inputAck": true,
+    "power": {
+      "lock": true,
+      "lockAvailability": "notExplicitlyDisabled",
+      "blackoutDisplay": true,
+      "displayOff": false,
+      "screenSaver": true,
+      "screenSaverAvailable": false,
+      "signOut": false,
+      "restart": false,
+      "shutdown": false
+    },
     "sleep": true,
     "volume": true,
     "remoteLaunch": true
@@ -362,6 +384,101 @@ Put the PC to sleep:
 
 The host ignores `system.sleep` when the effective **Allow PC sleep**
 permission is disabled.
+
+The host reports each Power & session permission separately in
+`capabilities.power`. The object remains present when every action is disabled
+so the mobile sheet can explain that the host has blocked those actions.
+
+```json
+{
+  "power": {
+    "lock": true,
+    "lockAvailability": "notExplicitlyDisabled",
+    "blackoutDisplay": true,
+    "displayOff": false,
+    "screenSaver": true,
+    "screenSaverAvailable": false,
+    "signOut": false,
+    "restart": false,
+    "shutdown": false
+  }
+}
+```
+
+The `lock` Boolean reports the effective host permission. `lockAvailability`
+reports the explicit current-user Windows policy state as
+`notExplicitlyDisabled`, `disabledByPolicy`, or `unavailable`. A missing value
+is `notExplicitlyDisabled`; that means no explicit user block was found, not
+that locking is proven to work. This keeps permission denial distinct from a
+Windows policy that prevents workstation locking. `screenSaverAvailable` is
+true only when Windows reports screen saving enabled and an actual `.scr`
+program is configured. The official client omits the action when it is false;
+the separate `screenSaver` Boolean remains the effective host permission.
+
+The host Preferences action for enabling locking writes only
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Policies\System\DisableLockWorkstation`
+as `REG_DWORD` zero for the signed-in user, broadcasts a policy refresh, reads
+the value back, and tests `LockWorkStation`. It does not elevate, request UAC,
+write machine policy, or inspect or change automatic Windows sign-in settings.
+
+Request a fixed Windows power or session action:
+
+```json
+{ "type": "system.power", "action": "lock" }
+```
+
+Supported action values are `lock`, `blackoutDisplay`, `displayOff`,
+`screenSaver`, `signOut`, `restart`, and `shutdown`. The host validates the fixed
+action name, checks platform availability, and checks its effective
+global/per-device permission before execution. Lock, blackout, and an available
+screen saver are allowed by default; display off and the three session-ending
+actions are blocked by default. The official mobile client
+requires an uninterrupted 1.6-second hold after a warning screen for
+`displayOff`, `signOut`, `restart`, and `shutdown`. Releasing, moving away, or
+cancelling sends nothing.
+
+`blackoutDisplay` creates a borderless, topmost black WPF window for every
+connected monitor. It does not change display power state, so Windows, the host,
+and networking remain active. Local mouse, keyboard, touch, or pen input closes
+the blackout windows. The host also closes them before dispatching any later
+remote pointer or keyboard message, so the client reliably restores the view.
+
+`screenSaver` sends Windows' native screen-saver system command. It returns
+`VAIR-POWER-UNAVAILABLE` without execution when no enabled and configured screen
+saver is exposed by Windows.
+
+`displayOff` sends the Windows `SC_MONITORPOWER` command, including to
+HDMI-connected TVs and receivers. Some PCs treat that explicit monitor-off
+request as sleep or Modern Standby, suspending the host and network connection.
+The protocol cannot reliably wake such a PC because no client message can reach
+the suspended host; physical keyboard or mouse input may be required. The
+official client probes the host one second after an accepted request and uses
+its normal health deadline rather than masking the loss with a display-specific
+grace period. Windows may present its sign-in UI after
+resuming; `displayOff` does not sign out the session and the protocol does not
+carry Windows credentials. Sign out, restart, and shut down use the fixed Windows
+`shutdown.exe` executable with fixed arguments; client-provided paths,
+arguments, and shell commands are never accepted.
+
+Every well-formed `system.power` request receives a result. Success means that
+Windows accepted or started the request; it is not an assertion that a later
+restart or shutdown completed.
+
+```json
+{
+  "type": "system.power.result",
+  "action": "lock",
+  "succeeded": false,
+  "code": "VAIR-POWER-LOCK-DISABLED",
+  "message": "Windows locking is disabled. Enable it in the Voltura Air host settings."
+}
+```
+
+Failure codes distinguish `VAIR-POWER-DENIED`,
+`VAIR-POWER-UNSUPPORTED`, `VAIR-POWER-UNAVAILABLE`, `VAIR-POWER-LOCK-DISABLED`,
+`VAIR-POWER-LOCK-UNAVAILABLE`, and `VAIR-POWER-EXECUTION-FAILED`.
+These action-level failures are recoverable and do not close the authenticated
+WebSocket. A malformed message still violates protocol policy.
 
 ## Audio
 

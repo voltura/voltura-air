@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ClientMessage } from "../protocol";
 import {
+  getPowerCapabilities,
   getPcDisconnectedMessage,
   normalizeHostStatus,
   shouldTrackInputAck,
@@ -48,5 +49,19 @@ describe("connection protocol policy", () => {
 
     expect(getPcDisconnectedMessage(pc, "Connection lost. Retrying...")).toBe("Connection lost. Retrying...");
     expect(getPcDisconnectedMessage(pc, "Connection lost.")).toBe("Connection lost. Retrying...");
+  });
+
+  it("accepts only complete boolean power capability sets", () => {
+    const power = { lock: true, blackoutDisplay: true, displayOff: false, screenSaver: true, screenSaverAvailable: true, signOut: false, restart: true, shutdown: false };
+
+    expect(getPowerCapabilities({ power })).toEqual(power);
+    expect(getPowerCapabilities({ power: { ...power, restart: undefined as never } })).toBeNull();
+    expect(getPowerCapabilities(undefined)).toBeNull();
+  });
+
+  it("keeps recognized Windows lock availability metadata", () => {
+    const power = { lock: true, lockAvailability: "disabledByPolicy" as const, blackoutDisplay: true, displayOff: false, screenSaver: true, screenSaverAvailable: true, signOut: false, restart: false, shutdown: false };
+
+    expect(getPowerCapabilities({ power })).toEqual(power);
   });
 });

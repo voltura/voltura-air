@@ -86,3 +86,52 @@ Check these items first:
   surface that rejects normal input injection.
 - The phone did not switch network, sleep the browser, or lose LAN reachability.
 - Refresh the mobile page or scan a fresh QR code if browser storage was cleaned.
+
+## Lock PC is disabled or fails
+
+Open the Windows host and go to **Preferences > Windows locking**. If the policy
+value is missing or zero, select **Test Lock PC**; Voltura Air tests the native
+Windows lock action without writing an unnecessary registry value. If the policy
+explicitly disables locking, select **Enable Windows locking**. After local
+confirmation, Voltura Air writes and reads back
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Policies\System\DisableLockWorkstation`
+as a 64-bit-view `REG_DWORD` value of `0`, broadcasts a user-policy refresh, and
+tests the native lock request. This normally needs no administrator rights or
+UAC and does not read or alter automatic Windows sign-in. If Windows or an
+administrator has made the current-user policy key read-only, Voltura Air
+reports that the setting is protected rather than requesting elevation or
+trying to override managed policy.
+
+The mobile app distinguishes a host permission denial, an unsupported action,
+a Windows policy that disables locking, an unavailable policy check, and a
+native Windows failure. These failures leave the connection active so later
+remote actions can still be attempted.
+
+For an exact trace, enable **Preferences > Write application log** before
+testing. **Diagnostics > Application log** then shows filterable remote-command
+and Windows-host activity, including policy write/readback failures, the received
+power command, action outcome, response, and Win32 error when one is available.
+Logging is off by default, retains 2 days by default, and excludes typed text,
+pointer coordinates, pairing tokens, and reconnect secrets. Diagnostics can copy
+the filtered view, open `%APPDATA%\Voltura Air\Logs`, or delete the log files.
+
+If the explicit DWORD zero reads back successfully but Lock, Win+L, and the
+mobile action still fail, Windows management policy or another program may be
+controlling the feature. Voltura Air does not modify machine policy or attempt
+additional automatic repairs.
+
+## Turn off display looks disconnected
+
+**Turn off display** intentionally cuts all display output, including HDMI to a
+TV or home-theater receiver. Some PCs treat the Windows `SC_MONITORPOWER`
+command as sleep or Modern Standby. The host and network connection then
+suspend, so the mobile client cannot send a wake command and will report the PC
+unavailable after a prompt follow-up health check. Use a physical keyboard or mouse
+to wake the PC. This is Windows and hardware behavior rather than a pairing or
+firewall failure. Check the Application log for the accepted `displayOff`
+command and Windows System events for Modern Standby reason `SC_MONITORPOWER`
+when confirming this case.
+
+If the display wakes to fingerprint or PIN, Windows locked the existing session
+according to its sign-in policy; Voltura Air did not sign the user out. Running
+apps should still be present after authentication.

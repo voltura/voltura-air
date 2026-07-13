@@ -32,6 +32,9 @@ public partial class MainWindow : Window
 
     private readonly PairingManager _pairingManager;
     private readonly WebHostService _webHost;
+    private readonly IWorkstationLockPolicy _workstationLockPolicy;
+    private readonly ISystemPowerController _powerController;
+    private readonly IAppLog _appLog;
     private readonly string _initialClientUrl;
     private readonly bool _usesServerUrlAsClientUrl;
     private readonly bool _usePublicScreenshotPairingUrl;
@@ -56,10 +59,20 @@ public partial class MainWindow : Window
     private bool _isLoadingPreferences;
     private bool _allowClose;
 
-    public MainWindow(PairingManager pairingManager, WebHostService webHost, string? clientUrl, bool usePublicScreenshotPairingUrl = false)
+    public MainWindow(
+        PairingManager pairingManager,
+        WebHostService webHost,
+        string? clientUrl,
+        bool usePublicScreenshotPairingUrl = false,
+        IWorkstationLockPolicy? workstationLockPolicy = null,
+        ISystemPowerController? powerController = null,
+        IAppLog? appLog = null)
     {
         _pairingManager = pairingManager;
         _webHost = webHost;
+        _workstationLockPolicy = workstationLockPolicy ?? webHost.WorkstationLockPolicy;
+        _powerController = powerController ?? webHost.PowerController;
+        _appLog = appLog ?? webHost.AppLog;
         _usePublicScreenshotPairingUrl = usePublicScreenshotPairingUrl;
         _serverUrl = webHost.ServerUrl;
         _usesServerUrlAsClientUrl = string.IsNullOrWhiteSpace(clientUrl);
@@ -176,7 +189,7 @@ public partial class MainWindow : Window
                 break;
             case HostPage.Diagnostics:
                 PageTitleText.Text = "Diagnostics";
-                PageSubtitleText.Text = "Technical details useful for troubleshooting.";
+                PageSubtitleText.Text = "Review application activity or inspect system details for troubleshooting.";
                 PageContent.Content = BuildDiagnosticsPage();
                 break;
         }
@@ -291,7 +304,14 @@ public partial class MainWindow : Window
     private enum PermissionKind
     {
         PcSleep,
-        VolumeControl
+        VolumeControl,
+        PcLock,
+        BlackoutDisplay,
+        DisplayOff,
+        ScreenSaver,
+        SignOut,
+        Restart,
+        Shutdown
     }
 }
 

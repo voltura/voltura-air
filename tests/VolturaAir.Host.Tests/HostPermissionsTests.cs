@@ -10,6 +10,13 @@ public sealed class HostPermissionsTests
         Assert.False(HostPermissions.DefaultGlobal.AllowPcSleep);
         Assert.True(HostPermissions.DefaultGlobal.AllowVolumeControl);
         Assert.True(HostPermissions.DefaultGlobal.AllowRemoteAppLaunch);
+        Assert.True(HostPermissions.DefaultGlobal.AllowPcLock);
+        Assert.True(HostPermissions.DefaultGlobal.AllowBlackoutDisplay);
+        Assert.False(HostPermissions.DefaultGlobal.AllowDisplayOff);
+        Assert.True(HostPermissions.DefaultGlobal.AllowScreenSaver);
+        Assert.False(HostPermissions.DefaultGlobal.AllowSignOut);
+        Assert.False(HostPermissions.DefaultGlobal.AllowRestart);
+        Assert.False(HostPermissions.DefaultGlobal.AllowShutdown);
     }
 
     [Fact]
@@ -77,6 +84,37 @@ public sealed class HostPermissionsTests
     }
 
     [Fact]
+    public void DevicePowerOverridesWinOverEachGlobalPermission()
+    {
+        var global = new HostPermissionSet(
+            AllowPcLock: false,
+            AllowBlackoutDisplay: false,
+            AllowDisplayOff: true,
+            AllowScreenSaver: false,
+            AllowSignOut: false,
+            AllowRestart: true,
+            AllowShutdown: false);
+        var overrides = new DevicePermissionOverrides(
+            AllowPcLock: true,
+            AllowBlackoutDisplay: true,
+            AllowDisplayOff: false,
+            AllowScreenSaver: true,
+            AllowSignOut: true,
+            AllowRestart: false,
+            AllowShutdown: true);
+
+        var effective = HostPermissions.Resolve(global, overrides);
+
+        Assert.True(effective.AllowPcLock);
+        Assert.True(effective.AllowBlackoutDisplay);
+        Assert.False(effective.AllowDisplayOff);
+        Assert.True(effective.AllowScreenSaver);
+        Assert.True(effective.AllowSignOut);
+        Assert.False(effective.AllowRestart);
+        Assert.True(effective.AllowShutdown);
+    }
+
+    [Fact]
     public void RemovedDeviceLosesPermissionOverridesWithPairingRecord()
     {
         using var store = new TempPairingStore();
@@ -85,13 +123,37 @@ public sealed class HostPermissionsTests
         var token = manager.CreatePairingToken(now);
         manager.Accept("client-a", "Phone", token, null, now);
 
-        var saved = manager.SetDevicePermissionOverrides("client-a", new DevicePermissionOverrides(AllowPcSleep: true, AllowVolumeControl: true));
+        var saved = manager.SetDevicePermissionOverrides("client-a", new DevicePermissionOverrides(
+            AllowPcSleep: true,
+            AllowVolumeControl: true,
+            AllowPcLock: true,
+            AllowBlackoutDisplay: true,
+            AllowDisplayOff: true,
+            AllowScreenSaver: true,
+            AllowSignOut: true,
+            AllowRestart: true,
+            AllowShutdown: true));
+        var reloaded = new PairingManager(store.Store).GetDevicePermissionOverrides("client-a");
         var removed = manager.DisconnectDevice("client-a");
 
         Assert.True(saved);
+        Assert.True(reloaded.AllowPcLock);
+        Assert.True(reloaded.AllowBlackoutDisplay);
+        Assert.True(reloaded.AllowDisplayOff);
+        Assert.True(reloaded.AllowScreenSaver);
+        Assert.True(reloaded.AllowSignOut);
+        Assert.True(reloaded.AllowRestart);
+        Assert.True(reloaded.AllowShutdown);
         Assert.True(removed);
         Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowPcSleep);
         Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowVolumeControl);
+        Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowPcLock);
+        Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowBlackoutDisplay);
+        Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowDisplayOff);
+        Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowScreenSaver);
+        Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowSignOut);
+        Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowRestart);
+        Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowShutdown);
         Assert.Empty(store.Store.Load());
     }
 }

@@ -97,11 +97,20 @@ Windows host settings include:
 - Start Voltura Air when signing in to Windows.
 - Show or hide connection status notifications.
 - Host-enforced global and per-device permissions.
+- Preferences sections start collapsed and only one opens at a time. Power and session permissions are configured under **Preferences > Global permissions**. Lock PC and Blackout display are enabled by default. Screen saver is enabled and shown only when Windows has an enabled, configured `.scr` program. Turn off display, Sign out, Restart PC, and Shut down PC are disabled until explicitly enabled.
+- **Preferences > Windows locking** reports whether `HKCU\Software\Microsoft\Windows\CurrentVersion\Policies\System\DisableLockWorkstation` explicitly disables locking for the signed-in user. When the policy value is missing or zero, **Test Lock PC** calls `LockWorkStation` directly without writing the registry. When a DWORD value explicitly disables locking, **Enable Windows locking** confirms locally, writes value `0` through the 64-bit current-user registry view, broadcasts `WM_SETTINGCHANGE` for `Policy`, verifies the readback, and tests `LockWorkStation`. It does not require administrator rights or UAC and does not read or change automatic Windows sign-in settings.
+- A paired device can inherit those global power permissions or override each one from **Devices > Permissions**. Disabled actions remain visible in the mobile Power sheet with a host-disabled explanation.
+- Sign out, restart, and shut down always require holding the mobile confirmation button for 1.6 seconds. Releasing or moving away cancels the action.
 - Global permission for whether paired-device input may change the Voltura Air host UI and tray menu; when disabled, native minimize, maximize, and close controls still work.
 - Default pointer speed for paired devices, with optional per-device overrides.
 - Default Remote mode for newly connected mobile clients.
 - Connection settings for host networking.
 - System, light, and dark appearance modes.
+- Optional **Write application log**, off by default. When enabled, sanitized daily JSON Lines files under `%APPDATA%\Voltura Air\Logs` record remote command flow and local host actions; typed text, pointer coordinates, and pairing credentials are excluded. Retention defaults to 2 days and can be set to 1, 2, 7, 14, or 30 days.
+- **Diagnostics** opens directly on **Application log**, with **System details** available from the switch at the top. The log displays themed activity cards and filters with a two-month date-range picker plus event, source, action, and client ID controls. The filtered view can be copied, the folder can be opened, and all log files can be deleted after confirmation.
+- **Turn off display** intentionally cuts video output, including HDMI to a TV or home-theater receiver. It requires confirmation because some PCs interpret the Windows monitor-power command as sleep or Modern Standby. On those PCs the host and network connection suspend, Voltura Air reports the PC unavailable, and remote trackpad or keyboard input cannot wake it; use a physical keyboard or mouse. Windows may require PIN, fingerprint, or another configured sign-in method after resuming. This is a locked session, not a sign-out.
+- **Blackout display** covers every monitor with black while leaving display power, Windows, the host, and networking active. Any local mouse, keyboard, touch, or pen input closes it. Any later remote pointer or keyboard command closes it before normal input dispatch.
+- **Turn on screen saver** uses the native Windows screen-saver command. Voltura Air shows it only when Windows reports the feature enabled and the configured screen-saver program exists.
 
 ## Limitations
 

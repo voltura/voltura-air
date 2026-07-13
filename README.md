@@ -6,7 +6,7 @@ Use it as a trackpad, keyboard, dictation surface, and media remote — includin
 
 ## Product promise
 
-Remote mode includes an Fn panel for common Windows window actions and browser tab/page shortcuts. Kodi mode separates its video/UI toggle from its fullscreen/windowed control and places supporting actions around the navigation ring. Switch app supports quick previous-app taps plus hold-and-slide visual app selection, and Task view opens the persistent Windows window overview. Taller portrait phones retain a compact navigation ring below the Fn helpers while hiding volume when space is constrained; phone landscape keeps volume and navigation beside the helpers. Phone and portrait-tablet layouts preserve the main control surface, and tapping the active mode collapses the full mode row into a compact selector.
+Remote mode includes an Fn panel for common Windows window actions and browser tab/page shortcuts, plus a compact Power sheet for locking Windows, turning off displays, signing out, restarting, and shutting down. Destructive actions require a deliberate hold and every power action is controlled by explicit host permissions. Kodi mode separates its video/UI toggle from its fullscreen/windowed control and places supporting actions around the navigation ring. Switch app supports quick previous-app taps plus hold-and-slide visual app selection, and Task view opens the persistent Windows window overview. Taller portrait phones retain a compact navigation ring below the Fn helpers while hiding volume when space is constrained; phone landscape keeps volume and navigation beside the helpers. Phone and portrait-tablet layouts preserve the main control surface, and tapping the active mode collapses the full mode row into a compact selector.
 
 - Control your Windows PC from any phone, tablet, or touch browser.
 - No mobile app-store install required.
@@ -37,6 +37,10 @@ The project is split into two apps:
 The Windows host installs per user, runs from the tray, manages paired devices, and serves the mobile app over the local network. Only one host instance runs for the signed-in Windows user; launching Voltura Air again opens and focuses the existing host window. The mobile app can be used directly in the browser or installed to the home screen.
 
 The host has a global permission for whether paired-device input may interact with the Voltura Air host UI and tray menu. When disabled, paired devices can still control Windows and other apps, while native host window controls such as minimize, maximize, and close remain available.
+
+Power and session controls have separate global and per-device permissions. Lock PC and Blackout display are enabled by default; screen saver is shown only when Windows has one enabled and configured; display off, sign out, restart, and shut down require explicit host approval. Blackout covers every monitor with black while Windows, networking, and Voltura Air remain active, then closes on any local or remote input. The host detects explicit current-user workstation-lock policy. When policy disables locking, a local non-elevated **Enable Windows locking** action writes DWORD zero and refreshes policy; when the value is missing or zero, **Test Lock PC** tests Windows directly without an unnecessary registry write. Host results appear inline on mobile. Sign out, restart, and shut down require hold-to-confirm. Turning off a display also cuts HDMI output to TVs and receivers and requires confirmation because some Windows PCs treat the monitor-power command as sleep or Modern Standby. On those PCs Voltura Air disconnects and cannot provide remote wake; physical keyboard or mouse input is required, and Windows may show its sign-in screen after resuming.
+
+Preferences uses themed, single-open accordion sections. An optional sanitized application log is available there and is off by default. Diagnostics opens on a themed, filterable Application log view for remote commands, host actions, outcomes, responses, and Windows errors; the log itself scrolls while the filter and action controls remain reachable.
 
 ## Features
 
@@ -175,8 +179,9 @@ tests.
 
 `dev:ui` is an interactive manual session. Playwright is used only to launch and
 configure Chrome; the command does not assert UI state. Run `npm run test:ui`
-when an explicit headless connection smoke test is wanted. Both commands use
-loopback-only services and isolated temporary pairing data.
+for an explicit headless connection smoke test plus Power sheet layout checks at
+seeded phone/tablet portrait and landscape sizes. Both commands use loopback-only
+services and isolated temporary pairing data.
 
 Run only one side when needed:
 

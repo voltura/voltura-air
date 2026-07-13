@@ -1,6 +1,6 @@
 import { getPcDisplayName } from "../pcDisplayName";
 import type { PcProfile } from "../pcProfiles";
-import type { AudioStateMessage, ClientMessage, HostStatusMetadata, ServerCapabilities, ServerMessage } from "../protocol";
+import type { AudioStateMessage, ClientMessage, HostStatusMetadata, PowerCapabilities, ServerCapabilities, ServerMessage } from "../protocol";
 import { normalizeRemoteMode } from "../remoteSettings";
 
 const movementAckIntervalMs = 200;
@@ -95,6 +95,30 @@ export function normalizeAudioState(message: AudioStateMessage): AudioStateMessa
 }
 
 export const hasSleepCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.sleep === true;
+export const getPowerCapabilities = (capabilities: ServerCapabilities | undefined): PowerCapabilities | null => {
+  const power = capabilities?.power;
+  if (!power ||
+    typeof power.lock !== "boolean" ||
+    typeof power.blackoutDisplay !== "boolean" ||
+    typeof power.displayOff !== "boolean" ||
+    typeof power.screenSaver !== "boolean" ||
+    typeof power.screenSaverAvailable !== "boolean" ||
+    typeof power.signOut !== "boolean" ||
+    typeof power.restart !== "boolean" ||
+    typeof power.shutdown !== "boolean") {
+    return null;
+  }
+
+  const lockAvailability = power.lockAvailability;
+  if (lockAvailability === undefined || lockAvailability === "notExplicitlyDisabled" || lockAvailability === "disabledByPolicy" || lockAvailability === "unavailable") {
+    return power;
+  }
+
+  return {
+    ...power,
+    lockAvailability: undefined
+  };
+};
 export const hasVolumeCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.volume === true;
 export const hasInputAckCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.inputAck === true;
 export const hasRemoteLaunchCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.remoteLaunch === true;

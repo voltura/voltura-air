@@ -1,0 +1,41 @@
+using Microsoft.Win32;
+
+namespace VolturaAir.Host;
+
+public static class AppLoggingSettings
+{
+    public const int DefaultMaxAgeDays = 2;
+    public const int MinMaxAgeDays = 1;
+    public const int MaxMaxAgeDays = 30;
+    private const string SettingsKeyPath = @"Software\VolturaAir";
+    private const string EnabledValueName = "EnableApplicationLogging";
+    private const string MaxAgeDaysValueName = "ApplicationLogMaxAgeDays";
+
+    public static bool IsEnabled()
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: false);
+        return key?.GetValue(EnabledValueName) is int value && value != 0;
+    }
+
+    public static void SetEnabled(bool enabled)
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: true) ??
+            Registry.CurrentUser.CreateSubKey(SettingsKeyPath, writable: true);
+        key.SetValue(EnabledValueName, enabled ? 1 : 0, RegistryValueKind.DWord);
+    }
+
+    public static int GetMaxAgeDays()
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: false);
+        return key?.GetValue(MaxAgeDaysValueName) is int value
+            ? Math.Clamp(value, MinMaxAgeDays, MaxMaxAgeDays)
+            : DefaultMaxAgeDays;
+    }
+
+    public static void SetMaxAgeDays(int days)
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: true) ??
+            Registry.CurrentUser.CreateSubKey(SettingsKeyPath, writable: true);
+        key.SetValue(MaxAgeDaysValueName, Math.Clamp(days, MinMaxAgeDays, MaxMaxAgeDays), RegistryValueKind.DWord);
+    }
+}

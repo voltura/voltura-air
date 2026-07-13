@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "build": "npm run build --workspace apps/mobile-web && dotnet build VolturaAir.slnx",
+    "icons:generate": "node scripts/generate-icons.mjs",
     "dev": "node scripts/dev.mjs",
     "dev:bare-source": "npm run package:source:bare",
     "dev:host": "node scripts/dev-host.mjs",

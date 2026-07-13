@@ -42,6 +42,11 @@ public partial class MainWindow
         var globalPermissions = AppPermissionSettings.Load();
         ApplyPermissionChoiceVisuals("PC sleep", device.PermissionOverrides.AllowPcSleep, globalPermissions.AllowPcSleep);
         ApplyPermissionChoiceVisuals("Volume control", device.PermissionOverrides.AllowVolumeControl, globalPermissions.AllowVolumeControl);
+        ApplyPermissionChoiceVisuals("Lock PC", device.PermissionOverrides.AllowPcLock, globalPermissions.AllowPcLock);
+        ApplyPermissionChoiceVisuals("Turn off display", device.PermissionOverrides.AllowDisplayOff, globalPermissions.AllowDisplayOff);
+        ApplyPermissionChoiceVisuals("Sign out", device.PermissionOverrides.AllowSignOut, globalPermissions.AllowSignOut);
+        ApplyPermissionChoiceVisuals("Restart PC", device.PermissionOverrides.AllowRestart, globalPermissions.AllowRestart);
+        ApplyPermissionChoiceVisuals("Shut down PC", device.PermissionOverrides.AllowShutdown, globalPermissions.AllowShutdown);
     }
 
     private void ApplyPermissionChoiceVisuals(string label, bool? overrideValue, bool inheritedAllow)

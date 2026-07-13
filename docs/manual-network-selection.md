@@ -32,6 +32,8 @@ After a valid manual host is entered, the mobile app should create or update a s
 
 A reachable WebSocket is not the only health signal. When the host advertises input acknowledgement support, missing input acknowledgements should move the app to unavailable/retrying just like health-check failures.
 
+Turning off the PC display is a Windows power transition rather than a network-selection change. On some Modern Standby hardware, `SC_MONITORPOWER` suspends the host and its WebSocket as soon as video output stops. Voltura Air cannot reliably override or remotely wake that state, so the client requires confirmation, probes the host after one second, and uses the normal health deadline to report the PC unavailable instead of displaying an extended connected state.
+
 ## Testing focus
 
 - Adapter identity survives DHCP IP change.

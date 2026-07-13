@@ -41,6 +41,16 @@ public partial class MainWindow
         _deviceDetailsPanel.Children.Add(CreateSectionHeading("Permissions"));
         AddPermissionChoices(_deviceDetailsPanel, device, "PC sleep", PermissionKind.PcSleep);
         AddPermissionChoices(_deviceDetailsPanel, device, "Volume control", PermissionKind.VolumeControl);
+        AddPermissionChoices(_deviceDetailsPanel, device, "Lock PC", PermissionKind.PcLock);
+        AddPermissionChoices(_deviceDetailsPanel, device, "Blackout display", PermissionKind.BlackoutDisplay);
+        AddPermissionChoices(_deviceDetailsPanel, device, "Turn off display", PermissionKind.DisplayOff);
+        if (_powerController.IsActionAvailable(SystemPowerActions.ScreenSaver))
+        {
+            AddPermissionChoices(_deviceDetailsPanel, device, "Screen saver", PermissionKind.ScreenSaver);
+        }
+        AddPermissionChoices(_deviceDetailsPanel, device, "Sign out", PermissionKind.SignOut);
+        AddPermissionChoices(_deviceDetailsPanel, device, "Restart PC", PermissionKind.Restart);
+        AddPermissionChoices(_deviceDetailsPanel, device, "Shut down PC", PermissionKind.Shutdown);
 
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 18, 0, 0) };
         actions.Children.Add(CreateButton(device.IsActive ? "Disconnect" : "Remove", (_, _) =>
@@ -93,7 +103,7 @@ public partial class MainWindow
     {
         parent.Children.Add(CreateLabel(title));
         var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 12) };
-        var current = kind == PermissionKind.PcSleep ? device.PermissionOverrides.AllowPcSleep : device.PermissionOverrides.AllowVolumeControl;
+        var current = GetPermissionOverride(device.PermissionOverrides, kind);
         row.Children.Add(CreateButton("Use global", (_, _) => SetDevicePermission(device.ClientId, kind, null), primary: current is null));
         row.Children.Add(CreateButton("Allow", (_, _) => SetDevicePermission(device.ClientId, kind, true), primary: current == true));
         row.Children.Add(CreateButton("Block", (_, _) => SetDevicePermission(device.ClientId, kind, false), primary: current == false, danger: current == false));
@@ -103,11 +113,38 @@ public partial class MainWindow
     private void SetDevicePermission(string clientId, PermissionKind kind, bool? value)
     {
         var current = _pairingManager.GetDevicePermissionOverrides(clientId);
-        var updated = kind == PermissionKind.PcSleep
-            ? current with { AllowPcSleep = value }
-            : current with { AllowVolumeControl = value };
+        var updated = kind switch
+        {
+            PermissionKind.PcSleep => current with { AllowPcSleep = value },
+            PermissionKind.VolumeControl => current with { AllowVolumeControl = value },
+            PermissionKind.PcLock => current with { AllowPcLock = value },
+            PermissionKind.BlackoutDisplay => current with { AllowBlackoutDisplay = value },
+            PermissionKind.DisplayOff => current with { AllowDisplayOff = value },
+            PermissionKind.ScreenSaver => current with { AllowScreenSaver = value },
+            PermissionKind.SignOut => current with { AllowSignOut = value },
+            PermissionKind.Restart => current with { AllowRestart = value },
+            PermissionKind.Shutdown => current with { AllowShutdown = value },
+            _ => current
+        };
         _pairingManager.SetDevicePermissionOverrides(clientId, updated);
         RefreshDevicesAndSelect(clientId);
+    }
+
+    private static bool? GetPermissionOverride(DevicePermissionOverrides permissions, PermissionKind kind)
+    {
+        return kind switch
+        {
+            PermissionKind.PcSleep => permissions.AllowPcSleep,
+            PermissionKind.VolumeControl => permissions.AllowVolumeControl,
+            PermissionKind.PcLock => permissions.AllowPcLock,
+            PermissionKind.BlackoutDisplay => permissions.AllowBlackoutDisplay,
+            PermissionKind.DisplayOff => permissions.AllowDisplayOff,
+            PermissionKind.ScreenSaver => permissions.AllowScreenSaver,
+            PermissionKind.SignOut => permissions.AllowSignOut,
+            PermissionKind.Restart => permissions.AllowRestart,
+            PermissionKind.Shutdown => permissions.AllowShutdown,
+            _ => null
+        };
     }
 
     private void SetDevicePointerSpeedOverride(string clientId, int? pointerSpeed)

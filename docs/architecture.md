@@ -24,13 +24,14 @@ The host protocol layer validates and routes messages. `InputDispatcher`, `Audio
 - `WebHostService.cs` and `WebHostService.Protocol.cs` own HTTP/WebSocket orchestration and protocol dispatch. `WebHostStaticFiles.cs` owns static PWA serving.
 - `PairingManager.*.cs`, `PairingStore.cs`, and `PairingAttemptRateLimiter.cs` own pairing state, authentication, persistence, and queries.
 - `InputDispatcher.cs` translates validated input messages for the focused `SendInputInjector.cs` Windows adapter. Failure policy remains in the dispatcher so one failed injection does not disable later input.
-- `RemoteActionExecutor.*.cs` owns browser, YouTube, Kodi, fullscreen, and window interop behavior. `SystemAudioController.cs` owns system audio.
-- `MainWindow.*.cs`, `WpfTrayApplicationContext.cs`, and the WPF XAML files own host presentation and lifecycle. Business and protocol logic do not belong in WPF code-behind.
+- `RemoteActionExecutor.*.cs` owns browser, YouTube, Kodi, fullscreen, and window interop behavior. `SystemAudioController.cs` owns system audio. `SystemPowerController.cs` owns fixed Windows power/session routing. `WindowsDisplayActionController.cs` owns the WPF multi-monitor blackout curtain, native screen-saver availability/activation, and blackout dismissal; the native monitor-power request remains subject to Windows Modern Standby behavior. `WorkstationLockPolicy.cs` owns current-user lock-policy inspection and local enablement.
+- `AppLog.cs` owns the opt-in, sanitized JSON Lines application log, structured queries, retention, and deletion. Remote protocol handlers and local Windows services submit safe event metadata through `IAppLog`; typed text, pointer coordinates, and pairing credentials never enter the log. Diagnostics renders filtered records with existing WPF theme resources.
+- `MainWindow.*.cs`, `WpfTrayApplicationContext.cs`, and the WPF XAML files own host presentation and lifecycle. Preferences uses a WPF single-open accordion, and Diagnostics keeps filters and action rows outside the scrollable log-record region. Business and protocol logic do not belong in WPF code-behind.
 
 ## Mobile subsystems and entry points
 
 - `main.tsx` and `App.tsx` are composition roots. `App.tsx` connects feature state to components. Reusable connection, input, pairing, and installation behavior belongs in focused hooks or services.
-- `useVolturaAirConnection.ts` is the public connection entry point. Supporting modules own client identity, pairing credentials, protocol normalization, connection health, acknowledgements, and reconnect policy.
+- `useVolturaAirConnection.ts` is the public connection entry point. Supporting modules own client identity, pairing credentials, protocol normalization, connection health, acknowledgements, and reconnect policy. After Windows accepts a display-off request, the client schedules an early health probe and uses the normal health deadline; it does not claim the host remains reachable when Windows suspends it.
 - `components/` contains presentation and interaction surfaces for trackpad, keyboard, remote, dictation, pairing, diagnostics, and settings. Components emit typed intents rather than controlling sockets.
 - `appStorage.ts`, `pcProfiles.ts`, and the settings modules own persisted formats and normalization. Their existing keys and compatible shapes remain stable.
 - `gestures.ts` and `keyboardDelta.ts` are input-domain modules. Gesture and keyboard translation behavior belongs there, with contract tests, rather than in the connection layer.
@@ -42,6 +43,7 @@ The host protocol layer validates and routes messages. `InputDispatcher`, `Audio
 | Windows input and dispatch | Preserve the `InputDispatcher` and `SendInputInjector` separation | `InputDispatcherTests`, `SendInputInjectorTests` |
 | WebSocket, acknowledgements, and reconnect | Keep identity, credentials, message policy, and lifecycle in focused connection modules behind the existing hook API | `useVolturaAirConnection.test.ts`, host WebSocket tests |
 | Browser, YouTube, Kodi, and fullscreen | Keep host behavior in `RemoteActionExecutor.*.cs` and remote shortcut policy in focused client modules | `RemoteMode.test.tsx`, host protocol tests |
+| Power and session actions | Keep fixed Windows execution in `SystemPowerController`, current-user lock-policy access in `WorkstationLockPolicy`, effective permission enforcement in the host protocol layer, and hold-to-confirm in the focused mobile power-sheet component | power protocol, policy, permission, component, and responsive browser tests |
 | Pairing, devices, and permissions | Keep pairing state and authentication on the host, while client identity and credentials remain isolated from presentation components | pairing, profile, permission, and connection tests |
 | Host settings, WPF, and tray | Preserve the current partial-class and service boundaries | WPF, startup, and settings tests |
 | React composition and feature state | Keep `App.tsx` as the composition root and move cohesive feature behavior into focused hooks and components | `App.test.tsx` and component tests |

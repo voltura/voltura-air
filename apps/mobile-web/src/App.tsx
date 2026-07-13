@@ -44,11 +44,15 @@ export function App() {
     message,
     send,
     requestAudioState,
+    requestPowerAction,
+    pendingPowerAction,
+    powerActionResult,
     clientId,
     deviceName,
     activePc,
     pairedPcs,
     audioState,
+    powerCapabilities,
     supportsGestureDebug,
     supportsSleep,
     supportsVolumeControl,
@@ -321,6 +325,10 @@ export function App() {
       audioState={displayedAudioState}
       onPointerButtonClick={(button) => emit({ type: "pointer.button", button, action: "click" })}
       onPointerMove={(dx, dy) => emit({ type: "pointer.move", dx, dy })}
+      onPowerAction={requestPowerAction}
+      pendingPowerAction={pendingPowerAction}
+      powerActionResult={powerActionResult}
+      powerCapabilities={powerCapabilities}
       remoteSettings={remoteSettings}
       sendSpecial={sendSpecial}
     />

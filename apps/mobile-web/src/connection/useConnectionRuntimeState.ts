@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState, type RefObject } from "react";
-import type { AudioStateMessage, HostStatusMetadata, ServerCapabilities } from "../protocol";
+import type { AudioStateMessage, HostStatusMetadata, PowerCapabilities, ServerCapabilities } from "../protocol";
 import {
+  getPowerCapabilities,
   hasGestureDebugCapability,
   hasInputAckCapability,
   hasRemoteLaunchCapability,
@@ -15,6 +16,7 @@ export function useConnectionRuntimeState(pendingInputAcksRef: RefObject<Map<num
   const [supportsSleep, setSupportsSleep] = useState(false);
   const [supportsVolumeControl, setSupportsVolumeControl] = useState(false);
   const [supportsRemoteLaunch, setSupportsRemoteLaunch] = useState(false);
+  const [powerCapabilities, setPowerCapabilities] = useState<PowerCapabilities | null>(null);
   const [hostStatus, setHostStatus] = useState<HostStatusMetadata | null>(null);
   const supportsVolumeControlRef = useRef(false);
   const supportsInputAckRef = useRef(false);
@@ -26,6 +28,7 @@ export function useConnectionRuntimeState(pendingInputAcksRef: RefObject<Map<num
     setSupportsSleep(false);
     setSupportsVolumeControl(false);
     setSupportsRemoteLaunch(false);
+    setPowerCapabilities(null);
     setHostStatus(null);
     supportsVolumeControlRef.current = false;
     supportsInputAckRef.current = false;
@@ -38,6 +41,7 @@ export function useConnectionRuntimeState(pendingInputAcksRef: RefObject<Map<num
     setSupportsSleep(connected && hasSleepCapability(capabilities));
     setSupportsVolumeControl(nextSupportsVolumeControl);
     setSupportsRemoteLaunch(connected && hasRemoteLaunchCapability(capabilities));
+    setPowerCapabilities(connected ? getPowerCapabilities(capabilities) : null);
     supportsVolumeControlRef.current = nextSupportsVolumeControl;
     supportsInputAckRef.current = nextSupportsInputAck;
     if (!nextSupportsVolumeControl) {
@@ -59,6 +63,7 @@ export function useConnectionRuntimeState(pendingInputAcksRef: RefObject<Map<num
     audioState,
     clearRuntimeState,
     hostStatus,
+    powerCapabilities,
     setAudioState,
     setHostStatus,
     supportsGestureDebug,

@@ -63,6 +63,16 @@ are connection failures and should be visible on both sides: the host uses the
 existing connection status notification setting, and the mobile client shows an
 unavailable/reconnecting state with copyable diagnostics.
 
+An accepted `displayOff` action deliberately removes video output, including
+HDMI output through a TV or receiver. Some Windows PCs treat the monitor-power
+command as sleep or Modern Standby, suspending the host and network connection.
+The mobile client warns before sending the action, probes the host after one
+second, and then uses normal socket, health, and input-acknowledgement failure
+handling. It must not preserve a false
+connected state merely because display off was requested. A suspended host
+cannot receive remote wake input, so recovery guidance must say to use a
+physical keyboard or mouse and expect that Windows may require sign-in.
+
 ## Recovery actions
 
 The pairing screen should expose the relevant actions directly near the error:

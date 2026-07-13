@@ -77,6 +77,7 @@ internal static class ClientMessageValidator
             "pointer.speed.set" => TryGetNumber(root, "pointerSpeed", DevicePointerProfile.MinPointerSpeed, DevicePointerProfile.MaxPointerSpeed, out _),
             "audio.get" => true,
             "system.sleep" => true,
+            "system.power" => TryGetRequiredString(root, "action", MaxRemoteActionLength, allowEmpty: false, out _),
             "remote.launch" => TryGetRequiredString(root, "action", MaxRemoteActionLength, allowEmpty: false, out var action) &&
                 RemoteLaunchActions.IsSupported(action),
             "audio.mute.toggle" => true,

@@ -1,6 +1,6 @@
 # Voltura Air - Features
 
-Updated: 2026-07-06  
+Updated: 2026-07-13
 Scope: current `voltura/voltura-air` `main` branch. This file describes implemented product capabilities, not future roadmap promises.
 
 Voltura Air turns any phone, tablet, or modern browser into a local-network remote control surface for a Windows PC.
@@ -135,7 +135,6 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Translates shortcut aliases:
   - Undo -> Ctrl+Z.
   - Redo -> Ctrl+Y.
-- Note: some host-supported keys, including Delete, Home, End, Page Up, and Page Down, are protocol/host capabilities but are not yet exposed as dedicated on-screen buttons in Keyboard mode.
 
 ### Audio and system actions
 
@@ -239,8 +238,12 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Composition/IME handling foundation.
 - Single-key app shortcuts such as `F` are sent as virtual key presses in live typing.
 - Repeatable Backspace.
+- Repeatable Delete.
 - Repeatable Enter.
 - Repeatable Tab.
+- Repeatable Home and End.
+- Repeatable Page Up and Page Down.
+- Repeatable arrow keys.
 - Esc.
 - Win.
 - Sleep button when host capability and local setting allow it.
@@ -250,17 +253,18 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Optional control/shortcut row.
 - Current visible shortcuts:
   - Ctrl+A.
+  - Ctrl+X.
   - Ctrl+C.
   - Ctrl+V.
   - Ctrl+Z.
   - Ctrl+Y.
-- Keys forwarded from a physical or browser-provided mobile keyboard can include Delete when the browser emits a supported delete event, but there is no dedicated on-screen Delete button yet.
+  - Alt+Tab.
+  - Shift+Alt+Tab.
 - Keyboard settings:
   - show function keys,
   - show control keys,
   - show arrow keys,
-  - show sleep button,
-  - enable split mode.
+  - show sleep button.
 
 ### Remote mode
 

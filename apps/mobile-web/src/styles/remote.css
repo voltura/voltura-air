@@ -88,20 +88,11 @@
   font-weight: 700;
 }
 
-.remote-primary-grid button.primary {
-  grid-column: span 1;
-  color: var(--on-accent);
-  background: var(--accent-strong);
-  border-color: var(--accent);
-}
-
-.remote-primary-grid button.primary svg {
-  width: 18px;
-  height: 18px;
-}
-
-.remote-primary-grid button.primary svg + svg {
-  margin-left: -8px;
+.remote-play-pause-icons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
 }
 
 .remote-primary-grid button.remote-icon-button svg {

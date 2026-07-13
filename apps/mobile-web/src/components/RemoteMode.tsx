@@ -437,9 +437,11 @@ export function RemoteMode({
             <SkipBack aria-hidden="true" />
             <span>Prev</span>
           </RemoteButton>
-          <RemoteButton label="Play or pause" className="primary" onClick={sendPlayPause}>
-            <Play aria-hidden="true" />
-            <Pause aria-hidden="true" />
+          <RemoteButton label="Play or pause" onClick={sendPlayPause}>
+            <span className="remote-play-pause-icons" aria-hidden="true">
+              <Play />
+              <Pause />
+            </span>
             <span>Play/Pause</span>
           </RemoteButton>
           <RemoteButton label="Next track" onClick={sendNext}>
@@ -475,6 +477,7 @@ export function RemoteMode({
           {isKodiMode ? (
             <RemoteButton label="Power menu" className="remote-icon-button" onClick={sendPowerMenu}>
               <Power aria-hidden="true" />
+              <span>Power options</span>
             </RemoteButton>
           ) : (
             <RemoteButton label="Browser fullscreen" title={modeCopy.browserFullscreenTitle} onClick={sendBrowserFullscreen}>

@@ -93,4 +93,25 @@ describe("TrackpadMode click buttons", () => {
     expect(onMouseButtonDown).toHaveBeenCalledWith("left");
     expect(onMouseButtonUp).toHaveBeenCalledWith("left");
   });
+
+  it("still sends button events when pointer capture fails", () => {
+    const onMouseButtonDown = vi.fn();
+    const onMouseButtonUp = vi.fn();
+    render(<TrackpadMode {...baseProps} onMouseButtonDown={onMouseButtonDown} onMouseButtonUp={onMouseButtonUp} />);
+
+    const leftButton = screen.getByRole("button", { name: "Left" });
+    leftButton.setPointerCapture = vi.fn(() => {
+      throw new DOMException("Pointer capture is unavailable", "InvalidStateError");
+    });
+    leftButton.hasPointerCapture = vi.fn(() => true);
+    leftButton.releasePointerCapture = vi.fn(() => {
+      throw new DOMException("Pointer capture was already released", "NotFoundError");
+    });
+
+    fireEvent.pointerDown(leftButton, { pointerId: 8 });
+    fireEvent.pointerUp(leftButton, { pointerId: 8 });
+
+    expect(onMouseButtonDown).toHaveBeenCalledWith("left");
+    expect(onMouseButtonUp).toHaveBeenCalledWith("left");
+  });
 });

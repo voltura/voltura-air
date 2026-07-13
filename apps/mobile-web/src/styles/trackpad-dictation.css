@@ -121,6 +121,7 @@
   min-height: 58px;
   padding-bottom: 10px;
   font-weight: 700;
+  touch-action: manipulation;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;

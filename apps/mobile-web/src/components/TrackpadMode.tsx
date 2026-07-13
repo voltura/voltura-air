@@ -58,10 +58,13 @@ export function TrackpadMode({
     event.preventDefault();
     event.stopPropagation();
     activeButtonPointers.current.set(event.pointerId, button);
-    if (typeof event.currentTarget.setPointerCapture === "function") {
-      event.currentTarget.setPointerCapture(event.pointerId);
-    }
     onMouseButtonDown(button);
+    try {
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+    } catch {
+      // Pointer capture is an enhancement for drag-to-hold. Some mobile
+      // browsers expose the API but reject capture for touch pointers.
+    }
   };
 
   const releaseMouseButton = (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -73,14 +76,14 @@ export function TrackpadMode({
     }
 
     activeButtonPointers.current.delete(event.pointerId);
-    if (
-      typeof event.currentTarget.hasPointerCapture === "function" &&
-      typeof event.currentTarget.releasePointerCapture === "function" &&
-      event.currentTarget.hasPointerCapture(event.pointerId)
-    ) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
     onMouseButtonUp(button);
+    try {
+      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+        event.currentTarget.releasePointerCapture?.(event.pointerId);
+      }
+    } catch {
+      // The pointer may already have been released by the browser.
+    }
   };
 
   return (

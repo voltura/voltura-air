@@ -6,7 +6,7 @@ Use it as a trackpad, keyboard, dictation surface, and media remote — includin
 
 ## Product promise
 
-Remote mode includes an Fn panel for common Windows window actions and browser tab/page shortcuts. Switch app supports quick previous-app taps plus hold-and-slide visual app selection, and Task view opens the persistent Windows window overview. Grouped visibility settings keep the panel compact, while the landscape layout preserves volume and navigation controls.
+Remote mode includes an Fn panel for common Windows window actions and browser tab/page shortcuts. Kodi mode separates its video/UI toggle from its fullscreen/windowed control and places supporting actions around the navigation ring. Switch app supports quick previous-app taps plus hold-and-slide visual app selection, and Task view opens the persistent Windows window overview. Grouped visibility settings keep the panel compact, while the landscape layout preserves volume and navigation controls.
 
 - Control your Windows PC from any phone, tablet, or touch browser.
 - No mobile app-store install required.

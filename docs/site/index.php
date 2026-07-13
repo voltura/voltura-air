@@ -139,7 +139,7 @@
             <li>Control a TV or stereo PC from the sofa.</li>
             <li>Type searches, messages, URLs, and short notes from your phone.</li>
             <li>Use a tablet as a roomy couch keyboard and trackpad.</li>
-            <li>Navigate YouTube, Kodi, music, video, and presentation controls.</li>
+            <li>Navigate YouTube, Kodi, music, video, and presentation controls, including Kodi video/UI and fullscreen/windowed toggles.</li>
             <li>Keep a backup input device ready when a wireless keyboard is missing or annoying.</li>
           </ul>
         </div>

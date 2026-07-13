@@ -20,8 +20,8 @@ export function getRemoteModeCopy(mode: RemoteModeId) {
         seekBackwardTitle: "Kodi skip backward / left",
         seekForwardTitle: "Kodi skip forward / right",
         spaceTitle: "Kodi pause/play",
-        appFullscreenLabel: "Fullscreen",
-        appFullscreenTitle: "Kodi fullscreen playback",
+        appFullscreenLabel: "Toggle video",
+        appFullscreenTitle: undefined,
         browserFullscreenTitle: "Kodi fullscreen/windowed"
       };
     default:

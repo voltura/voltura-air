@@ -188,7 +188,7 @@ async function clickPairIfPresent(page) {
 }
 
 async function waitForConnected(page) {
-  await page.getByText("Connected to PC").waitFor({ timeout: 10000 });
+  await page.locator(".status.paired").waitFor({ state: "visible", timeout: 10000 });
 }
 
 async function setMobileTheme(page, theme) {

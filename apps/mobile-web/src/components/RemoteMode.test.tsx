@@ -125,10 +125,11 @@ describe("RemoteMode", () => {
     ["Power menu", "S", undefined],
     ["Seek forward", "ArrowRight", undefined],
     ["Esc or back", "Backspace", undefined],
-    ["Fullscreen", "Tab", undefined],
-    ["End playback", "X", undefined],
+    ["Toggle video", "Tab", undefined],
+    ["Stop playback", "X", undefined],
     ["Info", "I", undefined],
     ["Toggle subtitles", "T", undefined],
+    ["Toggle fullscreen or windowed", "\\", undefined],
     ["Volume down", "-", undefined],
     ["Mute PC", "F8", undefined],
     ["Volume up", "+", undefined]
@@ -150,19 +151,27 @@ describe("RemoteMode", () => {
     renderRemote({ remoteSettings: { ...defaultRemoteSettings, navigationRing: true, mode: "kodi" } });
 
     expect(screen.queryByRole("button", { name: "Browser fullscreen" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Toggle fullscreen or windowed" }).classList).toContain("remote-nav-action-fullscreen");
   });
 
-  it("replaces Space with Stop and puts the power menu beside Fullscreen only in Kodi mode", () => {
+  it("uses accessible names instead of title tooltips for Kodi controls", () => {
+    renderRemote({ remoteSettings: { ...defaultRemoteSettings, navigationRing: true, mode: "kodi" } });
+
+    expect(document.querySelectorAll(".remote-media-section [title], .remote-navigation-section [title]")).toHaveLength(0);
+  });
+
+  it("replaces Space with Stop and puts the power menu beside Toggle video only in Kodi mode", () => {
     const { rerender } = renderRemote({ remoteSettings: { ...defaultRemoteSettings, navigationRing: true, mode: "kodi" } });
 
     expect(screen.getByRole("button", { name: "Power menu" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Stop playback" }).textContent).toContain("Stop");
     expect(screen.queryByRole("button", { name: "Space" })).toBeNull();
     expect(
       screen
         .getAllByRole("button")
         .map((button) => button.getAttribute("aria-label"))
         .slice(3, 9)
-    ).toEqual(["Seek backward", "End playback", "Seek forward", "Esc or back", "Fullscreen", "Power menu"]);
+    ).toEqual(["Seek backward", "Stop playback", "Seek forward", "Esc or back", "Toggle video", "Power menu"]);
 
     rerender(
       <RemoteMode

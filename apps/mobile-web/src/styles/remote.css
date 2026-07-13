@@ -246,6 +246,11 @@
   left: 10px;
 }
 
+.remote-nav-action-fullscreen {
+  top: 48px;
+  right: 10px;
+}
+
 .remote-nav-action-info {
   left: 10px;
   bottom: 10px;
@@ -312,6 +317,10 @@
   }
 
   .remote-nav-action-subtitles {
+    top: 42px;
+  }
+
+  .remote-nav-action-fullscreen {
     top: 42px;
   }
 
@@ -525,6 +534,10 @@
   }
 
   .remote-nav-action-subtitles {
+    top: 8px;
+  }
+
+  .remote-nav-action-fullscreen {
     top: 8px;
   }
 }

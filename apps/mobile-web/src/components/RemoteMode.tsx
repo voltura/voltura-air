@@ -8,6 +8,7 @@ import {
   CornerDownLeft,
   FastForward,
   Info,
+  Layers,
   Maximize2,
   Pause,
   Play,
@@ -428,20 +429,21 @@ export function RemoteMode({
             <SkipForward aria-hidden="true" />
             <span>Next</span>
           </RemoteButton>
-          <RemoteButton label="Seek backward" title={modeCopy.seekBackwardTitle} pressProps={getRepeatablePressProps(sendSeekBackward)}>
+          <RemoteButton label="Seek backward" title={isKodiMode ? undefined : modeCopy.seekBackwardTitle} pressProps={getRepeatablePressProps(sendSeekBackward)}>
             <Rewind aria-hidden="true" />
             <span>Seek -</span>
           </RemoteButton>
           {isKodiMode ? (
-            <RemoteButton label="End playback" title="Kodi stop playback" className="remote-icon-button" onClick={sendStopPlayback}>
+            <RemoteButton label="Stop playback" className="remote-icon-button" onClick={sendStopPlayback}>
               <SquareX aria-hidden="true" />
+              <span>Stop</span>
             </RemoteButton>
           ) : (
             <RemoteButton label="Space" title={modeCopy.spaceTitle} onClick={sendSpace}>
               <span>Space</span>
             </RemoteButton>
           )}
-          <RemoteButton label="Seek forward" title={modeCopy.seekForwardTitle} pressProps={getRepeatablePressProps(sendSeekForward)}>
+          <RemoteButton label="Seek forward" title={isKodiMode ? undefined : modeCopy.seekForwardTitle} pressProps={getRepeatablePressProps(sendSeekForward)}>
             <FastForward aria-hidden="true" />
             <span>Seek +</span>
           </RemoteButton>
@@ -449,12 +451,12 @@ export function RemoteMode({
             <CornerDownLeft aria-hidden="true" />
             <span>Esc / Back</span>
           </RemoteButton>
-          <RemoteButton label={modeCopy.appFullscreenLabel} title={modeCopy.appFullscreenTitle} onClick={sendAppFullscreen}>
-            <Maximize2 aria-hidden="true" />
+          <RemoteButton label={modeCopy.appFullscreenLabel} title={isKodiMode ? undefined : modeCopy.appFullscreenTitle} onClick={sendAppFullscreen}>
+            {isKodiMode ? <Layers aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
             <span>{modeCopy.appFullscreenLabel}</span>
           </RemoteButton>
           {isKodiMode ? (
-            <RemoteButton label="Power menu" title="Kodi power menu" className="remote-icon-button" onClick={sendPowerMenu}>
+            <RemoteButton label="Power menu" className="remote-icon-button" onClick={sendPowerMenu}>
               <Power aria-hidden="true" />
             </RemoteButton>
           ) : (
@@ -501,10 +503,13 @@ export function RemoteMode({
         </div>
         {isKodiMode && (
           <>
-            <RemoteButton label="Toggle subtitles" title="Kodi subtitles" className="remote-nav-action remote-nav-action-subtitles" onClick={sendSubtitles}>
+            <RemoteButton label="Toggle subtitles" className="remote-nav-action remote-nav-action-subtitles" onClick={sendSubtitles}>
               <Captions aria-hidden="true" />
             </RemoteButton>
-            <RemoteButton label="Info" title="Kodi info" className="remote-nav-action remote-nav-action-info" onClick={sendInfo}>
+            <RemoteButton label="Toggle fullscreen or windowed" className="remote-nav-action remote-nav-action-fullscreen" onClick={sendBrowserFullscreen}>
+              <Maximize2 aria-hidden="true" />
+            </RemoteButton>
+            <RemoteButton label="Info" className="remote-nav-action remote-nav-action-info" onClick={sendInfo}>
               <Info aria-hidden="true" />
             </RemoteButton>
           </>

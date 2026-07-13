@@ -287,7 +287,8 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
   - subtitles through `T`,
   - power menu through `S`,
   - back through `Backspace`,
-  - fullscreen playback / return to current playback through `Tab`,
+  - toggle between the Kodi UI over the playing video and video-only playback through `Tab`,
+  - toggle Kodi between fullscreen and windowed mode through `\`,
   - volume through `-`/`+`,
   - mute through `F8`.
 - Default navigation ring:
@@ -296,7 +297,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
   - center single tap for left click in Standard and YouTube modes,
   - center single tap for Enter in Kodi mode,
   - center double tap for right click in Standard and YouTube modes,
-  - Kodi Info and Subtitles icon buttons in the navigation panel,
+  - Kodi Subtitles, Fullscreen/Windowed, and Info icon buttons around the navigation panel,
   - navigation panel background drag for pointer movement,
   - navigation panel background single tap for left click,
   - navigation panel background double tap for right click.

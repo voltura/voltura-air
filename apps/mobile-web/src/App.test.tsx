@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { useVolturaAirConnection } from "./useVolturaAirConnection";
@@ -238,6 +238,8 @@ describe("Text transfer feedback", () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
     fireEvent.click(screen.getByRole("button", { name: "Send text to PC" }));
+    fireEvent.click(screen.getByText("Saved snippets").closest("summary")!);
+    fireEvent.click(screen.getByRole("button", { name: "Use device keyboard" }));
     fireEvent.change(screen.getByLabelText("Text to send"), { target: { value: "Saved text" } });
     fireEvent.change(screen.getByLabelText("Snippet name"), { target: { value: "Original name" } });
     fireEvent.click(screen.getByRole("button", { name: "Save current text" }));
@@ -250,12 +252,207 @@ describe("Text transfer feedback", () => {
 
     expect(screen.getByRole("button", { name: "Renamed snippet" })).toBeTruthy();
 
+    fireEvent.click(screen.getByRole("button", { name: "Use device keyboard" }));
     fireEvent.change(screen.getByLabelText("Text to send"), { target: { value: "Replacement text" } });
     fireEvent.click(screen.getByRole("button", { name: "Update" }));
     const updateDialog = screen.getByRole("dialog", { name: "Update snippet" });
     fireEvent.click(within(updateDialog).getByRole("button", { name: "Update snippet" }));
+    fireEvent.click(screen.getByRole("button", { name: "Use device keyboard" }));
     fireEvent.change(screen.getByLabelText("Text to send"), { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: "Renamed snippet" }));
     expect((screen.getByLabelText("Text to send") as HTMLTextAreaElement).value).toBe("Replacement text");
+    expect(document.querySelector(".text-transfer-editor-surface")?.classList).toContain("snippet-copied");
+    expect(screen.getByText("Renamed snippet copied to the text box.")).toBeTruthy();
+  });
+
+  it("starts with saved snippets folded and keeps an exact draft match visually neutral", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send text to PC" }));
+
+    const summary = screen.getByText("Saved snippets").closest("summary")!;
+    const details = summary.closest("details")!;
+    expect(details.open).toBe(false);
+
+    fireEvent.click(summary);
+    fireEvent.click(screen.getByRole("button", { name: "Use device keyboard" }));
+    fireEvent.change(screen.getByLabelText("Text to send"), { target: { value: "Already saved" } });
+    fireEvent.change(screen.getByLabelText("Snippet name"), { target: { value: "Greeting" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save current text" }));
+
+    const savedSnippet = screen.getByRole("button", { name: "Greeting" });
+    expect(savedSnippet.classList).toContain("draft-match");
+    expect(savedSnippet.classList).not.toContain("active");
+    expect(savedSnippet.getAttribute("aria-pressed")).toBeNull();
+  });
+
+  it("requires snippet names to be unique when saving and renaming", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send text to PC" }));
+    fireEvent.click(screen.getByText("Saved snippets").closest("summary")!);
+
+    const editor = screen.getByLabelText("Text to send");
+    const nameInput = screen.getByLabelText("Snippet name");
+    fireEvent.change(editor, { target: { value: "First text" } });
+    fireEvent.change(nameInput, { target: { value: "First" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save current text" }));
+    fireEvent.change(editor, { target: { value: "Second text" } });
+    fireEvent.change(nameInput, { target: { value: "Second" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save current text" }));
+
+    fireEvent.change(nameInput, { target: { value: " first " } });
+    expect(screen.getByText("A snippet with this name already exists.")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Save current text" }) as HTMLButtonElement).disabled).toBe(true);
+
+    const secondSnippetCard = screen.getByRole("button", { name: "Second" }).closest("li");
+    expect(secondSnippetCard).not.toBeNull();
+    fireEvent.click(within(secondSnippetCard!).getByRole("button", { name: "Rename" }));
+    const renameDialog = screen.getByRole("dialog", { name: "Rename snippet" });
+    fireEvent.change(within(renameDialog).getByLabelText("Snippet name"), { target: { value: "FIRST" } });
+    expect(within(renameDialog).getByText("A snippet with this name already exists.")).toBeTruthy();
+    expect((within(renameDialog).getByRole("button", { name: "Rename snippet" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("reorders snippet cards after a long press and persists the new order", () => {
+    vi.useFakeTimers();
+    const originalElementFromPoint = document.elementFromPoint;
+    try {
+      render(<App />);
+      fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+      fireEvent.click(screen.getByRole("button", { name: "Send text to PC" }));
+      fireEvent.click(screen.getByText("Saved snippets").closest("summary")!);
+
+      const editor = screen.getByLabelText("Text to send");
+      const nameInput = screen.getByLabelText("Snippet name");
+      for (const [name, text] of [["First", "First text"], ["Second", "Second text"]]) {
+        fireEvent.change(editor, { target: { value: text } });
+        fireEvent.change(nameInput, { target: { value: name } });
+        fireEvent.click(screen.getByRole("button", { name: "Save current text" }));
+      }
+
+      const firstButton = screen.getByRole("button", { name: "First" });
+      const firstCard = firstButton.closest("li")!;
+      const secondCard = screen.getByRole("button", { name: "Second" }).closest("li")!;
+      const textTransferMode = firstCard.closest<HTMLElement>(".text-transfer-mode")!;
+      textTransferMode.scrollTop = 100;
+      fireEvent.touchStart(secondCard, { touches: [{ identifier: 9, clientX: 20, clientY: 100 }] });
+      fireEvent.touchMove(secondCard, { touches: [{ identifier: 9, clientX: 20, clientY: 60 }] });
+      expect(textTransferMode.scrollTop).toBe(140);
+      fireEvent.touchEnd(secondCard, { touches: [], changedTouches: [{ identifier: 9, clientX: 20, clientY: 60 }] });
+
+      Object.defineProperty(document, "elementFromPoint", { configurable: true, value: vi.fn(() => secondCard) });
+      textTransferMode.scrollTop = 35;
+      fireEvent.touchStart(firstButton, { touches: [{ identifier: 1, clientX: 20, clientY: 20 }] });
+      act(() => vi.advanceTimersByTime(450));
+      expect(firstCard.classList).toContain("snippet-dragging");
+      expect(textTransferMode.scrollTop).toBe(35);
+      textTransferMode.scrollTop = 60;
+
+      fireEvent.touchMove(firstButton, { touches: [{ identifier: 1, clientX: 20, clientY: 100 }] });
+      expect(textTransferMode.scrollTop).toBe(35);
+      fireEvent.touchEnd(firstButton, { touches: [], changedTouches: [{ identifier: 1, clientX: 20, clientY: 100 }] });
+
+      expect(Array.from(document.querySelectorAll(".snippet-load"), (button) => button.textContent)).toEqual(["Second", "First"]);
+      expect(JSON.parse(localStorage.getItem("voltura-air.textSnippets.client-a") ?? "[]").map((snippet: { name: string }) => snippet.name)).toEqual(["Second", "First"]);
+      expect(screen.getByText("First moved to position 2.")).toBeTruthy();
+      fireEvent.click(firstButton);
+      expect((editor as HTMLTextAreaElement).value).toBe("Second text");
+
+      vi.mocked(document.elementFromPoint).mockReturnValue(null);
+      vi.spyOn(secondCard, "getBoundingClientRect").mockReturnValue({ top: 40, bottom: 80 } as DOMRect);
+      fireEvent.touchStart(firstCard, { touches: [{ identifier: 2, clientX: 20, clientY: 100 }] });
+      act(() => vi.advanceTimersByTime(450));
+      fireEvent.touchMove(firstCard, { touches: [{ identifier: 2, clientX: 20, clientY: 30 }] });
+      fireEvent.touchMove(firstCard, { touches: [{ identifier: 2, clientX: 20, clientY: 20 }] });
+      fireEvent.touchEnd(firstCard, { touches: [], changedTouches: [{ identifier: 2, clientX: 20, clientY: 30 }] });
+
+      expect(Array.from(document.querySelectorAll(".snippet-load"), (button) => button.textContent)).toEqual(["First", "Second"]);
+      expect(JSON.parse(localStorage.getItem("voltura-air.textSnippets.client-a") ?? "[]").map((snippet: { name: string }) => snippet.name)).toEqual(["First", "Second"]);
+      expect(screen.getByText("First moved to position 1.")).toBeTruthy();
+      act(() => vi.runOnlyPendingTimers());
+    } finally {
+      if (originalElementFromPoint) {
+        Object.defineProperty(document, "elementFromPoint", { configurable: true, value: originalElementFromPoint });
+      } else {
+        Reflect.deleteProperty(document, "elementFromPoint");
+      }
+      vi.useRealTimers();
+    }
+  });
+
+  it("makes the text editor's touchpad, click, and device-keyboard controls explicit", () => {
+    const send = vi.fn();
+    mockConnection({ send });
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send text to PC" }));
+    const editor = screen.getByLabelText("Text to send") as HTMLTextAreaElement;
+
+    expect(document.querySelector(".app-shell")?.classList).toContain("text-transfer-active");
+    expect(editor.readOnly).toBe(false);
+    expect(editor.placeholder).toBe("Type or paste text here…");
+    const editorToolbar = document.querySelector<HTMLElement>(".text-transfer-editor-toolbar");
+    expect(editorToolbar).not.toBeNull();
+    const editorModeControl = within(editorToolbar!).getByLabelText("Text box mode");
+    expect(screen.getByRole("button", { name: "Use device keyboard" }).getAttribute("aria-pressed")).toBe("true");
+    expect(within(editorModeControl).queryByText("Keyboard")).toBeNull();
+    expect(within(editorModeControl).getByText("Touchpad")).toBeTruthy();
+    expect(within(editorToolbar!).getByLabelText("Device keyboard type")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Send text" })).toBeTruthy();
+    expect(screen.getByText("Clear after sending")).toBeTruthy();
+    expect(screen.getByText("Saved snippets")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Touchpad" }));
+    expect(editor.readOnly).toBe(true);
+    expect(editor.placeholder).toBe("");
+    expect(editor.closest(".text-transfer-editor-surface")?.classList).not.toContain("is-editing");
+    expect(screen.getByRole("button", { name: "Touchpad" }).getAttribute("aria-pressed")).toBe("true");
+    expect(within(editorModeControl).getByText("Keyboard")).toBeTruthy();
+    expect(within(editorModeControl).queryByText("Touchpad")).toBeNull();
+    expect(within(editorToolbar!).queryByLabelText("Device keyboard type")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Send text" })).toBeNull();
+    expect(screen.queryByText("Clear after sending")).toBeNull();
+    expect(screen.queryByText("Saved snippets")).toBeNull();
+    expect(screen.queryByText("Move pointer")).toBeNull();
+
+    fireEvent.touchStart(editor, { targetTouches: [{ identifier: 1, clientX: 10, clientY: 10 }] });
+    fireEvent.touchEnd(editor, { targetTouches: [] });
+    expect(send).toHaveBeenCalledExactlyOnceWith({ type: "pointer.button", button: "left", action: "click" });
+
+    send.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Left" }));
+    fireEvent.click(screen.getByRole("button", { name: "Right" }));
+    expect(send).toHaveBeenNthCalledWith(1, { type: "pointer.button", button: "left", action: "click" });
+    expect(send).toHaveBeenNthCalledWith(2, { type: "pointer.button", button: "right", action: "click" });
+
+    send.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Use device keyboard" }));
+    expect(editor.readOnly).toBe(false);
+    expect(document.activeElement).toBe(editor);
+    expect(screen.getByRole("button", { name: "Touchpad" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Use device keyboard" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("tab", { name: "Show regular keyboard" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: "Show numeric keyboard" }));
+    expect(editor.inputMode).toBe("numeric");
+    fireEvent.touchStart(editor, { targetTouches: [{ identifier: 1, clientX: 10, clientY: 10 }] });
+    fireEvent.touchEnd(editor, { targetTouches: [] });
+    expect(send).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Touchpad" }));
+    expect(editor.readOnly).toBe(true);
+    expect(document.activeElement).not.toBe(editor);
+    expect(screen.queryByRole("tab", { name: "Show numeric keyboard" })).toBeNull();
+  });
+
+  it("reverses text-transfer pointer buttons for the left-handed layout", () => {
+    localStorage.setItem("voltura-air.trackpadSettings.client-a.pc-a", JSON.stringify({ leftHandedButtons: true }));
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send text to PC" }));
+    fireEvent.click(screen.getByRole("button", { name: "Touchpad" }));
+
+    const mouseButtons = screen.getByLabelText("Mouse buttons");
+    expect(within(mouseButtons).getAllByRole("button").map((button) => button.textContent)).toEqual(["Right", "Left"]);
   });
 });

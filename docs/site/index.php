@@ -108,7 +108,7 @@
         </article>
         <article>
           <h2>Send text to PC</h2>
-          <p>Compose or paste multiline text, preserve its line breaks, review the focused-app destination, optionally append a final Enter, and keep reusable snippets locally on your device. Windows confirms each complete delivery.</p>
+          <p>Compose or paste multiline text in a Keyboard-first editor with an ABC/123 selector, or switch it into a clean touchpad with handedness-aware Left/Right controls. Preserve line breaks, optionally append a final Enter, and keep reusable snippets in a folded local section. Windows confirms each complete delivery.</p>
         </article>
         <article>
           <h2>Couch remote</h2>

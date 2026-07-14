@@ -1,13 +1,12 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type React from "react";
 import { liveKeyboardSentinel } from "../keyboardDelta";
+import type { KeyboardInputMode } from "./KeyboardInputModeButtons";
 
 const repeatStartDelayMs = 400;
 const repeatIntervalMs = 55;
 
 type RepeatableKey = "Backspace" | "Delete" | "Enter" | "Tab" | "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "Home" | "End" | "PageUp" | "PageDown";
-type KeyboardInputMode = "text" | "numeric";
-
 type KeyboardModeControllerOptions = {
   committedKeyboardTextRef: React.RefObject<string>;
   keyboardText: string;

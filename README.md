@@ -8,7 +8,7 @@ Turn any phone, tablet, or touch browser into a wireless remote for your Windows
 
 Use it as a trackpad, keyboard, dictation surface, and media remote — including YouTube and Kodi modes for couch and TV control. No app-store install, account, or cloud needed.
 
-The mobile Menu also includes **Send text to PC** for composing or pasting multiline text, reviewing the current focused-application destination, and waiting for an explicit Windows delivery result. It preserves line breaks, supports optional local snippets, **Send text + Enter**, and a configurable fourth mode button. A disabled-by-default **Paste to PC** Keyboard shortcut provides a faster native-paste path when enabled.
+The mobile Menu also includes **Send text to PC** for composing or pasting multiline text, reviewing the current focused-application destination, and waiting for an explicit Windows delivery result. Its editor opens in Keyboard mode with the same ABC/123 selector as the main Keyboard page. An always-visible Keyboard/Touchpad switch changes it into a clean pointer surface whose Left/Right button order follows the trackpad's handedness setting. It preserves line breaks, keeps optional local snippets in a folded section by default, and offers **Send text** and **Send text + Enter** side by side while editing. A disabled-by-default **Paste to PC** Keyboard shortcut provides a faster native-paste path when enabled.
 
 ## Product promise
 

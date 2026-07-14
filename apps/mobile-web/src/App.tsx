@@ -397,7 +397,7 @@ export function App() {
   };
 
   return (
-    <main className={`app-shell ${canShowModeNavigation ? "has-mode-navigation" : ""} ${tab === "trackpad" ? "trackpad-active" : ""} ${tab === "remote" ? "remote-active" : ""} ${shouldShowSplitMode ? "split-mode-active" : ""} ${shouldShowSplitMode && trackpadSettings.splitShowModeButtons ? "split-show-mode-buttons" : ""} ${shouldShowSplitMode && trackpadSettings.splitShowStatusRow ? "split-show-status-row" : ""} ${areModeTabsCollapsed ? "mode-tabs-collapsed" : ""} ${isModeSelectorOpen ? "mode-selector-open" : ""}`}>
+    <main className={`app-shell ${canShowModeNavigation ? "has-mode-navigation" : ""} ${tab === "trackpad" ? "trackpad-active" : ""} ${tab === "remote" ? "remote-active" : ""} ${tab === "text-transfer" ? "text-transfer-active" : ""} ${shouldShowSplitMode ? "split-mode-active" : ""} ${shouldShowSplitMode && trackpadSettings.splitShowModeButtons ? "split-show-mode-buttons" : ""} ${shouldShowSplitMode && trackpadSettings.splitShowStatusRow ? "split-show-status-row" : ""} ${areModeTabsCollapsed ? "mode-tabs-collapsed" : ""} ${isModeSelectorOpen ? "mode-selector-open" : ""}`}>
       <header className="top-bar">
         <div className="brand-group">
           <button className="icon-button" type="button" aria-label="Open menu" onClick={() => setIsSettingsOpen(true)}>
@@ -536,8 +536,14 @@ export function App() {
           clearAfterSending={appSettings.clearTextAfterSending}
           clientId={clientId}
           draft={textTransferDraft}
+          leftHandedButtons={effectiveTrackpadSettings.leftHandedButtons}
           onClearAfterSendingChange={(value) => updateAppSetting("clearTextAfterSending", value)}
           onDraftChange={setTextTransferDraft}
+          onPointerButtonClick={(button) => emit({ type: "pointer.button", button, action: "click" })}
+          onTouchCancel={onTouchCancel}
+          onTouchEnd={onTouchEnd}
+          onTouchMove={onTouchMove}
+          onTouchStart={onTouchStart}
           pending={pendingTextTransfer}
           requestTextTransfer={requestTextTransfer}
           result={textTransferResult}

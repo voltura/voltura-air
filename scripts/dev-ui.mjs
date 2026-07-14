@@ -191,7 +191,11 @@ async function verifyResponsiveTextTransferLayout(page) {
     throw new Error(`Fourth mode button selector is too small: ${JSON.stringify(fourthModeMetrics)}`);
   }
   await page.getByRole("button", { name: "Send text to PC", exact: true }).click();
+  await page.getByRole("button", { name: "Edit text", exact: true }).click();
   await page.getByLabel("Text to send").fill("Responsive text transfer check");
+  const savedSnippets = page.locator(".saved-snippets");
+  const snippetsStartFolded = await savedSnippets.evaluate((details) => details instanceof HTMLDetailsElement && !details.open);
+  await page.locator(".saved-snippets > summary").click();
   await page.getByLabel("Snippet name").fill("Smoke snippet");
   await page.getByRole("button", { name: "Save current text", exact: true }).click();
 
@@ -205,35 +209,42 @@ async function verifyResponsiveTextTransferLayout(page) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     const result = await page.evaluate(() => {
       const editor = document.querySelector(".text-transfer-editor textarea");
+      const editorSurface = document.querySelector(".text-transfer-editor-surface");
       const editorField = document.querySelector(".text-transfer-editor");
-      const editorLabel = document.querySelector(".text-transfer-editor > span");
+      const editorLabel = document.querySelector(".text-transfer-editor > label");
       const actions = document.querySelector(".text-transfer-actions");
+      const sendButtons = Array.from(document.querySelectorAll(".text-transfer-actions button"));
       const snippetInput = document.querySelector(".snippet-save-row input");
       const saveButton = document.querySelector(".snippet-save-row button");
       const snippetActions = Array.from(document.querySelectorAll(".saved-snippets li button:not(.snippet-load)"));
-      if (!(editor instanceof HTMLTextAreaElement) || !(editorField instanceof HTMLElement) || !(editorLabel instanceof HTMLElement) || !(actions instanceof HTMLElement) ||
+      if (!(editor instanceof HTMLTextAreaElement) || !(editorSurface instanceof HTMLElement) || !(editorField instanceof HTMLElement) ||
+          !(editorLabel instanceof HTMLElement) || !(actions instanceof HTMLElement) || sendButtons.length !== 2 ||
           !(snippetInput instanceof HTMLInputElement) || !(saveButton instanceof HTMLButtonElement)) {
         return { error: "Text transfer controls were not visible." };
       }
 
-      const editorBounds = editor.getBoundingClientRect();
+      const editorSurfaceBounds = editorSurface.getBoundingClientRect();
       const editorFieldBounds = editorField.getBoundingClientRect();
       const editorLabelBounds = editorLabel.getBoundingClientRect();
       const actionBounds = actions.getBoundingClientRect();
+      const sendButtonBounds = sendButtons.map((button) => button.getBoundingClientRect());
       return {
         backButtonPresent: document.querySelector(".text-transfer-mode .tool-back-button") !== null,
-        editorLabelGap: editorBounds.top - editorLabelBounds.bottom,
-        editorMisaligned: Math.abs(editorBounds.left - editorFieldBounds.left) > 1 || Math.abs(editorBounds.width - editorFieldBounds.width) > 2,
-        editorOverlapsActions: editorBounds.bottom > actionBounds.top + 1,
+        editorLabelGap: editorSurfaceBounds.top - editorLabelBounds.bottom,
+        editorMisaligned: Math.abs(editorSurfaceBounds.left - editorFieldBounds.left) > 1 || Math.abs(editorSurfaceBounds.width - editorFieldBounds.width) > 2,
+        editorOverlapsActions: editorSurfaceBounds.bottom > actionBounds.top + 1,
+        editorUsesTrackpadGrid: getComputedStyle(editorSurface).backgroundImage !== "none",
         horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
         maxSnippetActionHeight: Math.max(...snippetActions.map((button) => button.getBoundingClientRect().height)),
-        snippetInputMatchesTheme: getComputedStyle(snippetInput).backgroundColor === getComputedStyle(editor).backgroundColor,
+        sendButtonsShareRow: Math.abs(sendButtonBounds[0].top - sendButtonBounds[1].top) <= 1,
+        snippetInputOpaque: getComputedStyle(snippetInput).backgroundColor !== "rgba(0, 0, 0, 0)",
         snippetInputWidth: snippetInput.getBoundingClientRect().width
       };
     });
 
-    if ("error" in result || result.backButtonPresent || result.editorLabelGap > 5 || result.editorMisaligned || result.editorOverlapsActions || result.horizontalOverflow ||
-        result.maxSnippetActionHeight > 45 || !result.snippetInputMatchesTheme || result.snippetInputWidth < 160) {
+    if (!snippetsStartFolded || "error" in result || result.backButtonPresent || result.editorLabelGap > 5 || result.editorMisaligned || result.editorOverlapsActions ||
+        !result.editorUsesTrackpadGrid || result.horizontalOverflow || result.maxSnippetActionHeight > 45 || !result.sendButtonsShareRow ||
+        !result.snippetInputOpaque || result.snippetInputWidth < 160) {
       throw new Error(`Responsive text transfer check failed for ${viewport.name}: ${JSON.stringify(result)}`);
     }
   }
@@ -242,16 +253,16 @@ async function verifyResponsiveTextTransferLayout(page) {
   await page.getByRole("button", { name: "Rename", exact: true }).click();
   const renameDialog = page.getByRole("dialog", { name: "Rename snippet", exact: true });
   const dialogMetrics = await renameDialog.evaluate((dialog) => {
-    const editor = document.querySelector(".text-transfer-editor textarea");
+    const standardInput = document.querySelector(".snippet-save-row input");
     const input = dialog.querySelector("input");
     const buttons = Array.from(dialog.querySelectorAll("button"));
-    if (!(editor instanceof HTMLTextAreaElement) || !(input instanceof HTMLInputElement) || buttons.length !== 2) {
+    if (!(standardInput instanceof HTMLInputElement) || !(input instanceof HTMLInputElement) || buttons.length !== 2) {
       return { error: "Themed snippet dialog controls were not visible." };
     }
     return {
       buttonsUseElements: buttons.every((button) => button instanceof HTMLButtonElement),
       fontMatchesApp: getComputedStyle(dialog).fontFamily === getComputedStyle(document.body).fontFamily,
-      inputMatchesTheme: getComputedStyle(input).backgroundColor === getComputedStyle(editor).backgroundColor,
+      inputMatchesTheme: getComputedStyle(input).backgroundColor === getComputedStyle(standardInput).backgroundColor,
       minButtonHeight: Math.min(...buttons.map((button) => button.getBoundingClientRect().height)),
       opaqueBackground: getComputedStyle(dialog).backgroundColor !== "rgba(0, 0, 0, 0)"
     };

@@ -2,6 +2,7 @@ import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ClipboardPaste, Send } from 
 import type React from "react";
 import { liveKeyboardSentinel } from "../keyboardDelta";
 import { InfoButton } from "./InfoButton";
+import { KeyboardInputModeButtons } from "./KeyboardInputModeButtons";
 import { useKeyboardModeController } from "./useKeyboardModeController";
 
 const functionKeys = Array.from({ length: 12 }, (_, index) => `F${index + 1}`);
@@ -136,28 +137,7 @@ export function KeyboardMode({
           }}
           placeholder="Tap here and type..."
         />
-        <div className="keyboard-input-mode-buttons segmented-control" role="tablist" aria-label="Device keyboard type">
-          <button
-            type="button"
-            className={keyboardInputMode === "text" ? "active" : ""}
-            aria-label="Show regular keyboard"
-            aria-selected={keyboardInputMode === "text"}
-            role="tab"
-            onClick={() => showKeyboardInputMode("text")}
-          >
-            ABC
-          </button>
-          <button
-            type="button"
-            className={keyboardInputMode === "numeric" ? "active" : ""}
-            aria-label="Show numeric keyboard"
-            aria-selected={keyboardInputMode === "numeric"}
-            role="tab"
-            onClick={() => showKeyboardInputMode("numeric")}
-          >
-            123
-          </button>
-        </div>
+        <KeyboardInputModeButtons inputMode={keyboardInputMode} onInputModeChange={showKeyboardInputMode} />
       </div>
       {(!liveKeyboard || showPasteToPcButton) && (
         <div className={`keyboard-send-row ${showPasteToPcButton ? "has-paste-to-pc" : ""}`}>

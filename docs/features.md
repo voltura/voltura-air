@@ -50,6 +50,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Provides tray actions for opening the app, controlling Keep awake, opening the product page, and exit.
 - Keeps the host window hidden when the last paired device disconnects by default; reopening it on disconnect is an opt-in preference.
 - Supports light, dark, and system theme modes.
+- Prevents accidental selection of static app text and button labels during touch gestures while preserving normal selection in inputs, textareas, selects, content-editable fields, and explicitly copyable text surfaces.
 - Supports per-user installation without administrator rights.
 - Supports portable zip packaging.
 - Supports NSIS installer packaging.
@@ -368,13 +369,15 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Trackpad, Keyboard, and Remote remain fixed primary modes. The fourth mode can be configured as Dictation or Send text to PC, defaults to Dictation, and uses one shared label/icon definition across navigation surfaces.
 - Dictation and Send text use the persistent Menu and mode navigation without separate page-level Back controls.
 - **Send text to PC** composes or pastes up to 4,096 characters and sends to the Windows application that currently owns keyboard focus.
+- The editor opens in **Keyboard** mode with a plain input background. Its left-aligned Keyboard/Touchpad switch shares one compact toolbar with a right-aligned ABC/123 selector; the active mode collapses to its icon without reserving label space while the inactive alternative keeps its text label. Touchpad mode uses the trackpad grid, hides the draft and keyboard-only send, clear, and snippet controls, and replaces the send row with Left/Right buttons that follow the trackpad's left-handed button-layout setting.
+- The top app-mode button row is hidden on the Send text page in landscape to leave more room for the editor. As viewport height becomes constrained in either orientation, the page progressively hides the destination warning, the **Text to send** field label, and finally the explanatory line below the page title.
 - The destination warning is shown before delivery. Changing Windows focus changes the destination; the host refuses delivery while its own protected UI has focus.
 - Preserves multiline text by delivering each LF, CRLF, or CR line break as one Enter key event.
-- Supports **Send text** and **Send text + Enter**. The optional final Enter is sent only after Windows accepts the complete text.
+- Keeps **Send text** and **Send text + Enter** side by side in both portrait and landscape. The optional final Enter is sent only after Windows accepts the complete text.
 - Confirms before sending 2,000 or more characters.
 - Shows pending, success, timeout, and native-delivery failure feedback from a host-acknowledged operation.
 - Supports an optional clear-after-send preference. The draft remains available after failure or when clearing is disabled.
-- Supports up to 20 locally stored snippets of up to 4,096 characters. Snippets can be loaded, renamed, updated from the draft, or deleted, and are sent only after an explicit send action.
+- Supports up to 20 locally stored snippets of up to 4,096 characters in a section that is folded by default. Names must be unique after trimming and without regard to letter case; duplicate saves and renames show inline feedback. Each snippet uses a compact bordered card with its name and a reorder-grip glyph on the first row and Rename, Update, and Delete together below it. Cards declare their custom touch behavior before contact begins: a normal vertical swipe scrolls the list under app control, while holding for 450 ms switches the same whole-card gesture into scroll-locked reordering. Releasing a drag automatically saves the new order. Loading a snippet briefly highlights the editor border and announces that its text was copied. Snippets are sent only after an explicit send action, and one whose text exactly matches the current draft remains visually neutral.
 - The authenticated host status advertises the safe destination mode, display name, and current availability. Executable paths, process IDs, window handles, and clipboard contents are not exposed.
 - Text transfer targets the application that already has focus.
 

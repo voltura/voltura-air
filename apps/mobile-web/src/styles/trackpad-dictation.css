@@ -106,8 +106,8 @@
 }
 
 .trackpad-surface > svg {
-  width: 42px;
-  height: 42px;
+  width: var(--trackpad-center-icon-size);
+  height: var(--trackpad-center-icon-size);
   color: var(--trackpad-icon);
 }
 

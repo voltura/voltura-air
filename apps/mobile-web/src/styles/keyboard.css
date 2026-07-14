@@ -254,10 +254,6 @@
     gap: 14px;
   }
 
-  .trackpad-surface > svg {
-    width: 54px;
-    height: 54px;
-  }
 }
 
 @media (orientation: landscape) {

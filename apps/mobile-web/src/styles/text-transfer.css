@@ -174,8 +174,8 @@
 }
 
 .text-transfer-touchpad-hint svg {
-  width: 34px;
-  height: 34px;
+  width: var(--trackpad-center-icon-size);
+  height: var(--trackpad-center-icon-size);
 }
 
 .text-transfer-keyboard-type {

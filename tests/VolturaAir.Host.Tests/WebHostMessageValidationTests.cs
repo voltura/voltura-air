@@ -1,0 +1,97 @@
+using VolturaAir.Host;
+
+namespace VolturaAir.Host.Tests;
+
+[Collection(AppPermissionSettingsCollection.Name)]
+public sealed class WebHostMessageValidationTests : WebHostServiceTestBase
+{
+    [Fact]
+    public async Task WebSocketClosesUnknownAuthenticatedMessagesWithoutDispatchingInput()
+    {
+        await using var fixture = await WebHostFixture.StartAsync();
+        var clientId = $"client-{Guid.NewGuid():N}";
+        var token = fixture.Manager.CreatePairingToken();
+        using var socket = await ConnectAsync(fixture.WebHost);
+
+        var paired = await SendAndReceiveAsync(socket, new
+        {
+            type = "pair.hello",
+            clientId,
+            deviceName = "Phone",
+            pairToken = token
+        });
+
+        await SendAsync(socket, new { type = "pointer.teleport", dx = 10, dy = 10 });
+        var closeStatus = await ReceiveCloseStatusAsync(socket);
+
+        Assert.Equal("pair.accepted", paired.GetProperty("type").GetString());
+        Assert.Equal(WebSocketCloseStatus.PolicyViolation, closeStatus);
+        Assert.Empty(fixture.InputInjector.Events);
+    }
+
+    [Fact]
+    public async Task WebSocketClosesMalformedAuthenticatedMessagesWithoutDispatchingInput()
+    {
+        await using var fixture = await WebHostFixture.StartAsync();
+        var closeEvent = new TaskCompletionSource<ControllerSocketClosedEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var clientId = $"client-{Guid.NewGuid():N}";
+        var token = fixture.Manager.CreatePairingToken();
+        using var socket = await ConnectAsync(fixture.WebHost);
+        fixture.WebHost.ControllerSocketClosed += (_, args) => closeEvent.TrySetResult(args);
+
+        var paired = await SendAndReceiveAsync(socket, new
+        {
+            type = "pair.hello",
+            clientId,
+            deviceName = "Phone",
+            pairToken = token
+        });
+
+        await SendAsync(socket, new { type = "pointer.move", dx = "not-a-number", dy = 10 });
+        var closeStatus = await ReceiveCloseStatusAsync(socket);
+        var closeNotification = await closeEvent.Task.WaitAsync(TimeSpan.FromSeconds(3));
+
+        Assert.Equal("pair.accepted", paired.GetProperty("type").GetString());
+        Assert.Equal(WebSocketCloseStatus.PolicyViolation, closeStatus);
+        Assert.Equal(clientId, closeNotification.ClientId);
+        Assert.Equal(WebSocketCloseStatus.PolicyViolation, closeNotification.Status);
+        Assert.Equal("Invalid message", closeNotification.Reason);
+        Assert.Empty(fixture.InputInjector.Events);
+    }
+
+    [Fact]
+    public async Task WebSocketKeepsAuthenticatedSocketOpenAfterRecoverableInputFailure()
+    {
+        await using var fixture = await WebHostFixture.StartAsync();
+        fixture.InputInjector.Failures.Enqueue(new InputDispatchException(
+            "Windows did not accept all input events.",
+            "keyboard.special",
+            requestedCount: 4,
+            acceptedCount: 2,
+            win32Error: 5,
+            cleanupAttempted: true,
+            cleanupSucceeded: true));
+        var clientId = $"client-{Guid.NewGuid():N}";
+        var token = fixture.Manager.CreatePairingToken();
+        using var socket = await ConnectAsync(fixture.WebHost);
+
+        var paired = await SendAndReceiveAsync(socket, new
+        {
+            type = "pair.hello",
+            clientId,
+            deviceName = "Phone",
+            pairToken = token
+        });
+        var inputError = await SendAndReceiveAsync(socket, new { type = "keyboard.special", key = "Tab", modifiers = new[] { "Alt" }, seq = 7 });
+        var inputAck = await SendAndReceiveAsync(socket, new { type = "pointer.move", dx = 3, dy = -2, seq = 8 });
+
+        Assert.Equal("pair.accepted", paired.GetProperty("type").GetString());
+        Assert.Equal("input.error", inputError.GetProperty("type").GetString());
+        Assert.Equal(7, inputError.GetProperty("seq").GetInt64());
+        Assert.Equal("VAIR-INPUT-NATIVE-SEND-FAILED", inputError.GetProperty("code").GetString());
+        Assert.Equal("input.ack", inputAck.GetProperty("type").GetString());
+        Assert.Equal(8, inputAck.GetProperty("seq").GetInt64());
+        Assert.Equal(WebSocketState.Open, socket.State);
+        Assert.Equal(new[] { "MoveMouse:3:-2" }, fixture.InputInjector.Events);
+    }
+}

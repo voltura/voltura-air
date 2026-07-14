@@ -158,3 +158,29 @@ describe("App header and mode navigation", () => {
     expect(document.querySelector(".split-mode-shell")?.classList).toContain("split-trackpad-left");
   });
 });
+
+describe("App launch feedback", () => {
+  it("shows a status toast while an app launch is pending", () => {
+    mockConnection({ pendingAppLaunchId: "preset.browser" });
+
+    render(<App />);
+
+    expect(screen.getByRole("status").textContent).toContain("Waiting for the PC");
+  });
+
+  it("shows an alert toast when an app launch fails", () => {
+    mockConnection({
+      appLaunchResult: {
+        type: "app.launch.result",
+        actionId: "preset.browser",
+        succeeded: false,
+        code: "not-configured",
+        message: "Browser could not be started."
+      }
+    });
+
+    render(<App />);
+
+    expect(screen.getByRole("alert").textContent).toBe("Browser could not be started.");
+  });
+});

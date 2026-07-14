@@ -259,3 +259,13 @@ dotnet run --project apps/windows-host/VolturaAir.Host.csproj
 Attach a debugger to the `VolturaAir.Host.exe` process if you need breakpoints while using CLI startup.
 
 See [docs/setup.md](docs/setup.md), [docs/release.md](docs/release.md), [docs/protocol.md](docs/protocol.md), [docs/pairing-feedback.md](docs/pairing-feedback.md), and [docs/manual-network-selection.md](docs/manual-network-selection.md) for details.
+
+## Statistics
+
+[![Visitors](https://estruyf-github.azurewebsites.net/api/VisitorHit?user=volturaf&repo=voltura-air&countColor=%235690f2)](https://github.com/voltura/voltura-air)
+[![Code size](https://img.shields.io/github/languages/code-size/voltura/voltura-air)](https://github.com/voltura/voltura-air)
+[![Stars](https://img.shields.io/github/stars/voltura/voltura-air)](https://github.com/voltura/voltura-air/stargazers)
+[![Forks](https://img.shields.io/github/forks/voltura/voltura-air)](https://github.com/voltura/voltura-air/forks)
+[![Last commit](https://img.shields.io/github/last-commit/voltura/voltura-air?color=red)](https://github.com/voltura/voltura-air/commits)
+[![Languages](https://img.shields.io/github/languages/count/voltura/voltura-air)](https://github.com/voltura/voltura-air)
+[![Top language](https://img.shields.io/github/languages/top/voltura/voltura-air)](https://github.com/voltura/voltura-air)

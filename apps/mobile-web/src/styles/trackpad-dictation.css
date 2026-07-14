@@ -379,3 +379,17 @@
   background: var(--accent-strong);
   border-color: var(--accent);
 }
+
+@media (orientation: portrait) {
+  .trackpad-mode {
+    padding-bottom: 8px;
+  }
+
+  .dictation-mode {
+    padding-bottom: 8px;
+  }
+
+  .dictation-textarea {
+    min-height: 144px;
+  }
+}

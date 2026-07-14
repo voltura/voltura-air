@@ -8,8 +8,9 @@
 }
 
 .pairing-required.connection-unavailable {
-  bottom: 0;
+  bottom: 3px;
   max-height: none;
+  border-radius: clamp(32px, 9.6vw, 42px);
 }
 
 .pairing-required.pairing-feedback-error > svg {
@@ -161,4 +162,3 @@
     min-height: 48px;
   }
 }
-

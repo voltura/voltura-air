@@ -72,6 +72,7 @@ public partial class MainWindow
         var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 8) };
         var slider = new Slider
         {
+            Style = (Style)Resources["ModernSliderStyle"],
             Minimum = DevicePointerProfile.MinPointerSpeed,
             Maximum = DevicePointerProfile.MaxPointerSpeed,
             TickFrequency = 5,

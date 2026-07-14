@@ -160,6 +160,7 @@ public partial class MainWindow
         var currentSpeed = AppPointerSettings.GetDefaultPointerSpeed();
         var slider = new Slider
         {
+            Style = (Style)Resources["ModernSliderStyle"],
             Minimum = DevicePointerProfile.MinPointerSpeed,
             Maximum = DevicePointerProfile.MaxPointerSpeed,
             TickFrequency = 5,

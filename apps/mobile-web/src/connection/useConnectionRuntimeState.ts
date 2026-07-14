@@ -11,8 +11,12 @@ import {
   hasVolumeCapability,
   normalizeHostStatus
 } from "./connectionProtocol";
+import type { PendingMovementAck } from "./useConnectionSender";
 
-export function useConnectionRuntimeState(pendingInputAcksRef: RefObject<Map<number, number>>) {
+export function useConnectionRuntimeState(
+  pendingInputAcksRef: RefObject<Map<number, number>>,
+  pendingMovementAckRef: RefObject<PendingMovementAck | null>
+) {
   const [audioState, setAudioState] = useState<AudioStateMessage | null>(null);
   const [awakeCapability, setAwakeCapability] = useState<AwakeCapability | null>(null);
   const [supportsGestureDebug, setSupportsGestureDebug] = useState(false);
@@ -27,6 +31,7 @@ export function useConnectionRuntimeState(pendingInputAcksRef: RefObject<Map<num
 
   const clearRuntimeState = useCallback(() => {
     pendingInputAcksRef.current.clear();
+    pendingMovementAckRef.current = null;
     setAudioState(null);
     setAwakeCapability(null);
     setSupportsGestureDebug(false);
@@ -38,7 +43,7 @@ export function useConnectionRuntimeState(pendingInputAcksRef: RefObject<Map<num
     setHostStatus(null);
     supportsVolumeControlRef.current = false;
     supportsInputAckRef.current = false;
-  }, [pendingInputAcksRef]);
+  }, [pendingInputAcksRef, pendingMovementAckRef]);
 
   const updateCapabilities = useCallback((capabilities: ServerCapabilities | undefined, connected = true) => {
     const nextSupportsVolumeControl = connected && hasVolumeCapability(capabilities);
@@ -57,8 +62,9 @@ export function useConnectionRuntimeState(pendingInputAcksRef: RefObject<Map<num
     }
     if (!nextSupportsInputAck) {
       pendingInputAcksRef.current.clear();
+      pendingMovementAckRef.current = null;
     }
-  }, [pendingInputAcksRef]);
+  }, [pendingInputAcksRef, pendingMovementAckRef]);
 
   const updateHostStatus = useCallback((metadata: HostStatusMetadata | undefined) => {
     const normalized = normalizeHostStatus(metadata);

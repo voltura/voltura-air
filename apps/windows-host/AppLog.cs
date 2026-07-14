@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 
 namespace VolturaAir.Host;
@@ -104,9 +105,9 @@ public sealed class AppLog : IAppLog
             lock (_gate)
             {
                 var timestamp = _now();
+                var path = Path.Combine(LogDirectory, $"app-log-{timestamp:yyyy-MM-dd}.jsonl");
                 TryPruneExpired(timestamp, force: false);
                 Directory.CreateDirectory(LogDirectory);
-                var path = Path.Combine(LogDirectory, $"app-log-{timestamp:yyyy-MM-dd}.jsonl");
                 var line = JsonSerializer.Serialize(new
                 {
                     timestampUtc = timestamp.ToUniversalTime(),
@@ -120,7 +121,7 @@ public sealed class AppLog : IAppLog
                     win32Error = entry.Win32Error,
                     detail = entry.Detail
                 });
-                File.AppendAllText(path, line + Environment.NewLine);
+                AppendLine(path, line);
             }
         }
         catch (Exception ex)
@@ -137,6 +138,7 @@ public sealed class AppLog : IAppLog
     {
         try
         {
+            string[] files;
             lock (_gate)
             {
                 TryPruneExpired(_now(), force: true);
@@ -145,44 +147,45 @@ public sealed class AppLog : IAppLog
                     return new AppLogReadResult(true, []);
                 }
 
-                var limit = Math.Clamp(query.MaxEntries, 1, 5000);
-                var entries = new Queue<AppLogRecord>(limit);
-                var truncated = false;
-                var files = Directory.EnumerateFiles(LogDirectory, "app-log-*.jsonl")
+                files = Directory.EnumerateFiles(LogDirectory, "app-log-*.jsonl")
                     .Where(path => IsCandidateFile(path, query))
-                    .OrderBy(path => path, StringComparer.OrdinalIgnoreCase);
-
-                foreach (var file in files)
-                {
-                    foreach (var line in File.ReadLines(file))
-                    {
-                        AppLogRecord? entry;
-                        try
-                        {
-                            entry = JsonSerializer.Deserialize<AppLogRecord>(line, ReadOptions);
-                        }
-                        catch (JsonException)
-                        {
-                            continue;
-                        }
-
-                        if (entry is null || !Matches(entry, query))
-                        {
-                            continue;
-                        }
-
-                        if (entries.Count == limit)
-                        {
-                            entries.Dequeue();
-                            truncated = true;
-                        }
-
-                        entries.Enqueue(entry);
-                    }
-                }
-
-                return new AppLogReadResult(true, entries.ToArray(), truncated);
+                    .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
             }
+
+            var limit = Math.Clamp(query.MaxEntries, 1, 5000);
+            var entries = new Queue<AppLogRecord>(limit);
+            var truncated = false;
+            foreach (var file in files)
+            {
+                foreach (var line in ReadLinesShared(file))
+                {
+                    AppLogRecord? entry;
+                    try
+                    {
+                        entry = JsonSerializer.Deserialize<AppLogRecord>(line, ReadOptions);
+                    }
+                    catch (JsonException)
+                    {
+                        continue;
+                    }
+
+                    if (entry is null || !Matches(entry, query))
+                    {
+                        continue;
+                    }
+
+                    if (entries.Count == limit)
+                    {
+                        entries.Dequeue();
+                        truncated = true;
+                    }
+
+                    entries.Enqueue(entry);
+                }
+            }
+
+            return new AppLogReadResult(true, entries.ToArray(), truncated);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -214,6 +217,35 @@ public sealed class AppLog : IAppLog
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return new AppLogDeleteResult(false, 0, ex.Message);
+        }
+    }
+
+    private static void AppendLine(string path, string line)
+    {
+        using var stream = new FileStream(
+            path,
+            FileMode.Append,
+            FileAccess.Write,
+            FileShare.ReadWrite | FileShare.Delete,
+            bufferSize: 4096,
+            FileOptions.SequentialScan);
+        using var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        writer.WriteLine(line);
+    }
+
+    private static IEnumerable<string> ReadLinesShared(string path)
+    {
+        using var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete,
+            bufferSize: 4096,
+            FileOptions.SequentialScan);
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        while (reader.ReadLine() is { } line)
+        {
+            yield return line;
         }
     }
 

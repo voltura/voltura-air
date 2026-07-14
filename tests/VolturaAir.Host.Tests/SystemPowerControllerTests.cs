@@ -1,9 +1,20 @@
+using System.Windows.Threading;
 using VolturaAir.Host;
 
 namespace VolturaAir.Host.Tests;
 
 public sealed class SystemPowerControllerTests
 {
+    [Fact]
+    public async Task InactiveBlackoutCheckDoesNotEnterWpfDispatcher()
+    {
+        var controller = new WindowsDisplayActionController(Dispatcher.CurrentDispatcher, NullAppLog.Instance);
+
+        var dismissed = await Task.Run(controller.DismissBlackoutIfActive).WaitAsync(TimeSpan.FromSeconds(1));
+
+        Assert.False(dismissed);
+    }
+
     [Fact]
     public void LockReturnsAcceptedWhenNativeApiReturnsTrue()
     {

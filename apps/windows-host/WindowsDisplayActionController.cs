@@ -47,6 +47,7 @@ internal sealed class WindowsDisplayActionController : IWindowsDisplayActionCont
     private readonly Dispatcher _dispatcher;
     private readonly IAppLog _appLog;
     private readonly List<Window> _blackoutWindows = [];
+    private int _blackoutActive;
     private DateTimeOffset _inputArmedAt;
 
     public WindowsDisplayActionController(Dispatcher dispatcher, IAppLog appLog)
@@ -117,6 +118,13 @@ internal sealed class WindowsDisplayActionController : IWindowsDisplayActionCont
 
     public bool DismissBlackoutIfActive()
     {
+        // Remote pointer movement is a hot path. Avoid synchronously entering the
+        // WPF dispatcher unless an overlay actually exists.
+        if (Volatile.Read(ref _blackoutActive) == 0)
+        {
+            return false;
+        }
+
         if (_dispatcher.CheckAccess())
         {
             return DismissBlackoutCore("remote_input");
@@ -156,6 +164,7 @@ internal sealed class WindowsDisplayActionController : IWindowsDisplayActionCont
         }
 
         _inputArmedAt = DateTimeOffset.UtcNow.AddMilliseconds(350);
+        Volatile.Write(ref _blackoutActive, 1);
         foreach (var monitor in monitors)
         {
             var window = CreateBlackoutWindow();
@@ -247,6 +256,7 @@ internal sealed class WindowsDisplayActionController : IWindowsDisplayActionCont
     {
         var windows = _blackoutWindows.ToArray();
         _blackoutWindows.Clear();
+        Volatile.Write(ref _blackoutActive, 0);
         foreach (var window in windows)
         {
             window.Close();

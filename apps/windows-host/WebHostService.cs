@@ -67,7 +67,10 @@ public sealed partial class WebHostService : IAsyncDisposable
         _awakeService.StateChanged += OnAwakeStateChanged;
 
         var settings = AppNetworkSettings.Load();
-        var portSelection = PortSelector.Select(settings, IsPortAvailable, FindFreePort);
+        var usesInMemoryTestServer = isolatedTestMode && configureWebHost is not null;
+        var portSelection = usesInMemoryTestServer
+            ? new PortSelectionResult(true, PortSelector.PreferredPort, IsAutomatic: true, ErrorMessage: null)
+            : PortSelector.Select(settings, IsPortAvailable, FindFreePort);
         if (!portSelection.Succeeded)
         {
             throw new HostPortUnavailableException(portSelection.ErrorMessage ?? "The configured Voltura Air port is unavailable.");

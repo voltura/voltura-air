@@ -21,6 +21,9 @@ export function usePointerInput({ send, state, trackpadSettings }: PointerInputO
       window.cancelAnimationFrame(pointerFrameRef.current);
       pointerFrameRef.current = null;
     }
+    pendingPointerMoveRef.current = null;
+    pendingPointerWheelRef.current = null;
+    recognizerRef.current.cancel();
   }, []);
 
   const sendPendingPointerDeltas = () => {
@@ -107,6 +110,12 @@ export function usePointerInput({ send, state, trackpadSettings }: PointerInputO
   const onTouchCancel = (event: TouchEvent<HTMLDivElement>) => {
     event.preventDefault();
     recognizerRef.current.cancel();
+    if (pointerFrameRef.current !== null) {
+      window.cancelAnimationFrame(pointerFrameRef.current);
+      pointerFrameRef.current = null;
+    }
+    pendingPointerMoveRef.current = null;
+    pendingPointerWheelRef.current = null;
   };
 
   const sendSpecial = (key: string, modifiers?: string[]) => {

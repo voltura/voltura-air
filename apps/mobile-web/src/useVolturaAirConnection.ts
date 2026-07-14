@@ -17,7 +17,7 @@ import { clearStoredSecret, getStoredSecret, handlePairAccepted, shouldClearStor
 import { useConnectionRuntimeState } from "./connection/useConnectionRuntimeState";
 import { usePairedPcActions } from "./connection/usePairedPcActions";
 import type { ConnectionError, ConnectionState, PairingAttempt } from "./connection/connectionTypes";
-import { useConnectionSender } from "./connection/useConnectionSender";
+import { useConnectionSender, type PendingMovementAck } from "./connection/useConnectionSender";
 import { useConnectionPersistence } from "./connection/useConnectionPersistence";
 import { useInitialConnectionProfileState } from "./connection/useInitialConnectionProfileState";
 import { useAwakeControl } from "./connection/useAwakeControl";
@@ -65,13 +65,14 @@ export function useVolturaAirConnection() {
   const rescheduleHealthCheckRef = useRef<(() => void) | null>(null);
   const nextInputSequenceRef = useRef(1);
   const pendingInputAcksRef = useRef<Map<number, number>>(new Map());
+  const pendingMovementAckRef = useRef<PendingMovementAck | null>(null);
   const {
     audioState, awakeCapability, clearRuntimeState, hostStatus, powerCapabilities, setAudioState,
     setHostStatus, supportsGestureDebug, supportsInputAckRef, supportsRemoteLaunch, supportsSleep, supportsTextTransfer,
     supportsVolumeControl, supportsVolumeControlRef, updateCapabilities, updateHostStatus
-  } = useConnectionRuntimeState(pendingInputAcksRef);
+  } = useConnectionRuntimeState(pendingInputAcksRef, pendingMovementAckRef);
   const { requestAudioState, send } = useConnectionSender({
-    lastMovementAckAtRef, lastUserActivityAtRef, nextInputSequenceRef, pendingInputAcksRef,
+    lastMovementAckAtRef, lastUserActivityAtRef, nextInputSequenceRef, pendingInputAcksRef, pendingMovementAckRef,
     reconnectRef, rescheduleHealthCheckRef, socketRef, supportsInputAckRef, supportsVolumeControlRef
   });
   const { awakeResult, completeAwakeChange, pendingAwakeChange, requestAwakeChange } = useAwakeControl(state, send);
@@ -260,6 +261,7 @@ export function useVolturaAirConnection() {
 
       backgroundSuspended = false;
       pendingInputAcksRef.current.clear();
+      pendingMovementAckRef.current = null;
       const previousSocket = socketRef.current;
       if (previousSocket?.readyState === WebSocket.OPEN || previousSocket?.readyState === WebSocket.CONNECTING) {
         previousSocket.close();
@@ -394,6 +396,9 @@ export function useVolturaAirConnection() {
           touchHealthy();
           if (typeof response.seq === "number") {
             pendingInputAcksRef.current.delete(response.seq);
+            if (pendingMovementAckRef.current?.sequence === response.seq) {
+              pendingMovementAckRef.current = null;
+            }
           }
           scheduleHealthCheck(ws);
           return;
@@ -403,6 +408,9 @@ export function useVolturaAirConnection() {
           touchHealthy();
           if (typeof response.seq === "number") {
             pendingInputAcksRef.current.delete(response.seq);
+            if (pendingMovementAckRef.current?.sequence === response.seq) {
+              pendingMovementAckRef.current = null;
+            }
           }
           const inputErrorMessage = getInputErrorMessage(response.message, pc, screenshotMode);
           setLastConnectionError({ code: response.code ?? "VAIR-PAIR-INPUT-FAILED", message: inputErrorMessage });
@@ -497,6 +505,7 @@ export function useVolturaAirConnection() {
       backgroundSuspended = true;
       clearTimers();
       pendingInputAcksRef.current.clear();
+      pendingMovementAckRef.current = null;
       const socket = socketRef.current;
       if (socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING) {
         socket.close();

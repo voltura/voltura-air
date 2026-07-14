@@ -42,7 +42,8 @@ updated as the app structure, tooling, and release process become concrete.
   expose a temporary pairing store on the LAN because a real phone can interpret
   its rejection as revoked pairing and delete its saved reconnect secret.
 - Automated host protocol tests must use ASP.NET Core's in-memory `TestServer`;
-  they must not open a TCP listener or create Windows Firewall permissions.
+  they must not inspect, reserve, or open a configured TCP port or create
+  Windows Firewall permissions.
 - If a task has a preferred validation, inspection, capture, automation tool,
   or supporting runtime/toolchain that is not installed locally, Codex may and
   should install and use it without asking first. Do not take shortcuts or

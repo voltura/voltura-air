@@ -75,9 +75,12 @@ Do not include screenshots or text containing live pairing tokens, secrets, or s
 ## Connected but input does nothing
 
 When the host supports input acknowledgements, the mobile app adds sequence
-numbers to pointer and keyboard events. The host confirms dispatched input with
-`input.ack`. If acknowledgements stop, or Windows rejects injected input, the
-mobile app shows unavailable/retrying and reconnects.
+numbers to discrete input and sampled pointer movement. The host confirms
+dispatched input with `input.ack`. Movement behind an outstanding acknowledgement
+and movement in a growing WebSocket send buffer are bounded and then dropped,
+so a slow path cannot build a long pointer tail. If acknowledgements stop, or
+Windows rejects injected input, the mobile app shows unavailable/retrying and
+reconnects.
 
 Check these items first:
 
@@ -86,6 +89,21 @@ Check these items first:
   surface that rejects normal input injection.
 - The phone did not switch network, sleep the browser, or lose LAN reachability.
 - Refresh the mobile page or scan a fresh QR code if browser storage was cleaned.
+
+## Pointer movement feels delayed or continues after touch ends
+
+Voltura Air coalesces movement to browser animation frames and deliberately
+drops new movement when acknowledgement or WebSocket congestion indicates that
+it would arrive late. Normal pointer input also bypasses the WPF dispatcher
+unless a Blackout display curtain is actually active. A continuing movement
+tail therefore indicates a stalled/outdated host or a severely interrupted LAN
+connection rather than motion that the current client will intentionally replay.
+
+Confirm that the phone loaded the web client served by the currently running
+host, then restart the host and refresh the mobile page. Check Wi-Fi signal,
+guest-network isolation, VPNs, and PC load. Application logging is off by
+default and pointer movement is never logged; large log reads do not hold the
+protocol writer lock.
 
 ## Send text to PC fails or goes to the wrong place
 

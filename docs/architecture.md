@@ -26,13 +26,13 @@ The host protocol layer validates and routes messages. `InputDispatcher`, `Audio
 - `InputDispatcher.cs` translates validated input messages and acknowledged focused-application text transfers for the `SendInputInjector.cs` Windows adapter. `WebHostService.TextTransfer.cs` owns text-transfer result policy; typed content is never logged, and Enter is dispatched only after complete text delivery.
 - `RemoteActionExecutor.*.cs` owns fixed YouTube, Kodi, fullscreen, and window interop behavior. `AppLaunchSettings.cs` owns approved preset/custom launch definitions and validation; `AppLaunchService.cs` resolves opaque IDs and owns process creation. `SystemAudioController.cs` owns system audio. `SystemPowerController.cs` owns fixed Windows power/session routing. `WindowsDisplayActionController.cs` owns the WPF multi-monitor blackout curtain, native screen-saver availability/activation, and blackout dismissal; the native monitor-power request remains subject to Windows Modern Standby behavior. `WorkstationLockPolicy.cs` owns current-user lock-policy inspection and local enablement.
 - `AwakeService.cs` owns the long-lived, thread-scoped Windows execution-state request, expiry timer, resume reapplication, and safe release. `AppAwakeSettings.cs` owns its current-user persisted configuration. Tray, WPF, and protocol code consume `IAwakeService` and do not call the native API directly.
-- `AppLog.cs` owns the opt-in, sanitized JSON Lines application log, structured queries, retention, and deletion. Remote protocol handlers and local Windows services submit safe event metadata through `IAppLog`; typed text, pointer coordinates, and pairing credentials never enter the log. Diagnostics renders filtered records with existing WPF theme resources.
+- `AppLog.cs` owns the opt-in, sanitized JSON Lines application log, structured queries, retention, and deletion. It uses shareable append/read access and does not hold the write gate while scanning log files, so large Diagnostics reads cannot serialize the input protocol behind disk I/O. Remote protocol handlers and local Windows services submit safe event metadata through `IAppLog`; typed text, pointer coordinates, and pairing credentials never enter the log. Diagnostics renders filtered records with existing WPF theme resources.
 - `MainWindow.*.cs`, `WpfTrayApplicationContext.cs`, and the WPF XAML files own host presentation and lifecycle. Preferences uses a WPF single-open accordion, and Diagnostics keeps filters and action rows outside the scrollable log-record region. Business and protocol logic do not belong in WPF code-behind.
 
 ## Mobile subsystems and entry points
 
 - `main.tsx` and `App.tsx` are composition roots. `App.tsx` connects feature state to components. Reusable connection, input, pairing, and installation behavior belongs in focused hooks or services.
-- `useVolturaAirConnection.ts` is the public connection entry point. Supporting modules own client identity, pairing credentials, protocol normalization, connection health, acknowledgements, and reconnect policy. After Windows accepts a display-off request, the client schedules an early health probe and uses the normal health deadline; it does not claim the host remains reachable when Windows suspends it.
+- `useVolturaAirConnection.ts` is the public connection entry point. Supporting modules own client identity, pairing credentials, protocol normalization, connection health, acknowledgements, congestion limits, and reconnect policy. Movement is frame-coalesced and bounded behind low-rate acknowledgement barriers; congested movement is dropped instead of replayed late. After Windows accepts a display-off request, the client schedules an early health probe and uses the normal health deadline; it does not claim the host remains reachable when Windows suspends it.
 - `components/` contains presentation and interaction surfaces for trackpad, keyboard, remote, dictation, acknowledged text transfer, pairing, diagnostics, and the Menu/settings drawer. Components emit typed intents rather than controlling sockets.
 - `appStorage.ts`, `pcProfiles.ts`, and the settings modules own persisted formats and normalization. Their existing keys and compatible shapes remain stable.
 - `gestures.ts` and `keyboardDelta.ts` are input-domain modules. Gesture and keyboard translation behavior belongs there, with contract tests, rather than in the connection layer.
@@ -42,7 +42,7 @@ The host protocol layer validates and routes messages. `InputDispatcher`, `Audio
 | Area | Boundary | Relevant coverage |
 | --- | --- | --- |
 | Windows input and dispatch | Preserve the `InputDispatcher` and `SendInputInjector` separation | `InputDispatcherTests`, `SendInputInjectorTests` |
-| WebSocket, acknowledgements, and reconnect | Keep identity, credentials, message policy, and lifecycle in focused connection modules behind the existing hook API | `useVolturaAirConnection.test.ts`, host WebSocket tests |
+| WebSocket, acknowledgements, congestion, and reconnect | Keep identity, credentials, message policy, bounded movement flow, and lifecycle in focused connection modules behind the existing hook API | connection sender and lifecycle tests, host WebSocket tests |
 | Browser, YouTube, Kodi, and fullscreen | Keep host behavior in `RemoteActionExecutor.*.cs` and remote shortcut policy in focused client modules | `RemoteMode.test.tsx`, host protocol tests |
 | Configurable application launch | Keep paths/arguments and approval on the host; advertise and accept only opaque IDs and labels | app-launch settings, service, protocol, WPF, hook, and Remote component tests |
 | Text transfer | Keep target metadata host-owned and safe, keep drafts/snippets client-local, and acknowledge each complete send independently from ordinary input health acknowledgements | text-transfer component/storage tests and `WebHostTextTransferTests` |
@@ -63,8 +63,8 @@ prevents parallel hosts and keeps an empty pairing store from impersonating the
 real LAN host and causing paired phones to discard valid reconnect credentials.
 
 Automated host protocol tests additionally use ASP.NET Core's in-memory
-`TestServer`, so the normal test suite opens no host TCP listener and needs no
-Windows Firewall exception. Explicit browser UI previews still use the
+`TestServer`, so the normal test suite does not inspect, reserve, or open a host
+TCP port and needs no Windows Firewall exception. Explicit browser UI previews still use the
 loopback-only isolated host because a browser needs a real local endpoint.
 
 Host subsystems receive inspection and validation before client changes when work spans both runtime halves. Reorganization only occurs when it improves a clear boundary, removes duplication, or reduces complexity. Each extraction preserves the dependency direction shown above and removes the replaced implementation after tests pass.

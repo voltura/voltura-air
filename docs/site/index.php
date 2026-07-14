@@ -100,7 +100,7 @@
       <section id="features" class="feature-band" aria-label="Core features">
         <article>
           <h2>Wireless trackpad</h2>
-          <p>Move the pointer, tap to click, right-click, scroll with two fingers, pinch to zoom, and expand the surface when you want more room.</p>
+          <p>Move the pointer, tap to click, right-click, scroll with two fingers, pinch to zoom, and expand the surface when you want more room. Congested movement is discarded instead of replayed late.</p>
         </article>
         <article>
           <h2>Phone keyboard</h2>

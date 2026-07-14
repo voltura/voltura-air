@@ -256,8 +256,9 @@ Host response:
 
 `health.pong` is only a liveness signal. It does not carry host metadata,
 capabilities, or audio state. The mobile app keeps faster checks while input is
-active, slows checks after the foreground app is idle, and closes the WebSocket
-while the browser page or installed app is backgrounded.
+active, without resetting a timer for every movement frame, slows checks after
+the foreground app is idle, and closes the WebSocket while the browser page or
+installed app is backgrounded.
 
 ## Input Events
 
@@ -409,8 +410,10 @@ Current failure codes are `VAIR-TEXT-HOST-FOCUSED`, `VAIR-TEXT-NATIVE-SEND-FAILE
 Input delivery acknowledgement:
 
 When `capabilities.inputAck` is `true`, the mobile client adds a positive `seq`
-number to pointer and keyboard input messages. After the host dispatches the
-input to Windows, it sends `input.ack` for the same sequence.
+number to every discrete pointer/keyboard input and to periodic movement
+messages. After the host dispatches that input to Windows, it sends `input.ack`
+for the same sequence. Movement acknowledgements are deliberately sampled at a
+low rate rather than added to every animation frame.
 
 ```json
 { "type": "input.ack", "seq": 123 }
@@ -442,6 +445,13 @@ reconnect.
 The mobile client treats missing acknowledgements for recent input as an
 unhealthy connection and reconnects. Heartbeat success alone is not enough to
 keep the UI in the paired state when input delivery is not being confirmed.
+While a sampled movement acknowledgement is outstanding, the official client
+allows only a small bounded number of later movement frames. It also stops
+adding movement when the browser reports a growing WebSocket send buffer.
+Congested movement is dropped, not replayed after the finger is lifted. This
+keeps pointer latency bounded without per-move acknowledgements, extra polling,
+or idle battery cost; discrete button and keyboard input is not discarded by
+the movement limit.
 
 ## System
 
@@ -521,6 +531,8 @@ connected monitor. It does not change display power state, so Windows, the host,
 and networking remain active. Local mouse, keyboard, touch, or pen input closes
 the blackout windows. The host also closes them before dispatching any later
 remote pointer or keyboard message, so the client reliably restores the view.
+When no blackout is active, this check takes a thread-safe fast path and does
+not synchronously enter the WPF UI dispatcher for ordinary pointer movement.
 
 `screenSaver` sends Windows' native screen-saver system command. It returns
 `VAIR-POWER-UNAVAILABLE` without execution when no enabled and configured screen

@@ -119,6 +119,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 ### Input injection
 
 - Acknowledges dispatched input events when the host advertises input acknowledgement support.
+- Coalesces active movement to animation frames and uses low-rate acknowledgement barriers plus WebSocket-buffer limits to prevent delayed pointer queues without adding per-move replies or idle polling.
 - Reports input dispatch failures to the mobile client instead of silently leaving dead controls.
 - Moves the Windows pointer.
 - Sends left/right mouse button down/up/click.
@@ -157,9 +158,9 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Supports PC sleep when allowed by host permissions.
 - Locks the current Windows session with `LockWorkStation` when permission and the current-user policy allow it.
 - Reports accepted, denied, unsupported, policy-disabled, policy-unavailable, and failed power/session requests without disconnecting the client.
-- Offers opt-in daily JSON Lines application logging for troubleshooting. Logging is off by default and records remote command flow plus local host actions such as Windows-lock policy writes, readback failures, and native lock tests without typed text, pointer coordinates, or pairing credentials.
+- Offers opt-in daily JSON Lines application logging for troubleshooting. Logging is off by default, keeps files normally shareable, and allows reads without holding the protocol writer lock. It records remote command flow plus local host actions such as Windows-lock policy writes, readback failures, and native lock tests without typed text, pointer coordinates, or pairing credentials.
 - Opens Diagnostics directly on a dedicated Application log view, with System details available from a clear top-level switch. The log view exposes its **Write application log** toggle directly and clearly distinguishes disabled logging from an empty filtered result. It uses themed activity cards, a two-month date-range picker plus event, source, action, and client filters, filtered copy, open-folder, confirmed delete actions, and an optional session-only **Automatic log refresh** toggle that is off by default. Retention is configurable from 1 to 30 days with a 2-day default. Input commands record both receipt and their sanitized executed or blocked outcome, including the Remote mode minimize action, without logging typed text. Only the record area scrolls, so the filter and action controls remain reachable.
-- Blacks out every connected monitor with a topmost black WPF curtain without changing display power state. Windows, networking, and remote control remain active; any local or remote mouse/keyboard interaction removes the curtain, and touch or pen input also dismisses it locally.
+- Blacks out every connected monitor with a topmost black WPF curtain without changing display power state. Windows, networking, and remote control remain active; any local or remote mouse/keyboard interaction removes the curtain, and touch or pen input also dismisses it locally. Ordinary remote movement bypasses the WPF dispatcher when no curtain is active.
 - Starts the native Windows screen saver only when Windows reports screen saving enabled and a configured `.scr` program exists. The action is omitted from host and mobile UI when unavailable.
 - Turns off connected displays through the Windows monitor-power command when allowed, including HDMI output to TVs and receivers. The mobile client requires confirmation and explains that some PCs treat this command as sleep or Modern Standby. On those systems the host and network connection can suspend, Voltura Air cannot wake the PC remotely, and physical keyboard or mouse input is required. Windows may then require PIN, fingerprint, or another configured sign-in method; the action does not sign out the user.
 - Signs out, restarts, or shuts down through fixed Windows system commands when explicitly allowed.

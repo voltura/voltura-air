@@ -98,6 +98,22 @@ public sealed class AppLogTests
     }
 
     [Fact]
+    public void KeepsNewEntriesReadableAfterQueries()
+    {
+        using var folder = new TemporaryFolder();
+        var log = CreateLog(folder);
+        var localDate = DateOnly.FromDateTime(TestNow.LocalDateTime);
+
+        log.Write(new AppLogEntry("host_action", "windows_host", Action: "first"));
+        var firstRead = log.Read(new AppLogQuery(localDate, localDate));
+        log.Write(new AppLogEntry("host_action", "windows_host", Action: "second"));
+        var secondRead = log.Read(new AppLogQuery(localDate, localDate));
+
+        Assert.Single(firstRead.Entries);
+        Assert.Equal(["first", "second"], secondRead.Entries.Select(entry => entry.Action));
+    }
+
+    [Fact]
     public void LoggingFailureNeverBreaksHostActions()
     {
         using var folder = new TemporaryFolder();

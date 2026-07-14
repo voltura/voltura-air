@@ -12,10 +12,13 @@ public sealed class AppLogTests
     {
         using var folder = new TemporaryFolder();
         var log = CreateLog(folder, enabled: false);
+        var changes = 0;
+        log.Changed += (_, _) => changes += 1;
 
         log.Write(new AppLogEntry("command_received", "remote_client", "client-a", "system.power", "lock"));
 
         Assert.Empty(Directory.EnumerateFiles(folder.Path));
+        Assert.Equal(0, changes);
     }
 
     [Fact]
@@ -23,6 +26,8 @@ public sealed class AppLogTests
     {
         using var folder = new TemporaryFolder();
         var log = CreateLog(folder);
+        var changes = 0;
+        log.Changed += (_, _) => changes += 1;
 
         log.Write(new AppLogEntry(
             Event: "action_taken",
@@ -41,6 +46,7 @@ public sealed class AppLogTests
         Assert.Equal("remote_client", entry.RootElement.GetProperty("source").GetString());
         Assert.Equal(5, entry.RootElement.GetProperty("win32Error").GetInt32());
         Assert.DoesNotContain("secret", File.ReadAllText(path), StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, changes);
     }
 
     [Fact]

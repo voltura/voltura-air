@@ -35,6 +35,7 @@ describe("connection protocol policy", () => {
       defaultRemoteMode: "unknown" as never,
       developerMode: false,
       hostVersion: " 0.2.0 ",
+      inputBlockedByElevation: true,
       webClientBuildId: " build-a ",
       highlightPointer: true,
       pointerSpeed: 500,
@@ -42,6 +43,7 @@ describe("connection protocol policy", () => {
     })).toEqual({
       defaultRemoteMode: "standard",
       hostVersion: "0.2.0",
+      inputBlockedByElevation: true,
       webClientBuildId: "build-a",
       highlightPointer: true,
       pointerSpeed: 100

@@ -88,6 +88,7 @@ export type HostStatusMetadata = {
   pcName?: string;
   pointerSpeed?: number;
   highlightPointer?: boolean;
+  inputBlockedByElevation?: boolean;
   selectedAdapterName?: string;
   selectedIp?: string;
   selectedPort?: number;

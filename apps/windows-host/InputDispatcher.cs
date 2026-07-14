@@ -7,6 +7,8 @@ public sealed class InputDispatcher
     private readonly IInputInjector _inputInjector;
     private readonly IPointerHighlightService _pointerHighlightService;
 
+    internal event EventHandler? TaskbarActivated;
+
     public InputDispatcher(IInputInjector inputInjector, IPointerHighlightService? pointerHighlightService = null)
     {
         _inputInjector = inputInjector;
@@ -32,6 +34,14 @@ public sealed class InputDispatcher
         }
 
         var type = typeProperty.GetString();
+        if (type == "keyboard.special" && HostUiInputGuard.IsShowDesktopShortcut(message))
+        {
+            outcome = HostUiInputGuard.TryShowDesktop()
+                ? InputDispatchOutcome.Executed
+                : InputDispatchOutcome.Failed;
+            return true;
+        }
+
         if (type == "keyboard.special" && HostUiInputGuard.IsMinimizeWindowShortcut(message))
         {
             outcome = HostUiInputGuard.TryMinimizeForegroundWindow()
@@ -53,8 +63,15 @@ public sealed class InputDispatcher
                 NotifyPointerActivity(highlightPointer);
                 return true;
             case "pointer.button":
-                _inputInjector.MouseButton(GetString(message, "button"), GetString(message, "action"));
+                var button = GetString(message, "button");
+                var action = GetString(message, "action");
+                _inputInjector.MouseButton(button, action);
                 NotifyPointerActivity(highlightPointer);
+                if (ShouldRecheckTaskbarAfterLeftButton(button, action) && HostUiInputGuard.IsPointerOverTaskbar())
+                {
+                    TaskbarActivated?.Invoke(this, EventArgs.Empty);
+                }
+
                 return true;
             case "pointer.wheel":
                 _inputInjector.Scroll(GetNumber(message, "dx"), GetNumber(message, "dy"));
@@ -165,6 +182,13 @@ public sealed class InputDispatcher
         return false;
     }
 
+    internal static bool ShouldRecheckTaskbarAfterLeftButton(string button, string action)
+    {
+        return (string.Equals(action, "click", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(action, "up", StringComparison.OrdinalIgnoreCase)) &&
+            (string.IsNullOrWhiteSpace(button) || string.Equals(button, "left", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static int GetNumber(JsonElement message, string propertyName)
     {
         return message.TryGetProperty(propertyName, out var value) && value.TryGetDouble(out var number)
@@ -217,6 +241,8 @@ public interface IInputInjector : IDisposable
 public interface IPointerHighlightService
 {
     void NotifyPointerActivity();
+
+    void SetOverlaySuppressed(bool suppressed);
 }
 
 internal sealed class NullPointerHighlightService : IPointerHighlightService
@@ -224,6 +250,10 @@ internal sealed class NullPointerHighlightService : IPointerHighlightService
     public static NullPointerHighlightService Instance { get; } = new();
 
     public void NotifyPointerActivity()
+    {
+    }
+
+    public void SetOverlaySuppressed(bool suppressed)
     {
     }
 }

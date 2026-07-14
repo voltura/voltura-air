@@ -15,6 +15,11 @@ public sealed partial class WebHostService : IAsyncDisposable
 {
     private static readonly string DeveloperSessionId = Guid.NewGuid().ToString("N");
     private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(3);
+    internal static readonly TimeSpan PairingHandshakeTimeout = TimeSpan.FromSeconds(10);
+    internal static readonly TimeSpan AuthenticatedInactivityTimeout = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan WebSocketCloseTimeout = TimeSpan.FromSeconds(1);
+    internal const int MaxWebSocketMessageBytes = 64 * 1024;
+    private const int MaxConcurrentWebSocketSessions = 64;
     private readonly PairingManager _pairingManager;
     private readonly InputDispatcher _inputDispatcher;
     private readonly ISystemAudioController _audioController;
@@ -26,8 +31,10 @@ public sealed partial class WebHostService : IAsyncDisposable
     private readonly IAppLog _appLog;
     private readonly PairingAttemptRateLimiter _pairingAttemptRateLimiter = new();
     private readonly WebSocketConnectionRegistry _connections = new();
+    private readonly SemaphoreSlim _webSocketSessionSlots = new(MaxConcurrentWebSocketSessions, MaxConcurrentWebSocketSessions);
     private readonly Action<IWebHostBuilder>? _configureWebHost;
     private readonly string _listenAddress;
+    private int _inputBlockedByElevation;
     private WebApplication? _app;
 
     public WebHostService(
@@ -134,6 +141,21 @@ public sealed partial class WebHostService : IAsyncDisposable
 
     public event EventHandler<ControllerSocketClosedEventArgs>? ControllerSocketClosed;
 
+    internal event EventHandler<RemoteInputBlockedChangedEventArgs>? RemoteInputBlockedChanged;
+
+    internal bool IsInputBlockedByElevation => Volatile.Read(ref _inputBlockedByElevation) != 0;
+
+    internal void SetInputBlockedByElevation(bool blocked)
+    {
+        if (Interlocked.Exchange(ref _inputBlockedByElevation, blocked ? 1 : 0) == (blocked ? 1 : 0))
+        {
+            return;
+        }
+
+        RemoteInputBlockedChanged?.Invoke(this, new RemoteInputBlockedChangedEventArgs(blocked));
+        _ = Task.Run(BroadcastStatusAsync);
+    }
+
     internal void UpdateAdvertisedHostAddress(string hostAddress, LanAddressCandidate? selectedCandidate = null)
     {
         AdvertisedHostAddress = hostAddress;
@@ -169,8 +191,21 @@ public sealed partial class WebHostService : IAsyncDisposable
                 return;
             }
 
-            using var socket = await context.WebSockets.AcceptWebSocketAsync();
-            await HandleSocketAsync(socket, GetRateLimitKey(context), context.RequestAborted);
+            if (!_webSocketSessionSlots.Wait(0))
+            {
+                context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+                return;
+            }
+
+            try
+            {
+                using var socket = await context.WebSockets.AcceptWebSocketAsync();
+                await HandleSocketAsync(socket, GetRateLimitKey(context), context.RequestAborted);
+            }
+            finally
+            {
+                _webSocketSessionSlots.Release();
+            }
         });
 
         var staticRoot = WebHostStaticFiles.ResolveStaticRoot();
@@ -254,6 +289,7 @@ public sealed partial class WebHostService : IAsyncDisposable
         }
 
         _awakeService.Dispose();
+        _webSocketSessionSlots.Dispose();
     }
 
     internal static bool IsPortAvailable(int port)
@@ -385,7 +421,8 @@ public sealed partial class WebHostService : IAsyncDisposable
             _pairingManager.GetDevicePointerSpeed(clientId),
             _pairingManager.GetDeviceHighlightPointer(clientId),
             developerMode,
-            developerMode ? DeveloperSessionId : null);
+            developerMode ? DeveloperSessionId : null,
+            Volatile.Read(ref _inputBlockedByElevation) != 0);
     }
 
     private static string GetSelectedAdapterName(LanAddressCandidate? selectedCandidate)
@@ -426,7 +463,8 @@ internal sealed record HostStatusMetadata(
     int PointerSpeed,
     bool HighlightPointer,
     bool DeveloperMode,
-    string? DeveloperSessionId);
+    string? DeveloperSessionId,
+    bool InputBlockedByElevation);
 
 internal sealed record TextTransferTargetMetadata(string Mode, string DisplayName, bool Available);
 

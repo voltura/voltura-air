@@ -444,6 +444,8 @@ public sealed class WebHostPowerTests
 
     private sealed class FakeAppLog : IAppLog
     {
+        public event EventHandler? Changed;
+
         public string LogDirectory => string.Empty;
 
         public List<AppLogEntry> Entries { get; } = new();
@@ -451,6 +453,7 @@ public sealed class WebHostPowerTests
         public void Write(AppLogEntry entry)
         {
             Entries.Add(entry);
+            Changed?.Invoke(this, EventArgs.Empty);
         }
 
         public AppLogReadResult Read(AppLogQuery query) => new(true, []);

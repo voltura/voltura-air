@@ -8,6 +8,7 @@ using VolturaAir.Host;
 
 namespace VolturaAir.Host.Tests;
 
+[Collection(AppPermissionSettingsCollection.Name)]
 public sealed partial class HostUiLayoutTests
 {
     [Fact]
@@ -57,6 +58,7 @@ public sealed partial class HostUiLayoutTests
             var window = new MainWindow(manager, webHost, clientUrl: null);
             try
             {
+                Assert.Null(window.PageContent.Content);
                 window.Show();
                 window.ShowPage(HostPage.Connect);
                 window.UpdateLayout();
@@ -272,6 +274,7 @@ public sealed partial class HostUiLayoutTests
                 window.Show();
                 window.ShowPage(HostPage.Diagnostics);
                 window.UpdateLayout();
+                WaitForWpf(() => FindWpfDescendants<TextBlock>(window).Any(text => text.Text == "Host action"), "initial log render");
 
                 Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "Host action");
                 Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "enable windows locking");
@@ -281,6 +284,19 @@ public sealed partial class HostUiLayoutTests
                 var hostActionBadge = FindWpfDescendants<Border>(window)
                     .Single(border => border.Child is TextBlock text && text.Text == "Host action");
                 Assert.Same(window.Resources["DangerBrush"], hostActionBadge.BorderBrush);
+
+                var previousReadCount = appLog.ReadCount;
+                FindWpfDescendants<Button>(window)
+                    .Single(button => button.Content?.ToString() == "Refresh")
+                    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                WaitForWpf(() => appLog.ReadCount > previousReadCount, "manual refresh read");
+                Thread.Sleep(50);
+                DoWpfEvents();
+
+                var unchangedHostActionBadge = FindWpfDescendants<Border>(window)
+                    .Single(border => border.Child is TextBlock text && text.Text == "Host action");
+                Assert.Same(hostActionBadge, unchangedHostActionBadge);
+
             }
             finally
             {
@@ -364,6 +380,21 @@ public sealed partial class HostUiLayoutTests
         Dispatcher.PushFrame(frame);
     }
 
+    private static void WaitForWpf(Func<bool> condition, string expectation = "WPF update")
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(3);
+        while (!condition())
+        {
+            if (DateTimeOffset.UtcNow >= deadline)
+            {
+                throw new TimeoutException($"The expected {expectation} did not complete.");
+            }
+
+            DoWpfEvents();
+            Thread.Sleep(10);
+        }
+    }
+
     private sealed class WpfApplicationScope : IDisposable
     {
         private readonly Application? _created;
@@ -408,13 +439,24 @@ public sealed partial class HostUiLayoutTests
 
     private sealed class FakeAppLog(params AppLogRecord[] entries) : IAppLog
     {
+        private int _readCount;
+
         public string LogDirectory => string.Empty;
+
+        public int ReadCount => Volatile.Read(ref _readCount);
+
+        public event EventHandler? Changed;
 
         public void Write(AppLogEntry entry)
         {
+            Changed?.Invoke(this, EventArgs.Empty);
         }
 
-        public AppLogReadResult Read(AppLogQuery query) => new(true, entries);
+        public AppLogReadResult Read(AppLogQuery query)
+        {
+            Interlocked.Increment(ref _readCount);
+            return new(true, entries);
+        }
 
         public AppLogDeleteResult DeleteAll() => new(true, 0);
     }

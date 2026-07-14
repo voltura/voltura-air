@@ -51,14 +51,31 @@ public sealed partial class WebHostService
                     });
             }
 
+            if (dispatchOutcome == InputDispatchOutcome.Failed)
+            {
+                await SendInputErrorAsync(
+                    socket,
+                    sequence,
+                    "VAIR-INPUT-DISPATCH-FAILED",
+                    "Windows did not complete this input action.",
+                    cancellationToken);
+                return;
+            }
+
             await SendInputAckAsync(socket, sequence, cancellationToken);
         }
         catch (Exception ex) when (ex is not WebSocketException and not OperationCanceledException and not ObjectDisposedException)
         {
-            var code = ex is InputDispatchException ? "VAIR-INPUT-NATIVE-SEND-FAILED" : "VAIR-INPUT-DISPATCH-FAILED";
-            const string message = "Windows did not accept this input action. Try again.";
             WriteInputDispatchDiagnostic(messageType, root, ex);
-            await SendInputErrorAsync(socket, sequence, code, message, cancellationToken);
+            var code = ex is InputDispatchException
+                ? "VAIR-INPUT-NATIVE-SEND-FAILED"
+                : "VAIR-INPUT-DISPATCH-FAILED";
+            await SendInputErrorAsync(
+                socket,
+                sequence,
+                code,
+                "Windows did not accept this input action. Try again.",
+                cancellationToken);
         }
     }
 

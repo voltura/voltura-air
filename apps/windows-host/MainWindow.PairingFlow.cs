@@ -7,9 +7,13 @@ public partial class MainWindow
     private void NewPairing()
     {
         _pairingUrl = CreatePairingUrl();
-        if (_activePage == HostPage.Connect)
+        if (_activePage == HostPage.Connect && IsVisible)
         {
             SelectPage(HostPage.Connect);
+        }
+        else if (_activePage == HostPage.Connect)
+        {
+            _pageNeedsRefresh = true;
         }
     }
 

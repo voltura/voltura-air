@@ -200,6 +200,38 @@ public sealed class WebHostConnectionTests : WebHostServiceTestBase
     }
 
     [Fact]
+    public async Task WebSocketBroadcastsElevatedInputStateWhenForegroundChanges()
+    {
+        await using var fixture = await WebHostFixture.StartAsync();
+        var clientId = $"client-{Guid.NewGuid():N}";
+        var token = fixture.Manager.CreatePairingToken();
+        using var socket = await ConnectAsync(fixture.WebHost);
+
+        _ = await SendAndReceiveAsync(socket, new
+        {
+            type = "pair.hello",
+            clientId,
+            deviceName = "Phone",
+            pairToken = token
+        });
+
+        fixture.WebHost.SetInputBlockedByElevation(true);
+        using var blockedTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var blockedStatusText = await ReceiveTextAsync(socket, blockedTimeout.Token);
+        using var blockedStatus = JsonDocument.Parse(blockedStatusText);
+
+        Assert.Equal("status", blockedStatus.RootElement.GetProperty("type").GetString());
+        Assert.True(blockedStatus.RootElement.GetProperty("host").GetProperty("inputBlockedByElevation").GetBoolean());
+
+        fixture.WebHost.SetInputBlockedByElevation(false);
+        using var restoredTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var restoredStatusText = await ReceiveTextAsync(socket, restoredTimeout.Token);
+        using var restoredStatus = JsonDocument.Parse(restoredStatusText);
+
+        Assert.False(restoredStatus.RootElement.GetProperty("host").GetProperty("inputBlockedByElevation").GetBoolean());
+    }
+
+    [Fact]
     public async Task WebSocketStoresClientPointerSpeedAsDeviceOverride()
     {
         await using var fixture = await WebHostFixture.StartAsync();
@@ -267,11 +299,17 @@ public sealed class WebHostConnectionTests : WebHostServiceTestBase
 
     private sealed class RecordingAppLog : IAppLog
     {
+        public event EventHandler? Changed;
+
         public List<AppLogEntry> Entries { get; } = [];
 
         public string LogDirectory => string.Empty;
 
-        public void Write(AppLogEntry entry) => Entries.Add(entry);
+        public void Write(AppLogEntry entry)
+        {
+            Entries.Add(entry);
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
 
         public AppLogReadResult Read(AppLogQuery query) => new(true, []);
 

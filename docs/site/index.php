@@ -100,7 +100,7 @@
       <section id="features" class="feature-band" aria-label="Core features">
         <article>
           <h2>Wireless trackpad</h2>
-          <p>Move the pointer, tap to click, right-click, scroll with two fingers, pinch to zoom, optionally highlight all of that pointer activity with a larger teal-glow pointer, and expand the surface when you want more room. Congested movement is discarded instead of replayed late.</p>
+          <p>Move the pointer, tap to click, right-click, scroll with two fingers, pinch to zoom, optionally highlight all of that pointer activity with a larger teal-glow pointer, and expand the surface when you want more room. Congested movement is discarded instead of replayed late. The highlight yields to the normal Windows cursor over taskbars and administrator apps, with a phone recovery action to show the desktop.</p>
         </article>
         <article>
           <h2>Phone keyboard</h2>
@@ -229,6 +229,7 @@
             <li>Choose which application buttons appear; custom paths stay on the PC and require local approval.</li>
             <li>Use deliberate mobile confirmation for sign out, restart, and shutdown.</li>
             <li>Enable sanitized application logging only when you need diagnostics.</li>
+            <li>Keep LAN control sessions bounded and discard stale connections without background polling.</li>
           </ul>
         </div>
       </section>

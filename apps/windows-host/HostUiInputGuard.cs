@@ -1,9 +1,11 @@
 using System.Runtime.InteropServices;
+using System.Reflection;
 using System.Text.Json;
+using WpfApplication = System.Windows.Application;
 
 namespace VolturaAir.Host;
 
-internal static class HostUiInputGuard
+internal static partial class HostUiInputGuard
 {
     private static readonly TimeSpan RecentClientInputWindow = TimeSpan.FromSeconds(2);
     private const uint GetAncestorRoot = 2;
@@ -73,6 +75,26 @@ internal static class HostUiInputGuard
         return IsIconic(foregroundWindow);
     }
 
+    internal static bool TryShowDesktop()
+    {
+        var dispatcher = WpfApplication.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.HasShutdownStarted)
+        {
+            return false;
+        }
+
+        try
+        {
+            return dispatcher.CheckAccess()
+                ? TryMinimizeAllDesktopWindows()
+                : dispatcher.Invoke(TryMinimizeAllDesktopWindows);
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
     internal static bool IsMinimizeWindowShortcut(JsonElement message)
     {
         if (!message.TryGetProperty("key", out var keyProperty) ||
@@ -83,12 +105,65 @@ internal static class HostUiInputGuard
             return false;
         }
 
-        var values = modifiers.EnumerateArray()
-            .Select(modifier => modifier.GetString())
-            .Where(modifier => !string.IsNullOrWhiteSpace(modifier))
-            .ToArray();
+        return HasOnlyWinModifier(modifiers);
+    }
 
-        return values.Length == 1 && string.Equals(values[0], "Win", StringComparison.OrdinalIgnoreCase);
+    internal static bool IsShowDesktopShortcut(JsonElement message)
+    {
+        if (!message.TryGetProperty("key", out var keyProperty) ||
+            !string.Equals(keyProperty.GetString(), "D", StringComparison.OrdinalIgnoreCase) ||
+            !message.TryGetProperty("modifiers", out var modifiers) ||
+            modifiers.ValueKind != JsonValueKind.Array)
+        {
+            return false;
+        }
+
+        return HasOnlyWinModifier(modifiers);
+    }
+
+    private static bool TryMinimizeAllDesktopWindows()
+    {
+        object? shell = null;
+        try
+        {
+            var shellType = Type.GetTypeFromProgID("Shell.Application");
+            if (shellType is null)
+            {
+                return false;
+            }
+
+            shell = Activator.CreateInstance(shellType);
+            if (shell is null)
+            {
+                return false;
+            }
+
+            _ = shellType.InvokeMember("MinimizeAll", BindingFlags.InvokeMethod, null, shell, null);
+            return true;
+        }
+        catch (COMException)
+        {
+            return false;
+        }
+        catch (TargetInvocationException)
+        {
+            return false;
+        }
+        finally
+        {
+            if (shell is not null && Marshal.IsComObject(shell))
+            {
+                _ = Marshal.FinalReleaseComObject(shell);
+            }
+        }
+    }
+
+    private static bool HasOnlyWinModifier(JsonElement modifiers)
+    {
+        using var enumerator = modifiers.EnumerateArray();
+        return enumerator.MoveNext() &&
+            string.Equals(enumerator.Current.GetString(), "Win", StringComparison.OrdinalIgnoreCase) &&
+            !enumerator.MoveNext();
     }
 
     public static bool IsRecentProtectedClientInput()
@@ -181,6 +256,27 @@ internal static class HostUiInputGuard
         return hitTest is HtMinButton or HtMaxButton or HtClose;
     }
 
+    internal static unsafe bool IsPointerOverTaskbar()
+    {
+        if (!GetCursorPos(out var point))
+        {
+            return false;
+        }
+
+        var taskbarWindow = GetRootWindow(WindowFromPoint(point));
+        if (taskbarWindow == nint.Zero)
+        {
+            return false;
+        }
+
+        const int classNameCapacity = 32;
+        var className = stackalloc char[classNameCapacity];
+        var length = GetClassName(taskbarWindow, className, classNameCapacity);
+        var classNameSpan = new ReadOnlySpan<char>(className, Math.Max(0, length));
+        return classNameSpan.SequenceEqual("Shell_TrayWnd".AsSpan()) ||
+            classNameSpan.SequenceEqual("Shell_SecondaryTrayWnd".AsSpan());
+    }
+
     private static bool TryRunWindowChromeCommand(nint windowHandle, int hitTest)
     {
         var command = GetWindowChromeCommand(windowHandle, hitTest);
@@ -251,6 +347,9 @@ internal static class HostUiInputGuard
 
     [DllImport("user32.dll")]
     private static extern nint GetAncestor(nint windowHandle, uint flags);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetClassNameW")]
+    private static unsafe partial int GetClassName(nint windowHandle, char* className, int maxCount);
 
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(nint windowHandle, out int processId);

@@ -60,7 +60,7 @@ public sealed class AppLaunchService : IAppLaunchService
 
     private static bool StartCustom(AppLaunchAction action)
     {
-        var process = Process.Start(new ProcessStartInfo
+        using var process = Process.Start(new ProcessStartInfo
         {
             FileName = action.ExecutablePath!,
             Arguments = action.Arguments ?? string.Empty,
@@ -136,12 +136,14 @@ public sealed class AppLaunchService : IAppLaunchService
 
     private static bool StartExecutable(string path)
     {
-        return Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = false }) is not null;
+        using var process = Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = false });
+        return process is not null;
     }
 
     private static bool StartShellTarget(string target)
     {
-        return Process.Start(new ProcessStartInfo { FileName = target, UseShellExecute = true }) is not null;
+        using var process = Process.Start(new ProcessStartInfo { FileName = target, UseShellExecute = true });
+        return process is not null;
     }
 
     private static string ToProtocolKind(AppLaunchKind kind)

@@ -6,6 +6,36 @@ namespace VolturaAir.Host.Tests;
 public sealed class WebHostMessageValidationTests : WebHostServiceTestBase
 {
     [Fact]
+    public async Task WebSocketClosesOversizedFragmentedMessageBeforeParsing()
+    {
+        await using var fixture = await WebHostFixture.StartAsync();
+        using var socket = await ConnectAsync(fixture.WebHost);
+        var fragment = new byte[WebHostService.MaxWebSocketMessageBytes / 2];
+        Array.Fill(fragment, (byte)'a');
+
+        await socket.SendAsync(fragment, WebSocketMessageType.Text, endOfMessage: false, CancellationToken.None);
+        await socket.SendAsync(fragment, WebSocketMessageType.Text, endOfMessage: false, CancellationToken.None);
+        await socket.SendAsync(new byte[] { (byte)'a' }, WebSocketMessageType.Text, endOfMessage: true, CancellationToken.None);
+
+        var closeStatus = await ReceiveCloseStatusAsync(socket);
+
+        Assert.Equal(WebSocketCloseStatus.MessageTooBig, closeStatus);
+    }
+
+    [Fact]
+    public async Task WebSocketRejectsBinaryMessages()
+    {
+        await using var fixture = await WebHostFixture.StartAsync();
+        using var socket = await ConnectAsync(fixture.WebHost);
+
+        await socket.SendAsync(new byte[] { 1, 2, 3 }, WebSocketMessageType.Binary, endOfMessage: true, CancellationToken.None);
+
+        var closeStatus = await ReceiveCloseStatusAsync(socket);
+
+        Assert.Equal(WebSocketCloseStatus.InvalidMessageType, closeStatus);
+    }
+
+    [Fact]
     public async Task WebSocketClosesUnknownAuthenticatedMessagesWithoutDispatchingInput()
     {
         await using var fixture = await WebHostFixture.StartAsync();

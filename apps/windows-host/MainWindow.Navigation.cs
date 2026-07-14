@@ -47,12 +47,17 @@ public partial class MainWindow
             if (pairedDeviceCount != _lastPairedDeviceCount)
             {
                 _lastPairedDeviceCount = pairedDeviceCount;
-                NewPairing();
-                return;
+                _pairingUrl = CreatePairingUrl();
             }
 
             RefreshStatusText();
-            if (_activePage is HostPage.Connect or HostPage.Devices or HostPage.Diagnostics)
+            if (!IsVisible)
+            {
+                _pageNeedsRefresh = true;
+                return;
+            }
+
+            if (_activePage is HostPage.Connect or HostPage.Devices or HostPage.Diagnostics || _pageNeedsRefresh)
             {
                 SelectPage(_activePage);
             }
@@ -64,7 +69,15 @@ public partial class MainWindow
         Dispatcher.BeginInvoke(() =>
         {
             WpfTheme.Apply(this);
-            SelectPage(_activePage);
+            if (IsVisible)
+            {
+                SelectPage(_activePage);
+            }
+            else
+            {
+                _pageNeedsRefresh = true;
+                RefreshNavigationTheme();
+            }
         });
     }
 }

@@ -73,6 +73,16 @@ if (-not $SkipBuild) {
             -p:PublishSingleFile=true `
             -p:IncludeNativeLibrariesForSelfExtract=true `
             -o $publishDir
+
+        dotnet publish apps/cursor-watchdog/VolturaAir.CursorWatchdog.csproj `
+            -c Release `
+            -r $Runtime `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:DebugType=None `
+            -p:DebugSymbols=false `
+            -o $publishDir
     }
     finally {
         Pop-Location
@@ -82,6 +92,11 @@ if (-not $SkipBuild) {
 $publishedExe = Join-Path $publishDir "VolturaAir.Host.exe"
 if (-not (Test-Path $publishedExe)) {
     throw "Expected published executable was not found: $publishedExe"
+}
+
+$publishedWatchdogExe = Join-Path $publishDir "VolturaAir.CursorWatchdog.exe"
+if (-not (Test-Path $publishedWatchdogExe)) {
+    throw "Expected published cursor watchdog executable was not found: $publishedWatchdogExe"
 }
 
 $installedSizeBytes = (Get-ChildItem $publishDir -Recurse -File | Measure-Object Length -Sum).Sum

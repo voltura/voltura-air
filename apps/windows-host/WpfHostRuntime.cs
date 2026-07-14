@@ -1,22 +1,31 @@
+using System.Diagnostics;
+using System.Globalization;
+
 namespace VolturaAir.Host;
 
 internal sealed class WpfHostRuntime : IAsyncDisposable
 {
     private readonly SendInputInjector _inputInjector;
-    private readonly PointerHighlightService _pointerHighlightService;
+    private readonly Process? _cursorWatchdog;
+    private readonly LazyPointerHighlightService _pointerHighlightService;
+    private readonly PointerHighlightForegroundMonitor _pointerHighlightForegroundMonitor;
     private readonly WebHostService _webHost;
     private readonly WpfTrayApplicationContext _trayContext;
 
     private WpfHostRuntime(
         SendInputInjector inputInjector,
-        PointerHighlightService pointerHighlightService,
+        Process? cursorWatchdog,
+        LazyPointerHighlightService pointerHighlightService,
+        PointerHighlightForegroundMonitor pointerHighlightForegroundMonitor,
         WebHostService webHost,
         PairingManager pairingManager,
         MainWindow mainWindow,
         WpfTrayApplicationContext trayContext)
     {
         _inputInjector = inputInjector;
+        _cursorWatchdog = cursorWatchdog;
         _pointerHighlightService = pointerHighlightService;
+        _pointerHighlightForegroundMonitor = pointerHighlightForegroundMonitor;
         _webHost = webHost;
         PairingManager = pairingManager;
         MainWindow = mainWindow;
@@ -36,7 +45,9 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         var usePublicScreenshotPairingUrl = HasOption(args, "--site-screenshot-mode");
         var isolatedTestMode = HasOption(args, "--isolated-test-mode");
         IAppLog appLog = isolatedTestMode ? NullAppLog.Instance : new AppLog();
-        var pointerHighlightService = new PointerHighlightService(appLog);
+        var cursorWatchdog = TryStartCursorWatchdog();
+        var pointerHighlightService = new LazyPointerHighlightService(appLog, cursorWatchdog is not null);
+        MonitorCursorWatchdog(cursorWatchdog, pointerHighlightService);
         var inputDispatcher = new InputDispatcher(inputInjector, pointerHighlightService);
         var workstationLockPolicy = new WorkstationLockPolicy(appLog);
         ISystemPowerController powerController = isolatedTestMode
@@ -54,8 +65,14 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
             appLog: appLog,
             isolatedTestMode: isolatedTestMode);
 
+        PointerHighlightForegroundMonitor? pointerHighlightForegroundMonitor = null;
         try
         {
+            pointerHighlightForegroundMonitor = new PointerHighlightForegroundMonitor(pointerHighlightService, appLog);
+            pointerHighlightForegroundMonitor.RemoteInputBlockedChanged += (_, eventArgs) =>
+                webHost.SetInputBlockedByElevation(eventArgs.IsBlocked);
+            inputDispatcher.TaskbarActivated += (_, _) => pointerHighlightForegroundMonitor.NotifyTaskbarActivation();
+            webHost.SetInputBlockedByElevation(pointerHighlightForegroundMonitor.IsRemoteInputBlocked);
             await webHost.StartAsync();
             var mainWindow = new MainWindow(
                 pairingManager,
@@ -67,12 +84,22 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 appLog: appLog);
             WritePairingUrlIfRequested(args, mainWindow.PairingUrl);
             var trayContext = new WpfTrayApplicationContext(mainWindow, webHost, pairingManager, awakeService);
-            return new WpfHostRuntime(inputInjector, pointerHighlightService, webHost, pairingManager, mainWindow, trayContext);
+            return new WpfHostRuntime(
+                inputInjector,
+                cursorWatchdog,
+                pointerHighlightService,
+                pointerHighlightForegroundMonitor,
+                webHost,
+                pairingManager,
+                mainWindow,
+                trayContext);
         }
         catch
         {
+            pointerHighlightForegroundMonitor?.Dispose();
             await webHost.DisposeAsync();
             pointerHighlightService.Dispose();
+            cursorWatchdog?.Dispose();
             inputInjector.Dispose();
             throw;
         }
@@ -86,7 +113,9 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         await _webHost.StopAsync();
         await _webHost.DisposeAsync();
         _inputInjector.Dispose();
+        _pointerHighlightForegroundMonitor.Dispose();
         _pointerHighlightService.Dispose();
+        _cursorWatchdog?.Dispose();
     }
 
     private static string? GetOption(string[] args, string name)
@@ -107,6 +136,49 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
     private static bool HasOption(string[] args, string name)
     {
         return args.Contains(name, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static Process? TryStartCursorWatchdog()
+    {
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = Path.Combine(AppContext.BaseDirectory, "VolturaAir.CursorWatchdog.exe"),
+                CreateNoWindow = true,
+                UseShellExecute = false
+            };
+            startInfo.ArgumentList.Add(Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
+            return Process.Start(startInfo);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static void MonitorCursorWatchdog(
+        Process? cursorWatchdog,
+        LazyPointerHighlightService pointerHighlightService)
+    {
+        if (cursorWatchdog is null)
+        {
+            return;
+        }
+
+        try
+        {
+            cursorWatchdog.Exited += (_, _) => pointerHighlightService.DisableForSession();
+            cursorWatchdog.EnableRaisingEvents = true;
+            if (cursorWatchdog.HasExited)
+            {
+                pointerHighlightService.DisableForSession();
+            }
+        }
+        catch
+        {
+            pointerHighlightService.DisableForSession();
+        }
     }
 
     private static void WritePairingUrlIfRequested(string[] args, string pairingUrl)

@@ -82,6 +82,17 @@ public sealed class InputDispatcherTests
     }
 
     [Theory]
+    [InlineData("left", "click", true)]
+    [InlineData("left", "up", true)]
+    [InlineData("", "click", true)]
+    [InlineData("right", "click", false)]
+    [InlineData("left", "down", false)]
+    public void IdentifiesCompletedLeftButtonActionsForTaskbarRechecks(string button, string action, bool expected)
+    {
+        Assert.Equal(expected, InputDispatcher.ShouldRecheckTaskbarAfterLeftButton(button, action));
+    }
+
+    [Theory]
     [InlineData(18, 96, 18)]
     [InlineData(18, 120, 22)]
     [InlineData(18, 144, 27)]
@@ -89,6 +100,84 @@ public sealed class InputDispatcherTests
     public void PointerHighlightHotspotUsesPhysicalPixelsForActiveDpi(double dips, uint dpi, int expectedPixels)
     {
         Assert.Equal(expectedPixels, PointerHighlightService.ScaleForDpi(dips, dpi));
+    }
+
+    [Fact]
+    public void LazyPointerHighlightCreatesAndDisposesOverlayOnlyAfterFirstUse()
+    {
+        var created = 0;
+        var inner = new DisposablePointerHighlightService();
+        using var service = new LazyPointerHighlightService(() =>
+        {
+            created += 1;
+            return inner;
+        });
+
+        Assert.False(service.IsValueCreated);
+        service.NotifyPointerActivity();
+        service.NotifyPointerActivity();
+
+        Assert.True(service.IsValueCreated);
+        Assert.Equal(1, created);
+        Assert.Equal(2, inner.NotificationCount);
+
+        service.Dispose();
+        Assert.True(inner.Disposed);
+    }
+
+    [Fact]
+    public void LazyPointerHighlightDoesNotCreateOverlayDuringUnusedLifetime()
+    {
+        var created = 0;
+        using (var service = new LazyPointerHighlightService(() =>
+        {
+            created += 1;
+            return new DisposablePointerHighlightService();
+        }))
+        {
+            Assert.False(service.IsValueCreated);
+        }
+
+        Assert.Equal(0, created);
+    }
+
+    [Fact]
+    public void LazyPointerHighlightDoesNotCreateOverlayAfterSessionIsDisabled()
+    {
+        var created = 0;
+        using var service = new LazyPointerHighlightService(() =>
+        {
+            created += 1;
+            return new DisposablePointerHighlightService();
+        });
+
+        service.DisableForSession();
+        service.NotifyPointerActivity();
+
+        Assert.False(service.IsValueCreated);
+        Assert.Equal(0, created);
+    }
+
+    [Fact]
+    public void LazyPointerHighlightDoesNotCreateOverlayWhileSuppressed()
+    {
+        var created = 0;
+        using var service = new LazyPointerHighlightService(() =>
+        {
+            created += 1;
+            return new DisposablePointerHighlightService();
+        });
+        service.SetOverlaySuppressed(true);
+        service.NotifyPointerActivity();
+
+        Assert.False(service.IsValueCreated);
+        Assert.Equal(0, created);
+
+        service.SetOverlaySuppressed(false);
+        service.NotifyPointerActivity();
+
+        Assert.True(service.IsValueCreated);
+        Assert.Equal(1, created);
     }
 
     [Fact]
@@ -170,6 +259,31 @@ public sealed class InputDispatcherTests
         public void NotifyPointerActivity()
         {
             NotificationCount++;
+        }
+
+        public void SetOverlaySuppressed(bool suppressed)
+        {
+        }
+    }
+
+    private sealed class DisposablePointerHighlightService : IPointerHighlightService, IDisposable
+    {
+        public int NotificationCount { get; private set; }
+
+        public bool Disposed { get; private set; }
+
+        public void NotifyPointerActivity()
+        {
+            NotificationCount += 1;
+        }
+
+        public void SetOverlaySuppressed(bool suppressed)
+        {
+        }
+
+        public void Dispose()
+        {
+            Disposed = true;
         }
     }
 }

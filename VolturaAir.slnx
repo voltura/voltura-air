@@ -1,5 +1,8 @@
 <Solution>
   <Folder Name="/apps/" />
+  <Folder Name="/apps/cursor-watchdog/">
+    <Project Path="apps/cursor-watchdog/VolturaAir.CursorWatchdog.csproj" />
+  </Folder>
   <Folder Name="/apps/windows-host/">
     <Project Path="apps/windows-host/VolturaAir.Host.csproj" />
   </Folder>

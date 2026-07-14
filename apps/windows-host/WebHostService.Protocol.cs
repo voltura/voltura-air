@@ -1,5 +1,4 @@
 using System.Net.WebSockets;
-using System.Text;
 using System.Text.Json;
 
 namespace VolturaAir.Host;
@@ -13,18 +12,36 @@ public sealed partial class WebHostService
         PointerHighlightConnectionState? pointerHighlightState = null;
         IDisposable? activeConnection = null;
         var buffer = new byte[64 * 1024];
+        using var receiveTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
         try
         {
             while (socket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
             {
-                var message = await ReceiveMessageAsync(socket, buffer, cancellationToken);
-                if (message is null)
+                receiveTimeout.CancelAfter(authenticated ? AuthenticatedInactivityTimeout : PairingHandshakeTimeout);
+                JsonDocument? receivedDocument;
+                try
+                {
+                    receivedDocument = await ReceiveMessageAsync(socket, buffer, receiveTimeout.Token);
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    using var closeTimeout = new CancellationTokenSource(WebSocketCloseTimeout);
+                    await CloseSocketAsync(
+                        socket,
+                        authenticated ? "Connection timed out" : "Pairing timed out",
+                        WebSocketCloseStatus.EndpointUnavailable,
+                        closeTimeout.Token);
+                    break;
+                }
+
+                receiveTimeout.CancelAfter(Timeout.InfiniteTimeSpan);
+                if (receivedDocument is null)
                 {
                     break;
                 }
 
-                using var document = JsonDocument.Parse(message);
+                using var document = receivedDocument;
                 var root = document.RootElement;
                 var type = ClientMessageValidator.TryReadType(root, out var messageType) ? messageType : null;
 
@@ -296,11 +313,35 @@ public sealed partial class WebHostService
         }
     }
 
-    private static async Task<string?> ReceiveMessageAsync(WebSocket socket, byte[] buffer, CancellationToken cancellationToken)
+    private static async Task<JsonDocument?> ReceiveMessageAsync(WebSocket socket, byte[] buffer, CancellationToken cancellationToken)
     {
-        using var stream = new MemoryStream();
-        WebSocketReceiveResult result;
-        do
+        var result = await socket.ReceiveAsync(buffer, cancellationToken);
+        if (result.MessageType == WebSocketMessageType.Close)
+        {
+            await CloseSocketAsync(socket, "Closing", cancellationToken);
+            return null;
+        }
+
+        if (result.MessageType != WebSocketMessageType.Text)
+        {
+            await CloseSocketAsync(socket, "Text messages are required", WebSocketCloseStatus.InvalidMessageType, cancellationToken);
+            return null;
+        }
+
+        if (result.Count > MaxWebSocketMessageBytes)
+        {
+            await CloseSocketAsync(socket, "Message is too large", WebSocketCloseStatus.MessageTooBig, cancellationToken);
+            return null;
+        }
+
+        if (result.EndOfMessage)
+        {
+            return JsonDocument.Parse(buffer.AsMemory(0, result.Count));
+        }
+
+        using var stream = new MemoryStream(Math.Min(MaxWebSocketMessageBytes, result.Count * 2));
+        stream.Write(buffer, 0, result.Count);
+        while (!result.EndOfMessage)
         {
             result = await socket.ReceiveAsync(buffer, cancellationToken);
             if (result.MessageType == WebSocketMessageType.Close)
@@ -309,10 +350,22 @@ public sealed partial class WebHostService
                 return null;
             }
 
-            stream.Write(buffer, 0, result.Count);
-        } while (!result.EndOfMessage);
+            if (result.MessageType != WebSocketMessageType.Text)
+            {
+                await CloseSocketAsync(socket, "Text messages are required", WebSocketCloseStatus.InvalidMessageType, cancellationToken);
+                return null;
+            }
 
-        return Encoding.UTF8.GetString(stream.ToArray());
+            if (stream.Length + result.Count > MaxWebSocketMessageBytes)
+            {
+                await CloseSocketAsync(socket, "Message is too large", WebSocketCloseStatus.MessageTooBig, cancellationToken);
+                return null;
+            }
+
+            stream.Write(buffer, 0, result.Count);
+        }
+
+        return JsonDocument.Parse(stream.GetBuffer().AsMemory(0, checked((int)stream.Length)));
     }
 
     private static Task CloseSocketAsync(WebSocket socket, string reason, CancellationToken cancellationToken)

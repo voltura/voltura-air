@@ -5,6 +5,13 @@ accepts missing WebSocket `Origin` headers, same-origin requests, configured
 development client origins, and loopback/private LAN origins. Clearly unrelated
 public origins are rejected before the WebSocket is accepted.
 
+The host accepts at most 64 concurrent WebSocket sessions. Every session must
+send `pair.hello` within 10 seconds, and an authenticated session is closed
+after 2 minutes without a client message. Text messages are limited to 64 KiB
+across all WebSocket fragments; oversized messages close with status 1009 and
+binary messages are rejected. These are resource and stale-connection bounds,
+not authentication mechanisms.
+
 Pairing links use query parameters:
 
 - `t`: short-lived pairing token.
@@ -120,7 +127,8 @@ Successful response:
       "available": true
     },
     "pointerSpeed": 100,
-    "highlightPointer": false
+    "highlightPointer": false,
+    "inputBlockedByElevation": false
   }
 }
 ```
@@ -173,7 +181,8 @@ Host response:
       "available": true
     },
     "pointerSpeed": 100,
-    "highlightPointer": false
+    "highlightPointer": false,
+    "inputBlockedByElevation": false
   }
 }
 ```
@@ -187,6 +196,7 @@ The adapter name can reveal local hardware/vendor details, so it should only be 
 `textTransfer` is an authenticated capability. When `true`, the client may use the host-acknowledged `text.send` operation described below. `host.textTransferTarget` contains only `{ mode, displayName, available }`. The host reports `mode: "focused"`, `displayName: "Currently focused application"`, and `available: true`; executable paths, process identifiers, window handles, and clipboard contents are never included.
 `pointerSpeed` is the effective pointer speed for the authenticated paired device: the host default unless that device has an override. It is included only on authenticated `pair.accepted` and `status` messages. When the Windows host profile changes, the host may push the same lightweight `status` message to active sockets; the mobile app does not add a polling loop, timer, or extra battery cost for pointer-speed sync.
 `highlightPointer` is the effective pointer-highlight value for the authenticated paired device: the default-off host value unless that device has an explicit enabled/off override. Profile changes use the same pushed `status` message. The host caches the effective value in connection state so pointer movement does not read settings, acquire the pairing lock, or enter the WPF dispatcher.
+`inputBlockedByElevation` is `true` only while Windows reports that a higher-integrity foreground application is active. The host pushes the existing authenticated `status` message when this state changes; the official client shows a recovery dialog and can send the existing Win+D shortcut, which the host routes to the Windows shell's minimize-all operation instead of through `SendInput`.
 `webClientBuildId` identifies the exact compiled mobile web bundle currently served by the host. Vite generates a new opaque ID for every build, and the same ID is embedded in the JavaScript bundle and written to `web-build-id.txt`. When auto-refresh is enabled, the client clears its service worker and caches and reloads only when the host build ID differs from the ID embedded in the running client. This build ID is separate from `hostVersion` and does not affect installer or release versioning.
 When host developer mode is enabled in **Preferences** -> **Developer tools**, host metadata also includes `developerMode: true` and a `developerSessionId` for the current host run.
 
@@ -268,6 +278,9 @@ capabilities, or audio state. The mobile app keeps faster checks while input is
 active, without resetting a timer for every movement frame, slows checks after
 the foreground app is idle, and closes the WebSocket while the browser page or
 installed app is backgrounded.
+The host's 2-minute receive deadline is reset by any valid client message, so
+the passive 60-second foreground health check keeps an otherwise idle session
+open without adding server-side polling.
 
 ## Input Events
 

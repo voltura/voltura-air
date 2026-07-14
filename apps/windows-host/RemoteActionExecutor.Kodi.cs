@@ -9,21 +9,27 @@ public sealed partial class RemoteActionExecutor
 
     private static bool TryActivateRunningKodi()
     {
-        var existing = Process.GetProcessesByName("kodi")
-            .OrderByDescending(process => process.MainWindowHandle != IntPtr.Zero)
-            .FirstOrDefault();
-
-        if (existing is null)
+        var processes = Process.GetProcessesByName("kodi");
+        try
         {
-            return false;
-        }
+            var existing = processes
+                .OrderByDescending(process => GetMainWindowHandleSafe(process) != IntPtr.Zero)
+                .FirstOrDefault();
 
-        if (existing.MainWindowHandle == IntPtr.Zero)
+            if (existing is null)
+            {
+                return false;
+            }
+
+            var windowHandle = GetMainWindowHandleSafe(existing);
+            return windowHandle == IntPtr.Zero
+                ? TryActivateKodiWhenReady(TimeSpan.FromSeconds(2))
+                : TryActivateWindow(windowHandle, maximize: true);
+        }
+        finally
         {
-            return TryActivateKodiWhenReady(TimeSpan.FromSeconds(2));
+            DisposeProcesses(processes);
         }
-
-        return TryActivateWindow(existing.MainWindowHandle, maximize: true);
     }
 
     private static bool TryActivateKodiWhenReady(TimeSpan timeout)
@@ -31,32 +37,41 @@ public sealed partial class RemoteActionExecutor
         var deadline = DateTimeOffset.UtcNow.Add(timeout);
         do
         {
-            var existing = Process.GetProcessesByName("kodi")
-                .OrderByDescending(process => process.MainWindowHandle != IntPtr.Zero)
-                .FirstOrDefault();
-
-            if (existing is not null)
+            var processes = Process.GetProcessesByName("kodi");
+            try
             {
-                existing.Refresh();
-                if (existing.MainWindowHandle == IntPtr.Zero)
-                {
-                    try
-                    {
-                        existing.WaitForInputIdle(milliseconds: 250);
-                    }
-                    catch (InvalidOperationException)
-                    {
-                        // Kodi may not expose an input-idle state while still starting.
-                    }
-                }
+                var existing = processes
+                    .OrderByDescending(process => GetMainWindowHandleSafe(process) != IntPtr.Zero)
+                    .FirstOrDefault();
 
-                existing.Refresh();
-                if (existing.MainWindowHandle != IntPtr.Zero)
+                if (existing is not null)
                 {
-                    return TryActivateWindow(existing.MainWindowHandle, maximize: true);
-                }
+                    existing.Refresh();
+                    if (GetMainWindowHandleSafe(existing) == IntPtr.Zero)
+                    {
+                        try
+                        {
+                            existing.WaitForInputIdle(milliseconds: 250);
+                        }
+                        catch (InvalidOperationException)
+                        {
+                            // Kodi may not expose an input-idle state while still starting.
+                        }
+                    }
 
-                return false;
+                    existing.Refresh();
+                    var windowHandle = GetMainWindowHandleSafe(existing);
+                    if (windowHandle != IntPtr.Zero)
+                    {
+                        return TryActivateWindow(windowHandle, maximize: true);
+                    }
+
+                    return false;
+                }
+            }
+            finally
+            {
+                DisposeProcesses(processes);
             }
 
             Thread.Sleep(150);
@@ -64,6 +79,26 @@ public sealed partial class RemoteActionExecutor
         while (DateTimeOffset.UtcNow < deadline);
 
         return false;
+    }
+
+    private static IntPtr GetMainWindowHandleSafe(Process process)
+    {
+        try
+        {
+            return process.MainWindowHandle;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            return IntPtr.Zero;
+        }
+    }
+
+    private static void DisposeProcesses(IEnumerable<Process> processes)
+    {
+        foreach (var process in processes)
+        {
+            process.Dispose();
+        }
     }
 
     private static IEnumerable<LaunchCandidate> GetKodiLaunchCandidates()

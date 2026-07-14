@@ -90,6 +90,16 @@ Check these items first:
 - The phone did not switch network, sleep the browser, or lose LAN reachability.
 - Refresh the mobile page or scan a fresh QR code if browser storage was cleaned.
 
+The large pointer highlight is a visual aid only. Voltura Air automatically
+returns to the normal Windows cursor while the pointer is over a taskbar or a
+higher-integrity application owns the foreground, and resumes the highlight when
+that condition clears. The host shows **Remote control paused** once and the
+phone shows **Administrator app active**. Choose **Show desktop** on the phone
+to minimize desktop windows through the Windows shell, or choose **Continue** to
+return to the client controls. A compact recovery toast remains available to reopen
+the dialog until a normal foreground application returns, when it clears automatically. Input to UAC prompts, the lock screen,
+and other secure desktops remains outside host control.
+
 ## Pointer movement feels delayed or continues after touch ends
 
 Voltura Air coalesces movement to browser animation frames and deliberately

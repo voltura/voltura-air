@@ -28,4 +28,18 @@ public sealed class HostUiInputGuardTests
 
         Assert.Equal(expected, HostUiInputGuard.IsMinimizeWindowShortcut(document.RootElement));
     }
+
+    [Theory]
+    [InlineData("""{ "key": "D", "modifiers": ["Win"] }""", true)]
+    [InlineData("""{ "key": "d", "modifiers": ["win"] }""", true)]
+    [InlineData("""{ "key": "D", "modifiers": ["Win", "Shift"] }""", false)]
+    [InlineData("""{ "key": "D", "modifiers": [] }""", false)]
+    [InlineData("""{ "key": "ArrowDown", "modifiers": ["Win"] }""", false)]
+    public void ShowDesktopShortcutRequiresOnlyWinD(string json, bool expected)
+    {
+        using var document = JsonDocument.Parse(json);
+
+        Assert.Equal(expected, HostUiInputGuard.IsShowDesktopShortcut(document.RootElement));
+    }
+
 }

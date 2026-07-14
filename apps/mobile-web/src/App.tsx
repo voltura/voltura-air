@@ -83,6 +83,14 @@ export function App() {
   const [areModeTabsCollapsed, setAreModeTabsCollapsed] = useState(false);
   const [isModeSelectorOpen, setIsModeSelectorOpen] = useState(false);
   const [textTransferDraft, setTextTransferDraft] = useState("");
+  const [isInputRecoveryDialogDismissed, setIsInputRecoveryDialogDismissed] = useState(false);
+  const inputBlockedByElevation = hostStatus?.inputBlockedByElevation === true;
+
+  useEffect(() => {
+    if (!inputBlockedByElevation) {
+      setIsInputRecoveryDialogDismissed(false);
+    }
+  }, [inputBlockedByElevation]);
   const hostPointerSpeed = hostStatus?.pointerSpeed;
   const hostHighlightPointer = hostStatus?.highlightPointer;
   const hostDefaultRemoteMode = hostStatus?.defaultRemoteMode;
@@ -561,6 +569,29 @@ export function App() {
       {supportsGestureDebug && tab === "debug" && <GestureDebugMode trackpadSettings={effectiveTrackpadSettings} />}
 
       {canShowModeNavigation && !areModeTabsCollapsed && <ModeTabs className="tabs bottom-mode-tabs" modeTabs={modeTabs} tab={tab} selectModeTab={selectModeTab} />}
+
+      {inputBlockedByElevation && (
+        isInputRecoveryDialogDismissed ? (
+          <button
+            type="button"
+            className="input-recovery-toast"
+            onClick={() => setIsInputRecoveryDialogDismissed(false)}
+            aria-label="PC input paused. Open recovery options."
+          >
+            <strong>PC input paused</strong>
+            <span>Show options</span>
+          </button>
+        ) : (
+          <section className="input-recovery-dialog" role="dialog" aria-labelledby="input-recovery-dialog-title">
+            <h2 id="input-recovery-dialog-title">Administrator app active</h2>
+            <p>Pointer control is unavailable. Other controls remain available.</p>
+            <div className="input-recovery-dialog-actions">
+              <button type="button" className="primary" onClick={() => send({ type: "keyboard.special", key: "D", modifiers: ["Win"] })}>Show desktop</button>
+              <button type="button" onClick={() => setIsInputRecoveryDialogDismissed(true)}>Continue</button>
+            </div>
+          </section>
+        )
+      )}
 
       {pendingAppLaunchId !== null && (
         <div className="app-toast pending" role="status">Waiting for the PC to respond…</div>

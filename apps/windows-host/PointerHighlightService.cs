@@ -11,7 +11,7 @@ using WpfColor = System.Windows.Media.Color;
 
 namespace VolturaAir.Host;
 
-public sealed class PointerHighlightService : IPointerHighlightService, IDisposable
+public sealed partial class PointerHighlightService : IPointerHighlightService, IDisposable
 {
     private const int VisibleDurationMilliseconds = 700;
     private const double GlowPaddingDips = 32;
@@ -35,6 +35,7 @@ public sealed class PointerHighlightService : IPointerHighlightService, IDisposa
         32650  // Working in background
     ];
     private readonly IAppLog _appLog;
+    private readonly bool _cursorWatchdogStarted;
     private readonly ManualResetEventSlim _started = new();
     private readonly Thread _thread;
     private readonly System.Threading.Timer _timer;
@@ -43,14 +44,17 @@ public sealed class PointerHighlightService : IPointerHighlightService, IDisposa
     private nint _windowHandle;
     private Exception? _initializationException;
     private long _lastMovementTimestamp;
-    private int _active;
+    private int _disabledForSession;
+    private int _overlaySuppressed;
     private int _disposeRequested;
-    private bool _systemCursorsTransparent;
     private int _updatePending;
+    private bool _systemCursorsTransparent;
+    private NativeRect[] _taskbarBounds = [];
 
-    public PointerHighlightService(IAppLog? appLog = null)
+    public PointerHighlightService(IAppLog? appLog = null, bool cursorWatchdogStarted = false)
     {
         _appLog = appLog ?? NullAppLog.Instance;
+        _cursorWatchdogStarted = cursorWatchdogStarted;
         _thread = new Thread(RunOverlayThread)
         {
             IsBackground = true,
@@ -71,14 +75,66 @@ public sealed class PointerHighlightService : IPointerHighlightService, IDisposa
 
     public void NotifyPointerActivity()
     {
-        if (Volatile.Read(ref _disposeRequested) != 0)
+        if (Volatile.Read(ref _disposeRequested) != 0 ||
+            Volatile.Read(ref _disabledForSession) != 0 ||
+            Volatile.Read(ref _overlaySuppressed) != 0)
         {
             return;
         }
 
         Volatile.Write(ref _lastMovementTimestamp, Stopwatch.GetTimestamp());
-        Interlocked.Exchange(ref _active, 1);
         QueueOverlayUpdate();
+    }
+
+    public void SetOverlaySuppressed(bool suppressed)
+    {
+        if (Interlocked.Exchange(ref _overlaySuppressed, suppressed ? 1 : 0) == (suppressed ? 1 : 0) || !suppressed)
+        {
+            return;
+        }
+
+        _timer.Change(Timeout.Infinite, Timeout.Infinite);
+        _dispatcher?.BeginInvoke(DispatcherPriority.Normal, HideOverlayAndRestoreSystemCursors);
+    }
+
+    private void HideOverlayAndRestoreSystemCursors()
+    {
+        _window?.Hide();
+        RestoreSystemCursors();
+    }
+
+    internal static bool IsPointInsideBounds(Point point, NativeRect bounds)
+    {
+        return point.X >= bounds.Left && point.X < bounds.Right &&
+            point.Y >= bounds.Top && point.Y < bounds.Bottom;
+    }
+
+    private bool IsPointerOverTaskbar(Point point)
+    {
+        foreach (var bounds in _taskbarBounds)
+        {
+            if (IsPointInsideBounds(point, bounds))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    internal void DisableForSession()
+    {
+        if (Interlocked.Exchange(ref _disabledForSession, 1) != 0)
+        {
+            return;
+        }
+
+        _timer.Change(Timeout.Infinite, Timeout.Infinite);
+        _dispatcher?.BeginInvoke(DispatcherPriority.Normal, () =>
+        {
+            _window?.Hide();
+            RestoreSystemCursors();
+        });
     }
 
     public void Dispose()
@@ -104,12 +160,13 @@ public sealed class PointerHighlightService : IPointerHighlightService, IDisposa
     {
         try
         {
-            RecoverSystemCursors();
+            RecoverSystemCursors(_appLog);
             _dispatcher = Dispatcher.CurrentDispatcher;
             _window = CreateOverlayWindow();
             _window.SourceInitialized += (_, _) => InitializeNativeWindow(_window);
             _window.Show();
             _window.Hide();
+            RefreshTaskbarBounds();
         }
         catch (Exception ex)
         {
@@ -144,6 +201,7 @@ public sealed class PointerHighlightService : IPointerHighlightService, IDisposa
     {
         var dispatcher = _dispatcher;
         if (Volatile.Read(ref _disposeRequested) != 0 ||
+            Volatile.Read(ref _disabledForSession) != 0 ||
             dispatcher is null ||
             dispatcher.HasShutdownStarted ||
             Interlocked.CompareExchange(ref _updatePending, 1, 0) != 0)
@@ -151,38 +209,42 @@ public sealed class PointerHighlightService : IPointerHighlightService, IDisposa
             return;
         }
 
-        _ = dispatcher.BeginInvoke(DispatcherPriority.Render, UpdateOverlay);
+        _ = dispatcher.BeginInvoke(DispatcherPriority.Normal, UpdateOverlay);
     }
 
     private void UpdateOverlay()
     {
+        var observedMovement = 0L;
         try
         {
-            if (Volatile.Read(ref _disposeRequested) != 0)
+            if (Volatile.Read(ref _disposeRequested) != 0 ||
+                Volatile.Read(ref _disabledForSession) != 0 ||
+                Volatile.Read(ref _overlaySuppressed) != 0)
             {
+                _window?.Hide();
+                RestoreSystemCursors();
+                _timer.Change(Timeout.Infinite, Timeout.Infinite);
                 return;
             }
 
-            var observedMovement = Volatile.Read(ref _lastMovementTimestamp);
+            observedMovement = Volatile.Read(ref _lastMovementTimestamp);
             if (Stopwatch.GetTimestamp() - observedMovement > VisibleDurationTicks)
             {
                 _window?.Hide();
                 RestoreSystemCursors();
-                Interlocked.Exchange(ref _active, 0);
                 _timer.Change(Timeout.Infinite, Timeout.Infinite);
-
-                if (Volatile.Read(ref _lastMovementTimestamp) != observedMovement)
-                {
-                    Interlocked.Exchange(ref _active, 1);
-                    QueueOverlayUpdate();
-                }
-
                 return;
             }
 
             ScheduleExpiryCheck(observedMovement);
             if (_window is null || !GetCursorPos(out var cursorPosition))
             {
+                return;
+            }
+
+            if (IsPointerOverTaskbar(cursorPosition))
+            {
+                HideOverlayAndRestoreSystemCursors();
                 return;
             }
 
@@ -197,6 +259,11 @@ public sealed class PointerHighlightService : IPointerHighlightService, IDisposa
         finally
         {
             Interlocked.Exchange(ref _updatePending, 0);
+            if (Volatile.Read(ref _disposeRequested) == 0 &&
+                Volatile.Read(ref _lastMovementTimestamp) != observedMovement)
+            {
+                QueueOverlayUpdate();
+            }
         }
     }
 
@@ -245,7 +312,9 @@ public sealed class PointerHighlightService : IPointerHighlightService, IDisposa
 
     private void MakeSystemCursorsTransparent()
     {
-        if (_systemCursorsTransparent)
+        if (!_cursorWatchdogStarted ||
+            Volatile.Read(ref _disabledForSession) != 0 ||
+            _systemCursorsTransparent)
         {
             return;
         }
@@ -267,7 +336,7 @@ public sealed class PointerHighlightService : IPointerHighlightService, IDisposa
                     Action: "pointer_highlight_cursor_substitution",
                     Outcome: "failed",
                     Win32Error: error));
-                RecoverSystemCursors();
+                RecoverSystemCursors(_appLog);
                 return;
             }
         }
@@ -294,15 +363,15 @@ public sealed class PointerHighlightService : IPointerHighlightService, IDisposa
             return;
         }
 
-        RecoverSystemCursors();
+        RecoverSystemCursors(_appLog);
         _systemCursorsTransparent = false;
     }
 
-    private void RecoverSystemCursors()
+    internal static void RecoverSystemCursors(IAppLog appLog)
     {
         if (!SystemParametersInfo(SpiSetCursors, 0, 0, 0))
         {
-            _appLog.Write(new AppLogEntry(
+            appLog.Write(new AppLogEntry(
                 Event: "host_action",
                 Source: "windows_host",
                 Action: "pointer_highlight_cursor_restore",
@@ -362,7 +431,7 @@ public sealed class PointerHighlightService : IPointerHighlightService, IDisposa
         source.AddHook(WindowMessageHook);
     }
 
-    private static nint WindowMessageHook(nint hwnd, int message, nint wParam, nint lParam, ref bool handled)
+    private nint WindowMessageHook(nint hwnd, int message, nint wParam, nint lParam, ref bool handled)
     {
         if (message == WmNcHitTest)
         {
@@ -376,44 +445,108 @@ public sealed class PointerHighlightService : IPointerHighlightService, IDisposa
             return MaNoActivate;
         }
 
+        if (message == WmDisplayChange ||
+            message == WmSettingChange ||
+            message == TaskbarCreatedMessage)
+        {
+            RefreshTaskbarBounds();
+        }
+
         return 0;
+    }
+
+    private void RefreshTaskbarBounds()
+    {
+        var taskbarBounds = new List<NativeRect>(2);
+        AddTaskbarBounds(taskbarBounds, "Shell_TrayWnd");
+        AddTaskbarBounds(taskbarBounds, "Shell_SecondaryTrayWnd");
+        _taskbarBounds = [.. taskbarBounds];
+    }
+
+    private static void AddTaskbarBounds(List<NativeRect> taskbarBounds, string className)
+    {
+        for (var windowHandle = nint.Zero; ;)
+        {
+            windowHandle = FindWindowEx(nint.Zero, windowHandle, className, null);
+            if (windowHandle == nint.Zero)
+            {
+                return;
+            }
+
+            if (GetWindowRect(windowHandle, out var bounds))
+            {
+                taskbarBounds.Add(bounds);
+            }
+        }
     }
 
     private const int GwlExStyle = -20;
     private const int WmNcHitTest = 0x0084;
     private const int WmMouseActivate = 0x0021;
+    private const int WmSettingChange = 0x001A;
+    private const int WmDisplayChange = 0x007E;
     private const int HtTransparent = -1;
     private const int MaNoActivate = 3;
-    private const int SmCxCursor = 13;
-    private const int SmCyCursor = 14;
-    private const uint SpiSetCursors = 0x0057;
     private const long WsExToolWindow = 0x00000080L;
     private const long WsExTransparent = 0x00000020L;
     private const long WsExNoActivate = 0x08000000L;
+    private const int SmCxCursor = 13;
+    private const int SmCyCursor = 14;
+    private const uint SpiSetCursors = 0x0057;
     private const uint SwpNoSize = 0x0001;
     private const uint SwpNoActivate = 0x0010;
     private const uint SwpShowWindow = 0x0040;
     private static readonly nint HwndTopmost = new(-1);
+    private static readonly int TaskbarCreatedMessage = unchecked((int)RegisterWindowMessage("TaskbarCreated"));
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct Point
+    internal struct Point
     {
         public int X;
         public int Y;
     }
 
-    [DllImport("user32.dll")]
-    private static extern bool GetCursorPos(out Point point);
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct NativeRect
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
 
     [DllImport("user32.dll", SetLastError = true)]
-    private static extern nint CreateCursor(nint instance, int hotSpotX, int hotSpotY, int width, int height, byte[] andPlane, byte[] xorPlane);
+    private static extern nint CreateCursor(
+        nint instance,
+        int hotSpotX,
+        int hotSpotY,
+        int width,
+        int height,
+        byte[] andPlane,
+        byte[] xorPlane);
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool DestroyCursor(nint cursor);
 
     [DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out Point point);
+
+    [LibraryImport("user32.dll", StringMarshalling = StringMarshalling.Utf16)]
+    private static partial nint FindWindowEx(nint parentWindow, nint childAfter, string className, string? windowName);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetWindowRect(nint windowHandle, out NativeRect bounds);
+
+    [LibraryImport("user32.dll", StringMarshalling = StringMarshalling.Utf16)]
+    private static partial uint RegisterWindowMessage(string message);
+
+    [DllImport("user32.dll")]
     private static extern uint GetDpiForWindow(nint windowHandle);
+
+    [DllImport("user32.dll")]
+    private static extern nint GetWindowLongPtr(nint windowHandle, int index);
 
     [DllImport("user32.dll")]
     private static extern int GetSystemMetrics(int index);
@@ -422,16 +555,13 @@ public sealed class PointerHighlightService : IPointerHighlightService, IDisposa
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetSystemCursor(nint cursor, uint cursorId);
 
-    [DllImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SystemParametersInfo(uint action, uint parameter, nint value, uint flags);
-
-    [DllImport("user32.dll")]
-    private static extern nint GetWindowLongPtr(nint windowHandle, int index);
-
     [DllImport("user32.dll")]
     private static extern nint SetWindowLongPtr(nint windowHandle, int index, nint newValue);
 
     [DllImport("user32.dll")]
     private static extern bool SetWindowPos(nint windowHandle, nint insertAfter, int x, int y, int width, int height, uint flags);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SystemParametersInfo(uint action, uint parameter, nint value, uint flags);
 }

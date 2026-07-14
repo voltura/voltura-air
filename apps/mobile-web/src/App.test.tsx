@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { useVolturaAirConnection } from "./useVolturaAirConnection";
@@ -93,6 +93,31 @@ beforeEach(() => {
 });
 
 describe("App header and mode navigation", () => {
+  it("offers desktop recovery while an administrator app blocks remote input", async () => {
+    const send = vi.fn();
+    mockConnection({ hostStatus: { inputBlockedByElevation: true }, send });
+
+    const { rerender } = render(<App />);
+
+    expect(screen.getByRole("dialog").textContent).toContain("Administrator app active");
+    fireEvent.click(screen.getByRole("button", { name: "Show desktop" }));
+    expect(send).toHaveBeenCalledWith({ type: "keyboard.special", key: "D", modifiers: ["Win"] });
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("button", { name: "PC input paused. Open recovery options." })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "PC input paused. Open recovery options." }));
+    expect(screen.getByRole("dialog").textContent).toContain("Other controls remain available.");
+
+    mockConnection({ hostStatus: { inputBlockedByElevation: false }, send });
+    rerender(<App />);
+    mockConnection({ hostStatus: { inputBlockedByElevation: true }, send });
+    rerender(<App />);
+
+    await waitFor(() => expect(screen.getByRole("dialog").textContent).toContain("Administrator app active"));
+  });
+
   it("uses accessible mode labels and selected state in both navigation surfaces", () => {
     render(<App />);
 

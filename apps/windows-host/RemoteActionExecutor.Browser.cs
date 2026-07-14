@@ -17,17 +17,17 @@ public sealed partial class RemoteActionExecutor
         do
         {
             var browserWindows = GetBrowserWindows(processName);
-            foreach (var process in browserWindows)
+            foreach (var window in browserWindows)
             {
-                if (TryActivateYoutubeBrowserWindow(process.MainWindowHandle, youtubeHost, process.MainWindowTitle, YoutubeAddressWait))
+                if (TryActivateYoutubeBrowserWindow(window.Handle, youtubeHost, window.Title, YoutubeAddressWait))
                 {
                     return true;
                 }
             }
 
-            foreach (var process in browserWindows)
+            foreach (var window in browserWindows)
             {
-                if (TrySelectYoutubeBrowserTab(process.MainWindowHandle, youtubeHost))
+                if (TrySelectYoutubeBrowserTab(window.Handle, youtubeHost))
                 {
                     return true;
                 }
@@ -53,26 +53,26 @@ public sealed partial class RemoteActionExecutor
         {
             var browserWindows = GetBrowserWindows(browser.ProcessName);
 
-            foreach (var process in browserWindows)
+            foreach (var window in browserWindows)
             {
-                if (IsYoutubeBrowserTabName(process.MainWindowTitle, youtubeHost)
-                    && TryActivateYoutubeBrowserWindow(process.MainWindowHandle, youtubeHost, process.MainWindowTitle, YoutubeAddressWait))
+                if (IsYoutubeBrowserTabName(window.Title, youtubeHost)
+                    && TryActivateYoutubeBrowserWindow(window.Handle, youtubeHost, window.Title, YoutubeAddressWait))
                 {
                     return true;
                 }
             }
 
-            foreach (var process in browserWindows)
+            foreach (var window in browserWindows)
             {
-                if (TrySelectYoutubeBrowserTab(process.MainWindowHandle, youtubeHost))
+                if (TrySelectYoutubeBrowserTab(window.Handle, youtubeHost))
                 {
                     return true;
                 }
             }
 
-            foreach (var process in browserWindows)
+            foreach (var window in browserWindows)
             {
-                if (TryActivateYoutubeBrowserWindow(process.MainWindowHandle, youtubeHost, fallbackTitle: null, YoutubeAddressWait))
+                if (TryActivateYoutubeBrowserWindow(window.Handle, youtubeHost, fallbackTitle: null, YoutubeAddressWait))
                 {
                     return true;
                 }
@@ -103,19 +103,19 @@ public sealed partial class RemoteActionExecutor
 
     private static bool TryActivateMostRecentBrowserWindow(string processName, bool ensureFullscreen)
     {
-        foreach (var process in GetBrowserWindows(processName))
+        foreach (var window in GetBrowserWindows(processName))
         {
-            if (!TryActivateWindow(process.MainWindowHandle))
+            if (!TryActivateWindow(window.Handle))
             {
                 continue;
             }
 
             if (ensureFullscreen)
             {
-                EnsureBrowserFullscreen(process.MainWindowHandle);
+                EnsureBrowserFullscreen(window.Handle);
             }
 
-            RememberYoutubeBrowserWindow(process.MainWindowHandle);
+            RememberYoutubeBrowserWindow(window.Handle);
             return true;
         }
 
@@ -154,12 +154,40 @@ public sealed partial class RemoteActionExecutor
         }
     }
 
-    private static Process[] GetBrowserWindows(string processName)
+    private static BrowserWindow[] GetBrowserWindows(string processName)
     {
-        return Process.GetProcessesByName(processName)
-            .Where(process => process.MainWindowHandle != IntPtr.Zero)
-            .OrderByDescending(GetStartTimeSafe)
-            .ToArray();
+        var processes = Process.GetProcessesByName(processName);
+        try
+        {
+            return processes
+                .Select(TryCreateBrowserWindow)
+                .Where(window => window is not null)
+                .Select(window => window!.Value)
+                .OrderByDescending(window => window.StartTime)
+                .ToArray();
+        }
+        finally
+        {
+            foreach (var process in processes)
+            {
+                process.Dispose();
+            }
+        }
+    }
+
+    private static BrowserWindow? TryCreateBrowserWindow(Process process)
+    {
+        try
+        {
+            var handle = process.MainWindowHandle;
+            return handle == IntPtr.Zero
+                ? null
+                : new BrowserWindow(handle, process.MainWindowTitle, GetStartTimeSafe(process));
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            return null;
+        }
     }
 
     private static bool TrySelectYoutubeBrowserTab(IntPtr browserWindowHandle, string? youtubeHost)
@@ -377,4 +405,6 @@ public sealed partial class RemoteActionExecutor
             return $"--new-tab --start-fullscreen {QuoteProcessArgument(url)}";
         }
     }
+
+    private readonly record struct BrowserWindow(IntPtr Handle, string Title, DateTime StartTime);
 }

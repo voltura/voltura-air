@@ -102,10 +102,13 @@ Connection reliability is part of the product surface. The mobile client must no
 stay visually connected when the host is unavailable, health checks fail, or
 input delivery stops being acknowledged. Foreground idle checks should stay
 lightweight so a paired phone can rest without polling status and audio state.
+The host bounds LAN sessions, message size, initial pairing time, and stale
+authenticated connections without adding a server-side polling loop.
 Active pointer movement is frame-coalesced, uses low-rate acknowledgement
 barriers, and discards congestion-prone movement instead of building a stale
 queue that continues after the user lifts their finger.
 The optional **Highlight pointer** trackpad setting shows a larger custom pointer with the host dark-theme teal accent glow during phone-initiated movement, clicks, two-finger scrolling, and pinch zoom. It is off globally by default and can be explicitly enabled or disabled per paired device.
+The optional highlight is a best-effort visual layer. Voltura Air automatically uses the normal Windows cursor while it is over the taskbar or a higher-integrity foreground application, then resumes the highlight when that condition clears. When an administrator application becomes active, the PC shows one notification and the phone shows a recovery dialog with **Show desktop** or **Continue**. Continue leaves a compact recovery toast available until normal foreground control returns, while other client controls remain available. **Show desktop** minimizes desktop windows through the Windows shell. UAC and other secure desktops remain outside remote control.
 QR links include the host app version, and the host serves the mobile app shell
 and service worker with no-store cache headers so fresh pairing codes are not
 masked by stale installed-PWA code.

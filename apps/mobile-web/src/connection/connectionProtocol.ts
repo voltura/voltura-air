@@ -50,6 +50,7 @@ export function normalizeHostStatus(metadata: HostStatusMetadata | undefined): H
     developerMode: metadata.developerMode === true ? true : undefined,
     developerSessionId: normalizeOptionalString(metadata.developerSessionId),
     hostVersion: normalizeOptionalString(metadata.hostVersion),
+    inputBlockedByElevation: typeof metadata.inputBlockedByElevation === "boolean" ? metadata.inputBlockedByElevation : undefined,
     webClientBuildId: normalizeOptionalString(metadata.webClientBuildId),
     pcName: normalizeOptionalString(metadata.pcName),
     pointerSpeed: normalizePointerSpeed(metadata.pointerSpeed),

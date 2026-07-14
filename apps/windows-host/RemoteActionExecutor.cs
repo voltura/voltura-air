@@ -78,13 +78,13 @@ public sealed partial class RemoteActionExecutor : IRemoteActionExecutor
     {
         try
         {
-            Process.Start(new ProcessStartInfo
+            using var process = Process.Start(new ProcessStartInfo
             {
                 FileName = fileName,
                 Arguments = arguments ?? string.Empty,
                 UseShellExecute = true
             });
-            return true;
+            return process is not null;
         }
         catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or FileNotFoundException)
         {

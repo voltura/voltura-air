@@ -70,59 +70,105 @@ public partial class MainWindow
 
         var visibleText = string.Empty;
         var updatingFilters = false;
-        void RefreshLog()
+        var refreshVersion = 0L;
+        var refreshRunning = false;
+        var unloaded = false;
+        string? lastRenderSignature = null;
+        async void RefreshLog()
         {
-            var selectedAction = GetLogFilterValue(actionFilter);
-            var result = _appLog.Read(new AppLogQuery(
-                DateOnly.FromDateTime(dateRange.SelectedStartDate),
-                DateOnly.FromDateTime(dateRange.SelectedEndDate),
-                Source: GetLogFilterValue(sourceFilter),
-                MaxEntries: 5000));
-            if (!result.Succeeded)
+            refreshVersion += 1;
+            if (refreshRunning || unloaded)
             {
-                SetLogViewerError(status, logRows, $"The application log could not be read: {result.Error}");
-                visibleText = string.Empty;
                 return;
             }
 
+            refreshRunning = true;
+            var requestedVersion = refreshVersion;
+            var selectedAction = GetLogFilterValue(actionFilter);
             var selectedEvents = eventFilter.SelectedValues;
-            var eventEntries = result.Entries
-                .Where(entry => selectedEvents.Count == 0 || selectedEvents.Contains(entry.Event))
-                .ToArray();
-            updatingFilters = true;
-            PopulateActionFilter(actionFilter, eventEntries, selectedAction);
-            updatingFilters = false;
-            var effectiveAction = GetLogFilterValue(actionFilter);
-            var filtered = eventEntries
-                .Where(entry => string.IsNullOrWhiteSpace(effectiveAction) || string.Equals(entry.Action, effectiveAction, StringComparison.OrdinalIgnoreCase))
-                .Reverse()
-                .Take(250)
-                .ToArray();
-            visibleText = string.Join(Environment.NewLine, filtered.Select(FormatAppLogEntry));
-            logRows.Children.Clear();
-            if (filtered.Length == 0)
+            var query = new AppLogQuery(
+                DateOnly.FromDateTime(dateRange.SelectedStartDate),
+                DateOnly.FromDateTime(dateRange.SelectedEndDate),
+                Source: GetLogFilterValue(sourceFilter),
+                MaxEntries: 5000);
+            var result = await Task.Run(() => _appLog.Read(query)).ConfigureAwait(false);
+            if (Dispatcher.HasShutdownStarted)
             {
-                logRows.Children.Add(CreateLogEmptyState(
-                    AppLoggingSettings.IsEnabled()
-                        ? "No matching log entries."
-                        : "Application logging is off. Enable Write application log above to record new activity."));
-            }
-            else
-            {
-                foreach (var entry in filtered)
-                {
-                    logRows.Children.Add(CreateAppLogRow(entry));
-                }
+                return;
             }
 
-            logScroller.ScrollToTop();
-            var loggingEnabled = AppLoggingSettings.IsEnabled();
-            status.Foreground = (Brush)Resources[loggingEnabled ? "MutedTextBrush" : "DangerBrush"];
-            var state = loggingEnabled
-                ? "Logging is enabled."
-                : "Logging is off. No new activity is being written; existing entries remain available.";
-            var limitNote = result.Truncated || filtered.Length == 250 ? " Only the newest matching entries are shown." : string.Empty;
-            status.Text = $"{state} Showing {filtered.Length.ToString(CultureInfo.InvariantCulture)} entries.{limitNote}";
+            _ = Dispatcher.BeginInvoke(() =>
+            {
+                refreshRunning = false;
+                if (unloaded)
+                {
+                    return;
+                }
+
+                if (requestedVersion != refreshVersion)
+                {
+                    RefreshLog();
+                    return;
+                }
+
+                if (!result.Succeeded)
+                {
+                    var errorMessage = $"The application log could not be read: {result.Error}";
+                    var errorSignature = $"error\0{errorMessage}";
+                    if (!string.Equals(lastRenderSignature, errorSignature, StringComparison.Ordinal))
+                    {
+                        SetLogViewerError(status, logRows, errorMessage);
+                        lastRenderSignature = errorSignature;
+                    }
+
+                    visibleText = string.Empty;
+                    return;
+                }
+
+                var eventEntries = result.Entries
+                    .Where(entry => selectedEvents.Count == 0 || selectedEvents.Contains(entry.Event))
+                    .ToArray();
+                updatingFilters = true;
+                PopulateActionFilter(actionFilter, eventEntries, selectedAction);
+                updatingFilters = false;
+                var effectiveAction = GetLogFilterValue(actionFilter);
+                var filtered = eventEntries
+                    .Where(entry => string.IsNullOrWhiteSpace(effectiveAction) || string.Equals(entry.Action, effectiveAction, StringComparison.OrdinalIgnoreCase))
+                    .Reverse()
+                    .Take(250)
+                    .ToArray();
+                visibleText = string.Join(Environment.NewLine, filtered.Select(FormatAppLogEntry));
+                var loggingEnabled = AppLoggingSettings.IsEnabled();
+                var renderSignature = $"success\0{loggingEnabled}\0{result.Truncated}\0{visibleText}";
+                if (!string.Equals(lastRenderSignature, renderSignature, StringComparison.Ordinal))
+                {
+                    logRows.Children.Clear();
+                    if (filtered.Length == 0)
+                    {
+                        logRows.Children.Add(CreateLogEmptyState(
+                            loggingEnabled
+                                ? "No matching log entries."
+                                : "Application logging is off. Enable Write application log above to record new activity."));
+                    }
+                    else
+                    {
+                        foreach (var entry in filtered)
+                        {
+                            logRows.Children.Add(CreateAppLogRow(entry));
+                        }
+                    }
+
+                    logScroller.ScrollToTop();
+                    lastRenderSignature = renderSignature;
+                }
+
+                status.Foreground = (Brush)Resources[loggingEnabled ? "MutedTextBrush" : "DangerBrush"];
+                var state = loggingEnabled
+                    ? "Logging is enabled."
+                    : "Logging is off. No new activity is being written; existing entries remain available.";
+                var limitNote = result.Truncated || filtered.Length == 250 ? " Only the newest matching entries are shown." : string.Empty;
+                status.Text = $"{state} Showing {filtered.Length.ToString(CultureInfo.InvariantCulture)} entries.{limitNote}";
+            });
         }
 
         void RefreshForFilterChange()
@@ -210,18 +256,52 @@ public partial class MainWindow
         automaticRefresh.VerticalAlignment = VerticalAlignment.Center;
         actions.Children.Add(automaticRefresh);
 
-        var automaticRefreshTimer = new System.Windows.Threading.DispatcherTimer
+        var automaticRefreshSubscribed = false;
+
+        void OnApplicationLogChanged(object? sender, EventArgs e)
         {
-            Interval = TimeSpan.FromSeconds(2)
-        };
-        automaticRefreshTimer.Tick += (_, _) => RefreshLog();
-        automaticRefresh.Checked += (_, _) =>
+            if (!Dispatcher.HasShutdownStarted)
+            {
+                _ = Dispatcher.BeginInvoke(RefreshLog);
+            }
+        }
+
+        void UpdateAutomaticRefresh()
         {
-            RefreshLog();
-            automaticRefreshTimer.Start();
+            var shouldSubscribe = automaticRefresh.IsChecked == true && IsVisible && WindowState != WindowState.Minimized;
+            if (shouldSubscribe == automaticRefreshSubscribed)
+            {
+                return;
+            }
+
+            automaticRefreshSubscribed = shouldSubscribe;
+            if (shouldSubscribe)
+            {
+                _appLog.Changed += OnApplicationLogChanged;
+                RefreshLog();
+            }
+            else
+            {
+                _appLog.Changed -= OnApplicationLogChanged;
+            }
+        }
+
+        void OnWindowStateChanged(object? sender, EventArgs e) => UpdateAutomaticRefresh();
+
+        automaticRefresh.Checked += (_, _) => UpdateAutomaticRefresh();
+        automaticRefresh.Unchecked += (_, _) => UpdateAutomaticRefresh();
+        root.IsVisibleChanged += (_, _) => UpdateAutomaticRefresh();
+        StateChanged += OnWindowStateChanged;
+        root.Unloaded += (_, _) =>
+        {
+            unloaded = true;
+            if (automaticRefreshSubscribed)
+            {
+                _appLog.Changed -= OnApplicationLogChanged;
+            }
+
+            StateChanged -= OnWindowStateChanged;
         };
-        automaticRefresh.Unchecked += (_, _) => automaticRefreshTimer.Stop();
-        root.Unloaded += (_, _) => automaticRefreshTimer.Stop();
         Grid.SetRow(actions, 2);
         root.Children.Add(actions);
 
@@ -270,6 +350,18 @@ public partial class MainWindow
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(action => action, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+        var existingActions = combo.Items
+            .Cast<ComboBoxItem>()
+            .Skip(1)
+            .Select(item => item.Tag as string)
+            .Where(action => action is not null)
+            .Select(action => action!)
+            .ToArray();
+        if (actions.SequenceEqual(existingActions, StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
         combo.Items.Clear();
         combo.Items.Add(new ComboBoxItem { Content = "All actions", Tag = null });
         foreach (var action in actions)
@@ -316,7 +408,7 @@ public partial class MainWindow
         try
         {
             Directory.CreateDirectory(_appLog.LogDirectory);
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
             {
                 FileName = _appLog.LogDirectory,
                 UseShellExecute = true

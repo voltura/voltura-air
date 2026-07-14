@@ -46,6 +46,8 @@ public sealed record AppLogDeleteResult(bool Succeeded, int DeletedFiles, string
 
 public interface IAppLog
 {
+    event EventHandler? Changed;
+
     string LogDirectory { get; }
 
     void Write(AppLogEntry entry);
@@ -93,6 +95,8 @@ public sealed class AppLog : IAppLog
 
     public string LogDirectory { get; }
 
+    public event EventHandler? Changed;
+
     public void Write(AppLogEntry entry)
     {
         try
@@ -123,6 +127,8 @@ public sealed class AppLog : IAppLog
                 });
                 AppendLine(path, line);
             }
+
+            Changed?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
         {
@@ -343,6 +349,12 @@ public sealed class NullAppLog : IAppLog
     }
 
     public string LogDirectory => AppLog.DefaultLogDirectory;
+
+    public event EventHandler? Changed
+    {
+        add { }
+        remove { }
+    }
 
     public void Write(AppLogEntry entry)
     {

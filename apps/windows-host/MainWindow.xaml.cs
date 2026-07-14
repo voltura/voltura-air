@@ -59,6 +59,7 @@ public partial class MainWindow : Window
     private int _lastPairedDeviceCount;
     private bool _isLoadingPreferences;
     private bool _openAwakePreferences;
+    private bool _pageNeedsRefresh = true;
     private bool _allowClose;
 
     public MainWindow(
@@ -101,7 +102,9 @@ public partial class MainWindow : Window
         _pairingManager.ConnectionChanged += OnConnectionChanged;
         AppThemeSettings.Changed += OnThemeChanged;
         _awakeService.StateChanged += OnAwakeStateChanged;
-        SelectPage(HostPage.Connect);
+        IsVisibleChanged += OnWindowIsVisibleChanged;
+        RefreshStatusText();
+        RefreshNavigationTheme();
     }
 
     public string PairingUrl => _pairingUrl;
@@ -150,7 +153,16 @@ public partial class MainWindow : Window
         _pairingManager.ConnectionChanged -= OnConnectionChanged;
         AppThemeSettings.Changed -= OnThemeChanged;
         _awakeService.StateChanged -= OnAwakeStateChanged;
+        IsVisibleChanged -= OnWindowIsVisibleChanged;
         base.OnClosed(e);
+    }
+
+    private void OnWindowIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (IsVisible && _pageNeedsRefresh)
+        {
+            SelectPage(_activePage);
+        }
     }
 
     protected override void OnClosing(CancelEventArgs e)
@@ -168,6 +180,7 @@ public partial class MainWindow : Window
     private void SelectPage(HostPage page)
     {
         _activePage = page;
+        _pageNeedsRefresh = false;
         RefreshStatusText();
         RefreshNavigationTheme();
 
@@ -293,7 +306,7 @@ public partial class MainWindow : Window
 
     private static void OpenProductSite()
     {
-        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
         {
             FileName = ProductSiteUrl,
             UseShellExecute = true
@@ -346,6 +359,10 @@ public partial class MainWindow : Window
             if (_activePage == HostPage.Preferences && IsVisible)
             {
                 SelectPage(HostPage.Preferences);
+            }
+            else if (_activePage == HostPage.Preferences)
+            {
+                _pageNeedsRefresh = true;
             }
         });
     }

@@ -40,6 +40,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _hadActiveController = pairingManager.HasActiveController;
         _pairingManager.ConnectionChanged += OnConnectionChanged;
         _webHost.ControllerSocketClosed += OnControllerSocketClosed;
+        _webHost.RemoteInputBlockedChanged += OnRemoteInputBlockedChanged;
         AppThemeSettings.Changed += OnAppThemeChanged;
         _awakeService.StateChanged += OnAwakeStateChanged;
 
@@ -54,6 +55,10 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         };
         _trayIcon.DoubleClick += (_, _) => _mainWindow.ShowPage(HostPage.Connect);
         ApplyMenuTheme();
+        if (_webHost.IsInputBlockedByElevation)
+        {
+            OnRemoteInputBlockedChanged(this, new RemoteInputBlockedChangedEventArgs(true));
+        }
     }
 
     private enum TrayConnectionState
@@ -279,6 +284,26 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         });
     }
 
+    private void OnRemoteInputBlockedChanged(object? sender, RemoteInputBlockedChangedEventArgs e)
+    {
+        if (_disposed || !e.IsBlocked)
+        {
+            return;
+        }
+
+        WpfApplication.Current.Dispatcher.BeginInvoke(() =>
+        {
+            if (!_disposed)
+            {
+                _trayIcon.ShowBalloonTip(
+                    4000,
+                    "Remote control paused",
+                    "An administrator app is active.",
+                    Forms.ToolTipIcon.Warning);
+            }
+        });
+    }
+
     private void OnAppThemeChanged(object? sender, EventArgs e)
     {
         WpfApplication.Current.Dispatcher.BeginInvoke(ApplyMenuTheme);
@@ -356,7 +381,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
 
     private static void OpenProductSite()
     {
-        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
         {
             FileName = ProductSiteUrl,
             UseShellExecute = true
@@ -431,6 +456,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         CancelPendingDisconnectNotification();
         _pairingManager.ConnectionChanged -= OnConnectionChanged;
         _webHost.ControllerSocketClosed -= OnControllerSocketClosed;
+        _webHost.RemoteInputBlockedChanged -= OnRemoteInputBlockedChanged;
         AppThemeSettings.Changed -= OnAppThemeChanged;
         _awakeService.StateChanged -= OnAwakeStateChanged;
         _trayIcon.Visible = false;

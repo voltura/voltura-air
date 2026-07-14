@@ -119,7 +119,8 @@ Successful response:
       "displayName": "Currently focused application",
       "available": true
     },
-    "pointerSpeed": 100
+    "pointerSpeed": 100,
+    "highlightPointer": false
   }
 }
 ```
@@ -171,19 +172,21 @@ Host response:
       "displayName": "Currently focused application",
       "available": true
     },
-    "pointerSpeed": 100
+    "pointerSpeed": 100,
+    "highlightPointer": false
   }
 }
 ```
 
 Host metadata is included after authentication in `pair.accepted` and `status`.
-It is not a secret and must not be used as authentication state. Most fields are diagnostics metadata; `defaultRemoteMode` and `pointerSpeed` are authenticated host profile hints used by the mobile app.
+It is not a secret and must not be used as authentication state. Most fields are diagnostics metadata; `defaultRemoteMode`, `pointerSpeed`, and `highlightPointer` are authenticated host profile hints used by the mobile app.
 The adapter name can reveal local hardware/vendor details, so it should only be copied when the user explicitly chooses **Copy diagnostics**.
 `defaultRemoteMode` is the host's advisory initial Remote mode for that PC (`standard`, `youtube`, or `kodi`). The mobile app uses it only when the current phone/browser has no saved Remote mode override for that PC.
 `remoteLaunch` is an authenticated capability. When `true`, the host allows this paired device to trigger the fixed host-defined launch actions documented below and exposes its approved configurable buttons through `host.appLaunchActions`. The host does not expose the configured YouTube URL, executable paths, or arguments through this metadata.
 `appLaunchActions` is an authenticated array of `{ id, label, kind }` summaries. It is empty when the effective **Allow paired devices to start applications** permission is disabled. `id` is an opaque host-owned identifier; clients must not derive a path or command from it. `label` is the host-managed 1–10 character button label. `kind` is one of `browser`, `spotify`, `vlc`, `powerpoint`, or `custom` and is presentation metadata only.
 `textTransfer` is an authenticated capability. When `true`, the client may use the host-acknowledged `text.send` operation described below. `host.textTransferTarget` contains only `{ mode, displayName, available }`. The host reports `mode: "focused"`, `displayName: "Currently focused application"`, and `available: true`; executable paths, process identifiers, window handles, and clipboard contents are never included.
 `pointerSpeed` is the effective pointer speed for the authenticated paired device: the host default unless that device has an override. It is included only on authenticated `pair.accepted` and `status` messages. When the Windows host profile changes, the host may push the same lightweight `status` message to active sockets; the mobile app does not add a polling loop, timer, or extra battery cost for pointer-speed sync.
+`highlightPointer` is the effective pointer-highlight value for the authenticated paired device: the default-off host value unless that device has an explicit enabled/off override. Profile changes use the same pushed `status` message. The host caches the effective value in connection state so pointer movement does not read settings, acquire the pairing lock, or enter the WPF dispatcher.
 `webClientBuildId` identifies the exact compiled mobile web bundle currently served by the host. Vite generates a new opaque ID for every build, and the same ID is embedded in the JavaScript bundle and written to `web-build-id.txt`. When auto-refresh is enabled, the client clears its service worker and caches and reloads only when the host build ID differs from the ID embedded in the running client. This build ID is separate from `hostVersion` and does not affect installer or release versioning.
 When host developer mode is enabled in **Preferences** -> **Developer tools**, host metadata also includes `developerMode: true` and a `developerSessionId` for the current host run.
 
@@ -240,6 +243,12 @@ Set this device's pointer speed override on the PC after pairing has been accept
 
 ```json
 { "type": "pointer.speed.set", "pointerSpeed": 65 }
+```
+
+Set this device's **Highlight pointer** override after pairing. Either boolean is an explicit device override and therefore wins over the global host value:
+
+```json
+{ "type": "pointer.highlight.set", "enabled": true }
 ```
 
 Lightweight connection health check after pairing has been accepted:

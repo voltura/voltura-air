@@ -28,6 +28,31 @@ public sealed partial class PairingManager
         return true;
     }
 
+    public bool SetDeviceHighlightPointerOverride(string clientId, bool? enabled)
+    {
+        lock (_gate)
+        {
+            var index = _records.FindIndex(record => string.Equals(record.ClientId, clientId, StringComparison.Ordinal));
+            if (index < 0)
+            {
+                return false;
+            }
+
+            var existing = _records[index];
+            if (existing.HighlightPointerOverride == enabled)
+            {
+                return false;
+            }
+
+            _records[index] = existing with { HighlightPointerOverride = enabled };
+            _store.Save(_records);
+        }
+
+        DeviceProfileChanged?.Invoke(this, EventArgs.Empty);
+        ConnectionChanged?.Invoke(this, EventArgs.Empty);
+        return true;
+    }
+
     public bool SetDevicePermissionOverrides(string clientId, DevicePermissionOverrides permissionOverrides)
     {
         lock (_gate)

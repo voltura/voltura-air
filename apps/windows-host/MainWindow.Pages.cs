@@ -255,6 +255,7 @@ public partial class MainWindow
         var trackpadPanel = AddPreferencesSection(panel, sections, "Trackpad defaults");
         trackpadPanel.Children.Add(CreateMutedText("Default pointer speed for paired devices unless a device has its own override."));
         AddGlobalPointerSpeedSetting(trackpadPanel);
+        AddGlobalPointerHighlightSetting(trackpadPanel);
 
         var remotePanel = AddPreferencesSection(panel, sections, "Remote defaults");
         remotePanel.Children.Add(CreateMutedText("Choose the initial Remote mode for newly connected phones. Mobile settings can still override this per PC."));

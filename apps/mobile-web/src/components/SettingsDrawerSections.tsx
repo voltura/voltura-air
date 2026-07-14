@@ -232,6 +232,11 @@ export function TrackpadSettingsSection({
       </label>
 
       <label className="toggle-row">
+        <span>Highlight pointer</span>
+        <input type="checkbox" checked={trackpadSettings.highlightPointer} onChange={(event) => updateTrackpadSetting("highlightPointer", event.target.checked)} />
+      </label>
+
+      <label className="toggle-row">
         <span>Scroll acceleration</span>
         <input type="checkbox" checked={trackpadSettings.scrollAcceleration} onChange={(event) => updateTrackpadSetting("scrollAcceleration", event.target.checked)} />
       </label>

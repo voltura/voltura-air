@@ -6,6 +6,7 @@ public static class AppPointerSettings
 {
     private const string SettingsKeyPath = @"Software\VolturaAir";
     private const string DefaultPointerSpeedValueName = "DefaultPointerSpeed";
+    private const string HighlightPointerValueName = "HighlightPointer";
 
     public static event EventHandler? Changed;
 
@@ -26,6 +27,25 @@ public static class AppPointerSettings
         key.SetValue(DefaultPointerSpeedValueName, normalized, RegistryValueKind.DWord);
 
         if (current != normalized)
+        {
+            Changed?.Invoke(null, EventArgs.Empty);
+        }
+    }
+
+    public static bool HighlightPointer()
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: false);
+        return key?.GetValue(HighlightPointerValueName) is int value && value != 0;
+    }
+
+    public static void SetHighlightPointer(bool enabled)
+    {
+        var current = HighlightPointer();
+        using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: true) ??
+            Registry.CurrentUser.CreateSubKey(SettingsKeyPath, writable: true);
+        key.SetValue(HighlightPointerValueName, enabled ? 1 : 0, RegistryValueKind.DWord);
+
+        if (current != enabled)
         {
             Changed?.Invoke(null, EventArgs.Empty);
         }

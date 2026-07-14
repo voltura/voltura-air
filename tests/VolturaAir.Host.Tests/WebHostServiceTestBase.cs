@@ -101,7 +101,8 @@ public abstract class WebHostServiceTestBase
         public static async Task<WebHostFixture> StartAsync(
             ISystemAudioController? audioController = null,
             IRemoteActionExecutor? remoteActionExecutor = null,
-            IAppLaunchService? appLaunchService = null)
+            IAppLaunchService? appLaunchService = null,
+            IAppLog? appLog = null)
         {
             var store = new TempPairingStore();
             var inputInjector = new FakeInputInjector();
@@ -112,6 +113,7 @@ public abstract class WebHostServiceTestBase
                 new InputDispatcher(inputInjector),
                 audioController,
                 remoteActionExecutor,
+                appLog: appLog,
                 appLaunchService: appLaunchService,
                 isolatedTestMode: true,
                 configureWebHost: builder => builder.UseTestServer());

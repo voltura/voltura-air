@@ -70,6 +70,7 @@ export function App() {
     forgetPc,
     renamePc,
     renameDevice,
+    setHostPointerHighlight,
     setHostPointerSpeed
   } = useVolturaAirConnection();
   const [tab, setTab] = useState<Tab>("trackpad");
@@ -83,6 +84,7 @@ export function App() {
   const [isModeSelectorOpen, setIsModeSelectorOpen] = useState(false);
   const [textTransferDraft, setTextTransferDraft] = useState("");
   const hostPointerSpeed = hostStatus?.pointerSpeed;
+  const hostHighlightPointer = hostStatus?.highlightPointer;
   const hostDefaultRemoteMode = hostStatus?.defaultRemoteMode;
   const {
     appSettings,
@@ -94,7 +96,7 @@ export function App() {
     setRemoteSettingsState,
     setTrackpadSettingsState,
     trackpadSettings
-  } = usePcSettings(clientId, activePc?.id ?? null, hostDefaultRemoteMode, hostPointerSpeed);
+  } = usePcSettings(clientId, activePc?.id ?? null, hostDefaultRemoteMode, hostPointerSpeed, hostHighlightPointer);
   const modeTabs = useMemo(() => getModeTabs(appSettings.fourthMode), [appSettings.fourthMode]);
   const { installApp, installPrompt, isInstalled, refreshInstalledApp, refreshMessage } = usePwaLifecycle({
     activePc,
@@ -191,6 +193,10 @@ export function App() {
 
     if (key === "pointerSpeed" && typeof value === "number") {
       setHostPointerSpeed(value);
+    }
+
+    if (key === "highlightPointer" && typeof value === "boolean") {
+      setHostPointerHighlight(value);
     }
 
     if (key === "hapticFeedback" && value === true) {

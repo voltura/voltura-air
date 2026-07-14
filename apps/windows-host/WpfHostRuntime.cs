@@ -3,17 +3,20 @@ namespace VolturaAir.Host;
 internal sealed class WpfHostRuntime : IAsyncDisposable
 {
     private readonly SendInputInjector _inputInjector;
+    private readonly PointerHighlightService _pointerHighlightService;
     private readonly WebHostService _webHost;
     private readonly WpfTrayApplicationContext _trayContext;
 
     private WpfHostRuntime(
         SendInputInjector inputInjector,
+        PointerHighlightService pointerHighlightService,
         WebHostService webHost,
         PairingManager pairingManager,
         MainWindow mainWindow,
         WpfTrayApplicationContext trayContext)
     {
         _inputInjector = inputInjector;
+        _pointerHighlightService = pointerHighlightService;
         _webHost = webHost;
         PairingManager = pairingManager;
         MainWindow = mainWindow;
@@ -29,11 +32,12 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         var pairingStoreRoot = GetOption(args, "--pairing-store-root");
         var pairingManager = new PairingManager(new PairingStore(string.IsNullOrWhiteSpace(pairingStoreRoot) ? null : pairingStoreRoot));
         var inputInjector = new SendInputInjector();
-        var inputDispatcher = new InputDispatcher(inputInjector);
         var clientUrl = GetOption(args, "--client-url") ?? Environment.GetEnvironmentVariable("VOLTURA_AIR_CLIENT_URL");
         var usePublicScreenshotPairingUrl = HasOption(args, "--site-screenshot-mode");
         var isolatedTestMode = HasOption(args, "--isolated-test-mode");
         IAppLog appLog = isolatedTestMode ? NullAppLog.Instance : new AppLog();
+        var pointerHighlightService = new PointerHighlightService(appLog);
+        var inputDispatcher = new InputDispatcher(inputInjector, pointerHighlightService);
         var workstationLockPolicy = new WorkstationLockPolicy(appLog);
         ISystemPowerController powerController = isolatedTestMode
             ? new NoOpSystemPowerController()
@@ -63,11 +67,12 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 appLog: appLog);
             WritePairingUrlIfRequested(args, mainWindow.PairingUrl);
             var trayContext = new WpfTrayApplicationContext(mainWindow, webHost, pairingManager, awakeService);
-            return new WpfHostRuntime(inputInjector, webHost, pairingManager, mainWindow, trayContext);
+            return new WpfHostRuntime(inputInjector, pointerHighlightService, webHost, pairingManager, mainWindow, trayContext);
         }
         catch
         {
             await webHost.DisposeAsync();
+            pointerHighlightService.Dispose();
             inputInjector.Dispose();
             throw;
         }
@@ -81,6 +86,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         await _webHost.StopAsync();
         await _webHost.DisposeAsync();
         _inputInjector.Dispose();
+        _pointerHighlightService.Dispose();
     }
 
     private static string? GetOption(string[] args, string name)

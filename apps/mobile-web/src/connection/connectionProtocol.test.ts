@@ -36,12 +36,14 @@ describe("connection protocol policy", () => {
       developerMode: false,
       hostVersion: " 0.2.0 ",
       webClientBuildId: " build-a ",
+      highlightPointer: true,
       pointerSpeed: 500,
       selectedPort: Number.NaN
     })).toEqual({
       defaultRemoteMode: "standard",
       hostVersion: "0.2.0",
       webClientBuildId: "build-a",
+      highlightPointer: true,
       pointerSpeed: 100
     });
   });

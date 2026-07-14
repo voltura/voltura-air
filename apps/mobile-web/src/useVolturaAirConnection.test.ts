@@ -112,7 +112,7 @@ describe("useVolturaAirConnection", () => {
     expect(localStorage.getItem(`voltura-air.secret.client-a.${pc.id}`)).toBeNull();
   });
 
-  it("stores host pointer speed from metadata and sends user speed changes", async () => {
+  it("stores host pointer settings from metadata and sends device overrides", async () => {
     const pcUrl = "http://pc.local:51395";
     const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };
     localStorage.setItem("voltura-air.clientId", "client-a");
@@ -133,11 +133,12 @@ describe("useVolturaAirConnection", () => {
         pcName: "PC",
         secret: "fresh-credential",
         paired: true,
-        host: { pointerSpeed: 65 }
+        host: { pointerSpeed: 65, highlightPointer: false }
       })
     });
 
     await waitFor(() => expect(result.current.hostStatus?.pointerSpeed).toBe(65));
+    expect(result.current.hostStatus?.highlightPointer).toBe(false);
     expect(socket.send).toHaveBeenCalledWith(expect.stringContaining("\"type\":\"status.get\""));
     expect(socket.send).not.toHaveBeenCalledWith(expect.stringContaining("pointerSpeed"));
 
@@ -147,6 +148,13 @@ describe("useVolturaAirConnection", () => {
 
     await waitFor(() => expect(result.current.hostStatus?.pointerSpeed).toBe(45));
     expect(socket.send).toHaveBeenCalledWith(JSON.stringify({ type: "pointer.speed.set", pointerSpeed: 45 }));
+
+    act(() => {
+      result.current.setHostPointerHighlight(true);
+    });
+
+    await waitFor(() => expect(result.current.hostStatus?.highlightPointer).toBe(true));
+    expect(socket.send).toHaveBeenCalledWith(JSON.stringify({ type: "pointer.highlight.set", enabled: true }));
   });
 
   it("ignores state-changing messages from obsolete sockets", async () => {

@@ -48,6 +48,11 @@ export type ServerCapabilities = {
   volume?: boolean;
 };
 
+export type PointerHighlightSetMessage = {
+  type: "pointer.highlight.set";
+  enabled: boolean;
+};
+
 export type TextTransferTarget = {
   mode: "focused" | "configured";
   displayName: string;
@@ -82,6 +87,7 @@ export type HostStatusMetadata = {
   webClientBuildId?: string;
   pcName?: string;
   pointerSpeed?: number;
+  highlightPointer?: boolean;
   selectedAdapterName?: string;
   selectedIp?: string;
   selectedPort?: number;
@@ -280,6 +286,7 @@ export type ClientMessage =
   | HealthPingMessage
   | StatusGetMessage
   | PointerSpeedSetMessage
+  | PointerHighlightSetMessage
   | AudioGetMessage
   | PointerMoveMessage
   | PointerButtonMessage

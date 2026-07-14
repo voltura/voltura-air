@@ -58,6 +58,40 @@ public sealed class InputDispatcherTests
     }
 
     [Fact]
+    public void HighlightsOnlyEnabledRemotePointerActivity()
+    {
+        using var fake = new FakeInputInjector();
+        var highlighter = new FakePointerHighlightService();
+        var dispatcher = new InputDispatcher(fake, highlighter);
+        var move = Parse("""{ "type": "pointer.move", "dx": 2, "dy": 3 }""");
+        var button = Parse("""{ "type": "pointer.button", "button": "left", "action": "click" }""");
+        var wheel = Parse("""{ "type": "pointer.wheel", "dx": 0, "dy": -4 }""");
+        var zoom = Parse("""{ "type": "pointer.zoom", "direction": "in" }""");
+
+        Assert.True(dispatcher.Dispatch(move, highlightPointer: false, out _));
+        Assert.True(dispatcher.Dispatch(button, highlightPointer: false, out _));
+        Assert.True(dispatcher.Dispatch(wheel, highlightPointer: false, out _));
+        Assert.True(dispatcher.Dispatch(zoom, highlightPointer: false, out _));
+        Assert.Equal(0, highlighter.NotificationCount);
+
+        Assert.True(dispatcher.Dispatch(move, highlightPointer: true, out _));
+        Assert.True(dispatcher.Dispatch(button, highlightPointer: true, out _));
+        Assert.True(dispatcher.Dispatch(wheel, highlightPointer: true, out _));
+        Assert.True(dispatcher.Dispatch(zoom, highlightPointer: true, out _));
+        Assert.Equal(4, highlighter.NotificationCount);
+    }
+
+    [Theory]
+    [InlineData(18, 96, 18)]
+    [InlineData(18, 120, 22)]
+    [InlineData(18, 144, 27)]
+    [InlineData(14, 192, 28)]
+    public void PointerHighlightHotspotUsesPhysicalPixelsForActiveDpi(double dips, uint dpi, int expectedPixels)
+    {
+        Assert.Equal(expectedPixels, PointerHighlightService.ScaleForDpi(dips, dpi));
+    }
+
+    [Fact]
     public void TransfersTextAndSendsEnterOnlyAfterText()
     {
         using var fake = new FakeInputInjector();
@@ -127,5 +161,15 @@ public sealed class InputDispatcherTests
     {
         using var document = JsonDocument.Parse(json);
         return document.RootElement.Clone();
+    }
+
+    private sealed class FakePointerHighlightService : IPointerHighlightService
+    {
+        public int NotificationCount { get; private set; }
+
+        public void NotifyPointerActivity()
+        {
+            NotificationCount++;
+        }
     }
 }

@@ -169,6 +169,13 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
     }
   }, [send, setHostStatus, state]);
 
+  const setHostPointerHighlight = useCallback((enabled: boolean) => {
+    setHostStatus((current) => (current ? { ...current, highlightPointer: enabled } : current));
+    if (state === "paired") {
+      send({ type: "pointer.highlight.set", enabled });
+    }
+  }, [send, setHostStatus, state]);
+
   return {
     addManualPc,
     beginNewPairing,
@@ -179,6 +186,7 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
     renameDevice,
     renamePc,
     selectPc,
+    setHostPointerHighlight,
     setHostPointerSpeed
   };
 }

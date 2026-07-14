@@ -53,6 +53,7 @@ export function normalizeHostStatus(metadata: HostStatusMetadata | undefined): H
     webClientBuildId: normalizeOptionalString(metadata.webClientBuildId),
     pcName: normalizeOptionalString(metadata.pcName),
     pointerSpeed: normalizePointerSpeed(metadata.pointerSpeed),
+    highlightPointer: typeof metadata.highlightPointer === "boolean" ? metadata.highlightPointer : undefined,
     selectedAdapterName: normalizeOptionalString(metadata.selectedAdapterName),
     selectedIp: normalizeOptionalString(metadata.selectedIp),
     selectedPort: Number.isFinite(metadata.selectedPort) ? metadata.selectedPort : undefined,

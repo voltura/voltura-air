@@ -383,6 +383,7 @@ public sealed partial class WebHostService : IAsyncDisposable
             CanLaunchRemoteApps(clientId) ? _appLaunchService.GetActions() : [],
             new TextTransferTargetMetadata("focused", "Currently focused application", true),
             _pairingManager.GetDevicePointerSpeed(clientId),
+            _pairingManager.GetDeviceHighlightPointer(clientId),
             developerMode,
             developerMode ? DeveloperSessionId : null);
     }
@@ -423,6 +424,7 @@ internal sealed record HostStatusMetadata(
     IReadOnlyList<AppLaunchActionSummary> AppLaunchActions,
     TextTransferTargetMetadata TextTransferTarget,
     int PointerSpeed,
+    bool HighlightPointer,
     bool DeveloperMode,
     string? DeveloperSessionId);
 

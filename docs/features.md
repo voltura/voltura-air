@@ -95,6 +95,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Supports duplicate cleanup.
 - Supports per-device permission overrides.
 - Supports a host default pointer speed with per-device overrides.
+- Supports a default-off pointer highlight with independent enabled/off overrides per paired device.
 
 ### Permissions and capabilities
 
@@ -123,6 +124,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Coalesces active movement to animation frames and uses low-rate acknowledgement barriers plus WebSocket-buffer limits to prevent delayed pointer queues without adding per-move replies or idle polling.
 - Reports input dispatch failures to the mobile client instead of silently leaving dead controls.
 - Moves the Windows pointer.
+- Optionally overlays a larger custom pointer with a teal glow during client-initiated movement, clicks, two-finger scrolling, and pinch zoom. The host temporarily makes standard system cursors transparent, restores the user's configured cursor scheme on idle/shutdown/startup recovery, aligns the replacement hotspot at the active display DPI, and never routes high-rate input through the main WPF UI thread.
 - Sends left/right mouse button down/up/click.
 - Sends vertical and horizontal wheel scroll.
 - Sends pinch zoom as Ctrl + mouse wheel.
@@ -159,7 +161,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Supports PC sleep when allowed by host permissions.
 - Locks the current Windows session with `LockWorkStation` when permission and the current-user policy allow it.
 - Reports accepted, denied, unsupported, policy-disabled, policy-unavailable, and failed power/session requests without disconnecting the client.
-- Offers opt-in daily JSON Lines application logging for troubleshooting. Logging is off by default, keeps files normally shareable, and allows reads without holding the protocol writer lock. It records remote command flow plus local host actions such as Windows-lock policy writes, readback failures, and native lock tests without typed text, pointer coordinates, or pairing credentials.
+- Offers opt-in daily JSON Lines application logging for troubleshooting. Logging is off by default, keeps files normally shareable, and allows reads without holding the protocol writer lock. It records remote command flow plus local host actions such as pointer-highlight default/override changes, Windows-lock policy writes, readback failures, and native lock tests without typed text, pointer coordinates, or pairing credentials.
 - Opens Diagnostics directly on a dedicated Application log view, with System details available from a clear top-level switch. The log view exposes its **Write application log** toggle directly and clearly distinguishes disabled logging from an empty filtered result. It uses themed activity cards, a two-month date-range picker plus event, source, action, and client filters, filtered copy, open-folder, confirmed delete actions, and an optional session-only **Automatic log refresh** toggle that is off by default. Retention is configurable from 1 to 30 days with a 2-day default. Input commands record both receipt and their sanitized executed or blocked outcome, including the Remote mode minimize action, without logging typed text. Only the record area scrolls, so the filter and action controls remain reachable.
 - Blacks out every connected monitor with a topmost black WPF curtain without changing display power state. Windows, networking, and remote control remain active; any local or remote mouse/keyboard interaction removes the curtain, and touch or pen input also dismisses it locally. Ordinary remote movement bypasses the WPF dispatcher when no curtain is active.
 - Starts the native Windows screen saver only when Windows reports screen saving enabled and a configured `.scr` program exists. The action is omitted from host and mobile UI when unavailable.
@@ -242,6 +244,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Pointer speed uses the Windows host default unless the paired device has an override; changing it on the phone updates that device override on the host.
 - Optional pointer smoothing.
 - Optional pointer acceleration.
+- Optional **Highlight pointer**, using the host global default unless this paired device explicitly enables or disables it.
 - Optional scroll acceleration.
 - Natural/traditional scroll direction setting.
 - Optional haptic feedback on trackpad taps and click-button presses, with an immediate preview when enabled and a clear unsupported state when the browser cannot vibrate.

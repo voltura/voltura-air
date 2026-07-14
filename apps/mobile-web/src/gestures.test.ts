@@ -247,6 +247,11 @@ describe("normalizeTrackpadSettings", () => {
     expect(normalizeTrackpadSettings({ enableSplitMode: true }).enableSplitMode).toBe(true);
   });
 
+  it("defaults pointer highlighting off and preserves an enabled value", () => {
+    expect(defaultTrackpadSettings.highlightPointer).toBe(false);
+    expect(normalizeTrackpadSettings({ highlightPointer: true }).highlightPointer).toBe(true);
+  });
+
   it("preserves split layout preferences", () => {
     expect(normalizeTrackpadSettings({
       splitTrackpadPlacement: "left",

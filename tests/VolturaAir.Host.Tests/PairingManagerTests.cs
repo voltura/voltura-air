@@ -403,6 +403,27 @@ public sealed class PairingManagerTests
     }
 
     [Fact]
+    public void DevicePointerHighlightOverrideWinsInBothDirectionsAndCanReturnToGlobal()
+    {
+        using var store = new TempPairingStore();
+        var manager = new PairingManager(store.Store);
+        var now = DateTimeOffset.UtcNow;
+        var global = AppPointerSettings.HighlightPointer();
+
+        var token = manager.CreatePairingToken(now);
+        manager.Accept("client-a", "Phone", token, null, now);
+
+        Assert.Equal(global, manager.GetDeviceHighlightPointer("client-a"));
+        Assert.True(manager.SetDeviceHighlightPointerOverride("client-a", !global));
+        Assert.Equal(!global, manager.GetDeviceHighlightPointer("client-a"));
+        Assert.Equal(!global, Assert.Single(store.Store.Load()).HighlightPointerOverride);
+
+        Assert.True(manager.SetDeviceHighlightPointerOverride("client-a", null));
+        Assert.Equal(global, manager.GetDeviceHighlightPointer("client-a"));
+        Assert.Null(Assert.Single(manager.GetDevices()).HighlightPointerOverride);
+    }
+
+    [Fact]
     public void DisconnectDeviceRemovesOnlySelectedDevice()
     {
         using var store = new TempPairingStore();

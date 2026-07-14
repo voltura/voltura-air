@@ -190,6 +190,25 @@ public partial class MainWindow
         parent.Children.Add(row);
     }
 
+    private void AddGlobalPointerHighlightSetting(StackPanel parent)
+    {
+        var highlightPointer = CreateCheckBox("Highlight pointer", AppPointerSettings.HighlightPointer());
+        highlightPointer.Checked += (_, _) => SetGlobalPointerHighlight(enabled: true);
+        highlightPointer.Unchecked += (_, _) => SetGlobalPointerHighlight(enabled: false);
+        parent.Children.Add(highlightPointer);
+        parent.Children.Add(CreateMutedText("Off by default. Shows a larger pointer with a teal glow during paired-device pointer activity. Each paired device can override this default."));
+    }
+
+    private void SetGlobalPointerHighlight(bool enabled)
+    {
+        AppPointerSettings.SetHighlightPointer(enabled);
+        _appLog.Write(new AppLogEntry(
+            Event: "host_action",
+            Source: "windows_host",
+            Action: "pointer_highlight_default",
+            Outcome: enabled ? "enabled" : "disabled"));
+    }
+
     private void SaveGlobalPermissions(
         CheckBox sleep,
         CheckBox volume,

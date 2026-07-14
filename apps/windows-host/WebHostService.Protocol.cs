@@ -10,6 +10,7 @@ public sealed partial class WebHostService
     {
         var authenticated = false;
         var authenticatedClientId = string.Empty;
+        PointerHighlightConnectionState? pointerHighlightState = null;
         IDisposable? activeConnection = null;
         var buffer = new byte[64 * 1024];
 
@@ -73,7 +74,7 @@ public sealed partial class WebHostService
                     var secret = result.Secret ?? _pairingManager.RotateSecret(clientId, deviceName);
                     authenticated = true;
                     authenticatedClientId = clientId;
-                    RegisterSocket(clientId, socket);
+                    pointerHighlightState = RegisterSocket(clientId, socket);
                     activeConnection = _pairingManager.TrackConnection(clientId);
                     var pcName = Environment.MachineName;
                     var capabilities = CreateCapabilities(clientId);
@@ -116,6 +117,12 @@ public sealed partial class WebHostService
                 if (type == "pointer.speed.set")
                 {
                     _pairingManager.SetDevicePointerSpeedOverride(authenticatedClientId, GetInt(root, "pointerSpeed"));
+                    continue;
+                }
+
+                if (type == "pointer.highlight.set")
+                {
+                    HandlePointerHighlightSet(authenticatedClientId, root, pointerHighlightState!);
                     continue;
                 }
 
@@ -192,7 +199,7 @@ public sealed partial class WebHostService
 
                 if (IsInputMessage(type))
                 {
-                    await HandleInputMessageAsync(socket, root, authenticatedClientId, cancellationToken);
+                    await HandleInputMessageAsync(socket, root, authenticatedClientId, pointerHighlightState!.Enabled, cancellationToken);
                     continue;
                 }
 
@@ -226,16 +233,6 @@ public sealed partial class WebHostService
         }
     }
 
-    private void RegisterSocket(string clientId, WebSocket socket)
-    {
-        _connections.Register(clientId, socket);
-    }
-
-    private void UnregisterSocket(string clientId, WebSocket socket)
-    {
-        _connections.Unregister(clientId, socket);
-    }
-
     private void AbortActiveSockets()
     {
         var sockets = _connections.TakeAll();
@@ -265,6 +262,7 @@ public sealed partial class WebHostService
 
     private void OnPermissionsChanged(object? sender, EventArgs e)
     {
+        RefreshPointerHighlightStates();
         _ = Task.Run(BroadcastStatusAsync);
     }
 

@@ -5,10 +5,12 @@ namespace VolturaAir.Host;
 public sealed class InputDispatcher
 {
     private readonly IInputInjector _inputInjector;
+    private readonly IPointerHighlightService _pointerHighlightService;
 
-    public InputDispatcher(IInputInjector inputInjector)
+    public InputDispatcher(IInputInjector inputInjector, IPointerHighlightService? pointerHighlightService = null)
     {
         _inputInjector = inputInjector;
+        _pointerHighlightService = pointerHighlightService ?? NullPointerHighlightService.Instance;
     }
 
     public bool Dispatch(JsonElement message)
@@ -17,6 +19,11 @@ public sealed class InputDispatcher
     }
 
     public bool Dispatch(JsonElement message, out InputDispatchOutcome outcome)
+    {
+        return Dispatch(message, highlightPointer: false, out outcome);
+    }
+
+    public bool Dispatch(JsonElement message, bool highlightPointer, out InputDispatchOutcome outcome)
     {
         outcome = InputDispatchOutcome.Executed;
         if (!message.TryGetProperty("type", out var typeProperty))
@@ -43,15 +50,19 @@ public sealed class InputDispatcher
         {
             case "pointer.move":
                 _inputInjector.MoveMouse(GetNumber(message, "dx"), GetNumber(message, "dy"));
+                NotifyPointerActivity(highlightPointer);
                 return true;
             case "pointer.button":
                 _inputInjector.MouseButton(GetString(message, "button"), GetString(message, "action"));
+                NotifyPointerActivity(highlightPointer);
                 return true;
             case "pointer.wheel":
                 _inputInjector.Scroll(GetNumber(message, "dx"), GetNumber(message, "dy"));
+                NotifyPointerActivity(highlightPointer);
                 return true;
             case "pointer.zoom":
                 _inputInjector.Zoom(GetString(message, "direction"));
+                NotifyPointerActivity(highlightPointer);
                 return true;
             case "keyboard.text":
                 TypeTextWithLineBreaks(GetString(message, "text"));
@@ -61,6 +72,14 @@ public sealed class InputDispatcher
                 return true;
             default:
                 return false;
+        }
+    }
+
+    private void NotifyPointerActivity(bool highlightPointer)
+    {
+        if (highlightPointer)
+        {
+            _pointerHighlightService.NotifyPointerActivity();
         }
     }
 
@@ -193,4 +212,18 @@ public interface IInputInjector : IDisposable
     void TypeText(string text);
 
     void SpecialKey(string key, IReadOnlyList<string> modifiers);
+}
+
+public interface IPointerHighlightService
+{
+    void NotifyPointerActivity();
+}
+
+internal sealed class NullPointerHighlightService : IPointerHighlightService
+{
+    public static NullPointerHighlightService Instance { get; } = new();
+
+    public void NotifyPointerActivity()
+    {
+    }
 }

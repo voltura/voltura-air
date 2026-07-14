@@ -16,6 +16,7 @@ public sealed partial class WebHostService
             "system.power" or "remote.launch" => GetString(root, "action"),
             "app.launch" => GetString(root, "actionId"),
             "awake.set" => root.TryGetProperty("enabled", out var enabled) && enabled.GetBoolean() ? "enable" : "disable",
+            "pointer.highlight.set" => root.TryGetProperty("enabled", out var highlightEnabled) && highlightEnabled.GetBoolean() ? "enable" : "disable",
             "audio.mute.toggle" => "toggle_mute",
             "audio.volume.set" => "set_volume",
             "pointer.button" => "pointer_button",

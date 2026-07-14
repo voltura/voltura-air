@@ -9,6 +9,7 @@ public sealed partial class WebHostService
         WebSocket socket,
         JsonElement root,
         string clientId,
+        bool highlightPointer,
         CancellationToken cancellationToken)
     {
         var sequence = TryGetInputSequence(root, out var parsedSequence) ? parsedSequence : (long?)null;
@@ -19,7 +20,7 @@ public sealed partial class WebHostService
         try
         {
             _ = _powerController.DismissBlackoutIfActive();
-            if (!_inputDispatcher.Dispatch(root, out var dispatchOutcome))
+            if (!_inputDispatcher.Dispatch(root, highlightPointer, out var dispatchOutcome))
             {
                 await SendInputErrorAsync(socket, sequence, "VAIR-INPUT-UNSUPPORTED", "Unsupported input message.", cancellationToken);
                 await CloseAuthenticatedSocketAsync(

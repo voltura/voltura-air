@@ -19,6 +19,8 @@ public sealed record ThemePalette(
 
 public static class WindowsTheme
 {
+    public static Color DarkAccent { get; } = Color.FromArgb(18, 168, 148);
+
     public static ThemePalette Current()
     {
         var isDark = AppThemeSettings.GetMode() switch
@@ -37,7 +39,7 @@ public static class WindowsTheme
                 Color.FromArgb(244, 247, 248),
                 Color.FromArgb(178, 188, 195),
                 Color.FromArgb(60, 70, 78),
-                Color.FromArgb(18, 168, 148),
+                DarkAccent,
                 Color.White,
                 Color.FromArgb(215, 91, 70),
                 Color.White)

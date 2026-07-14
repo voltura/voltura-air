@@ -25,12 +25,22 @@ updated as the app structure, tooling, and release process become concrete.
   asks to keep them running. If a required port is already in use, reuse the
   relevant running process when practical or stop it instead of taking the next
   port; the user normally starts debugging from VS Code with `npm run dev`.
+- Never run multiple Voltura Air host instances in parallel, including normal,
+  debug, development, screenshot, UI-validation, and isolated-test hosts. The
+  single-instance behavior is a product invariant and scripts must not bypass
+  it by using another instance scope or by allowing a second host to select the
+  next available port. If a test or validation needs to launch its own host,
+  stop the running Voltura Air host first, run the temporary host in the required
+  test mode, stop it when validation finishes, and leave no competing host
+  process running. Automated in-memory `TestServer` protocol tests are not host
+  application instances and do not require stopping the running app.
 - Any temporary host that uses a temporary or empty pairing store for tests,
   screenshots, or UI validation must pass `--isolated-test-mode`. This mode uses
-  a separate single-instance scope, binds only to `127.0.0.1`, advertises
-  loopback, and does not persist automatic network or port choices. Never expose
-  a temporary pairing store on the LAN because a real phone can interpret its
-  rejection as revoked pairing and delete its saved reconnect secret.
+  the same single-instance scope as the normal host, binds only to `127.0.0.1`,
+  advertises loopback, and does not persist automatic network or port choices.
+  The launching script must stop any running host before starting it. Never
+  expose a temporary pairing store on the LAN because a real phone can interpret
+  its rejection as revoked pairing and delete its saved reconnect secret.
 - Automated host protocol tests must use ASP.NET Core's in-memory `TestServer`;
   they must not open a TCP listener or create Windows Firewall permissions.
 - If a task has a preferred validation, inspection, capture, automation tool,

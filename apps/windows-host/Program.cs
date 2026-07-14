@@ -12,10 +12,7 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
-        var instanceScope = args.Contains("--isolated-test-mode", StringComparer.OrdinalIgnoreCase)
-            ? "IsolatedTest"
-            : null;
-        using var singleInstance = SingleInstanceCoordinator.TryAcquire(RequestMainWindow, instanceScope);
+        using var singleInstance = SingleInstanceCoordinator.TryAcquire(RequestMainWindow);
         if (singleInstance is null)
         {
             return;

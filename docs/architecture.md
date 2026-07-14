@@ -55,10 +55,12 @@ The host protocol layer validates and routes messages. `InputDispatcher`, `Audio
 | Diagnostics and scripts | Preserve diagnostic fields and redaction behavior, and maintain root-level source-size reporting | diagnostics tests and `npm run size:report` |
 
 Temporary hosts with empty pairing stores use `--isolated-test-mode`. The mode
-has a separate single-instance scope, listens and advertises on loopback only,
-and does not write automatic network or port selections. This prevents tests,
-screenshots, and UI validation from impersonating the real LAN host and causing
-paired phones to discard valid reconnect credentials.
+uses the same single-instance scope as the normal host, listens and advertises
+on loopback only, and does not write automatic network or port selections.
+Process-based test, screenshot, and UI-validation scripts stop the running host
+before launching a temporary one and stop their temporary host afterward. This
+prevents parallel hosts and keeps an empty pairing store from impersonating the
+real LAN host and causing paired phones to discard valid reconnect credentials.
 
 Automated host protocol tests additionally use ASP.NET Core's in-memory
 `TestServer`, so the normal test suite opens no host TCP listener and needs no

@@ -28,14 +28,13 @@ internal sealed class SingleInstanceCoordinator : IDisposable
             executeOnlyOnce: false);
     }
 
-    public static SingleInstanceCoordinator? TryAcquire(Action activationRequested, string? instanceScope = null)
+    public static SingleInstanceCoordinator? TryAcquire(Action activationRequested)
     {
         using var identity = WindowsIdentity.GetCurrent();
         var userId = identity.User?.Value ?? Environment.UserName;
-        var scopeSuffix = string.IsNullOrWhiteSpace(instanceScope) ? string.Empty : $".{instanceScope}";
         return TryAcquire(
-            $@"{NamePrefix}.Instance{scopeSuffix}.{userId}",
-            $@"{NamePrefix}.Activate{scopeSuffix}.{userId}",
+            $@"{NamePrefix}.Instance.{userId}",
+            $@"{NamePrefix}.Activate.{userId}",
             activationRequested);
     }
 

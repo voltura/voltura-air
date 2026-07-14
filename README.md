@@ -21,12 +21,14 @@ Remote mode includes an Fn panel for common Windows window actions and browser t
 
 ## Best for
 
-- PC connected to TV/stereo.
-- Sofa/bed control.
-- Broken or annoying wireless keyboard/trackpad replacement.
-- Presentations.
-- Quick typing/search from phone.
-- A combined couch keyboard and trackpad on a landscape tablet, with the trackpad on either side.
+- Controlling a PC connected to a TV, stereo, or home-theater system.
+- Browsing and watching YouTube from the sofa or bed.
+- Navigating Kodi with dedicated playback and interface controls.
+- Using your phone as a trackpad, keyboard, media remote, and app launcher.
+- Replacing a broken, unreliable, or inconvenient wireless keyboard and mouse.
+- Controlling presentations without staying beside the PC.
+- Quickly typing, pasting, searching, or dictating text from your phone.
+- Using a landscape tablet as a combined keyboard and trackpad, with the trackpad on either side.
 
 ## Screenshots
 

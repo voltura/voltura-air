@@ -44,7 +44,14 @@ export type ServerCapabilities = {
   power?: PowerCapabilities;
   remoteLaunch?: boolean;
   sleep?: boolean;
+  textTransfer?: boolean;
   volume?: boolean;
+};
+
+export type TextTransferTarget = {
+  mode: "focused" | "configured";
+  displayName: string;
+  available: boolean;
 };
 
 export type AwakeCapability = {
@@ -78,6 +85,7 @@ export type HostStatusMetadata = {
   selectedAdapterName?: string;
   selectedIp?: string;
   selectedPort?: number;
+  textTransferTarget?: TextTransferTarget;
   webSocketUrl?: string;
 };
 
@@ -235,6 +243,21 @@ export type AppLaunchResultMessage = {
   message: string;
 };
 
+export type TextSendMessage = {
+  type: "text.send";
+  operationId: string;
+  text: string;
+  sendEnter: boolean;
+};
+
+export type TextSendResultMessage = {
+  type: "text.send.result";
+  operationId: string;
+  succeeded: boolean;
+  code?: string;
+  message: string;
+};
+
 export type AudioMuteToggleMessage = {
   type: "audio.mute.toggle";
 };
@@ -269,7 +292,8 @@ export type ClientMessage =
   | AwakeSetMessage
   | RemoteLaunchMessage
   | AppLaunchMessage
+  | TextSendMessage
   | AudioMuteToggleMessage
   | AudioVolumeSetMessage;
 
-export type ServerMessage = PairAcceptedMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | AudioStateMessage;
+export type ServerMessage = PairAcceptedMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | TextSendResultMessage | AudioStateMessage;

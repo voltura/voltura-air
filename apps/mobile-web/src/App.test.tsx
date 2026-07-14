@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { useVolturaAirConnection } from "./useVolturaAirConnection";
@@ -52,10 +52,14 @@ function mockConnection(overrides: Partial<ReturnType<typeof useVolturaAirConnec
     appLaunchResult: null,
     pendingAppLaunchId: null,
     requestAppLaunch: vi.fn(),
+    pendingTextTransfer: false,
+    requestTextTransfer: vi.fn(() => "operation-a"),
+    textTransferResult: null,
     supportsGestureDebug: false,
     supportsSleep: true,
     supportsVolumeControl: true,
     supportsRemoteLaunch: false,
+    supportsTextTransfer: true,
     lastConnectionError: null,
     hostStatus: null,
     pairWithToken: vi.fn(),
@@ -97,6 +101,27 @@ describe("App header and mode navigation", () => {
 
     const trackpadModeButtons = screen.getAllByRole("button", { name: "Trackpad mode" });
     expect(trackpadModeButtons.some((button) => button.getAttribute("aria-selected") === "true")).toBe(true);
+  });
+
+  it("opens either tool from Menu without changing the configured fourth mode", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    expect(screen.getByRole("heading", { name: "Menu" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Send text to PC" }));
+
+    expect(screen.getByRole("heading", { name: "Send text to PC" })).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "Dictation" })).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "Back to previous mode" })).toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "Trackpad mode" }).at(-1)!);
+    expect(screen.getAllByRole("button", { name: "Trackpad mode" }).some((button) => button.getAttribute("aria-selected") === "true")).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    const menu = screen.getByRole("heading", { name: "Menu" }).closest("aside");
+    expect(menu).not.toBeNull();
+    fireEvent.click(within(menu!).getByRole("button", { name: "Dictation" }));
+    expect(screen.getByLabelText("Dictation text")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Back to previous mode" })).toBeNull();
   });
 
   it("opens compact mode navigation as an overlay without moving the keyboard controls", () => {
@@ -182,5 +207,55 @@ describe("App launch feedback", () => {
     render(<App />);
 
     expect(screen.getByRole("alert").textContent).toBe("Browser could not be started.");
+  });
+});
+
+describe("Text transfer feedback", () => {
+  it("shows progress outside the text transfer page", () => {
+    mockConnection({ pendingTextTransfer: true });
+
+    render(<App />);
+
+    expect(screen.getByRole("status").textContent).toBe("Waiting for the PC to send text…");
+  });
+
+  it("shows the delivery result outside the text transfer page", () => {
+    mockConnection({
+      textTransferResult: {
+        type: "text.send.result",
+        operationId: "operation-a",
+        succeeded: true,
+        message: "Text sent successfully."
+      }
+    });
+
+    render(<App />);
+
+    expect(screen.getByRole("status").textContent).toBe("Text sent successfully.");
+  });
+
+  it("uses an in-app dialog to rename saved snippets", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send text to PC" }));
+    fireEvent.change(screen.getByLabelText("Text to send"), { target: { value: "Saved text" } });
+    fireEvent.change(screen.getByLabelText("Snippet name"), { target: { value: "Original name" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save current text" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rename" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Rename snippet" });
+    const dialogQueries = within(dialog);
+    fireEvent.change(dialogQueries.getByLabelText("Snippet name"), { target: { value: "Renamed snippet" } });
+    fireEvent.click(dialogQueries.getByRole("button", { name: "Rename snippet" }));
+
+    expect(screen.getByRole("button", { name: "Renamed snippet" })).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("Text to send"), { target: { value: "Replacement text" } });
+    fireEvent.click(screen.getByRole("button", { name: "Update" }));
+    const updateDialog = screen.getByRole("dialog", { name: "Update snippet" });
+    fireEvent.click(within(updateDialog).getByRole("button", { name: "Update snippet" }));
+    fireEvent.change(screen.getByLabelText("Text to send"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Renamed snippet" }));
+    expect((screen.getByLabelText("Text to send") as HTMLTextAreaElement).value).toBe("Replacement text");
   });
 });

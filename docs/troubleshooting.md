@@ -18,7 +18,7 @@ Check these first:
 4. Windows Firewall allows Voltura Air on private networks.
 5. The QR code was generated after the current network/IP/port was selected.
 
-If the PC changed IP address or automatic port, click **New code** on the PC and scan again. You can also use **Enter host manually** on the mobile pairing screen or in mobile Settings.
+If the PC changed IP address or automatic port, click **New code** on the PC and scan again. You can also use **Enter host manually** on the mobile pairing screen or in mobile Menu > Settings > Connection.
 
 After a valid new QR photo is read, the mobile app stops the unavailable PC retry and shows **Confirm this device**. The old PC remains saved. If the app returns directly to the unavailable screen instead, refresh the mobile app from the PC and retry with the latest code.
 
@@ -51,7 +51,7 @@ If the PC says the device was disconnected, the stored mobile credential is no l
 
 ## App version mismatch
 
-If the mobile app and Windows host report a protocol/version mismatch, refresh the mobile app from the PC and scan a fresh QR code. If the mobile app was installed to the home screen, use **Refresh app** in mobile Settings.
+If the mobile app and Windows host report a protocol/version mismatch, refresh the mobile app from the PC and scan a fresh QR code. If the mobile app was installed to the home screen, use **Refresh app** in mobile Menu > Settings > App.
 
 ## Pairing request invalid
 
@@ -86,6 +86,14 @@ Check these items first:
   surface that rejects normal input injection.
 - The phone did not switch network, sleep the browser, or lose LAN reachability.
 - Refresh the mobile page or scan a fresh QR code if browser storage was cleaned.
+
+## Send text to PC fails or goes to the wrong place
+
+The current Send text destination is the Windows application that owns keyboard focus when delivery begins. Click the intended field, cell, document, or insertion point on the PC immediately before sending. Do not change focus until the mobile app reports success.
+
+Voltura Air deliberately refuses focused-app text transfer while its own protected host window has focus. It also cannot inject text into the Windows lock screen, a UAC/secure desktop, or an elevated application when the host is running without the matching elevation level. The mobile draft is retained after failure so you can correct the destination and explicitly retry; check for partial text before retrying because Windows can reject an input sequence after accepting part of it.
+
+The optional Keyboard **Paste to PC** control uses the same destination and acknowledgement path. Long-press it and choose the device browser's native **Paste** action. Browser clipboard permission is not requested and Voltura Air never reads the clipboard in the background.
 
 ## An application button is missing or fails
 

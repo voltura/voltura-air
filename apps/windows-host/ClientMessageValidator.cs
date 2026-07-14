@@ -22,6 +22,7 @@ internal static class ClientMessageValidator
     private const int MaxModifierLength = 40;
     private const int MaxModifierCount = 8;
     private const int MaxRemoteActionLength = 80;
+    private const int MaxOperationIdLength = 64;
     private const double MaxPointerDelta = 5000;
 
     public static bool TryReadType(JsonElement root, out string? type)
@@ -84,6 +85,10 @@ internal static class ClientMessageValidator
                 RemoteLaunchActions.IsSupported(action),
             "app.launch" => TryGetRequiredString(root, "actionId", AppLaunchSettings.MaxIdLength, allowEmpty: false, out var actionId) &&
                 IsValidAppLaunchActionId(actionId),
+            "text.send" => TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var operationId) &&
+                IsValidOperationId(operationId) &&
+                TryGetRequiredString(root, "text", MaxTextLength, allowEmpty: false, out _) &&
+                root.TryGetProperty("sendEnter", out var sendEnter) && sendEnter.ValueKind is JsonValueKind.True or JsonValueKind.False,
             "audio.mute.toggle" => true,
             "audio.volume.set" => TryGetNumber(root, "volume", 0, 100, out _),
             "pointer.move" => HasValidOptionalSequence(root) &&
@@ -107,6 +112,11 @@ internal static class ClientMessageValidator
     private static bool IsValidAppLaunchActionId(string actionId)
     {
         return actionId.All(character => char.IsAsciiLetterOrDigit(character) || character is '.' or '-' or '_');
+    }
+
+    private static bool IsValidOperationId(string operationId)
+    {
+        return operationId.All(character => char.IsAsciiLetterOrDigit(character) || character is '-');
     }
 
     private static bool TryGetRequiredString(JsonElement root, string propertyName, int maxLength, bool allowEmpty, out string value)

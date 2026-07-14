@@ -5,6 +5,7 @@
     <Product>Voltura Air</Product>
     <Copyright>Copyright (c) Voltura AB</Copyright>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <LangVersion>14.0</LangVersion>
     <PackageProjectUrl>https://voltura.se/air</PackageProjectUrl>
   </PropertyGroup>
 

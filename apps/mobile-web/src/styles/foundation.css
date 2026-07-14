@@ -691,6 +691,32 @@ button span {
   white-space: nowrap;
 }
 
+.drawer-group,
+.drawer-tool-list {
+  display: grid;
+  gap: 8px;
+}
+
+.drawer-group h3,
+.drawer-settings-title {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.drawer-tool-list button {
+  min-height: 48px;
+  justify-content: flex-start;
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+.drawer-tool-list button svg {
+  color: var(--accent);
+}
+
 .settings-section {
   display: grid;
   gap: 10px;

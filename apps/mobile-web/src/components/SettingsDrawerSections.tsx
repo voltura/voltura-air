@@ -336,6 +336,11 @@ export function KeyboardSettingsSection({
         <input type="checkbox" checked={keyboardSettings.showSleepButton} onChange={(event) => updateKeyboardSetting("showSleepButton", event.target.checked)} />
       </label>
 
+      <label className="toggle-row">
+        <span>Show Paste to PC button</span>
+        <input type="checkbox" checked={keyboardSettings.showPasteToPcButton} onChange={(event) => updateKeyboardSetting("showPasteToPcButton", event.target.checked)} />
+      </label>
+
     </>
   );
 }
@@ -429,6 +434,13 @@ export function AppSettingsSection({
 }: Pick<SettingsDrawerProps, "appSettings" | "installApp" | "installPrompt" | "isInstalled" | "refreshInstalledApp" | "refreshMessage" | "updateAppSetting">) {
   return (
     <div className="install-card">
+      <label className="setting-group">
+        <span>Fourth mode button</span>
+        <select className="text-input fourth-mode-select" value={appSettings.fourthMode} onChange={(event) => updateAppSetting("fourthMode", event.target.value === "text-transfer" ? "text-transfer" : "dictation")}>
+          <option value="dictation">Dictation</option>
+          <option value="text-transfer">Send text to PC</option>
+        </select>
+      </label>
       <div className="install-title">
         <Download aria-hidden="true" />
         <span>Home screen app</span>

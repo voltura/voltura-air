@@ -23,6 +23,7 @@ import { useInitialConnectionProfileState } from "./connection/useInitialConnect
 import { useAwakeControl } from "./connection/useAwakeControl";
 import { usePowerControl } from "./connection/usePowerControl";
 import { useAppLaunch } from "./connection/useAppLaunch";
+import { useTextTransfer } from "./connection/useTextTransfer";
 import { requestHostState, trySendClientMessage } from "./connection/connectionSocketMessages";
 import { getNextHealthCheckDelay, hasExpiredInputAck, staleConnectionMs } from "./connection/connectionHealthPolicy";
 
@@ -66,7 +67,7 @@ export function useVolturaAirConnection() {
   const pendingInputAcksRef = useRef<Map<number, number>>(new Map());
   const {
     audioState, awakeCapability, clearRuntimeState, hostStatus, powerCapabilities, setAudioState,
-    setHostStatus, supportsGestureDebug, supportsInputAckRef, supportsRemoteLaunch, supportsSleep,
+    setHostStatus, supportsGestureDebug, supportsInputAckRef, supportsRemoteLaunch, supportsSleep, supportsTextTransfer,
     supportsVolumeControl, supportsVolumeControlRef, updateCapabilities, updateHostStatus
   } = useConnectionRuntimeState(pendingInputAcksRef);
   const { requestAudioState, send } = useConnectionSender({
@@ -76,6 +77,7 @@ export function useVolturaAirConnection() {
   const { awakeResult, completeAwakeChange, pendingAwakeChange, requestAwakeChange } = useAwakeControl(state, send);
   const { completePowerAction, pendingPowerAction, powerActionResult, requestPowerAction } = usePowerControl(state, send);
   const { appLaunchResult, completeAppLaunch, pendingAppLaunchId, requestAppLaunch } = useAppLaunch(state, send);
+  const { completeTextTransfer, pendingTextTransfer, requestTextTransfer, textTransferResult } = useTextTransfer(state, send);
   useConnectionPersistence({
     activePcId,
     clientId,
@@ -447,6 +449,16 @@ export function useVolturaAirConnection() {
           return;
         }
 
+        if (response.type === "text.send.result") {
+          touchHealthy();
+          completeTextTransfer(response);
+          setLastConnectionError(response.succeeded
+            ? null
+            : { code: response.code ?? "VAIR-TEXT-DELIVERY-FAILED", message: response.message });
+          scheduleHealthCheck(ws);
+          return;
+        }
+
         if (response.type === "audio.state") {
           touchHealthy();
           if (supportsVolumeControlRef.current) {
@@ -534,7 +546,7 @@ export function useVolturaAirConnection() {
     setPairingAttempt, setState, socketRef, state
   });
 
-  return { state, message, send, requestAudioState, requestPowerAction, requestAwakeChange, requestAppLaunch, pendingAppLaunchId, appLaunchResult, pendingPowerAction, powerActionResult, pendingAwakeChange, awakeResult, clientId, deviceName, activePc, pairedPcs, audioState, awakeCapability, powerCapabilities, supportsGestureDebug, supportsSleep, supportsVolumeControl, supportsRemoteLaunch, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, beginNewPairing, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice, setHostPointerSpeed };
+  return { state, message, send, requestAudioState, requestPowerAction, requestAwakeChange, requestAppLaunch, requestTextTransfer, pendingTextTransfer, textTransferResult, pendingAppLaunchId, appLaunchResult, pendingPowerAction, powerActionResult, pendingAwakeChange, awakeResult, clientId, deviceName, activePc, pairedPcs, audioState, awakeCapability, powerCapabilities, supportsGestureDebug, supportsSleep, supportsVolumeControl, supportsRemoteLaunch, supportsTextTransfer, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, beginNewPairing, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice, setHostPointerSpeed };
 }
 
 

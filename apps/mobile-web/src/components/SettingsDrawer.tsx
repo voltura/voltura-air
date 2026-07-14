@@ -1,5 +1,6 @@
 import { useEffect, useState, type MouseEvent } from "react";
 import { X } from "lucide-react";
+import { toolModeDefinitions, type ToolAppTab } from "../appModeTabs";
 import {
   AppSettingsSection,
   AppearanceSettingsSection,
@@ -30,13 +31,30 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
     <aside className={`settings-drawer ${props.isOpen ? "open" : ""}`} aria-hidden={!props.isOpen}>
       <header className="drawer-header">
         <div className="drawer-title">
-          <h2>Settings</h2>
+          <h2>Menu</h2>
           <span>v{__APP_VERSION__}</span>
         </div>
-        <button className="icon-button" type="button" aria-label="Close settings" onClick={props.onClose}>
+        <button className="icon-button" type="button" aria-label="Close menu" onClick={props.onClose}>
           <X aria-hidden="true" />
         </button>
       </header>
+
+      <section className="drawer-group" aria-labelledby="drawer-tools-title">
+        <h3 id="drawer-tools-title">Tools</h3>
+        <div className="drawer-tool-list">
+          {(["dictation", "text-transfer"] satisfies ToolAppTab[]).map((toolId) => {
+            const { Icon, ariaLabel } = toolModeDefinitions[toolId];
+            return (
+              <button key={toolId} type="button" onClick={() => props.onOpenTool?.(toolId)}>
+                <Icon aria-hidden="true" />
+                <span>{ariaLabel}</span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <h3 className="drawer-settings-title">Settings</h3>
 
       <SettingsSectionDetails section="connection" label="Connection" isOpen={openSection === "connection"} onToggle={toggleSection}>
         <ConnectionSettingsSection

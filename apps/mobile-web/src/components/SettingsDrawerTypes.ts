@@ -4,6 +4,7 @@ import type { TrackpadSettings } from "../gestures";
 import type { KeyboardSettings } from "../keyboardSettings";
 import type { PcProfile } from "../pcProfiles";
 import type { RemoteSettings } from "../remoteSettings";
+import type { ToolAppTab } from "../appModeTabs";
 
 export type ThemeMode = "system" | "light" | "dark";
 export type SettingsSection = "connection" | "trackpad" | "keyboard" | "split" | "remote" | "appearance" | "app";
@@ -24,6 +25,7 @@ export type SettingsDrawerProps = {
   onPairingQrSelected: (event: ChangeEvent<HTMLInputElement>) => void;
   onManualHostSubmit: (target: string) => void;
   onOpenGestureDebug?: () => void;
+  onOpenTool?: (tool: ToolAppTab) => void;
   pairedPcs: PcProfile[];
   pairingQrInputRef: RefObject<HTMLInputElement | null>;
   pairingScanMessage: string;

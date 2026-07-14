@@ -54,13 +54,59 @@ public sealed class InputDispatcher
                 _inputInjector.Zoom(GetString(message, "direction"));
                 return true;
             case "keyboard.text":
-                _inputInjector.TypeText(GetString(message, "text"));
+                TypeTextWithLineBreaks(GetString(message, "text"));
                 return true;
             case "keyboard.special":
                 DispatchSpecialKey(message);
                 return true;
             default:
                 return false;
+        }
+    }
+
+    public InputDispatchOutcome TransferText(string text, bool sendEnter)
+    {
+        if (HostUiInputGuard.ShouldBlockTextTransfer())
+        {
+            return InputDispatchOutcome.Blocked;
+        }
+
+        TypeTextWithLineBreaks(text);
+        if (sendEnter)
+        {
+            _inputInjector.SpecialKey("Enter", []);
+        }
+
+        return InputDispatchOutcome.Executed;
+    }
+
+    private void TypeTextWithLineBreaks(string text)
+    {
+        var segmentStart = 0;
+        for (var index = 0; index < text.Length; index++)
+        {
+            if (text[index] is not ('\r' or '\n'))
+            {
+                continue;
+            }
+
+            if (index > segmentStart)
+            {
+                _inputInjector.TypeText(text[segmentStart..index]);
+            }
+
+            if (text[index] == '\r' && index + 1 < text.Length && text[index + 1] == '\n')
+            {
+                index++;
+            }
+
+            _inputInjector.SpecialKey("Enter", []);
+            segmentStart = index + 1;
+        }
+
+        if (segmentStart < text.Length)
+        {
+            _inputInjector.TypeText(text[segmentStart..]);
         }
     }
 
@@ -81,19 +127,19 @@ public sealed class InputDispatcher
     private static bool TryResolveShortcutAlias(string key, out string shortcutKey, out IReadOnlyList<string> shortcutModifiers)
     {
         shortcutKey = key;
-        shortcutModifiers = Array.Empty<string>();
+        shortcutModifiers = [];
 
         if (key.Equals("Undo", StringComparison.OrdinalIgnoreCase))
         {
             shortcutKey = "Z";
-            shortcutModifiers = new[] { "Control" };
+            shortcutModifiers = ["Control"];
             return true;
         }
 
         if (key.Equals("Redo", StringComparison.OrdinalIgnoreCase))
         {
             shortcutKey = "Y";
-            shortcutModifiers = new[] { "Control" };
+            shortcutModifiers = ["Control"];
             return true;
         }
 
@@ -116,7 +162,7 @@ public sealed class InputDispatcher
     {
         if (!message.TryGetProperty("modifiers", out var modifiers) || modifiers.ValueKind != JsonValueKind.Array)
         {
-            return Array.Empty<string>();
+            return [];
         }
 
         return modifiers.EnumerateArray()

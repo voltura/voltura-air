@@ -1,16 +1,33 @@
-import { Keyboard, Mic, MousePointer2, Tv } from "lucide-react";
+import { Keyboard, Mic, MousePointer2, Send, Tv } from "lucide-react";
 
-export type AppTab = "trackpad" | "keyboard" | "remote" | "dictation" | "debug";
+export type PrimaryAppTab = "trackpad" | "keyboard" | "remote";
+export type ToolAppTab = "dictation" | "text-transfer";
+export type FourthMode = ToolAppTab;
+export type AppTab = PrimaryAppTab | ToolAppTab | "debug";
 export type MainAppTab = Exclude<AppTab, "debug">;
 
-export const modeTabs: Array<{
+export type ModeDefinition = {
   id: MainAppTab;
   label: string;
   ariaLabel: string;
   Icon: typeof MousePointer2;
-}> = [
+};
+
+export const primaryModeDefinitions: ModeDefinition[] = [
   { id: "trackpad", label: "Trackpad", ariaLabel: "Trackpad mode", Icon: MousePointer2 },
   { id: "keyboard", label: "Keyboard", ariaLabel: "Keyboard mode", Icon: Keyboard },
-  { id: "remote", label: "Remote", ariaLabel: "Remote mode", Icon: Tv },
-  { id: "dictation", label: "Dictate", ariaLabel: "Dictation mode", Icon: Mic }
+  { id: "remote", label: "Remote", ariaLabel: "Remote mode", Icon: Tv }
 ];
+
+export const toolModeDefinitions: Record<ToolAppTab, ModeDefinition> = {
+  dictation: { id: "dictation", label: "Dictate", ariaLabel: "Dictation", Icon: Mic },
+  "text-transfer": { id: "text-transfer", label: "Send text", ariaLabel: "Send text to PC", Icon: Send }
+};
+
+export function getModeTabs(fourthMode: FourthMode): ModeDefinition[] {
+  return [...primaryModeDefinitions, toolModeDefinitions[fourthMode] ?? toolModeDefinitions.dictation];
+}
+
+export function getModeDefinition(tab: MainAppTab): ModeDefinition {
+  return primaryModeDefinitions.find((mode) => mode.id === tab) ?? toolModeDefinitions[tab as ToolAppTab] ?? toolModeDefinitions.dictation;
+}

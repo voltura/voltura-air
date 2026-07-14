@@ -26,6 +26,11 @@ internal static class HostUiInputGuard
         return ShouldBlockClientInput(messageType, message, out _);
     }
 
+    public static bool ShouldBlockTextTransfer()
+    {
+        return !AppClientControlSettings.IsEnabled() && IsForegroundVolturaHostWindow();
+    }
+
     public static bool ShouldBlockClientInput(string? messageType, JsonElement message, out bool protectedCommandExecuted)
     {
         protectedCommandExecuted = false;

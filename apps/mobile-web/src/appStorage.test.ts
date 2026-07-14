@@ -44,7 +44,11 @@ describe("appStorage", () => {
 
   it("loads valid app settings and falls back for invalid stored JSON", () => {
     localStorage.setItem(appSettingsKey("client-a", "pc-a"), JSON.stringify({ autoRefresh: false }));
-    expect(loadAppSettings("client-a", "pc-a")).toEqual({ autoRefresh: false });
+    expect(loadAppSettings("client-a", "pc-a")).toEqual({
+      autoRefresh: false,
+      clearTextAfterSending: true,
+      fourthMode: "dictation"
+    });
 
     localStorage.setItem(appSettingsKey("client-a", "pc-a"), "{not-json");
     expect(loadAppSettings("client-a", "pc-a")).toEqual(defaultAppSettings);

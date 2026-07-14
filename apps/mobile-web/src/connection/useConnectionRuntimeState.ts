@@ -7,6 +7,7 @@ import {
   hasInputAckCapability,
   hasRemoteLaunchCapability,
   hasSleepCapability,
+  hasTextTransferCapability,
   hasVolumeCapability,
   normalizeHostStatus
 } from "./connectionProtocol";
@@ -18,6 +19,7 @@ export function useConnectionRuntimeState(pendingInputAcksRef: RefObject<Map<num
   const [supportsSleep, setSupportsSleep] = useState(false);
   const [supportsVolumeControl, setSupportsVolumeControl] = useState(false);
   const [supportsRemoteLaunch, setSupportsRemoteLaunch] = useState(false);
+  const [supportsTextTransfer, setSupportsTextTransfer] = useState(false);
   const [powerCapabilities, setPowerCapabilities] = useState<PowerCapabilities | null>(null);
   const [hostStatus, setHostStatus] = useState<HostStatusMetadata | null>(null);
   const supportsVolumeControlRef = useRef(false);
@@ -31,6 +33,7 @@ export function useConnectionRuntimeState(pendingInputAcksRef: RefObject<Map<num
     setSupportsSleep(false);
     setSupportsVolumeControl(false);
     setSupportsRemoteLaunch(false);
+    setSupportsTextTransfer(false);
     setPowerCapabilities(null);
     setHostStatus(null);
     supportsVolumeControlRef.current = false;
@@ -44,6 +47,7 @@ export function useConnectionRuntimeState(pendingInputAcksRef: RefObject<Map<num
     setSupportsSleep(connected && hasSleepCapability(capabilities));
     setSupportsVolumeControl(nextSupportsVolumeControl);
     setSupportsRemoteLaunch(connected && hasRemoteLaunchCapability(capabilities));
+    setSupportsTextTransfer(connected && hasTextTransferCapability(capabilities));
     setPowerCapabilities(connected ? getPowerCapabilities(capabilities) : null);
     setAwakeCapability(connected ? getAwakeCapability(capabilities) : null);
     supportsVolumeControlRef.current = nextSupportsVolumeControl;
@@ -74,6 +78,7 @@ export function useConnectionRuntimeState(pendingInputAcksRef: RefObject<Map<num
     supportsGestureDebug,
     supportsInputAckRef,
     supportsRemoteLaunch,
+    supportsTextTransfer,
     supportsSleep,
     supportsVolumeControl,
     supportsVolumeControlRef,

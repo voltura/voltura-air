@@ -7,6 +7,7 @@ import { PairingStatus } from "./components/PairingStatus";
 import { RemoteMode } from "./components/RemoteMode";
 import { SettingsDrawer } from "./components/SettingsDrawer";
 import { TrackpadMode } from "./components/TrackpadMode";
+import { TextTransferMode } from "./components/TextTransferMode";
 import type { AppSettings } from "./appSettings";
 import { clearAppSettings, clearRemoteSettings, clearTrackpadSettings, loadThemeMode, resolveTheme, saveThemeMode, type ThemeMode } from "./appStorage";
 import type { TrackpadSettings } from "./gestures";
@@ -26,7 +27,7 @@ import { useSpeechDictation } from "./input/useSpeechDictation";
 import { usePwaLifecycle } from "./pwa/usePwaLifecycle";
 import { usePairingController } from "./pairing/usePairingController";
 import { supportsSplitModeLayout } from "./splitModeLayout";
-import { modeTabs, type AppTab as Tab, type MainAppTab as MainTab } from "./appModeTabs";
+import { getModeDefinition, getModeTabs, type AppTab as Tab, type MainAppTab as MainTab, type ToolAppTab } from "./appModeTabs";
 
 export function App() {
   const initialPairing = useMemo(() => parsePairingLink(window.location.href, window.location.origin), []);
@@ -38,6 +39,9 @@ export function App() {
     requestPowerAction,
     requestAwakeChange,
     requestAppLaunch,
+    requestTextTransfer,
+    pendingTextTransfer,
+    textTransferResult,
     pendingAppLaunchId,
     appLaunchResult,
     pendingPowerAction,
@@ -55,6 +59,7 @@ export function App() {
     supportsSleep,
     supportsVolumeControl,
     supportsRemoteLaunch,
+    supportsTextTransfer,
     lastConnectionError,
     hostStatus,
     pairWithToken,
@@ -76,6 +81,7 @@ export function App() {
   const [isTrackpadExpanded, setIsTrackpadExpanded] = useState(false);
   const [areModeTabsCollapsed, setAreModeTabsCollapsed] = useState(false);
   const [isModeSelectorOpen, setIsModeSelectorOpen] = useState(false);
+  const [textTransferDraft, setTextTransferDraft] = useState("");
   const hostPointerSpeed = hostStatus?.pointerSpeed;
   const hostDefaultRemoteMode = hostStatus?.defaultRemoteMode;
   const {
@@ -89,6 +95,7 @@ export function App() {
     setTrackpadSettingsState,
     trackpadSettings
   } = usePcSettings(clientId, activePc?.id ?? null, hostDefaultRemoteMode, hostPointerSpeed);
+  const modeTabs = useMemo(() => getModeTabs(appSettings.fourthMode), [appSettings.fourthMode]);
   const { installApp, installPrompt, isInstalled, refreshInstalledApp, refreshMessage } = usePwaLifecycle({
     activePc,
     autoRefresh: appSettings.autoRefresh,
@@ -304,6 +311,8 @@ export function App() {
       liveKeyboard={liveKeyboard}
       onKeyboardTextChange={onKeyboardTextChange}
       onSleep={sleepPc}
+      onPasteToPc={(text) => requestTextTransfer(text)}
+      pasteToPcPending={pendingTextTransfer}
       placeLiveKeyboardCaret={placeLiveKeyboardCaret}
       sendEmptyDelete={sendEmptyDelete}
       sendSpecial={sendSpecial}
@@ -313,6 +322,7 @@ export function App() {
       showArrowKeys={keyboardSettings.showArrowKeys}
       showControlKeys={keyboardSettings.showControlKeys}
       showFunctionKeys={keyboardSettings.showFunctionKeys}
+      showPasteToPcButton={keyboardSettings.showPasteToPcButton && supportsTextTransfer}
       showSleepButton={keyboardSettings.showSleepButton && supportsSleep}
       toLiveKeyboardValue={toLiveKeyboardValue}
     />
@@ -358,7 +368,7 @@ export function App() {
   }), [activePc, hostStatus, lastConnectionError?.code, lastConnectionError?.message, message, pairedPcs.length, state]);
 
   const shouldShowSplitMode = canUseSplitMode && trackpadSettings.enableSplitMode && (tab === "trackpad" || tab === "keyboard");
-  const activeModeTab = modeTabs.find((modeTab) => modeTab.id === tab);
+  const activeModeTab = tab === "debug" ? undefined : getModeDefinition(tab);
   const ActiveModeIcon = activeModeTab?.Icon;
   const canShowModeNavigation = state === "paired";
   const connectionPcName = state === "paired" && activePc ? getPcDisplayName(activePc) : message;
@@ -379,11 +389,18 @@ export function App() {
     setIsModeSelectorOpen(false);
   };
 
+  const openToolFromMenu = (tool: ToolAppTab) => {
+    setTab(tool);
+    setAreModeTabsCollapsed(false);
+    setIsModeSelectorOpen(false);
+    setIsSettingsOpen(false);
+  };
+
   return (
     <main className={`app-shell ${canShowModeNavigation ? "has-mode-navigation" : ""} ${tab === "trackpad" ? "trackpad-active" : ""} ${tab === "remote" ? "remote-active" : ""} ${shouldShowSplitMode ? "split-mode-active" : ""} ${shouldShowSplitMode && trackpadSettings.splitShowModeButtons ? "split-show-mode-buttons" : ""} ${shouldShowSplitMode && trackpadSettings.splitShowStatusRow ? "split-show-status-row" : ""} ${areModeTabsCollapsed ? "mode-tabs-collapsed" : ""} ${isModeSelectorOpen ? "mode-selector-open" : ""}`}>
       <header className="top-bar">
         <div className="brand-group">
-          <button className="icon-button" type="button" aria-label="Open settings" onClick={() => setIsSettingsOpen(true)}>
+          <button className="icon-button" type="button" aria-label="Open menu" onClick={() => setIsSettingsOpen(true)}>
             <Menu aria-hidden="true" />
           </button>
           <div className="brand">
@@ -426,7 +443,7 @@ export function App() {
         </>
       )}
 
-      {isSettingsOpen && <button className="drawer-scrim" type="button" aria-label="Close settings" onClick={() => setIsSettingsOpen(false)} />}
+      {isSettingsOpen && <button className="drawer-scrim" type="button" aria-label="Close menu" onClick={() => setIsSettingsOpen(false)} />}
 
       {state === "needs-pairing" && !isSettingsOpen && (
         <PairingStatus
@@ -471,6 +488,7 @@ export function App() {
           setAreModeTabsCollapsed(false);
           setIsSettingsOpen(false);
         } : undefined}
+        onOpenTool={openToolFromMenu}
         onPairingQrSelected={onPairingQrSelected}
         onManualHostSubmit={connectManualHost}
         pairedPcs={pairedPcs}
@@ -494,7 +512,7 @@ export function App() {
         updateTrackpadSetting={updateTrackpadSetting}
       />
 
-      {canShowModeNavigation && <ModeTabs className="tabs top-mode-tabs" tab={tab} selectModeTab={selectModeTab} />}
+      {canShowModeNavigation && <ModeTabs className="tabs top-mode-tabs" modeTabs={modeTabs} tab={tab} selectModeTab={selectModeTab} />}
 
       {(tab === "trackpad" || tab === "keyboard") &&
         (shouldShowSplitMode ? renderSplitMode() : tab === "trackpad" ? renderTrackpadMode() : renderKeyboardMode())}
@@ -513,9 +531,24 @@ export function App() {
         />
       )}
 
+      {tab === "text-transfer" && (
+        <TextTransferMode
+          clearAfterSending={appSettings.clearTextAfterSending}
+          clientId={clientId}
+          draft={textTransferDraft}
+          onClearAfterSendingChange={(value) => updateAppSetting("clearTextAfterSending", value)}
+          onDraftChange={setTextTransferDraft}
+          pending={pendingTextTransfer}
+          requestTextTransfer={requestTextTransfer}
+          result={textTransferResult}
+          supported={supportsTextTransfer}
+          target={hostStatus?.textTransferTarget}
+        />
+      )}
+
       {supportsGestureDebug && tab === "debug" && <GestureDebugMode trackpadSettings={effectiveTrackpadSettings} />}
 
-      {canShowModeNavigation && !areModeTabsCollapsed && <ModeTabs className="tabs bottom-mode-tabs" tab={tab} selectModeTab={selectModeTab} />}
+      {canShowModeNavigation && !areModeTabsCollapsed && <ModeTabs className="tabs bottom-mode-tabs" modeTabs={modeTabs} tab={tab} selectModeTab={selectModeTab} />}
 
       {pendingAppLaunchId !== null && (
         <div className="app-toast pending" role="status">Waiting for the PC to respond…</div>
@@ -525,11 +558,19 @@ export function App() {
           {appLaunchResult.message}
         </div>
       )}
+      {tab !== "text-transfer" && pendingTextTransfer && (
+        <div className="app-toast pending" role="status">Waiting for the PC to send text…</div>
+      )}
+      {tab !== "text-transfer" && !pendingTextTransfer && textTransferResult && (
+        <div className={`app-toast ${textTransferResult.succeeded ? "success" : "error"}`} role={textTransferResult.succeeded ? "status" : "alert"}>
+          {textTransferResult.message}
+        </div>
+      )}
     </main>
   );
 }
 
-function ModeTabs({ className, tab, selectModeTab }: { className: string; tab: Tab; selectModeTab: (nextTab: MainTab) => void }) {
+function ModeTabs({ className, modeTabs, tab, selectModeTab }: { className: string; modeTabs: ReturnType<typeof getModeTabs>; tab: Tab; selectModeTab: (nextTab: MainTab) => void }) {
   return (
     <nav className={className} aria-label="Mode">
       {modeTabs.map(({ id, label, ariaLabel, Icon }) => (

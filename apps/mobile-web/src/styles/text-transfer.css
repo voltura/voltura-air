@@ -1,0 +1,301 @@
+.text-transfer-mode {
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.tool-page-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.tool-page-header h1,
+.saved-snippets h2 {
+  margin: 0;
+}
+
+.tool-page-header h1 {
+  font-size: 1.35rem;
+}
+
+.tool-page-header p,
+.saved-snippets p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.text-transfer-warning,
+.text-transfer-feedback {
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 10px 12px;
+}
+
+.text-transfer-feedback.success {
+  border-color: var(--success);
+}
+
+.text-transfer-feedback.error {
+  border-color: var(--danger);
+}
+
+.text-transfer-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-weight: 700;
+}
+
+.text-transfer-editor > span {
+  line-height: 1.2;
+}
+
+.text-transfer-editor textarea,
+.snippet-save-row input {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text);
+  padding: 12px;
+  appearance: none;
+}
+
+.text-transfer-editor textarea::placeholder,
+.snippet-save-row input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+.text-transfer-editor textarea {
+  display: block;
+  width: 100%;
+  margin: 0;
+  height: clamp(150px, 28svh, 260px);
+  min-height: 150px;
+  max-height: 260px;
+  resize: none;
+  font: inherit;
+  font-weight: 400;
+}
+
+.snippet-save-row input {
+  width: 100%;
+  min-height: 48px;
+}
+
+.text-transfer-actions,
+.snippet-save-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.text-transfer-actions button,
+.snippet-save-row button {
+  min-width: 0;
+  min-height: 48px;
+}
+
+.text-transfer-clear-setting {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 10px 12px;
+}
+
+.saved-snippets {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.saved-snippets-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.saved-snippets-heading > span {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.saved-snippets ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.saved-snippets li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: start;
+  gap: 6px;
+}
+
+.saved-snippets li button {
+  min-width: 0;
+  height: 44px;
+  max-height: 44px;
+  padding: 8px;
+}
+
+.saved-snippets .snippet-load {
+  justify-content: flex-start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.saved-snippets .snippet-delete {
+  color: var(--danger);
+}
+
+.empty-snippets {
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+}
+
+.snippet-action-dialog {
+  width: min(420px, calc(100vw - 28px));
+  max-width: 100%;
+  margin: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 20px 60px var(--drawer-shadow);
+  padding: 0;
+}
+
+.snippet-action-dialog::backdrop {
+  background: var(--scrim);
+  backdrop-filter: blur(4px);
+}
+
+.snippet-action-dialog form {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+}
+
+.snippet-action-dialog header {
+  display: grid;
+  gap: 8px;
+}
+
+.snippet-action-dialog h2,
+.snippet-action-dialog p {
+  margin: 0;
+}
+
+.snippet-action-dialog h2 {
+  font-size: 1.25rem;
+}
+
+.snippet-action-dialog p {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.snippet-action-dialog label {
+  display: grid;
+  gap: 7px;
+  font-weight: 700;
+}
+
+.snippet-action-dialog input {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text);
+  padding: 10px 12px;
+}
+
+.snippet-dialog-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.snippet-dialog-actions button {
+  min-width: 0;
+  min-height: 48px;
+}
+
+.snippet-dialog-primary {
+  border-color: var(--accent);
+  background: var(--accent-strong);
+  color: var(--on-accent);
+}
+
+.snippet-dialog-danger {
+  border-color: color-mix(in srgb, var(--danger) 58%, var(--border));
+  background: color-mix(in srgb, var(--danger) 14%, var(--surface-raised));
+  color: var(--danger);
+}
+
+@media (max-width: 520px) {
+  .text-transfer-actions,
+  .snippet-save-row {
+    grid-template-columns: 1fr;
+  }
+
+  .saved-snippets li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+@media (orientation: landscape) and (min-width: 700px) {
+  .text-transfer-mode {
+    grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.9fr);
+    align-items: start;
+  }
+
+  .tool-page-header,
+  .text-transfer-warning,
+  .text-transfer-editor,
+  .text-transfer-actions,
+  .text-transfer-clear-setting,
+  .text-transfer-feedback {
+    grid-column: 1;
+  }
+
+  .saved-snippets {
+    grid-column: 2;
+    grid-row: 1 / span 7;
+    align-self: stretch;
+    max-height: 100%;
+    overflow-y: auto;
+    border-top: 0;
+    border-left: 1px solid var(--border);
+    padding: 0 0 0 14px;
+  }
+
+  .snippet-save-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .saved-snippets li {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) 44px;
+  }
+
+  .saved-snippets .snippet-load {
+    grid-column: 1 / -1;
+  }
+}

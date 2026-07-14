@@ -8,6 +8,8 @@ Turn any phone, tablet, or touch browser into a wireless remote for your Windows
 
 Use it as a trackpad, keyboard, dictation surface, and media remote — including YouTube and Kodi modes for couch and TV control. No app-store install, account, or cloud needed.
 
+The mobile Menu also includes **Send text to PC** for composing or pasting multiline text, reviewing the current focused-application destination, and waiting for an explicit Windows delivery result. It preserves line breaks, supports optional local snippets, **Send text + Enter**, and a configurable fourth mode button. A disabled-by-default **Paste to PC** Keyboard shortcut provides a faster native-paste path when enabled.
+
 ## Product promise
 
 Remote mode includes an Fn panel for common Windows window actions and browser tab/page shortcuts, plus a compact Power sheet for locking Windows, turning off displays, signing out, restarting, and shutting down. Destructive actions require a deliberate hold and every power action is controlled by explicit host permissions. Kodi mode separates its video/UI toggle from its fullscreen/windowed control and places supporting actions around the navigation ring. Switch app supports quick previous-app taps plus hold-and-slide visual app selection, and Task view opens the persistent Windows window overview. Taller portrait phones retain a compact navigation ring below the Fn helpers while hiding volume when space is constrained; phone landscape keeps volume and navigation beside the helpers. Phone and portrait-tablet layouts preserve the main control surface, and tapping the active mode collapses the full mode row into a compact selector.

@@ -167,6 +167,12 @@ public sealed partial class WebHostService
                     continue;
                 }
 
+                if (type == "text.send")
+                {
+                    await HandleTextTransferAsync(socket, authenticatedClientId, root, cancellationToken);
+                    continue;
+                }
+
                 if (IsAudioMessage(root))
                 {
                     var action = type == "audio.mute.toggle" ? "toggle_mute" : "set_volume";
@@ -413,6 +419,7 @@ public sealed partial class WebHostService
             awake = CreateAwakeCapability(clientId),
             volume = CanControlVolume(clientId),
             remoteLaunch = CanLaunchRemoteApps(clientId),
+            textTransfer = true,
             gestureDebug = AppDeveloperSettings.EnableGestureDebug(),
             inputAck = true
         };

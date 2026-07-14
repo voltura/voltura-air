@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Send } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ClipboardPaste, Send } from "lucide-react";
 import type React from "react";
 import { liveKeyboardSentinel } from "../keyboardDelta";
 import { InfoButton } from "./InfoButton";
@@ -33,6 +33,7 @@ type KeyboardModeProps = {
   liveKeyboard: boolean;
   onKeyboardTextChange: (next: string) => void;
   onSleep: () => void;
+  onPasteToPc?: (text: string) => void;
   placeLiveKeyboardCaret: () => void;
   sendEmptyDelete: (inputTypeOrKey: string, timeStamp: number) => boolean;
   sendSpecial: (key: string, modifiers?: string[]) => void;
@@ -42,6 +43,8 @@ type KeyboardModeProps = {
   showArrowKeys: boolean;
   showControlKeys: boolean;
   showFunctionKeys: boolean;
+  showPasteToPcButton?: boolean;
+  pasteToPcPending?: boolean;
   showSleepButton: boolean;
   toLiveKeyboardValue: (value: string) => string;
   isComposingRef: React.RefObject<boolean>;
@@ -54,6 +57,7 @@ export function KeyboardMode({
   liveKeyboard,
   onKeyboardTextChange,
   onSleep,
+  onPasteToPc = () => undefined,
   placeLiveKeyboardCaret,
   sendEmptyDelete,
   sendSpecial,
@@ -63,6 +67,8 @@ export function KeyboardMode({
   showArrowKeys,
   showControlKeys,
   showFunctionKeys,
+  showPasteToPcButton = false,
+  pasteToPcPending = false,
   showSleepButton,
   toLiveKeyboardValue,
   isComposingRef
@@ -153,8 +159,32 @@ export function KeyboardMode({
           </button>
         </div>
       </div>
-      {!liveKeyboard && (
-        <div className="keyboard-send-row">
+      {(!liveKeyboard || showPasteToPcButton) && (
+        <div className={`keyboard-send-row ${showPasteToPcButton ? "has-paste-to-pc" : ""}`}>
+          {showPasteToPcButton && (
+            <label className="paste-to-pc-control" title="Long-press this button and select Paste to send your clipboard text to the PC.">
+              <ClipboardPaste aria-hidden="true" />
+              <span>{pasteToPcPending ? "Waiting for PC…" : "Paste to PC"}</span>
+              <textarea
+                aria-label="Paste clipboard contents to PC"
+                disabled={pasteToPcPending}
+                value=""
+                onPaste={(event) => {
+                  event.preventDefault();
+                  const text = event.clipboardData.getData("text");
+                  if (text) {
+                    onPasteToPc(text);
+                  }
+                }}
+                onChange={(event) => {
+                  if (event.target.value) {
+                    onPasteToPc(event.target.value);
+                  }
+                }}
+              />
+            </label>
+          )}
+          {!liveKeyboard && (
           <button
             className="key-send"
             onClick={() => {
@@ -166,6 +196,7 @@ export function KeyboardMode({
             <Send aria-hidden="true" />
             <span>Send</span>
           </button>
+          )}
         </div>
       )}
       <div className={`command-row keyboard-primary-keys ${showSleepButton ? "has-sleep-key" : ""}`} aria-label="Primary keyboard keys">

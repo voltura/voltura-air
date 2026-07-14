@@ -378,6 +378,7 @@ public sealed partial class WebHostService : IAsyncDisposable
             WebSocketUrl,
             AppRemoteSettings.ToProtocolId(AppRemoteSettings.GetDefaultRemoteMode()),
             CanLaunchRemoteApps(clientId) ? _appLaunchService.GetActions() : [],
+            new TextTransferTargetMetadata("focused", "Currently focused application", true),
             _pairingManager.GetDevicePointerSpeed(clientId),
             developerMode,
             developerMode ? DeveloperSessionId : null);
@@ -417,9 +418,12 @@ internal sealed record HostStatusMetadata(
     string WebSocketUrl,
     string DefaultRemoteMode,
     IReadOnlyList<AppLaunchActionSummary> AppLaunchActions,
+    TextTransferTargetMetadata TextTransferTarget,
     int PointerSpeed,
     bool DeveloperMode,
     string? DeveloperSessionId);
+
+internal sealed record TextTransferTargetMetadata(string Mode, string DisplayName, bool Available);
 
 public sealed class HostPortUnavailableException : Exception
 {

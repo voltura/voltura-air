@@ -97,7 +97,8 @@ async function main() {
 
   if (smokeTest) {
     await verifyResponsivePowerLayout(page);
-    console.log("Voltura Air UI smoke test connected and passed responsive Power sheet checks.");
+    await verifyResponsiveTextTransferLayout(page);
+    console.log("Voltura Air UI smoke test connected and passed responsive Power sheet and text transfer checks.");
     shutdown("SIGTERM", 0);
     return;
   }
@@ -169,10 +170,97 @@ async function verifyResponsivePowerLayout(page) {
       };
     });
 
-    if ("error" in result || result.actionCount !== 7 || result.horizontalOverflow || result.minActionHeight < 44 || result.outsideViewport) {
+    if ("error" in result || result.actionCount !== 8 || result.horizontalOverflow || result.minActionHeight < 44 || result.outsideViewport) {
       throw new Error(`Responsive Power sheet check failed for ${viewport.name}: ${JSON.stringify(result)}`);
     }
   }
+}
+
+async function verifyResponsiveTextTransferLayout(page) {
+  await page.locator(".power-sheet-close").click();
+  await page.setViewportSize({ width: 393, height: 852 });
+  await page.getByRole("button", { name: "Open menu", exact: true }).click();
+  await page.locator("summary").filter({ hasText: /^App$/ }).click();
+  const fourthModeControl = page.locator(".fourth-mode-select");
+  const fourthModeMetrics = await fourthModeControl.evaluate((control) => ({
+    fontSize: Number.parseFloat(getComputedStyle(control).fontSize),
+    height: control.getBoundingClientRect().height,
+    width: control.getBoundingClientRect().width
+  }));
+  if (fourthModeMetrics.fontSize < 16 || fourthModeMetrics.height < 48 || fourthModeMetrics.width < 240) {
+    throw new Error(`Fourth mode button selector is too small: ${JSON.stringify(fourthModeMetrics)}`);
+  }
+  await page.getByRole("button", { name: "Send text to PC", exact: true }).click();
+  await page.getByLabel("Text to send").fill("Responsive text transfer check");
+  await page.getByLabel("Snippet name").fill("Smoke snippet");
+  await page.getByRole("button", { name: "Save current text", exact: true }).click();
+
+  const viewports = [
+    { name: "phone portrait", width: 393, height: 852 },
+    { name: "phone landscape", width: 852, height: 393 },
+    { name: "tablet landscape", width: 1024, height: 768 }
+  ];
+
+  for (const viewport of viewports) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    const result = await page.evaluate(() => {
+      const editor = document.querySelector(".text-transfer-editor textarea");
+      const editorField = document.querySelector(".text-transfer-editor");
+      const editorLabel = document.querySelector(".text-transfer-editor > span");
+      const actions = document.querySelector(".text-transfer-actions");
+      const snippetInput = document.querySelector(".snippet-save-row input");
+      const saveButton = document.querySelector(".snippet-save-row button");
+      const snippetActions = Array.from(document.querySelectorAll(".saved-snippets li button:not(.snippet-load)"));
+      if (!(editor instanceof HTMLTextAreaElement) || !(editorField instanceof HTMLElement) || !(editorLabel instanceof HTMLElement) || !(actions instanceof HTMLElement) ||
+          !(snippetInput instanceof HTMLInputElement) || !(saveButton instanceof HTMLButtonElement)) {
+        return { error: "Text transfer controls were not visible." };
+      }
+
+      const editorBounds = editor.getBoundingClientRect();
+      const editorFieldBounds = editorField.getBoundingClientRect();
+      const editorLabelBounds = editorLabel.getBoundingClientRect();
+      const actionBounds = actions.getBoundingClientRect();
+      return {
+        backButtonPresent: document.querySelector(".text-transfer-mode .tool-back-button") !== null,
+        editorLabelGap: editorBounds.top - editorLabelBounds.bottom,
+        editorMisaligned: Math.abs(editorBounds.left - editorFieldBounds.left) > 1 || Math.abs(editorBounds.width - editorFieldBounds.width) > 2,
+        editorOverlapsActions: editorBounds.bottom > actionBounds.top + 1,
+        horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+        maxSnippetActionHeight: Math.max(...snippetActions.map((button) => button.getBoundingClientRect().height)),
+        snippetInputMatchesTheme: getComputedStyle(snippetInput).backgroundColor === getComputedStyle(editor).backgroundColor,
+        snippetInputWidth: snippetInput.getBoundingClientRect().width
+      };
+    });
+
+    if ("error" in result || result.backButtonPresent || result.editorLabelGap > 5 || result.editorMisaligned || result.editorOverlapsActions || result.horizontalOverflow ||
+        result.maxSnippetActionHeight > 45 || !result.snippetInputMatchesTheme || result.snippetInputWidth < 160) {
+      throw new Error(`Responsive text transfer check failed for ${viewport.name}: ${JSON.stringify(result)}`);
+    }
+  }
+
+  await page.setViewportSize({ width: 393, height: 852 });
+  await page.getByRole("button", { name: "Rename", exact: true }).click();
+  const renameDialog = page.getByRole("dialog", { name: "Rename snippet", exact: true });
+  const dialogMetrics = await renameDialog.evaluate((dialog) => {
+    const editor = document.querySelector(".text-transfer-editor textarea");
+    const input = dialog.querySelector("input");
+    const buttons = Array.from(dialog.querySelectorAll("button"));
+    if (!(editor instanceof HTMLTextAreaElement) || !(input instanceof HTMLInputElement) || buttons.length !== 2) {
+      return { error: "Themed snippet dialog controls were not visible." };
+    }
+    return {
+      buttonsUseElements: buttons.every((button) => button instanceof HTMLButtonElement),
+      fontMatchesApp: getComputedStyle(dialog).fontFamily === getComputedStyle(document.body).fontFamily,
+      inputMatchesTheme: getComputedStyle(input).backgroundColor === getComputedStyle(editor).backgroundColor,
+      minButtonHeight: Math.min(...buttons.map((button) => button.getBoundingClientRect().height)),
+      opaqueBackground: getComputedStyle(dialog).backgroundColor !== "rgba(0, 0, 0, 0)"
+    };
+  });
+  if ("error" in dialogMetrics || !dialogMetrics.buttonsUseElements || !dialogMetrics.fontMatchesApp ||
+      !dialogMetrics.inputMatchesTheme || dialogMetrics.minButtonHeight < 48 || !dialogMetrics.opaqueBackground) {
+    throw new Error(`Themed snippet dialog check failed: ${JSON.stringify(dialogMetrics)}`);
+  }
+  await renameDialog.getByRole("button", { name: "Cancel", exact: true }).click();
 }
 
 async function launchPersistentContext(chromium) {
@@ -312,7 +400,10 @@ async function run(command, args, options = {}) {
   const executable = resolveCommand(command);
   console.log(`> ${command} ${args.join(" ")}`);
   await new Promise((resolve, reject) => {
-    const child = spawn(executable, args, {
+    const [spawnFile, spawnArgs] = process.platform === "win32"
+      ? ["cmd.exe", ["/d", "/s", "/c", [executable, ...args].join(" ")]]
+      : [executable, args];
+    const child = spawn(spawnFile, spawnArgs, {
       cwd: options.cwd ?? repoRoot,
       stdio: "inherit",
       windowsHide: true

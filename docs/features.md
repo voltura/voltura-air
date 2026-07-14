@@ -1,7 +1,7 @@
 # Voltura Air - Features
 
 Updated: 2026-07-13
-Scope: current `voltura/voltura-air` `main` branch. This file describes implemented product capabilities, not future roadmap promises.
+Scope: current `voltura/voltura-air` `main` branch. This file describes current product capabilities.
 
 Voltura Air turns any phone, tablet, or modern browser into a local-network remote control surface for a Windows PC.
 
@@ -181,6 +181,8 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Stores keyboard preferences.
 - Stores per-saved-PC/client remote preferences.
 - Stores per-saved-PC/client app preferences.
+- Stores the configurable fourth mode and clear-after-send preference locally.
+- Stores saved text snippets locally on the current browser profile.
 - Stores theme preference.
 - Supports light, dark, and system theme modes.
 - Provides app refresh/cache reset flow for installed PWA cases.
@@ -253,7 +255,8 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 
 - Live typing mode.
 - Uses the shorter `Back` label for the Backspace key in split or width-constrained layouts while preserving the Backspace action.
-- Buffered send mode.
+- Buffered send mode preserves multiline line breaks through the same newline-aware host input path.
+- Optional **Paste to PC** native-paste target, disabled by default, that uses the acknowledged text-transfer path.
 - Send button is hidden when Live typing is enabled.
 - Text/numeric mobile keyboard toggle.
 - Composition/IME handling foundation.
@@ -286,6 +289,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
   - show control keys,
   - show arrow keys,
   - show sleep button.
+  - show Paste to PC button.
 
 ### Remote mode
 
@@ -356,6 +360,23 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Sends dictated text to Windows through the same text input path.
 - Allows dictation text to be edited/cleared on mobile.
 
+### Menu and text transfer
+
+- The hamburger drawer is a **Menu** with separate **Tools** and **Settings** groups.
+- Dictation and **Send text to PC** can be opened directly from Menu without changing the fourth-mode preference.
+- Trackpad, Keyboard, and Remote remain fixed primary modes. The fourth mode can be configured as Dictation or Send text to PC, defaults to Dictation, and uses one shared label/icon definition across navigation surfaces.
+- Dictation and Send text use the persistent Menu and mode navigation without separate page-level Back controls.
+- **Send text to PC** composes or pastes up to 4,096 characters and sends to the Windows application that currently owns keyboard focus.
+- The destination warning is shown before delivery. Changing Windows focus changes the destination; the host refuses delivery while its own protected UI has focus.
+- Preserves multiline text by delivering each LF, CRLF, or CR line break as one Enter key event.
+- Supports **Send text** and **Send text + Enter**. The optional final Enter is sent only after Windows accepts the complete text.
+- Confirms before sending 2,000 or more characters.
+- Shows pending, success, timeout, and native-delivery failure feedback from a host-acknowledged operation.
+- Supports an optional clear-after-send preference. The draft remains available after failure or when clearing is disabled.
+- Supports up to 20 locally stored snippets of up to 4,096 characters. Snippets can be loaded, renamed, updated from the draft, or deleted, and are sent only after an explicit send action.
+- The authenticated host status advertises the safe destination mode, display name, and current availability. Executable paths, process IDs, window handles, and clipboard contents are not exposed.
+- Text transfer targets the application that already has focus.
+
 ### Split mode
 
 - Enables a side-by-side keyboard + trackpad layout.
@@ -400,39 +421,12 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Release assets are currently not code-signed.
 - Documentation explicitly warns not to claim the installer is signed.
 
----
-
-## Not implemented yet / do not promise as current features
-
-These are roadmap candidates, not current product capabilities.
-
-- Dedicated Presentation mode.
-- Dedicated Paste Text to PC / clipboard-transfer screen.
-- PC-to-phone clipboard read/sync.
-- Open URL on PC.
-- Custom shortcut panels.
-- Host-approved custom app launch buttons.
-- Preferred mode per device.
-- Host-managed layout profiles per paired device.
-- Wake-on-LAN.
-- Screen viewer / screen preview / remote desktop.
-- File transfer.
-- Gyroscope/air mouse.
-- Gamepad mode.
-- Native iOS/Android apps.
-- Auto-update.
-- Signed installer.
-- Microsoft Store distribution.
-- Website demo GIF/video.
-- Full public FAQ/privacy page if not maintained outside this repository.
-
----
-
 ## Strongest current selling points
 
 - Browser-based phone/tablet/touch-browser control: no mobile app-store install.
 - Local Wi-Fi/LAN control: no account, no cloud relay, no paywall.
 - Practical couch-PC use: trackpad, keyboard, dictation, YouTube/Kodi remote modes, volume, and power/session controls.
+- Reviewed, acknowledged text transfer to the focused PC application with optional local snippets and Enter.
 - Host-managed Keep awake modes with an optional Keep screen on setting and a simple permissioned mobile toggle.
 - QR pairing with saved reconnect.
 - Recovery UX for stale QR codes, changed IP/port, and unreachable host.

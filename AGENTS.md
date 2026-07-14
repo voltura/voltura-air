@@ -10,6 +10,8 @@ updated as the app structure, tooling, and release process become concrete.
 - Read this file before making changes in the repository.
 - Keep changes small and focused on the requested task.
 - Prefer the project's established patterns once source files and tooling exist.
+- The Windows host targets .NET 10 and stable C# 14. Prefer current C# syntax such as collection expressions, records, pattern matching, target-typed construction, and file-scoped namespaces when they improve clarity. Do not introduce legacy syntax for compatibility with older language versions.
+- The mobile client targets React 19 and TypeScript 6. Prefer function components, typed hooks, discriminated unions, `satisfies`, optional chaining, and modern platform APIs that work on the app's HTTP LAN origin. Avoid legacy React class components and compatibility patterns for older React or TypeScript releases.
 - Do not add production dependencies without a clear reason in the change summary.
 - Preserve user work in the tree; do not revert unrelated changes.
 - Design settings and persisted data from a clean state. Do not add migrations,
@@ -70,6 +72,7 @@ updated as the app structure, tooling, and release process become concrete.
   or UI behavior changes, update the affected files under `docs/`, the static
   site under `docs/site`, `README.md`, and this file when workflow guidance
   changes. Keep docs current-state focused; avoid historical change notes.
+- Product, setup, protocol, architecture, and troubleshooting docs describe only current behavior. Keep unimplemented or proposed work in `docs/todo.md` or an explicitly named roadmap, and remove completed implementation plans instead of preserving change history in product docs.
 
 ## Repository Structure
 

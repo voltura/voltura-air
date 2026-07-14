@@ -6,7 +6,7 @@
     <title>Voltura Air - Free Local Remote for Windows 11</title>
     <meta
       name="description"
-      content="Control a Windows 11 PC from your phone or tablet with a trackpad, keyboard, media remote, dictation, and safe power controls. Local-first, free, and no mobile app install required."
+      content="Control a Windows 11 PC from your phone or tablet with a trackpad, keyboard, text transfer, media remote, dictation, and safe power controls. Local-first, free, and no mobile app install required."
     >
     <meta name="author" content="Voltura AB">
     <meta name="application-name" content="Voltura Air">
@@ -24,7 +24,7 @@
     <meta property="og:title" content="Voltura Air - Free Local Remote for Windows 11">
     <meta
       property="og:description"
-      content="Control a Windows 11 PC from your phone or tablet with a trackpad, keyboard, media remote, dictation, and safe power controls. Local-first, free, and no mobile app install required."
+      content="Control a Windows 11 PC from your phone or tablet with a trackpad, keyboard, text transfer, media remote, dictation, and safe power controls. Local-first, free, and no mobile app install required."
     >
     <meta property="og:url" content="https://voltura.se/air/">
     <meta property="og:image" content="https://voltura.se/air/assets/voltura-air-host-dark.png">
@@ -36,7 +36,7 @@
     <meta name="twitter:title" content="Voltura Air - Free Local Remote for Windows 11">
     <meta
       name="twitter:description"
-      content="Control a Windows 11 PC from your phone or tablet with a trackpad, keyboard, media remote, dictation, and safe power controls. Local-first, free, and no mobile app install required."
+      content="Control a Windows 11 PC from your phone or tablet with a trackpad, keyboard, text transfer, media remote, dictation, and safe power controls. Local-first, free, and no mobile app install required."
     >
     <meta name="twitter:image" content="https://voltura.se/air/assets/voltura-air-host-dark.png">
     <meta name="twitter:image:alt" content="Voltura Air Windows host and mobile remote control screens">
@@ -71,7 +71,7 @@
           <h1>Voltura Air</h1>
           <p class="tagline">Control your PC from the device already in your hand.</p>
           <p class="lede">
-            Use your phone or tablet as a trackpad, keyboard, media remote, and more.
+            Use your phone or tablet as a trackpad, keyboard, text sender, media remote, and more.
             Pair with a QR code on your local network - no account, cloud service, or mobile app install.
           </p>
           <div class="actions">
@@ -104,7 +104,11 @@
         </article>
         <article>
           <h2>Phone keyboard</h2>
-          <p>Type into Windows from your phone, send prepared text, use common shortcuts, and switch on function or arrow keys when you need them.</p>
+          <p>Type into Windows from your phone, send prepared multiline text with its line breaks preserved, use common shortcuts, and optionally enable a quick native Paste to PC action.</p>
+        </article>
+        <article>
+          <h2>Send text to PC</h2>
+          <p>Compose or paste multiline text, preserve its line breaks, review the focused-app destination, optionally append a final Enter, and keep reusable snippets locally on your device. Windows confirms each complete delivery.</p>
         </article>
         <article>
           <h2>Couch remote</h2>
@@ -202,7 +206,7 @@
         <ol class="steps">
           <li>Install and start the Windows host on the PC you want to control. Launching it again reopens the existing host window instead of starting a second server.</li>
           <li>Scan the pairing QR code with a phone or tablet on the same Wi-Fi/LAN.</li>
-          <li>Use Trackpad, Keyboard, Remote, Dictate, or tablet split mode from the mobile page.</li>
+          <li>Use Trackpad, Keyboard, Remote, Dictate, Send text to PC, or tablet split mode from the mobile page.</li>
           <li>Add it to your home screen and reconnect later from saved devices.</li>
         </ol>
       </section>

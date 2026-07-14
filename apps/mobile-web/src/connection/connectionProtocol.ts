@@ -1,6 +1,6 @@
 import { getPcDisplayName } from "../pcDisplayName";
 import type { PcProfile } from "../pcProfiles";
-import type { AppLaunchActionSummary, AudioStateMessage, AwakeCapability, ClientMessage, HostStatusMetadata, PowerCapabilities, ServerCapabilities, ServerMessage } from "../protocol";
+import type { AppLaunchActionSummary, AudioStateMessage, AwakeCapability, ClientMessage, HostStatusMetadata, PowerCapabilities, ServerCapabilities, ServerMessage, TextTransferTarget } from "../protocol";
 import { normalizeRemoteMode } from "../remoteSettings";
 
 const movementAckIntervalMs = 200;
@@ -56,10 +56,26 @@ export function normalizeHostStatus(metadata: HostStatusMetadata | undefined): H
     selectedAdapterName: normalizeOptionalString(metadata.selectedAdapterName),
     selectedIp: normalizeOptionalString(metadata.selectedIp),
     selectedPort: Number.isFinite(metadata.selectedPort) ? metadata.selectedPort : undefined,
+    textTransferTarget: normalizeTextTransferTarget(metadata.textTransferTarget),
     webSocketUrl: normalizeOptionalString(metadata.webSocketUrl)
   };
 
   return Object.values(normalized).some((value) => value !== undefined) ? normalized : null;
+}
+
+export function normalizeTextTransferTarget(value: unknown): TextTransferTarget | undefined {
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
+
+  const target = value as Partial<TextTransferTarget>;
+  if ((target.mode !== "focused" && target.mode !== "configured") ||
+      typeof target.displayName !== "string" || target.displayName.trim().length < 1 || target.displayName.trim().length > 80 ||
+      typeof target.available !== "boolean") {
+    return undefined;
+  }
+
+  return { mode: target.mode, displayName: target.displayName.trim(), available: target.available };
 }
 
 export function normalizeAppLaunchActions(value: unknown): AppLaunchActionSummary[] | undefined {
@@ -163,6 +179,7 @@ export const getPowerCapabilities = (capabilities: ServerCapabilities | undefine
 export const hasVolumeCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.volume === true;
 export const hasInputAckCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.inputAck === true;
 export const hasRemoteLaunchCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.remoteLaunch === true;
+export const hasTextTransferCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.textTransfer === true;
 export const hasGestureDebugCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.gestureDebug === true;
 
 export function shouldTrackInputAck(payload: ClientMessage, now: number, lastMovementAckAt: number): payload is ClientInputMessage {

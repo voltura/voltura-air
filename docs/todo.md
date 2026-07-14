@@ -1,6 +1,6 @@
 # Voltura Air - TODO / Roadmap
 
-Updated: 2026-07-13
+Updated: 2026-07-14
 Scope: work that is not yet implemented on the current `voltura/voltura-air` `main` branch.
 
 This file tracks remaining product, quality, documentation, and distribution work only. Implemented capabilities belong in [features.md](features.md) and should be removed from this roadmap when completed.
@@ -16,27 +16,13 @@ Prioritize reliability, usability, trust, and visible user value. Manual and rea
 
 ## 3. Text, clipboard, and link transfer
 
-### 3.1 Dedicated Paste Text to PC
+### 3.1 Configured text destination
 
-- [ ] Add a dedicated Paste Text to PC screen.
-- [ ] Add send modes for:
-  - [ ] Paste as text.
-  - [ ] Paste as text and send Enter.
-- [ ] Warn that text is sent to the currently focused PC application.
-- [ ] Confirm before sending very long text.
-- [ ] Add optional saved snippets such as:
-  - [ ] Email address.
-  - [ ] URL.
-  - [ ] One-time code.
-- [ ] Add an option to clear the field after sending.
-
-Optional verification:
-
-- Notepad.
-- Browser address bars.
-- Login and password fields.
-- Teams or Slack inputs.
-- Applications that block paste but allow typing.
+- [ ] Add a host preference that can activate or start a locally approved target application before text delivery.
+- [ ] Detect suitable installed desktop applications and allow a separately approved custom executable.
+- [ ] Keep paths, arguments, process IDs, and window matching rules inside the Windows host.
+- [ ] Add bounded activation/startup timeouts and elevation-mismatch guidance.
+- [ ] Preserve the existing focused-application path as the default.
 
 ### 3.2 Clipboard expansion
 
@@ -198,8 +184,8 @@ Do not start these items until the core input, connection, and remote experience
 
 ## Recommended next issue order
 
-1. Add the dedicated Paste Text to PC screen.
-2. Add Presentation mode.
+1. Add Presentation mode.
+2. Add an optional host-configured text destination.
 3. Expand the public FAQ, privacy information, and demo assets.
 4. Add release checksums, release-note structure, and known limitations.
 5. Add issue templates and project labels.
@@ -212,7 +198,7 @@ Do not start these items until the core input, connection, and remote experience
 
 ### Milestone 2: Productivity
 
-- Paste Text to PC.
+- Configured text destinations and link actions.
 - Presentation mode.
 - Custom shortcut panels.
 - Remaining per-device preferences.

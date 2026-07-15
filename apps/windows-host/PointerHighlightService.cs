@@ -49,7 +49,6 @@ public sealed partial class PointerHighlightService : IPointerHighlightService, 
     private int _disposeRequested;
     private int _updatePending;
     private bool _systemCursorsTransparent;
-    private nint _cursorBeforeHighlight;
     private NativeRect[] _taskbarBounds = [];
 
     public PointerHighlightService(IAppLog? appLog = null, bool cursorWatchdogStarted = false)
@@ -256,7 +255,6 @@ public sealed partial class PointerHighlightService : IPointerHighlightService, 
             }
 
             PositionOverlay(cursorPosition);
-            HideActiveApplicationCursor();
         }
         finally
         {
@@ -360,31 +358,13 @@ public sealed partial class PointerHighlightService : IPointerHighlightService, 
 
     private void RestoreSystemCursors()
     {
-        if (_systemCursorsTransparent)
+        if (!_systemCursorsTransparent)
         {
-            RecoverSystemCursors(_appLog);
-            _systemCursorsTransparent = false;
+            return;
         }
 
-        if (_cursorBeforeHighlight != nint.Zero)
-        {
-            _ = SetCursor(_cursorBeforeHighlight);
-            _cursorBeforeHighlight = nint.Zero;
-        }
-    }
-
-    private void HideActiveApplicationCursor()
-    {
-        if (_systemCursorsTransparent)
-        {
-            // Web pages can supply a cursor that is not one of Windows' system cursors.
-            // Clear that active cursor after positioning the overlay for each remote input update.
-            var activeCursor = SetCursor(nint.Zero);
-            if (activeCursor != nint.Zero)
-            {
-                _cursorBeforeHighlight = activeCursor;
-            }
-        }
+        RecoverSystemCursors(_appLog);
+        _systemCursorsTransparent = false;
     }
 
     internal static void RecoverSystemCursors(IAppLog appLog)
@@ -574,9 +554,6 @@ public sealed partial class PointerHighlightService : IPointerHighlightService, 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetSystemCursor(nint cursor, uint cursorId);
-
-    [LibraryImport("user32.dll")]
-    private static partial nint SetCursor(nint cursor);
 
     [DllImport("user32.dll")]
     private static extern nint SetWindowLongPtr(nint windowHandle, int index, nint newValue);

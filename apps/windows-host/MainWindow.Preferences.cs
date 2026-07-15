@@ -7,6 +7,7 @@ using TextBox = System.Windows.Controls.TextBox;
 using Brush = System.Windows.Media.Brush;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
 using Orientation = System.Windows.Controls.Orientation;
+using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
 
 namespace VolturaAir.Host;
 
@@ -26,7 +27,8 @@ public partial class MainWindow
             AppLoggingSettings.SetEnabled(false);
         };
         parent.Children.Add(applicationLogging);
-        parent.Children.Add(CreateMutedText($"Off by default. Records sanitized remote commands, host actions, outcomes, responses, and Windows errors. Typed text, pointer coordinates, and pairing secrets are excluded. Daily JSON Lines files are written to {_appLog.LogDirectory}."));
+        parent.Children.Add(CreateMutedText("Off by default. Typed text, pointer coordinates, and pairing secrets are excluded."));
+        parent.Children.Add(CreateDetailsDisclosure("application logs", $"Records sanitized remote commands, host actions, outcomes, responses, and Windows errors. Daily JSON Lines files are written to {_appLog.LogDirectory}."));
 
         parent.Children.Add(CreateLabel("Keep application logs for"));
         var logRetention = new ComboBox { Width = 180, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 6, 0, 12) };
@@ -196,7 +198,7 @@ public partial class MainWindow
         highlightPointer.Checked += (_, _) => SetGlobalPointerHighlight(enabled: true);
         highlightPointer.Unchecked += (_, _) => SetGlobalPointerHighlight(enabled: false);
         parent.Children.Add(highlightPointer);
-        parent.Children.Add(CreateMutedText("Off by default. Shows a larger pointer with a teal glow during paired-device pointer activity. Each paired device can override this default."));
+        parent.Children.Add(CreateMutedText("Off by default. Makes the pointer easier to find during paired-device activity; device-specific overrides take precedence."));
     }
 
     private void SetGlobalPointerHighlight(bool enabled)

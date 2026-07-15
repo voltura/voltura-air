@@ -14,17 +14,9 @@ Prioritize reliability, usability, trust, and visible user value. Manual and rea
 
 ---
 
-## 3. Text, clipboard, and link transfer
+## 3. Text, clipboard, and link transfers
 
-### 3.1 Configured text destination
-
-- [ ] Add a host preference that can activate or start a locally approved target application before text delivery.
-- [ ] Detect suitable installed desktop applications and allow a separately approved custom executable.
-- [ ] Keep paths, arguments, process IDs, and window matching rules inside the Windows host.
-- [ ] Add bounded activation/startup timeouts and elevation-mismatch guidance.
-- [ ] Preserve the existing focused-application path as the default.
-
-### 3.2 Clipboard expansion
+### 3.2 Clipboard expansion beyond text destinations
 
 - [ ] Investigate PC-to-phone clipboard reading behind explicit host permission.
 - [ ] Consider an optional clipboard synchronization mode only if it can remain predictable and secure.
@@ -185,12 +177,11 @@ Do not start these items until the core input, connection, and remote experience
 ## Recommended next issue order
 
 1. Add Presentation mode.
-2. Add an optional host-configured text destination.
-3. Expand the public FAQ, privacy information, and demo assets.
-4. Add release checksums, release-note structure, and known limitations.
-5. Add issue templates and project labels.
-6. Investigate code signing.
-7. Evaluate future features only after the core roadmap is stable.
+2. Expand the public FAQ, privacy information, and demo assets.
+3. Add release checksums, release-note structure, and known limitations.
+4. Add issue templates and project labels.
+5. Investigate code signing.
+6. Evaluate future features only after the core roadmap is stable.
 
 ---
 

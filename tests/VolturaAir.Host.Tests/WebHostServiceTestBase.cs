@@ -102,7 +102,8 @@ public abstract class WebHostServiceTestBase
             ISystemAudioController? audioController = null,
             IRemoteActionExecutor? remoteActionExecutor = null,
             IAppLaunchService? appLaunchService = null,
-            IAppLog? appLog = null)
+            IAppLog? appLog = null,
+            ITextDestinationService? textDestinationService = null)
         {
             var store = new TempPairingStore();
             var inputInjector = new FakeInputInjector();
@@ -115,6 +116,7 @@ public abstract class WebHostServiceTestBase
                 remoteActionExecutor,
                 appLog: appLog,
                 appLaunchService: appLaunchService,
+                textDestinationService: textDestinationService,
                 isolatedTestMode: true,
                 configureWebHost: builder => builder.UseTestServer());
             await webHost.StartAsync();
@@ -127,6 +129,17 @@ public abstract class WebHostServiceTestBase
             await WebHost.DisposeAsync();
             Store.Dispose();
             InputInjector.Dispose();
+        }
+    }
+
+    protected sealed class FakeTextDestinationService(TextDestinationMetadata metadata, TextDeliveryResult result) : ITextDestinationService
+    {
+        public List<(string Text, bool SendEnter)> Deliveries { get; } = [];
+        public TextDestinationMetadata GetMetadata() => metadata;
+        public Task<TextDeliveryResult> DeliverAsync(string text, bool sendEnter, CancellationToken cancellationToken)
+        {
+            Deliveries.Add((text, sendEnter));
+            return Task.FromResult(result);
         }
     }
 

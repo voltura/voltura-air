@@ -9,6 +9,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
     private readonly Process? _cursorWatchdog;
     private readonly LazyPointerHighlightService _pointerHighlightService;
     private readonly PointerHighlightForegroundMonitor _pointerHighlightForegroundMonitor;
+    private readonly IDisposable _textDestinationDraftCleanup;
     private readonly WebHostService _webHost;
     private readonly WpfTrayApplicationContext _trayContext;
 
@@ -17,6 +18,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         Process? cursorWatchdog,
         LazyPointerHighlightService pointerHighlightService,
         PointerHighlightForegroundMonitor pointerHighlightForegroundMonitor,
+        IDisposable textDestinationDraftCleanup,
         WebHostService webHost,
         PairingManager pairingManager,
         MainWindow mainWindow,
@@ -26,6 +28,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         _cursorWatchdog = cursorWatchdog;
         _pointerHighlightService = pointerHighlightService;
         _pointerHighlightForegroundMonitor = pointerHighlightForegroundMonitor;
+        _textDestinationDraftCleanup = textDestinationDraftCleanup;
         _webHost = webHost;
         PairingManager = pairingManager;
         MainWindow = mainWindow;
@@ -48,6 +51,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         var cursorWatchdog = TryStartCursorWatchdog();
         var pointerHighlightService = new LazyPointerHighlightService(appLog, cursorWatchdog is not null);
         MonitorCursorWatchdog(cursorWatchdog, pointerHighlightService);
+        var textDestinationDraftCleanup = TextDestinationDraftStore.CreateCleanupService();
         var inputDispatcher = new InputDispatcher(inputInjector, pointerHighlightService);
         var workstationLockPolicy = new WorkstationLockPolicy(appLog);
         ISystemPowerController powerController = isolatedTestMode
@@ -63,6 +67,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
             awakeService: awakeService,
             workstationLockPolicy: workstationLockPolicy,
             appLog: appLog,
+            textDestinationService: new TextDestinationService(inputDispatcher, inputInjector),
             isolatedTestMode: isolatedTestMode);
 
         PointerHighlightForegroundMonitor? pointerHighlightForegroundMonitor = null;
@@ -89,6 +94,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 cursorWatchdog,
                 pointerHighlightService,
                 pointerHighlightForegroundMonitor,
+                textDestinationDraftCleanup,
                 webHost,
                 pairingManager,
                 mainWindow,
@@ -97,6 +103,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         catch
         {
             pointerHighlightForegroundMonitor?.Dispose();
+            textDestinationDraftCleanup.Dispose();
             await webHost.DisposeAsync();
             pointerHighlightService.Dispose();
             cursorWatchdog?.Dispose();
@@ -114,6 +121,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         await _webHost.DisposeAsync();
         _inputInjector.Dispose();
         _pointerHighlightForegroundMonitor.Dispose();
+        _textDestinationDraftCleanup.Dispose();
         _pointerHighlightService.Dispose();
         _cursorWatchdog?.Dispose();
     }

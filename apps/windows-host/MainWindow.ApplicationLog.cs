@@ -19,7 +19,7 @@ public partial class MainWindow
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         var controls = new StackPanel();
         controls.Children.Add(CreateSectionHeading("Application log"));
-        controls.Children.Add(CreateMutedText("View and filter sanitized remote-command and Windows-host activity. The newest 250 matching entries are shown."));
+        controls.Children.Add(CreateMutedText("Filter the newest 250 sanitized remote-command and Windows-host activity entries."));
         var loggingToggle = CreateCheckBox("Write application log", AppLoggingSettings.IsEnabled());
         loggingToggle.Margin = new Thickness(0, 8, 0, 8);
         controls.Children.Add(loggingToggle);

@@ -229,6 +229,29 @@ public partial class MainWindow
         };
     }
 
+    private UIElement CreateDetailsDisclosure(string topic, params string[] paragraphs)
+    {
+        var details = new StackPanel { Visibility = Visibility.Collapsed };
+        foreach (var paragraph in paragraphs)
+        {
+            details.Children.Add(CreateMutedText(paragraph));
+        }
+
+        var toggle = CreateButton($"More about {topic}", (_, _) => { });
+        toggle.Click += (_, _) =>
+        {
+            var showDetails = details.Visibility != Visibility.Visible;
+            details.Visibility = showDetails ? Visibility.Visible : Visibility.Collapsed;
+            toggle.Content = showDetails ? $"Hide {topic} details" : $"More about {topic}";
+        };
+        toggle.HorizontalAlignment = HorizontalAlignment.Left;
+
+        var container = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
+        container.Children.Add(toggle);
+        container.Children.Add(details);
+        return container;
+    }
+
     private Border CreateCardText(string title, string text, bool emphasize = false, bool monospace = false)
     {
         var stack = new StackPanel();

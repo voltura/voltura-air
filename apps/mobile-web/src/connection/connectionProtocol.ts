@@ -71,7 +71,7 @@ export function normalizeTextTransferTarget(value: unknown): TextTransferTarget 
   }
 
   const target = value as Partial<TextTransferTarget>;
-  if ((target.mode !== "focused" && target.mode !== "configured") ||
+  if ((target.mode !== "focused" && target.mode !== "configured" && target.mode !== "clipboard") ||
       typeof target.displayName !== "string" || target.displayName.trim().length < 1 || target.displayName.trim().length > 80 ||
       typeof target.available !== "boolean") {
     return undefined;

@@ -5,6 +5,26 @@ namespace VolturaAir.Host.Tests;
 public sealed class WebHostTextTransferTests : WebHostServiceTestBase
 {
     [Fact]
+    public async Task ReportsConfiguredClipboardFallbackWithoutExposingHostDetails()
+    {
+        var service = new FakeTextDestinationService(
+            new TextDestinationMetadata("configured", "Windows Notepad", true),
+            new TextDeliveryResult(true, "clipboard", null, "Text was copied to the Windows clipboard. Paste it into Windows Notepad manually."));
+        await using var fixture = await WebHostFixture.StartAsync(textDestinationService: service);
+        using var socket = await ConnectAsync(fixture.WebHost);
+        var paired = await SendAndReceiveAsync(socket, new { type = "pair.hello", clientId = $"client-{Guid.NewGuid():N}", deviceName = "Phone", pairToken = fixture.Manager.CreatePairingToken() });
+        var result = await SendAndReceiveAsync(socket, new { type = "text.send", operationId = "delivery", text = "Hello", sendEnter = false });
+
+        var target = paired.GetProperty("host").GetProperty("textTransferTarget");
+        Assert.Equal("configured", target.GetProperty("mode").GetString());
+        Assert.Equal("Windows Notepad", target.GetProperty("displayName").GetString());
+        Assert.False(target.TryGetProperty("path", out _));
+        Assert.True(result.GetProperty("succeeded").GetBoolean());
+        Assert.Equal("clipboard", result.GetProperty("deliveryKind").GetString());
+        Assert.Single(service.Deliveries);
+    }
+
+    [Fact]
     public async Task AdvertisesFocusedTargetAndAcknowledgesCompleteTextDelivery()
     {
         await using var fixture = await WebHostFixture.StartAsync();

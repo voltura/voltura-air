@@ -54,7 +54,7 @@ export type PointerHighlightSetMessage = {
 };
 
 export type TextTransferTarget = {
-  mode: "focused" | "configured";
+  mode: "focused" | "configured" | "clipboard";
   displayName: string;
   available: boolean;
 };
@@ -263,6 +263,7 @@ export type TextSendResultMessage = {
   succeeded: boolean;
   code?: string;
   message: string;
+  deliveryKind?: "typed" | "pasted" | "clipboard";
 };
 
 export type AudioMuteToggleMessage = {

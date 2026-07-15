@@ -12,7 +12,7 @@ public partial class MainWindow
     private void AddAwakeSettings(StackPanel parent)
     {
         var state = _awakeService.State;
-        parent.Children.Add(CreateMutedText("Keep this PC awake without changing the selected Windows power plan. Manual sleep, lid close, and the Windows lock screen still take precedence."));
+        parent.Children.Add(CreateMutedText("Prevent automatic sleep without changing the Windows power plan. Manual sleep, lid close, and the lock screen still take precedence."));
         parent.Children.Add(CreateLabel("Mode"));
 
         var mode = new ComboBox
@@ -63,7 +63,7 @@ public partial class MainWindow
         keepScreenOn.Checked += (_, _) => ApplyAwakeResult(_awakeService.SetKeepScreenOn(true));
         keepScreenOn.Unchecked += (_, _) => ApplyAwakeResult(_awakeService.SetKeepScreenOn(false));
         parent.Children.Add(keepScreenOn);
-        parent.Children.Add(CreateMutedText("Keeping the screen on uses more power and can delay normal idle behavior. Paired devices use this host setting and cannot change it."));
+        parent.Children.Add(CreateMutedText("Keeping the screen on uses more power and can delay normal idle behavior; paired devices cannot change this host setting."));
 
         var status = CreateMutedText(BuildAwakeStatus(state));
         status.Margin = new Thickness(0, 10, 0, 0);

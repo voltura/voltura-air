@@ -3,10 +3,11 @@ import { Info } from "lucide-react";
 
 type InfoButtonProps = {
   description: string;
+  size?: "compact" | "detailed";
   title: string;
 };
 
-export function InfoButton({ description, title }: InfoButtonProps) {
+export function InfoButton({ description, size = "compact", title }: InfoButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const dialogRef = useRef<HTMLDialogElement | null>(null);
@@ -55,7 +56,7 @@ export function InfoButton({ description, title }: InfoButtonProps) {
       {isOpen && (
         <dialog
           ref={dialogRef}
-          className="info-dialog"
+          className={`info-dialog${size === "detailed" ? " info-dialog-detailed" : ""}`}
           aria-describedby={descriptionId}
           aria-labelledby={titleId}
           aria-modal="true"

@@ -16,7 +16,7 @@ public partial class MainWindow
     private void AddAppLaunchSettings(StackPanel parent)
     {
         var configured = AppLaunchSettings.GetActions();
-        parent.Children.Add(CreateMutedText("Choose the buttons paired devices may use from Remote mode. The existing application-launch permission still applies globally and per device."));
+        parent.Children.Add(CreateMutedText("Choose the app-launch buttons available from Remote mode."));
         parent.Children.Add(CreateAppLaunchPresetHeader());
 
         foreach (var preset in AppLaunchSettings.GetPresets())
@@ -26,7 +26,7 @@ public partial class MainWindow
                 configured.FirstOrDefault(action => action.Id == preset.Id)));
         }
 
-        parent.Children.Add(CreateMutedText($"Button labels are 1–{AppLaunchSettings.MaxLabelLength} characters and save automatically. Browser opens the default browser. Spotify, VLC, and PowerPoint must be installed and registered with Windows."));
+        parent.Children.Add(CreateDetailsDisclosure("app-launch buttons", $"The global and per-device application-launch permissions still apply. Button labels are 1–{AppLaunchSettings.MaxLabelLength} characters and save automatically. Browser opens the default browser; Spotify, VLC, and PowerPoint must be installed and registered with Windows."));
         var customButtonsLabel = CreateLabel("Custom buttons");
         customButtonsLabel.Margin = new Thickness(0, 12, 0, 8);
         parent.Children.Add(customButtonsLabel);
@@ -48,7 +48,7 @@ public partial class MainWindow
         add.Margin = new Thickness(0, 8, 8, 0);
         add.HorizontalAlignment = System.Windows.HorizontalAlignment.Left;
         parent.Children.Add(add);
-        parent.Children.Add(CreateMutedText("Custom buttons accept an existing absolute .exe path and optional arguments. Each add or edit requires a local approval confirmation. Paths and arguments are never sent to paired devices."));
+        parent.Children.Add(CreateMutedText("Custom buttons use a locally approved .exe and optional arguments; paths never leave this PC."));
     }
 
     private UIElement CreateAppLaunchPresetHeader()

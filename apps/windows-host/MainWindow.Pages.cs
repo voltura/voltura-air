@@ -253,7 +253,7 @@ public partial class MainWindow
         appearancePanel.Children.Add(CreateSegmentRow(systemTheme, lightTheme, darkTheme));
 
         var trackpadPanel = AddPreferencesSection(panel, sections, "Trackpad defaults");
-        trackpadPanel.Children.Add(CreateMutedText("Default pointer speed for paired devices unless a device has its own override."));
+        trackpadPanel.Children.Add(CreateMutedText("Defaults for paired-device pointer speed and highlighting. Device-specific overrides take precedence."));
         AddGlobalPointerSpeedSetting(trackpadPanel);
         AddGlobalPointerHighlightSetting(trackpadPanel);
 
@@ -280,6 +280,9 @@ public partial class MainWindow
             _openAppLaunchPreferences = false;
         }
 
+        var textDestinationPanel = AddPreferencesSection(panel, sections, "Text destination");
+        AddTextDestinationSettings(textDestinationPanel);
+
         var awakePanel = AddPreferencesSection(panel, sections, "Keep awake");
         var awakeSection = (Expander)panel.Children[^1];
         AddAwakeSettings(awakePanel);
@@ -294,7 +297,7 @@ public partial class MainWindow
         allowClientControl.Checked += (_, _) => AppClientControlSettings.SetEnabled(true);
         allowClientControl.Unchecked += (_, _) => AppClientControlSettings.SetEnabled(false);
         permissionsPanel.Children.Add(allowClientControl);
-        permissionsPanel.Children.Add(CreateMutedText("When this is off, paired devices can still control Windows, media, YouTube, Kodi, and other apps, but client-injected input is ignored while it would target this Voltura Air host window or tray menu. Native minimize, maximize, and close controls still work."));
+        permissionsPanel.Children.Add(CreateMutedText("When off, paired devices cannot inject input into Voltura Air itself. They can still control Windows and other permitted apps."));
         var sleep = CreateCheckBox("Allow paired devices to request PC sleep", globalPermissions.AllowPcSleep);
         var volume = CreateCheckBox("Allow paired devices to control volume", globalPermissions.AllowVolumeControl);
         var remoteLaunch = CreateCheckBox("Allow paired devices to start applications", globalPermissions.AllowRemoteAppLaunch);
@@ -326,7 +329,8 @@ public partial class MainWindow
         permissionsPanel.Children.Add(signOut);
         permissionsPanel.Children.Add(restart);
         permissionsPanel.Children.Add(shutdown);
-        permissionsPanel.Children.Add(CreateMutedText("Lock and blackout are enabled by default. The screen-saver permission appears when Windows has a screen saver configured. Display off, sign out, restart, and shut down require explicit host approval. Display off and session-ending actions require hold-to-confirm on the mobile device."));
+        permissionsPanel.Children.Add(CreateMutedText("Display off and session-ending actions require hold-to-confirm on the mobile device."));
+        permissionsPanel.Children.Add(CreateDetailsDisclosure("global permissions", "Lock and blackout are enabled by default. The screen-saver permission appears when Windows has a screen saver configured. Display off, sign out, restart, and shut down require explicit host approval."));
 
         var windowsLockingPanel = AddPreferencesSection(panel, sections, "Windows locking");
         AddWindowsLockPolicySetting(windowsLockingPanel);

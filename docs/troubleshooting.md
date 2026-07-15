@@ -117,7 +117,7 @@ protocol writer lock.
 
 ## Send text to PC fails or goes to the wrong place
 
-The current Send text destination is the Windows application that owns keyboard focus when delivery begins. Click the intended field, cell, document, or insertion point on the PC immediately before sending. Do not change focus until the mobile app reports success.
+Check **Preferences > Text destination** on the PC. The default is the Windows application that owns keyboard focus when delivery begins; click the intended field, cell, document, or insertion point immediately before sending. Clipboard mode intentionally copies only. Managed destinations make a new item and paste only after Voltura Air confirms that exact window is foreground and not elevated. If the mobile result says the text was copied, open the destination and paste manually; do not resend until you have checked the clipboard result.
 
 Voltura Air deliberately refuses focused-app text transfer while its own protected host window has focus. It also cannot inject text into the Windows lock screen, a UAC/secure desktop, or an elevated application when the host is running without the matching elevation level. The mobile draft is retained after failure so you can correct the destination and explicitly retry; check for partial text before retrying because Windows can reject an input sequence after accepting part of it.
 

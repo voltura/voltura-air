@@ -15,30 +15,18 @@ public sealed partial class WebHostService
         try
         {
             _ = _powerController.DismissBlackoutIfActive();
-            var outcome = _inputDispatcher.TransferText(
+            var outcome = await _textDestinationService.DeliverAsync(
                 GetString(root, "text"),
-                root.GetProperty("sendEnter").GetBoolean());
+                root.GetProperty("sendEnter").GetBoolean(), cancellationToken);
 
-            if (outcome == InputDispatchOutcome.Blocked)
-            {
-                LogCommandOutcome(clientId, "text.send", "text_transfer", "blocked");
-                await SendTextTransferResultAsync(
-                    socket,
-                    operationId,
-                    false,
-                    "VAIR-TEXT-HOST-FOCUSED",
-                    "Text was not sent because the Voltura Air host window has focus. Select the destination application and try again.",
-                    cancellationToken);
-                return;
-            }
-
-            LogCommandOutcome(clientId, "text.send", "text_transfer", "executed");
+            LogCommandOutcome(clientId, "text.send", "text_transfer", outcome.Succeeded ? outcome.Kind : "failed");
             await SendTextTransferResultAsync(
                 socket,
                 operationId,
-                true,
-                null,
-                "Text sent successfully.",
+                outcome.Succeeded,
+                outcome.Code,
+                outcome.Message,
+                outcome.Kind,
                 cancellationToken);
         }
         catch (Exception ex) when (ex is not WebSocketException and not OperationCanceledException and not ObjectDisposedException)
@@ -51,6 +39,7 @@ public sealed partial class WebHostService
                 false,
                 ex is InputDispatchException ? "VAIR-TEXT-NATIVE-SEND-FAILED" : "VAIR-TEXT-DELIVERY-FAILED",
                 "Windows did not accept the complete text. Check the destination before retrying.",
+                "typed",
                 cancellationToken);
         }
     }
@@ -61,6 +50,7 @@ public sealed partial class WebHostService
         bool succeeded,
         string? code,
         string message,
+        string deliveryKind,
         CancellationToken cancellationToken) =>
-        SendSocketAsync(socket, new { type = "text.send.result", operationId, succeeded, code, message }, cancellationToken);
+        SendSocketAsync(socket, new { type = "text.send.result", operationId, succeeded, code, message, deliveryKind }, cancellationToken);
 }

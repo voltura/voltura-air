@@ -106,6 +106,18 @@ describe("SettingsDrawer", () => {
     expect(updateRemoteSetting).toHaveBeenCalledExactlyOnceWith("navigationRing", false);
   });
 
+  it("uses compact connection help with details in an info dialog", () => {
+    render(<SettingsDrawer {...baseProps} />);
+
+    fireEvent.click(screen.getByText("Connection"));
+    expect(screen.getByText("Copy redacted troubleshooting details.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "About Connection diagnostics" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Connection diagnostics" });
+    expect(dialog.textContent).toContain("Pairing secrets, device tokens, and hashes are not included.");
+    expect(dialog.classList.contains("info-dialog-detailed")).toBe(true);
+  });
+
   it("updates grouped helper visibility settings", () => {
     const updateRemoteSetting = vi.fn();
     render(<SettingsDrawer {...baseProps} updateRemoteSetting={updateRemoteSetting} />);

@@ -38,6 +38,13 @@
   padding: 10px 12px;
 }
 
+.text-transfer-warning-with-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .text-transfer-feedback.success {
   border-color: var(--success);
 }

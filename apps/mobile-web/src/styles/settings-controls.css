@@ -40,9 +40,24 @@
   min-height: 30px;
   flex: 0 0 30px;
   border-radius: 999px;
+  border-color: transparent;
   color: var(--muted);
   background: transparent;
   padding: 0;
+}
+
+.info-button:focus,
+.info-button:focus-visible,
+.info-button:active {
+  outline: none;
+  border-color: transparent;
+  color: var(--muted);
+  background: transparent;
+  box-shadow: none;
+}
+
+.info-button:focus-visible {
+  color: var(--accent);
 }
 
 .info-button svg {
@@ -53,12 +68,24 @@
 .info-dialog {
   width: min(360px, calc(100vw - 32px));
   max-width: none;
+  max-height: calc(var(--app-viewport-height) - 32px);
+  overflow-y: auto;
   border: 1px solid var(--border);
   border-radius: 12px;
   color: var(--text);
   background: var(--surface);
   box-shadow: 0 18px 48px var(--drawer-shadow);
   padding: 20px;
+}
+
+.info-dialog-detailed {
+  display: flex;
+  flex-direction: column;
+  min-height: min(260px, calc(var(--app-viewport-height) - 32px));
+}
+
+.info-dialog-detailed .info-dialog-actions {
+  margin-top: auto;
 }
 
 .info-dialog::backdrop {
@@ -83,6 +110,11 @@
 
 .info-dialog-actions button {
   min-width: 88px;
+  border-color: var(--accent);
+}
+
+.info-dialog-actions button:focus-visible {
+  outline: none;
 }
 
 .live-typing-switch input {
@@ -300,6 +332,14 @@
 
 .install-card button {
   width: 100%;
+}
+
+.install-card .info-button {
+  width: 30px;
+}
+
+.install-card .info-dialog-actions button {
+  width: auto;
 }
 
 .danger-button {

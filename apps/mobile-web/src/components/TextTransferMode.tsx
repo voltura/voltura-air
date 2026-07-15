@@ -2,6 +2,7 @@ import { Keyboard, MousePointer2, Send } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { TextSendResultMessage, TextTransferTarget } from "../protocol";
 import { maxSnippetLength, type SavedTextSnippet } from "../textSnippets";
+import { InfoButton } from "./InfoButton";
 import { KeyboardInputModeButtons, type KeyboardInputMode } from "./KeyboardInputModeButtons";
 import { SavedTextSnippets } from "./text-transfer/SavedTextSnippets";
 
@@ -41,8 +42,25 @@ export function TextTransferMode(props: TextTransferModeProps) {
       ]
     : [
         { label: "Left", button: "left" as const },
-        { label: "Right", button: "right" as const }
-      ];
+      { label: "Right", button: "right" as const }
+    ];
+  const destinationGuidance = target.mode === "focused"
+    ? {
+        summary: "Destination follows the active PC window.",
+        title: "Focused destination",
+        description: "Changing focus on the PC before sending changes where the text goes."
+      }
+    : target.mode === "clipboard"
+      ? {
+          summary: "Text is copied for manual paste.",
+          title: "Windows clipboard",
+          description: "Voltura Air does not paste automatically. Open the destination on the PC and paste when ready."
+        }
+      : {
+          summary: "The PC creates a new item or draft.",
+          title: "Managed destination",
+          description: "Before pasting, Voltura Air verifies that the intended window is in the foreground. If it cannot confirm that, the text stays on the Windows clipboard for manual paste."
+        };
 
   useEffect(() => {
     if (!props.result?.succeeded || props.result.operationId !== pendingClearOperation.current) {
@@ -112,15 +130,14 @@ export function TextTransferMode(props: TextTransferModeProps) {
       <header className="tool-page-header">
         <div>
           <h1>Send text to PC</h1>
-          <p>{target.mode === "focused" ? "Text will be sent to the currently focused application." : `Text will be sent to ${target.displayName}.`}</p>
+          <p>{target.mode === "focused" ? "Text will be sent to the currently focused application." : target.mode === "clipboard" ? "Text will be copied to the Windows clipboard." : `Text will be sent to ${target.displayName}.`}</p>
         </div>
       </header>
 
-      {target.mode === "focused" ? (
-        <p className="text-transfer-warning">Changing focus on the PC before sending changes the destination.</p>
-      ) : (
-        <p className="text-transfer-warning">Text is sent to the active field, document, cell, or insertion point in the configured application.</p>
-      )}
+      <div className="text-transfer-warning text-transfer-warning-with-info">
+        <span>{destinationGuidance.summary}</span>
+        <InfoButton title={destinationGuidance.title} description={destinationGuidance.description} />
+      </div>
 
       <div className="text-transfer-editor">
         <label htmlFor="text-transfer-draft">Text to send</label>

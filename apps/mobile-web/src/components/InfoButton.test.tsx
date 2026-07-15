@@ -45,4 +45,12 @@ describe("InfoButton", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.activeElement).toBe(trigger);
   });
+
+  it("uses the taller dialog layout when requested", () => {
+    render(<InfoButton {...props} size="detailed" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "About Live typing" }));
+
+    expect(screen.getByRole("dialog", { name: "Live typing" }).classList.contains("info-dialog-detailed")).toBe(true);
+  });
 });

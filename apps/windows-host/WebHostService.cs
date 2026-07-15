@@ -25,6 +25,7 @@ public sealed partial class WebHostService : IAsyncDisposable
     private readonly ISystemAudioController _audioController;
     private readonly IRemoteActionExecutor _remoteActionExecutor;
     private readonly IAppLaunchService _appLaunchService;
+    private readonly ITextDestinationService _textDestinationService;
     private readonly ISystemPowerController _powerController;
     private readonly IAwakeService _awakeService;
     private readonly IWorkstationLockPolicy _workstationLockPolicy;
@@ -47,6 +48,7 @@ public sealed partial class WebHostService : IAsyncDisposable
         IWorkstationLockPolicy? workstationLockPolicy = null,
         IAppLog? appLog = null,
         IAppLaunchService? appLaunchService = null,
+        ITextDestinationService? textDestinationService = null,
         bool isolatedTestMode = false,
         Action<IWebHostBuilder>? configureWebHost = null)
     {
@@ -55,6 +57,7 @@ public sealed partial class WebHostService : IAsyncDisposable
         _audioController = audioController ?? new SystemAudioController();
         _remoteActionExecutor = remoteActionExecutor ?? new RemoteActionExecutor();
         _appLaunchService = appLaunchService ?? new AppLaunchService();
+        _textDestinationService = textDestinationService ?? new FocusedTextDestinationService(inputDispatcher);
         _powerController = powerController ?? (isolatedTestMode ? new NoOpSystemPowerController() : new SystemPowerController());
         _appLog = appLog ?? (isolatedTestMode ? NullAppLog.Instance : new AppLog());
         _awakeService = awakeService ?? (isolatedTestMode
@@ -69,6 +72,7 @@ public sealed partial class WebHostService : IAsyncDisposable
         AppDeveloperSettings.Changed += OnPermissionsChanged;
         AppRemoteSettings.Changed += OnPermissionsChanged;
         AppLaunchSettings.Changed += OnPermissionsChanged;
+        AppTextDestinationSettings.Changed += OnPermissionsChanged;
         AppPointerSettings.Changed += OnPermissionsChanged;
         _workstationLockPolicy.Changed += OnPermissionsChanged;
         _awakeService.StateChanged += OnAwakeStateChanged;
@@ -273,6 +277,7 @@ public sealed partial class WebHostService : IAsyncDisposable
         AppDeveloperSettings.Changed -= OnPermissionsChanged;
         AppRemoteSettings.Changed -= OnPermissionsChanged;
         AppLaunchSettings.Changed -= OnPermissionsChanged;
+        AppTextDestinationSettings.Changed -= OnPermissionsChanged;
         AppPointerSettings.Changed -= OnPermissionsChanged;
         _workstationLockPolicy.Changed -= OnPermissionsChanged;
         _awakeService.StateChanged -= OnAwakeStateChanged;
@@ -417,7 +422,7 @@ public sealed partial class WebHostService : IAsyncDisposable
             WebSocketUrl,
             AppRemoteSettings.ToProtocolId(AppRemoteSettings.GetDefaultRemoteMode()),
             CanLaunchRemoteApps(clientId) ? _appLaunchService.GetActions() : [],
-            new TextTransferTargetMetadata("focused", "Currently focused application", true),
+            _textDestinationService.GetMetadata() is var textDestination ? new TextTransferTargetMetadata(textDestination.Mode, textDestination.DisplayName, textDestination.Available) : new TextTransferTargetMetadata("focused", "Currently focused application", true),
             _pairingManager.GetDevicePointerSpeed(clientId),
             _pairingManager.GetDeviceHighlightPointer(clientId),
             developerMode,

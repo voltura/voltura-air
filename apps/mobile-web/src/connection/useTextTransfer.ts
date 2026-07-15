@@ -3,7 +3,9 @@ import type { ClientMessage, TextSendResultMessage } from "../protocol";
 import type { ConnectionState } from "./connectionTypes";
 import { createLocalId } from "../localId";
 
-const responseTimeoutMs = 10000;
+// Managed host destinations may use the full 8-second Windows startup budget;
+// leave room for window activation and the acknowledged WebSocket response.
+const responseTimeoutMs = 15000;
 const resultVisibilityMs = 5000;
 
 export function useTextTransfer(state: ConnectionState, send: (payload: ClientMessage) => void) {

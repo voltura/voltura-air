@@ -150,9 +150,12 @@ export function ConnectionSettingsSection({
       <div className="install-card">
         <div className="install-title">
           <Clipboard aria-hidden="true" />
-          <span>Diagnostics</span>
+          <span className="setting-label-with-info">
+            <span>Diagnostics</span>
+            <InfoButton title="Connection diagnostics" size="detailed" description="Copies redacted connection details for troubleshooting. Pairing secrets, device tokens, and hashes are not included." />
+          </span>
         </div>
-        <p>Copy redacted connection details for troubleshooting. Pairing secrets, device tokens, and hashes are not included.</p>
+        <p>Copy redacted troubleshooting details.</p>
         <button type="button" onClick={copyDiagnostics}>
           <Clipboard aria-hidden="true" />
           <span>Copy diagnostics</span>
@@ -173,9 +176,12 @@ export function ConnectionSettingsSection({
       <div className="install-card">
         <div className="install-title">
           <Power aria-hidden="true" />
-          <span>Add PC manually</span>
+          <span className="setting-label-with-info">
+            <span>Add PC manually</span>
+            <InfoButton title="Connect manually" size="detailed" description="Use this when the PC IP or port changed, or when a QR page was opened before the host changed network." />
+          </span>
         </div>
-        <p>Use this when the PC IP or port changed, or when a QR page was opened before the host changed network.</p>
+        <p>Connect using a host address or pairing link.</p>
         <form className="manual-pc-form" onSubmit={submitManualHost}>
           <label className="setting-group">
             <span>Host or pairing link</span>

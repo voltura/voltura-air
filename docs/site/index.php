@@ -108,7 +108,7 @@
         </article>
         <article>
           <h2>Send text to PC</h2>
-          <p>Compose or paste multiline text in a Keyboard-first editor with an ABC/123 selector, or switch it into a clean touchpad with handedness-aware Left/Right controls. Preserve line breaks, optionally append a final Enter, and keep reusable snippets in a folded local section. Windows confirms each complete delivery.</p>
+          <p>Compose or paste up to 4,096 characters in a Keyboard-first editor with an ABC/123 selector, or switch it into a clean touchpad with handedness-aware Left/Right controls. Send to the focused app by default, copy to the PC clipboard, or let the PC prepare a fresh item in Windows Notepad, Notepad++, Word, Visual Studio Code, Excel, or classic Outlook. The PC can instead create a text file in the Windows default text-file app or open a draft in the Windows default email client. Notepad++ receives a generated text draft directly, rather than relying on a new-document shortcut. Generated Notepad++, Word, Excel, and default-text-file drafts identify themselves and are removed after 24 hours by default unless you Save As; the notice gives the exact date and points to Preferences &gt; Text destination &gt; Keep generated draft files if the user needs to retain new drafts. Host Preferences can open Windows Default apps to configure the `.txt` or `MAILTO` handler. Voltura Air pastes only after confirming the intended non-elevated window is foreground; otherwise your text stays copied for manual paste.</p>
         </article>
         <article>
           <h2>Couch remote</h2>

@@ -32,6 +32,7 @@ export function PairingStatus({
   const [manualHost, setManualHost] = useState("");
   const [manualHostError, setManualHostError] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
+  const [copyToast, setCopyToast] = useState("");
   const [manualDiagnostics, setManualDiagnostics] = useState("");
 
   useEffect(() => {
@@ -44,13 +45,23 @@ export function PairingStatus({
     }
   }, [activePcUnavailable]);
 
+  useEffect(() => {
+    if (!copyToast) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => setCopyToast(""), 3000);
+    return () => window.clearTimeout(timeout);
+  }, [copyToast]);
+
   const copyDiagnostics = async () => {
+    setCopyToast("");
     setCopyStatus("");
     setManualDiagnostics("");
     const diagnosticsText = diagnostics ?? buildPairingDiagnostics(message, activePcUnavailable, feedback.diagnosticCode);
     const result = await copyTextToClipboard(diagnosticsText);
     if (result === "copied") {
-      setCopyStatus("Diagnostics copied.");
+      setCopyToast("Diagnostics copied.");
       return;
     }
 
@@ -171,6 +182,11 @@ export function PairingStatus({
           />
         )}
       </section>
+      {copyToast && (
+        <div className="app-toast success" role="status">
+          {copyToast}
+        </div>
+      )}
     </>
   );
 }

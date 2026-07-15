@@ -136,6 +136,12 @@ updated as the app structure, tooling, and release process become concrete.
 - GitHub CLI (`gh`) is available in the Codex shell. It is installed through
   WinGet and exposed to the current Codex environment through
   `%APPDATA%\npm\gh.cmd`.
+- Run `npm run code:statistics` to report the maintained mobile-client,
+  Windows-host, and NSIS installer source file and line counts, grouped by file
+  type, plus repository document, image, cursor asset, script, npm-command,
+  file-date, largest-file, and declared test counts. Pass `--report` to write
+  the same report as HTML in a temporary directory and open it in the default
+  browser.
 - The native cursor watchdog is compiled with the Visual Studio x64 C++ toolset.
   `scripts/build-cursor-watchdog.ps1` discovers it through `vswhere`; install the
   Desktop development with C++ workload when the toolset is absent.

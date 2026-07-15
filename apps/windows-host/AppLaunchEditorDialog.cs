@@ -54,7 +54,7 @@ internal sealed class AppLaunchEditorDialog : Window
         return new AppLaunchEditorDialog(owner, existing).ShowDialog() == true;
     }
 
-    private UIElement BuildContent()
+    private StackPanel BuildContent()
     {
         var root = new StackPanel { Margin = new Thickness(24) };
         root.Children.Add(new TextBlock

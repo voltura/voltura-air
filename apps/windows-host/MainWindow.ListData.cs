@@ -4,7 +4,7 @@ namespace VolturaAir.Host;
 
 public partial class MainWindow
 {
-    private IReadOnlyList<DeviceListItem> GetDeviceItems()
+    private DeviceListItem[] GetDeviceItems()
     {
         return _pairingManager.GetDevices()
             .Select(device => new DeviceListItem(
@@ -16,7 +16,7 @@ public partial class MainWindow
             .ToArray();
     }
 
-    private IReadOnlyList<CandidateListItem> GetCandidateItems(IReadOnlyList<LanAddressCandidate> candidates, LanAddressCandidate? selectedCandidate)
+    private static CandidateListItem[] GetCandidateItems(IReadOnlyList<LanAddressCandidate> candidates, LanAddressCandidate? selectedCandidate)
     {
         var recommended = candidates.OrderByDescending(candidate => candidate.Score).FirstOrDefault();
         return candidates.Select(candidate =>

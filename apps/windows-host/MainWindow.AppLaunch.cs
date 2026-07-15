@@ -45,13 +45,13 @@ public partial class MainWindow
 
         var add = CreateButton("Add custom button", (_, _) => OpenAppLaunchEditor(), primary: true);
         add.IsEnabled = configured.Count < AppLaunchSettings.MaxActions;
-        add.Margin = new Thickness(0, 8, 8, 0);
+        add.Margin = new Thickness(0, 8, 8, 12);
         add.HorizontalAlignment = System.Windows.HorizontalAlignment.Left;
         parent.Children.Add(add);
         parent.Children.Add(CreateMutedText("Custom buttons use a locally approved .exe and optional arguments; paths never leave this PC."));
     }
 
-    private UIElement CreateAppLaunchPresetHeader()
+    private Grid CreateAppLaunchPresetHeader()
     {
         var header = new Grid { Margin = new Thickness(0, 12, 0, 2) };
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
@@ -77,7 +77,7 @@ public partial class MainWindow
         return header;
     }
 
-    private UIElement CreateAppLaunchPresetRow(AppLaunchAction preset, AppLaunchAction? configured)
+    private Grid CreateAppLaunchPresetRow(AppLaunchAction preset, AppLaunchAction? configured)
     {
         var presetName = AppLaunchSettings.GetPresetName(preset.Kind);
         var row = new Grid { Margin = new Thickness(0, 4, 0, 6) };
@@ -116,7 +116,7 @@ public partial class MainWindow
         return row;
     }
 
-    private UIElement CreateAppLaunchRow(AppLaunchAction action)
+    private Border CreateAppLaunchRow(AppLaunchAction action)
     {
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });

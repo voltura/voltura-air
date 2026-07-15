@@ -225,7 +225,7 @@ internal static class LanAddressSelector
     }
 
     private static LanAddressSelectionResult? SelectManual(
-        IReadOnlyList<LanAddressCandidate> ordered,
+        LanAddressCandidate[] ordered,
         NetworkSettingsSnapshot settings)
     {
         var savedAdapterId = settings.ManualAdapterId?.Trim();
@@ -237,7 +237,7 @@ internal static class LanAddressSelector
                 var addressChanged = IPAddress.TryParse(settings.ManualHostAddress, out var manualAddress) && !adapterMatch.Address.Equals(manualAddress);
                 var warning = addressChanged
                     ? "Saved network adapter now uses a different IP address. Using the current adapter address."
-                    : BuildAdapterWarning(adapterMatch, ordered.Count);
+                    : BuildAdapterWarning(adapterMatch, ordered.Length);
 
                 return new LanAddressSelectionResult(adapterMatch.Address, adapterMatch, UsedManualAddress: true, warning);
             }
@@ -256,7 +256,7 @@ internal static class LanAddressSelector
                     manualCandidate.Address,
                     manualCandidate,
                     UsedManualAddress: true,
-                    Warning: BuildAdapterWarning(manualCandidate, ordered.Count));
+                    Warning: BuildAdapterWarning(manualCandidate, ordered.Length));
             }
 
             return SelectFallback(

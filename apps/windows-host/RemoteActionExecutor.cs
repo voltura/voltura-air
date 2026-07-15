@@ -40,7 +40,7 @@ public sealed partial class RemoteActionExecutor : IRemoteActionExecutor
 
         foreach (var browser in BrowserCandidates)
         {
-            if (!TryStartProcess(browser.ExecutableName, browser.BuildNewTabArguments(youtubeUrl)))
+            if (!TryStartProcess(browser.ExecutableName, BrowserCandidate.BuildNewTabArguments(youtubeUrl)))
             {
                 continue;
             }

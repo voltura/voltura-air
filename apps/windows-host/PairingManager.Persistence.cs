@@ -14,7 +14,7 @@ public sealed partial class PairingManager
         };
     }
 
-    private IReadOnlyList<PairedDeviceStatus> BuildDeviceStatuses()
+    private PairedDeviceStatus[] BuildDeviceStatuses()
     {
         return _records
             .Select(record =>
@@ -57,7 +57,7 @@ public sealed partial class PairingManager
             AllowShutdown: permissionOverrides?.AllowShutdown);
     }
 
-    private IReadOnlyList<PairedDeviceStatus> GetDuplicateCleanupCandidatesCore()
+    private PairedDeviceStatus[] GetDuplicateCleanupCandidatesCore()
     {
         return BuildDeviceStatuses()
             .GroupBy(device => device.DeviceName.Trim(), StringComparer.OrdinalIgnoreCase)

@@ -17,7 +17,7 @@ namespace VolturaAir.Host;
 
 public partial class MainWindow
 {
-    private UIElement BuildConnectPage()
+    private Grid BuildConnectPage()
     {
         var root = new Grid();
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -84,7 +84,7 @@ public partial class MainWindow
         return root;
     }
 
-    private UIElement BuildDevicesPage()
+    private Grid BuildDevicesPage()
     {
         var root = new Grid();
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -118,7 +118,7 @@ public partial class MainWindow
         return root;
     }
 
-    private UIElement BuildConnectionPage()
+    private Grid BuildConnectionPage()
     {
         var settings = AppNetworkSettings.Load();
         var candidates = LanAddressSelector.GetCandidates();
@@ -203,7 +203,7 @@ public partial class MainWindow
         return root;
     }
 
-    private UIElement BuildPreferencesPage()
+    private ScrollViewer BuildPreferencesPage()
     {
         _isLoadingPreferences = true;
         var root = new ScrollViewer

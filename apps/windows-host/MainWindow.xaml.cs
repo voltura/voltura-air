@@ -286,7 +286,7 @@ public partial class MainWindow : Window
         };
     }
 
-    private BitmapSource CreateQrSource(string url)
+    private static BitmapSource CreateQrSource(string url)
     {
         using var generator = new QRCodeGenerator();
         using var data = generator.CreateQrCode(url, QRCodeGenerator.ECCLevel.M);

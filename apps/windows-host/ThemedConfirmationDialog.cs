@@ -67,7 +67,7 @@ public sealed class ThemedConfirmationDialog : Window
         return dialog.ShowDialog() == true;
     }
 
-    private UIElement CreateContent(string title, string message, string confirmText, string cancelText)
+    private Grid CreateContent(string title, string message, string confirmText, string cancelText)
     {
         var root = new Grid
         {

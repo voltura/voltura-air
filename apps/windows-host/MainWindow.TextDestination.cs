@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using Brush = System.Windows.Media.Brush;
 using ComboBox = System.Windows.Controls.ComboBox;
 using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
@@ -82,7 +83,7 @@ public partial class MainWindow
         var draftRetention = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 0, 0, 12)
+            Margin = new Thickness(0, 12, 0, 12)
         };
         draftRetention.Children.Add(keepDraftFiles);
         var openDraftFolder = CreateButton("Open generated drafts folder", (_, _) =>
@@ -96,19 +97,30 @@ public partial class MainWindow
         var draftRetentionNotice = CreateMutedText("Generated drafts contain the sent text. They are removed after 24 hours unless you keep them.");
         managedSettings.Children.Add(draftRetentionNotice);
 
-        var details = new StackPanel { Visibility = Visibility.Collapsed };
+        var details = new StackPanel();
         details.Children.Add(CreateMutedText("Managed destinations create a new item when possible. Before pasting, Voltura Air confirms that the intended, non-elevated window is in the foreground. If it cannot confirm that, the text stays on the Windows clipboard for manual paste."));
         details.Children.Add(CreateMutedText("Approved executable paths apply only to the selected app and never leave this PC. Word, Excel, Notepad++, and New text file drafts are stored in %LOCALAPPDATA%\\Voltura Air\\Text destination drafts. Default text-file and email destinations use Windows' .txt and MAILTO associations."));
+        var detailsCard = new Border
+        {
+            Background = (Brush)Resources["SurfaceBrush"],
+            BorderBrush = (Brush)Resources["BorderBrush"],
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(12),
+            Margin = new Thickness(0, 8, 0, 12),
+            Visibility = Visibility.Collapsed,
+            Child = details
+        };
         var moreDetails = CreateButton("More about text destinations", (_, _) => { });
         moreDetails.Click += (_, _) =>
         {
-            var showDetails = details.Visibility != Visibility.Visible;
-            details.Visibility = showDetails ? Visibility.Visible : Visibility.Collapsed;
+            var showDetails = detailsCard.Visibility != Visibility.Visible;
+            detailsCard.Visibility = showDetails ? Visibility.Visible : Visibility.Collapsed;
             moreDetails.Content = showDetails ? "Hide text destination details" : "More about text destinations";
         };
         moreDetails.HorizontalAlignment = HorizontalAlignment.Left;
         managedSettings.Children.Add(moreDetails);
-        managedSettings.Children.Add(details);
+        managedSettings.Children.Add(detailsCard);
 
         void UpdateManagedDestinationUi()
         {

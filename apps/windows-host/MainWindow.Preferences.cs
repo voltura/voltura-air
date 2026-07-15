@@ -101,7 +101,7 @@ public partial class MainWindow
         }
     }
 
-    private StackPanel AddPreferencesSection(StackPanel parent, ICollection<Expander> sections, string title)
+    private StackPanel AddPreferencesSection(StackPanel parent, List<Expander> sections, string title)
     {
         var content = new StackPanel();
         var expander = new Expander
@@ -120,10 +120,29 @@ public partial class MainWindow
                     section.IsExpanded = false;
                 }
             }
+
+            SetPreferencesTitle(title);
+        };
+        expander.Collapsed += (_, _) =>
+        {
+            if (sections.All(section => !section.IsExpanded))
+            {
+                SetPreferencesTitle(null);
+            }
         };
         sections.Add(expander);
         parent.Children.Add(expander);
         return content;
+    }
+
+    private void SetPreferencesTitle(string? sectionTitle)
+    {
+        if (_activePage == HostPage.Preferences)
+        {
+            PageTitleText.Text = string.IsNullOrWhiteSpace(sectionTitle)
+                ? "Preferences"
+                : $"Preferences > {sectionTitle}";
+        }
     }
 
     private void EnableOrTestWindowsLocking(bool enablePolicy)

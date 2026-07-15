@@ -11,7 +11,7 @@ namespace VolturaAir.Host;
 
 public partial class MainWindow
 {
-    private UIElement CreateApplicationLogViewer()
+    private Grid CreateApplicationLogViewer()
     {
         var root = new Grid { Margin = new Thickness(0, 4, 0, 0) };
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -46,7 +46,18 @@ public partial class MainWindow
         controls.Children.Add(filters);
 
         var status = CreateMutedText(string.Empty);
-        controls.Children.Add(status);
+        status.Margin = new Thickness(0);
+        var statusCard = new Border
+        {
+            Background = (Brush)Resources["SurfaceBrush"],
+            BorderBrush = (Brush)Resources["BorderBrush"],
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(12),
+            Margin = new Thickness(0, 0, 0, 12),
+            Child = status
+        };
+        controls.Children.Add(statusCard);
         root.Children.Add(controls);
         var logRows = new StackPanel();
         var logScroller = new ScrollViewer
@@ -309,7 +320,7 @@ public partial class MainWindow
         return root;
     }
 
-    private ComboBox CreateLogFilter(params (string Label, string? Value)[] options)
+    private static ComboBox CreateLogFilter(params (string Label, string? Value)[] options)
     {
         var combo = new ComboBox { Width = 170 };
         combo.SetResourceReference(FrameworkElement.StyleProperty, "ModernComboBoxStyle");
@@ -395,7 +406,7 @@ public partial class MainWindow
         return string.Join(" | ", fields);
     }
 
-    private static void AddLogField(ICollection<string> fields, string name, string? value)
+    private static void AddLogField(List<string> fields, string name, string? value)
     {
         if (!string.IsNullOrWhiteSpace(value))
         {

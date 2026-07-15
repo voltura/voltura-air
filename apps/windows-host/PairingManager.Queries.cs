@@ -86,7 +86,7 @@ public sealed partial class PairingManager
     {
         lock (_gate)
         {
-            return GetDuplicateCleanupCandidatesCore().ToArray();
+            return GetDuplicateCleanupCandidatesCore();
         }
     }
 

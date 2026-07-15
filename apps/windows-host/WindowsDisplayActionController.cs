@@ -279,7 +279,7 @@ internal sealed class WindowsDisplayActionController : IWindowsDisplayActionCont
         return desktop?.GetValue(valueName, null, RegistryValueOptions.DoNotExpandEnvironmentNames) as string;
     }
 
-    private static IReadOnlyList<MonitorRect> GetMonitorRects()
+    private static List<MonitorRect> GetMonitorRects()
     {
         var monitors = new List<MonitorRect>();
         _ = EnumDisplayMonitors(nint.Zero, nint.Zero, (monitor, _, _, _) =>

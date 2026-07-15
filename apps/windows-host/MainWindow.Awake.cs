@@ -65,10 +65,6 @@ public partial class MainWindow
         parent.Children.Add(keepScreenOn);
         parent.Children.Add(CreateMutedText("Keeping the screen on uses more power and can delay normal idle behavior; paired devices cannot change this host setting."));
 
-        var status = CreateMutedText(BuildAwakeStatus(state));
-        status.Margin = new Thickness(0, 10, 0, 0);
-        parent.Children.Add(status);
-
         void UpdateModePanels()
         {
             var selected = mode.SelectedItem is ComboBoxItem item && item.Tag is AwakeMode selectedMode
@@ -161,15 +157,4 @@ public partial class MainWindow
         Foreground = (System.Windows.Media.Brush)Resources["TextBrush"]
     };
 
-    private static string BuildAwakeStatus(AwakeState state)
-    {
-        return state.Mode switch
-        {
-            AwakeMode.Off => "Status: using the selected Windows power plan.",
-            AwakeMode.Indefinite => "Status: keeping the PC awake indefinitely.",
-            AwakeMode.Timed when state.ExpiresAt is { } expires => $"Status: keeping the PC awake until {expires.LocalDateTime:g}.",
-            AwakeMode.Expiration when state.ExpiresAt is { } expires => $"Status: keeping the PC awake until {expires.LocalDateTime:g}.",
-            _ => "Status: using the selected Windows power plan."
-        };
-    }
 }

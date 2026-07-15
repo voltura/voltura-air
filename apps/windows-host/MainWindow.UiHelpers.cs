@@ -38,7 +38,7 @@ public partial class MainWindow
         return list;
     }
 
-    private UIElement CreateDeviceListRow(DeviceListItem device)
+    private Border CreateDeviceListRow(DeviceListItem device)
     {
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 180 });
@@ -74,7 +74,7 @@ public partial class MainWindow
         }
     }
 
-    private UIElement CreateCandidateListRow(CandidateListItem candidate)
+    private Border CreateCandidateListRow(CandidateListItem candidate)
     {
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2.5, GridUnitType.Star) });
@@ -87,23 +87,74 @@ public partial class MainWindow
         return CreateListRowShell(grid);
     }
 
-    private UIElement CreateDiagnosticRow(DiagnosticItem detail)
+    private Border CreateDiagnosticRow(DiagnosticItem detail)
     {
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        grid.Children.Add(CreateListCell("Name", detail.Name, 0, strong: true));
-        grid.Children.Add(CreateListCell("Value", detail.Value, 1, monospace: true));
-        var copy = CreateButton("Copy", (_, _) => CopyToClipboard(detail.Value, "Copied"));
-        copy.Margin = new Thickness(12, 8, 0, 8);
+        grid.Children.Add(CreateDiagnosticCell(detail.Name, 0, strong: true));
+        grid.Children.Add(CreateDiagnosticCell(detail.Value, 1, monospace: true));
+        var copy = CreateButton("Copy", (_, _) => CopyToClipboard($"{detail.Name}: {detail.Value}", "Copied"));
+        copy.Margin = new Thickness(12, 4, 0, 4);
         Grid.SetColumn(copy, 2);
         grid.Children.Add(copy);
-        return CreateListRowShell(grid);
+        return new Border
+        {
+            Background = (Brush)Resources["SurfaceBrush"],
+            BorderBrush = (Brush)Resources["BorderBrush"],
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(10, 8, 10, 8),
+            Margin = new Thickness(0, 0, 0, 8),
+            Child = grid
+        };
     }
 
-    private UIElement CreateListCell(string label, string value, int column, bool strong = false, bool monospace = false, bool trim = false)
+    private Grid CreateDiagnosticsHeaderRow()
+    {
+        var grid = new Grid { Margin = new Thickness(10, 0, 10, 6) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        grid.Children.Add(CreateDiagnosticsColumnHeader("Name", 0));
+        grid.Children.Add(CreateDiagnosticsColumnHeader("Value", 1));
+        return grid;
+    }
+
+    private TextBlock CreateDiagnosticsColumnHeader(string text, int column)
+    {
+        var header = new TextBlock
+        {
+            Text = text,
+            FontSize = 11,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = (Brush)Resources["MutedTextBrush"],
+            Margin = new Thickness(0, 0, 14, 0)
+        };
+        Grid.SetColumn(header, column);
+        return header;
+    }
+
+    private TextBlock CreateDiagnosticCell(string value, int column, bool strong = false, bool monospace = false)
+    {
+        var cell = new TextBlock
+        {
+            Text = value,
+            Margin = new Thickness(0, 4, 14, 4),
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 13,
+            FontWeight = strong ? FontWeights.Bold : FontWeights.Normal,
+            FontFamily = monospace ? new FontFamily("Cascadia Mono, Consolas") : SystemFonts.MessageFontFamily,
+            Foreground = (Brush)Resources["TextBrush"]
+        };
+        Grid.SetColumn(cell, column);
+        return cell;
+    }
+
+    private StackPanel CreateListCell(string label, string value, int column, bool strong = false, bool monospace = false, bool trim = false)
     {
         var stack = new StackPanel { Margin = new Thickness(0, 0, 14, 0) };
         stack.Children.Add(new TextBlock
@@ -130,7 +181,7 @@ public partial class MainWindow
         return stack;
     }
 
-    private UIElement CreateListRowShell(UIElement content)
+    private Border CreateListRowShell(UIElement content)
     {
         return new Border
         {
@@ -153,7 +204,7 @@ public partial class MainWindow
         };
     }
 
-    private StackPanel CreateSegmentRow(params ToggleButton[] buttons)
+    private static StackPanel CreateSegmentRow(params ToggleButton[] buttons)
     {
         var row = new StackPanel
         {
@@ -229,26 +280,38 @@ public partial class MainWindow
         };
     }
 
-    private UIElement CreateDetailsDisclosure(string topic, params string[] paragraphs)
+    private StackPanel CreateDetailsDisclosure(string topic, params string[] paragraphs)
     {
-        var details = new StackPanel { Visibility = Visibility.Collapsed };
+        var details = new StackPanel();
         foreach (var paragraph in paragraphs)
         {
             details.Children.Add(CreateMutedText(paragraph));
         }
 
+        var detailsCard = new Border
+        {
+            Background = (Brush)Resources["SurfaceBrush"],
+            BorderBrush = (Brush)Resources["BorderBrush"],
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(12),
+            Margin = new Thickness(0, 8, 0, 12),
+            Visibility = Visibility.Collapsed,
+            Child = details
+        };
+
         var toggle = CreateButton($"More about {topic}", (_, _) => { });
         toggle.Click += (_, _) =>
         {
-            var showDetails = details.Visibility != Visibility.Visible;
-            details.Visibility = showDetails ? Visibility.Visible : Visibility.Collapsed;
+            var showDetails = detailsCard.Visibility != Visibility.Visible;
+            detailsCard.Visibility = showDetails ? Visibility.Visible : Visibility.Collapsed;
             toggle.Content = showDetails ? $"Hide {topic} details" : $"More about {topic}";
         };
         toggle.HorizontalAlignment = HorizontalAlignment.Left;
 
         var container = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
         container.Children.Add(toggle);
-        container.Children.Add(details);
+        container.Children.Add(detailsCard);
         return container;
     }
 

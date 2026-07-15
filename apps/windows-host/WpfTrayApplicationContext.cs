@@ -21,7 +21,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
     private readonly IAwakeService _awakeService;
     private readonly Forms.NotifyIcon _trayIcon;
     private readonly Forms.ContextMenuStrip _trayMenu = new();
-    private readonly IReadOnlyDictionary<TrayConnectionState, Icon> _trayIcons;
+    private readonly Dictionary<TrayConnectionState, Icon> _trayIcons;
     private Forms.ToolStripMenuItem _awakeOffItem = null!;
     private Forms.ToolStripMenuItem _awakeTimedItem = null!;
     private Forms.ToolStripMenuItem _awakeExpirationItem = null!;
@@ -417,7 +417,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         }
     }
 
-    private static IReadOnlyDictionary<TrayConnectionState, Icon> LoadTrayIcons()
+    private static Dictionary<TrayConnectionState, Icon> LoadTrayIcons()
     {
         var normal = LoadTrayIcon(DefaultTrayIconFileName);
         return new Dictionary<TrayConnectionState, Icon>

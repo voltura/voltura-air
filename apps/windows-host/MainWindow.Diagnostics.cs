@@ -16,7 +16,7 @@ public partial class MainWindow
     {
         return
         [
-            new("Voltura Air host version", AppVersion.Display),
+            new("Voltura Air version", AppVersion.Display),
             new("Voltura Air web client version", "copy mobile diagnostics for web client version"),
             new("PC name", Environment.MachineName),
             new("Selected adapter", _webHost.SelectedAdapterName),
@@ -106,7 +106,7 @@ public partial class MainWindow
         return value;
     }
 
-    private UIElement BuildDiagnosticsPage()
+    private Grid BuildDiagnosticsPage()
     {
         var root = new Grid();
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -125,18 +125,32 @@ public partial class MainWindow
 
         void ShowApplicationLog()
         {
+            SetDiagnosticsTitle("Application log");
             viewContent.Content = CreateApplicationLogViewer();
         }
 
         applicationLogButton.Click += (_, _) => ShowApplicationLog();
-        systemDetailsButton.Click += (_, _) => viewContent.Content = BuildSystemDiagnosticsView();
+        systemDetailsButton.Click += (_, _) =>
+        {
+            SetDiagnosticsTitle("System details");
+            viewContent.Content = BuildSystemDiagnosticsView();
+        };
         ShowApplicationLog();
         return root;
     }
 
-    private UIElement BuildSystemDiagnosticsView()
+    private void SetDiagnosticsTitle(string viewTitle)
+    {
+        if (_activePage == HostPage.Diagnostics)
+        {
+            PageTitleText.Text = $"Diagnostics > {viewTitle}";
+        }
+    }
+
+    private Grid BuildSystemDiagnosticsView()
     {
         var root = new Grid();
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
@@ -146,16 +160,20 @@ public partial class MainWindow
             rows.Children.Add(CreateDiagnosticRow(detail));
         }
 
-        root.Children.Add(new ScrollViewer
+        root.Children.Add(CreateDiagnosticsHeaderRow());
+
+        var scroller = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             Content = rows
-        });
+        };
+        Grid.SetRow(scroller, 1);
+        root.Children.Add(scroller);
 
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 16, 0, 0) };
         actions.Children.Add(CreateButton("Copy diagnostics", (_, _) => CopyToClipboard(BuildDiagnosticsText(), "Diagnostics copied"), primary: true));
         actions.Children.Add(CreateButton("Open product page", (_, _) => OpenProductSite()));
-        Grid.SetRow(actions, 1);
+        Grid.SetRow(actions, 2);
         root.Children.Add(actions);
         return root;
     }

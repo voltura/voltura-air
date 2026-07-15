@@ -400,7 +400,7 @@ public sealed partial class RemoteActionExecutor
 
     private sealed record BrowserCandidate(string ProcessName, string ExecutableName)
     {
-        public string BuildNewTabArguments(string url)
+        public static string BuildNewTabArguments(string url)
         {
             return $"--new-tab --start-fullscreen {QuoteProcessArgument(url)}";
         }

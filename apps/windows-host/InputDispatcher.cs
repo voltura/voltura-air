@@ -181,7 +181,7 @@ public sealed class InputDispatcher
         return message.TryGetProperty(propertyName, out var value) ? value.GetString() ?? string.Empty : string.Empty;
     }
 
-    private static IReadOnlyList<string> GetModifiers(JsonElement message)
+    private static string[] GetModifiers(JsonElement message)
     {
         if (!message.TryGetProperty("modifiers", out var modifiers) || modifiers.ValueKind != JsonValueKind.Array)
         {

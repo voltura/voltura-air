@@ -58,7 +58,7 @@ public sealed partial class PairingManager
         string[] removedClientIds;
         lock (_gate)
         {
-            var candidates = GetDuplicateCleanupCandidatesCore().ToArray();
+            var candidates = GetDuplicateCleanupCandidatesCore();
             if (candidates.Length == 0)
             {
                 return 0;

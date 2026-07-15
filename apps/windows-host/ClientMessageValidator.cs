@@ -17,7 +17,6 @@ internal static class ClientMessageValidator
     private const int MaxDeviceNameLength = 120;
     private const int MaxCredentialLength = 512;
     private const int MaxMetadataLength = 80;
-    private const int MaxTextLength = 4096;
     private const int MaxKeyLength = 80;
     private const int MaxModifierLength = 40;
     private const int MaxModifierCount = 8;
@@ -88,8 +87,10 @@ internal static class ClientMessageValidator
                 IsValidAppLaunchActionId(actionId),
             "text.send" => TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var operationId) &&
                 IsValidOperationId(operationId) &&
-                TryGetRequiredString(root, "text", MaxTextLength, allowEmpty: false, out _) &&
+                TryGetRequiredString(root, "text", TextTransferLimits.MaxTextLength, allowEmpty: false, out _) &&
                 root.TryGetProperty("sendEnter", out var sendEnter) && sendEnter.ValueKind is JsonValueKind.True or JsonValueKind.False,
+            "clipboard.get" => TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var clipboardOperationId) &&
+                IsValidOperationId(clipboardOperationId),
             "audio.mute.toggle" => true,
             "audio.volume.set" => TryGetNumber(root, "volume", 0, 100, out _),
             "pointer.move" => HasValidOptionalSequence(root) &&
@@ -102,7 +103,7 @@ internal static class ClientMessageValidator
                 TryGetNumber(root, "dx", -MaxPointerDelta, MaxPointerDelta, out _) &&
                 TryGetNumber(root, "dy", -MaxPointerDelta, MaxPointerDelta, out _),
             "pointer.zoom" => HasValidOptionalSequence(root) && TryGetOneOf(root, "direction", "in", "out"),
-            "keyboard.text" => HasValidOptionalSequence(root) && TryGetRequiredString(root, "text", MaxTextLength, allowEmpty: true, out _),
+            "keyboard.text" => HasValidOptionalSequence(root) && TryGetRequiredString(root, "text", TextTransferLimits.MaxTextLength, allowEmpty: true, out _),
             "keyboard.special" => HasValidOptionalSequence(root) &&
                 TryGetRequiredString(root, "key", MaxKeyLength, allowEmpty: false, out _) &&
                 TryGetOptionalStringArray(root, "modifiers", MaxModifierCount, MaxModifierLength),

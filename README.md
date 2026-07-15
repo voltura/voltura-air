@@ -13,7 +13,7 @@ Scan the QR code from a phone, tablet, or browser-capable device on the same net
 ## What you can do
 
 - Use a trackpad, keyboard, dictation, media remote, and app controls from your phone or tablet.
-- Send or paste multiline text to the focused Windows app, copy it to the PC clipboard, or create a new document in a configured app.
+- Send or paste multiline text to the focused Windows app, copy it to the PC clipboard, create a new document in a configured app, or explicitly fetch the PC clipboard into selectable web-app text when the host permits it.
 - Control YouTube, Kodi, browser tabs, presentation controls, and common Windows window actions.
 - Lock the PC, blackout displays, or use approved power controls with deliberate confirmation for destructive actions.
 - Choose per-device permissions and pointer speed, plus a host-wide Custom pointer for the Windows desktop.
@@ -256,9 +256,10 @@ Attach a debugger to the `VolturaAir.Host.exe` process if you need breakpoints w
 
 See [docs/setup.md](docs/setup.md), [docs/release.md](docs/release.md), [docs/protocol.md](docs/protocol.md), [docs/pairing-feedback.md](docs/pairing-feedback.md), and [docs/manual-network-selection.md](docs/manual-network-selection.md) for details.
 
+
 ## Statistics
 
-[![Visitors](https://estruyf-github.azurewebsites.net/api/VisitorHit?user=volturaf&repo=voltura-air&countColor=%235690f2)](https://github.com/voltura/voltura-air)
+[![Visitors](https://hits.sh/github.com/voltura/voltura-air.svg?style=flat&label=visitors&labelColor=555&color=5690f2&extraCount=19)](https://hits.sh/github.com/voltura/voltura-air/)
 [![Code size](https://img.shields.io/github/languages/code-size/voltura/voltura-air)](https://github.com/voltura/voltura-air)
 [![Stars](https://img.shields.io/github/stars/voltura/voltura-air)](https://github.com/voltura/voltura-air/stargazers)
 [![Forks](https://img.shields.io/github/forks/voltura/voltura-air)](https://github.com/voltura/voltura-air/forks)

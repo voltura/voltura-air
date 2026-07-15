@@ -50,6 +50,7 @@ public sealed partial class PairingManager
             AllowDisplayOff: permissionOverrides?.AllowDisplayOff,
             AllowScreenSaver: permissionOverrides?.AllowScreenSaver,
             AllowAwakeControl: permissionOverrides?.AllowAwakeControl,
+            AllowClipboardRead: permissionOverrides?.AllowClipboardRead,
             AllowSignOut: permissionOverrides?.AllowSignOut,
             AllowRestart: permissionOverrides?.AllowRestart,
             AllowShutdown: permissionOverrides?.AllowShutdown);

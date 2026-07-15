@@ -194,6 +194,7 @@ The adapter name can reveal local hardware/vendor details, so it should only be 
 `remoteLaunch` is an authenticated capability. When `true`, the host allows this paired device to trigger the fixed host-defined launch actions documented below and exposes its approved configurable buttons through `host.appLaunchActions`. The host does not expose the configured YouTube URL, executable paths, or arguments through this metadata.
 `appLaunchActions` is an authenticated array of `{ id, label, kind }` summaries. It is empty when the effective **Allow paired devices to start applications** permission is disabled. `id` is an opaque host-owned identifier; clients must not derive a path or command from it. `label` is the host-managed 1–10 character button label. `kind` is one of `browser`, `spotify`, `vlc`, `powerpoint`, or `custom` and is presentation metadata only.
 `textTransfer` is an authenticated capability. When `true`, the client may use the host-acknowledged `text.send` operation described below. `host.textTransferTarget` contains only `{ mode, displayName, available }`, where `mode` is `focused`, `clipboard`, or `configured`. Executable paths, process identifiers, window handles, matching rules, and clipboard contents are never included.
+`clipboardRead` is an authenticated capability emitted by hosts that support explicit PC clipboard reading. `true` means the effective **Read PC clipboard** permission allows this paired device; `false` means the host blocks the operation. Older hosts omit the capability.
 `pointerSpeed` is the effective pointer speed for the authenticated paired device: the host default unless that device has an override. It is included only on authenticated `pair.accepted` and `status` messages. When the Windows host profile changes, the host may push the same lightweight `status` message to active sockets; the mobile app does not add a polling loop, timer, or extra battery cost for pointer-speed sync.
 `customPointerEnabled` is the host-wide Custom pointer state. It is not a paired-device preference: changing it affects the whole Windows desktop.
 `inputBlockedByElevation` is `true` only while Windows reports that a higher-integrity foreground application is active. The host pushes the existing authenticated `status` message when this state changes; the official client shows a recovery dialog and can send the existing Win+D shortcut, which the host routes to the Windows shell's minimize-all operation instead of through `SendInput`.
@@ -404,7 +405,7 @@ shape violation and closes the authenticated socket. Custom `.exe` paths and
 arguments are approved, stored, validated, and executed only by the Windows
 host; they are excluded from protocol metadata and application logs.
 
-Text transfer uses a separate acknowledged operation so the client can distinguish complete delivery from ordinary input-health acknowledgements. `operationId` is a client-generated UUID, `text` must contain 1–4,096 UTF-16 code units, and `sendEnter` is required. The default focused destination sends to the application that owns keyboard focus and does not change the Windows clipboard. Clipboard mode copies only. A host-configured managed destination either creates a fresh self-identifying draft or stages text on the Windows clipboard. Paste-driven destinations paste only after the exact intended window is foreground and not elevated above the host; otherwise they report clipboard-only success. The host never reads or synchronizes either device clipboard.
+Text transfer uses a separate acknowledged operation so the client can distinguish complete delivery from ordinary input-health acknowledgements. `operationId` is a client-generated UUID, `text` must contain 1–4,096 UTF-16 code units, and `sendEnter` is required. The default focused destination sends to the application that owns keyboard focus and does not change the Windows clipboard. Clipboard mode copies only. A host-configured managed destination either creates a fresh self-identifying draft or stages text on the Windows clipboard. Paste-driven destinations paste only after the exact intended window is foreground and not elevated above the host; otherwise they report clipboard-only success. The host never synchronizes either device clipboard.
 
 ```json
 {
@@ -429,6 +430,27 @@ The host preserves multiline text by translating LF, CRLF, and CR line breaks in
 ```
 
 `deliveryKind` is `typed`, `pasted`, or `clipboard`. Current failure codes are `VAIR-TEXT-HOST-FOCUSED`, `VAIR-TEXT-NATIVE-SEND-FAILED`, `VAIR-TEXT-CLIPBOARD-FAILED`, and `VAIR-TEXT-DELIVERY-FAILED`. The mobile client can also produce `VAIR-TEXT-RESPONSE-TIMEOUT` when no matching result arrives. Delivery failures keep the authenticated socket open.
+
+## Explicit PC clipboard read
+
+`clipboard.get` is the only protocol operation that reads PC clipboard text. The client must generate `operationId`; the host reads only after the paired device's effective **Read PC clipboard** permission allows it. It returns at most 4,096 UTF-16 code units, does not alter the PC clipboard, and does not write to the device/browser clipboard. The web app displays the result for manual selection and copying.
+
+```json
+{ "type": "clipboard.get", "operationId": "820c1314-d8a1-499d-a969-6520f681baea" }
+```
+
+```json
+{
+  "type": "clipboard.get.result",
+  "operationId": "820c1314-d8a1-499d-a969-6520f681baea",
+  "succeeded": true,
+  "code": null,
+  "message": "Text fetched from the PC clipboard.",
+  "text": "Example PC clipboard text"
+}
+```
+
+When permission is blocked, no clipboard read occurs and the host returns `VAIR-CLIPBOARD-PERMISSION-DENIED`. Other expected failures are `VAIR-CLIPBOARD-NO-TEXT`, `VAIR-CLIPBOARD-TEXT-TOO-LONG`, and `VAIR-CLIPBOARD-UNAVAILABLE`.
 
 Input delivery acknowledgement:
 

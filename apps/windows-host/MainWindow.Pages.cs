@@ -258,7 +258,6 @@ public partial class MainWindow
 
         var customPointerPanel = AddPreferencesSection(panel, sections, "Custom pointer");
         AddCustomPointerSetting(customPointerPanel);
-        AddCustomPointerSetting(trackpadPanel);
 
         var remotePanel = AddPreferencesSection(panel, sections, "Remote defaults");
         remotePanel.Children.Add(CreateMutedText("Choose the initial Remote mode for newly connected phones. Mobile settings can still override this per PC."));
@@ -309,11 +308,12 @@ public partial class MainWindow
         var displayOff = CreateCheckBox("Allow paired devices to turn off displays", globalPermissions.AllowDisplayOff);
         var screenSaver = CreateCheckBox("Allow paired devices to start the screen saver", globalPermissions.AllowScreenSaver);
         var awakeControl = CreateCheckBox("Allow paired devices to control Keep awake", globalPermissions.AllowAwakeControl);
+        var clipboardRead = CreateCheckBox("Allow paired devices to read the PC clipboard", globalPermissions.AllowClipboardRead);
         var signOut = CreateCheckBox("Allow paired devices to sign out", globalPermissions.AllowSignOut);
         var restart = CreateCheckBox("Allow paired devices to restart the PC", globalPermissions.AllowRestart);
         var shutdown = CreateCheckBox("Allow paired devices to shut down the PC", globalPermissions.AllowShutdown);
-        void SavePermissions() => SaveGlobalPermissions(sleep, volume, remoteLaunch, pcLock, blackoutDisplay, displayOff, screenSaver, awakeControl, signOut, restart, shutdown);
-        foreach (var permission in new[] { sleep, volume, remoteLaunch, pcLock, blackoutDisplay, displayOff, screenSaver, awakeControl, signOut, restart, shutdown })
+        void SavePermissions() => SaveGlobalPermissions(sleep, volume, remoteLaunch, pcLock, blackoutDisplay, displayOff, screenSaver, awakeControl, clipboardRead, signOut, restart, shutdown);
+        foreach (var permission in new[] { sleep, volume, remoteLaunch, pcLock, blackoutDisplay, displayOff, screenSaver, awakeControl, clipboardRead, signOut, restart, shutdown })
         {
             permission.Checked += (_, _) => SavePermissions();
             permission.Unchecked += (_, _) => SavePermissions();
@@ -329,11 +329,12 @@ public partial class MainWindow
             permissionsPanel.Children.Add(screenSaver);
         }
         permissionsPanel.Children.Add(awakeControl);
+        permissionsPanel.Children.Add(clipboardRead);
         permissionsPanel.Children.Add(signOut);
         permissionsPanel.Children.Add(restart);
         permissionsPanel.Children.Add(shutdown);
         permissionsPanel.Children.Add(CreateMutedText("Display off and session-ending actions require hold-to-confirm on the mobile device."));
-        permissionsPanel.Children.Add(CreateDetailsDisclosure("global permissions", "Lock and blackout are enabled by default. The screen-saver permission appears when Windows has a screen saver configured. Display off, sign out, restart, and shut down require explicit host approval."));
+        permissionsPanel.Children.Add(CreateDetailsDisclosure("global permissions", "Lock and blackout are enabled by default. The screen-saver permission appears when Windows has a screen saver configured. Reading the PC clipboard, display off, sign out, restart, and shut down require explicit host approval."));
 
         var windowsLockingPanel = AddPreferencesSection(panel, sections, "Windows locking");
         AddWindowsLockPolicySetting(windowsLockingPanel);

@@ -2,8 +2,59 @@ using VolturaAir.Host;
 
 namespace VolturaAir.Host.Tests;
 
+[Collection(AppPermissionSettingsCollection.Name)]
 public sealed class WebHostTextTransferTests : WebHostServiceTestBase
 {
+    [Fact]
+    public async Task FetchesBoundedClipboardTextOnlyForAnExplicitlyAllowedDevice()
+    {
+        var originalPermissions = AppPermissionSettings.Load();
+        var clipboard = new FakeClipboardTextReader(new ClipboardTextReadResult(true, "Copied from PC", null, "Text fetched from the PC clipboard."));
+
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowClipboardRead = true });
+            await using var fixture = await WebHostFixture.StartAsync(clipboardTextReader: clipboard);
+            using var socket = await ConnectAsync(fixture.WebHost);
+            var paired = await SendAndReceiveAsync(socket, new { type = "pair.hello", clientId = $"client-{Guid.NewGuid():N}", deviceName = "Phone", pairToken = fixture.Manager.CreatePairingToken() });
+            var result = await SendAndReceiveAsync(socket, new { type = "clipboard.get", operationId = "clipboard-read" });
+
+            Assert.True(paired.GetProperty("capabilities").GetProperty("clipboardRead").GetBoolean());
+            Assert.True(result.GetProperty("succeeded").GetBoolean());
+            Assert.Equal("Copied from PC", result.GetProperty("text").GetString());
+            Assert.Equal(1, clipboard.ReadCount);
+        }
+        finally
+        {
+            AppPermissionSettings.Save(originalPermissions);
+        }
+    }
+
+    [Fact]
+    public async Task RejectsClipboardReadWhenHostPermissionIsOffWithoutReadingClipboard()
+    {
+        var originalPermissions = AppPermissionSettings.Load();
+        var clipboard = new FakeClipboardTextReader(new ClipboardTextReadResult(true, "Private text", null, "Text fetched from the PC clipboard."));
+
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowClipboardRead = false });
+            await using var fixture = await WebHostFixture.StartAsync(clipboardTextReader: clipboard);
+            using var socket = await ConnectAsync(fixture.WebHost);
+            var paired = await SendAndReceiveAsync(socket, new { type = "pair.hello", clientId = $"client-{Guid.NewGuid():N}", deviceName = "Phone", pairToken = fixture.Manager.CreatePairingToken() });
+            var result = await SendAndReceiveAsync(socket, new { type = "clipboard.get", operationId = "clipboard-blocked" });
+
+            Assert.False(paired.GetProperty("capabilities").GetProperty("clipboardRead").GetBoolean());
+            Assert.False(result.GetProperty("succeeded").GetBoolean());
+            Assert.Equal("VAIR-CLIPBOARD-PERMISSION-DENIED", result.GetProperty("code").GetString());
+            Assert.Equal(0, clipboard.ReadCount);
+        }
+        finally
+        {
+            AppPermissionSettings.Save(originalPermissions);
+        }
+    }
+
     [Fact]
     public async Task ReportsConfiguredClipboardFallbackWithoutExposingHostDetails()
     {

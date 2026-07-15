@@ -24,6 +24,7 @@ import { useAwakeControl } from "./connection/useAwakeControl";
 import { usePowerControl } from "./connection/usePowerControl";
 import { useAppLaunch } from "./connection/useAppLaunch";
 import { useTextTransfer } from "./connection/useTextTransfer";
+import { useClipboardRead } from "./connection/useClipboardRead";
 import { requestHostState, trySendClientMessage } from "./connection/connectionSocketMessages";
 import { getNextHealthCheckDelay, hasExpiredInputAck, staleConnectionMs } from "./connection/connectionHealthPolicy";
 
@@ -67,7 +68,7 @@ export function useVolturaAirConnection() {
   const pendingInputAcksRef = useRef<Map<number, number>>(new Map());
   const pendingMovementAckRef = useRef<PendingMovementAck | null>(null);
   const {
-    audioState, awakeCapability, clearRuntimeState, hostStatus, powerCapabilities, setAudioState,
+    audioState, awakeCapability, clipboardReadPermission, clearRuntimeState, hostStatus, powerCapabilities, setAudioState,
     setHostStatus, supportsGestureDebug, supportsInputAckRef, supportsRemoteLaunch, supportsSleep, supportsTextTransfer,
     supportsVolumeControl, supportsVolumeControlRef, updateCapabilities, updateHostStatus
   } = useConnectionRuntimeState(pendingInputAcksRef, pendingMovementAckRef);
@@ -79,6 +80,7 @@ export function useVolturaAirConnection() {
   const { completePowerAction, pendingPowerAction, powerActionResult, requestPowerAction } = usePowerControl(state, send);
   const { appLaunchResult, completeAppLaunch, pendingAppLaunchId, requestAppLaunch } = useAppLaunch(state, send);
   const { completeTextTransfer, pendingTextTransfer, requestTextTransfer, textTransferResult } = useTextTransfer(state, send);
+  const { clipboardReadResult, clipboardText, completeClipboardRead, pendingClipboardRead, requestClipboardRead, setClipboardText } = useClipboardRead(state, send);
   useConnectionPersistence({
     activePcId,
     clientId,
@@ -467,6 +469,16 @@ export function useVolturaAirConnection() {
           return;
         }
 
+        if (response.type === "clipboard.get.result") {
+          touchHealthy();
+          completeClipboardRead(response);
+          setLastConnectionError(response.succeeded
+            ? null
+            : { code: response.code ?? "VAIR-CLIPBOARD-READ-FAILED", message: response.message });
+          scheduleHealthCheck(ws);
+          return;
+        }
+
         if (response.type === "audio.state") {
           touchHealthy();
           if (supportsVolumeControlRef.current) {
@@ -555,7 +567,7 @@ export function useVolturaAirConnection() {
     setPairingAttempt, setState, socketRef, state
   });
 
-  return { state, message, send, requestAudioState, requestPowerAction, requestAwakeChange, requestAppLaunch, requestTextTransfer, pendingTextTransfer, textTransferResult, pendingAppLaunchId, appLaunchResult, pendingPowerAction, powerActionResult, pendingAwakeChange, awakeResult, clientId, deviceName, activePc, pairedPcs, audioState, awakeCapability, powerCapabilities, supportsGestureDebug, supportsSleep, supportsVolumeControl, supportsRemoteLaunch, supportsTextTransfer, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, beginNewPairing, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice, setHostCustomPointer, setHostPointerSpeed };
+  return { state, message, send, requestAudioState, requestPowerAction, requestAwakeChange, requestAppLaunch, requestTextTransfer, requestClipboardRead, pendingTextTransfer, pendingClipboardRead, textTransferResult, clipboardReadResult, clipboardText, setClipboardText, clipboardReadPermission, pendingAppLaunchId, appLaunchResult, pendingPowerAction, powerActionResult, pendingAwakeChange, awakeResult, clientId, deviceName, activePc, pairedPcs, audioState, awakeCapability, powerCapabilities, supportsGestureDebug, supportsSleep, supportsVolumeControl, supportsRemoteLaunch, supportsTextTransfer, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, beginNewPairing, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice, setHostCustomPointer, setHostPointerSpeed };
 }
 
 

@@ -9,6 +9,7 @@ public sealed record HostPermissionSet(
     bool AllowDisplayOff = false,
     bool AllowScreenSaver = true,
     bool AllowAwakeControl = false,
+    bool AllowClipboardRead = false,
     bool AllowSignOut = false,
     bool AllowRestart = false,
     bool AllowShutdown = false);
@@ -22,6 +23,7 @@ public sealed record DevicePermissionOverrides(
     bool? AllowDisplayOff = null,
     bool? AllowScreenSaver = null,
     bool? AllowAwakeControl = null,
+    bool? AllowClipboardRead = null,
     bool? AllowSignOut = null,
     bool? AllowRestart = null,
     bool? AllowShutdown = null);
@@ -37,6 +39,7 @@ public static class HostPermissions
         AllowDisplayOff: false,
         AllowScreenSaver: true,
         AllowAwakeControl: false,
+        AllowClipboardRead: false,
         AllowSignOut: false,
         AllowRestart: false,
         AllowShutdown: false);
@@ -52,6 +55,7 @@ public static class HostPermissions
             AllowDisplayOff: deviceOverrides?.AllowDisplayOff ?? global.AllowDisplayOff,
             AllowScreenSaver: deviceOverrides?.AllowScreenSaver ?? global.AllowScreenSaver,
             AllowAwakeControl: deviceOverrides?.AllowAwakeControl ?? global.AllowAwakeControl,
+            AllowClipboardRead: deviceOverrides?.AllowClipboardRead ?? global.AllowClipboardRead,
             AllowSignOut: deviceOverrides?.AllowSignOut ?? global.AllowSignOut,
             AllowRestart: deviceOverrides?.AllowRestart ?? global.AllowRestart,
             AllowShutdown: deviceOverrides?.AllowShutdown ?? global.AllowShutdown);

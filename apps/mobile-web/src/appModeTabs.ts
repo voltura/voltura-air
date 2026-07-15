@@ -1,7 +1,7 @@
-import { Keyboard, Mic, MousePointer2, Send, Tv } from "lucide-react";
+import { ClipboardPaste, Keyboard, Mic, MousePointer2, Send, Tv } from "lucide-react";
 
 export type PrimaryAppTab = "trackpad" | "keyboard" | "remote";
-export type ToolAppTab = "dictation" | "text-transfer";
+export type ToolAppTab = "dictation" | "text-transfer" | "clipboard-read";
 export type FourthMode = ToolAppTab;
 export type AppTab = PrimaryAppTab | ToolAppTab | "debug";
 export type MainAppTab = Exclude<AppTab, "debug">;
@@ -21,7 +21,8 @@ export const primaryModeDefinitions: ModeDefinition[] = [
 
 export const toolModeDefinitions: Record<ToolAppTab, ModeDefinition> = {
   dictation: { id: "dictation", label: "Dictate", ariaLabel: "Dictation", Icon: Mic },
-  "text-transfer": { id: "text-transfer", label: "Send text", ariaLabel: "Send text to PC", Icon: Send }
+  "text-transfer": { id: "text-transfer", label: "Send text", ariaLabel: "Send text to PC", Icon: Send },
+  "clipboard-read": { id: "clipboard-read", label: "Get text", ariaLabel: "Get text from PC", Icon: ClipboardPaste }
 };
 
 export function getModeTabs(fourthMode: FourthMode): ModeDefinition[] {

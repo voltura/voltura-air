@@ -182,6 +182,8 @@ export const hasVolumeCapability = (capabilities: ServerCapabilities | undefined
 export const hasInputAckCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.inputAck === true;
 export const hasRemoteLaunchCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.remoteLaunch === true;
 export const hasTextTransferCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.textTransfer === true;
+export const getClipboardReadPermission = (capabilities: ServerCapabilities | undefined): boolean | undefined =>
+  typeof capabilities?.clipboardRead === "boolean" ? capabilities.clipboardRead : undefined;
 export const hasGestureDebugCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.gestureDebug === true;
 
 export function shouldTrackInputAck(payload: ClientMessage, now: number, lastMovementAckAt: number): payload is ClientInputMessage {

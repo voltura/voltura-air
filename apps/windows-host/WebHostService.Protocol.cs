@@ -208,6 +208,12 @@ public sealed partial class WebHostService
                     continue;
                 }
 
+                if (type == "clipboard.get")
+                {
+                    await HandleClipboardReadAsync(socket, authenticatedClientId, GetString(root, "operationId"), cancellationToken);
+                    continue;
+                }
+
                 if (IsAudioMessage(root))
                 {
                     var action = type == "audio.mute.toggle" ? "toggle_mute" : "set_volume";
@@ -481,6 +487,7 @@ public sealed partial class WebHostService
             volume = CanControlVolume(clientId),
             remoteLaunch = CanLaunchRemoteApps(clientId),
             textTransfer = true,
+            clipboardRead = CanReadClipboard(clientId),
             gestureDebug = AppDeveloperSettings.EnableGestureDebug(),
             inputAck = true
         };
@@ -528,6 +535,11 @@ public sealed partial class WebHostService
     private static string GetString(JsonElement root, string propertyName)
     {
         return root.TryGetProperty(propertyName, out var value) ? value.GetString() ?? string.Empty : string.Empty;
+    }
+
+    private bool CanReadClipboard(string clientId)
+    {
+        return _pairingManager.GetEffectivePermissions(clientId, AppPermissionSettings.Load()).AllowClipboardRead;
     }
 
     private Task HandleAppLaunchAsync(WebSocket socket, string clientId, string actionId, CancellationToken cancellationToken)

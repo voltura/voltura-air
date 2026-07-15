@@ -103,7 +103,8 @@ public abstract class WebHostServiceTestBase
             IRemoteActionExecutor? remoteActionExecutor = null,
             IAppLaunchService? appLaunchService = null,
             IAppLog? appLog = null,
-            ITextDestinationService? textDestinationService = null)
+            ITextDestinationService? textDestinationService = null,
+            IClipboardTextReader? clipboardTextReader = null)
         {
             var store = new TempPairingStore();
             var inputInjector = new FakeInputInjector();
@@ -117,6 +118,7 @@ public abstract class WebHostServiceTestBase
                 appLog: appLog,
                 appLaunchService: appLaunchService,
                 textDestinationService: textDestinationService,
+                clipboardTextReader: clipboardTextReader,
                 isolatedTestMode: true,
                 configureWebHost: builder => builder.UseTestServer());
             await webHost.StartAsync();
@@ -140,6 +142,17 @@ public abstract class WebHostServiceTestBase
         {
             Deliveries.Add((text, sendEnter));
             return Task.FromResult(result);
+        }
+    }
+
+    protected sealed class FakeClipboardTextReader(ClipboardTextReadResult result) : IClipboardTextReader
+    {
+        public int ReadCount { get; private set; }
+
+        public ClipboardTextReadResult ReadText()
+        {
+            ReadCount++;
+            return result;
         }
     }
 

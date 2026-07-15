@@ -4,6 +4,7 @@ import {
   getPowerCapabilities,
   getAwakeCapability,
   hasGestureDebugCapability,
+  getClipboardReadPermission,
   hasInputAckCapability,
   hasRemoteLaunchCapability,
   hasSleepCapability,
@@ -24,6 +25,7 @@ export function useConnectionRuntimeState(
   const [supportsVolumeControl, setSupportsVolumeControl] = useState(false);
   const [supportsRemoteLaunch, setSupportsRemoteLaunch] = useState(false);
   const [supportsTextTransfer, setSupportsTextTransfer] = useState(false);
+  const [clipboardReadPermission, setClipboardReadPermission] = useState<boolean | undefined>(undefined);
   const [powerCapabilities, setPowerCapabilities] = useState<PowerCapabilities | null>(null);
   const [hostStatus, setHostStatus] = useState<HostStatusMetadata | null>(null);
   const supportsVolumeControlRef = useRef(false);
@@ -39,6 +41,7 @@ export function useConnectionRuntimeState(
     setSupportsVolumeControl(false);
     setSupportsRemoteLaunch(false);
     setSupportsTextTransfer(false);
+    setClipboardReadPermission(undefined);
     setPowerCapabilities(null);
     setHostStatus(null);
     supportsVolumeControlRef.current = false;
@@ -53,6 +56,7 @@ export function useConnectionRuntimeState(
     setSupportsVolumeControl(nextSupportsVolumeControl);
     setSupportsRemoteLaunch(connected && hasRemoteLaunchCapability(capabilities));
     setSupportsTextTransfer(connected && hasTextTransferCapability(capabilities));
+    setClipboardReadPermission(connected ? getClipboardReadPermission(capabilities) : undefined);
     setPowerCapabilities(connected ? getPowerCapabilities(capabilities) : null);
     setAwakeCapability(connected ? getAwakeCapability(capabilities) : null);
     supportsVolumeControlRef.current = nextSupportsVolumeControl;
@@ -76,6 +80,7 @@ export function useConnectionRuntimeState(
   return {
     audioState,
     awakeCapability,
+    clipboardReadPermission,
     clearRuntimeState,
     hostStatus,
     powerCapabilities,

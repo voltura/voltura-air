@@ -344,6 +344,7 @@ public partial class MainWindow : Window
         DisplayOff,
         ScreenSaver,
         AwakeControl,
+        ClipboardRead,
         SignOut,
         Restart,
         Shutdown

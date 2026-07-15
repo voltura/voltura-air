@@ -16,12 +16,7 @@ Prioritize reliability, usability, trust, and visible user value. Manual and rea
 
 ## 3. Text, clipboard, and link transfers
 
-### 3.2 Clipboard expansion beyond text destinations
-
-- [ ] Investigate PC-to-phone clipboard reading behind explicit host permission.
-- [ ] Consider an optional clipboard synchronization mode only if it can remain predictable and secure.
-
-### 3.3 Open URL on PC
+### 3.2 Open URL on PC
 
 - [ ] Add Open URL on PC.
 - [ ] Validate and normalize URLs before opening them.

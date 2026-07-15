@@ -486,6 +486,7 @@ public partial class MainWindow
         CheckBox displayOff,
         CheckBox screenSaver,
         CheckBox awakeControl,
+        CheckBox clipboardRead,
         CheckBox signOut,
         CheckBox restart,
         CheckBox shutdown)
@@ -504,6 +505,7 @@ public partial class MainWindow
             AllowDisplayOff: displayOff.IsChecked == true,
             AllowScreenSaver: screenSaver.IsChecked == true,
             AllowAwakeControl: awakeControl.IsChecked == true,
+            AllowClipboardRead: clipboardRead.IsChecked == true,
             AllowSignOut: signOut.IsChecked == true,
             AllowRestart: restart.IsChecked == true,
             AllowShutdown: shutdown.IsChecked == true));

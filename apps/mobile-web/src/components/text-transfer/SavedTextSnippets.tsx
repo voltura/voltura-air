@@ -15,6 +15,7 @@ import { useSnippetReorder } from "./useSnippetReorder";
 type SavedTextSnippetsProps = {
   clientId: string;
   draft: string;
+  initiallyOpen?: boolean;
   onLoadSnippet: (snippet: SavedTextSnippet) => void;
 };
 
@@ -22,7 +23,7 @@ function snippetNamesMatch(first: string, second: string): boolean {
   return normalizeSnippetName(first).toLocaleLowerCase() === normalizeSnippetName(second).toLocaleLowerCase();
 }
 
-export function SavedTextSnippets({ clientId, draft, onLoadSnippet }: SavedTextSnippetsProps) {
+export function SavedTextSnippets({ clientId, draft, initiallyOpen, onLoadSnippet }: SavedTextSnippetsProps) {
   const [snippets, setSnippets] = useState(() => loadTextSnippets(clientId));
   const [snippetName, setSnippetName] = useState("");
   const [snippetAction, setSnippetAction] = useState<SnippetAction | null>(null);
@@ -80,7 +81,7 @@ export function SavedTextSnippets({ clientId, draft, onLoadSnippet }: SavedTextS
 
   return (
     <>
-      <details className="saved-snippets">
+      <details className="saved-snippets" open={initiallyOpen || undefined}>
         <summary className="saved-snippets-heading">
           <div>
             <h2 id="saved-snippets-title">Saved snippets</h2>

@@ -26,6 +26,7 @@ public sealed partial class WebHostService : IAsyncDisposable
     private readonly IRemoteActionExecutor _remoteActionExecutor;
     private readonly IAppLaunchService _appLaunchService;
     private readonly ITextDestinationService _textDestinationService;
+    private readonly IClipboardTextReader _clipboardTextReader;
     private readonly ISystemPowerController _powerController;
     private readonly IAwakeService _awakeService;
     private readonly IWorkstationLockPolicy _workstationLockPolicy;
@@ -50,6 +51,7 @@ public sealed partial class WebHostService : IAsyncDisposable
         IAppLog? appLog = null,
         IAppLaunchService? appLaunchService = null,
         ITextDestinationService? textDestinationService = null,
+        IClipboardTextReader? clipboardTextReader = null,
         Action<CustomPointerSettings>? applyCustomPointer = null,
         bool isolatedTestMode = false,
         Action<IWebHostBuilder>? configureWebHost = null)
@@ -60,6 +62,7 @@ public sealed partial class WebHostService : IAsyncDisposable
         _remoteActionExecutor = remoteActionExecutor ?? new RemoteActionExecutor();
         _appLaunchService = appLaunchService ?? new AppLaunchService();
         _textDestinationService = textDestinationService ?? new FocusedTextDestinationService(inputDispatcher);
+        _clipboardTextReader = clipboardTextReader ?? new WindowsClipboardTextReader();
         _powerController = powerController ?? (isolatedTestMode ? new NoOpSystemPowerController() : new SystemPowerController());
         _appLog = appLog ?? (isolatedTestMode ? NullAppLog.Instance : new AppLog());
         _awakeService = awakeService ?? (isolatedTestMode

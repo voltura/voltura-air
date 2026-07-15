@@ -1,13 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, Circle, Menu, MousePointer2 } from "lucide-react";
-import { DictationMode } from "./components/DictationMode";
-import { GestureDebugMode } from "./components/GestureDebugMode";
-import { KeyboardMode } from "./components/KeyboardMode";
+import { AppModeContent } from "./components/AppModeContent";
 import { PairingStatus } from "./components/PairingStatus";
-import { RemoteMode } from "./components/RemoteMode";
 import { SettingsDrawer } from "./components/SettingsDrawer";
-import { TrackpadMode } from "./components/TrackpadMode";
-import { TextTransferMode } from "./components/TextTransferMode";
 import type { AppSettings } from "./appSettings";
 import { clearAppSettings, clearRemoteSettings, clearTrackpadSettings, loadThemeMode, resolveTheme, saveThemeMode, type ThemeMode } from "./appStorage";
 import type { TrackpadSettings } from "./gestures";
@@ -40,8 +35,14 @@ export function App() {
     requestAwakeChange,
     requestAppLaunch,
     requestTextTransfer,
+    requestClipboardRead,
     pendingTextTransfer,
+    pendingClipboardRead,
     textTransferResult,
+    clipboardReadResult,
+    clipboardText,
+    setClipboardText,
+    clipboardReadPermission,
     pendingAppLaunchId,
     appLaunchResult,
     pendingPowerAction,
@@ -288,84 +289,6 @@ export function App() {
     forgetPc(pcId);
   };
 
-  const renderTrackpadMode = () => (
-    <TrackpadMode
-      audioState={displayedAudioState}
-      isExpanded={isTrackpadExpanded}
-      onMouseButtonDown={(button) => {
-        triggerHapticFeedback(effectiveTrackpadSettings);
-        emit({ type: "pointer.button", button, action: "down" });
-      }}
-      onMouseButtonUp={(button) => {
-        emit({ type: "pointer.button", button, action: "up" });
-      }}
-      onSetVolume={setVolume}
-      onToggleExpanded={() => setIsTrackpadExpanded((current) => !current)}
-      onToggleMute={toggleMute}
-      onTouchCancel={onTouchCancel}
-      onTouchEnd={onTouchEnd}
-      onTouchMove={onTouchMove}
-      onTouchStart={onTouchStart}
-      supportsVolumeControl={supportsVolumeControl}
-      trackpadSettings={effectiveTrackpadSettings}
-    />
-  );
-
-  const renderKeyboardMode = () => (
-    <KeyboardMode
-      committedKeyboardTextRef={committedKeyboardTextRef}
-      isComposingRef={isComposingRef}
-      keyboardText={keyboardText}
-      keyboardTextareaRef={keyboardTextareaRef}
-      liveKeyboard={liveKeyboard}
-      onKeyboardTextChange={onKeyboardTextChange}
-      onSleep={sleepPc}
-      onPasteToPc={(text) => requestTextTransfer(text)}
-      pasteToPcPending={pendingTextTransfer}
-      placeLiveKeyboardCaret={placeLiveKeyboardCaret}
-      sendEmptyDelete={sendEmptyDelete}
-      sendSpecial={sendSpecial}
-      sendText={sendText}
-      setKeyboardText={setKeyboardText}
-      setLiveTyping={setLiveTyping}
-      showArrowKeys={keyboardSettings.showArrowKeys}
-      showControlKeys={keyboardSettings.showControlKeys}
-      showFunctionKeys={keyboardSettings.showFunctionKeys}
-      showPasteToPcButton={keyboardSettings.showPasteToPcButton && supportsTextTransfer}
-      showSleepButton={keyboardSettings.showSleepButton && supportsSleep}
-      toLiveKeyboardValue={toLiveKeyboardValue}
-    />
-  );
-
-  const renderRemoteMode = () => (
-    <RemoteMode
-      appLaunchActions={hostStatus?.appLaunchActions ?? []}
-      audioState={displayedAudioState}
-      awakeControl={{ awake: awakeCapability, awakeResult, onAwakeChange: requestAwakeChange, pendingAwakeChange }}
-      onPointerButtonClick={(button) => emit({ type: "pointer.button", button, action: "click" })}
-      onPointerMove={(dx, dy) => emit({ type: "pointer.move", dx, dy })}
-      onPowerAction={requestPowerAction}
-      onAppLaunch={requestAppLaunch}
-      pendingAppLaunchId={pendingAppLaunchId}
-      pendingPowerAction={pendingPowerAction}
-      powerActionResult={powerActionResult}
-      powerCapabilities={powerCapabilities}
-      remoteSettings={remoteSettings}
-      sendSpecial={sendSpecial}
-    />
-  );
-
-  const renderSplitMode = () => (
-    <div className={`split-mode-shell split-trackpad-${trackpadSettings.splitTrackpadPlacement}`}>
-      <div className="split-keyboard-pane" aria-label="Split keyboard panel">
-        {renderKeyboardMode()}
-      </div>
-      <div className="split-trackpad-pane" aria-label="Split trackpad panel">
-        {renderTrackpadMode()}
-      </div>
-    </div>
-  );
-
   const mobileDiagnostics = useMemo(() => buildMobileDiagnostics({
     activePc,
     connectionState: state,
@@ -406,7 +329,7 @@ export function App() {
   };
 
   return (
-    <main className={`app-shell ${canShowModeNavigation ? "has-mode-navigation" : ""} ${tab === "trackpad" ? "trackpad-active" : ""} ${tab === "remote" ? "remote-active" : ""} ${tab === "text-transfer" ? "text-transfer-active" : ""} ${shouldShowSplitMode ? "split-mode-active" : ""} ${shouldShowSplitMode && trackpadSettings.splitShowModeButtons ? "split-show-mode-buttons" : ""} ${shouldShowSplitMode && trackpadSettings.splitShowStatusRow ? "split-show-status-row" : ""} ${areModeTabsCollapsed ? "mode-tabs-collapsed" : ""} ${isModeSelectorOpen ? "mode-selector-open" : ""}`}>
+    <main className={`app-shell ${canShowModeNavigation ? "has-mode-navigation" : ""} ${tab === "trackpad" ? "trackpad-active" : ""} ${tab === "remote" ? "remote-active" : ""} ${tab === "text-transfer" ? "text-transfer-active" : ""} ${tab === "clipboard-read" ? "clipboard-read-active" : ""} ${shouldShowSplitMode ? "split-mode-active" : ""} ${shouldShowSplitMode && trackpadSettings.splitShowModeButtons ? "split-show-mode-buttons" : ""} ${shouldShowSplitMode && trackpadSettings.splitShowStatusRow ? "split-show-status-row" : ""} ${areModeTabsCollapsed ? "mode-tabs-collapsed" : ""} ${isModeSelectorOpen ? "mode-selector-open" : ""}`}>
       <header className="top-bar">
         <div className="brand-group">
           <button className="icon-button" type="button" aria-label="Open menu" onClick={() => setIsSettingsOpen(true)}>
@@ -525,45 +448,96 @@ export function App() {
 
       {canShowModeNavigation && <ModeTabs className="tabs top-mode-tabs" modeTabs={modeTabs} tab={tab} selectModeTab={selectModeTab} />}
 
-      {(tab === "trackpad" || tab === "keyboard") &&
-        (shouldShowSplitMode ? renderSplitMode() : tab === "trackpad" ? renderTrackpadMode() : renderKeyboardMode())}
-
-      {tab === "remote" && renderRemoteMode()}
-
-      {tab === "dictation" && (
-        <DictationMode
-          canUseSpeech={canUseSpeech}
-          dictationText={dictationText}
-          isListening={isListening}
-          sendText={sendText}
-          setDictationText={setDictationText}
-          startSpeech={startSpeech}
-          stopSpeech={stopSpeech}
-        />
-      )}
-
-      {tab === "text-transfer" && (
-        <TextTransferMode
-          clearAfterSending={appSettings.clearTextAfterSending}
-          clientId={clientId}
-          draft={textTransferDraft}
-          leftHandedButtons={effectiveTrackpadSettings.leftHandedButtons}
-          onClearAfterSendingChange={(value) => updateAppSetting("clearTextAfterSending", value)}
-          onDraftChange={setTextTransferDraft}
-          onPointerButtonClick={(button) => emit({ type: "pointer.button", button, action: "click" })}
-          onTouchCancel={onTouchCancel}
-          onTouchEnd={onTouchEnd}
-          onTouchMove={onTouchMove}
-          onTouchStart={onTouchStart}
-          pending={pendingTextTransfer}
-          requestTextTransfer={requestTextTransfer}
-          result={textTransferResult}
-          supported={supportsTextTransfer}
-          target={hostStatus?.textTransferTarget}
-        />
-      )}
-
-      {supportsGestureDebug && tab === "debug" && <GestureDebugMode trackpadSettings={effectiveTrackpadSettings} />}
+      <AppModeContent
+        tab={tab}
+        shouldShowSplitMode={shouldShowSplitMode}
+        supportsGestureDebug={supportsGestureDebug}
+        trackpadMode={{
+          audioState: displayedAudioState,
+          isExpanded: isTrackpadExpanded,
+          onMouseButtonDown: (button) => {
+            triggerHapticFeedback(effectiveTrackpadSettings);
+            emit({ type: "pointer.button", button, action: "down" });
+          },
+          onMouseButtonUp: (button) => emit({ type: "pointer.button", button, action: "up" }),
+          onSetVolume: setVolume,
+          onToggleExpanded: () => setIsTrackpadExpanded((current) => !current),
+          onToggleMute: toggleMute,
+          onTouchCancel,
+          onTouchEnd,
+          onTouchMove,
+          onTouchStart,
+          supportsVolumeControl,
+          trackpadSettings: effectiveTrackpadSettings
+        }}
+        keyboardMode={{
+          committedKeyboardTextRef,
+          isComposingRef,
+          keyboardText,
+          keyboardTextareaRef,
+          liveKeyboard,
+          onKeyboardTextChange,
+          onSleep: sleepPc,
+          onPasteToPc: requestTextTransfer,
+          pasteToPcPending: pendingTextTransfer,
+          placeLiveKeyboardCaret,
+          sendEmptyDelete,
+          sendSpecial,
+          sendText,
+          setKeyboardText,
+          setLiveTyping,
+          showArrowKeys: keyboardSettings.showArrowKeys,
+          showControlKeys: keyboardSettings.showControlKeys,
+          showFunctionKeys: keyboardSettings.showFunctionKeys,
+          showPasteToPcButton: keyboardSettings.showPasteToPcButton && supportsTextTransfer,
+          showSleepButton: keyboardSettings.showSleepButton && supportsSleep,
+          toLiveKeyboardValue
+        }}
+        remoteMode={{
+          appLaunchActions: hostStatus?.appLaunchActions ?? [],
+          audioState: displayedAudioState,
+          awakeControl: { awake: awakeCapability, awakeResult, onAwakeChange: requestAwakeChange, pendingAwakeChange },
+          onPointerButtonClick: (button) => emit({ type: "pointer.button", button, action: "click" }),
+          onPointerMove: (dx, dy) => emit({ type: "pointer.move", dx, dy }),
+          onPowerAction: requestPowerAction,
+          onAppLaunch: requestAppLaunch,
+          pendingAppLaunchId,
+          pendingPowerAction,
+          powerActionResult,
+          powerCapabilities,
+          remoteSettings,
+          sendSpecial
+        }}
+        dictationMode={{ canUseSpeech, dictationText, isListening, sendText, setDictationText, startSpeech, stopSpeech }}
+        textTransferMode={{
+          clearAfterSending: appSettings.clearTextAfterSending,
+          clientId,
+          draft: textTransferDraft,
+          leftHandedButtons: effectiveTrackpadSettings.leftHandedButtons,
+          onClearAfterSendingChange: (value) => updateAppSetting("clearTextAfterSending", value),
+          onDraftChange: setTextTransferDraft,
+          onPointerButtonClick: (button) => emit({ type: "pointer.button", button, action: "click" }),
+          onTouchCancel,
+          onTouchEnd,
+          onTouchMove,
+          onTouchStart,
+          pending: pendingTextTransfer,
+          requestTextTransfer,
+          result: textTransferResult,
+          supported: supportsTextTransfer,
+          target: hostStatus?.textTransferTarget
+        }}
+        clipboardReadMode={{
+          clientId,
+          permission: clipboardReadPermission,
+          pending: pendingClipboardRead,
+          result: clipboardReadResult,
+          text: clipboardText,
+          onGetText: requestClipboardRead,
+          onLoadSnippet: (snippet) => setClipboardText(snippet.text)
+        }}
+        gestureDebugMode={{ trackpadSettings: effectiveTrackpadSettings }}
+      />
 
       {canShowModeNavigation && !areModeTabsCollapsed && <ModeTabs className="tabs bottom-mode-tabs" modeTabs={modeTabs} tab={tab} selectModeTab={selectModeTab} />}
 
@@ -604,6 +578,14 @@ export function App() {
       {tab !== "text-transfer" && !pendingTextTransfer && textTransferResult && (
         <div className={`app-toast ${textTransferResult.succeeded ? "success" : "error"}`} role={textTransferResult.succeeded ? "status" : "alert"}>
           {textTransferResult.message}
+        </div>
+      )}
+      {pendingClipboardRead && (
+        <div className="app-toast pending" role="status">Getting text from PC…</div>
+      )}
+      {!pendingClipboardRead && clipboardReadResult?.succeeded && (
+        <div className={`app-toast ${clipboardReadResult.succeeded ? "success" : "error"}`} role={clipboardReadResult.succeeded ? "status" : "alert"}>
+          {clipboardReadResult.message}
         </div>
       )}
     </main>

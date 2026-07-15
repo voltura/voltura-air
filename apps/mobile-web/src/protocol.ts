@@ -46,6 +46,7 @@ export type ServerCapabilities = {
   awake?: AwakeCapability;
   gestureDebug?: boolean;
   inputAck?: boolean;
+  clipboardRead?: boolean;
   power?: PowerCapabilities;
   remoteLaunch?: boolean;
   sleep?: boolean;
@@ -266,6 +267,20 @@ export type TextSendResultMessage = {
   deliveryKind?: "typed" | "pasted" | "clipboard";
 };
 
+export type ClipboardGetMessage = {
+  type: "clipboard.get";
+  operationId: string;
+};
+
+export type ClipboardGetResultMessage = {
+  type: "clipboard.get.result";
+  operationId: string;
+  succeeded: boolean;
+  code?: string;
+  message: string;
+  text?: string | null;
+};
+
 export type AudioMuteToggleMessage = {
   type: "audio.mute.toggle";
 };
@@ -302,7 +317,8 @@ export type ClientMessage =
   | RemoteLaunchMessage
   | AppLaunchMessage
   | TextSendMessage
+  | ClipboardGetMessage
   | AudioMuteToggleMessage
   | AudioVolumeSetMessage;
 
-export type ServerMessage = PairAcceptedMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | TextSendResultMessage | AudioStateMessage;
+export type ServerMessage = PairAcceptedMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | TextSendResultMessage | ClipboardGetResultMessage | AudioStateMessage;

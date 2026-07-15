@@ -108,7 +108,7 @@
         </article>
         <article>
           <h2>Send text to PC</h2>
-          <p>Write or paste text on your phone, then send it to the active app, copy it to the PC clipboard, or open it as a new document in supported Windows apps.</p>
+          <p>Write or paste text on your phone, then send it to the active app, copy it to the PC clipboard, or open it as a new document in supported Windows apps. With host permission, you can also fetch the PC clipboard into selectable text on your device and use local snippets to save or reuse it.</p>
         </article>
         <article>
           <h2>Couch remote</h2>
@@ -204,7 +204,7 @@
         <ol class="steps">
           <li>Install and start Voltura Air on the Windows 11 PC you want to control.</li>
           <li>Scan the pairing QR code with a phone or tablet on the same Wi-Fi or local network.</li>
-          <li>Choose Trackpad, Keyboard, Remote, Dictation, Send text to PC, or tablet split mode.</li>
+          <li>Choose Trackpad, Keyboard, Remote, Dictation, Send text to PC, Get text from PC, or tablet split mode.</li>
           <li>Optionally add the mobile page to your home screen for faster access later.</li>
         </ol>
       </section>

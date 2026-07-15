@@ -482,8 +482,6 @@ export function App() {
           liveKeyboard,
           onKeyboardTextChange,
           onSleep: sleepPc,
-          onPasteToPc: requestTextTransfer,
-          pasteToPcPending: pendingTextTransfer,
           placeLiveKeyboardCaret,
           sendEmptyDelete,
           sendSpecial,
@@ -493,7 +491,6 @@ export function App() {
           showArrowKeys: keyboardSettings.showArrowKeys,
           showControlKeys: keyboardSettings.showControlKeys,
           showFunctionKeys: keyboardSettings.showFunctionKeys,
-          showPasteToPcButton: keyboardSettings.showPasteToPcButton && supportsTextTransfer,
           showSleepButton: keyboardSettings.showSleepButton && supportsSleep,
           toLiveKeyboardValue
         }}

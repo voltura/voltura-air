@@ -264,7 +264,6 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Live typing mode.
 - Uses the shorter `Back` label for the Backspace key in split or width-constrained layouts while preserving the Backspace action.
 - Buffered send mode preserves multiline line breaks through the same newline-aware host input path.
-- Optional **Paste to PC** native-paste target, disabled by default, that uses the acknowledged text-transfer path.
 - Send button is hidden when Live typing is enabled.
 - Text/numeric mobile keyboard toggle.
 - Composition/IME handling foundation.
@@ -297,7 +296,6 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
   - show control keys,
   - show arrow keys,
   - show sleep button.
-  - show Paste to PC button.
 
 ### Remote mode
 

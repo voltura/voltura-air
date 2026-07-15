@@ -8,8 +8,7 @@ describe("normalizeKeyboardSettings", () => {
       showFunctionKeys: false,
       showControlKeys: true,
       showArrowKeys: true,
-      showSleepButton: true,
-      showPasteToPcButton: false
+      showSleepButton: true
     });
   });
 

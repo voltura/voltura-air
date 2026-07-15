@@ -342,11 +342,6 @@ export function KeyboardSettingsSection({
         <input type="checkbox" checked={keyboardSettings.showSleepButton} onChange={(event) => updateKeyboardSetting("showSleepButton", event.target.checked)} />
       </label>
 
-      <label className="toggle-row">
-        <span>Show Paste to PC button</span>
-        <input type="checkbox" checked={keyboardSettings.showPasteToPcButton} onChange={(event) => updateKeyboardSetting("showPasteToPcButton", event.target.checked)} />
-      </label>
-
     </>
   );
 }

@@ -121,8 +121,6 @@ Check **Preferences > Text destination** on the PC. The default is the Windows a
 
 Voltura Air deliberately refuses focused-app text transfer while its own protected host window has focus. It also cannot inject text into the Windows lock screen, a UAC/secure desktop, or an elevated application when the host is running without the matching elevation level. The mobile draft is retained after failure so you can correct the destination and explicitly retry; check for partial text before retrying because Windows can reject an input sequence after accepting part of it.
 
-The optional Keyboard **Paste to PC** control uses the same destination and acknowledgement path. Long-press it and choose the device browser's native **Paste** action. Browser clipboard permission is not requested and Voltura Air never reads the clipboard in the background.
-
 ## An application button is missing or fails
 
 Open **Preferences > Application launch buttons** on the Windows host. Only

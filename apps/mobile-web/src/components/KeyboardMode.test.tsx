@@ -10,28 +10,24 @@ const repeatIntervalMs = 55;
 type HarnessProps = {
   initialText?: string;
   liveKeyboard?: boolean;
-  onPasteToPc?: (text: string) => void;
   onSleep?: () => void;
   sendSpecial?: (key: string, modifiers?: string[]) => void;
   sendText?: (text: string) => void;
   showArrowKeys?: boolean;
   showControlKeys?: boolean;
   showFunctionKeys?: boolean;
-  showPasteToPcButton?: boolean;
   showSleepButton?: boolean;
 };
 
 function KeyboardModeHarness({
   initialText = "",
   liveKeyboard = true,
-  onPasteToPc = vi.fn(),
   onSleep = vi.fn(),
   sendSpecial = vi.fn(),
   sendText = vi.fn(),
   showArrowKeys = true,
   showControlKeys = true,
   showFunctionKeys = false,
-  showPasteToPcButton = false,
   showSleepButton = false
 }: HarnessProps) {
   const [keyboardText, setKeyboardText] = useState(initialText);
@@ -51,7 +47,6 @@ function KeyboardModeHarness({
         setKeyboardText(next);
         committedKeyboardTextRef.current = next;
       }}
-      onPasteToPc={onPasteToPc}
       onSleep={onSleep}
       placeLiveKeyboardCaret={vi.fn()}
       sendEmptyDelete={vi.fn(() => false)}
@@ -62,25 +57,11 @@ function KeyboardModeHarness({
       showArrowKeys={showArrowKeys}
       showControlKeys={showControlKeys}
       showFunctionKeys={showFunctionKeys}
-      showPasteToPcButton={showPasteToPcButton}
       showSleepButton={showSleepButton}
       toLiveKeyboardValue={toLiveKeyboardValue}
     />
   );
 }
-
-describe("KeyboardMode Paste to PC", () => {
-  it("sends browser-native pasted text through the dedicated callback", () => {
-    const onPasteToPc = vi.fn();
-    render(<KeyboardModeHarness onPasteToPc={onPasteToPc} showPasteToPcButton />);
-
-    fireEvent.paste(screen.getByLabelText("Paste clipboard contents to PC"), {
-      clipboardData: { getData: vi.fn(() => "From clipboard") }
-    });
-
-    expect(onPasteToPc).toHaveBeenCalledExactlyOnceWith("From clipboard");
-  });
-});
 
 describe("KeyboardMode live typing", () => {
   it("explains live typing and buffered send in a compact info dialog", () => {

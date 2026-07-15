@@ -8,16 +8,16 @@ Turn any phone, tablet, or touch browser into a wireless remote for your Windows
 
 Use it as a trackpad, keyboard, dictation surface, and media remote — including YouTube and Kodi modes for couch and TV control. No app-store install, account, or cloud needed.
 
-The mobile Menu also includes **Send text to PC** for composing or pasting multiline text and waiting for an explicit Windows delivery result. Focused application input remains the default. The Windows host can instead copy to its clipboard or create a fresh item in a supported locally configured app; when it needs to paste, it first confirms that intended non-elevated window is foreground, otherwise the text remains copied for manual paste. Generated Notepad++, Word, Excel, and text-file drafts identify themselves and are automatically removed after 24 hours by default; their notice gives the exact removal date and points to **Preferences > Text destination > Keep generated draft files**, which users can enable locally to retain new drafts. Save As preserves important content. The phone receives only a safe label and delivery result, never executable paths or window details. Its editor opens in Keyboard mode with the same ABC/123 selector as the main Keyboard page. An always-visible Keyboard/Touchpad switch changes it into a clean pointer surface whose Left/Right button order follows the trackpad's handedness setting. It preserves line breaks, keeps optional local snippets in a folded section by default, and offers **Send text** and **Send text + Enter** side by side while editing. A disabled-by-default **Paste to PC** Keyboard shortcut provides a faster native-paste path when enabled.
+Scan the QR code from a phone, tablet, or browser-capable device on the same network to pair it with your PC. You can also install the web app to your home screen.
 
-## Product promise
+## What you can do
 
-Remote mode includes an Fn panel for common Windows window actions and browser tab/page shortcuts, plus a compact Power sheet for locking Windows, turning off displays, signing out, restarting, and shutting down. Destructive actions require a deliberate hold and every power action is controlled by explicit host permissions. Kodi mode separates its video/UI toggle from its fullscreen/windowed control and places supporting actions around the navigation ring. Switch app supports quick previous-app taps plus hold-and-slide visual app selection, and Task view opens the persistent Windows window overview. Taller portrait phones retain a compact navigation ring below the Fn helpers while hiding volume when space is constrained; phone landscape keeps volume and navigation beside the helpers. Phone and portrait-tablet layouts preserve the main control surface, and tapping the active mode collapses the full mode row into a compact selector.
-
-- Control your Windows PC from any phone, tablet, or touch browser.
-- No mobile app-store install required.
-- Works on your own Wi-Fi/LAN. No account. No cloud needed.
-- Freeware with no trial limits or feature locks.
+- Use a trackpad, keyboard, dictation, media remote, and app controls from your phone or tablet.
+- Send or paste multiline text to the focused Windows app, copy it to the PC clipboard, or create a new document in a configured app.
+- Control YouTube, Kodi, browser tabs, presentation controls, and common Windows window actions.
+- Lock the PC, blackout displays, or use approved power controls with deliberate confirmation for destructive actions.
+- Choose per-device permissions, pointer speed, and optional pointer highlighting.
+- Use it on your own Wi-Fi/LAN with no account or cloud service.
 
 ## Best for
 
@@ -68,29 +68,17 @@ Remote mode includes an Fn panel for common Windows window actions and browser t
 
 ## How it works
 
-The project is split into two apps:
+Install the Windows host on the PC you want to control. It runs from the tray, displays a pairing QR code, and serves the mobile controls over your local network. Only one host runs per signed-in Windows user.
 
-- `apps/mobile-web`: a React/TypeScript PWA for Android, iPhone, iPad, tablets, ChromeOS, and other modern browsers.
-- `apps/windows-host`: a .NET 10 Windows tray app that shows a QR code, hosts the PWA on the LAN, receives WebSocket commands, and injects input into Windows.
+The host keeps device permissions and app-launch settings on the PC. You can choose which devices may use remote, power, keep-awake, and app-launch controls. Sensitive actions require confirmation, and remote wake is not available after a PC sleeps or shuts down.
 
-The Windows host installs per user, runs from the tray, manages paired devices, and serves the mobile app over the local network. Only one host instance runs for the signed-in Windows user; launching Voltura Air again opens and focuses the existing host window. The mobile app can be used directly in the browser or installed to the home screen.
-
-The host has a global permission for whether paired-device input may interact with the Voltura Air host UI and tray menu. When disabled, paired devices can still control Windows and other apps, while native host window controls such as minimize, maximize, and close remain available.
-
-Power and session controls have separate global and per-device permissions. Lock PC and Blackout display are enabled by default; screen saver is shown only when Windows has one enabled and configured; display off, sign out, restart, and shut down require explicit host approval. Blackout covers every monitor with black while Windows, networking, and Voltura Air remain active, then closes on any local or remote input. The host detects explicit current-user workstation-lock policy. When policy disables locking, a local non-elevated **Enable Windows locking** action writes DWORD zero and refreshes policy; when the value is missing or zero, **Test Lock PC** tests Windows directly without an unnecessary registry write. Host results appear inline on mobile. Sign out, restart, and shut down require hold-to-confirm. Turning off a display also cuts HDMI output to TVs and receivers and requires confirmation because some Windows PCs treat the monitor-power command as sleep or Modern Standby. On those PCs Voltura Air disconnects and cannot provide remote wake; physical keyboard or mouse input is required, and Windows may show its sign-in screen after resuming.
-
-The host also provides **Keep awake** without changing the selected Windows power plan. The tray offers Off, 30-minute, 1-hour, 2-hour, expiration, and indefinite modes; **Preferences > Keep awake** provides custom intervals, date/time expiration, and the host-owned **Keep screen on** setting. Remote control is off by default and can be allowed globally or per paired device. Mobile exposes one basic Keep awake toggle and always uses the screen setting chosen on the host.
-
-Preferences uses themed, single-open accordion sections. An optional sanitized application log is available there and is off by default. Diagnostics opens on a themed, filterable Application log view for remote commands, host actions, outcomes, responses, and Windows errors; the log itself scrolls while the filter and action controls remain reachable.
-
-The Windows host can add Browser, Spotify, VLC, PowerPoint, and custom executable buttons to the mobile Remote Fn panel. Every configured button has a host-managed label of up to 10 characters; preset labels can be changed in Preferences and custom labels are set in the command editor. Custom paths and arguments stay on the PC, require a local warning confirmation on every add or edit, and are revalidated before launch. Phones receive and send only opaque action IDs and labels, and the existing global/per-device application-launch permission remains authoritative.
+Preferences includes device management, Keep awake, remote/app controls, and an optional diagnostics log. You can add Browser, Spotify, VLC, PowerPoint, or custom app buttons to the Remote panel; custom paths and arguments stay on the PC.
 
 ## Features
 
-Voltura Air's high-level host and client capabilities are listed in
-[docs/features.md](docs/features.md). Keep that page at product capability
-level so contributors can quickly understand what the app can do without
-turning the README into detailed implementation documentation.
+Voltura Air's full capability list is in [docs/features.md](docs/features.md).
+Setup, pairing recovery, manual network selection, and protocol details live in
+the dedicated documentation below.
 
 Pairing failure and recovery behavior is documented in
 [docs/pairing-feedback.md](docs/pairing-feedback.md). Manual network/host
@@ -98,22 +86,7 @@ selection behavior is documented in
 [docs/manual-network-selection.md](docs/manual-network-selection.md). Protocol
 message shapes are documented in [docs/protocol.md](docs/protocol.md).
 
-Connection reliability is part of the product surface. The mobile client must not
-stay visually connected when the host is unavailable, health checks fail, or
-input delivery stops being acknowledged. Foreground idle checks should stay
-lightweight so a paired phone can rest without polling status and audio state.
-The host bounds LAN sessions, message size, initial pairing time, and stale
-authenticated connections without adding a server-side polling loop.
-Active pointer movement is frame-coalesced, uses low-rate acknowledgement
-barriers, and discards congestion-prone movement instead of building a stale
-queue that continues after the user lifts their finger.
-The optional **Highlight pointer** trackpad setting shows a larger custom pointer with the host dark-theme teal accent glow during phone-initiated movement, clicks, two-finger scrolling, and pinch zoom. It is off globally by default and can be explicitly enabled or disabled per paired device.
-The optional highlight is a best-effort visual layer. Voltura Air automatically uses the normal Windows cursor while it is over the taskbar or a higher-integrity foreground application, then resumes the highlight when that condition clears. When an administrator application becomes active, the PC shows one notification and the phone shows a recovery dialog with **Show desktop** or **Continue**. Continue leaves a compact recovery toast available until normal foreground control returns, while other client controls remain available. **Show desktop** minimizes desktop windows through the Windows shell. UAC and other secure desktops remain outside remote control.
-QR links include the host app version, and the host serves the mobile app shell
-and service worker with no-store cache headers so fresh pairing codes are not
-masked by stale installed-PWA code.
-Scanning a valid new QR while a saved PC is unavailable pauses that stale retry,
-keeps the old PC saved, and opens the new pairing confirmation screen.
+The optional **Highlight pointer** makes the Windows pointer easier to spot during remote input. It yields to the normal cursor over the taskbar and administrator apps; UAC prompts, the lock screen, and other secure Windows surfaces cannot be remotely controlled.
 
 ## Requirements
 

@@ -79,7 +79,7 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Voltura AB"
             VALUE "Comments", "Voltura Air Windows host"
-            VALUE "FileDescription", "Voltura Air"
+            VALUE "FileDescription", "Voltura Air Cursor Watchdog"
             VALUE "FileVersion", "$fileVersion"
             VALUE "InternalName", "VolturaAir.CursorWatchdog"
             VALUE "LegalCopyright", "Copyright (c) Voltura AB"

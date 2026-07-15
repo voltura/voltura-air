@@ -122,7 +122,7 @@ Assert-VersionMetadata `
     -Path $watchdogExePath `
     -Label 'native cursor watchdog EXE' `
     -ExpectedFileVersion $windowsVersion `
-    -ExpectedDescription 'Voltura Air' `
+    -ExpectedDescription 'Voltura Air Cursor Watchdog' `
     -ExpectedInternalName 'VolturaAir.CursorWatchdog' `
     -ExpectedOriginalFilename 'VolturaAir.CursorWatchdog.exe'
 

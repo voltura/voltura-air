@@ -12,15 +12,15 @@ $publishRoot = Join-Path $repoRoot "artifacts\publish"
 $publishDir = Join-Path $publishRoot "VolturaAir-$Runtime"
 $frameworkDependentPublishDir = Join-Path $publishRoot "VolturaAir-$Runtime-framework-dependent"
 $zipPath = Join-Path $publishRoot "VolturaAir-$Version-$Runtime.zip"
-$installerPath = Join-Path $publishRoot "VolturaAir-Setup-$Version-$Runtime.exe"
-$frameworkDependentInstallerPath = Join-Path $publishRoot "VolturaAir-Setup-$Version-$Runtime-framework-dependent.exe"
+$installerPath = Join-Path $publishRoot "VolturaAir-Setup-$Version-$Runtime-full.exe"
+$frameworkDependentInstallerPath = Join-Path $publishRoot "VolturaAir-Setup-$Version-$Runtime.exe"
 $nsisScript = Join-Path $repoRoot "installer\VolturaAir.nsi"
 
 if ([string]::IsNullOrWhiteSpace($Version)) {
     $Version = (Get-Content $packageJsonPath -Raw | ConvertFrom-Json).version
     $zipPath = Join-Path $publishRoot "VolturaAir-$Version-$Runtime.zip"
-    $installerPath = Join-Path $publishRoot "VolturaAir-Setup-$Version-$Runtime.exe"
-    $frameworkDependentInstallerPath = Join-Path $publishRoot "VolturaAir-Setup-$Version-$Runtime-framework-dependent.exe"
+    $installerPath = Join-Path $publishRoot "VolturaAir-Setup-$Version-$Runtime-full.exe"
+    $frameworkDependentInstallerPath = Join-Path $publishRoot "VolturaAir-Setup-$Version-$Runtime.exe"
 }
 
 if ([string]::IsNullOrWhiteSpace($Version)) {
@@ -196,5 +196,5 @@ if (-not $SkipBuild) {
 & $verifyVersionScript @frameworkDependentVerifyVersionArguments
 
 Write-Host "Created portable zip: $zipPath"
-Write-Host "Created self-contained installer: $installerPath"
+Write-Host "Created full installer: $installerPath"
 Write-Host "Created framework-dependent installer: $frameworkDependentInstallerPath"

@@ -1,4 +1,4 @@
-name: Build and upsert release assets
+name: Release Voltura Air
 
 on:
   workflow_dispatch:
@@ -83,7 +83,7 @@ jobs:
             -Version "${{ inputs.version }}" `
             -Runtime "${{ inputs.runtime }}" `
             -PublishDir "artifacts/publish/VolturaAir-${{ inputs.runtime }}-framework-dependent" `
-            -InstallerPath "artifacts/publish/VolturaAir-Setup-${{ inputs.version }}-${{ inputs.runtime }}-framework-dependent.exe" `
+            -InstallerPath "artifacts/publish/VolturaAir-Setup-${{ inputs.version }}-${{ inputs.runtime }}.exe" `
             -RequireHostDll
 
       - name: Collect asset paths
@@ -93,8 +93,8 @@ jobs:
           $version = "${{ inputs.version }}"
           $runtime = "${{ inputs.runtime }}"
           $zipName = "VolturaAir-$version-$runtime.zip"
-          $installerName = "VolturaAir-Setup-$version-$runtime.exe"
-          $frameworkDependentInstallerName = "VolturaAir-Setup-$version-$runtime-framework-dependent.exe"
+          $installerName = "VolturaAir-Setup-$version-$runtime-full.exe"
+          $frameworkDependentInstallerName = "VolturaAir-Setup-$version-$runtime.exe"
           $zipPath = "artifacts/publish/$zipName"
           $installerPath = "artifacts/publish/$installerName"
           $frameworkDependentInstallerPath = "artifacts/publish/$frameworkDependentInstallerName"

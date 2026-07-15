@@ -131,8 +131,8 @@ For development and release packaging:
 
 For normal installation, choose one installer from the latest GitHub release:
 
-- `VolturaAir-Setup-<version>-win-x64-framework-dependent.exe` is the smaller installer. It downloads and installs the required .NET 10 Desktop and ASP.NET Core runtimes when needed, so it needs an internet connection and may request Windows administrator approval.
-- `VolturaAir-Setup-<version>-win-x64.exe` is self-contained. It includes everything needed, installs per user without administrator rights, and is the offline/no-prerequisite option.
+- `VolturaAir-Setup-<version>-win-x64.exe` downloads and installs the required .NET 10 Desktop and ASP.NET Core runtimes when they are missing. An internet connection is required in that case, and Windows may request administrator approval.
+- `VolturaAir-Setup-<version>-win-x64-full.exe` includes all required components and installs per user without administrator rights.
 
 Both installers keep pairing and settings data when uninstalled.
 
@@ -184,7 +184,7 @@ To create Windows release assets locally, install NSIS 3.12 or later and run:
 npm run package:win
 ```
 
-This creates the portable zip plus self-contained and framework-dependent NSIS installers under `artifacts/publish`.
+This creates the portable zip plus the default and full NSIS installers under `artifacts/publish`.
 
 ## Run From CLI
 

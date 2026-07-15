@@ -291,7 +291,7 @@
           <p class="eyebrow">Download</p>
           <h2>Get Voltura Air for Windows 11</h2>
           <p>
-            Choose the smaller installer, self-contained installer, or portable build from the official GitHub release. The smaller installer downloads .NET when needed and may request administrator approval; the self-contained installer works offline without prerequisites.
+            Choose an installer or portable build from the official GitHub release. If required .NET components are missing, setup downloads and installs them automatically and may request administrator approval. The full installer includes all required components.
           </p>
           <p>
             Releases are not code-signed, so Windows may show an unknown publisher or SmartScreen warning. Download only from this page or the official GitHub repository.

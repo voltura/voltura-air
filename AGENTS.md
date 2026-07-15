@@ -146,7 +146,7 @@ updated as the app structure, tooling, and release process become concrete.
   `package.json`, `apps/mobile-web/package.json`, the root and workspace entries
   in `package-lock.json`, the host package, assembly, file, and informational
   versions in `apps/windows-host/VolturaAir.Host.csproj`, and the workflow
-  dispatch defaults in `.github/workflows/release-zip.yml`.
+  dispatch defaults in `.github/workflows/release.yml`.
 - Do not treat `.vscode/launch.json` or `.vscode/tasks.json` schema versions as
   application versions. The NSIS installer, packaging filenames, and Vite client
   version consume the synchronized sources at build time. The host project keeps
@@ -159,11 +159,11 @@ updated as the app structure, tooling, and release process become concrete.
 - `npm run package:win` reads the default release version from the root
   `package.json`. Pass `-Version <version> -Runtime win-x64` only when overriding
   the defaults.
-- The GitHub Actions workflow `.github/workflows/release-zip.yml` validates that
+- The GitHub Actions workflow `.github/workflows/release.yml` validates that
   its version and tag inputs match the committed root package version, then can
-  create or update a release and upload the portable zip, self-contained installer,
-  and framework-dependent installer. The framework-dependent installer downloads
-  the required .NET 10 runtimes during setup and may require administrator approval.
+  create or update a release and upload the portable zip, default installer, and
+  full installer. The default installer downloads the required .NET 10 runtimes
+  during setup when they are missing and may require administrator approval.
 - See `docs/release.md` for the full preparation, verification, packaging,
   GitHub asset replacement, unsigned-installer, and sanity-check guide.
 

@@ -33,13 +33,13 @@
 !define RUN_KEY "Software\Microsoft\Windows\CurrentVersion\Run"
 
 !ifdef FRAMEWORK_DEPENDENT
-!define INSTALLER_FILE_SUFFIX "-framework-dependent"
-!define INSTALLER_KIND "Framework-dependent"
-!define MUI_WELCOME_TEXT "Set up ${APP_NAME} on this Windows PC to control it from your phone or tablet over your local network.$\r$\n$\r$\nThis smaller installer downloads the required .NET 10 Windows Desktop and ASP.NET Core runtimes if they are missing. An internet connection and Windows administrator approval may be required."
-!else
 !define INSTALLER_FILE_SUFFIX ""
-!define INSTALLER_KIND "Self-contained"
-!define MUI_WELCOME_TEXT "Set up ${APP_NAME} on this Windows PC to control it from your phone or tablet over your local network.$\r$\n$\r$\nThe installer adds a Start Menu shortcut and keeps everything in your user profile."
+!define INSTALLER_KIND "Framework-dependent"
+!define MUI_WELCOME_TEXT "Set up ${APP_NAME} on this Windows PC to control it from your phone or tablet over your local network.$\r$\n$\r$\nIf the required .NET 10 Windows Desktop and ASP.NET Core runtimes are missing, setup downloads and installs them automatically. An internet connection and Windows administrator approval may be required."
+!else
+!define INSTALLER_FILE_SUFFIX "-full"
+!define INSTALLER_KIND "Full"
+!define MUI_WELCOME_TEXT "Set up ${APP_NAME} on this Windows PC to control it from your phone or tablet over your local network.$\r$\n$\r$\nThis installer includes all required components, adds a Start Menu shortcut, and keeps everything in your user profile."
 !endif
 
 !include "MUI2.nsh"
@@ -99,7 +99,7 @@ Section "Install"
   Pop $0
   Pop $1
   ${If} $0 != 0
-    MessageBox MB_ICONSTOP "Voltura Air could not install the required .NET 10 runtimes. Check your internet connection and approve the Windows administrator prompt, or use the self-contained installer instead.$\r$\n$\r$\nDetails:$\r$\n$1"
+    MessageBox MB_ICONSTOP "Voltura Air could not install the required .NET 10 runtimes. Check your internet connection and approve the Windows administrator prompt.$\r$\n$\r$\nDetails:$\r$\n$1"
     Abort "The required .NET 10 runtimes were not installed."
   ${EndIf}
   !endif

@@ -4,8 +4,8 @@
 
 Choose one installer from the latest GitHub release and run it on the Windows PC:
 
-- `VolturaAir-Setup-<version>-win-x64-framework-dependent.exe` is the smaller download. During setup, it checks for .NET 10 Windows Desktop and ASP.NET Core runtimes, then downloads and installs any missing runtime. This needs an internet connection and may show a Windows administrator approval prompt because .NET is installed for the PC.
-- `VolturaAir-Setup-<version>-win-x64.exe` is self-contained and includes its own .NET runtime. Use it for offline installation or when administrator approval is unavailable.
+- `VolturaAir-Setup-<version>-win-x64.exe` checks for .NET 10 Windows Desktop and ASP.NET Core runtimes during setup, then downloads and installs any missing runtime. An internet connection is required in that case, and Windows may show an administrator approval prompt because .NET is installed for the PC.
+- `VolturaAir-Setup-<version>-win-x64-full.exe` includes all required components and can be installed without an internet connection.
 
 Both installers:
 

@@ -177,7 +177,7 @@ $rootPackagePath = 'package.json'
 $mobilePackagePath = 'apps\mobile-web\package.json'
 $packageLockPath = 'package-lock.json'
 $hostProjectPath = 'apps\windows-host\VolturaAir.Host.csproj'
-$releaseWorkflowPath = '.github\workflows\release-zip.yml'
+$releaseWorkflowPath = '.github\workflows\release.yml'
 
 $rootPackage = Get-RepoText $rootPackagePath | ConvertFrom-Json
 $currentVersion = [string]$rootPackage.version
@@ -285,10 +285,10 @@ $updatedWorkflow = Get-RepoText $releaseWorkflowPath
 $escapedReleaseTag = [regex]::Escape("v$Version")
 $escapedVersion = [regex]::Escape($Version)
 if ($updatedWorkflow -notmatch "(?m)^        default: $escapedReleaseTag\s*$") {
-    throw "release-zip.yml did not validate with release tag 'v$Version'."
+    throw "release.yml did not validate with release tag 'v$Version'."
 }
 if ($updatedWorkflow -notmatch "(?m)^        default: $escapedVersion\s*$") {
-    throw "release-zip.yml did not validate with version '$Version'."
+    throw "release.yml did not validate with version '$Version'."
 }
 
 $writtenPaths = New-Object System.Collections.Generic.List[string]

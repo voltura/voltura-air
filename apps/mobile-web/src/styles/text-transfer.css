@@ -365,6 +365,11 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: start;
   gap: 5px;
+  /*
+   * Cards reserve touch input for long-press reordering. Keep a native-scroll
+   * gutter beside them because touch-action is chosen when a gesture starts.
+   */
+  margin-right: clamp(24px, 8vw, 32px);
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);

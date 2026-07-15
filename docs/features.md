@@ -98,7 +98,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Supports duplicate cleanup.
 - Supports per-device permission overrides.
 - Supports a host default pointer speed with per-device overrides.
-- Supports a default-off pointer highlight with independent enabled/off overrides per paired device.
+- Supports a default-off host-wide Custom pointer with a colour and size selected in Windows Preferences and on/off control from paired devices.
 
 ### Permissions and capabilities
 
@@ -127,7 +127,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Coalesces active movement to animation frames and uses low-rate acknowledgement barriers plus WebSocket-buffer limits to prevent delayed pointer queues without adding per-move replies or idle polling.
 - Reports input dispatch failures to the mobile client instead of silently leaving dead controls.
 - Moves the Windows pointer.
-- Optionally overlays a larger custom pointer with a teal glow during client-initiated movement, clicks, two-finger scrolling, and pinch zoom. It yields to the normal Windows cursor over taskbars and while a higher-integrity application is foreground, using one foreground-change event hook rather than polling. A completed remote taskbar click also schedules one short, coalesced foreground recheck for shell activation. A blocked episode shows one concise PC notification and a mobile recovery dialog with **Show desktop** and **Continue**; Continue returns to the client controls while a compact toast remains available to reopen recovery until normal foreground control returns, and Show desktop minimizes desktop windows through the Windows shell. Startup performs lightweight cursor recovery and launches a single minimal watchdog that blocks without polling until the host exits, restores the configured Windows cursor scheme, and exits. If the watchdog exits unexpectedly, the host restores cursors immediately, hides and disables the overlay for the rest of that session, and does not restart the watchdog. If the watchdog cannot start, system cursors are left unchanged. The dedicated overlay thread and hidden window are created only on first use. The host temporarily makes standard system cursors transparent, restores the user's configured cursor scheme on idle/shutdown, aligns the replacement hotspot at the active display DPI, and never routes high-rate input through the main WPF UI thread.
+- Applies the optional host-wide Custom pointer across Windows. Its size and color are chosen in host Preferences, and paired devices can turn it on or off. The cursor watchdog restores the configured Windows cursor scheme after unexpected host termination.
 - Sends left/right mouse button down/up/click.
 - Sends vertical and horizontal wheel scroll.
 - Sends pinch zoom as Ctrl + mouse wheel.
@@ -164,7 +164,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Supports PC sleep when allowed by host permissions.
 - Locks the current Windows session with `LockWorkStation` when permission and the current-user policy allow it.
 - Reports accepted, denied, unsupported, policy-disabled, policy-unavailable, and failed power/session requests without disconnecting the client.
-- Offers opt-in daily JSON Lines application logging for troubleshooting. Logging is off by default, keeps files normally shareable, and allows reads without holding the protocol writer lock. It records remote command flow plus local host actions such as pointer-highlight default/override changes, Windows-lock policy writes, readback failures, and native lock tests without typed text, pointer coordinates, or pairing credentials.
+- Offers opt-in daily JSON Lines application logging for troubleshooting. Logging is off by default, keeps files normally shareable, and allows reads without holding the protocol writer lock. It records remote command flow plus local host actions such as Windows-lock policy writes, readback failures, and native lock tests without typed text, pointer coordinates, or pairing credentials.
 - Opens Diagnostics directly on a dedicated Application log view, with System details available from a clear top-level switch. The log view exposes its **Write application log** toggle directly and clearly distinguishes disabled logging from an empty filtered result. It uses themed activity cards, a two-month date-range picker plus event, source, action, and client filters, filtered copy, open-folder, confirmed delete actions, and an optional session-only **Automatic log refresh** toggle that is off by default. Log reads run off the WPF dispatcher, repeated requests are coalesced, and unchanged results retain their existing visuals. Automatic refresh reacts to successful host log writes only while the view is visible instead of polling a timer. Retention is configurable from 1 to 30 days with a 2-day default. Input commands record both receipt and their sanitized executed or blocked outcome, including the Remote mode minimize action, without logging typed text. Only the record area scrolls, so the filter and action controls remain reachable.
 - Blacks out every connected monitor with a topmost black WPF curtain without changing display power state. Windows, networking, and remote control remain active; any local or remote mouse/keyboard interaction removes the curtain, and touch or pen input also dismisses it locally. Ordinary remote movement bypasses the WPF dispatcher when no curtain is active.
 - Starts the native Windows screen saver only when Windows reports screen saving enabled and a configured `.scr` program exists. The action is omitted from host and mobile UI when unavailable.
@@ -247,7 +247,6 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Pointer speed uses the Windows host default unless the paired device has an override; changing it on the phone updates that device override on the host.
 - Optional pointer smoothing.
 - Optional pointer acceleration.
-- Optional **Highlight pointer**, using the host global default unless this paired device explicitly enables or disables it.
 - Optional scroll acceleration.
 - Natural/traditional scroll direction setting.
 - Optional haptic feedback on trackpad taps and click-button presses, with an immediate preview when enabled and a clear unsupported state when the browser cannot vibrate.

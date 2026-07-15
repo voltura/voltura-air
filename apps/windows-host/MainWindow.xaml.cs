@@ -36,6 +36,7 @@ public partial class MainWindow : Window
     private readonly ISystemPowerController _powerController;
     private readonly IAwakeService _awakeService;
     private readonly IAppLog _appLog;
+    private readonly CustomPointerService _customPointerService;
     private readonly string _initialClientUrl;
     private readonly bool _usesServerUrlAsClientUrl;
     private readonly bool _usePublicScreenshotPairingUrl;
@@ -70,6 +71,7 @@ public partial class MainWindow : Window
         IWorkstationLockPolicy? workstationLockPolicy = null,
         IAwakeService? awakeService = null,
         ISystemPowerController? powerController = null,
+        CustomPointerService? customPointerService = null,
         IAppLog? appLog = null)
     {
         _pairingManager = pairingManager;
@@ -78,6 +80,7 @@ public partial class MainWindow : Window
         _powerController = powerController ?? webHost.PowerController;
         _awakeService = awakeService ?? webHost.AwakeService;
         _appLog = appLog ?? webHost.AppLog;
+        _customPointerService = customPointerService ?? new CustomPointerService();
         _usePublicScreenshotPairingUrl = usePublicScreenshotPairingUrl;
         _serverUrl = webHost.ServerUrl;
         _usesServerUrlAsClientUrl = string.IsNullOrWhiteSpace(clientUrl);

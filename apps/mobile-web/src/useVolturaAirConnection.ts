@@ -548,14 +548,14 @@ export function useVolturaAirConnection() {
 
   const {
     addManualPc, beginNewPairing, connectManualPc, disconnectActivePc, forgetPc,
-    pairWithToken, renameDevice, renamePc, selectPc, setHostPointerHighlight, setHostPointerSpeed
+    pairWithToken, renameDevice, renamePc, selectPc, setHostCustomPointer, setHostPointerSpeed
   } = usePairedPcActions({
     activePcId, clearRuntimeState, clientId, deviceNameRef, pairedPcs, screenshotMode, send,
     setActivePcId, setDeviceName, setHostStatus, setLastConnectionError, setMessage, setPairedPcs,
     setPairingAttempt, setState, socketRef, state
   });
 
-  return { state, message, send, requestAudioState, requestPowerAction, requestAwakeChange, requestAppLaunch, requestTextTransfer, pendingTextTransfer, textTransferResult, pendingAppLaunchId, appLaunchResult, pendingPowerAction, powerActionResult, pendingAwakeChange, awakeResult, clientId, deviceName, activePc, pairedPcs, audioState, awakeCapability, powerCapabilities, supportsGestureDebug, supportsSleep, supportsVolumeControl, supportsRemoteLaunch, supportsTextTransfer, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, beginNewPairing, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice, setHostPointerHighlight, setHostPointerSpeed };
+  return { state, message, send, requestAudioState, requestPowerAction, requestAwakeChange, requestAppLaunch, requestTextTransfer, pendingTextTransfer, textTransferResult, pendingAppLaunchId, appLaunchResult, pendingPowerAction, powerActionResult, pendingAwakeChange, awakeResult, clientId, deviceName, activePc, pairedPcs, audioState, awakeCapability, powerCapabilities, supportsGestureDebug, supportsSleep, supportsVolumeControl, supportsRemoteLaunch, supportsTextTransfer, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, beginNewPairing, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice, setHostCustomPointer, setHostPointerSpeed };
 }
 
 

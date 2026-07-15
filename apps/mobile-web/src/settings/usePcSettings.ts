@@ -15,8 +15,7 @@ export function usePcSettings(
   clientId: string,
   pcId: string | null,
   hostDefaultRemoteMode?: RemoteModeId,
-  hostPointerSpeed?: number,
-  hostHighlightPointer?: boolean
+  hostPointerSpeed?: number
 ) {
   const [keyboardSettings, setKeyboardSettings] = useState(() => loadKeyboardSettings(clientId));
   const trackpadStorageKey = useMemo(() => trackpadSettingsKey(clientId, pcId), [clientId, pcId]);
@@ -72,10 +71,9 @@ export function usePcSettings(
   const effectiveTrackpadSettings = useMemo(
     () => ({
       ...trackpadSettings,
-      ...(typeof hostPointerSpeed === "number" ? { pointerSpeed: hostPointerSpeed } : {}),
-      ...(typeof hostHighlightPointer === "boolean" ? { highlightPointer: hostHighlightPointer } : {})
+      ...(typeof hostPointerSpeed === "number" ? { pointerSpeed: hostPointerSpeed } : {})
     }),
-    [hostHighlightPointer, hostPointerSpeed, trackpadSettings]
+    [hostPointerSpeed, trackpadSettings]
   );
 
   return {

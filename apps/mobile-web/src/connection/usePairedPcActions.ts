@@ -169,10 +169,10 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
     }
   }, [send, setHostStatus, state]);
 
-  const setHostPointerHighlight = useCallback((enabled: boolean) => {
-    setHostStatus((current) => (current ? { ...current, highlightPointer: enabled } : current));
+  const setHostCustomPointer = useCallback((enabled: boolean) => {
+    setHostStatus((current) => (current ? { ...current, customPointerEnabled: enabled } : current));
     if (state === "paired") {
-      send({ type: "pointer.highlight.set", enabled });
+      send({ type: "custom.pointer.set", enabled });
     }
   }, [send, setHostStatus, state]);
 
@@ -186,7 +186,7 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
     renameDevice,
     renamePc,
     selectPc,
-    setHostPointerHighlight,
+    setHostCustomPointer,
     setHostPointerSpeed
   };
 }

@@ -16,7 +16,7 @@ Scan the QR code from a phone, tablet, or browser-capable device on the same net
 - Send or paste multiline text to the focused Windows app, copy it to the PC clipboard, or create a new document in a configured app.
 - Control YouTube, Kodi, browser tabs, presentation controls, and common Windows window actions.
 - Lock the PC, blackout displays, or use approved power controls with deliberate confirmation for destructive actions.
-- Choose per-device permissions, pointer speed, and optional pointer highlighting.
+- Choose per-device permissions and pointer speed, plus a host-wide Custom pointer for the Windows desktop.
 - Use it on your own Wi-Fi/LAN with no account or cloud service.
 
 ## Best for
@@ -86,7 +86,7 @@ selection behavior is documented in
 [docs/manual-network-selection.md](docs/manual-network-selection.md). Protocol
 message shapes are documented in [docs/protocol.md](docs/protocol.md).
 
-The optional **Highlight pointer** makes the Windows pointer easier to spot during remote input. It yields to the normal cursor over the taskbar and administrator apps; UAC prompts, the lock screen, and other secure Windows surfaces cannot be remotely controlled.
+The optional **Custom pointer** applies across the desktop. Choose its size and color in Windows Preferences, or turn it on and off from a paired device. It restores the user's normal scheme when switched off or when the host exits. UAC prompts, the lock screen, and other secure Windows surfaces cannot be remotely controlled.
 
 ## Requirements
 

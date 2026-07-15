@@ -238,11 +238,6 @@ export function TrackpadSettingsSection({
       </label>
 
       <label className="toggle-row">
-        <span>Highlight pointer</span>
-        <input type="checkbox" checked={trackpadSettings.highlightPointer} onChange={(event) => updateTrackpadSetting("highlightPointer", event.target.checked)} />
-      </label>
-
-      <label className="toggle-row">
         <span>Scroll acceleration</span>
         <input type="checkbox" checked={trackpadSettings.scrollAcceleration} onChange={(event) => updateTrackpadSetting("scrollAcceleration", event.target.checked)} />
       </label>
@@ -352,6 +347,20 @@ export function KeyboardSettingsSection({
         <input type="checkbox" checked={keyboardSettings.showPasteToPcButton} onChange={(event) => updateKeyboardSetting("showPasteToPcButton", event.target.checked)} />
       </label>
 
+    </>
+  );
+}
+
+export function CustomPointerSettingsSection({ customPointerEnabled, setHostCustomPointer }: Pick<SettingsDrawerProps, "customPointerEnabled" | "setHostCustomPointer">) {
+  const available = typeof customPointerEnabled === "boolean";
+  return (
+    <>
+      <p className="settings-description">Turn Custom pointer on or off for this PC.</p>
+      <label className="toggle-row">
+        <span>Custom pointer</span>
+        <input type="checkbox" checked={customPointerEnabled === true} disabled={!available} onChange={(event) => setHostCustomPointer?.(event.target.checked)} />
+      </label>
+      {!available && <p className="pairing-inline-status">Connect to a host that supports Custom pointer.</p>}
     </>
   );
 }

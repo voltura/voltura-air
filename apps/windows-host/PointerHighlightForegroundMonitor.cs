@@ -11,7 +11,6 @@ internal sealed partial class PointerHighlightForegroundMonitor : IDisposable
     private static readonly TimeSpan TaskbarActivationDelay = TimeSpan.FromMilliseconds(150);
     private readonly Dispatcher _dispatcher;
     private readonly IAppLog _appLog;
-    private readonly IPointerHighlightService _pointerHighlightService;
     private readonly uint _hostIntegrityLevel;
     private readonly WinEventProc _callback;
     private readonly DispatcherTimer _taskbarActivationTimer;
@@ -19,11 +18,10 @@ internal sealed partial class PointerHighlightForegroundMonitor : IDisposable
     private int _remoteInputBlocked;
     private bool _disposed;
 
-    public PointerHighlightForegroundMonitor(IPointerHighlightService pointerHighlightService, IAppLog appLog)
+    public PointerHighlightForegroundMonitor(IAppLog appLog)
     {
         _dispatcher = Dispatcher.CurrentDispatcher;
         _appLog = appLog;
-        _pointerHighlightService = pointerHighlightService;
         _callback = OnForegroundWindowChanged;
         _taskbarActivationTimer = new DispatcherTimer(DispatcherPriority.Background, _dispatcher)
         {
@@ -33,7 +31,6 @@ internal sealed partial class PointerHighlightForegroundMonitor : IDisposable
 
         if (!WindowsProcessIntegrity.TryGetCurrentProcessIntegrityLevel(out _hostIntegrityLevel))
         {
-            _pointerHighlightService.SetOverlaySuppressed(true);
             WriteDiagnostic("host_integrity_unavailable");
             return;
         }
@@ -48,7 +45,6 @@ internal sealed partial class PointerHighlightForegroundMonitor : IDisposable
             WinEventOutOfContext | WinEventSkipOwnProcess);
         if (_hook == nint.Zero)
         {
-            _pointerHighlightService.SetOverlaySuppressed(true);
             WriteDiagnostic("hook_failed", win32Error: Marshal.GetLastWin32Error());
             return;
         }
@@ -104,11 +100,6 @@ internal sealed partial class PointerHighlightForegroundMonitor : IDisposable
         });
     }
 
-    internal static bool ShouldSuppressOverlay(bool integrityLevelKnown, uint hostIntegrityLevel, uint foregroundIntegrityLevel)
-    {
-        return !integrityLevelKnown || WindowsProcessIntegrity.IsHigherIntegrity(hostIntegrityLevel, foregroundIntegrityLevel);
-    }
-
     private void OnForegroundWindowChanged(
         nint hook,
         uint eventType,
@@ -135,9 +126,6 @@ internal sealed partial class PointerHighlightForegroundMonitor : IDisposable
                     ? "foreground_higher_integrity"
                     : "foreground_not_higher_integrity",
             integrityLevelKnown ? $"host={_hostIntegrityLevel};foreground={foregroundIntegrityLevel}" : null);
-        _pointerHighlightService.SetOverlaySuppressed(
-            ShouldSuppressOverlay(integrityLevelKnown, _hostIntegrityLevel, foregroundIntegrityLevel));
-
         if (Interlocked.Exchange(ref _remoteInputBlocked, remoteInputBlocked ? 1 : 0) != (remoteInputBlocked ? 1 : 0))
         {
             RemoteInputBlockedChanged?.Invoke(this, new RemoteInputBlockedChangedEventArgs(remoteInputBlocked));

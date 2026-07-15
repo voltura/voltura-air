@@ -114,13 +114,5 @@ public sealed partial class PairingManager
         }
     }
 
-    public bool GetDeviceHighlightPointer(string clientId)
-    {
-        lock (_gate)
-        {
-            return GetEffectiveHighlightPointer(FindRecord(clientId));
-        }
-    }
-
     public string ActiveDeviceSummary => SummarizeDevices(ActiveDeviceNames);
 }

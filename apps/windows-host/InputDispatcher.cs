@@ -5,14 +5,11 @@ namespace VolturaAir.Host;
 public sealed class InputDispatcher
 {
     private readonly IInputInjector _inputInjector;
-    private readonly IPointerHighlightService _pointerHighlightService;
-
     internal event EventHandler? TaskbarActivated;
 
-    public InputDispatcher(IInputInjector inputInjector, IPointerHighlightService? pointerHighlightService = null)
+    public InputDispatcher(IInputInjector inputInjector)
     {
         _inputInjector = inputInjector;
-        _pointerHighlightService = pointerHighlightService ?? NullPointerHighlightService.Instance;
     }
 
     public bool Dispatch(JsonElement message)
@@ -21,11 +18,6 @@ public sealed class InputDispatcher
     }
 
     public bool Dispatch(JsonElement message, out InputDispatchOutcome outcome)
-    {
-        return Dispatch(message, highlightPointer: false, out outcome);
-    }
-
-    public bool Dispatch(JsonElement message, bool highlightPointer, out InputDispatchOutcome outcome)
     {
         outcome = InputDispatchOutcome.Executed;
         if (!message.TryGetProperty("type", out var typeProperty))
@@ -60,13 +52,11 @@ public sealed class InputDispatcher
         {
             case "pointer.move":
                 _inputInjector.MoveMouse(GetNumber(message, "dx"), GetNumber(message, "dy"));
-                NotifyPointerActivity(highlightPointer);
                 return true;
             case "pointer.button":
                 var button = GetString(message, "button");
                 var action = GetString(message, "action");
                 _inputInjector.MouseButton(button, action);
-                NotifyPointerActivity(highlightPointer);
                 if (ShouldRecheckTaskbarAfterLeftButton(button, action) && HostUiInputGuard.IsPointerOverTaskbar())
                 {
                     TaskbarActivated?.Invoke(this, EventArgs.Empty);
@@ -75,11 +65,9 @@ public sealed class InputDispatcher
                 return true;
             case "pointer.wheel":
                 _inputInjector.Scroll(GetNumber(message, "dx"), GetNumber(message, "dy"));
-                NotifyPointerActivity(highlightPointer);
                 return true;
             case "pointer.zoom":
                 _inputInjector.Zoom(GetString(message, "direction"));
-                NotifyPointerActivity(highlightPointer);
                 return true;
             case "keyboard.text":
                 TypeTextWithLineBreaks(GetString(message, "text"));
@@ -89,14 +77,6 @@ public sealed class InputDispatcher
                 return true;
             default:
                 return false;
-        }
-    }
-
-    private void NotifyPointerActivity(bool highlightPointer)
-    {
-        if (highlightPointer)
-        {
-            _pointerHighlightService.NotifyPointerActivity();
         }
     }
 
@@ -236,24 +216,4 @@ public interface IInputInjector : IDisposable
     void TypeText(string text);
 
     void SpecialKey(string key, IReadOnlyList<string> modifiers);
-}
-
-public interface IPointerHighlightService
-{
-    void NotifyPointerActivity();
-
-    void SetOverlaySuppressed(bool suppressed);
-}
-
-internal sealed class NullPointerHighlightService : IPointerHighlightService
-{
-    public static NullPointerHighlightService Instance { get; } = new();
-
-    public void NotifyPointerActivity()
-    {
-    }
-
-    public void SetOverlaySuppressed(bool suppressed)
-    {
-    }
 }

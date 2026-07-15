@@ -34,9 +34,7 @@ public sealed partial class PairingManager
                     record.DisplayMode,
                     record.PermissionOverrides ?? new DevicePermissionOverrides(),
                     record.PointerSpeedOverride,
-                    GetEffectivePointerSpeed(record),
-                    record.HighlightPointerOverride,
-                    GetEffectiveHighlightPointer(record));
+                    GetEffectivePointerSpeed(record));
             })
             .ToArray();
     }
@@ -154,8 +152,7 @@ public sealed partial class PairingManager
                 Browser = string.IsNullOrWhiteSpace(record.Browser) ? existing.Browser : record.Browser,
                 DisplayMode = string.IsNullOrWhiteSpace(record.DisplayMode) ? existing.DisplayMode : record.DisplayMode,
                 PermissionOverrides = existing.PermissionOverrides,
-                PointerSpeedOverride = existing.PointerSpeedOverride,
-                HighlightPointerOverride = existing.HighlightPointerOverride
+                PointerSpeedOverride = existing.PointerSpeedOverride
             };
             return;
         }
@@ -188,11 +185,6 @@ public sealed partial class PairingManager
     private static int GetEffectivePointerSpeed(PairingRecord? record)
     {
         return record?.PointerSpeedOverride ?? AppPointerSettings.GetDefaultPointerSpeed();
-    }
-
-    private static bool GetEffectiveHighlightPointer(PairingRecord? record)
-    {
-        return record?.HighlightPointerOverride ?? AppPointerSettings.HighlightPointer();
     }
 
     private static string SummarizeDevices(IEnumerable<string> deviceNames)

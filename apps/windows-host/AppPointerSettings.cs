@@ -6,7 +6,13 @@ public static class AppPointerSettings
 {
     private const string SettingsKeyPath = @"Software\VolturaAir";
     private const string DefaultPointerSpeedValueName = "DefaultPointerSpeed";
-    private const string HighlightPointerValueName = "HighlightPointer";
+    private const string CustomPointerEnabledValueName = "CustomPointerEnabled";
+    private const string CustomPointerSizeValueName = "CustomPointerSize";
+    private const string CustomPointerColorValueName = "CustomPointerColor";
+    public const int MinCustomPointerSize = 1;
+    public const int MaxCustomPointerSize = 15;
+    public const int DefaultCustomPointerSize = 6;
+    public const uint DefaultCustomPointerColor = 0x12A894;
 
     public static event EventHandler? Changed;
 
@@ -32,22 +38,38 @@ public static class AppPointerSettings
         }
     }
 
-    public static bool HighlightPointer()
+    public static CustomPointerSettings GetCustomPointer()
     {
         using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: false);
-        return key?.GetValue(HighlightPointerValueName) is int value && value != 0;
+        return new CustomPointerSettings(
+            key?.GetValue(CustomPointerEnabledValueName) is int enabled && enabled != 0,
+            NormalizeCustomPointerSize(key?.GetValue(CustomPointerSizeValueName) as int? ?? DefaultCustomPointerSize),
+            NormalizeCustomPointerColor(key?.GetValue(CustomPointerColorValueName) as int? ?? unchecked((int)DefaultCustomPointerColor)));
     }
 
-    public static void SetHighlightPointer(bool enabled)
+    public static void SetCustomPointer(CustomPointerSettings settings)
     {
-        var current = HighlightPointer();
+        var normalized = settings with
+        {
+            Size = NormalizeCustomPointerSize(settings.Size),
+            Color = NormalizeCustomPointerColor(unchecked((int)settings.Color))
+        };
+        var current = GetCustomPointer();
         using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: true) ??
             Registry.CurrentUser.CreateSubKey(SettingsKeyPath, writable: true);
-        key.SetValue(HighlightPointerValueName, enabled ? 1 : 0, RegistryValueKind.DWord);
+        key.SetValue(CustomPointerEnabledValueName, normalized.Enabled ? 1 : 0, RegistryValueKind.DWord);
+        key.SetValue(CustomPointerSizeValueName, normalized.Size, RegistryValueKind.DWord);
+        key.SetValue(CustomPointerColorValueName, unchecked((int)normalized.Color), RegistryValueKind.DWord);
 
-        if (current != enabled)
+        if (current != normalized)
         {
             Changed?.Invoke(null, EventArgs.Empty);
         }
     }
+
+    public static int NormalizeCustomPointerSize(int size) => Math.Clamp(size, MinCustomPointerSize, MaxCustomPointerSize);
+
+    public static uint NormalizeCustomPointerColor(int color) => unchecked((uint)color) & 0x00FFFFFF;
 }
+
+public readonly record struct CustomPointerSettings(bool Enabled, int Size, uint Color);

@@ -34,6 +34,7 @@ public sealed partial class WebHostService : IAsyncDisposable
     private readonly WebSocketConnectionRegistry _connections = new();
     private readonly SemaphoreSlim _webSocketSessionSlots = new(MaxConcurrentWebSocketSessions, MaxConcurrentWebSocketSessions);
     private readonly Action<IWebHostBuilder>? _configureWebHost;
+    private readonly Action<CustomPointerSettings>? _applyCustomPointer;
     private readonly string _listenAddress;
     private int _inputBlockedByElevation;
     private WebApplication? _app;
@@ -49,6 +50,7 @@ public sealed partial class WebHostService : IAsyncDisposable
         IAppLog? appLog = null,
         IAppLaunchService? appLaunchService = null,
         ITextDestinationService? textDestinationService = null,
+        Action<CustomPointerSettings>? applyCustomPointer = null,
         bool isolatedTestMode = false,
         Action<IWebHostBuilder>? configureWebHost = null)
     {
@@ -65,6 +67,7 @@ public sealed partial class WebHostService : IAsyncDisposable
             : VolturaAir.Host.AwakeService.CreateWindows(_appLog));
         _workstationLockPolicy = workstationLockPolicy ?? new WorkstationLockPolicy(_appLog);
         _configureWebHost = configureWebHost;
+        _applyCustomPointer = applyCustomPointer;
         _pairingManager.PairingRevoked += OnPairingRevoked;
         _pairingManager.PermissionsChanged += OnPermissionsChanged;
         _pairingManager.DeviceProfileChanged += OnPermissionsChanged;
@@ -424,7 +427,7 @@ public sealed partial class WebHostService : IAsyncDisposable
             CanLaunchRemoteApps(clientId) ? _appLaunchService.GetActions() : [],
             _textDestinationService.GetMetadata() is var textDestination ? new TextTransferTargetMetadata(textDestination.Mode, textDestination.DisplayName, textDestination.Available) : new TextTransferTargetMetadata("focused", "Currently focused application", true),
             _pairingManager.GetDevicePointerSpeed(clientId),
-            _pairingManager.GetDeviceHighlightPointer(clientId),
+            AppPointerSettings.GetCustomPointer().Enabled,
             developerMode,
             developerMode ? DeveloperSessionId : null,
             Volatile.Read(ref _inputBlockedByElevation) != 0);
@@ -466,7 +469,7 @@ internal sealed record HostStatusMetadata(
     IReadOnlyList<AppLaunchActionSummary> AppLaunchActions,
     TextTransferTargetMetadata TextTransferTarget,
     int PointerSpeed,
-    bool HighlightPointer,
+    bool CustomPointerEnabled,
     bool DeveloperMode,
     string? DeveloperSessionId,
     bool InputBlockedByElevation);

@@ -78,7 +78,7 @@ public sealed partial class HostUiLayoutTests
                 window.ShowPage(HostPage.Preferences);
                 window.UpdateLayout();
                 var sections = FindWpfDescendants<Expander>(window).ToArray();
-                Assert.Equal(10, sections.Length);
+                Assert.Equal(11, sections.Length);
                 var scroller = Assert.Single(FindWpfDescendants<ScrollViewer>(window));
                 Assert.Equal(ScrollBarVisibility.Visible, scroller.VerticalScrollBarVisibility);
                 Assert.Equal(ScrollBarVisibility.Disabled, scroller.HorizontalScrollBarVisibility);

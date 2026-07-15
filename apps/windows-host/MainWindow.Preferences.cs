@@ -1,6 +1,19 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Threading;
+using System.Windows.Input;
+using System.Windows.Shapes;
+using Button = System.Windows.Controls.Button;
+using MediaBrushes = System.Windows.Media.Brushes;
+using MediaColor = System.Windows.Media.Color;
+using SolidColorBrush = System.Windows.Media.SolidColorBrush;
+using MediaColors = System.Windows.Media.Colors;
+using MediaGradientStop = System.Windows.Media.GradientStop;
+using MediaLinearGradientBrush = System.Windows.Media.LinearGradientBrush;
+using MediaPoint = System.Windows.Point;
+using WpfCursors = System.Windows.Input.Cursors;
 using CheckBox = System.Windows.Controls.CheckBox;
 using ComboBox = System.Windows.Controls.ComboBox;
 using TextBox = System.Windows.Controls.TextBox;
@@ -192,23 +205,276 @@ public partial class MainWindow
         parent.Children.Add(row);
     }
 
-    private void AddGlobalPointerHighlightSetting(StackPanel parent)
+    private void AddCustomPointerSetting(StackPanel parent)
     {
-        var highlightPointer = CreateCheckBox("Highlight pointer", AppPointerSettings.HighlightPointer());
-        highlightPointer.Checked += (_, _) => SetGlobalPointerHighlight(enabled: true);
-        highlightPointer.Unchecked += (_, _) => SetGlobalPointerHighlight(enabled: false);
-        parent.Children.Add(highlightPointer);
-        parent.Children.Add(CreateMutedText("Off by default. Makes the pointer easier to find during paired-device activity; device-specific overrides take precedence."));
+        var current = AppPointerSettings.GetCustomPointer();
+        var customPointer = CreateCheckBox("Custom pointer", current.Enabled);
+        parent.Children.Add(customPointer);
+
+        var controls = new StackPanel { Margin = new Thickness(0, 0, 0, 12), IsEnabled = current.Enabled };
+        controls.Children.Add(CreateLabel("Size"));
+        var sizeRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 12) };
+        var size = new Slider
+        {
+            Style = (Style)Resources["ModernSliderStyle"],
+            Minimum = AppPointerSettings.MinCustomPointerSize,
+            Maximum = AppPointerSettings.MaxCustomPointerSize,
+            TickFrequency = 1,
+            IsSnapToTickEnabled = true,
+            Width = 220,
+            Value = current.Size,
+            Margin = new Thickness(0, 0, 12, 0)
+        };
+        var sizeValue = new TextBlock { Text = current.Size.ToString(CultureInfo.InvariantCulture), VerticalAlignment = VerticalAlignment.Center, MinWidth = 48, Foreground = (Brush)Resources["TextBrush"] };
+        sizeRow.Children.Add(size);
+        sizeRow.Children.Add(sizeValue);
+        controls.Children.Add(sizeRow);
+
+        controls.Children.Add(CreateLabel("Color"));
+        var colorRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
+        var colorButton = CreateButton(string.Empty, (_, _) => { }, primary: false);
+        colorButton.Width = 132;
+        var colorPopup = CreateCustomPointerColorPopup(colorButton, current.Color, selected =>
+        {
+            SaveCustomPointer(customPointer.IsChecked == true, (int)Math.Round(size.Value), selected);
+            SetCustomPointerColorButton(colorButton, selected);
+        });
+        colorButton.Click += (_, _) => colorPopup.IsOpen = !colorPopup.IsOpen;
+        SetCustomPointerColorButton(colorButton, current.Color);
+        colorRow.Children.Add(colorButton);
+        controls.Children.Add(colorRow);
+        parent.Children.Add(controls);
+
+        var sizePreviewTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
+        sizePreviewTimer.Tick += (_, _) =>
+        {
+            sizePreviewTimer.Stop();
+            SaveCustomPointer(customPointer.IsChecked == true, (int)Math.Round(size.Value), GetCustomPointerColor(colorButton));
+        };
+
+        customPointer.Checked += (_, _) =>
+        {
+            controls.IsEnabled = true;
+            SaveCustomPointer(true, (int)Math.Round(size.Value), GetCustomPointerColor(colorButton));
+        };
+        customPointer.Unchecked += (_, _) =>
+        {
+            controls.IsEnabled = false;
+            SaveCustomPointer(false, (int)Math.Round(size.Value), GetCustomPointerColor(colorButton));
+        };
+        size.ValueChanged += (_, _) =>
+        {
+            var selected = (int)Math.Round(size.Value);
+            sizeValue.Text = selected.ToString(CultureInfo.InvariantCulture);
+            if (!_isLoadingPreferences)
+            {
+                sizePreviewTimer.Stop();
+                sizePreviewTimer.Start();
+            }
+        };
     }
 
-    private void SetGlobalPointerHighlight(bool enabled)
+    private void SaveCustomPointer(bool enabled, int size, uint color)
     {
-        AppPointerSettings.SetHighlightPointer(enabled);
-        _appLog.Write(new AppLogEntry(
-            Event: "host_action",
-            Source: "windows_host",
-            Action: "pointer_highlight_default",
-            Outcome: enabled ? "enabled" : "disabled"));
+        var settings = new CustomPointerSettings(enabled, size, color);
+        try
+        {
+            _customPointerService.Apply(settings);
+            AppPointerSettings.SetCustomPointer(settings);
+            _appLog.Write(new AppLogEntry(
+                Event: "host_action",
+                Source: "windows_host",
+                Action: "custom_pointer",
+                Outcome: enabled ? "enabled" : "disabled",
+                Detail: $"size={settings.Size};color=#{settings.Color:X6}"));
+        }
+        catch (Exception exception)
+        {
+            _appLog.Write(new AppLogEntry(
+                Event: "host_action",
+                Source: "windows_host",
+                Action: "custom_pointer",
+                Outcome: "failed",
+                Detail: exception.Message));
+            ShowToast("Custom pointer could not be applied. Your Windows cursor scheme was restored.");
+        }
+    }
+
+    private Popup CreateCustomPointerColorPopup(Button owner, uint initialColor, Action<uint> preview)
+    {
+        var initial = initialColor;
+        var (hue, saturation, value) = RgbToHsv(initialColor);
+        var draft = initialColor;
+        var synchronizing = false;
+        var input = new TextBox { Text = $"#{draft:X6}", Width = 104, Margin = new Thickness(0, 0, 8, 0) };
+        var swatch = new Border { Width = 32, Height = 32, CornerRadius = new CornerRadius(5), Background = CreateCustomPointerBrush(draft), BorderBrush = (Brush)Resources["BorderBrush"], BorderThickness = new Thickness(1), Margin = new Thickness(0, 0, 8, 0) };
+        var surface = new Canvas { Width = 184, Height = 116, Cursor = WpfCursors.Cross };
+        var saturationLayer = new Border { Width = 184, Height = 116 };
+        var valueLayer = new Border { Width = 184, Height = 116, Background = new MediaLinearGradientBrush(MediaColor.FromArgb(0, 0, 0, 0), MediaColors.Black, 90) };
+        var marker = new Ellipse { Width = 12, Height = 12, Stroke = MediaBrushes.White, StrokeThickness = 2, Fill = MediaBrushes.Transparent, IsHitTestVisible = false };
+        surface.Children.Add(saturationLayer);
+        surface.Children.Add(valueLayer);
+        surface.Children.Add(marker);
+        var hueSlider = new Slider
+        {
+            Style = (Style)Resources["ModernSliderStyle"],
+            Minimum = 0,
+            Maximum = 360,
+            Width = 184,
+            Value = hue,
+            Margin = new Thickness(0, 8, 0, 0)
+        };
+        var popup = new Popup
+        {
+            PlacementTarget = owner,
+            Placement = PlacementMode.Bottom,
+            StaysOpen = true,
+            AllowsTransparency = true
+        };
+        void RefreshSurface()
+        {
+            saturationLayer.Background = new MediaLinearGradientBrush(MediaColors.White, CreateCustomPointerBrush(HsvToRgb(hue, 1, 1)).Color, 0);
+            Canvas.SetLeft(marker, saturation * surface.Width - marker.Width / 2);
+            Canvas.SetTop(marker, (1 - value) * surface.Height - marker.Height / 2);
+        }
+
+        void UpdateDraft(uint color, bool updateInput = true)
+        {
+            draft = color;
+            swatch.Background = CreateCustomPointerBrush(draft);
+            if (updateInput)
+            {
+                synchronizing = true;
+                input.Text = $"#{draft:X6}";
+                synchronizing = false;
+            }
+
+            preview(draft);
+        }
+
+        hueSlider.ValueChanged += (_, _) =>
+        {
+            hue = hueSlider.Value;
+            RefreshSurface();
+            UpdateDraft(HsvToRgb(hue, saturation, value));
+        };
+        void PickSurface(MediaPoint point)
+        {
+            saturation = Math.Clamp(point.X / surface.Width, 0, 1);
+            value = Math.Clamp(1 - point.Y / surface.Height, 0, 1);
+            RefreshSurface();
+            UpdateDraft(HsvToRgb(hue, saturation, value));
+        }
+
+        surface.MouseLeftButtonDown += (_, eventArgs) =>
+        {
+            surface.CaptureMouse();
+            PickSurface(eventArgs.GetPosition(surface));
+        };
+        surface.MouseMove += (_, eventArgs) =>
+        {
+            if (surface.IsMouseCaptured)
+            {
+                PickSurface(eventArgs.GetPosition(surface));
+            }
+        };
+        surface.MouseLeftButtonUp += (_, _) => surface.ReleaseMouseCapture();
+        input.TextChanged += (_, _) =>
+        {
+            if (!synchronizing && TryParseCustomPointerColor(input.Text, out var color))
+            {
+                (hue, saturation, value) = RgbToHsv(color);
+                hueSlider.Value = hue;
+                RefreshSurface();
+                UpdateDraft(color, updateInput: false);
+            }
+        };
+        var applyButton = CreateButton("Apply", (_, _) => popup.IsOpen = false, primary: true);
+        var cancelButton = CreateButton("Cancel", (_, _) =>
+        {
+            preview(initial);
+            popup.IsOpen = false;
+        });
+        popup.Opened += (_, _) =>
+        {
+            initial = GetCustomPointerColor(owner);
+            draft = initial;
+            (hue, saturation, value) = RgbToHsv(draft);
+            synchronizing = true;
+            hueSlider.Value = hue;
+            input.Text = $"#{draft:X6}";
+            synchronizing = false;
+            swatch.Background = CreateCustomPointerBrush(draft);
+            RefreshSurface();
+        };
+        RefreshSurface();
+        popup.Child = new Border
+        {
+            Background = (Brush)Resources["SurfaceRaisedBrush"],
+            BorderBrush = (Brush)Resources["BorderBrush"],
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(12),
+            Child = new StackPanel
+            {
+                Children =
+                {
+                    new TextBlock { Text = "Custom color", FontWeight = FontWeights.SemiBold, Foreground = (Brush)Resources["TextBrush"], Margin = new Thickness(0, 0, 0, 8) },
+                    new StackPanel { Orientation = Orientation.Horizontal, Children = { swatch, input } },
+                    surface,
+                    new TextBlock { Text = "Hue", Foreground = (Brush)Resources["MutedTextBrush"], Margin = new Thickness(0, 8, 0, 0) },
+                    hueSlider,
+                    new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0), Children = { applyButton, cancelButton } }
+                }
+            }
+        };
+        return popup;
+    }
+
+    private static bool TryParseCustomPointerColor(string value, out uint color)
+    {
+        var hex = value.Trim().TrimStart('#');
+        return uint.TryParse(hex, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out color) && color <= 0xFFFFFF;
+    }
+
+    private static uint GetCustomPointerColor(Button button) => button.Tag is uint color ? color : AppPointerSettings.DefaultCustomPointerColor;
+
+    private static (double Hue, double Saturation, double Value) RgbToHsv(uint color)
+    {
+        var red = ((color >> 16) & 0xFF) / 255d;
+        var green = ((color >> 8) & 0xFF) / 255d;
+        var blue = (color & 0xFF) / 255d;
+        var max = Math.Max(red, Math.Max(green, blue));
+        var min = Math.Min(red, Math.Min(green, blue));
+        var delta = max - min;
+        var hue = delta == 0 ? 0 : max == red ? 60 * ((green - blue) / delta % 6) : max == green ? 60 * ((blue - red) / delta + 2) : 60 * ((red - green) / delta + 4);
+        return (hue < 0 ? hue + 360 : hue, max == 0 ? 0 : delta / max, max);
+    }
+
+    private static uint HsvToRgb(double hue, double saturation, double value)
+    {
+        var chroma = value * saturation;
+        var second = chroma * (1 - Math.Abs(hue / 60 % 2 - 1));
+        var offset = value - chroma;
+        var (red, green, blue) = hue switch
+        {
+            < 60 => (chroma, second, 0d), < 120 => (second, chroma, 0d), < 180 => (0d, chroma, second),
+            < 240 => (0d, second, chroma), < 300 => (second, 0d, chroma), _ => (chroma, 0d, second)
+        };
+        var redByte = (uint)Math.Round((red + offset) * 255);
+        var greenByte = (uint)Math.Round((green + offset) * 255);
+        var blueByte = (uint)Math.Round((blue + offset) * 255);
+        return (redByte << 16) | (greenByte << 8) | blueByte;
+    }
+
+    private static SolidColorBrush CreateCustomPointerBrush(uint color) => new(MediaColor.FromRgb((byte)(color >> 16), (byte)(color >> 8), (byte)color));
+
+    private static void SetCustomPointerColorButton(Button button, uint color)
+    {
+        button.Tag = color;
+        button.Content = $"#{color:X6}";
+        button.Background = CreateCustomPointerBrush(color);
+        button.Foreground = color > 0x808080 ? MediaBrushes.Black : MediaBrushes.White;
     }
 
     private void SaveGlobalPermissions(

@@ -154,16 +154,6 @@ describe("SettingsDrawer", () => {
     expect(updateTrackpadSetting).toHaveBeenCalledExactlyOnceWith("hapticFeedback", true);
   });
 
-  it("updates the host-backed pointer highlight setting", () => {
-    const updateTrackpadSetting = vi.fn();
-    render(<SettingsDrawer {...baseProps} updateTrackpadSetting={updateTrackpadSetting} />);
-
-    fireEvent.click(screen.getByText("Trackpad"));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Highlight pointer" }));
-
-    expect(updateTrackpadSetting).toHaveBeenCalledExactlyOnceWith("highlightPointer", true);
-  });
-
   it("updates the remote mode setting", () => {
     const updateRemoteSetting = vi.fn();
     render(<SettingsDrawer {...baseProps} updateRemoteSetting={updateRemoteSetting} />);

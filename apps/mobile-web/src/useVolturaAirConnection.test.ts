@@ -133,12 +133,11 @@ describe("useVolturaAirConnection", () => {
         pcName: "PC",
         secret: "fresh-credential",
         paired: true,
-        host: { pointerSpeed: 65, highlightPointer: false }
+        host: { pointerSpeed: 65 }
       })
     });
 
     await waitFor(() => expect(result.current.hostStatus?.pointerSpeed).toBe(65));
-    expect(result.current.hostStatus?.highlightPointer).toBe(false);
     expect(socket.send).toHaveBeenCalledWith(expect.stringContaining("\"type\":\"status.get\""));
     expect(socket.send).not.toHaveBeenCalledWith(expect.stringContaining("pointerSpeed"));
 
@@ -150,11 +149,12 @@ describe("useVolturaAirConnection", () => {
     expect(socket.send).toHaveBeenCalledWith(JSON.stringify({ type: "pointer.speed.set", pointerSpeed: 45 }));
 
     act(() => {
-      result.current.setHostPointerHighlight(true);
+      result.current.setHostCustomPointer(true);
     });
 
-    await waitFor(() => expect(result.current.hostStatus?.highlightPointer).toBe(true));
-    expect(socket.send).toHaveBeenCalledWith(JSON.stringify({ type: "pointer.highlight.set", enabled: true }));
+    await waitFor(() => expect(result.current.hostStatus?.customPointerEnabled).toBe(true));
+    expect(socket.send).toHaveBeenCalledWith(JSON.stringify({ type: "custom.pointer.set", enabled: true }));
+
   });
 
   it("ignores state-changing messages from obsolete sockets", async () => {

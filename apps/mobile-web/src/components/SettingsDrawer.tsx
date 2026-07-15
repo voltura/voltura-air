@@ -5,6 +5,7 @@ import {
   AppSettingsSection,
   AppearanceSettingsSection,
   ConnectionSettingsSection,
+  CustomPointerSettingsSection,
   KeyboardSettingsSection,
   RemoteSettingsSection,
   SettingsSectionDetails,
@@ -73,6 +74,10 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
           scanPairingQr={props.scanPairingQr}
           selectPc={props.selectPc}
         />
+      </SettingsSectionDetails>
+
+      <SettingsSectionDetails section="custom-pointer" label="Custom pointer" isOpen={openSection === "custom-pointer"} onToggle={toggleSection}>
+        <CustomPointerSettingsSection customPointerEnabled={props.customPointerEnabled} setHostCustomPointer={props.setHostCustomPointer} />
       </SettingsSectionDetails>
 
       <SettingsSectionDetails section="trackpad" label="Trackpad" isOpen={openSection === "trackpad"} onToggle={toggleSection}>

@@ -15,7 +15,6 @@ export type TrackpadSettings = {
   pointerSpeed: number;
   pointerSmoothing: boolean;
   pointerAcceleration: boolean;
-  highlightPointer: boolean;
   scrollAcceleration: boolean;
   tapToClick: boolean;
   zoomGestures: boolean;
@@ -47,7 +46,6 @@ export const defaultTrackpadSettings: TrackpadSettings = {
   pointerSpeed: 100,
   pointerSmoothing: false,
   pointerAcceleration: false,
-  highlightPointer: false,
   scrollAcceleration: false,
   tapToClick: true,
   zoomGestures: false,
@@ -69,7 +67,6 @@ export function normalizeTrackpadSettings(value: Partial<TrackpadSettings>): Tra
     pointerSpeed: typeof value.pointerSpeed === "number" ? Math.max(10, Math.min(100, value.pointerSpeed)) : defaultTrackpadSettings.pointerSpeed,
     pointerSmoothing: typeof value.pointerSmoothing === "boolean" ? value.pointerSmoothing : defaultTrackpadSettings.pointerSmoothing,
     pointerAcceleration: typeof value.pointerAcceleration === "boolean" ? value.pointerAcceleration : defaultTrackpadSettings.pointerAcceleration,
-    highlightPointer: typeof value.highlightPointer === "boolean" ? value.highlightPointer : defaultTrackpadSettings.highlightPointer,
     scrollAcceleration: typeof value.scrollAcceleration === "boolean" ? value.scrollAcceleration : defaultTrackpadSettings.scrollAcceleration,
     tapToClick: typeof value.tapToClick === "boolean" ? value.tapToClick : defaultTrackpadSettings.tapToClick,
     zoomGestures: typeof value.zoomGestures === "boolean" ? value.zoomGestures : defaultTrackpadSettings.zoomGestures,

@@ -9,7 +9,6 @@ public sealed partial class WebHostService
     {
         var authenticated = false;
         var authenticatedClientId = string.Empty;
-        PointerHighlightConnectionState? pointerHighlightState = null;
         IDisposable? activeConnection = null;
         var buffer = new byte[64 * 1024];
         using var receiveTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -91,7 +90,7 @@ public sealed partial class WebHostService
                     var secret = result.Secret ?? _pairingManager.RotateSecret(clientId, deviceName);
                     authenticated = true;
                     authenticatedClientId = clientId;
-                    pointerHighlightState = RegisterSocket(clientId, socket);
+                    _connections.Register(clientId, socket);
                     activeConnection = _pairingManager.TrackConnection(clientId);
                     var pcName = Environment.MachineName;
                     var capabilities = CreateCapabilities(clientId);
@@ -137,9 +136,21 @@ public sealed partial class WebHostService
                     continue;
                 }
 
-                if (type == "pointer.highlight.set")
+                if (type == "custom.pointer.set")
                 {
-                    HandlePointerHighlightSet(authenticatedClientId, root, pointerHighlightState!);
+                    var next = AppPointerSettings.GetCustomPointer() with { Enabled = root.GetProperty("enabled").GetBoolean() };
+                    try
+                    {
+                        _applyCustomPointer?.Invoke(next);
+                        AppPointerSettings.SetCustomPointer(next);
+                        LogCommandOutcome(authenticatedClientId, type, next.Enabled ? "enable" : "disable", "executed");
+                    }
+                    catch (Exception exception)
+                    {
+                        LogCommandOutcome(authenticatedClientId, type, next.Enabled ? "enable" : "disable", "failed");
+                        _appLog.Write(new AppLogEntry(Event: "host_action", Source: "windows_host", ClientId: authenticatedClientId, Action: "custom_pointer", Outcome: "failed", Detail: exception.Message));
+                    }
+
                     continue;
                 }
 
@@ -216,7 +227,7 @@ public sealed partial class WebHostService
 
                 if (IsInputMessage(type))
                 {
-                    await HandleInputMessageAsync(socket, root, authenticatedClientId, pointerHighlightState!.Enabled, cancellationToken);
+                    await HandleInputMessageAsync(socket, root, authenticatedClientId, cancellationToken);
                     continue;
                 }
 
@@ -243,7 +254,7 @@ public sealed partial class WebHostService
         {
             if (!string.IsNullOrEmpty(authenticatedClientId))
             {
-                UnregisterSocket(authenticatedClientId, socket);
+                _connections.Unregister(authenticatedClientId, socket);
             }
 
             activeConnection?.Dispose();
@@ -279,7 +290,6 @@ public sealed partial class WebHostService
 
     private void OnPermissionsChanged(object? sender, EventArgs e)
     {
-        RefreshPointerHighlightStates();
         _ = Task.Run(BroadcastStatusAsync);
     }
 

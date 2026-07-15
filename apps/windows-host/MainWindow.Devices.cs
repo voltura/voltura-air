@@ -37,7 +37,6 @@ public partial class MainWindow
 
         _deviceDetailsPanel.Children.Add(CreateSectionHeading("Trackpad profile"));
         AddPointerSpeedProfile(_deviceDetailsPanel, device);
-        AddPointerHighlightProfile(_deviceDetailsPanel, device);
 
         _deviceDetailsPanel.Children.Add(CreateSectionHeading("Permissions"));
         AddPermissionChoices(_deviceDetailsPanel, device, "PC sleep", PermissionKind.PcSleep);
@@ -136,19 +135,6 @@ public partial class MainWindow
         RefreshDevicesAndSelect(clientId);
     }
 
-    private void AddPointerHighlightProfile(StackPanel parent, PairedDeviceStatus device)
-    {
-        parent.Children.Add(CreateLabel("Highlight pointer"));
-        parent.Children.Add(CreateMutedText(device.HighlightPointerOverride is null
-            ? $"Using global default: {(device.HighlightPointer ? "Enabled" : "Off")}."
-            : $"Override active: {(device.HighlightPointer ? "Enabled" : "Off")}."));
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 12) };
-        row.Children.Add(CreateButton("Use global", (_, _) => SetDeviceHighlightPointerOverride(device.ClientId, null), primary: device.HighlightPointerOverride is null));
-        row.Children.Add(CreateButton("Enabled", (_, _) => SetDeviceHighlightPointerOverride(device.ClientId, true), primary: device.HighlightPointerOverride == true));
-        row.Children.Add(CreateButton("Off", (_, _) => SetDeviceHighlightPointerOverride(device.ClientId, false), primary: device.HighlightPointerOverride == false));
-        parent.Children.Add(row);
-    }
-
     private static bool? GetPermissionOverride(DevicePermissionOverrides permissions, PermissionKind kind)
     {
         return kind switch
@@ -171,26 +157,6 @@ public partial class MainWindow
     private void SetDevicePointerSpeedOverride(string clientId, int? pointerSpeed)
     {
         _pairingManager.SetDevicePointerSpeedOverride(clientId, pointerSpeed);
-        RefreshDevicesAndSelect(clientId);
-    }
-
-    private void SetDeviceHighlightPointerOverride(string clientId, bool? enabled)
-    {
-        if (_pairingManager.SetDeviceHighlightPointerOverride(clientId, enabled))
-        {
-            _appLog.Write(new AppLogEntry(
-                Event: "host_action",
-                Source: "windows_host",
-                ClientId: clientId,
-                Action: "pointer_highlight_override",
-                Outcome: enabled switch
-                {
-                    true => "enabled",
-                    false => "disabled",
-                    null => "use_global"
-                }));
-        }
-
         RefreshDevicesAndSelect(clientId);
     }
 

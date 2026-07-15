@@ -37,7 +37,6 @@ describe("connection protocol policy", () => {
       hostVersion: " 0.2.0 ",
       inputBlockedByElevation: true,
       webClientBuildId: " build-a ",
-      highlightPointer: true,
       pointerSpeed: 500,
       selectedPort: Number.NaN
     })).toEqual({
@@ -45,7 +44,6 @@ describe("connection protocol policy", () => {
       hostVersion: "0.2.0",
       inputBlockedByElevation: true,
       webClientBuildId: "build-a",
-      highlightPointer: true,
       pointerSpeed: 100
     });
   });

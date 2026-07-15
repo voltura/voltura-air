@@ -7,13 +7,14 @@ import type { RemoteSettings } from "../remoteSettings";
 import type { ToolAppTab } from "../appModeTabs";
 
 export type ThemeMode = "system" | "light" | "dark";
-export type SettingsSection = "connection" | "trackpad" | "keyboard" | "split" | "remote" | "appearance" | "app";
+export type SettingsSection = "connection" | "custom-pointer" | "trackpad" | "keyboard" | "split" | "remote" | "appearance" | "app";
 
 export type SettingsDrawerProps = {
   activePc: PcProfile | null;
   appSettings: AppSettings;
   diagnostics: string;
   deviceName: string;
+  customPointerEnabled?: boolean;
   disconnectActivePc: () => void;
   forgetPc: (pcId: string) => void;
   installApp: () => void;
@@ -36,6 +37,7 @@ export type SettingsDrawerProps = {
   remoteSettings: RemoteSettings;
   scanPairingQr: () => void;
   selectPc: (pcId: string) => void;
+  setHostCustomPointer?: (enabled: boolean) => void;
   setThemeMode: Dispatch<SetStateAction<ThemeMode>>;
   showGestureDebug: boolean;
   supportsRemoteLaunch: boolean;

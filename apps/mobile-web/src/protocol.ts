@@ -33,6 +33,11 @@ export type PointerSpeedSetMessage = {
   pointerSpeed: number;
 };
 
+export type CustomPointerSetMessage = {
+  type: "custom.pointer.set";
+  enabled: boolean;
+};
+
 export type AudioGetMessage = {
   type: "audio.get";
 };
@@ -46,11 +51,6 @@ export type ServerCapabilities = {
   sleep?: boolean;
   textTransfer?: boolean;
   volume?: boolean;
-};
-
-export type PointerHighlightSetMessage = {
-  type: "pointer.highlight.set";
-  enabled: boolean;
 };
 
 export type TextTransferTarget = {
@@ -87,7 +87,7 @@ export type HostStatusMetadata = {
   webClientBuildId?: string;
   pcName?: string;
   pointerSpeed?: number;
-  highlightPointer?: boolean;
+  customPointerEnabled?: boolean;
   inputBlockedByElevation?: boolean;
   selectedAdapterName?: string;
   selectedIp?: string;
@@ -288,7 +288,7 @@ export type ClientMessage =
   | HealthPingMessage
   | StatusGetMessage
   | PointerSpeedSetMessage
-  | PointerHighlightSetMessage
+  | CustomPointerSetMessage
   | AudioGetMessage
   | PointerMoveMessage
   | PointerButtonMessage

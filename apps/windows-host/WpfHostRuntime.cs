@@ -7,7 +7,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
 {
     private readonly SendInputInjector _inputInjector;
     private readonly Process? _cursorWatchdog;
-    private readonly LazyPointerHighlightService _pointerHighlightService;
+    private readonly CustomPointerService _customPointerService;
     private readonly PointerHighlightForegroundMonitor _pointerHighlightForegroundMonitor;
     private readonly IDisposable _textDestinationDraftCleanup;
     private readonly WebHostService _webHost;
@@ -16,7 +16,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
     private WpfHostRuntime(
         SendInputInjector inputInjector,
         Process? cursorWatchdog,
-        LazyPointerHighlightService pointerHighlightService,
+        CustomPointerService customPointerService,
         PointerHighlightForegroundMonitor pointerHighlightForegroundMonitor,
         IDisposable textDestinationDraftCleanup,
         WebHostService webHost,
@@ -26,7 +26,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
     {
         _inputInjector = inputInjector;
         _cursorWatchdog = cursorWatchdog;
-        _pointerHighlightService = pointerHighlightService;
+        _customPointerService = customPointerService;
         _pointerHighlightForegroundMonitor = pointerHighlightForegroundMonitor;
         _textDestinationDraftCleanup = textDestinationDraftCleanup;
         _webHost = webHost;
@@ -49,10 +49,11 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         var isolatedTestMode = HasOption(args, "--isolated-test-mode");
         IAppLog appLog = isolatedTestMode ? NullAppLog.Instance : new AppLog();
         var cursorWatchdog = TryStartCursorWatchdog();
-        var pointerHighlightService = new LazyPointerHighlightService(appLog, cursorWatchdog is not null);
-        MonitorCursorWatchdog(cursorWatchdog, pointerHighlightService);
+        var customPointerService = new CustomPointerService();
+        customPointerService.Apply(AppPointerSettings.GetCustomPointer());
+        MonitorCursorWatchdog(cursorWatchdog, customPointerService);
         var textDestinationDraftCleanup = TextDestinationDraftStore.CreateCleanupService();
-        var inputDispatcher = new InputDispatcher(inputInjector, pointerHighlightService);
+        var inputDispatcher = new InputDispatcher(inputInjector);
         var workstationLockPolicy = new WorkstationLockPolicy(appLog);
         ISystemPowerController powerController = isolatedTestMode
             ? new NoOpSystemPowerController()
@@ -68,12 +69,13 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
             workstationLockPolicy: workstationLockPolicy,
             appLog: appLog,
             textDestinationService: new TextDestinationService(inputDispatcher, inputInjector),
+            applyCustomPointer: customPointerService.Apply,
             isolatedTestMode: isolatedTestMode);
 
         PointerHighlightForegroundMonitor? pointerHighlightForegroundMonitor = null;
         try
         {
-            pointerHighlightForegroundMonitor = new PointerHighlightForegroundMonitor(pointerHighlightService, appLog);
+            pointerHighlightForegroundMonitor = new PointerHighlightForegroundMonitor(appLog);
             pointerHighlightForegroundMonitor.RemoteInputBlockedChanged += (_, eventArgs) =>
                 webHost.SetInputBlockedByElevation(eventArgs.IsBlocked);
             inputDispatcher.TaskbarActivated += (_, _) => pointerHighlightForegroundMonitor.NotifyTaskbarActivation();
@@ -86,13 +88,14 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 usePublicScreenshotPairingUrl,
                 workstationLockPolicy,
                 awakeService,
+                customPointerService: customPointerService,
                 appLog: appLog);
             WritePairingUrlIfRequested(args, mainWindow.PairingUrl);
             var trayContext = new WpfTrayApplicationContext(mainWindow, webHost, pairingManager, awakeService);
             return new WpfHostRuntime(
                 inputInjector,
                 cursorWatchdog,
-                pointerHighlightService,
+                customPointerService,
                 pointerHighlightForegroundMonitor,
                 textDestinationDraftCleanup,
                 webHost,
@@ -105,7 +108,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
             pointerHighlightForegroundMonitor?.Dispose();
             textDestinationDraftCleanup.Dispose();
             await webHost.DisposeAsync();
-            pointerHighlightService.Dispose();
+            customPointerService.Dispose();
             cursorWatchdog?.Dispose();
             inputInjector.Dispose();
             throw;
@@ -122,7 +125,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         _inputInjector.Dispose();
         _pointerHighlightForegroundMonitor.Dispose();
         _textDestinationDraftCleanup.Dispose();
-        _pointerHighlightService.Dispose();
+        _customPointerService.Dispose();
         _cursorWatchdog?.Dispose();
     }
 
@@ -167,7 +170,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
 
     private static void MonitorCursorWatchdog(
         Process? cursorWatchdog,
-        LazyPointerHighlightService pointerHighlightService)
+        CustomPointerService customPointerService)
     {
         if (cursorWatchdog is null)
         {
@@ -176,16 +179,16 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
 
         try
         {
-            cursorWatchdog.Exited += (_, _) => pointerHighlightService.DisableForSession();
+            cursorWatchdog.Exited += (_, _) => customPointerService.Restore();
             cursorWatchdog.EnableRaisingEvents = true;
             if (cursorWatchdog.HasExited)
             {
-                pointerHighlightService.DisableForSession();
+                customPointerService.Restore();
             }
         }
         catch
         {
-            pointerHighlightService.DisableForSession();
+            customPointerService.Restore();
         }
     }
 

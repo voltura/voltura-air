@@ -76,8 +76,7 @@ internal static class ClientMessageValidator
             "health.ping" => true,
             "status.get" => true,
             "pointer.speed.set" => TryGetNumber(root, "pointerSpeed", DevicePointerProfile.MinPointerSpeed, DevicePointerProfile.MaxPointerSpeed, out _),
-            "pointer.highlight.set" => root.TryGetProperty("enabled", out var highlightEnabled) &&
-                highlightEnabled.ValueKind is JsonValueKind.True or JsonValueKind.False,
+            "custom.pointer.set" => root.TryGetProperty("enabled", out var customPointerEnabled) && customPointerEnabled.ValueKind is JsonValueKind.True or JsonValueKind.False,
             "audio.get" => true,
             "system.sleep" => true,
             "system.power" => TryGetRequiredString(root, "action", MaxRemoteActionLength, allowEmpty: false, out _),

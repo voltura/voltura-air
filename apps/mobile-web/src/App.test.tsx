@@ -71,7 +71,7 @@ function mockConnection(overrides: Partial<ReturnType<typeof useVolturaAirConnec
     forgetPc: vi.fn(),
     renamePc: vi.fn(),
     renameDevice: vi.fn(),
-    setHostPointerHighlight: vi.fn(),
+    setHostCustomPointer: vi.fn(),
     setHostPointerSpeed: vi.fn(),
     ...overrides
   });

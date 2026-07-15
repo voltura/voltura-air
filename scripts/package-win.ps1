@@ -10,14 +10,17 @@ $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $packageJsonPath = Join-Path $repoRoot "package.json"
 $publishRoot = Join-Path $repoRoot "artifacts\publish"
 $publishDir = Join-Path $publishRoot "VolturaAir-$Runtime"
+$frameworkDependentPublishDir = Join-Path $publishRoot "VolturaAir-$Runtime-framework-dependent"
 $zipPath = Join-Path $publishRoot "VolturaAir-$Version-$Runtime.zip"
 $installerPath = Join-Path $publishRoot "VolturaAir-Setup-$Version-$Runtime.exe"
+$frameworkDependentInstallerPath = Join-Path $publishRoot "VolturaAir-Setup-$Version-$Runtime-framework-dependent.exe"
 $nsisScript = Join-Path $repoRoot "installer\VolturaAir.nsi"
 
 if ([string]::IsNullOrWhiteSpace($Version)) {
     $Version = (Get-Content $packageJsonPath -Raw | ConvertFrom-Json).version
     $zipPath = Join-Path $publishRoot "VolturaAir-$Version-$Runtime.zip"
     $installerPath = Join-Path $publishRoot "VolturaAir-Setup-$Version-$Runtime.exe"
+    $frameworkDependentInstallerPath = Join-Path $publishRoot "VolturaAir-Setup-$Version-$Runtime-framework-dependent.exe"
 }
 
 if ([string]::IsNullOrWhiteSpace($Version)) {
@@ -61,6 +64,9 @@ if (-not $SkipBuild) {
     if (Test-Path $publishDir) {
         Remove-Item $publishDir -Recurse -Force
     }
+    if (Test-Path $frameworkDependentPublishDir) {
+        Remove-Item $frameworkDependentPublishDir -Recurse -Force
+    }
 
     Push-Location $repoRoot
     try {
@@ -74,15 +80,18 @@ if (-not $SkipBuild) {
             -p:IncludeNativeLibrariesForSelfExtract=true `
             -o $publishDir
 
-        dotnet publish apps/cursor-watchdog/VolturaAir.CursorWatchdog.csproj `
+        powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-cursor-watchdog.ps1 `
+            -OutputPath (Join-Path $publishDir "VolturaAir.CursorWatchdog.exe")
+
+        dotnet publish apps/windows-host/VolturaAir.Host.csproj `
             -c Release `
             -r $Runtime `
-            --self-contained true `
-            -p:PublishSingleFile=true `
-            -p:IncludeNativeLibrariesForSelfExtract=true `
-            -p:DebugType=None `
-            -p:DebugSymbols=false `
-            -o $publishDir
+            --self-contained false `
+            -p:PublishSingleFile=false `
+            -o $frameworkDependentPublishDir
+
+        powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-cursor-watchdog.ps1 `
+            -OutputPath (Join-Path $frameworkDependentPublishDir "VolturaAir.CursorWatchdog.exe")
     }
     finally {
         Pop-Location
@@ -99,14 +108,29 @@ if (-not (Test-Path $publishedWatchdogExe)) {
     throw "Expected published cursor watchdog executable was not found: $publishedWatchdogExe"
 }
 
+$frameworkDependentHostExe = Join-Path $frameworkDependentPublishDir "VolturaAir.Host.exe"
+if (-not (Test-Path $frameworkDependentHostExe)) {
+    throw "Expected framework-dependent host executable was not found: $frameworkDependentHostExe"
+}
+
+$frameworkDependentWatchdogExe = Join-Path $frameworkDependentPublishDir "VolturaAir.CursorWatchdog.exe"
+if (-not (Test-Path $frameworkDependentWatchdogExe)) {
+    throw "Expected framework-dependent cursor watchdog executable was not found: $frameworkDependentWatchdogExe"
+}
+
 $installedSizeBytes = (Get-ChildItem $publishDir -Recurse -File | Measure-Object Length -Sum).Sum
 $installedSizeKb = [int][math]::Ceiling($installedSizeBytes / 1KB)
+$frameworkDependentInstalledSizeBytes = (Get-ChildItem $frameworkDependentPublishDir -Recurse -File | Measure-Object Length -Sum).Sum
+$frameworkDependentInstalledSizeKb = [int][math]::Ceiling($frameworkDependentInstalledSizeBytes / 1KB)
 
 if (Test-Path $zipPath) {
     Remove-Item $zipPath -Force
 }
 if (Test-Path $installerPath) {
     Remove-Item $installerPath -Force
+}
+if (Test-Path $frameworkDependentInstallerPath) {
+    Remove-Item $frameworkDependentInstallerPath -Force
 }
 
 Compress-Archive -Path (Join-Path $publishDir "*") -DestinationPath $zipPath -Force
@@ -128,6 +152,24 @@ if (-not (Test-Path $installerPath)) {
     throw "Expected installer was not created: $installerPath"
 }
 
+& $makensisPath `
+    "/DAPP_VERSION=$Version" `
+    "/DAPP_VERSION_QUAD=$appVersionQuad" `
+    "/DAPP_ESTIMATED_SIZE_KB=$frameworkDependentInstalledSizeKb" `
+    "/DRUNTIME=$Runtime" `
+    "/DPUBLISH_DIR=$frameworkDependentPublishDir" `
+    "/DOUTPUT_FILE=$frameworkDependentInstallerPath" `
+    "/DFRAMEWORK_DEPENDENT" `
+    $nsisScript
+
+if ($LASTEXITCODE -ne 0) {
+    throw "Framework-dependent installer compilation failed with exit code $LASTEXITCODE."
+}
+
+if (-not (Test-Path $frameworkDependentInstallerPath)) {
+    throw "Expected framework-dependent installer was not created: $frameworkDependentInstallerPath"
+}
+
 $verifyVersionScript = Join-Path $repoRoot "scripts\verify-windows-version.ps1"
 $verifyVersionArguments = @{
     Version = $Version
@@ -141,5 +183,18 @@ if (-not $SkipBuild) {
 
 & $verifyVersionScript @verifyVersionArguments
 
+$frameworkDependentVerifyVersionArguments = @{
+    Version = $Version
+    Runtime = $Runtime
+    PublishDir = $frameworkDependentPublishDir
+    InstallerPath = $frameworkDependentInstallerPath
+}
+if (-not $SkipBuild) {
+    $frameworkDependentVerifyVersionArguments.RequireHostDll = $true
+}
+
+& $verifyVersionScript @frameworkDependentVerifyVersionArguments
+
 Write-Host "Created portable zip: $zipPath"
-Write-Host "Created installer: $installerPath"
+Write-Host "Created self-contained installer: $installerPath"
+Write-Host "Created framework-dependent installer: $frameworkDependentInstallerPath"

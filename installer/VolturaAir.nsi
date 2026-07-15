@@ -32,6 +32,16 @@
 !define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\Voltura Air"
 !define RUN_KEY "Software\Microsoft\Windows\CurrentVersion\Run"
 
+!ifdef FRAMEWORK_DEPENDENT
+!define INSTALLER_FILE_SUFFIX "-framework-dependent"
+!define INSTALLER_KIND "Framework-dependent"
+!define MUI_WELCOME_TEXT "Set up ${APP_NAME} on this Windows PC to control it from your phone or tablet over your local network.$\r$\n$\r$\nThis smaller installer downloads the required .NET 10 Windows Desktop and ASP.NET Core runtimes if they are missing. An internet connection and Windows administrator approval may be required."
+!else
+!define INSTALLER_FILE_SUFFIX ""
+!define INSTALLER_KIND "Self-contained"
+!define MUI_WELCOME_TEXT "Set up ${APP_NAME} on this Windows PC to control it from your phone or tablet over your local network.$\r$\n$\r$\nThe installer adds a Start Menu shortcut and keeps everything in your user profile."
+!endif
+
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
 
@@ -50,7 +60,7 @@ VIAddVersionKey "CompanyName" "${PUBLISHER}"
 VIAddVersionKey "FileDescription" "${APP_NAME} Installer"
 VIAddVersionKey "FileVersion" "${APP_VERSION}"
 VIAddVersionKey "ProductVersion" "${APP_VERSION}"
-VIAddVersionKey "OriginalFilename" "VolturaAir-Setup-${APP_VERSION}-${RUNTIME}.exe"
+VIAddVersionKey "OriginalFilename" "VolturaAir-Setup-${APP_VERSION}-${RUNTIME}${INSTALLER_FILE_SUFFIX}.exe"
 VIAddVersionKey "InternalName" "VolturaAirSetup"
 VIAddVersionKey "LegalCopyright" "Copyright (c) ${PUBLISHER}"
 VIAddVersionKey "Comments" "Developer: ${DEVELOPER}; Website: ${PRODUCT_URL}; Email: ${SUPPORT_EMAIL}; Address: ${POSTAL_ADDRESS}"
@@ -65,7 +75,7 @@ VIAddVersionKey "Comments" "Developer: ${DEVELOPER}; Website: ${PRODUCT_URL}; Em
 !define MUI_WELCOMEFINISHPAGE_BITMAP "${__FILEDIR__}\assets\installer-welcome.bmp"
 !define MUI_UNWELCOMEFINISHPAGE_BITMAP "${__FILEDIR__}\assets\installer-welcome.bmp"
 !define MUI_WELCOMEPAGE_TITLE "Install ${APP_NAME}"
-!define MUI_WELCOMEPAGE_TEXT "Set up ${APP_NAME} on this Windows PC to control it from your phone or tablet over your local network.$\r$\n$\r$\nThe installer adds a Start Menu shortcut and keeps everything in your user profile."
+!define MUI_WELCOMEPAGE_TEXT "${MUI_WELCOME_TEXT}"
 !define MUI_FINISHPAGE_TITLE "${APP_NAME} is ready"
 !define MUI_FINISHPAGE_TEXT "Start ${APP_NAME}, scan the pairing code from your phone or tablet, and control your PC from the sofa."
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${EXE_NAME}"
@@ -81,6 +91,18 @@ VIAddVersionKey "Comments" "Developer: ${DEVELOPER}; Website: ${PRODUCT_URL}; Em
 
 Section "Install"
   Call PromptCloseRunningApp
+
+  !ifdef FRAMEWORK_DEPENDENT
+  InitPluginsDir
+  File /oname=$PLUGINSDIR\Install-FrameworkRuntime.ps1 "${__FILEDIR__}\Install-FrameworkRuntime.ps1"
+  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\Install-FrameworkRuntime.ps1"'
+  Pop $0
+  Pop $1
+  ${If} $0 != 0
+    MessageBox MB_ICONSTOP "Voltura Air could not install the required .NET 10 runtimes. Check your internet connection and approve the Windows administrator prompt, or use the self-contained installer instead.$\r$\n$\r$\nDetails:$\r$\n$1"
+    Abort "The required .NET 10 runtimes were not installed."
+  ${EndIf}
+  !endif
 
   RMDir /r "$INSTDIR"
   SetOutPath "$INSTDIR"
@@ -98,7 +120,7 @@ Section "Install"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "URLInfoAbout" "${PRODUCT_URL}"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "HelpLink" "${PRODUCT_URL}"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "Contact" "${SUPPORT_EMAIL}"
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "Comments" "Developer: ${DEVELOPER}; Address: ${POSTAL_ADDRESS}"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "Comments" "${INSTALLER_KIND} installer. Developer: ${DEVELOPER}; Address: ${POSTAL_ADDRESS}"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\${EXE_NAME}"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "UninstallString" "$\"$INSTDIR\Uninstall.exe$\""

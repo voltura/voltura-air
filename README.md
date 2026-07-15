@@ -126,9 +126,15 @@ For development and release packaging:
 
 - .NET 10 SDK.
 - Node.js and npm.
+- Visual Studio Build Tools with the Desktop development with C++ workload, which builds the native cursor watchdog.
 - NSIS 3.12 or later when building Windows installer assets.
 
-For normal installation, download and run the latest `VolturaAir-Setup-<version>-win-x64.exe` from the GitHub release. The installer installs per user, does not require administrator rights, and keeps pairing/settings data when uninstalled.
+For normal installation, choose one installer from the latest GitHub release:
+
+- `VolturaAir-Setup-<version>-win-x64-framework-dependent.exe` is the smaller installer. It downloads and installs the required .NET 10 Desktop and ASP.NET Core runtimes when needed, so it needs an internet connection and may request Windows administrator approval.
+- `VolturaAir-Setup-<version>-win-x64.exe` is self-contained. It includes everything needed, installs per user without administrator rights, and is the offline/no-prerequisite option.
+
+Both installers keep pairing and settings data when uninstalled.
 
 ## Freeware and support
 
@@ -178,7 +184,7 @@ To create Windows release assets locally, install NSIS 3.12 or later and run:
 npm run package:win
 ```
 
-This creates both the portable zip and the NSIS setup executable under `artifacts/publish`.
+This creates the portable zip plus self-contained and framework-dependent NSIS installers under `artifacts/publish`.
 
 ## Run From CLI
 

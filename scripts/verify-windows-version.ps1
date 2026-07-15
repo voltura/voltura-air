@@ -56,7 +56,9 @@ function Assert-VersionMetadata {
         [Parameter(Mandatory = $true)][string]$Path,
         [Parameter(Mandatory = $true)][string]$Label,
         [Parameter(Mandatory = $true)][string]$ExpectedFileVersion,
-        [Parameter(Mandatory = $true)][string]$ExpectedDescription
+        [Parameter(Mandatory = $true)][string]$ExpectedDescription,
+        [string]$ExpectedInternalName,
+        [string]$ExpectedOriginalFilename
     )
 
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
@@ -70,6 +72,8 @@ function Assert-VersionMetadata {
     $actualProductName = ([string]$versionInfo.ProductName).Trim()
     $actualCompanyName = ([string]$versionInfo.CompanyName).Trim()
     $actualDescription = ([string]$versionInfo.FileDescription).Trim()
+    $actualInternalName = ([string]$versionInfo.InternalName).Trim()
+    $actualOriginalFilename = ([string]$versionInfo.OriginalFilename).Trim()
 
     if ($fixedFileVersion -ne $windowsVersion) {
         throw "$Label fixed Windows version '$fixedFileVersion' does not match '$windowsVersion': $Path"
@@ -89,6 +93,12 @@ function Assert-VersionMetadata {
     if ($actualDescription -ne $ExpectedDescription) {
         throw "$Label description '$actualDescription' does not match '$ExpectedDescription': $Path"
     }
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedInternalName) -and $actualInternalName -ne $ExpectedInternalName) {
+        throw "$Label internal name '$actualInternalName' does not match '$ExpectedInternalName': $Path"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedOriginalFilename) -and $actualOriginalFilename -ne $ExpectedOriginalFilename) {
+        throw "$Label original filename '$actualOriginalFilename' does not match '$ExpectedOriginalFilename': $Path"
+    }
 
     Write-Host "Validated $Label metadata: $Path"
 }
@@ -106,6 +116,15 @@ Assert-VersionMetadata `
     -Label 'published host EXE' `
     -ExpectedFileVersion $windowsVersion `
     -ExpectedDescription 'Voltura Air'
+
+$watchdogExePath = Join-Path $resolvedPublishDir 'VolturaAir.CursorWatchdog.exe'
+Assert-VersionMetadata `
+    -Path $watchdogExePath `
+    -Label 'native cursor watchdog EXE' `
+    -ExpectedFileVersion $windowsVersion `
+    -ExpectedDescription 'Voltura Air' `
+    -ExpectedInternalName 'VolturaAir.CursorWatchdog' `
+    -ExpectedOriginalFilename 'VolturaAir.CursorWatchdog.exe'
 
 $hostDllCandidates = @(
     (Join-Path $repoRoot "apps\windows-host\bin\Release\net10.0-windows\$Runtime\VolturaAir.Host.dll"),

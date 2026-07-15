@@ -26,7 +26,6 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="QRCoder" Version="1.8.0" />
-    <ProjectReference Include="..\cursor-watchdog\VolturaAir.CursorWatchdog.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>
@@ -63,15 +62,8 @@
     <Delete Files="@(StaleWpfMarkupCache)" />
   </Target>
 
-  <Target Name="CopyCursorWatchdogToDevelopmentOutput" AfterTargets="Build" Condition="'$(PublishSingleFile)' != 'true'">
-    <PropertyGroup>
-      <CursorWatchdogOutputDirectory>$(MSBuildProjectDirectory)\..\cursor-watchdog\bin\$(Configuration)\$(TargetFramework)\</CursorWatchdogOutputDirectory>
-      <CursorWatchdogOutputDirectory Condition="'$(RuntimeIdentifier)' != ''">$(CursorWatchdogOutputDirectory)$(RuntimeIdentifier)\</CursorWatchdogOutputDirectory>
-    </PropertyGroup>
-    <ItemGroup>
-      <CursorWatchdogOutput Include="$(CursorWatchdogOutputDirectory)VolturaAir.CursorWatchdog.*" />
-    </ItemGroup>
-    <Copy SourceFiles="@(CursorWatchdogOutput)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  <Target Name="BuildCursorWatchdog" AfterTargets="Build" Condition="'$(DesignTimeBuild)' != 'true' AND '$(PublishSingleFile)' == ''">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\..\scripts\build-cursor-watchdog.ps1&quot; -OutputPath &quot;$(OutDir)VolturaAir.CursorWatchdog.exe&quot;" />
   </Target>
 
   <!-- Build the React client automatically when building inside Visual Studio. -->

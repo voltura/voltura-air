@@ -103,6 +103,12 @@ public sealed class InputDispatcherTests
     }
 
     [Fact]
+    public void PointerHighlightInitializesNativeOverlayInterop()
+    {
+        using var service = new PointerHighlightService();
+    }
+
+    [Fact]
     public void LazyPointerHighlightCreatesAndDisposesOverlayOnlyAfterFirstUse()
     {
         var created = 0;

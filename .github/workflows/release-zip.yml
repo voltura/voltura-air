@@ -79,6 +79,13 @@ jobs:
             -Runtime "${{ inputs.runtime }}" `
             -RequireHostDll
 
+          & .\scripts\verify-windows-version.ps1 `
+            -Version "${{ inputs.version }}" `
+            -Runtime "${{ inputs.runtime }}" `
+            -PublishDir "artifacts/publish/VolturaAir-${{ inputs.runtime }}-framework-dependent" `
+            -InstallerPath "artifacts/publish/VolturaAir-Setup-${{ inputs.version }}-${{ inputs.runtime }}-framework-dependent.exe" `
+            -RequireHostDll
+
       - name: Collect asset paths
         id: package
         shell: pwsh
@@ -87,13 +94,17 @@ jobs:
           $runtime = "${{ inputs.runtime }}"
           $zipName = "VolturaAir-$version-$runtime.zip"
           $installerName = "VolturaAir-Setup-$version-$runtime.exe"
+          $frameworkDependentInstallerName = "VolturaAir-Setup-$version-$runtime-framework-dependent.exe"
           $zipPath = "artifacts/publish/$zipName"
           $installerPath = "artifacts/publish/$installerName"
+          $frameworkDependentInstallerPath = "artifacts/publish/$frameworkDependentInstallerName"
 
           "zip_name=$zipName" >> $env:GITHUB_OUTPUT
           "zip_path=$zipPath" >> $env:GITHUB_OUTPUT
           "installer_name=$installerName" >> $env:GITHUB_OUTPUT
           "installer_path=$installerPath" >> $env:GITHUB_OUTPUT
+          "framework_dependent_installer_name=$frameworkDependentInstallerName" >> $env:GITHUB_OUTPUT
+          "framework_dependent_installer_path=$frameworkDependentInstallerPath" >> $env:GITHUB_OUTPUT
 
       - name: Upload portable zip artifact
         uses: actions/upload-artifact@v7
@@ -107,6 +118,13 @@ jobs:
         with:
           name: ${{ steps.package.outputs.installer_name }}
           path: ${{ steps.package.outputs.installer_path }}
+          if-no-files-found: error
+
+      - name: Upload framework-dependent installer artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.package.outputs.framework_dependent_installer_name }}
+          path: ${{ steps.package.outputs.framework_dependent_installer_path }}
           if-no-files-found: error
 
       - name: Refresh release tag
@@ -137,6 +155,7 @@ jobs:
           $tag = "${{ inputs.release_tag }}"
           $zipPath = "${{ steps.package.outputs.zip_path }}"
           $installerPath = "${{ steps.package.outputs.installer_path }}"
+          $frameworkDependentInstallerPath = "${{ steps.package.outputs.framework_dependent_installer_path }}"
           $viewOutput = gh release view $tag --repo $env:GITHUB_REPOSITORY 2>&1
           if ($LASTEXITCODE -ne 0) {
             $message = ($viewOutput | Out-String)
@@ -156,7 +175,7 @@ jobs:
             }
           }
 
-          gh release upload $tag $zipPath $installerPath --clobber --repo $env:GITHUB_REPOSITORY
+          gh release upload $tag $zipPath $installerPath $frameworkDependentInstallerPath --clobber --repo $env:GITHUB_REPOSITORY
 
           if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE

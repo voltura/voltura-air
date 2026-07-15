@@ -7,6 +7,7 @@ Windows release assets, and create or update the corresponding GitHub release.
 
 - Node.js and npm.
 - .NET 10 SDK.
+- Visual Studio Build Tools with the Desktop development with C++ workload.
 - NSIS 3.12 or later, with `makensis` available on `PATH`.
 - GitHub CLI authenticated with access to `voltura/voltura-air` for manual release work.
 
@@ -74,17 +75,21 @@ npm test
 npm run package:win
 ```
 
-`npm run package:win` builds the mobile client, publishes the self-contained
-Windows host, creates the portable zip, and compiles the NSIS installer. It reads
-the version from the root `package.json` when `-Version` is omitted. Packaging then
-runs `scripts/verify-windows-version.ps1` and fails if the host EXE, host DLL, or
-installer exposes missing or stale Windows File Explorer version metadata.
+`npm run package:win` builds the mobile client, publishes both self-contained and
+framework-dependent Windows hosts, creates the portable zip, and compiles both NSIS
+installers. The framework-dependent installer downloads the required .NET 10 Desktop
+and ASP.NET Core runtimes when they are absent. It reads the version from the root
+`package.json` when `-Version` is omitted. Packaging then runs
+`scripts/verify-windows-version.ps1` and fails if the host EXE, native cursor
+watchdog, host DLL, or either installer exposes missing or stale Windows File Explorer
+version metadata.
 
 For a prepared version and the default `win-x64` runtime, output files are named:
 
 ```text
 artifacts/publish/VolturaAir-<version>-win-x64.zip
 artifacts/publish/VolturaAir-Setup-<version>-win-x64.exe
+artifacts/publish/VolturaAir-Setup-<version>-win-x64-framework-dependent.exe
 ```
 
 To override the prepared version or runtime explicitly:
@@ -108,12 +113,12 @@ Windows runner:
 2. Verify that the workflow `version` equals the committed root package version.
 3. Verify that `release_tag` is `v<version>`.
 4. Build and test the repository.
-5. Package the portable zip and installer.
-6. Validate the built host EXE, build-output host DLL, and installer Windows version
-   resources against the workflow version.
+5. Package the portable zip, self-contained installer, and framework-dependent installer.
+6. Validate the built host EXE, native cursor watchdog, build-output host DLL, and both
+   installer Windows version resources against the workflow version.
 7. Refresh the selected tag so GitHub source archives point to the workflow commit.
 8. Create the release when it does not exist.
-9. Upload both assets, replacing same-named assets when present.
+9. Upload all three assets, replacing same-named assets when present.
 
 After running `npm run release -- <version>` and committing the prepared files,
 the workflow defaults already match the release.
@@ -131,13 +136,14 @@ gh release create "v$version" `
   --notes "Windows release assets for Voltura Air v$version."
 ```
 
-Upload both assets and overwrite files with the same names:
+Upload all three assets and overwrite files with the same names:
 
 ```powershell
 $version = "<version>"
 gh release upload "v$version" `
   "artifacts/publish/VolturaAir-$version-win-x64.zip" `
   "artifacts/publish/VolturaAir-Setup-$version-win-x64.exe" `
+  "artifacts/publish/VolturaAir-Setup-$version-win-x64-framework-dependent.exe" `
   --clobber `
   --repo voltura/voltura-air
 ```
@@ -161,8 +167,9 @@ warning. Direct users only to the official product page or GitHub releases page.
 
 ## Installer behavior
 
-- Installs per user under `%LOCALAPPDATA%\Programs\Voltura Air`.
-- Does not require administrator rights.
+- Both installers install Voltura Air per user under `%LOCALAPPDATA%\Programs\Voltura Air`.
+- `VolturaAir-Setup-<version>-win-x64.exe` is self-contained, works offline, and does not require administrator rights.
+- `VolturaAir-Setup-<version>-win-x64-framework-dependent.exe` is smaller and downloads the .NET 10 Windows Desktop and ASP.NET Core runtimes only when they are missing. This requires an internet connection and can require Windows administrator approval because the .NET runtimes are installed for the PC.
 - Creates Start Menu shortcuts and an Apps & Features uninstall entry.
 - Leaves Windows startup behavior to the in-app setting.
 - Removes installed program files and shortcuts on uninstall.
@@ -191,9 +198,9 @@ Before announcing the release:
 
 - confirm the preparation diff contains the intended version only;
 - confirm build, tests, and packaging completed successfully;
-- confirm both GitHub release assets exist with the expected names;
-- confirm source downloads, zip, and installer are based on the same commit;
-- install the downloaded installer on a clean or disposable Windows profile;
+- confirm all three GitHub release assets exist with the expected names;
+- confirm source downloads, zip, and both installers are based on the same commit;
+- install both downloaded installers on clean or disposable Windows profiles; verify the framework-dependent installer obtains missing runtimes and the self-contained installer works without a runtime download;
 - inspect the downloaded installer and installed `VolturaAir.Host.exe` in File
   Explorer Properties > Details and confirm the expected file/product versions;
 - confirm the host and mobile UI display the expected version;

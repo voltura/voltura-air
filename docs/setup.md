@@ -2,11 +2,15 @@
 
 ## Install Release Build
 
-Download `VolturaAir-Setup-<version>-win-x64.exe` from the latest GitHub release and run it on the Windows PC. The installer:
+Choose one installer from the latest GitHub release and run it on the Windows PC:
+
+- `VolturaAir-Setup-<version>-win-x64-framework-dependent.exe` is the smaller download. During setup, it checks for .NET 10 Windows Desktop and ASP.NET Core runtimes, then downloads and installs any missing runtime. This needs an internet connection and may show a Windows administrator approval prompt because .NET is installed for the PC.
+- `VolturaAir-Setup-<version>-win-x64.exe` is self-contained and includes its own .NET runtime. Use it for offline installation or when administrator approval is unavailable.
+
+Both installers:
 
 - Installs per user under `%LOCALAPPDATA%\Programs\Voltura Air`.
 - Creates Start Menu shortcuts.
-- Does not require administrator rights.
 - Keeps pairing and settings data under `%APPDATA%\Voltura Air` when uninstalled.
 
 Use the in-app setting to choose whether Voltura Air starts with Windows.

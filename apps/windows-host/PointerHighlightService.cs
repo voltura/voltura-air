@@ -532,14 +532,14 @@ public sealed partial class PointerHighlightService : IPointerHighlightService, 
     [DllImport("user32.dll")]
     private static extern bool GetCursorPos(out Point point);
 
-    [LibraryImport("user32.dll", StringMarshalling = StringMarshalling.Utf16)]
+    [LibraryImport("user32.dll", EntryPoint = "FindWindowExW", StringMarshalling = StringMarshalling.Utf16)]
     private static partial nint FindWindowEx(nint parentWindow, nint childAfter, string className, string? windowName);
 
     [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool GetWindowRect(nint windowHandle, out NativeRect bounds);
 
-    [LibraryImport("user32.dll", StringMarshalling = StringMarshalling.Utf16)]
+    [LibraryImport("user32.dll", EntryPoint = "RegisterWindowMessageW", StringMarshalling = StringMarshalling.Utf16)]
     private static partial uint RegisterWindowMessage(string message);
 
     [DllImport("user32.dll")]

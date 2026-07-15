@@ -27,6 +27,7 @@ Voltura Air turns a phone, tablet, or browser-capable device into a wireless tra
 - The Windows host can explicitly enable current-user workstation locking without elevation, does not touch automatic sign-in, and offers opt-in sanitized application logging with a themed filterable Diagnostics view.
 - The Windows host bounds concurrent LAN control sessions, message size, initial pairing time, and stale authenticated connections without adding server-side polling; optional pointer-overlay resources are created only when first used.
 - Windows release builds are not code-signed, so Windows may show an unknown publisher or SmartScreen warning.
+- Each release provides a smaller framework-dependent installer that downloads missing .NET 10 Desktop and ASP.NET Core runtimes, plus a self-contained installer and portable ZIP that require no runtime download.
 
 - It detects stale connections and input delivery failures, then shows unavailable/retrying instead of leaving dead controls on screen.
 - Active movement is frame-coalesced and bounded behind low-rate acknowledgement barriers; congestion-prone movement is dropped instead of replayed late, without per-move replies or idle polling.

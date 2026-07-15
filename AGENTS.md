@@ -96,6 +96,7 @@ updated as the app structure, tooling, and release process become concrete.
 
 - `apps/mobile-web` contains the React/TypeScript PWA.
 - `apps/windows-host` contains the .NET 10 Windows tray host.
+- `apps/cursor-watchdog` contains the native Windows cursor-recovery watchdog source.
 - `tests` contains automated test projects.
 - `installer` contains the NSIS installer script for Windows release builds.
 - `scripts` contains local development and packaging automation.
@@ -124,6 +125,9 @@ updated as the app structure, tooling, and release process become concrete.
 - GitHub CLI (`gh`) is available in the Codex shell. It is installed through
   WinGet and exposed to the current Codex environment through
   `%APPDATA%\npm\gh.cmd`.
+- The native cursor watchdog is compiled with the Visual Studio x64 C++ toolset.
+  `scripts/build-cursor-watchdog.ps1` discovers it through `vswhere`; install the
+  Desktop development with C++ workload when the toolset is absent.
 - Playwright is available for the mobile workspace through the
   `@playwright/test` dev dependency in `apps/mobile-web/package.json`. Run it
   from the repository root with
@@ -150,14 +154,16 @@ updated as the app structure, tooling, and release process become concrete.
   Windows File Explorer shows the release version on built EXE and DLL files.
 - Before publishing a release, run `npm run build`, `npm test`, and
   `npm run package:win` sequentially. Packaging validates File Explorer metadata
-  for the host EXE, host DLL, and NSIS installer with
+  for the host EXE, native cursor watchdog, host DLL, and both NSIS installers with
   `scripts/verify-windows-version.ps1`.
 - `npm run package:win` reads the default release version from the root
   `package.json`. Pass `-Version <version> -Runtime win-x64` only when overriding
   the defaults.
 - The GitHub Actions workflow `.github/workflows/release-zip.yml` validates that
   its version and tag inputs match the committed root package version, then can
-  create or update a release and upload both the portable zip and installer.
+  create or update a release and upload the portable zip, self-contained installer,
+  and framework-dependent installer. The framework-dependent installer downloads
+  the required .NET 10 runtimes during setup and may require administrator approval.
 - See `docs/release.md` for the full preparation, verification, packaging,
   GitHub asset replacement, unsigned-installer, and sanity-check guide.
 

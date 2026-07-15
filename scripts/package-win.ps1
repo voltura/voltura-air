@@ -1,7 +1,8 @@
 param(
     [string]$Version,
     [string]$Runtime = "win-x64",
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+    [switch]$FrameworkDependentOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -61,7 +62,7 @@ if ([string]::IsNullOrWhiteSpace($makensisPath)) {
 New-Item -ItemType Directory -Force -Path $publishRoot | Out-Null
 
 if (-not $SkipBuild) {
-    if (Test-Path $publishDir) {
+    if (-not $FrameworkDependentOnly -and (Test-Path $publishDir)) {
         Remove-Item $publishDir -Recurse -Force
     }
     if (Test-Path $frameworkDependentPublishDir) {
@@ -72,16 +73,18 @@ if (-not $SkipBuild) {
     try {
         npm run build --workspace apps/mobile-web
 
-        dotnet publish apps/windows-host/VolturaAir.Host.csproj `
-            -c Release `
-            -r $Runtime `
-            --self-contained true `
-            -p:PublishSingleFile=true `
-            -p:IncludeNativeLibrariesForSelfExtract=true `
-            -o $publishDir
+        if (-not $FrameworkDependentOnly) {
+            dotnet publish apps/windows-host/VolturaAir.Host.csproj `
+                -c Release `
+                -r $Runtime `
+                --self-contained true `
+                -p:PublishSingleFile=true `
+                -p:IncludeNativeLibrariesForSelfExtract=true `
+                -o $publishDir
 
-        powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-cursor-watchdog.ps1 `
-            -OutputPath (Join-Path $publishDir "VolturaAir.CursorWatchdog.exe")
+            powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-cursor-watchdog.ps1 `
+                -OutputPath (Join-Path $publishDir "VolturaAir.CursorWatchdog.exe")
+        }
 
         dotnet publish apps/windows-host/VolturaAir.Host.csproj `
             -c Release `
@@ -98,14 +101,16 @@ if (-not $SkipBuild) {
     }
 }
 
-$publishedExe = Join-Path $publishDir "VolturaAir.Host.exe"
-if (-not (Test-Path $publishedExe)) {
-    throw "Expected published executable was not found: $publishedExe"
-}
+if (-not $FrameworkDependentOnly) {
+    $publishedExe = Join-Path $publishDir "VolturaAir.Host.exe"
+    if (-not (Test-Path $publishedExe)) {
+        throw "Expected published executable was not found: $publishedExe"
+    }
 
-$publishedWatchdogExe = Join-Path $publishDir "VolturaAir.CursorWatchdog.exe"
-if (-not (Test-Path $publishedWatchdogExe)) {
-    throw "Expected published cursor watchdog executable was not found: $publishedWatchdogExe"
+    $publishedWatchdogExe = Join-Path $publishDir "VolturaAir.CursorWatchdog.exe"
+    if (-not (Test-Path $publishedWatchdogExe)) {
+        throw "Expected published cursor watchdog executable was not found: $publishedWatchdogExe"
+    }
 }
 
 $frameworkDependentHostExe = Join-Path $frameworkDependentPublishDir "VolturaAir.Host.exe"
@@ -118,38 +123,43 @@ if (-not (Test-Path $frameworkDependentWatchdogExe)) {
     throw "Expected framework-dependent cursor watchdog executable was not found: $frameworkDependentWatchdogExe"
 }
 
-$installedSizeBytes = (Get-ChildItem $publishDir -Recurse -File | Measure-Object Length -Sum).Sum
-$installedSizeKb = [int][math]::Ceiling($installedSizeBytes / 1KB)
 $frameworkDependentInstalledSizeBytes = (Get-ChildItem $frameworkDependentPublishDir -Recurse -File | Measure-Object Length -Sum).Sum
 $frameworkDependentInstalledSizeKb = [int][math]::Ceiling($frameworkDependentInstalledSizeBytes / 1KB)
 
-if (Test-Path $zipPath) {
-    Remove-Item $zipPath -Force
-}
-if (Test-Path $installerPath) {
-    Remove-Item $installerPath -Force
+if (-not $FrameworkDependentOnly) {
+    $installedSizeBytes = (Get-ChildItem $publishDir -Recurse -File | Measure-Object Length -Sum).Sum
+    $installedSizeKb = [int][math]::Ceiling($installedSizeBytes / 1KB)
+
+    if (Test-Path $zipPath) {
+        Remove-Item $zipPath -Force
+    }
+    if (Test-Path $installerPath) {
+        Remove-Item $installerPath -Force
+    }
 }
 if (Test-Path $frameworkDependentInstallerPath) {
     Remove-Item $frameworkDependentInstallerPath -Force
 }
 
-Compress-Archive -Path (Join-Path $publishDir "*") -DestinationPath $zipPath -Force
+if (-not $FrameworkDependentOnly) {
+    Compress-Archive -Path (Join-Path $publishDir "*") -DestinationPath $zipPath -Force
 
-& $makensisPath `
-    "/DAPP_VERSION=$Version" `
-    "/DAPP_VERSION_QUAD=$appVersionQuad" `
-    "/DAPP_ESTIMATED_SIZE_KB=$installedSizeKb" `
-    "/DRUNTIME=$Runtime" `
-    "/DPUBLISH_DIR=$publishDir" `
-    "/DOUTPUT_FILE=$installerPath" `
-    $nsisScript
+    & $makensisPath `
+        "/DAPP_VERSION=$Version" `
+        "/DAPP_VERSION_QUAD=$appVersionQuad" `
+        "/DAPP_ESTIMATED_SIZE_KB=$installedSizeKb" `
+        "/DRUNTIME=$Runtime" `
+        "/DPUBLISH_DIR=$publishDir" `
+        "/DOUTPUT_FILE=$installerPath" `
+        $nsisScript
 
-if ($LASTEXITCODE -ne 0) {
-    throw "makensis failed with exit code $LASTEXITCODE."
-}
+    if ($LASTEXITCODE -ne 0) {
+        throw "makensis failed with exit code $LASTEXITCODE."
+    }
 
-if (-not (Test-Path $installerPath)) {
-    throw "Expected installer was not created: $installerPath"
+    if (-not (Test-Path $installerPath)) {
+        throw "Expected installer was not created: $installerPath"
+    }
 }
 
 & $makensisPath `
@@ -171,17 +181,19 @@ if (-not (Test-Path $frameworkDependentInstallerPath)) {
 }
 
 $verifyVersionScript = Join-Path $repoRoot "scripts\verify-windows-version.ps1"
-$verifyVersionArguments = @{
-    Version = $Version
-    Runtime = $Runtime
-    PublishDir = $publishDir
-    InstallerPath = $installerPath
-}
-if (-not $SkipBuild) {
-    $verifyVersionArguments.RequireHostDll = $true
-}
+if (-not $FrameworkDependentOnly) {
+    $verifyVersionArguments = @{
+        Version = $Version
+        Runtime = $Runtime
+        PublishDir = $publishDir
+        InstallerPath = $installerPath
+    }
+    if (-not $SkipBuild) {
+        $verifyVersionArguments.RequireHostDll = $true
+    }
 
-& $verifyVersionScript @verifyVersionArguments
+    & $verifyVersionScript @verifyVersionArguments
+}
 
 $frameworkDependentVerifyVersionArguments = @{
     Version = $Version
@@ -195,6 +207,8 @@ if (-not $SkipBuild) {
 
 & $verifyVersionScript @frameworkDependentVerifyVersionArguments
 
-Write-Host "Created portable zip: $zipPath"
-Write-Host "Created full installer: $installerPath"
+if (-not $FrameworkDependentOnly) {
+    Write-Host "Created portable zip: $zipPath"
+    Write-Host "Created full installer: $installerPath"
+}
 Write-Host "Created framework-dependent installer: $frameworkDependentInstallerPath"

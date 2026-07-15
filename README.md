@@ -159,6 +159,14 @@ npm run package:win
 
 This creates the portable zip plus the default and full NSIS installers under `artifacts/publish`.
 
+To quickly create only the small installer that downloads missing .NET runtimes, run:
+
+```powershell
+npm run package:win:small
+```
+
+This creates `VolturaAir-Setup-<version>-win-x64.exe` and skips the portable zip and full installer.
+
 ## Run From CLI
 
 ```powershell

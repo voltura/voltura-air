@@ -84,6 +84,17 @@ are absent. It reads the version from the root
 watchdog, host DLL, or either installer exposes missing or stale Windows File Explorer
 version metadata.
 
+For a quick local build of only the small, framework-dependent installer, run:
+
+```powershell
+npm run package:win:small
+```
+
+It builds the mobile client, publishes only the framework-dependent host, compiles the
+default installer, and validates its Windows version metadata. It skips the portable zip,
+self-contained publish, and full installer; use `npm run package:win` for release
+verification.
+
 For a prepared version and the default `win-x64` runtime, output files are named:
 
 ```text

@@ -18,6 +18,7 @@
     "package:source": "powershell -ExecutionPolicy Bypass -File scripts/zip-clean-repo.ps1",
     "package:source:bare": "powershell -ExecutionPolicy Bypass -File scripts/zip-clean-repo.ps1 -Bare",
     "package:win": "powershell -ExecutionPolicy Bypass -File scripts/package-win.ps1",
+    "package:win:small": "powershell -ExecutionPolicy Bypass -File scripts/package-win.ps1 -FrameworkDependentOnly",
     "release": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1",
     "screenshots:site": "node scripts/capture-site-screenshots.mjs",
     "size:report": "node scripts/report-source-sizes.mjs",

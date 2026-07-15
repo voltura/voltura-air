@@ -12,6 +12,12 @@ across all WebSocket fragments; oversized messages close with status 1009 and
 binary messages are rejected. These are resource and stale-connection bounds,
 not authentication mechanisms.
 
+Host sends are serialized per authenticated socket and have a 5-second operation
+deadline; close handshakes have a 1-second deadline. Repeated local status changes
+are coalesced by one host-owned broadcaster so settings activity cannot create an
+unbounded queue of send tasks. A stalled or removed socket cannot bypass the send
+gate or hold host shutdown indefinitely.
+
 Pairing links use query parameters:
 
 - `t`: short-lived pairing token.

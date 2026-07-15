@@ -39,14 +39,9 @@ public interface IAwakeService : IDisposable
     AwakeOperationResult SetKeepScreenOn(bool keepScreenOn);
 }
 
-internal sealed class NoOpAwakeService : IAwakeService
+internal sealed class NoOpAwakeService(AwakeState? initialState = null) : IAwakeService
 {
-    public NoOpAwakeService(AwakeState? initialState = null)
-    {
-        State = initialState ?? new AwakeState(AwakeMode.Off, false, 60, null);
-    }
-
-    public AwakeState State { get; private set; }
+    public AwakeState State { get; private set; } = initialState ?? new AwakeState(AwakeMode.Off, false, 60, null);
 
     public event EventHandler? StateChanged;
 

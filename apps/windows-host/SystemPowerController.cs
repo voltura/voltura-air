@@ -46,7 +46,7 @@ public sealed class NoOpSystemPowerController : ISystemPowerController
     public bool DismissBlackoutIfActive() => false;
 }
 
-public sealed class SystemPowerController : ISystemPowerController, IDisposable
+public sealed partial class SystemPowerController : ISystemPowerController, IDisposable
 {
     private const uint WmSysCommand = 0x0112;
     private const int ScMonitorPower = 0xF170;
@@ -159,11 +159,11 @@ public sealed class SystemPowerController : ISystemPowerController, IDisposable
         return SendNotifyMessage(HwndBroadcast, WmSysCommand, new nint(ScMonitorPower), new nint(MonitorPowerOff));
     }
 
-    [DllImport("user32.dll", SetLastError = true)]
+    [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool LockWorkStation();
+    private static partial bool LockWorkStation();
 
-    [DllImport("user32.dll", SetLastError = true)]
+    [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SendNotifyMessage(nint hWnd, uint message, nint wParam, nint lParam);
+    private static partial bool SendNotifyMessage(nint hWnd, uint message, nint wParam, nint lParam);
 }

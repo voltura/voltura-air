@@ -9,16 +9,17 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
     private readonly Process? _cursorWatchdog;
     private readonly CustomPointerService _customPointerService;
     private readonly PointerHighlightForegroundMonitor _pointerHighlightForegroundMonitor;
-    private readonly IDisposable _textDestinationDraftCleanup;
+    private readonly IAsyncDisposable _textDestinationDraftCleanup;
     private readonly WebHostService _webHost;
     private readonly WpfTrayApplicationContext _trayContext;
+    private int _disposeState;
 
     private WpfHostRuntime(
         SendInputInjector inputInjector,
         Process? cursorWatchdog,
         CustomPointerService customPointerService,
         PointerHighlightForegroundMonitor pointerHighlightForegroundMonitor,
-        IDisposable textDestinationDraftCleanup,
+        IAsyncDisposable textDestinationDraftCleanup,
         WebHostService webHost,
         PairingManager pairingManager,
         MainWindow mainWindow,
@@ -42,46 +43,55 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
     public static async Task<WpfHostRuntime> StartAsync(string[] args)
     {
         var pairingStoreRoot = GetOption(args, "--pairing-store-root");
-        var pairingManager = new PairingManager(new PairingStore(string.IsNullOrWhiteSpace(pairingStoreRoot) ? null : pairingStoreRoot));
-        var inputInjector = new SendInputInjector();
         var clientUrl = GetOption(args, "--client-url") ?? Environment.GetEnvironmentVariable("VOLTURA_AIR_CLIENT_URL");
         var usePublicScreenshotPairingUrl = HasOption(args, "--site-screenshot-mode");
         var isolatedTestMode = HasOption(args, "--isolated-test-mode");
         IAppLog appLog = isolatedTestMode ? NullAppLog.Instance : new AppLog();
-        var cursorWatchdog = TryStartCursorWatchdog();
-        var customPointerService = new CustomPointerService();
-        customPointerService.Apply(AppPointerSettings.GetCustomPointer());
-        MonitorCursorWatchdog(cursorWatchdog, customPointerService);
-        var textDestinationDraftCleanup = TextDestinationDraftStore.CreateCleanupService();
-        var inputDispatcher = new InputDispatcher(inputInjector);
-        var workstationLockPolicy = new WorkstationLockPolicy(appLog);
-        ISystemPowerController powerController = isolatedTestMode
-            ? new NoOpSystemPowerController()
-            : new SystemPowerController(new WindowsDisplayActionController(System.Windows.Application.Current.Dispatcher, appLog));
-        IAwakeService awakeService = isolatedTestMode
-            ? new NoOpAwakeService()
-            : AwakeService.CreateWindows(appLog);
-        var webHost = new WebHostService(
-            pairingManager,
-            inputDispatcher,
-            powerController: powerController,
-            awakeService: awakeService,
-            workstationLockPolicy: workstationLockPolicy,
-            appLog: appLog,
-            textDestinationService: new TextDestinationService(inputDispatcher, inputInjector),
-            applyCustomPointer: customPointerService.Apply,
-            isolatedTestMode: isolatedTestMode);
-
+        SendInputInjector? inputInjector = null;
+        Process? cursorWatchdog = null;
+        CustomPointerService? customPointerService = null;
+        IAsyncDisposable? textDestinationDraftCleanup = null;
+        ISystemPowerController? powerController = null;
+        IAwakeService? awakeService = null;
+        WebHostService? webHost = null;
         PointerHighlightForegroundMonitor? pointerHighlightForegroundMonitor = null;
+        MainWindow? mainWindow = null;
+        WpfTrayApplicationContext? trayContext = null;
         try
         {
+            var pairingManager = new PairingManager(new PairingStore(string.IsNullOrWhiteSpace(pairingStoreRoot) ? null : pairingStoreRoot));
+            inputInjector = new SendInputInjector();
+            cursorWatchdog = TryStartCursorWatchdog();
+            customPointerService = new CustomPointerService();
+            customPointerService.Apply(AppPointerSettings.GetCustomPointer());
+            MonitorCursorWatchdog(cursorWatchdog, customPointerService);
+            textDestinationDraftCleanup = TextDestinationDraftStore.CreateCleanupService(appLog);
+            var inputDispatcher = new InputDispatcher(inputInjector);
+            var workstationLockPolicy = new WorkstationLockPolicy(appLog);
+            powerController = isolatedTestMode
+                ? new NoOpSystemPowerController()
+                : new SystemPowerController(new WindowsDisplayActionController(System.Windows.Application.Current.Dispatcher, appLog));
+            awakeService = isolatedTestMode
+                ? new NoOpAwakeService()
+                : AwakeService.CreateWindows(appLog);
+            webHost = new WebHostService(
+                pairingManager,
+                inputDispatcher,
+                powerController: powerController,
+                awakeService: awakeService,
+                workstationLockPolicy: workstationLockPolicy,
+                appLog: appLog,
+                textDestinationService: new TextDestinationService(inputDispatcher, inputInjector),
+                applyCustomPointer: customPointerService.Apply,
+                isolatedTestMode: isolatedTestMode);
+
             pointerHighlightForegroundMonitor = new PointerHighlightForegroundMonitor(appLog);
             pointerHighlightForegroundMonitor.RemoteInputBlockedChanged += (_, eventArgs) =>
                 webHost.SetInputBlockedByElevation(eventArgs.IsBlocked);
             inputDispatcher.TaskbarActivated += (_, _) => pointerHighlightForegroundMonitor.NotifyTaskbarActivation();
             webHost.SetInputBlockedByElevation(pointerHighlightForegroundMonitor.IsRemoteInputBlocked);
             await webHost.StartAsync();
-            var mainWindow = new MainWindow(
+            mainWindow = new MainWindow(
                 pairingManager,
                 webHost,
                 clientUrl,
@@ -91,7 +101,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 customPointerService: customPointerService,
                 appLog: appLog);
             WritePairingUrlIfRequested(args, mainWindow.PairingUrl);
-            var trayContext = new WpfTrayApplicationContext(mainWindow, webHost, pairingManager, awakeService);
+            trayContext = new WpfTrayApplicationContext(mainWindow, webHost, pairingManager, awakeService);
             return new WpfHostRuntime(
                 inputInjector,
                 cursorWatchdog,
@@ -105,28 +115,125 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         }
         catch
         {
-            pointerHighlightForegroundMonitor?.Dispose();
-            textDestinationDraftCleanup.Dispose();
-            await webHost.DisposeAsync();
-            customPointerService.Dispose();
-            cursorWatchdog?.Dispose();
-            inputInjector.Dispose();
+            TryDispose(trayContext, appLog, "tray_context");
+            TryCloseWindow(mainWindow, appLog);
+            TryDispose(pointerHighlightForegroundMonitor, appLog, "pointer_foreground_monitor");
+            await TryDisposeAsync(textDestinationDraftCleanup, appLog, "text_destination_draft_cleanup");
+            if (webHost is not null)
+            {
+                await TryDisposeAsync(webHost, appLog, "web_host");
+            }
+            else
+            {
+                TryDispose(powerController as IDisposable, appLog, "power_controller");
+                TryDispose(awakeService, appLog, "awake_service");
+            }
+
+            TryDispose(customPointerService, appLog, "custom_pointer_service");
+            TryDispose(cursorWatchdog, appLog, "cursor_watchdog");
+            TryDispose(inputInjector, appLog, "input_injector");
             throw;
         }
     }
 
     public async ValueTask DisposeAsync()
     {
-        _trayContext.Dispose();
-        MainWindow.AllowClose();
-        MainWindow.Close();
-        await _webHost.StopAsync();
-        await _webHost.DisposeAsync();
-        _inputInjector.Dispose();
-        _pointerHighlightForegroundMonitor.Dispose();
-        _textDestinationDraftCleanup.Dispose();
-        _customPointerService.Dispose();
-        _cursorWatchdog?.Dispose();
+        if (Interlocked.Exchange(ref _disposeState, 1) != 0)
+        {
+            return;
+        }
+
+        var appLog = _webHost.AppLog;
+        TryDispose(_trayContext, appLog, "tray_context");
+        TryCloseWindow(MainWindow, appLog);
+        await TryStopWebHostAsync(_webHost, appLog);
+        await TryDisposeAsync(_webHost, appLog, "web_host");
+        TryDispose(_pointerHighlightForegroundMonitor, appLog, "pointer_foreground_monitor");
+        await TryDisposeAsync(_textDestinationDraftCleanup, appLog, "text_destination_draft_cleanup");
+        TryDispose(_customPointerService, appLog, "custom_pointer_service");
+        TryDispose(_cursorWatchdog, appLog, "cursor_watchdog");
+        TryDispose(_inputInjector, appLog, "input_injector");
+    }
+
+    private static void TryCloseWindow(MainWindow? mainWindow, IAppLog appLog)
+    {
+        if (mainWindow is null)
+        {
+            return;
+        }
+
+        try
+        {
+            mainWindow.AllowClose();
+            mainWindow.Close();
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogCleanupFailure(appLog, "main_window", ex);
+        }
+    }
+
+    private static void TryDispose(IDisposable? resource, IAppLog appLog, string resourceName)
+    {
+        if (resource is null)
+        {
+            return;
+        }
+
+        try
+        {
+            resource.Dispose();
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogCleanupFailure(appLog, resourceName, ex);
+        }
+    }
+
+    private static async ValueTask TryDisposeAsync(IAsyncDisposable? resource, IAppLog appLog, string resourceName)
+    {
+        if (resource is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await resource.DisposeAsync();
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogCleanupFailure(appLog, resourceName, ex);
+        }
+    }
+
+    private static async Task TryStopWebHostAsync(WebHostService webHost, IAppLog appLog)
+    {
+        try
+        {
+            await webHost.StopAsync();
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogCleanupFailure(appLog, "web_host_stop", ex);
+        }
+    }
+
+    private static void LogCleanupFailure(IAppLog appLog, string resourceName, Exception exception)
+    {
+        try
+        {
+            appLog.Write(new AppLogEntry(
+                Event: "host_lifecycle",
+                Source: "windows_host",
+                Action: $"dispose_{resourceName}",
+                Outcome: "failed",
+                Detail: exception.Message));
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // Cleanup must continue even when an injected logger also fails.
+        }
     }
 
     private static string? GetOption(string[] args, string name)

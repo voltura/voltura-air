@@ -163,6 +163,7 @@ internal sealed partial class PointerHighlightForegroundMonitor : IDisposable
         uint eventTime);
 
     // LibraryImport does not currently support this managed callback signature.
+#pragma warning disable SYSLIB1054
     [DllImport("user32.dll", SetLastError = true)]
     private static extern nint SetWinEventHook(
         uint eventMin,
@@ -172,6 +173,7 @@ internal sealed partial class PointerHighlightForegroundMonitor : IDisposable
         uint processId,
         uint threadId,
         uint flags);
+#pragma warning restore SYSLIB1054
 
     [LibraryImport("user32.dll", EntryPoint = "UnhookWinEvent")]
     [return: MarshalAs(UnmanagedType.Bool)]

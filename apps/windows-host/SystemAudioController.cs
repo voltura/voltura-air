@@ -35,6 +35,7 @@ public sealed class SystemAudioController : ISystemAudioController
         private static readonly Guid MMDeviceEnumeratorId = new("BCDE0395-E52F-467C-8E3D-C4579291692E");
         private readonly object _endpointObject;
         private readonly IAudioEndpointVolume _endpoint;
+        private bool _disposed;
 
         private AudioEndpointHandle(object endpointObject, IAudioEndpointVolume endpoint)
         {
@@ -44,20 +45,28 @@ public sealed class SystemAudioController : ISystemAudioController
 
         public static AudioEndpointHandle Create()
         {
-            var enumeratorType = Type.GetTypeFromCLSID(MMDeviceEnumeratorId, throwOnError: true)
-                ?? throw new InvalidOperationException("Windows audio endpoint enumerator is unavailable.");
-            var enumerator = (IMMDeviceEnumerator)Activator.CreateInstance(enumeratorType)!;
-            Marshal.ThrowExceptionForHR(enumerator.GetDefaultAudioEndpoint(EDataFlow.Render, ERole.Multimedia, out var device));
+            object? enumeratorObject = null;
+            IMMDevice? device = null;
+            object? endpointObject = null;
             try
             {
+                var enumeratorType = Type.GetTypeFromCLSID(MMDeviceEnumeratorId, throwOnError: true)
+                    ?? throw new InvalidOperationException("Windows audio endpoint enumerator is unavailable.");
+                enumeratorObject = Activator.CreateInstance(enumeratorType)
+                    ?? throw new InvalidOperationException("Windows audio endpoint enumerator could not be created.");
+                var enumerator = (IMMDeviceEnumerator)enumeratorObject;
+                Marshal.ThrowExceptionForHR(enumerator.GetDefaultAudioEndpoint(EDataFlow.Render, ERole.Multimedia, out device));
                 var audioEndpointVolumeId = AudioEndpointVolumeId;
-                Marshal.ThrowExceptionForHR(device.Activate(ref audioEndpointVolumeId, ClsctxAll, nint.Zero, out var endpointObject));
-                return new AudioEndpointHandle(endpointObject, (IAudioEndpointVolume)endpointObject);
+                Marshal.ThrowExceptionForHR(device.Activate(ref audioEndpointVolumeId, ClsctxAll, nint.Zero, out endpointObject));
+                var handle = new AudioEndpointHandle(endpointObject, (IAudioEndpointVolume)endpointObject);
+                endpointObject = null;
+                return handle;
             }
             finally
             {
-                Marshal.ReleaseComObject(device);
-                Marshal.ReleaseComObject(enumerator);
+                ReleaseComObject(endpointObject);
+                ReleaseComObject(device);
+                ReleaseComObject(enumeratorObject);
             }
         }
 
@@ -83,7 +92,27 @@ public sealed class SystemAudioController : ISystemAudioController
 
         public void Dispose()
         {
-            Marshal.ReleaseComObject(_endpointObject);
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            ReleaseComObject(_endpointObject);
+        }
+
+        private static void ReleaseComObject(object? value)
+        {
+            try
+            {
+                if (value is not null && Marshal.IsComObject(value))
+                {
+                    _ = Marshal.ReleaseComObject(value);
+                }
+            }
+            catch (InvalidComObjectException)
+            {
+            }
         }
     }
 
@@ -97,6 +126,9 @@ public sealed class SystemAudioController : ISystemAudioController
         Multimedia = 1
     }
 
+    // This interface is activated through the classic COM path below; generated COM interop
+    // would require changing the activation and lifetime model together.
+#pragma warning disable SYSLIB1096
     [ComImport]
     [Guid("A95664D2-9614-4F35-A746-DE8DB63617E6")]
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -162,4 +194,5 @@ public sealed class SystemAudioController : ISystemAudioController
         [PreserveSig]
         int GetMute([MarshalAs(UnmanagedType.Bool)] out bool muted);
     }
+#pragma warning restore SYSLIB1096
 }

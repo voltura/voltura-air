@@ -35,7 +35,7 @@ public sealed partial class PairingManager
         var normalizedBrowser = NormalizeMetadata(browser);
         var normalizedDisplayMode = NormalizeMetadata(displayMode);
         string? revokedClientId = null;
-        var connectionChanged = false;
+        bool connectionChanged;
         PairingResult result;
 
         lock (_gate)
@@ -113,7 +113,7 @@ public sealed partial class PairingManager
 
     public bool RenameDevice(string clientId, string deviceName, DateTimeOffset? now = null)
     {
-        var renamed = false;
+        bool renamed;
         lock (_gate)
         {
             renamed = UpdateDeviceDetails(clientId, NormalizeDeviceName(deviceName), null, null, null, now ?? DateTimeOffset.UtcNow);

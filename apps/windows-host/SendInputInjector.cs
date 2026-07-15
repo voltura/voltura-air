@@ -18,7 +18,7 @@ public sealed class SendInputInjector : IInputInjector
     private const ushort ControlKey = 0x11;
     private const int WheelScale = 9;
     private const int ZoomWheelDelta = 120;
-    private readonly object _sendGate = new();
+    private readonly Lock _sendGate = new();
     private readonly ISendInputNative _native;
 
     public SendInputInjector()
@@ -124,7 +124,7 @@ public sealed class SendInputInjector : IInputInjector
         inputs.AddRange(modifierKeys.Reverse().Select(modifier => KeyboardInput((ushort)modifier, 0, KeyEventFKeyUp)));
         try
         {
-            SendInputs("keyboard.special", inputs.ToArray());
+            SendInputs("keyboard.special", [.. inputs]);
         }
         catch (InputDispatchException ex)
         {
@@ -176,7 +176,7 @@ public sealed class SendInputInjector : IInputInjector
         var releaseKeys = modifierKeys
             .Reverse()
             .Select(key => (ushort)key)
-            .Concat(new[] { virtualKey, ControlKey, (ushort)0x10, (ushort)0x12, (ushort)0x5B })
+            .Concat([virtualKey, ControlKey, (ushort)0x10, (ushort)0x12, (ushort)0x5B])
             .Where(key => key != 0)
             .Distinct()
             .Select(key => KeyboardInput(key, 0, KeyEventFKeyUp))
@@ -313,37 +313,26 @@ public sealed class SendInputInjector : IInputInjector
     };
 }
 
-public sealed class InputDispatchException : InvalidOperationException
+public sealed class InputDispatchException(
+    string message,
+    string operation,
+    int requestedCount,
+    int acceptedCount,
+    int win32Error,
+    bool cleanupAttempted = false,
+    bool cleanupSucceeded = false) : InvalidOperationException(message)
 {
-    public InputDispatchException(
-        string message,
-        string operation,
-        int requestedCount,
-        int acceptedCount,
-        int win32Error,
-        bool cleanupAttempted = false,
-        bool cleanupSucceeded = false)
-        : base(message)
-    {
-        Operation = operation;
-        RequestedCount = requestedCount;
-        AcceptedCount = acceptedCount;
-        Win32Error = win32Error;
-        CleanupAttempted = cleanupAttempted;
-        CleanupSucceeded = cleanupSucceeded;
-    }
+    public string Operation { get; } = operation;
 
-    public string Operation { get; }
+    public int RequestedCount { get; } = requestedCount;
 
-    public int RequestedCount { get; }
+    public int AcceptedCount { get; } = acceptedCount;
 
-    public int AcceptedCount { get; }
+    public int Win32Error { get; } = win32Error;
 
-    public int Win32Error { get; }
+    public bool CleanupAttempted { get; } = cleanupAttempted;
 
-    public bool CleanupAttempted { get; }
-
-    public bool CleanupSucceeded { get; }
+    public bool CleanupSucceeded { get; } = cleanupSucceeded;
 
     public InputDispatchException WithCleanup(bool cleanupAttempted, bool cleanupSucceeded)
     {
@@ -356,7 +345,7 @@ internal interface ISendInputNative
     uint Send(SendInputInjector.Input[] inputs, int size, out int win32Error);
 }
 
-internal sealed class User32SendInputNative : ISendInputNative
+internal sealed partial class User32SendInputNative : ISendInputNative
 {
     public uint Send(SendInputInjector.Input[] inputs, int size, out int win32Error)
     {
@@ -365,6 +354,6 @@ internal sealed class User32SendInputNative : ISendInputNative
         return sent;
     }
 
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern uint SendInput(uint inputCount, SendInputInjector.Input[] inputs, int size);
+    [LibraryImport("user32.dll", SetLastError = true)]
+    private static partial uint SendInput(uint inputCount, SendInputInjector.Input[] inputs, int size);
 }

@@ -1,4 +1,5 @@
 using VolturaAir.Host;
+using System.Globalization;
 
 namespace VolturaAir.Host.Tests;
 
@@ -39,7 +40,7 @@ public sealed class SendInputInjectorTests
 
     private static string DescribeKeyboardInput(SendInputInjector.Input input)
     {
-        var key = input.Data.Keyboard.VirtualKey.ToString("X2");
+        var key = input.Data.Keyboard.VirtualKey.ToString("X2", CultureInfo.InvariantCulture);
         var direction = (input.Data.Keyboard.Flags & 0x0002) == 0 ? "down" : "up";
         return $"{key}:{direction}";
     }

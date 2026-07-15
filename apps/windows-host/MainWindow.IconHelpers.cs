@@ -24,6 +24,7 @@ public partial class MainWindow
         }
     }
 
-    [DllImport("gdi32.dll")]
-    private static extern bool DeleteObject(IntPtr hObject);
+    [LibraryImport("gdi32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool DeleteObject(nint hObject);
 }

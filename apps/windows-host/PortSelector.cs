@@ -167,7 +167,7 @@ internal static class PortSelector
     {
         try
         {
-            var listener = new TcpListener(IPAddress.Any, port);
+            using var listener = new TcpListener(IPAddress.Any, port);
             listener.Start();
             listener.Stop();
             return true;
@@ -180,7 +180,7 @@ internal static class PortSelector
 
     public static int FindFreePort()
     {
-        var listener = new TcpListener(IPAddress.Any, 0);
+        using var listener = new TcpListener(IPAddress.Any, 0);
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
         listener.Stop();

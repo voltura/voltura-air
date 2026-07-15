@@ -3,7 +3,7 @@ using System.Windows.Forms;
 
 namespace VolturaAir.Host;
 
-internal sealed class ThemedToolStripRenderer : ToolStripProfessionalRenderer
+internal sealed class ThemedToolStripRenderer(ThemePalette theme) : ToolStripProfessionalRenderer
 {
     private static readonly TextFormatFlags MenuTextFormat =
         TextFormatFlags.Left |
@@ -12,12 +12,7 @@ internal sealed class ThemedToolStripRenderer : ToolStripProfessionalRenderer
         TextFormatFlags.NoPrefix |
         TextFormatFlags.PreserveGraphicsClipping;
 
-    private readonly ThemePalette _theme;
-
-    public ThemedToolStripRenderer(ThemePalette theme)
-    {
-        _theme = theme;
-    }
+    private readonly ThemePalette _theme = theme;
 
     protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e)
     {

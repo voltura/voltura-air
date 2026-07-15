@@ -18,9 +18,7 @@ public sealed class AppLaunchService : IAppLaunchService
 
     public IReadOnlyList<AppLaunchActionSummary> GetActions()
     {
-        return AppLaunchSettings.GetActions()
-            .Select(action => new AppLaunchActionSummary(action.Id, action.Label, ToProtocolKind(action.Kind)))
-            .ToArray();
+        return [.. AppLaunchSettings.GetActions().Select(action => new AppLaunchActionSummary(action.Id, action.Label, ToProtocolKind(action.Kind)))];
     }
 
     public AppLaunchExecutionResult Execute(string actionId)

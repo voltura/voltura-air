@@ -95,6 +95,33 @@ default installer, and validates its Windows version metadata. It skips the port
 self-contained publish, and full installer; use `npm run package:win` for release
 verification.
 
+For a fast local verification of both installer definitions without spending time
+on NSIS compression, run:
+
+```powershell
+npm run package:win:test
+```
+
+This performs the normal builds, installer compilation, and Windows metadata checks,
+but skips the portable zip, LZMA compression, and NSIS datablock optimization and
+writes clearly marked uncompressed installers under `artifacts/test`:
+
+```text
+artifacts/test/VolturaAir-Setup-<version>-win-x64-test-uncompressed.exe
+artifacts/test/VolturaAir-Setup-<version>-win-x64-full-test-uncompressed.exe
+```
+
+These files exist only for local installer testing and must not be uploaded or
+distributed. Compression does not change installed contents, but every actual release
+must still run `npm run package:win`; the GitHub release workflow always creates the
+compressed installers.
+
+When the publish directories already exist and only NSIS changes need validation, use:
+
+```powershell
+npm run package:win:test -- -SkipBuild
+```
+
 For a prepared version and the default `win-x64` runtime, output files are named:
 
 ```text
@@ -123,16 +150,25 @@ Windows runner:
 1. Install npm dependencies with `npm ci`.
 2. Verify that the workflow `version` equals the committed root package version.
 3. Verify that `release_tag` is `v<version>`.
-4. Build and test the repository.
-5. Package the portable zip, default installer, and full installer.
-6. Validate the built host EXE, native cursor watchdog, build-output host DLL, and both
-   installer Windows version resources against the workflow version.
-7. Refresh the selected tag so GitHub source archives point to the workflow commit.
+4. Run the mobile and Windows host tests.
+5. Build and package the portable zip, default installer, and full installer.
+6. Validate the built host EXE, native cursor watchdog, host DLL, and both installer
+   Windows version resources as part of packaging.
+7. Create or refresh the selected tag so beta releases can be replaced at the same
+   version. Existing tags are updated with a lease, so a concurrent remote change
+   causes the workflow to fail instead of being overwritten silently.
 8. Create the release when it does not exist.
 9. Upload all three assets, replacing same-named assets when present.
 
 After running `npm run release -- <version>` and committing the prepared files,
 the workflow defaults already match the release.
+
+During the limited beta, rerunning the workflow for the same version intentionally
+replaces the three assets and moves that version tag to the newly tested commit. The
+lease-protected tag update fails if another workflow changed the tag concurrently.
+The tag's current commit is the source provenance for the mutable beta build; once
+releases need broad rollback and third-party reproducibility, publish a new patch
+version instead of replacing an existing version.
 
 ## Create or replace GitHub release assets manually
 

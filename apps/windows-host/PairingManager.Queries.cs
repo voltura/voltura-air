@@ -52,10 +52,9 @@ public sealed partial class PairingManager
         {
             lock (_gate)
             {
-                return _records
+                return [.. _records
                     .Where(record => _activeConnections.ContainsKey(record.ClientId))
-                    .Select(record => record.DeviceName)
-                    .ToArray();
+                    .Select(record => record.DeviceName)];
             }
         }
     }
@@ -75,10 +74,9 @@ public sealed partial class PairingManager
     {
         lock (_gate)
         {
-            return BuildDeviceStatuses()
+            return [.. BuildDeviceStatuses()
                 .OrderByDescending(device => device.LatestActivityAt)
-                .ThenBy(device => device.DeviceName, StringComparer.CurrentCultureIgnoreCase)
-                .ToArray();
+                .ThenBy(device => device.DeviceName, StringComparer.CurrentCultureIgnoreCase)];
         }
     }
 

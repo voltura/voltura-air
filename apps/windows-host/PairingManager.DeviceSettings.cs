@@ -64,7 +64,7 @@ public sealed partial class PairingManager
                 return 0;
             }
 
-            removedClientIds = candidates.Select(device => device.ClientId).ToArray();
+            removedClientIds = [.. candidates.Select(device => device.ClientId)];
             _records.RemoveAll(record => removedClientIds.Contains(record.ClientId, StringComparer.Ordinal));
             foreach (var clientId in removedClientIds)
             {

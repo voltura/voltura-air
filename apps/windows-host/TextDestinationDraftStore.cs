@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Security;
 using Microsoft.Win32;
 
 namespace VolturaAir.Host;
@@ -11,7 +12,7 @@ public static class AppTextDestinationDraftSettings
     public static bool AutomaticallyRemoveDraftFiles()
     {
         using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: false);
-        return key?.GetValue(AutomaticallyRemoveDraftFilesValueName) is int value ? value != 0 : true;
+        return key?.GetValue(AutomaticallyRemoveDraftFilesValueName) is not int value || value != 0;
     }
 
     public static void SetAutomaticallyRemoveDraftFiles(bool automaticallyRemoveDraftFiles)
@@ -38,7 +39,7 @@ internal static class TextDestinationDraftStore
             AppTextDestinationDraftSettings.AutomaticallyRemoveDraftFiles());
     }
 
-    public static IDisposable CreateCleanupService() => new TextDestinationDraftCleanup();
+    public static IAsyncDisposable CreateCleanupService(IAppLog appLog) => new TextDestinationDraftCleanup(appLog);
 
     public static bool TryOpenFolder()
     {
@@ -101,9 +102,57 @@ internal static class TextDestinationDraftStore
     private static string GetDirectory() => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Voltura Air", "Text destination drafts");
 }
 
-internal sealed class TextDestinationDraftCleanup : IDisposable
+internal sealed class TextDestinationDraftCleanup : IAsyncDisposable
 {
-    private readonly System.Threading.Timer _timer = new(_ => _ = Task.Run(TextDestinationDraftStore.DeleteExpiredIfEnabled), null, TimeSpan.Zero, TimeSpan.FromHours(1));
+    private readonly IAppLog _appLog;
+    private readonly Action _cleanup;
+    private readonly System.Threading.Timer _timer;
+    private int _cleanupRunning;
 
-    public void Dispose() => _timer.Dispose();
+    public TextDestinationDraftCleanup(IAppLog appLog)
+        : this(appLog, TextDestinationDraftStore.DeleteExpiredIfEnabled, TimeSpan.Zero, TimeSpan.FromHours(1))
+    {
+    }
+
+    internal TextDestinationDraftCleanup(IAppLog appLog, Action cleanup, TimeSpan dueTime, TimeSpan period)
+    {
+        _appLog = appLog;
+        _cleanup = cleanup;
+        _timer = new System.Threading.Timer(RunCleanup, null, dueTime, period);
+    }
+
+    public ValueTask DisposeAsync() => _timer.DisposeAsync();
+
+    private void RunCleanup(object? state)
+    {
+        if (Interlocked.Exchange(ref _cleanupRunning, 1) != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            _cleanup();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException)
+        {
+            try
+            {
+                _appLog.Write(new AppLogEntry(
+                    Event: "host_maintenance",
+                    Source: "windows_host",
+                    Action: "text_destination_draft_cleanup",
+                    Outcome: "failed",
+                    Detail: ex.Message));
+            }
+            catch (Exception logException) when (logException is not OutOfMemoryException)
+            {
+                // A maintenance timer must not terminate the host because an injected logger failed.
+            }
+        }
+        finally
+        {
+            Volatile.Write(ref _cleanupRunning, 0);
+        }
+    }
 }

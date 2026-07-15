@@ -60,7 +60,7 @@ public interface IAppLog
 public sealed class AppLog : IAppLog
 {
     private static readonly JsonSerializerOptions ReadOptions = new() { PropertyNameCaseInsensitive = true };
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private readonly Func<bool> _isEnabled;
     private readonly Func<int> _maxAgeDays;
     private readonly Func<DateTimeOffset> _now;
@@ -153,10 +153,9 @@ public sealed class AppLog : IAppLog
                     return new AppLogReadResult(true, []);
                 }
 
-                files = Directory.EnumerateFiles(LogDirectory, "app-log-*.jsonl")
+                files = [.. Directory.EnumerateFiles(LogDirectory, "app-log-*.jsonl")
                     .Where(path => IsCandidateFile(path, query))
-                    .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
-                    .ToArray();
+                    .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)];
             }
 
             var limit = Math.Clamp(query.MaxEntries, 1, 5000);
@@ -191,7 +190,7 @@ public sealed class AppLog : IAppLog
                 }
             }
 
-            return new AppLogReadResult(true, entries.ToArray(), truncated);
+            return new AppLogReadResult(true, [.. entries], truncated);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

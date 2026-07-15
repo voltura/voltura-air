@@ -7,7 +7,7 @@ using Color = System.Windows.Media.Color;
 
 namespace VolturaAir.Host;
 
-internal static class WpfTheme
+internal static partial class WpfTheme
 {
     public static void Apply(Window window)
     {
@@ -54,6 +54,6 @@ internal static class WpfTheme
         _ = DwmSetWindowAttribute(helper.Handle, 20, ref value, Marshal.SizeOf<int>());
     }
 
-    [DllImport("dwmapi.dll")]
-    private static extern int DwmSetWindowAttribute(nint hwnd, int attribute, ref int attributeValue, int attributeSize);
+    [LibraryImport("dwmapi.dll")]
+    private static partial int DwmSetWindowAttribute(nint hwnd, int attribute, ref int attributeValue, int attributeSize);
 }

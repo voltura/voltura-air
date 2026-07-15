@@ -32,6 +32,12 @@
 !define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\Voltura Air"
 !define RUN_KEY "Software\Microsoft\Windows\CurrentVersion\Run"
 
+!ifdef TEST_NO_INSTALLER_COMPRESSION
+!define INSTALLER_TEST_SUFFIX "-test-uncompressed"
+!else
+!define INSTALLER_TEST_SUFFIX ""
+!endif
+
 !ifdef FRAMEWORK_DEPENDENT
 !define INSTALLER_FILE_SUFFIX ""
 !define INSTALLER_KIND "Framework-dependent"
@@ -53,14 +59,19 @@ RequestExecutionLevel user
 XPStyle on
 ManifestDPIAware true
 ManifestSupportedOS all
+!ifdef TEST_NO_INSTALLER_COMPRESSION
+SetDatablockOptimize off
+SetCompress off
+!else
 SetCompressor /SOLID lzma
+!endif
 VIProductVersion "${APP_VERSION_QUAD}"
 VIAddVersionKey "ProductName" "${APP_NAME}"
 VIAddVersionKey "CompanyName" "${PUBLISHER}"
 VIAddVersionKey "FileDescription" "${APP_NAME} Installer"
 VIAddVersionKey "FileVersion" "${APP_VERSION}"
 VIAddVersionKey "ProductVersion" "${APP_VERSION}"
-VIAddVersionKey "OriginalFilename" "VolturaAir-Setup-${APP_VERSION}-${RUNTIME}${INSTALLER_FILE_SUFFIX}.exe"
+VIAddVersionKey "OriginalFilename" "VolturaAir-Setup-${APP_VERSION}-${RUNTIME}${INSTALLER_FILE_SUFFIX}${INSTALLER_TEST_SUFFIX}.exe"
 VIAddVersionKey "InternalName" "VolturaAirSetup"
 VIAddVersionKey "LegalCopyright" "Copyright (c) ${PUBLISHER}"
 VIAddVersionKey "Comments" "Developer: ${DEVELOPER}; Website: ${PRODUCT_URL}; Email: ${SUPPORT_EMAIL}; Address: ${POSTAL_ADDRESS}"

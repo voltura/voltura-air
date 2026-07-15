@@ -16,7 +16,7 @@ public sealed partial class PairingManager
 
     private PairedDeviceStatus[] BuildDeviceStatuses()
     {
-        return _records
+        return [.. _records
             .Select(record =>
             {
                 var activeConnections = _activeConnections.GetValueOrDefault(record.ClientId);
@@ -35,8 +35,7 @@ public sealed partial class PairingManager
                     record.PermissionOverrides ?? new DevicePermissionOverrides(),
                     record.PointerSpeedOverride,
                     GetEffectivePointerSpeed(record));
-            })
-            .ToArray();
+            })];
     }
 
     private static DevicePermissionOverrides NormalizePermissionOverrides(DevicePermissionOverrides? permissionOverrides)
@@ -59,7 +58,7 @@ public sealed partial class PairingManager
 
     private PairedDeviceStatus[] GetDuplicateCleanupCandidatesCore()
     {
-        return BuildDeviceStatuses()
+        return [.. BuildDeviceStatuses()
             .GroupBy(device => device.DeviceName.Trim(), StringComparer.OrdinalIgnoreCase)
             .Where(group => group.Count() > 1)
             .SelectMany(group =>
@@ -73,8 +72,7 @@ public sealed partial class PairingManager
                     !device.IsActive &&
                     !string.Equals(device.ClientId, deviceToKeep.ClientId, StringComparison.Ordinal));
             })
-            .OrderByDescending(device => device.LatestActivityAt)
-            .ToArray();
+            .OrderByDescending(device => device.LatestActivityAt)];
     }
 
     private PairingRecord? FindRecord(string clientId)
@@ -201,17 +199,11 @@ public sealed partial class PairingManager
         };
     }
 
-    private sealed class ConnectionScope : IDisposable
+    private sealed class ConnectionScope(PairingManager manager, string clientId) : IDisposable
     {
-        private readonly PairingManager _manager;
-        private readonly string _clientId;
+        private readonly PairingManager _manager = manager;
+        private readonly string _clientId = clientId;
         private bool _disposed;
-
-        public ConnectionScope(PairingManager manager, string clientId)
-        {
-            _manager = manager;
-            _clientId = clientId;
-        }
 
         public void Dispose()
         {

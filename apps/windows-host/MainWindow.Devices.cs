@@ -170,12 +170,9 @@ public partial class MainWindow
     private void RefreshDevicesAndSelect(string clientId)
     {
         SelectPage(HostPage.Devices);
-        if (_devicesList is not null)
-        {
-            _devicesList.SelectedItem = _devicesList.Items
+        _devicesList?.SelectedItem = _devicesList.Items
                 .OfType<ListBoxItem>()
                 .FirstOrDefault(item => item.Tag is DeviceListItem device && device.ClientId == clientId);
-        }
     }
 
     private void CleanUpDuplicates()

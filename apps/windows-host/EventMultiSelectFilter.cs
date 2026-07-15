@@ -32,13 +32,13 @@ public sealed class EventMultiSelectFilter : UserControl
         menu.SetResourceReference(Control.BackgroundProperty, "SurfaceBrush");
         menu.SetResourceReference(Control.ForegroundProperty, "TextBrush");
         menu.SetResourceReference(Control.BorderBrushProperty, "BorderBrush");
-        _items = options.Select(option => new MenuItem
+        _items = [.. options.Select(option => new MenuItem
         {
             Header = option.Label,
             Tag = option.Value,
             IsCheckable = true,
             StaysOpenOnClick = true
-        }).ToArray();
+        })];
         foreach (var item in _items)
         {
             item.Checked += OnSelectionChanged;

@@ -17,7 +17,7 @@ public sealed partial class CustomPointerService : IDisposable
         new("AppStarting", 32650), new("Help", 32651), new("NWPen", 32631), new("Pin", 32671), new("Person", 32672)
     ];
 
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private readonly string _templateDirectory;
     private bool _mayHaveApplied;
     private bool _disposed;
@@ -43,12 +43,22 @@ public sealed partial class CustomPointerService : IDisposable
                 _mayHaveApplied = true;
                 foreach (var role in Roles)
                 {
-                    using var cursor = CreateCursor(role, settings);
-                    var cursorHandle = cursor.Detach();
-                    if (!SetSystemCursor(cursorHandle, role.SystemCursorId))
+                    SafeCursorHandle? cursor = null;
+                    try
                     {
-                        _ = DestroyCursor(cursorHandle);
-                        throw new InvalidOperationException($"Windows did not apply the {role.TemplateName} custom pointer.");
+                        cursor = CreateCursor(role, settings);
+                        var cursorHandle = cursor.Detach();
+                        cursor.Dispose();
+                        cursor = null;
+                        if (!SetSystemCursor(cursorHandle, role.SystemCursorId))
+                        {
+                            _ = DestroyCursor(cursorHandle);
+                            throw new InvalidOperationException($"Windows did not apply the {role.TemplateName} custom pointer.");
+                        }
+                    }
+                    finally
+                    {
+                        cursor?.Dispose();
                     }
                 }
 

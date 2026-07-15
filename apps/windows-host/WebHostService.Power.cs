@@ -1,4 +1,5 @@
 using System.Net.WebSockets;
+using System.Globalization;
 
 namespace VolturaAir.Host;
 
@@ -144,7 +145,7 @@ public sealed partial class WebHostService
             "Voltura Air power action failed: action={0}, reason={1}, win32={2}, detail={3}",
             action,
             reason,
-            win32Error?.ToString() ?? "n/a",
+            win32Error?.ToString(CultureInfo.InvariantCulture) ?? "n/a",
             detail ?? "n/a");
     }
 

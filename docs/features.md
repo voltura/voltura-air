@@ -62,6 +62,8 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Bounds WebSocket resource use with a 64-session limit, a 10-second initial
   pairing deadline, a 2-minute authenticated inactivity deadline, and a 64 KiB
   text-message limit across fragments.
+- Serializes sends per authenticated socket, bounds send and close operations,
+  and coalesces repeated host-status updates through one owned worker.
 - Uses QR pairing links for first-time setup.
 - Supports saved reconnects after pairing.
 - Supports manual host entry on mobile for recovery.

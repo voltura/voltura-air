@@ -1,11 +1,12 @@
 using System.Text.Json;
+using System.Globalization;
 using VolturaAir.Host;
 
 namespace VolturaAir.Host.Tests;
 
 public sealed class AppLogTests
 {
-    private static readonly DateTimeOffset TestNow = DateTimeOffset.Parse("2026-07-13T10:00:00Z");
+    private static readonly DateTimeOffset TestNow = DateTimeOffset.Parse("2026-07-13T10:00:00Z", CultureInfo.InvariantCulture);
 
     [Fact]
     public void DisabledLogWritesNoFile()

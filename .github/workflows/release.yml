@@ -19,6 +19,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ inputs.release_tag }}
+  cancel-in-progress: false
+
 jobs:
   build-and-upsert-release-assets:
     name: Build and upsert release assets
@@ -48,50 +52,44 @@ jobs:
 
       - name: Validate release inputs
         shell: pwsh
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RUNTIME: ${{ inputs.runtime }}
         run: |
           $packageVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          $inputVersion = "${{ inputs.version }}"
-          $inputTag = "${{ inputs.release_tag }}"
 
-          if ($inputVersion -ne $packageVersion) {
-            throw "Workflow version '$inputVersion' does not match package.json version '$packageVersion'. Run npm run release -- <version> and commit the prepared files first."
+          if ($env:RELEASE_VERSION -ne $packageVersion) {
+            throw "Workflow version '$env:RELEASE_VERSION' does not match package.json version '$packageVersion'. Run npm run release -- <version> and commit the prepared files first."
           }
 
-          if ($inputTag -ne "v$packageVersion") {
-            throw "Workflow release tag '$inputTag' must be 'v$packageVersion'."
+          if ($env:RELEASE_TAG -ne "v$packageVersion") {
+            throw "Workflow release tag '$env:RELEASE_TAG' must be 'v$packageVersion'."
           }
 
-      - name: Build
-        run: npm run build
+          if ($env:RUNTIME -ne "win-x64") {
+            throw "The release workflow currently supports only the verified win-x64 runtime."
+          }
 
       - name: Test
         run: npm test
 
       - name: Package release assets
         shell: pwsh
-        run: npm run package:win -- -Version "${{ inputs.version }}" -Runtime "${{ inputs.runtime }}"
-
-      - name: Validate Windows file metadata
-        shell: pwsh
-        run: |
-          & .\scripts\verify-windows-version.ps1 `
-            -Version "${{ inputs.version }}" `
-            -Runtime "${{ inputs.runtime }}" `
-            -RequireHostDll
-
-          & .\scripts\verify-windows-version.ps1 `
-            -Version "${{ inputs.version }}" `
-            -Runtime "${{ inputs.runtime }}" `
-            -PublishDir "artifacts/publish/VolturaAir-${{ inputs.runtime }}-framework-dependent" `
-            -InstallerPath "artifacts/publish/VolturaAir-Setup-${{ inputs.version }}-${{ inputs.runtime }}.exe" `
-            -RequireHostDll
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          RUNTIME: ${{ inputs.runtime }}
+        run: npm run package:win -- -Version $env:RELEASE_VERSION -Runtime $env:RUNTIME
 
       - name: Collect asset paths
         id: package
         shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          RUNTIME: ${{ inputs.runtime }}
         run: |
-          $version = "${{ inputs.version }}"
-          $runtime = "${{ inputs.runtime }}"
+          $version = $env:RELEASE_VERSION
+          $runtime = $env:RUNTIME
           $zipName = "VolturaAir-$version-$runtime.zip"
           $installerName = "VolturaAir-Setup-$version-$runtime-full.exe"
           $frameworkDependentInstallerName = "VolturaAir-Setup-$version-$runtime.exe"
@@ -129,30 +127,52 @@ jobs:
 
       - name: Refresh release tag
         shell: pwsh
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          $tag = "${{ inputs.release_tag }}"
+          $tag = $env:RELEASE_TAG
           git check-ref-format "refs/tags/$tag"
           if ($LASTEXITCODE -ne 0) {
             Write-Error "Invalid release tag '$tag'."
             exit $LASTEXITCODE
           }
 
-          git tag --force $tag $env:GITHUB_SHA
+          $remoteTag = git ls-remote --tags origin "refs/tags/$tag"
           if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
           }
 
-          git push --force origin "refs/tags/$tag"
-          if ($LASTEXITCODE -ne 0) {
-            exit $LASTEXITCODE
+          if ($remoteTag) {
+            $remoteTagObject = ($remoteTag -split "\s+")[0]
+            git tag --force $tag $env:GITHUB_SHA
+            if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+            }
+
+            git push "--force-with-lease=refs/tags/$tag`:$remoteTagObject" origin "refs/tags/$tag"
+            if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+            }
+          }
+          else {
+            git tag $tag $env:GITHUB_SHA
+            if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+            }
+
+            git push origin "refs/tags/$tag"
+            if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+            }
           }
 
       - name: Create release if missing and upload assets
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          $tag = "${{ inputs.release_tag }}"
+          $tag = $env:RELEASE_TAG
           $zipPath = "${{ steps.package.outputs.zip_path }}"
           $installerPath = "${{ steps.package.outputs.installer_path }}"
           $frameworkDependentInstallerPath = "${{ steps.package.outputs.framework_dependent_installer_path }}"

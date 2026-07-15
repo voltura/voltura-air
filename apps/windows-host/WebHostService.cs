@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Channels;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -18,6 +19,7 @@ public sealed partial class WebHostService : IAsyncDisposable
     internal static readonly TimeSpan PairingHandshakeTimeout = TimeSpan.FromSeconds(10);
     internal static readonly TimeSpan AuthenticatedInactivityTimeout = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan WebSocketCloseTimeout = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan WebSocketSendTimeout = TimeSpan.FromSeconds(5);
     internal const int MaxWebSocketMessageBytes = 64 * 1024;
     private const int MaxConcurrentWebSocketSessions = 64;
     private readonly PairingManager _pairingManager;
@@ -35,11 +37,20 @@ public sealed partial class WebHostService : IAsyncDisposable
     private readonly PairingAttemptRateLimiter _pairingAttemptRateLimiter = new();
     private readonly WebSocketConnectionRegistry _connections = new();
     private readonly SemaphoreSlim _webSocketSessionSlots = new(MaxConcurrentWebSocketSessions, MaxConcurrentWebSocketSessions);
+    private readonly CancellationTokenSource _lifetimeCancellation = new();
+    private readonly Channel<bool> _statusBroadcastRequests = Channel.CreateBounded<bool>(new BoundedChannelOptions(1)
+    {
+        FullMode = BoundedChannelFullMode.DropWrite,
+        SingleReader = true,
+        SingleWriter = false
+    });
     private readonly Action<IWebHostBuilder>? _configureWebHost;
     private readonly Action<CustomPointerSettings>? _applyCustomPointer;
     private readonly string _listenAddress;
     private int _inputBlockedByElevation;
+    private int _disposeState;
     private WebApplication? _app;
+    private Task _statusBroadcastTask = Task.CompletedTask;
 
     public WebHostService(
         PairingManager pairingManager,
@@ -74,18 +85,6 @@ public sealed partial class WebHostService : IAsyncDisposable
         _workstationLockPolicy = workstationLockPolicy ?? new WorkstationLockPolicy(_appLog);
         _configureWebHost = configureWebHost;
         _applyCustomPointer = applyCustomPointer;
-        _pairingManager.PairingRevoked += OnPairingRevoked;
-        _pairingManager.PermissionsChanged += OnPermissionsChanged;
-        _pairingManager.DeviceProfileChanged += OnPermissionsChanged;
-        AppPermissionSettings.Changed += OnPermissionsChanged;
-        AppDeveloperSettings.Changed += OnPermissionsChanged;
-        AppRemoteSettings.Changed += OnPermissionsChanged;
-        AppLaunchSettings.Changed += OnPermissionsChanged;
-        AppTextDestinationSettings.Changed += OnPermissionsChanged;
-        AppPointerSettings.Changed += OnPermissionsChanged;
-        _workstationLockPolicy.Changed += OnPermissionsChanged;
-        _awakeService.StateChanged += OnAwakeStateChanged;
-
         var settings = AppNetworkSettings.Load();
         var usesInMemoryTestServer = isolatedTestMode && configureWebHost is not null;
         var portSelection = usesInMemoryTestServer
@@ -124,6 +123,18 @@ public sealed partial class WebHostService : IAsyncDisposable
         }
 
         ServerUrl = BuildServerUrl(AdvertisedHostAddress, Port);
+        _pairingManager.PairingRevoked += OnPairingRevoked;
+        _pairingManager.PermissionsChanged += OnPermissionsChanged;
+        _pairingManager.DeviceProfileChanged += OnPermissionsChanged;
+        AppPermissionSettings.Changed += OnPermissionsChanged;
+        AppDeveloperSettings.Changed += OnPermissionsChanged;
+        AppRemoteSettings.Changed += OnPermissionsChanged;
+        AppLaunchSettings.Changed += OnPermissionsChanged;
+        AppTextDestinationSettings.Changed += OnPermissionsChanged;
+        AppPointerSettings.Changed += OnPermissionsChanged;
+        _workstationLockPolicy.Changed += OnPermissionsChanged;
+        _awakeService.StateChanged += OnAwakeStateChanged;
+        _statusBroadcastTask = ProcessStatusBroadcastsAsync();
     }
 
     public int Port { get; }
@@ -152,6 +163,10 @@ public sealed partial class WebHostService : IAsyncDisposable
 
     internal IAppLog AppLog => _appLog;
 
+    internal int ActiveSocketCount => _connections.ActiveSocketCount;
+
+    internal int SendGateCount => _connections.SendGateCount;
+
     public event EventHandler<ControllerSocketClosedEventArgs>? ControllerSocketClosed;
 
     internal event EventHandler<RemoteInputBlockedChangedEventArgs>? RemoteInputBlockedChanged;
@@ -166,7 +181,7 @@ public sealed partial class WebHostService : IAsyncDisposable
         }
 
         RemoteInputBlockedChanged?.Invoke(this, new RemoteInputBlockedChangedEventArgs(blocked));
-        _ = Task.Run(BroadcastStatusAsync);
+        QueueStatusBroadcast();
     }
 
     internal void UpdateAdvertisedHostAddress(string hostAddress, LanAddressCandidate? selectedCandidate = null)
@@ -279,6 +294,11 @@ public sealed partial class WebHostService : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposeState, 1) != 0)
+        {
+            return;
+        }
+
         _pairingManager.PairingRevoked -= OnPairingRevoked;
         _pairingManager.PermissionsChanged -= OnPermissionsChanged;
         _pairingManager.DeviceProfileChanged -= OnPermissionsChanged;
@@ -290,20 +310,46 @@ public sealed partial class WebHostService : IAsyncDisposable
         AppPointerSettings.Changed -= OnPermissionsChanged;
         _workstationLockPolicy.Changed -= OnPermissionsChanged;
         _awakeService.StateChanged -= OnAwakeStateChanged;
-        AbortActiveSockets();
-        _connections.Dispose();
-        if (_app is not null)
+        _statusBroadcastRequests.Writer.TryComplete();
+        await _lifetimeCancellation.CancelAsync();
+        try
         {
-            await _app.DisposeAsync();
+            AbortActiveSockets();
+            await _statusBroadcastTask;
+            if (_app is not null)
+            {
+                await _app.DisposeAsync();
+            }
         }
-
-        if (_powerController is IDisposable disposablePowerController)
+        finally
         {
-            disposablePowerController.Dispose();
+            _connections.Dispose();
+            try
+            {
+                if (_powerController is IDisposable disposablePowerController)
+                {
+                    disposablePowerController.Dispose();
+                }
+            }
+            finally
+            {
+                try
+                {
+                    _awakeService.Dispose();
+                }
+                finally
+                {
+                    try
+                    {
+                        _webSocketSessionSlots.Dispose();
+                    }
+                    finally
+                    {
+                        _lifetimeCancellation.Dispose();
+                    }
+                }
+            }
         }
-
-        _awakeService.Dispose();
-        _webSocketSessionSlots.Dispose();
     }
 
     internal static bool IsPortAvailable(int port)
@@ -447,20 +493,13 @@ public sealed partial class WebHostService : IAsyncDisposable
     }
 }
 
-public sealed class ControllerSocketClosedEventArgs : EventArgs
+public sealed class ControllerSocketClosedEventArgs(string clientId, string reason, WebSocketCloseStatus status) : EventArgs
 {
-    public ControllerSocketClosedEventArgs(string clientId, string reason, WebSocketCloseStatus status)
-    {
-        ClientId = clientId;
-        Reason = reason;
-        Status = status;
-    }
+    public string ClientId { get; } = clientId;
 
-    public string ClientId { get; }
+    public string Reason { get; } = reason;
 
-    public string Reason { get; }
-
-    public WebSocketCloseStatus Status { get; }
+    public WebSocketCloseStatus Status { get; } = status;
 }
 
 internal sealed record HostStatusMetadata(
@@ -482,10 +521,6 @@ internal sealed record HostStatusMetadata(
 
 internal sealed record TextTransferTargetMetadata(string Mode, string DisplayName, bool Available);
 
-public sealed class HostPortUnavailableException : Exception
+public sealed class HostPortUnavailableException(string message) : Exception(message)
 {
-    public HostPortUnavailableException(string message)
-        : base(message)
-    {
-    }
 }

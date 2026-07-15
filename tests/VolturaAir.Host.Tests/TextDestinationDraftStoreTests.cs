@@ -3,6 +3,42 @@ namespace VolturaAir.Host.Tests;
 public sealed class TextDestinationDraftStoreTests
 {
     [Fact]
+    public async Task CleanupDisposalWaitsForActiveCleanup()
+    {
+        using var cleanupStarted = new ManualResetEventSlim();
+        using var releaseCleanup = new ManualResetEventSlim();
+        var cleanup = new TextDestinationDraftCleanup(
+            NullAppLog.Instance,
+            () =>
+            {
+                cleanupStarted.Set();
+                releaseCleanup.Wait();
+            },
+            TimeSpan.Zero,
+            Timeout.InfiniteTimeSpan);
+
+        Task? disposal = null;
+        try
+        {
+            Assert.True(cleanupStarted.Wait(TimeSpan.FromSeconds(3)));
+            disposal = cleanup.DisposeAsync().AsTask();
+            Assert.False(disposal.IsCompleted);
+        }
+        finally
+        {
+            releaseCleanup.Set();
+            if (disposal is not null)
+            {
+                await disposal.WaitAsync(TimeSpan.FromSeconds(3));
+            }
+            else
+            {
+                await cleanup.DisposeAsync();
+            }
+        }
+    }
+
+    [Fact]
     public void AutomaticRemovalNoticeNamesTheRetentionSettingAndDate()
     {
         var draft = new TextDestinationDraft(@"C:\\Drafts\\Untitled-test.txt", new DateTime(2026, 7, 16), AutomaticallyRemove: true);

@@ -2,7 +2,8 @@ param(
     [string]$Version,
     [string]$Runtime = "win-x64",
     [switch]$SkipBuild,
-    [switch]$FrameworkDependentOnly
+    [switch]$FrameworkDependentOnly,
+    [switch]$NoInstallerCompression
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,12 +17,24 @@ $zipPath = Join-Path $publishRoot "VolturaAir-$Version-$Runtime.zip"
 $installerPath = Join-Path $publishRoot "VolturaAir-Setup-$Version-$Runtime-full.exe"
 $frameworkDependentInstallerPath = Join-Path $publishRoot "VolturaAir-Setup-$Version-$Runtime.exe"
 $nsisScript = Join-Path $repoRoot "installer\VolturaAir.nsi"
+$nsisCompressionArguments = @()
+if ($NoInstallerCompression) {
+    $nsisCompressionArguments = @("/DTEST_NO_INSTALLER_COMPRESSION")
+    $testOutputRoot = Join-Path $repoRoot "artifacts\test"
+    $installerPath = Join-Path $testOutputRoot "VolturaAir-Setup-$Version-$Runtime-full-test-uncompressed.exe"
+    $frameworkDependentInstallerPath = Join-Path $testOutputRoot "VolturaAir-Setup-$Version-$Runtime-test-uncompressed.exe"
+}
 
 if ([string]::IsNullOrWhiteSpace($Version)) {
     $Version = (Get-Content $packageJsonPath -Raw | ConvertFrom-Json).version
     $zipPath = Join-Path $publishRoot "VolturaAir-$Version-$Runtime.zip"
     $installerPath = Join-Path $publishRoot "VolturaAir-Setup-$Version-$Runtime-full.exe"
     $frameworkDependentInstallerPath = Join-Path $publishRoot "VolturaAir-Setup-$Version-$Runtime.exe"
+    if ($NoInstallerCompression) {
+        $testOutputRoot = Join-Path $repoRoot "artifacts\test"
+        $installerPath = Join-Path $testOutputRoot "VolturaAir-Setup-$Version-$Runtime-full-test-uncompressed.exe"
+        $frameworkDependentInstallerPath = Join-Path $testOutputRoot "VolturaAir-Setup-$Version-$Runtime-test-uncompressed.exe"
+    }
 }
 
 if ([string]::IsNullOrWhiteSpace($Version)) {
@@ -60,6 +73,7 @@ if ([string]::IsNullOrWhiteSpace($makensisPath)) {
 }
 
 New-Item -ItemType Directory -Force -Path $publishRoot | Out-Null
+New-Item -ItemType Directory -Force -Path (Split-Path $installerPath -Parent) | Out-Null
 
 if (-not $SkipBuild) {
     if (-not $FrameworkDependentOnly -and (Test-Path $publishDir)) {
@@ -130,7 +144,7 @@ if (-not $FrameworkDependentOnly) {
     $installedSizeBytes = (Get-ChildItem $publishDir -Recurse -File | Measure-Object Length -Sum).Sum
     $installedSizeKb = [int][math]::Ceiling($installedSizeBytes / 1KB)
 
-    if (Test-Path $zipPath) {
+    if (-not $NoInstallerCompression -and (Test-Path $zipPath)) {
         Remove-Item $zipPath -Force
     }
     if (Test-Path $installerPath) {
@@ -142,7 +156,9 @@ if (Test-Path $frameworkDependentInstallerPath) {
 }
 
 if (-not $FrameworkDependentOnly) {
-    Compress-Archive -Path (Join-Path $publishDir "*") -DestinationPath $zipPath -Force
+    if (-not $NoInstallerCompression) {
+        Compress-Archive -Path (Join-Path $publishDir "*") -DestinationPath $zipPath -Force
+    }
 
     & $makensisPath `
         "/DAPP_VERSION=$Version" `
@@ -151,6 +167,7 @@ if (-not $FrameworkDependentOnly) {
         "/DRUNTIME=$Runtime" `
         "/DPUBLISH_DIR=$publishDir" `
         "/DOUTPUT_FILE=$installerPath" `
+        @nsisCompressionArguments `
         $nsisScript
 
     if ($LASTEXITCODE -ne 0) {
@@ -170,6 +187,7 @@ if (-not $FrameworkDependentOnly) {
     "/DPUBLISH_DIR=$frameworkDependentPublishDir" `
     "/DOUTPUT_FILE=$frameworkDependentInstallerPath" `
     "/DFRAMEWORK_DEPENDENT" `
+    @nsisCompressionArguments `
     $nsisScript
 
 if ($LASTEXITCODE -ne 0) {
@@ -208,7 +226,9 @@ if (-not $SkipBuild) {
 & $verifyVersionScript @frameworkDependentVerifyVersionArguments
 
 if (-not $FrameworkDependentOnly) {
-    Write-Host "Created portable zip: $zipPath"
+    if (-not $NoInstallerCompression) {
+        Write-Host "Created portable zip: $zipPath"
+    }
     Write-Host "Created full installer: $installerPath"
 }
 Write-Host "Created framework-dependent installer: $frameworkDependentInstallerPath"

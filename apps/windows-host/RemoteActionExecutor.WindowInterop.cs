@@ -185,7 +185,7 @@ public sealed partial class RemoteActionExecutor
         try
         {
             using var inputInjector = new SendInputInjector();
-            inputInjector.SpecialKey("F" + "11", Array.Empty<string>());
+            inputInjector.SpecialKey("F" + "11", []);
         }
         catch (InvalidOperationException)
         {
@@ -236,54 +236,63 @@ public sealed partial class RemoteActionExecutor
         public uint Flags;
     }
 
-    [DllImport("user32.dll")]
-    private static extern bool SetForegroundWindow(IntPtr hWnd);
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool SetForegroundWindow(nint hWnd);
 
-    [DllImport("user32.dll")]
-    private static extern IntPtr GetForegroundWindow();
+    [LibraryImport("user32.dll")]
+    private static partial nint GetForegroundWindow();
 
-    [DllImport("user32.dll")]
-    private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool ShowWindow(nint hWnd, int nCmdShow);
 
-    [DllImport("user32.dll")]
-    private static extern bool IsIconic(IntPtr hWnd);
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool IsIconic(nint hWnd);
 
-    [DllImport("user32.dll")]
-    private static extern bool IsWindow(IntPtr hWnd);
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool IsWindow(nint hWnd);
 
-    [DllImport("user32.dll")]
-    private static extern bool BringWindowToTop(IntPtr hWnd);
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool BringWindowToTop(nint hWnd);
 
-    [DllImport("user32.dll")]
-    private static extern bool SetWindowPos(IntPtr hWnd, nint hWndInsertAfter, int x, int y, int cx, int cy, uint flags);
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool SetWindowPos(nint hWnd, nint hWndInsertAfter, int x, int y, int cx, int cy, uint flags);
 
-    [DllImport("user32.dll")]
-    private static extern bool GetWindowRect(IntPtr hWnd, out Win32Rect lpRect);
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetWindowRect(nint hWnd, out Win32Rect lpRect);
 
-    [DllImport("user32.dll")]
-    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+    [LibraryImport("user32.dll")]
+    private static partial nint MonitorFromWindow(nint hwnd, uint dwFlags);
 
-    [DllImport("user32.dll")]
-    private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MonitorInfo lpmi);
+    [LibraryImport("user32.dll", EntryPoint = "GetMonitorInfoW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetMonitorInfo(nint hMonitor, ref MonitorInfo lpmi);
 
-    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtr")]
-    private static extern nint GetWindowLongPtr(IntPtr hWnd, int nIndex);
+    [LibraryImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
+    private static partial nint GetWindowLongPtr(nint hWnd, int nIndex);
 
-    [DllImport("user32.dll")]
-    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+    [LibraryImport("user32.dll")]
+    private static partial uint GetWindowThreadProcessId(nint hWnd, out uint processId);
 
-    [DllImport("kernel32.dll")]
-    private static extern uint GetCurrentThreadId();
+    [LibraryImport("kernel32.dll")]
+    private static partial uint GetCurrentThreadId();
 
-    [DllImport("user32.dll")]
-    private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool attach);
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool AttachThreadInput(uint idAttach, uint idAttachTo, [MarshalAs(UnmanagedType.Bool)] bool attach);
 
-    [DllImport("user32.dll")]
-    private static extern IntPtr SetActiveWindow(IntPtr hWnd);
+    [LibraryImport("user32.dll")]
+    private static partial nint SetActiveWindow(nint hWnd);
 
-    [DllImport("user32.dll")]
-    private static extern IntPtr SetFocus(IntPtr hWnd);
+    [LibraryImport("user32.dll")]
+    private static partial nint SetFocus(nint hWnd);
 
-    [DllImport("user32.dll")]
-    private static extern IntPtr GetAncestor(IntPtr hWnd, uint gaFlags);
+    [LibraryImport("user32.dll")]
+    private static partial nint GetAncestor(nint hWnd, uint gaFlags);
 }

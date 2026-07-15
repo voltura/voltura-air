@@ -24,7 +24,7 @@ public interface IWorkstationLockPolicy
     WorkstationLockEnableResult TryEnable();
 }
 
-public sealed class WorkstationLockPolicy : IWorkstationLockPolicy
+public sealed partial class WorkstationLockPolicy : IWorkstationLockPolicy
 {
     internal const string DefaultKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Policies\System";
     internal const string ValueName = "DisableLockWorkstation";
@@ -164,8 +164,8 @@ public sealed class WorkstationLockPolicy : IWorkstationLockPolicy
             out _);
     }
 
-    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    private static extern nint SendMessageTimeout(
+    [LibraryImport("user32.dll", EntryPoint = "SendMessageTimeoutW", StringMarshalling = StringMarshalling.Utf16, SetLastError = true)]
+    private static partial nint SendMessageTimeout(
         nint hWnd,
         uint message,
         nuint wParam,

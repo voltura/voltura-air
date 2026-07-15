@@ -1,0 +1,39 @@
+[*.cs]
+# Host-relevant correctness, lifetime, protocol, interop, and performance rules.
+dotnet_diagnostic.CA1849.severity = error
+dotnet_diagnostic.CA1001.severity = error
+dotnet_diagnostic.CA2000.severity = error
+dotnet_diagnostic.CA2012.severity = error
+dotnet_diagnostic.CA2016.severity = error
+dotnet_diagnostic.CA2213.severity = error
+dotnet_diagnostic.CA5359.severity = error
+dotnet_diagnostic.CA5364.severity = error
+dotnet_diagnostic.CA5378.severity = error
+dotnet_diagnostic.CA5392.severity = error
+dotnet_diagnostic.CA5398.severity = error
+dotnet_diagnostic.CA1822.severity = error
+dotnet_diagnostic.CA1859.severity = error
+dotnet_diagnostic.CA1869.severity = error
+dotnet_diagnostic.ASP0015.severity = error
+dotnet_diagnostic.SYSLIB1054.severity = error
+
+# These rules model reusable libraries, context-free libraries, or broad catch
+# policy. Voltura Air is a WPF executable with UI-affine awaits and deliberate
+# top-level recovery boundaries, so enabling them globally would be misleading.
+dotnet_diagnostic.CA1031.severity = none
+dotnet_diagnostic.CA1515.severity = none
+dotnet_diagnostic.CA2007.severity = none
+
+# Behavior-neutral modern C# conventions adopted by the host.
+dotnet_diagnostic.IDE0017.severity = error
+dotnet_diagnostic.IDE0028.severity = error
+dotnet_diagnostic.IDE0031.severity = error
+dotnet_diagnostic.IDE0055.severity = error
+dotnet_diagnostic.IDE0059.severity = error
+dotnet_diagnostic.IDE0060.severity = error
+dotnet_diagnostic.IDE0075.severity = error
+dotnet_diagnostic.IDE0290.severity = error
+dotnet_diagnostic.IDE0300.severity = error
+dotnet_diagnostic.IDE0301.severity = error
+dotnet_diagnostic.IDE0305.severity = error
+dotnet_diagnostic.IDE0330.severity = error

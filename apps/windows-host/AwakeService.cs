@@ -17,12 +17,12 @@ internal interface IAwakeExecutionStateBridge
     bool TrySet(AwakeExecutionState state);
 }
 
-internal sealed class WindowsAwakeExecutionStateBridge : IAwakeExecutionStateBridge
+internal sealed partial class WindowsAwakeExecutionStateBridge : IAwakeExecutionStateBridge
 {
     public bool TrySet(AwakeExecutionState state) => SetThreadExecutionState(state) != 0;
 
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern AwakeExecutionState SetThreadExecutionState(AwakeExecutionState executionState);
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    private static partial AwakeExecutionState SetThreadExecutionState(AwakeExecutionState executionState);
 }
 
 internal sealed class NoOpAwakeExecutionStateBridge : IAwakeExecutionStateBridge
@@ -32,7 +32,7 @@ internal sealed class NoOpAwakeExecutionStateBridge : IAwakeExecutionStateBridge
 
 public sealed class AwakeService : IAwakeService
 {
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private readonly IAwakeExecutionStateBridge _bridge;
     private readonly Action<AwakeState> _save;
     private readonly IAppLog _appLog;

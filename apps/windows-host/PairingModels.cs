@@ -51,14 +51,9 @@ public static class DevicePointerProfile
     }
 }
 
-public sealed class PairingRevokedEventArgs : EventArgs
+public sealed class PairingRevokedEventArgs(string? clientId) : EventArgs
 {
-    public PairingRevokedEventArgs(string? clientId)
-    {
-        ClientId = clientId;
-    }
-
-    public string? ClientId { get; }
+    public string? ClientId { get; } = clientId;
 }
 
 public sealed record PairingResult(bool Accepted, string? Secret, string Reason);

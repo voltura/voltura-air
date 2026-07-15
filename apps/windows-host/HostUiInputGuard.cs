@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Reflection;
+using System.Globalization;
 using System.Text.Json;
 using WpfApplication = System.Windows.Application;
 
@@ -44,14 +45,14 @@ internal static partial class HostUiInputGuard
         return messageType switch
         {
             "keyboard.text" => IsForegroundVolturaHostWindow(),
-            "keyboard.special" => ShouldBlockSpecialKey(message, out protectedCommandExecuted),
+            "keyboard.special" => ShouldBlockSpecialKey(out protectedCommandExecuted),
             "pointer.button" => ShouldBlockPointerButton(message),
             "pointer.wheel" or "pointer.zoom" => ShouldBlockPointerWheelOrZoom(),
             _ => false
         };
     }
 
-    private static bool ShouldBlockSpecialKey(JsonElement message, out bool protectedCommandExecuted)
+    private static bool ShouldBlockSpecialKey(out bool protectedCommandExecuted)
     {
         protectedCommandExecuted = false;
         var foregroundWindow = GetForegroundWindow();
@@ -138,7 +139,13 @@ internal static partial class HostUiInputGuard
                 return false;
             }
 
-            _ = shellType.InvokeMember("MinimizeAll", BindingFlags.InvokeMethod, null, shell, null);
+            _ = shellType.InvokeMember(
+                "MinimizeAll",
+                BindingFlags.InvokeMethod,
+                null,
+                shell,
+                null,
+                CultureInfo.InvariantCulture);
             return true;
         }
         catch (COMException)
@@ -336,38 +343,43 @@ internal static partial class HostUiInputGuard
         return unchecked((nint)(((y & 0xFFFF) << 16) | (x & 0xFFFF)));
     }
 
-    [DllImport("user32.dll")]
-    private static extern nint GetForegroundWindow();
+    [LibraryImport("user32.dll")]
+    private static partial nint GetForegroundWindow();
 
-    [DllImport("user32.dll")]
-    private static extern bool GetCursorPos(out Point point);
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetCursorPos(out Point point);
 
-    [DllImport("user32.dll")]
-    private static extern nint WindowFromPoint(Point point);
+    [LibraryImport("user32.dll")]
+    private static partial nint WindowFromPoint(Point point);
 
-    [DllImport("user32.dll")]
-    private static extern nint GetAncestor(nint windowHandle, uint flags);
+    [LibraryImport("user32.dll")]
+    private static partial nint GetAncestor(nint windowHandle, uint flags);
 
     [LibraryImport("user32.dll", EntryPoint = "GetClassNameW")]
     private static unsafe partial int GetClassName(nint windowHandle, char* className, int maxCount);
 
-    [DllImport("user32.dll")]
-    private static extern uint GetWindowThreadProcessId(nint windowHandle, out int processId);
+    [LibraryImport("user32.dll")]
+    private static partial uint GetWindowThreadProcessId(nint windowHandle, out int processId);
 
-    [DllImport("user32.dll")]
-    private static extern nint SendMessage(nint windowHandle, int message, nint wParam, nint lParam);
+    [LibraryImport("user32.dll")]
+    private static partial nint SendMessage(nint windowHandle, int message, nint wParam, nint lParam);
 
-    [DllImport("user32.dll")]
-    private static extern bool PostMessage(nint windowHandle, int message, nint wParam, nint lParam);
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool PostMessage(nint windowHandle, int message, nint wParam, nint lParam);
 
-    [DllImport("user32.dll")]
-    private static extern bool IsZoomed(nint windowHandle);
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool IsZoomed(nint windowHandle);
 
-    [DllImport("user32.dll")]
-    private static extern bool ShowWindow(nint windowHandle, int command);
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool ShowWindow(nint windowHandle, int command);
 
-    [DllImport("user32.dll")]
-    private static extern bool IsIconic(nint windowHandle);
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool IsIconic(nint windowHandle);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct Point

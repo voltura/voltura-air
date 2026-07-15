@@ -10,9 +10,13 @@ updated as the app structure, tooling, and release process become concrete.
 - Read this file before making changes in the repository.
 - Keep changes small and focused on the requested task.
 - Prefer the project's established patterns once source files and tooling exist.
-- The Windows host targets .NET 10 and stable C# 14. Prefer current C# syntax such as collection expressions, records, pattern matching, target-typed construction, and file-scoped namespaces when they improve clarity. Do not introduce legacy syntax for compatibility with older language versions.
-- For new or modified Windows native interop, prefer source-generated `LibraryImport` declarations over `DllImport` when supported. Use explicit Unicode entry points and marshalling, and prefer `SafeHandle` types over manual native-handle cleanup when they keep the code clear. Do not churn unrelated stable interop solely to modernize syntax.
+- The Windows host targets .NET 10 and stable C# 14. Use current language and runtime features when they simplify ownership, improve correctness, or reduce meaningful allocation or CPU cost: collection expressions, records, primary constructors, pattern matching, target-typed construction, file-scoped namespaces, `Lock`, spans, cached serializer options, and async disposal. Do not introduce legacy syntax for compatibility with older language versions, and do not rewrite clear code solely to showcase newer syntax.
+- For new or modified Windows native interop, use source-generated `LibraryImport` declarations when supported. Use exact Unicode entry points for text-sensitive APIs, explicit native boolean and string marshalling, the host's System32 DLL search policy, and `SafeHandle` types when they make ownership clear. Keep `DllImport` or classic COM interop only where source generation cannot faithfully represent callbacks, activation, or lifetime; place a narrow suppression and rationale beside that declaration.
 - Keep the Windows host lightweight as a continuously running tray application. Prefer event-driven work over frequent polling, avoid unnecessary background activity and repeated allocations, release timers, subscriptions, sockets, and other resources correctly, and keep idle CPU, memory, disk, network, thread, and handle usage proportionate. Do not trade maintainability for insignificant micro-optimizations; measure when the benefit is uncertain.
+- Follow `docs/host-quality.md` for the Windows host analyzer policy, runtime ownership expectations, modern C# standard, and required quality gate. Do not enable all optional .NET analyzers globally; promote reviewed host-relevant rules and document narrow exceptions instead.
+- Keep host ownership boundaries explicit: `WpfHostRuntime` owns startup rollback and process-resource shutdown; `WpfTrayApplicationContext` and WPF windows render state and request commands or shutdown; services own their timers, subscriptions, native resources, protocol workers, and persistence. UI or tray code must not dispose or directly operate service internals.
+- Keep WebSocket sends serialized per registered socket and bounded by cancellation and operation timeouts. Status changes use the host-owned coalescing broadcaster; do not add fire-and-forget broadcast tasks, parallel sends on one socket, or a second background worker for the same state.
+- Treat pairing data as untrusted persistence. Keep reads size/record bounded and validated, write replacement data atomically in the same directory, and never persist or log plaintext reconnect secrets.
 - The mobile client targets React 19 and TypeScript 6. Prefer function components, typed hooks, discriminated unions, `satisfies`, optional chaining, and modern platform APIs that work on the app's HTTP LAN origin. Avoid legacy React class components and compatibility patterns for older React or TypeScript releases.
 - For web UI interaction, layout, scrolling, touch, pointer, focus, viewport, and browser-compatibility behavior, research the relevant web standard and official browser documentation before implementing unfamiliar behavior or repeatedly patching a browser-specific symptom. Prefer W3C/WHATWG specifications, MDN, and official Chromium/WebKit documentation; record the standards constraint that drives any non-obvious design.
 - Design mobile-web interactions for the broadest practical set of modern browsers and touch platforms, including Android, iOS/iPadOS, Windows touch devices, and desktop browsers. Use standards-based APIs, feature detection, and progressive enhancement instead of user-agent checks or assumptions about one device or browser. Platform-only feedback such as vibration must never be required for discovering or completing an interaction.
@@ -122,9 +126,18 @@ updated as the app structure, tooling, and release process become concrete.
 - Run `npm install` before the first build.
 - Choose validation proportionate to the actual change and its risk. Start with the smallest focused build or tests that exercise the changed path, and do not repeatedly rerun an unchanged full suite or packaging step after edits that cannot affect it. Run broader validation once at the appropriate integration or release boundary, or when a cross-cutting, build, packaging, or configuration change warrants it.
 - For changed C# code, review applicable compiler and .NET SDK analyzer diagnostics, including suggestion-level diagnostics that may appear only in the IDE. Use focused analyzer checks proportionate to the change, and evaluate recommendations for correctness, safety, maintainability, and current .NET conventions instead of applying them mechanically. Put analyzer rules the project consistently requires in repository configuration so the IDE, command line, and CI share the same policy.
+- The host and host-test builds enforce the checked-in quality policy and must complete without compiler, formatting, or reviewed analyzer warnings. Do not lower a rule or add a suppression merely to make the build pass.
 - Run `npm run build` for the mobile PWA and Windows host.
 - Run `npm test` for the mobile and host test suites.
 - Run `npm run package:win` when verifying Windows release packaging.
+- The uncompressed installer fast path is optional, not part of the default build or
+  test gate. Use `npm run package:win:test` only when changes to NSIS, packaging,
+  installer contents, or Windows version metadata warrant validating both installer
+  definitions without paying the compression cost. If the required publish outputs
+  are already current, use `npm run package:win:test -- -SkipBuild`. Do not run either
+  command routinely for unrelated host, mobile, UI, or documentation changes. The
+  unmistakably named installers under `artifacts/test` are test-only and must never
+  be published; final release verification still requires `npm run package:win`.
 - Run `npm run size:report` to review actively maintained source files above 20 KB.
 - Run build and test commands sequentially. Do not run `npm run build`,
   `npm test`, `dotnet build`, or `dotnet test` in parallel with each other,
@@ -181,6 +194,11 @@ updated as the app structure, tooling, and release process become concrete.
   create or update a release and upload the portable zip, default installer, and
   full installer. The default installer downloads the required .NET 10 runtimes
   during setup when they are missing and may require administrator approval.
+- During the current limited beta, rerunning the workflow may replace assets and
+  move the same version tag to a newer tested commit. Tag updates must remain
+  serialized and use a force-with-lease check, never an unconditional force push.
+  The compressed workflow artifacts are authoritative; uncompressed test
+  installers are never release inputs.
 - See `docs/release.md` for the full preparation, verification, packaging,
   GitHub asset replacement, unsigned-installer, and sanity-check guide.
 

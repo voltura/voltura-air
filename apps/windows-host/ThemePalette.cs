@@ -17,7 +17,7 @@ public sealed record ThemePalette(
     Color Danger,
     Color QrBackground);
 
-public static class WindowsTheme
+public static partial class WindowsTheme
 {
     public static Color DarkAccent { get; } = Color.FromArgb(18, 168, 148);
 
@@ -77,6 +77,6 @@ public static class WindowsTheme
         return registryValue is int lightTheme && lightTheme == 0;
     }
 
-    [DllImport("dwmapi.dll")]
-    private static extern int DwmSetWindowAttribute(nint hwnd, int attribute, ref int attributeValue, int attributeSize);
+    [LibraryImport("dwmapi.dll")]
+    private static partial int DwmSetWindowAttribute(nint hwnd, int attribute, ref int attributeValue, int attributeSize);
 }

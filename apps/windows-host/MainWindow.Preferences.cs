@@ -477,8 +477,12 @@ public partial class MainWindow
         var offset = value - chroma;
         var (red, green, blue) = hue switch
         {
-            < 60 => (chroma, second, 0d), < 120 => (second, chroma, 0d), < 180 => (0d, chroma, second),
-            < 240 => (0d, second, chroma), < 300 => (second, 0d, chroma), _ => (chroma, 0d, second)
+            < 60 => (chroma, second, 0d),
+            < 120 => (second, chroma, 0d),
+            < 180 => (0d, chroma, second),
+            < 240 => (0d, second, chroma),
+            < 300 => (second, 0d, chroma),
+            _ => (chroma, 0d, second)
         };
         var redByte = (uint)Math.Round((red + offset) * 255);
         var greenByte = (uint)Math.Round((green + offset) * 255);

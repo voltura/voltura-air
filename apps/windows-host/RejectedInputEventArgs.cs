@@ -1,11 +1,6 @@
 namespace VolturaAir.Host;
 
-internal sealed class RejectedInputEventArgs : EventArgs
+internal sealed class RejectedInputEventArgs(string message) : EventArgs
 {
-    public RejectedInputEventArgs(string message)
-    {
-        Message = message;
-    }
-
-    public string Message { get; }
+    public string Message { get; } = message;
 }

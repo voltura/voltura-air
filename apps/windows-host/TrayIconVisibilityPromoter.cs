@@ -12,10 +12,13 @@ internal static class TrayIconVisibilityPromoter
     public static void PromoteWhenReady(IContainer components, NotifyIcon icon)
     {
         var attempts = 0;
+        // The supplied component container owns and disposes this timer with the tray context.
+#pragma warning disable CA2000
         var timer = new System.Windows.Forms.Timer(components)
         {
             Interval = RetryIntervalMilliseconds
         };
+#pragma warning restore CA2000
 
         timer.Tick += (_, _) =>
         {

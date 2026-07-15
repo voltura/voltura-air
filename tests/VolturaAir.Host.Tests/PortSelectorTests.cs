@@ -1,4 +1,5 @@
 using VolturaAir.Host;
+using System.Globalization;
 
 namespace VolturaAir.Host.Tests;
 
@@ -26,8 +27,8 @@ public sealed class PortSelectorTests
 
         Assert.True(result.Succeeded);
         Assert.Equal(PortSelector.PreferredPort + 1, result.Port);
-        Assert.Contains(PortSelector.PreferredPort.ToString(), result.Warning);
-        Assert.Contains((PortSelector.PreferredPort + 1).ToString(), result.Warning);
+        Assert.Contains(PortSelector.PreferredPort.ToString(CultureInfo.InvariantCulture), result.Warning);
+        Assert.Contains((PortSelector.PreferredPort + 1).ToString(CultureInfo.InvariantCulture), result.Warning);
     }
 
     [Fact]

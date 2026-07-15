@@ -1,0 +1,9 @@
+[*.cs]
+# Test source must share the repository's deterministic formatting gate.
+dotnet_diagnostic.IDE0055.severity = error
+
+# xUnit collection classes intentionally use the framework's naming vocabulary.
+dotnet_diagnostic.CA1711.severity = none
+
+# One-off payload and assertion arrays are clearer inline and are not production allocations.
+dotnet_diagnostic.CA1861.severity = none

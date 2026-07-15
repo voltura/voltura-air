@@ -25,12 +25,11 @@ public sealed partial class WebHostService
                 }
                 catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                 {
-                    using var closeTimeout = new CancellationTokenSource(WebSocketCloseTimeout);
                     await CloseSocketAsync(
                         socket,
                         authenticated ? "Connection timed out" : "Pairing timed out",
                         WebSocketCloseStatus.EndpointUnavailable,
-                        closeTimeout.Token);
+                        cancellationToken);
                     break;
                 }
 
@@ -48,7 +47,7 @@ public sealed partial class WebHostService
                 {
                     if (type != "pair.hello")
                     {
-                        await SendSocketAsync(socket, new { type = "pair.rejected", reason = "pair-first" }, cancellationToken);
+                        await SendUnauthenticatedSocketAsync(socket, new { type = "pair.rejected", reason = "pair-first" }, cancellationToken);
                         _pairingAttemptRateLimiter.RecordFailure(rateLimitKey);
                         continue;
                     }
@@ -56,7 +55,7 @@ public sealed partial class WebHostService
                     if (!ClientMessageValidator.TryValidatePairHello(root, out var hello))
                     {
                         _pairingAttemptRateLimiter.RecordFailure(rateLimitKey);
-                        await SendSocketAsync(socket, new { type = "pair.rejected", reason = "invalid-message" }, cancellationToken);
+                        await SendUnauthenticatedSocketAsync(socket, new { type = "pair.rejected", reason = "invalid-message" }, cancellationToken);
                         continue;
                     }
 
@@ -73,12 +72,12 @@ public sealed partial class WebHostService
                     {
                         if (isRateLimited)
                         {
-                            await SendSocketAsync(socket, new { type = "pair.rejected", reason = "rate-limited" }, cancellationToken);
+                            await SendUnauthenticatedSocketAsync(socket, new { type = "pair.rejected", reason = "rate-limited" }, cancellationToken);
                         }
                         else
                         {
                             _pairingAttemptRateLimiter.RecordFailure(rateLimitKey);
-                            await SendSocketAsync(socket, new { type = "pair.rejected", reason = result.Reason }, cancellationToken);
+                            await SendUnauthenticatedSocketAsync(socket, new { type = "pair.rejected", reason = result.Reason }, cancellationToken);
                         }
 
                         continue;
@@ -252,7 +251,7 @@ public sealed partial class WebHostService
             if (!authenticated)
             {
                 _pairingAttemptRateLimiter.RecordFailure(rateLimitKey);
-                await SendSocketAsync(socket, new { type = "pair.rejected", reason = "invalid-message" }, cancellationToken);
+                await SendUnauthenticatedSocketAsync(socket, new { type = "pair.rejected", reason = "invalid-message" }, cancellationToken);
             }
             else
             {
@@ -297,15 +296,53 @@ public sealed partial class WebHostService
             return;
         }
 
-        _ = Task.Run(() => CloseSocketsAsync(sockets));
+        _ = CloseSocketsAsync(sockets, _lifetimeCancellation.Token);
     }
 
     private void OnPermissionsChanged(object? sender, EventArgs e)
     {
-        _ = Task.Run(BroadcastStatusAsync);
+        QueueStatusBroadcast();
     }
 
-    private async Task BroadcastStatusAsync()
+    private void QueueStatusBroadcast()
+    {
+        if (Volatile.Read(ref _disposeState) == 0)
+        {
+            _statusBroadcastRequests.Writer.TryWrite(true);
+        }
+    }
+
+    private async Task ProcessStatusBroadcastsAsync()
+    {
+        try
+        {
+            while (await _statusBroadcastRequests.Reader.WaitToReadAsync(_lifetimeCancellation.Token))
+            {
+                while (_statusBroadcastRequests.Reader.TryRead(out _))
+                {
+                }
+
+                try
+                {
+                    await BroadcastStatusAsync(_lifetimeCancellation.Token);
+                }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                {
+                    _appLog.Write(new AppLogEntry(
+                        Event: "host_lifecycle",
+                        Source: "websocket",
+                        Action: "broadcast_status",
+                        Outcome: "failed",
+                        Detail: ex.Message));
+                }
+            }
+        }
+        catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async Task BroadcastStatusAsync(CancellationToken cancellationToken)
     {
         var sockets = _connections.Snapshot();
 
@@ -313,7 +350,7 @@ public sealed partial class WebHostService
         {
             try
             {
-                await SendConnectedStatusAsync(socket, clientId, CancellationToken.None);
+                await SendConnectedStatusAsync(socket, clientId, cancellationToken);
             }
             catch (Exception ex) when (ex is WebSocketException or OperationCanceledException or ObjectDisposedException)
             {
@@ -321,13 +358,13 @@ public sealed partial class WebHostService
         }
     }
 
-    private static async Task CloseSocketsAsync(IEnumerable<WebSocket> sockets)
+    private static async Task CloseSocketsAsync(IEnumerable<WebSocket> sockets, CancellationToken cancellationToken)
     {
         foreach (var socket in sockets)
         {
             try
             {
-                await CloseSocketAsync(socket, "Device disconnected", CancellationToken.None);
+                await CloseSocketAsync(socket, "Device disconnected", cancellationToken);
             }
             catch (Exception ex) when (ex is WebSocketException or ObjectDisposedException or OperationCanceledException)
             {
@@ -362,7 +399,11 @@ public sealed partial class WebHostService
         }
 
         using var stream = new MemoryStream(Math.Min(MaxWebSocketMessageBytes, result.Count * 2));
-        stream.Write(buffer, 0, result.Count);
+        // MemoryStream writes are in-memory and cannot block on I/O; the synchronous
+        // span overload avoids allocating an async operation for every fragment.
+#pragma warning disable CA1849
+        stream.Write(buffer.AsSpan(0, result.Count));
+#pragma warning restore CA1849
         while (!result.EndOfMessage)
         {
             result = await socket.ReceiveAsync(buffer, cancellationToken);
@@ -384,7 +425,9 @@ public sealed partial class WebHostService
                 return null;
             }
 
-            stream.Write(buffer, 0, result.Count);
+#pragma warning disable CA1849
+            stream.Write(buffer.AsSpan(0, result.Count));
+#pragma warning restore CA1849
         }
 
         return JsonDocument.Parse(stream.GetBuffer().AsMemory(0, checked((int)stream.Length)));
@@ -404,37 +447,34 @@ public sealed partial class WebHostService
 
         try
         {
-            await socket.CloseAsync(status, reason, cancellationToken);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(WebSocketCloseTimeout);
+            await socket.CloseAsync(status, reason, timeout.Token);
         }
         catch (Exception ex) when (ex is WebSocketException or ObjectDisposedException or OperationCanceledException)
         {
         }
     }
 
-    private static Task SendAsync(WebSocket socket, object payload, CancellationToken cancellationToken)
+    private static async Task SendAsync(WebSocket socket, object payload, CancellationToken cancellationToken)
     {
         var bytes = JsonSerializer.SerializeToUtf8Bytes(payload, JsonOptions.Default);
-        return socket.SendAsync(bytes, WebSocketMessageType.Text, true, cancellationToken);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(WebSocketSendTimeout);
+        await socket.SendAsync(bytes.AsMemory(), WebSocketMessageType.Text, true, timeout.Token);
     }
 
     private async Task SendSocketAsync(WebSocket socket, object payload, CancellationToken cancellationToken)
     {
-        var sendGate = _connections.GetSendGate(socket);
-        if (sendGate is null)
-        {
-            await SendAsync(socket, payload, cancellationToken);
-            return;
-        }
+        _ = await _connections.TrySendAsync(
+            socket,
+            () => SendAsync(socket, payload, cancellationToken),
+            cancellationToken);
+    }
 
-        await sendGate.WaitAsync(cancellationToken);
-        try
-        {
-            await SendAsync(socket, payload, cancellationToken);
-        }
-        finally
-        {
-            sendGate.Release();
-        }
+    private static Task SendUnauthenticatedSocketAsync(WebSocket socket, object payload, CancellationToken cancellationToken)
+    {
+        return SendAsync(socket, payload, cancellationToken);
     }
 
     private Task SendAudioStateAsync(WebSocket socket, string clientId, CancellationToken cancellationToken)

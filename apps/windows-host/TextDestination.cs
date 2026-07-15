@@ -111,22 +111,14 @@ internal sealed class FocusedTextDestinationService(InputDispatcher inputDispatc
     }
 }
 
-public sealed class TextDestinationService : ITextDestinationService
+public sealed class TextDestinationService(InputDispatcher inputDispatcher, IInputInjector inputInjector, ITextDestinationPlatform? platform = null, Func<TextDestinationSettings>? loadSettings = null) : ITextDestinationService
 {
     private static readonly TimeSpan ActivationTimeout = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan StartupTimeout = TimeSpan.FromSeconds(8);
-    private readonly InputDispatcher _inputDispatcher;
-    private readonly IInputInjector _inputInjector;
-    private readonly ITextDestinationPlatform _platform;
-    private readonly Func<TextDestinationSettings> _loadSettings;
-
-    public TextDestinationService(InputDispatcher inputDispatcher, IInputInjector inputInjector, ITextDestinationPlatform? platform = null, Func<TextDestinationSettings>? loadSettings = null)
-    {
-        _inputDispatcher = inputDispatcher;
-        _inputInjector = inputInjector;
-        _platform = platform ?? new WindowsTextDestinationPlatform();
-        _loadSettings = loadSettings ?? AppTextDestinationSettings.Load;
-    }
+    private readonly InputDispatcher _inputDispatcher = inputDispatcher;
+    private readonly IInputInjector _inputInjector = inputInjector;
+    private readonly ITextDestinationPlatform _platform = platform ?? new WindowsTextDestinationPlatform();
+    private readonly Func<TextDestinationSettings> _loadSettings = loadSettings ?? AppTextDestinationSettings.Load;
 
     public TextDestinationMetadata GetMetadata()
     {
@@ -210,7 +202,7 @@ public sealed class TextDestinationService : ITextDestinationService
                         TextDestinationPreset.Excel => ExcelDraftWorkbook.Create(text, sendEnter),
                         TextDestinationPreset.Word => WordDraftDocument.Create(text, sendEnter),
                         TextDestinationPreset.NotepadPlusPlus => PlainTextDraft.Create(text, sendEnter),
-                        _ => throw new ArgumentOutOfRangeException(nameof(settings.Preset))
+                        _ => throw new InvalidOperationException("Unsupported text destination preset.")
                     });
                     startedWithPreparedDraft = true;
                 }
@@ -238,7 +230,7 @@ public sealed class TextDestinationService : ITextDestinationService
                 TextDestinationPreset.Excel => "Text was added to cell A1 in a new Excel workbook.",
                 TextDestinationPreset.Word => "Text was added to a new Word document.",
                 TextDestinationPreset.NotepadPlusPlus => "Text was added to a new Notepad++ document.",
-                _ => throw new ArgumentOutOfRangeException(nameof(settings.Preset))
+                _ => throw new InvalidOperationException("Unsupported text destination preset.")
             });
 
         await Task.Delay(150, cancellationToken);

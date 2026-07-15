@@ -35,7 +35,7 @@ internal sealed class NoOpWindowsDisplayActionController : IWindowsDisplayAction
     }
 }
 
-internal sealed class WindowsDisplayActionController : IWindowsDisplayActionController
+internal sealed partial class WindowsDisplayActionController(Dispatcher dispatcher, IAppLog appLog) : IWindowsDisplayActionController
 {
     private const uint SpiGetScreenSaveActive = 0x0010;
     private const uint WmSysCommand = 0x0112;
@@ -44,17 +44,11 @@ internal sealed class WindowsDisplayActionController : IWindowsDisplayActionCont
     private const uint SwpShowWindow = 0x0040;
     private static readonly nint HwndBroadcast = new(0xffff);
     private static readonly nint HwndTopmost = new(-1);
-    private readonly Dispatcher _dispatcher;
-    private readonly IAppLog _appLog;
+    private readonly Dispatcher _dispatcher = dispatcher;
+    private readonly IAppLog _appLog = appLog;
     private readonly List<Window> _blackoutWindows = [];
     private int _blackoutActive;
     private DateTimeOffset _inputArmedAt;
-
-    public WindowsDisplayActionController(Dispatcher dispatcher, IAppLog appLog)
-    {
-        _dispatcher = dispatcher;
-        _appLog = appLog;
-    }
 
     public bool IsScreenSaverAvailable
     {
@@ -321,23 +315,26 @@ internal sealed class WindowsDisplayActionController : IWindowsDisplayActionCont
 
     private delegate bool MonitorEnumProc(nint monitor, nint deviceContext, nint rect, nint data);
 
+    // Source-generated P/Invoke cannot marshal this managed callback signature.
+#pragma warning disable SYSLIB1054
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool EnumDisplayMonitors(nint deviceContext, nint clipRect, MonitorEnumProc callback, nint data);
+#pragma warning restore SYSLIB1054
 
-    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    [LibraryImport("user32.dll", EntryPoint = "GetMonitorInfoW")]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetMonitorInfo(nint monitor, ref MonitorInfo info);
+    private static partial bool GetMonitorInfo(nint monitor, ref MonitorInfo info);
 
-    [DllImport("user32.dll", SetLastError = true)]
+    [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetWindowPos(nint window, nint insertAfter, int x, int y, int width, int height, uint flags);
+    private static partial bool SetWindowPos(nint window, nint insertAfter, int x, int y, int width, int height, uint flags);
 
-    [DllImport("user32.dll", SetLastError = true)]
+    [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SendNotifyMessage(nint hWnd, uint message, nint wParam, nint lParam);
+    private static partial bool SendNotifyMessage(nint hWnd, uint message, nint wParam, nint lParam);
 
-    [DllImport("user32.dll", SetLastError = true)]
+    [LibraryImport("user32.dll", EntryPoint = "SystemParametersInfoW", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SystemParametersInfo(uint action, uint parameter, [MarshalAs(UnmanagedType.Bool)] out bool value, uint update);
+    private static partial bool SystemParametersInfo(uint action, uint parameter, [MarshalAs(UnmanagedType.Bool)] out bool value, uint update);
 }

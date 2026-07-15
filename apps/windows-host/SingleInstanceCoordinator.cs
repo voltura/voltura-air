@@ -40,8 +40,8 @@ internal sealed class SingleInstanceCoordinator : IDisposable
 
     internal static SingleInstanceCoordinator? TryAcquire(string mutexName, string activationEventName, Action activationRequested)
     {
-        var instanceMutex = new Mutex(initiallyOwned: false, mutexName);
-        var ownsMutex = false;
+        Mutex? instanceMutex = new(initiallyOwned: false, mutexName);
+        bool ownsMutex;
         try
         {
             try
@@ -59,15 +59,22 @@ internal sealed class SingleInstanceCoordinator : IDisposable
                 return null;
             }
 
-            var activationEvent = new EventWaitHandle(false, EventResetMode.AutoReset, activationEventName);
-            return new SingleInstanceCoordinator(instanceMutex, activationEvent, activationRequested);
+            EventWaitHandle? activationEvent = new(false, EventResetMode.AutoReset, activationEventName);
+            try
+            {
+                var coordinator = new SingleInstanceCoordinator(instanceMutex, activationEvent, activationRequested);
+                instanceMutex = null;
+                activationEvent = null;
+                return coordinator;
+            }
+            finally
+            {
+                activationEvent?.Dispose();
+            }
         }
         finally
         {
-            if (!ownsMutex)
-            {
-                instanceMutex.Dispose();
-            }
+            instanceMutex?.Dispose();
         }
     }
 

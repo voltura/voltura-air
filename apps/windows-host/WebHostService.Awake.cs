@@ -61,7 +61,7 @@ public sealed partial class WebHostService
 
     private void OnAwakeStateChanged(object? sender, EventArgs e)
     {
-        _ = Task.Run(BroadcastStatusAsync);
+        QueueStatusBroadcast();
     }
 
     private void LogAwakeAction(string clientId, bool enabled, string outcome, string? detail = null)

@@ -7,6 +7,31 @@ namespace VolturaAir.Host.Tests;
 public sealed class WebHostConnectionTests : WebHostServiceTestBase
 {
     [Fact]
+    public async Task RepeatedAuthenticatedConnectionsReleaseSocketsAndSendGates()
+    {
+        await using var fixture = await WebHostFixture.StartAsync();
+        var clientId = $"client-{Guid.NewGuid():N}";
+        var token = fixture.Manager.CreatePairingToken();
+        string? secret = null;
+
+        for (var iteration = 0; iteration < 20; iteration += 1)
+        {
+            using var socket = await ConnectAsync(fixture.WebHost);
+            var accepted = secret is null
+                ? await SendAndReceiveAsync(socket, new { type = "pair.hello", clientId, deviceName = "Phone", pairToken = token })
+                : await SendAndReceiveAsync(socket, new { type = "pair.hello", clientId, deviceName = "Phone", secret });
+            secret ??= accepted.GetProperty("secret").GetString();
+
+            await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
+            await WaitForConnectionCleanupAsync(fixture.WebHost);
+        }
+
+        Assert.False(string.IsNullOrWhiteSpace(secret));
+        Assert.Equal(0, fixture.WebHost.ActiveSocketCount);
+        Assert.Equal(0, fixture.WebHost.SendGateCount);
+    }
+
+    [Fact]
     public async Task WebSocketAcceptsPairingTokenAndStoredSecretReconnect()
     {
         using var store = new TempPairingStore();
@@ -274,5 +299,15 @@ public sealed class WebHostConnectionTests : WebHostServiceTestBase
         public AppLogReadResult Read(AppLogQuery query) => new(true, []);
 
         public AppLogDeleteResult DeleteAll() => new(true, 0);
+    }
+
+    private static async Task WaitForConnectionCleanupAsync(WebHostService webHost)
+    {
+        var timeout = DateTime.UtcNow + TimeSpan.FromSeconds(3);
+        while (webHost.ActiveSocketCount != 0 || webHost.SendGateCount != 0)
+        {
+            Assert.True(DateTime.UtcNow < timeout, "The WebSocket registry did not release the closed connection.");
+            await Task.Delay(10);
+        }
     }
 }

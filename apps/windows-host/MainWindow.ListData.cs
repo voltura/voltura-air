@@ -1,4 +1,5 @@
 using System.Net.NetworkInformation;
+using System.Globalization;
 
 namespace VolturaAir.Host;
 
@@ -6,20 +7,19 @@ public partial class MainWindow
 {
     private DeviceListItem[] GetDeviceItems()
     {
-        return _pairingManager.GetDevices()
+        return [.. _pairingManager.GetDevices()
             .Select(device => new DeviceListItem(
                 device.ClientId,
                 device.DeviceName,
                 device.IsActive ? "Connected" : "Not connected",
                 GetDeviceActivityText(device),
-                GetDeviceMetadataText(device)))
-            .ToArray();
+                GetDeviceMetadataText(device)))];
     }
 
     private static CandidateListItem[] GetCandidateItems(IReadOnlyList<LanAddressCandidate> candidates, LanAddressCandidate? selectedCandidate)
     {
         var recommended = candidates.OrderByDescending(candidate => candidate.Score).FirstOrDefault();
-        return candidates.Select(candidate =>
+        return [.. candidates.Select(candidate =>
         {
             var status = candidate == recommended ? "Recommended" : candidate.IsLikelyVpnOrVirtual ? "Not recommended" : string.Empty;
             return new CandidateListItem(
@@ -27,7 +27,7 @@ public partial class MainWindow
                 $"{GetAdapterTypeDisplayName(candidate)} - {GetAdapterDescription(candidate)}",
                 candidate.Address.ToString(),
                 candidate.Address.Equals(selectedCandidate?.Address) ? $"{status} selected".Trim() : status);
-        }).ToArray();
+        })];
     }
 
     private string GetConnectionStatus()
@@ -75,7 +75,7 @@ public partial class MainWindow
 
     private static string FormatDeviceTime(DateTimeOffset timestamp)
     {
-        return timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
+        return timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.CurrentCulture);
     }
 
     private static string GetAdapterTypeDisplayName(LanAddressCandidate candidate)

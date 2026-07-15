@@ -98,7 +98,7 @@ internal static class LanAddressSelector
             }
         }
 
-        return OrderCandidates(candidates).ToArray();
+        return [.. OrderCandidates(candidates)];
     }
 
     public static LanAddressCandidate CreateCandidate(
@@ -269,9 +269,9 @@ internal static class LanAddressSelector
             "Saved network address is not valid. Using recommended network instead.");
     }
 
-    private static LanAddressSelectionResult? SelectFallback(IReadOnlyList<LanAddressCandidate> ordered, string warning)
+    private static LanAddressSelectionResult? SelectFallback(LanAddressCandidate[] ordered, string warning)
     {
-        var fallback = ordered.FirstOrDefault();
+        var fallback = ordered.Length > 0 ? ordered[0] : null;
         return fallback is null
             ? null
             : new LanAddressSelectionResult(fallback.Address, fallback, UsedManualAddress: false, warning);

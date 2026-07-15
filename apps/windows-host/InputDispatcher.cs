@@ -2,15 +2,10 @@ using System.Text.Json;
 
 namespace VolturaAir.Host;
 
-public sealed class InputDispatcher
+public sealed class InputDispatcher(IInputInjector inputInjector)
 {
-    private readonly IInputInjector _inputInjector;
+    private readonly IInputInjector _inputInjector = inputInjector;
     internal event EventHandler? TaskbarActivated;
-
-    public InputDispatcher(IInputInjector inputInjector)
-    {
-        _inputInjector = inputInjector;
-    }
 
     public bool Dispatch(JsonElement message)
     {
@@ -188,11 +183,10 @@ public sealed class InputDispatcher
             return [];
         }
 
-        return modifiers.EnumerateArray()
+        return [.. modifiers.EnumerateArray()
             .Select(modifier => modifier.GetString())
             .Where(modifier => !string.IsNullOrWhiteSpace(modifier))
-            .Select(modifier => modifier!)
-            .ToArray();
+            .Select(modifier => modifier!)];
     }
 }
 

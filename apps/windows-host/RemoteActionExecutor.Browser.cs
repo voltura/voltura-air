@@ -6,7 +6,7 @@ namespace VolturaAir.Host;
 
 public sealed partial class RemoteActionExecutor
 {
-    private static readonly object LastYoutubeBrowserWindowGate = new();
+    private static readonly Lock LastYoutubeBrowserWindowGate = new();
     private static IntPtr _lastYoutubeBrowserWindowHandle;
 
     private static bool TryActivateYoutubeBrowserWhenReady(string processName, string youtubeUrl, TimeSpan timeout)
@@ -159,12 +159,11 @@ public sealed partial class RemoteActionExecutor
         var processes = Process.GetProcessesByName(processName);
         try
         {
-            return processes
+            return [.. processes
                 .Select(TryCreateBrowserWindow)
                 .Where(window => window is not null)
                 .Select(window => window!.Value)
-                .OrderByDescending(window => window.StartTime)
-                .ToArray();
+                .OrderByDescending(window => window.StartTime)];
         }
         finally
         {

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.IO.Compression;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -55,12 +56,12 @@ internal static class ExcelDraftWorkbook
         foreach (var (row, rowIndex) in rows.Select((row, index) => (row, index)))
         {
             var rowNumber = rowIndex + 1;
-            sheetData.Append($"<row r=\"{rowNumber}\">");
+            sheetData.Append(CultureInfo.InvariantCulture, $"<row r=\"{rowNumber}\">");
             var cells = row.Split('\t');
             for (var columnIndex = 0; columnIndex < cells.Length; columnIndex++)
             {
                 if (cells[columnIndex].Length == 0) continue;
-                sheetData.Append($"<c r=\"{GetColumnName(columnIndex + 1)}{rowNumber}\" t=\"inlineStr\"><is><t xml:space=\"preserve\">{EscapeXml(cells[columnIndex])}</t></is></c>");
+                sheetData.Append(CultureInfo.InvariantCulture, $"<c r=\"{GetColumnName(columnIndex + 1)}{rowNumber}\" t=\"inlineStr\"><is><t xml:space=\"preserve\">{EscapeXml(cells[columnIndex])}</t></is></c>");
             }
             sheetData.Append("</row>");
         }
@@ -142,7 +143,7 @@ internal static class WordDraftDocument
             for (var index = 0; index < parts.Length; index++)
             {
                 if (index > 0) body.Append("<w:r><w:tab/></w:r>");
-                if (parts[index].Length > 0) body.Append($"<w:r><w:t xml:space=\"preserve\">{EscapeXml(parts[index])}</w:t></w:r>");
+                if (parts[index].Length > 0) body.Append(CultureInfo.InvariantCulture, $"<w:r><w:t xml:space=\"preserve\">{EscapeXml(parts[index])}</w:t></w:r>");
             }
             body.Append("</w:p>");
         }
@@ -163,24 +164,41 @@ internal static class OutlookCompose
 
     public static bool TryCreate(string text, bool sendEnter)
     {
+        object? application = null;
+        object? mail = null;
+        object? inspector = null;
         try
         {
             var applicationType = Type.GetTypeFromProgID("Outlook.Application");
             if (applicationType is null) return false;
-            var application = Activator.CreateInstance(applicationType);
+            application = Activator.CreateInstance(applicationType);
             if (application is null) return false;
-            var mail = applicationType.InvokeMember("CreateItem", BindingFlags.InvokeMethod, null, application, [MailItem]);
+            mail = applicationType.InvokeMember("CreateItem", BindingFlags.InvokeMethod, null, application, [MailItem], CultureInfo.InvariantCulture);
             if (mail is null) return false;
             var body = sendEnter ? text + Environment.NewLine : text;
-            mail.GetType().InvokeMember("Body", BindingFlags.SetProperty, null, mail, [body]);
-            mail.GetType().InvokeMember("Display", BindingFlags.InvokeMethod, null, mail, [false]);
-            var inspector = mail.GetType().InvokeMember("GetInspector", BindingFlags.GetProperty, null, mail, null);
-            inspector?.GetType().InvokeMember("Activate", BindingFlags.InvokeMethod, null, inspector, null);
+            mail.GetType().InvokeMember("Body", BindingFlags.SetProperty, null, mail, [body], CultureInfo.InvariantCulture);
+            mail.GetType().InvokeMember("Display", BindingFlags.InvokeMethod, null, mail, [false], CultureInfo.InvariantCulture);
+            inspector = mail.GetType().InvokeMember("GetInspector", BindingFlags.GetProperty, null, mail, null, CultureInfo.InvariantCulture);
+            inspector?.GetType().InvokeMember("Activate", BindingFlags.InvokeMethod, null, inspector, null, CultureInfo.InvariantCulture);
             return true;
         }
         catch (Exception ex) when (ex is COMException or TargetInvocationException or InvalidOperationException)
         {
             return false;
+        }
+        finally
+        {
+            ReleaseComObject(inspector);
+            ReleaseComObject(mail);
+            ReleaseComObject(application);
+        }
+    }
+
+    private static void ReleaseComObject(object? value)
+    {
+        if (value is not null && Marshal.IsComObject(value))
+        {
+            _ = Marshal.ReleaseComObject(value);
         }
     }
 }

@@ -182,8 +182,10 @@ public sealed class ThemedConfirmationDialog : Window
 
     private static ControlTemplate CreateButtonTemplate()
     {
-        var border = new FrameworkElementFactory(typeof(Border));
-        border.Name = "Chrome";
+        var border = new FrameworkElementFactory(typeof(Border))
+        {
+            Name = "Chrome"
+        };
         border.SetValue(Border.CornerRadiusProperty, new CornerRadius(8));
         border.SetBinding(Border.BackgroundProperty, new WpfBinding("Background") { RelativeSource = WpfRelativeSource.TemplatedParent });
         border.SetBinding(Border.BorderBrushProperty, new WpfBinding("BorderBrush") { RelativeSource = WpfRelativeSource.TemplatedParent });

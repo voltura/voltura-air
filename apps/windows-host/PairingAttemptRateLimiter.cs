@@ -1,33 +1,24 @@
 namespace VolturaAir.Host;
 
-internal sealed class PairingAttemptRateLimiter
+internal sealed class PairingAttemptRateLimiter(
+    int maxFailures = PairingAttemptRateLimiter.DefaultMaxFailures,
+    int maxEntries = PairingAttemptRateLimiter.DefaultMaxEntries,
+    TimeSpan? window = null,
+    TimeSpan? lockout = null,
+    Func<DateTimeOffset>? now = null)
 {
     public static readonly TimeSpan DefaultWindow = TimeSpan.FromSeconds(60);
     public static readonly TimeSpan DefaultLockout = TimeSpan.FromSeconds(30);
     public const int DefaultMaxFailures = 8;
     public const int DefaultMaxEntries = 1024;
 
-    private readonly int _maxFailures;
-    private readonly int _maxEntries;
-    private readonly TimeSpan _window;
-    private readonly TimeSpan _lockout;
-    private readonly Func<DateTimeOffset> _now;
-    private readonly object _gate = new();
+    private readonly int _maxFailures = maxFailures;
+    private readonly int _maxEntries = Math.Max(1, maxEntries);
+    private readonly TimeSpan _window = window ?? DefaultWindow;
+    private readonly TimeSpan _lockout = lockout ?? DefaultLockout;
+    private readonly Func<DateTimeOffset> _now = now ?? (() => DateTimeOffset.UtcNow);
+    private readonly Lock _gate = new();
     private readonly Dictionary<string, AttemptState> _attempts = new(StringComparer.Ordinal);
-
-    public PairingAttemptRateLimiter(
-        int maxFailures = DefaultMaxFailures,
-        int maxEntries = DefaultMaxEntries,
-        TimeSpan? window = null,
-        TimeSpan? lockout = null,
-        Func<DateTimeOffset>? now = null)
-    {
-        _maxFailures = maxFailures;
-        _maxEntries = Math.Max(1, maxEntries);
-        _window = window ?? DefaultWindow;
-        _lockout = lockout ?? DefaultLockout;
-        _now = now ?? (() => DateTimeOffset.UtcNow);
-    }
 
     public bool IsBlocked(string key)
     {

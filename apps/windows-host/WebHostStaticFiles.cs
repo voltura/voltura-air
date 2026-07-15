@@ -48,15 +48,15 @@ internal static class WebHostStaticFiles
             string.Equals(fileName, "manifest.webmanifest", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(fileName, WebBuildIdFileName, StringComparison.OrdinalIgnoreCase))
         {
-            response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
-            response.Headers["Pragma"] = "no-cache";
-            response.Headers["Expires"] = "0";
+            response.Headers.CacheControl = "no-store, no-cache, must-revalidate";
+            response.Headers.Pragma = "no-cache";
+            response.Headers.Expires = "0";
             return;
         }
 
         if (requestPath?.Contains("/assets/", StringComparison.OrdinalIgnoreCase) == true)
         {
-            response.Headers["Cache-Control"] = "public, max-age=31536000, immutable";
+            response.Headers.CacheControl = "public, max-age=31536000, immutable";
         }
     }
 
@@ -112,8 +112,8 @@ internal static class WebHostStaticFiles
     private static async Task ServeCompressedJavaScriptAsync(HttpContext context, string filePath, string encoding, string requestPath)
     {
         context.Response.ContentType = "application/javascript";
-        context.Response.Headers["Content-Encoding"] = encoding;
-        context.Response.Headers["Vary"] = "Accept-Encoding";
+        context.Response.Headers.ContentEncoding = encoding;
+        context.Response.Headers.Vary = "Accept-Encoding";
         SetStaticCacheHeaders(context.Response, requestPath);
         context.Response.ContentLength = new FileInfo(filePath).Length;
 
@@ -127,7 +127,7 @@ internal static class WebHostStaticFiles
 
     private static bool AcceptsEncoding(HttpRequest request, string expectedEncoding)
     {
-        var acceptEncoding = request.Headers["Accept-Encoding"].ToString();
+        var acceptEncoding = request.Headers.AcceptEncoding.ToString();
         return acceptEncoding
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Any(encoding => encoding.Equals(expectedEncoding, StringComparison.OrdinalIgnoreCase) || encoding.StartsWith($"{expectedEncoding};", StringComparison.OrdinalIgnoreCase));

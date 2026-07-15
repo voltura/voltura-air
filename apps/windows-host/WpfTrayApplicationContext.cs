@@ -16,17 +16,21 @@ internal sealed class WpfTrayApplicationContext : IDisposable
     private const string DisconnectedTrayIconFileName = "VolturaAirTrayDisconnected.ico";
 
     private readonly MainWindow _mainWindow;
+    private readonly System.Windows.Threading.Dispatcher _dispatcher;
     private readonly PairingManager _pairingManager;
     private readonly WebHostService _webHost;
     private readonly IAwakeService _awakeService;
     private readonly Forms.NotifyIcon _trayIcon;
     private readonly Forms.ContextMenuStrip _trayMenu = new();
     private readonly Dictionary<TrayConnectionState, Icon> _trayIcons;
+    // These items are owned by _trayMenu.Items and are disposed with the context menu.
+#pragma warning disable CA2213
     private Forms.ToolStripMenuItem _awakeOffItem = null!;
     private Forms.ToolStripMenuItem _awakeTimedItem = null!;
     private Forms.ToolStripMenuItem _awakeExpirationItem = null!;
     private Forms.ToolStripMenuItem _awakeIndefiniteItem = null!;
     private Forms.ToolStripMenuItem _awakeKeepScreenOnItem = null!;
+#pragma warning restore CA2213
     private CancellationTokenSource? _pendingDisconnectNotification;
     private bool _hadActiveController;
     private bool _disposed;
@@ -34,15 +38,11 @@ internal sealed class WpfTrayApplicationContext : IDisposable
     public WpfTrayApplicationContext(MainWindow mainWindow, WebHostService webHost, PairingManager pairingManager, IAwakeService awakeService)
     {
         _mainWindow = mainWindow;
+        _dispatcher = mainWindow.Dispatcher;
         _webHost = webHost;
         _pairingManager = pairingManager;
         _awakeService = awakeService;
         _hadActiveController = pairingManager.HasActiveController;
-        _pairingManager.ConnectionChanged += OnConnectionChanged;
-        _webHost.ControllerSocketClosed += OnControllerSocketClosed;
-        _webHost.RemoteInputBlockedChanged += OnRemoteInputBlockedChanged;
-        AppThemeSettings.Changed += OnAppThemeChanged;
-        _awakeService.StateChanged += OnAwakeStateChanged;
 
         BuildMenu();
         _trayIcons = LoadTrayIcons();
@@ -59,6 +59,12 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         {
             OnRemoteInputBlockedChanged(this, new RemoteInputBlockedChangedEventArgs(true));
         }
+
+        _pairingManager.ConnectionChanged += OnConnectionChanged;
+        _webHost.ControllerSocketClosed += OnControllerSocketClosed;
+        _webHost.RemoteInputBlockedChanged += OnRemoteInputBlockedChanged;
+        AppThemeSettings.Changed += OnAppThemeChanged;
+        _awakeService.StateChanged += OnAwakeStateChanged;
     }
 
     private enum TrayConnectionState
@@ -156,20 +162,27 @@ internal sealed class WpfTrayApplicationContext : IDisposable
     private void OnConnectionChanged(object? sender, EventArgs e)
     {
         var hasActiveController = _pairingManager.HasActiveController;
-        WpfApplication.Current.Dispatcher.BeginInvoke(ApplyTrayConnectionState);
+        _ = _dispatcher.BeginInvoke(() => HandleConnectionChanged(hasActiveController));
+    }
+
+    private void HandleConnectionChanged(bool hasActiveController)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        ApplyTrayConnectionState();
 
         if (!_hadActiveController && hasActiveController)
         {
             var cancelledTransientDisconnect = CancelPendingDisconnectNotification();
             if (!cancelledTransientDisconnect)
             {
-                WpfApplication.Current.Dispatcher.BeginInvoke(() =>
-                {
-                    ShowConnectionStatusNotification(
-                        "Voltura Air paired",
-                        $"{_pairingManager.ActiveDeviceSummary} connected.",
-                        Forms.ToolTipIcon.Info);
-                });
+                ShowConnectionStatusNotification(
+                    "Voltura Air paired",
+                    $"{_pairingManager.ActiveDeviceSummary} connected.",
+                    Forms.ToolTipIcon.Info);
             }
         }
         else if (_hadActiveController && !hasActiveController)
@@ -199,12 +212,12 @@ internal sealed class WpfTrayApplicationContext : IDisposable
                 return;
             }
 
-            if (token.IsCancellationRequested || _disposed)
+            if (token.IsCancellationRequested)
             {
                 return;
             }
 
-            _ = WpfApplication.Current.Dispatcher.BeginInvoke(() => ShowPendingDisconnectNotification(pending));
+            _ = _dispatcher.BeginInvoke(() => ShowPendingDisconnectNotification(pending));
         });
     }
 
@@ -217,7 +230,15 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         }
 
         _pendingDisconnectNotification = null;
-        pending.Cancel();
+        try
+        {
+            pending.Cancel();
+        }
+        finally
+        {
+            pending.Dispose();
+        }
+
         return true;
     }
 
@@ -229,20 +250,27 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         }
 
         _pendingDisconnectNotification = null;
-        if (_pairingManager.HasActiveController)
+        try
         {
-            return;
-        }
+            if (_pairingManager.HasActiveController)
+            {
+                return;
+            }
 
-        if (AppNotificationSettings.ShowPairingWindowOnDisconnect())
+            if (AppNotificationSettings.ShowPairingWindowOnDisconnect())
+            {
+                _mainWindow.ShowPage(HostPage.Connect);
+            }
+
+            ShowConnectionStatusNotification(
+                "Voltura Air disconnected",
+                "No connected devices.",
+                Forms.ToolTipIcon.Info);
+        }
+        finally
         {
-            _mainWindow.ShowPage(HostPage.Connect);
+            pending.Dispose();
         }
-
-        ShowConnectionStatusNotification(
-            "Voltura Air disconnected",
-            "No connected devices.",
-            Forms.ToolTipIcon.Info);
     }
 
     private void ShowConnectionStatusNotification(string title, string message, Forms.ToolTipIcon icon)
@@ -270,13 +298,13 @@ internal sealed class WpfTrayApplicationContext : IDisposable
 
     private void OnControllerSocketClosed(object? sender, ControllerSocketClosedEventArgs e)
     {
-        if (_disposed)
+        _ = _dispatcher.BeginInvoke(() =>
         {
-            return;
-        }
+            if (_disposed)
+            {
+                return;
+            }
 
-        WpfApplication.Current.Dispatcher.BeginInvoke(() =>
-        {
             ShowConnectionStatusNotification(
                 "Voltura Air connection closed",
                 $"A controller connection was closed: {e.Reason}. The phone will reconnect automatically.",
@@ -286,12 +314,12 @@ internal sealed class WpfTrayApplicationContext : IDisposable
 
     private void OnRemoteInputBlockedChanged(object? sender, RemoteInputBlockedChangedEventArgs e)
     {
-        if (_disposed || !e.IsBlocked)
+        if (!e.IsBlocked)
         {
             return;
         }
 
-        WpfApplication.Current.Dispatcher.BeginInvoke(() =>
+        _ = _dispatcher.BeginInvoke(() =>
         {
             if (!_disposed)
             {
@@ -306,12 +334,24 @@ internal sealed class WpfTrayApplicationContext : IDisposable
 
     private void OnAppThemeChanged(object? sender, EventArgs e)
     {
-        WpfApplication.Current.Dispatcher.BeginInvoke(ApplyMenuTheme);
+        _ = _dispatcher.BeginInvoke(() =>
+        {
+            if (!_disposed)
+            {
+                ApplyMenuTheme();
+            }
+        });
     }
 
     private void OnAwakeStateChanged(object? sender, EventArgs e)
     {
-        WpfApplication.Current.Dispatcher.BeginInvoke(ApplyAwakeMenuState);
+        _ = _dispatcher.BeginInvoke(() =>
+        {
+            if (!_disposed)
+            {
+                ApplyAwakeMenuState();
+            }
+        });
     }
 
     private void ApplyTrayConnectionState()
@@ -449,6 +489,12 @@ internal sealed class WpfTrayApplicationContext : IDisposable
     {
         if (_disposed)
         {
+            return;
+        }
+
+        if (!_dispatcher.CheckAccess())
+        {
+            _dispatcher.Invoke(Dispose);
             return;
         }
 

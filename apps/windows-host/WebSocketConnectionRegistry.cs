@@ -4,22 +4,51 @@ namespace VolturaAir.Host;
 
 internal sealed class WebSocketConnectionRegistry : IDisposable
 {
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private readonly Dictionary<string, List<WebSocket>> _activeSockets = new(StringComparer.Ordinal);
-    private readonly Dictionary<WebSocket, SemaphoreSlim> _sendGates = new();
+    private readonly Dictionary<WebSocket, SendGateState> _sendGates = [];
+    private bool _disposed;
+
+    internal int ActiveSocketCount
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _activeSockets.Values.Sum(sockets => sockets.Count);
+            }
+        }
+    }
+
+    internal int SendGateCount
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _sendGates.Count;
+            }
+        }
+    }
 
     public void Register(string clientId, WebSocket socket)
     {
         lock (_gate)
         {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_sendGates.ContainsKey(socket))
+            {
+                throw new InvalidOperationException("The WebSocket is already registered.");
+            }
+
             if (!_activeSockets.TryGetValue(clientId, out var sockets))
             {
-                sockets = new List<WebSocket>();
+                sockets = [];
                 _activeSockets[clientId] = sockets;
             }
 
             sockets.Add(socket);
-            _sendGates.TryAdd(socket, new SemaphoreSlim(1, 1));
+            _sendGates.Add(socket, new SendGateState());
         }
     }
 
@@ -80,25 +109,60 @@ internal sealed class WebSocketConnectionRegistry : IDisposable
     {
         lock (_gate)
         {
-            return _activeSockets
-                .SelectMany(pair => pair.Value.Select(socket => (pair.Key, socket)))
-                .ToArray();
+            return [.. _activeSockets.SelectMany(pair => pair.Value.Select(socket => (pair.Key, socket)))];
         }
     }
 
-    public SemaphoreSlim? GetSendGate(WebSocket socket)
+    public async Task<bool> TrySendAsync(WebSocket socket, Func<Task> send, CancellationToken cancellationToken)
     {
+        SendGateState? sendGate;
         lock (_gate)
         {
-            _sendGates.TryGetValue(socket, out var sendGate);
-            return sendGate;
+            if (!_sendGates.TryGetValue(socket, out sendGate))
+            {
+                sendGate = null;
+            }
+            else
+            {
+                sendGate.Users += 1;
+            }
         }
+
+        if (sendGate is null)
+        {
+            return false;
+        }
+
+        var entered = false;
+        try
+        {
+            await sendGate.Semaphore.WaitAsync(cancellationToken);
+            entered = true;
+            await send();
+        }
+        finally
+        {
+            if (entered)
+            {
+                sendGate.Semaphore.Release();
+            }
+
+            ReleaseSendGate(sendGate);
+        }
+
+        return true;
     }
 
     public void Dispose()
     {
         lock (_gate)
         {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
             _activeSockets.Clear();
             ClearSendGates();
         }
@@ -108,7 +172,7 @@ internal sealed class WebSocketConnectionRegistry : IDisposable
     {
         foreach (var sendGate in _sendGates.Values)
         {
-            sendGate.Dispose();
+            RetireSendGate(sendGate);
         }
 
         _sendGates.Clear();
@@ -126,7 +190,37 @@ internal sealed class WebSocketConnectionRegistry : IDisposable
     {
         if (_sendGates.Remove(socket, out var sendGate))
         {
-            sendGate.Dispose();
+            RetireSendGate(sendGate);
         }
+    }
+
+    private void ReleaseSendGate(SendGateState sendGate)
+    {
+        lock (_gate)
+        {
+            sendGate.Users -= 1;
+            if (sendGate.Retired && sendGate.Users == 0)
+            {
+                sendGate.Semaphore.Dispose();
+            }
+        }
+    }
+
+    private static void RetireSendGate(SendGateState sendGate)
+    {
+        sendGate.Retired = true;
+        if (sendGate.Users == 0)
+        {
+            sendGate.Semaphore.Dispose();
+        }
+    }
+
+    private sealed class SendGateState
+    {
+        public SemaphoreSlim Semaphore { get; } = new(1, 1);
+
+        public int Users { get; set; }
+
+        public bool Retired { get; set; }
     }
 }

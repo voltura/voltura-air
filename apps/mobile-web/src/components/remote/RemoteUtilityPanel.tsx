@@ -1,7 +1,9 @@
 import { useEffect, useId, useRef, useState, type PointerEvent } from "react";
-import { AppWindow, ArrowLeft, ArrowRight, CornerDownLeft, Monitor, Plus, RefreshCw, RotateCcw, Search, SquareX } from "lucide-react";
-import type { AppLaunchActionSummary } from "../../protocol";
+import { AppWindow, ArrowLeft, ArrowRight, CornerDownLeft, ExternalLink, Monitor, Plus, RefreshCw, RotateCcw, Search, SquareX } from "lucide-react";
+import type { AppLaunchActionSummary, UrlOpenCapability, UrlOpenResultMessage } from "../../protocol";
 import type { RemoteSettings } from "../../remoteSettings";
+import { validateUrlDraft } from "../../urlOpenValidation";
+import { InfoButton } from "../InfoButton";
 import { RemoteButton, type RepeatablePressProps } from "./RemoteButton";
 
 const switcherLongPressMs = 400;
@@ -20,9 +22,13 @@ type RemoteUtilityPanelProps = {
   isOpen: boolean;
   onClose: () => void;
   onAppLaunch: (actionId: string) => void;
+  onUrlOpen: (url: string) => string | null;
   pendingAppLaunchId: string | null;
+  pendingUrlOpen: boolean;
   remoteSettings: RemoteSettings;
   sendSpecial: (key: string, modifiers?: string[]) => void;
+  urlOpenCapability?: UrlOpenCapability;
+  urlOpenResult: UrlOpenResultMessage | null;
 };
 
 function getAppLaunchLabelClass(label: string): string {
@@ -38,14 +44,29 @@ function getAppLaunchLabelClass(label: string): string {
   return "remote-app-launch-label";
 }
 
-export function RemoteUtilityPanel({ appLaunchActions, id, isOpen, onAppLaunch, onClose, pendingAppLaunchId, remoteSettings, sendSpecial }: RemoteUtilityPanelProps) {
+export function RemoteUtilityPanel({ appLaunchActions, id, isOpen, onAppLaunch, onClose, onUrlOpen, pendingAppLaunchId, pendingUrlOpen, remoteSettings, sendSpecial, urlOpenCapability, urlOpenResult }: RemoteUtilityPanelProps) {
   const [isSwitcherActive, setIsSwitcherActive] = useState(false);
+  const [urlDraft, setUrlDraft] = useState("");
   const switcherHintId = useId();
+  const urlValidationId = useId();
   const switcherPointerRef = useRef<SwitcherPointer | null>(null);
   const switcherTimerRef = useRef<number | null>(null);
   const ignoreSwitcherClickRef = useRef(false);
   const sendSpecialRef = useRef(sendSpecial);
+  const pendingUrlOperationRef = useRef<string | null>(null);
+  const urlValidation = validateUrlDraft(urlDraft);
   sendSpecialRef.current = sendSpecial;
+
+  useEffect(() => {
+    if (!urlOpenResult || urlOpenResult.operationId !== pendingUrlOperationRef.current) {
+      return;
+    }
+
+    pendingUrlOperationRef.current = null;
+    if (urlOpenResult.succeeded) {
+      setUrlDraft("");
+    }
+  }, [urlOpenResult]);
 
   const clearSwitcherTimer = () => {
     if (switcherTimerRef.current !== null) {
@@ -263,6 +284,58 @@ export function RemoteUtilityPanel({ appLaunchActions, id, isOpen, onAppLaunch, 
           </>
         )}
       </div>
+      {!urlOpenCapability && (
+        <div className="remote-url-open">
+          <p className="remote-url-feedback error" role="alert">Update the Windows host to open web addresses.</p>
+        </div>
+      )}
+      {urlOpenCapability && !urlOpenCapability.canOpen && (
+        <div className="remote-url-open">
+          <p className="remote-url-feedback error" role="alert">Allow URL opening in the PC permissions first.</p>
+        </div>
+      )}
+      {urlOpenCapability?.canOpen && (
+        <form
+          className="remote-url-open"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!pendingUrlOpen && urlValidation.valid) {
+              pendingUrlOperationRef.current = onUrlOpen(urlDraft);
+            }
+          }}
+        >
+          <span className="setting-label-with-info remote-url-open-label">
+            <label htmlFor="remote-url-draft">Open URL on PC</label>
+            <InfoButton
+              title="Open URL on PC"
+              size="detailed"
+              description="Enter a web address to open once in the PC's default browser. Addresses without a scheme use HTTPS. Only HTTP and HTTPS are supported. Voltura Air does not choose or fall back to a specific browser."
+            />
+          </span>
+          <div className="remote-url-open-row">
+            <input
+              id="remote-url-draft"
+              type="text"
+              inputMode="url"
+              autoCapitalize="none"
+              autoCorrect="off"
+              maxLength={2048}
+              placeholder="example.com"
+              value={urlDraft}
+              aria-describedby={!urlValidation.valid && urlDraft.trim() ? urlValidationId : undefined}
+              aria-invalid={!urlValidation.valid && urlDraft.trim() ? true : undefined}
+              onChange={(event) => setUrlDraft(event.target.value)}
+            />
+            <button type="submit" disabled={pendingUrlOpen || !urlValidation.valid}>
+              <ExternalLink aria-hidden="true" />
+              <span>{pendingUrlOpen ? "Opening…" : urlOpenResult && !urlOpenResult.succeeded ? "Retry" : "Open"}</span>
+            </button>
+          </div>
+          {!urlValidation.valid && urlDraft.trim() && <p id={urlValidationId} className="remote-url-feedback error" role="alert">{urlValidation.message}</p>}
+          {pendingUrlOpen && <p className="remote-url-feedback pending" role="status">Waiting for the PC.</p>}
+          {!pendingUrlOpen && urlOpenResult && <p className={`remote-url-feedback ${urlOpenResult.succeeded ? "success" : "error"}`} role={urlOpenResult.succeeded ? "status" : "alert"}>{urlOpenResult.message}</p>}
+        </form>
+      )}
       {appLaunchActions.length > 0 && (
         <>
           <div className="remote-section-title remote-helper-section-title">

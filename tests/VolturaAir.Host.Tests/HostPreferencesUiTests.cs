@@ -32,6 +32,8 @@ public sealed partial class HostUiLayoutTests
                     string.Join('|', sections.Select(section => section.Header)));
                 Assert.Single(FindWpfDescendants<ModernDatePicker>(window));
                 Assert.Empty(FindWpfDescendants<DatePicker>(window));
+                Assert.Contains(FindWpfDescendants<CheckBox>(window), checkbox =>
+                    string.Equals(checkbox.Content?.ToString(), "Allow paired devices to open web addresses", StringComparison.Ordinal));
             }
             finally
             {

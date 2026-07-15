@@ -112,7 +112,7 @@
         </article>
         <article>
           <h2>Couch remote</h2>
-          <p>Control media, volume, fullscreen, YouTube, Kodi, browser tabs, open apps, and host-approved shortcuts from the sofa.</p>
+          <p>Control media, volume, fullscreen, YouTube, Kodi, browser tabs, open apps, and host-approved shortcuts from the sofa. With a separate host permission, you can also send a reviewed HTTP or HTTPS address to the PC's default browser.</p>
         </article>
         <article>
           <h2>Tablet split mode</h2>
@@ -147,7 +147,7 @@
           </p>
           <ul>
             <li>Control a TV or stereo PC from the sofa.</li>
-            <li>Type searches, messages, URLs, and notes from your phone.</li>
+            <li>Type searches, messages, and notes, or open a reviewed web address in the PC's default browser.</li>
             <li>Use a tablet as a roomy couch keyboard and trackpad.</li>
             <li>Navigate YouTube, Kodi, music, video, presentations, and open Windows apps.</li>
             <li>Keep a backup remote ready when your usual keyboard or mouse is out of reach.</li>
@@ -223,6 +223,7 @@
             <li>Choose host-wide defaults and tighter permissions for individual devices.</li>
             <li>Keep sensitive power and session controls disabled until you explicitly enable them.</li>
             <li>Choose which application shortcuts appear; custom paths remain stored on the PC.</li>
+            <li>Keep URL opening off until needed; enabled clients validate drafts locally and application logs omit the address.</li>
             <li>Require deliberate confirmation before sign out, restart, or shutdown.</li>
           </ul>
         </div>

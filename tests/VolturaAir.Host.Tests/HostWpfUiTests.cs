@@ -243,7 +243,7 @@ public sealed partial class HostUiLayoutTests
     }
 
     [Fact]
-    public void DevicePermissionRowsShowEffectiveStatesForBlackoutAndClipboardRead()
+    public void DevicePermissionRowsShowEffectiveStatesForBlackoutClipboardAndUrlOpen()
     {
         if (ShouldSkipNativeUiLayoutTests())
         {
@@ -256,7 +256,8 @@ public sealed partial class HostUiLayoutTests
             AppPermissionSettings.Save(originalPermissions with
             {
                 AllowBlackoutDisplay = true,
-                AllowClipboardRead = false
+                AllowClipboardRead = false,
+                AllowUrlOpen = false
             });
 
             using var appScope = new WpfApplicationScope();
@@ -265,7 +266,7 @@ public sealed partial class HostUiLayoutTests
             var manager = new PairingManager(store.Store);
             var token = manager.CreatePairingToken();
             Assert.True(manager.Accept("client-a", "Phone", token, null).Accepted);
-            Assert.True(manager.SetDevicePermissionOverrides("client-a", new DevicePermissionOverrides(AllowBlackoutDisplay: true)));
+            Assert.True(manager.SetDevicePermissionOverrides("client-a", new DevicePermissionOverrides(AllowBlackoutDisplay: true, AllowUrlOpen: true)));
 
             var webHost = new WebHostService(
                 manager,
@@ -287,6 +288,8 @@ public sealed partial class HostUiLayoutTests
                 var clipboardBlock = Assert.IsType<Button>(FindPermissionButton(window, "Read PC clipboard", "✓ Block"));
                 Assert.Same(window.Resources["AccentBrush"], blackoutAllow.Background);
                 Assert.Equal(new Thickness(2), clipboardBlock.BorderThickness);
+                var urlAllow = Assert.IsType<Button>(FindPermissionButton(window, "Open web addresses", "✓ Allow"));
+                Assert.Same(window.Resources["AccentBrush"], urlAllow.Background);
             }
             finally
             {

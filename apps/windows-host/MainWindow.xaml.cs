@@ -339,6 +339,7 @@ public partial class MainWindow : Window
         PcSleep,
         VolumeControl,
         RemoteAppLaunch,
+        UrlOpen,
         PcLock,
         BlackoutDisplay,
         DisplayOff,

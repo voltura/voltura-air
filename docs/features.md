@@ -1,6 +1,6 @@
 # Voltura Air - Features
 
-Updated: 2026-07-13
+Updated: 2026-07-15
 Scope: current `voltura/voltura-air` `main` branch. This file describes current product capabilities.
 
 Voltura Air turns any phone, tablet, or modern browser into a local-network remote control surface for a Windows PC.
@@ -107,6 +107,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Supports host-enforced permission for PC sleep.
 - Supports host-enforced permission for volume control.
 - Supports host-enforced permission for fixed Remote launch actions and host-configured application buttons.
+- Supports a separate default-off host permission for opening reviewed HTTP and HTTPS web addresses, with per-device overrides.
 - Configures optional Browser, Spotify, VLC, and PowerPoint launch presets in Windows Preferences.
 - Lets the host choose a 1–10 character mobile button label for every enabled preset and custom application command; preset label edits save automatically and inputs stop accepting text at 10 characters.
 - Configures custom `.exe` launch buttons with optional arguments after a local host warning confirmation on every add or edit.
@@ -164,7 +165,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Supports PC sleep when allowed by host permissions.
 - Locks the current Windows session with `LockWorkStation` when permission and the current-user policy allow it.
 - Reports accepted, denied, unsupported, policy-disabled, policy-unavailable, and failed power/session requests without disconnecting the client.
-- Offers opt-in daily JSON Lines application logging for troubleshooting. Logging is off by default, keeps files normally shareable, and allows reads without holding the protocol writer lock. It records remote command flow plus local host actions such as Windows-lock policy writes, readback failures, and native lock tests without typed text, pointer coordinates, or pairing credentials.
+- Offers opt-in daily JSON Lines application logging for troubleshooting. Logging is off by default, keeps files normally shareable, and allows reads without holding the protocol writer lock. It records remote command flow plus local host actions such as Windows-lock policy writes, readback failures, and native lock tests without typed text, opened web addresses, pointer coordinates, or pairing credentials.
 - Opens Diagnostics directly on a dedicated Application log view, with System details available from a clear top-level switch. The log view exposes its **Write application log** toggle directly and clearly distinguishes disabled logging from an empty filtered result. It uses themed activity cards, a two-month date-range picker plus event, source, action, and client filters, filtered copy, open-folder, confirmed delete actions, and an optional session-only **Automatic log refresh** toggle that is off by default. Log reads run off the WPF dispatcher, repeated requests are coalesced, and unchanged results retain their existing visuals. Automatic refresh reacts to successful host log writes only while the view is visible instead of polling a timer. Retention is configurable from 1 to 30 days with a 2-day default. Input commands record both receipt and their sanitized executed or blocked outcome, including the Remote mode minimize action, without logging typed text. Only the record area scrolls, so the filter and action controls remain reachable.
 - Blacks out every connected monitor with a topmost black WPF curtain without changing display power state. Windows, networking, and remote control remain active; any local or remote mouse/keyboard interaction removes the curtain, and touch or pen input also dismisses it locally. Ordinary remote movement bypasses the WPF dispatcher when no curtain is active.
 - Starts the native Windows screen saver only when Windows reports screen saving enabled and a configured `.scr` program exists. The action is omitted from host and mobile UI when unavailable.
@@ -347,6 +348,10 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Task view through Win+Tab.
 - Show desktop, close the focused window, and minimize the focused top-level window directly, including when it is maximized.
 - Browser Back, new tab, close tab, reopen closed tab, next/previous tab, and reload.
+- When the effective PC permission is enabled, the Fn panel includes a compact **Open URL on PC** field with detailed guidance behind the standard information button. The field and Open button remain hidden when permission is denied. Bare addresses are normalized to HTTPS; explicit HTTP remains HTTP. The host accepts only absolute HTTP/HTTPS URLs with a host and opens them once through the signed-in user's Windows default browser.
+- The official client applies the same HTTPS-default rule and uses the browser URL parser to disable Open for malformed or unsupported drafts before sending. A dot is not required because single-label LAN hosts and `localhost` are valid hosts; the host still performs authoritative validation. URL opening uses its own acknowledged result and permission rather than text transfer or managed application launch. Validation and launch failures preserve the draft and expose Retry; success says **Open request sent** because the host cannot know whether the browser loaded the page.
+- The host rejects file paths, commands, control characters, and non-web schemes such as `javascript:`, `data:`, and `mailto:`. It never searches for or falls back to a specific browser executable.
+- When application logging is enabled, URL opening records a sanitized `url.open` / `open_url` command receipt and its outcome without recording the submitted or normalized address.
 - Host-approved application buttons in a responsive Fn grid, with complete non-ellipsized labels, pending feedback, and PC result feedback that clears after four seconds.
 - Application launch can inherit the global host permission or be explicitly allowed/blocked per paired device.
 - Compact phone layouts keep the main remote surface within the viewport and move Windows and browser helper controls behind an Fn switch. Taller portrait phones retain a compact navigation ring below the Fn helpers while volume remains hidden; shorter portrait phones use the helpers-only view. In phone landscape, helpers replace the media column while volume and navigation remain visible.

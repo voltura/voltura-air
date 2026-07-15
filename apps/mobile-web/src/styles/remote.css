@@ -257,6 +257,79 @@
   margin-top: 8px;
 }
 
+.remote-url-open {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-raised);
+}
+
+.remote-url-open-label label {
+  font-weight: 700;
+}
+
+.remote-url-open-label {
+  width: fit-content;
+}
+
+.remote-url-open-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.remote-url-open-row input {
+  min-width: 0;
+}
+
+.remote-url-open-row input:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 76%, var(--text));
+  outline-offset: 0;
+}
+
+:root:not([data-theme="light"]) .remote-url-open-row input {
+  background: color-mix(in srgb, var(--surface-raised) 90%, var(--text));
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) .remote-url-open-row input {
+    background: var(--surface);
+  }
+}
+
+.remote-url-open-row button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 6px;
+  padding-inline: 14px;
+  font-weight: 700;
+}
+
+.remote-url-open-row svg {
+  width: 18px;
+  height: 18px;
+}
+
+.remote-url-feedback {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.remote-url-feedback.success {
+  color: var(--success);
+}
+
+.remote-url-feedback.error {
+  color: var(--danger);
+}
+
+.remote-url-feedback.pending {
+  color: var(--text-muted);
+}
+
 .remote-app-launch-grid {
   grid-template-columns: repeat(auto-fit, minmax(min(120px, 100%), 1fr));
 }

@@ -86,6 +86,7 @@
 
 .info-dialog-detailed .info-dialog-actions {
   margin-top: auto;
+  justify-content: flex-start;
 }
 
 .info-dialog::backdrop {

@@ -202,6 +202,12 @@ public sealed partial class WebHostService
                     continue;
                 }
 
+                if (type == "url.open")
+                {
+                    await HandleUrlOpenAsync(socket, authenticatedClientId, GetString(root, "operationId"), GetString(root, "url"), cancellationToken);
+                    continue;
+                }
+
                 if (type == "text.send")
                 {
                     await HandleTextTransferAsync(socket, authenticatedClientId, root, cancellationToken);
@@ -486,6 +492,7 @@ public sealed partial class WebHostService
             awake = CreateAwakeCapability(clientId),
             volume = CanControlVolume(clientId),
             remoteLaunch = CanLaunchRemoteApps(clientId),
+            urlOpen = new { canOpen = CanOpenUrls(clientId) },
             textTransfer = true,
             clipboardRead = CanReadClipboard(clientId),
             gestureDebug = AppDeveloperSettings.EnableGestureDebug(),
@@ -506,6 +513,11 @@ public sealed partial class WebHostService
     private bool CanLaunchRemoteApps(string clientId)
     {
         return _pairingManager.GetEffectivePermissions(clientId, AppPermissionSettings.Load()).AllowRemoteAppLaunch;
+    }
+
+    private bool CanOpenUrls(string clientId)
+    {
+        return _pairingManager.GetEffectivePermissions(clientId, AppPermissionSettings.Load()).AllowUrlOpen;
     }
 
     private static bool IsInputMessage(string? type)
@@ -563,6 +575,31 @@ public sealed partial class WebHostService
             succeeded = result.Succeeded,
             code = result.Code,
             message = result.Message
+        }, cancellationToken);
+    }
+
+    private Task HandleUrlOpenAsync(WebSocket socket, string clientId, string operationId, string url, CancellationToken cancellationToken)
+    {
+        var result = CanOpenUrls(clientId)
+            ? _urlOpenService.Execute(url)
+            : new UrlOpenExecutionResult(false, "permission-denied", "Opening web addresses is disabled for this device on the PC.");
+
+        _appLog.Write(new AppLogEntry(
+            Event: "command_outcome",
+            Source: "windows_host",
+            ClientId: clientId,
+            MessageType: "url.open",
+            Action: "open_url",
+            Outcome: result.Succeeded ? "accepted" : result.Code));
+
+        return SendSocketAsync(socket, new
+        {
+            type = "url.open.result",
+            operationId,
+            succeeded = result.Succeeded,
+            code = result.Code,
+            message = result.Message,
+            normalizedUrl = result.NormalizedUrl
         }, cancellationToken);
     }
 

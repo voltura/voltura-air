@@ -4,6 +4,7 @@ import {
   getPowerCapabilities,
   getAwakeCapability,
   getPcDisconnectedMessage,
+  getUrlOpenCapability,
   normalizeAppLaunchActions,
   normalizeHostStatus,
   shouldTrackInputAck,
@@ -83,6 +84,12 @@ describe("connection protocol policy", () => {
     expect(getAwakeCapability({ awake })).toEqual(awake);
     expect(getAwakeCapability({ awake: { ...awake, mode: "unknown" as never } })).toBeNull();
     expect(getAwakeCapability(undefined)).toBeNull();
+  });
+
+  it("distinguishes URL-open support from its effective permission", () => {
+    expect(getUrlOpenCapability({ urlOpen: { canOpen: true } })).toEqual({ canOpen: true });
+    expect(getUrlOpenCapability({ urlOpen: { canOpen: false } })).toEqual({ canOpen: false });
+    expect(getUrlOpenCapability(undefined)).toBeUndefined();
   });
 
   it("keeps recognized Windows lock availability metadata", () => {

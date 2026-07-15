@@ -42,6 +42,7 @@ public partial class MainWindow
         AddPermissionChoices(_deviceDetailsPanel, device, "PC sleep", PermissionKind.PcSleep);
         AddPermissionChoices(_deviceDetailsPanel, device, "Volume control", PermissionKind.VolumeControl);
         AddPermissionChoices(_deviceDetailsPanel, device, "Application launch", PermissionKind.RemoteAppLaunch);
+        AddPermissionChoices(_deviceDetailsPanel, device, "Open web addresses", PermissionKind.UrlOpen);
         AddPermissionChoices(_deviceDetailsPanel, device, "Lock PC", PermissionKind.PcLock);
         AddPermissionChoices(_deviceDetailsPanel, device, "Blackout display", PermissionKind.BlackoutDisplay);
         AddPermissionChoices(_deviceDetailsPanel, device, "Turn off display", PermissionKind.DisplayOff);
@@ -62,6 +63,7 @@ public partial class MainWindow
             SelectPage(HostPage.Devices);
         }, danger: true));
         _deviceDetailsPanel.Children.Add(actions);
+        ApplyPermissionChoiceVisuals();
     }
 
     private void AddPointerSpeedProfile(StackPanel parent, PairedDeviceStatus device)
@@ -122,6 +124,7 @@ public partial class MainWindow
             PermissionKind.PcSleep => current with { AllowPcSleep = value },
             PermissionKind.VolumeControl => current with { AllowVolumeControl = value },
             PermissionKind.RemoteAppLaunch => current with { AllowRemoteAppLaunch = value },
+            PermissionKind.UrlOpen => current with { AllowUrlOpen = value },
             PermissionKind.PcLock => current with { AllowPcLock = value },
             PermissionKind.BlackoutDisplay => current with { AllowBlackoutDisplay = value },
             PermissionKind.DisplayOff => current with { AllowDisplayOff = value },
@@ -144,6 +147,7 @@ public partial class MainWindow
             PermissionKind.PcSleep => permissions.AllowPcSleep,
             PermissionKind.VolumeControl => permissions.AllowVolumeControl,
             PermissionKind.RemoteAppLaunch => permissions.AllowRemoteAppLaunch,
+            PermissionKind.UrlOpen => permissions.AllowUrlOpen,
             PermissionKind.PcLock => permissions.AllowPcLock,
             PermissionKind.BlackoutDisplay => permissions.AllowBlackoutDisplay,
             PermissionKind.DisplayOff => permissions.AllowDisplayOff,

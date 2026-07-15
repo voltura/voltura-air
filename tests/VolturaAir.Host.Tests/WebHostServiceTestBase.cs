@@ -102,6 +102,7 @@ public abstract class WebHostServiceTestBase
             ISystemAudioController? audioController = null,
             IRemoteActionExecutor? remoteActionExecutor = null,
             IAppLaunchService? appLaunchService = null,
+            IUrlOpenService? urlOpenService = null,
             IAppLog? appLog = null,
             ITextDestinationService? textDestinationService = null,
             IClipboardTextReader? clipboardTextReader = null)
@@ -117,6 +118,7 @@ public abstract class WebHostServiceTestBase
                 remoteActionExecutor,
                 appLog: appLog,
                 appLaunchService: appLaunchService,
+                urlOpenService: urlOpenService,
                 textDestinationService: textDestinationService,
                 clipboardTextReader: clipboardTextReader,
                 isolatedTestMode: true,

@@ -303,6 +303,7 @@ public partial class MainWindow
         var sleep = CreateCheckBox("Allow paired devices to request PC sleep", globalPermissions.AllowPcSleep);
         var volume = CreateCheckBox("Allow paired devices to control volume", globalPermissions.AllowVolumeControl);
         var remoteLaunch = CreateCheckBox("Allow paired devices to start applications", globalPermissions.AllowRemoteAppLaunch);
+        var urlOpen = CreateCheckBox("Allow paired devices to open web addresses", globalPermissions.AllowUrlOpen);
         var pcLock = CreateCheckBox("Allow paired devices to lock the PC", globalPermissions.AllowPcLock);
         var blackoutDisplay = CreateCheckBox("Allow paired devices to blackout displays", globalPermissions.AllowBlackoutDisplay);
         var displayOff = CreateCheckBox("Allow paired devices to turn off displays", globalPermissions.AllowDisplayOff);
@@ -312,8 +313,8 @@ public partial class MainWindow
         var signOut = CreateCheckBox("Allow paired devices to sign out", globalPermissions.AllowSignOut);
         var restart = CreateCheckBox("Allow paired devices to restart the PC", globalPermissions.AllowRestart);
         var shutdown = CreateCheckBox("Allow paired devices to shut down the PC", globalPermissions.AllowShutdown);
-        void SavePermissions() => SaveGlobalPermissions(sleep, volume, remoteLaunch, pcLock, blackoutDisplay, displayOff, screenSaver, awakeControl, clipboardRead, signOut, restart, shutdown);
-        foreach (var permission in new[] { sleep, volume, remoteLaunch, pcLock, blackoutDisplay, displayOff, screenSaver, awakeControl, clipboardRead, signOut, restart, shutdown })
+        void SavePermissions() => SaveGlobalPermissions(sleep, volume, remoteLaunch, urlOpen, pcLock, blackoutDisplay, displayOff, screenSaver, awakeControl, clipboardRead, signOut, restart, shutdown);
+        foreach (var permission in new[] { sleep, volume, remoteLaunch, urlOpen, pcLock, blackoutDisplay, displayOff, screenSaver, awakeControl, clipboardRead, signOut, restart, shutdown })
         {
             permission.Checked += (_, _) => SavePermissions();
             permission.Unchecked += (_, _) => SavePermissions();
@@ -321,6 +322,7 @@ public partial class MainWindow
         permissionsPanel.Children.Add(sleep);
         permissionsPanel.Children.Add(volume);
         permissionsPanel.Children.Add(remoteLaunch);
+        permissionsPanel.Children.Add(urlOpen);
         permissionsPanel.Children.Add(pcLock);
         permissionsPanel.Children.Add(blackoutDisplay);
         permissionsPanel.Children.Add(displayOff);
@@ -334,7 +336,7 @@ public partial class MainWindow
         permissionsPanel.Children.Add(restart);
         permissionsPanel.Children.Add(shutdown);
         permissionsPanel.Children.Add(CreateMutedText("Display off and session-ending actions require hold-to-confirm on the mobile device."));
-        permissionsPanel.Children.Add(CreateDetailsDisclosure("global permissions", "Lock and blackout are enabled by default. The screen-saver permission appears when Windows has a screen saver configured. Reading the PC clipboard, display off, sign out, restart, and shut down require explicit host approval."));
+        permissionsPanel.Children.Add(CreateDetailsDisclosure("global permissions", "Lock and blackout are enabled by default. The screen-saver permission appears when Windows has a screen saver configured. Opening web addresses, reading the PC clipboard, display off, sign out, restart, and shut down require explicit host approval."));
 
         var windowsLockingPanel = AddPreferencesSection(panel, sections, "Windows locking");
         AddWindowsLockPolicySetting(windowsLockingPanel);

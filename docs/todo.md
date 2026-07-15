@@ -24,37 +24,7 @@ network work must also satisfy the acceptance-path test gate in the repository
 
 ---
 
-## 1. Open a URL on the PC
-
-### 1.1 Mobile entry and safe host launch
-
-- [ ] Add an **Open URL on PC** action reachable from the mobile Keyboard or
-  Remote experience without changing the existing text-transfer flow.
-  - Deliverable: a compact URL field, an explicit Open button, pending/result
-    feedback, and a retryable error that never exposes raw process errors.
-  - The draft must remain after validation or launch failure; a successful open
-    must not also type the URL into the focused Windows application.
-- [ ] Add host validation and launch support.
-  - Accept only absolute `https://` and `http://` URLs after trimming. Do not
-    infer or open file paths, `javascript:`, `data:`, `mailto:`, custom URI
-    schemes, or executable commands.
-  - Decide whether a bare domain is normalized to `https://` or rejected; use
-    one documented rule in both mobile and host validation.
-  - Open the validated URL through the signed-in user's default browser. Report
-    accepted, denied, invalid, and native-launch-failed outcomes through the
-    existing acknowledged command/result pattern.
-- [ ] Add a dedicated host permission for arbitrary URL opening, default off,
-  with the normal global-default and per-device override model. It must be
-  separately visible from fixed host-approved application launch buttons.
-- [ ] Add focused protocol/host tests for valid HTTPS and HTTP URLs, rejected
-  schemes and malformed input, denied devices, and a launcher failure. Add a
-  mobile test for preserving the draft and showing the returned result.
-
-Decision gate: settle whether entering `example.com` means `https://example.com`
-or is an error before exposing the field. Do not silently search a browser or
-reuse the text-destination feature as a workaround.
-
-### 1.2 Share target (only after 1.1)
+## 1. URL share target
 
 - [ ] Research PWA Web Share Target support on the browsers Voltura Air supports
   and whether the host-served LAN origin can meet its installation, HTTPS, and
@@ -138,8 +108,8 @@ Optional verification:
     do not use it for long text entry.
   - [ ] **Type text:** reviewed Unicode text delivered through the existing safe
     input path, with a conservative length limit and no clipboard readback.
-  - [ ] **Open URL:** reuse section 1's validation and permission; do not create
-    a second URL launcher.
+  - [ ] **Open URL:** reuse the implemented URL validation, permission, and
+    launcher; do not create a second URL launcher.
   - [ ] **Host-approved command:** reuse the existing opaque, host-configured
     executable-launch action. This must remain an administrator-of-the-host
     choice and show the current local warning on add/edit.
@@ -365,22 +335,20 @@ the privacy and maintenance bar, keep Wake-on-LAN out of the product.
 
 ## Recommended continuation order
 
-1. Implement **Open URL on the PC** through the safe, permissioned path in 1.1.
-2. Build **Presentation mode** with fixed, tested first-version mappings.
-3. Define and implement the shared **custom shortcut-panel** model; finish the
+1. Build **Presentation mode** with fixed, tested first-version mappings.
+2. Define and implement the shared **custom shortcut-panel** model; finish the
    dependent per-device preference decisions afterward.
-4. Complete the low-risk public-trust work: FAQ/README roadmap link, structured
+3. Complete the low-risk public-trust work: FAQ/README roadmap link, structured
    issue forms, release-note template, known limitations, and checksums.
-5. Make and record the code-signing decision; only then design the update
+4. Make and record the code-signing decision; only then design the update
    notification around the agreed distribution trust model.
-6. Treat each section 5 idea as an individual research issue, beginning with the
+5. Treat each section 5 idea as an individual research issue, beginning with the
    Wake-on-LAN sender decision rather than a misleading mobile button.
 
 ## Suggested milestones
 
 ### Milestone 1: Productive control
 
-- Safe, permissioned Open URL action.
 - Dedicated Presentation mode.
 - Shared custom shortcut panels and presets.
 - Last-mode restore and only the per-device preferences justified by the panel

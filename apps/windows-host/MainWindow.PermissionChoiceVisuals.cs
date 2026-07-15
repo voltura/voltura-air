@@ -43,6 +43,7 @@ public partial class MainWindow
         ApplyPermissionChoiceVisuals("PC sleep", device.PermissionOverrides.AllowPcSleep, globalPermissions.AllowPcSleep);
         ApplyPermissionChoiceVisuals("Volume control", device.PermissionOverrides.AllowVolumeControl, globalPermissions.AllowVolumeControl);
         ApplyPermissionChoiceVisuals("Application launch", device.PermissionOverrides.AllowRemoteAppLaunch, globalPermissions.AllowRemoteAppLaunch);
+        ApplyPermissionChoiceVisuals("Open web addresses", device.PermissionOverrides.AllowUrlOpen, globalPermissions.AllowUrlOpen);
         ApplyPermissionChoiceVisuals("Lock PC", device.PermissionOverrides.AllowPcLock, globalPermissions.AllowPcLock);
         ApplyPermissionChoiceVisuals("Blackout display", device.PermissionOverrides.AllowBlackoutDisplay, globalPermissions.AllowBlackoutDisplay);
         ApplyPermissionChoiceVisuals("Turn off display", device.PermissionOverrides.AllowDisplayOff, globalPermissions.AllowDisplayOff);

@@ -98,7 +98,8 @@ async function main() {
   if (smokeTest) {
     await verifyResponsivePowerLayout(page);
     await verifyResponsiveTextTransferLayout(page);
-    console.log("Voltura Air UI smoke test connected and passed responsive Power sheet and text transfer checks.");
+    await verifyResponsiveUrlOpenLayout(page);
+    console.log("Voltura Air UI smoke test connected and passed responsive Power sheet, text transfer, and URL opening checks.");
     shutdown("SIGTERM", 0);
     return;
   }
@@ -191,7 +192,7 @@ async function verifyResponsiveTextTransferLayout(page) {
     throw new Error(`Fourth mode button selector is too small: ${JSON.stringify(fourthModeMetrics)}`);
   }
   await page.getByRole("button", { name: "Send text to PC", exact: true }).click();
-  await page.getByRole("button", { name: "Edit text", exact: true }).click();
+  await page.getByRole("button", { name: "Use device keyboard", exact: true }).click();
   await page.getByLabel("Text to send").fill("Responsive text transfer check");
   const savedSnippets = page.locator(".saved-snippets");
   const snippetsStartFolded = await savedSnippets.evaluate((details) => details instanceof HTMLDetailsElement && !details.open);
@@ -242,8 +243,8 @@ async function verifyResponsiveTextTransferLayout(page) {
       };
     });
 
-    if (!snippetsStartFolded || "error" in result || result.backButtonPresent || result.editorLabelGap > 5 || result.editorMisaligned || result.editorOverlapsActions ||
-        !result.editorUsesTrackpadGrid || result.horizontalOverflow || result.maxSnippetActionHeight > 45 || !result.sendButtonsShareRow ||
+    if (!snippetsStartFolded || "error" in result || result.backButtonPresent || (viewport.name === "phone portrait" && result.editorLabelGap > 5) || result.editorMisaligned || result.editorOverlapsActions ||
+        result.editorUsesTrackpadGrid || result.horizontalOverflow || result.maxSnippetActionHeight > 45 || !result.sendButtonsShareRow ||
         !result.snippetInputOpaque || result.snippetInputWidth < 160) {
       throw new Error(`Responsive text transfer check failed for ${viewport.name}: ${JSON.stringify(result)}`);
     }
@@ -272,6 +273,91 @@ async function verifyResponsiveTextTransferLayout(page) {
     throw new Error(`Themed snippet dialog check failed: ${JSON.stringify(dialogMetrics)}`);
   }
   await renameDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+}
+
+async function verifyResponsiveUrlOpenLayout(page) {
+  await page.setViewportSize({ width: 393, height: 852 });
+  await page.getByRole("button", { name: "Remote mode", exact: true }).click();
+  await page.getByRole("button", { name: "Fn", exact: true }).click();
+  const input = page.getByRole("textbox", { name: "Open URL on PC", exact: true });
+
+  if (await input.count() === 0) {
+    const permissionMessage = page.getByText("Allow URL opening in the PC permissions first.", { exact: true });
+    if (await permissionMessage.count() !== 1 || await page.getByRole("button", { name: "Open", exact: true }).count() !== 0) {
+      throw new Error("URL controls were not hidden with the PC permission disabled.");
+    }
+    return;
+  }
+
+  await input.fill("javascript:alert(1)");
+  if (!await page.getByRole("button", { name: "Open", exact: true }).isDisabled() ||
+      await page.getByText("Use an HTTP or HTTPS web address.", { exact: true }).count() !== 1) {
+    throw new Error("Invalid URL drafts did not disable Open with clear feedback.");
+  }
+
+  await page.getByRole("button", { name: "About Open URL on PC", exact: true }).click();
+  const infoDialog = page.getByRole("dialog", { name: "Open URL on PC", exact: true });
+  const infoMetrics = await infoDialog.evaluate((dialog) => {
+    const ok = dialog.querySelector(".info-dialog-actions button");
+    if (!(ok instanceof HTMLButtonElement)) {
+      return { error: "Missing OK button." };
+    }
+
+    const dialogBounds = dialog.getBoundingClientRect();
+    return {
+      height: dialogBounds.height,
+      okOffsetLeft: ok.getBoundingClientRect().left - dialogBounds.left,
+      text: dialog.textContent ?? ""
+    };
+  });
+  if ("error" in infoMetrics || infoMetrics.height < 250 || infoMetrics.okOffsetLeft > 40 ||
+      !infoMetrics.text.includes("Addresses without a scheme use HTTPS")) {
+    throw new Error(`URL information dialog check failed: ${JSON.stringify(infoMetrics)}`);
+  }
+  await infoDialog.getByRole("button", { name: "OK", exact: true }).click();
+  await input.fill("example.com/page?q=responsive-test");
+
+  const viewports = [
+    { name: "phone portrait", width: 393, height: 852 },
+    { name: "compact phone portrait", width: 375, height: 667 },
+    { name: "phone landscape", width: 852, height: 393 },
+    { name: "tablet landscape", width: 1024, height: 768 }
+  ];
+
+  for (const viewport of viewports) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.locator(".remote-url-open").scrollIntoViewIfNeeded();
+    await input.focus();
+    const result = await page.evaluate(() => {
+      const form = document.querySelector(".remote-url-open");
+      const field = document.querySelector("#remote-url-draft");
+      const button = document.querySelector(".remote-url-open-row button");
+      if (!(form instanceof HTMLElement) || !(field instanceof HTMLInputElement) || !(button instanceof HTMLButtonElement)) {
+        return { error: "URL opening controls were not visible." };
+      }
+
+      const bounds = form.getBoundingClientRect();
+      const fieldStyle = getComputedStyle(field);
+      return {
+        buttonHeight: button.getBoundingClientRect().height,
+        draft: field.value,
+        fieldWidth: field.getBoundingClientRect().width,
+        fieldBackground: fieldStyle.backgroundColor,
+        fieldBorderColor: fieldStyle.borderColor,
+        fieldOutlineColor: fieldStyle.outlineColor,
+        fieldOutlineOffset: fieldStyle.outlineOffset,
+        formBackground: getComputedStyle(form).backgroundColor,
+        horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+        outsideViewport: bounds.left < -1 || bounds.right > window.innerWidth + 1
+      };
+    });
+
+    if ("error" in result || result.buttonHeight < 44 || result.fieldWidth < 160 || result.fieldBackground === result.formBackground ||
+        result.fieldBorderColor !== result.fieldOutlineColor || result.fieldOutlineOffset !== "0px" || result.horizontalOverflow || result.outsideViewport ||
+        result.draft !== "example.com/page?q=responsive-test") {
+      throw new Error(`Responsive URL opening check failed for ${viewport.name}: ${JSON.stringify(result)}`);
+    }
+  }
 }
 
 async function launchPersistentContext(chromium) {

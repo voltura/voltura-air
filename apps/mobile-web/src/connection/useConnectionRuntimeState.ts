@@ -1,10 +1,11 @@
 import { useCallback, useRef, useState, type RefObject } from "react";
-import type { AudioStateMessage, AwakeCapability, HostStatusMetadata, PowerCapabilities, ServerCapabilities } from "../protocol";
+import type { AudioStateMessage, AwakeCapability, HostStatusMetadata, PowerCapabilities, ServerCapabilities, UrlOpenCapability } from "../protocol";
 import {
   getPowerCapabilities,
   getAwakeCapability,
   hasGestureDebugCapability,
   getClipboardReadPermission,
+  getUrlOpenCapability,
   hasInputAckCapability,
   hasRemoteLaunchCapability,
   hasSleepCapability,
@@ -26,6 +27,7 @@ export function useConnectionRuntimeState(
   const [supportsRemoteLaunch, setSupportsRemoteLaunch] = useState(false);
   const [supportsTextTransfer, setSupportsTextTransfer] = useState(false);
   const [clipboardReadPermission, setClipboardReadPermission] = useState<boolean | undefined>(undefined);
+  const [urlOpenCapability, setUrlOpenCapability] = useState<UrlOpenCapability | undefined>(undefined);
   const [powerCapabilities, setPowerCapabilities] = useState<PowerCapabilities | null>(null);
   const [hostStatus, setHostStatus] = useState<HostStatusMetadata | null>(null);
   const supportsVolumeControlRef = useRef(false);
@@ -42,6 +44,7 @@ export function useConnectionRuntimeState(
     setSupportsRemoteLaunch(false);
     setSupportsTextTransfer(false);
     setClipboardReadPermission(undefined);
+    setUrlOpenCapability(undefined);
     setPowerCapabilities(null);
     setHostStatus(null);
     supportsVolumeControlRef.current = false;
@@ -57,6 +60,7 @@ export function useConnectionRuntimeState(
     setSupportsRemoteLaunch(connected && hasRemoteLaunchCapability(capabilities));
     setSupportsTextTransfer(connected && hasTextTransferCapability(capabilities));
     setClipboardReadPermission(connected ? getClipboardReadPermission(capabilities) : undefined);
+    setUrlOpenCapability(connected ? getUrlOpenCapability(capabilities) : undefined);
     setPowerCapabilities(connected ? getPowerCapabilities(capabilities) : null);
     setAwakeCapability(connected ? getAwakeCapability(capabilities) : null);
     supportsVolumeControlRef.current = nextSupportsVolumeControl;
@@ -94,6 +98,7 @@ export function useConnectionRuntimeState(
     supportsVolumeControl,
     supportsVolumeControlRef,
     updateCapabilities,
-    updateHostStatus
+    updateHostStatus,
+    urlOpenCapability
   };
 }

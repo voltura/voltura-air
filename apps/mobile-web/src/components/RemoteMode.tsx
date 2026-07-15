@@ -20,7 +20,7 @@ import {
   Volume2,
   VolumeX
 } from "lucide-react";
-import type { AppLaunchActionSummary, AudioStateMessage, PowerCapabilities, SystemPowerAction, SystemPowerResultMessage } from "../protocol";
+import type { AppLaunchActionSummary, AudioStateMessage, PowerCapabilities, SystemPowerAction, SystemPowerResultMessage, UrlOpenCapability, UrlOpenResultMessage } from "../protocol";
 import type { RemoteSettings } from "../remoteSettings";
 import { remoteShortcutMaps, type RemoteShortcut } from "./remote/remoteShortcuts";
 import { getRemoteModeCopy } from "./remote/remoteModeCopy";
@@ -47,10 +47,14 @@ type RemoteModeProps = {
   onPointerMove: (dx: number, dy: number) => void;
   onPowerAction: (action: SystemPowerAction) => void;
   onAppLaunch: (actionId: string) => void;
+  onUrlOpen: (url: string) => string | null;
+  pendingUrlOpen: boolean;
   pendingAppLaunchId: string | null;
   pendingPowerAction: SystemPowerAction | null;
   powerActionResult: SystemPowerResultMessage | null;
   powerCapabilities: PowerCapabilities | null;
+  urlOpenCapability?: UrlOpenCapability;
+  urlOpenResult: UrlOpenResultMessage | null;
   sendSpecial: (key: string, modifiers?: string[]) => void;
 };
 
@@ -79,10 +83,14 @@ export function RemoteMode({
   onPointerMove,
   onPowerAction,
   onAppLaunch,
+  onUrlOpen,
+  pendingUrlOpen,
   pendingAppLaunchId,
   pendingPowerAction,
   powerActionResult,
   powerCapabilities,
+  urlOpenCapability,
+  urlOpenResult,
   sendSpecial
 }: RemoteModeProps) {
   const [showUtilityPanel, setShowUtilityPanel] = useState(false);
@@ -562,9 +570,13 @@ export function RemoteMode({
         isOpen={showUtilityPanel}
         onClose={() => setShowUtilityPanel(false)}
         onAppLaunch={onAppLaunch}
+        onUrlOpen={onUrlOpen}
         pendingAppLaunchId={pendingAppLaunchId}
+        pendingUrlOpen={pendingUrlOpen}
         remoteSettings={remoteSettings}
         sendSpecial={sendSpecial}
+        urlOpenCapability={urlOpenCapability}
+        urlOpenResult={urlOpenResult}
       />
     </section>
   );

@@ -45,6 +45,7 @@ public sealed partial class PairingManager
             AllowPcSleep: permissionOverrides?.AllowPcSleep,
             AllowVolumeControl: permissionOverrides?.AllowVolumeControl,
             AllowRemoteAppLaunch: permissionOverrides?.AllowRemoteAppLaunch,
+            AllowUrlOpen: permissionOverrides?.AllowUrlOpen,
             AllowPcLock: permissionOverrides?.AllowPcLock,
             AllowBlackoutDisplay: permissionOverrides?.AllowBlackoutDisplay,
             AllowDisplayOff: permissionOverrides?.AllowDisplayOff,

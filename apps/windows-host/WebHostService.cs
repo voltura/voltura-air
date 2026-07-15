@@ -25,6 +25,7 @@ public sealed partial class WebHostService : IAsyncDisposable
     private readonly ISystemAudioController _audioController;
     private readonly IRemoteActionExecutor _remoteActionExecutor;
     private readonly IAppLaunchService _appLaunchService;
+    private readonly IUrlOpenService _urlOpenService;
     private readonly ITextDestinationService _textDestinationService;
     private readonly IClipboardTextReader _clipboardTextReader;
     private readonly ISystemPowerController _powerController;
@@ -50,6 +51,7 @@ public sealed partial class WebHostService : IAsyncDisposable
         IWorkstationLockPolicy? workstationLockPolicy = null,
         IAppLog? appLog = null,
         IAppLaunchService? appLaunchService = null,
+        IUrlOpenService? urlOpenService = null,
         ITextDestinationService? textDestinationService = null,
         IClipboardTextReader? clipboardTextReader = null,
         Action<CustomPointerSettings>? applyCustomPointer = null,
@@ -61,6 +63,7 @@ public sealed partial class WebHostService : IAsyncDisposable
         _audioController = audioController ?? new SystemAudioController();
         _remoteActionExecutor = remoteActionExecutor ?? new RemoteActionExecutor();
         _appLaunchService = appLaunchService ?? new AppLaunchService();
+        _urlOpenService = urlOpenService ?? new UrlOpenService();
         _textDestinationService = textDestinationService ?? new FocusedTextDestinationService(inputDispatcher);
         _clipboardTextReader = clipboardTextReader ?? new WindowsClipboardTextReader();
         _powerController = powerController ?? (isolatedTestMode ? new NoOpSystemPowerController() : new SystemPowerController());

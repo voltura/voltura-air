@@ -49,9 +49,14 @@ export type ServerCapabilities = {
   clipboardRead?: boolean;
   power?: PowerCapabilities;
   remoteLaunch?: boolean;
+  urlOpen?: UrlOpenCapability;
   sleep?: boolean;
   textTransfer?: boolean;
   volume?: boolean;
+};
+
+export type UrlOpenCapability = {
+  canOpen: boolean;
 };
 
 export type TextTransferTarget = {
@@ -251,6 +256,21 @@ export type AppLaunchResultMessage = {
   message: string;
 };
 
+export type UrlOpenMessage = {
+  type: "url.open";
+  operationId: string;
+  url: string;
+};
+
+export type UrlOpenResultMessage = {
+  type: "url.open.result";
+  operationId: string;
+  succeeded: boolean;
+  code?: string;
+  message: string;
+  normalizedUrl?: string | null;
+};
+
 export type TextSendMessage = {
   type: "text.send";
   operationId: string;
@@ -316,9 +336,10 @@ export type ClientMessage =
   | AwakeSetMessage
   | RemoteLaunchMessage
   | AppLaunchMessage
+  | UrlOpenMessage
   | TextSendMessage
   | ClipboardGetMessage
   | AudioMuteToggleMessage
   | AudioVolumeSetMessage;
 
-export type ServerMessage = PairAcceptedMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | TextSendResultMessage | ClipboardGetResultMessage | AudioStateMessage;
+export type ServerMessage = PairAcceptedMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | UrlOpenResultMessage | TextSendResultMessage | ClipboardGetResultMessage | AudioStateMessage;

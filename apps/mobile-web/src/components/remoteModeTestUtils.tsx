@@ -12,11 +12,15 @@ export function renderRemote(overrides: Partial<ComponentProps<typeof RemoteMode
     onPointerButtonClick: vi.fn(),
     onPointerMove: vi.fn(),
     onAppLaunch: vi.fn(),
+    onUrlOpen: vi.fn(),
     onPowerAction: vi.fn(),
     pendingPowerAction: null,
     pendingAppLaunchId: null,
+    pendingUrlOpen: false,
     powerActionResult: null,
     powerCapabilities: null,
+    urlOpenCapability: { canOpen: true },
+    urlOpenResult: null,
     sendSpecial: vi.fn(),
     ...overrides
   };

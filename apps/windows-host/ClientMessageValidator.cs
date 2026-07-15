@@ -85,6 +85,9 @@ internal static class ClientMessageValidator
                 RemoteLaunchActions.IsSupported(action),
             "app.launch" => TryGetRequiredString(root, "actionId", AppLaunchSettings.MaxIdLength, allowEmpty: false, out var actionId) &&
                 IsValidAppLaunchActionId(actionId),
+            "url.open" => TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var urlOperationId) &&
+                IsValidOperationId(urlOperationId) &&
+                TryGetRequiredString(root, "url", UrlOpenLimits.MaxUrlLength, allowEmpty: false, out _),
             "text.send" => TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var operationId) &&
                 IsValidOperationId(operationId) &&
                 TryGetRequiredString(root, "text", TextTransferLimits.MaxTextLength, allowEmpty: false, out _) &&

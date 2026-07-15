@@ -15,6 +15,7 @@ Scan the QR code from a phone, tablet, or browser-capable device on the same net
 - Use a trackpad, keyboard, dictation, media remote, and app controls from your phone or tablet.
 - Send or paste multiline text to the focused Windows app, copy it to the PC clipboard, create a new document in a configured app, or explicitly fetch the PC clipboard into selectable web-app text when the host permits it.
 - Control YouTube, Kodi, browser tabs, presentation controls, and common Windows window actions.
+- Open a reviewed HTTP or HTTPS address once in the PC's default browser, with a separate host permission and retryable result.
 - Lock the PC, blackout displays, or use approved power controls with deliberate confirmation for destructive actions.
 - Choose per-device permissions and pointer speed, plus a host-wide Custom pointer for the Windows desktop.
 - Use it on your own Wi-Fi/LAN with no account or cloud service.
@@ -70,7 +71,7 @@ Scan the QR code from a phone, tablet, or browser-capable device on the same net
 
 Install the Windows host on the PC you want to control. It runs from the tray, displays a pairing QR code, and serves the mobile controls over your local network. Only one host runs per signed-in Windows user.
 
-The host keeps device permissions and app-launch settings on the PC. You can choose which devices may use remote, power, keep-awake, and app-launch controls. Sensitive actions require confirmation, and remote wake is not available after a PC sleeps or shuts down.
+The host keeps device permissions and app-launch settings on the PC. You can choose which devices may use remote, power, keep-awake, app-launch, and URL-opening controls. URL opening is off by default, appears on the phone only when allowed, accepts only HTTP and HTTPS, and uses the Windows default browser. Sensitive actions require confirmation, and remote wake is not available after a PC sleeps or shuts down.
 
 Preferences includes device management, Keep awake, remote/app controls, and an optional diagnostics log. You can add Browser, Spotify, VLC, PowerPoint, or custom app buttons to the Remote panel; custom paths and arguments stay on the PC.
 

@@ -110,6 +110,7 @@ Successful response:
     "sleep": true,
     "volume": true,
     "remoteLaunch": true,
+    "urlOpen": { "canOpen": false },
     "textTransfer": true
   },
   "host": {
@@ -193,6 +194,8 @@ The adapter name can reveal local hardware/vendor details, so it should only be 
 `defaultRemoteMode` is the host's advisory initial Remote mode for that PC (`standard`, `youtube`, or `kodi`). The mobile app uses it only when the current phone/browser has no saved Remote mode override for that PC.
 `remoteLaunch` is an authenticated capability. When `true`, the host allows this paired device to trigger the fixed host-defined launch actions documented below and exposes its approved configurable buttons through `host.appLaunchActions`. The host does not expose the configured YouTube URL, executable paths, or arguments through this metadata.
 `appLaunchActions` is an authenticated array of `{ id, label, kind }` summaries. It is empty when the effective **Allow paired devices to start applications** permission is disabled. `id` is an opaque host-owned identifier; clients must not derive a path or command from it. `label` is the host-managed 1–10 character button label. `kind` is one of `browser`, `spotify`, `vlc`, `powerpoint`, or `custom` and is presentation metadata only.
+`urlOpen` is an authenticated capability object emitted by hosts that support reviewed URL opening. `canOpen` is the effective **Open web addresses** permission for the paired device. The permission defaults off and is independent from application launch and text transfer.
+The official client hides its URL field and Open button while `canOpen` is false.
 `textTransfer` is an authenticated capability. When `true`, the client may use the host-acknowledged `text.send` operation described below. `host.textTransferTarget` contains only `{ mode, displayName, available }`, where `mode` is `focused`, `clipboard`, or `configured`. Executable paths, process identifiers, window handles, matching rules, and clipboard contents are never included.
 `clipboardRead` is an authenticated capability emitted by hosts that support explicit PC clipboard reading. `true` means the effective **Read PC clipboard** permission allows this paired device; `false` means the host blocks the operation. Older hosts omit the capability.
 `pointerSpeed` is the effective pointer speed for the authenticated paired device: the host default unless that device has an override. It is included only on authenticated `pair.accepted` and `status` messages. When the Windows host profile changes, the host may push the same lightweight `status` message to active sockets; the mobile app does not add a polling loop, timer, or extra battery cost for pointer-speed sync.
@@ -404,6 +407,63 @@ Failure codes currently include `permission-denied`, `not-configured`,
 shape violation and closes the authenticated socket. Custom `.exe` paths and
 arguments are approved, stored, validated, and executed only by the Windows
 host; they are excluded from protocol metadata and application logs.
+
+## Open URL on the PC
+
+URL opening is a separate acknowledged operation. The client generates an
+`operationId` and sends the reviewed draft; it does not send a browser path,
+command, or fallback choice.
+
+Before sending, the official client applies the same bare-address HTTPS rule
+and checks the candidate with the browser's standards-based URL parser. It
+requires HTTP or HTTPS and a non-empty host, rejects malformed input and control
+characters, and disables Open while the draft is invalid. It does not require a
+dot because valid local hosts can be single-label names such as `router` or
+`localhost`. This check is advisory; the host validation below remains
+authoritative.
+
+```json
+{
+  "type": "url.open",
+  "operationId": "d6420638-df52-47c1-a2bd-fd91a68899aa",
+  "url": "example.com/page?q=test"
+}
+```
+
+The host trims the value and adds `https://` only when it has no explicit
+scheme. It then requires an absolute HTTP or HTTPS URI with a non-empty host,
+no control characters, and at most 2,048 UTF-16 code units. Explicit HTTP is
+preserved. File paths, commands, malformed URLs, and schemes such as
+`javascript:`, `data:`, `mailto:`, and `file:` are rejected rather than
+modified or executed.
+
+After permission and validation succeed, the host calls `Process.Start` once
+with the normalized absolute URI and `UseShellExecute = true`. Windows therefore
+uses the signed-in user's registered default handler for HTTP or HTTPS. The host
+does not locate or fall back to Chrome, Edge, Brave, Opera, or another browser.
+
+```json
+{
+  "type": "url.open.result",
+  "operationId": "d6420638-df52-47c1-a2bd-fd91a68899aa",
+  "succeeded": true,
+  "code": "accepted",
+  "message": "Open request sent.",
+  "normalizedUrl": "https://example.com/page?q=test"
+}
+```
+
+Result codes are `accepted`, `permission-denied`, `invalid-url`,
+`unsupported-scheme`, and `launch-failed`. Native process errors are mapped to
+friendly text and never returned raw. Validation and launch failures keep the
+authenticated socket open; the official client preserves the draft and offers
+Retry. A successful result says **Open request sent** because the host knows
+only that Windows accepted the shell-launch request, not whether a page loaded.
+When application logging is enabled, the host writes a sanitized `url.open`
+command receipt with action `open_url` and a matching command outcome. Neither
+entry contains the submitted or normalized URL.
+
+## Text transfer
 
 Text transfer uses a separate acknowledged operation so the client can distinguish complete delivery from ordinary input-health acknowledgements. `operationId` is a client-generated UUID, `text` must contain 1–4,096 UTF-16 code units, and `sendEnter` is required. The default focused destination sends to the application that owns keyboard focus and does not change the Windows clipboard. Clipboard mode copies only. A host-configured managed destination either creates a fresh self-identifying draft or stages text on the Windows clipboard. Paste-driven destinations paste only after the exact intended window is foreground and not elevated above the host; otherwise they report clipboard-only success. The host never synchronizes either device clipboard.
 

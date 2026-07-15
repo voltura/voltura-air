@@ -18,6 +18,7 @@ public sealed partial class WebHostService
             "awake.set" => root.TryGetProperty("enabled", out var enabled) && enabled.GetBoolean() ? "enable" : "disable",
             "audio.mute.toggle" => "toggle_mute",
             "audio.volume.set" => "set_volume",
+            "url.open" => "open_url",
             "pointer.button" => "pointer_button",
             "keyboard.text" => "text_input",
             _ => GetLoggedCommandAction(type, root)

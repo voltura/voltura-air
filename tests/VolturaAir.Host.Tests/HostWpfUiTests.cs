@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Microsoft.AspNetCore.TestHost;
 using VolturaAir.Host;
 
 namespace VolturaAir.Host.Tests;
@@ -242,6 +243,61 @@ public sealed partial class HostUiLayoutTests
     }
 
     [Fact]
+    public void DevicePermissionRowsShowEffectiveStatesForBlackoutAndClipboardRead()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            var originalPermissions = AppPermissionSettings.Load();
+            AppPermissionSettings.Save(originalPermissions with
+            {
+                AllowBlackoutDisplay = true,
+                AllowClipboardRead = false
+            });
+
+            using var appScope = new WpfApplicationScope();
+            using var store = new TempPairingStore();
+            using var inputInjector = new SendInputInjector();
+            var manager = new PairingManager(store.Store);
+            var token = manager.CreatePairingToken();
+            Assert.True(manager.Accept("client-a", "Phone", token, null).Accepted);
+            Assert.True(manager.SetDevicePermissionOverrides("client-a", new DevicePermissionOverrides(AllowBlackoutDisplay: true)));
+
+            var webHost = new WebHostService(
+                manager,
+                new InputDispatcher(inputInjector),
+                isolatedTestMode: true,
+                configureWebHost: builder => builder.UseTestServer());
+            var window = new MainWindow(manager, webHost, clientUrl: null);
+            try
+            {
+                window.Show();
+                window.ShowPage(HostPage.Devices);
+                window.UpdateLayout();
+
+                var devices = Assert.Single(FindWpfDescendants<ListBox>(window));
+                devices.SelectedIndex = 0;
+                WaitForWpf(() => FindPermissionButton(window, "Blackout display", "✓ Allow") is not null, "blackout display effective state");
+
+                var blackoutAllow = Assert.IsType<Button>(FindPermissionButton(window, "Blackout display", "✓ Allow"));
+                var clipboardBlock = Assert.IsType<Button>(FindPermissionButton(window, "Read PC clipboard", "✓ Block"));
+                Assert.Same(window.Resources["AccentBrush"], blackoutAllow.Background);
+                Assert.Equal(new Thickness(2), clipboardBlock.BorderThickness);
+            }
+            finally
+            {
+                window.Close();
+                webHost.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                AppPermissionSettings.Save(originalPermissions);
+            }
+        });
+    }
+
+    [Fact]
     public void DiagnosticsRendersStructuredApplicationLogAsThemedCards()
     {
         if (ShouldSkipNativeUiLayoutTests())
@@ -393,6 +449,28 @@ public sealed partial class HostUiLayoutTests
             DoWpfEvents();
             Thread.Sleep(10);
         }
+    }
+
+    private static Button? FindPermissionButton(DependencyObject root, string label, string text)
+    {
+        foreach (var panel in FindWpfDescendants<StackPanel>(root))
+        {
+            for (var index = 0; index < panel.Children.Count - 1; index++)
+            {
+                if (panel.Children[index] is not TextBlock { Text: var rowLabel } ||
+                    !string.Equals(rowLabel, label, StringComparison.Ordinal) ||
+                    panel.Children[index + 1] is not StackPanel row)
+                {
+                    continue;
+                }
+
+                return row.Children
+                    .OfType<Button>()
+                    .SingleOrDefault(button => string.Equals(button.Content?.ToString(), text, StringComparison.Ordinal));
+            }
+        }
+
+        return null;
     }
 
     private sealed class WpfApplicationScope : IDisposable

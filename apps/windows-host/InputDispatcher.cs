@@ -14,14 +14,20 @@ public sealed class InputDispatcher(IInputInjector inputInjector)
 
     public bool Dispatch(JsonElement message, out InputDispatchOutcome outcome)
     {
-        outcome = InputDispatchOutcome.Executed;
-        if (!message.TryGetProperty("type", out var typeProperty))
+        if (!ClientMessageValidator.TryReadType(message, out var type) || type is null ||
+            !ClientMessageValidator.TryDecodeInputMessage(message, type, out var command))
         {
+            outcome = InputDispatchOutcome.Executed;
             return false;
         }
 
-        var type = typeProperty.GetString();
-        if (type == "keyboard.special" && HostUiInputGuard.IsShowDesktopShortcut(message))
+        return Dispatch(command, out outcome);
+    }
+
+    internal bool Dispatch(ValidatedInputCommand command, out InputDispatchOutcome outcome)
+    {
+        outcome = InputDispatchOutcome.Executed;
+        if (command.Kind == InputCommandKind.KeyboardSpecial && HostUiInputGuard.IsShowDesktopShortcut(command))
         {
             outcome = HostUiInputGuard.TryShowDesktop()
                 ? InputDispatchOutcome.Executed
@@ -29,7 +35,7 @@ public sealed class InputDispatcher(IInputInjector inputInjector)
             return true;
         }
 
-        if (type == "keyboard.special" && HostUiInputGuard.IsMinimizeWindowShortcut(message))
+        if (command.Kind == InputCommandKind.KeyboardSpecial && HostUiInputGuard.IsMinimizeWindowShortcut(command))
         {
             outcome = HostUiInputGuard.TryMinimizeForegroundWindow()
                 ? InputDispatchOutcome.Executed
@@ -37,20 +43,20 @@ public sealed class InputDispatcher(IInputInjector inputInjector)
             return true;
         }
 
-        if (HostUiInputGuard.ShouldBlockClientInput(type, message, out var protectedCommandExecuted))
+        if (HostUiInputGuard.ShouldBlockClientInput(command, out var protectedCommandExecuted))
         {
             outcome = protectedCommandExecuted ? InputDispatchOutcome.Executed : InputDispatchOutcome.Blocked;
             return true;
         }
 
-        switch (type)
+        switch (command.Kind)
         {
-            case "pointer.move":
-                _inputInjector.MoveMouse(GetNumber(message, "dx"), GetNumber(message, "dy"));
+            case InputCommandKind.PointerMove:
+                _inputInjector.MoveMouse(command.Dx, command.Dy);
                 return true;
-            case "pointer.button":
-                var button = GetString(message, "button");
-                var action = GetString(message, "action");
+            case InputCommandKind.PointerButton:
+                var button = command.Button ?? string.Empty;
+                var action = command.Action ?? string.Empty;
                 _inputInjector.MouseButton(button, action);
                 if (ShouldRecheckTaskbarAfterLeftButton(button, action) && HostUiInputGuard.IsPointerOverTaskbar())
                 {
@@ -58,17 +64,17 @@ public sealed class InputDispatcher(IInputInjector inputInjector)
                 }
 
                 return true;
-            case "pointer.wheel":
-                _inputInjector.Scroll(GetNumber(message, "dx"), GetNumber(message, "dy"));
+            case InputCommandKind.PointerWheel:
+                _inputInjector.Scroll(command.Dx, command.Dy);
                 return true;
-            case "pointer.zoom":
-                _inputInjector.Zoom(GetString(message, "direction"));
+            case InputCommandKind.PointerZoom:
+                _inputInjector.Zoom(command.Action ?? string.Empty);
                 return true;
-            case "keyboard.text":
-                TypeTextWithLineBreaks(GetString(message, "text"));
+            case InputCommandKind.KeyboardText:
+                TypeTextWithLineBreaks(command.Text ?? string.Empty);
                 return true;
-            case "keyboard.special":
-                DispatchSpecialKey(message);
+            case InputCommandKind.KeyboardSpecial:
+                DispatchSpecialKey(command.Key ?? string.Empty, command.Modifiers);
                 return true;
             default:
                 return false;
@@ -132,11 +138,8 @@ public sealed class InputDispatcher(IInputInjector inputInjector)
         }
     }
 
-    private void DispatchSpecialKey(JsonElement message)
+    private void DispatchSpecialKey(string key, IReadOnlyList<string> modifiers)
     {
-        var key = GetString(message, "key");
-        var modifiers = GetModifiers(message);
-
         if (TryResolveShortcutAlias(key, out var shortcutKey, out var shortcutModifiers))
         {
             _inputInjector.SpecialKey(shortcutKey, shortcutModifiers);
@@ -175,30 +178,6 @@ public sealed class InputDispatcher(IInputInjector inputInjector)
             (string.IsNullOrWhiteSpace(button) || string.Equals(button, "left", StringComparison.OrdinalIgnoreCase));
     }
 
-    private static int GetNumber(JsonElement message, string propertyName)
-    {
-        return message.TryGetProperty(propertyName, out var value) && value.TryGetDouble(out var number)
-            ? (int)Math.Clamp(Math.Round(number), -5000, 5000)
-            : 0;
-    }
-
-    private static string GetString(JsonElement message, string propertyName)
-    {
-        return message.TryGetProperty(propertyName, out var value) ? value.GetString() ?? string.Empty : string.Empty;
-    }
-
-    private static string[] GetModifiers(JsonElement message)
-    {
-        if (!message.TryGetProperty("modifiers", out var modifiers) || modifiers.ValueKind != JsonValueKind.Array)
-        {
-            return [];
-        }
-
-        return [.. modifiers.EnumerateArray()
-            .Select(modifier => modifier.GetString())
-            .Where(modifier => !string.IsNullOrWhiteSpace(modifier))
-            .Select(modifier => modifier!)];
-    }
 }
 
 public enum InputDispatchOutcome

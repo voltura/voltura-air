@@ -18,8 +18,11 @@ public sealed class SendInputInjector : IInputInjector
     private const ushort ControlKey = 0x11;
     private const int WheelScale = 9;
     private const int ZoomWheelDelta = 120;
+    private const int TextCodeUnitsPerBatch = 64;
+    private static readonly int InputSize = Marshal.SizeOf<Input>();
     private readonly Lock _sendGate = new();
     private readonly ISendInputNative _native;
+    private readonly Input[] _singleInput = new Input[1];
 
     public SendInputInjector()
         : this(new User32SendInputNative())
@@ -95,13 +98,42 @@ public sealed class SendInputInjector : IInputInjector
 
     public void TypeText(string text)
     {
-        foreach (var codeUnit in text)
+        for (var start = 0; start < text.Length;)
         {
-            SendInputs(
-                "keyboard.text",
-                KeyboardInput(0, codeUnit, KeyEventFUnicode),
-                KeyboardInput(0, codeUnit, KeyEventFUnicode | KeyEventFKeyUp));
+            var length = GetTextBatchLength(text, start);
+            var inputs = new Input[length * 2];
+            for (var offset = 0; offset < length; offset++)
+            {
+                var codeUnit = text[start + offset];
+                var inputOffset = offset * 2;
+                inputs[inputOffset] = KeyboardInput(0, codeUnit, KeyEventFUnicode);
+                inputs[inputOffset + 1] = KeyboardInput(0, codeUnit, KeyEventFUnicode | KeyEventFKeyUp);
+            }
+
+            try
+            {
+                SendInputs("keyboard.text", inputs);
+            }
+            catch (InputDispatchException ex) when (ex.AcceptedCount > 0 && ex.AcceptedCount % 2 != 0)
+            {
+                var acceptedDown = inputs[ex.AcceptedCount - 1].Data.Keyboard.ScanCode;
+                var cleanupSucceeded = TryReleaseUnicodeKey(acceptedDown);
+                throw ex.WithCleanup(cleanupAttempted: true, cleanupSucceeded);
+            }
+
+            start += length;
         }
+    }
+
+    private static int GetTextBatchLength(string text, int start)
+    {
+        var length = Math.Min(TextCodeUnitsPerBatch, text.Length - start);
+        var nextIndex = start + length;
+        return nextIndex < text.Length &&
+            char.IsHighSurrogate(text[nextIndex - 1]) &&
+            char.IsLowSurrogate(text[nextIndex])
+                ? length - 1
+                : length;
     }
 
     public void SpecialKey(string key, IReadOnlyList<string> modifiers)
@@ -151,23 +183,50 @@ public sealed class SendInputInjector : IInputInjector
 
     private void SendMouse(int dx, int dy, int mouseData, uint flags)
     {
-        SendInputs("mouse", MouseInput(dx, dy, mouseData, flags));
+        SendSingleInput("mouse", MouseInput(dx, dy, mouseData, flags));
     }
 
     private void SendInputs(string operation, params Input[] inputs)
     {
         lock (_sendGate)
         {
-            var sent = _native.Send(inputs, Marshal.SizeOf<Input>(), out var win32Error);
-            if (sent != inputs.Length)
-            {
-                throw new InputDispatchException(
-                    "Windows did not accept all input events.",
-                    operation,
-                    inputs.Length,
-                    (int)sent,
-                    win32Error);
-            }
+            SendInputsCore(operation, inputs);
+        }
+    }
+
+    private void SendSingleInput(string operation, Input input)
+    {
+        lock (_sendGate)
+        {
+            _singleInput[0] = input;
+            SendInputsCore(operation, _singleInput);
+        }
+    }
+
+    private void SendInputsCore(string operation, Input[] inputs)
+    {
+        var sent = _native.Send(inputs, InputSize, out var win32Error);
+        if (sent != inputs.Length)
+        {
+            throw new InputDispatchException(
+                "Windows did not accept all input events.",
+                operation,
+                inputs.Length,
+                (int)sent,
+                win32Error);
+        }
+    }
+
+    private bool TryReleaseUnicodeKey(ushort scanCode)
+    {
+        try
+        {
+            SendSingleInput("keyboard.text.cleanup", KeyboardInput(0, scanCode, KeyEventFUnicode | KeyEventFKeyUp));
+            return true;
+        }
+        catch (InputDispatchException)
+        {
+            return false;
         }
     }
 

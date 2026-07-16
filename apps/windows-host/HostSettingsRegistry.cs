@@ -16,9 +16,11 @@ internal static class HostSettingsRegistry
     private static string? s_isolatedSettingsKeyPath;
 
     internal static string SettingsKeyPath => Volatile.Read(ref s_settingsKeyPath);
+    internal static event Action? SettingsScopeChanged;
 
     internal static IDisposable BeginIsolatedScope()
     {
+        string settingsKeyPath;
         lock (Gate)
         {
             if (s_isolatedSettingsKeyPath is not null)
@@ -26,12 +28,14 @@ internal static class HostSettingsRegistry
                 throw new InvalidOperationException("An isolated Voltura Air settings scope is already active.");
             }
 
-            var settingsKeyPath = $@"{IsolatedSettingsRootKeyPath}\{Guid.NewGuid():N}";
+            settingsKeyPath = $@"{IsolatedSettingsRootKeyPath}\{Guid.NewGuid():N}";
             using var key = Registry.CurrentUser.CreateSubKey(settingsKeyPath, writable: true);
             s_isolatedSettingsKeyPath = settingsKeyPath;
             Volatile.Write(ref s_settingsKeyPath, settingsKeyPath);
-            return new IsolatedScope(settingsKeyPath);
         }
+
+        SettingsScopeChanged?.Invoke();
+        return new IsolatedScope(settingsKeyPath);
     }
 
     private sealed class IsolatedScope(string settingsKeyPath) : IDisposable
@@ -65,6 +69,8 @@ internal static class HostSettingsRegistry
                     // cannot affect the production settings key.
                 }
             }
+
+            SettingsScopeChanged?.Invoke();
         }
     }
 }

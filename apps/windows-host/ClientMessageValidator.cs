@@ -61,13 +61,8 @@ internal static class ClientMessageValidator
         return true;
     }
 
-    public static bool IsValidAuthenticatedMessage(JsonElement root)
+    public static bool IsValidAuthenticatedMessage(JsonElement root, string type)
     {
-        if (!TryReadType(root, out var type))
-        {
-            return false;
-        }
-
         return type switch
         {
             "pair.disconnect" => true,
@@ -102,22 +97,80 @@ internal static class ClientMessageValidator
                 IsValidOperationId(clipboardOperationId),
             "audio.mute.toggle" => true,
             "audio.volume.set" => TryGetNumber(root, "volume", 0, 100, out _),
-            "pointer.move" => HasValidOptionalSequence(root) &&
-                TryGetNumber(root, "dx", -MaxPointerDelta, MaxPointerDelta, out _) &&
-                TryGetNumber(root, "dy", -MaxPointerDelta, MaxPointerDelta, out _),
-            "pointer.button" => HasValidOptionalSequence(root) &&
-                TryGetOneOf(root, "button", "left", "right") &&
-                TryGetOneOf(root, "action", "down", "up", "click"),
-            "pointer.wheel" => HasValidOptionalSequence(root) &&
-                TryGetNumber(root, "dx", -MaxPointerDelta, MaxPointerDelta, out _) &&
-                TryGetNumber(root, "dy", -MaxPointerDelta, MaxPointerDelta, out _),
-            "pointer.zoom" => HasValidOptionalSequence(root) && TryGetOneOf(root, "direction", "in", "out"),
-            "keyboard.text" => HasValidOptionalSequence(root) && TryGetRequiredString(root, "text", TextTransferLimits.MaxTextLength, allowEmpty: true, out _),
-            "keyboard.special" => HasValidOptionalSequence(root) &&
-                TryGetRequiredString(root, "key", MaxKeyLength, allowEmpty: false, out _) &&
-                TryGetOptionalStringArray(root, "modifiers", MaxModifierCount, MaxModifierLength),
+            "pointer.move" or "pointer.button" or "pointer.wheel" or "pointer.zoom" or "keyboard.text" or "keyboard.special" =>
+                TryDecodeInputMessage(root, type, out _),
             _ => false
         };
+    }
+
+    public static bool TryDecodeInputMessage(JsonElement root, string type, out ValidatedInputCommand command)
+    {
+        command = default;
+        if (!TryGetOptionalSequence(root, out var sequence))
+        {
+            return false;
+        }
+
+        switch (type)
+        {
+            case "pointer.move":
+                if (!TryGetPointerDelta(root, "dx", out var moveDx) ||
+                    !TryGetPointerDelta(root, "dy", out var moveDy))
+                {
+                    return false;
+                }
+
+                command = new ValidatedInputCommand(InputCommandKind.PointerMove, sequence, Dx: moveDx, Dy: moveDy);
+                return true;
+            case "pointer.button":
+                if (!TryGetRequiredString(root, "button", MaxMetadataLength, allowEmpty: false, out var button) ||
+                    button is not ("left" or "right") ||
+                    !TryGetRequiredString(root, "action", MaxMetadataLength, allowEmpty: false, out var buttonAction) ||
+                    buttonAction is not ("down" or "up" or "click"))
+                {
+                    return false;
+                }
+
+                command = new ValidatedInputCommand(InputCommandKind.PointerButton, sequence, Button: button, Action: buttonAction);
+                return true;
+            case "pointer.wheel":
+                if (!TryGetPointerDelta(root, "dx", out var wheelDx) ||
+                    !TryGetPointerDelta(root, "dy", out var wheelDy))
+                {
+                    return false;
+                }
+
+                command = new ValidatedInputCommand(InputCommandKind.PointerWheel, sequence, Dx: wheelDx, Dy: wheelDy);
+                return true;
+            case "pointer.zoom":
+                if (!TryGetRequiredString(root, "direction", MaxMetadataLength, allowEmpty: false, out var direction) ||
+                    direction is not ("in" or "out"))
+                {
+                    return false;
+                }
+
+                command = new ValidatedInputCommand(InputCommandKind.PointerZoom, sequence, Action: direction);
+                return true;
+            case "keyboard.text":
+                if (!TryGetRequiredString(root, "text", TextTransferLimits.MaxTextLength, allowEmpty: true, out var text))
+                {
+                    return false;
+                }
+
+                command = new ValidatedInputCommand(InputCommandKind.KeyboardText, sequence, Text: text);
+                return true;
+            case "keyboard.special":
+                if (!TryGetRequiredString(root, "key", MaxKeyLength, allowEmpty: false, out var key) ||
+                    !TryGetOptionalStringArray(root, "modifiers", MaxModifierCount, MaxModifierLength, out var modifiers))
+                {
+                    return false;
+                }
+
+                command = new ValidatedInputCommand(InputCommandKind.KeyboardSpecial, sequence, Key: key, ModifierValues: modifiers);
+                return true;
+            default:
+                return false;
+        }
     }
 
     private static bool IsValidAppLaunchActionId(string actionId)
@@ -169,24 +222,31 @@ internal static class ClientMessageValidator
             value <= max;
     }
 
-    private static bool HasValidOptionalSequence(JsonElement root)
+    private static bool TryGetOptionalSequence(JsonElement root, out long? sequence)
     {
-        return !root.TryGetProperty("seq", out var property) ||
-            (property.ValueKind == JsonValueKind.Number && property.TryGetInt64(out var value) && value > 0);
-    }
+        sequence = null;
+        if (!root.TryGetProperty("seq", out var property))
+        {
+            return true;
+        }
 
-    private static bool TryGetOneOf(JsonElement root, string propertyName, params string[] allowedValues)
-    {
-        if (!TryGetRequiredString(root, propertyName, MaxMetadataLength, allowEmpty: false, out var value))
+        if (property.ValueKind != JsonValueKind.Number || !property.TryGetInt64(out var value) || value <= 0)
         {
             return false;
         }
 
-        return allowedValues.Contains(value, StringComparer.Ordinal);
+        sequence = value;
+        return true;
     }
 
-    private static bool TryGetOptionalStringArray(JsonElement root, string propertyName, int maxItems, int maxItemLength)
+    private static bool TryGetOptionalStringArray(
+        JsonElement root,
+        string propertyName,
+        int maxItems,
+        int maxItemLength,
+        out string[] values)
     {
+        values = [];
         if (!root.TryGetProperty(propertyName, out var property) || property.ValueKind == JsonValueKind.Null)
         {
             return true;
@@ -197,7 +257,7 @@ internal static class ClientMessageValidator
             return false;
         }
 
-        var count = 0;
+        var items = new List<string>(Math.Min(maxItems, property.GetArrayLength()));
         foreach (var item in property.EnumerateArray())
         {
             if (item.ValueKind != JsonValueKind.String)
@@ -211,13 +271,26 @@ internal static class ClientMessageValidator
                 return false;
             }
 
-            count++;
-            if (count > maxItems)
+            items.Add(value);
+            if (items.Count > maxItems)
             {
                 return false;
             }
         }
 
+        values = [.. items];
+        return true;
+    }
+
+    private static bool TryGetPointerDelta(JsonElement root, string propertyName, out int value)
+    {
+        value = 0;
+        if (!TryGetNumber(root, propertyName, -MaxPointerDelta, MaxPointerDelta, out var number))
+        {
+            return false;
+        }
+
+        value = (int)Math.Clamp(Math.Round(number), -MaxPointerDelta, MaxPointerDelta);
         return true;
     }
 }

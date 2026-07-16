@@ -9,10 +9,10 @@ public sealed class AppLogTests
     private static readonly DateTimeOffset TestNow = DateTimeOffset.Parse("2026-07-13T10:00:00Z", CultureInfo.InvariantCulture);
 
     [Fact]
-    public void DisabledLogWritesNoFile()
+    public async Task DisabledLogWritesNoFile()
     {
         using var folder = new TemporaryFolder();
-        var log = CreateLog(folder, enabled: false);
+        await using var log = CreateLog(folder, enabled: false);
         var changes = 0;
         log.Changed += (_, _) => changes += 1;
 
@@ -23,10 +23,10 @@ public sealed class AppLogTests
     }
 
     [Fact]
-    public void EnabledLogWritesStructuredSanitizedEntries()
+    public async Task EnabledLogWritesStructuredSanitizedEntries()
     {
         using var folder = new TemporaryFolder();
-        var log = CreateLog(folder);
+        await using var log = CreateLog(folder);
         var changes = 0;
         log.Changed += (_, _) => changes += 1;
 
@@ -39,6 +39,7 @@ public sealed class AppLogTests
             Outcome: "execution_failed",
             Code: "VAIR-POWER-EXECUTION-FAILED",
             Win32Error: 5));
+        await log.FlushAsync();
 
         var path = Assert.Single(Directory.EnumerateFiles(folder.Path));
         Assert.EndsWith("app-log-2026-07-13.jsonl", path);
@@ -51,11 +52,11 @@ public sealed class AppLogTests
     }
 
     [Fact]
-    public void ReadFiltersByDateEventSourceActionAndClient()
+    public async Task ReadFiltersByDateEventSourceActionAndClient()
     {
         using var folder = new TemporaryFolder();
         var now = TestNow;
-        var log = new AppLog(() => true, () => 30, () => now, folder.Path);
+        await using var log = new AppLog(() => true, () => 30, () => now, folder.Path);
         log.Write(new AppLogEntry("host_action", "windows_host", Action: "enable_windows_locking", Outcome: "failed"));
         log.Write(new AppLogEntry("action_taken", "remote_client", "client-a", "system.power", "lock", "execution_failed"));
         log.Write(new AppLogEntry("action_taken", "remote_client", "client-b", "system.power", "displayOff", "request_accepted"));
@@ -76,25 +77,26 @@ public sealed class AppLogTests
     }
 
     [Fact]
-    public void WritePrunesFilesOlderThanConfiguredMaximumAge()
+    public async Task WritePrunesFilesOlderThanConfiguredMaximumAge()
     {
         using var folder = new TemporaryFolder();
         var oldPath = Path.Combine(folder.Path, "app-log-2026-07-01.jsonl");
         File.WriteAllText(oldPath, "{}" + Environment.NewLine);
         File.SetLastWriteTimeUtc(oldPath, TestNow.UtcDateTime.AddDays(-3));
-        var log = CreateLog(folder, maxAgeDays: 2);
+        await using var log = CreateLog(folder, maxAgeDays: 2);
 
         log.Write(new AppLogEntry("host_action", "windows_host", Action: "test"));
+        await log.FlushAsync();
 
         Assert.False(File.Exists(oldPath));
         Assert.Single(Directory.EnumerateFiles(folder.Path));
     }
 
     [Fact]
-    public void DeleteAllRemovesApplicationLogFiles()
+    public async Task DeleteAllRemovesApplicationLogFiles()
     {
         using var folder = new TemporaryFolder();
-        var log = CreateLog(folder);
+        await using var log = CreateLog(folder);
         log.Write(new AppLogEntry("host_action", "windows_host", Action: "test"));
 
         var result = log.DeleteAll();
@@ -105,10 +107,10 @@ public sealed class AppLogTests
     }
 
     [Fact]
-    public void KeepsNewEntriesReadableAfterQueries()
+    public async Task KeepsNewEntriesReadableAfterQueries()
     {
         using var folder = new TemporaryFolder();
-        var log = CreateLog(folder);
+        await using var log = CreateLog(folder);
         var localDate = DateOnly.FromDateTime(TestNow.LocalDateTime);
 
         log.Write(new AppLogEntry("host_action", "windows_host", Action: "first"));
@@ -121,10 +123,10 @@ public sealed class AppLogTests
     }
 
     [Fact]
-    public void LoggingFailureNeverBreaksHostActions()
+    public async Task LoggingFailureNeverBreaksHostActions()
     {
         using var folder = new TemporaryFolder();
-        var log = new AppLog(
+        await using var log = new AppLog(
             () => throw new InvalidOperationException("settings unavailable"),
             () => 2,
             () => TestNow,
@@ -134,6 +136,81 @@ public sealed class AppLogTests
 
         Assert.Null(exception);
         Assert.Empty(Directory.EnumerateFiles(folder.Path));
+    }
+
+    [Fact]
+    public async Task FullWriteQueueDropsWithoutBlockingAndRecordsBackpressure()
+    {
+        using var folder = new TemporaryFolder();
+        using var writerEntered = new ManualResetEventSlim();
+        using var releaseWriter = new ManualResetEventSlim();
+        var blocked = 0;
+        await using var log = new AppLog(
+            () => true,
+            () => 2,
+            () => TestNow,
+            folder.Path,
+            (path, line) =>
+            {
+                if (Interlocked.Exchange(ref blocked, 1) == 0)
+                {
+                    writerEntered.Set();
+                    releaseWriter.Wait(TimeSpan.FromSeconds(3));
+                }
+
+                File.AppendAllText(path, line + Environment.NewLine);
+            });
+
+        log.Write(new AppLogEntry("host_action", "windows_host", Action: "first"));
+        Assert.True(writerEntered.Wait(TimeSpan.FromSeconds(3)));
+        try
+        {
+            for (var index = 0; index < 600; index++)
+            {
+                log.Write(new AppLogEntry("host_action", "windows_host", Action: $"queued-{index}"));
+            }
+        }
+        finally
+        {
+            releaseWriter.Set();
+        }
+
+        await log.FlushAsync();
+        var localDate = DateOnly.FromDateTime(TestNow.LocalDateTime);
+        var result = log.Read(new AppLogQuery(localDate, localDate, Action: "application_log_backpressure"));
+
+        var backpressure = Assert.Single(result.Entries);
+        Assert.Equal("entries_dropped", backpressure.Outcome);
+        Assert.StartsWith("count=", backpressure.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DisposeFlushesAcceptedEntries()
+    {
+        using var folder = new TemporaryFolder();
+        var log = CreateLog(folder);
+
+        log.Write(new AppLogEntry("host_action", "windows_host", Action: "before-shutdown"));
+        await log.DisposeAsync();
+
+        var path = Assert.Single(Directory.EnumerateFiles(folder.Path));
+        Assert.Contains("before-shutdown", File.ReadAllText(path), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ChangedSubscriberCanReadPersistedEntries()
+    {
+        using var folder = new TemporaryFolder();
+        await using var log = CreateLog(folder);
+        var localDate = DateOnly.FromDateTime(TestNow.LocalDateTime);
+        var observed = new TaskCompletionSource<AppLogReadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        log.Changed += (_, _) => observed.TrySetResult(log.Read(new AppLogQuery(localDate, localDate)));
+
+        log.Write(new AppLogEntry("host_action", "windows_host", Action: "event-read"));
+        await log.FlushAsync();
+        var result = await observed.Task.WaitAsync(TimeSpan.FromSeconds(3));
+
+        Assert.Equal("event-read", Assert.Single(result.Entries).Action);
     }
 
     private static AppLog CreateLog(TemporaryFolder folder, bool enabled = true, int maxAgeDays = 30)

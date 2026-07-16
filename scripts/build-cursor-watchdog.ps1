@@ -78,8 +78,8 @@ BEGIN
         BLOCK "000004B0"
         BEGIN
             VALUE "CompanyName", "Voltura AB"
-            VALUE "Comments", "Voltura Air Windows host"
-            VALUE "FileDescription", "Voltura Air Cursor Watchdog"
+            VALUE "Comments", "Restores the user's Windows cursor scheme if Voltura Air stops unexpectedly."
+            VALUE "FileDescription", "Voltura Air Cursor Recovery Watchdog"
             VALUE "FileVersion", "$fileVersion"
             VALUE "InternalName", "VolturaAir.CursorWatchdog"
             VALUE "LegalCopyright", "Copyright (c) Voltura AB"

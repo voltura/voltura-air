@@ -101,7 +101,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Supports duplicate cleanup.
 - Supports per-device permission overrides.
 - Supports a host default pointer speed with per-device overrides.
-- Supports a default-off host-wide Custom pointer with a colour and size selected in Windows Preferences and on/off control from paired devices.
+- Supports a default-off host-wide Custom pointer with a colour and size selected in Windows Preferences and on/off control from paired devices. Its separate cursor recovery watchdog is on by default and can be disabled only with a visible warning.
 
 ### Permissions and capabilities
 
@@ -130,9 +130,11 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 
 - Acknowledges dispatched input events when the host advertises input acknowledgement support.
 - Coalesces active movement to animation frames and uses low-rate acknowledgement barriers plus WebSocket-buffer limits to prevent delayed pointer queues without adding per-move replies or idle polling.
+- Decodes and bounds each authenticated pointer or keyboard message once before dispatch, keeps host-control settings in memory after startup, and reuses the native one-input movement buffer so steady pointer input performs no Registry access or one-element input-array allocation.
+- Sends Unicode text to Windows in bounded batches of up to 64 code units without splitting surrogate pairs. Partial native batches report failure, and an unmatched accepted Unicode key-down is released before the failure reaches the client.
 - Reports input dispatch failures to the mobile client instead of silently leaving dead controls.
 - Moves the Windows pointer.
-- Applies the optional host-wide Custom pointer across Windows. Its size and color are chosen in host Preferences, and paired devices can turn it on or off. The cursor watchdog restores the configured Windows cursor scheme after unexpected host termination.
+- Applies the optional host-wide Custom pointer across Windows. Its size and color are chosen in host Preferences, and paired devices can turn it on or off. The default-on cursor recovery watchdog restores the configured Windows cursor scheme after unexpected host termination, including forced development-host process-tree shutdown; normal shutdown performs the same restoration in the host.
 - Sends left/right mouse button down/up/click.
 - Sends vertical and horizontal wheel scroll.
 - Sends pinch zoom as Ctrl + mouse wheel.
@@ -169,7 +171,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Supports PC sleep when allowed by host permissions.
 - Locks the current Windows session with `LockWorkStation` when permission and the current-user policy allow it.
 - Reports accepted, denied, unsupported, policy-disabled, policy-unavailable, and failed power/session requests without disconnecting the client.
-- Offers opt-in daily JSON Lines application logging for troubleshooting. Logging is off by default, keeps files normally shareable, and allows reads without holding the protocol writer lock. It records remote command flow plus local host actions such as Windows-lock policy writes, readback failures, and native lock tests without typed text, opened web addresses, pointer coordinates, or pairing credentials.
+- Offers opt-in daily JSON Lines application logging for troubleshooting. Logging is off by default, keeps files normally shareable, and sends sanitized entries through one bounded single-writer queue so filesystem work never blocks protocol input. Accepted entries flush during clean host shutdown; if the queue fills, later diagnostics include a sanitized dropped-entry count. Reads flush accepted entries first and do not hold the protocol writer path. The log records remote command flow plus local host actions such as Windows-lock policy writes, readback failures, and native lock tests without typed text, opened web addresses, pointer coordinates, or pairing credentials.
 - Opens Diagnostics directly on a dedicated Application log view, with System details available from a clear top-level switch. The log view exposes its **Write application log** toggle directly and clearly distinguishes disabled logging from an empty filtered result. It uses themed activity cards, a two-month date-range picker plus event, source, action, and client filters, filtered copy, open-folder, confirmed delete actions, and an optional session-only **Automatic log refresh** toggle that is off by default. Log reads run off the WPF dispatcher, repeated requests are coalesced, and unchanged results retain their existing visuals. Automatic refresh reacts to successful host log writes only while the view is visible instead of polling a timer. Retention is configurable from 1 to 30 days with a 2-day default. Input commands record both receipt and their sanitized executed or blocked outcome, including the Remote mode minimize action, without logging typed text. Only the record area scrolls, so the filter and action controls remain reachable.
 - Blacks out every connected monitor with a topmost black WPF curtain without changing display power state. Windows, networking, and remote control remain active; any local or remote mouse/keyboard interaction removes the curtain, and touch or pen input also dismisses it locally. Ordinary remote movement bypasses the WPF dispatcher when no curtain is active.
 - Starts the native Windows screen saver only when Windows reports screen saving enabled and a configured `.scr` program exists. The action is omitted from host and mobile UI when unavailable.

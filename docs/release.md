@@ -83,7 +83,9 @@ It reads the version from the root
 `package.json` when `-Version` is omitted. Packaging then runs
 `scripts/verify-windows-version.ps1` and fails if the host EXE, native cursor
 watchdog, host DLL, or either installer exposes missing or stale Windows File Explorer
-version metadata.
+version metadata. The watchdog check also requires the human-readable
+**Voltura Air Cursor Recovery Watchdog** description and its cursor-restoration
+comment so Task Manager and File Properties explain the helper's purpose.
 
 For a quick local build of only the small, framework-dependent installer, run:
 

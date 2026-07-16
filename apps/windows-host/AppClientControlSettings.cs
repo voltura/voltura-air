@@ -4,13 +4,19 @@ public static class AppClientControlSettings
 {
     private static string SettingsKeyPath => HostSettingsRegistry.SettingsKeyPath;
     private const string ValueName = "AllowPairedDeviceHostControl";
+    private static int _enabled;
+
+    static AppClientControlSettings()
+    {
+        HostSettingsRegistry.SettingsScopeChanged += RefreshCachedValue;
+        RefreshCachedValue();
+    }
 
     public static event EventHandler? Changed;
 
     public static bool IsEnabled()
     {
-        using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: false);
-        return key?.GetValue(ValueName) is int value && value != 0;
+        return Volatile.Read(ref _enabled) != 0;
     }
 
     public static void SetEnabled(bool enabled)
@@ -19,10 +25,29 @@ public static class AppClientControlSettings
         using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: true) ??
             Microsoft.Win32.Registry.CurrentUser.CreateSubKey(SettingsKeyPath, writable: true);
         key.SetValue(ValueName, enabled ? 1 : 0, Microsoft.Win32.RegistryValueKind.DWord);
+        Volatile.Write(ref _enabled, enabled ? 1 : 0);
 
         if (current != enabled)
         {
             Changed?.Invoke(null, EventArgs.Empty);
         }
+    }
+
+    private static bool ReadEnabled()
+    {
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: false);
+            return key?.GetValue(ValueName) is int value && value != 0;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            return false;
+        }
+    }
+
+    private static void RefreshCachedValue()
+    {
+        Volatile.Write(ref _enabled, ReadEnabled() ? 1 : 0);
     }
 }

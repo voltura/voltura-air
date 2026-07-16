@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { readPreferredClientPort, stopChild, stopWindowsNodeListenersOnDevPorts } from "./dev-shared.mjs";
+import { readPreferredClientPort, stopChild, stopExistingHost, stopWindowsNodeListenersOnDevPorts } from "./dev-shared.mjs";
 
 const clientPort = readPreferredClientPort();
 const childEnv = {
@@ -80,6 +80,13 @@ function shutdown(signal, exitCode = 0) {
   }
 
   shuttingDown = true;
+  try {
+    stopExistingHost();
+  } catch (error) {
+    console.error(error);
+    exitCode = 1;
+  }
+
   for (const child of children) {
     stopChild(child, signal);
   }

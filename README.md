@@ -88,7 +88,7 @@ selection behavior is documented in
 [docs/manual-network-selection.md](docs/manual-network-selection.md). Protocol
 message shapes are documented in [docs/protocol.md](docs/protocol.md).
 
-The optional **Custom pointer** applies across the desktop. Choose its size and color in Windows Preferences, or turn it on and off from a paired device. It restores the user's normal scheme when switched off or when the host exits. UAC prompts, the lock screen, and other secure Windows surfaces cannot be remotely controlled.
+The optional **Custom pointer** applies across the desktop. Choose its size and color in Windows Preferences, or turn it on and off from a paired device. It restores the user's normal scheme when switched off or during a normal host exit. A default-on cursor recovery watchdog also restores the scheme after a crash or forced host termination; disabling **Use cursor recovery watchdog** in **Preferences > Custom pointer** shows a warning because an unexpected exit can otherwise leave the custom cursor active. UAC prompts, the lock screen, and other secure Windows surfaces cannot be remotely controlled.
 
 ## Requirements
 
@@ -267,7 +267,7 @@ npm run branch:sync
 
 The helper fetches the latest `origin/main` and merges it into the current branch without switching branches. It refuses a dirty worktree or `main`; resolve any merge conflicts through the normal Git workflow.
 
-`npm run dev:host` stops any existing `VolturaAir.Host.exe` process before starting `dotnet run` so the Debug build output and preferred port are not locked. Set a client URL when the phone should load a separate web client:
+`npm run dev:host` stops any existing `VolturaAir.Host.exe` process before starting `dotnet run` so the Debug build output and preferred port are not locked. It terminates the host without killing the cursor recovery watchdog and waits for recovery to finish, including when the command is stopped with Ctrl+C. Set a client URL when the phone should load a separate web client:
 
 ```powershell
 $env:VOLTURA_AIR_CLIENT_URL = "http://192.168.1.20:5173"

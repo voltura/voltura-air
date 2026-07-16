@@ -536,6 +536,13 @@ function shutdown(signal, exitCode = 0) {
         await browserContext.close().catch(() => {});
       }
 
+      try {
+        stopExistingHost();
+      } catch (error) {
+        console.error(error);
+        exitCode = 1;
+      }
+
       for (const child of children) {
         stopChild(child, signal);
       }

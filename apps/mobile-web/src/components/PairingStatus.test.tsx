@@ -16,6 +16,22 @@ vi.mock("../pairingFeedback", async (importOriginal) => {
 });
 
 describe("PairingStatus", () => {
+  it("keeps keyboard focus inside blocking connection feedback", () => {
+    render(
+      <PairingStatus
+        activePcUnavailable
+        message="PC is not available"
+        onPrimaryAction={vi.fn()}
+      />
+    );
+
+    const heading = screen.getByRole("heading", { name: "PC not available" });
+    expect(heading).toBe(document.activeElement);
+
+    fireEvent.keyDown(heading, { key: "Tab" });
+    expect(screen.getByRole("button", { name: "Try reconnect" })).toBe(document.activeElement);
+  });
+
   it("shows copied diagnostics as a toast when the selected PC is unavailable", async () => {
     vi.mocked(copyTextToClipboard).mockResolvedValueOnce("copied");
 

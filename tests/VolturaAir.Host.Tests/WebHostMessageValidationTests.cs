@@ -113,7 +113,7 @@ public sealed class WebHostMessageValidationTests : WebHostServiceTestBase
             pairToken = token
         });
         var inputError = await SendAndReceiveAsync(socket, new { type = "keyboard.special", key = "Tab", modifiers = new[] { "Alt" }, seq = 7 });
-        var inputAck = await SendAndReceiveAsync(socket, new { type = "pointer.move", dx = 3, dy = -2, seq = 8 });
+        var inputAck = await SendAndReceiveAsync(socket, new { type = "pointer.move", dx = 3.7, dy = -2.2, seq = 8 });
 
         Assert.Equal("pair.accepted", paired.GetProperty("type").GetString());
         Assert.Equal("input.error", inputError.GetProperty("type").GetString());
@@ -122,6 +122,6 @@ public sealed class WebHostMessageValidationTests : WebHostServiceTestBase
         Assert.Equal("input.ack", inputAck.GetProperty("type").GetString());
         Assert.Equal(8, inputAck.GetProperty("seq").GetInt64());
         Assert.Equal(WebSocketState.Open, socket.State);
-        Assert.Equal(new[] { "MoveMouse:3:-2" }, fixture.InputInjector.Events);
+        Assert.Equal(new[] { "MoveMouse:4:-2" }, fixture.InputInjector.Events);
     }
 }

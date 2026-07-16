@@ -1,5 +1,4 @@
 using System.Net.WebSockets;
-using System.Text.Json;
 
 namespace VolturaAir.Host;
 
@@ -7,19 +6,17 @@ public sealed partial class WebHostService
 {
     private async Task HandleInputMessageAsync(
         WebSocket socket,
-        JsonElement root,
+        ValidatedInputCommand command,
         string clientId,
         CancellationToken cancellationToken)
     {
-        var sequence = TryGetInputSequence(root, out var parsedSequence) ? parsedSequence : (long?)null;
-        var messageType = ClientMessageValidator.TryReadType(root, out var parsedMessageType)
-            ? parsedMessageType ?? "unknown"
-            : "unknown";
+        var sequence = command.Sequence;
+        var messageType = command.Type;
 
         try
         {
             _ = _powerController.DismissBlackoutIfActive();
-            if (!_inputDispatcher.Dispatch(root, out var dispatchOutcome))
+            if (!_inputDispatcher.Dispatch(command, out var dispatchOutcome))
             {
                 await SendInputErrorAsync(socket, sequence, "VAIR-INPUT-UNSUPPORTED", "Unsupported input message.", cancellationToken);
                 await CloseAuthenticatedSocketAsync(
@@ -40,7 +37,7 @@ public sealed partial class WebHostService
                     {
                         "pointer.button" => "pointer_button",
                         "keyboard.text" => "text_input",
-                        _ => GetLoggedCommandAction(messageType, root)
+                        _ => GetLoggedCommandAction(messageType, command)
                     },
                     dispatchOutcome switch
                     {
@@ -65,7 +62,7 @@ public sealed partial class WebHostService
         }
         catch (Exception ex) when (ex is not WebSocketException and not OperationCanceledException and not ObjectDisposedException)
         {
-            WriteInputDispatchDiagnostic(messageType, root, ex);
+            WriteInputDispatchDiagnostic(command, ex);
             var code = ex is InputDispatchException
                 ? "VAIR-INPUT-NATIVE-SEND-FAILED"
                 : "VAIR-INPUT-DISPATCH-FAILED";
@@ -78,15 +75,20 @@ public sealed partial class WebHostService
         }
     }
 
-    private static void WriteInputDispatchDiagnostic(string type, JsonElement root, Exception exception)
+    private static void WriteInputDispatchDiagnostic(ValidatedInputCommand command, Exception exception)
+    {
+        WriteInputDispatchDiagnostic(command.Type, command.Key, string.Join("+", command.Modifiers), exception);
+    }
+
+    private static void WriteInputDispatchDiagnostic(string type, string? key, string modifiers, Exception exception)
     {
         if (exception is InputDispatchException inputException)
         {
             Console.Error.WriteLine(
                 "Voltura Air input dispatch failed: type={0}, key={1}, modifiers={2}, requested={3}, accepted={4}, win32={5}, cleanupAttempted={6}, cleanupSucceeded={7}",
                 type,
-                GetString(root, "key"),
-                GetModifierDiagnostic(root),
+                key,
+                modifiers,
                 inputException.RequestedCount,
                 inputException.AcceptedCount,
                 inputException.Win32Error,

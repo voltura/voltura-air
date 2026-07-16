@@ -440,6 +440,40 @@ public sealed partial class HostUiLayoutTests
         Dispatcher.PushFrame(frame);
     }
 
+    [Fact]
+    public void InformationDialogUsesASingleCloseAction()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            var dialog = new ThemedConfirmationDialog(
+                "Cursor recovery watchdog",
+                "Explains the recovery behavior.",
+                "Close",
+                null,
+                ConfirmationTone.Warning);
+            try
+            {
+                dialog.Show();
+                dialog.UpdateLayout();
+
+                var action = Assert.Single(FindWpfDescendants<Button>(dialog));
+                Assert.Equal("Close", action.Content);
+                Assert.True(action.IsDefault);
+                Assert.DoesNotContain(FindWpfDescendants<Button>(dialog), button => button.IsCancel);
+            }
+            finally
+            {
+                dialog.Close();
+            }
+        });
+    }
+
     private static void WaitForWpf(Func<bool> condition, string expectation = "WPF update")
     {
         var deadline = DateTimeOffset.UtcNow.AddSeconds(3);

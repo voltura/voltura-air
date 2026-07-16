@@ -12,6 +12,10 @@ installer artwork in `installer/assets`.
   and host settings are separate from the normal host. A browser can pair with
   it over loopback, but neither that pairing nor any paired-client setting can
   change the user's device list or host preferences.
+- The isolated registry starts with Custom pointer disabled, so screenshot
+  capture does not start a cursor watchdog. Before capture, the launcher stops
+  any existing host without killing its recovery monitor and waits for that
+  monitor to restore the cursor scheme and exit.
 - A Windows Firewall prompt is unnecessary for this loopback-only preview and
   can be denied. Automated protocol tests use an in-memory server and should not
   display a firewall prompt at all.
@@ -86,6 +90,11 @@ is interrupted, any stranded key is separate from the real settings key and
 cannot alter network mode, manual host or adapter choice, manual port, or
 automatic address and port history. Screenshot capture must never alter a real
 phone's saved connection endpoint.
+
+The host refreshes its in-memory hot-path setting caches whenever it enters or
+leaves the isolated registry scope. A setting cached before screenshot startup
+therefore cannot leak its production value into capture, and leaving capture
+reloads the cached production value without rewriting it.
 
 The capture script includes Connect plus **Preferences > Global permissions** in
 both themes. It launches a capture-only host with the requested accordion open;

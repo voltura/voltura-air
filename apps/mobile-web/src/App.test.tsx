@@ -273,6 +273,58 @@ describe("App header and mode navigation", () => {
     expect(screen.queryByRole("button", { name: "Keyboard mode" })).toBeNull();
   });
 
+  it("keeps a manually requested reconnect front and center until it succeeds", async () => {
+    const selectPc = vi.fn();
+    mockConnection({
+      state: "unavailable",
+      message: "PC is currently not available. Retrying...",
+      selectPc
+    });
+    const view = render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Try reconnect" }));
+
+    expect(selectPc).toHaveBeenCalledWith("pc-a");
+    expect(screen.getByRole("dialog").getAttribute("aria-modal")).toBe("true");
+    expect(screen.getByRole("heading", { name: "Reconnecting to Very Long Living Room Editing Workstation…" })).toBe(document.activeElement);
+    expect((screen.getByRole("button", { name: "Reconnecting…" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: "Expand trackpad" })).toBeTruthy();
+
+    mockConnection({ state: "connecting", message: "Connecting...", selectPc });
+    view.rerender(<App />);
+    expect(screen.getByRole("dialog").getAttribute("aria-busy")).toBe("true");
+
+    mockConnection({ state: "paired", message: "Connected", selectPc });
+    view.rerender(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Connected to Very Long Living Room Editing Workstation" })).toBeTruthy();
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull();
+    }, { timeout: 1200 });
+  });
+
+  it("returns a failed manual reconnect to the unavailable feedback without exposing a false connected state", async () => {
+    const selectPc = vi.fn();
+    mockConnection({ state: "unavailable", message: "PC is currently not available. Retrying...", selectPc });
+    const view = render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Try reconnect" }));
+    mockConnection({ state: "connecting", message: "Connecting...", selectPc });
+    view.rerender(<App />);
+    expect(screen.getByRole("heading", { name: /Reconnecting to/ })).toBeTruthy();
+
+    mockConnection({ state: "unavailable", message: "PC is currently not available. Retrying...", selectPc });
+    view.rerender(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "PC not available" })).toBeTruthy();
+    });
+    expect((screen.getByRole("button", { name: "Try reconnect" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.queryByText("Connected to Very Long Living Room Editing Workstation")).toBeNull();
+  });
+
   it("applies stored split mode placement and chrome preferences on a landscape tablet", () => {
     localStorage.setItem("voltura-air.trackpadSettings.client-a.pc-a", JSON.stringify({
       enableSplitMode: true,

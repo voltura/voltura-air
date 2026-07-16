@@ -91,7 +91,7 @@ Check these items first:
 - Refresh the mobile page or scan a fresh QR code if browser storage was cleaned.
 
 Custom pointer applies across the Windows desktop. Switch it off in **Preferences > Custom pointer** or from a paired device to restore the configured Windows
-cursor scheme immediately. The cursor watchdog also restores that scheme if the
+cursor scheme immediately. The default-on cursor recovery watchdog also restores that scheme if the
 host exits unexpectedly. The host shows **Remote control paused** once and the
 phone shows **Administrator app active** when a higher-integrity foreground app
 blocks injected input. Choose **Show desktop** on the phone
@@ -99,6 +99,12 @@ to minimize desktop windows through the Windows shell, or choose **Continue** to
 return to the client controls. A compact recovery toast remains available to reopen
 the dialog until a normal foreground application returns, when it clears automatically. Input to UAC prompts, the lock screen,
 and other secure desktops remains outside host control.
+
+## Custom pointer remains after Voltura Air closes
+
+Keep **Preferences > Custom pointer > Use cursor recovery watchdog** selected. The host restores the normal Windows cursor scheme during an orderly exit; the watchdog covers crashes, forced termination, and Ctrl+C development shutdown. When the setting is cleared, its label and information button turn red to indicate that only orderly-exit restoration remains. Reopen Voltura Air and switch **Custom pointer** off to recover, or reload the selected pointer scheme from Windows Mouse settings.
+
+While Custom pointer and its recovery setting are active, Task Manager may show `VolturaAir.CursorWatchdog.exe` as **Voltura Air Cursor Recovery Watchdog**. It is a small native helper installed beside `VolturaAir.Host.exe`, consumes no second .NET runtime, waits for that host process, restores the cursor scheme if needed, and then exits. File Properties > Details identifies Product name **Voltura Air**, Company **Voltura AB**, the recovery description, version, copyright, original filename, and the explanatory comment “Restores the user's Windows cursor scheme if Voltura Air stops unexpectedly.” Current beta release executables are not code-signed, so Windows can still report an unknown publisher; confirm that the file is beside the Voltura Air host from an official release rather than relying on metadata alone.
 
 ## Pointer movement feels delayed or continues after touch ends
 

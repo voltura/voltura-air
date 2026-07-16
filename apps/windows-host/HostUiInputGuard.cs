@@ -36,18 +36,29 @@ internal static partial class HostUiInputGuard
 
     public static bool ShouldBlockClientInput(string? messageType, JsonElement message, out bool protectedCommandExecuted)
     {
+        if (messageType is null || !ClientMessageValidator.TryDecodeInputMessage(message, messageType, out var command))
+        {
+            protectedCommandExecuted = false;
+            return false;
+        }
+
+        return ShouldBlockClientInput(command, out protectedCommandExecuted);
+    }
+
+    internal static bool ShouldBlockClientInput(ValidatedInputCommand command, out bool protectedCommandExecuted)
+    {
         protectedCommandExecuted = false;
         if (AppClientControlSettings.IsEnabled())
         {
             return false;
         }
 
-        return messageType switch
+        return command.Kind switch
         {
-            "keyboard.text" => IsForegroundVolturaHostWindow(),
-            "keyboard.special" => ShouldBlockSpecialKey(out protectedCommandExecuted),
-            "pointer.button" => ShouldBlockPointerButton(message),
-            "pointer.wheel" or "pointer.zoom" => ShouldBlockPointerWheelOrZoom(),
+            InputCommandKind.KeyboardText => IsForegroundVolturaHostWindow(),
+            InputCommandKind.KeyboardSpecial => ShouldBlockSpecialKey(out protectedCommandExecuted),
+            InputCommandKind.PointerButton => ShouldBlockPointerButton(command),
+            InputCommandKind.PointerWheel or InputCommandKind.PointerZoom => ShouldBlockPointerWheelOrZoom(),
             _ => false
         };
     }
@@ -109,6 +120,13 @@ internal static partial class HostUiInputGuard
         return HasOnlyWinModifier(modifiers);
     }
 
+    internal static bool IsMinimizeWindowShortcut(ValidatedInputCommand command)
+    {
+        return command.Kind == InputCommandKind.KeyboardSpecial &&
+            string.Equals(command.Key, "ArrowDown", StringComparison.OrdinalIgnoreCase) &&
+            HasOnlyWinModifier(command.Modifiers);
+    }
+
     internal static bool IsShowDesktopShortcut(JsonElement message)
     {
         if (!message.TryGetProperty("key", out var keyProperty) ||
@@ -120,6 +138,13 @@ internal static partial class HostUiInputGuard
         }
 
         return HasOnlyWinModifier(modifiers);
+    }
+
+    internal static bool IsShowDesktopShortcut(ValidatedInputCommand command)
+    {
+        return command.Kind == InputCommandKind.KeyboardSpecial &&
+            string.Equals(command.Key, "D", StringComparison.OrdinalIgnoreCase) &&
+            HasOnlyWinModifier(command.Modifiers);
     }
 
     private static bool TryMinimizeAllDesktopWindows()
@@ -173,6 +198,11 @@ internal static partial class HostUiInputGuard
             !enumerator.MoveNext();
     }
 
+    private static bool HasOnlyWinModifier(IReadOnlyList<string> modifiers)
+    {
+        return modifiers.Count == 1 && string.Equals(modifiers[0], "Win", StringComparison.OrdinalIgnoreCase);
+    }
+
     public static bool IsRecentProtectedClientInput()
     {
         if (AppClientControlSettings.IsEnabled())
@@ -185,13 +215,11 @@ internal static partial class HostUiInputGuard
             DateTimeOffset.UtcNow - new DateTimeOffset(lastInputTicks, TimeSpan.Zero) <= RecentClientInputWindow;
     }
 
-    private static bool ShouldBlockPointerButton(JsonElement message)
+    private static bool ShouldBlockPointerButton(ValidatedInputCommand command)
     {
         MarkClientPointerInput();
 
-        var action = message.TryGetProperty("action", out var actionProperty)
-            ? actionProperty.GetString()
-            : null;
+        var action = command.Action;
 
         // Always allow button-up events so a remote mouse button cannot get stuck down.
         if (string.Equals(action, "up", StringComparison.OrdinalIgnoreCase))
@@ -204,7 +232,7 @@ internal static partial class HostUiInputGuard
             return false;
         }
 
-        if (IsLeftButton(message))
+        if (IsLeftButton(command))
         {
             TryRunWindowChromeCommand(windowHandle, hitTest);
         }
@@ -306,13 +334,9 @@ internal static partial class HostUiInputGuard
         };
     }
 
-    private static bool IsLeftButton(JsonElement message)
+    private static bool IsLeftButton(ValidatedInputCommand command)
     {
-        var button = message.TryGetProperty("button", out var buttonProperty)
-            ? buttonProperty.GetString()
-            : null;
-
-        return string.IsNullOrWhiteSpace(button) || string.Equals(button, "left", StringComparison.OrdinalIgnoreCase);
+        return string.IsNullOrWhiteSpace(command.Button) || string.Equals(command.Button, "left", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsVolturaHostWindow(nint windowHandle)

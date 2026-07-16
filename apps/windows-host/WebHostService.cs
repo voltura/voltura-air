@@ -34,6 +34,7 @@ public sealed partial class WebHostService : IAsyncDisposable
     private readonly IAwakeService _awakeService;
     private readonly IWorkstationLockPolicy _workstationLockPolicy;
     private readonly IAppLog _appLog;
+    private readonly bool _ownsAppLog;
     private readonly PairingAttemptRateLimiter _pairingAttemptRateLimiter = new();
     private readonly WebSocketConnectionRegistry _connections = new();
     private readonly SemaphoreSlim _webSocketSessionSlots = new(MaxConcurrentWebSocketSessions, MaxConcurrentWebSocketSessions);
@@ -78,6 +79,7 @@ public sealed partial class WebHostService : IAsyncDisposable
         _textDestinationService = textDestinationService ?? new FocusedTextDestinationService(inputDispatcher);
         _clipboardTextReader = clipboardTextReader ?? new WindowsClipboardTextReader();
         _powerController = powerController ?? (isolatedTestMode ? new NoOpSystemPowerController() : new SystemPowerController());
+        _ownsAppLog = appLog is null && !isolatedTestMode;
         _appLog = appLog ?? (isolatedTestMode ? NullAppLog.Instance : new AppLog());
         _awakeService = awakeService ?? (isolatedTestMode
             ? new NoOpAwakeService()
@@ -347,7 +349,17 @@ public sealed partial class WebHostService : IAsyncDisposable
                     }
                     finally
                     {
-                        _lifetimeCancellation.Dispose();
+                        try
+                        {
+                            _lifetimeCancellation.Dispose();
+                        }
+                        finally
+                        {
+                            if (_ownsAppLog && _appLog is IAsyncDisposable asyncDisposableAppLog)
+                            {
+                                await asyncDisposableAppLog.DisposeAsync();
+                            }
+                        }
                     }
                 }
             }

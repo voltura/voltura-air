@@ -83,6 +83,15 @@ The pairing screen should expose the relevant actions directly near the error:
 - **Open troubleshooting help** for same Wi-Fi/LAN, firewall, stale QR, and changed host/port guidance.
 - **Copy diagnostics** for repeat failures.
 
+An explicit **Try reconnect** action keeps the blocking connection-feedback
+panel in front of the previously selected mode. While that one attempt is in
+progress, the panel shows the target PC name, a progress indicator, and a
+disabled reconnect action; the underlying mode remains visible only as preserved
+state and cannot be operated. Success is confirmed briefly before returning to
+that mode. Failure returns directly to **PC not available** with recovery actions
+and diagnostics. Automatic background retries remain non-blocking and do not
+replay input that occurred while disconnected.
+
 When **Scan new QR code** succeeds from `unavailable`, detach the old socket
 before closing it, keep the old PC saved, move to `needs-pairing`, and show the
 new QR's device-name confirmation. Late close or error events from the old

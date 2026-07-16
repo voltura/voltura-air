@@ -24,6 +24,7 @@ import { useDeveloperRefreshLongPress } from "./useDeveloperRefreshLongPress";
 import { usePairingController } from "./pairing/usePairingController";
 import { supportsSplitModeLayout } from "./splitModeLayout";
 import { getModeDefinition, getModeTabs, type AppTab as Tab, type MainAppTab as MainTab, type ToolAppTab } from "./appModeTabs";
+import { useManualReconnectFeedback } from "./connection/useManualReconnectFeedback";
 
 export function App() {
   const initialPairing = useMemo(() => parsePairingLink(window.location.href, window.location.origin), []);
@@ -97,12 +98,14 @@ export function App() {
   const [isInputRecoveryDialogDismissed, setIsInputRecoveryDialogDismissed] = useState(false);
   const inputBlockedByElevation = hostStatus?.inputBlockedByElevation === true;
   const developerMode = hostStatus?.developerMode === true;
+  const { progress: manualReconnectProgress, reconnect: reconnectActivePc } = useManualReconnectFeedback(activePc?.id ?? null, state, selectPc);
 
   useEffect(() => {
     if (!inputBlockedByElevation) {
       setIsInputRecoveryDialogDismissed(false);
     }
   }, [inputBlockedByElevation]);
+
   const hostPointerSpeed = hostStatus?.pointerSpeed;
   const hostDefaultRemoteMode = hostStatus?.defaultRemoteMode;
   const {
@@ -347,6 +350,18 @@ export function App() {
     setIsSettingsOpen(false);
   };
 
+  const tryManualReconnect = () => {
+    if (!activePc) {
+      return;
+    }
+
+    setIsModeSelectorOpen(false);
+    setIsSettingsOpen(false);
+    reconnectActivePc();
+  };
+
+  const manualReconnectVisible = manualReconnectProgress !== undefined;
+
   return (
     <main className={`app-shell ${isBottomModeNavigationVisible ? "has-mode-navigation" : ""} ${tab === "trackpad" ? "trackpad-active" : ""} ${tab === "remote" ? "remote-active" : ""} ${isRemoteUtilityPanelOpen ? "remote-utility-open" : ""} ${tab === "presentation" ? "presentation-active" : ""} ${tab === "text-transfer" ? "text-transfer-active" : ""} ${tab === "clipboard-read" ? "clipboard-read-active" : ""} ${shouldShowSplitMode ? "split-mode-active" : ""} ${shouldShowSplitMode && trackpadSettings.splitShowModeButtons ? "split-show-mode-buttons" : ""} ${shouldShowSplitMode && trackpadSettings.splitShowStatusRow ? "split-show-status-row" : ""} ${areModeTabsCollapsed ? "mode-tabs-collapsed" : ""} ${isModeSelectorOpen ? "mode-selector-open" : ""}`}>
       <header className="top-bar">
@@ -410,12 +425,22 @@ export function App() {
 
       {state === "rejected" && !isSettingsOpen && <PairingStatus diagnostics={mobileDiagnostics} message={message} onPrimaryAction={scanPairingQr} onManualHostSubmit={connectManualHost} primaryLabel="Take photo of new QR code" />}
 
-      {state === "unavailable" && activePc && !isSettingsOpen && (
+      {manualReconnectVisible && activePc && !isSettingsOpen && (
+        <PairingStatus
+          activePcUnavailable
+          connectionProgress={manualReconnectProgress}
+          message={message}
+          onPrimaryAction={tryManualReconnect}
+          pcName={getPcDisplayName(activePc)}
+        />
+      )}
+
+      {state === "unavailable" && activePc && !isSettingsOpen && !manualReconnectVisible && (
         <PairingStatus
           activePcUnavailable
           diagnostics={mobileDiagnostics}
           message={message}
-          onPrimaryAction={() => selectPc(activePc.id)}
+          onPrimaryAction={tryManualReconnect}
           onSecondaryAction={scanPairingQr}
           onManualHostSubmit={connectManualHost}
         />

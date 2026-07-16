@@ -31,7 +31,7 @@ public sealed partial class WebHostService
         }
         catch (Exception ex) when (ex is not WebSocketException and not OperationCanceledException and not ObjectDisposedException)
         {
-            WriteInputDispatchDiagnostic("text.send", root, ex);
+            WriteInputDispatchDiagnostic("text.send", null, string.Empty, ex);
             LogCommandOutcome(clientId, "text.send", "text_transfer", "failed");
             await SendTextTransferResultAsync(
                 socket,

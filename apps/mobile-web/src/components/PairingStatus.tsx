@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
-import { Camera, Power, RefreshCw } from "lucide-react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Camera, CheckCircle2, LoaderCircle, Power, RefreshCw } from "lucide-react";
 import { copyTextToClipboard } from "../mobileDiagnostics";
 import { buildPairingDiagnostics, getPairingFeedback, normalizeManualHostInput } from "../pairingFeedback";
 
 type PairingStatusProps = {
   activePcUnavailable?: boolean;
+  connectionProgress?: "reconnecting" | "connected";
   deviceName?: string;
   diagnostics?: string;
   message: string;
@@ -13,10 +14,12 @@ type PairingStatusProps = {
   onPrimaryAction: () => void;
   onSecondaryAction?: () => void;
   primaryLabel?: string;
+  pcName?: string;
 };
 
 export function PairingStatus({
   activePcUnavailable = false,
+  connectionProgress,
   deviceName,
   diagnostics,
   message,
@@ -24,9 +27,15 @@ export function PairingStatus({
   onManualHostSubmit,
   onPrimaryAction,
   onSecondaryAction,
-  primaryLabel
+  primaryLabel,
+  pcName
 }: PairingStatusProps) {
   const feedback = useMemo(() => getPairingFeedback(message, activePcUnavailable), [activePcUnavailable, message]);
+  const headingId = useId();
+  const descriptionId = useId();
+  const headingRef = useRef<HTMLHeadingElement | null>(null);
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const isBlocking = activePcUnavailable || connectionProgress !== undefined;
   const [showHelp, setShowHelp] = useState(false);
   const [showManualHost, setShowManualHost] = useState(false);
   const [manualHost, setManualHost] = useState("");
@@ -36,14 +45,12 @@ export function PairingStatus({
   const [manualDiagnostics, setManualDiagnostics] = useState("");
 
   useEffect(() => {
-    if (!activePcUnavailable) {
+    if (!isBlocking) {
       return;
     }
 
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
-  }, [activePcUnavailable]);
+    headingRef.current?.focus();
+  }, [connectionProgress, isBlocking]);
 
   useEffect(() => {
     if (!copyToast) {
@@ -88,19 +95,66 @@ export function PairingStatus({
     window.location.assign(target);
   };
 
+  const keepModalFocusInside = (event: React.KeyboardEvent<HTMLElement>) => {
+    if (!isBlocking || event.key !== "Tab") {
+      return;
+    }
+
+    const focusable = [...(sectionRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    ) ?? [])];
+    if (focusable.length === 0) {
+      event.preventDefault();
+      headingRef.current?.focus();
+      return;
+    }
+
+    const first = focusable[0];
+    const last = focusable.at(-1)!;
+    if (!focusable.includes(document.activeElement as HTMLElement)) {
+      event.preventDefault();
+      (event.shiftKey ? last : first).focus();
+    } else if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
+  const progressTitle = connectionProgress === "connected"
+    ? `Connected to ${pcName ?? "PC"}`
+    : `Reconnecting to ${pcName ?? "PC"}…`;
+  const progressBody = connectionProgress === "connected"
+    ? "Connection restored. Returning to your previous screen."
+    : "Checking whether Voltura Air is available.";
+
   return (
     <>
-      {activePcUnavailable && <div className="pairing-backdrop" aria-hidden="true" />}
+      {isBlocking && <div className="pairing-backdrop" aria-hidden="true" />}
       <section
-        className={`pairing-required ${activePcUnavailable ? "connection-unavailable" : ""} ${feedback.severity === "error" ? "pairing-feedback-error" : ""}`}
-        role="status"
+        ref={sectionRef}
+        className={`pairing-required ${isBlocking ? "connection-unavailable" : ""} ${connectionProgress ? `connection-${connectionProgress}` : ""} ${!connectionProgress && feedback.severity === "error" ? "pairing-feedback-error" : ""}`}
+        role={isBlocking ? "dialog" : "status"}
+        aria-modal={isBlocking || undefined}
+        aria-labelledby={headingId}
+        aria-describedby={descriptionId}
+        aria-busy={connectionProgress === "reconnecting" || undefined}
         aria-live="polite"
+        onKeyDown={keepModalFocusInside}
       >
-        {activePcUnavailable ? <Power aria-hidden="true" /> : <Camera aria-hidden="true" />}
-        <p className="pairing-status-label">{feedback.severity === "info" ? "Pairing" : "Pairing feedback"}</p>
-        <h1>{feedback.title}</h1>
-        <p>{feedback.body}</p>
-        {feedback.diagnosticCode && <p className="pairing-diagnostic-code">{feedback.diagnosticCode}</p>}
+        {connectionProgress === "reconnecting"
+          ? <LoaderCircle className="pairing-progress-icon" aria-hidden="true" />
+          : connectionProgress === "connected"
+            ? <CheckCircle2 aria-hidden="true" />
+            : activePcUnavailable
+              ? <Power aria-hidden="true" />
+              : <Camera aria-hidden="true" />}
+        <p className="pairing-status-label">{connectionProgress ? "Connection status" : feedback.severity === "info" ? "Pairing" : "Pairing feedback"}</p>
+        <h1 ref={headingRef} id={headingId} tabIndex={isBlocking ? -1 : undefined}>{connectionProgress ? progressTitle : feedback.title}</h1>
+        <p id={descriptionId}>{connectionProgress ? progressBody : feedback.body}</p>
+        {!connectionProgress && feedback.diagnosticCode && <p className="pairing-diagnostic-code">{feedback.diagnosticCode}</p>}
 
         {deviceName !== undefined && onDeviceNameChange && (
           <label className="pairing-device-name">
@@ -114,7 +168,7 @@ export function PairingStatus({
           </label>
         )}
 
-        {showHelp && feedback.hints.length > 0 && (
+        {!connectionProgress && showHelp && feedback.hints.length > 0 && (
           <ul className="pairing-help-list">
             {feedback.hints.map((hint) => (
               <li key={hint}>{hint}</li>
@@ -123,17 +177,24 @@ export function PairingStatus({
         )}
 
         <div className="pairing-actions">
-          <button className="pairing-action-primary" type="button" onClick={onPrimaryAction}>
-            <RefreshCw aria-hidden="true" />
-            <span>{primaryLabel ?? feedback.primaryLabel}</span>
-          </button>
-          {onSecondaryAction && (
+          {connectionProgress === "reconnecting" ? (
+            <button className="pairing-action-primary" type="button" disabled>
+              <LoaderCircle className="pairing-progress-icon" aria-hidden="true" />
+              <span>Reconnecting…</span>
+            </button>
+          ) : connectionProgress !== "connected" && (
+            <button className="pairing-action-primary" type="button" onClick={onPrimaryAction}>
+              <RefreshCw aria-hidden="true" />
+              <span>{primaryLabel ?? feedback.primaryLabel}</span>
+            </button>
+          )}
+          {!connectionProgress && onSecondaryAction && (
             <button className="pairing-action-secondary" type="button" onClick={onSecondaryAction}>
               <Camera aria-hidden="true" />
               <span>Scan new QR code</span>
             </button>
           )}
-          {feedback.showRecoveryActions && (
+          {!connectionProgress && feedback.showRecoveryActions && (
             <>
               <button type="button" onClick={() => setShowManualHost((current) => !current)}>
                 <span>{showManualHost ? "Hide manual host" : "Enter host manually"}</span>
@@ -148,7 +209,7 @@ export function PairingStatus({
           )}
         </div>
 
-        {showManualHost && (
+        {!connectionProgress && showManualHost && (
           <form className="pairing-manual-host" onSubmit={submitManualHost}>
             <label>
               <span>Host or pairing link</span>

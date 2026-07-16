@@ -5,6 +5,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { stopExistingHost } from "./dev-shared.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const assetsDir = path.join(repoRoot, "docs", "site", "assets");
@@ -290,7 +291,7 @@ async function launchHost(theme, preferencesSection) {
 }
 
 async function stopRunningHost() {
-  await runPowerShell("Stop-Process -Name VolturaAir.Host -Force -ErrorAction SilentlyContinue; exit 0");
+  stopExistingHost();
 }
 
 async function stopProcess(child) {
@@ -395,10 +396,6 @@ async function waitForTextFile(filePath, timeoutMs) {
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function runPowerShell(script) {
-  await run("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script]);
 }
 
 async function run(command, args, options = {}) {

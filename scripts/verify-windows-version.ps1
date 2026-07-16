@@ -57,6 +57,7 @@ function Assert-VersionMetadata {
         [Parameter(Mandatory = $true)][string]$Label,
         [Parameter(Mandatory = $true)][string]$ExpectedFileVersion,
         [Parameter(Mandatory = $true)][string]$ExpectedDescription,
+        [string]$ExpectedComments,
         [string]$ExpectedInternalName,
         [string]$ExpectedOriginalFilename
     )
@@ -72,6 +73,7 @@ function Assert-VersionMetadata {
     $actualProductName = ([string]$versionInfo.ProductName).Trim()
     $actualCompanyName = ([string]$versionInfo.CompanyName).Trim()
     $actualDescription = ([string]$versionInfo.FileDescription).Trim()
+    $actualComments = ([string]$versionInfo.Comments).Trim()
     $actualInternalName = ([string]$versionInfo.InternalName).Trim()
     $actualOriginalFilename = ([string]$versionInfo.OriginalFilename).Trim()
 
@@ -92,6 +94,9 @@ function Assert-VersionMetadata {
     }
     if ($actualDescription -ne $ExpectedDescription) {
         throw "$Label description '$actualDescription' does not match '$ExpectedDescription': $Path"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedComments) -and $actualComments -ne $ExpectedComments) {
+        throw "$Label comments '$actualComments' do not match '$ExpectedComments': $Path"
     }
     if (-not [string]::IsNullOrWhiteSpace($ExpectedInternalName) -and $actualInternalName -ne $ExpectedInternalName) {
         throw "$Label internal name '$actualInternalName' does not match '$ExpectedInternalName': $Path"
@@ -122,7 +127,8 @@ Assert-VersionMetadata `
     -Path $watchdogExePath `
     -Label 'native cursor watchdog EXE' `
     -ExpectedFileVersion $windowsVersion `
-    -ExpectedDescription 'Voltura Air Cursor Watchdog' `
+    -ExpectedDescription 'Voltura Air Cursor Recovery Watchdog' `
+    -ExpectedComments "Restores the user's Windows cursor scheme if Voltura Air stops unexpectedly." `
     -ExpectedInternalName 'VolturaAir.CursorWatchdog' `
     -ExpectedOriginalFilename 'VolturaAir.CursorWatchdog.exe'
 

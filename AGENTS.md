@@ -45,6 +45,11 @@ updated as the app structure, tooling, and release process become concrete.
   test mode, stop it when validation finishes, and leave no competing host
   process running. Automated in-memory `TestServer` protocol tests are not host
   application instances and do not require stopping the running app.
+- Development, UI-validation, and screenshot launchers must stop the host
+  process without recursively terminating `VolturaAir.CursorWatchdog.exe`, then
+  wait for the watchdog to restore the Windows cursor scheme and exit before
+  launching another host. Do not use host-tree termination that defeats cursor
+  recovery.
 - Any temporary host that uses a temporary or empty pairing store for tests,
   screenshots, or UI validation must pass `--isolated-test-mode`. This mode uses
   the same single-instance scope as the normal host, binds only to `127.0.0.1`,

@@ -4,7 +4,11 @@ namespace VolturaAir.Host;
 
 public sealed partial class WebHostService
 {
-    private void LogReceivedClientCommand(string clientId, string type, JsonElement root)
+    private void LogReceivedClientCommand(
+        string clientId,
+        string type,
+        JsonElement root,
+        ValidatedInputCommand? inputCommand)
     {
         if (!ShouldLogClientCommand(type))
         {
@@ -21,7 +25,7 @@ public sealed partial class WebHostService
             "url.open" => "open_url",
             "pointer.button" => "pointer_button",
             "keyboard.text" => "text_input",
-            _ => GetLoggedCommandAction(type, root)
+            _ => GetLoggedCommandAction(type, inputCommand)
         };
         _appLog.Write(new AppLogEntry(
             Event: "command_received",
@@ -36,14 +40,14 @@ public sealed partial class WebHostService
         return type is not ("health.ping" or "status.get" or "pointer.move" or "pointer.wheel" or "pointer.zoom");
     }
 
-    private static string? GetLoggedCommandAction(string type, JsonElement root)
+    private static string? GetLoggedCommandAction(string type, ValidatedInputCommand? inputCommand)
     {
         if (type != "keyboard.special")
         {
             return null;
         }
 
-        return HostUiInputGuard.IsMinimizeWindowShortcut(root)
+        return inputCommand is { } command && HostUiInputGuard.IsMinimizeWindowShortcut(command)
             ? "minimize_window"
             : "special_key";
     }

@@ -19,12 +19,26 @@ public sealed partial class CustomPointerService : IDisposable
 
     private readonly Lock _gate = new();
     private readonly string _templateDirectory;
+    private readonly Func<bool> _useRecoveryMonitoring;
+    private readonly Action _ensureRecoveryMonitoring;
+    private readonly Action _stopRecoveryMonitoring;
     private bool _mayHaveApplied;
     private bool _disposed;
 
     public CustomPointerService()
+        : this(static () => false, static () => { }, static () => { })
+    {
+    }
+
+    internal CustomPointerService(
+        Func<bool> useRecoveryMonitoring,
+        Action ensureRecoveryMonitoring,
+        Action stopRecoveryMonitoring)
     {
         _templateDirectory = Path.Combine(AppContext.BaseDirectory, "Assets", "CustomPointerTemplates");
+        _useRecoveryMonitoring = useRecoveryMonitoring;
+        _ensureRecoveryMonitoring = ensureRecoveryMonitoring;
+        _stopRecoveryMonitoring = stopRecoveryMonitoring;
     }
 
     public void Apply(CustomPointerSettings settings)
@@ -35,11 +49,13 @@ public sealed partial class CustomPointerService : IDisposable
             if (!settings.Enabled)
             {
                 Restore();
+                _stopRecoveryMonitoring();
                 return;
             }
 
             try
             {
+                RefreshRecoveryMonitoringCore(customPointerActive: true);
                 _mayHaveApplied = true;
                 foreach (var role in Roles)
                 {
@@ -66,6 +82,7 @@ public sealed partial class CustomPointerService : IDisposable
             catch
             {
                 Restore();
+                _stopRecoveryMonitoring();
                 throw;
             }
         }
@@ -82,6 +99,27 @@ public sealed partial class CustomPointerService : IDisposable
         _mayHaveApplied = false;
     }
 
+    internal void RefreshRecoveryMonitoring()
+    {
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            RefreshRecoveryMonitoringCore(_mayHaveApplied);
+        }
+    }
+
+    private void RefreshRecoveryMonitoringCore(bool customPointerActive)
+    {
+        if (customPointerActive && _useRecoveryMonitoring())
+        {
+            _ensureRecoveryMonitoring();
+        }
+        else
+        {
+            _stopRecoveryMonitoring();
+        }
+    }
+
     public void Dispose()
     {
         lock (_gate)
@@ -92,6 +130,7 @@ public sealed partial class CustomPointerService : IDisposable
             }
 
             Restore();
+            _stopRecoveryMonitoring();
             _disposed = true;
         }
     }

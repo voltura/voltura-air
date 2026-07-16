@@ -23,10 +23,11 @@ const colours = {
   darkForeground: "#f7f2e9",
   lightBackground: "#f6f8fa",
   lightForeground: "#1c2227",
-  connected: "#27c58b",
-  disconnected: "#f0604b",
+  connected: "#13a10e",
+  disconnected: "#d13438",
 };
 const maskableBackground = [16, 20, 24];
+const tightArtworkScale = 0.98;
 const masterPath = path.join(brandingRoot, "voltura-air-master.png");
 const outputChecks = [];
 
@@ -43,13 +44,12 @@ if (masterDimensions.width < 512 || masterDimensions.height < 512) {
     `${masterLabel} is ${masterDimensions.width}x${masterDimensions.height}; the branding master must be at least 512px in each dimension.`,
   );
 }
-const masterDataUri = `data:image/png;base64,${masterPng.toString("base64")}`;
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 512, height: 512 } });
 
 try {
-  await loadMasters();
+  await loadMaster(masterPng);
   await clearStartupOutputs();
   await generateWebAssets();
   await generateWindowsAssets();
@@ -64,7 +64,8 @@ console.log(
   `Generated and validated ${outputChecks.length} Voltura Air branding files from assets/branding.`,
 );
 
-async function loadMasters() {
+async function loadMaster(masterPng) {
+  const masterDataUri = `data:image/png;base64,${masterPng.toString("base64")}`;
   await page.setContent(`<img id="master" src="${masterDataUri}" alt="">`, { waitUntil: "load" });
 
   const visibleBounds = await page.evaluate(() => {
@@ -115,17 +116,17 @@ async function clearStartupOutputs() {
 }
 
 async function generateWebAssets() {
-  const full = await renderSquare(512, { scale: 0.86 });
+  const full = await renderSquare(512, { scale: tightArtworkScale });
   await writeSvg(createEmbeddedSvg(full.png), [
     "apps/mobile-web/public/icon.svg",
     "docs/site/assets/voltura-air-icon.svg",
   ]);
 
-  const cropped = await renderSquare(512, { scale: 0.96 });
+  const cropped = await renderSquare(512, { scale: tightArtworkScale });
   await writeSvg(createEmbeddedSvg(cropped.png), ["apps/mobile-web/public/favicon.svg"]);
 
   for (const size of [16, 32]) {
-    const artwork = await renderSquare(size, { scale: 0.96 });
+    const artwork = await renderSquare(size, { scale: tightArtworkScale });
     await writePng(artwork, size, size, [
       `apps/mobile-web/public/favicon-${size}.png`,
       `docs/site/favicon-${size}.png`,
@@ -143,7 +144,7 @@ async function generateWebAssets() {
   ]);
 
   for (const size of [192, 512]) {
-    const anyIcon = await renderSquare(size, { scale: 0.86 });
+    const anyIcon = await renderSquare(size, { scale: tightArtworkScale });
     await writePng(anyIcon, size, size, [`apps/mobile-web/public/icons/icon-${size}.png`]);
 
     const maskableIcon = await renderSquare(size, {
@@ -163,7 +164,7 @@ async function generateWebAssets() {
   }
 
   const faviconSizes = [16, 32, 48];
-  const favicon = await renderIco(faviconSizes, 0.96);
+  const favicon = await renderIco(faviconSizes, tightArtworkScale);
   await writeIco(favicon, faviconSizes, [
     "apps/mobile-web/public/favicon.ico",
     "docs/site/favicon.ico",
@@ -171,12 +172,12 @@ async function generateWebAssets() {
 }
 
 async function generateWindowsAssets() {
-  const hostIcon = await renderSquare(256, { scale: 0.86 });
+  const hostIcon = await renderSquare(256, { scale: tightArtworkScale });
   await writePng(hostIcon, 256, 256, ["apps/windows-host/Assets/VolturaAir-256.png"]);
 
-  const applicationSizes = [16, 20, 24, 32, 40, 48, 64, 128, 256];
+  const applicationSizes = [16, 20, 24, 30, 32, 36, 40, 48, 60, 64, 72, 80, 96, 256];
   await writeIco(
-    await renderIco(applicationSizes, 0.96),
+    await renderIco(applicationSizes, tightArtworkScale),
     applicationSizes,
     ["apps/windows-host/Assets/VolturaAir.ico"],
   );
@@ -190,7 +191,7 @@ async function generateWindowsAssets() {
   const trayBuffers = {};
   for (const [status, target] of Object.entries(trayTargets)) {
     const badge = status === "default" ? null : status;
-    const buffer = await renderIco(traySizes, 0.86, badge);
+    const buffer = await renderIco(traySizes, tightArtworkScale, badge);
     trayBuffers[status] = buffer;
     await writeIco(buffer, traySizes, [target]);
   }
@@ -256,7 +257,10 @@ async function renderIco(sizes, scale, badge = null) {
   const images = [];
   for (const size of sizes) {
     const artwork = await renderSquare(size, { badge, scale });
-    images.push({ size, data: createDib(artwork.rgba, size) });
+    images.push({
+      size,
+      data: size === 256 ? artwork.png : createDib(artwork.rgba, size),
+    });
   }
   return createIco(images);
 }
@@ -270,6 +274,8 @@ async function renderSquare(size, { background = null, badge = null, scale }) {
     kind: "square",
     badge,
     badgeColour: badge ? colours[badge] : null,
+    badgeGlyphColour: badge ? colours.darkForeground : null,
+    badgeRimColour: badge ? colours.darkBackground : null,
     scale,
   });
 }
@@ -282,6 +288,8 @@ async function renderComposition(options) {
     canvas.width = input.width;
     canvas.height = input.height;
     const context = canvas.getContext("2d", { alpha: true });
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
 
     if (input.background) {
       context.fillStyle = input.background;
@@ -310,16 +318,16 @@ async function renderComposition(options) {
     if (input.kind === "square") {
       drawMaster(input.width / 2, input.height / 2, input.width * input.scale, input.height * input.scale);
       if (input.badge) {
-        const centreX = input.width * 0.82;
-        const centreY = input.height * 0.82;
-        const outerRadius = Math.max(2, input.width * 0.15);
-        const innerRadius = Math.max(1.25, input.width * 0.105);
+        const centreX = Math.round(input.width * 0.65 * 2) / 2;
+        const centreY = Math.round(input.height * 0.65 * 2) / 2;
+        const outerRadius = input.width * 0.34375;
+        const innerRadius = input.width * 0.3125;
         context.save();
         if (input.width >= 32) {
-          context.shadowColor = "rgba(0, 0, 0, 0.42)";
-          context.shadowBlur = input.width * 0.035;
+          context.shadowColor = "rgba(0, 0, 0, 0.55)";
+          context.shadowBlur = input.width * 0.03;
         }
-        context.fillStyle = "#f7f2e9";
+        context.fillStyle = input.badgeRimColour;
         context.beginPath();
         context.arc(centreX, centreY, outerRadius, 0, Math.PI * 2);
         context.fill();
@@ -328,6 +336,23 @@ async function renderComposition(options) {
         context.beginPath();
         context.arc(centreX, centreY, innerRadius, 0, Math.PI * 2);
         context.fill();
+
+        context.strokeStyle = input.badgeGlyphColour;
+        context.lineWidth = Math.max(1.5, input.width * 0.105);
+        context.lineCap = "round";
+        context.lineJoin = "round";
+        context.beginPath();
+        if (input.badge === "connected") {
+          context.moveTo(centreX - innerRadius * 0.46, centreY + innerRadius * 0.02);
+          context.lineTo(centreX - innerRadius * 0.12, centreY + innerRadius * 0.34);
+          context.lineTo(centreX + innerRadius * 0.48, centreY - innerRadius * 0.36);
+        } else {
+          context.moveTo(centreX - innerRadius * 0.38, centreY - innerRadius * 0.38);
+          context.lineTo(centreX + innerRadius * 0.38, centreY + innerRadius * 0.38);
+          context.moveTo(centreX + innerRadius * 0.38, centreY - innerRadius * 0.38);
+          context.lineTo(centreX - innerRadius * 0.38, centreY + innerRadius * 0.38);
+        }
+        context.stroke();
         context.restore();
       }
     } else if (input.kind === "installer-header") {

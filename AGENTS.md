@@ -149,8 +149,10 @@ updated as the app structure, tooling, and release process become concrete.
 ## Tooling
 
 - `assets/branding/voltura-air-master.png` is the single product artwork source.
-  Connected and disconnected tray states are generated as status badges over
-  that master. Run `npm run icons:generate` to regenerate and
+  Connected and disconnected tray states are generated as green-check and
+  muted-red-cross status badges over that master. Ordinary app and task-area
+  icons use a tight fit while maskable variants retain their safe zone. Run
+  `npm run icons:generate` to regenerate and
   validate mobile, iOS, Android, Windows host, NSIS, marketing-site, and
   README-referenced branding assets. Do not edit generated icon copies directly.
 - On Windows, run `npm run branding:generate` to regenerate static branding and

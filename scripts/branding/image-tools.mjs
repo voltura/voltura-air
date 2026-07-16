@@ -121,20 +121,80 @@ export function assertIco(buffer, expectedSizes, label) {
   }
 
   const actualSizes = [];
+  const seenSizes = new Set();
   for (let index = 0; index < count; index += 1) {
     const entryOffset = 6 + index * 16;
     const width = buffer.readUInt8(entryOffset) || 256;
     const height = buffer.readUInt8(entryOffset + 1) || 256;
+    const planes = buffer.readUInt16LE(entryOffset + 4);
+    const bitsPerPixel = buffer.readUInt16LE(entryOffset + 6);
     const byteLength = buffer.readUInt32LE(entryOffset + 8);
     const imageOffset = buffer.readUInt32LE(entryOffset + 12);
-    if (width !== height || imageOffset + byteLength > buffer.length) {
+    if (
+      width !== height ||
+      planes !== 1 ||
+      bitsPerPixel !== 32 ||
+      imageOffset + byteLength > buffer.length ||
+      seenSizes.has(width)
+    ) {
       throw new Error(`${label} contains an invalid ICO directory entry.`);
     }
+    seenSizes.add(width);
     actualSizes.push(width);
+
+    const frame = buffer.subarray(imageOffset, imageOffset + byteLength);
+    if (frame.subarray(0, pngSignature.length).equals(pngSignature)) {
+      if (width !== 256) {
+        throw new Error(`${label} stores unexpected ${width}px PNG-compressed ICO artwork.`);
+      }
+      const dimensions = getPngDimensions(frame, `${label} ${width}px frame`);
+      const bitDepth = frame.readUInt8(24);
+      const colourType = frame.readUInt8(25);
+      if (dimensions.width !== width || dimensions.height !== height || bitDepth !== 8 || colourType !== 6) {
+        throw new Error(`${label} has an invalid ${width}px RGBA PNG frame.`);
+      }
+      continue;
+    }
+
+    if (width === 256 || frame.length < 40) {
+      throw new Error(`${label} must store its 256px frame as a lossless RGBA PNG.`);
+    }
+    const headerSize = frame.readUInt32LE(0);
+    const dibWidth = frame.readInt32LE(4);
+    const dibHeight = frame.readInt32LE(8);
+    const dibPlanes = frame.readUInt16LE(12);
+    const dibBitsPerPixel = frame.readUInt16LE(14);
+    const compression = frame.readUInt32LE(16);
+    const pixelBytes = width * height * 4;
+    if (
+      headerSize < 40 ||
+      dibWidth !== width ||
+      dibHeight !== height * 2 ||
+      dibPlanes !== 1 ||
+      dibBitsPerPixel !== 32 ||
+      compression !== 0 ||
+      headerSize + pixelBytes > frame.length
+    ) {
+      throw new Error(`${label} has an invalid ${width}px 32-bit DIB frame.`);
+    }
+
+    let hasTransparentPixel = false;
+    let hasVisiblePixel = false;
+    for (let offset = headerSize + 3; offset < headerSize + pixelBytes; offset += 4) {
+      const alpha = frame[offset];
+      hasTransparentPixel ||= alpha === 0;
+      hasVisiblePixel ||= alpha > 0;
+    }
+    if (!hasTransparentPixel || !hasVisiblePixel) {
+      throw new Error(`${label} has missing or corrupted alpha in its ${width}px frame.`);
+    }
   }
 
   if (actualSizes.join(",") !== expectedSizes.join(",")) {
     throw new Error(`${label} has sizes ${actualSizes.join(",")}; expected ${expectedSizes.join(",")}.`);
+  }
+  if (expectedSizes.includes(256) && Math.max(...actualSizes) !== 256) {
+    throw new Error(`${label} must stop at a 256px largest frame.`);
   }
 }
 

@@ -170,11 +170,13 @@ This creates `VolturaAir-Setup-<version>-win-x64.exe` and skips the portable zip
 
 ## Regenerate Branding
 
-The single `assets/branding/voltura-air-master.png` artwork is the source of
-truth for every product icon. Connected and disconnected tray badges are added
-by the generator. After replacing that master PNG, regenerate the mobile, iOS,
-Android, Windows host, installer, marketing-site, and README-referenced assets
-with:
+The transparent, sticker-outlined `assets/branding/voltura-air-master.png`
+artwork is the source of truth for every generated product icon. The borderless
+`voltura-air-borderless-for-safekeeping.png` copy is retained only as an artwork
+backup and is not consumed by the scripts. The generator adds the Windows-green
+check connected badge and a quieter red cross disconnected badge. After
+replacing the production master PNG, regenerate the mobile, iOS, Android,
+Windows host, installer, marketing-site, and README-referenced assets with:
 
 ```powershell
 npm run icons:generate

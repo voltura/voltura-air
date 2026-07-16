@@ -26,8 +26,10 @@ Regenerate public static-site screenshots with:
 npm run screenshots:site
 ```
 
-The single artwork source is `assets/branding/voltura-air-master.png`;
-connected and disconnected tray badges are derived by the generator. Regenerate
+The sticker-outlined artwork source is
+`assets/branding/voltura-air-master.png`; the borderless safekeeping copy is not
+consumed by the scripts. The generator uses the production master for all static
+outputs and the large green-check and muted-red-cross tray badges. Regenerate
 all static mobile, iOS, Android, Windows host, NSIS, and marketing-site branding
 assets with:
 

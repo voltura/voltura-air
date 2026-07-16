@@ -41,7 +41,7 @@
   flex: 0 0 30px;
   border-radius: 999px;
   border-color: transparent;
-  color: var(--muted);
+  color: var(--accent);
   background: transparent;
   padding: 0;
 }
@@ -51,7 +51,7 @@
 .info-button:active {
   outline: none;
   border-color: transparent;
-  color: var(--muted);
+  color: var(--accent);
   background: transparent;
   box-shadow: none;
 }
@@ -86,7 +86,7 @@
 
 .info-dialog-detailed .info-dialog-actions {
   margin-top: auto;
-  justify-content: flex-start;
+  justify-content: flex-end;
 }
 
 .info-dialog::backdrop {

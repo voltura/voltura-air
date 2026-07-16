@@ -101,7 +101,7 @@ public partial class MainWindow
         }
     }
 
-    private StackPanel AddPreferencesSection(StackPanel parent, List<Expander> sections, string title)
+    private StackPanel AddPreferencesSection(StackPanel parent, List<Expander> sections, string title, bool participatesInAccordion = true)
     {
         var content = new StackPanel();
         var expander = new Expander
@@ -111,29 +111,33 @@ public partial class MainWindow
             IsExpanded = false,
             Style = (Style)Resources["PreferencesAccordionStyle"]
         };
-        expander.Expanded += (_, _) =>
+        if (participatesInAccordion)
         {
-            foreach (var section in sections)
+            expander.Expanded += (_, _) =>
             {
-                if (!ReferenceEquals(section, expander))
+                foreach (var section in sections)
                 {
-                    section.IsExpanded = false;
+                    if (!ReferenceEquals(section, expander))
+                    {
+                        section.IsExpanded = false;
+                    }
                 }
-            }
 
-            SetPreferencesTitle(title);
-            _ = expander.Dispatcher.InvokeAsync(
-                () => RevealExpandedPreferencesSection(expander, content),
-                DispatcherPriority.Loaded);
-        };
-        expander.Collapsed += (_, _) =>
-        {
-            if (sections.All(section => !section.IsExpanded))
+                SetPreferencesTitle(title);
+                _ = expander.Dispatcher.InvokeAsync(
+                    () => RevealExpandedPreferencesSection(expander, content),
+                    DispatcherPriority.Loaded);
+            };
+            expander.Collapsed += (_, _) =>
             {
-                SetPreferencesTitle(null);
-            }
-        };
-        sections.Add(expander);
+                if (sections.All(section => !section.IsExpanded))
+                {
+                    SetPreferencesTitle(null);
+                }
+            };
+            sections.Add(expander);
+        }
+
         parent.Children.Add(expander);
         if (string.Equals(_preferencesSectionToOpen, title, StringComparison.Ordinal))
         {

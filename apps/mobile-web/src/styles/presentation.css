@@ -37,35 +37,22 @@
   min-width: 0;
 }
 
+.presentation-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .presentation-header h1,
 .presentation-timer h2 {
   margin: 0;
 }
 
 .presentation-header p,
-.presentation-target-note,
 .presentation-timer-note,
 .presentation-milestone {
   margin: 5px 0 0;
   color: var(--muted);
-}
-
-.presentation-targets {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.presentation-targets button {
-  min-width: 0;
-  min-height: 48px;
-  padding-inline: 10px;
-}
-
-.presentation-targets button.active {
-  color: var(--on-accent);
-  border-color: var(--accent);
-  background: var(--accent);
 }
 
 .presentation-target-selector {
@@ -97,6 +84,12 @@
   padding: 0;
 }
 
+.presentation-target-selector-scrim:active {
+  color: transparent;
+  background: transparent;
+  border-color: transparent;
+}
+
 .presentation-target-selector-menu {
   position: absolute;
   z-index: 8;
@@ -122,11 +115,6 @@
   color: var(--on-accent);
   border-color: var(--accent);
   background: var(--accent);
-}
-
-.presentation-target-note {
-  min-height: 2.7em;
-  font-size: 0.9rem;
 }
 
 .presentation-permission-message,
@@ -199,6 +187,28 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
+  justify-content: flex-start;
+  padding: 8px;
+  text-align: left;
+}
+
+.presentation-timer-heading h2 {
+  flex: 1;
+}
+
+.presentation-timer-heading svg:last-child {
+  transition: transform 160ms ease;
+}
+
+.presentation-timer-heading[aria-expanded="false"] svg:last-child {
+  transform: rotate(-90deg);
+}
+
+.presentation-timer-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .presentation-time {
@@ -225,13 +235,17 @@
 
 .presentation-duration {
   display: grid;
-  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
   font-weight: 600;
 }
 
 .presentation-duration select {
-  width: 100%;
-  min-height: 46px;
+  width: min(190px, 48vw);
+  min-height: 52px;
+  font-size: 1rem;
+  font-weight: 600;
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -291,13 +305,8 @@
   }
 
   .presentation-header p,
-  .presentation-target-note,
   .presentation-timer-note {
     font-size: 0.78rem;
-  }
-
-  .presentation-target-note {
-    min-height: 0;
   }
 
   .presentation-navigation button {
@@ -314,10 +323,6 @@
 }
 
 @media (max-width: 380px) {
-  .presentation-targets {
-    grid-template-columns: 1fr;
-  }
-
   .presentation-actions {
     grid-template-columns: 1fr;
   }

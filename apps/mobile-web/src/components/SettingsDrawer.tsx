@@ -89,10 +89,6 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
         />
       </SettingsSectionDetails>
 
-      <SettingsSectionDetails section="custom-pointer" label="Custom pointer" isOpen={openSection === "custom-pointer"} onToggle={toggleSection}>
-        <CustomPointerSettingsSection customPointerEnabled={props.customPointerEnabled} setHostCustomPointer={props.setHostCustomPointer} />
-      </SettingsSectionDetails>
-
       <SettingsSectionDetails section="trackpad" label="Trackpad" isOpen={openSection === "trackpad"} onToggle={toggleSection}>
         <TrackpadSettingsSection
           onOpenGestureDebug={props.onOpenGestureDebug}
@@ -106,20 +102,12 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
         <KeyboardSettingsSection keyboardSettings={props.keyboardSettings} updateKeyboardSetting={props.updateKeyboardSetting} />
       </SettingsSectionDetails>
 
-      <SettingsSectionDetails section="split" label="Split mode" isOpen={openSection === "split"} onToggle={toggleSection}>
-        <SplitModeSettings settings={props.trackpadSettings} updateSetting={props.updateTrackpadSetting} />
-      </SettingsSectionDetails>
-
       <SettingsSectionDetails section="remote" label="Remote" isOpen={openSection === "remote"} onToggle={toggleSection}>
         <RemoteSettingsSection
           remoteSettings={props.remoteSettings}
           supportsRemoteLaunch={props.supportsRemoteLaunch}
           updateRemoteSetting={props.updateRemoteSetting}
         />
-      </SettingsSectionDetails>
-
-      <SettingsSectionDetails section="appearance" label="Appearance" isOpen={openSection === "appearance"} onToggle={toggleSection}>
-        <AppearanceSettingsSection setThemeMode={props.setThemeMode} themeMode={props.themeMode} />
       </SettingsSectionDetails>
 
       <SettingsSectionDetails section="app" label="App" isOpen={openSection === "app"} onToggle={toggleSection}>
@@ -132,6 +120,18 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
           refreshMessage={props.refreshMessage}
           updateAppSetting={props.updateAppSetting}
         />
+      </SettingsSectionDetails>
+
+      <SettingsSectionDetails section="appearance" label="Appearance" isOpen={openSection === "appearance"} onToggle={toggleSection}>
+        <AppearanceSettingsSection setThemeMode={props.setThemeMode} themeMode={props.themeMode} />
+      </SettingsSectionDetails>
+
+      <SettingsSectionDetails section="split" label="Split mode" isOpen={openSection === "split"} onToggle={toggleSection}>
+        <SplitModeSettings settings={props.trackpadSettings} updateSetting={props.updateTrackpadSetting} />
+      </SettingsSectionDetails>
+
+      <SettingsSectionDetails section="custom-pointer" label="Custom pointer" isOpen={openSection === "custom-pointer"} onToggle={toggleSection}>
+        <CustomPointerSettingsSection customPointerEnabled={props.customPointerEnabled} setHostCustomPointer={props.setHostCustomPointer} />
       </SettingsSectionDetails>
     </aside>
   );

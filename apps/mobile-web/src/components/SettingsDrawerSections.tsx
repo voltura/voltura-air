@@ -458,13 +458,13 @@ export function AppSettingsSection({
           <option value="clipboard-read">Get text from PC</option>
         </select>
       </label>
-      <div className="install-title">
-        <Download aria-hidden="true" />
-        <span>Home screen app</span>
-      </div>
-      {isInstalled ? (
-        <p>Voltura Air is already running like an installed app.</p>
-      ) : installPrompt ? (
+      {!isInstalled && (
+        <>
+          <div className="install-title">
+            <Download aria-hidden="true" />
+            <span>Home screen app</span>
+          </div>
+          {installPrompt ? (
         <>
           <p>Add Voltura Air to this device for a normal app icon and faster launching.</p>
           <button type="button" onClick={installApp}>
@@ -484,8 +484,10 @@ export function AppSettingsSection({
           <li>Choose Add to Home screen or Install app.</li>
           <li>Confirm the shortcut.</li>
         </ol>
+          )}
+        </>
       )}
-      <p>{refreshMessage}</p>
+      {!isInstalled && <p>{refreshMessage}</p>}
       <label className="toggle-row">
         <span>Auto refresh</span>
         <input type="checkbox" checked={appSettings.autoRefresh} onChange={(event) => updateAppSetting("autoRefresh", event.target.checked)} />

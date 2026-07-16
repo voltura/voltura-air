@@ -150,7 +150,7 @@ Choose the matching target on the phone. PowerPoint is the only profile that sen
 
 ## Lock PC is disabled or fails
 
-Open the Windows host and go to **Preferences > Windows locking**. If the policy
+Open the Windows host and go to **Preferences > Developer tools > Windows locking**. If the policy
 value is missing or zero, select **Test Lock PC**; Voltura Air tests the native
 Windows lock action without writing an unnecessary registry value. If the policy
 explicitly disables locking, select **Enable Windows locking**. After local

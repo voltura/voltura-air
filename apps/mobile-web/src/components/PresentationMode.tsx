@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { PendingPresentationCommand } from "../connection/usePresentationControl";
 import type { PresentationAction, PresentationCapability, PresentationCommandResultMessage, PresentationTarget } from "../protocol";
 import { formatPresentationTime, usePresentationTimer } from "../presentationTimer";
+import { InfoButton } from "./InfoButton";
 
 type PresentationModeProps = {
   capability: PresentationCapability | undefined;
@@ -18,16 +19,10 @@ const targetOptions = [
   { id: "pdf", label: "PDF / browser" }
 ] satisfies { id: PresentationTarget; label: string }[];
 
-const targetNotes: Record<PresentationTarget, string> = {
-  powerpoint: "F5 starts. B toggles black. Ctrl+L selects the laser pointer.",
-  "google-slides": "Start the slideshow on the PC. B toggles black and L toggles the laser pointer.",
-  pdf: "Open full screen on the PC. This profile provides navigation and exit only."
-};
-
 export function PresentationMode({ capability, connected, pending, result, onCommand }: PresentationModeProps) {
   const [target, setTarget] = useState<PresentationTarget>("powerpoint");
-  const [isTargetSelectorCollapsed, setIsTargetSelectorCollapsed] = useState(false);
   const [isTargetSelectorOpen, setIsTargetSelectorOpen] = useState(false);
+  const [isTimerExpanded, setIsTimerExpanded] = useState(true);
   const timer = usePresentationTimer();
   const supported = capability !== undefined;
   const canControl = connected && capability?.canControl === true;
@@ -36,12 +31,7 @@ export function PresentationMode({ capability, connected, pending, result, onCom
 
   const request = (action: PresentationAction) => onCommand(target, action);
   const selectTarget = (nextTarget: PresentationTarget) => {
-    if (nextTarget === target) {
-      setIsTargetSelectorCollapsed(false);
-    } else {
-      setTarget(nextTarget);
-    }
-
+    setTarget(nextTarget);
     setIsTargetSelectorOpen(false);
   };
 
@@ -50,62 +40,48 @@ export function PresentationMode({ capability, connected, pending, result, onCom
       <div className="presentation-controls-panel">
         <header className="presentation-header">
           <div>
-            <h1 id="presentation-title">Presentation</h1>
-            <p>Choose the active presentation app, then keep that app focused on the PC.</p>
-          </div>
-          {isTargetSelectorCollapsed && (
-            <div className="presentation-target-selector">
-              <button
-                className="presentation-target-selector-toggle"
-                type="button"
-                aria-expanded={isTargetSelectorOpen}
-                aria-haspopup="menu"
-                aria-label={`Change presentation mode (${targetLabel})`}
-                onClick={() => setIsTargetSelectorOpen((current) => !current)}
-              >
-                <span>{targetLabel}</span>
-                <ChevronDown aria-hidden="true" />
-              </button>
-              {isTargetSelectorOpen && (
-                <>
-                  <button className="presentation-target-selector-scrim" type="button" aria-label="Close presentation mode selector" onClick={() => setIsTargetSelectorOpen(false)} />
-                  <div className="presentation-target-selector-menu" role="menu" aria-label="Change presentation mode">
-                    {targetOptions.map((option) => (
-                      <button
-                        type="button"
-                        key={option.id}
-                        role="menuitemradio"
-                        aria-checked={target === option.id}
-                        className={target === option.id ? "active" : ""}
-                        onClick={() => selectTarget(option.id)}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
+            <div className="presentation-title-row">
+              <h1 id="presentation-title">Presentation</h1>
+              <InfoButton
+                description="Choose the active presentation app, then keep that app focused on the PC."
+                size="detailed"
+                title="Presentation guidance"
+              />
             </div>
-          )}
-        </header>
-
-        {!isTargetSelectorCollapsed && (
-          <div className="presentation-targets" role="group" aria-label="Presentation target">
-            {targetOptions.map((option) => (
-              <button
-                type="button"
-                key={option.id}
-                className={target === option.id ? "active" : ""}
-                aria-pressed={target === option.id}
-                onClick={() => option.id === target ? setIsTargetSelectorCollapsed(true) : setTarget(option.id)}
-              >
-                {option.label}
-              </button>
-            ))}
           </div>
-        )}
-        <p className="presentation-target-note">{targetNotes[target]}</p>
-
+          <div className="presentation-target-selector">
+            <button
+              className="presentation-target-selector-toggle"
+              type="button"
+              aria-expanded={isTargetSelectorOpen}
+              aria-haspopup="menu"
+              aria-label={`Change presentation mode (${targetLabel})`}
+              onClick={() => setIsTargetSelectorOpen((current) => !current)}
+            >
+              <span>{targetLabel}</span>
+              <ChevronDown aria-hidden="true" />
+            </button>
+            {isTargetSelectorOpen && (
+              <>
+                <button className="presentation-target-selector-scrim" type="button" aria-label="Close presentation mode selector" onClick={() => setIsTargetSelectorOpen(false)} />
+                <div className="presentation-target-selector-menu" role="menu" aria-label="Change presentation mode">
+                  {targetOptions.map((option) => (
+                    <button
+                      type="button"
+                      key={option.id}
+                      role="menuitemradio"
+                      aria-checked={target === option.id}
+                      className={target === option.id ? "active" : ""}
+                      onClick={() => selectTarget(option.id)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </header>
         {!supported && <p className="presentation-permission-message" role="alert">Update the Windows host to use Presentation mode.</p>}
         {supported && !capability.canControl && <p className="presentation-permission-message" role="alert">Presentation control is blocked by the host. Enable its global or per-device permission.</p>}
 
@@ -141,37 +117,50 @@ export function PresentationMode({ capability, connected, pending, result, onCom
           )}
         </div>
 
-        <div className={`presentation-result${result && !result.succeeded ? " error" : ""}`} role={result && !result.succeeded ? "alert" : "status"} aria-live="polite">
-          {pending ? `Sending ${pending.action} command…` : result?.message ?? "One press sends one command and waits for the PC to confirm it."}
-        </div>
+        {result && !result.succeeded && (
+          <div className="presentation-result error" role="alert" aria-live="polite">
+            {result.message}
+          </div>
+        )}
       </div>
 
       <aside className="presentation-timer" aria-labelledby="presentation-timer-title">
-        <div className="presentation-timer-heading">
+        <button
+          className="presentation-timer-heading"
+          type="button"
+          aria-expanded={isTimerExpanded}
+          aria-controls="presentation-timer-content"
+          onClick={() => setIsTimerExpanded((current) => !current)}
+        >
           <Timer aria-hidden="true" />
-          <h2 id="presentation-timer-title">Elapsed timer</h2>
-        </div>
-        <output className="presentation-time" aria-label="Elapsed presentation time">{formatPresentationTime(timer.elapsedSeconds)}</output>
-        <p className="presentation-milestone" role="status" aria-live="polite">{timer.milestoneMessage}</p>
-        <div className="presentation-timer-actions">
-          <button type="button" className="primary" disabled={timer.isRunning} onClick={timer.start}><Play aria-hidden="true" /><span>Start</span></button>
-          <button type="button" disabled={!timer.isRunning} onClick={timer.pause}><Pause aria-hidden="true" /><span>Pause</span></button>
-          <button type="button" onClick={timer.reset}><RotateCcw aria-hidden="true" /><span>Reset</span></button>
-        </div>
-        <label className="presentation-duration">
-          <span>Planned duration</span>
-          <select value={timer.durationMinutes} onChange={(event) => timer.changeDuration(Number(event.target.value))}>
-            {[10, 15, 30, 45, 60].map((minutes) => <option key={minutes} value={minutes}>{minutes} minutes</option>)}
-          </select>
-        </label>
-        {timer.supportsVibration && (
-          <label className="presentation-vibration">
-            <input type="checkbox" checked={timer.vibrationEnabled} onChange={(event) => timer.setVibrationEnabled(event.target.checked)} />
-            <Vibrate aria-hidden="true" />
-            <span>Vibrate at 5 minutes remaining and time elapsed</span>
-          </label>
+          <h2 id="presentation-timer-title">Presentation timer</h2>
+          <ChevronDown aria-hidden="true" />
+        </button>
+        {isTimerExpanded && (
+          <div className="presentation-timer-content" id="presentation-timer-content">
+            <output className="presentation-time" aria-label="Elapsed presentation time">{formatPresentationTime(timer.elapsedSeconds)}</output>
+            <p className="presentation-milestone" role="status" aria-live="polite">{timer.milestoneMessage}</p>
+            <div className="presentation-timer-actions">
+              <button type="button" className="primary" disabled={timer.isRunning} onClick={timer.start}><Play aria-hidden="true" /><span>Start</span></button>
+              <button type="button" disabled={!timer.isRunning} onClick={timer.pause}><Pause aria-hidden="true" /><span>Pause</span></button>
+              <button type="button" onClick={timer.reset}><RotateCcw aria-hidden="true" /><span>Reset</span></button>
+            </div>
+            <label className="presentation-duration">
+              <span>Planned duration</span>
+              <select value={timer.durationMinutes} onChange={(event) => timer.changeDuration(Number(event.target.value))}>
+                {[10, 15, 30, 45, 60].map((minutes) => <option key={minutes} value={minutes}>{minutes} minutes</option>)}
+              </select>
+            </label>
+            {timer.supportsVibration && (
+              <label className="presentation-vibration">
+                <input type="checkbox" checked={timer.vibrationEnabled} onChange={(event) => timer.setVibrationEnabled(event.target.checked)} />
+                <Vibrate aria-hidden="true" />
+                <span>Vibrate at 5 minutes remaining and time elapsed</span>
+              </label>
+            )}
+            <p className="presentation-timer-note">The timer stays on this device and resets when this page reloads.</p>
+          </div>
         )}
-        <p className="presentation-timer-note">The timer stays on this device and resets when this page reloads.</p>
       </aside>
     </section>
   );

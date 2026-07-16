@@ -20,7 +20,7 @@ export const primaryModeDefinitions: ModeDefinition[] = [
 ];
 
 export const toolModeDefinitions: Record<ToolAppTab, ModeDefinition> = {
-  presentation: { id: "presentation", label: "Present", ariaLabel: "Presentation mode", Icon: PresentationIcon },
+  presentation: { id: "presentation", label: "Presentation", ariaLabel: "Presentation", Icon: PresentationIcon },
   dictation: { id: "dictation", label: "Dictate", ariaLabel: "Dictation", Icon: Mic },
   "text-transfer": { id: "text-transfer", label: "Send text", ariaLabel: "Send text to PC", Icon: Send },
   "clipboard-read": { id: "clipboard-read", label: "Get text", ariaLabel: "Get text from PC", Icon: ClipboardPaste }

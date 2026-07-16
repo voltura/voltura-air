@@ -24,12 +24,14 @@ describe("PresentationMode", () => {
     expect(onCommand).toHaveBeenLastCalledWith("powerpoint", "next");
     expect(screen.getByRole("button", { name: "Start slideshow" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Google Slides" }));
+    fireEvent.click(screen.getByRole("button", { name: "Change presentation mode (PowerPoint)" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Google Slides" }));
     expect(screen.queryByRole("button", { name: "Start slideshow" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Laser pointer" }));
     expect(onCommand).toHaveBeenLastCalledWith("google-slides", "pointer");
 
-    fireEvent.click(screen.getByRole("button", { name: "PDF / browser" }));
+    fireEvent.click(screen.getByRole("button", { name: "Change presentation mode (Google Slides)" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "PDF / browser" }));
     expect(screen.queryByRole("button", { name: "Black screen" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Laser pointer" })).toBeNull();
     expect(screen.getByRole("button", { name: "End slideshow" })).toBeTruthy();
@@ -37,9 +39,6 @@ describe("PresentationMode", () => {
 
   it("collapses the active target into a header selector and restores the full target row on reselection", () => {
     render(<PresentationMode {...defaultProps} />);
-
-    fireEvent.click(screen.getByRole("button", { name: /^PowerPoint$/ }));
-    expect(screen.queryByRole("button", { name: /^Google Slides$/ })).toBeNull();
 
     const powerpointSelector = screen.getByRole("button", { name: "Change presentation mode (PowerPoint)" });
     fireEvent.click(powerpointSelector);
@@ -49,11 +48,7 @@ describe("PresentationMode", () => {
     expect(screen.queryByRole("button", { name: "Start slideshow" })).toBeNull();
     expect(screen.getByRole("button", { name: "Change presentation mode (Google Slides)" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Change presentation mode (Google Slides)" }));
-    fireEvent.click(screen.getByRole("menuitemradio", { name: "Google Slides" }));
-    const googleSlides = screen.getByRole("button", { name: /^Google Slides$/ });
-    expect(googleSlides.getAttribute("aria-pressed")).toBe("true");
-    expect(screen.queryByRole("button", { name: "Change presentation mode (Google Slides)" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Change presentation mode (Google Slides)" })).toBeTruthy();
   });
 
   it("blocks controls for denied permission and while one command is pending", () => {

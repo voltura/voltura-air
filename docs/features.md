@@ -46,7 +46,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
   - Connection.
   - Preferences.
   - Diagnostics.
-- Organizes Preferences as themed accordion sections that are collapsed on entry and allow only one expanded section at a time.
+- Organizes Preferences as themed accordion sections that are collapsed on entry and allow only one expanded section at a time. Opening a lower section scrolls only when needed to reveal its first control while keeping the focused header visible.
 - Provides tray actions for opening the app, controlling Keep awake, opening the product page, and exit.
 - Keeps the host window hidden when the last paired device disconnects by default; reopening it on disconnect is an opt-in preference.
 - Supports light, dark, and system theme modes.
@@ -387,6 +387,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 ### Menu and text transfer
 
 - The hamburger drawer is a **Menu** with separate **Tools** and **Settings** groups.
+- Settings sections start collapsed and allow one section open at a time. Opening a section near the bottom of the visible drawer scrolls only enough to reveal its first control, leaves the accordion heading focused, and avoids animated scrolling when the device requests reduced motion.
 - Presentation, Dictation, **Send text to PC**, and **Get text from PC** can be opened directly from Menu without changing the fourth-mode preference.
 - Trackpad, Keyboard, and Remote remain fixed primary modes. The fourth mode can be configured as Presentation, Dictation, Send text to PC, or Get text from PC, defaults to Dictation, and uses one shared label/icon definition across navigation surfaces.
 - Dictation and the text tools use the persistent Menu and mode navigation without separate page-level Back controls.

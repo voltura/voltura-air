@@ -122,6 +122,9 @@ public partial class MainWindow
             }
 
             SetPreferencesTitle(title);
+            _ = expander.Dispatcher.InvokeAsync(
+                () => RevealExpandedPreferencesSection(expander, content),
+                DispatcherPriority.Loaded);
         };
         expander.Collapsed += (_, _) =>
         {
@@ -132,7 +135,47 @@ public partial class MainWindow
         };
         sections.Add(expander);
         parent.Children.Add(expander);
+        if (string.Equals(_preferencesSectionToOpen, title, StringComparison.Ordinal))
+        {
+            expander.IsExpanded = true;
+        }
+
         return content;
+    }
+
+    private void RefreshPreferencesPage()
+    {
+        RememberExpandedPreferencesSection();
+        SelectPage(HostPage.Preferences);
+    }
+
+    private void RememberExpandedPreferencesSection()
+    {
+        if (PageContent.Content is not ScrollViewer { Content: StackPanel panel } scroller)
+        {
+            _preferencesSectionToOpen = null;
+            _preferencesScrollOffsetToRestore = null;
+            return;
+        }
+
+        _preferencesSectionToOpen = panel.Children
+            .OfType<Expander>()
+            .FirstOrDefault(section => section.IsExpanded)?
+            .Header as string;
+        _preferencesScrollOffsetToRestore = scroller.VerticalOffset;
+    }
+
+    private void RestorePreferencesScrollPosition()
+    {
+        if (_preferencesScrollOffsetToRestore is not { } offset || PageContent.Content is not ScrollViewer scroller)
+        {
+            return;
+        }
+
+        _preferencesScrollOffsetToRestore = null;
+        _ = scroller.Dispatcher.InvokeAsync(
+            () => scroller.ScrollToVerticalOffset(offset),
+            DispatcherPriority.Loaded);
     }
 
     private void SetPreferencesTitle(string? sectionTitle)
@@ -167,7 +210,7 @@ public partial class MainWindow
             var result = _workstationLockPolicy.TryEnable();
             if (!result.Succeeded)
             {
-                SelectPage(HostPage.Preferences);
+                RefreshPreferencesPage();
                 ShowToast(result.Message);
                 return;
             }
@@ -181,7 +224,7 @@ public partial class MainWindow
             Outcome: lockResult.Succeeded ? "lock_request_accepted" : "failed",
             Code: lockResult.Succeeded ? null : "VAIR-POWER-EXECUTION-FAILED",
             Win32Error: lockResult.Win32Error));
-        SelectPage(HostPage.Preferences);
+        RefreshPreferencesPage();
         ShowToast(lockResult.Succeeded
             ? "Windows accepted the lock request."
             : "Windows still prevents workstation locking. A Windows policy or another program may control this setting.");

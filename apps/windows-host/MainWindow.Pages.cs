@@ -210,6 +210,7 @@ public partial class MainWindow
         {
             // Reserve the scrollbar gutter so expanding a section never
             // changes the accordion width.
+            CanContentScroll = false,
             VerticalScrollBarVisibility = ScrollBarVisibility.Visible,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             Content = CreateSectionPanel()
@@ -274,25 +275,13 @@ public partial class MainWindow
         AddYoutubeUrlSetting(remotePanel);
 
         var appLaunchPanel = AddPreferencesSection(panel, sections, "Application launch buttons");
-        var appLaunchSection = (Expander)panel.Children[^1];
         AddAppLaunchSettings(appLaunchPanel);
-        if (_openAppLaunchPreferences)
-        {
-            appLaunchSection.IsExpanded = true;
-            _openAppLaunchPreferences = false;
-        }
 
         var textDestinationPanel = AddPreferencesSection(panel, sections, "Text destination");
         AddTextDestinationSettings(textDestinationPanel);
 
         var awakePanel = AddPreferencesSection(panel, sections, "Keep awake");
-        var awakeSection = (Expander)panel.Children[^1];
         AddAwakeSettings(awakePanel);
-        if (_openAwakePreferences)
-        {
-            awakeSection.IsExpanded = true;
-            _openAwakePreferences = false;
-        }
 
         var permissionsPanel = AddPreferencesSection(panel, sections, "Global permissions");
         var allowClientControl = CreateCheckBox("Allow paired devices to control Voltura Air host", AppClientControlSettings.IsEnabled());
@@ -354,6 +343,7 @@ public partial class MainWindow
         gestureDebug.Unchecked += (_, _) => AppDeveloperSettings.SetEnableGestureDebug(false);
         developerPanel.Children.Add(gestureDebug);
 
+        _preferencesSectionToOpen = null;
         _isLoadingPreferences = false;
         return root;
     }

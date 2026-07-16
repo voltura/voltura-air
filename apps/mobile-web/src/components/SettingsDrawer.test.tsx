@@ -43,9 +43,39 @@ const baseProps = {
   updateTrackpadSetting: vi.fn()
 };
 
+function createRect(top: number, bottom: number): DOMRect {
+  return {
+    bottom,
+    height: bottom - top,
+    left: 0,
+    right: 360,
+    top,
+    width: 360,
+    x: 0,
+    y: top,
+    toJSON: () => ({})
+  };
+}
+
+function arrangeClippedAppSection(targetBottom: number) {
+  const drawer = screen.getByRole("complementary");
+  const summary = screen.getByText("App").closest("summary") as HTMLElement;
+  const section = summary.closest("details") as HTMLDetailsElement;
+  const firstControl = section.querySelector("select") as HTMLSelectElement;
+  const scrollBy = vi.fn();
+
+  vi.spyOn(drawer, "getBoundingClientRect").mockReturnValue(createRect(0, 600));
+  vi.spyOn(summary, "getBoundingClientRect").mockReturnValue(createRect(520, 568));
+  vi.spyOn(firstControl, "getBoundingClientRect").mockReturnValue(createRect(targetBottom - 58, targetBottom));
+  Object.defineProperty(drawer, "scrollBy", { configurable: true, value: scrollBy });
+
+  return { scrollBy, summary };
+}
+
 describe("SettingsDrawer", () => {
   beforeEach(() => {
     vi.stubGlobal("__APP_VERSION__", "test-version");
+    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false })));
     Object.defineProperty(navigator, "vibrate", { configurable: true, value: vi.fn(() => true) });
   });
 
@@ -71,6 +101,40 @@ describe("SettingsDrawer", () => {
     fireEvent.click(screen.getByText("Keyboard"));
     expect(screen.getByText("Trackpad").closest("details")?.open).toBe(false);
     expect(screen.getByText("Keyboard").closest("details")?.open).toBe(true);
+  });
+
+  it("scrolls only enough to reveal the first control of a clipped section", () => {
+    render(<SettingsDrawer {...baseProps} />);
+    const { scrollBy, summary } = arrangeClippedAppSection(668);
+    summary.focus();
+
+    fireEvent.click(summary);
+
+    expect(scrollBy).toHaveBeenCalledExactlyOnceWith({ top: 84, behavior: "smooth" });
+    expect(document.activeElement).toBe(summary);
+
+    scrollBy.mockClear();
+    fireEvent.click(summary);
+    expect(scrollBy).not.toHaveBeenCalled();
+  });
+
+  it("does not scroll when the opened section's first control is already visible", () => {
+    render(<SettingsDrawer {...baseProps} />);
+    const { scrollBy, summary } = arrangeClippedAppSection(570);
+
+    fireEvent.click(summary);
+
+    expect(scrollBy).not.toHaveBeenCalled();
+  });
+
+  it("avoids animated assisted scrolling when reduced motion is requested", () => {
+    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true })));
+    render(<SettingsDrawer {...baseProps} />);
+    const { scrollBy, summary } = arrangeClippedAppSection(668);
+
+    fireEvent.click(summary);
+
+    expect(scrollBy).toHaveBeenCalledExactlyOnceWith({ top: 84, behavior: "auto" });
   });
 
   it("keeps all split controls in the dedicated split mode accordion", () => {

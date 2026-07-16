@@ -261,6 +261,6 @@ Before announcing the release:
 - inspect `VolturaAir.Host.exe` and `VolturaAir.Host.dll` in File Explorer and
   confirm File version and Product version match the release;
 - confirm a phone can pair from a fresh QR code and reconnect after host restart;
-- confirm Preferences accordions are themed in light and dark mode, start collapsed, and keep only one section open;
+- confirm Preferences accordions are themed in light and dark mode, start collapsed, keep only one section open, and reveal the first control of a lower section without losing its header;
 - confirm Diagnostics keeps log filters and actions visible while only log records scroll, and verify log enable, retention, filtering, copy, folder, and delete behavior;
 - update public release/download text when product-facing behavior changed.

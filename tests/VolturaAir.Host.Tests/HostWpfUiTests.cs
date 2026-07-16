@@ -81,6 +81,7 @@ public sealed partial class HostUiLayoutTests
                 var sections = FindWpfDescendants<Expander>(window).ToArray();
                 Assert.Equal(11, sections.Length);
                 var scroller = Assert.Single(FindWpfDescendants<ScrollViewer>(window));
+                Assert.False(scroller.CanContentScroll);
                 Assert.Equal(ScrollBarVisibility.Visible, scroller.VerticalScrollBarVisibility);
                 Assert.Equal(ScrollBarVisibility.Disabled, scroller.HorizontalScrollBarVisibility);
                 Assert.All(sections, section =>

@@ -1,4 +1,4 @@
-import { useEffect, useState, type MouseEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
 import { X } from "lucide-react";
 import { toolModeDefinitions, type ToolAppTab } from "../appModeTabs";
 import {
@@ -16,6 +16,7 @@ import { SplitModeSettings } from "./SplitModeSettings";
 
 export function SettingsDrawer(props: SettingsDrawerProps) {
   const [openSection, setOpenSection] = useState<SettingsSection | null>(null);
+  const drawerRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (!props.isOpen) {
@@ -23,13 +24,25 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
     }
   }, [props.isOpen]);
 
+  useLayoutEffect(() => {
+    if (!props.isOpen || !openSection) {
+      return;
+    }
+
+    const drawer = drawerRef.current;
+    const section = drawer?.querySelector<HTMLDetailsElement>(`[data-settings-section="${openSection}"]`);
+    if (drawer && section) {
+      revealOpenedSection(drawer, section);
+    }
+  }, [openSection, props.isOpen]);
+
   const toggleSection = (event: MouseEvent<HTMLElement>, section: SettingsSection) => {
     event.preventDefault();
     setOpenSection((current) => (current === section ? null : section));
   };
 
   return (
-    <aside className={`settings-drawer ${props.isOpen ? "open" : ""}`} aria-hidden={!props.isOpen}>
+    <aside ref={drawerRef} className={`settings-drawer ${props.isOpen ? "open" : ""}`} aria-hidden={!props.isOpen}>
       <header className="drawer-header">
         <div className="drawer-title">
           <h2>Menu</h2>
@@ -122,4 +135,33 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
       </SettingsSectionDetails>
     </aside>
   );
+}
+
+const assistedScrollPadding = 16;
+
+function revealOpenedSection(drawer: HTMLElement, section: HTMLDetailsElement): void {
+  const summary = section.querySelector<HTMLElement>("summary");
+  const body = section.querySelector<HTMLElement>(".settings-section-body");
+  const firstControl = body?.querySelector<HTMLElement>("button, input, select, textarea, a[href], [tabindex]");
+  const revealTarget = firstControl ?? body;
+  if (!summary || !revealTarget) {
+    return;
+  }
+
+  const drawerRect = drawer.getBoundingClientRect();
+  const summaryRect = summary.getBoundingClientRect();
+  const targetRect = revealTarget.getBoundingClientRect();
+  const hiddenBy = targetRect.bottom - (drawerRect.bottom - assistedScrollPadding);
+  const availableScroll = summaryRect.top - (drawerRect.top + assistedScrollPadding);
+  const scrollDistance = Math.min(hiddenBy, availableScroll);
+
+  if (scrollDistance <= 0) {
+    return;
+  }
+
+  const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+  drawer.scrollBy({
+    top: scrollDistance,
+    behavior: reduceMotion ? "auto" : "smooth"
+  });
 }

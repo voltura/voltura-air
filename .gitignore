@@ -19,11 +19,8 @@ Thumbs.db
 ## React/Vite build output
 /apps/mobile-web/dist/
 
-## Generated web assets copied into host during local builds
-/apps/windows-host/wwwroot/assets/
-/apps/windows-host/wwwroot/index.html
-/apps/windows-host/wwwroot/manifest.webmanifest
-/apps/windows-host/wwwroot/sw.js
+## Packaged host web root is generated from apps/mobile-web/dist
+/apps/windows-host/wwwroot/
 
 ## Keep artifacts out of git
 /artifacts/*

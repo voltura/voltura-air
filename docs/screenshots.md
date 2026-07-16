@@ -26,6 +26,21 @@ Regenerate public static-site screenshots with:
 npm run screenshots:site
 ```
 
+The master neutral, connected, and disconnected artwork lives under
+`assets/branding`. Regenerate all static mobile, iOS, Android, Windows host,
+NSIS, and marketing-site branding assets with:
+
+```powershell
+npm run icons:generate
+```
+
+On Windows, regenerate branding and then refresh every public screenshot in one
+run with:
+
+```powershell
+npm run branding:generate
+```
+
 The script uses a temporary capture workspace under `%TEMP%`, installs
 capture-only dependencies there, launches the Windows host, pairs a browser
 client, and writes the public PNG files to `docs/site/assets`.
@@ -151,6 +166,12 @@ Installer artwork:
 installer/assets/installer-header.bmp
 installer/assets/installer-welcome.bmp
 ```
+
+Other generated branding outputs include the web icons and Apple launch images
+under `apps/mobile-web/public`, the host PNG/ICO files under
+`apps/windows-host/Assets`, and the marketing-site icon/favicons under
+`docs/site` and `docs/site/assets`. The mobile build output and packaged host
+`wwwroot` are generated consumers, not branding sources.
 
 After refreshing screenshots or installer artwork, run:
 

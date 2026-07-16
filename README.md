@@ -168,6 +168,27 @@ npm run package:win:small
 
 This creates `VolturaAir-Setup-<version>-win-x64.exe` and skips the portable zip and full installer.
 
+## Regenerate Branding
+
+The approved neutral, connected, and disconnected artwork under
+`assets/branding` is the source of truth for every product icon. After replacing
+those master PNG files, regenerate the mobile, iOS, Android, Windows host,
+installer, marketing-site, and README-referenced assets with:
+
+```powershell
+npm run icons:generate
+```
+
+On Windows, refresh those assets and all marketing-site screenshots together
+with:
+
+```powershell
+npm run branding:generate
+```
+
+Do not edit `apps/mobile-web/dist` or a host `wwwroot` copy. They are generated
+from `apps/mobile-web/public` by the normal build and packaging commands.
+
 ## Run From CLI
 
 ```powershell

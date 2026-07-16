@@ -142,12 +142,6 @@ To rebuild the zip and installer from an existing publish directory:
 powershell -ExecutionPolicy Bypass -File scripts/package-win.ps1 -Version <version> -Runtime win-x64 -SkipBuild
 ```
 
-To build the release publish directories without creating the zip or installers:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/package-win.ps1 -Version <version> -Runtime win-x64 -BuildOnly
-```
-
 ## GitHub Actions release path
 
 The `Build and upsert release assets` workflow performs the release path on a
@@ -156,13 +150,10 @@ Windows runner:
 1. Install npm dependencies with `npm ci`.
 2. Verify that the workflow `version` equals the committed root package version.
 3. Verify that `release_tag` is `v<version>`.
-4. Build the mobile client, Windows host test project, referenced host, native
-   cursor watchdog, full host publish, and framework-dependent host publish once
-   for the selected runtime.
-5. Run the mobile tests and Windows host tests against the prepared Release
-   build outputs.
-6. Package the existing publish directories into the portable zip, default
-   installer, and full installer without rebuilding.
+4. Run the mobile and Windows host tests.
+5. Build and package the portable zip, default installer, and full installer.
+6. The release workflow uploads the package outputs directly to the GitHub
+   release and does not upload duplicate workflow artifacts.
 7. Validate the built host EXE, native cursor watchdog, host DLL, and both installer
    Windows version resources as part of packaging.
 8. Create or refresh the selected tag so beta releases can be replaced at the same

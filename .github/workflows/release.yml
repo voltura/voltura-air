@@ -48,14 +48,6 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', 'global.json', 'Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
       - name: Install npm dependencies
         run: npm ci --no-audit --fund=false
 
@@ -80,18 +72,8 @@ jobs:
             throw "The release workflow currently supports only the verified win-x64 runtime."
           }
 
-      - name: Build release outputs
-        shell: pwsh
-        env:
-          RELEASE_VERSION: ${{ inputs.version }}
-          RUNTIME: ${{ inputs.runtime }}
-        run: npm run package:win -- -Version $env:RELEASE_VERSION -Runtime $env:RUNTIME -BuildOnly
-
-      - name: Test mobile client
-        run: npm run test:web
-
-      - name: Test Windows host
-        run: dotnet test tests/VolturaAir.Host.Tests/VolturaAir.Host.Tests.csproj -c Release -r ${{ inputs.runtime }} --no-build --no-restore
+      - name: Test
+        run: npm test
 
       - name: Install NSIS
         shell: pwsh
@@ -102,7 +84,7 @@ jobs:
         env:
           RELEASE_VERSION: ${{ inputs.version }}
           RUNTIME: ${{ inputs.runtime }}
-        run: npm run package:win -- -Version $env:RELEASE_VERSION -Runtime $env:RUNTIME -SkipBuild
+        run: npm run package:win -- -Version $env:RELEASE_VERSION -Runtime $env:RUNTIME
 
       - name: Collect asset paths
         id: package

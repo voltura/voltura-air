@@ -178,7 +178,9 @@ updated as the app structure, tooling, and release process become concrete.
   `.vscode/settings.json`.
 - Run `npm run clean:git` to compact the local Git object database and prune
   unreachable objects; do not run it while another Git operation is active.
-- Run `npm run clean` to perform both cleanup steps in sequence.
+- Run `npm run clean` to remove workspace and Git cleanup targets, then purge
+  the Windows icon cache and update dependencies within their declared version
+  ranges. It stops the host and restarts Explorer.
 - GitHub CLI (`gh`) is available in the Codex shell. It is installed through
   WinGet and exposed to the current Codex environment through
   `%APPDATA%\npm\gh.cmd`.

@@ -34,7 +34,7 @@ React components send typed intents through `useVolturaAirConnection`; the conne
 ## Invariants
 
 - Only one Windows host process runs per signed-in user.
-- Automated protocol tests use ASP.NET Core `TestServer`; temporary UI hosts use `--isolated-test-mode`, bind only to loopback, and must not run beside a normal host.
+- Automated protocol tests use ASP.NET Core `TestServer`; temporary UI hosts use `--isolated-test-mode`, bind only to loopback, use disposable host settings and pairing data, and must not run beside a normal host.
 - Custom pointer is host-wide because it is one real Windows cursor scheme. Size and color are host-only; paired devices may toggle its host-wide enabled state through the authenticated protocol.
 - Typed text, pointer coordinates, and pairing credentials never enter application logs.
 - Every long-lived worker has one service owner, bounded input, cancellation, and a shutdown wait. UI event handlers may enqueue service work but must not create competing fire-and-forget workers.

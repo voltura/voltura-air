@@ -4,7 +4,7 @@ namespace VolturaAir.Host;
 
 public static class AppPointerSettings
 {
-    private const string SettingsKeyPath = @"Software\VolturaAir";
+    private static string SettingsKeyPath => HostSettingsRegistry.SettingsKeyPath;
     private const string DefaultPointerSpeedValueName = "DefaultPointerSpeed";
     private const string CustomPointerEnabledValueName = "CustomPointerEnabled";
     private const string CustomPointerSizeValueName = "CustomPointerSize";

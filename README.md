@@ -189,6 +189,10 @@ with:
 npm run branding:generate
 ```
 
+The screenshot capture pairs a browser with a separate loopback host. Its
+pairing data and host settings are isolated, so capture cannot reset or change
+the normal Windows-host preferences.
+
 Do not edit `apps/mobile-web/dist` or a host `wwwroot` copy. They are generated
 from `apps/mobile-web/public` by the normal build and packaging commands.
 

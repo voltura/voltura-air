@@ -6,7 +6,7 @@ namespace VolturaAir.Host;
 
 public static class AppTextDestinationDraftSettings
 {
-    private const string SettingsKeyPath = @"Software\VolturaAir";
+    private static string SettingsKeyPath => HostSettingsRegistry.SettingsKeyPath;
     private const string AutomaticallyRemoveDraftFilesValueName = "AutomaticallyRemoveTextDestinationDraftFiles";
 
     public static bool AutomaticallyRemoveDraftFiles()

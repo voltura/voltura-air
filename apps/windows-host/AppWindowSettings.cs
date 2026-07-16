@@ -4,7 +4,7 @@ namespace VolturaAir.Host;
 
 public static class AppWindowSettings
 {
-    private const string SettingsKeyPath = @"Software\VolturaAir";
+    private static string SettingsKeyPath => HostSettingsRegistry.SettingsKeyPath;
     private const string StartHiddenInTrayValueName = "StartHiddenInTray";
 
     public static bool StartHiddenInTray()

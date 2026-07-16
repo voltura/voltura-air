@@ -84,7 +84,9 @@ public sealed partial class WebHostService : IAsyncDisposable
             : VolturaAir.Host.AwakeService.CreateWindows(_appLog));
         _workstationLockPolicy = workstationLockPolicy ?? new WorkstationLockPolicy(_appLog);
         _configureWebHost = configureWebHost;
-        _applyCustomPointer = applyCustomPointer;
+        // An isolated browser may exercise the protocol, but it must never
+        // call the native cursor API on the developer's Windows session.
+        _applyCustomPointer = isolatedTestMode ? null : applyCustomPointer;
         var settings = AppNetworkSettings.Load();
         var usesInMemoryTestServer = isolatedTestMode && configureWebHost is not null;
         var portSelection = usesInMemoryTestServer

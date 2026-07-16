@@ -7,7 +7,7 @@ public static class AppLoggingSettings
     public const int DefaultMaxAgeDays = 2;
     public const int MinMaxAgeDays = 1;
     public const int MaxMaxAgeDays = 30;
-    private const string SettingsKeyPath = @"Software\VolturaAir";
+    private static string SettingsKeyPath => HostSettingsRegistry.SettingsKeyPath;
     private const string EnabledValueName = "EnableApplicationLogging";
     private const string MaxAgeDaysValueName = "ApplicationLogMaxAgeDays";
 

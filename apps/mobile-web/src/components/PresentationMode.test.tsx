@@ -38,8 +38,8 @@ describe("PresentationMode", () => {
   it("collapses the active target into a header selector and restores the full target row on reselection", () => {
     render(<PresentationMode {...defaultProps} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "PowerPoint", exact: true }));
-    expect(screen.queryByRole("button", { name: "Google Slides", exact: true })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /^PowerPoint$/ }));
+    expect(screen.queryByRole("button", { name: /^Google Slides$/ })).toBeNull();
 
     const powerpointSelector = screen.getByRole("button", { name: "Change presentation mode (PowerPoint)" });
     fireEvent.click(powerpointSelector);
@@ -51,7 +51,7 @@ describe("PresentationMode", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Change presentation mode (Google Slides)" }));
     fireEvent.click(screen.getByRole("menuitemradio", { name: "Google Slides" }));
-    const googleSlides = screen.getByRole("button", { name: "Google Slides", exact: true });
+    const googleSlides = screen.getByRole("button", { name: /^Google Slides$/ });
     expect(googleSlides.getAttribute("aria-pressed")).toBe("true");
     expect(screen.queryByRole("button", { name: "Change presentation mode (Google Slides)" })).toBeNull();
   });

@@ -7,6 +7,7 @@ namespace VolturaAir.Host;
 internal static class Program
 {
     private static WpfHostRuntime? s_runtime;
+    private static IDisposable? s_isolatedSettingsScope;
     private static int s_activationRequested;
 
     [STAThread]
@@ -40,6 +41,14 @@ internal static class Program
         var startedAt = DateTimeOffset.UtcNow;
         try
         {
+            var isolatedTestMode = args.Contains("--isolated-test-mode", StringComparer.OrdinalIgnoreCase);
+            if (args.Contains("--site-screenshot-mode", StringComparer.OrdinalIgnoreCase) && !isolatedTestMode)
+            {
+                throw new InvalidOperationException("Site screenshot mode requires --isolated-test-mode.");
+            }
+
+            s_isolatedSettingsScope = isolatedTestMode ? HostSettingsRegistry.BeginIsolatedScope() : null;
+            ConfigureSiteScreenshotSettings(args);
             s_runtime = await WpfHostRuntime.StartAsync(args);
             var remaining = TimeSpan.FromMilliseconds(1500) - (DateTimeOffset.UtcNow - startedAt);
             if (remaining > TimeSpan.Zero)
@@ -108,6 +117,30 @@ internal static class Program
         return null;
     }
 
+    private static void ConfigureSiteScreenshotSettings(string[] args)
+    {
+        if (!args.Contains("--site-screenshot-mode", StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var themeArgument = GetOption(args, "--site-screenshot-theme");
+        if (!Enum.TryParse<AppThemeMode>(themeArgument, ignoreCase: true, out var theme) || !Enum.IsDefined(theme))
+        {
+            throw new InvalidOperationException("Site screenshot mode requires --site-screenshot-theme Light, Dark, or System.");
+        }
+
+        AppThemeSettings.SetMode(theme);
+        AppDeveloperSettings.SetEnableGestureDebug(false);
+        AppNotificationSettings.SetShowConnectionStatusNotifications(false);
+        AppNotificationSettings.SetShowPairingWindowOnDisconnect(false);
+        AppPermissionSettings.Save(HostPermissions.DefaultGlobal with
+        {
+            AllowRemoteAppLaunch = false,
+            AllowUrlOpen = true
+        });
+    }
+
     internal static bool ShouldShowMainWindowOnStartup(string[] args, bool startHiddenInTraySetting, bool hasActiveController)
     {
         return !startHiddenInTraySetting &&
@@ -117,12 +150,15 @@ internal static class Program
 
     private static void OnApplicationExit(object sender, ExitEventArgs e)
     {
-        if (s_runtime is null)
+        try
         {
-            return;
+            s_runtime?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         }
-
-        s_runtime.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        s_runtime = null;
+        finally
+        {
+            s_runtime = null;
+            s_isolatedSettingsScope?.Dispose();
+            s_isolatedSettingsScope = null;
+        }
     }
 }

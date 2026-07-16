@@ -4,7 +4,7 @@ namespace VolturaAir.Host;
 
 public static class AppDeveloperSettings
 {
-    private const string SettingsKeyPath = @"Software\VolturaAir";
+    private static string SettingsKeyPath => HostSettingsRegistry.SettingsKeyPath;
     private const string DeveloperModeValueName = "DeveloperMode";
     private const string EnableGestureDebugValueName = "EnableGestureDebug";
 

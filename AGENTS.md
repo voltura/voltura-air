@@ -48,7 +48,8 @@ updated as the app structure, tooling, and release process become concrete.
 - Any temporary host that uses a temporary or empty pairing store for tests,
   screenshots, or UI validation must pass `--isolated-test-mode`. This mode uses
   the same single-instance scope as the normal host, binds only to `127.0.0.1`,
-  advertises loopback, and does not persist automatic network or port choices.
+  advertises loopback, isolates host settings from the normal Voltura Air
+  registry key, and does not persist automatic network or port choices.
   The launching script must stop any running host before starting it. Never
   expose a temporary pairing store on the LAN because a real phone can interpret
   its rejection as revoked pairing and delete its saved reconnect secret.

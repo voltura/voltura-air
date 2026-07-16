@@ -5,7 +5,7 @@ namespace VolturaAir.Host;
 
 public static class AppAwakeSettings
 {
-    private const string SettingsKeyPath = @"Software\VolturaAir";
+    private static string SettingsKeyPath => HostSettingsRegistry.SettingsKeyPath;
     private const string ModeValueName = "AwakeMode";
     private const string KeepScreenOnValueName = "AwakeKeepScreenOn";
     private const string IntervalMinutesValueName = "AwakeIntervalMinutes";

@@ -4,7 +4,7 @@ namespace VolturaAir.Host;
 
 public static class AppPermissionSettings
 {
-    private const string SettingsKeyPath = @"Software\VolturaAir";
+    private static string SettingsKeyPath => HostSettingsRegistry.SettingsKeyPath;
     private const string AllowPcSleepValueName = "AllowPcSleep";
     private const string AllowVolumeControlValueName = "AllowVolumeControl";
     private const string AllowPresentationControlValueName = "AllowPresentationControl";

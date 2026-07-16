@@ -13,7 +13,7 @@ public static class AppRemoteSettings
 {
     public const string DefaultYoutubeUrl = "https://youtube.com";
 
-    private const string SettingsKeyPath = @"Software\VolturaAir";
+    private static string SettingsKeyPath => HostSettingsRegistry.SettingsKeyPath;
     private const string DefaultRemoteModeValueName = "DefaultRemoteMode";
     private const string YoutubeUrlValueName = "YoutubeUrl";
 

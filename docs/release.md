@@ -143,12 +143,6 @@ To rebuild the zip and installer from an existing publish directory:
 powershell -ExecutionPolicy Bypass -File scripts/package-win.ps1 -Version <version> -Runtime win-x64 -SkipBuild
 ```
 
-To prepare both publish directories without creating the zip or installers:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/package-win.ps1 -Version <version> -Runtime win-x64 -PrepareOnly
-```
-
 ## GitHub Actions release path
 
 The `Build and upsert release assets` workflow performs the release path on a
@@ -159,21 +153,19 @@ Windows runner:
 2. Install npm dependencies with `npm ci`.
 3. Verify that the workflow `version` equals the committed root package version and
    that `release_tag` is `v<version>`.
-4. Build the mobile client, publish both Release host variants, and compile the native
-   cursor watchdog once for both publish directories.
-5. Run the mobile tests, then build and run the Windows host tests against the prepared
-   Release host without rebuilding the host project.
-6. Install NSIS and package the already prepared outputs into the portable zip, default
-   installer, and full installer.
+4. Run the mobile and Windows host tests.
+5. Install NSIS, build the mobile client and both Release host variants, compile the
+   native cursor watchdog once for both publish directories, and package the portable
+   zip, default installer, and full installer.
+6. Validate the built host EXE, native cursor watchdog, host DLL, and both installer
+   Windows version resources as part of packaging.
 7. The release workflow uploads the package outputs directly to the GitHub
    release and does not upload duplicate workflow artifacts.
-8. Validate the built host EXE, native cursor watchdog, host DLL, and both installer
-   Windows version resources as part of packaging.
-9. Create or refresh the selected tag so beta releases can be replaced at the same
+8. Create or refresh the selected tag so beta releases can be replaced at the same
    version. Existing tags are updated with a lease, so a concurrent remote change
    causes the workflow to fail instead of being overwritten silently.
-10. Create the release when it does not exist.
-11. Upload all three assets, replacing same-named assets when present.
+9. Create the release when it does not exist.
+10. Upload all three assets, replacing same-named assets when present.
 
 After running `npm run release -- <version>` and committing the prepared files,
 the workflow defaults already match the release.

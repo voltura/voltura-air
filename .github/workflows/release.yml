@@ -87,27 +87,8 @@ jobs:
             throw "The release workflow currently supports only the verified win-x64 runtime."
           }
 
-      - name: Prepare release outputs
-        shell: pwsh
-        env:
-          RELEASE_VERSION: ${{ inputs.version }}
-          RUNTIME: ${{ inputs.runtime }}
-        run: npm run package:win -- -Version $env:RELEASE_VERSION -Runtime $env:RUNTIME -PrepareOnly
-
-      - name: Test mobile client
-        run: npm run test:web
-
-      - name: Restore Windows host tests
-        shell: pwsh
-        env:
-          RUNTIME: ${{ inputs.runtime }}
-        run: dotnet restore tests/VolturaAir.Host.Tests/VolturaAir.Host.Tests.csproj -r $env:RUNTIME
-
-      - name: Test prepared Windows host
-        shell: pwsh
-        env:
-          RUNTIME: ${{ inputs.runtime }}
-        run: dotnet test tests/VolturaAir.Host.Tests/VolturaAir.Host.Tests.csproj -c Release -r $env:RUNTIME -p:BuildProjectReferences=false --no-restore
+      - name: Test
+        run: npm test
 
       - name: Install NSIS
         shell: pwsh
@@ -118,7 +99,7 @@ jobs:
         env:
           RELEASE_VERSION: ${{ inputs.version }}
           RUNTIME: ${{ inputs.runtime }}
-        run: npm run package:win -- -Version $env:RELEASE_VERSION -Runtime $env:RUNTIME -SkipBuild
+        run: npm run package:win -- -Version $env:RELEASE_VERSION -Runtime $env:RUNTIME
 
       - name: Collect asset paths
         id: package

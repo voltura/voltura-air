@@ -190,11 +190,10 @@ updated as the app structure, tooling, and release process become concrete.
   `package.json`. Pass `-Version <version> -Runtime win-x64` only when overriding
   the defaults.
 - The GitHub Actions workflow `.github/workflows/release.yml` validates that
-  its version and tag inputs match the committed root package version. It prepares
-  both Release host variants once, runs the host tests against that prepared build,
-  and packages the same outputs without rebuilding before creating or updating a
-  release. The default installer downloads the required .NET 10 runtimes during
-  setup when they are missing and may require administrator approval.
+  its version and tag inputs match the committed root package version, runs the
+  mobile and host tests, then builds and packages the release outputs before creating
+  or updating a release. The default installer downloads the required .NET 10
+  runtimes during setup when they are missing and may require administrator approval.
 - During the current limited beta, rerunning the workflow may replace assets and
   move the same version tag to a newer tested commit. Tag updates must remain
   serialized and use a force-with-lease check, never an unconditional force push.

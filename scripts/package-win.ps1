@@ -1,17 +1,12 @@
 param(
     [string]$Version,
     [string]$Runtime = "win-x64",
-    [switch]$PrepareOnly,
     [switch]$SkipBuild,
     [switch]$FrameworkDependentOnly,
     [switch]$NoInstallerCompression
 )
 
 $ErrorActionPreference = "Stop"
-
-if ($PrepareOnly -and $SkipBuild) {
-    throw "-PrepareOnly and -SkipBuild cannot be used together."
-}
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $packageJsonPath = Join-Path $repoRoot "package.json"
@@ -132,14 +127,6 @@ if (-not (Test-Path $frameworkDependentHostExe)) {
 $frameworkDependentWatchdogExe = Join-Path $frameworkDependentPublishDir "VolturaAir.CursorWatchdog.exe"
 if (-not (Test-Path $frameworkDependentWatchdogExe)) {
     throw "Expected framework-dependent cursor watchdog executable was not found: $frameworkDependentWatchdogExe"
-}
-
-if ($PrepareOnly) {
-    if (-not $FrameworkDependentOnly) {
-        Write-Host "Prepared full publish output: $publishDir"
-    }
-    Write-Host "Prepared framework-dependent publish output: $frameworkDependentPublishDir"
-    return
 }
 
 $makensis = Get-Command makensis -ErrorAction SilentlyContinue

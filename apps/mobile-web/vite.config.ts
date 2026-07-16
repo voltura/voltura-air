@@ -3,21 +3,70 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { brotliCompressSync, constants, gzipSync } from "node:zlib";
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig, type HtmlTagDescriptor, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 
 const packageJson = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as { version: string };
+const appleStartupDevices = JSON.parse(
+  readFileSync(new URL("../../assets/branding/apple-startup-devices.json", import.meta.url), "utf8")
+) as AppleStartupDevice[];
 const webBuildId = process.env.VOLTURA_AIR_WEB_BUILD_ID?.trim() || randomUUID();
+
+type AppleStartupDevice = {
+  name: string;
+  width: number;
+  height: number;
+  dpr: number;
+};
 
 ignoreDevSocketResets();
 
 export default defineConfig({
+  build: {
+    chunkSizeWarningLimit: 750
+  },
   define: {
     __APP_VERSION__: JSON.stringify(packageJson.version),
     __WEB_BUILD_ID__: JSON.stringify(webBuildId)
   },
-  plugins: [react(), webBuildIdFile(webBuildId), compressedJavaScriptAssets()]
+  plugins: [react(), appleStartupImages(), webBuildIdFile(webBuildId), compressedJavaScriptAssets()]
 });
+
+function appleStartupImages(): Plugin {
+  return {
+    name: "apple-startup-images",
+    transformIndexHtml(): HtmlTagDescriptor[] {
+      return appleStartupDevices.flatMap((device) =>
+        (["dark", "light"] as const).flatMap((theme) =>
+          (["portrait", "landscape"] as const).map((orientation) => ({
+            tag: "link",
+            injectTo: "head",
+            attrs: {
+              rel: "apple-touch-startup-image",
+              href: `/startup-images/${startupFileName(device, theme, orientation)}`,
+              media: [
+                "screen",
+                `(prefers-color-scheme: ${theme})`,
+                `(device-width: ${device.width}px)`,
+                `(device-height: ${device.height}px)`,
+                `(-webkit-device-pixel-ratio: ${device.dpr})`,
+                `(orientation: ${orientation})`
+              ].join(" and ")
+            }
+          }))
+        )
+      );
+    }
+  };
+}
+
+function startupFileName(
+  device: AppleStartupDevice,
+  theme: "dark" | "light",
+  orientation: "portrait" | "landscape"
+): string {
+  return `${device.name}-${device.width}x${device.height}-${device.dpr}x-${theme}-${orientation}.png`;
+}
 
 function ignoreDevSocketResets(): void {
   if (process.env.NODE_ENV === "production") {

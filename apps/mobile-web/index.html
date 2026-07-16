@@ -11,7 +11,80 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- Vite injects generated apple-touch-startup-image links from assets/branding. -->
     <title>Voltura Air</title>
+    <style>
+      .boot-screen {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-content: center;
+        justify-items: center;
+        gap: 12px;
+        padding:
+          calc(24px + env(safe-area-inset-top))
+          calc(24px + env(safe-area-inset-right))
+          calc(24px + env(safe-area-inset-bottom))
+          calc(24px + env(safe-area-inset-left));
+        background: #101418;
+        color: #f7f2e9;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      .boot-spinner {
+        width: 28px;
+        height: 28px;
+        box-sizing: border-box;
+        border: 3px solid rgb(255 255 255 / 20%);
+        border-top-color: currentColor;
+        border-radius: 50%;
+        animation: boot-spin 800ms linear infinite;
+      }
+
+      .boot-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+      }
+
+      .boot-message {
+        font-size: 0.9rem;
+        opacity: 0.7;
+      }
+
+      @keyframes boot-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      @media (prefers-color-scheme: light) {
+        :root:not([data-theme="dark"]) .boot-screen {
+          background: #f6f8fa;
+          color: #1c2227;
+        }
+
+        :root:not([data-theme="dark"]) .boot-spinner {
+          border-color: rgb(28 34 39 / 20%);
+          border-top-color: currentColor;
+        }
+      }
+
+      :root[data-theme="light"] .boot-screen {
+        background: #f6f8fa;
+        color: #1c2227;
+      }
+
+      :root[data-theme="light"] .boot-spinner {
+        border-color: rgb(28 34 39 / 20%);
+        border-top-color: currentColor;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .boot-spinner {
+          animation: none;
+        }
+      }
+    </style>
     <script>
       (() => {
         const theme = localStorage.getItem("voltura-air.themeMode");
@@ -22,7 +95,13 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="boot-screen" role="status" aria-live="polite">
+        <div class="boot-spinner" aria-hidden="true"></div>
+        <div class="boot-title">Voltura Air</div>
+        <div class="boot-message">Starting…</div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

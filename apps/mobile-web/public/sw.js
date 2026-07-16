@@ -1,6 +1,15 @@
 const webBuildId = new URL(self.location.href).searchParams.get("build") || "dev";
 const cacheName = `voltura-air-${webBuildId}`;
-const shellFiles = ["/", "/manifest.webmanifest", "/icon.svg", "/apple-touch-icon.png"];
+const shellFiles = [
+  "/",
+  "/manifest.webmanifest",
+  "/icon.svg",
+  "/apple-touch-icon.png",
+  "/icons/icon-192.png",
+  "/icons/icon-512.png",
+  "/icons/icon-maskable-192.png",
+  "/icons/icon-maskable-512.png"
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(cacheName).then((cache) => cache.addAll(shellFiles)));

@@ -98,6 +98,8 @@ updated as the app structure, tooling, and release process become concrete.
 
 ## Repository Structure
 
+- `assets/branding` contains the authoritative product artwork master and
+  Apple launch-image device matrix.
 - `apps/mobile-web` contains the React/TypeScript PWA.
 - `apps/windows-host` contains the .NET 10 Windows tray host.
 - `apps/cursor-watchdog` contains the native Windows cursor-recovery watchdog source.
@@ -146,6 +148,16 @@ updated as the app structure, tooling, and release process become concrete.
 
 ## Tooling
 
+- `assets/branding/voltura-air-master.png` is the single product artwork source.
+  Connected and disconnected tray states are generated as green-check and
+  muted-red-cross status badges over that master. Ordinary app and task-area
+  icons use a tight fit while maskable variants retain their safe zone. Run
+  `npm run icons:generate` to regenerate and
+  validate mobile, iOS, Android, Windows host, NSIS, marketing-site, and
+  README-referenced branding assets. Do not edit generated icon copies directly.
+- On Windows, run `npm run branding:generate` to regenerate static branding and
+  then refresh all `docs/site/assets` product screenshots through the isolated
+  screenshot workflow.
 - GitHub CLI (`gh`) is available in the Codex shell. It is installed through
   WinGet and exposed to the current Codex environment through
   `%APPDATA%\npm\gh.cmd`.

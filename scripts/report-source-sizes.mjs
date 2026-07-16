@@ -13,7 +13,6 @@ const excludedDirectories = new Set([
 ]);
 const excludedPathPrefixes = [
   "apps/mobile-web/public/",
-  "apps/windows-host/wwwroot/",
   "docs/site/assets/",
   "installer/assets/"
 ];

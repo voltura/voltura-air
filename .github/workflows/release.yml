@@ -71,15 +71,25 @@ jobs:
             throw "The release workflow currently supports only the verified win-x64 runtime."
           }
 
-      - name: Test
-        run: npm test
+      - name: Build release outputs
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          RUNTIME: ${{ inputs.runtime }}
+        run: npm run package:win -- -Version $env:RELEASE_VERSION -Runtime $env:RUNTIME -BuildOnly
+
+      - name: Test mobile client
+        run: npm run test:web
+
+      - name: Test Windows host
+        run: dotnet test tests/VolturaAir.Host.Tests/VolturaAir.Host.Tests.csproj -c Release -r ${{ inputs.runtime }} --no-build
 
       - name: Package release assets
         shell: pwsh
         env:
           RELEASE_VERSION: ${{ inputs.version }}
           RUNTIME: ${{ inputs.runtime }}
-        run: npm run package:win -- -Version $env:RELEASE_VERSION -Runtime $env:RUNTIME
+        run: npm run package:win -- -Version $env:RELEASE_VERSION -Runtime $env:RUNTIME -SkipBuild
 
       - name: Collect asset paths
         id: package

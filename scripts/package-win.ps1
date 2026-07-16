@@ -2,11 +2,16 @@ param(
     [string]$Version,
     [string]$Runtime = "win-x64",
     [switch]$SkipBuild,
+    [switch]$BuildOnly,
     [switch]$FrameworkDependentOnly,
     [switch]$NoInstallerCompression
 )
 
 $ErrorActionPreference = "Stop"
+
+if ($BuildOnly -and $SkipBuild) {
+    throw "BuildOnly cannot be combined with SkipBuild."
+}
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $packageJsonPath = Join-Path $repoRoot "package.json"
@@ -55,23 +60,6 @@ foreach ($segment in $versionSegments) {
 }
 $appVersionQuad = "$versionCore.0"
 
-$makensis = Get-Command makensis -ErrorAction SilentlyContinue
-$makensisPath = $null
-if ($null -ne $makensis) {
-    $makensisPath = $makensis.Source
-}
-if ([string]::IsNullOrWhiteSpace($makensisPath)) {
-    $makensisCandidates = @(
-        "${env:ProgramFiles(x86)}\NSIS\makensis.exe",
-        "$env:ProgramFiles\NSIS\makensis.exe"
-    )
-    $makensisPath = $makensisCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-}
-
-if ([string]::IsNullOrWhiteSpace($makensisPath)) {
-    throw "makensis was not found. Install NSIS 3.12 or later, then run this command again."
-}
-
 New-Item -ItemType Directory -Force -Path $publishRoot | Out-Null
 New-Item -ItemType Directory -Force -Path (Split-Path $installerPath -Parent) | Out-Null
 
@@ -87,28 +75,67 @@ if (-not $SkipBuild) {
     try {
         npm run build --workspace apps/mobile-web
 
-        if (-not $FrameworkDependentOnly) {
+        if ($BuildOnly) {
+            dotnet restore tests/VolturaAir.Host.Tests/VolturaAir.Host.Tests.csproj -r $Runtime
+
+            dotnet build tests/VolturaAir.Host.Tests/VolturaAir.Host.Tests.csproj `
+                -c Release `
+                -r $Runtime `
+                --no-restore
+
+            if (-not $FrameworkDependentOnly) {
+                dotnet publish apps/windows-host/VolturaAir.Host.csproj `
+                    -c Release `
+                    -r $Runtime `
+                    --self-contained true `
+                    -p:PublishSingleFile=true `
+                    -p:IncludeNativeLibrariesForSelfExtract=true `
+                    --no-build `
+                    -o $publishDir
+            }
+
             dotnet publish apps/windows-host/VolturaAir.Host.csproj `
                 -c Release `
                 -r $Runtime `
-                --self-contained true `
-                -p:PublishSingleFile=true `
-                -p:IncludeNativeLibrariesForSelfExtract=true `
-                -o $publishDir
+                --self-contained false `
+                -p:PublishSingleFile=false `
+                --no-build `
+                -o $frameworkDependentPublishDir
+
+            $builtWatchdog = Join-Path $repoRoot "apps\windows-host\bin\Release\net10.0-windows\$Runtime\VolturaAir.CursorWatchdog.exe"
+            if (-not (Test-Path $builtWatchdog)) {
+                throw "Expected built cursor watchdog executable was not found: $builtWatchdog"
+            }
+
+            if (-not $FrameworkDependentOnly) {
+                Copy-Item -LiteralPath $builtWatchdog -Destination (Join-Path $publishDir "VolturaAir.CursorWatchdog.exe") -Force
+            }
+            Copy-Item -LiteralPath $builtWatchdog -Destination (Join-Path $frameworkDependentPublishDir "VolturaAir.CursorWatchdog.exe") -Force
+        }
+        else {
+            if (-not $FrameworkDependentOnly) {
+                dotnet publish apps/windows-host/VolturaAir.Host.csproj `
+                    -c Release `
+                    -r $Runtime `
+                    --self-contained true `
+                    -p:PublishSingleFile=true `
+                    -p:IncludeNativeLibrariesForSelfExtract=true `
+                    -o $publishDir
+
+                powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-cursor-watchdog.ps1 `
+                    -OutputPath (Join-Path $publishDir "VolturaAir.CursorWatchdog.exe")
+            }
+
+            dotnet publish apps/windows-host/VolturaAir.Host.csproj `
+                -c Release `
+                -r $Runtime `
+                --self-contained false `
+                -p:PublishSingleFile=false `
+                -o $frameworkDependentPublishDir
 
             powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-cursor-watchdog.ps1 `
-                -OutputPath (Join-Path $publishDir "VolturaAir.CursorWatchdog.exe")
+                -OutputPath (Join-Path $frameworkDependentPublishDir "VolturaAir.CursorWatchdog.exe")
         }
-
-        dotnet publish apps/windows-host/VolturaAir.Host.csproj `
-            -c Release `
-            -r $Runtime `
-            --self-contained false `
-            -p:PublishSingleFile=false `
-            -o $frameworkDependentPublishDir
-
-        powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-cursor-watchdog.ps1 `
-            -OutputPath (Join-Path $frameworkDependentPublishDir "VolturaAir.CursorWatchdog.exe")
     }
     finally {
         Pop-Location
@@ -135,6 +162,31 @@ if (-not (Test-Path $frameworkDependentHostExe)) {
 $frameworkDependentWatchdogExe = Join-Path $frameworkDependentPublishDir "VolturaAir.CursorWatchdog.exe"
 if (-not (Test-Path $frameworkDependentWatchdogExe)) {
     throw "Expected framework-dependent cursor watchdog executable was not found: $frameworkDependentWatchdogExe"
+}
+
+if ($BuildOnly) {
+    if (-not $FrameworkDependentOnly) {
+        Write-Host "Built release publish directory: $publishDir"
+    }
+    Write-Host "Built framework-dependent release publish directory: $frameworkDependentPublishDir"
+    exit 0
+}
+
+$makensis = Get-Command makensis -ErrorAction SilentlyContinue
+$makensisPath = $null
+if ($null -ne $makensis) {
+    $makensisPath = $makensis.Source
+}
+if ([string]::IsNullOrWhiteSpace($makensisPath)) {
+    $makensisCandidates = @(
+        "${env:ProgramFiles(x86)}\NSIS\makensis.exe",
+        "$env:ProgramFiles\NSIS\makensis.exe"
+    )
+    $makensisPath = $makensisCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+}
+
+if ([string]::IsNullOrWhiteSpace($makensisPath)) {
+    throw "makensis was not found. Install NSIS 3.12 or later, then run this command again."
 }
 
 $frameworkDependentInstalledSizeBytes = (Get-ChildItem $frameworkDependentPublishDir -Recurse -File | Measure-Object Length -Sum).Sum

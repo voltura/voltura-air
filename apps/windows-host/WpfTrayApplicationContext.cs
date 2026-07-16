@@ -400,12 +400,12 @@ internal sealed class WpfTrayApplicationContext : IDisposable
 
         _ = _dispatcher.BeginInvoke(() =>
         {
-            if (!_disposed)
+            if (!_disposed && RemoteInputBlockedTrayNotification.ShouldShow(e.IsBlocked, _pairingManager.HasActiveController))
             {
                 _trayIcon.ShowBalloonTip(
                     4000,
-                    "Remote control paused",
-                    "An administrator app is active.",
+                    RemoteInputBlockedTrayNotification.Title,
+                    RemoteInputBlockedTrayNotification.Message,
                     Forms.ToolTipIcon.Warning);
             }
         });

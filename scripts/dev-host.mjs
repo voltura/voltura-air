@@ -23,17 +23,20 @@ const clientUrl = process.env.VOLTURA_AIR_CLIENT_URL ?? `http://${getLanAddress(
 
 if (useViteClient) {
   args.push("--client-url", clientUrl);
+} else {
+  args.push("--print-host-client-url");
 }
 
 stopExistingHost();
 await waitForClientFiles();
-console.log(useViteClient
-  ? `Voltura Air phone client: ${clientUrl}`
-  : "Voltura Air phone client: Windows host URL");
+if (useViteClient) {
+  console.log(`Voltura Air phone client: ${clientUrl}`);
+}
 
 const child = spawn("dotnet", args, {
-  stdio: "inherit"
+  stdio: ["inherit", "pipe", "inherit"]
 });
+child.stdout.pipe(process.stdout);
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.once(signal, () => shutdown(signal));

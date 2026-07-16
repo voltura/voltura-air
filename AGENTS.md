@@ -36,6 +36,12 @@ updated as the app structure, tooling, and release process become concrete.
   asks to keep them running. If a required port is already in use, reuse the
   relevant running process when practical or stop it instead of taking the next
   port; the user normally starts debugging from VS Code with `npm run dev`.
+- When the user is present and can validate a transient, subjective, or visual UI
+  result in seconds, hand that check to the user instead of spending substantial
+  time or tokens building temporary automation, preview harnesses, preview-only
+  production switches, or capture infrastructure. Run the normal automated quality gate,
+  but do not automate a quick human check unless the user explicitly asks Codex to
+  work autonomously or requests automated coverage for that behavior.
 - Never run multiple Voltura Air host instances in parallel, including normal,
   debug, development, screenshot, UI-validation, and isolated-test hosts. The
   single-instance behavior is a product invariant and scripts must not bypass
@@ -164,6 +170,15 @@ updated as the app structure, tooling, and release process become concrete.
 - On Windows, run `npm run branding:generate` to regenerate static branding and
   then refresh all `docs/site/assets` product screenshots through the isolated
   screenshot workflow.
+- Run `npm run cache:purge` when Windows keeps showing an earlier Voltura Air
+  notification or application icon after branding changes. The command stops
+  the host, purges the current user's Windows icon cache, and restarts Explorer.
+- Run `npm run clean:temp:preview` before `npm run clean:temp` to remove ignored
+  build and cache files while retaining the local `.vs` folder and
+  `.vscode/settings.json`.
+- Run `npm run clean:git` to compact the local Git object database and prune
+  unreachable objects; do not run it while another Git operation is active.
+- Run `npm run clean` to perform both cleanup steps in sequence.
 - GitHub CLI (`gh`) is available in the Codex shell. It is installed through
   WinGet and exposed to the current Codex environment through
   `%APPDATA%\npm\gh.cmd`.

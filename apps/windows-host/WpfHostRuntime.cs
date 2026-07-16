@@ -42,9 +42,15 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
 
     public static async Task<WpfHostRuntime> StartAsync(string[] args)
     {
+#if DEBUG
         var pairingStoreRoot = GetOption(args, "--pairing-store-root");
         var clientUrl = GetOption(args, "--client-url") ?? Environment.GetEnvironmentVariable("VOLTURA_AIR_CLIENT_URL");
         var usePublicScreenshotPairingUrl = HasOption(args, "--site-screenshot-mode");
+#else
+        string? pairingStoreRoot = null;
+        string? clientUrl = null;
+        const bool usePublicScreenshotPairingUrl = false;
+#endif
         var isolatedTestMode = HasOption(args, "--isolated-test-mode");
         IAppLog appLog = isolatedTestMode ? NullAppLog.Instance : new AppLog();
         SendInputInjector? inputInjector = null;
@@ -93,6 +99,13 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
             inputDispatcher.TaskbarActivated += (_, _) => pointerHighlightForegroundMonitor.NotifyTaskbarActivation();
             webHost.SetInputBlockedByElevation(pointerHighlightForegroundMonitor.IsRemoteInputBlocked);
             await webHost.StartAsync();
+#if DEBUG
+            if (HasOption(args, "--print-host-client-url"))
+            {
+                Console.WriteLine($"Voltura Air phone client: Windows host URL ({webHost.ServerUrl})");
+            }
+#endif
+
             mainWindow = new MainWindow(
                 pairingManager,
                 webHost,
@@ -102,7 +115,9 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 awakeService,
                 customPointerService: customPointerService,
                 appLog: appLog);
+#if DEBUG
             WritePairingUrlIfRequested(args, mainWindow.PairingUrl);
+#endif
             trayContext = new WpfTrayApplicationContext(mainWindow, webHost, pairingManager, awakeService);
             return new WpfHostRuntime(
                 inputInjector,
@@ -241,6 +256,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         }
     }
 
+#if DEBUG
     private static string? GetOption(string[] args, string name)
     {
         for (var index = 0; index < args.Length; index += 1)
@@ -255,12 +271,14 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
 
         return null;
     }
+#endif
 
     private static bool HasOption(string[] args, string name)
     {
         return args.Contains(name, StringComparer.OrdinalIgnoreCase);
     }
 
+#if DEBUG
     private static void WritePairingUrlIfRequested(string[] args, string pairingUrl)
     {
         var pairingUrlFile = GetOption(args, "--pairing-url-file");
@@ -278,4 +296,5 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
 
         File.WriteAllText(fullPath, pairingUrl);
     }
+#endif
 }

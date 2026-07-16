@@ -60,8 +60,10 @@ The Windows host supports light, dark, and system modes through the in-app
 settings. Screenshot automation passes the required theme to an isolated host;
 it never exports, edits, deletes, or restores `HKCU\Software\VolturaAir`.
 
-The host has developer automation flags for rendering public-safe screenshots
-and writing the real pairing URL to a local file:
+The Debug host has developer automation flags for rendering public-safe
+screenshots and writing the real pairing URL to a local file. These options are
+not processed by Release builds; see the complete
+[Windows host command-line reference](setup.md#windows-host-command-line-options):
 
 ```powershell
 apps\windows-host\bin\Debug\net10.0-windows\VolturaAir.Host.exe `

@@ -42,13 +42,17 @@ internal static class Program
         try
         {
             var isolatedTestMode = args.Contains("--isolated-test-mode", StringComparer.OrdinalIgnoreCase);
+#if DEBUG
             if (args.Contains("--site-screenshot-mode", StringComparer.OrdinalIgnoreCase) && !isolatedTestMode)
             {
                 throw new InvalidOperationException("Site screenshot mode requires --isolated-test-mode.");
             }
+#endif
 
             s_isolatedSettingsScope = isolatedTestMode ? HostSettingsRegistry.BeginIsolatedScope() : null;
+#if DEBUG
             ConfigureSiteScreenshotSettings(args);
+#endif
             s_runtime = await WpfHostRuntime.StartAsync(args);
             var remaining = TimeSpan.FromMilliseconds(1500) - (DateTimeOffset.UtcNow - startedAt);
             if (remaining > TimeSpan.Zero)
@@ -57,6 +61,7 @@ internal static class Program
             }
 
             startupWindow.Close();
+#if DEBUG
             var screenshotPreferencesSection = args.Contains("--site-screenshot-mode", StringComparer.OrdinalIgnoreCase)
                 ? GetOption(args, "--site-screenshot-preferences-section")
                 : null;
@@ -65,6 +70,9 @@ internal static class Program
                 s_runtime.MainWindow.ShowPreferencesSectionForScreenshot(screenshotPreferencesSection);
             }
             else if (ConsumeActivationRequest() || ShouldShowMainWindowOnStartup(args, AppWindowSettings.StartHiddenInTray(), s_runtime.PairingManager.HasActiveController))
+#else
+            if (ConsumeActivationRequest() || ShouldShowMainWindowOnStartup(args, AppWindowSettings.StartHiddenInTray(), s_runtime.PairingManager.HasActiveController))
+#endif
             {
                 s_runtime.MainWindow.ShowPage(HostPage.Connect);
             }
@@ -102,6 +110,7 @@ internal static class Program
         return Interlocked.Exchange(ref s_activationRequested, 0) != 0;
     }
 
+#if DEBUG
     private static string? GetOption(string[] args, string name)
     {
         for (var index = 0; index < args.Length; index += 1)
@@ -116,7 +125,9 @@ internal static class Program
 
         return null;
     }
+#endif
 
+#if DEBUG
     private static void ConfigureSiteScreenshotSettings(string[] args)
     {
         if (!args.Contains("--site-screenshot-mode", StringComparer.OrdinalIgnoreCase))
@@ -140,6 +151,7 @@ internal static class Program
             AllowUrlOpen = true
         });
     }
+#endif
 
     internal static bool ShouldShowMainWindowOnStartup(string[] args, bool startHiddenInTraySetting, bool hasActiveController)
     {

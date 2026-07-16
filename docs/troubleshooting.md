@@ -92,9 +92,9 @@ Check these items first:
 
 Custom pointer applies across the Windows desktop. Switch it off in **Preferences > Custom pointer** or from a paired device to restore the configured Windows
 cursor scheme immediately. The default-on cursor recovery watchdog also restores that scheme if the
-host exits unexpectedly. The host shows **Remote control paused** once and the
-phone shows **Administrator app active** when a higher-integrity foreground app
-blocks injected input. Choose **Show desktop** on the phone
+host exits unexpectedly. While a phone is connected, the host shows **PC input
+paused** once and the phone shows **Administrator app active** when a
+higher-integrity foreground app blocks injected input. Choose **Show desktop** on the phone
 to minimize desktop windows through the Windows shell, or choose **Continue** to
 return to the client controls. A compact recovery toast remains available to reopen
 the dialog until a normal foreground application returns, when it clears automatically. Input to UAC prompts, the lock screen,

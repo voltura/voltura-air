@@ -424,12 +424,14 @@ public sealed partial class WebHostService : IAsyncDisposable
             return true;
         }
 
+#if DEBUG
         var configuredClientUrl = Environment.GetEnvironmentVariable("VOLTURA_AIR_CLIENT_URL");
         if (Uri.TryCreate(configuredClientUrl, UriKind.Absolute, out var configuredClientUri) &&
             SameOrigin(originUri, configuredClientUri))
         {
             return true;
         }
+#endif
 
         return IsLoopbackOrPrivateHost(originUri.Host);
     }
@@ -439,12 +441,14 @@ public sealed partial class WebHostService : IAsyncDisposable
         return context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
     }
 
+#if DEBUG
     private static bool SameOrigin(Uri first, Uri second)
     {
         return string.Equals(first.Scheme, second.Scheme, StringComparison.OrdinalIgnoreCase) &&
             string.Equals(first.Host, second.Host, StringComparison.OrdinalIgnoreCase) &&
             first.Port == second.Port;
     }
+#endif
 
     private static bool IsLoopbackOrPrivateHost(string host)
     {

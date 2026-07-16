@@ -6,7 +6,16 @@ namespace VolturaAir.Host.Tests;
 public sealed class WebHostOriginPolicyTests : WebHostServiceTestBase
 {
     [Fact]
-    public void OriginPolicyAllowsNormalLocalAndDevOrigins()
+    public void OriginPolicyAllowsNormalLocalOrigins()
+    {
+        Assert.True(WebHostService.IsAllowedWebSocketOrigin(CreateOriginRequest(null)));
+        Assert.True(WebHostService.IsAllowedWebSocketOrigin(CreateOriginRequest("http://192.168.68.51:51395")));
+        Assert.True(WebHostService.IsAllowedWebSocketOrigin(CreateOriginRequest("http://192.168.68.20:5173")));
+        Assert.True(WebHostService.IsAllowedWebSocketOrigin(CreateOriginRequest("http://localhost:5173")));
+    }
+
+    [Fact]
+    public void OriginPolicyLimitsConfiguredClientOriginToDebugBuilds()
     {
         var originalClientUrl = Environment.GetEnvironmentVariable("VOLTURA_AIR_CLIENT_URL");
 
@@ -14,11 +23,11 @@ public sealed class WebHostOriginPolicyTests : WebHostServiceTestBase
         {
             Environment.SetEnvironmentVariable("VOLTURA_AIR_CLIENT_URL", "http://dev.example.test:5173");
 
-            Assert.True(WebHostService.IsAllowedWebSocketOrigin(CreateOriginRequest(null)));
-            Assert.True(WebHostService.IsAllowedWebSocketOrigin(CreateOriginRequest("http://192.168.68.51:51395")));
-            Assert.True(WebHostService.IsAllowedWebSocketOrigin(CreateOriginRequest("http://192.168.68.20:5173")));
-            Assert.True(WebHostService.IsAllowedWebSocketOrigin(CreateOriginRequest("http://localhost:5173")));
+#if DEBUG
             Assert.True(WebHostService.IsAllowedWebSocketOrigin(CreateOriginRequest("http://dev.example.test:5173")));
+#else
+            Assert.False(WebHostService.IsAllowedWebSocketOrigin(CreateOriginRequest("http://dev.example.test:5173")));
+#endif
         }
         finally
         {

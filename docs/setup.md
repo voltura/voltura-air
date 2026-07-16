@@ -65,6 +65,32 @@ npm run dev:web
 npm run dev:host
 ```
 
+## Windows Host Command-Line Options
+
+The packaged Release host supports only options needed by normal startup or safe
+validation:
+
+| Option | Purpose |
+| --- | --- |
+| `--minimized` | Starts without opening the main window. Voltura Air uses this for start-at-sign-in behavior. |
+| `--isolated-test-mode` | Uses the normal single-instance scope but binds only to loopback, isolates host settings, disables real system power actions, and avoids persisting automatic network or port choices. Temporary validation hosts must use this option. |
+
+Debug builds additionally support these development and capture options:
+
+| Option | Purpose |
+| --- | --- |
+| `--client-url <URL>` | Places a development client URL in the pairing link instead of the host-served client URL. The `VOLTURA_AIR_CLIENT_URL` environment variable provides the same Debug-only override and origin allowance. |
+| `--print-host-client-url` | Writes the selected Windows host URL to standard output after the host has successfully started. `npm run dev:host` uses this option. |
+| `--pairing-store-root <path>` | Redirects pairing persistence to a disposable development directory. Use it only with `--isolated-test-mode`. |
+| `--pairing-url-file <path>` | Writes the real pairing URL for local automation. The file contains a live short-lived pairing token and must stay temporary and private. |
+| `--site-screenshot-mode` | Enables public-safe screenshot rendering and requires `--isolated-test-mode`. |
+| `--site-screenshot-theme <Light\|Dark\|System>` | Selects the required host theme for screenshot mode. |
+| `--site-screenshot-preferences-section <name>` | Opens the named Preferences section for a host screenshot. |
+
+Release builds do not process the Debug-only options or
+`VOLTURA_AIR_CLIENT_URL`. See [Screenshot and Installer Artwork Capture](screenshots.md)
+for the supported capture workflow and required option combinations.
+
 ## Pairing And Reconnects
 
 The QR code contains the host URL and a short-lived pairing token. The mobile app sends that token over the WebSocket connection. The Windows host returns a client secret, stores a hash of it in `%AppData%\Voltura Air`, and the mobile app stores the secret in browser storage for reconnects.

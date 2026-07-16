@@ -503,6 +503,7 @@ public partial class MainWindow
     private void SaveGlobalPermissions(
         CheckBox sleep,
         CheckBox volume,
+        CheckBox presentation,
         CheckBox remoteLaunch,
         CheckBox urlOpen,
         CheckBox pcLock,
@@ -523,6 +524,7 @@ public partial class MainWindow
         AppPermissionSettings.Save(new HostPermissionSet(
             AllowPcSleep: sleep.IsChecked == true,
             AllowVolumeControl: volume.IsChecked == true,
+            AllowPresentationControl: presentation.IsChecked == true,
             AllowRemoteAppLaunch: remoteLaunch.IsChecked == true,
             AllowUrlOpen: urlOpen.IsChecked == true,
             AllowPcLock: pcLock.IsChecked == true,

@@ -521,6 +521,8 @@ internal sealed record HostStatusMetadata(
 
 internal sealed record TextTransferTargetMetadata(string Mode, string DisplayName, bool Available);
 
+internal sealed record PresentationCommandResult(bool Succeeded, string? Code, string Message);
+
 public sealed class HostPortUnavailableException(string message) : Exception(message)
 {
 }

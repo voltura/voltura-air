@@ -34,6 +34,8 @@ public sealed partial class HostUiLayoutTests
                 Assert.Empty(FindWpfDescendants<DatePicker>(window));
                 Assert.Contains(FindWpfDescendants<CheckBox>(window), checkbox =>
                     string.Equals(checkbox.Content?.ToString(), "Allow paired devices to open web addresses", StringComparison.Ordinal));
+                Assert.Contains(FindWpfDescendants<CheckBox>(window), checkbox =>
+                    string.Equals(checkbox.Content?.ToString(), "Allow paired devices to control presentations", StringComparison.Ordinal));
             }
             finally
             {

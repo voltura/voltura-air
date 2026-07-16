@@ -302,6 +302,7 @@ public partial class MainWindow
         permissionsPanel.Children.Add(CreateMutedText("When off, paired devices cannot inject input into Voltura Air itself. They can still control Windows and other permitted apps."));
         var sleep = CreateCheckBox("Allow paired devices to request PC sleep", globalPermissions.AllowPcSleep);
         var volume = CreateCheckBox("Allow paired devices to control volume", globalPermissions.AllowVolumeControl);
+        var presentation = CreateCheckBox("Allow paired devices to control presentations", globalPermissions.AllowPresentationControl);
         var remoteLaunch = CreateCheckBox("Allow paired devices to start applications", globalPermissions.AllowRemoteAppLaunch);
         var urlOpen = CreateCheckBox("Allow paired devices to open web addresses", globalPermissions.AllowUrlOpen);
         var pcLock = CreateCheckBox("Allow paired devices to lock the PC", globalPermissions.AllowPcLock);
@@ -313,14 +314,15 @@ public partial class MainWindow
         var signOut = CreateCheckBox("Allow paired devices to sign out", globalPermissions.AllowSignOut);
         var restart = CreateCheckBox("Allow paired devices to restart the PC", globalPermissions.AllowRestart);
         var shutdown = CreateCheckBox("Allow paired devices to shut down the PC", globalPermissions.AllowShutdown);
-        void SavePermissions() => SaveGlobalPermissions(sleep, volume, remoteLaunch, urlOpen, pcLock, blackoutDisplay, displayOff, screenSaver, awakeControl, clipboardRead, signOut, restart, shutdown);
-        foreach (var permission in new[] { sleep, volume, remoteLaunch, urlOpen, pcLock, blackoutDisplay, displayOff, screenSaver, awakeControl, clipboardRead, signOut, restart, shutdown })
+        void SavePermissions() => SaveGlobalPermissions(sleep, volume, presentation, remoteLaunch, urlOpen, pcLock, blackoutDisplay, displayOff, screenSaver, awakeControl, clipboardRead, signOut, restart, shutdown);
+        foreach (var permission in new[] { sleep, volume, presentation, remoteLaunch, urlOpen, pcLock, blackoutDisplay, displayOff, screenSaver, awakeControl, clipboardRead, signOut, restart, shutdown })
         {
             permission.Checked += (_, _) => SavePermissions();
             permission.Unchecked += (_, _) => SavePermissions();
         }
         permissionsPanel.Children.Add(sleep);
         permissionsPanel.Children.Add(volume);
+        permissionsPanel.Children.Add(presentation);
         permissionsPanel.Children.Add(remoteLaunch);
         permissionsPanel.Children.Add(urlOpen);
         permissionsPanel.Children.Add(pcLock);

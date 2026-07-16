@@ -91,6 +91,17 @@ public sealed class InputDispatcher(IInputInjector inputInjector)
         return InputDispatchOutcome.Executed;
     }
 
+    public InputDispatchOutcome DispatchShortcut(string key, IReadOnlyList<string> modifiers)
+    {
+        if (HostUiInputGuard.ShouldBlockTextTransfer())
+        {
+            return InputDispatchOutcome.Blocked;
+        }
+
+        _inputInjector.SpecialKey(key, modifiers);
+        return InputDispatchOutcome.Executed;
+    }
+
     private void TypeTextWithLineBreaks(string text)
     {
         var segmentStart = 0;

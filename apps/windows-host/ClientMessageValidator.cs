@@ -81,6 +81,12 @@ internal static class ClientMessageValidator
             "system.power" => TryGetRequiredString(root, "action", MaxRemoteActionLength, allowEmpty: false, out _),
             "awake.set" => root.TryGetProperty("enabled", out var enabled) &&
                 enabled.ValueKind is JsonValueKind.True or JsonValueKind.False,
+            "presentation.command" => TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var presentationOperationId) &&
+                IsValidOperationId(presentationOperationId) &&
+                TryGetRequiredString(root, "target", MaxMetadataLength, allowEmpty: false, out var presentationTarget) &&
+                PresentationCommands.IsTarget(presentationTarget) &&
+                TryGetRequiredString(root, "action", MaxRemoteActionLength, allowEmpty: false, out var presentationAction) &&
+                PresentationCommands.IsAction(presentationAction),
             "remote.launch" => TryGetRequiredString(root, "action", MaxRemoteActionLength, allowEmpty: false, out var action) &&
                 RemoteLaunchActions.IsSupported(action),
             "app.launch" => TryGetRequiredString(root, "actionId", AppLaunchSettings.MaxIdLength, allowEmpty: false, out var actionId) &&

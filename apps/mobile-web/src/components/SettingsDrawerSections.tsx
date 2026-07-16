@@ -451,7 +451,8 @@ export function AppSettingsSection({
     <div className="install-card">
       <label className="setting-group">
         <span>Fourth mode button</span>
-        <select className="text-input fourth-mode-select" value={appSettings.fourthMode} onChange={(event) => updateAppSetting("fourthMode", event.target.value === "text-transfer" || event.target.value === "clipboard-read" ? event.target.value : "dictation")}>
+        <select className="text-input fourth-mode-select" value={appSettings.fourthMode} onChange={(event) => updateAppSetting("fourthMode", event.target.value === "presentation" || event.target.value === "text-transfer" || event.target.value === "clipboard-read" ? event.target.value : "dictation")}>
+          <option value="presentation">Presentation</option>
           <option value="dictation">Dictation</option>
           <option value="text-transfer">Send text to PC</option>
           <option value="clipboard-read">Get text from PC</option>

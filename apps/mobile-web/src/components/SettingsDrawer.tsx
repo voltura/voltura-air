@@ -43,7 +43,7 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
       <section className="drawer-group" aria-labelledby="drawer-tools-title">
         <h3 id="drawer-tools-title">Tools</h3>
         <div className="drawer-tool-list">
-          {(["dictation", "text-transfer", "clipboard-read"] satisfies ToolAppTab[]).map((toolId) => {
+          {(["presentation", "dictation", "text-transfer", "clipboard-read"] satisfies ToolAppTab[]).map((toolId) => {
             const { Icon, ariaLabel } = toolModeDefinitions[toolId];
             return (
               <button key={toolId} type="button" onClick={() => props.onOpenTool?.(toolId)}>

@@ -149,7 +149,7 @@
             <li>Control a TV or stereo PC from the sofa.</li>
             <li>Type searches, messages, and notes, or open a reviewed web address in the PC's default browser.</li>
             <li>Use a tablet as a roomy couch keyboard and trackpad.</li>
-            <li>Navigate YouTube, Kodi, music, video, presentations, and open Windows apps.</li>
+            <li>Run PowerPoint or Google Slides from a dedicated presenter surface with large controls and a local elapsed timer.</li>
             <li>Keep a backup remote ready when your usual keyboard or mouse is out of reach.</li>
           </ul>
         </div>
@@ -228,7 +228,7 @@
         <ol class="steps">
           <li>Install and start Voltura Air on the Windows 11 PC you want to control.</li>
           <li>Scan the pairing QR code with a phone or tablet on the same Wi-Fi or local network.</li>
-          <li>Choose Trackpad, Keyboard, Remote, Dictation, Send text to PC, Get text from PC, or tablet split mode.</li>
+          <li>Choose Trackpad, Keyboard, Remote, Presentation, Dictation, Send text to PC, Get text from PC, or tablet split mode.</li>
           <li>Optionally add the mobile page to your home screen for faster access later.</li>
         </ol>
       </section>

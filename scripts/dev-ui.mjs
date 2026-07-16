@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { devUiDevices, getDevUiDevice } from "./dev-ui-devices.mjs";
+import { verifyResponsivePresentationLayout } from "./dev-ui-presentation-check.mjs";
 import {
   readPreferredClientPort,
   resolveCommand,
@@ -73,7 +74,7 @@ async function main() {
 
   await waitForHttp(clientUrl, 30000);
 
-  children.push(spawnCommand("dotnet", [
+  const hostArguments = [
     "run",
     "--project",
     "apps/windows-host/VolturaAir.Host.csproj",
@@ -85,7 +86,12 @@ async function main() {
     "--pairing-url-file",
     pairingUrlFile,
     "--isolated-test-mode"
-  ], {
+  ];
+  if (smokeTest) {
+    hostArguments.push("--minimized");
+  }
+
+  children.push(spawnCommand("dotnet", hostArguments, {
     ...childEnv,
     APPDATA: tempAppDataDir
   }, { cwd: repoRoot }));
@@ -98,8 +104,9 @@ async function main() {
   if (smokeTest) {
     await verifyResponsivePowerLayout(page);
     await verifyResponsiveTextTransferLayout(page);
+    await verifyResponsivePresentationLayout(page);
     await verifyResponsiveUrlOpenLayout(page);
-    console.log("Voltura Air UI smoke test connected and passed responsive Power sheet, text transfer, and URL opening checks.");
+    console.log("Voltura Air UI smoke test connected and passed responsive Power sheet, text transfer, Presentation, and URL opening checks.");
     shutdown("SIGTERM", 0);
     return;
   }

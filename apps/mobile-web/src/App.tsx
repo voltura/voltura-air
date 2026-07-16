@@ -34,10 +34,14 @@ export function App() {
     requestPowerAction,
     requestAwakeChange,
     requestAppLaunch,
+    requestPresentationCommand,
     requestUrlOpen,
     requestTextTransfer,
     requestClipboardRead,
     pendingTextTransfer,
+    pendingPresentationCommand,
+    presentationResult,
+    presentationCapability,
     pendingClipboardRead,
     textTransferResult,
     clipboardReadResult,
@@ -341,7 +345,7 @@ export function App() {
   };
 
   return (
-    <main className={`app-shell ${isBottomModeNavigationVisible ? "has-mode-navigation" : ""} ${tab === "trackpad" ? "trackpad-active" : ""} ${tab === "remote" ? "remote-active" : ""} ${isRemoteUtilityPanelOpen ? "remote-utility-open" : ""} ${tab === "text-transfer" ? "text-transfer-active" : ""} ${tab === "clipboard-read" ? "clipboard-read-active" : ""} ${shouldShowSplitMode ? "split-mode-active" : ""} ${shouldShowSplitMode && trackpadSettings.splitShowModeButtons ? "split-show-mode-buttons" : ""} ${shouldShowSplitMode && trackpadSettings.splitShowStatusRow ? "split-show-status-row" : ""} ${areModeTabsCollapsed ? "mode-tabs-collapsed" : ""} ${isModeSelectorOpen ? "mode-selector-open" : ""}`}>
+    <main className={`app-shell ${isBottomModeNavigationVisible ? "has-mode-navigation" : ""} ${tab === "trackpad" ? "trackpad-active" : ""} ${tab === "remote" ? "remote-active" : ""} ${isRemoteUtilityPanelOpen ? "remote-utility-open" : ""} ${tab === "presentation" ? "presentation-active" : ""} ${tab === "text-transfer" ? "text-transfer-active" : ""} ${tab === "clipboard-read" ? "clipboard-read-active" : ""} ${shouldShowSplitMode ? "split-mode-active" : ""} ${shouldShowSplitMode && trackpadSettings.splitShowModeButtons ? "split-show-mode-buttons" : ""} ${shouldShowSplitMode && trackpadSettings.splitShowStatusRow ? "split-show-status-row" : ""} ${areModeTabsCollapsed ? "mode-tabs-collapsed" : ""} ${isModeSelectorOpen ? "mode-selector-open" : ""}`}>
       <header className="top-bar">
         <div className="brand-group">
           <button className="icon-button" type="button" aria-label="Open menu" onClick={() => setIsSettingsOpen(true)}>
@@ -501,6 +505,13 @@ export function App() {
           showFunctionKeys: keyboardSettings.showFunctionKeys,
           showSleepButton: keyboardSettings.showSleepButton && supportsSleep,
           toLiveKeyboardValue
+        }}
+        presentationMode={{
+          capability: presentationCapability,
+          connected: state === "paired",
+          pending: pendingPresentationCommand,
+          result: presentationResult,
+          onCommand: requestPresentationCommand
         }}
         remoteMode={{
           appLaunchActions: hostStatus?.appLaunchActions ?? [],

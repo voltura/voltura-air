@@ -149,6 +149,9 @@ updated as the app structure, tooling, and release process become concrete.
 - GitHub CLI (`gh`) is available in the Codex shell. It is installed through
   WinGet and exposed to the current Codex environment through
   `%APPDATA%\npm\gh.cmd`.
+- Run `npm run branch:sync` from a clean feature branch to fetch the latest
+  `origin/main` and merge it into the current branch. It refuses `main` and a
+  dirty worktree; resolve merge conflicts through the normal Git workflow.
 - Run `npm run code:statistics` to report the maintained mobile-client,
   Windows-host, and NSIS installer source file and line counts, grouped by file
   type, plus repository document, image, cursor asset, script, npm-command,

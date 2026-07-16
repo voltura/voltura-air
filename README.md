@@ -14,7 +14,7 @@ Scan the QR code from a phone, tablet, or browser-capable device on the same net
 
 - Use a trackpad, keyboard, dictation, media remote, and app controls from your phone or tablet.
 - Send or paste multiline text to the focused Windows app, copy it to the PC clipboard, create a new document in a configured app, or explicitly fetch the PC clipboard into selectable web-app text when the host permits it.
-- Control YouTube, Kodi, browser tabs, presentation controls, and common Windows window actions.
+- Use a dedicated presenter surface for PowerPoint, Google Slides, and browser/PDF navigation, with acknowledged Next/Previous/End commands, target-safe Black screen and laser controls, and a local elapsed timer.
 - Open a reviewed HTTP or HTTPS address once in the PC's default browser, with a separate host permission and retryable result.
 - Lock the PC, blackout displays, or use approved power controls with deliberate confirmation for destructive actions.
 - Choose per-device permissions and pointer speed, plus a host-wide Custom pointer for the Windows desktop.
@@ -227,6 +227,16 @@ Run only one side when needed:
 npm run dev:web
 npm run dev:host
 ```
+
+## Sync A Feature Branch
+
+From a clean checked-out branch other than `main`, run:
+
+```powershell
+npm run branch:sync
+```
+
+The helper fetches the latest `origin/main` and merges it into the current branch without switching branches. It refuses a dirty worktree or `main`; resolve any merge conflicts through the normal Git workflow.
 
 `npm run dev:host` stops any existing `VolturaAir.Host.exe` process before starting `dotnet run` so the Debug build output and preferred port are not locked. Set a client URL when the phone should load a separate web client:
 

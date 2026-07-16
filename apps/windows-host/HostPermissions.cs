@@ -3,6 +3,7 @@ namespace VolturaAir.Host;
 public sealed record HostPermissionSet(
     bool AllowPcSleep = false,
     bool AllowVolumeControl = true,
+    bool AllowPresentationControl = true,
     bool AllowRemoteAppLaunch = true,
     bool AllowUrlOpen = false,
     bool AllowPcLock = true,
@@ -18,6 +19,7 @@ public sealed record HostPermissionSet(
 public sealed record DevicePermissionOverrides(
     bool? AllowPcSleep = null,
     bool? AllowVolumeControl = null,
+    bool? AllowPresentationControl = null,
     bool? AllowRemoteAppLaunch = null,
     bool? AllowUrlOpen = null,
     bool? AllowPcLock = null,
@@ -35,6 +37,7 @@ public static class HostPermissions
     public static HostPermissionSet DefaultGlobal { get; } = new(
         AllowPcSleep: false,
         AllowVolumeControl: true,
+        AllowPresentationControl: true,
         AllowRemoteAppLaunch: true,
         AllowUrlOpen: false,
         AllowPcLock: true,
@@ -52,6 +55,7 @@ public static class HostPermissions
         return new HostPermissionSet(
             AllowPcSleep: deviceOverrides?.AllowPcSleep ?? global.AllowPcSleep,
             AllowVolumeControl: deviceOverrides?.AllowVolumeControl ?? global.AllowVolumeControl,
+            AllowPresentationControl: deviceOverrides?.AllowPresentationControl ?? global.AllowPresentationControl,
             AllowRemoteAppLaunch: deviceOverrides?.AllowRemoteAppLaunch ?? global.AllowRemoteAppLaunch,
             AllowUrlOpen: deviceOverrides?.AllowUrlOpen ?? global.AllowUrlOpen,
             AllowPcLock: deviceOverrides?.AllowPcLock ?? global.AllowPcLock,

@@ -9,6 +9,7 @@ public sealed class HostPermissionsTests
     {
         Assert.False(HostPermissions.DefaultGlobal.AllowPcSleep);
         Assert.True(HostPermissions.DefaultGlobal.AllowVolumeControl);
+        Assert.True(HostPermissions.DefaultGlobal.AllowPresentationControl);
         Assert.True(HostPermissions.DefaultGlobal.AllowRemoteAppLaunch);
         Assert.False(HostPermissions.DefaultGlobal.AllowUrlOpen);
         Assert.True(HostPermissions.DefaultGlobal.AllowPcLock);
@@ -39,6 +40,20 @@ public sealed class HostPermissionsTests
 
         Assert.True(globallyAllowed.AllowRemoteAppLaunch);
         Assert.False(globallyBlocked.AllowRemoteAppLaunch);
+    }
+
+    [Fact]
+    public void DevicePresentationOverrideWinsOverGlobal()
+    {
+        var allowed = HostPermissions.Resolve(
+            new HostPermissionSet(AllowPresentationControl: false),
+            new DevicePermissionOverrides(AllowPresentationControl: true));
+        var blocked = HostPermissions.Resolve(
+            new HostPermissionSet(AllowPresentationControl: true),
+            new DevicePermissionOverrides(AllowPresentationControl: false));
+
+        Assert.True(allowed.AllowPresentationControl);
+        Assert.False(blocked.AllowPresentationControl);
     }
 
     [Fact]
@@ -171,6 +186,7 @@ public sealed class HostPermissionsTests
         var saved = manager.SetDevicePermissionOverrides("client-a", new DevicePermissionOverrides(
             AllowPcSleep: true,
             AllowVolumeControl: true,
+            AllowPresentationControl: true,
             AllowRemoteAppLaunch: true,
             AllowUrlOpen: true,
             AllowPcLock: true,
@@ -186,6 +202,7 @@ public sealed class HostPermissionsTests
 
         Assert.True(saved);
         Assert.True(reloaded.AllowRemoteAppLaunch);
+        Assert.True(reloaded.AllowPresentationControl);
         Assert.True(reloaded.AllowUrlOpen);
         Assert.True(reloaded.AllowPcLock);
         Assert.True(reloaded.AllowBlackoutDisplay);
@@ -199,6 +216,7 @@ public sealed class HostPermissionsTests
         Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowPcSleep);
         Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowVolumeControl);
         Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowRemoteAppLaunch);
+        Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowPresentationControl);
         Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowUrlOpen);
         Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowPcLock);
         Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowBlackoutDisplay);

@@ -181,6 +181,12 @@ public sealed partial class WebHostService
                     continue;
                 }
 
+                if (type == "presentation.command")
+                {
+                    await HandlePresentationCommandAsync(socket, authenticatedClientId, root, cancellationToken);
+                    continue;
+                }
+
                 if (type == "remote.launch")
                 {
                     var action = GetString(root, "action");
@@ -523,43 +529,6 @@ public sealed partial class WebHostService
             cancellationToken);
     }
 
-    private object CreateCapabilities(string clientId)
-    {
-        return new
-        {
-            sleep = CanSleepPc(clientId),
-            power = CreatePowerCapabilities(clientId),
-            awake = CreateAwakeCapability(clientId),
-            volume = CanControlVolume(clientId),
-            remoteLaunch = CanLaunchRemoteApps(clientId),
-            urlOpen = new { canOpen = CanOpenUrls(clientId) },
-            textTransfer = true,
-            clipboardRead = CanReadClipboard(clientId),
-            gestureDebug = AppDeveloperSettings.EnableGestureDebug(),
-            inputAck = true
-        };
-    }
-
-    private bool CanSleepPc(string clientId)
-    {
-        return _pairingManager.GetEffectivePermissions(clientId, AppPermissionSettings.Load()).AllowPcSleep;
-    }
-
-    private bool CanControlVolume(string clientId)
-    {
-        return _pairingManager.GetEffectivePermissions(clientId, AppPermissionSettings.Load()).AllowVolumeControl;
-    }
-
-    private bool CanLaunchRemoteApps(string clientId)
-    {
-        return _pairingManager.GetEffectivePermissions(clientId, AppPermissionSettings.Load()).AllowRemoteAppLaunch;
-    }
-
-    private bool CanOpenUrls(string clientId)
-    {
-        return _pairingManager.GetEffectivePermissions(clientId, AppPermissionSettings.Load()).AllowUrlOpen;
-    }
-
     private static bool IsInputMessage(string? type)
     {
         return type is "pointer.move" or "pointer.button" or "pointer.wheel" or "pointer.zoom" or "keyboard.text" or "keyboard.special";
@@ -587,11 +556,6 @@ public sealed partial class WebHostService
     private static string GetString(JsonElement root, string propertyName)
     {
         return root.TryGetProperty(propertyName, out var value) ? value.GetString() ?? string.Empty : string.Empty;
-    }
-
-    private bool CanReadClipboard(string clientId)
-    {
-        return _pairingManager.GetEffectivePermissions(clientId, AppPermissionSettings.Load()).AllowClipboardRead;
     }
 
     private Task HandleAppLaunchAsync(WebSocket socket, string clientId, string actionId, CancellationToken cancellationToken)

@@ -115,6 +115,7 @@ Successful response:
     },
     "sleep": true,
     "volume": true,
+    "presentation": { "canControl": true },
     "remoteLaunch": true,
     "urlOpen": { "canOpen": false },
     "textTransfer": true
@@ -170,6 +171,7 @@ Host response:
     },
     "sleep": true,
     "volume": true,
+    "presentation": { "canControl": true },
     "remoteLaunch": true,
     "textTransfer": true
   },
@@ -518,6 +520,51 @@ The host preserves multiline text by translating LF, CRLF, and CR line breaks in
 
 When permission is blocked, no clipboard read occurs and the host returns `VAIR-CLIPBOARD-PERMISSION-DENIED`. Other expected failures are `VAIR-CLIPBOARD-NO-TEXT`, `VAIR-CLIPBOARD-TEXT-TOO-LONG`, and `VAIR-CLIPBOARD-UNAVAILABLE`.
 
+## Presentation commands
+
+Presentation mode uses a separate acknowledged command set rather than sending arbitrary `keyboard.special` messages. The client supplies one bounded operation ID, a reviewed target profile, and one fixed action. The official client permits only one in-flight presentation command, disables every presenter control until its matching result arrives, and clears pending state on disconnect instead of replaying a slide change later.
+
+```json
+{
+  "type": "presentation.command",
+  "operationId": "2fd6j9q-01az82x-18c8qtm-0kj3y5s",
+  "target": "powerpoint",
+  "action": "next"
+}
+```
+
+Targets are `powerpoint`, `google-slides`, and `pdf`. Actions are `next`, `previous`, `start`, `end`, `black`, and `pointer`; a recognized action can still be unavailable for a target and then returns `unsupported-action` without injecting input. The first-version mappings are:
+
+| Target | Next | Previous | Start | End | Black | Pointer |
+| --- | --- | --- | --- | --- | --- | --- |
+| PowerPoint | Right | Left | F5 | Esc | B | Ctrl+L |
+| Google Slides | Right | Left | unavailable | Esc | B | L |
+| PDF/browser | Right | Left | unavailable | Esc | unavailable | unavailable |
+
+These mappings are intentionally user-selected. The host does not inspect the focused process, presentation file, slide number, or application state. The mobile UI hides unavailable actions: in particular it never sends F5 to a browser target. The target scope follows the current [PowerPoint presentation shortcuts](https://support.microsoft.com/en-us/office/use-keyboard-shortcuts-to-deliver-powerpoint-presentations-1524ffce-bd2a-45f4-9a7f-f18b992b93a0) and [Google Slides shortcuts](https://support.google.com/docs/answer/1696717).
+
+The host advertises support and the paired device's effective global/per-device permission separately:
+
+```json
+{ "presentation": { "canControl": true } }
+```
+
+After validation and permission enforcement, the host performs one shortcut injection and returns the matching operation, target, and action:
+
+```json
+{
+  "type": "presentation.command.result",
+  "operationId": "2fd6j9q-01az82x-18c8qtm-0kj3y5s",
+  "target": "powerpoint",
+  "action": "next",
+  "succeeded": true,
+  "code": null,
+  "message": "Next slide command sent."
+}
+```
+
+Failure codes are `permission-denied`, `unsupported-action`, `host-ui-blocked`, and `input-failed`. The client can additionally report `VAIR-PRESENTATION-RESPONSE-TIMEOUT` if no matching result arrives. Expected denial and native input failures keep the authenticated socket open. Success confirms that Windows accepted the shortcut sequence; it does not claim that an application changed slides.
+
 Input delivery acknowledgement:
 
 When `capabilities.inputAck` is `true`, the mobile client adds a positive `seq`
@@ -570,6 +617,9 @@ The host reports optional PC features in `capabilities`. Capability values
 reflect host-enforced permissions and host settings for the active device.
 `capabilities.gestureDebug` defaults to `false`; `capabilities.inputAck` is
 `true` when the host confirms input delivery with `input.ack` / `input.error`.
+`capabilities.presentation` is present on hosts that support the dedicated
+command set, and its `canControl` value is the active device's effective
+Presentation control permission.
 The mobile app only shows the gesture debug entry when the host explicitly enables it. The mobile app only
 shows the keyboard sleep button when `capabilities.sleep` is `true` and the
 local **Show sleep button** keyboard setting is enabled. The mobile app only

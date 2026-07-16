@@ -142,6 +142,12 @@ invalid target, and Windows start failures without disconnecting. Enable
 Custom paths and arguments are excluded from the log. Launch result feedback
 under the buttons clears automatically after four seconds.
 
+## Presentation controls are disabled or affect the wrong app
+
+Open **Preferences > Global permissions** on the Windows host and enable **Allow paired devices to control presentations**, or review the selected device's **Presentation control** override under **Devices > Permissions**. Keep the intended slideshow or viewer focused on the PC; Voltura Air blocks these shortcuts while its own protected host window is focused and cannot inject them into UAC, the secure desktop, or a higher-integrity application.
+
+Choose the matching target on the phone. PowerPoint is the only profile that sends F5 to start. Google Slides must already be presenting in the browser before its B and L controls are used. PDF/browser intentionally provides only Previous, Next, and End because Black screen, laser, and start shortcuts are not consistent across viewers. A temporary disconnect clears the pending command; press the control again only after the app reconnects and the intended presentation is focused.
+
 ## Lock PC is disabled or fails
 
 Open the Windows host and go to **Preferences > Windows locking**. If the policy

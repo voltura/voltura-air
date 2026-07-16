@@ -7,6 +7,7 @@
     "apps/mobile-web"
   ],
   "scripts": {
+    "branch:sync": "node scripts/sync-branch.mjs",
     "build": "npm run build --workspace apps/mobile-web && dotnet build VolturaAir.slnx",
     "code:statistics": "node scripts/code-statistics.mjs",
     "icons:generate": "node scripts/generate-icons.mjs",

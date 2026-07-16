@@ -52,6 +52,10 @@ function mockConnection(overrides: Partial<ReturnType<typeof useVolturaAirConnec
     appLaunchResult: null,
     pendingAppLaunchId: null,
     requestAppLaunch: vi.fn(),
+    presentationCapability: { canControl: true },
+    pendingPresentationCommand: null,
+    presentationResult: null,
+    requestPresentationCommand: vi.fn(() => "presentation-operation-a"),
     pendingUrlOpen: false,
     urlOpenResult: null,
     urlOpenCapability: { canOpen: true },
@@ -103,6 +107,20 @@ beforeEach(() => {
 });
 
 describe("App header and mode navigation", () => {
+  it("opens Presentation as a selectable mode and sends its primary action through the acknowledged command path", () => {
+    const requestPresentationCommand = vi.fn(() => "presentation-operation-a");
+    mockConnection({ requestPresentationCommand });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    fireEvent.click(screen.getByRole("button", { name: "Presentation mode" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(screen.getByRole("heading", { name: "Presentation" })).toBeTruthy();
+    expect(requestPresentationCommand).toHaveBeenCalledExactlyOnceWith("powerpoint", "next");
+    expect(screen.getAllByRole("button", { name: "Trackpad mode" })).not.toHaveLength(0);
+  });
+
   it("offers desktop recovery while an administrator app blocks remote input", async () => {
     const send = vi.fn();
     mockConnection({ hostStatus: { inputBlockedByElevation: true }, send });

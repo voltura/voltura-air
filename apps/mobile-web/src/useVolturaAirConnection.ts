@@ -26,6 +26,7 @@ import { useAppLaunch } from "./connection/useAppLaunch";
 import { useTextTransfer } from "./connection/useTextTransfer";
 import { useClipboardRead } from "./connection/useClipboardRead";
 import { useUrlOpen } from "./connection/useUrlOpen";
+import { usePresentationControl } from "./connection/usePresentationControl";
 import { requestHostState, trySendClientMessage } from "./connection/connectionSocketMessages";
 import { getNextHealthCheckDelay, hasExpiredInputAck, staleConnectionMs } from "./connection/connectionHealthPolicy";
 
@@ -69,7 +70,7 @@ export function useVolturaAirConnection() {
   const pendingInputAcksRef = useRef<Map<number, number>>(new Map());
   const pendingMovementAckRef = useRef<PendingMovementAck | null>(null);
   const {
-    audioState, awakeCapability, clipboardReadPermission, clearRuntimeState, hostStatus, powerCapabilities, setAudioState,
+    audioState, awakeCapability, clipboardReadPermission, clearRuntimeState, hostStatus, powerCapabilities, presentationCapability, setAudioState,
     setHostStatus, supportsGestureDebug, supportsInputAckRef, supportsRemoteLaunch, supportsSleep, supportsTextTransfer,
     supportsVolumeControl, supportsVolumeControlRef, updateCapabilities, updateHostStatus, urlOpenCapability
   } = useConnectionRuntimeState(pendingInputAcksRef, pendingMovementAckRef);
@@ -80,6 +81,7 @@ export function useVolturaAirConnection() {
   const { awakeResult, completeAwakeChange, pendingAwakeChange, requestAwakeChange } = useAwakeControl(state, send);
   const { completePowerAction, pendingPowerAction, powerActionResult, requestPowerAction } = usePowerControl(state, send);
   const { appLaunchResult, completeAppLaunch, pendingAppLaunchId, requestAppLaunch } = useAppLaunch(state, send);
+  const { completePresentationCommand, pendingPresentationCommand, presentationResult, requestPresentationCommand } = usePresentationControl(state, send);
   const { completeUrlOpen, pendingUrlOpen, requestUrlOpen, urlOpenResult } = useUrlOpen(state, send);
   const { completeTextTransfer, pendingTextTransfer, requestTextTransfer, textTransferResult } = useTextTransfer(state, send);
   const { clipboardReadResult, clipboardText, completeClipboardRead, pendingClipboardRead, requestClipboardRead, setClipboardText } = useClipboardRead(state, send);
@@ -439,6 +441,17 @@ export function useVolturaAirConnection() {
           return;
         }
 
+        if (response.type === "presentation.command.result") {
+          touchHealthy();
+          completePresentationCommand(response);
+          setMessage(response.message);
+          setLastConnectionError(response.succeeded
+            ? null
+            : { code: response.code ?? "VAIR-PRESENTATION-COMMAND-FAILED", message: response.message });
+          scheduleHealthCheck(ws);
+          return;
+        }
+
         if (response.type === "awake.result") {
           touchHealthy();
           completeAwakeChange(response);
@@ -579,7 +592,7 @@ export function useVolturaAirConnection() {
     setPairingAttempt, setState, socketRef, state
   });
 
-  return { state, message, send, requestAudioState, requestPowerAction, requestAwakeChange, requestAppLaunch, requestUrlOpen, requestTextTransfer, requestClipboardRead, pendingTextTransfer, pendingClipboardRead, textTransferResult, clipboardReadResult, clipboardText, setClipboardText, clipboardReadPermission, pendingAppLaunchId, appLaunchResult, pendingUrlOpen, urlOpenResult, urlOpenCapability, pendingPowerAction, powerActionResult, pendingAwakeChange, awakeResult, clientId, deviceName, activePc, pairedPcs, audioState, awakeCapability, powerCapabilities, supportsGestureDebug, supportsSleep, supportsVolumeControl, supportsRemoteLaunch, supportsTextTransfer, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, beginNewPairing, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice, setHostCustomPointer, setHostPointerSpeed };
+  return { state, message, send, requestAudioState, requestPowerAction, requestAwakeChange, requestAppLaunch, requestPresentationCommand, requestUrlOpen, requestTextTransfer, requestClipboardRead, pendingPresentationCommand, presentationResult, presentationCapability, pendingTextTransfer, pendingClipboardRead, textTransferResult, clipboardReadResult, clipboardText, setClipboardText, clipboardReadPermission, pendingAppLaunchId, appLaunchResult, pendingUrlOpen, urlOpenResult, urlOpenCapability, pendingPowerAction, powerActionResult, pendingAwakeChange, awakeResult, clientId, deviceName, activePc, pairedPcs, audioState, awakeCapability, powerCapabilities, supportsGestureDebug, supportsSleep, supportsVolumeControl, supportsRemoteLaunch, supportsTextTransfer, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, beginNewPairing, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice, setHostCustomPointer, setHostPointerSpeed };
 }
 
 

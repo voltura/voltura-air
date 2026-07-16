@@ -1,6 +1,6 @@
 # Voltura Air - Features
 
-Updated: 2026-07-15
+Updated: 2026-07-16
 Scope: current `voltura/voltura-air` `main` branch. This file describes current product capabilities.
 
 Voltura Air turns any phone, tablet, or modern browser into a local-network remote control surface for a Windows PC.
@@ -18,7 +18,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - YouTube, Kodi, and other couch/TV control.
 - Sofa/bed control.
 - Broken or annoying wireless keyboard/trackpad replacement.
-- Presentations where basic keyboard/trackpad control is enough.
+- PowerPoint, Google Slides, and browser/PDF presenting with a dedicated, acknowledged control surface.
 - Quick typing/search from phone.
 - Local-network control without a cloud account.
 
@@ -108,6 +108,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Reports the host default Remote mode to the mobile client.
 - Supports host-enforced permission for PC sleep.
 - Supports host-enforced permission for volume control.
+- Supports an effective global/per-device Presentation control permission and reports support separately from whether the selected device is allowed to use it.
 - Supports host-enforced permission for fixed Remote launch actions and host-configured application buttons.
 - Supports a separate default-off host permission for opening reviewed HTTP and HTTPS web addresses, with per-device overrides.
 - Configures optional Browser, Spotify, VLC, and PowerPoint launch presets in Windows Preferences.
@@ -365,6 +366,17 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
   - optional client-local launch toggles for Open YouTube and Start Kodi when the host allows paired devices to start applications.
   - selecting YouTube or Kodi from settings closes settings and opens the Remote screen for that mode.
 
+### Presentation mode
+
+- Provides a dedicated high-contrast, large-target presenter surface that remains reachable from Menu and can occupy the configurable fourth mode button.
+- Uses a user-selected PowerPoint, Google Slides, or PDF/browser target profile; it does not inspect presentation files, automate Office, screen-scrape, detect the focused application, or claim awareness of the current slide.
+- Sends one bounded `presentation.command` at a time and waits for its matching host result before another presentation control is enabled. Disconnecting clears pending work instead of replaying it after reconnect.
+- Uses Right/Left for Next/Previous and Escape for End across all three profiles. PowerPoint additionally offers F5 Start, B Black screen, and Ctrl+L laser pointer. Google Slides offers B Black screen and L laser pointer. Start is hidden for browser targets, and Black screen/laser are hidden for PDF/browser targets, so an uncertain shortcut is never sent.
+- Reports host permission denial, unsupported target actions, host-focus protection, native input failure, response timeout, and success without disconnecting the client.
+- Includes a device-local elapsed timer with Start, Pause, and Reset. Its state is intentionally not persisted across reloads.
+- Lets the presenter choose a 10, 15, 30, 45, or 60 minute plan. Visible live-region text announces five minutes remaining and planned time elapsed; browsers that expose `navigator.vibrate` can optionally add vibration at those same milestones.
+- Uses a single-column portrait layout and a compact two-column landscape layout while retaining the normal mode navigation as an obvious exit.
+
 ### Dictation mode
 
 - Uses browser speech recognition API when supported by the browser and origin.
@@ -375,8 +387,8 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 ### Menu and text transfer
 
 - The hamburger drawer is a **Menu** with separate **Tools** and **Settings** groups.
-- Dictation, **Send text to PC**, and **Get text from PC** can be opened directly from Menu without changing the fourth-mode preference.
-- Trackpad, Keyboard, and Remote remain fixed primary modes. The fourth mode can be configured as Dictation, Send text to PC, or Get text from PC, defaults to Dictation, and uses one shared label/icon definition across navigation surfaces.
+- Presentation, Dictation, **Send text to PC**, and **Get text from PC** can be opened directly from Menu without changing the fourth-mode preference.
+- Trackpad, Keyboard, and Remote remain fixed primary modes. The fourth mode can be configured as Presentation, Dictation, Send text to PC, or Get text from PC, defaults to Dictation, and uses one shared label/icon definition across navigation surfaces.
 - Dictation and the text tools use the persistent Menu and mode navigation without separate page-level Back controls.
 - **Send text to PC** composes or pastes up to 4,096 characters. Focused application input remains the default; the host can instead use clipboard-only delivery, a configured fresh Notepad, Notepad++, Word, Visual Studio Code, Excel, or classic Outlook compose item, a new `.txt` draft in the Windows default text-file app, or a `mailto:` draft in the Windows default email client.
 - **Get text from PC** starts empty and fetches the current PC clipboard only after the user presses its button. It shows the returned maximum-4,096-character text in a selectable, read-only field, never writes to the phone/tablet clipboard, keeps prior fetched text after a failed request, and explains when the host has blocked the default-off **Read PC clipboard** permission. The permission can inherit the host global setting or be allowed/blocked per paired device. **Show snippets** reveals the existing local snippet controls for loading or saving text; they appear below the field in portrait and in a side panel in landscape.

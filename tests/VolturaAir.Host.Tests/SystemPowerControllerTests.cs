@@ -62,7 +62,7 @@ public sealed class SystemPowerControllerTests
     [Fact]
     public void DisplayActionsDelegateBlackoutScreenSaverAvailabilityAndDismissal()
     {
-        var displayActions = new FakeWindowsDisplayActionController { IsScreenSaverAvailable = false, BlackoutActive = true };
+        var displayActions = new FakeWindowsDisplayActionController { IsScreenSaverAvailable = false };
         using var controller = new SystemPowerController(() => true, () => true, () => 0, displayActions);
 
         var blackout = controller.TryExecute(SystemPowerActions.BlackoutDisplay);
@@ -71,6 +71,19 @@ public sealed class SystemPowerControllerTests
         Assert.True(blackout.Succeeded);
         Assert.True(dismissed);
         Assert.False(controller.IsActionAvailable(SystemPowerActions.ScreenSaver));
+        Assert.Equal(1, displayActions.BlackoutCalls);
+        Assert.Equal(1, displayActions.DismissCalls);
+    }
+
+    [Fact]
+    public void BlackoutActionTogglesAnActiveBlackoutOff()
+    {
+        var displayActions = new FakeWindowsDisplayActionController();
+        using var controller = new SystemPowerController(() => true, () => true, () => 0, displayActions);
+
+        Assert.True(controller.TryExecute(SystemPowerActions.BlackoutDisplay).Succeeded);
+        Assert.True(controller.TryExecute(SystemPowerActions.BlackoutDisplay).Succeeded);
+        Assert.False(displayActions.BlackoutActive);
         Assert.Equal(1, displayActions.BlackoutCalls);
         Assert.Equal(1, displayActions.DismissCalls);
     }
@@ -87,6 +100,13 @@ public sealed class SystemPowerControllerTests
 
         public SystemPowerExecutionResult TryShowBlackout()
         {
+            if (BlackoutActive)
+            {
+                DismissCalls += 1;
+                BlackoutActive = false;
+                return SystemPowerExecutionResult.Success;
+            }
+
             BlackoutCalls += 1;
             BlackoutActive = true;
             return SystemPowerExecutionResult.Success;

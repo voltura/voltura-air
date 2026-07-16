@@ -511,7 +511,8 @@ export function App() {
           connected: state === "paired",
           pending: pendingPresentationCommand,
           result: presentationResult,
-          onCommand: requestPresentationCommand
+          onCommand: requestPresentationCommand,
+          onPowerAction: requestPowerAction
         }}
         remoteMode={{
           appLaunchActions: hostStatus?.appLaunchActions ?? [],

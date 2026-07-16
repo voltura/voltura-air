@@ -197,4 +197,5 @@ describe("PowerControlSheet", () => {
     expect(screen.getByRole("dialog", { name: "Power & session" })).toBeTruthy();
     expect(onAction).not.toHaveBeenCalled();
   });
+
 });

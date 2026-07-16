@@ -32,9 +32,20 @@ describe("PresentationMode", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Change presentation mode (Google Slides)" }));
     fireEvent.click(screen.getByRole("menuitemradio", { name: "PDF / browser" }));
-    expect(screen.queryByRole("button", { name: "Black screen" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Blackout" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Laser pointer" })).toBeNull();
     expect(screen.getByRole("button", { name: "End slideshow" })).toBeTruthy();
+  });
+
+  it("uses the Remote Power blackout action", () => {
+    const onPowerAction = vi.fn();
+    const onCommand = vi.fn();
+    render(<PresentationMode {...defaultProps} onCommand={onCommand} onPowerAction={onPowerAction} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Blackout" }));
+
+    expect(onPowerAction).toHaveBeenCalledExactlyOnceWith("blackoutDisplay");
+    expect(onCommand).not.toHaveBeenCalled();
   });
 
   it("collapses the active target into a header selector and restores the full target row on reselection", () => {

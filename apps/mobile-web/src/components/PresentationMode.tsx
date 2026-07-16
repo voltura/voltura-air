@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronLeft, ChevronRight, CircleStop, Eclipse, MousePointer2, Pause, Play, RotateCcw, Timer, Vibrate } from "lucide-react";
 import { useState } from "react";
 import type { PendingPresentationCommand } from "../connection/usePresentationControl";
-import type { PresentationAction, PresentationCapability, PresentationCommandResultMessage, PresentationTarget } from "../protocol";
+import type { PresentationAction, PresentationCapability, PresentationCommandResultMessage, PresentationTarget, SystemPowerAction } from "../protocol";
 import { formatPresentationTime, usePresentationTimer } from "../presentationTimer";
 import { InfoButton } from "./InfoButton";
 
@@ -11,6 +11,7 @@ type PresentationModeProps = {
   pending: PendingPresentationCommand | null;
   result: PresentationCommandResultMessage | null;
   onCommand: (target: PresentationTarget, action: PresentationAction) => void;
+  onPowerAction?: (action: SystemPowerAction) => void;
 };
 
 const targetOptions = [
@@ -19,7 +20,7 @@ const targetOptions = [
   { id: "pdf", label: "PDF / browser" }
 ] satisfies { id: PresentationTarget; label: string }[];
 
-export function PresentationMode({ capability, connected, pending, result, onCommand }: PresentationModeProps) {
+export function PresentationMode({ capability, connected, pending, result, onCommand, onPowerAction }: PresentationModeProps) {
   const [target, setTarget] = useState<PresentationTarget>("powerpoint");
   const [isTargetSelectorOpen, setIsTargetSelectorOpen] = useState(false);
   const [isTimerExpanded, setIsTimerExpanded] = useState(true);
@@ -106,8 +107,8 @@ export function PresentationMode({ capability, connected, pending, result, onCom
             <CircleStop aria-hidden="true" /><span>End slideshow</span>
           </button>
           {target !== "pdf" && (
-            <button type="button" disabled={controlsDisabled} onClick={() => request("black")}>
-              <Eclipse aria-hidden="true" /><span>Black screen</span>
+            <button type="button" disabled={controlsDisabled || !onPowerAction} onClick={() => onPowerAction?.("blackoutDisplay")}>
+              <Eclipse aria-hidden="true" /><span>Blackout</span>
             </button>
           )}
           {target !== "pdf" && (

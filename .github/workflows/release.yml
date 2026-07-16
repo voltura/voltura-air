@@ -19,6 +19,11 @@ on:
 permissions:
   contents: write
 
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_NOLOGO: true
+  NUGET_XMLDOC_MODE: skip
+
 concurrency:
   group: release-${{ inputs.release_tag }}
   cancel-in-progress: false
@@ -43,12 +48,16 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Install NSIS
-        shell: pwsh
-        run: choco install nsis --version=3.12.0 -y --no-progress
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', 'global.json', 'Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
       - name: Install npm dependencies
-        run: npm ci
+        run: npm ci --no-audit --fund=false
 
       - name: Validate release inputs
         shell: pwsh
@@ -82,7 +91,11 @@ jobs:
         run: npm run test:web
 
       - name: Test Windows host
-        run: dotnet test tests/VolturaAir.Host.Tests/VolturaAir.Host.Tests.csproj -c Release -r ${{ inputs.runtime }} --no-build
+        run: dotnet test tests/VolturaAir.Host.Tests/VolturaAir.Host.Tests.csproj -c Release -r ${{ inputs.runtime }} --no-build --no-restore
+
+      - name: Install NSIS
+        shell: pwsh
+        run: choco install nsis --version=3.12.0 -y --no-progress
 
       - name: Package release assets
         shell: pwsh
@@ -113,27 +126,6 @@ jobs:
           "installer_path=$installerPath" >> $env:GITHUB_OUTPUT
           "framework_dependent_installer_name=$frameworkDependentInstallerName" >> $env:GITHUB_OUTPUT
           "framework_dependent_installer_path=$frameworkDependentInstallerPath" >> $env:GITHUB_OUTPUT
-
-      - name: Upload portable zip artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ steps.package.outputs.zip_name }}
-          path: ${{ steps.package.outputs.zip_path }}
-          if-no-files-found: error
-
-      - name: Upload installer artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ steps.package.outputs.installer_name }}
-          path: ${{ steps.package.outputs.installer_path }}
-          if-no-files-found: error
-
-      - name: Upload framework-dependent installer artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ steps.package.outputs.framework_dependent_installer_name }}
-          path: ${{ steps.package.outputs.framework_dependent_installer_path }}
-          if-no-files-found: error
 
       - name: Refresh release tag
         shell: pwsh

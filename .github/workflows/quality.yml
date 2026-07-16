@@ -1,10 +1,13 @@
 name: Quality
 
 on:
+  workflow_dispatch:
   pull_request:
-  push:
-    branches:
-      - main
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_NOLOGO: true
+  NUGET_XMLDOC_MODE: skip
 
 permissions:
   contents: read
@@ -29,14 +32,28 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', 'global.json', 'Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
-      - name: Build
-        run: npm run build
+      - name: Install dependencies
+        run: npm ci --no-audit --fund=false
+
+      - name: Build mobile client
+        run: npm run build --workspace apps/mobile-web
+
+      - name: Restore Windows host tests
+        run: dotnet restore tests/VolturaAir.Host.Tests/VolturaAir.Host.Tests.csproj
+
+      - name: Build Windows host tests
+        run: dotnet build tests/VolturaAir.Host.Tests/VolturaAir.Host.Tests.csproj --no-restore
 
       - name: Test mobile client
         run: npm run test:web
 
       - name: Test Windows host
-        run: dotnet test VolturaAir.slnx --no-build
+        run: dotnet test tests/VolturaAir.Host.Tests/VolturaAir.Host.Tests.csproj --no-build --no-restore

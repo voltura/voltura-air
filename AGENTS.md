@@ -197,8 +197,8 @@ updated as the app structure, tooling, and release process become concrete.
 - During the current limited beta, rerunning the workflow may replace assets and
   move the same version tag to a newer tested commit. Tag updates must remain
   serialized and use a force-with-lease check, never an unconditional force push.
-  The compressed workflow artifacts are authoritative; uncompressed test
-  installers are never release inputs.
+  The uploaded GitHub release assets are authoritative; uncompressed test
+  installers and transient workflow outputs are never release inputs.
 - See `docs/release.md` for the full preparation, verification, packaging,
   GitHub asset replacement, unsigned-installer, and sanity-check guide.
 

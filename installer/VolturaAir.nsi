@@ -63,7 +63,7 @@ ManifestSupportedOS all
 SetDatablockOptimize off
 SetCompress off
 !else
-SetCompressor /SOLID lzma
+SetCompressor lzma
 !endif
 VIProductVersion "${APP_VERSION_QUAD}"
 VIAddVersionKey "ProductName" "${APP_NAME}"

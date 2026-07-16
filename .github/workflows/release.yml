@@ -43,7 +43,22 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Setup .NET
+      - name: Check for preinstalled .NET 10 SDK
+        id: dotnet
+        shell: pwsh
+        run: |
+          $available = $false
+          if ($null -ne (Get-Command dotnet -ErrorAction SilentlyContinue)) {
+            $available = [bool](dotnet --list-sdks | Where-Object { $_ -match '^10\.0\.' } | Select-Object -First 1)
+          }
+
+          "available=$($available.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          if ($available) {
+            dotnet --version
+          }
+
+      - name: Setup .NET 10 fallback
+        if: steps.dotnet.outputs.available != 'true'
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
@@ -72,8 +87,27 @@ jobs:
             throw "The release workflow currently supports only the verified win-x64 runtime."
           }
 
-      - name: Test
-        run: npm test
+      - name: Prepare release outputs
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          RUNTIME: ${{ inputs.runtime }}
+        run: npm run package:win -- -Version $env:RELEASE_VERSION -Runtime $env:RUNTIME -PrepareOnly
+
+      - name: Test mobile client
+        run: npm run test:web
+
+      - name: Restore Windows host tests
+        shell: pwsh
+        env:
+          RUNTIME: ${{ inputs.runtime }}
+        run: dotnet restore tests/VolturaAir.Host.Tests/VolturaAir.Host.Tests.csproj -r $env:RUNTIME
+
+      - name: Test prepared Windows host
+        shell: pwsh
+        env:
+          RUNTIME: ${{ inputs.runtime }}
+        run: dotnet test tests/VolturaAir.Host.Tests/VolturaAir.Host.Tests.csproj -c Release -r $env:RUNTIME -p:BuildProjectReferences=false --no-restore
 
       - name: Install NSIS
         shell: pwsh
@@ -84,7 +118,7 @@ jobs:
         env:
           RELEASE_VERSION: ${{ inputs.version }}
           RUNTIME: ${{ inputs.runtime }}
-        run: npm run package:win -- -Version $env:RELEASE_VERSION -Runtime $env:RUNTIME
+        run: npm run package:win -- -Version $env:RELEASE_VERSION -Runtime $env:RUNTIME -SkipBuild
 
       - name: Collect asset paths
         id: package

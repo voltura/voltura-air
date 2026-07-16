@@ -76,9 +76,10 @@ npm run package:win
 ```
 
 `npm run package:win` builds the mobile client, publishes the full and runtime-dependent
-Windows hosts, creates the portable zip, and compiles both NSIS installers. The default
-installer downloads the required .NET 10 Desktop and ASP.NET Core runtimes when they
-are absent. It reads the version from the root
+Windows hosts, compiles the native cursor watchdog once for both publish directories,
+creates the portable zip, and compiles both NSIS installers. The default installer
+downloads the required .NET 10 Desktop and ASP.NET Core runtimes when they are absent.
+It reads the version from the root
 `package.json` when `-Version` is omitted. Packaging then runs
 `scripts/verify-windows-version.ps1` and fails if the host EXE, native cursor
 watchdog, host DLL, or either installer exposes missing or stale Windows File Explorer
@@ -142,25 +143,37 @@ To rebuild the zip and installer from an existing publish directory:
 powershell -ExecutionPolicy Bypass -File scripts/package-win.ps1 -Version <version> -Runtime win-x64 -SkipBuild
 ```
 
+To prepare both publish directories without creating the zip or installers:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/package-win.ps1 -Version <version> -Runtime win-x64 -PrepareOnly
+```
+
 ## GitHub Actions release path
 
 The `Build and upsert release assets` workflow performs the release path on a
 Windows runner:
 
-1. Install npm dependencies with `npm ci`.
-2. Verify that the workflow `version` equals the committed root package version.
-3. Verify that `release_tag` is `v<version>`.
-4. Run the mobile and Windows host tests.
-5. Build and package the portable zip, default installer, and full installer.
-6. The release workflow uploads the package outputs directly to the GitHub
+1. Use the runner's preinstalled .NET 10 SDK when available, falling back to
+   `actions/setup-dotnet` only when the image does not contain one.
+2. Install npm dependencies with `npm ci`.
+3. Verify that the workflow `version` equals the committed root package version and
+   that `release_tag` is `v<version>`.
+4. Build the mobile client, publish both Release host variants, and compile the native
+   cursor watchdog once for both publish directories.
+5. Run the mobile tests, then build and run the Windows host tests against the prepared
+   Release host without rebuilding the host project.
+6. Install NSIS and package the already prepared outputs into the portable zip, default
+   installer, and full installer.
+7. The release workflow uploads the package outputs directly to the GitHub
    release and does not upload duplicate workflow artifacts.
-7. Validate the built host EXE, native cursor watchdog, host DLL, and both installer
+8. Validate the built host EXE, native cursor watchdog, host DLL, and both installer
    Windows version resources as part of packaging.
-8. Create or refresh the selected tag so beta releases can be replaced at the same
+9. Create or refresh the selected tag so beta releases can be replaced at the same
    version. Existing tags are updated with a lease, so a concurrent remote change
    causes the workflow to fail instead of being overwritten silently.
-9. Create the release when it does not exist.
-10. Upload all three assets, replacing same-named assets when present.
+10. Create the release when it does not exist.
+11. Upload all three assets, replacing same-named assets when present.
 
 After running `npm run release -- <version>` and committing the prepared files,
 the workflow defaults already match the release.

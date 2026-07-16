@@ -72,7 +72,6 @@ describe("PresentationMode", () => {
       pending={{ operationId: "operation-a", target: "powerpoint", action: "next" }}
     />);
     expect((screen.getByRole("button", { name: "Previous" }) as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByText("Sending next command…")).toBeTruthy();
   });
 
   it("starts, pauses, and resets the local elapsed timer", () => {
@@ -80,16 +79,23 @@ describe("PresentationMode", () => {
     render(<PresentationMode {...defaultProps} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    expect(screen.queryByRole("button", { name: "Start" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
     act(() => vi.advanceTimersByTime(61_000));
     expect(screen.getByLabelText("Elapsed presentation time").textContent).toBe("01:01");
 
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
     act(() => vi.advanceTimersByTime(5_000));
-    expect(screen.getByLabelText("Elapsed presentation time").textContent).toBe("01:01");
+    expect(screen.getByLabelText("Presentation time during break").textContent).toBe("01:01");
+    expect(screen.getByLabelText("Elapsed break time").textContent).toBe("00:05");
+    expect(screen.getByRole("button", { name: "Resume" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Reset" }));
     expect(screen.getByLabelText("Elapsed presentation time").textContent).toBe("00:00");
-    expect(screen.getByText("Timer ready.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Start" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Pause" })).toBeNull();
+    expect((screen.getByRole("button", { name: "Reset" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByText("Timer ready.")).toBeNull();
   });
 
   it("uses feature-detected vibration with visible milestone alternatives", () => {

@@ -48,6 +48,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
   - Diagnostics.
 - Organizes Preferences as themed accordion sections that are collapsed on entry and allow only one expanded section at a time. Opening a lower section scrolls only when needed to reveal its first control while keeping the focused header visible.
 - Provides tray actions for opening the app, controlling Keep awake, opening the product page, and exit.
+- Starts with a neutral tray badge while paired devices reconnect, and holds the connected badge through the short automatic-reconnect grace period; it shows the disconnected badge only when a device remains offline.
 - Keeps the host window hidden when the last paired device disconnects by default; reopening it on disconnect is an opt-in preference.
 - Supports light, dark, and system theme modes.
 - Prevents accidental selection of static app text and button labels during touch gestures while preserving normal selection in inputs, textareas, selects, content-editable fields, and explicitly copyable text surfaces.

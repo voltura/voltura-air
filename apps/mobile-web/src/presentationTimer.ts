@@ -16,10 +16,13 @@ export function formatPresentationTime(totalSeconds: number): string {
 export function usePresentationTimer() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [breakElapsedSeconds, setBreakElapsedSeconds] = useState(0);
   const [durationMinutes, setDurationMinutes] = useState(15);
   const [vibrationEnabled, setVibrationEnabled] = useState(false);
-  const [milestoneMessage, setMilestoneMessage] = useState("Timer ready.");
+  const [milestoneMessage, setMilestoneMessage] = useState("");
   const startedAtRef = useRef<number | null>(null);
+  const breakStartedAtRef = useRef<number | null>(null);
   const accumulatedSecondsRef = useRef(0);
   const previousElapsedRef = useRef(0);
   const fiveMinuteMilestoneRef = useRef(false);
@@ -39,6 +42,17 @@ export function usePresentationTimer() {
     const interval = window.setInterval(updateElapsed, timerRefreshMs);
     return () => window.clearInterval(interval);
   }, [isRunning]);
+
+  useEffect(() => {
+    if (!isPaused || breakStartedAtRef.current === null) {
+      return;
+    }
+
+    const updateBreakElapsed = () => setBreakElapsedSeconds((Date.now() - breakStartedAtRef.current!) / 1000);
+    updateBreakElapsed();
+    const interval = window.setInterval(updateBreakElapsed, timerRefreshMs);
+    return () => window.clearInterval(interval);
+  }, [isPaused]);
 
   useEffect(() => {
     const durationSeconds = durationMinutes * 60;
@@ -67,9 +81,10 @@ export function usePresentationTimer() {
       return;
     }
 
+    breakStartedAtRef.current = null;
     startedAtRef.current = Date.now();
     setIsRunning(true);
-    setMilestoneMessage("Timer running.");
+    setIsPaused(false);
   };
 
   const pause = () => {
@@ -79,19 +94,25 @@ export function usePresentationTimer() {
 
     accumulatedSecondsRef.current += (Date.now() - startedAtRef.current) / 1000;
     startedAtRef.current = null;
+    breakStartedAtRef.current = Date.now();
     setElapsedSeconds(accumulatedSecondsRef.current);
+    setBreakElapsedSeconds(0);
     setIsRunning(false);
-    setMilestoneMessage("Timer paused.");
+    setIsPaused(true);
   };
 
   const reset = () => {
-    startedAtRef.current = isRunning ? Date.now() : null;
+    startedAtRef.current = null;
+    breakStartedAtRef.current = null;
     accumulatedSecondsRef.current = 0;
     previousElapsedRef.current = 0;
     fiveMinuteMilestoneRef.current = false;
     elapsedMilestoneRef.current = false;
     setElapsedSeconds(0);
-    setMilestoneMessage(isRunning ? "Timer restarted." : "Timer ready.");
+    setBreakElapsedSeconds(0);
+    setIsRunning(false);
+    setIsPaused(false);
+    setMilestoneMessage("");
   };
 
   const changeDuration = (minutes: number) => {
@@ -99,7 +120,7 @@ export function usePresentationTimer() {
     fiveMinuteMilestoneRef.current = false;
     elapsedMilestoneRef.current = false;
     previousElapsedRef.current = elapsedSeconds;
-    setMilestoneMessage(isRunning ? "Timer running." : elapsedSeconds > 0 ? "Timer paused." : "Timer ready.");
+    setMilestoneMessage("");
   };
 
   return {
@@ -107,6 +128,8 @@ export function usePresentationTimer() {
     durationMinutes,
     elapsedSeconds,
     isRunning,
+    isPaused,
+    breakElapsedSeconds,
     milestoneMessage,
     pause,
     reset,

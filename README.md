@@ -70,6 +70,7 @@ Scan the QR code from a phone, tablet, or browser-capable device on the same net
 ## How it works
 
 Install the Windows host on the PC you want to control. It runs from the tray, displays a pairing QR code, and serves the mobile controls over your local network. Only one host runs per signed-in Windows user.
+At startup, the tray stays neutral briefly while previously paired phones reconnect. Its connected badge also stays visible through a brief automatic-reconnect grace period, so a phone refresh does not flash a disconnected state.
 
 The host keeps device permissions and app-launch settings on the PC. You can choose which devices may use remote, power, keep-awake, app-launch, and URL-opening controls. URL opening is off by default, appears on the phone only when allowed, accepts only HTTP and HTTPS, and uses the Windows default browser. Sensitive actions require confirmation, and remote wake is not available after a PC sleeps or shuts down.
 

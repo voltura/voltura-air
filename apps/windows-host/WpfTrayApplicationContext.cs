@@ -10,6 +10,8 @@ internal sealed class WpfTrayApplicationContext : IDisposable
 {
     private const int MaxTrayTooltipLength = 63;
     private const int DisconnectNotificationDelayMs = 1800;
+    // Covers the mobile client's 3-second connection deadline, 1.2-second retry delay, and LAN handshake time.
+    private const int StartupConnectionGracePeriodMs = 5000;
     private const string ProductSiteUrl = "https://voltura.se/air/";
     private const string DefaultTrayIconFileName = "VolturaAirTray.ico";
     private const string ConnectedTrayIconFileName = "VolturaAirTrayConnected.ico";
@@ -23,6 +25,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
     private readonly Forms.NotifyIcon _trayIcon;
     private readonly Forms.ContextMenuStrip _trayMenu = new();
     private readonly Dictionary<TrayConnectionState, Icon> _trayIcons;
+    private readonly TrayConnectionIndicator _trayConnectionIndicator;
     // These items are owned by _trayMenu.Items and are disposed with the context menu.
 #pragma warning disable CA2213
     private Forms.ToolStripMenuItem _awakeOffItem = null!;
@@ -32,6 +35,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
     private Forms.ToolStripMenuItem _awakeKeepScreenOnItem = null!;
 #pragma warning restore CA2213
     private CancellationTokenSource? _pendingDisconnectNotification;
+    private CancellationTokenSource? _pendingStartupConnectionGrace;
     private bool _hadActiveController;
     private bool _disposed;
 
@@ -43,14 +47,18 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _pairingManager = pairingManager;
         _awakeService = awakeService;
         _hadActiveController = pairingManager.HasActiveController;
+        _trayConnectionIndicator = new TrayConnectionIndicator(
+            pairingManager.IsPaired,
+            _hadActiveController,
+            holdInitialDisconnectedState: pairingManager.IsPaired && !_hadActiveController);
 
         BuildMenu();
         _trayIcons = LoadTrayIcons();
         _trayIcon = new Forms.NotifyIcon
         {
             ContextMenuStrip = _trayMenu,
-            Icon = GetTrayIcon(GetTrayConnectionState()),
-            Text = BuildTrayTooltip(),
+            Icon = GetTrayIcon(_trayConnectionIndicator.DisplayedState),
+            Text = BuildTrayTooltip(_trayConnectionIndicator.DisplayedState),
             Visible = true
         };
         _trayIcon.DoubleClick += (_, _) => _mainWindow.ShowPage(HostPage.Connect);
@@ -65,13 +73,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _webHost.RemoteInputBlockedChanged += OnRemoteInputBlockedChanged;
         AppThemeSettings.Changed += OnAppThemeChanged;
         _awakeService.StateChanged += OnAwakeStateChanged;
-    }
-
-    private enum TrayConnectionState
-    {
-        NoDevicesRegistered,
-        Disconnected,
-        Connected
+        ScheduleStartupConnectionGrace();
     }
 
     private void BuildMenu()
@@ -161,22 +163,26 @@ internal sealed class WpfTrayApplicationContext : IDisposable
 
     private void OnConnectionChanged(object? sender, EventArgs e)
     {
-        var hasActiveController = _pairingManager.HasActiveController;
-        _ = _dispatcher.BeginInvoke(() => HandleConnectionChanged(hasActiveController));
+        _ = _dispatcher.BeginInvoke(HandleConnectionChanged);
     }
 
-    private void HandleConnectionChanged(bool hasActiveController)
+    private void HandleConnectionChanged()
     {
         if (_disposed)
         {
             return;
         }
 
-        ApplyTrayConnectionState();
+        var hasActiveController = _pairingManager.HasActiveController;
+        if (hasActiveController)
+        {
+            CancelStartupConnectionGrace();
+        }
 
         if (!_hadActiveController && hasActiveController)
         {
             var cancelledTransientDisconnect = CancelPendingDisconnectNotification();
+            ApplyTrayConnectionState();
             if (!cancelledTransientDisconnect)
             {
                 ShowConnectionStatusNotification(
@@ -188,9 +194,80 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         else if (_hadActiveController && !hasActiveController)
         {
             ScheduleDisconnectNotification();
+            ApplyTrayConnectionState(holdConnectedDuringReconnect: true);
+        }
+        else
+        {
+            ApplyTrayConnectionState(holdConnectedDuringReconnect: _pendingDisconnectNotification is not null);
         }
 
         _hadActiveController = hasActiveController;
+    }
+
+    private void ScheduleStartupConnectionGrace()
+    {
+        if (_pairingManager.HasActiveController || !_pairingManager.IsPaired)
+        {
+            return;
+        }
+
+        var pending = new CancellationTokenSource();
+        _pendingStartupConnectionGrace = pending;
+        var token = pending.Token;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(StartupConnectionGracePeriodMs, token);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+
+            if (!token.IsCancellationRequested)
+            {
+                _ = _dispatcher.BeginInvoke(() => CompleteStartupConnectionGrace(pending));
+            }
+        });
+    }
+
+    private void CompleteStartupConnectionGrace(CancellationTokenSource pending)
+    {
+        if (_disposed || !ReferenceEquals(_pendingStartupConnectionGrace, pending))
+        {
+            return;
+        }
+
+        _pendingStartupConnectionGrace = null;
+        try
+        {
+            ApplyTrayConnectionState();
+        }
+        finally
+        {
+            pending.Dispose();
+        }
+    }
+
+    private void CancelStartupConnectionGrace()
+    {
+        var pending = _pendingStartupConnectionGrace;
+        if (pending is null)
+        {
+            return;
+        }
+
+        _pendingStartupConnectionGrace = null;
+        try
+        {
+            pending.Cancel();
+        }
+        finally
+        {
+            pending.Dispose();
+        }
     }
 
     private void ScheduleDisconnectNotification()
@@ -256,6 +333,8 @@ internal sealed class WpfTrayApplicationContext : IDisposable
             {
                 return;
             }
+
+            ApplyTrayConnectionState();
 
             if (AppNotificationSettings.ShowPairingWindowOnDisconnect())
             {
@@ -354,28 +433,20 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         });
     }
 
-    private void ApplyTrayConnectionState()
+    private void ApplyTrayConnectionState(bool holdConnectedDuringReconnect = false)
     {
         if (_disposed)
         {
             return;
         }
 
-        var state = GetTrayConnectionState();
+        var state = _trayConnectionIndicator.Update(
+            _pairingManager.IsPaired,
+            _pairingManager.HasActiveController,
+            holdConnectedDuringReconnect,
+            holdInitialDisconnectedState: _pendingStartupConnectionGrace is not null);
         _trayIcon.Text = BuildTrayTooltip(state);
         _trayIcon.Icon = GetTrayIcon(state);
-    }
-
-    private TrayConnectionState GetTrayConnectionState()
-    {
-        if (_pairingManager.HasActiveController)
-        {
-            return TrayConnectionState.Connected;
-        }
-
-        return _pairingManager.IsPaired
-            ? TrayConnectionState.Disconnected
-            : TrayConnectionState.NoDevicesRegistered;
     }
 
     private Icon GetTrayIcon(TrayConnectionState state)
@@ -385,15 +456,11 @@ internal sealed class WpfTrayApplicationContext : IDisposable
             : _trayIcons[TrayConnectionState.NoDevicesRegistered];
     }
 
-    private string BuildTrayTooltip()
-    {
-        return BuildTrayTooltip(GetTrayConnectionState());
-    }
-
     private string BuildTrayTooltip(TrayConnectionState state)
     {
         var status = state switch
         {
+            TrayConnectionState.Starting => "waiting for paired devices to reconnect",
             TrayConnectionState.Connected => BuildConnectedTooltipStatus(),
             TrayConnectionState.Disconnected => "no devices connected",
             _ => "no devices paired yet"
@@ -462,6 +529,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         var normal = LoadTrayIcon(DefaultTrayIconFileName);
         return new Dictionary<TrayConnectionState, Icon>
         {
+            [TrayConnectionState.Starting] = (Icon)normal.Clone(),
             [TrayConnectionState.NoDevicesRegistered] = normal,
             [TrayConnectionState.Disconnected] = LoadTrayIconOrDefault(DisconnectedTrayIconFileName, normal),
             [TrayConnectionState.Connected] = LoadTrayIconOrDefault(ConnectedTrayIconFileName, normal)
@@ -499,6 +567,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         }
 
         _disposed = true;
+        CancelStartupConnectionGrace();
         CancelPendingDisconnectNotification();
         _pairingManager.ConnectionChanged -= OnConnectionChanged;
         _webHost.ControllerSocketClosed -= OnControllerSocketClosed;

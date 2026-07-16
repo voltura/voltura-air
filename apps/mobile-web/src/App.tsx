@@ -20,6 +20,7 @@ import { useKeyboardInput } from "./input/useKeyboardInput";
 import { usePcSettings } from "./settings/usePcSettings";
 import { useSpeechDictation } from "./input/useSpeechDictation";
 import { usePwaLifecycle } from "./pwa/usePwaLifecycle";
+import { useDeveloperRefreshLongPress } from "./useDeveloperRefreshLongPress";
 import { usePairingController } from "./pairing/usePairingController";
 import { supportsSplitModeLayout } from "./splitModeLayout";
 import { getModeDefinition, getModeTabs, type AppTab as Tab, type MainAppTab as MainTab, type ToolAppTab } from "./appModeTabs";
@@ -95,6 +96,7 @@ export function App() {
   const [textTransferDraft, setTextTransferDraft] = useState("");
   const [isInputRecoveryDialogDismissed, setIsInputRecoveryDialogDismissed] = useState(false);
   const inputBlockedByElevation = hostStatus?.inputBlockedByElevation === true;
+  const developerMode = hostStatus?.developerMode === true;
 
   useEffect(() => {
     if (!inputBlockedByElevation) {
@@ -122,6 +124,7 @@ export function App() {
     hostStatus,
     state
   });
+  const developerBrandLongPress = useDeveloperRefreshLongPress(developerMode, refreshInstalledApp);
   const {
     confirmPendingPairing,
     connectManualHost,
@@ -351,7 +354,7 @@ export function App() {
           <button className="icon-button" type="button" aria-label="Open menu" onClick={() => setIsSettingsOpen(true)}>
             <Menu aria-hidden="true" />
           </button>
-          <div className="brand">
+          <div {...developerBrandLongPress} className={`brand ${developerBrandLongPress.className}`}>
             <MousePointer2 aria-hidden="true" />
             <span>Voltura Air</span>
           </div>

@@ -2,9 +2,14 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { useVolturaAirConnection } from "./useVolturaAirConnection";
+import { usePwaLifecycle } from "./pwa/usePwaLifecycle";
 
 vi.mock("./useVolturaAirConnection", () => ({
   useVolturaAirConnection: vi.fn()
+}));
+
+vi.mock("./pwa/usePwaLifecycle", () => ({
+  usePwaLifecycle: vi.fn()
 }));
 
 function createStorage(): Storage {
@@ -104,16 +109,46 @@ beforeEach(() => {
     }))
   );
   mockConnection();
+  vi.mocked(usePwaLifecycle).mockReturnValue({
+    installApp: vi.fn(),
+    installPrompt: null,
+    isInstalled: false,
+    refreshInstalledApp: vi.fn(),
+    refreshMessage: "Reload from the PC if the home screen app looks stale."
+  });
 });
 
 describe("App header and mode navigation", () => {
+  it("refreshes after a developer-mode long press on the Voltura Air brand", () => {
+    vi.useFakeTimers();
+    const refreshInstalledApp = vi.fn();
+    vi.mocked(usePwaLifecycle).mockReturnValue({
+      installApp: vi.fn(),
+      installPrompt: null,
+      isInstalled: false,
+      refreshInstalledApp,
+      refreshMessage: "Reload from the PC if the home screen app looks stale."
+    });
+    mockConnection({ hostStatus: { developerMode: true } });
+    render(<App />);
+
+    const brand = screen.getByText("Voltura Air").parentElement!;
+    fireEvent.pointerDown(brand, { button: 0, clientX: 20, clientY: 20, pointerId: 1 });
+    act(() => vi.advanceTimersByTime(699));
+    expect(refreshInstalledApp).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(1));
+    expect(refreshInstalledApp).toHaveBeenCalledTimes(1);
+    fireEvent.pointerUp(brand, { pointerId: 1 });
+    vi.useRealTimers();
+  });
+
   it("opens Presentation as a selectable mode and sends its primary action through the acknowledged command path", () => {
     const requestPresentationCommand = vi.fn(() => "presentation-operation-a");
     mockConnection({ requestPresentationCommand });
     render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
-    fireEvent.click(screen.getByRole("button", { name: "Presentation mode" }));
+    fireEvent.click(screen.getByRole("button", { name: "Presentation" }));
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
     expect(screen.getByRole("heading", { name: "Presentation" })).toBeTruthy();

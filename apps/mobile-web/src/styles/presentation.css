@@ -224,7 +224,11 @@
 }
 
 .presentation-timer-actions {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.presentation-time.break-time {
+  color: var(--accent);
 }
 
 .presentation-timer-actions button {
@@ -239,6 +243,27 @@
   align-items: center;
   gap: 12px;
   font-weight: 600;
+}
+
+.presentation-static-time {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 2px);
+  width: 100%;
+  color: var(--muted-text);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.presentation-reset-control {
+  position: relative;
+  min-width: 0;
+}
+
+.presentation-reset-control button {
+  width: 100%;
 }
 
 .presentation-duration select {

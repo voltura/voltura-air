@@ -134,17 +134,20 @@ export function PresentationMode({ capability, connected, pending, result, onCom
           onClick={() => setIsTimerExpanded((current) => !current)}
         >
           <Timer aria-hidden="true" />
-          <h2 id="presentation-timer-title">Presentation timer</h2>
+          <h2 id="presentation-timer-title">{timer.isPaused ? "Break timer" : "Timer"}</h2>
           <ChevronDown aria-hidden="true" />
         </button>
         {isTimerExpanded && (
           <div className="presentation-timer-content" id="presentation-timer-content">
-            <output className="presentation-time" aria-label="Elapsed presentation time">{formatPresentationTime(timer.elapsedSeconds)}</output>
-            <p className="presentation-milestone" role="status" aria-live="polite">{timer.milestoneMessage}</p>
+            <output className={`presentation-time${timer.isPaused ? " break-time" : ""}`} aria-label={timer.isPaused ? "Elapsed break time" : "Elapsed presentation time"}>{formatPresentationTime(timer.isPaused ? timer.breakElapsedSeconds : timer.elapsedSeconds)}</output>
+            {timer.milestoneMessage && <p className="presentation-milestone" role="status" aria-live="polite">{timer.milestoneMessage}</p>}
             <div className="presentation-timer-actions">
-              <button type="button" className="primary" disabled={timer.isRunning} onClick={timer.start}><Play aria-hidden="true" /><span>Start</span></button>
-              <button type="button" disabled={!timer.isRunning} onClick={timer.pause}><Pause aria-hidden="true" /><span>Pause</span></button>
-              <button type="button" onClick={timer.reset}><RotateCcw aria-hidden="true" /><span>Reset</span></button>
+              {!timer.isRunning && <button type="button" className="primary" onClick={timer.start}><Play aria-hidden="true" /><span>{timer.elapsedSeconds > 0 ? "Resume" : "Start"}</span></button>}
+              {timer.isRunning && <button type="button" className="primary" onClick={timer.pause}><Pause aria-hidden="true" /><span>Pause</span></button>}
+              <div className="presentation-reset-control">
+                {timer.isPaused && <span className="presentation-static-time" aria-label="Presentation time during break">{formatPresentationTime(timer.elapsedSeconds)}</span>}
+                <button type="button" disabled={!timer.isRunning && timer.elapsedSeconds === 0} onClick={timer.reset}><RotateCcw aria-hidden="true" /><span>Reset</span></button>
+              </div>
             </div>
             <label className="presentation-duration">
               <span>Planned duration</span>

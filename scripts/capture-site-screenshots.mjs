@@ -399,14 +399,14 @@ function delay(ms) {
 }
 
 async function run(command, args, options = {}) {
-  const useShell = process.platform === "win32" && (command === "npm" || command === "npx");
-  const executable = useShell ? command : resolveCommand(command);
+  const [executable, spawnArgs] = process.platform === "win32" && (command === "npm" || command === "npx")
+    ? ["cmd.exe", ["/d", "/s", "/c", command, ...args]]
+    : [resolveCommand(command), args];
   console.log(`> ${command} ${args.join(" ")}`);
   await new Promise((resolve, reject) => {
-    const child = spawn(executable, args, {
+    const child = spawn(executable, spawnArgs, {
       cwd: options.cwd ?? repoRoot,
       stdio: "inherit",
-      shell: useShell,
       windowsHide: true
     });
     child.once("exit", (code) => {

@@ -28,13 +28,6 @@ const colours = {
 };
 const maskableBackground = [16, 20, 24];
 const tightArtworkScale = 0.98;
-const trayBadgeStyle = {
-  centreX: 0.65,
-  centreY: 0.68,
-  outerRadius: 0.34375,
-  rimWidth: 0.046875,
-  glyphWidth: 0.075,
-};
 const masterPath = path.join(brandingRoot, "voltura-air-master.png");
 const outputChecks = [];
 
@@ -283,7 +276,6 @@ async function renderSquare(size, { background = null, badge = null, scale }) {
     badgeColour: badge ? colours[badge] : null,
     badgeGlyphColour: badge ? colours.darkForeground : null,
     badgeRimColour: badge ? colours.darkBackground : null,
-    badgeStyle: badge ? trayBadgeStyle : null,
     scale,
   });
 }
@@ -326,38 +318,39 @@ async function renderComposition(options) {
     if (input.kind === "square") {
       drawMaster(input.width / 2, input.height / 2, input.width * input.scale, input.height * input.scale);
       if (input.badge) {
-        const badgeStyle = input.badgeStyle;
-        const centreX = Math.round(input.width * badgeStyle.centreX * 2) / 2;
-        const centreY = Math.round(input.height * badgeStyle.centreY * 2) / 2;
-        const outerRadius = input.width * badgeStyle.outerRadius;
-        const rimWidth = Math.max(1, input.width * badgeStyle.rimWidth);
-        const innerRadius = outerRadius - rimWidth;
-
+        const centreX = Math.round(input.width * 0.65 * 2) / 2;
+        const centreY = Math.round(input.height * 0.65 * 2) / 2;
+        const outerRadius = input.width * 0.34375;
+        const innerRadius = input.width * 0.3125;
         context.save();
+        if (input.width >= 32) {
+          context.shadowColor = "rgba(0, 0, 0, 0.55)";
+          context.shadowBlur = input.width * 0.03;
+        }
         context.fillStyle = input.badgeRimColour;
         context.beginPath();
         context.arc(centreX, centreY, outerRadius, 0, Math.PI * 2);
         context.fill();
-
+        context.shadowColor = "transparent";
         context.fillStyle = input.badgeColour;
         context.beginPath();
         context.arc(centreX, centreY, innerRadius, 0, Math.PI * 2);
         context.fill();
 
         context.strokeStyle = input.badgeGlyphColour;
-        context.lineWidth = Math.max(1.25, input.width * badgeStyle.glyphWidth);
+        context.lineWidth = Math.max(1.5, input.width * 0.105);
         context.lineCap = "round";
         context.lineJoin = "round";
         context.beginPath();
         if (input.badge === "connected") {
-          context.moveTo(centreX - innerRadius * 0.36, centreY + innerRadius * 0.02);
-          context.lineTo(centreX - innerRadius * 0.10, centreY + innerRadius * 0.27);
-          context.lineTo(centreX + innerRadius * 0.40, centreY - innerRadius * 0.30);
+          context.moveTo(centreX - innerRadius * 0.46, centreY + innerRadius * 0.02);
+          context.lineTo(centreX - innerRadius * 0.12, centreY + innerRadius * 0.34);
+          context.lineTo(centreX + innerRadius * 0.48, centreY - innerRadius * 0.36);
         } else {
-          context.moveTo(centreX - innerRadius * 0.32, centreY - innerRadius * 0.32);
-          context.lineTo(centreX + innerRadius * 0.32, centreY + innerRadius * 0.32);
-          context.moveTo(centreX + innerRadius * 0.32, centreY - innerRadius * 0.32);
-          context.lineTo(centreX - innerRadius * 0.32, centreY + innerRadius * 0.32);
+          context.moveTo(centreX - innerRadius * 0.38, centreY - innerRadius * 0.38);
+          context.lineTo(centreX + innerRadius * 0.38, centreY + innerRadius * 0.38);
+          context.moveTo(centreX + innerRadius * 0.38, centreY - innerRadius * 0.38);
+          context.lineTo(centreX - innerRadius * 0.38, centreY + innerRadius * 0.38);
         }
         context.stroke();
         context.restore();

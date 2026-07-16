@@ -11,7 +11,7 @@
     "build": "npm run build --workspace apps/mobile-web && dotnet build VolturaAir.slnx",
     "branding:generate": "npm run icons:generate && npm run screenshots:site",
     "cache:purge": "node scripts/purge-windows-icon-cache.mjs",
-    "clean": "npm run clean:temp && npm run clean:git && npm run cache:purge && npm run deps:update",
+    "clean": "npm run cache:purge && npm run clean:temp && npm run clean:git && npm run deps:update",
     "clean:git": "git gc --prune=now",
     "clean:temp": "git clean -fdX -e !/.vs/ -e !/.vs/** -e !/.vscode/settings.json",
     "clean:temp:preview": "git clean -ndX -e !/.vs/ -e !/.vs/** -e !/.vscode/settings.json",

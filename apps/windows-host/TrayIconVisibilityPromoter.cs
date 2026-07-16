@@ -55,32 +55,38 @@ internal static class TrayIconVisibilityPromoter
                 return true;
             }
 
-            var matchedEntry = false;
-            var normalizedExecutablePath = NormalizePath(executablePath);
-
-            foreach (var subKeyName in root.GetSubKeyNames())
-            {
-                using var entry = root.OpenSubKey(subKeyName, writable: true);
-                var entryExecutablePath = entry?.GetValue("ExecutablePath") as string;
-                if (!PathsEqual(normalizedExecutablePath, entryExecutablePath))
-                {
-                    continue;
-                }
-
-                matchedEntry = true;
-                if (!Equals(entry!.GetValue("IsPromoted"), 1))
-                {
-                    entry.SetValue("IsPromoted", 1, RegistryValueKind.DWord);
-                    changed = true;
-                }
-            }
-
-            return matchedEntry;
+            return TryPromoteEntries(root, executablePath, out changed);
         }
         catch
         {
             return true;
         }
+    }
+
+    internal static bool TryPromoteEntries(RegistryKey root, string executablePath, out bool changed)
+    {
+        changed = false;
+        var matchedEntry = false;
+        var normalizedExecutablePath = NormalizePath(executablePath);
+
+        foreach (var subKeyName in root.GetSubKeyNames())
+        {
+            using var entry = root.OpenSubKey(subKeyName, writable: true);
+            var entryExecutablePath = entry?.GetValue("ExecutablePath") as string;
+            if (!PathsEqual(normalizedExecutablePath, entryExecutablePath))
+            {
+                continue;
+            }
+
+            matchedEntry = true;
+            if (!Equals(entry!.GetValue("IsPromoted"), 1))
+            {
+                entry.SetValue("IsPromoted", 1, RegistryValueKind.DWord);
+                changed = true;
+            }
+        }
+
+        return matchedEntry;
     }
 
     private static void RefreshIconIfNeeded(NotifyIcon icon, bool changed)

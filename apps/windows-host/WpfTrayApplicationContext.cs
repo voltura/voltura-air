@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Drawing;
 using System.Windows;
 using Forms = System.Windows.Forms;
@@ -18,6 +19,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
     private const string DisconnectedTrayIconFileName = "VolturaAirTrayDisconnected.ico";
 
     private readonly MainWindow _mainWindow;
+    private readonly Container _components = new();
     private readonly System.Windows.Threading.Dispatcher _dispatcher;
     private readonly PairingManager _pairingManager;
     private readonly WebHostService _webHost;
@@ -62,6 +64,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
             Visible = true
         };
         _trayIcon.DoubleClick += (_, _) => _mainWindow.ShowPage(HostPage.Connect);
+        TrayIconVisibilityPromoter.PromoteWhenReady(_components, _trayIcon);
         ApplyMenuTheme();
         if (_webHost.IsInputBlockedByElevation)
         {
@@ -575,6 +578,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         AppThemeSettings.Changed -= OnAppThemeChanged;
         _awakeService.StateChanged -= OnAwakeStateChanged;
         _trayIcon.Visible = false;
+        _components.Dispose();
         _trayIcon.Dispose();
         _trayMenu.Dispose();
 

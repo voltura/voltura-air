@@ -42,4 +42,39 @@ public sealed partial class HostUiLayoutTests
             }
         });
     }
+
+    [Fact]
+    public void ScreenshotPreferencesSelectionOpensTheRequestedSection()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            using var store = new TempPairingStore();
+            using var injector = new SendInputInjector();
+            var manager = new PairingManager(store.Store);
+            var webHost = new WebHostService(manager, new InputDispatcher(injector), isolatedTestMode: true);
+            var window = new MainWindow(manager, webHost, clientUrl: null);
+            try
+            {
+                window.Show();
+                window.ShowPreferencesSectionForScreenshot("Global permissions");
+                window.UpdateLayout();
+
+                var selectedSection = Assert.Single(
+                    FindWpfDescendants<Expander>(window),
+                    section => string.Equals(section.Header as string, "Global permissions", StringComparison.Ordinal));
+                Assert.True(selectedSection.IsExpanded);
+            }
+            finally
+            {
+                window.Close();
+                webHost.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        });
+    }
 }

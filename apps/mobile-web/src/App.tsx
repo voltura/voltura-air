@@ -87,6 +87,7 @@ export function App() {
   const [isTrackpadExpanded, setIsTrackpadExpanded] = useState(false);
   const [areModeTabsCollapsed, setAreModeTabsCollapsed] = useState(false);
   const [isModeSelectorOpen, setIsModeSelectorOpen] = useState(false);
+  const [isRemoteUtilityPanelOpen, setIsRemoteUtilityPanelOpen] = useState(false);
   const [textTransferDraft, setTextTransferDraft] = useState("");
   const [isInputRecoveryDialogDismissed, setIsInputRecoveryDialogDismissed] = useState(false);
   const inputBlockedByElevation = hostStatus?.inputBlockedByElevation === true;
@@ -194,6 +195,12 @@ export function App() {
     if (tab === "debug") {
       setAreModeTabsCollapsed(false);
       setIsModeSelectorOpen(false);
+    }
+  }, [tab]);
+
+  useEffect(() => {
+    if (tab !== "remote") {
+      setIsRemoteUtilityPanelOpen(false);
     }
   }, [tab]);
 
@@ -307,6 +314,7 @@ export function App() {
   const activeModeTab = tab === "debug" ? undefined : getModeDefinition(tab);
   const ActiveModeIcon = activeModeTab?.Icon;
   const canShowModeNavigation = state === "paired";
+  const isBottomModeNavigationVisible = canShowModeNavigation && !areModeTabsCollapsed && !isRemoteUtilityPanelOpen;
   const connectionPcName = state === "paired" && activePc ? getPcDisplayName(activePc) : message;
 
   const selectModeTab = (nextTab: MainTab, source: "tabs" | "selector" = "tabs") => {
@@ -333,7 +341,7 @@ export function App() {
   };
 
   return (
-    <main className={`app-shell ${canShowModeNavigation ? "has-mode-navigation" : ""} ${tab === "trackpad" ? "trackpad-active" : ""} ${tab === "remote" ? "remote-active" : ""} ${tab === "text-transfer" ? "text-transfer-active" : ""} ${tab === "clipboard-read" ? "clipboard-read-active" : ""} ${shouldShowSplitMode ? "split-mode-active" : ""} ${shouldShowSplitMode && trackpadSettings.splitShowModeButtons ? "split-show-mode-buttons" : ""} ${shouldShowSplitMode && trackpadSettings.splitShowStatusRow ? "split-show-status-row" : ""} ${areModeTabsCollapsed ? "mode-tabs-collapsed" : ""} ${isModeSelectorOpen ? "mode-selector-open" : ""}`}>
+    <main className={`app-shell ${isBottomModeNavigationVisible ? "has-mode-navigation" : ""} ${tab === "trackpad" ? "trackpad-active" : ""} ${tab === "remote" ? "remote-active" : ""} ${isRemoteUtilityPanelOpen ? "remote-utility-open" : ""} ${tab === "text-transfer" ? "text-transfer-active" : ""} ${tab === "clipboard-read" ? "clipboard-read-active" : ""} ${shouldShowSplitMode ? "split-mode-active" : ""} ${shouldShowSplitMode && trackpadSettings.splitShowModeButtons ? "split-show-mode-buttons" : ""} ${shouldShowSplitMode && trackpadSettings.splitShowStatusRow ? "split-show-status-row" : ""} ${areModeTabsCollapsed ? "mode-tabs-collapsed" : ""} ${isModeSelectorOpen ? "mode-selector-open" : ""}`}>
       <header className="top-bar">
         <div className="brand-group">
           <button className="icon-button" type="button" aria-label="Open menu" onClick={() => setIsSettingsOpen(true)}>
@@ -498,6 +506,7 @@ export function App() {
           appLaunchActions: hostStatus?.appLaunchActions ?? [],
           audioState: displayedAudioState,
           awakeControl: { awake: awakeCapability, awakeResult, onAwakeChange: requestAwakeChange, pendingAwakeChange },
+          isConnected: state === "paired",
           onPointerButtonClick: (button) => emit({ type: "pointer.button", button, action: "click" }),
           onPointerMove: (dx, dy) => emit({ type: "pointer.move", dx, dy }),
           onPowerAction: requestPowerAction,
@@ -511,6 +520,7 @@ export function App() {
           urlOpenCapability,
           urlOpenResult,
           remoteSettings,
+          onUtilityPanelOpenChange: setIsRemoteUtilityPanelOpen,
           sendSpecial
         }}
         dictationMode={{ canUseSpeech, dictationText, isListening, sendText, setDictationText, startSpeech, stopSpeech }}
@@ -544,7 +554,7 @@ export function App() {
         gestureDebugMode={{ trackpadSettings: effectiveTrackpadSettings }}
       />
 
-      {canShowModeNavigation && !areModeTabsCollapsed && <ModeTabs className="tabs bottom-mode-tabs" modeTabs={modeTabs} tab={tab} selectModeTab={selectModeTab} />}
+      {isBottomModeNavigationVisible && <ModeTabs className="tabs bottom-mode-tabs" modeTabs={modeTabs} tab={tab} selectModeTab={selectModeTab} />}
 
       {inputBlockedByElevation && (
         isInputRecoveryDialogDismissed ? (

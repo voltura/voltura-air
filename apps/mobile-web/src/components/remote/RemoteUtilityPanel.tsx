@@ -19,8 +19,7 @@ type SwitcherPointer = {
 type RemoteUtilityPanelProps = {
   appLaunchActions: AppLaunchActionSummary[];
   id: string;
-  isOpen: boolean;
-  onClose: () => void;
+  isConnected: boolean;
   onAppLaunch: (actionId: string) => void;
   onUrlOpen: (url: string) => string | null;
   pendingAppLaunchId: string | null;
@@ -44,17 +43,23 @@ function getAppLaunchLabelClass(label: string): string {
   return "remote-app-launch-label";
 }
 
-export function RemoteUtilityPanel({ appLaunchActions, id, isOpen, onAppLaunch, onClose, onUrlOpen, pendingAppLaunchId, pendingUrlOpen, remoteSettings, sendSpecial, urlOpenCapability, urlOpenResult }: RemoteUtilityPanelProps) {
+export function RemoteUtilityPanel({ appLaunchActions, id, isConnected, onAppLaunch, onUrlOpen, pendingAppLaunchId, pendingUrlOpen, remoteSettings, sendSpecial, urlOpenCapability, urlOpenResult }: RemoteUtilityPanelProps) {
   const [isSwitcherActive, setIsSwitcherActive] = useState(false);
+  const [isUrlDialogOpen, setIsUrlDialogOpen] = useState(false);
   const [urlDraft, setUrlDraft] = useState("");
+  const [dismissedUrlResultOperationId, setDismissedUrlResultOperationId] = useState<string | null>(null);
   const switcherHintId = useId();
+  const urlDialogTitleId = useId();
   const urlValidationId = useId();
+  const urlDialogRef = useRef<HTMLDialogElement | null>(null);
+  const urlInputRef = useRef<HTMLInputElement | null>(null);
   const switcherPointerRef = useRef<SwitcherPointer | null>(null);
   const switcherTimerRef = useRef<number | null>(null);
   const ignoreSwitcherClickRef = useRef(false);
   const sendSpecialRef = useRef(sendSpecial);
   const pendingUrlOperationRef = useRef<string | null>(null);
   const urlValidation = validateUrlDraft(urlDraft);
+  const visibleUrlOpenResult = urlOpenResult?.operationId === dismissedUrlResultOperationId ? null : urlOpenResult;
   sendSpecialRef.current = sendSpecial;
 
   useEffect(() => {
@@ -63,10 +68,42 @@ export function RemoteUtilityPanel({ appLaunchActions, id, isOpen, onAppLaunch, 
     }
 
     pendingUrlOperationRef.current = null;
-    if (urlOpenResult.succeeded) {
-      setUrlDraft("");
-    }
   }, [urlOpenResult]);
+
+  useEffect(() => {
+    const dialog = urlDialogRef.current;
+    if (!isUrlDialogOpen || !dialog || dialog.open) {
+      return;
+    }
+
+    if (typeof dialog.showModal === "function") {
+      dialog.showModal();
+    } else {
+      dialog.setAttribute("open", "");
+    }
+
+    window.requestAnimationFrame(() => urlInputRef.current?.focus());
+  }, [isUrlDialogOpen]);
+
+  useEffect(() => {
+    if (!isConnected) {
+      setIsUrlDialogOpen(false);
+    }
+  }, [isConnected]);
+
+  const closeUrlDialog = () => {
+    if (pendingUrlOpen) {
+      return;
+    }
+
+    const dialog = urlDialogRef.current;
+    if (dialog?.open && typeof dialog.close === "function") {
+      dialog.close();
+      return;
+    }
+
+    setIsUrlDialogOpen(false);
+  };
 
   const clearSwitcherTimer = () => {
     if (switcherTimerRef.current !== null) {
@@ -283,58 +320,102 @@ export function RemoteUtilityPanel({ appLaunchActions, id, isOpen, onAppLaunch, 
             </RemoteButton>
           </>
         )}
+        <RemoteButton label="Open URL" onClick={() => setIsUrlDialogOpen(true)}>
+          <ExternalLink aria-hidden="true" />
+          <span>Open URL</span>
+        </RemoteButton>
       </div>
-      {!urlOpenCapability && (
-        <div className="remote-url-open">
-          <p className="remote-url-feedback error" role="alert">Update the Windows host to open web addresses.</p>
-        </div>
-      )}
-      {urlOpenCapability && !urlOpenCapability.canOpen && (
-        <div className="remote-url-open">
-          <p className="remote-url-feedback error" role="alert">Allow URL opening in the PC permissions first.</p>
-        </div>
-      )}
-      {urlOpenCapability?.canOpen && (
-        <form
-          className="remote-url-open"
-          onSubmit={(event) => {
+      {isUrlDialogOpen && (
+        <dialog
+          ref={urlDialogRef}
+          className="remote-url-dialog"
+          aria-labelledby={urlDialogTitleId}
+          aria-modal="true"
+          onCancel={(event) => {
             event.preventDefault();
-            if (!pendingUrlOpen && urlValidation.valid) {
-              pendingUrlOperationRef.current = onUrlOpen(urlDraft);
+            closeUrlDialog();
+          }}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              closeUrlDialog();
+            }
+          }}
+          onClose={(event) => {
+            if (event.target === event.currentTarget) {
+              setIsUrlDialogOpen(false);
             }
           }}
         >
-          <span className="setting-label-with-info remote-url-open-label">
-            <label htmlFor="remote-url-draft">Open URL on PC</label>
-            <InfoButton
-              title="Open URL on PC"
-              size="detailed"
-              description="Enter a web address to open once in the PC's default browser. Addresses without a scheme use HTTPS. Only HTTP and HTTPS are supported. Voltura Air does not choose or fall back to a specific browser."
-            />
-          </span>
-          <div className="remote-url-open-row">
-            <input
-              id="remote-url-draft"
-              type="text"
-              inputMode="url"
-              autoCapitalize="none"
-              autoCorrect="off"
-              maxLength={2048}
-              placeholder="example.com"
-              value={urlDraft}
-              aria-describedby={!urlValidation.valid && urlDraft.trim() ? urlValidationId : undefined}
-              aria-invalid={!urlValidation.valid && urlDraft.trim() ? true : undefined}
-              onChange={(event) => setUrlDraft(event.target.value)}
-            />
-            <button type="submit" disabled={pendingUrlOpen || !urlValidation.valid}>
-              <ExternalLink aria-hidden="true" />
-              <span>{pendingUrlOpen ? "Opening…" : urlOpenResult && !urlOpenResult.succeeded ? "Retry" : "Open"}</span>
-            </button>
-          </div>
-          {!urlValidation.valid && urlDraft.trim() && <p id={urlValidationId} className="remote-url-feedback error" role="alert">{urlValidation.message}</p>}
-          {pendingUrlOpen && <p className="remote-url-feedback pending" role="status">Waiting for the PC.</p>}
-          {!pendingUrlOpen && urlOpenResult && <p className={`remote-url-feedback ${urlOpenResult.succeeded ? "success" : "error"}`} role={urlOpenResult.succeeded ? "status" : "alert"}>{urlOpenResult.message}</p>}
-        </form>
+          {/* Use the URL keyboard without rejecting the app's supported scheme-less addresses. */}
+          <form
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!pendingUrlOpen && urlOpenCapability?.canOpen && urlValidation.valid) {
+                setDismissedUrlResultOperationId(null);
+                pendingUrlOperationRef.current = onUrlOpen(urlDraft);
+              }
+            }}
+          >
+            <header>
+              <span className="setting-label-with-info remote-url-open-label">
+                <h2 id={urlDialogTitleId}>Open URL on PC</h2>
+                <InfoButton
+                  title="Opening URLs on PC"
+                  size="detailed"
+                  description="Enter a web address to open once in the PC's default browser. Addresses without a scheme use HTTPS. Only HTTP and HTTPS are supported. Voltura Air does not choose or fall back to a specific browser."
+                />
+              </span>
+            </header>
+            {!urlOpenCapability && <p className="remote-url-feedback error" role="alert">Update the Windows host to open web addresses.</p>}
+            {urlOpenCapability && !urlOpenCapability.canOpen && <p className="remote-url-feedback error" role="alert">Allow URL opening in the PC permissions first.</p>}
+            {urlOpenCapability?.canOpen && (
+              <label>
+                <span>Web address</span>
+                <input
+                  ref={urlInputRef}
+                  id="remote-url-draft"
+                  name="url"
+                  type="url"
+                  inputMode="url"
+                  autoComplete="url"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  enterKeyHint="go"
+                  spellCheck={false}
+                  maxLength={2048}
+                  placeholder="example.com"
+                  value={urlDraft}
+                  aria-describedby={!urlValidation.valid && urlDraft.trim() ? urlValidationId : undefined}
+                  aria-invalid={!urlValidation.valid && urlDraft.trim() ? true : undefined}
+                  onChange={(event) => setUrlDraft(event.target.value)}
+                />
+              </label>
+            )}
+            {!urlValidation.valid && urlDraft.trim() && <p id={urlValidationId} className="remote-url-feedback error" role="alert">{urlValidation.message}</p>}
+            {pendingUrlOpen && <p className="remote-url-feedback pending" role="status">Waiting for the PC.</p>}
+            {!pendingUrlOpen && visibleUrlOpenResult && <p className={`remote-url-feedback ${visibleUrlOpenResult.succeeded ? "success" : "error"}`} role={visibleUrlOpenResult.succeeded ? "status" : "alert"}>{visibleUrlOpenResult.message}</p>}
+            <div className="remote-url-dialog-actions">
+              {urlOpenCapability?.canOpen && (
+                <button type="submit" className="remote-url-dialog-primary" disabled={pendingUrlOpen || !urlValidation.valid}>
+                  <ExternalLink aria-hidden="true" />
+                  <span>{pendingUrlOpen ? "Opening…" : visibleUrlOpenResult && !visibleUrlOpenResult.succeeded ? "Retry" : "Open"}</span>
+                </button>
+              )}
+              <button
+                type="button"
+                disabled={pendingUrlOpen || urlDraft.length === 0}
+                onClick={() => {
+                  setUrlDraft("");
+                  setDismissedUrlResultOperationId(urlOpenResult?.operationId ?? null);
+                }}
+              >
+                Clear
+              </button>
+              <button type="button" onClick={closeUrlDialog} disabled={pendingUrlOpen}>Close</button>
+            </div>
+          </form>
+        </dialog>
       )}
       {appLaunchActions.length > 0 && (
         <>
@@ -357,9 +438,6 @@ export function RemoteUtilityPanel({ appLaunchActions, id, isOpen, onAppLaunch, 
           </div>
         </>
       )}
-      <button type="button" className="remote-fn-button remote-floating-fn" aria-controls={id} aria-expanded={isOpen} onClick={onClose}>
-        Main
-      </button>
     </div>
   );
 }

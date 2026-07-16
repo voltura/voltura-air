@@ -12,13 +12,20 @@ const tempDir = path.join(os.tmpdir(), "voltura-air-site-screenshots");
 const tempAppDataDir = path.join(tempDir, "appdata");
 const pairingUrlFile = path.join(tempDir, "pairing-url.txt");
 const hostCaptureScript = path.join(tempDir, "capture-window.ps1");
+const hostRegistryBackupFile = path.join(tempDir, "voltura-air-registry-backup.reg");
 const hostExe = path.join(repoRoot, "apps", "windows-host", "bin", "Debug", "net10.0-windows", "VolturaAir.Host.exe");
 
 const outputs = {
   hostLight: path.join(assetsDir, "voltura-air-host.png"),
   hostDark: path.join(assetsDir, "voltura-air-host-dark.png"),
+  hostPreferencesLight: path.join(assetsDir, "voltura-air-host-preferences.png"),
+  hostPreferencesDark: path.join(assetsDir, "voltura-air-host-preferences-dark.png"),
   iphoneLight: path.join(assetsDir, "voltura-air-iphone.png"),
   iphoneDark: path.join(assetsDir, "voltura-air-iphone-dark.png"),
+  iphoneMenuLight: path.join(assetsDir, "voltura-air-iphone-menu.png"),
+  iphoneRemoteFnDark: path.join(assetsDir, "voltura-air-iphone-remote-fn-dark.png"),
+  iphoneRemoteFnLandscapeDark: path.join(assetsDir, "voltura-air-iphone-remote-fn-landscape-dark.png"),
+  iphoneUrlDark: path.join(assetsDir, "voltura-air-iphone-url-dark.png"),
   iphoneKodiDark: path.join(assetsDir, "voltura-air-iphone-kodi-dark.png"),
   ipadLight: path.join(assetsDir, "voltura-air-ipad.png"),
   ipadDark: path.join(assetsDir, "voltura-air-ipad-dark.png"),
@@ -40,7 +47,7 @@ async function main() {
   await fs.mkdir(assetsDir, { recursive: true });
   await ensureCaptureDependencies();
   await writeHostCaptureScript();
-  const originalSettings = readHostCaptureSettings();
+  const originalSettings = await snapshotHostRegistrySettings();
 
   try {
     const requireFromTemp = createRequire(path.join(tempDir, "package.json"));
@@ -59,6 +66,13 @@ async function main() {
       await stopProcess(lightHost.process);
     }
 
+    const lightPreferencesHost = await launchHost("Global permissions");
+    try {
+      await captureHostWindow(outputs.hostPreferencesLight);
+    } finally {
+      await stopProcess(lightPreferencesHost.process);
+    }
+
     await setHostTheme("Dark");
     const darkHost = await launchHost();
     try {
@@ -67,10 +81,17 @@ async function main() {
       await stopProcess(darkHost.process);
     }
 
+    const darkPreferencesHost = await launchHost("Global permissions");
+    try {
+      await captureHostWindow(outputs.hostPreferencesDark);
+    } finally {
+      await stopProcess(darkPreferencesHost.process);
+    }
+
     console.log(`Site screenshots written to ${assetsDir}`);
   } finally {
     await stopRunningHost();
-    await restoreHostCaptureSettings(originalSettings);
+    await restoreHostRegistrySettings(originalSettings);
   }
 }
 
@@ -112,10 +133,12 @@ async function captureMobileScreens(chromium, pairingUrl) {
     await waitForConnected(page);
 
     await page.screenshot({ path: outputs.iphoneLight });
+    await captureMobileMenu(page);
 
     await setMobileTheme(page, "dark");
     await page.screenshot({ path: outputs.iphoneDark });
 
+    await captureRemoteFnScreens(page);
     await captureKodiRemote(page);
 
     await page.setViewportSize({ width: 820, height: 1180 });
@@ -191,6 +214,34 @@ async function waitForConnected(page) {
   await page.locator(".status.paired").waitFor({ state: "visible", timeout: 10000 });
 }
 
+async function captureMobileMenu(page) {
+  await page.getByRole("button", { name: "Open menu", exact: true }).click();
+  await page.locator(".settings-drawer.open").waitFor({ timeout: 5000 });
+  await page.waitForFunction(() => {
+    const drawer = document.querySelector(".settings-drawer");
+    return drawer instanceof HTMLElement && Math.abs(drawer.getBoundingClientRect().left) < 1;
+  });
+  await page.screenshot({ path: outputs.iphoneMenuLight });
+  await page.locator(".settings-drawer").getByRole("button", { name: "Close menu", exact: true }).click();
+}
+
+async function captureRemoteFnScreens(page) {
+  await page.setViewportSize({ width: 393, height: 852 });
+  await page.getByRole("button", { name: "Remote mode", exact: true }).click();
+  await page.getByRole("button", { name: "Fn", exact: true }).click();
+  await page.locator(".app-shell.remote-active.remote-utility-open").waitFor({ timeout: 5000 });
+  await page.screenshot({ path: outputs.iphoneRemoteFnDark });
+
+  await page.setViewportSize({ width: 852, height: 393 });
+  await page.locator(".remote-mode.remote-utility-open").waitFor({ timeout: 5000 });
+  await page.screenshot({ path: outputs.iphoneRemoteFnLandscapeDark });
+
+  await page.setViewportSize({ width: 393, height: 852 });
+  await page.getByRole("button", { name: "Open URL", exact: true }).click();
+  await page.getByRole("dialog", { name: "Open URL on PC", exact: true }).waitFor({ timeout: 5000 });
+  await page.screenshot({ path: outputs.iphoneUrlDark });
+}
+
 async function setMobileTheme(page, theme) {
   await page.evaluate((nextTheme) => localStorage.setItem("voltura-air.themeMode", nextTheme), theme);
   await page.reload({ waitUntil: "networkidle" });
@@ -211,16 +262,22 @@ async function captureHostWindow(outputPath) {
   await fs.copyFile(rawPath, outputPath);
 }
 
-async function launchHost() {
+async function launchHost(preferencesSection) {
   await fs.rm(pairingUrlFile, { force: true });
   await fs.rm(path.join(tempAppDataDir, "Voltura Air"), { recursive: true, force: true });
-  const child = spawn(hostExe, [
+  const hostArgs = [
     "--site-screenshot-mode",
+    "--isolated-test-mode",
     "--pairing-store-root",
     tempAppDataDir,
     "--pairing-url-file",
     pairingUrlFile
-  ], {
+  ];
+  if (preferencesSection) {
+    hostArgs.push("--site-screenshot-preferences-section", preferencesSection);
+  }
+
+  const child = spawn(hostExe, hostArgs, {
     cwd: path.dirname(hostExe),
     env: {
       ...process.env,
@@ -245,13 +302,24 @@ async function stopProcess(child) {
   }
 
   child.kill();
-  await Promise.race([
-    new Promise((resolve) => child.once("exit", resolve)),
-    delay(2500).then(() => {
-      if (child.exitCode === null) {
-        child.kill("SIGKILL");
-      }
-    })
+  if (await waitForProcessExit(child, 2500)) {
+    return;
+  }
+
+  child.kill("SIGKILL");
+  if (!await waitForProcessExit(child, 2500)) {
+    throw new Error("Timed out waiting for the screenshot host to exit.");
+  }
+}
+
+async function waitForProcessExit(child, timeoutMs) {
+  if (child.exitCode !== null) {
+    return true;
+  }
+
+  return Promise.race([
+    new Promise((resolve) => child.once("exit", () => resolve(true))),
+    delay(timeoutMs).then(() => false)
   ]);
 }
 
@@ -262,49 +330,31 @@ async function setHostTheme(theme) {
     New-ItemProperty -Path HKCU:\\Software\\VolturaAir -Name EnableGestureDebug -Value 0 -PropertyType DWord -Force | Out-Null
     New-ItemProperty -Path HKCU:\\Software\\VolturaAir -Name ShowConnectionStatusNotifications -Value 0 -PropertyType DWord -Force | Out-Null
     New-ItemProperty -Path HKCU:\\Software\\VolturaAir -Name ShowPairingWindowOnDisconnect -Value 0 -PropertyType DWord -Force | Out-Null
+    New-ItemProperty -Path HKCU:\\Software\\VolturaAir -Name AllowUrlOpen -Value 1 -PropertyType DWord -Force | Out-Null
+    New-ItemProperty -Path HKCU:\\Software\\VolturaAir -Name AllowRemoteAppLaunch -Value 0 -PropertyType DWord -Force | Out-Null
   `);
 }
 
-function readHostCaptureSettings() {
-  return {
-    themeMode: readRegistryValue("ThemeMode"),
-    enableGestureDebug: readRegistryValue("EnableGestureDebug"),
-    showConnectionStatusNotifications: readRegistryValue("ShowConnectionStatusNotifications"),
-    showPairingWindowOnDisconnect: readRegistryValue("ShowPairingWindowOnDisconnect")
-  };
-}
-
-async function restoreHostCaptureSettings(settings) {
-  await restoreRegistryValue("ThemeMode", settings.themeMode, "String");
-  await restoreRegistryValue("EnableGestureDebug", settings.enableGestureDebug, "DWord");
-  await restoreRegistryValue("ShowConnectionStatusNotifications", settings.showConnectionStatusNotifications, "DWord");
-  await restoreRegistryValue("ShowPairingWindowOnDisconnect", settings.showPairingWindowOnDisconnect, "DWord");
-}
-
-function readRegistryValue(name) {
-  const result = spawnSync(
+async function snapshotHostRegistrySettings() {
+  await fs.rm(hostRegistryBackupFile, { force: true });
+  const keyExists = spawnSync(
     "powershell",
-    [
-      "-NoProfile",
-      "-Command",
-      `$value = (Get-ItemProperty -Path HKCU:\\Software\\VolturaAir -Name ${JSON.stringify(name)} -ErrorAction SilentlyContinue).${name}; if ($null -ne $value) { [Console]::Out.Write($value) }`
-    ],
+    ["-NoProfile", "-Command", "[Console]::Out.Write((Test-Path -LiteralPath HKCU:\\Software\\VolturaAir).ToString())"],
     { encoding: "utf8", windowsHide: true }
   );
-
-  return result.status === 0 && result.stdout.length > 0 ? result.stdout : null;
-}
-
-async function restoreRegistryValue(name, value, type) {
-  if (value === null) {
-    await runPowerShell(`Remove-ItemProperty -Path HKCU:\\Software\\VolturaAir -Name ${JSON.stringify(name)} -ErrorAction SilentlyContinue; exit 0`);
-    return;
+  const exists = keyExists.status === 0 && keyExists.stdout.trim().toLowerCase() === "true";
+  if (exists) {
+    await run("reg", ["export", "HKCU\\Software\\VolturaAir", hostRegistryBackupFile, "/y"]);
   }
 
-  await runPowerShell(`
-    New-Item -Path HKCU:\\Software\\VolturaAir -Force | Out-Null
-    New-ItemProperty -Path HKCU:\\Software\\VolturaAir -Name ${JSON.stringify(name)} -Value ${JSON.stringify(value)} -PropertyType ${type} -Force | Out-Null
-  `);
+  return { exists };
+}
+
+async function restoreHostRegistrySettings(snapshot) {
+  await runPowerShell("Remove-Item -LiteralPath HKCU:\\Software\\VolturaAir -Recurse -Force -ErrorAction SilentlyContinue");
+  if (snapshot.exists) {
+    await run("reg", ["import", hostRegistryBackupFile]);
+  }
 }
 
 async function writeHostCaptureScript() {

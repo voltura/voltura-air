@@ -191,6 +191,23 @@ describe("App header and mode navigation", () => {
     expect(document.querySelector(".bottom-mode-tabs")).toBeTruthy();
   });
 
+  it("hides the bottom mode row and keeps the header selector available while remote Fn is open", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Remote mode" }).at(-1)!);
+    expect(document.querySelector(".bottom-mode-tabs")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
+
+    const appShell = document.querySelector(".app-shell");
+    expect(appShell?.classList.contains("remote-utility-open")).toBe(true);
+    expect(appShell?.classList.contains("has-mode-navigation")).toBe(false);
+    expect(document.querySelector(".bottom-mode-tabs")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Change mode" }));
+    expect(screen.getByRole("menu", { name: "Change mode" })).toBeTruthy();
+  });
+
   it("does not reserve mode navigation on the PC unavailable screen", () => {
     mockConnection({
       state: "unavailable",

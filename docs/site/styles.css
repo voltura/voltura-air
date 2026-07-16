@@ -288,6 +288,10 @@ figcaption {
   grid-column: span 2;
 }
 
+.screen-card.phone-landscape {
+  grid-column: span 3;
+}
+
 .screen-card.tablet {
   grid-column: span 3;
 }
@@ -399,6 +403,7 @@ footer a:hover {
 
   .screen-card.wide,
   .screen-card.phone,
+  .screen-card.phone-landscape,
   .screen-card.tablet,
   .screen-card.split-view {
     grid-column: span 6;

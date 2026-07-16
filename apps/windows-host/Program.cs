@@ -48,7 +48,14 @@ internal static class Program
             }
 
             startupWindow.Close();
-            if (ConsumeActivationRequest() || ShouldShowMainWindowOnStartup(args, AppWindowSettings.StartHiddenInTray(), s_runtime.PairingManager.HasActiveController))
+            var screenshotPreferencesSection = args.Contains("--site-screenshot-mode", StringComparer.OrdinalIgnoreCase)
+                ? GetOption(args, "--site-screenshot-preferences-section")
+                : null;
+            if (!string.IsNullOrWhiteSpace(screenshotPreferencesSection))
+            {
+                s_runtime.MainWindow.ShowPreferencesSectionForScreenshot(screenshotPreferencesSection);
+            }
+            else if (ConsumeActivationRequest() || ShouldShowMainWindowOnStartup(args, AppWindowSettings.StartHiddenInTray(), s_runtime.PairingManager.HasActiveController))
             {
                 s_runtime.MainWindow.ShowPage(HostPage.Connect);
             }
@@ -84,6 +91,21 @@ internal static class Program
     private static bool ConsumeActivationRequest()
     {
         return Interlocked.Exchange(ref s_activationRequested, 0) != 0;
+    }
+
+    private static string? GetOption(string[] args, string name)
+    {
+        for (var index = 0; index < args.Length; index += 1)
+        {
+            if (!string.Equals(args[index], name, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            return index + 1 < args.Length ? args[index + 1] : null;
+        }
+
+        return null;
     }
 
     internal static bool ShouldShowMainWindowOnStartup(string[] args, bool startHiddenInTraySetting, bool hasActiveController)

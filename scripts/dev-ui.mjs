@@ -279,24 +279,26 @@ async function verifyResponsiveUrlOpenLayout(page) {
   await page.setViewportSize({ width: 393, height: 852 });
   await page.getByRole("button", { name: "Remote mode", exact: true }).click();
   await page.getByRole("button", { name: "Fn", exact: true }).click();
-  const input = page.getByRole("textbox", { name: "Open URL on PC", exact: true });
+  await page.getByRole("button", { name: "Open URL", exact: true }).click();
+  const urlDialog = page.getByRole("dialog", { name: "Open URL on PC", exact: true });
+  const input = urlDialog.getByRole("textbox", { name: "Web address", exact: true });
 
   if (await input.count() === 0) {
-    const permissionMessage = page.getByText("Allow URL opening in the PC permissions first.", { exact: true });
-    if (await permissionMessage.count() !== 1 || await page.getByRole("button", { name: "Open", exact: true }).count() !== 0) {
+    const permissionMessage = urlDialog.getByText("Allow URL opening in the PC permissions first.", { exact: true });
+    if (await permissionMessage.count() !== 1 || await urlDialog.getByRole("button", { name: "Open", exact: true }).count() !== 0) {
       throw new Error("URL controls were not hidden with the PC permission disabled.");
     }
     return;
   }
 
   await input.fill("javascript:alert(1)");
-  if (!await page.getByRole("button", { name: "Open", exact: true }).isDisabled() ||
-      await page.getByText("Use an HTTP or HTTPS web address.", { exact: true }).count() !== 1) {
+  if (!await urlDialog.getByRole("button", { name: "Open", exact: true }).isDisabled() ||
+      await urlDialog.getByText("Use an HTTP or HTTPS web address.", { exact: true }).count() !== 1) {
     throw new Error("Invalid URL drafts did not disable Open with clear feedback.");
   }
 
-  await page.getByRole("button", { name: "About Open URL on PC", exact: true }).click();
-  const infoDialog = page.getByRole("dialog", { name: "Open URL on PC", exact: true });
+  await urlDialog.getByRole("button", { name: "About Opening URLs on PC", exact: true }).click();
+  const infoDialog = page.getByRole("dialog", { name: "Opening URLs on PC", exact: true });
   const infoMetrics = await infoDialog.evaluate((dialog) => {
     const ok = dialog.querySelector(".info-dialog-actions button");
     if (!(ok instanceof HTMLButtonElement)) {
@@ -326,12 +328,11 @@ async function verifyResponsiveUrlOpenLayout(page) {
 
   for (const viewport of viewports) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
-    await page.locator(".remote-url-open").scrollIntoViewIfNeeded();
     await input.focus();
     const result = await page.evaluate(() => {
-      const form = document.querySelector(".remote-url-open");
+      const form = document.querySelector(".remote-url-dialog form");
       const field = document.querySelector("#remote-url-draft");
-      const button = document.querySelector(".remote-url-open-row button");
+      const button = document.querySelector(".remote-url-dialog-primary");
       if (!(form instanceof HTMLElement) || !(field instanceof HTMLInputElement) || !(button instanceof HTMLButtonElement)) {
         return { error: "URL opening controls were not visible." };
       }

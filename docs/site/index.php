@@ -169,6 +169,14 @@
             <img src="./assets/voltura-air-host-dark.png" alt="Voltura Air Windows host Connect screen in dark mode">
             <figcaption>Windows host - dark mode</figcaption>
           </figure>
+          <figure class="screen-card wide">
+            <img src="./assets/voltura-air-host-preferences.png" alt="Voltura Air Windows host Global permissions preferences in light mode">
+            <figcaption>Windows host preferences - light mode</figcaption>
+          </figure>
+          <figure class="screen-card wide">
+            <img src="./assets/voltura-air-host-preferences-dark.png" alt="Voltura Air Windows host Global permissions preferences in dark mode">
+            <figcaption>Windows host preferences - dark mode</figcaption>
+          </figure>
           <figure class="screen-card phone">
             <img src="./assets/voltura-air-iphone.png" alt="Voltura Air trackpad screen on an iPhone in light mode">
             <figcaption>iPhone - light mode</figcaption>
@@ -176,6 +184,22 @@
           <figure class="screen-card phone">
             <img src="./assets/voltura-air-iphone-dark.png" alt="Voltura Air trackpad screen on an iPhone in dark mode">
             <figcaption>iPhone - dark mode</figcaption>
+          </figure>
+          <figure class="screen-card phone">
+            <img src="./assets/voltura-air-iphone-menu.png" alt="Voltura Air mobile menu on an iPhone in light mode">
+            <figcaption>iPhone menu</figcaption>
+          </figure>
+          <figure class="screen-card phone">
+            <img src="./assets/voltura-air-iphone-remote-fn-dark.png" alt="Voltura Air Remote Fn controls on an iPhone in dark mode">
+            <figcaption>iPhone Remote Fn</figcaption>
+          </figure>
+          <figure class="screen-card phone-landscape">
+            <img src="./assets/voltura-air-iphone-remote-fn-landscape-dark.png" alt="Voltura Air Remote Fn controls on an iPhone in landscape dark mode">
+            <figcaption>iPhone Remote Fn - landscape</figcaption>
+          </figure>
+          <figure class="screen-card phone">
+            <img src="./assets/voltura-air-iphone-url-dark.png" alt="Voltura Air Open URL on PC dialog on an iPhone in dark mode">
+            <figcaption>iPhone Open URL dialog</figcaption>
           </figure>
           <figure class="screen-card phone">
             <img src="./assets/voltura-air-iphone-kodi-dark.png" alt="Voltura Air Kodi remote screen on an iPhone in dark mode with navigation ring controls">

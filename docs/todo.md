@@ -1,6 +1,6 @@
 # Voltura Air - Remaining roadmap
 
-Updated: 2026-07-15
+Updated: 2026-07-16
 Scope: work not implemented on the current `voltura/voltura-air` `main` branch.
 
 This is a continuation-ready roadmap, not a feature wish list. Current
@@ -24,27 +24,9 @@ network work must also satisfy the acceptance-path test gate in the repository
 
 ---
 
-## 1. URL share target
+## 1. Presentation mode
 
-- [ ] Research PWA Web Share Target support on the browsers Voltura Air supports
-  and whether the host-served LAN origin can meet its installation, HTTPS, and
-  service-worker requirements.
-- [ ] Implement only if a shared URL can land in the same reviewed Open URL
-  draft and still requires an explicit Open tap. Never auto-launch a shared URL
-  on the PC.
-
-Decision gate: record the browser-support and LAN-origin result in the issue. If
-the result needs a public service, account, cloud relay, or a less secure origin
-model, decline this feature.
-
-Browser extensions are out of scope unless user research shows a repeated,
-extension-specific workflow that the explicit URL action cannot cover.
-
----
-
-## 2. Presentation mode
-
-### 2.1 Dedicated presenter surface
+### 1.1 Dedicated presenter surface
 
 - [ ] Add a selectable **Presentation** mode; do not describe existing generic
   keyboard shortcuts or the PowerPoint application-launch preset as this mode.
@@ -86,9 +68,9 @@ Optional verification:
 
 ---
 
-## 3. Custom panels and device preferences
+## 2. Custom panels and device preferences
 
-### 3.1 Host-managed custom shortcut panels
+### 2.1 Host-managed custom shortcut panels
 
 - [ ] Define a small host-owned panel model before building UI: panel ID, display
   name, ordered buttons, opaque action ID, label, optional icon, and enabled
@@ -133,7 +115,7 @@ Decision gate: decide whether panels are shared by all paired devices (the
 recommended initial model) or need per-device assignments. Do not add
 per-device panel editing until shared panels are proven insufficient.
 
-### 3.2 Remaining per-device preferences
+### 2.2 Remaining per-device preferences
 
 - [ ] Persist the last selected mobile mode per saved-PC/client profile locally,
   then restore it only when the mode is still enabled and supported by the host.
@@ -150,9 +132,9 @@ per-device panel editing until shared panels are proven insufficient.
 
 ---
 
-## 4. Public documentation and release trust
+## 3. Public documentation and release trust
 
-### 4.1 Public site and README
+### 3.1 Public site and README
 
 - [ ] Capture and publish a short, silent-captioned demo video or GIF sequence
   from a disposable isolated test host. It must show QR pairing, cursor movement,
@@ -174,7 +156,7 @@ per-device panel editing until shared panels are proven insufficient.
 - [ ] Add a short README roadmap link to this file, labelled as planned work and
   without promising dates.
 
-### 4.2 Release integrity and communication
+### 3.2 Release integrity and communication
 
 - [ ] Generate one `SHA256SUMS.txt` file from the final portable ZIP, default
   installer, and full installer after packaging. Upload it to every GitHub
@@ -210,7 +192,7 @@ per-device panel editing until shared panels are proven insufficient.
   owner, package/update path, signing requirements, Store policy review, and a
   reason it benefits users beyond the existing release channel.
 
-### 4.3 Contribution intake
+### 3.3 Contribution intake
 
 - [ ] Replace the existing generic bug template with an issue form or structured
   template that captures host version, mobile browser/device, connection method,
@@ -231,13 +213,13 @@ per-device panel editing until shared panels are proven insufficient.
 
 ---
 
-## 5. Research-gated experiments
+## 4. Research-gated experiments
 
 Do not schedule these into a release milestone until the stated decision gate
 has a written outcome and a prototype proves the primary user path. All remain
 LAN-only unless a separate product decision changes the threat model.
 
-### 5.1 Wake-on-LAN
+### 4.1 Wake-on-LAN
 
 - [ ] Resolve the fundamental sender problem before implementing UI: when the
   target PC is asleep, the Windows host is not running, and a browser cannot
@@ -256,7 +238,7 @@ Decision gate: choose an always-available sender that does not turn the normal
 host into a competing second host or introduce an internet relay. If none meets
 the privacy and maintenance bar, keep Wake-on-LAN out of the product.
 
-### 5.2 Screen preview
+### 4.2 Screen preview
 
 - [ ] Produce a time-boxed technical design comparing Windows Graphics Capture
   with other supported Windows capture APIs, including multi-monitor selection,
@@ -274,7 +256,7 @@ the privacy and maintenance bar, keep Wake-on-LAN out of the product.
   persisting frames. Add tests for denied capture, consent withdrawal,
   disconnect cleanup, and capture API failure.
 
-### 5.3 Explicit phone-to-PC file send
+### 4.3 Explicit phone-to-PC file send
 
 - [ ] Design a separate authenticated upload path; do not put arbitrary file
   bytes into the current bounded WebSocket message protocol. Establish file-size,
@@ -291,7 +273,7 @@ the privacy and maintenance bar, keep Wake-on-LAN out of the product.
   cancellation, disconnect, write failure, malicious filenames/path traversal,
   and cleanup of partial files. Document the limitations and supported browsers.
 
-### 5.4 Motion or air mouse
+### 4.4 Motion or air mouse
 
 - [ ] Research the current Device Orientation/Motion standards and current
   Android, iOS/iPadOS, and desktop-browser requirements, including secure-context
@@ -305,7 +287,7 @@ the privacy and maintenance bar, keep Wake-on-LAN out of the product.
   experimental until it is comfortable and predictable across representative
   supported devices.
 
-### 5.5 Gamepad mode
+### 4.5 Gamepad mode
 
 - [ ] Investigate a basic touch-controller layout separately from Windows gamepad
   injection. Browser buttons alone are not a virtual Xbox/DirectInput controller.
@@ -318,7 +300,7 @@ the privacy and maintenance bar, keep Wake-on-LAN out of the product.
   Do not claim gaming-grade latency, vibration, or broad game compatibility
   before measured, reproducible validation.
 
-### 5.6 Native mobile apps
+### 4.6 Native mobile apps
 
 - [ ] Record the exact PWA limitation first (for example a browser permission,
   a missing platform API, installation/discovery friction, or a reliability
@@ -342,7 +324,7 @@ the privacy and maintenance bar, keep Wake-on-LAN out of the product.
    issue forms, release-note template, known limitations, and checksums.
 4. Make and record the code-signing decision; only then design the update
    notification around the agreed distribution trust model.
-5. Treat each section 5 idea as an individual research issue, beginning with the
+5. Treat each section 4 idea as an individual research issue, beginning with the
    Wake-on-LAN sender decision rather than a misleading mobile button.
 
 ## Suggested milestones

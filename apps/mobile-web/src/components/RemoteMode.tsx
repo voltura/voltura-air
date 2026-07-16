@@ -42,6 +42,7 @@ type RemoteModeProps = {
   appLaunchActions: AppLaunchActionSummary[];
   audioState: AudioStateMessage | null;
   awakeControl?: AwakeControlProps;
+  isConnected?: boolean;
   remoteSettings: RemoteSettings;
   onPointerButtonClick: (button: MouseButtonName) => void;
   onPointerMove: (dx: number, dy: number) => void;
@@ -56,6 +57,7 @@ type RemoteModeProps = {
   urlOpenCapability?: UrlOpenCapability;
   urlOpenResult: UrlOpenResultMessage | null;
   sendSpecial: (key: string, modifiers?: string[]) => void;
+  onUtilityPanelOpenChange?: (isOpen: boolean) => void;
 };
 
 type MiniTrackpadPointer = {
@@ -78,6 +80,7 @@ export function RemoteMode({
   appLaunchActions,
   audioState,
   awakeControl,
+  isConnected = true,
   remoteSettings,
   onPointerButtonClick,
   onPointerMove,
@@ -91,7 +94,8 @@ export function RemoteMode({
   powerCapabilities,
   urlOpenCapability,
   urlOpenResult,
-  sendSpecial
+  sendSpecial,
+  onUtilityPanelOpenChange
 }: RemoteModeProps) {
   const [showUtilityPanel, setShowUtilityPanel] = useState(false);
   const repeatTimeoutRef = useRef<number | null>(null);
@@ -154,6 +158,10 @@ export function RemoteMode({
     },
     []
   );
+
+  useEffect(() => {
+    onUtilityPanelOpenChange?.(showUtilityPanel);
+  }, [onUtilityPanelOpenChange, showUtilityPanel]);
 
   const getRepeatablePressProps = (action: () => void): RepeatablePressProps => ({
     onPointerDown: (event) => {
@@ -553,22 +561,19 @@ export function RemoteMode({
         />
         <button
           type="button"
-          className="remote-fn-button remote-floating-fn"
+          className="remote-fn-button remote-floating-fn remote-navigation-main"
           aria-controls={utilityPanelId}
           aria-expanded={showUtilityPanel}
-          onClick={() => {
-            setShowUtilityPanel(true);
-          }}
+          onClick={() => setShowUtilityPanel((current) => !current)}
         >
-          Fn
+          {showUtilityPanel ? "Main" : "Fn"}
         </button>
       </div>
 
       <RemoteUtilityPanel
         appLaunchActions={appLaunchActions}
         id={utilityPanelId}
-        isOpen={showUtilityPanel}
-        onClose={() => setShowUtilityPanel(false)}
+        isConnected={isConnected}
         onAppLaunch={onAppLaunch}
         onUrlOpen={onUrlOpen}
         pendingAppLaunchId={pendingAppLaunchId}

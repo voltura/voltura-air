@@ -122,6 +122,20 @@ public partial class MainWindow : Window
         Activate();
     }
 
+    public void ShowPreferencesSectionForScreenshot(string sectionTitle)
+    {
+        ShowPage(HostPage.Preferences);
+        if (PageContent.Content is not ScrollViewer { Content: StackPanel panel })
+        {
+            return;
+        }
+
+        var section = panel.Children
+            .OfType<Expander>()
+            .FirstOrDefault(candidate => string.Equals(candidate.Header as string, sectionTitle, StringComparison.Ordinal));
+        section?.SetCurrentValue(Expander.IsExpandedProperty, true);
+    }
+
     public void ShowPairedStatus()
     {
         SelectPage(HostPage.Connect);

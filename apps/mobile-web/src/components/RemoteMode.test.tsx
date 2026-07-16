@@ -208,6 +208,7 @@ describe("RemoteMode", () => {
     fireEvent.click(screen.getByRole("button", { name: "Fn" }));
 
     expect(remoteMode.classList.contains("remote-utility-open")).toBe(true);
+    expect(screen.getByRole("button", { name: "Main" }).classList).toContain("remote-navigation-main");
 
     fireEvent.click(screen.getByRole("button", { name: "Main" }));
 
@@ -258,12 +259,16 @@ describe("RemoteMode", () => {
     expect(button.textContent).toContain("Starting…");
   });
 
-  it("preserves the URL draft after a returned failure and offers retry", () => {
+  it("opens URL entry in a dialog, preserves its draft after failure, and offers retry", () => {
     const onUrlOpen = vi.fn(() => "url-operation-a");
     const view = renderRemote({ onUrlOpen });
     fireEvent.click(screen.getByRole("button", { name: "Fn" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open URL" }));
 
-    const input = screen.getByLabelText("Open URL on PC") as HTMLInputElement;
+    const dialog = screen.getByRole("dialog", { name: "Open URL on PC" });
+    expect(dialog.getAttribute("aria-modal")).toBe("true");
+
+    const input = screen.getByLabelText("Web address") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "example.com/page?q=test" } });
     fireEvent.click(screen.getByRole("button", { name: "Open" }));
 
@@ -283,18 +288,71 @@ describe("RemoteMode", () => {
       />
     );
 
-    expect((screen.getByLabelText("Open URL on PC") as HTMLInputElement).value).toBe("example.com/page?q=test");
+    expect((screen.getByLabelText("Web address") as HTMLInputElement).value).toBe("example.com/page?q=test");
     expect(screen.getByRole("alert").textContent).toContain("default browser");
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(onUrlOpen).toHaveBeenCalledTimes(2);
   });
 
-  it("keeps URL controls hidden until the PC permission is available", () => {
+  it("keeps the URL dialog open to show a successful response until Close is pressed", () => {
+    const onUrlOpen = vi.fn(() => "url-operation-a");
+    const view = renderRemote({ onUrlOpen });
+    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open URL" }));
+
+    const input = screen.getByLabelText("Web address") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Open" }));
+
+    view.rerender(
+      <RemoteMode
+        {...view}
+        pendingUrlOpen={false}
+        urlOpenResult={{
+          type: "url.open.result",
+          operationId: "url-operation-a",
+          succeeded: true,
+          code: "accepted",
+          message: "Open request sent."
+        }}
+      />
+    );
+
+    expect(screen.getByRole("dialog", { name: "Open URL on PC" })).toBeTruthy();
+    expect((screen.getByLabelText("Web address") as HTMLInputElement).value).toBe("example.com");
+    expect(screen.getByRole("status").textContent).toContain("Open request sent");
+
+    const clearButton = screen.getByRole("button", { name: "Clear" }) as HTMLButtonElement;
+    expect(clearButton.disabled).toBe(false);
+    fireEvent.click(clearButton);
+
+    expect((screen.getByLabelText("Web address") as HTMLInputElement).value).toBe("");
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(clearButton.disabled).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog", { name: "Open URL on PC" })).toBeNull();
+  });
+
+  it("closes the URL dialog when the PC connection becomes unavailable", () => {
+    const view = renderRemote();
+    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open URL" }));
+    expect(screen.getByRole("dialog", { name: "Open URL on PC" })).toBeTruthy();
+
+    view.rerender(<RemoteMode {...view} isConnected={false} urlOpenCapability={undefined} />);
+
+    expect(screen.queryByRole("dialog", { name: "Open URL on PC" })).toBeNull();
+    expect(screen.queryByText("Update the Windows host to open web addresses.")).toBeNull();
+  });
+
+  it("shows the URL permission requirement in the dialog", () => {
     renderRemote({ urlOpenCapability: { canOpen: false } });
     fireEvent.click(screen.getByRole("button", { name: "Fn" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open URL" }));
 
     expect(screen.getByRole("alert").textContent).toContain("Allow URL opening");
-    expect(screen.queryByLabelText("Open URL on PC")).toBeNull();
+    expect(screen.queryByLabelText("Web address")).toBeNull();
     expect(screen.queryByRole("button", { name: "Open" })).toBeNull();
   });
 
@@ -302,9 +360,12 @@ describe("RemoteMode", () => {
     const onUrlOpen = vi.fn(() => "url-operation-a");
     renderRemote({ onUrlOpen });
     fireEvent.click(screen.getByRole("button", { name: "Fn" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open URL" }));
 
-    const input = screen.getByLabelText("Open URL on PC") as HTMLInputElement;
+    const input = screen.getByLabelText("Web address") as HTMLInputElement;
     const button = screen.getByRole("button", { name: "Open" }) as HTMLButtonElement;
+    expect(input.type).toBe("url");
+    expect(input.autocomplete).toBe("url");
     expect(button.disabled).toBe(true);
 
     fireEvent.change(input, { target: { value: "javascript:alert(1)" } });
@@ -324,13 +385,15 @@ describe("RemoteMode", () => {
   it("opens URL guidance in the detailed information dialog", () => {
     renderRemote();
     fireEvent.click(screen.getByRole("button", { name: "Fn" }));
-    fireEvent.click(screen.getByRole("button", { name: "About Open URL on PC" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open URL" }));
+    fireEvent.click(screen.getByRole("button", { name: "About Opening URLs on PC" }));
 
-    const dialog = screen.getByRole("dialog", { name: "Open URL on PC" });
+    const dialog = screen.getByRole("dialog", { name: "Opening URLs on PC" });
     expect(dialog.classList.contains("info-dialog-detailed")).toBe(true);
     expect(dialog.textContent).toContain("Addresses without a scheme use HTTPS");
     expect(dialog.textContent).toContain("default browser");
-    fireEvent.click(screen.getByRole("button", { name: "OK" }));
-    expect(screen.queryByRole("dialog", { name: "Open URL on PC" })).toBeNull();
+    fireEvent(dialog, new Event("close", { bubbles: true }));
+    expect(screen.queryByRole("dialog", { name: "Opening URLs on PC" })).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Open URL on PC" })).toBeTruthy();
   });
 });

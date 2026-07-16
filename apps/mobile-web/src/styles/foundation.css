@@ -528,6 +528,10 @@ button span {
     display: none;
   }
 
+  .app-shell.remote-active.remote-utility-open .compact-mode-button {
+    display: inline-flex;
+  }
+
   .top-bar {
     grid-template-columns: minmax(0, auto) minmax(72px, 1fr);
   }
@@ -592,6 +596,21 @@ button span {
 
   .app-shell.remote-active.has-mode-navigation {
     padding-bottom: max(6px, env(safe-area-inset-bottom));
+  }
+}
+
+@media (orientation: landscape) {
+  .app-shell.remote-active.remote-utility-open .top-mode-tabs {
+    display: none;
+  }
+
+  .app-shell.remote-active.remote-utility-open .compact-mode-button {
+    display: inline-flex;
+  }
+
+  /* Span the hidden mode-navigation row so CSS Grid does not auto-place Remote into it. */
+  .app-shell.remote-active.remote-utility-open > .remote-mode {
+    grid-row: 2 / -1;
   }
 }
 

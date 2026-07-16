@@ -48,6 +48,7 @@ and writing the real pairing URL to a local file:
 ```powershell
 apps\windows-host\bin\Debug\net10.0-windows\VolturaAir.Host.exe `
   --site-screenshot-mode `
+  --isolated-test-mode `
   --pairing-store-root "$tempDir\appdata" `
   --pairing-url-file "$tempDir\pairing-url.txt"
 ```
@@ -62,14 +63,19 @@ machine-specific QR.
 The host screenshot is rendered directly from the Voltura Air window handle so
 foreground or topmost applications cannot replace the host image. Screen-copy
 capture is used only if direct window rendering is unavailable. The script
-temporarily disables connection notifications and restores the previous
-notification settings when it exits.
+temporarily blocks application launch, enables URL opening, disables connection
+notifications, and restores the complete original `HKCU\Software\VolturaAir`
+registry key when it exits. This preserves every local preference, including
+network mode, manual host or adapter choice, manual port, and automatic address
+or port history; screenshot capture must never alter a real phone's saved
+connection endpoint.
 
-When host Preferences or Diagnostics changes, capture both themes with one
-Preferences accordion expanded and with **Diagnostics > Application log**
-showing the filter controls, themed activity rows, and the pinned bottom action
-row. Do not enable Windows locking or invoke a power action just to create a
-screenshot.
+The capture script includes Connect plus **Preferences > Global permissions** in
+both themes. It launches a capture-only host with the requested accordion open;
+do not automate mouse clicks against the live WPF window. When Diagnostics
+changes, capture **Diagnostics > Application log** separately with the filter
+controls, themed activity rows, and the pinned bottom action row. Do not enable
+Windows locking or invoke a power action just to create a screenshot.
 
 ## Mobile Client Capture
 
@@ -125,8 +131,14 @@ Static site assets:
 ```text
 docs/site/assets/voltura-air-host.png
 docs/site/assets/voltura-air-host-dark.png
+docs/site/assets/voltura-air-host-preferences.png
+docs/site/assets/voltura-air-host-preferences-dark.png
 docs/site/assets/voltura-air-iphone.png
 docs/site/assets/voltura-air-iphone-dark.png
+docs/site/assets/voltura-air-iphone-menu.png
+docs/site/assets/voltura-air-iphone-remote-fn-dark.png
+docs/site/assets/voltura-air-iphone-remote-fn-landscape-dark.png
+docs/site/assets/voltura-air-iphone-url-dark.png
 docs/site/assets/voltura-air-iphone-kodi-dark.png
 docs/site/assets/voltura-air-ipad.png
 docs/site/assets/voltura-air-ipad-dark.png
@@ -161,6 +173,7 @@ affect connection feedback. Capture at least:
   from a PC where Windows reports it unavailable;
 - Kodi remote mode on an iPhone portrait viewport with dark mode, navigation
   ring enabled, and the mode tab row collapsed;
+- mobile menu, Remote Fn in portrait and landscape, and the Open URL dialog;
 - unavailable/retrying state;
 - rejected pairing state with recovery actions;
 - manual host entry and troubleshooting help on a small phone viewport;

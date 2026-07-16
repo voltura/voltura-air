@@ -23,13 +23,11 @@ const colours = {
   darkForeground: "#f7f2e9",
   lightBackground: "#f6f8fa",
   lightForeground: "#1c2227",
+  connected: "#27c58b",
+  disconnected: "#f0604b",
 };
 const maskableBackground = [16, 20, 24];
-const masterPaths = {
-  neutral: path.join(brandingRoot, "voltura-air-neutral-master.png"),
-  connected: path.join(brandingRoot, "voltura-air-connected-master.png"),
-  disconnected: path.join(brandingRoot, "voltura-air-disconnected-master.png"),
-};
+const masterPath = path.join(brandingRoot, "voltura-air-master.png");
 const outputChecks = [];
 
 const startupDevices = JSON.parse(
@@ -37,16 +35,15 @@ const startupDevices = JSON.parse(
 );
 validateStartupDevices(startupDevices);
 
-const masterDataUris = {};
-for (const [state, masterPath] of Object.entries(masterPaths)) {
-  const png = await readFile(masterPath);
-  const label = path.relative(repoRoot, masterPath);
-  const { width, height } = getPngDimensions(png, label);
-  if (width < 512 || height < 512) {
-    throw new Error(`${label} is ${width}x${height}; branding masters must be at least 512px in each dimension.`);
-  }
-  masterDataUris[state] = `data:image/png;base64,${png.toString("base64")}`;
+const masterPng = await readFile(masterPath);
+const masterLabel = path.relative(repoRoot, masterPath);
+const masterDimensions = getPngDimensions(masterPng, masterLabel);
+if (masterDimensions.width < 512 || masterDimensions.height < 512) {
+  throw new Error(
+    `${masterLabel} is ${masterDimensions.width}x${masterDimensions.height}; the branding master must be at least 512px in each dimension.`,
+  );
 }
+const masterDataUri = `data:image/png;base64,${masterPng.toString("base64")}`;
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 512, height: 512 } });
@@ -68,10 +65,7 @@ console.log(
 );
 
 async function loadMasters() {
-  const markup = Object.entries(masterDataUris)
-    .map(([state, uri]) => `<img id="${state}" src="${uri}" alt="">`)
-    .join("");
-  await page.setContent(markup, { waitUntil: "load" });
+  await page.setContent(`<img id="master" src="${masterDataUri}" alt="">`, { waitUntil: "load" });
 
   const visibleBounds = await page.evaluate(() => {
     const bounds = {};
@@ -102,7 +96,7 @@ async function loadMasters() {
       if (maxX < minX || maxY < minY) {
         throw new Error(`${image.id} master does not contain visible pixels.`);
       }
-      bounds[image.id] = { minX, minY, maxX, maxY };
+      bounds.master = { minX, minY, maxX, maxY };
     }
     return bounds;
   });
@@ -121,24 +115,24 @@ async function clearStartupOutputs() {
 }
 
 async function generateWebAssets() {
-  const full = await renderSquare("neutral", 512, { scale: 0.86 });
+  const full = await renderSquare(512, { scale: 0.86 });
   await writeSvg(createEmbeddedSvg(full.png), [
     "apps/mobile-web/public/icon.svg",
     "docs/site/assets/voltura-air-icon.svg",
   ]);
 
-  const cropped = await renderSquare("neutral", 512, { scale: 0.96 });
+  const cropped = await renderSquare(512, { scale: 0.96 });
   await writeSvg(createEmbeddedSvg(cropped.png), ["apps/mobile-web/public/favicon.svg"]);
 
   for (const size of [16, 32]) {
-    const artwork = await renderSquare("neutral", size, { scale: 0.96 });
+    const artwork = await renderSquare(size, { scale: 0.96 });
     await writePng(artwork, size, size, [
       `apps/mobile-web/public/favicon-${size}.png`,
       `docs/site/favicon-${size}.png`,
     ]);
   }
 
-  const appleTouch = await renderSquare("neutral", 180, {
+  const appleTouch = await renderSquare(180, {
     background: colours.darkBackground,
     scale: 0.7,
   });
@@ -149,10 +143,10 @@ async function generateWebAssets() {
   ]);
 
   for (const size of [192, 512]) {
-    const anyIcon = await renderSquare("neutral", size, { scale: 0.86 });
+    const anyIcon = await renderSquare(size, { scale: 0.86 });
     await writePng(anyIcon, size, size, [`apps/mobile-web/public/icons/icon-${size}.png`]);
 
-    const maskableIcon = await renderSquare("neutral", size, {
+    const maskableIcon = await renderSquare(size, {
       background: colours.darkBackground,
       scale: 0.54,
     });
@@ -169,7 +163,7 @@ async function generateWebAssets() {
   }
 
   const faviconSizes = [16, 32, 48];
-  const favicon = await renderIco("neutral", faviconSizes, 0.96);
+  const favicon = await renderIco(faviconSizes, 0.96);
   await writeIco(favicon, faviconSizes, [
     "apps/mobile-web/public/favicon.ico",
     "docs/site/favicon.ico",
@@ -177,24 +171,31 @@ async function generateWebAssets() {
 }
 
 async function generateWindowsAssets() {
-  const hostIcon = await renderSquare("neutral", 256, { scale: 0.86 });
+  const hostIcon = await renderSquare(256, { scale: 0.86 });
   await writePng(hostIcon, 256, 256, ["apps/windows-host/Assets/VolturaAir-256.png"]);
 
   const applicationSizes = [16, 20, 24, 32, 40, 48, 64, 128, 256];
   await writeIco(
-    await renderIco("neutral", applicationSizes, 0.96),
+    await renderIco(applicationSizes, 0.96),
     applicationSizes,
     ["apps/windows-host/Assets/VolturaAir.ico"],
   );
 
   const traySizes = [16, 20, 24, 32, 40, 48, 64];
   const trayTargets = {
-    neutral: "apps/windows-host/Assets/VolturaAirTray.ico",
+    default: "apps/windows-host/Assets/VolturaAirTray.ico",
     connected: "apps/windows-host/Assets/VolturaAirTrayConnected.ico",
     disconnected: "apps/windows-host/Assets/VolturaAirTrayDisconnected.ico",
   };
-  for (const [state, target] of Object.entries(trayTargets)) {
-    await writeIco(await renderIco(state, traySizes, 0.96), traySizes, [target]);
+  const trayBuffers = {};
+  for (const [status, target] of Object.entries(trayTargets)) {
+    const badge = status === "default" ? null : status;
+    const buffer = await renderIco(traySizes, 0.86, badge);
+    trayBuffers[status] = buffer;
+    await writeIco(buffer, traySizes, [target]);
+  }
+  if (new Set(Object.values(trayBuffers).map((buffer) => buffer.toString("base64"))).size !== 3) {
+    throw new Error("Generated tray states must have distinct artwork.");
   }
 }
 
@@ -251,31 +252,32 @@ async function generateAppleStartupImages() {
   }
 }
 
-async function renderIco(state, sizes, scale) {
+async function renderIco(sizes, scale, badge = null) {
   const images = [];
   for (const size of sizes) {
-    const artwork = await renderSquare(state, size, { scale });
+    const artwork = await renderSquare(size, { badge, scale });
     images.push({ size, data: createDib(artwork.rgba, size) });
   }
   return createIco(images);
 }
 
-async function renderSquare(state, size, { background = null, scale }) {
+async function renderSquare(size, { background = null, badge = null, scale }) {
   return renderComposition({
     width: size,
     height: size,
     background,
     foreground: colours.darkForeground,
     kind: "square",
+    badge,
+    badgeColour: badge ? colours[badge] : null,
     scale,
-    state,
   });
 }
 
 async function renderComposition(options) {
   const rendered = await page.evaluate((input) => {
-    const image = document.getElementById(input.state ?? "neutral");
-    const bounds = window.volturaAirMasterBounds[input.state ?? "neutral"];
+    const image = document.getElementById("master");
+    const bounds = window.volturaAirMasterBounds.master;
     const canvas = document.createElement("canvas");
     canvas.width = input.width;
     canvas.height = input.height;
@@ -307,6 +309,27 @@ async function renderComposition(options) {
 
     if (input.kind === "square") {
       drawMaster(input.width / 2, input.height / 2, input.width * input.scale, input.height * input.scale);
+      if (input.badge) {
+        const centreX = input.width * 0.82;
+        const centreY = input.height * 0.82;
+        const outerRadius = Math.max(2, input.width * 0.15);
+        const innerRadius = Math.max(1.25, input.width * 0.105);
+        context.save();
+        if (input.width >= 32) {
+          context.shadowColor = "rgba(0, 0, 0, 0.42)";
+          context.shadowBlur = input.width * 0.035;
+        }
+        context.fillStyle = "#f7f2e9";
+        context.beginPath();
+        context.arc(centreX, centreY, outerRadius, 0, Math.PI * 2);
+        context.fill();
+        context.shadowColor = "transparent";
+        context.fillStyle = input.badgeColour;
+        context.beginPath();
+        context.arc(centreX, centreY, innerRadius, 0, Math.PI * 2);
+        context.fill();
+        context.restore();
+      }
     } else if (input.kind === "installer-header") {
       drawMaster(input.width / 2, input.height / 2, 48, 48);
     } else if (input.kind === "installer-welcome") {

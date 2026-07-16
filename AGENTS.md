@@ -98,7 +98,7 @@ updated as the app structure, tooling, and release process become concrete.
 
 ## Repository Structure
 
-- `assets/branding` contains the authoritative product artwork masters and
+- `assets/branding` contains the authoritative product artwork master and
   Apple launch-image device matrix.
 - `apps/mobile-web` contains the React/TypeScript PWA.
 - `apps/windows-host` contains the .NET 10 Windows tray host.
@@ -148,8 +148,9 @@ updated as the app structure, tooling, and release process become concrete.
 
 ## Tooling
 
-- `assets/branding` is the source of truth for the neutral, connected, and
-  disconnected product artwork. Run `npm run icons:generate` to regenerate and
+- `assets/branding/voltura-air-master.png` is the single product artwork source.
+  Connected and disconnected tray states are generated as status badges over
+  that master. Run `npm run icons:generate` to regenerate and
   validate mobile, iOS, Android, Windows host, NSIS, marketing-site, and
   README-referenced branding assets. Do not edit generated icon copies directly.
 - On Windows, run `npm run branding:generate` to regenerate static branding and

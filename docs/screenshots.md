@@ -26,9 +26,10 @@ Regenerate public static-site screenshots with:
 npm run screenshots:site
 ```
 
-The master neutral, connected, and disconnected artwork lives under
-`assets/branding`. Regenerate all static mobile, iOS, Android, Windows host,
-NSIS, and marketing-site branding assets with:
+The single artwork source is `assets/branding/voltura-air-master.png`;
+connected and disconnected tray badges are derived by the generator. Regenerate
+all static mobile, iOS, Android, Windows host, NSIS, and marketing-site branding
+assets with:
 
 ```powershell
 npm run icons:generate

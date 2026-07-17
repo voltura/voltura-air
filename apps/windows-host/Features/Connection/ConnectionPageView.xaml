@@ -1,0 +1,148 @@
+<UserControl x:Class="VolturaAir.Host.Features.Connection.ConnectionPageView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="clr-namespace:VolturaAir.Host.Ui">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="{DynamicResource GridSpaceXl}" />
+            <ColumnDefinition Width="330" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="{DynamicResource GridSpaceLg}" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Column="0" Background="{DynamicResource WindowBrush}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="{DynamicResource GridSpaceSm}" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="{DynamicResource GridSpaceMd}" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="{DynamicResource GridSpaceMd}" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <TextBlock FontSize="17"
+                       FontWeight="Bold"
+                       Foreground="{DynamicResource TextBrush}"
+                       Text="Network" />
+            <TextBlock Grid.Row="2"
+                       Foreground="{DynamicResource MutedTextBrush}"
+                       Text="Automatic uses the best available private IPv4 address. Manual mode pins Voltura Air to a selected adapter."
+                       TextWrapping="Wrap" />
+            <ui:SpacingStackPanel Grid.Row="4" Orientation="Horizontal" Spacing="{DynamicResource SpaceSm}">
+                <ToggleButton x:Name="NetworkAutomaticButton"
+                              Content="Automatic"
+                              Style="{DynamicResource SegmentButtonStyle}" />
+                <ToggleButton x:Name="NetworkManualButton"
+                              Content="Manual"
+                              Style="{DynamicResource SegmentButtonStyle}" />
+            </ui:SpacingStackPanel>
+            <ListBox x:Name="NetworkCandidateList"
+                     Grid.Row="6"
+                     MinHeight="260"
+                     ItemContainerStyle="{DynamicResource ModernListBoxItemStyle}"
+                     Style="{DynamicResource ModernListBoxStyle}">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Border Padding="{DynamicResource InsetMd}"
+                                Background="{DynamicResource SurfaceBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="{DynamicResource RadiusMedium}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="2.5*" />
+                                    <ColumnDefinition Width="{DynamicResource GridSpaceLg}" />
+                                    <ColumnDefinition Width="1.1*" />
+                                    <ColumnDefinition Width="{DynamicResource GridSpaceLg}" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SpacingStackPanel Spacing="{DynamicResource SpaceXs}">
+                                    <TextBlock FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource MutedTextBrush}"
+                                               Text="Adapter" />
+                                    <TextBlock FontSize="13"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextBrush}"
+                                               Text="{Binding Adapter}"
+                                               TextWrapping="Wrap" />
+                                </ui:SpacingStackPanel>
+                                <ui:SpacingStackPanel Grid.Column="2" Spacing="{DynamicResource SpaceXs}">
+                                    <TextBlock FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource MutedTextBrush}"
+                                               Text="Address" />
+                                    <TextBlock FontFamily="Consolas"
+                                               FontSize="13"
+                                               Foreground="{DynamicResource TextBrush}"
+                                               Text="{Binding Address}"
+                                               TextWrapping="Wrap" />
+                                </ui:SpacingStackPanel>
+                                <ui:SpacingStackPanel Grid.Column="4" Spacing="{DynamicResource SpaceXs}">
+                                    <TextBlock FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource MutedTextBrush}"
+                                               Text="Status" />
+                                    <TextBlock FontSize="13"
+                                               Foreground="{DynamicResource TextBrush}"
+                                               Text="{Binding Status, TargetNullValue=Available, FallbackValue=Available}"
+                                               TextWrapping="Wrap" />
+                                </ui:SpacingStackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Grid>
+
+        <ui:SpacingStackPanel Grid.Column="2"
+                              Background="{DynamicResource WindowBrush}"
+                              Spacing="{DynamicResource SpaceMd}">
+            <TextBlock FontSize="17"
+                       FontWeight="Bold"
+                       Foreground="{DynamicResource TextBrush}"
+                       Text="Port" />
+            <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                       Text="Automatic is recommended. Manual port changes apply after restarting Voltura Air."
+                       TextWrapping="Wrap" />
+            <ui:SpacingStackPanel Orientation="Horizontal" Spacing="{DynamicResource SpaceSm}">
+                <ToggleButton x:Name="PortAutomaticButton"
+                              Content="Automatic"
+                              Style="{DynamicResource SegmentButtonStyle}" />
+                <ToggleButton x:Name="PortManualButton"
+                              Content="Manual"
+                              Style="{DynamicResource SegmentButtonStyle}" />
+            </ui:SpacingStackPanel>
+            <ui:SpacingStackPanel Spacing="{DynamicResource SpaceXs}">
+                <TextBlock FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextBrush}"
+                           Text="Manual port number" />
+                <TextBox x:Name="ManualPortTextBox" />
+                <TextBlock x:Name="ManualPortValidationText"
+                           Foreground="{DynamicResource MutedTextBrush}"
+                           TextWrapping="Wrap" />
+            </ui:SpacingStackPanel>
+            <ui:InfoCard x:Name="CurrentHostUrlCard" Title="Current host URL" Monospace="True" />
+            <ui:InfoCard x:Name="SelectedIpCard" Title="Selected IP" Monospace="True" />
+            <ui:InfoCard x:Name="SelectedPortCard" Title="Selected port" Monospace="True" />
+            <TextBlock x:Name="ConnectionStatusText"
+                       Foreground="{DynamicResource MutedTextBrush}"
+                       TextWrapping="Wrap" />
+        </ui:SpacingStackPanel>
+
+        <ui:SpacingStackPanel Grid.Row="2"
+                              Grid.Column="0"
+                              Orientation="Horizontal"
+                              Spacing="{DynamicResource SpaceSm}">
+            <Button x:Name="SaveButton"
+                    Content="Save"
+                    Style="{DynamicResource PrimaryButtonStyle}" />
+            <Button x:Name="RefreshButton" Content="Refresh adapters" />
+        </ui:SpacingStackPanel>
+    </Grid>
+</UserControl>

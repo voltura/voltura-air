@@ -1,0 +1,607 @@
+.text-transfer-mode {
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  overflow-y: auto;
+  overflow-anchor: none;
+  padding: 2px;
+}
+
+.tool-page-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.tool-page-header h1,
+.saved-snippets h2 {
+  margin: 0;
+}
+
+.tool-page-header h1 {
+  font-size: 1.35rem;
+}
+
+.tool-page-header p,
+.saved-snippets p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.text-transfer-warning,
+.text-transfer-feedback {
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 10px 12px;
+}
+
+.text-transfer-warning-with-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.text-transfer-feedback.success {
+  border-color: var(--success);
+}
+
+.text-transfer-feedback.error {
+  border-color: var(--danger);
+}
+
+.text-transfer-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-weight: 700;
+}
+
+.text-transfer-editor > label {
+  line-height: 1.2;
+}
+
+.text-transfer-editor textarea,
+.snippet-save-row input {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text);
+  padding: 12px;
+  appearance: none;
+}
+
+.text-transfer-editor-surface {
+  position: relative;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+.text-transfer-editor-surface:not(.is-editing) {
+  background:
+    linear-gradient(90deg, var(--trackpad-grid) 1px, transparent 1px),
+    linear-gradient(var(--trackpad-grid) 1px, transparent 1px),
+    var(--surface);
+  background-size: 28px 28px;
+}
+
+.text-transfer-editor-surface:focus-within {
+  border-color: var(--accent);
+  touch-action: pan-y;
+}
+
+.text-transfer-editor-surface.snippet-copied {
+  animation: snippet-copied-pulse 1s ease-out;
+}
+
+@keyframes snippet-copied-pulse {
+  0%,
+  35% {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 38%, transparent);
+  }
+
+  100% {
+    border-color: var(--border);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.text-transfer-editor-toolbar {
+  position: absolute;
+  z-index: 3;
+  top: 8px;
+  right: 8px;
+  left: 8px;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 6px;
+}
+
+.text-transfer-editor-mode.segmented-control {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  gap: 6px;
+}
+
+.text-transfer-editor-mode button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-color: color-mix(in srgb, var(--border) 80%, transparent);
+  background: color-mix(in srgb, var(--surface-raised) 88%, transparent);
+  color: var(--muted);
+  padding: 7px 10px;
+  backdrop-filter: blur(8px);
+}
+
+.text-transfer-editor-mode button:not(.active) {
+  flex: 0 1 auto;
+}
+
+.text-transfer-editor-mode button.active {
+  flex: 0 0 42px;
+  width: 42px;
+  border-color: var(--accent);
+  background: var(--accent-strong);
+  color: var(--on-accent);
+  box-shadow: 0 2px 8px var(--drawer-shadow);
+  padding-inline: 0;
+}
+
+.text-transfer-editor-mode svg {
+  width: 19px;
+  height: 19px;
+}
+
+.text-transfer-touchpad-hint {
+  position: absolute;
+  z-index: 2;
+  inset: 58px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--trackpad-icon);
+  opacity: 0.34;
+  pointer-events: none;
+}
+
+.text-transfer-touchpad-hint svg {
+  width: var(--trackpad-center-icon-size);
+  height: var(--trackpad-center-icon-size);
+}
+
+.text-transfer-keyboard-type {
+  flex: 0 1 150px;
+  min-width: 96px;
+  margin-left: auto;
+}
+
+.text-transfer-keyboard-type .keyboard-input-mode-buttons {
+  width: 100%;
+  height: 100%;
+  min-height: 42px;
+  background: color-mix(in srgb, var(--surface-raised) 92%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.text-transfer-keyboard-type .keyboard-input-mode-buttons button {
+  min-height: 40px;
+}
+
+.text-transfer-editor-surface:not(.is-editing) textarea {
+  color: transparent;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.text-transfer-editor textarea::placeholder,
+.snippet-save-row input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+.text-transfer-editor textarea {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  margin: 0;
+  height: clamp(150px, 28svh, 260px);
+  min-height: 150px;
+  max-height: 260px;
+  resize: none;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font: inherit;
+  font-weight: 400;
+  padding: 60px 12px 12px;
+  touch-action: inherit;
+}
+
+@media (width <= 400px) {
+  .text-transfer-editor-mode button {
+    gap: 4px;
+    padding-inline: 6px;
+    font-size: 0.82rem;
+  }
+
+  .text-transfer-editor-mode svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .text-transfer-keyboard-type {
+    flex-basis: 104px;
+  }
+
+  .text-transfer-keyboard-type .keyboard-input-mode-buttons button {
+    padding-inline: 5px;
+    font-size: 0.82rem;
+  }
+}
+
+.snippet-save-row input {
+  width: 100%;
+  min-height: 48px;
+}
+
+.snippet-name-field {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.snippet-name-error {
+  color: var(--danger);
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.text-transfer-actions,
+.snippet-save-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.snippet-save-row {
+  align-items: start;
+}
+
+.text-transfer-actions button,
+.snippet-save-row button {
+  min-width: 0;
+  min-height: 48px;
+}
+
+.text-transfer-pointer-actions button {
+  border-color: var(--border);
+  background: var(--surface-raised);
+  color: var(--text);
+}
+
+.text-transfer-clear-setting {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 10px 12px;
+}
+
+.saved-snippets {
+  border-top: 1px solid var(--border);
+  overflow-anchor: none;
+  padding-top: 14px;
+}
+
+.saved-snippets-heading {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.saved-snippets-heading::-webkit-details-marker {
+  display: none;
+}
+
+.saved-snippets-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.saved-snippets-meta svg {
+  width: 18px;
+  height: 18px;
+  transition: transform 120ms ease;
+}
+
+.saved-snippets[open] .saved-snippets-meta svg {
+  transform: rotate(180deg);
+}
+
+.saved-snippets-content {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding-top: 10px;
+}
+
+.saved-snippets ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-anchor: none;
+}
+
+.saved-snippets li {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: 5px;
+
+  /*
+   * Cards reserve touch input for long-press reordering. Keep a native-scroll
+   * gutter beside them because touch-action is chosen when a gesture starts.
+   */
+  margin-right: clamp(24px, 8vw, 32px);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 6px;
+  touch-action: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    transform 120ms ease;
+}
+
+.saved-snippets li.snippet-dragging {
+  z-index: 2;
+  border-color: var(--accent);
+  box-shadow: 0 8px 22px var(--drawer-shadow);
+  pointer-events: none;
+  transform: scale(1.015);
+}
+
+.saved-snippets li button {
+  min-width: 0;
+  height: 40px;
+  max-height: 40px;
+  padding: 6px 8px;
+}
+
+.saved-snippets .snippet-load {
+  grid-column: 1 / -1;
+  justify-content: space-between;
+  overflow: hidden;
+  padding-right: 18px;
+}
+
+.snippet-load-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.snippet-drag-hint {
+  display: inline-flex;
+  flex: 0 0 24px;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+
+.snippet-drag-hint svg {
+  width: 19px;
+  height: 19px;
+}
+
+.snippet-dragging .snippet-drag-hint {
+  color: var(--accent);
+}
+
+.saved-snippets .snippet-load.draft-match,
+.saved-snippets .snippet-load.draft-match:active {
+  border-color: var(--border);
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: none;
+  font-weight: inherit;
+}
+
+.saved-snippets .snippet-delete {
+  color: var(--danger);
+}
+
+.empty-snippets {
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+}
+
+.snippet-action-dialog {
+  width: min(420px, calc(100vw - 28px));
+  max-width: 100%;
+  margin: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 20px 60px var(--drawer-shadow);
+  padding: 0;
+}
+
+.snippet-action-dialog::backdrop {
+  background: var(--scrim);
+  backdrop-filter: blur(4px);
+}
+
+.snippet-action-dialog form {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+}
+
+.snippet-action-dialog header {
+  display: grid;
+  gap: 8px;
+}
+
+.snippet-action-dialog h2,
+.snippet-action-dialog p {
+  margin: 0;
+}
+
+.snippet-action-dialog h2 {
+  font-size: 1.25rem;
+}
+
+.snippet-action-dialog p {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.snippet-action-dialog label {
+  display: grid;
+  gap: 7px;
+  font-weight: 700;
+}
+
+.snippet-action-dialog input {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text);
+  padding: 10px 12px;
+}
+
+.snippet-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.snippet-dialog-actions button {
+  flex: 0 1 auto;
+  min-width: 112px;
+  min-height: 48px;
+  padding-inline: 16px;
+}
+
+.snippet-dialog-primary {
+  border-color: var(--accent);
+  background: var(--accent-strong);
+  color: var(--on-accent);
+}
+
+.snippet-dialog-danger {
+  border-color: color-mix(in srgb, var(--danger) 58%, var(--border));
+  background: color-mix(in srgb, var(--danger) 14%, var(--surface-raised));
+  color: var(--danger);
+}
+
+@media (width <= 520px) {
+  .snippet-save-row {
+    grid-template-columns: 1fr;
+  }
+
+  .text-transfer-actions button {
+    gap: 5px;
+    padding-inline: 8px;
+    font-size: 0.9rem;
+  }
+
+}
+
+@media (orientation: landscape) {
+  .app-shell.text-transfer-active {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .app-shell.text-transfer-active .top-mode-tabs {
+    display: none;
+  }
+}
+
+@media (height <= 820px) {
+  .text-transfer-active .text-transfer-warning {
+    display: none;
+  }
+}
+
+@media (height <= 720px) {
+  .text-transfer-active .text-transfer-editor > label {
+    display: none;
+  }
+}
+
+@media (height <= 620px) {
+  .text-transfer-active .tool-page-header p {
+    display: none;
+  }
+}
+
+@media (orientation: landscape) and (width >= 700px) {
+  .text-transfer-mode {
+    grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.9fr);
+    align-items: start;
+  }
+
+  .tool-page-header,
+  .text-transfer-warning,
+  .text-transfer-editor,
+  .text-transfer-actions,
+  .text-transfer-clear-setting,
+  .text-transfer-feedback {
+    grid-column: 1;
+  }
+
+  .saved-snippets {
+    grid-column: 2;
+    grid-row: 1 / span 7;
+    align-self: stretch;
+    max-height: 100%;
+    overflow-y: auto;
+    border-top: 0;
+    border-left: 1px solid var(--border);
+    padding: 0 0 0 14px;
+  }
+
+  .snippet-save-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+}

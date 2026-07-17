@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 type SpeechRecognitionConstructor = new () => SpeechRecognition;
 
-type SpeechRecognition = {
+interface SpeechRecognition {
   continuous: boolean;
   interimResults: boolean;
   lang: string;
@@ -11,11 +11,11 @@ type SpeechRecognition = {
   onresult: ((event: SpeechRecognitionEvent) => void) | null;
   onend: (() => void) | null;
   onerror: (() => void) | null;
-};
+}
 
-type SpeechRecognitionEvent = {
+interface SpeechRecognitionEvent {
   results: ArrayLike<ArrayLike<{ transcript: string } & { isFinal?: boolean }> & { isFinal?: boolean }>;
-};
+}
 
 declare global {
   interface Window {
@@ -28,7 +28,7 @@ export function useSpeechDictation(sendText: (text: string) => void) {
   const [dictationText, setDictationText] = useState("");
   const [isListening, setIsListening] = useState(false);
   const speechRef = useRef<SpeechRecognition | null>(null);
-  const canUseSpeech = Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+  const canUseSpeech = Boolean(window.SpeechRecognition ?? window.webkitSpeechRecognition);
 
   useEffect(() => {
     const stopWhenHidden = () => {
@@ -57,17 +57,16 @@ export function useSpeechDictation(sendText: (text: string) => void) {
     const recognition = new SpeechRecognitionApi();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = navigator.language || "en-US";
+    recognition.lang = navigator.language.trim().length > 0 ? navigator.language : "en-US";
     recognition.onresult = (event) => {
       if (speechRef.current !== recognition) {
         return;
       }
 
       let finalText = "";
-      for (let index = 0; index < event.results.length; index += 1) {
-        const result = event.results[index];
+      for (const result of Array.from(event.results)) {
         if (result.isFinal) {
-          finalText += result[0].transcript;
+          finalText += result[0]?.transcript ?? "";
         }
       }
       if (finalText.trim().length > 0) {
@@ -114,5 +113,6 @@ function stopRecognition(
   try {
     recognition?.stop();
   } catch {
+    // The recognition instance may already be stopped by the browser.
   }
 }

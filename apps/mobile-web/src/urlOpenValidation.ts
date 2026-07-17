@@ -1,10 +1,16 @@
 const maxUrlLength = 2_048;
-const controlCharacterPattern = /[\u0000-\u001f\u007f-\u009f]/u;
 const schemePattern = /^[A-Za-z][A-Za-z0-9+.-]*:/u;
 
 export type UrlDraftValidation =
   | { valid: true; normalizedUrl: string }
   | { valid: false; message: string };
+
+function containsControlCharacter(value: string): boolean {
+  return Array.from(value).some((character) => {
+    const code = character.charCodeAt(0);
+    return code <= 0x1f || (code >= 0x7f && code <= 0x9f);
+  });
+}
 
 function hasExplicitScheme(value: string): boolean {
   const match = schemePattern.exec(value);
@@ -30,7 +36,7 @@ export function validateUrlDraft(value: string): UrlDraftValidation {
     return { valid: false, message: "The web address is too long." };
   }
 
-  if (controlCharacterPattern.test(trimmed)) {
+  if (containsControlCharacter(trimmed)) {
     return { valid: false, message: "Enter a valid web address." };
   }
 

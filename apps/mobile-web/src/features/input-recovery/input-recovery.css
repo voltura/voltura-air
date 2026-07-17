@@ -1,0 +1,65 @@
+.input-recovery-dialog {
+  position: fixed;
+  z-index: 1001;
+  top: 50%;
+  left: 50%;
+  width: min(360px, calc(100vw - var(--space-2xl)));
+  box-sizing: border-box;
+  display: grid;
+  gap: var(--space-sm);
+  border: 1px solid color-mix(in srgb, var(--danger) 42%, var(--border));
+  border-radius: var(--radius-large);
+  padding: var(--space-lg);
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 96%, var(--danger) 8%);
+  box-shadow: 0 8px 24px var(--floating-shadow);
+  text-align: left;
+  transform: translate(-50%, -50%);
+}
+
+.input-recovery-dialog h2,
+.input-recovery-dialog p {
+  margin: 0;
+}
+
+.input-recovery-dialog h2 {
+  font-size: 1.05rem;
+}
+
+.input-recovery-dialog p {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.input-recovery-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.input-recovery-dialog button {
+  min-height: var(--control-compact-height);
+  padding: 6px 10px;
+}
+
+.input-recovery-toast {
+  position: fixed;
+  z-index: 1001;
+  top: max(64px, calc(env(safe-area-inset-top, 0px) + 56px));
+  right: max(var(--space-md), env(safe-area-inset-right, 0px));
+  display: grid;
+  gap: var(--space-2xs);
+  max-width: min(250px, calc(100vw - var(--space-xl)));
+  border: 1px solid color-mix(in srgb, var(--danger) 42%, var(--border));
+  border-radius: 10px;
+  padding: 9px 11px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 96%, var(--danger) 8%);
+  box-shadow: 0 8px 24px var(--floating-shadow);
+  text-align: left;
+}
+
+.input-recovery-toast span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}

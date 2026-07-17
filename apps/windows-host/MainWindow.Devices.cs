@@ -3,7 +3,6 @@ using System.Windows;
 using System.Windows.Controls;
 using ListBoxItem = System.Windows.Controls.ListBoxItem;
 using Brush = System.Windows.Media.Brush;
-using Orientation = System.Windows.Controls.Orientation;
 
 namespace VolturaAir.Host;
 
@@ -60,7 +59,7 @@ public partial class MainWindow
         AddPermissionChoices(_deviceDetailsPanel, device, "Restart PC", PermissionKind.Restart);
         AddPermissionChoices(_deviceDetailsPanel, device, "Shut down PC", PermissionKind.Shutdown);
 
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 18, 0, 0) };
+        var actions = CreateHorizontalStack(UiTokens.SpaceSm);
         actions.Children.Add(CreateButton(device.IsActive ? "Disconnect" : "Remove", (_, _) =>
         {
             _pairingManager.DisconnectDevice(device.ClientId);
@@ -76,7 +75,7 @@ public partial class MainWindow
         parent.Children.Add(CreateMutedText(device.PointerSpeedOverride is null
             ? $"Using global default: {device.PointerSpeed.ToString(CultureInfo.InvariantCulture)}%."
             : $"Override active. Effective speed: {device.PointerSpeed.ToString(CultureInfo.InvariantCulture)}%."));
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 8) };
+        var row = CreateHorizontalStack(UiTokens.SpaceMd);
         var slider = new Slider
         {
             Style = (Style)Resources["ModernSliderStyle"],
@@ -85,8 +84,7 @@ public partial class MainWindow
             TickFrequency = 5,
             IsSnapToTickEnabled = true,
             Width = 220,
-            Value = device.PointerSpeed,
-            Margin = new Thickness(0, 0, 12, 0)
+            Value = device.PointerSpeed
         };
         var output = new TextBlock
         {
@@ -103,7 +101,7 @@ public partial class MainWindow
         row.Children.Add(output);
         parent.Children.Add(row);
 
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
+        var actions = CreateHorizontalStack(UiTokens.SpaceSm);
         actions.Children.Add(CreateButton("Save speed", (_, _) => SetDevicePointerSpeedOverride(device.ClientId, (int)Math.Round(slider.Value)), primary: true));
         actions.Children.Add(CreateButton("Use Global", (_, _) => SetDevicePointerSpeedOverride(device.ClientId, null)));
         parent.Children.Add(actions);
@@ -112,7 +110,7 @@ public partial class MainWindow
     private void AddPermissionChoices(StackPanel parent, PairedDeviceStatus device, string title, PermissionKind kind)
     {
         parent.Children.Add(CreateLabel(title));
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 12) };
+        var row = CreateHorizontalStack(UiTokens.SpaceSm);
         var current = GetPermissionOverride(device.PermissionOverrides, kind);
         row.Children.Add(CreateButton("Use global", (_, _) => SetDevicePermission(device.ClientId, kind, null), primary: current is null));
         row.Children.Add(CreateButton("Allow", (_, _) => SetDevicePermission(device.ClientId, kind, true), primary: current == true));

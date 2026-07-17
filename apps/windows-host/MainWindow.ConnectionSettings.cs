@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
-using ListBoxItem = System.Windows.Controls.ListBoxItem;
 using TextBox = System.Windows.Controls.TextBox;
 using Brush = System.Windows.Media.Brush;
 using WpfDataFormats = System.Windows.DataFormats;
@@ -12,24 +11,20 @@ public partial class MainWindow
 {
     private void SaveConnectionSettings()
     {
-        if (_networkCandidateList is null ||
-            _networkAutomaticButton is null ||
-            _portAutomaticButton is null ||
-            _manualPortTextBox is null ||
-            _connectionStatusText is null)
+        if (_connectionPage is not { } page)
         {
             return;
         }
 
         var current = AppNetworkSettings.Load();
-        var networkMode = _networkAutomaticButton.IsChecked == true ? NetworkSelectionMode.Automatic : NetworkSelectionMode.Manual;
-        var portMode = _portAutomaticButton.IsChecked == true ? PortSelectionMode.Automatic : PortSelectionMode.Manual;
+        var networkMode = page.UsesAutomaticNetwork ? NetworkSelectionMode.Automatic : NetworkSelectionMode.Manual;
+        var portMode = page.UsesAutomaticPort ? PortSelectionMode.Automatic : PortSelectionMode.Manual;
         string? manualAddress = null;
         string? manualAdapterId = null;
         string? manualAdapterName = null;
         if (networkMode == NetworkSelectionMode.Manual)
         {
-            if (_networkCandidateList.SelectedItem is not ListBoxItem { Tag: CandidateListItem selected })
+            if (page.SelectedCandidate is not { } selected)
             {
                 ShowConnectionStatus("Choose a network address before saving manual mode.", isError: true);
                 return;
@@ -48,7 +43,7 @@ public partial class MainWindow
                 return;
             }
 
-            if (!int.TryParse(_manualPortTextBox.Text.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var parsedPort))
+            if (!int.TryParse(page.PortTextBox.Text.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var parsedPort))
             {
                 ShowConnectionStatus(PortSelector.ManualPortRangeMessage, isError: true);
                 return;
@@ -101,25 +96,25 @@ public partial class MainWindow
 
     private void ShowConnectionStatus(string message, bool isError)
     {
-        if (_connectionStatusText is null)
+        if (_connectionPage is not { } page)
         {
             return;
         }
 
-        _connectionStatusText.Text = message;
-        _connectionStatusText.Foreground = isError ? (Brush)Resources["DangerBrush"] : (Brush)Resources["AccentBrush"];
+        page.StatusText.Text = message;
+        page.StatusText.Foreground = isError ? (Brush)Resources["DangerBrush"] : (Brush)Resources["AccentBrush"];
     }
 
     private void UpdatePortInputState()
     {
-        if (_manualPortTextBox is null)
+        if (_connectionPage is not { } page)
         {
             return;
         }
 
-        var enabled = _portManualButton?.IsChecked == true;
-        _manualPortTextBox.IsEnabled = enabled;
-        _manualPortTextBox.Opacity = enabled ? 1 : 0.62;
+        var enabled = !page.UsesAutomaticPort;
+        page.PortTextBox.IsEnabled = enabled;
+        page.PortTextBox.Opacity = enabled ? 1 : 0.62;
         if (enabled)
         {
             ValidateManualPortText(showEmptyWarning: false);
@@ -132,12 +127,12 @@ public partial class MainWindow
 
     private void OnManualPortPreviewTextInput(object sender, System.Windows.Input.TextCompositionEventArgs e)
     {
-        if (_manualPortTextBox is null)
+        if (_connectionPage is not { } page)
         {
             return;
         }
 
-        var proposed = GetProposedText(_manualPortTextBox, e.Text);
+        var proposed = GetProposedText(page.PortTextBox, e.Text);
         if (proposed.Any(character => !char.IsDigit(character)) || proposed.Length > 5)
         {
             e.Handled = true;
@@ -164,12 +159,12 @@ public partial class MainWindow
 
     private bool ValidateManualPortText(bool showEmptyWarning)
     {
-        if (_manualPortTextBox is null)
+        if (_connectionPage is not { } page)
         {
             return true;
         }
 
-        var text = _manualPortTextBox.Text.Trim();
+        var text = page.PortTextBox.Text.Trim();
         if (text.Length == 0)
         {
             if (showEmptyWarning)
@@ -199,13 +194,13 @@ public partial class MainWindow
 
     private void ShowManualPortValidation(string message, bool isError)
     {
-        if (_manualPortValidationText is null)
+        if (_connectionPage is not { } page)
         {
             return;
         }
 
-        _manualPortValidationText.Text = message;
-        _manualPortValidationText.Foreground = isError ? (Brush)Resources["DangerBrush"] : (Brush)Resources["MutedTextBrush"];
+        page.PortValidationText.Text = message;
+        page.PortValidationText.Foreground = isError ? (Brush)Resources["DangerBrush"] : (Brush)Resources["MutedTextBrush"];
     }
 
     private static string GetProposedText(TextBox textBox, string replacement)

@@ -18,17 +18,9 @@ const hostExe = path.join(repoRoot, "apps", "windows-host", "bin", "Debug", "net
 const outputs = {
   hostLight: path.join(assetsDir, "voltura-air-host.png"),
   hostDark: path.join(assetsDir, "voltura-air-host-dark.png"),
-  hostPreferencesLight: path.join(assetsDir, "voltura-air-host-preferences.png"),
-  hostPreferencesDark: path.join(assetsDir, "voltura-air-host-preferences-dark.png"),
   iphoneLight: path.join(assetsDir, "voltura-air-iphone.png"),
   iphoneDark: path.join(assetsDir, "voltura-air-iphone-dark.png"),
-  iphoneMenuLight: path.join(assetsDir, "voltura-air-iphone-menu.png"),
-  iphoneRemoteFnDark: path.join(assetsDir, "voltura-air-iphone-remote-fn-dark.png"),
-  iphoneRemoteFnLandscapeDark: path.join(assetsDir, "voltura-air-iphone-remote-fn-landscape-dark.png"),
-  iphoneUrlDark: path.join(assetsDir, "voltura-air-iphone-url-dark.png"),
   iphoneKodiDark: path.join(assetsDir, "voltura-air-iphone-kodi-dark.png"),
-  ipadLight: path.join(assetsDir, "voltura-air-ipad.png"),
-  ipadDark: path.join(assetsDir, "voltura-air-ipad-dark.png"),
   split: path.join(assetsDir, "voltura-air-split.png")
 };
 
@@ -64,25 +56,11 @@ async function main() {
       await stopProcess(lightHost.process);
     }
 
-    const lightPreferencesHost = await launchHost("Light", "Global permissions");
-    try {
-      await captureHostWindow(outputs.hostPreferencesLight);
-    } finally {
-      await stopProcess(lightPreferencesHost.process);
-    }
-
     const darkHost = await launchHost("Dark");
     try {
       await captureHostWindow(outputs.hostDark);
     } finally {
       await stopProcess(darkHost.process);
-    }
-
-    const darkPreferencesHost = await launchHost("Dark", "Global permissions");
-    try {
-      await captureHostWindow(outputs.hostPreferencesDark);
-    } finally {
-      await stopProcess(darkPreferencesHost.process);
     }
 
     console.log(`Site screenshots written to ${assetsDir}`);
@@ -129,20 +107,11 @@ async function captureMobileScreens(chromium, pairingUrl) {
     await waitForConnected(page);
 
     await page.screenshot({ path: outputs.iphoneLight });
-    await captureMobileMenu(page);
 
     await setMobileTheme(page, "dark");
     await page.screenshot({ path: outputs.iphoneDark });
 
-    await captureRemoteFnScreens(page);
     await captureKodiRemote(page);
-
-    await page.setViewportSize({ width: 820, height: 1180 });
-    await setMobileTheme(page, "light");
-    await page.screenshot({ path: outputs.ipadLight });
-
-    await setMobileTheme(page, "dark");
-    await page.screenshot({ path: outputs.ipadDark });
 
     await page.setViewportSize({ width: 1180, height: 820 });
     await page.evaluate(() => {
@@ -210,34 +179,6 @@ async function waitForConnected(page) {
   await page.locator(".status.paired").waitFor({ state: "visible", timeout: 10000 });
 }
 
-async function captureMobileMenu(page) {
-  await page.getByRole("button", { name: "Open menu", exact: true }).click();
-  await page.locator(".settings-drawer.open").waitFor({ timeout: 5000 });
-  await page.waitForFunction(() => {
-    const drawer = document.querySelector(".settings-drawer");
-    return drawer instanceof HTMLElement && Math.abs(drawer.getBoundingClientRect().left) < 1;
-  });
-  await page.screenshot({ path: outputs.iphoneMenuLight });
-  await page.locator(".settings-drawer").getByRole("button", { name: "Close menu", exact: true }).click();
-}
-
-async function captureRemoteFnScreens(page) {
-  await page.setViewportSize({ width: 393, height: 852 });
-  await page.getByRole("button", { name: "Remote mode", exact: true }).click();
-  await page.getByRole("button", { name: "Fn", exact: true }).click();
-  await page.locator(".app-shell.remote-active.remote-utility-open").waitFor({ timeout: 5000 });
-  await page.screenshot({ path: outputs.iphoneRemoteFnDark });
-
-  await page.setViewportSize({ width: 852, height: 393 });
-  await page.locator(".remote-mode.remote-utility-open").waitFor({ timeout: 5000 });
-  await page.screenshot({ path: outputs.iphoneRemoteFnLandscapeDark });
-
-  await page.setViewportSize({ width: 393, height: 852 });
-  await page.getByRole("button", { name: "Open URL", exact: true }).click();
-  await page.getByRole("dialog", { name: "Open URL on PC", exact: true }).waitFor({ timeout: 5000 });
-  await page.screenshot({ path: outputs.iphoneUrlDark });
-}
-
 async function setMobileTheme(page, theme) {
   await page.evaluate((nextTheme) => localStorage.setItem("voltura-air.themeMode", nextTheme), theme);
   await page.reload({ waitUntil: "networkidle" });
@@ -258,7 +199,7 @@ async function captureHostWindow(outputPath) {
   await fs.copyFile(rawPath, outputPath);
 }
 
-async function launchHost(theme, preferencesSection) {
+async function launchHost(theme) {
   await fs.rm(pairingUrlFile, { force: true });
   await fs.rm(path.join(tempAppDataDir, "Voltura Air"), { recursive: true, force: true });
   const hostArgs = [
@@ -271,10 +212,6 @@ async function launchHost(theme, preferencesSection) {
     "--pairing-url-file",
     pairingUrlFile
   ];
-  if (preferencesSection) {
-    hostArgs.push("--site-screenshot-preferences-section", preferencesSection);
-  }
-
   const child = spawn(hostExe, hostArgs, {
     cwd: path.dirname(hostExe),
     env: {

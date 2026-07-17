@@ -1,0 +1,35 @@
+<UserControl x:Class="VolturaAir.Host.Ui.InfoCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:VolturaAir.Host.Ui">
+    <Border Padding="14"
+            Background="{DynamicResource SurfaceBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="{DynamicResource RadiusMedium}">
+        <local:SpacingStackPanel Spacing="{DynamicResource SpaceXs}">
+            <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType={x:Type local:InfoCard}}}"
+                       Foreground="{DynamicResource MutedTextBrush}"
+                       FontSize="12"
+                       FontWeight="SemiBold" />
+            <TextBlock Text="{Binding Value, RelativeSource={RelativeSource AncestorType={x:Type local:InfoCard}}}"
+                       Foreground="{DynamicResource TextBrush}"
+                       TextWrapping="Wrap">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="FontFamily" Value="{x:Static SystemFonts.MessageFontFamily}" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Monospace, RelativeSource={RelativeSource AncestorType={x:Type local:InfoCard}}}" Value="True">
+                                <Setter Property="FontFamily" Value="Consolas" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Emphasized, RelativeSource={RelativeSource AncestorType={x:Type local:InfoCard}}}" Value="True">
+                                <Setter Property="FontSize" Value="16" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </local:SpacingStackPanel>
+    </Border>
+</UserControl>

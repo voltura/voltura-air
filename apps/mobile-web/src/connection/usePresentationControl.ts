@@ -6,11 +6,11 @@ import type { ConnectionState } from "./connectionTypes";
 const responseTimeoutMs = 5000;
 const resultVisibilityMs = 5000;
 
-export type PendingPresentationCommand = {
+export interface PendingPresentationCommand {
   operationId: string;
   target: PresentationTarget;
   action: PresentationAction;
-};
+}
 
 export function usePresentationControl(state: ConnectionState, send: (payload: ClientMessage) => void) {
   const [pendingPresentationCommand, setPendingPresentationCommand] = useState<PendingPresentationCommand | null>(null);
@@ -39,7 +39,7 @@ export function usePresentationControl(state: ConnectionState, send: (payload: C
       });
     }, responseTimeoutMs);
 
-    return () => window.clearTimeout(timeout);
+    return () => { window.clearTimeout(timeout); };
   }, [pendingPresentationCommand]);
 
   useEffect(() => {
@@ -57,8 +57,8 @@ export function usePresentationControl(state: ConnectionState, send: (payload: C
       return;
     }
 
-    const timeout = window.setTimeout(() => setPresentationResult(null), resultVisibilityMs);
-    return () => window.clearTimeout(timeout);
+    const timeout = window.setTimeout(() => { setPresentationResult(null); }, resultVisibilityMs);
+    return () => { window.clearTimeout(timeout); };
   }, [presentationResult]);
 
   const requestPresentationCommand = (target: PresentationTarget, action: PresentationAction): string | null => {

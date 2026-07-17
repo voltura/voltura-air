@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
+using VolturaAir.Host.Ui;
 using WpfBrush = System.Windows.Media.Brush;
 using WpfHorizontalAlignment = System.Windows.HorizontalAlignment;
 using WpfPanel = System.Windows.Controls.Panel;
@@ -37,7 +38,7 @@ public partial class MainWindow
         toast.BorderThickness = new Thickness(1);
         toast.CornerRadius = new CornerRadius(4);
         toast.Padding = new Thickness(0);
-        toast.Margin = new Thickness(0, 0, 0, 18);
+        toast.Margin = new Thickness(0, 0, 0, UiTokens.SpaceLg);
         toast.MinWidth = 260;
         toast.MaxWidth = 380;
         toast.Effect = new DropShadowEffect
@@ -83,9 +84,10 @@ public partial class MainWindow
         Grid.SetColumn(badge, 1);
         layout.Children.Add(badge);
 
-        var text = new StackPanel
+        var text = new SpacingStackPanel
         {
             Margin = new Thickness(0, 10, 16, 10),
+            Spacing = UiTokens.Space2xs,
             VerticalAlignment = WpfVerticalAlignment.Center
         };
         text.Children.Add(new TextBlock
@@ -98,7 +100,6 @@ public partial class MainWindow
         text.Children.Add(new TextBlock
         {
             Text = message,
-            Margin = new Thickness(0, 2, 0, 0),
             FontSize = 13,
             FontWeight = FontWeights.SemiBold,
             TextWrapping = TextWrapping.Wrap,

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { loadLiveKeyboardDefault, saveLiveKeyboardPreference } from "../appStorage";
 import {
   didDeleteLiveKeyboardSentinel,
@@ -17,7 +17,7 @@ export function useKeyboardInput(emit: (payload: ClientMessage) => void) {
   const lastEmptyDeleteRef = useRef<{ key: string; timeStamp: number } | null>(null);
   const keyboardTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const placeLiveKeyboardCaret = () => {
+  const placeLiveKeyboardCaret = useCallback(() => {
     window.requestAnimationFrame(() => {
       const textarea = keyboardTextareaRef.current;
       if (!textarea || !liveKeyboard || document.activeElement !== textarea) {
@@ -27,13 +27,13 @@ export function useKeyboardInput(emit: (payload: ClientMessage) => void) {
       const caretPosition = liveKeyboardSentinel.length + keyboardText.length;
       textarea.setSelectionRange(caretPosition, caretPosition);
     });
-  };
+  }, [keyboardText, liveKeyboard]);
 
   useEffect(() => {
     if (liveKeyboard) {
       placeLiveKeyboardCaret();
     }
-  }, [keyboardText, liveKeyboard]);
+  }, [liveKeyboard, placeLiveKeyboardCaret]);
 
   const setLiveTyping = (enabled: boolean) => {
     setLiveKeyboard(enabled);

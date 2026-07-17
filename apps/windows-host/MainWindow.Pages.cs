@@ -2,12 +2,11 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using VolturaAir.Host.Features.Connect;
+using VolturaAir.Host.Features.Connection;
 using Button = System.Windows.Controls.Button;
 using CheckBox = System.Windows.Controls.CheckBox;
 using Image = System.Windows.Controls.Image;
-using ListBoxItem = System.Windows.Controls.ListBoxItem;
-using ToggleButton = System.Windows.Controls.Primitives.ToggleButton;
-using TextBox = System.Windows.Controls.TextBox;
 using Brush = System.Windows.Media.Brush;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
 using Orientation = System.Windows.Controls.Orientation;
@@ -17,71 +16,20 @@ namespace VolturaAir.Host;
 
 public partial class MainWindow
 {
-    private Grid BuildConnectPage()
+    private ConnectPageView BuildConnectPage()
     {
-        var root = new Grid();
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(320) });
-
-        var qrHost = new Border
-        {
-            Background = (Brush)Resources["QrBackgroundBrush"],
-            BorderBrush = (Brush)Resources["BorderBrush"],
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(24),
-            Child = new Image
-            {
-                Source = CreateQrSource(GetVisiblePairingUrl()),
-                Stretch = Stretch.Uniform,
-                MaxWidth = 560,
-                MaxHeight = 560,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
-            }
-        };
-        Grid.SetColumn(qrHost, 0);
-        root.Children.Add(qrHost);
-
-        var side = CreateSectionPanel();
-        Grid.SetColumn(side, 2);
-        side.Children.Add(CreateCardText("Current status", GetConnectionStatus(), emphasize: true));
-        if (!string.IsNullOrWhiteSpace(_webHost.AddressSelectionWarning))
-        {
-            side.Children.Add(CreateNotice(_webHost.AddressSelectionWarning, isError: false));
-        }
-        if (!string.IsNullOrWhiteSpace(_webHost.PortSelectionWarning))
-        {
-            side.Children.Add(CreateNotice(_webHost.PortSelectionWarning, isError: false));
-        }
-
-        var details = new Expander
-        {
-            Header = "Details",
-            IsExpanded = false,
-            Foreground = (Brush)Resources["TextBrush"],
-            Background = (Brush)Resources["WindowBrush"],
-            Margin = new Thickness(0, 4, 0, 0),
-            Content = new StackPanel
-            {
-                Margin = new Thickness(0, 12, 0, 0),
-                Children =
-                {
-                    CreateCardText("Pairing link", GetVisiblePairingUrl(), monospace: true),
-                    CreateCardText("Host URL", _webHost.ServerUrl, monospace: true),
-                    CreateCardText("Selected IP", _webHost.AdvertisedHostAddress, monospace: true),
-                    CreateCardText("Selected port", _webHost.Port.ToString(CultureInfo.InvariantCulture), monospace: true)
-                }
-            }
-        };
-        side.Children.Add(details);
-
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 18, 0, 0) };
-        actions.Children.Add(CreateButton("New code", (_, _) => NewPairing(), primary: true));
-        actions.Children.Add(CreateButton("Copy link", (_, _) => CopyToClipboard(GetVisiblePairingUrl(), "Link copied")));
-        side.Children.Add(actions);
-        root.Children.Add(side);
-        return root;
+        var pairingLink = GetVisiblePairingUrl();
+        return new ConnectPageView(
+            CreateQrSource(pairingLink),
+            GetConnectionStatus(),
+            pairingLink,
+            _webHost.ServerUrl,
+            _webHost.AdvertisedHostAddress,
+            _webHost.Port.ToString(CultureInfo.InvariantCulture),
+            _webHost.AddressSelectionWarning,
+            _webHost.PortSelectionWarning,
+            NewPairing,
+            () => CopyToClipboard(GetVisiblePairingUrl(), "Link copied"));
     }
 
     private Grid BuildDevicesPage()
@@ -91,6 +39,7 @@ public partial class MainWindow
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(360) });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(UiTokens.SpaceLg) });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
         _devicesList = CreateModernList(GetDeviceItems(), CreateDeviceListRow);
@@ -108,99 +57,39 @@ public partial class MainWindow
         Grid.SetColumn(detailsScroll, 2);
         root.Children.Add(detailsScroll);
 
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 16, 0, 0) };
+        var actions = CreateHorizontalStack(UiTokens.SpaceSm);
         actions.Children.Add(CreateButton("Clean up duplicates", (_, _) => CleanUpDuplicates()));
         actions.Children.Add(CreateButton("Disconnect all", (_, _) => DisconnectAllDevices(), danger: true));
         Grid.SetColumn(actions, 0);
-        Grid.SetRow(actions, 1);
+        Grid.SetRow(actions, 2);
         root.Children.Add(actions);
         RefreshDeviceDetails();
         return root;
     }
 
-    private Grid BuildConnectionPage()
+    private ConnectionPageView BuildConnectionPage()
     {
         var settings = AppNetworkSettings.Load();
         var candidates = LanAddressSelector.GetCandidates();
         var selection = LanAddressSelector.Select(candidates, settings);
-        var root = new Grid();
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(330) });
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-        var networkPanel = new Grid
-        {
-            Background = (Brush)Resources["WindowBrush"]
-        };
-        networkPanel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        networkPanel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        networkPanel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        networkPanel.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        networkPanel.Children.Add(CreateSectionHeading("Network"));
-        var networkDescription = CreateMutedText("Automatic uses the best available private IPv4 address. Manual mode pins Voltura Air to a selected adapter.");
-        Grid.SetRow(networkDescription, 1);
-        networkPanel.Children.Add(networkDescription);
-        _networkAutomaticButton = CreateSegmentButton("Automatic", settings.NetworkMode == NetworkSelectionMode.Automatic);
-        _networkManualButton = CreateSegmentButton("Manual", settings.NetworkMode == NetworkSelectionMode.Manual);
-        WireSegmentPair(_networkAutomaticButton, _networkManualButton);
-        var networkModeRow = CreateSegmentRow(_networkAutomaticButton, _networkManualButton);
-        Grid.SetRow(networkModeRow, 2);
-        networkPanel.Children.Add(networkModeRow);
-
-        _networkCandidateList = CreateModernList(GetCandidateItems(candidates, selection?.Candidate), CreateCandidateListRow);
-        _networkCandidateList.MinHeight = 260;
-        if (selection?.Candidate is not null)
-        {
-            _networkCandidateList.SelectedItem = _networkCandidateList.Items
-                .OfType<ListBoxItem>()
-                .FirstOrDefault(item => item.Tag is CandidateListItem candidate && candidate.Candidate.Address.Equals(selection.Candidate.Address));
-        }
-
-        Grid.SetRow(_networkCandidateList, 3);
-        networkPanel.Children.Add(_networkCandidateList);
-        Grid.SetColumn(networkPanel, 0);
-        root.Children.Add(networkPanel);
-
-        var portPanel = CreateSectionPanel();
-        Grid.SetColumn(portPanel, 2);
-        portPanel.Children.Add(CreateSectionHeading("Port"));
-        portPanel.Children.Add(CreateMutedText("Automatic is recommended. Manual port changes apply after restarting Voltura Air."));
-        _portAutomaticButton = CreateSegmentButton("Automatic", settings.PortMode == PortSelectionMode.Automatic);
-        _portManualButton = CreateSegmentButton("Manual", settings.PortMode == PortSelectionMode.Manual);
-        WireSegmentPair(_portAutomaticButton, _portManualButton);
-        _portAutomaticButton.Click += (_, _) => UpdatePortInputState();
-        _portManualButton.Click += (_, _) => UpdatePortInputState();
-        portPanel.Children.Add(CreateSegmentRow(_portAutomaticButton, _portManualButton));
-        portPanel.Children.Add(CreateLabel("Manual port number"));
-        _manualPortTextBox = new TextBox
-        {
-            Text = (settings.ManualPort ?? _webHost.Port).ToString(CultureInfo.InvariantCulture),
-            Margin = new Thickness(0, 4, 0, 4)
-        };
-        _manualPortTextBox.PreviewTextInput += OnManualPortPreviewTextInput;
-        _manualPortTextBox.TextChanged += OnManualPortTextChanged;
-        WpfDataObject.AddPastingHandler(_manualPortTextBox, OnManualPortPaste);
-        portPanel.Children.Add(_manualPortTextBox);
-        _manualPortValidationText = CreateMutedText(string.Empty);
-        _manualPortValidationText.Margin = new Thickness(0, 0, 0, 12);
-        portPanel.Children.Add(_manualPortValidationText);
+        _connectionPage = new ConnectionPageView(
+            ConnectionCandidateItem.Create(candidates, selection?.Candidate),
+            settings.NetworkMode == NetworkSelectionMode.Automatic,
+            settings.PortMode == PortSelectionMode.Automatic,
+            (settings.ManualPort ?? _webHost.Port).ToString(CultureInfo.InvariantCulture),
+            _webHost.ServerUrl,
+            _webHost.AdvertisedHostAddress,
+            _webHost.Port.ToString(CultureInfo.InvariantCulture),
+            selection?.Warning ?? _webHost.AddressSelectionWarning ?? _webHost.PortSelectionWarning ?? string.Empty,
+            SaveConnectionSettings,
+            () => SelectPage(HostPage.Connection));
+        _connectionPage.AutomaticPortButton.Click += (_, _) => UpdatePortInputState();
+        _connectionPage.ManualPortButton.Click += (_, _) => UpdatePortInputState();
+        _connectionPage.PortTextBox.PreviewTextInput += OnManualPortPreviewTextInput;
+        _connectionPage.PortTextBox.TextChanged += OnManualPortTextChanged;
+        WpfDataObject.AddPastingHandler(_connectionPage.PortTextBox, OnManualPortPaste);
         UpdatePortInputState();
-        portPanel.Children.Add(CreateCardText("Current host URL", _webHost.ServerUrl, monospace: true));
-        portPanel.Children.Add(CreateCardText("Selected IP", _webHost.AdvertisedHostAddress, monospace: true));
-        portPanel.Children.Add(CreateCardText("Selected port", _webHost.Port.ToString(CultureInfo.InvariantCulture), monospace: true));
-        _connectionStatusText = CreateMutedText(selection?.Warning ?? _webHost.AddressSelectionWarning ?? _webHost.PortSelectionWarning ?? string.Empty);
-        portPanel.Children.Add(_connectionStatusText);
-        root.Children.Add(portPanel);
-
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 16, 0, 0) };
-        actions.Children.Add(CreateButton("Save", (_, _) => SaveConnectionSettings(), primary: true));
-        actions.Children.Add(CreateButton("Refresh adapters", (_, _) => SelectPage(HostPage.Connection)));
-        Grid.SetColumn(actions, 0);
-        Grid.SetRow(actions, 1);
-        root.Children.Add(actions);
-        return root;
+        return _connectionPage;
     }
 
     private ScrollViewer BuildPreferencesPage()
@@ -216,7 +105,7 @@ public partial class MainWindow
             IsTabStop = false,
             VerticalScrollBarVisibility = ScrollBarVisibility.Visible,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = CreateSectionPanel()
+            Content = CreateSectionPanel(UiTokens.SpaceSm)
         };
         System.Windows.Input.KeyboardNavigation.SetIsTabStop(root, false);
         var panel = (StackPanel)root.Content;
@@ -335,7 +224,8 @@ public partial class MainWindow
         permissionsPanel.Children.Add(restart);
         permissionsPanel.Children.Add(shutdown);
         permissionsPanel.Children.Add(CreateMutedText("Display off and session-ending actions require hold-to-confirm on the mobile device."));
-        permissionsPanel.Children.Add(CreateDetailsDisclosure("global permissions", "Lock and blackout are enabled by default. The screen-saver permission appears when Windows has a screen saver configured. Opening web addresses, reading the PC clipboard, display off, sign out, restart, and shut down require explicit host approval."));
+        var globalPermissionDetailsPanel = AddNestedPreferencesSection(permissionsPanel, "More about global permissions");
+        globalPermissionDetailsPanel.Children.Add(CreateMutedText("Lock and blackout are enabled by default. The screen-saver permission appears when Windows has a screen saver configured. Opening web addresses, reading the PC clipboard, display off, sign out, restart, and shut down require explicit host approval."));
 
         var developerPanel = AddPreferencesSection(panel, sections, "Developer tools");
         var developerMode = CreateCheckBox("Developer mode", AppDeveloperSettings.DeveloperMode());
@@ -354,7 +244,7 @@ public partial class MainWindow
         gestureDebug.Unchecked += (_, _) => AppDeveloperSettings.SetEnableGestureDebug(false);
         developerPanel.Children.Add(gestureDebug);
 
-        var windowsLockingPanel = AddPreferencesSection(developerPanel, sections, "Windows locking", participatesInAccordion: false);
+        var windowsLockingPanel = AddNestedPreferencesSection(developerPanel, "Windows locking");
         AddWindowsLockPolicySetting(windowsLockingPanel);
 
         _preferencesSectionToOpen = null;

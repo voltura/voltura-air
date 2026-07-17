@@ -3,12 +3,12 @@ import { isIpHost } from "./pcDisplayName";
 export const activePcIdKey = "voltura-air.activePcId";
 export const pcProfilesKey = "voltura-air.pcProfiles";
 
-export type PcProfile = {
+export interface PcProfile {
   customName: boolean;
   id: string;
   name: string;
   url: string;
-};
+}
 
 export function createPcProfile(pcUrl: string): PcProfile {
   const url = new URL(pcUrl);
@@ -21,15 +21,20 @@ export function createPcProfile(pcUrl: string): PcProfile {
   };
 }
 
-export function normalizePcProfile(value: Partial<PcProfile>): PcProfile | null {
-  if (typeof value.url !== "string") {
+export function normalizePcProfile(value: unknown): PcProfile | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+
+  const candidate = value as Partial<Record<keyof PcProfile, unknown>>;
+  if (typeof candidate.url !== "string") {
     return null;
   }
 
   try {
-    const profile = createPcProfile(value.url);
-    const customName = value.customName === true;
-    const name = typeof value.name === "string" && value.name.trim().length > 0 ? value.name : profile.name;
+    const profile = createPcProfile(candidate.url);
+    const customName = candidate.customName === true;
+    const name = typeof candidate.name === "string" && candidate.name.trim().length > 0 ? candidate.name : profile.name;
     return {
       ...profile,
       customName,
@@ -47,8 +52,8 @@ export function loadPcProfiles(storage: Storage = localStorage): PcProfile[] {
   }
 
   try {
-    const parsed = JSON.parse(stored);
-    return Array.isArray(parsed) ? parsed.map(normalizePcProfile).filter((pc): pc is PcProfile => pc !== null) : [];
+    const parsed: unknown = JSON.parse(stored);
+    return Array.isArray(parsed) ? (parsed as unknown[]).map(normalizePcProfile).filter((pc): pc is PcProfile => pc !== null) : [];
   } catch {
     return [];
   }

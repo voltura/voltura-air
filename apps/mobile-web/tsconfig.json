@@ -6,6 +6,7 @@
     "allowJs": false,
     "skipLibCheck": true,
     "esModuleInterop": true,
+    "exactOptionalPropertyTypes": true,
     "allowSyntheticDefaultImports": true,
     "strict": true,
     "forceConsistentCasingInFileNames": true,
@@ -13,7 +14,14 @@
     "moduleResolution": "Bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "noUncheckedIndexedAccess": true,
+    "noUncheckedSideEffectImports": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "noEmit": true,
+    "verbatimModuleSyntax": true,
     "jsx": "react-jsx"
   },
   "include": ["src"]

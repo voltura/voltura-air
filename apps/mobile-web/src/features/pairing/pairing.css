@@ -1,0 +1,255 @@
+/* Pairing feature feedback */
+
+.pairing-required {
+  position: fixed;
+  inset: max(78px, env(safe-area-inset-top)) 14px env(safe-area-inset-bottom, 0);
+  z-index: 9;
+  min-height: 0;
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  align-content: safe center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-medium);
+  background: var(--surface);
+  padding: 22px;
+  max-height: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  text-align: center;
+  -webkit-overflow-scrolling: touch;
+}
+
+.pairing-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  background: var(--bg);
+  pointer-events: auto;
+}
+
+.pairing-required > svg {
+  width: 52px;
+  height: 52px;
+  color: var(--accent);
+}
+
+.pairing-required h1 {
+  margin: 0;
+  font-size: 1.55rem;
+}
+
+.pairing-required p {
+  max-width: 28rem;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.pairing-required button {
+  width: min(100%, 280px);
+  min-height: 54px;
+}
+
+.pairing-manual-host {
+  display: grid;
+  gap: 8px;
+  width: min(100%, 360px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-medium);
+  background: var(--surface-raised);
+  padding: var(--space-md);
+  text-align: left;
+}
+
+.pairing-manual-host button {
+  width: 100%;
+  min-width: 0;
+}
+
+.pairing-device-name span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pairing-inline-error,
+.pairing-inline-status {
+  max-width: 100%;
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.pairing-device-name {
+  display: grid;
+  gap: var(--space-sm);
+  width: min(100%, 280px);
+  text-align: left;
+}
+
+.pairing-required.connection-unavailable {
+  bottom: 3px;
+  max-height: none;
+  border-radius: clamp(32px, 9.6vw, 42px);
+}
+
+.pairing-required.pairing-feedback-error > svg {
+  color: var(--danger);
+}
+
+.pairing-required.connection-connected > svg {
+  color: var(--success);
+}
+
+.pairing-progress-icon {
+  animation: pairing-progress-spin 0.9s linear infinite;
+}
+
+@keyframes pairing-progress-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.pairing-status-label {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pairing-diagnostic-code {
+  width: min(100%, 360px);
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.pairing-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  width: min(100%, 360px);
+}
+
+.pairing-required .pairing-actions button {
+  width: 100%;
+  min-width: 0;
+}
+
+.pairing-required .pairing-actions button span {
+  white-space: normal;
+}
+
+.pairing-action-primary {
+  color: var(--on-accent);
+  background: var(--accent-strong);
+  border-color: var(--accent);
+}
+
+.pairing-action-secondary {
+  background: var(--surface-raised);
+}
+
+.pairing-help-list {
+  display: grid;
+  gap: 7px;
+  width: min(100%, 360px);
+  margin: 0;
+  padding: 12px 14px 12px 30px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--muted);
+  text-align: left;
+  line-height: 1.35;
+}
+
+.pairing-manual-host label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pairing-manual-host-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.pairing-manual-host .text-input {
+  min-height: 48px;
+}
+
+.pairing-inline-error {
+  color: var(--danger);
+}
+
+.pairing-inline-status {
+  color: var(--muted);
+}
+
+@media (width >= 560px) {
+  .pairing-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pairing-actions .pairing-action-primary {
+    grid-column: 1 / -1;
+  }
+
+  .pairing-manual-host-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+@media (width <= 360px), (height <= 560px) {
+  .pairing-required {
+    inset: max(64px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom));
+    align-content: start;
+    gap: 10px;
+    padding: 16px;
+    max-height: none;
+  }
+
+  .pairing-required.connection-unavailable {
+    bottom: 0;
+    max-height: none;
+  }
+
+  .pairing-required > svg {
+    width: 40px;
+    height: 40px;
+  }
+
+  .pairing-required h1 {
+    font-size: 1.3rem;
+  }
+
+  .pairing-required button {
+    min-height: 48px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pairing-progress-icon {
+    animation: none;
+  }
+}

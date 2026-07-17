@@ -1,6 +1,8 @@
 # Windows host quality standard
 
-Voltura Air's Windows host is a long-running Windows 11 WPF tray application. Its quality gate prioritizes correctness, predictable lifetime ownership, bounded resource use, protocol safety, and maintainable modern C# over maximizing the number of enabled analyzer rules.
+Voltura Air's Windows host is a long-running Windows 11 WPF tray application.
+Its quality gate covers correctness, lifetime ownership, bounded resource use,
+protocol safety, and maintainable modern C#.
 
 ## Enforced baseline
 
@@ -32,4 +34,18 @@ Use stable C# 14 and current .NET APIs when they make code clearer or reduce wor
 
 ## Change gate
 
-Start with the focused acceptance test for the changed production boundary, then run `npm run build` and `npm test` sequentially. `npm run package:win:test` may be used during installer iteration to skip NSIS compression while retaining installer-content and metadata checks; its outputs under `artifacts/test` are not releasable. Release verification additionally runs `npm run package:win`, which owns the compressed production publishes, installer creation, and Windows metadata validation.
+For a changed native, filesystem, registry, process, network, persistence, or
+resource-owning production boundary, start with focused success, expected-failure,
+and cleanup or restoration coverage through the production path. For a
+presentation-only host change, use focused UI/state tests where meaningful, the
+warning-free host build, and a quick human visual check at the affected layouts,
+themes, focus, and scrolling states.
+
+Run the broader relevant build and test gate once at the integration boundary;
+run root `npm run build` and `npm test` sequentially when the change crosses both
+runtime halves or prepares a release. `npm run package:win:test` may be used
+during installer iteration to skip NSIS compression while retaining
+installer-content and metadata checks; its outputs under `artifacts/test` are not
+releasable. Release verification additionally runs `npm run package:win`, which
+owns the compressed production publishes, installer creation, and Windows
+metadata validation.

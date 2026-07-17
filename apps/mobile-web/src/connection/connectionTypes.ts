@@ -1,11 +1,11 @@
 export type ConnectionState = "connecting" | "paired" | "needs-pairing" | "rejected" | "disconnected" | "unavailable";
 
-export type ConnectionError = {
+export interface ConnectionError {
   code: string;
   message: string;
-};
+}
 
-export type PairingAttempt = {
-  token?: string;
+export interface PairingAttempt {
+  token: string | undefined;
   id: number;
-};
+}

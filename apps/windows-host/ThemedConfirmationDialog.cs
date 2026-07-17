@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using VolturaAir.Host.Ui;
 using Button = System.Windows.Controls.Button;
 using Brush = System.Windows.Media.Brush;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
@@ -85,25 +86,25 @@ public sealed class ThemedConfirmationDialog : Window
     {
         var root = new Grid
         {
-            Background = Brush("WindowBrush"),
-            Margin = new Thickness(0)
+            Background = Brush("WindowBrush")
         };
 
         var panel = new Grid
         {
-            Margin = new Thickness(24),
+            Margin = new Thickness(UiTokens.SpaceXl),
         };
         panel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         panel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
         panel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         panel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        panel.RowDefinitions.Add(new RowDefinition { Height = new GridLength(UiTokens.SpaceXl) });
         panel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
         var badge = CreateToneBadge();
         Grid.SetColumn(badge, 0);
         panel.Children.Add(badge);
 
-        var body = new StackPanel();
+        var body = new SpacingStackPanel { Spacing = UiTokens.SpaceSm };
         Grid.SetColumn(body, 2);
         body.Children.Add(new TextBlock
         {
@@ -116,7 +117,6 @@ public sealed class ThemedConfirmationDialog : Window
         body.Children.Add(new TextBlock
         {
             Text = message,
-            Margin = new Thickness(0, 8, 0, 0),
             FontSize = 13,
             LineHeight = 19,
             Foreground = Brush("MutedTextBrush"),
@@ -124,14 +124,14 @@ public sealed class ThemedConfirmationDialog : Window
         });
         panel.Children.Add(body);
 
-        var actions = new StackPanel
+        var actions = new SpacingStackPanel
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new Thickness(0, 22, 0, 0)
+            Spacing = UiTokens.SpaceSm
         };
         Grid.SetColumn(actions, 2);
-        Grid.SetRow(actions, 1);
+        Grid.SetRow(actions, 2);
 
         if (!string.IsNullOrWhiteSpace(cancelText))
         {
@@ -181,7 +181,6 @@ public sealed class ThemedConfirmationDialog : Window
             MinHeight = 38,
             MinWidth = 96,
             Padding = new Thickness(14, 6, 14, 6),
-            Margin = new Thickness(8, 0, 0, 0),
             Cursor = WpfCursors.Hand,
             BorderThickness = new Thickness(1),
             Background = isPrimary

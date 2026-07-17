@@ -25,11 +25,9 @@ export function usePcSettings(
   const appStorageKey = useMemo(() => appSettingsKey(clientId, pcId), [clientId, pcId]);
   const [appState, setAppState] = useState(() => ({ settings: loadAppSettings(clientId, pcId), storageKey: appStorageKey }));
 
-  useEffect(() => {
-    setTrackpadState((current) => current.storageKey === trackpadStorageKey
-      ? current
-      : { settings: loadTrackpadSettings(clientId, pcId), storageKey: trackpadStorageKey });
-  }, [clientId, pcId, trackpadStorageKey]);
+  if (trackpadState.storageKey !== trackpadStorageKey) {
+    setTrackpadState({ settings: loadTrackpadSettings(clientId, pcId), storageKey: trackpadStorageKey });
+  }
 
   useEffect(() => {
     if (trackpadState.storageKey === trackpadStorageKey) {
@@ -37,13 +35,9 @@ export function usePcSettings(
     }
   }, [trackpadState, trackpadStorageKey]);
 
-  useEffect(() => {
-    setRemoteState((current) =>
-      current.storageKey === remoteStorageKey && (current.isStored || current.settings.mode === (hostDefaultRemoteMode ?? defaultRemoteSettings.mode))
-        ? current
-        : { ...loadRemoteSettings(clientId, pcId, hostDefaultRemoteMode), storageKey: remoteStorageKey }
-    );
-  }, [clientId, hostDefaultRemoteMode, pcId, remoteStorageKey]);
+  if (remoteState.storageKey !== remoteStorageKey || (!remoteState.isStored && remoteState.settings.mode !== (hostDefaultRemoteMode ?? defaultRemoteSettings.mode))) {
+    setRemoteState({ ...loadRemoteSettings(clientId, pcId, hostDefaultRemoteMode), storageKey: remoteStorageKey });
+  }
 
   useEffect(() => {
     if (remoteState.storageKey === remoteStorageKey && remoteState.isStored) {
@@ -51,11 +45,9 @@ export function usePcSettings(
     }
   }, [remoteState, remoteStorageKey]);
 
-  useEffect(() => {
-    setAppState((current) => current.storageKey === appStorageKey
-      ? current
-      : { settings: loadAppSettings(clientId, pcId), storageKey: appStorageKey });
-  }, [appStorageKey, clientId, pcId]);
+  if (appState.storageKey !== appStorageKey) {
+    setAppState({ settings: loadAppSettings(clientId, pcId), storageKey: appStorageKey });
+  }
 
   useEffect(() => {
     if (appState.storageKey === appStorageKey) {

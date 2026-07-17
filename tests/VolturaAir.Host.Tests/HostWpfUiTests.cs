@@ -27,6 +27,12 @@ public sealed partial class HostUiLayoutTests
             try
             {
                 window.Show();
+                var progress = Assert.Single(FindWpfDescendants<ProgressBar>(window));
+                var progressGroup = Assert.IsType<VolturaAir.Host.Ui.SpacingStackPanel>(progress.Parent);
+                Assert.Equal(UiTokens.SpaceLg, progressGroup.Spacing);
+                Assert.Contains(
+                    progressGroup.Children.OfType<TextBlock>(),
+                    text => string.Equals(text.Text, "Starting connection services.", StringComparison.Ordinal));
                 window.ShowError("Could not bind to port.", "details");
                 window.UpdateLayout();
 
@@ -61,6 +67,9 @@ public sealed partial class HostUiLayoutTests
             {
                 Assert.Null(window.PageContent.Content);
                 window.Show();
+                var sidebarHeader = Assert.IsType<VolturaAir.Host.Ui.SpacingStackPanel>(window.NavStatusText.Parent);
+                var sidebarLayout = Assert.IsType<Grid>(sidebarHeader.Parent);
+                Assert.Equal(new GridLength(UiTokens.SpaceXl), sidebarLayout.RowDefinitions[1].Height);
                 window.ShowPage(HostPage.Connect);
                 window.UpdateLayout();
                 Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "Connect");
@@ -79,20 +88,27 @@ public sealed partial class HostUiLayoutTests
                 window.ShowPage(HostPage.Preferences);
                 window.UpdateLayout();
                 var sections = FindWpfDescendants<Expander>(window).ToArray();
-                Assert.Equal(11, sections.Length);
+                Assert.Equal(15, sections.Length);
                 var scroller = Assert.Single(FindWpfDescendants<ScrollViewer>(window));
                 Assert.False(scroller.CanContentScroll);
                 Assert.Equal(ScrollBarVisibility.Visible, scroller.VerticalScrollBarVisibility);
                 Assert.Equal(ScrollBarVisibility.Disabled, scroller.HorizontalScrollBarVisibility);
-                Assert.All(sections, section =>
-                {
-                    Assert.False(section.IsExpanded);
-                    Assert.Same(window.Resources["PreferencesAccordionStyle"], section.Style);
-                });
-                sections[0].IsExpanded = true;
-                sections[1].IsExpanded = true;
-                Assert.False(sections[0].IsExpanded);
-                Assert.True(sections[1].IsExpanded);
+                Assert.All(sections, section => Assert.False(section.IsExpanded));
+                var nestedSections = sections
+                    .Where(section => section.Header is "More about application logs" or "More about global permissions" or "More about text destinations" or "More about app-launch buttons" or "Windows locking")
+                    .ToArray();
+                Assert.Equal(5, nestedSections.Length);
+                Assert.All(
+                    sections.Except(nestedSections),
+                    section => Assert.Same(window.Resources["PreferencesAccordionStyle"], section.Style));
+                Assert.All(
+                    nestedSections,
+                    section => Assert.Same(window.Resources["PreferencesNestedAccordionStyle"], section.Style));
+                var topLevelSections = sections.Except(nestedSections).ToArray();
+                topLevelSections[0].IsExpanded = true;
+                topLevelSections[1].IsExpanded = true;
+                Assert.False(topLevelSections[0].IsExpanded);
+                Assert.True(topLevelSections[1].IsExpanded);
                 Assert.Single(sections, section => section.IsExpanded);
 
                 window.ShowPage(HostPage.Diagnostics);

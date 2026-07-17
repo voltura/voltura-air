@@ -4,7 +4,6 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using Brush = System.Windows.Media.Brush;
 using CheckBox = System.Windows.Controls.CheckBox;
-using Orientation = System.Windows.Controls.Orientation;
 using TextBox = System.Windows.Controls.TextBox;
 
 namespace VolturaAir.Host;
@@ -24,9 +23,9 @@ public partial class MainWindow
                 configured.FirstOrDefault(action => action.Id == preset.Id)));
         }
 
-        parent.Children.Add(CreateDetailsDisclosure("app-launch buttons", $"The global and per-device application-launch permissions still apply. Button labels are 1–{AppLaunchSettings.MaxLabelLength} characters and save automatically. Browser opens the default browser; Spotify, VLC, and PowerPoint must be installed and registered with Windows."));
+        var appLaunchDetailsPanel = AddNestedPreferencesSection(parent, "More about app-launch buttons");
+        appLaunchDetailsPanel.Children.Add(CreateMutedText($"The global and per-device application-launch permissions still apply. Button labels are 1–{AppLaunchSettings.MaxLabelLength} characters and save automatically. Browser opens the default browser; Spotify, VLC, and PowerPoint must be installed and registered with Windows."));
         var customButtonsLabel = CreateLabel("Custom buttons");
-        customButtonsLabel.Margin = new Thickness(0, 12, 0, 8);
         parent.Children.Add(customButtonsLabel);
         var customActions = configured.Where(action => action.Kind == AppLaunchKind.Custom).ToArray();
         if (customActions.Length == 0)
@@ -43,7 +42,6 @@ public partial class MainWindow
 
         var add = CreateButton("Add custom button", (_, _) => OpenAppLaunchEditor(), primary: true);
         add.IsEnabled = configured.Count < AppLaunchSettings.MaxActions;
-        add.Margin = new Thickness(0, 8, 8, 12);
         add.HorizontalAlignment = System.Windows.HorizontalAlignment.Left;
         parent.Children.Add(add);
         parent.Children.Add(CreateMutedText("Custom buttons use a locally approved .exe and optional arguments; paths never leave this PC."));
@@ -51,8 +49,9 @@ public partial class MainWindow
 
     private Grid CreateAppLaunchPresetHeader()
     {
-        var header = new Grid { Margin = new Thickness(0, 12, 0, 2) };
+        var header = new Grid();
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(UiTokens.SpaceSm) });
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var presets = new TextBlock
@@ -67,10 +66,9 @@ public partial class MainWindow
         {
             Text = "Button label",
             FontWeight = FontWeights.SemiBold,
-            Foreground = (Brush)Resources["TextBrush"],
-            Margin = new Thickness(8, 0, 0, 0)
+            Foreground = (Brush)Resources["TextBrush"]
         };
-        Grid.SetColumn(label, 1);
+        Grid.SetColumn(label, 2);
         header.Children.Add(label);
         return header;
     }
@@ -78,12 +76,12 @@ public partial class MainWindow
     private Grid CreateAppLaunchPresetRow(AppLaunchAction preset, AppLaunchAction? configured)
     {
         var presetName = AppLaunchSettings.GetPresetName(preset.Kind);
-        var row = new Grid { Margin = new Thickness(0, 4, 0, 6) };
+        var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(UiTokens.SpaceSm) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var checkBox = CreateCheckBox($"Show {presetName}", configured is not null);
-        checkBox.Margin = new Thickness(0);
         checkBox.VerticalAlignment = VerticalAlignment.Center;
         checkBox.Checked += (_, _) => SetAppLaunchPreset(preset.Kind, true, checkBox);
         checkBox.Unchecked += (_, _) => SetAppLaunchPreset(preset.Kind, false, checkBox);
@@ -96,7 +94,6 @@ public partial class MainWindow
             Height = 32,
             Width = 140,
             Padding = new Thickness(8, 3, 8, 3),
-            Margin = new Thickness(8, 0, 0, 0),
             HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
@@ -108,7 +105,7 @@ public partial class MainWindow
         };
         AutomationProperties.SetName(labelInput, $"{presetName} button label");
         AutomationProperties.SetHelpText(labelInput, "Changes are saved automatically.");
-        Grid.SetColumn(labelInput, 1);
+        Grid.SetColumn(labelInput, 2);
         row.Children.Add(labelInput);
         labelInput.TextChanged += (_, _) => SaveAppLaunchPresetLabel(preset.Kind, labelInput);
         return row;
@@ -118,9 +115,10 @@ public partial class MainWindow
     {
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(UiTokens.SpaceMd) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var details = new StackPanel();
+        var details = CreateVerticalStack(UiTokens.SpaceXs);
         details.Children.Add(new TextBlock
         {
             Text = action.Label,
@@ -137,10 +135,10 @@ public partial class MainWindow
         });
         grid.Children.Add(details);
 
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(12, 0, 0, 0) };
+        var actions = CreateHorizontalStack(UiTokens.SpaceSm);
         actions.Children.Add(CreateButton("Edit", (_, _) => OpenAppLaunchEditor(action)));
         actions.Children.Add(CreateButton("Remove", (_, _) => RemoveAppLaunchAction(action), danger: true));
-        Grid.SetColumn(actions, 1);
+        Grid.SetColumn(actions, 2);
         grid.Children.Add(actions);
 
         return new Border
@@ -149,7 +147,6 @@ public partial class MainWindow
             BorderBrush = (Brush)Resources["BorderBrush"],
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
-            Margin = new Thickness(0, 4, 0, 12),
             Padding = new Thickness(12),
             Child = grid
         };

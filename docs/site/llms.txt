@@ -1,33 +1,40 @@
 # Voltura Air
 
-Voltura Air is free Windows software from Voltura AB.
+Voltura Air is free, open-source Windows software from Voltura AB. It turns a
+phone, tablet, or browser-capable device into a local-network control surface
+for a Windows 11 PC.
 
-## Summary
+## Core capabilities
 
-Voltura Air turns a phone, tablet, or browser-capable device into a wireless trackpad, keyboard, acknowledged text-transfer tool, dictation surface, and media remote for a Windows 11 PC.
+- Touch trackpad, keyboard, browser-supported dictation, media remote, and
+  landscape split mode.
+- YouTube, Kodi, browser, media, volume, window, and approved application
+  controls.
+- Acknowledged text transfer to reviewed PC destinations and an explicit,
+  host-permitted PC clipboard text read.
+- Host-controlled permissions for paired devices and disruptive PC actions.
+- QR pairing with saved reconnect on the same Wi-Fi or LAN.
 
-## Links
+## Product boundaries
+
+- No account, subscription, cloud relay, or internet input forwarding.
+- Not a remote-desktop, file-sync, or public-internet remote-control service.
+- A sleeping or shut-down PC cannot receive a Voltura Air wake command.
+- Release binaries are currently not code-signed, so Windows may show an
+  unknown-publisher or SmartScreen warning.
+
+## Distribution
+
+Releases provide a default installer that can download missing .NET 10 Desktop
+and ASP.NET Core runtimes, a full installer that includes the runtimes, and a
+portable ZIP.
+
+## Authoritative links
 
 - Product page: https://voltura.se/air/
+- Implemented capabilities: https://github.com/voltura/voltura-air/blob/main/docs/features.md
+- Setup: https://github.com/voltura/voltura-air/blob/main/docs/setup.md
+- Security policy: https://github.com/voltura/voltura-air/blob/main/SECURITY.md
 - Source code: https://github.com/voltura/voltura-air
 - Latest release: https://github.com/voltura/voltura-air/releases/latest
 - License: https://github.com/voltura/voltura-air/blob/main/LICENSE
-- Security policy: https://github.com/voltura/voltura-air/blob/main/SECURITY.md
-
-## Key facts
-
-- Freeware from Voltura AB.
-- Open source under the MIT License.
-- Local-network design: no account system, no cloud relay, and no internet input forwarding.
-- The Windows host serves the mobile app to trusted devices on the same Wi-Fi or LAN.
-- The mobile web app includes Trackpad, Keyboard, Remote, Dictate, Send text to PC, Get text from PC, and a tablet split mode that works as a combined couch keyboard and trackpad. Trackpad can optionally replace the system cursor with a larger teal-glow pointer during phone-initiated movement, clicks, two-finger scrolling, and pinch zoom; the host default is off and each device can explicitly enable or disable it. The highlight yields to the normal Windows cursor over taskbars and administrator apps; a compact phone banner can show the desktop when an administrator app blocks remote control. Buffered Keyboard sends and text transfer preserve multiline line breaks. The fourth mode button can be Dictation, Send text, or Get text; text transfer targets the currently focused Windows application and opens in Keyboard mode with an ABC/123 selector, an explicit Keyboard/Touchpad switch, a stripped-down touchpad view with handedness-aware Left/Right controls, local snippets folded by default, an optional final Enter, and a host-confirmed result. Get text from PC is an explicit, host-permitted read into selectable web-app text, never automatic clipboard synchronization or a browser clipboard write; its Show snippets control exposes the local snippet editor below the field in portrait and beside it in landscape. Its top app-mode row is hidden in landscape.
-- Remote mode includes media, volume, YouTube, Kodi, menu navigation, Windows window actions, browser tab/page controls, and host-approved Browser, Spotify, VLC, PowerPoint, or custom executable buttons; 1-10 character button labels are host-managed, and custom paths and arguments stay on the PC and require local approval. Its Fn panel has an Open URL command that opens a dialog with Open, Clear, and Close actions after a separate default-off host permission is enabled; otherwise the dialog explains why submission is unavailable. The client uses the browser URL parser to disable Open for invalid drafts without requiring a dotted host, bare addresses become HTTPS, only HTTP/HTTPS are accepted, Windows opens the result in the signed-in user's default browser, and failures keep the phone draft for retry. Optional application logs record the sanitized command and outcome without the address.
-- Remote mode also provides host-permissioned Lock PC, Blackout display, display-off, screen-saver, sign-out, restart, and shut-down controls. Blackout uses a black curtain across all monitors and dismisses on local or remote input without suspending Windows. Screen saver is omitted unless Windows has one enabled and configured. Session-ending actions require hold-to-confirm. Display off also requires confirmation because some PCs enter sleep or Modern Standby, disconnect Voltura Air, and require physical keyboard or mouse input to wake; Windows may then require authentication.
-- The Windows tray and Preferences provide Keep awake Off, interval, expiration, indefinite, and Keep screen on controls without editing the selected Windows power plan or requiring elevation. Permissioned mobile devices receive one basic Keep awake toggle that uses the host's screen setting. On startup, the tray is neutral briefly while paired devices reconnect; the connected badge also stays visible during the brief automatic-reconnect grace period so transient reconnects do not flash a disconnected badge.
-- The Windows host can explicitly enable current-user workstation locking without elevation, does not touch automatic sign-in, and offers opt-in sanitized application logging with a themed filterable Diagnostics view.
-- The Windows host bounds concurrent LAN control sessions, message size, initial pairing time, and stale authenticated connections without adding server-side polling; its optional Custom pointer is a real host-wide Windows cursor scheme generated from packaged cursor templates, with a default-on native recovery watchdog that restores the normal scheme after an unexpected host exit.
-- Windows release builds are not code-signed, so Windows may show an unknown publisher or SmartScreen warning.
-- Each release provides a default installer that downloads missing .NET 10 Desktop and ASP.NET Core runtimes, a full installer that includes all required components, and a portable ZIP.
-
-- It detects stale connections and input delivery failures, then shows unavailable/retrying instead of leaving dead controls on screen.
-- Active movement is frame-coalesced and bounded behind low-rate acknowledgement barriers; congestion-prone movement is dropped instead of replayed late, without per-move replies or idle polling.

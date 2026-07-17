@@ -19,7 +19,7 @@ public sealed record ThemePalette(
 
 public static partial class WindowsTheme
 {
-    public static Color DarkAccent { get; } = Color.FromArgb(18, 168, 148);
+    public static Color DarkAccent => UiTokens.DarkPalette.Accent;
 
     public static ThemePalette Current()
     {
@@ -30,31 +30,7 @@ public static partial class WindowsTheme
             _ => IsDarkAppTheme()
         };
 
-        return isDark
-            ? new ThemePalette(
-                true,
-                Color.FromArgb(20, 24, 28),
-                Color.FromArgb(28, 34, 39),
-                Color.FromArgb(35, 42, 48),
-                Color.FromArgb(244, 247, 248),
-                Color.FromArgb(178, 188, 195),
-                Color.FromArgb(60, 70, 78),
-                DarkAccent,
-                Color.White,
-                Color.FromArgb(215, 91, 70),
-                Color.White)
-            : new ThemePalette(
-                false,
-                Color.FromArgb(246, 248, 250),
-                Color.White,
-                Color.FromArgb(238, 242, 244),
-                Color.FromArgb(28, 34, 39),
-                Color.FromArgb(92, 103, 112),
-                Color.FromArgb(214, 221, 226),
-                Color.FromArgb(15, 123, 108),
-                Color.White,
-                Color.FromArgb(192, 83, 58),
-                Color.White);
+        return isDark ? UiTokens.DarkPalette : UiTokens.LightPalette;
     }
 
     public static void ApplyImmersiveDarkMode(Form form, bool isDark)

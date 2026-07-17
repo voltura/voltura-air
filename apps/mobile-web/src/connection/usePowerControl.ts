@@ -33,7 +33,7 @@ export function usePowerControl(state: ConnectionState, send: (payload: ClientMe
       });
     }, responseTimeoutMs);
 
-    return () => window.clearTimeout(timeout);
+    return () => { window.clearTimeout(timeout); };
   }, [pendingPowerAction]);
 
   useEffect(() => {

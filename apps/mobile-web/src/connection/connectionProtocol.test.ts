@@ -7,6 +7,7 @@ import {
   getPcDisconnectedMessage,
   getUrlOpenCapability,
   normalizeAppLaunchActions,
+  normalizeAudioState,
   normalizeHostStatus,
   shouldTrackInputAck,
   trimPendingInputAcks
@@ -48,6 +49,11 @@ describe("connection protocol policy", () => {
       webClientBuildId: "build-a",
       pointerSpeed: 100
     });
+  });
+
+  it("normalizes untrusted audio state without accepting coerced values", () => {
+    expect(normalizeAudioState({ muted: true, volume: 101.6 })).toEqual({ type: "audio.state", muted: true, volume: 100 });
+    expect(normalizeAudioState({ muted: "true", volume: "75" })).toEqual({ type: "audio.state", muted: false, volume: 0 });
   });
 
   it("does not append a second retry suffix to disconnect feedback", () => {

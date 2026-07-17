@@ -8,20 +8,16 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using QRCoder;
+using VolturaAir.Host.Features.Connection;
 using Button = System.Windows.Controls.Button;
 using CheckBox = System.Windows.Controls.CheckBox;
 using Image = System.Windows.Controls.Image;
 using ListBox = System.Windows.Controls.ListBox;
-using ListBoxItem = System.Windows.Controls.ListBoxItem;
-using ToggleButton = System.Windows.Controls.Primitives.ToggleButton;
-using TextBox = System.Windows.Controls.TextBox;
 using Brush = System.Windows.Media.Brush;
 using FontFamily = System.Windows.Media.FontFamily;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
 using Orientation = System.Windows.Controls.Orientation;
 using SystemFonts = System.Windows.SystemFonts;
-using WpfDataFormats = System.Windows.DataFormats;
-using WpfDataObject = System.Windows.DataObject;
 
 namespace VolturaAir.Host;
 
@@ -47,14 +43,7 @@ public partial class MainWindow : Window
     private string _pairingUrl;
     private ListBox? _devicesList;
     private StackPanel? _deviceDetailsPanel;
-    private ListBox? _networkCandidateList;
-    private ToggleButton? _networkAutomaticButton;
-    private ToggleButton? _networkManualButton;
-    private ToggleButton? _portAutomaticButton;
-    private ToggleButton? _portManualButton;
-    private TextBox? _manualPortTextBox;
-    private TextBlock? _manualPortValidationText;
-    private TextBlock? _connectionStatusText;
+    private ConnectionPageView? _connectionPage;
     private Border? _toast;
     private DispatcherTimer? _toastTimer;
     private int _lastPairedDeviceCount;
@@ -257,7 +246,7 @@ public partial class MainWindow : Window
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(14, 10, 14, 10),
-            Margin = new Thickness(0, 0, 0, 8),
+            Margin = new Thickness(0, 0, 0, UiTokens.SpaceSm),
             Child = new TextBlock
             {
                 Text = message,
@@ -265,7 +254,7 @@ public partial class MainWindow : Window
                 FontWeight = FontWeights.SemiBold
             }
         };
-        Grid.SetRow(_toast, 1);
+        Grid.SetRow(_toast, 2);
         MainContentRoot.Children.Add(_toast);
 
         _toastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.4) };
@@ -297,7 +286,6 @@ public partial class MainWindow : Window
         {
             Content = text,
             IsChecked = isChecked,
-            Margin = new Thickness(0, 0, 0, 12),
             Foreground = (Brush)Resources["TextBrush"]
         };
     }
@@ -345,8 +333,6 @@ public partial class MainWindow : Window
     private void OnHideClicked(object sender, RoutedEventArgs e) => Hide();
 
     private sealed record DeviceListItem(string ClientId, string Name, string Status, string Activity, string Metadata);
-
-    private sealed record CandidateListItem(LanAddressCandidate Candidate, string Adapter, string Address, string Status);
 
     private sealed record DiagnosticItem(string Name, string Value);
 

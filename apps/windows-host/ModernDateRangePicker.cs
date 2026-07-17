@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using VolturaAir.Host.Ui;
 using Button = System.Windows.Controls.Button;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
 using Orientation = System.Windows.Controls.Orientation;
@@ -19,7 +20,7 @@ public sealed class ModernDateRangePicker : UserControl
 {
     private readonly Button _trigger;
     private readonly Popup _popup;
-    private readonly StackPanel _monthPanels;
+    private readonly SpacingStackPanel _monthPanels;
     private readonly TextBlock _selectionSummary;
     private System.Windows.Shapes.Path _triggerChevron = null!;
     private DateTime _displayMonth;
@@ -41,7 +42,7 @@ public sealed class ModernDateRangePicker : UserControl
             VerticalAlignment = VerticalAlignment.Center
         };
         _selectionSummary.SetResourceReference(TextBlock.ForegroundProperty, "MutedTextBrush");
-        _monthPanels = new StackPanel { Orientation = Orientation.Horizontal };
+        _monthPanels = new SpacingStackPanel { Orientation = Orientation.Horizontal, Spacing = UiTokens.SpaceSm };
         _popup = CreatePopup();
         _popup.Opened += (_, _) => SetTriggerChevron(isOpen: true);
         _popup.Closed += (_, _) => SetTriggerChevron(isOpen: false);
@@ -81,23 +82,13 @@ public sealed class ModernDateRangePicker : UserControl
         {
             Text = "▦",
             FontSize = 18,
-            Margin = new Thickness(0, 0, 10, 0),
             VerticalAlignment = VerticalAlignment.Center
         };
         icon.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
-        var chevron = new TextBlock
-        {
-            Text = "⌄",
-            FontSize = 16,
-            Margin = new Thickness(12, -2, 0, 0),
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        chevron.SetResourceReference(TextBlock.ForegroundProperty, "MutedTextBrush");
         _triggerChevron = new System.Windows.Shapes.Path
         {
             Width = 10,
             Height = 6,
-            Margin = new Thickness(14, 0, 1, 0),
             VerticalAlignment = VerticalAlignment.Center,
             Data = Geometry.Parse("M 1,1 L 5,5 L 9,1"),
             Fill = System.Windows.Media.Brushes.Transparent,
@@ -112,10 +103,12 @@ public sealed class ModernDateRangePicker : UserControl
 
         var content = new Grid();
         content.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(UiTokens.SpaceSm) });
         content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(UiTokens.SpaceMd) });
         content.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Grid.SetColumn(label, 1);
-        Grid.SetColumn(_triggerChevron, 2);
+        Grid.SetColumn(label, 2);
+        Grid.SetColumn(_triggerChevron, 4);
         content.Children.Add(icon);
         content.Children.Add(label);
         content.Children.Add(_triggerChevron);
@@ -150,14 +143,18 @@ public sealed class ModernDateRangePicker : UserControl
         };
         title.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
 
-        var titleRow = new Grid { Margin = new Thickness(0, 0, 0, 12) };
+        var titleRow = new Grid();
         titleRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         titleRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         Grid.SetColumn(_selectionSummary, 1);
         titleRow.Children.Add(title);
         titleRow.Children.Add(_selectionSummary);
 
-        var presets = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) };
+        var presets = new SpacingWrapPanel
+        {
+            HorizontalSpacing = UiTokens.SpaceSm,
+            VerticalSpacing = UiTokens.SpaceSm
+        };
         presets.Children.Add(CreatePresetButton("Today", 1));
         presets.Children.Add(CreatePresetButton("Last 2 days", 2));
         presets.Children.Add(CreatePresetButton("Last 7 days", 7));
@@ -174,7 +171,7 @@ public sealed class ModernDateRangePicker : UserControl
         };
         monthsCaption.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
 
-        var navigation = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+        var navigation = new Grid();
         navigation.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40) });
         navigation.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         navigation.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40) });
@@ -192,16 +189,16 @@ public sealed class ModernDateRangePicker : UserControl
         apply.SetResourceReference(Button.ForegroundProperty, "AccentTextBrush");
         apply.SetResourceReference(Button.BorderBrushProperty, "AccentBrush");
         apply.Click += (_, _) => Apply();
-        var footer = new StackPanel
+        var footer = new SpacingStackPanel
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new Thickness(0, 14, 0, 0)
+            Spacing = UiTokens.SpaceSm
         };
         footer.Children.Add(cancel);
         footer.Children.Add(apply);
 
-        var panel = new StackPanel();
+        var panel = new SpacingStackPanel { Spacing = UiTokens.SpaceMd };
         panel.Children.Add(titleRow);
         panel.Children.Add(presets);
         panel.Children.Add(navigation);
@@ -245,8 +242,7 @@ public sealed class ModernDateRangePicker : UserControl
         {
             Content = label,
             MinHeight = 32,
-            Padding = new Thickness(10, 4, 10, 4),
-            Margin = new Thickness(0, 0, 7, 0)
+            Padding = new Thickness(10, 4, 10, 4)
         };
         button.Click += (_, _) =>
         {
@@ -374,7 +370,6 @@ public sealed class ModernDateRangePicker : UserControl
         var panel = new Border
         {
             Width = 284,
-            Margin = new Thickness(4, 0, 4, 0),
             Padding = new Thickness(5),
             CornerRadius = new CornerRadius(9),
             BorderThickness = new Thickness(1),

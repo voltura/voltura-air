@@ -2,7 +2,7 @@ import { getPcDisplayName } from "./pcDisplayName";
 import { getWebSocketUrl, type PcProfile } from "./pcProfiles";
 import type { HostStatusMetadata } from "./protocol";
 
-type MobileDiagnosticsInput = {
+interface MobileDiagnosticsInput {
   activePc: PcProfile | null;
   connectionState: string;
   lastErrorCode?: string | null;
@@ -10,7 +10,7 @@ type MobileDiagnosticsInput = {
   message: string;
   pairedPcCount: number;
   hostStatus?: HostStatusMetadata | null;
-};
+}
 
 const sensitiveQueryKeys = new Set(["t", "token", "pairtoken", "pair-token", "secret", "secrethash", "secret-hash", "hash", "d", "device", "deviceid", "device-id"]);
 const sensitiveObjectKeyPattern = /(token|secret|hash|clientid|client-id|deviceid|device-id)/i;
@@ -49,6 +49,7 @@ export async function copyTextToClipboard(value: string): Promise<"copied" | "ma
       await navigator.clipboard.writeText(value);
       return "copied";
     } catch {
+      // Continue to the HTTP-compatible local copy fallback.
     }
   }
 

@@ -1,0 +1,33 @@
+.app-toast {
+  position: fixed;
+  z-index: 1000;
+  top: max(var(--space-md), env(safe-area-inset-top, 0px));
+  left: max(var(--space-md), env(safe-area-inset-left, 0px));
+  width: min(420px, calc(100vw - var(--space-xl)));
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 11px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  box-shadow: 0 8px 24px var(--floating-shadow);
+  font-size: 0.86rem;
+  text-align: left;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+
+.app-toast.pending {
+  color: var(--muted);
+}
+
+.app-toast.success {
+  color: var(--success);
+  border-color: color-mix(in srgb, var(--success) 52%, var(--border));
+  background: color-mix(in srgb, var(--success) 12%, var(--surface));
+}
+
+.app-toast.error {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--border));
+}

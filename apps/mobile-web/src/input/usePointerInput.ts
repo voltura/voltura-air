@@ -4,11 +4,11 @@ import { GestureRecognizer, touchesFromList, type TrackpadSettings } from "../ge
 import type { ClientMessage, KeyboardSpecialMessage } from "../protocol";
 import { triggerHapticFeedback } from "../hapticFeedback";
 
-type PointerInputOptions = {
+interface PointerInputOptions {
   send: (payload: ClientMessage) => void;
   state: ConnectionState;
   trackpadSettings: TrackpadSettings;
-};
+}
 
 export function usePointerInput({ send, state, trackpadSettings }: PointerInputOptions) {
   const recognizerRef = useRef(new GestureRecognizer());
@@ -47,9 +47,7 @@ export function usePointerInput({ send, state, trackpadSettings }: PointerInputO
   };
 
   const schedulePointerDeltaFlush = () => {
-    if (pointerFrameRef.current === null) {
-      pointerFrameRef.current = window.requestAnimationFrame(sendPendingPointerDeltas);
-    }
+    pointerFrameRef.current ??= window.requestAnimationFrame(sendPendingPointerDeltas);
   };
 
   const flushPendingPointerDeltas = () => {
@@ -128,7 +126,7 @@ export function usePointerInput({ send, state, trackpadSettings }: PointerInputO
     }
   };
 
-  const sleepPc = () => emit({ type: "system.sleep" });
+  const sleepPc = () => { emit({ type: "system.sleep" }); };
 
   return { emit, onTouchCancel, onTouchEnd, onTouchMove, onTouchStart, sendSpecial, sendText, sleepPc };
 }

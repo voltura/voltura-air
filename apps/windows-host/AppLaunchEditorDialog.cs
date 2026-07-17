@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using VolturaAir.Host.Ui;
 using Button = System.Windows.Controls.Button;
 using TextBox = System.Windows.Controls.TextBox;
 using Brush = System.Windows.Media.Brush;
@@ -43,7 +44,7 @@ internal sealed class AppLaunchEditorDialog : Window
         {
             Foreground = Brush("DangerBrush"),
             TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 8, 0, 0)
+            Visibility = Visibility.Collapsed
         };
 
         Content = BuildContent();
@@ -54,9 +55,9 @@ internal sealed class AppLaunchEditorDialog : Window
         return new AppLaunchEditorDialog(owner, existing).ShowDialog() == true;
     }
 
-    private StackPanel BuildContent()
+    private SpacingStackPanel BuildContent()
     {
-        var root = new StackPanel { Margin = new Thickness(24) };
+        var root = new SpacingStackPanel { Margin = new Thickness(UiTokens.SpaceXl), Spacing = UiTokens.SpaceMd };
         root.Children.Add(new TextBlock
         {
             Text = _existing is null ? "Add a host-approved launch button" : "Update this host-approved launch button",
@@ -68,8 +69,7 @@ internal sealed class AppLaunchEditorDialog : Window
         {
             Text = "The phone will see only the label. The executable path and arguments stay on this PC.",
             Foreground = Brush("MutedTextBrush"),
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 8, 0, 16)
+            TextWrapping = TextWrapping.Wrap
         });
 
         root.Children.Add(CreateLabel("Button label"));
@@ -77,19 +77,18 @@ internal sealed class AppLaunchEditorDialog : Window
         root.Children.Add(new TextBlock
         {
             Text = $"Use 1–{AppLaunchSettings.MaxLabelLength} characters. The full label is shown on the phone.",
-            Foreground = Brush("MutedTextBrush"),
-            Margin = new Thickness(0, 2, 0, 0)
+            Foreground = Brush("MutedTextBrush")
         });
         root.Children.Add(CreateLabel("Executable (.exe)"));
 
         var pathRow = new Grid();
         pathRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        pathRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(UiTokens.SpaceSm) });
         pathRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         pathRow.Children.Add(_pathInput);
         var browse = CreateButton("Browse...", isPrimary: false);
-        browse.Margin = new Thickness(8, 4, 0, 4);
         browse.Click += (_, _) => BrowseForExecutable();
-        Grid.SetColumn(browse, 1);
+        Grid.SetColumn(browse, 2);
         pathRow.Children.Add(browse);
         root.Children.Add(pathRow);
 
@@ -99,16 +98,15 @@ internal sealed class AppLaunchEditorDialog : Window
         {
             Text = "Arguments are passed directly to the executable. Command shells, scripts, and relative paths are not accepted.",
             Foreground = Brush("MutedTextBrush"),
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 4, 0, 0)
+            TextWrapping = TextWrapping.Wrap
         });
         root.Children.Add(_errorText);
 
-        var actions = new StackPanel
+        var actions = new SpacingStackPanel
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new Thickness(0, 22, 0, 0)
+            Spacing = UiTokens.SpaceSm
         };
         var cancel = CreateButton("Cancel", isPrimary: false);
         cancel.IsCancel = true;
@@ -147,7 +145,7 @@ internal sealed class AppLaunchEditorDialog : Window
             out var arguments,
             out var error))
         {
-            _errorText.Text = error;
+            ShowError(error);
             return;
         }
 
@@ -166,7 +164,7 @@ internal sealed class AppLaunchEditorDialog : Window
 
         if (!AppLaunchSettings.TrySaveCustom(label, path, arguments, _existing?.Id, out _, out error))
         {
-            _errorText.Text = error;
+            ShowError(error);
             return;
         }
 
@@ -179,8 +177,7 @@ internal sealed class AppLaunchEditorDialog : Window
         {
             Text = text,
             FontWeight = FontWeights.SemiBold,
-            Foreground = Brush("TextBrush"),
-            Margin = new Thickness(0, 10, 0, 0)
+            Foreground = Brush("TextBrush")
         };
     }
 
@@ -191,7 +188,6 @@ internal sealed class AppLaunchEditorDialog : Window
             Text = value,
             MinHeight = 36,
             Padding = new Thickness(10, 6, 10, 6),
-            Margin = new Thickness(0, 4, 0, 4),
             Background = Brush("SurfaceRaisedBrush"),
             Foreground = Brush("TextBrush"),
             BorderBrush = Brush("BorderBrush"),
@@ -207,12 +203,17 @@ internal sealed class AppLaunchEditorDialog : Window
             MinHeight = 36,
             MinWidth = 88,
             Padding = new Thickness(14, 6, 14, 6),
-            Margin = new Thickness(8, 0, 0, 0),
             Background = isPrimary ? Brush("AccentBrush") : Brush("SurfaceRaisedBrush"),
             Foreground = isPrimary ? Brush("AccentTextBrush") : Brush("TextBrush"),
             BorderBrush = isPrimary ? Brush("AccentBrush") : Brush("BorderBrush"),
             BorderThickness = new Thickness(1)
         };
+    }
+
+    private void ShowError(string error)
+    {
+        _errorText.Text = error;
+        _errorText.Visibility = Visibility.Visible;
     }
 
     private Brush Brush(string key) => (Brush)Resources[key];

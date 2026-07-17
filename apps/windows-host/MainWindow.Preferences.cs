@@ -41,10 +41,11 @@ public partial class MainWindow
         };
         parent.Children.Add(applicationLogging);
         parent.Children.Add(CreateMutedText("Off by default. Typed text, pointer coordinates, and pairing secrets are excluded."));
-        parent.Children.Add(CreateDetailsDisclosure("application logs", $"Records sanitized remote commands, host actions, outcomes, responses, and Windows errors. Daily JSON Lines files are written to {_appLog.LogDirectory}."));
+        var applicationLogDetailsPanel = AddNestedPreferencesSection(parent, "More about application logs");
+        applicationLogDetailsPanel.Children.Add(CreateMutedText($"Records sanitized remote commands, host actions, outcomes, responses, and Windows errors. Daily JSON Lines files are written to {_appLog.LogDirectory}."));
 
         parent.Children.Add(CreateLabel("Keep application logs for"));
-        var logRetention = new ComboBox { Width = 180, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 6, 0, 12) };
+        var logRetention = new ComboBox { Width = 180, HorizontalAlignment = HorizontalAlignment.Left };
         logRetention.SetResourceReference(FrameworkElement.StyleProperty, "ModernComboBoxStyle");
         foreach (var days in new[] { 1, 2, 7, 14, 30 })
         {
@@ -101,42 +102,32 @@ public partial class MainWindow
         }
     }
 
-    private StackPanel AddPreferencesSection(StackPanel parent, List<Expander> sections, string title, bool participatesInAccordion = true)
+    private StackPanel AddPreferencesSection(StackPanel parent, List<Expander> sections, string title)
     {
-        var content = new StackPanel();
-        var expander = new Expander
+        var (expander, content) = CreatePreferencesSection(title, "PreferencesAccordionStyle");
+        expander.Expanded += (_, _) =>
         {
-            Header = title,
-            Content = content,
-            IsExpanded = false,
-            Style = (Style)Resources["PreferencesAccordionStyle"]
-        };
-        if (participatesInAccordion)
-        {
-            expander.Expanded += (_, _) =>
+            foreach (var section in sections)
             {
-                foreach (var section in sections)
+                if (!ReferenceEquals(section, expander))
                 {
-                    if (!ReferenceEquals(section, expander))
-                    {
-                        section.IsExpanded = false;
-                    }
+                    section.IsExpanded = false;
                 }
+            }
 
-                SetPreferencesTitle(title);
-                _ = expander.Dispatcher.InvokeAsync(
-                    () => RevealExpandedPreferencesSection(expander, content),
-                    DispatcherPriority.Loaded);
-            };
-            expander.Collapsed += (_, _) =>
+            SetPreferencesTitle(title);
+            _ = expander.Dispatcher.InvokeAsync(
+                () => RevealExpandedPreferencesSection(expander, content),
+                DispatcherPriority.Loaded);
+        };
+        expander.Collapsed += (_, _) =>
+        {
+            if (sections.All(section => !section.IsExpanded))
             {
-                if (sections.All(section => !section.IsExpanded))
-                {
-                    SetPreferencesTitle(null);
-                }
-            };
-            sections.Add(expander);
-        }
+                SetPreferencesTitle(null);
+            }
+        };
+        sections.Add(expander);
 
         parent.Children.Add(expander);
         if (string.Equals(_preferencesSectionToOpen, title, StringComparison.Ordinal))
@@ -145,6 +136,25 @@ public partial class MainWindow
         }
 
         return content;
+    }
+
+    private StackPanel AddNestedPreferencesSection(StackPanel parent, string title)
+    {
+        var (expander, content) = CreatePreferencesSection(title, "PreferencesNestedAccordionStyle");
+        parent.Children.Add(expander);
+        return content;
+    }
+
+    private (Expander Expander, StackPanel Content) CreatePreferencesSection(string title, string styleResourceKey)
+    {
+        var content = CreateVerticalStack(UiTokens.SpaceMd);
+        return (new Expander
+        {
+            Header = title,
+            Content = content,
+            IsExpanded = false,
+            Style = (Style)Resources[styleResourceKey]
+        }, content);
     }
 
     private void RefreshPreferencesPage()
@@ -237,7 +247,7 @@ public partial class MainWindow
     private void AddGlobalPointerSpeedSetting(StackPanel parent)
     {
         parent.Children.Add(CreateLabel("Default pointer speed"));
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 12) };
+        var row = CreateHorizontalStack(UiTokens.SpaceMd);
         var currentSpeed = AppPointerSettings.GetDefaultPointerSpeed();
         var slider = new Slider
         {
@@ -247,8 +257,7 @@ public partial class MainWindow
             TickFrequency = 5,
             IsSnapToTickEnabled = true,
             Width = 220,
-            Value = currentSpeed,
-            Margin = new Thickness(0, 0, 12, 0)
+            Value = currentSpeed
         };
         var output = new TextBlock
         {
@@ -303,8 +312,8 @@ public partial class MainWindow
         var (hue, saturation, value) = RgbToHsv(initialColor);
         var draft = initialColor;
         var synchronizing = false;
-        var input = new TextBox { Text = $"#{draft:X6}", Width = 104, Margin = new Thickness(0, 0, 8, 0) };
-        var swatch = new Border { Width = 32, Height = 32, CornerRadius = new CornerRadius(5), Background = CreateCustomPointerBrush(draft), BorderBrush = (Brush)Resources["BorderBrush"], BorderThickness = new Thickness(1), Margin = new Thickness(0, 0, 8, 0) };
+        var input = new TextBox { Text = $"#{draft:X6}", Width = 104 };
+        var swatch = new Border { Width = 32, Height = 32, CornerRadius = new CornerRadius(5), Background = CreateCustomPointerBrush(draft), BorderBrush = (Brush)Resources["BorderBrush"], BorderThickness = new Thickness(1) };
         var surface = new Canvas { Width = 184, Height = 116, Cursor = WpfCursors.Cross };
         var saturationLayer = new Border { Width = 184, Height = 116 };
         var valueLayer = new Border { Width = 184, Height = 116, Background = new MediaLinearGradientBrush(MediaColor.FromArgb(0, 0, 0, 0), MediaColors.Black, 90) };
@@ -318,8 +327,7 @@ public partial class MainWindow
             Minimum = 0,
             Maximum = 360,
             Width = 184,
-            Value = hue,
-            Margin = new Thickness(0, 8, 0, 0)
+            Value = hue
         };
         var popup = new Popup
         {
@@ -405,6 +413,19 @@ public partial class MainWindow
             RefreshSurface();
         };
         RefreshSurface();
+        var colorInputs = CreateHorizontalStack(UiTokens.SpaceSm);
+        colorInputs.Children.Add(swatch);
+        colorInputs.Children.Add(input);
+        var popupActions = CreateHorizontalStack(UiTokens.SpaceSm);
+        popupActions.Children.Add(applyButton);
+        popupActions.Children.Add(cancelButton);
+        var popupContent = CreateVerticalStack(UiTokens.SpaceSm);
+        popupContent.Children.Add(new TextBlock { Text = "Custom color", FontWeight = FontWeights.SemiBold, Foreground = (Brush)Resources["TextBrush"] });
+        popupContent.Children.Add(colorInputs);
+        popupContent.Children.Add(surface);
+        popupContent.Children.Add(new TextBlock { Text = "Hue", Foreground = (Brush)Resources["MutedTextBrush"] });
+        popupContent.Children.Add(hueSlider);
+        popupContent.Children.Add(popupActions);
         popup.Child = new Border
         {
             Background = (Brush)Resources["SurfaceRaisedBrush"],
@@ -412,18 +433,7 @@ public partial class MainWindow
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(12),
-            Child = new StackPanel
-            {
-                Children =
-                {
-                    new TextBlock { Text = "Custom color", FontWeight = FontWeights.SemiBold, Foreground = (Brush)Resources["TextBrush"], Margin = new Thickness(0, 0, 0, 8) },
-                    new StackPanel { Orientation = Orientation.Horizontal, Children = { swatch, input } },
-                    surface,
-                    new TextBlock { Text = "Hue", Foreground = (Brush)Resources["MutedTextBrush"], Margin = new Thickness(0, 8, 0, 0) },
-                    hueSlider,
-                    new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0), Children = { applyButton, cancelButton } }
-                }
-            }
+            Child = popupContent
         };
         return popup;
     }
@@ -521,12 +531,11 @@ public partial class MainWindow
         parent.Children.Add(CreateLabel("YouTube URL"));
         parent.Children.Add(CreateMutedText("Used when a paired device triggers the YouTube remote launch action. The URL stays on this PC."));
 
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 12) };
+        var row = CreateHorizontalStack(UiTokens.SpaceMd);
         var input = new TextBox
         {
             Text = AppRemoteSettings.GetYoutubeUrl(),
-            Width = 360,
-            Margin = new Thickness(0, 0, 12, 0)
+            Width = 360
         };
         row.Children.Add(input);
         row.Children.Add(CreateButton("Save URL", (_, _) => SaveYoutubeUrl(input), primary: true));

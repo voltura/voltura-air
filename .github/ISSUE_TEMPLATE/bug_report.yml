@@ -1,0 +1,129 @@
+name: Bug report
+description: Report a reproducible Voltura Air product defect.
+title: "[Bug]: "
+labels: []
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Voltura Air. Do not include pairing QR links, pairing tokens, reconnect secrets, secret hashes, or private information. Redact public IP addresses and any network details that are not needed to reproduce the problem.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Connection or pairing
+        - Trackpad or pointer
+        - Keyboard, dictation, or text transfer
+        - Remote or PC action
+        - Windows host UI or tray
+        - Mobile layout or accessibility
+        - Installation or update
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: host-version
+    attributes:
+      label: Voltura Air host version
+      description: Copy the version shown by the Windows host or release filename.
+      placeholder: "0.5.0"
+    validations:
+      required: true
+
+  - type: input
+    id: windows-version
+    attributes:
+      label: Windows version
+      placeholder: "Windows 11 24H2"
+    validations:
+      required: true
+
+  - type: input
+    id: client-environment
+    attributes:
+      label: Phone, tablet, browser, and display mode
+      description: Include device model, OS version, browser/version, and whether the app ran in a browser or from the home screen.
+      placeholder: "iPhone 15, iOS 19, Safari, installed to Home Screen"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: connection-method
+    attributes:
+      label: Connection method
+      options:
+        - Fresh QR pairing
+        - Saved PC reconnect
+        - Manual host entry
+        - Not connection-related
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Give the shortest repeatable sequence, including the starting state.
+      placeholder: |
+        1. Start with...
+        2. Open...
+        3. Press...
+        4. Observe...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: Include visible error text, but remove secrets and private data.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: reconnect-result
+    attributes:
+      label: What happens after reconnecting or restarting?
+      options:
+        - The problem still occurs after reconnecting
+        - The problem returns after restarting the Windows host
+        - Reconnecting fixes the problem temporarily
+        - A fresh QR pairing fixes the problem
+        - Not tested
+        - Not applicable
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Redacted diagnostics
+      description: Paste Copy diagnostics output when relevant. Remove pairing tokens, reconnect secrets, secret hashes, machine names, and unnecessary private network details.
+      render: text
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add screenshots, logs, recent network changes, or accessibility information when useful. Do not upload secrets or sensitive personal content.
+
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed pairing credentials, live QR links, and sensitive personal or network information.
+          required: true
+        - label: I will report security vulnerabilities privately through SECURITY.md instead of this public form.
+          required: true

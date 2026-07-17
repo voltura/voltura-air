@@ -2,11 +2,11 @@ export const maxSavedSnippets = 20;
 export const maxSnippetLength = 4096;
 const maxSnippetNameLength = 60;
 
-export type SavedTextSnippet = {
+export interface SavedTextSnippet {
   id: string;
   name: string;
   text: string;
-};
+}
 
 export function textSnippetsKey(clientId: string): string {
   return `voltura-air.textSnippets.${clientId}`;
@@ -14,13 +14,13 @@ export function textSnippetsKey(clientId: string): string {
 
 export function loadTextSnippets(clientId: string): SavedTextSnippet[] {
   try {
-    const value = JSON.parse(localStorage.getItem(textSnippetsKey(clientId)) ?? "[]");
+    const value: unknown = JSON.parse(localStorage.getItem(textSnippetsKey(clientId)) ?? "[]");
     if (!Array.isArray(value)) {
       return [];
     }
 
     const ids = new Set<string>();
-    return value.flatMap((candidate): SavedTextSnippet[] => {
+    return (value as unknown[]).flatMap((candidate): SavedTextSnippet[] => {
       if (typeof candidate !== "object" || candidate === null) {
         return [];
       }

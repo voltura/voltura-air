@@ -1,6 +1,7 @@
 <Window x:Class="VolturaAir.Host.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="clr-namespace:VolturaAir.Host.Ui"
         Title="Voltura Air"
         Width="1160"
         Height="760"
@@ -31,12 +32,12 @@
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="24" />
+                    <RowDefinition Height="{DynamicResource GridSpaceXl}" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <StackPanel>
+                <ui:SpacingStackPanel Spacing="{DynamicResource SpaceSm}">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="34" />
@@ -55,18 +56,17 @@
                                    VerticalAlignment="Center" />
                     </Grid>
                     <TextBlock x:Name="NavStatusText"
-                               Margin="0,6,0,0"
                                TextWrapping="Wrap"
                                Foreground="{DynamicResource MutedTextBrush}" />
-                </StackPanel>
+                </ui:SpacingStackPanel>
 
-                <StackPanel Grid.Row="2">
+                <ui:SpacingStackPanel Grid.Row="2" Spacing="{DynamicResource SpaceSm}">
                     <Button x:Name="ConnectNavButton" Content="Connect" Style="{StaticResource MenuButtonStyle}" Click="OnConnectNavClicked" />
                     <Button x:Name="DevicesNavButton" Content="Devices" Style="{StaticResource MenuButtonStyle}" Click="OnDevicesNavClicked" />
                     <Button x:Name="ConnectionNavButton" Content="Connection" Style="{StaticResource MenuButtonStyle}" Click="OnConnectionNavClicked" />
                     <Button x:Name="PreferencesNavButton" Content="Preferences" Style="{StaticResource MenuButtonStyle}" Click="OnPreferencesNavClicked" />
                     <Button x:Name="DiagnosticsNavButton" Content="Diagnostics" Style="{StaticResource MenuButtonStyle}" Click="OnDiagnosticsNavClicked" />
-                </StackPanel>
+                </ui:SpacingStackPanel>
 
                 <Button x:Name="HideToTrayButton"
                         Grid.Row="3"
@@ -78,27 +78,27 @@
 
         <Grid x:Name="MainContentRoot"
               Grid.Column="1"
-              Margin="28"
+              Margin="{DynamicResource DesktopPageGutterInset}"
               LayoutUpdated="OnMainContentRootLayoutUpdated">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="{DynamicResource GridSpaceXl}" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <StackPanel>
+            <ui:SpacingStackPanel Spacing="{DynamicResource SpaceSm}">
                 <TextBlock x:Name="PageTitleText"
                            FontSize="28"
                            FontWeight="Bold"
                            Foreground="{DynamicResource TextBrush}" />
                 <TextBlock x:Name="PageSubtitleText"
-                           Margin="0,6,0,22"
                            FontSize="14"
                            TextWrapping="Wrap"
                            Foreground="{DynamicResource MutedTextBrush}" />
-            </StackPanel>
+            </ui:SpacingStackPanel>
 
             <ContentControl x:Name="PageContent"
-                            Grid.Row="1"
+                            Grid.Row="2"
                             Focusable="False"
                             FocusVisualStyle="{x:Null}"
                             IsTabStop="False" />

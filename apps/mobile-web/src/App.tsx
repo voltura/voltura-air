@@ -1,76 +1,43 @@
-import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, Circle, Menu, MousePointer2 } from "lucide-react";
-import { AppModeContent } from "./components/AppModeContent";
-import { PairingStatus } from "./components/PairingStatus";
-import { SettingsDrawer } from "./components/SettingsDrawer";
-import type { AppSettings } from "./appSettings";
-import { clearAppSettings, clearRemoteSettings, clearTrackpadSettings, loadThemeMode, resolveTheme, saveThemeMode, type ThemeMode } from "./appStorage";
-import type { TrackpadSettings } from "./gestures";
-import type { KeyboardSettings } from "./keyboardSettings";
-import { toLiveKeyboardValue } from "./keyboardDelta";
+import { useMemo, useState } from "react";
+import { createSettingsActions, SettingsDrawer } from "./features/settings";
 import { parsePairingLink } from "./pairingLink";
 import { getPcDisplayName } from "./pcDisplayName";
-import type { AudioStateMessage, RemoteLaunchAction } from "./protocol";
+import type { RemoteLaunchAction } from "./protocol";
 import { buildMobileDiagnostics } from "./mobileDiagnostics";
 import type { RemoteSettings } from "./remoteSettings";
 import { useVolturaAirConnection } from "./useVolturaAirConnection";
-import { usePointerInput } from "./input/usePointerInput";
-import { triggerHapticFeedback } from "./hapticFeedback";
-import { useKeyboardInput } from "./input/useKeyboardInput";
 import { usePcSettings } from "./settings/usePcSettings";
-import { useSpeechDictation } from "./input/useSpeechDictation";
 import { usePwaLifecycle } from "./pwa/usePwaLifecycle";
-import { useDeveloperRefreshLongPress } from "./useDeveloperRefreshLongPress";
-import { usePairingController } from "./pairing/usePairingController";
-import { supportsSplitModeLayout } from "./splitModeLayout";
-import { getModeDefinition, getModeTabs, type AppTab as Tab, type MainAppTab as MainTab, type ToolAppTab } from "./appModeTabs";
+import { PairingGate, usePairingController } from "./features/pairing";
 import { useManualReconnectFeedback } from "./connection/useManualReconnectFeedback";
+import { AppHeader } from "./app/AppHeader";
+import { GlobalOperationFeedback } from "./app/GlobalOperationFeedback";
+import { ModeNavigation } from "./app/ModeNavigation";
+import { useAppTheme } from "./app/useAppTheme";
+import { useAppNavigation } from "./app/useAppNavigation";
+import { InputRecoveryNotice } from "./features/input-recovery";
+import { ModeWorkspace } from "./features/modes";
 
 export function App() {
   const initialPairing = useMemo(() => parsePairingLink(window.location.href, window.location.origin), []);
+  const connection = useVolturaAirConnection();
   const {
     state,
     message,
     send,
-    requestAudioState,
-    requestPowerAction,
-    requestAwakeChange,
-    requestAppLaunch,
-    requestPresentationCommand,
-    requestUrlOpen,
-    requestTextTransfer,
-    requestClipboardRead,
     pendingTextTransfer,
-    pendingPresentationCommand,
-    presentationResult,
     presentationCapability,
     pendingClipboardRead,
     textTransferResult,
     clipboardReadResult,
-    clipboardText,
-    setClipboardText,
-    clipboardReadPermission,
     pendingAppLaunchId,
     appLaunchResult,
-    pendingUrlOpen,
-    urlOpenResult,
-    urlOpenCapability,
-    pendingPowerAction,
-    powerActionResult,
-    pendingAwakeChange,
-    awakeResult,
     clientId,
     deviceName,
     activePc,
     pairedPcs,
-    audioState,
-    awakeCapability,
-    powerCapabilities,
     supportsGestureDebug,
-    supportsSleep,
-    supportsVolumeControl,
     supportsRemoteLaunch,
-    supportsTextTransfer,
     lastConnectionError,
     hostStatus,
     pairWithToken,
@@ -83,168 +50,35 @@ export function App() {
     renameDevice,
     setHostCustomPointer,
     setHostPointerSpeed
-  } = useVolturaAirConnection();
-  const [tab, setTab] = useState<Tab>("trackpad");
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [displayedAudioState, setDisplayedAudioState] = useState<AudioStateMessage | null>(audioState);
-  const [themeMode, setThemeMode] = useState<ThemeMode>(() => loadThemeMode());
-  const [systemPrefersDark, setSystemPrefersDark] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
-  const [canUseSplitMode, setCanUseSplitMode] = useState(() => supportsSplitModeLayout(window.innerWidth, window.innerHeight));
-  const [isTrackpadExpanded, setIsTrackpadExpanded] = useState(false);
-  const [areModeTabsCollapsed, setAreModeTabsCollapsed] = useState(false);
-  const [isModeSelectorOpen, setIsModeSelectorOpen] = useState(false);
-  const [isRemoteUtilityPanelOpen, setIsRemoteUtilityPanelOpen] = useState(false);
-  const [textTransferDraft, setTextTransferDraft] = useState("");
-  const [isInputRecoveryDialogDismissed, setIsInputRecoveryDialogDismissed] = useState(false);
+  } = connection;
+  const { setThemeMode, themeMode } = useAppTheme();
   const inputBlockedByElevation = hostStatus?.inputBlockedByElevation === true;
+  const [inputRecoveryDialog, setInputRecoveryDialog] = useState({
+    blocked: inputBlockedByElevation,
+    dismissed: false
+  });
+  if (inputRecoveryDialog.blocked !== inputBlockedByElevation) {
+    setInputRecoveryDialog({ blocked: inputBlockedByElevation, dismissed: false });
+  }
+  const isInputRecoveryDialogDismissed = inputRecoveryDialog.dismissed;
   const developerMode = hostStatus?.developerMode === true;
   const { progress: manualReconnectProgress, reconnect: reconnectActivePc } = useManualReconnectFeedback(activePc?.id ?? null, state, selectPc);
 
-  useEffect(() => {
-    if (!inputBlockedByElevation) {
-      setIsInputRecoveryDialogDismissed(false);
-    }
-  }, [inputBlockedByElevation]);
-
   const hostPointerSpeed = hostStatus?.pointerSpeed;
   const hostDefaultRemoteMode = hostStatus?.defaultRemoteMode;
+  const pcSettings = usePcSettings(clientId, activePc?.id ?? null, hostDefaultRemoteMode, hostPointerSpeed);
   const {
     appSettings,
     effectiveTrackpadSettings,
     keyboardSettings,
     remoteSettings,
-    setAppSettingsState,
-    setKeyboardSettings,
-    setRemoteSettingsState,
-    setTrackpadSettingsState,
     trackpadSettings
-  } = usePcSettings(clientId, activePc?.id ?? null, hostDefaultRemoteMode, hostPointerSpeed);
+  } = pcSettings;
   const presentationAvailable = presentationCapability !== undefined;
-  const modeTabs = useMemo(() => getModeTabs(appSettings.fourthMode, presentationAvailable), [appSettings.fourthMode, presentationAvailable]);
-  const { installApp, installPrompt, isInstalled, refreshInstalledApp, refreshMessage } = usePwaLifecycle({
-    activePc,
-    autoRefresh: appSettings.autoRefresh,
-    clientId,
-    hostStatus,
-    state
-  });
-  const developerBrandLongPress = useDeveloperRefreshLongPress(developerMode, refreshInstalledApp);
-  const {
-    confirmPendingPairing,
-    connectManualHost,
-    onPairingQrSelected,
-    pairingDeviceName,
-    pairingQrInputRef,
-    pairingScanMessage,
-    pendingPairing,
-    scanPairingQr,
-    setPairingDeviceName
-  } = usePairingController({ beginNewPairing, connectManualPc, deviceName, initialPairing, message, pairWithToken, setIsSettingsOpen, state });
-  const { emit, onTouchCancel, onTouchEnd, onTouchMove, onTouchStart, sendSpecial, sendText, sleepPc } = usePointerInput({
-    send,
-    state,
-    trackpadSettings: effectiveTrackpadSettings
-  });
-  const {
-    committedKeyboardTextRef,
-    isComposingRef,
-    keyboardText,
-    keyboardTextareaRef,
-    liveKeyboard,
-    onKeyboardTextChange,
-    placeLiveKeyboardCaret,
-    sendEmptyDelete,
-    setKeyboardText,
-    setLiveTyping
-  } = useKeyboardInput(emit);
-  const { canUseSpeech, dictationText, isListening, setDictationText, startSpeech, stopSpeech } = useSpeechDictation(sendText);
-
-  useEffect(() => {
-    setDisplayedAudioState(audioState);
-  }, [audioState]);
-
-  useEffect(() => {
-    const trackpadVolumeVisible = tab === "trackpad" && trackpadSettings.showVolumeControl && !isTrackpadExpanded;
-    if (state === "paired" && supportsVolumeControl && (trackpadVolumeVisible || tab === "remote")) {
-      requestAudioState();
-    }
-  }, [isTrackpadExpanded, requestAudioState, state, supportsVolumeControl, tab, trackpadSettings.showVolumeControl]);
-
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    const onChange = () => setSystemPrefersDark(mediaQuery.matches);
-    mediaQuery.addEventListener("change", onChange);
-    return () => mediaQuery.removeEventListener("change", onChange);
-  }, []);
-
-  useEffect(() => {
-    const onResize = () => setCanUseSplitMode(supportsSplitModeLayout(window.innerWidth, window.innerHeight));
-    onResize();
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-
-  useEffect(() => {
-    saveThemeMode(themeMode);
-    if (themeMode === "system") {
-      document.documentElement.removeAttribute("data-theme");
-    } else {
-      document.documentElement.dataset.theme = themeMode;
-    }
-
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", resolveTheme(themeMode, systemPrefersDark) === "dark" ? "#101418" : "#f6f8fa");
-  }, [systemPrefersDark, themeMode]);
-
-  useEffect(() => {
-    if (!supportsGestureDebug && tab === "debug") {
-      setTab("trackpad");
-    }
-  }, [supportsGestureDebug, tab]);
-
-  useEffect(() => {
-    if (!presentationAvailable && tab === "presentation") {
-      setTab("dictation");
-      setAreModeTabsCollapsed(false);
-      setIsModeSelectorOpen(false);
-    }
-  }, [presentationAvailable, tab]);
-
-  useEffect(() => {
-    if (tab === "debug") {
-      setAreModeTabsCollapsed(false);
-      setIsModeSelectorOpen(false);
-    }
-  }, [tab]);
-
-  useEffect(() => {
-    if (tab !== "remote") {
-      setIsRemoteUtilityPanelOpen(false);
-    }
-  }, [tab]);
-
-  const updateTrackpadSetting = <Key extends keyof TrackpadSettings>(key: Key, value: TrackpadSettings[Key]) => {
-    setTrackpadSettingsState((current) => ({
-      ...current,
-      settings: { ...current.settings, [key]: value }
-    }));
-
-    if (key === "pointerSpeed" && typeof value === "number") {
-      setHostPointerSpeed(value);
-    }
-
-    if (key === "hapticFeedback" && value === true) {
-      triggerHapticFeedback({ ...effectiveTrackpadSettings, hapticFeedback: true });
-    }
-  };
-
-  const updateKeyboardSetting = <Key extends keyof KeyboardSettings>(key: Key, value: KeyboardSettings[Key]) => {
-    setKeyboardSettings((current) => ({ ...current, [key]: value }));
-  };
 
   const launchRemoteAction = (action: RemoteLaunchAction) => {
-    if (supportsRemoteLaunch) {
-      emit({ type: "remote.launch", action });
+    if (supportsRemoteLaunch && state === "paired") {
+      send({ type: "remote.launch", action });
     }
   };
 
@@ -263,61 +97,70 @@ export function App() {
     }
   };
 
-  const updateRemoteSetting = <Key extends keyof RemoteSettings>(key: Key, value: RemoteSettings[Key]) => {
-    const nextSettings = { ...remoteSettings, [key]: value } as RemoteSettings;
-    if (key === "mode") {
-      if (value === "youtube" || value === "kodi") {
-        selectModeTab("remote");
-        setIsSettingsOpen(false);
-      }
-
-      if (value !== remoteSettings.mode) {
-        maybeLaunchRemoteMode(value, nextSettings);
-      }
-    }
-
-    setRemoteSettingsState((current) => ({
-      ...current,
-      isStored: true,
-      settings: { ...current.settings, [key]: value }
-    }));
-  };
-
-  const updateAppSetting = <Key extends keyof AppSettings>(key: Key, value: AppSettings[Key]) => {
-    setAppSettingsState((current) => ({
-      ...current,
-      settings: { ...current.settings, [key]: value }
-    }));
-  };
-
-  const toggleMute = () => {
-    if (!supportsVolumeControl) {
-      return;
-    }
-
-    emit({ type: "audio.mute.toggle" });
-  };
-
-  const setVolume = (volume: number) => {
-    if (!supportsVolumeControl) {
-      return;
-    }
-
-    const nextVolume = Math.max(0, Math.min(100, Math.round(volume)));
-    setDisplayedAudioState({
-      type: "audio.state",
-      volume: nextVolume,
-      muted: false
-    });
-    emit({ type: "audio.volume.set", volume: nextVolume });
-  };
-
-  const forgetPcAndSettings = (pcId: string) => {
-    clearTrackpadSettings(clientId, pcId);
-    clearRemoteSettings(clientId, pcId);
-    clearAppSettings(clientId, pcId);
-    forgetPc(pcId);
-  };
+  const {
+    activeModeTab,
+    canShowModeNavigation,
+    closeModeSelector,
+    closeTransientSurfaces,
+    isBottomModeNavigationVisible,
+    isModeSelectorOpen,
+    isSettingsOpen,
+    modeTabs,
+    openGestureDebug,
+    openSettings,
+    openToolFromMenu,
+    selectModeTab,
+    setIsRemoteUtilityPanelOpen,
+    setIsSettingsOpen,
+    shellClassName,
+    shouldShowSplitMode,
+    tab,
+    toggleModeSelector
+  } = useAppNavigation({
+    fourthMode: appSettings.fourthMode,
+    isPaired: state === "paired",
+    onEnterRemote: () => { maybeLaunchRemoteMode(remoteSettings.mode, remoteSettings); },
+    presentationAvailable,
+    supportsGestureDebug,
+    trackpadSettings
+  });
+  const {
+    forgetPcAndSettings,
+    updateAppSetting,
+    updateKeyboardSetting,
+    updateRemoteSetting,
+    updateTrackpadSetting
+  } = createSettingsActions({
+    clientId,
+    effectiveTrackpadSettings,
+    forgetPc,
+    onLaunchRemoteMode: maybeLaunchRemoteMode,
+    onOpenRemote: () => {
+      selectModeTab("remote");
+      setIsSettingsOpen(false);
+    },
+    remoteSettings,
+    setHostPointerSpeed,
+    settingsState: pcSettings
+  });
+  const { installApp, installPrompt, isInstalled, refreshInstalledApp, refreshMessage } = usePwaLifecycle({
+    activePc,
+    autoRefresh: appSettings.autoRefresh,
+    clientId,
+    hostStatus,
+    state
+  });
+  const {
+    confirmPendingPairing,
+    connectManualHost,
+    onPairingQrSelected,
+    pairingDeviceName,
+    pairingQrInputRef,
+    pairingScanMessage,
+    pendingPairing,
+    scanPairingQr,
+    setPairingDeviceName
+  } = usePairingController({ beginNewPairing, connectManualPc, deviceName, initialPairing, message, pairWithToken, setIsSettingsOpen, state });
 
   const mobileDiagnostics = useMemo(() => buildMobileDiagnostics({
     activePc,
@@ -329,135 +172,54 @@ export function App() {
     hostStatus
   }), [activePc, hostStatus, lastConnectionError?.code, lastConnectionError?.message, message, pairedPcs.length, state]);
 
-  const shouldShowSplitMode = canUseSplitMode && trackpadSettings.enableSplitMode && (tab === "trackpad" || tab === "keyboard");
-  const activeModeTab = tab === "debug" ? undefined : getModeDefinition(tab);
-  const ActiveModeIcon = activeModeTab?.Icon;
-  const canShowModeNavigation = state === "paired";
-  const isBottomModeNavigationVisible = canShowModeNavigation && !areModeTabsCollapsed && !isRemoteUtilityPanelOpen;
   const connectionPcName = state === "paired" && activePc ? getPcDisplayName(activePc) : message;
-
-  const selectModeTab = (nextTab: MainTab, source: "tabs" | "selector" = "tabs") => {
-    if (nextTab === "remote") {
-      maybeLaunchRemoteMode(remoteSettings.mode, remoteSettings);
-    }
-
-    if (tab === nextTab) {
-      setAreModeTabsCollapsed(source === "selector" ? false : true);
-      setIsModeSelectorOpen(false);
-      return;
-    }
-
-    setTab(nextTab);
-    setAreModeTabsCollapsed(false);
-    setIsModeSelectorOpen(false);
-  };
-
-  const openToolFromMenu = (tool: ToolAppTab) => {
-    if (tool === "presentation" && !presentationAvailable) {
-      return;
-    }
-
-    setTab(tool);
-    setAreModeTabsCollapsed(false);
-    setIsModeSelectorOpen(false);
-    setIsSettingsOpen(false);
-  };
 
   const tryManualReconnect = () => {
     if (!activePc) {
       return;
     }
 
-    setIsModeSelectorOpen(false);
-    setIsSettingsOpen(false);
+    closeTransientSurfaces();
     reconnectActivePc();
   };
 
-  const manualReconnectVisible = manualReconnectProgress !== undefined;
-
   return (
-    <main className={`app-shell ${isBottomModeNavigationVisible ? "has-mode-navigation" : ""} ${tab === "trackpad" ? "trackpad-active" : ""} ${tab === "remote" ? "remote-active" : ""} ${isRemoteUtilityPanelOpen ? "remote-utility-open" : ""} ${tab === "presentation" ? "presentation-active" : ""} ${tab === "text-transfer" ? "text-transfer-active" : ""} ${tab === "clipboard-read" ? "clipboard-read-active" : ""} ${shouldShowSplitMode ? "split-mode-active" : ""} ${shouldShowSplitMode && trackpadSettings.splitShowModeButtons ? "split-show-mode-buttons" : ""} ${shouldShowSplitMode && trackpadSettings.splitShowStatusRow ? "split-show-status-row" : ""} ${areModeTabsCollapsed ? "mode-tabs-collapsed" : ""} ${isModeSelectorOpen ? "mode-selector-open" : ""}`}>
-      <header className="top-bar">
-        <div className="brand-group">
-          <button className="icon-button" type="button" aria-label="Open menu" onClick={() => setIsSettingsOpen(true)}>
-            <Menu aria-hidden="true" />
-          </button>
-          <div {...developerBrandLongPress} className={`brand ${developerBrandLongPress.className}`}>
-            <MousePointer2 aria-hidden="true" />
-            <span>Voltura Air</span>
-          </div>
-          {canShowModeNavigation && ActiveModeIcon && activeModeTab && (
-            <button
-              className="compact-mode-button"
-              type="button"
-              aria-expanded={isModeSelectorOpen}
-              aria-haspopup="menu"
-              aria-label="Change mode"
-              title={`Change mode (${activeModeTab.label})`}
-              onClick={() => setIsModeSelectorOpen((current) => !current)}
-            >
-              <ActiveModeIcon aria-hidden="true" />
-              <ChevronDown aria-hidden="true" />
-            </button>
-          )}
-        </div>
-        <div className={`status ${state}`} title={message}>
-          <Circle aria-hidden="true" />
-          <span className="status-full">{message}</span>
-          <span className="status-compact">{connectionPcName}</span>
-        </div>
-      </header>
+    <main className={shellClassName}>
+      <AppHeader
+        activeMode={activeModeTab}
+        canShowModeNavigation={canShowModeNavigation}
+        connectionPcName={connectionPcName}
+        developerMode={developerMode}
+        isModeSelectorOpen={isModeSelectorOpen}
+        message={message}
+        modeTabs={modeTabs}
+        onCloseModeSelector={closeModeSelector}
+        onOpenSettings={openSettings}
+        onSelectMode={(nextTab) => { selectModeTab(nextTab, "selector"); }}
+        onToggleModeSelector={toggleModeSelector}
+        refreshInstalledApp={refreshInstalledApp}
+        state={state}
+        tab={tab}
+      />
 
-      {canShowModeNavigation && isModeSelectorOpen && (
-        <>
-          <button className="mode-selector-scrim" type="button" aria-label="Close mode selector" onClick={() => setIsModeSelectorOpen(false)} />
-          <div className="mode-selector-popover" role="menu" aria-label="Change mode">
-            {modeTabs.map(({ id, label, ariaLabel, Icon }) => (
-              <button key={id} role="menuitemradio" aria-checked={tab === id} aria-label={ariaLabel} className={tab === id ? "active" : ""} onClick={() => selectModeTab(id, "selector")}>
-                <Icon aria-hidden="true" />
-                <span>{label}</span>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
+      {isSettingsOpen && <button className="drawer-scrim" type="button" aria-label="Close menu" onClick={() => { setIsSettingsOpen(false); }} />}
 
-      {isSettingsOpen && <button className="drawer-scrim" type="button" aria-label="Close menu" onClick={() => setIsSettingsOpen(false)} />}
-
-      {state === "needs-pairing" && !isSettingsOpen && (
-        <PairingStatus
-          diagnostics={mobileDiagnostics}
-          deviceName={pendingPairing ? pairingDeviceName : undefined}
-          message={pendingPairing ? "Confirm the device name shown on the PC, or change it before pairing." : pairingScanMessage}
-          onDeviceNameChange={pendingPairing ? setPairingDeviceName : undefined}
-          onPrimaryAction={pendingPairing ? confirmPendingPairing : scanPairingQr}
-          onManualHostSubmit={connectManualHost}
-          primaryLabel={pendingPairing ? "Pair" : undefined}
-        />
-      )}
-
-      {state === "rejected" && !isSettingsOpen && <PairingStatus diagnostics={mobileDiagnostics} message={message} onPrimaryAction={scanPairingQr} onManualHostSubmit={connectManualHost} primaryLabel="Take photo of new QR code" />}
-
-      {manualReconnectVisible && activePc && !isSettingsOpen && (
-        <PairingStatus
-          activePcUnavailable
-          connectionProgress={manualReconnectProgress}
-          message={message}
-          onPrimaryAction={tryManualReconnect}
-          pcName={getPcDisplayName(activePc)}
-        />
-      )}
-
-      {state === "unavailable" && activePc && !isSettingsOpen && !manualReconnectVisible && (
-        <PairingStatus
-          activePcUnavailable
-          diagnostics={mobileDiagnostics}
-          message={message}
-          onPrimaryAction={tryManualReconnect}
-          onSecondaryAction={scanPairingQr}
-          onManualHostSubmit={connectManualHost}
-        />
-      )}
+      <PairingGate
+        activePc={activePc}
+        connectManualHost={connectManualHost}
+        confirmPendingPairing={confirmPendingPairing}
+        diagnostics={mobileDiagnostics}
+        isSettingsOpen={isSettingsOpen}
+        manualReconnectProgress={manualReconnectProgress}
+        message={message}
+        pairingDeviceName={pairingDeviceName}
+        pairingScanMessage={pairingScanMessage}
+        pendingPairing={pendingPairing !== null}
+        scanPairingQr={scanPairingQr}
+        setPairingDeviceName={setPairingDeviceName}
+        state={state}
+        tryManualReconnect={tryManualReconnect}
+      />
 
       <SettingsDrawer
         activePc={activePc}
@@ -472,12 +234,8 @@ export function App() {
         isInstalled={isInstalled}
         isOpen={isSettingsOpen}
         keyboardSettings={keyboardSettings}
-        onClose={() => setIsSettingsOpen(false)}
-        onOpenGestureDebug={supportsGestureDebug ? () => {
-          setTab("debug");
-          setAreModeTabsCollapsed(false);
-          setIsSettingsOpen(false);
-        } : undefined}
+        onClose={() => { setIsSettingsOpen(false); }}
+        onOpenGestureDebug={supportsGestureDebug ? openGestureDebug : undefined}
         onOpenTool={openToolFromMenu}
         onPairingQrSelected={onPairingQrSelected}
         onManualHostSubmit={connectManualHost}
@@ -504,172 +262,41 @@ export function App() {
         updateTrackpadSetting={updateTrackpadSetting}
       />
 
-      {canShowModeNavigation && <ModeTabs className="tabs top-mode-tabs" modeTabs={modeTabs} tab={tab} selectModeTab={selectModeTab} />}
+      {canShowModeNavigation && <ModeNavigation className="tabs top-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTab} />}
 
-      <AppModeContent
-        tab={tab}
+      <ModeWorkspace
+        appSettings={appSettings}
+        connection={connection}
+        keyboardSettings={keyboardSettings}
+        onClearAfterSendingChange={(value) => { updateAppSetting("clearTextAfterSending", value); }}
+        onRemoteUtilityPanelOpenChange={setIsRemoteUtilityPanelOpen}
+        remoteSettings={remoteSettings}
         shouldShowSplitMode={shouldShowSplitMode}
-        supportsGestureDebug={supportsGestureDebug}
-        trackpadMode={{
-          audioState: displayedAudioState,
-          isExpanded: isTrackpadExpanded,
-          onMouseButtonDown: (button) => {
-            triggerHapticFeedback(effectiveTrackpadSettings);
-            emit({ type: "pointer.button", button, action: "down" });
-          },
-          onMouseButtonUp: (button) => emit({ type: "pointer.button", button, action: "up" }),
-          onSetVolume: setVolume,
-          onToggleExpanded: () => setIsTrackpadExpanded((current) => !current),
-          onToggleMute: toggleMute,
-          onTouchCancel,
-          onTouchEnd,
-          onTouchMove,
-          onTouchStart,
-          supportsVolumeControl,
-          trackpadSettings: effectiveTrackpadSettings
-        }}
-        keyboardMode={{
-          committedKeyboardTextRef,
-          isComposingRef,
-          keyboardText,
-          keyboardTextareaRef,
-          liveKeyboard,
-          onKeyboardTextChange,
-          onSleep: sleepPc,
-          placeLiveKeyboardCaret,
-          sendEmptyDelete,
-          sendSpecial,
-          sendText,
-          setKeyboardText,
-          setLiveTyping,
-          showArrowKeys: keyboardSettings.showArrowKeys,
-          showControlKeys: keyboardSettings.showControlKeys,
-          showFunctionKeys: keyboardSettings.showFunctionKeys,
-          showSleepButton: keyboardSettings.showSleepButton && supportsSleep,
-          toLiveKeyboardValue
-        }}
-        presentationMode={{
-          capability: presentationCapability,
-          connected: state === "paired",
-          pending: pendingPresentationCommand,
-          result: presentationResult,
-          onCommand: requestPresentationCommand,
-          onPowerAction: requestPowerAction
-        }}
-        remoteMode={{
-          appLaunchActions: hostStatus?.appLaunchActions ?? [],
-          audioState: displayedAudioState,
-          awakeControl: { awake: awakeCapability, awakeResult, onAwakeChange: requestAwakeChange, pendingAwakeChange },
-          isConnected: state === "paired",
-          onPointerButtonClick: (button) => emit({ type: "pointer.button", button, action: "click" }),
-          onPointerMove: (dx, dy) => emit({ type: "pointer.move", dx, dy }),
-          onPowerAction: requestPowerAction,
-          onAppLaunch: requestAppLaunch,
-          onUrlOpen: requestUrlOpen,
-          pendingAppLaunchId,
-          pendingUrlOpen,
-          pendingPowerAction,
-          powerActionResult,
-          powerCapabilities,
-          urlOpenCapability,
-          urlOpenResult,
-          remoteSettings,
-          onUtilityPanelOpenChange: setIsRemoteUtilityPanelOpen,
-          sendSpecial
-        }}
-        dictationMode={{ canUseSpeech, dictationText, isListening, sendText, setDictationText, startSpeech, stopSpeech }}
-        textTransferMode={{
-          clearAfterSending: appSettings.clearTextAfterSending,
-          clientId,
-          draft: textTransferDraft,
-          leftHandedButtons: effectiveTrackpadSettings.leftHandedButtons,
-          onClearAfterSendingChange: (value) => updateAppSetting("clearTextAfterSending", value),
-          onDraftChange: setTextTransferDraft,
-          onPointerButtonClick: (button) => emit({ type: "pointer.button", button, action: "click" }),
-          onTouchCancel,
-          onTouchEnd,
-          onTouchMove,
-          onTouchStart,
-          pending: pendingTextTransfer,
-          requestTextTransfer,
-          result: textTransferResult,
-          supported: supportsTextTransfer,
-          target: hostStatus?.textTransferTarget
-        }}
-        clipboardReadMode={{
-          clientId,
-          permission: clipboardReadPermission,
-          pending: pendingClipboardRead,
-          result: clipboardReadResult,
-          text: clipboardText,
-          onGetText: requestClipboardRead,
-          onLoadSnippet: (snippet) => setClipboardText(snippet.text)
-        }}
-        gestureDebugMode={{ trackpadSettings: effectiveTrackpadSettings }}
+        showVolumeControl={trackpadSettings.showVolumeControl}
+        tab={tab}
+        trackpadSettings={effectiveTrackpadSettings}
       />
 
-      {isBottomModeNavigationVisible && <ModeTabs className="tabs bottom-mode-tabs" modeTabs={modeTabs} tab={tab} selectModeTab={selectModeTab} />}
+      {isBottomModeNavigationVisible && <ModeNavigation className="tabs bottom-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTab} />}
 
       {inputBlockedByElevation && (
-        isInputRecoveryDialogDismissed ? (
-          <button
-            type="button"
-            className="input-recovery-toast"
-            onClick={() => setIsInputRecoveryDialogDismissed(false)}
-            aria-label="PC input paused. Open recovery options."
-          >
-            <strong>PC input paused</strong>
-            <span>Show options</span>
-          </button>
-        ) : (
-          <section className="input-recovery-dialog" role="dialog" aria-labelledby="input-recovery-dialog-title">
-            <h2 id="input-recovery-dialog-title">Administrator app active</h2>
-            <p>Pointer control is unavailable. Other controls remain available.</p>
-            <div className="input-recovery-dialog-actions">
-              <button type="button" className="primary" onClick={() => send({ type: "keyboard.special", key: "D", modifiers: ["Win"] })}>Show desktop</button>
-              <button type="button" onClick={() => setIsInputRecoveryDialogDismissed(true)}>Continue</button>
-            </div>
-          </section>
-        )
+        <InputRecoveryNotice
+          dismissed={isInputRecoveryDialogDismissed}
+          onDismiss={() => { setInputRecoveryDialog((current) => ({ ...current, dismissed: true })); }}
+          onOpen={() => { setInputRecoveryDialog((current) => ({ ...current, dismissed: false })); }}
+          onShowDesktop={() => { send({ type: "keyboard.special", key: "D", modifiers: ["Win"] }); }}
+        />
       )}
 
-      {pendingAppLaunchId !== null && (
-        <div className="app-toast pending" role="status">Waiting for the PC to respond…</div>
-      )}
-      {pendingAppLaunchId === null && appLaunchResult && (
-        <div className={`app-toast ${appLaunchResult.succeeded ? "success" : "error"}`} role={appLaunchResult.succeeded ? "status" : "alert"}>
-          {appLaunchResult.message}
-        </div>
-      )}
-      {tab !== "text-transfer" && pendingTextTransfer && (
-        <div className="app-toast pending" role="status">Waiting for the PC to send text…</div>
-      )}
-      {tab !== "text-transfer" && !pendingTextTransfer && textTransferResult && (
-        <div className={`app-toast ${textTransferResult.succeeded ? "success" : "error"}`} role={textTransferResult.succeeded ? "status" : "alert"}>
-          {textTransferResult.message}
-        </div>
-      )}
-      {pendingClipboardRead && (
-        <div className="app-toast pending" role="status">Getting text from PC…</div>
-      )}
-      {!pendingClipboardRead && clipboardReadResult?.succeeded && (
-        <div className={`app-toast ${clipboardReadResult.succeeded ? "success" : "error"}`} role={clipboardReadResult.succeeded ? "status" : "alert"}>
-          {clipboardReadResult.message}
-        </div>
-      )}
+      <GlobalOperationFeedback
+        appLaunchResult={appLaunchResult}
+        clipboardReadResult={clipboardReadResult}
+        pendingAppLaunchId={pendingAppLaunchId}
+        pendingClipboardRead={pendingClipboardRead}
+        pendingTextTransfer={pendingTextTransfer}
+        tab={tab}
+        textTransferResult={textTransferResult}
+      />
     </main>
-  );
-}
-
-function ModeTabs({ className, modeTabs, tab, selectModeTab }: { className: string; modeTabs: ReturnType<typeof getModeTabs>; tab: Tab; selectModeTab: (nextTab: MainTab) => void }) {
-  return (
-    <nav className={className} aria-label="Mode">
-      {modeTabs.map(({ id, label, ariaLabel, Icon }) => (
-        <button key={id} aria-label={ariaLabel} aria-selected={tab === id} className={tab === id ? "active" : ""} onClick={() => selectModeTab(id)}>
-          <Icon aria-hidden="true" />
-          <span>{label}</span>
-        </button>
-      ))}
-    </nav>
   );
 }

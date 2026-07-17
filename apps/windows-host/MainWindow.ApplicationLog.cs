@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
+using VolturaAir.Host.Ui;
 using ComboBox = System.Windows.Controls.ComboBox;
 using Control = System.Windows.Controls.Control;
 using Brush = System.Windows.Media.Brush;
@@ -13,15 +14,16 @@ public partial class MainWindow
 {
     private Grid CreateApplicationLogViewer()
     {
-        var root = new Grid { Margin = new Thickness(0, 4, 0, 0) };
+        var root = new Grid();
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(UiTokens.SpaceMd) });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(UiTokens.SpaceMd) });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        var controls = new StackPanel();
+        var controls = CreateVerticalStack(UiTokens.SpaceMd);
         controls.Children.Add(CreateSectionHeading("Application log"));
         controls.Children.Add(CreateMutedText("Filter the newest 250 sanitized remote-command and Windows-host activity entries."));
         var loggingToggle = CreateCheckBox("Write application log", AppLoggingSettings.IsEnabled());
-        loggingToggle.Margin = new Thickness(0, 8, 0, 8);
         controls.Children.Add(loggingToggle);
 
         var today = DateTime.Today;
@@ -38,7 +40,7 @@ public partial class MainWindow
             ("Windows host", "windows_host"));
         var actionFilter = CreateLogFilter(("All actions", null));
 
-        var filters = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) };
+        var filters = CreateWrap(UiTokens.SpaceSm, UiTokens.SpaceSm);
         filters.Children.Add(CreateLogFilterField("Date range", dateRange));
         filters.Children.Add(CreateLogFilterField("Event", eventFilter));
         filters.Children.Add(CreateLogFilterField("Source", sourceFilter));
@@ -46,7 +48,6 @@ public partial class MainWindow
         controls.Children.Add(filters);
 
         var status = CreateMutedText(string.Empty);
-        status.Margin = new Thickness(0);
         var statusCard = new Border
         {
             Background = (Brush)Resources["SurfaceBrush"],
@@ -54,12 +55,11 @@ public partial class MainWindow
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(12),
-            Margin = new Thickness(0, 0, 0, 12),
             Child = status
         };
         controls.Children.Add(statusCard);
         root.Children.Add(controls);
-        var logRows = new StackPanel();
+        var logRows = CreateVerticalStack(UiTokens.SpaceSm);
         var logScroller = new ScrollViewer
         {
             MinHeight = 100,
@@ -76,7 +76,7 @@ public partial class MainWindow
             Padding = new Thickness(8),
             Child = logScroller
         };
-        Grid.SetRow(logFrame, 1);
+        Grid.SetRow(logFrame, 2);
         root.Children.Add(logFrame);
 
         var visibleText = string.Empty;
@@ -242,13 +242,13 @@ public partial class MainWindow
                 }
             }
         };
-        clearFilters.Margin = new Thickness(0, 19, 0, 8);
+        clearFilters.VerticalAlignment = VerticalAlignment.Bottom;
         clearFilters.FocusVisualStyle = null;
         clearFilters.ToolTip = "Clear filters";
         AutomationProperties.SetName(clearFilters, "Clear filters");
         filters.Children.Add(clearFilters);
 
-        var actions = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
+        var actions = CreateWrap(UiTokens.SpaceSm, UiTokens.SpaceSm);
         actions.Children.Add(CreateButton("Refresh", (_, _) => RefreshLog()));
         actions.Children.Add(CreateButton("Copy filtered log", (_, _) =>
         {
@@ -263,7 +263,6 @@ public partial class MainWindow
         actions.Children.Add(CreateButton("Open log folder", (_, _) => OpenApplicationLogFolder()));
         actions.Children.Add(CreateButton("Delete logs", (_, _) => DeleteApplicationLogs(RefreshLog), danger: true));
         var automaticRefresh = CreateCheckBox("Automatic log refresh", isChecked: false);
-        automaticRefresh.Margin = new Thickness(8, 0, 0, 0);
         automaticRefresh.VerticalAlignment = VerticalAlignment.Center;
         actions.Children.Add(automaticRefresh);
 
@@ -313,7 +312,7 @@ public partial class MainWindow
 
             StateChanged -= OnWindowStateChanged;
         };
-        Grid.SetRow(actions, 2);
+        Grid.SetRow(actions, 4);
         root.Children.Add(actions);
 
         RefreshLog();
@@ -333,16 +332,15 @@ public partial class MainWindow
         return combo;
     }
 
-    private StackPanel CreateLogFilterField(string label, Control control)
+    private SpacingStackPanel CreateLogFilterField(string label, Control control)
     {
-        var field = new StackPanel { Margin = new Thickness(0, 0, 10, 8) };
+        var field = CreateVerticalStack(UiTokens.SpaceXs);
         field.Children.Add(new TextBlock
         {
             Text = label,
             FontSize = 11,
             FontWeight = FontWeights.SemiBold,
-            Foreground = (Brush)Resources["MutedTextBrush"],
-            Margin = new Thickness(0, 0, 0, 4)
+            Foreground = (Brush)Resources["MutedTextBrush"]
         });
         field.Children.Add(control);
         return field;

@@ -9,22 +9,22 @@ describe("useAwakeControl", () => {
     const send = vi.fn();
     const { result } = renderHook(() => useAwakeControl("paired", send));
 
-    act(() => result.current.requestAwakeChange(true));
+    act(() => { result.current.requestAwakeChange(true); });
     expect(send).toHaveBeenCalledExactlyOnceWith({ type: "awake.set", enabled: true });
     expect(result.current.pendingAwakeChange).toBe(true);
 
-    act(() => result.current.completeAwakeChange({ type: "awake.result", enabled: true, succeeded: true, message: "Enabled" }));
+    act(() => { result.current.completeAwakeChange({ type: "awake.result", enabled: true, succeeded: true, message: "Enabled" }); });
     expect(result.current.pendingAwakeChange).toBeNull();
     expect(result.current.awakeResult?.succeeded).toBe(true);
   });
 
-  it("reports a timeout without sending a duplicate", () => {
+  it("reports a timeout without sending a duplicate", async () => {
     vi.useFakeTimers();
     const send = vi.fn();
     const { result } = renderHook(() => useAwakeControl("paired", send));
 
-    act(() => result.current.requestAwakeChange(false));
-    act(() => vi.advanceTimersByTime(5000));
+    act(() => { result.current.requestAwakeChange(false); });
+    await act(() => vi.advanceTimersByTime(5000));
 
     expect(send).toHaveBeenCalledTimes(1);
     expect(result.current.pendingAwakeChange).toBeNull();

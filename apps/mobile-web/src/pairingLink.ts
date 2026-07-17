@@ -1,7 +1,7 @@
-export type PairingLink = {
+export interface PairingLink {
   pairToken: string;
   pcUrl: string;
-};
+}
 
 export function parsePairingLink(source: string, fallbackPcUrl: string): PairingLink | null {
   const trimmedSource = source.trim();

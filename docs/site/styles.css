@@ -258,7 +258,7 @@ figcaption {
 
 .screen-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 18px;
 }
 
@@ -281,23 +281,11 @@ figcaption {
 }
 
 .screen-card.wide {
-  grid-column: span 3;
+  grid-column: span 6;
 }
 
 .screen-card.phone {
   grid-column: span 2;
-}
-
-.screen-card.phone-landscape {
-  grid-column: span 3;
-}
-
-.screen-card.tablet {
-  grid-column: span 3;
-}
-
-.screen-card.split-view {
-  grid-column: span 6;
 }
 
 figcaption {
@@ -401,13 +389,6 @@ footer a:hover {
     display: grid;
   }
 
-  .screen-card.wide,
-  .screen-card.phone,
-  .screen-card.phone-landscape,
-  .screen-card.tablet,
-  .screen-card.split-view {
-    grid-column: span 6;
-  }
 }
 
 @media (max-width: 560px) {
@@ -445,6 +426,14 @@ footer a:hover {
 
   .screen-grid {
     gap: 24px;
+  }
+
+  .screen-card.wide {
+    grid-column: span 8;
+  }
+
+  .screen-card.phone {
+    grid-column: span 4;
   }
 
   footer {

@@ -1,48 +1,48 @@
 import type { RemoteModeId } from "./remoteSettings";
 
-export type PairHelloMessage = {
+export interface PairHelloMessage {
   type: "pair.hello";
   clientId: string;
   deviceName: string;
   platform?: string;
   browser?: string;
   displayMode?: "browser" | "installed" | "unknown";
-  pairToken?: string;
-  secret?: string;
-};
+  pairToken?: string | undefined;
+  secret?: string | undefined;
+}
 
-export type PairDisconnectMessage = {
+export interface PairDisconnectMessage {
   type: "pair.disconnect";
-};
+}
 
-export type DeviceRenameMessage = {
+export interface DeviceRenameMessage {
   type: "device.rename";
   deviceName: string;
-};
+}
 
-export type HealthPingMessage = {
+export interface HealthPingMessage {
   type: "health.ping";
-};
+}
 
-export type StatusGetMessage = {
+export interface StatusGetMessage {
   type: "status.get";
-};
+}
 
-export type PointerSpeedSetMessage = {
+export interface PointerSpeedSetMessage {
   type: "pointer.speed.set";
   pointerSpeed: number;
-};
+}
 
-export type CustomPointerSetMessage = {
+export interface CustomPointerSetMessage {
   type: "custom.pointer.set";
   enabled: boolean;
-};
+}
 
-export type AudioGetMessage = {
+export interface AudioGetMessage {
   type: "audio.get";
-};
+}
 
-export type ServerCapabilities = {
+export interface ServerCapabilities {
   awake?: AwakeCapability;
   gestureDebug?: boolean;
   inputAck?: boolean;
@@ -54,32 +54,32 @@ export type ServerCapabilities = {
   sleep?: boolean;
   textTransfer?: boolean;
   volume?: boolean;
-};
+}
 
-export type PresentationCapability = {
+export interface PresentationCapability {
   canControl: boolean;
-};
+}
 
-export type UrlOpenCapability = {
+export interface UrlOpenCapability {
   canOpen: boolean;
-};
+}
 
-export type TextTransferTarget = {
+export interface TextTransferTarget {
   mode: "focused" | "configured" | "clipboard";
   displayName: string;
   available: boolean;
-};
+}
 
-export type AwakeCapability = {
+export interface AwakeCapability {
   canControl: boolean;
   active: boolean;
   mode: "off" | "indefinite" | "timed" | "expiration";
-  expiresAt?: string | null;
-};
+  expiresAt?: string | null | undefined;
+}
 
-export type PowerCapabilities = {
+export interface PowerCapabilities {
   lock: boolean;
-  lockAvailability?: "notExplicitlyDisabled" | "disabledByPolicy" | "unavailable";
+  lockAvailability?: "notExplicitlyDisabled" | "disabledByPolicy" | "unavailable" | undefined;
   blackoutDisplay: boolean;
   displayOff: boolean;
   screenSaver: boolean;
@@ -87,27 +87,27 @@ export type PowerCapabilities = {
   signOut: boolean;
   restart: boolean;
   shutdown: boolean;
-};
+}
 
-export type HostStatusMetadata = {
-  appLaunchActions?: AppLaunchActionSummary[];
-  defaultRemoteMode?: RemoteModeId;
-  developerMode?: boolean;
-  developerSessionId?: string;
-  hostVersion?: string;
-  webClientBuildId?: string;
-  pcName?: string;
-  pointerSpeed?: number;
-  customPointerEnabled?: boolean;
-  inputBlockedByElevation?: boolean;
-  selectedAdapterName?: string;
-  selectedIp?: string;
-  selectedPort?: number;
-  textTransferTarget?: TextTransferTarget;
-  webSocketUrl?: string;
-};
+export interface HostStatusMetadata {
+  appLaunchActions?: AppLaunchActionSummary[] | undefined;
+  defaultRemoteMode?: RemoteModeId | undefined;
+  developerMode?: boolean | undefined;
+  developerSessionId?: string | undefined;
+  hostVersion?: string | undefined;
+  webClientBuildId?: string | undefined;
+  pcName?: string | undefined;
+  pointerSpeed?: number | undefined;
+  customPointerEnabled?: boolean | undefined;
+  inputBlockedByElevation?: boolean | undefined;
+  selectedAdapterName?: string | undefined;
+  selectedIp?: string | undefined;
+  selectedPort?: number | undefined;
+  textTransferTarget?: TextTransferTarget | undefined;
+  webSocketUrl?: string | undefined;
+}
 
-export type PairAcceptedMessage = {
+export interface PairAcceptedMessage {
   type: "pair.accepted";
   clientId: string;
   pcName: string;
@@ -115,7 +115,7 @@ export type PairAcceptedMessage = {
   paired: true;
   capabilities?: ServerCapabilities;
   host?: HostStatusMetadata;
-};
+}
 
 export type PairRejectionReason =
   | "pair-first"
@@ -130,93 +130,93 @@ export type PairRejectionReason =
   | "invalid-message"
   | (string & {});
 
-export type PairRejectedMessage = {
+export interface PairRejectedMessage {
   type: "pair.rejected";
   reason: PairRejectionReason;
   diagnosticCode?: string;
-};
+}
 
-export type StatusMessage = {
+export interface StatusMessage {
   type: "status";
   connected: boolean;
   message?: string;
   pcName?: string;
   capabilities?: ServerCapabilities;
   host?: HostStatusMetadata;
-};
+}
 
-export type HealthPongMessage = {
+export interface HealthPongMessage {
   type: "health.pong";
-};
+}
 
-export type InputAckMessage = {
+export interface InputAckMessage {
   type: "input.ack";
   seq?: number;
-};
+}
 
-export type InputErrorMessage = {
+export interface InputErrorMessage {
   type: "input.error";
   seq?: number;
   code?: string;
   message: string;
-};
+}
 
-export type PointerMoveMessage = {
+export interface PointerMoveMessage {
   type: "pointer.move";
   seq?: number;
   dx: number;
   dy: number;
-};
+}
 
-export type PointerButtonMessage = {
+export interface PointerButtonMessage {
   type: "pointer.button";
   seq?: number;
   button: "left" | "right";
   action: "down" | "up" | "click";
-};
+}
 
-export type PointerWheelMessage = {
+export interface PointerWheelMessage {
   type: "pointer.wheel";
   seq?: number;
   dx: number;
   dy: number;
-};
+}
 
-export type PointerZoomMessage = {
+export interface PointerZoomMessage {
   type: "pointer.zoom";
   seq?: number;
   direction: "in" | "out";
-};
+}
 
-export type KeyboardTextMessage = {
+export interface KeyboardTextMessage {
   type: "keyboard.text";
   seq?: number;
   text: string;
-};
+}
 
-export type KeyboardSpecialMessage = {
+export interface KeyboardSpecialMessage {
   type: "keyboard.special";
   seq?: number;
   key: string;
-  modifiers?: string[];
-};
+  modifiers?: string[] | undefined;
+}
 
-export type SystemSleepMessage = {
+export interface SystemSleepMessage {
   type: "system.sleep";
-};
+}
 
 export type PresentationTarget = "powerpoint" | "google-slides" | "pdf";
 
 export type PresentationAction = "next" | "previous" | "start" | "end" | "black" | "pointer";
 
-export type PresentationCommandMessage = {
+export interface PresentationCommandMessage {
   type: "presentation.command";
   operationId: string;
   target: PresentationTarget;
   action: PresentationAction;
-};
+}
 
-export type PresentationCommandResultMessage = {
+export interface PresentationCommandResultMessage {
   type: "presentation.command.result";
   operationId: string;
   target: PresentationTarget;
@@ -224,123 +224,123 @@ export type PresentationCommandResultMessage = {
   succeeded: boolean;
   code?: string;
   message: string;
-};
+}
 
 export type AppLaunchActionKind = "browser" | "spotify" | "vlc" | "powerpoint" | "custom";
 
-export type AppLaunchActionSummary = {
+export interface AppLaunchActionSummary {
   id: string;
   label: string;
   kind: AppLaunchActionKind;
-};
+}
 
 export type SystemPowerAction = "lock" | "blackoutDisplay" | "displayOff" | "screenSaver" | "signOut" | "restart" | "shutdown";
 
-export type SystemPowerMessage = {
+export interface SystemPowerMessage {
   type: "system.power";
   action: SystemPowerAction;
-};
+}
 
-export type SystemPowerResultMessage = {
+export interface SystemPowerResultMessage {
   type: "system.power.result";
   action: string;
   succeeded: boolean;
   code?: string;
   message: string;
-};
+}
 
-export type AwakeSetMessage = {
+export interface AwakeSetMessage {
   type: "awake.set";
   enabled: boolean;
-};
+}
 
-export type AwakeResultMessage = {
+export interface AwakeResultMessage {
   type: "awake.result";
   enabled: boolean;
   succeeded: boolean;
   code?: string;
   message: string;
-};
+}
 
 export type RemoteLaunchAction = "openYoutube" | "startOrActivateKodi";
 
-export type RemoteLaunchMessage = {
+export interface RemoteLaunchMessage {
   type: "remote.launch";
   action: RemoteLaunchAction;
-};
+}
 
-export type AppLaunchMessage = {
+export interface AppLaunchMessage {
   type: "app.launch";
   actionId: string;
-};
+}
 
-export type AppLaunchResultMessage = {
+export interface AppLaunchResultMessage {
   type: "app.launch.result";
   actionId: string;
   succeeded: boolean;
   code?: string;
   message: string;
-};
+}
 
-export type UrlOpenMessage = {
+export interface UrlOpenMessage {
   type: "url.open";
   operationId: string;
   url: string;
-};
+}
 
-export type UrlOpenResultMessage = {
+export interface UrlOpenResultMessage {
   type: "url.open.result";
   operationId: string;
   succeeded: boolean;
   code?: string;
   message: string;
   normalizedUrl?: string | null;
-};
+}
 
-export type TextSendMessage = {
+export interface TextSendMessage {
   type: "text.send";
   operationId: string;
   text: string;
   sendEnter: boolean;
-};
+}
 
-export type TextSendResultMessage = {
+export interface TextSendResultMessage {
   type: "text.send.result";
   operationId: string;
   succeeded: boolean;
   code?: string;
   message: string;
   deliveryKind?: "typed" | "pasted" | "clipboard";
-};
+}
 
-export type ClipboardGetMessage = {
+export interface ClipboardGetMessage {
   type: "clipboard.get";
   operationId: string;
-};
+}
 
-export type ClipboardGetResultMessage = {
+export interface ClipboardGetResultMessage {
   type: "clipboard.get.result";
   operationId: string;
   succeeded: boolean;
   code?: string;
   message: string;
   text?: string | null;
-};
+}
 
-export type AudioMuteToggleMessage = {
+export interface AudioMuteToggleMessage {
   type: "audio.mute.toggle";
-};
+}
 
-export type AudioVolumeSetMessage = {
+export interface AudioVolumeSetMessage {
   type: "audio.volume.set";
   volume: number;
-};
+}
 
-export type AudioStateMessage = {
+export interface AudioStateMessage {
   type: "audio.state";
   volume: number;
   muted: boolean;
-};
+}
 
 export type ClientMessage =
   | PairHelloMessage

@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
+using VolturaAir.Host.Ui;
 using Button = System.Windows.Controls.Button;
 using CheckBox = System.Windows.Controls.CheckBox;
 using ListBox = System.Windows.Controls.ListBox;
@@ -42,14 +43,17 @@ public partial class MainWindow
     {
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 180 });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(UiTokens.SpaceMd) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(UiTokens.SpaceMd) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.2, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(UiTokens.SpaceMd) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         grid.Children.Add(CreateListCell("Device", device.Name, 0, strong: true, trim: true));
-        grid.Children.Add(CreateListCell("Status", device.Status, 1, trim: true));
-        var activity = CreateListCell("Activity", device.Activity, 2, trim: true);
-        var details = CreateListCell("Details", string.IsNullOrWhiteSpace(device.Metadata) ? "No metadata" : device.Metadata, 3, trim: true);
+        grid.Children.Add(CreateListCell("Status", device.Status, 2, trim: true));
+        var activity = CreateListCell("Activity", device.Activity, 4, trim: true);
+        var details = CreateListCell("Details", string.IsNullOrWhiteSpace(device.Metadata) ? "No metadata" : device.Metadata, 6, trim: true);
         grid.Children.Add(activity);
         grid.Children.Add(details);
 
@@ -64,9 +68,12 @@ public partial class MainWindow
         grid.ColumnDefinitions[0].Width = showFullRow
             ? new GridLength(1.5, GridUnitType.Star)
             : new GridLength(1, GridUnitType.Star);
-        grid.ColumnDefinitions[1].Width = new GridLength(150);
-        grid.ColumnDefinitions[2].Width = showFullRow ? new GridLength(1.2, GridUnitType.Star) : new GridLength(0);
-        grid.ColumnDefinitions[3].Width = showFullRow ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        grid.ColumnDefinitions[1].Width = new GridLength(UiTokens.SpaceMd);
+        grid.ColumnDefinitions[2].Width = new GridLength(150);
+        grid.ColumnDefinitions[3].Width = showFullRow ? new GridLength(UiTokens.SpaceMd) : new GridLength(0);
+        grid.ColumnDefinitions[4].Width = showFullRow ? new GridLength(1.2, GridUnitType.Star) : new GridLength(0);
+        grid.ColumnDefinitions[5].Width = showFullRow ? new GridLength(UiTokens.SpaceMd) : new GridLength(0);
+        grid.ColumnDefinitions[6].Width = showFullRow ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
 
         foreach (var cell in optionalCells)
         {
@@ -74,31 +81,19 @@ public partial class MainWindow
         }
     }
 
-    private Border CreateCandidateListRow(CandidateListItem candidate)
-    {
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2.5, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        grid.Children.Add(CreateListCell("Adapter", candidate.Adapter, 0, strong: true));
-        grid.Children.Add(CreateListCell("Address", candidate.Address, 1, monospace: true));
-        grid.Children.Add(CreateListCell("Status", string.IsNullOrWhiteSpace(candidate.Status) ? "Available" : candidate.Status, 2));
-        return CreateListRowShell(grid);
-    }
-
     private Border CreateDiagnosticRow(DiagnosticItem detail)
     {
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(UiTokens.SpaceMd) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(UiTokens.SpaceMd) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         grid.Children.Add(CreateDiagnosticCell(detail.Name, 0, strong: true));
-        grid.Children.Add(CreateDiagnosticCell(detail.Value, 1, monospace: true));
+        grid.Children.Add(CreateDiagnosticCell(detail.Value, 2, monospace: true));
         var copy = CreateButton("Copy", (_, _) => CopyToClipboard($"{detail.Name}: {detail.Value}", "Copied"));
-        copy.Margin = new Thickness(12, 4, 0, 4);
-        Grid.SetColumn(copy, 2);
+        Grid.SetColumn(copy, 4);
         grid.Children.Add(copy);
         return new Border
         {
@@ -107,20 +102,21 @@ public partial class MainWindow
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(10, 8, 10, 8),
-            Margin = new Thickness(0, 0, 0, 8),
             Child = grid
         };
     }
 
     private Grid CreateDiagnosticsHeaderRow()
     {
-        var grid = new Grid { Margin = new Thickness(10, 0, 10, 6) };
+        var grid = new Grid { Margin = new Thickness(UiTokens.SpaceSm, 0, UiTokens.SpaceSm, 0) };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(UiTokens.SpaceMd) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(UiTokens.SpaceMd) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         grid.Children.Add(CreateDiagnosticsColumnHeader("Name", 0));
-        grid.Children.Add(CreateDiagnosticsColumnHeader("Value", 1));
+        grid.Children.Add(CreateDiagnosticsColumnHeader("Value", 2));
         return grid;
     }
 
@@ -131,8 +127,7 @@ public partial class MainWindow
             Text = text,
             FontSize = 11,
             FontWeight = FontWeights.SemiBold,
-            Foreground = (Brush)Resources["MutedTextBrush"],
-            Margin = new Thickness(0, 0, 14, 0)
+            Foreground = (Brush)Resources["MutedTextBrush"]
         };
         Grid.SetColumn(header, column);
         return header;
@@ -143,7 +138,6 @@ public partial class MainWindow
         var cell = new TextBlock
         {
             Text = value,
-            Margin = new Thickness(0, 4, 14, 4),
             TextWrapping = TextWrapping.Wrap,
             FontSize = 13,
             FontWeight = strong ? FontWeights.Bold : FontWeights.Normal,
@@ -154,9 +148,9 @@ public partial class MainWindow
         return cell;
     }
 
-    private StackPanel CreateListCell(string label, string value, int column, bool strong = false, bool monospace = false, bool trim = false)
+    private SpacingStackPanel CreateListCell(string label, string value, int column, bool strong = false, bool monospace = false, bool trim = false)
     {
-        var stack = new StackPanel { Margin = new Thickness(0, 0, 14, 0) };
+        var stack = CreateVerticalStack(UiTokens.SpaceXs);
         stack.Children.Add(new TextBlock
         {
             Text = label,
@@ -169,7 +163,6 @@ public partial class MainWindow
         stack.Children.Add(new TextBlock
         {
             Text = value,
-            Margin = new Thickness(0, 4, 0, 0),
             TextWrapping = trim ? TextWrapping.NoWrap : TextWrapping.Wrap,
             TextTrimming = trim ? TextTrimming.CharacterEllipsis : TextTrimming.None,
             FontSize = 13,
@@ -204,13 +197,9 @@ public partial class MainWindow
         };
     }
 
-    private static StackPanel CreateSegmentRow(params ToggleButton[] buttons)
+    private static SpacingStackPanel CreateSegmentRow(params ToggleButton[] buttons)
     {
-        var row = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 12, 0, 12)
-        };
+        var row = CreateHorizontalStack(UiTokens.SpaceSm);
         foreach (var button in buttons)
         {
             row.Children.Add(button);
@@ -238,11 +227,35 @@ public partial class MainWindow
         }
     }
 
-    private StackPanel CreateSectionPanel()
+    private static SpacingStackPanel CreateVerticalStack(double spacing)
     {
-        return new StackPanel
+        return new SpacingStackPanel { Spacing = spacing };
+    }
+
+    private static SpacingStackPanel CreateHorizontalStack(double spacing)
+    {
+        return new SpacingStackPanel
         {
-            Background = (Brush)Resources["WindowBrush"]
+            Orientation = Orientation.Horizontal,
+            Spacing = spacing
+        };
+    }
+
+    private static SpacingWrapPanel CreateWrap(double horizontalSpacing, double verticalSpacing)
+    {
+        return new SpacingWrapPanel
+        {
+            HorizontalSpacing = horizontalSpacing,
+            VerticalSpacing = verticalSpacing
+        };
+    }
+
+    private SpacingStackPanel CreateSectionPanel(double spacing = UiTokens.SpaceMd)
+    {
+        return new SpacingStackPanel
+        {
+            Background = (Brush)Resources["WindowBrush"],
+            Spacing = spacing
         };
     }
 
@@ -253,8 +266,7 @@ public partial class MainWindow
             Text = text,
             FontSize = 17,
             FontWeight = FontWeights.Bold,
-            Foreground = (Brush)Resources["TextBrush"],
-            Margin = new Thickness(0, 0, 0, 8)
+            Foreground = (Brush)Resources["TextBrush"]
         };
     }
 
@@ -264,8 +276,7 @@ public partial class MainWindow
         {
             Text = text,
             TextWrapping = TextWrapping.Wrap,
-            Foreground = (Brush)Resources["MutedTextBrush"],
-            Margin = new Thickness(0, 0, 0, 10)
+            Foreground = (Brush)Resources["MutedTextBrush"]
         };
     }
 
@@ -275,49 +286,13 @@ public partial class MainWindow
         {
             Text = text,
             FontWeight = FontWeights.SemiBold,
-            Foreground = (Brush)Resources["TextBrush"],
-            Margin = new Thickness(0, 12, 0, 0)
+            Foreground = (Brush)Resources["TextBrush"]
         };
-    }
-
-    private StackPanel CreateDetailsDisclosure(string topic, params string[] paragraphs)
-    {
-        var details = new StackPanel();
-        foreach (var paragraph in paragraphs)
-        {
-            details.Children.Add(CreateMutedText(paragraph));
-        }
-
-        var detailsCard = new Border
-        {
-            Background = (Brush)Resources["SurfaceBrush"],
-            BorderBrush = (Brush)Resources["BorderBrush"],
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(12),
-            Margin = new Thickness(0, 8, 0, 12),
-            Visibility = Visibility.Collapsed,
-            Child = details
-        };
-
-        var toggle = CreateButton($"More about {topic}", (_, _) => { });
-        toggle.Click += (_, _) =>
-        {
-            var showDetails = detailsCard.Visibility != Visibility.Visible;
-            detailsCard.Visibility = showDetails ? Visibility.Visible : Visibility.Collapsed;
-            toggle.Content = showDetails ? $"Hide {topic} details" : $"More about {topic}";
-        };
-        toggle.HorizontalAlignment = HorizontalAlignment.Left;
-
-        var container = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
-        container.Children.Add(toggle);
-        container.Children.Add(detailsCard);
-        return container;
     }
 
     private Border CreateCardText(string title, string text, bool emphasize = false, bool monospace = false)
     {
-        var stack = new StackPanel();
+        var stack = CreateVerticalStack(UiTokens.SpaceXs);
         stack.Children.Add(new TextBlock
         {
             Text = title,
@@ -328,7 +303,6 @@ public partial class MainWindow
         stack.Children.Add(new TextBlock
         {
             Text = text,
-            Margin = new Thickness(0, 5, 0, 0),
             TextWrapping = TextWrapping.Wrap,
             FontSize = emphasize ? 18 : 13,
             FontWeight = emphasize ? FontWeights.Bold : FontWeights.Normal,
@@ -342,7 +316,6 @@ public partial class MainWindow
             BorderBrush = (Brush)Resources["BorderBrush"],
             BorderThickness = new Thickness(1),
             Padding = new Thickness(14),
-            Margin = new Thickness(0, 0, 0, 12),
             Child = stack
         };
     }
@@ -355,7 +328,6 @@ public partial class MainWindow
             BorderBrush = isError ? (Brush)Resources["DangerBrush"] : (Brush)Resources["AccentBrush"],
             BorderThickness = new Thickness(1),
             Padding = new Thickness(12),
-            Margin = new Thickness(0, 0, 0, 12),
             Child = new TextBlock
             {
                 Text = text,
@@ -370,9 +342,11 @@ public partial class MainWindow
         var button = new Button
         {
             Content = text,
-            Background = primary ? (Brush)Resources["AccentBrush"] : (Brush)Resources["SurfaceRaisedBrush"],
-            Foreground = primary ? (Brush)Resources["AccentTextBrush"] : danger ? (Brush)Resources["DangerBrush"] : (Brush)Resources["TextBrush"],
-            BorderBrush = primary ? (Brush)Resources["AccentBrush"] : (Brush)Resources["BorderBrush"]
+            Style = primary
+                ? (Style)Resources["PrimaryButtonStyle"]
+                : danger
+                    ? (Style)Resources["DangerButtonStyle"]
+                    : (Style)Resources[typeof(Button)]
         };
         button.Click += handler;
         return button;

@@ -1,0 +1,235 @@
+.clipboard-read-mode {
+  min-height: 0;
+  height: 100%;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 12px;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.clipboard-read-main {
+  min-width: 0;
+  min-height: 0;
+}
+
+.app-shell.clipboard-read-active > .app-toast {
+  top: calc(max(12px, env(safe-area-inset-top, 0px)) + 56px);
+  left: max(14px, calc(env(safe-area-inset-left, 0px) + 2px));
+}
+
+.clipboard-read-guidance {
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 10px 12px;
+}
+
+.clipboard-read-guidance.error {
+  border-color: var(--danger);
+}
+
+.clipboard-read-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+  justify-self: start;
+}
+
+.clipboard-read-button span {
+  white-space: normal;
+  text-align: center;
+}
+
+.clipboard-read-button svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.clipboard-read-text {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 4px;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  justify-self: stretch;
+  font-weight: 700;
+}
+
+.clipboard-read-text textarea {
+  grid-area: auto;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  justify-self: stretch;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text);
+  padding: 12px;
+  font: inherit;
+  line-height: 1.4;
+  appearance: none;
+  overflow-y: auto;
+}
+
+.clipboard-read-text textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+@media (height <= 820px) {
+  .clipboard-read-active .clipboard-read-guidance:not(.error) {
+    display: none;
+  }
+}
+
+@media (orientation: landscape) {
+  .app-shell.clipboard-read-active {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .app-shell.clipboard-read-active .top-mode-tabs {
+    display: none;
+  }
+
+  .clipboard-read-mode {
+    grid-template-rows: minmax(0, 1fr);
+    align-content: stretch;
+    min-height: 100%;
+    overflow: hidden;
+  }
+
+  .clipboard-read-main {
+    grid-column: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    height: 100%;
+    align-self: stretch;
+  }
+
+  .clipboard-read-main .clipboard-read-text {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+    margin-top: 8px;
+  }
+
+  .clipboard-read-actions {
+    max-width: 520px;
+  }
+
+  .clipboard-read-text textarea {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    resize: none;
+  }
+
+}
+
+@media (orientation: landscape) and (width >= 700px) {
+  .clipboard-read-mode {
+    grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.9fr);
+  }
+
+  .clipboard-read-mode:not(.snippets-visible) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .clipboard-read-mode > .saved-snippets {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: stretch;
+    max-height: 100%;
+    overflow-y: auto;
+    border-top: 0;
+    border-left: 1px solid var(--border);
+    padding: 0 0 0 14px;
+  }
+}
+
+@media (orientation: landscape) and (width <= 699px) {
+  .clipboard-read-mode.snippets-visible {
+    align-content: start;
+    overflow-y: auto;
+    grid-template-rows: auto auto;
+  }
+
+  .clipboard-read-mode.snippets-visible .clipboard-read-main {
+    height: auto;
+  }
+
+  .clipboard-read-mode.snippets-visible .clipboard-read-main .clipboard-read-text {
+    flex: 0 0 auto;
+  }
+
+  .clipboard-read-mode.snippets-visible .clipboard-read-text textarea {
+    height: 180px;
+    min-height: 120px;
+    max-height: 220px;
+  }
+}
+
+@media (orientation: portrait) {
+  .clipboard-read-mode {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    overflow: hidden;
+  }
+
+  .clipboard-read-main {
+    display: contents;
+  }
+
+  .clipboard-read-mode:not(.snippets-visible) .clipboard-read-text {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .clipboard-read-mode:not(.snippets-visible) .clipboard-read-main .clipboard-read-text textarea {
+    height: auto;
+    min-height: 0;
+    max-height: none;
+  }
+
+  .clipboard-read-mode.snippets-visible {
+    height: auto;
+    min-height: 100%;
+    overflow-y: auto;
+  }
+
+  .clipboard-read-mode.snippets-visible .clipboard-read-main .clipboard-read-text {
+    flex: 0 0 auto;
+    grid-template-rows: auto auto;
+    height: auto;
+  }
+
+  .clipboard-read-mode.snippets-visible > .saved-snippets {
+    flex: 0 0 auto;
+  }
+
+  .clipboard-read-mode.snippets-visible .clipboard-read-text textarea {
+    height: 240px;
+    min-height: 180px;
+    max-height: 300px;
+  }
+}
+
+@media (height <= 720px) {
+  .clipboard-read-active .clipboard-read-text > span {
+    display: none;
+  }
+}

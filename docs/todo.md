@@ -1,305 +1,59 @@
-# Voltura Air - Remaining roadmap
+# Voltura Air TODO
 
-Updated: 2026-07-16
-Scope: work not implemented on the current `voltura/voltura-air` `main` branch.
+Approved work is listed in execution order. Each checkbox is one coherent
+outcome. Current behavior is defined in
+[features.md](features.md), governing documents are listed in
+[README.md](README.md), and candidate directions are recorded in
+[ideas.md](ideas.md).
 
-This is a continuation-ready roadmap, not a feature wish list. Current
-capabilities belong in [features.md](features.md); move completed work there and
-remove it from this file. Prefer the earliest item that removes a real user
-friction point. Do not begin experimental work while a release-blocking
-connection, input, pairing, or recovery defect is open.
+## Order
 
-## How to use an item
+1. Release-blocking correctness, security, connection, input, data-loss,
+   recovery, and resource-lifetime defects take precedence.
+2. Complete P0 architecture and quality work.
+3. Complete P1 Presentation before evaluating another feature candidate.
+4. Finish each item with implementation, obsolete-path removal, aligned
+   documentation, focused acceptance coverage, and the proportionate quality
+   gate. Remove completed items from this file.
 
-Before starting an item, turn its deliverables, decision gates, and validation
-requirements into one focused issue. Preserve the stated boundaries unless a
-product decision explicitly changes them. New protocol, native, filesystem, or
-network work must also satisfy the acceptance-path test gate in the repository
-`AGENTS.md`.
+## P0 - Architecture and quality
 
-- `[ ]` Open work.
-- `Decision gate:` a question that must be answered before implementation.
-- `Optional verification:` useful manual coverage; it is not a release gate by
-  itself.
+- [ ] **Complete the mobile target structure.** Move remaining root foundation
+  modules and the `connection`, `input`, `pairing`, `pwa`, and `settings`
+  ownership into `foundation/<domain>`. Keep `app` as composition,
+  `features/<capability>` as vertical slices, and `ui` domain-neutral. Remove
+  superseded paths and enforce the target dependency direction.
+- [ ] **Complete UI-system conformance.** Bring React and WPF surfaces into
+  `ui-system.md` and `host-ui-guidelines.md`: shared tokens and primitives,
+  container-owned spacing, declarative composition, slice-local styles, clear
+  scroll/focus ownership, and verified adaptive and accessible states.
+- [ ] **Resolve ownership and lifecycle findings.** Review `npm run size:report`,
+  split mixed responsibilities, and record justified cohesive exceptions.
+  Inventory long-lived resources and their cleanup, close meaningful lifecycle
+  test gaps, and add measured performance or bundle guardrails where useful.
+- [ ] **Align documentation and automation.** Update target documents, scoped
+  instructions, linting, size reporting, build commands, and CI to match the
+  completed structure. Finish with a repository-wide contradiction,
+  stale-command, and documentation-map review.
 
----
+## P1 - Presentation
 
-## 1. Custom panels and device preferences
+- [ ] **Graduate Presentation from alpha.** Complete the existing PowerPoint,
+  Google Slides, and PDF/browser workflow across mobile UI, host commands,
+  protocol, permissions, accessibility, lifecycle, documentation, and
+  validation:
+  - one owned path for each fixed target/action, capability, result, and state;
+  - one in-flight acknowledged command, host-focus protection, permission
+    enforcement, and honest delivery feedback;
+  - complete portrait/landscape, theme, touch, keyboard, screen-reader,
+    reconnect, denied, timeout, failure, and unavailable states;
+  - deterministic timer/vibration cleanup with no inactive background work;
+  - production-path success, failure, disconnect, and retry coverage plus stated
+    real-app, Windows, browser, and device validation boundaries;
+  - removal of the alpha gate from capability, permission, discovery, and command
+    paths while retaining Presentation's permission and safety boundaries.
 
-### 1.1 Host-managed custom shortcut panels
+## Candidate promotion
 
-- [ ] Define a small host-owned panel model before building UI: panel ID, display
-  name, ordered buttons, opaque action ID, label, optional icon, and enabled
-  state. Mobile clients receive only renderable metadata and opaque IDs; no
-  command paths, arguments, or arbitrary script text leave the PC.
-- [ ] Add panel management in Windows Preferences and a responsive panel picker
-  in the mobile Remote experience.
-  - Start with a bounded number of panels/buttons and deterministic ordering.
-  - Support add, rename, reorder, disable, delete, reset, and a live mobile
-    refresh after save. Define what happens to a device viewing a panel while it
-    is edited or deleted.
-- [ ] Support these action types, each with explicit host validation and
-  capability/permission behaviour:
-  - [ ] **Keystroke:** one virtual key or modifier chord from an allowlisted
-    representation; no raw scan-code editor in the first version.
-  - [ ] **Key sequence:** a bounded ordered list with documented inter-key timing;
-    do not use it for long text entry.
-  - [ ] **Type text:** reviewed Unicode text delivered through the existing safe
-    input path, with a conservative length limit and no clipboard readback.
-  - [ ] **Open URL:** reuse the implemented URL validation, permission, and
-    launcher; do not create a second URL launcher.
-  - [ ] **Host-approved command:** reuse the existing opaque, host-configured
-    executable-launch action. This must remain an administrator-of-the-host
-    choice and show the current local warning on add/edit.
-- [ ] Ship built-in, editable presets only after the panel model exists:
-  - [ ] Media PC.
-  - [ ] Browser.
-  - [ ] Presentation.
-  - [ ] Developer.
-  - [ ] Swedish keyboard.
-  - Each preset needs a reviewed list of mappings, a safe reset/reapply path,
-    and a note that application-specific shortcuts can change upstream.
-- [ ] Add versioned JSON export/import for panel definitions only. Import must
-  preview changes, reject unknown action types and invalid IDs/URLs/lengths, and
-  never import executable paths, arguments, device secrets, pairing data, or
-  host permissions. Exported files must be safe to inspect and share.
-- [ ] Add acceptance tests covering a saved panel rendered on mobile, a button's
-  complete input/launch result path, removal while connected, invalid import,
-  denied action, and reset to defaults.
-
-Decision gate: decide whether panels are shared by all paired devices (the
-recommended initial model) or need per-device assignments. Do not add
-per-device panel editing until shared panels are proven insufficient.
-
-### 1.2 Remaining per-device preferences
-
-- [ ] Persist the last selected mobile mode per saved-PC/client profile locally,
-  then restore it only when the mode is still enabled and supported by the host.
-  Fall back predictably to Trackpad when it is not. Forgetting a PC removes this
-  preference with its profile.
-- [ ] Inventory candidate host-managed layout preferences before adding storage.
-  The initial candidates are assigned shortcut panels and a host default Remote
-  mode; panel layout, theme, keyboard rows, and split placement already belong
-  to the local browser profile unless a concrete shared-device need says
-  otherwise.
-- [ ] Add each approved preference to the settings schema, capability snapshot,
-  device UI, and tests for a clean profile, reconnect, reset, revoked device,
-  and host downgrade/unsupported capability behaviour.
-
----
-
-## 2. Public documentation and release trust
-
-### 2.1 Public site and README
-
-- [ ] Capture and publish a short, silent-captioned demo video or GIF sequence
-  from a disposable isolated test host. It must show QR pairing, cursor movement,
-  typing, Split mode, and Remote mode without visible pairing tokens, secrets,
-  personal files, notifications, or third-party copyrighted video.
-- [ ] Add a concise comparison table to the public site/README using verifiable,
-  non-marketing claims: local-network operation, account/cloud relay, supported
-  host OS, mobile installation model, and intended use. Name alternatives only
-  after checking their current documentation; do not imply endorsement or make
-  unverified security or latency claims.
-- [ ] Add an FAQ that answers the questions support will actually receive:
-  supported Windows and browser versions, same-network requirement, QR pairing
-  and reconnect, device removal, permissions, diagnostics, manual host entry,
-  unsigned-download warnings, and how to recover after a network or host change.
-- [ ] Convert the existing privacy/trust copy into a standalone privacy page
-  only if it needs legal contact, analytics/cookie disclosure, data-retention
-  detail, or information that cannot stay accurately concise on the product
-  page. Link it from the footer and keep it aligned with the current product.
-- [ ] Add a short README roadmap link to this file, labelled as planned work and
-  without promising dates.
-
-### 2.2 Release integrity and communication
-
-- [ ] Generate one `SHA256SUMS.txt` file from the final portable ZIP, default
-  installer, and full installer after packaging. Upload it to every GitHub
-  release alongside the assets and document a PowerShell verification command.
-  The workflow must fail if the manifest omits, duplicates, or mismatches an
-  uploaded asset.
-- [ ] Add a release-notes template with: highlights, fixed issues, upgrade or
-  compatibility notes, known limitations, security/privacy changes, asset names,
-  checksum instructions, unsigned/signed status, and a concise manual test
-  boundary. The workflow may use the template, but release notes still require
-  a human review.
-- [ ] Add a maintained known-limitations section to every release. Start from
-  facts already documented: Windows 11 host only, LAN-only use, no wake after
-  sleep/shutdown, no remote desktop/file sync, and unsigned assets until signing
-  is introduced. Do not use it to hide reproducible defects.
-- [ ] Design a Windows-host update notification that preserves the local-first
-  product promise: no automatic binary download, execution, or forced update in
-  the first version. Decide whether checking is manual, opt-in periodic, or
-  disabled by default; show the checked version, source, failure state, and an
-  explicit browser link to the official release.
-- [ ] Investigate code-signing as a documented decision, including certificate
-  type, organization identity checks, annual cost, private-key storage, CI
-  signing path, timestamping, renewal, revocation, and who owns the account.
-- [ ] When a signing process is approved, sign and timestamp the host EXE/DLL,
-  native cursor watchdog, both installers, and any distributed executable
-  payloads. Add packaging verification for every signed asset and update all
-  public unsigned-download wording in the same change.
-- [ ] Consider auto-update only after checksum publication, signed assets,
-  understandable update notification, rollback/failure behaviour, and a
-  privacy review are in place. A background downloader/updater is not an
-  acceptable substitute for these prerequisites.
-- [ ] Consider Microsoft Store distribution only after a written maintenance
-  owner, package/update path, signing requirements, Store policy review, and a
-  reason it benefits users beyond the existing release channel.
-
-### 2.3 Contribution intake
-
-- [ ] Replace the existing generic bug template with an issue form or structured
-  template that captures host version, mobile browser/device, connection method,
-  reproducible steps, expected/actual result, redacted diagnostics, and whether
-  the problem reproduces after reconnecting. Warn explicitly against sharing QR
-  tokens, reconnect secrets, or private network details.
-- [ ] Add a feature-request form that asks for the real workflow, current
-  workaround, affected device/browser, expected value, and why an existing mode
-  does not cover it. It must not imply a commitment to implement.
-- [ ] Add a connection-problem form that captures safe, redacted network and
-  pairing facts and routes suspected vulnerabilities to `SECURITY.md` instead of
-  public issues.
-- [ ] Add repository issue configuration linking users to discussions/support
-  documentation where applicable, then create and document the labels: `good
-  first issue`, `pairing`, `keyboard`, `trackpad`, `website`, `security`, and
-  `documentation`. Label creation is a GitHub repository setting and needs the
-  appropriate maintainer permission.
-
----
-
-## 3. Research-gated experiments
-
-Do not schedule these into a release milestone until the stated decision gate
-has a written outcome and a prototype proves the primary user path. All remain
-LAN-only unless a separate product decision changes the threat model.
-
-### 3.1 Wake-on-LAN
-
-- [ ] Resolve the fundamental sender problem before implementing UI: when the
-  target PC is asleep, the Windows host is not running, and a browser cannot
-  send raw UDP magic packets. Evaluate a router/NAS integration, a separately
-  installed always-on LAN relay, or a deliberately unsupported/manual setup.
-- [ ] If a viable sender exists, define a saved-PC profile containing a validated
-  MAC address, broadcast/unicast target, and optional relay configuration. Do
-  not expose the action unless the profile is complete and explicitly enabled.
-- [ ] Send the standard magic packet only after an explicit mobile confirmation;
-  report that packet dispatch is not proof the PC woke. Never claim Voltura Air
-  can wake every PC or recover its own network connection after sleep.
-- [ ] Document BIOS/UEFI, NIC driver, Ethernet/Wi-Fi, subnet/VLAN, router, and
-  Windows power-state prerequisites, plus a troubleshooting check list.
-
-Decision gate: choose an always-available sender that does not turn the normal
-host into a competing second host or introduce an internet relay. If none meets
-the privacy and maintenance bar, keep Wake-on-LAN out of the product.
-
-### 3.2 Screen preview
-
-- [ ] Produce a time-boxed technical design comparing Windows Graphics Capture
-  with other supported Windows capture APIs, including multi-monitor selection,
-  protected-content behaviour, cursor handling, GPU/CPU cost, encoder choice,
-  LAN bandwidth, latency, and browser decode support.
-- [ ] Decide explicitly between a user-requested still image, a low-FPS preview,
-  or a separate remote-desktop product. Start with the smallest option that has
-  a clear use case; do not promise interactive remote-desktop latency.
-- [ ] Require host-local opt-in for each capture session, a persistent visible
-  host/tray privacy indicator naming the captured display, a clear mobile stop
-  action, and automatic stop on disconnect/host exit. Never start capture merely
-  because a device reconnects.
-- [ ] Authenticate and authorize the preview separately, keep it LAN-only, bound
-  concurrent viewers, frame rate, resolution, memory, and bandwidth, and avoid
-  persisting frames. Add tests for denied capture, consent withdrawal,
-  disconnect cleanup, and capture API failure.
-
-### 3.3 Explicit phone-to-PC file send
-
-- [ ] Design a separate authenticated upload path; do not put arbitrary file
-  bytes into the current bounded WebSocket message protocol. Establish file-size,
-  total-storage, file-count, filename, timeout, cancellation, and cleanup limits
-  before UI work.
-- [ ] Start with one explicitly selected file from phone to a dedicated
-  user-visible download folder. The host must show a confirmation with safe file
-  name, size, and source device before finalizing it, use collision-safe names,
-  and never auto-open, execute, synchronize, or upload received files elsewhere.
-- [ ] Preserve Windows security provenance where feasible and explain that local
-  antivirus/Defender protection is not a guarantee. Reject dangerous path input
-  and write only beneath the configured folder.
-- [ ] Add primary-path tests for accepted upload, size/quota rejection,
-  cancellation, disconnect, write failure, malicious filenames/path traversal,
-  and cleanup of partial files. Document the limitations and supported browsers.
-
-### 3.4 Motion or air mouse
-
-- [ ] Research the current Device Orientation/Motion standards and current
-  Android, iOS/iPadOS, and desktop-browser requirements, including secure-context
-  and user-activation permission behaviour on Voltura Air's LAN origin.
-- [ ] Prototype only behind an experimental flag with a visible start/stop,
-  per-session permission request, dead zone, sensitivity, calibration, and a
-  reliable fallback to Trackpad. Do not collect, log, or transmit sensor data
-  while inactive.
-- [ ] Test calibration, orientation change, focus/background loss, permission
-  denial, disconnect, and high-motion input bounds. Keep the feature
-  experimental until it is comfortable and predictable across representative
-  supported devices.
-
-### 3.5 Gamepad mode
-
-- [ ] Investigate a basic touch-controller layout separately from Windows gamepad
-  injection. Browser buttons alone are not a virtual Xbox/DirectInput controller.
-- [ ] Compare Windows injection options, required drivers, signing/distribution,
-  anti-cheat and compatibility constraints, install/elevation impact, and
-  uninstall/recovery behaviour. Do not add a kernel driver or third-party input
-  dependency without an explicit product and security decision.
-- [ ] If a safe path is chosen, prototype one controller profile with bounded
-  input rates, disconnect-to-neutral cleanup, and a visible experimental label.
-  Do not claim gaming-grade latency, vibration, or broad game compatibility
-  before measured, reproducible validation.
-
-### 3.6 Native mobile apps
-
-- [ ] Record the exact PWA limitation first (for example a browser permission,
-  a missing platform API, installation/discovery friction, or a reliability
-  defect) and show why a standards-based web change cannot solve it.
-- [ ] Compare a thin wrapper with separate native clients for secure networking,
-  device APIs, distribution, update policy, privacy disclosures, accessibility,
-  test matrix, crash reporting, and long-term owner/cost.
-- [ ] Start native work only with a written maintenance commitment for both iOS
-  and Android or a deliberate decision to support one platform. Keep protocol,
-  pairing, permissions, and LAN-only trust guarantees consistent with the web
-  client.
-
----
-
-## Recommended continuation order
-
-1. Define and implement the shared **custom shortcut-panel** model; finish the
-   dependent per-device preference decisions afterward.
-2. Complete the low-risk public-trust work: FAQ/README roadmap link, structured
-   issue forms, release-note template, known limitations, and checksums.
-3. Make and record the code-signing decision; only then design the update
-   notification around the agreed distribution trust model.
-4. Treat each section 3 idea as an individual research issue, beginning with the
-   Wake-on-LAN sender decision rather than a misleading mobile button.
-
-## Suggested milestones
-
-### Milestone 1: Productive control
-
-- Shared custom shortcut panels and presets.
-- Last-mode restore and only the per-device preferences justified by the panel
-  design.
-
-### Milestone 2: Public trust and release hygiene
-
-- Demo asset, FAQ, accurate comparison copy, and README roadmap link.
-- Structured issue intake and maintained labels.
-- SHA256 manifest, release-note template, and known limitations on releases.
-- Written code-signing decision and, if approved, verified signing rollout.
-
-### Milestone 3: Evidence-led experiments
-
-- Completed decision/prototype documents for Wake-on-LAN, screen preview, file
-  send, motion input, gamepad injection, and native clients.
-- Only experiments whose privacy, maintenance, and primary-path validation gates
-  pass become separately scheduled features.
+An entry from [ideas.md](ideas.md) moves here after a product decision defines
+its outcome, priority, structural boundary, and validation expectations.

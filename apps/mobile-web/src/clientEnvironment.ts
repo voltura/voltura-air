@@ -8,6 +8,7 @@ export function isScreenshotMode(source: string): boolean {
       return ["1", "true", "yes"].includes(value.toLowerCase());
     }
   } catch {
+    // Ignore malformed launch URLs and use persisted mode instead.
   }
 
   return localStorage.getItem(screenshotModeKey) === "true";

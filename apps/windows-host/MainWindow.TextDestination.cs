@@ -1,10 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
-using Brush = System.Windows.Media.Brush;
 using ComboBox = System.Windows.Controls.ComboBox;
 using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
-using Orientation = System.Windows.Controls.Orientation;
 using TextBox = System.Windows.Controls.TextBox;
 
 namespace VolturaAir.Host;
@@ -16,7 +14,7 @@ public partial class MainWindow
         var settings = AppTextDestinationSettings.Load();
         parent.Children.Add(CreateMutedText("Choose where sent text goes. App paths and window details stay on this PC."));
         parent.Children.Add(CreateLabel("Default destination"));
-        var mode = new ComboBox { Width = 280, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 6, 0, 10) };
+        var mode = new ComboBox { Width = 280, HorizontalAlignment = HorizontalAlignment.Left };
         mode.SetResourceReference(FrameworkElement.StyleProperty, "ModernComboBoxStyle");
         mode.Items.Add(new ComboBoxItem { Content = "Currently focused application", Tag = TextDestinationMode.Focused });
         mode.Items.Add(new ComboBoxItem { Content = "Windows clipboard", Tag = TextDestinationMode.Clipboard });
@@ -26,19 +24,19 @@ public partial class MainWindow
 
         var destinationSummary = CreateMutedText(string.Empty);
         parent.Children.Add(destinationSummary);
-        var managedSettings = new StackPanel { Visibility = settings.Mode == TextDestinationMode.Managed ? Visibility.Visible : Visibility.Collapsed };
+        var managedSettings = CreateVerticalStack(UiTokens.SpaceMd);
+        managedSettings.Visibility = settings.Mode == TextDestinationMode.Managed ? Visibility.Visible : Visibility.Collapsed;
         parent.Children.Add(managedSettings);
         managedSettings.Children.Add(CreateLabel("Managed application"));
-        var preset = new ComboBox { Width = 280, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 6, 0, 10) };
+        var preset = new ComboBox { Width = 280, HorizontalAlignment = HorizontalAlignment.Left };
         preset.SetResourceReference(FrameworkElement.StyleProperty, "ModernComboBoxStyle");
         foreach (var value in Enum.GetValues<TextDestinationPreset>()) preset.Items.Add(new ComboBoxItem { Content = GetTextDestinationPresetName(value), Tag = value });
         preset.SelectedItem = preset.Items.OfType<ComboBoxItem>().First(item => Equals(item.Tag, settings.Preset));
         managedSettings.Children.Add(preset);
 
         var overrides = settings.ExecutableOverrides is null ? new Dictionary<TextDestinationPreset, string>() : new(settings.ExecutableOverrides);
-        var overrideSettings = new StackPanel();
+        var overrideSettings = CreateVerticalStack(UiTokens.SpaceSm);
         var overrideLabel = CreateLabel("Approved executable override");
-        overrideLabel.Margin = new Thickness(0, 16, 0, 8);
         overrideSettings.Children.Add(overrideLabel);
         var overridePath = new TextBox
         {
@@ -49,7 +47,7 @@ public partial class MainWindow
             IsReadOnly = true
         };
         overrideSettings.Children.Add(overridePath);
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
+        var row = CreateHorizontalStack(UiTokens.SpaceSm);
         var browse = CreateButton("Choose approved .exe", (_, _) => ChooseTextDestinationExecutable(mode, preset, overridePath, overrides));
         var clear = CreateButton("Clear override", (_, _) => ClearTextDestinationExecutable(mode, preset, overridePath, overrides));
         row.Children.Add(browse);
@@ -65,7 +63,6 @@ public partial class MainWindow
             else ShowToast("Windows could not open Default apps settings.");
         });
         openDefaultMailApps.HorizontalAlignment = HorizontalAlignment.Left;
-        openDefaultMailApps.Margin = new Thickness(0, 0, 0, 12);
         openDefaultMailApps.Visibility = Visibility.Collapsed;
         managedSettings.Children.Add(openDefaultMailApps);
         var keepDraftFiles = CreateCheckBox("Keep generated draft files", !AppTextDestinationDraftSettings.AutomaticallyRemoveDraftFiles());
@@ -79,48 +76,21 @@ public partial class MainWindow
             AppTextDestinationDraftSettings.SetAutomaticallyRemoveDraftFiles(true);
             ShowToast("Generated drafts will be removed after 24 hours.");
         };
-        keepDraftFiles.Margin = new Thickness(0);
-        var draftRetention = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 12, 0, 12)
-        };
+        var draftRetention = CreateHorizontalStack(UiTokens.SpaceMd);
         draftRetention.Children.Add(keepDraftFiles);
         var openDraftFolder = CreateButton("Open generated drafts folder", (_, _) =>
         {
             if (!TextDestinationDraftStore.TryOpenFolder()) ShowToast("Windows could not open the generated drafts folder.");
         });
-        openDraftFolder.Margin = new Thickness(12, 0, 0, 0);
         openDraftFolder.VerticalAlignment = VerticalAlignment.Center;
         draftRetention.Children.Add(openDraftFolder);
         managedSettings.Children.Add(draftRetention);
         var draftRetentionNotice = CreateMutedText("Generated drafts contain the sent text. They are removed after 24 hours unless you keep them.");
         managedSettings.Children.Add(draftRetentionNotice);
 
-        var details = new StackPanel();
-        details.Children.Add(CreateMutedText("Managed destinations create a new item when possible. Before pasting, Voltura Air confirms that the intended, non-elevated window is in the foreground. If it cannot confirm that, the text stays on the Windows clipboard for manual paste."));
-        details.Children.Add(CreateMutedText("Approved executable paths apply only to the selected app and never leave this PC. Word, Excel, Notepad++, and New text file drafts are stored in %LOCALAPPDATA%\\Voltura Air\\Text destination drafts. Default text-file and email destinations use Windows' .txt and MAILTO associations."));
-        var detailsCard = new Border
-        {
-            Background = (Brush)Resources["SurfaceBrush"],
-            BorderBrush = (Brush)Resources["BorderBrush"],
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(12),
-            Margin = new Thickness(0, 8, 0, 12),
-            Visibility = Visibility.Collapsed,
-            Child = details
-        };
-        var moreDetails = CreateButton("More about text destinations", (_, _) => { });
-        moreDetails.Click += (_, _) =>
-        {
-            var showDetails = detailsCard.Visibility != Visibility.Visible;
-            detailsCard.Visibility = showDetails ? Visibility.Visible : Visibility.Collapsed;
-            moreDetails.Content = showDetails ? "Hide text destination details" : "More about text destinations";
-        };
-        moreDetails.HorizontalAlignment = HorizontalAlignment.Left;
-        managedSettings.Children.Add(moreDetails);
-        managedSettings.Children.Add(detailsCard);
+        var detailsPanel = AddNestedPreferencesSection(managedSettings, "More about text destinations");
+        detailsPanel.Children.Add(CreateMutedText("Managed destinations create a new item when possible. Before pasting, Voltura Air confirms that the intended, non-elevated window is in the foreground. If it cannot confirm that, the text stays on the Windows clipboard for manual paste."));
+        detailsPanel.Children.Add(CreateMutedText("Approved executable paths apply only to the selected app and never leave this PC. Word, Excel, Notepad++, and New text file drafts are stored in %LOCALAPPDATA%\\Voltura Air\\Text destination drafts. Default text-file and email destinations use Windows' .txt and MAILTO associations."));
 
         void UpdateManagedDestinationUi()
         {

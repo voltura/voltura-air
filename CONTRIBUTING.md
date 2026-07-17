@@ -20,10 +20,13 @@ Voltura Air is a small freeware project from Voltura AB. Contributions should ke
 4. Run the relevant checks before submitting.
 
 ```powershell
-npm install
+npm ci
 npm run build
 npm test
 ```
+
+Use `npm install` instead when the contribution intentionally changes dependency
+manifests.
 
 ## Release model
 

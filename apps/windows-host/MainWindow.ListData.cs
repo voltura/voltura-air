@@ -1,4 +1,3 @@
-using System.Net.NetworkInformation;
 using System.Globalization;
 
 namespace VolturaAir.Host;
@@ -14,20 +13,6 @@ public partial class MainWindow
                 device.IsActive ? "Connected" : "Not connected",
                 GetDeviceActivityText(device),
                 GetDeviceMetadataText(device)))];
-    }
-
-    private static CandidateListItem[] GetCandidateItems(IReadOnlyList<LanAddressCandidate> candidates, LanAddressCandidate? selectedCandidate)
-    {
-        var recommended = candidates.OrderByDescending(candidate => candidate.Score).FirstOrDefault();
-        return [.. candidates.Select(candidate =>
-        {
-            var status = candidate == recommended ? "Recommended" : candidate.IsLikelyVpnOrVirtual ? "Not recommended" : string.Empty;
-            return new CandidateListItem(
-                candidate,
-                $"{GetAdapterTypeDisplayName(candidate)} - {GetAdapterDescription(candidate)}",
-                candidate.Address.ToString(),
-                candidate.Address.Equals(selectedCandidate?.Address) ? $"{status} selected".Trim() : status);
-        })];
     }
 
     private string GetConnectionStatus()
@@ -76,23 +61,6 @@ public partial class MainWindow
     private static string FormatDeviceTime(DateTimeOffset timestamp)
     {
         return timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.CurrentCulture);
-    }
-
-    private static string GetAdapterTypeDisplayName(LanAddressCandidate candidate)
-    {
-        return candidate.AdapterType switch
-        {
-            System.Net.NetworkInformation.NetworkInterfaceType.Wireless80211 => "Wi-Fi",
-            System.Net.NetworkInformation.NetworkInterfaceType.Ethernet => "Ethernet",
-            _ => candidate.AdapterType.ToString()
-        };
-    }
-
-    private static string GetAdapterDescription(LanAddressCandidate candidate)
-    {
-        return string.IsNullOrWhiteSpace(candidate.AdapterDescription)
-            ? candidate.AdapterName
-            : candidate.AdapterDescription;
     }
 
     private static string Plural(int count) => count == 1 ? string.Empty : "s";

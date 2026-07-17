@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using VolturaAir.Host.Ui;
 using Border = System.Windows.Controls.Border;
 using Brush = System.Windows.Media.Brush;
 using FontFamily = System.Windows.Media.FontFamily;
@@ -13,7 +14,7 @@ public partial class MainWindow
 {
     private Border CreateAppLogRow(AppLogRecord entry)
     {
-        var content = new StackPanel();
+        var content = CreateVerticalStack(UiTokens.SpaceSm);
         var header = new DockPanel();
         var isFailure = string.Equals(entry.Outcome, "failed", StringComparison.OrdinalIgnoreCase) ||
             !string.IsNullOrWhiteSpace(entry.Code);
@@ -50,14 +51,13 @@ public partial class MainWindow
         content.Children.Add(new TextBlock
         {
             Text = GetLogEntryTitle(entry),
-            Margin = new Thickness(0, 9, 0, 6),
             FontSize = 14,
             FontWeight = FontWeights.SemiBold,
             Foreground = (Brush)Resources["TextBrush"],
             TextWrapping = TextWrapping.Wrap
         });
 
-        var metadata = new WrapPanel();
+        var metadata = CreateWrap(UiTokens.SpaceSm, UiTokens.SpaceXs);
         AddLogChip(metadata, GetLogSourceLabel(entry.Source));
         AddLogChip(metadata, entry.Outcome, isFailure);
         AddLogChip(metadata, string.IsNullOrWhiteSpace(entry.ClientId) ? null : $"Client {entry.ClientId}");
@@ -70,19 +70,16 @@ public partial class MainWindow
             content.Children.Add(new TextBlock
             {
                 Text = entry.Detail,
-                Margin = new Thickness(0, 7, 0, 0),
                 FontSize = 12,
                 Foreground = (Brush)Resources["MutedTextBrush"],
                 TextWrapping = TextWrapping.Wrap
             });
         }
 
-        var row = (Border)CreateListRowShell(content);
-        row.Margin = new Thickness(0, 0, 0, 8);
-        return row;
+        return (Border)CreateListRowShell(content);
     }
 
-    private void AddLogChip(WrapPanel panel, string? text, bool isFailure = false)
+    private void AddLogChip(SpacingWrapPanel panel, string? text, bool isFailure = false)
     {
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -96,7 +93,6 @@ public partial class MainWindow
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(7, 2, 7, 2),
-            Margin = new Thickness(0, 0, 6, 4),
             Child = new TextBlock
             {
                 Text = text,

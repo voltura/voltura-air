@@ -10,12 +10,12 @@ import {
 const maxBufferedMovementBytes = 1024;
 const maxMovementsAfterAckBarrier = 4;
 
-export type PendingMovementAck = {
+export interface PendingMovementAck {
   sequence: number;
   followingMovementCount: number;
-};
+}
 
-type ConnectionSenderOptions = {
+interface ConnectionSenderOptions {
   lastMovementAckAtRef: RefObject<number>;
   lastUserActivityAtRef: RefObject<number>;
   nextInputSequenceRef: RefObject<number>;
@@ -26,7 +26,7 @@ type ConnectionSenderOptions = {
   socketRef: RefObject<WebSocket | null>;
   supportsInputAckRef: RefObject<boolean>;
   supportsVolumeControlRef: RefObject<boolean>;
-};
+}
 
 export function useConnectionSender(options: ConnectionSenderOptions) {
   const {

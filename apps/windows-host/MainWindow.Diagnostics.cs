@@ -6,7 +6,6 @@ using System.Windows.Media;
 using ComboBox = System.Windows.Controls.ComboBox;
 using Control = System.Windows.Controls.Control;
 using Brush = System.Windows.Media.Brush;
-using Orientation = System.Windows.Controls.Orientation;
 
 namespace VolturaAir.Host;
 
@@ -110,17 +109,17 @@ public partial class MainWindow
     {
         var root = new Grid();
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(UiTokens.SpaceMd) });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
         var applicationLogButton = CreateSegmentButton("Application log", isChecked: true);
         var systemDetailsButton = CreateSegmentButton("System details", isChecked: false);
         WireSegmentPair(applicationLogButton, systemDetailsButton);
         var viewSelector = CreateSegmentRow(applicationLogButton, systemDetailsButton);
-        viewSelector.Margin = new Thickness(0, 0, 0, 12);
         root.Children.Add(viewSelector);
 
         var viewContent = new ContentControl();
-        Grid.SetRow(viewContent, 1);
+        Grid.SetRow(viewContent, 2);
         root.Children.Add(viewContent);
 
         void ShowApplicationLog()
@@ -151,10 +150,12 @@ public partial class MainWindow
     {
         var root = new Grid();
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(UiTokens.SpaceSm) });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(UiTokens.SpaceLg) });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-        var rows = new StackPanel();
+        var rows = CreateVerticalStack(UiTokens.SpaceSm);
         foreach (var detail in GetDiagnostics())
         {
             rows.Children.Add(CreateDiagnosticRow(detail));
@@ -167,13 +168,13 @@ public partial class MainWindow
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             Content = rows
         };
-        Grid.SetRow(scroller, 1);
+        Grid.SetRow(scroller, 2);
         root.Children.Add(scroller);
 
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 16, 0, 0) };
+        var actions = CreateHorizontalStack(UiTokens.SpaceSm);
         actions.Children.Add(CreateButton("Copy diagnostics", (_, _) => CopyToClipboard(BuildDiagnosticsText(), "Diagnostics copied"), primary: true));
         actions.Children.Add(CreateButton("Open product page", (_, _) => OpenProductSite()));
-        Grid.SetRow(actions, 2);
+        Grid.SetRow(actions, 4);
         root.Children.Add(actions);
         return root;
     }

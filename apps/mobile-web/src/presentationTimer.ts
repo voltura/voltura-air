@@ -40,7 +40,7 @@ export function usePresentationTimer() {
     };
     updateElapsed();
     const interval = window.setInterval(updateElapsed, timerRefreshMs);
-    return () => window.clearInterval(interval);
+    return () => { window.clearInterval(interval); };
   }, [isRunning]);
 
   useEffect(() => {
@@ -48,10 +48,10 @@ export function usePresentationTimer() {
       return;
     }
 
-    const updateBreakElapsed = () => setBreakElapsedSeconds((Date.now() - breakStartedAtRef.current!) / 1000);
+    const updateBreakElapsed = () => { setBreakElapsedSeconds((Date.now() - breakStartedAtRef.current!) / 1000); };
     updateBreakElapsed();
     const interval = window.setInterval(updateBreakElapsed, timerRefreshMs);
-    return () => window.clearInterval(interval);
+    return () => { window.clearInterval(interval); };
   }, [isPaused]);
 
   useEffect(() => {

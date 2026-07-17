@@ -1,11 +1,19 @@
 {
   "compilerOptions": {
+    "target": "ES2022",
     "skipLibCheck": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "allowSyntheticDefaultImports": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "noUncheckedSideEffectImports": true,
     "noEmit": true,
-    "strict": true
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "types": ["node"],
+    "strict": true,
+    "verbatimModuleSyntax": true
   },
   "include": ["vite.config.ts", "vitest.config.ts"]
 }

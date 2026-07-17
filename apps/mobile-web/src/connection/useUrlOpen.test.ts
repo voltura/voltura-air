@@ -21,32 +21,32 @@ describe("useUrlOpen", () => {
       url: " example.com/path "
     });
 
-    act(() => result.current.completeUrlOpen({
+    act(() => { result.current.completeUrlOpen({
       type: "url.open.result",
       operationId: "unrelated",
       succeeded: false,
       message: "Unrelated"
-    }));
+    }); });
     expect(result.current.pendingUrlOpen).toBe(true);
 
-    act(() => result.current.completeUrlOpen({
+    act(() => { result.current.completeUrlOpen({
       type: "url.open.result",
       operationId: operationId!,
       succeeded: true,
       code: "accepted",
       message: "Open request sent.",
       normalizedUrl: "https://example.com/path"
-    }));
+    }); });
     expect(result.current.pendingUrlOpen).toBe(false);
     expect(result.current.urlOpenResult?.message).toBe("Open request sent.");
   });
 
-  it("returns retryable timeout feedback", () => {
+  it("returns retryable timeout feedback", async () => {
     vi.useFakeTimers();
     const { result } = renderHook(() => useUrlOpen("paired", vi.fn()));
 
-    act(() => result.current.requestUrlOpen("example.com"));
-    act(() => vi.advanceTimersByTime(8000));
+    await act(() => result.current.requestUrlOpen("example.com"));
+    await act(() => vi.advanceTimersByTime(8000));
 
     expect(result.current.pendingUrlOpen).toBe(false);
     expect(result.current.urlOpenResult?.code).toBe("VAIR-URL-RESPONSE-TIMEOUT");

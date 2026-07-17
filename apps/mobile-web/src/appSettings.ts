@@ -1,10 +1,10 @@
 import type { FourthMode } from "./appModeTabs";
 
-export type AppSettings = {
+export interface AppSettings {
   autoRefresh: boolean;
   clearTextAfterSending: boolean;
   fourthMode: FourthMode;
-};
+}
 
 export const defaultAppSettings: AppSettings = {
   autoRefresh: true,
@@ -12,10 +12,13 @@ export const defaultAppSettings: AppSettings = {
   fourthMode: "dictation"
 };
 
-export function normalizeAppSettings(value: Partial<AppSettings>): AppSettings {
+export function normalizeAppSettings(value: unknown): AppSettings {
+  const candidate = typeof value === "object" && value !== null
+    ? value as Partial<Record<keyof AppSettings, unknown>>
+    : {};
   return {
-    autoRefresh: typeof value.autoRefresh === "boolean" ? value.autoRefresh : defaultAppSettings.autoRefresh,
-    clearTextAfterSending: typeof value.clearTextAfterSending === "boolean" ? value.clearTextAfterSending : defaultAppSettings.clearTextAfterSending,
-    fourthMode: value.fourthMode === "presentation" || value.fourthMode === "text-transfer" || value.fourthMode === "clipboard-read" ? value.fourthMode : "dictation"
+    autoRefresh: typeof candidate.autoRefresh === "boolean" ? candidate.autoRefresh : defaultAppSettings.autoRefresh,
+    clearTextAfterSending: typeof candidate.clearTextAfterSending === "boolean" ? candidate.clearTextAfterSending : defaultAppSettings.clearTextAfterSending,
+    fourthMode: candidate.fourthMode === "presentation" || candidate.fourthMode === "text-transfer" || candidate.fourthMode === "clipboard-read" ? candidate.fourthMode : "dictation"
   };
 }

@@ -1,9 +1,11 @@
-import { readdir, stat } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 
 const root = process.cwd();
-const targetBytes = 20 * 1024;
-const warningBytes = 25 * 1024;
+const reviewBytes = 12 * 1024;
+const warningBytes = 20 * 1024;
+const reviewLines = 300;
+const warningLines = 500;
 const sourceExtensions = new Set([
   ".cs", ".css", ".html", ".js", ".jsx", ".mjs", ".nsi", ".php",
   ".ps1", ".ts", ".tsx", ".xaml"
@@ -40,22 +42,39 @@ async function collect(directory) {
     }
 
     const metadata = await stat(absolutePath);
-    if (metadata.size > targetBytes) {
-      files.push({ relativePath, size: metadata.size });
+    const contents = await readFile(absolutePath, "utf8");
+    const lineCount = countLines(contents);
+    if (metadata.size > reviewBytes || lineCount > reviewLines) {
+      files.push({ relativePath, size: metadata.size, lineCount });
     }
   }
 
   return files;
 }
 
-const oversized = (await collect(root)).sort((left, right) => right.size - left.size);
+const reviewCandidates = (await collect(root)).sort((left, right) => {
+  const leftScore = Math.max(left.size / reviewBytes, left.lineCount / reviewLines);
+  const rightScore = Math.max(right.size / reviewBytes, right.lineCount / reviewLines);
+  return rightScore - leftScore;
+});
 
-if (oversized.length === 0) {
-  console.log("All actively maintained source files are at or below 20 KB.");
+if (reviewCandidates.length === 0) {
+  console.log("All actively maintained source files are at or below 12 KB and 300 lines.");
 } else {
-  console.log("Actively maintained source files above 20 KB (report only):");
-  for (const file of oversized) {
-    const marker = file.size > warningBytes ? "WARNING >25 KB" : "review";
-    console.log(`${(file.size / 1024).toFixed(1).padStart(6)} KB  ${marker.padEnd(14)}  ${file.relativePath}`);
+  console.log("Actively maintained source files above 12 KB or 300 lines (review only):");
+  for (const file of reviewCandidates) {
+    const marker = file.size > warningBytes || file.lineCount > warningLines ? "WARNING" : "review";
+    console.log(
+      `${(file.size / 1024).toFixed(1).padStart(6)} KB  ${String(file.lineCount).padStart(5)} lines  ${marker.padEnd(7)}  ${file.relativePath}`
+    );
   }
+}
+
+function countLines(contents) {
+  if (contents.length === 0) {
+    return 0;
+  }
+
+  const newlineCount = contents.match(/\r\n|\r|\n/gu)?.length ?? 0;
+  return newlineCount + (/(?:\r\n|\r|\n)$/u.test(contents) ? 0 : 1);
 }

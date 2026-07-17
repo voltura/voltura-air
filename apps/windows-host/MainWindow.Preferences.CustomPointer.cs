@@ -3,7 +3,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using Brush = System.Windows.Media.Brush;
-using Orientation = System.Windows.Controls.Orientation;
 
 namespace VolturaAir.Host;
 
@@ -15,9 +14,10 @@ public partial class MainWindow
         var customPointer = CreateCheckBox("Custom pointer", current.Enabled);
         parent.Children.Add(customPointer);
 
-        var controls = new StackPanel { Margin = new Thickness(0, 0, 0, 12), IsEnabled = current.Enabled };
+        var controls = CreateVerticalStack(UiTokens.SpaceMd);
+        controls.IsEnabled = current.Enabled;
         controls.Children.Add(CreateLabel("Size"));
-        var sizeRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 12) };
+        var sizeRow = CreateHorizontalStack(UiTokens.SpaceMd);
         var size = new Slider
         {
             Style = (Style)Resources["ModernSliderStyle"],
@@ -26,8 +26,7 @@ public partial class MainWindow
             TickFrequency = 1,
             IsSnapToTickEnabled = true,
             Width = 220,
-            Value = current.Size,
-            Margin = new Thickness(0, 0, 12, 0)
+            Value = current.Size
         };
         var sizeValue = new TextBlock
         {
@@ -41,7 +40,7 @@ public partial class MainWindow
         controls.Children.Add(sizeRow);
 
         controls.Children.Add(CreateLabel("Color"));
-        var colorRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
+        var colorRow = CreateHorizontalStack(UiTokens.SpaceSm);
         var colorButton = CreateButton(string.Empty, (_, _) => { }, primary: false);
         colorButton.Width = 132;
         var colorPopup = CreateCustomPointerColorPopup(colorButton, current.Color, selected =>
@@ -58,7 +57,6 @@ public partial class MainWindow
         var useWatchdog = CreateCheckBox(
             "Use cursor recovery watchdog",
             AppPointerSettings.UseCursorRecoveryWatchdog());
-        useWatchdog.Margin = new Thickness(0);
         useWatchdog.VerticalAlignment = VerticalAlignment.Center;
         var watchdogInfo = CreateButton("ⓘ", (_, _) => ThemedConfirmationDialog.ShowInformation(
             this,
@@ -69,14 +67,9 @@ public partial class MainWindow
         watchdogInfo.Height = 30;
         watchdogInfo.MinWidth = 34;
         watchdogInfo.Padding = new Thickness(0);
-        watchdogInfo.Margin = new Thickness(8, 0, 0, 0);
         watchdogInfo.ToolTip = "Why the cursor recovery watchdog is recommended";
         System.Windows.Automation.AutomationProperties.SetName(watchdogInfo, "About cursor recovery watchdog");
-        var watchdogRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 0, 0, 12)
-        };
+        var watchdogRow = CreateHorizontalStack(UiTokens.SpaceSm);
         watchdogRow.Children.Add(useWatchdog);
         watchdogRow.Children.Add(watchdogInfo);
         parent.Children.Add(watchdogRow);

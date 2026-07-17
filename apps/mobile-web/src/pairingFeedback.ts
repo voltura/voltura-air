@@ -14,7 +14,7 @@ export type PairingFailureReason =
   | "invalid-message"
   | "unknown";
 
-export type PairingFeedback = {
+export interface PairingFeedback {
   body: string;
   diagnosticCode?: string;
   hints: string[];
@@ -23,7 +23,7 @@ export type PairingFeedback = {
   severity: "info" | "warning" | "error";
   showRecoveryActions: boolean;
   title: string;
-};
+}
 
 const defaultPairingFeedback: PairingFeedback = {
   title: "Pair this app",
@@ -337,19 +337,24 @@ function feedbackForReason(reason: PairingFailureReason): PairingFeedback {
         severity: "error",
         showRecoveryActions: true
       };
-    default:
+    case "unknown":
+    case "qr-unreadable":
+    case "qr-not-pairing-link":
+    case "host-unreachable":
+    case "socket-closed":
+    case "host-rejected-device":
       return feedbackForRejectedReason(reason);
   }
 }
 
 function parseRejectedReason(message: string): string | null {
   const match = /pairing rejected:\s*([a-z0-9._-]+)/i.exec(message);
-  return match?.[1].toLowerCase() ?? null;
+  return match?.[1]?.toLowerCase() ?? null;
 }
 
 function diagnosticCodeForReason(reason: string): string {
   const normalized = reason.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toUpperCase();
-  return `VAIR-PAIR-${normalized || "UNKNOWN"}`;
+  return `VAIR-PAIR-${normalized.length > 0 ? normalized : "UNKNOWN"}`;
 }
 
 function safeLocationHref(): string {

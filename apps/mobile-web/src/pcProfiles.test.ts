@@ -48,7 +48,7 @@ describe("pcProfiles", () => {
     const profiles = addPcProfile([], "http://192.168.1.50:51395");
 
     expect(profiles).toHaveLength(1);
-    expect(profiles[0].id).toBe("http://192.168.1.50:51395");
+    expect(profiles.at(0)!.id).toBe("http://192.168.1.50:51395");
   });
 
   it("upserts an existing PC without overwriting its custom name", () => {
@@ -61,9 +61,9 @@ describe("pcProfiles", () => {
     const profiles = upsertPcProfile([existing], createPcProfile("http://192.168.1.50:51395/new"));
 
     expect(profiles).toHaveLength(1);
-    expect(profiles[0].customName).toBe(true);
-    expect(profiles[0].name).toBe("Sofa PC");
-    expect(profiles[0].url).toBe("http://192.168.1.50:51395");
+    expect(profiles.at(0)!.customName).toBe(true);
+    expect(profiles.at(0)!.name).toBe("Sofa PC");
+    expect(profiles.at(0)!.url).toBe("http://192.168.1.50:51395");
   });
 
   it("selects an existing PC profile", () => {

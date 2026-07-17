@@ -2,14 +2,14 @@ export const remoteModeIds = ["standard", "youtube", "kodi"] as const;
 
 export type RemoteModeId = (typeof remoteModeIds)[number];
 
-export type RemoteSettings = {
+export interface RemoteSettings {
   navigationRing: boolean;
   mode: RemoteModeId;
   openYoutube: boolean;
   showBrowserHelpers: boolean;
   showWindowHelpers: boolean;
   startKodi: boolean;
-};
+}
 
 export const defaultRemoteSettings: RemoteSettings = {
   navigationRing: true,
@@ -20,14 +20,17 @@ export const defaultRemoteSettings: RemoteSettings = {
   startKodi: true
 };
 
-export function normalizeRemoteSettings(value: Partial<RemoteSettings> & { youtubeMode?: unknown } = {}): RemoteSettings {
+export function normalizeRemoteSettings(value: unknown = {}): RemoteSettings {
+  const candidate = typeof value === "object" && value !== null
+    ? value as Partial<Record<keyof RemoteSettings | "youtubeMode", unknown>>
+    : {};
   return {
-    navigationRing: typeof value.navigationRing === "boolean" ? value.navigationRing : defaultRemoteSettings.navigationRing,
-    mode: normalizeRemoteMode(value.mode, value.youtubeMode),
-    openYoutube: typeof value.openYoutube === "boolean" ? value.openYoutube : defaultRemoteSettings.openYoutube,
-    showBrowserHelpers: typeof value.showBrowserHelpers === "boolean" ? value.showBrowserHelpers : defaultRemoteSettings.showBrowserHelpers,
-    showWindowHelpers: typeof value.showWindowHelpers === "boolean" ? value.showWindowHelpers : defaultRemoteSettings.showWindowHelpers,
-    startKodi: typeof value.startKodi === "boolean" ? value.startKodi : defaultRemoteSettings.startKodi
+    navigationRing: typeof candidate.navigationRing === "boolean" ? candidate.navigationRing : defaultRemoteSettings.navigationRing,
+    mode: normalizeRemoteMode(candidate.mode, candidate.youtubeMode),
+    openYoutube: typeof candidate.openYoutube === "boolean" ? candidate.openYoutube : defaultRemoteSettings.openYoutube,
+    showBrowserHelpers: typeof candidate.showBrowserHelpers === "boolean" ? candidate.showBrowserHelpers : defaultRemoteSettings.showBrowserHelpers,
+    showWindowHelpers: typeof candidate.showWindowHelpers === "boolean" ? candidate.showWindowHelpers : defaultRemoteSettings.showWindowHelpers,
+    startKodi: typeof candidate.startKodi === "boolean" ? candidate.startKodi : defaultRemoteSettings.startKodi
   };
 }
 
@@ -56,7 +59,8 @@ export function resolveRemoteSettings(stored: string | null, hostDefaultMode?: R
   }
 
   try {
-    return { isStored: true, settings: normalizeRemoteSettings(JSON.parse(stored)) };
+    const parsed: unknown = JSON.parse(stored);
+    return { isStored: true, settings: normalizeRemoteSettings(parsed) };
   } catch {
     return {
       isStored: false,

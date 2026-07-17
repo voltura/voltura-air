@@ -10,14 +10,15 @@ const packageJson = JSON.parse(readFileSync(new URL("./package.json", import.met
 const appleStartupDevices = JSON.parse(
   readFileSync(new URL("../../assets/branding/apple-startup-devices.json", import.meta.url), "utf8")
 ) as AppleStartupDevice[];
-const webBuildId = process.env.VOLTURA_AIR_WEB_BUILD_ID?.trim() || randomUUID();
+const configuredWebBuildId = process.env.VOLTURA_AIR_WEB_BUILD_ID?.trim();
+const webBuildId = configuredWebBuildId && configuredWebBuildId.length > 0 ? configuredWebBuildId : randomUUID();
 
-type AppleStartupDevice = {
+interface AppleStartupDevice {
   name: string;
   width: number;
   height: number;
   dpr: number;
-};
+}
 
 ignoreDevSocketResets();
 

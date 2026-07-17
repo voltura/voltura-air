@@ -32,7 +32,7 @@ export function useAppLaunch(state: ConnectionState, send: (payload: ClientMessa
       });
     }, responseTimeoutMs);
 
-    return () => window.clearTimeout(timeout);
+    return () => { window.clearTimeout(timeout); };
   }, [pendingAppLaunchId]);
 
   useEffect(() => {
@@ -50,8 +50,8 @@ export function useAppLaunch(state: ConnectionState, send: (payload: ClientMessa
       return;
     }
 
-    const timeout = window.setTimeout(() => setAppLaunchResult(null), resultVisibilityMs);
-    return () => window.clearTimeout(timeout);
+    const timeout = window.setTimeout(() => { setAppLaunchResult(null); }, resultVisibilityMs);
+    return () => { window.clearTimeout(timeout); };
   }, [appLaunchResult]);
 
   const requestAppLaunch = (actionId: string) => {

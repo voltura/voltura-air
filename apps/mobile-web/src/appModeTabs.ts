@@ -6,12 +6,12 @@ export type FourthMode = ToolAppTab;
 export type AppTab = PrimaryAppTab | ToolAppTab | "debug";
 export type MainAppTab = Exclude<AppTab, "debug">;
 
-export type ModeDefinition = {
+export interface ModeDefinition {
   id: MainAppTab;
   label: string;
   ariaLabel: string;
   Icon: typeof MousePointer2;
-};
+}
 
 export const primaryModeDefinitions: ModeDefinition[] = [
   { id: "trackpad", label: "Trackpad", ariaLabel: "Trackpad mode", Icon: MousePointer2 },

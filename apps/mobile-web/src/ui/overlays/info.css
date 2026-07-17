@@ -1,0 +1,78 @@
+.info-button {
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  flex: 0 0 30px;
+  border-radius: var(--radius-pill);
+  border-color: transparent;
+  color: var(--accent);
+  background: transparent;
+  padding: 0;
+}
+
+.info-button:focus,
+.info-button:focus-visible,
+.info-button:active {
+  outline: none;
+  border-color: transparent;
+  color: var(--accent);
+  background: transparent;
+  box-shadow: none;
+}
+
+.info-button svg {
+  width: 17px;
+  height: 17px;
+}
+
+.info-dialog {
+  width: min(360px, calc(100vw - var(--space-2xl)));
+  max-width: none;
+  max-height: calc(var(--app-viewport-height) - var(--space-2xl));
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-large);
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: 0 18px 48px var(--drawer-shadow);
+  padding: 20px;
+}
+
+.info-dialog-detailed {
+  display: flex;
+  flex-direction: column;
+  min-height: min(260px, calc(var(--app-viewport-height) - var(--space-2xl)));
+}
+
+.info-dialog-detailed .info-dialog-actions {
+  margin-top: auto;
+}
+
+.info-dialog::backdrop {
+  background: var(--scrim);
+}
+
+.info-dialog h2 {
+  margin: 0 0 10px;
+  font-size: 1.15rem;
+}
+
+.info-dialog p {
+  margin: 0 0 var(--space-lg);
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.info-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.info-dialog-actions button {
+  min-width: 88px;
+  border-color: var(--accent);
+}
+
+.info-dialog-actions button:focus-visible {
+  outline: none;
+}

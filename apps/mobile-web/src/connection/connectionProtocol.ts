@@ -22,7 +22,8 @@ export function getPcUnavailableMessage(pc: PcProfile, screenshotMode = false): 
 }
 
 export function getPcDisconnectedMessage(pc: PcProfile, reason: string | undefined, screenshotMode = false): string {
-  const baseMessage = reason?.trim() || `${getDisplayPcName(pc, "", screenshotMode)} disconnected.`;
+  const trimmedReason = reason?.trim();
+  const baseMessage = trimmedReason && trimmedReason.length > 0 ? trimmedReason : `${getDisplayPcName(pc, "", screenshotMode)} disconnected.`;
   return /retrying/i.test(baseMessage) ? baseMessage : `${baseMessage} Retrying...`;
 }
 
@@ -31,12 +32,13 @@ export function getInputAckTimeoutMessage(pc: PcProfile, screenshotMode = false)
 }
 
 export function getInputErrorMessage(reason: string | undefined, pc: PcProfile, screenshotMode = false): string {
-  return reason?.trim() || `${getDisplayPcName(pc, "", screenshotMode)} could not process input.`;
+  const trimmedReason = reason?.trim();
+  return trimmedReason && trimmedReason.length > 0 ? trimmedReason : `${getDisplayPcName(pc, "", screenshotMode)} could not process input.`;
 }
 
 export function diagnosticCodeForPairingReason(reason: string): string {
   const normalized = reason.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toUpperCase();
-  return `VAIR-PAIR-${normalized || "UNKNOWN"}`;
+  return `VAIR-PAIR-${normalized.length > 0 ? normalized : "UNKNOWN"}`;
 }
 
 export function normalizeHostStatus(metadata: HostStatusMetadata | undefined): HostStatusMetadata | null {
@@ -57,7 +59,7 @@ export function normalizeHostStatus(metadata: HostStatusMetadata | undefined): H
     customPointerEnabled: typeof metadata.customPointerEnabled === "boolean" ? metadata.customPointerEnabled : undefined,
     selectedAdapterName: normalizeOptionalString(metadata.selectedAdapterName),
     selectedIp: normalizeOptionalString(metadata.selectedIp),
-    selectedPort: Number.isFinite(metadata.selectedPort) ? metadata.selectedPort : undefined,
+    selectedPort: typeof metadata.selectedPort === "number" && Number.isFinite(metadata.selectedPort) ? metadata.selectedPort : undefined,
     textTransferTarget: normalizeTextTransferTarget(metadata.textTransferTarget),
     webSocketUrl: normalizeOptionalString(metadata.webSocketUrl)
   };
@@ -108,7 +110,11 @@ export function normalizeAppLaunchActions(value: unknown): AppLaunchActionSummar
 
 function normalizeOptionalString(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
+  if (!trimmed) {
+    return undefined;
+  }
+
+  return trimmed;
 }
 
 export function normalizePointerSpeed(value: unknown): number | undefined {
@@ -131,10 +137,14 @@ export function parseServerMessage(data: unknown): ServerMessage | null {
   }
 }
 
-export function normalizeAudioState(message: AudioStateMessage): AudioStateMessage {
+export function normalizeAudioState(message: { muted?: unknown; volume?: unknown }): AudioStateMessage {
+  const volume = typeof message.volume === "number" && Number.isFinite(message.volume)
+    ? message.volume
+    : 0;
+
   return {
     type: "audio.state",
-    volume: Math.max(0, Math.min(100, Math.round(message.volume))),
+    volume: Math.max(0, Math.min(100, Math.round(volume))),
     muted: message.muted === true
   };
 }
@@ -173,10 +183,7 @@ export const getPowerCapabilities = (capabilities: ServerCapabilities | undefine
     return power;
   }
 
-  return {
-    ...power,
-    lockAvailability: undefined
-  };
+  return { ...power, lockAvailability: undefined };
 };
 export const hasVolumeCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.volume === true;
 export const hasInputAckCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.inputAck === true;
@@ -219,7 +226,7 @@ export function isUserActivityMessage(payload: ClientMessage): boolean {
 
 export function trimPendingInputAcks(pending: Map<number, number>): void {
   while (pending.size > maxPendingInputAcks) {
-    const oldestSequence = pending.keys().next().value as number | undefined;
+    const oldestSequence = pending.keys().next().value;
     if (oldestSequence === undefined) {
       return;
     }

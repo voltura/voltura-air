@@ -1,0 +1,106 @@
+/* Generated from assets/ui-tokens.json. Do not edit directly. */
+:root {
+  color-scheme: dark;
+  --bg: #101418;
+  --surface: #171D21;
+  --surface-raised: #20282E;
+  --text: #F7F2E9;
+  --on-accent: #FFFFFF;
+  --muted: #B9C2C7;
+  --disabled: #8B969C;
+  --border: #3E4A52;
+  --accent: #12A894;
+  --accent-strong: #0F7B6C;
+  --success: #25D0A7;
+  --danger: #FF745F;
+  --trackpad-icon: #63717A;
+  --scrim: rgb(0 0 0 / 45%);
+  --drawer-shadow: rgb(0 0 0 / 36%);
+  --floating-shadow: rgb(0 0 0 / 22%);
+  --power-scrim: rgb(3 8 14 / 66%);
+  --power-sheet-shadow: rgb(0 0 0 / 35%);
+  --app-gradient-primary: rgb(15 123 108 / 24%);
+  --app-gradient-danger: rgb(192 83 58 / 18%);
+  --trackpad-grid: rgb(255 255 255 / 4%);
+  --qr-background: #FFFFFF;
+  --space-none: 0px;
+  --space-2xs: 2px;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+  --space-3xl: 40px;
+  --radius-small: 6px;
+  --radius-medium: 8px;
+  --radius-large: 12px;
+  --radius-pill: 999px;
+  --control-compact-height: 36px;
+  --control-min-height: 44px;
+  --control-prominent-height: 48px;
+  --icon-small: 16px;
+  --icon-medium: 20px;
+  --icon-large: 24px;
+  --trackpad-center-icon-size: 42px;
+  --bottom-mode-nav-height: 63px;
+  --page-gutter: 16px;
+  --desktop-page-gutter: 28px;
+  --motion-fast: 120ms;
+  --motion-standard: 180ms;
+  --motion-slow: 240ms;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+  --bg: #F6F8FA;
+  --surface: #FFFFFF;
+  --surface-raised: #EDF2F5;
+  --text: #1C2227;
+  --on-accent: #FFFFFF;
+  --muted: #5D6870;
+  --disabled: #7A858C;
+  --border: #D3DCE2;
+  --accent: #0F8F80;
+  --accent-strong: #0F7B6C;
+  --success: #0A8F70;
+  --danger: #C0533A;
+  --trackpad-icon: #6E7A83;
+  --scrim: rgb(16 20 24 / 25%);
+  --drawer-shadow: rgb(16 20 24 / 18%);
+  --floating-shadow: rgb(0 0 0 / 22%);
+  --power-scrim: rgb(3 8 14 / 66%);
+  --power-sheet-shadow: rgb(0 0 0 / 35%);
+  --app-gradient-primary: rgb(15 123 108 / 12%);
+  --app-gradient-danger: rgb(192 83 58 / 8%);
+  --trackpad-grid: rgb(28 34 39 / 6%);
+  --qr-background: #FFFFFF;
+  }
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #F6F8FA;
+  --surface: #FFFFFF;
+  --surface-raised: #EDF2F5;
+  --text: #1C2227;
+  --on-accent: #FFFFFF;
+  --muted: #5D6870;
+  --disabled: #7A858C;
+  --border: #D3DCE2;
+  --accent: #0F8F80;
+  --accent-strong: #0F7B6C;
+  --success: #0A8F70;
+  --danger: #C0533A;
+  --trackpad-icon: #6E7A83;
+  --scrim: rgb(16 20 24 / 25%);
+  --drawer-shadow: rgb(16 20 24 / 18%);
+  --floating-shadow: rgb(0 0 0 / 22%);
+  --power-scrim: rgb(3 8 14 / 66%);
+  --power-sheet-shadow: rgb(0 0 0 / 35%);
+  --app-gradient-primary: rgb(15 123 108 / 12%);
+  --app-gradient-danger: rgb(192 83 58 / 8%);
+  --trackpad-grid: rgb(28 34 39 / 6%);
+  --qr-background: #FFFFFF;
+}

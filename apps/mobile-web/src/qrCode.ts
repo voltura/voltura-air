@@ -125,8 +125,8 @@ function cropCenter(imageData: ImageData, ratio: number): ImageData {
 function loadImage(source: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("Image failed to load"));
+    image.onload = () => { resolve(image); };
+    image.onerror = () => { reject(new Error("Image failed to load")); };
     image.crossOrigin = "anonymous";
     image.src = source;
   });

@@ -44,7 +44,7 @@ describe("connection sender movement flow control", () => {
     });
 
     expect(socket.send).toHaveBeenCalledTimes(5);
-    expect(JSON.parse(vi.mocked(socket.send).mock.calls[0][0] as string)).toMatchObject({ type: "pointer.move", seq: 1 });
+    expect(JSON.parse(vi.mocked(socket.send).mock.calls[0]![0] as string)).toMatchObject({ type: "pointer.move", seq: 1 });
     expect(options.pendingMovementAckRef.current).toEqual({ sequence: 1, followingMovementCount: 4 });
   });
 
@@ -58,7 +58,7 @@ describe("connection sender movement flow control", () => {
     });
 
     expect(socket.send).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(vi.mocked(socket.send).mock.calls[0][0] as string)).toMatchObject({ type: "keyboard.special", key: "Enter" });
+    expect(JSON.parse(vi.mocked(socket.send).mock.calls[0]![0] as string)).toMatchObject({ type: "keyboard.special", key: "Enter" });
     expect(rescheduleHealthCheck).toHaveBeenCalledOnce();
   });
 

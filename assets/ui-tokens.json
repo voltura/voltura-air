@@ -1,0 +1,86 @@
+{
+  "color": {
+    "dark": {
+      "bg": "#101418",
+      "surface": "#171D21",
+      "surfaceRaised": "#20282E",
+      "text": "#F7F2E9",
+      "onAccent": "#FFFFFF",
+      "muted": "#B9C2C7",
+      "disabled": "#8B969C",
+      "border": "#3E4A52",
+      "accent": "#12A894",
+      "accentStrong": "#0F7B6C",
+      "success": "#25D0A7",
+      "danger": "#FF745F",
+      "trackpadIcon": "#63717A",
+      "scrim": "#73000000",
+      "drawerShadow": "#5C000000",
+      "floatingShadow": "#38000000",
+      "powerScrim": "#A803080E",
+      "powerSheetShadow": "#59000000",
+      "appGradientPrimary": "#3D0F7B6C",
+      "appGradientDanger": "#2EC0533A",
+      "trackpadGrid": "#09FFFFFF",
+      "qrBackground": "#FFFFFF"
+    },
+    "light": {
+      "bg": "#F6F8FA",
+      "surface": "#FFFFFF",
+      "surfaceRaised": "#EDF2F5",
+      "text": "#1C2227",
+      "onAccent": "#FFFFFF",
+      "muted": "#5D6870",
+      "disabled": "#7A858C",
+      "border": "#D3DCE2",
+      "accent": "#0F8F80",
+      "accentStrong": "#0F7B6C",
+      "success": "#0A8F70",
+      "danger": "#C0533A",
+      "trackpadIcon": "#6E7A83",
+      "scrim": "#40101418",
+      "drawerShadow": "#2E101418",
+      "floatingShadow": "#38000000",
+      "powerScrim": "#A803080E",
+      "powerSheetShadow": "#59000000",
+      "appGradientPrimary": "#1F0F7B6C",
+      "appGradientDanger": "#14C0533A",
+      "trackpadGrid": "#0F1C2227",
+      "qrBackground": "#FFFFFF"
+    }
+  },
+  "space": {
+    "none": 0,
+    "2xs": 2,
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 40
+  },
+  "radius": {
+    "small": 6,
+    "medium": 8,
+    "large": 12,
+    "pill": 999
+  },
+  "size": {
+    "controlCompactHeight": 36,
+    "controlMinHeight": 44,
+    "controlProminentHeight": 48,
+    "iconSmall": 16,
+    "iconMedium": 20,
+    "iconLarge": 24,
+    "trackpadCenterIconSize": 42,
+    "bottomModeNavHeight": 63,
+    "pageGutter": 16,
+    "desktopPageGutter": 28
+  },
+  "duration": {
+    "fast": 120,
+    "standard": 180,
+    "slow": 240
+  }
+}

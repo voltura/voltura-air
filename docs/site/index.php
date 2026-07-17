@@ -6,7 +6,7 @@
     <title>Voltura Air - Use Your Phone as a Windows 11 Remote</title>
     <meta
       name="description"
-      content="Turn your phone or tablet into a trackpad, keyboard, text sender, and media remote for Windows 11. Free, local-first, and no phone app required."
+      content="Turn your phone or tablet into a trackpad, keyboard, text sender, and media remote for Windows 11. Free, local, and no app-store download required."
     >
     <meta name="author" content="Voltura AB">
     <meta name="application-name" content="Voltura Air">
@@ -24,7 +24,7 @@
     <meta property="og:title" content="Voltura Air - Use Your Phone as a Windows 11 Remote">
     <meta
       property="og:description"
-      content="Turn your phone or tablet into a trackpad, keyboard, text sender, and media remote for Windows 11. Free, local-first, and no phone app required."
+      content="Turn your phone or tablet into a trackpad, keyboard, text sender, and media remote for Windows 11. Free, local, and no app-store download required."
     >
     <meta property="og:url" content="https://voltura.se/air/">
     <meta property="og:image" content="https://voltura.se/air/assets/voltura-air-host-dark.png">
@@ -36,7 +36,7 @@
     <meta name="twitter:title" content="Voltura Air - Use Your Phone as a Windows 11 Remote">
     <meta
       name="twitter:description"
-      content="Turn your phone or tablet into a trackpad, keyboard, text sender, and media remote for Windows 11. Free, local-first, and no phone app required."
+      content="Turn your phone or tablet into a trackpad, keyboard, text sender, and media remote for Windows 11. Free, local, and no app-store download required."
     >
     <meta name="twitter:image" content="https://voltura.se/air/assets/voltura-air-host-dark.png">
     <meta name="twitter:image:alt" content="Voltura Air Windows host and mobile remote control screens">
@@ -56,7 +56,6 @@
       </a>
       <nav aria-label="Page sections">
         <a href="#features">Features</a>
-        <a href="#uses">Use cases</a>
         <a href="#screens">Screenshots</a>
         <a href="#setup">Setup</a>
         <a href="#trust">Privacy</a>
@@ -76,7 +75,7 @@
           <p class="tagline">Turn your phone into the remote your PC is missing.</p>
           <p class="lede">
             Use it as a trackpad, keyboard, text sender, media remote, and more.
-            Pair in seconds with a QR code - no account, cloud relay, or phone app to install.
+            Pair with a QR code - no account, cloud relay, or app-store download.
           </p>
           <div class="actions">
             <a class="button primary" href="https://github.com/voltura/voltura-air/releases/latest">Download for Windows</a>
@@ -88,12 +87,12 @@
 
       <section id="promise" class="feature-band" aria-label="Product promise">
         <article>
-          <h2>No phone app required</h2>
+          <h2>No app-store download</h2>
           <p>Open Voltura Air in your mobile browser or add it to your home screen for an app-like experience.</p>
         </article>
         <article>
           <h2>Built for Windows 11</h2>
-          <p>A lightweight Windows host handles pairing, permissions, trusted devices, and diagnostics.</p>
+          <p>The Windows host handles pairing, permissions, trusted devices, and diagnostics.</p>
         </article>
         <article>
           <h2>Completely free</h2>
@@ -103,60 +102,21 @@
 
       <section id="features" class="feature-band" aria-label="Core features">
         <article>
-          <h2>Wireless trackpad</h2>
-          <p>Move, click, right-click, scroll, and zoom with familiar touch gestures. Expand the pad when you want more room and optionally make the pointer easier to spot.</p>
-        </article>
-        <article>
-          <h2>Phone keyboard</h2>
-          <p>Type into any Windows app, send multiline text, and use common shortcuts from your phone or tablet.</p>
+          <h2>Trackpad and keyboard</h2>
+          <p>Move, click, scroll, zoom, type, and use common shortcuts from your mobile device.</p>
         </article>
         <article>
           <h2>Send text to PC</h2>
-          <p>Write or paste text on your phone, then send it to the active app, copy it to the PC clipboard, or open it as a new document in supported Windows apps. With host permission, you can also fetch the PC clipboard into selectable text on your device and use local snippets to save or reuse it.</p>
+          <p>Compose, paste, or use supported browser dictation for longer text, then send it to the PC.</p>
         </article>
         <article>
           <h2>Couch remote</h2>
-          <p>Control media, volume, fullscreen, YouTube, Kodi, browser tabs, open apps, and host-approved shortcuts from the sofa. With a separate host permission, you can also send a reviewed HTTP or HTTPS address to the PC's default browser.</p>
+          <p>Control media, volume, YouTube, Kodi, and common browser or window actions.</p>
         </article>
         <article>
           <h2>Tablet split mode</h2>
-          <p>Use a landscape tablet as a roomy keyboard and trackpad, with the trackpad placed on either side.</p>
+          <p>Use a landscape tablet as a roomy keyboard and trackpad.</p>
         </article>
-        <article>
-          <h2>Dictation</h2>
-          <p>Speak on your phone and send the recognized text directly to the active app on your PC.</p>
-        </article>
-        <article>
-          <h2>Trusted devices</h2>
-          <p>Pair by QR code, reconnect later, review access, and remove trusted devices from the Windows host at any time.</p>
-        </article>
-        <article>
-          <h2>Keep awake</h2>
-          <p>Keep your PC awake for a set time or indefinitely, with the option to keep the screen on too.</p>
-        </article>
-        <article>
-          <h2>Power controls</h2>
-          <p>Lock Windows, manage displays, and enable protected sign-out, restart, or shutdown controls only when you choose.</p>
-        </article>
-      </section>
-
-      <section id="uses" class="content-section split">
-        <div>
-          <p class="eyebrow">Use cases</p>
-          <h2>Your PC, within reach</h2>
-        </div>
-        <div>
-          <p>
-            Voltura Air is made for the moments when the PC is nearby but the mouse or keyboard is not.
-          </p>
-          <ul>
-            <li>Control a TV or stereo PC from the sofa.</li>
-            <li>Type searches, messages, and notes, or open a reviewed web address in the PC's default browser.</li>
-            <li>Use a tablet as a roomy couch keyboard and trackpad.</li>
-            <li>Run PowerPoint or Google Slides from a dedicated presenter surface with large controls and a local elapsed timer.</li>
-            <li>Keep a backup remote ready when your usual keyboard or mouse is out of reach.</li>
-          </ul>
-        </div>
       </section>
 
       <section id="screens" class="screen-section">
@@ -166,58 +126,24 @@
         </div>
         <div class="screen-grid" aria-label="Voltura Air screenshots">
           <figure class="screen-card wide">
-            <img src="./assets/voltura-air-host.png" alt="Voltura Air Windows host Connect screen in light mode">
-            <figcaption>Windows host - light mode</figcaption>
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="./assets/voltura-air-host-dark.png">
+              <img src="./assets/voltura-air-host.png" alt="Voltura Air Windows host Connect screen">
+            </picture>
+            <figcaption>Windows host</figcaption>
+          </figure>
+          <figure class="screen-card phone">
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="./assets/voltura-air-iphone-dark.png">
+              <img src="./assets/voltura-air-iphone.png" alt="Voltura Air trackpad on a phone">
+            </picture>
+            <figcaption>Phone trackpad</figcaption>
+          </figure>
+          <figure class="screen-card phone">
+            <img src="./assets/voltura-air-iphone-kodi-dark.png" alt="Voltura Air Kodi remote on a phone">
+            <figcaption>Couch remote</figcaption>
           </figure>
           <figure class="screen-card wide">
-            <img src="./assets/voltura-air-host-dark.png" alt="Voltura Air Windows host Connect screen in dark mode">
-            <figcaption>Windows host - dark mode</figcaption>
-          </figure>
-          <figure class="screen-card wide">
-            <img src="./assets/voltura-air-host-preferences.png" alt="Voltura Air Windows host Global permissions preferences in light mode">
-            <figcaption>Windows host preferences - light mode</figcaption>
-          </figure>
-          <figure class="screen-card wide">
-            <img src="./assets/voltura-air-host-preferences-dark.png" alt="Voltura Air Windows host Global permissions preferences in dark mode">
-            <figcaption>Windows host preferences - dark mode</figcaption>
-          </figure>
-          <figure class="screen-card phone">
-            <img src="./assets/voltura-air-iphone.png" alt="Voltura Air trackpad screen on an iPhone in light mode">
-            <figcaption>iPhone - light mode</figcaption>
-          </figure>
-          <figure class="screen-card phone">
-            <img src="./assets/voltura-air-iphone-dark.png" alt="Voltura Air trackpad screen on an iPhone in dark mode">
-            <figcaption>iPhone - dark mode</figcaption>
-          </figure>
-          <figure class="screen-card phone">
-            <img src="./assets/voltura-air-iphone-menu.png" alt="Voltura Air mobile menu on an iPhone in light mode">
-            <figcaption>iPhone menu</figcaption>
-          </figure>
-          <figure class="screen-card phone">
-            <img src="./assets/voltura-air-iphone-remote-fn-dark.png" alt="Voltura Air Remote Fn controls on an iPhone in dark mode">
-            <figcaption>iPhone Remote Fn</figcaption>
-          </figure>
-          <figure class="screen-card phone-landscape">
-            <img src="./assets/voltura-air-iphone-remote-fn-landscape-dark.png" alt="Voltura Air Remote Fn controls on an iPhone in landscape dark mode">
-            <figcaption>iPhone Remote Fn - landscape</figcaption>
-          </figure>
-          <figure class="screen-card phone">
-            <img src="./assets/voltura-air-iphone-url-dark.png" alt="Voltura Air Open URL on PC dialog on an iPhone in dark mode">
-            <figcaption>iPhone Open URL dialog</figcaption>
-          </figure>
-          <figure class="screen-card phone">
-            <img src="./assets/voltura-air-iphone-kodi-dark.png" alt="Voltura Air Kodi remote screen on an iPhone in dark mode with navigation ring controls">
-            <figcaption>iPhone Kodi remote</figcaption>
-          </figure>
-          <figure class="screen-card tablet">
-            <img src="./assets/voltura-air-ipad.png" alt="Voltura Air trackpad screen on an iPad in light mode">
-            <figcaption>iPad - light mode</figcaption>
-          </figure>
-          <figure class="screen-card tablet">
-            <img src="./assets/voltura-air-ipad-dark.png" alt="Voltura Air trackpad screen on an iPad in dark mode">
-            <figcaption>iPad - dark mode</figcaption>
-          </figure>
-          <figure class="screen-card split-view">
             <img src="./assets/voltura-air-split.png" alt="Voltura Air split keyboard and trackpad mode on a tablet in landscape orientation">
             <figcaption>Tablet split mode</figcaption>
           </figure>
@@ -232,7 +158,7 @@
         <ol class="steps">
           <li>Install and start Voltura Air on the Windows 11 PC you want to control.</li>
           <li>Scan the pairing QR code with a phone or tablet on the same Wi-Fi or local network.</li>
-          <li>Choose Trackpad, Keyboard, Remote, Dictation, Send text to PC, Get text from PC, or tablet split mode.</li>
+          <li>Choose the control surface you need and start using the PC.</li>
           <li>Optionally add the mobile page to your home screen for faster access later.</li>
         </ol>
       </section>
@@ -248,38 +174,10 @@
           </p>
           <ul>
             <li>Review paired devices and remove access at any time.</li>
-            <li>Choose host-wide defaults and tighter permissions for individual devices.</li>
-            <li>Keep sensitive power and session controls disabled until you explicitly enable them.</li>
-            <li>Choose which application shortcuts appear; custom paths remain stored on the PC.</li>
-            <li>Keep URL opening off until needed; enabled clients validate drafts locally and application logs omit the address.</li>
-            <li>Require deliberate confirmation before sign out, restart, or shutdown.</li>
+            <li>Choose what paired devices are allowed to do.</li>
+            <li>Keep sensitive PC actions disabled until you explicitly enable them.</li>
           </ul>
         </div>
-      </section>
-
-      <section class="feature-band" aria-label="Trust and support details">
-        <article>
-          <h2>Local by default</h2>
-          <p>Your PC serves the mobile interface directly to devices on your local network.</p>
-        </article>
-        <article>
-          <h2>Permissions you control</h2>
-          <p>Decide what paired devices can do, and revoke access whenever you need to.</p>
-        </article>
-        <article>
-          <h2>Easy recovery</h2>
-          <p>Clear recovery options help you reconnect, scan a new QR code, enter the host manually, or copy diagnostics.</p>
-        </article>
-      </section>
-
-      <section id="privacy" class="content-section split">
-        <div>
-          <p class="eyebrow">Designed for one job</p>
-          <h2>A nearby remote - not remote desktop</h2>
-        </div>
-        <p>
-          Voltura Air focuses on controlling a Windows PC in the room. It is not a cloud remote-desktop, file-sync, notification, or remote-support service.
-        </p>
       </section>
 
       <section id="source" class="content-section split">

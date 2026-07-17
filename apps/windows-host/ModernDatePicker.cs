@@ -4,6 +4,7 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using VolturaAir.Host.Ui;
 using Button = System.Windows.Controls.Button;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
 using Orientation = System.Windows.Controls.Orientation;
@@ -61,7 +62,6 @@ public sealed class ModernDatePicker : UserControl
         {
             Text = "\u25A6",
             FontSize = 18,
-            Margin = new Thickness(0, 0, 10, 0),
             VerticalAlignment = VerticalAlignment.Center
         };
         icon.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
@@ -74,17 +74,20 @@ public sealed class ModernDatePicker : UserControl
         {
             Text = "\u2304",
             FontSize = 16,
-            Margin = new Thickness(12, -2, 0, 0),
+            // Optical correction for this font glyph inside the trigger grid.
+            Margin = new Thickness(0, -2, 0, 0),
             VerticalAlignment = VerticalAlignment.Center
         };
         chevron.SetResourceReference(TextBlock.ForegroundProperty, "MutedTextBrush");
 
         var content = new Grid();
         content.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(UiTokens.SpaceSm) });
         content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(UiTokens.SpaceMd) });
         content.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Grid.SetColumn(label, 1);
-        Grid.SetColumn(chevron, 2);
+        Grid.SetColumn(label, 2);
+        Grid.SetColumn(chevron, 4);
         content.Children.Add(icon);
         content.Children.Add(label);
         content.Children.Add(chevron);
@@ -106,14 +109,13 @@ public sealed class ModernDatePicker : UserControl
         {
             Text = "Expiration date",
             FontSize = 17,
-            FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(0, 0, 0, 12)
+            FontWeight = FontWeights.SemiBold
         };
         title.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
 
         var previous = CreateNavigationButton("\u2039", -1, "Previous month");
         var next = CreateNavigationButton("\u203A", 1, "Next month");
-        var navigation = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+        var navigation = new Grid();
         navigation.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40) });
         navigation.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         navigation.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40) });
@@ -130,16 +132,16 @@ public sealed class ModernDatePicker : UserControl
         apply.SetResourceReference(Button.ForegroundProperty, "AccentTextBrush");
         apply.SetResourceReference(Button.BorderBrushProperty, "AccentBrush");
         apply.Click += (_, _) => Apply();
-        var footer = new StackPanel
+        var footer = new SpacingStackPanel
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new Thickness(0, 14, 0, 0)
+            Spacing = UiTokens.SpaceSm
         };
         footer.Children.Add(cancel);
         footer.Children.Add(apply);
 
-        var panel = new StackPanel();
+        var panel = new SpacingStackPanel { Spacing = UiTokens.SpaceMd };
         panel.Children.Add(title);
         panel.Children.Add(navigation);
         panel.Children.Add(_calendar);

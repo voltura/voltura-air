@@ -1,44 +1,29 @@
-# Voltura Air - Features
+# Implemented product capabilities
 
-Updated: 2026-07-17
-Scope: current `voltura/voltura-air` `main` branch. This file describes current product capabilities.
+This document defines observable product capabilities and guarantees. See
+[protocol.md](protocol.md) for wire schemas, [setup.md](setup.md) for procedures,
+[architecture.md](architecture.md) for structure, and [todo.md](todo.md) for
+approved unfinished work.
 
-Voltura Air turns any phone, tablet, or modern browser into a local-network remote control surface for a Windows PC.
+## Product scope and guarantees
 
-## Product promise
-
-- Control your Windows PC from any phone, tablet, or touch browser.
-- No mobile app-store install required.
-- Works on your own Wi-Fi/LAN. No account. No cloud needed.
-- Freeware with no trial limits or feature locks.
-
-## Best for
-
-- PC connected to TV/stereo.
-- YouTube, Kodi, and other couch/TV control.
-- Sofa/bed control.
-- Broken or annoying wireless keyboard/trackpad replacement.
-- PowerPoint, Google Slides, and browser/PDF presenting with a dedicated, acknowledged control surface.
-- Quick typing/search from phone.
-- Local-network control without a cloud account.
-
-## Not intended for
-
-- Remote support over the internet.
-- Full remote-desktop replacement.
-- Phone notification sync.
-- File backup/sync.
-- Serious gaming-quality controller replacement.
-- Cloud clipboard synchronization.
-
----
+- The host runs on Windows 11 and is controlled from a phone, tablet, or other
+  browser-capable device on the same Wi-Fi or LAN.
+- The mobile client is served as a web app by the host; normal use does not
+  require a mobile app-store installation.
+- Voltura Air has no user account, subscription, trial limit, feature lock,
+  cloud relay, or internet input-forwarding service.
+- It is a local PC control surface, not a remote-desktop, file-sync, backup,
+  phone-notification-sync, or cloud-clipboard product.
+- A client cannot control or wake the PC while the Windows host is sleeping,
+  shut down, or otherwise unreachable.
 
 ## Windows host
 
 ### App shell
 
 - Runs as a Windows tray application.
-- Allows one host process per signed-in Windows user; another launch shows and focuses the existing host window instead of starting a second server.
+- Allows one host process per signed-in Windows user; another launch focuses the existing host window.
 - Uses a WPF host UI.
 - Provides pages for:
   - Connect.
@@ -46,7 +31,6 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
   - Connection.
   - Preferences.
   - Diagnostics.
-- Organizes Preferences as themed accordion sections that are collapsed on entry and allow only one expanded section at a time. Opening a lower section scrolls only when needed to reveal its first control while keeping the focused header visible.
 - Provides tray actions for opening the app, controlling Keep awake, opening the product page, and exit.
 - Starts with a neutral tray badge while paired devices reconnect, and holds the connected badge through the short automatic-reconnect grace period; it shows the disconnected badge only when a device remains offline.
 - Keeps the host window hidden when the last paired device disconnects by default; reopening it on disconnect is an opt-in preference.
@@ -81,7 +65,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Uses stored reconnect secrets after first pairing.
 - Stores only a hash of the reconnect secret on the host.
 - Rotates the secret when a valid token is accepted for an already-known client.
-- Keeps a paired-device record instead of creating duplicate browser/home-screen entries for the same client ID.
+- Keeps one paired-device record for each client ID.
 - Tracks active connected devices.
 - Supports revoking/disconnecting paired devices.
 - Closes active sockets when a device is revoked.
@@ -131,9 +115,8 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 
 - Acknowledges dispatched input events when the host advertises input acknowledgement support.
 - Coalesces active movement to animation frames and uses low-rate acknowledgement barriers plus WebSocket-buffer limits to prevent delayed pointer queues without adding per-move replies or idle polling.
-- Decodes and bounds each authenticated pointer or keyboard message once before dispatch, keeps host-control settings in memory after startup, and reuses the native one-input movement buffer so steady pointer input performs no Registry access or one-element input-array allocation.
 - Sends Unicode text to Windows in bounded batches of up to 64 code units without splitting surrogate pairs. Partial native batches report failure, and an unmatched accepted Unicode key-down is released before the failure reaches the client.
-- Reports input dispatch failures to the mobile client instead of silently leaving dead controls.
+- Reports input dispatch failures to the mobile client.
 - Moves the Windows pointer.
 - Applies the optional host-wide Custom pointer across Windows. Its size and color are chosen in host Preferences, and paired devices can turn it on or off. The default-on cursor recovery watchdog restores the configured Windows cursor scheme after unexpected host termination, including forced development-host process-tree shutdown; normal shutdown performs the same restoration in the host.
 - Sends left/right mouse button down/up/click.
@@ -172,15 +155,23 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Supports PC sleep when allowed by host permissions.
 - Locks the current Windows session with `LockWorkStation` when permission and the current-user policy allow it.
 - Reports accepted, denied, unsupported, policy-disabled, policy-unavailable, and failed power/session requests without disconnecting the client.
-- Offers opt-in daily JSON Lines application logging for troubleshooting. Logging is off by default, keeps files normally shareable, and sends sanitized entries through one bounded single-writer queue so filesystem work never blocks protocol input. Accepted entries flush during clean host shutdown; if the queue fills, later diagnostics include a sanitized dropped-entry count. Reads flush accepted entries first and do not hold the protocol writer path. The log records remote command flow plus local host actions such as Windows-lock policy writes, readback failures, and native lock tests without typed text, opened web addresses, pointer coordinates, or pairing credentials.
-- Opens Diagnostics directly on a dedicated Application log view, with System details available from a clear top-level switch. The log view exposes its **Write application log** toggle directly and clearly distinguishes disabled logging from an empty filtered result. It uses themed activity cards, a two-month date-range picker plus event, source, action, and client filters, filtered copy, open-folder, confirmed delete actions, and an optional session-only **Automatic log refresh** toggle that is off by default. Log reads run off the WPF dispatcher, repeated requests are coalesced, and unchanged results retain their existing visuals. Automatic refresh reacts to successful host log writes only while the view is visible instead of polling a timer. Retention is configurable from 1 to 30 days with a 2-day default. Input commands record both receipt and their sanitized executed or blocked outcome, including the Remote mode minimize action, without logging typed text. Only the record area scrolls, so the filter and action controls remain reachable.
-- Blacks out every connected monitor with a topmost black WPF curtain without changing display power state. Windows, networking, and remote control remain active; any local or remote mouse/keyboard interaction removes the curtain, and touch or pen input also dismisses it locally. Ordinary remote movement bypasses the WPF dispatcher when no curtain is active.
+- Offers opt-in daily JSON Lines application logging for troubleshooting. Logging
+  is off by default and records sanitized remote-command and local-host outcomes
+  without typed text, opened web addresses, pointer coordinates, or pairing
+  credentials. Retention is configurable from 1 to 30 days with a 2-day default.
+- Opens Diagnostics directly on an Application log view, with System details
+  available from a top-level switch. The log view distinguishes disabled logging
+  from an empty result and provides date, event, source, action, and client
+  filters plus copy, open-folder, confirmed delete, and optional session-only
+  automatic refresh.
+- Blacks out every connected monitor with a topmost black WPF curtain without
+  changing display power state. Windows, networking, and remote control remain
+  active; local or remote mouse/keyboard input removes the curtain, as does local
+  touch or pen input.
 - Starts the native Windows screen saver only when Windows reports screen saving enabled and a configured `.scr` program exists. The action is omitted from host and mobile UI when unavailable.
 - Turns off connected displays through the Windows monitor-power command when allowed, including HDMI output to TVs and receivers. The mobile client requires confirmation and explains that some PCs treat this command as sleep or Modern Standby. On those systems the host and network connection can suspend, Voltura Air cannot wake the PC remotely, and physical keyboard or mouse input is required. Windows may then require PIN, fingerprint, or another configured sign-in method; the action does not sign out the user.
 - Signs out, restarts, or shuts down through fixed Windows system commands when explicitly allowed.
 - Keeps Windows awake without changing the selected power plan, with Off, timed, date/time expiration, and indefinite modes plus an optional host-owned Keep screen on setting. Timed deadlines survive host restarts, expired modes return to Off, and exit releases the Windows request.
-
----
 
 ## Mobile web client
 
@@ -204,7 +195,6 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Uses versioned QR links and service-worker caches so fresh host QR codes
   refresh stale mobile app shells.
 - Can automatically refresh the installed web app once after reconnecting to a PC.
-- Host developer mode makes auto refresh track the current host run instead of the release version.
 
 ### Pairing and reconnect UX
 
@@ -306,9 +296,11 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 
 ### Remote mode
 
-- A single compact Power entry opens a responsive Power & session sheet instead of adding permanent power buttons to the main grid.
+- A compact Power entry opens the responsive Power & session sheet.
 - The Power & session sheet shows one basic Keep awake toggle when the host reports Awake state. It uses the host's Keep screen on setting and cannot alter it.
-- Lock PC, Blackout display, and an available Screen saver use direct action rows. Blackout closes the Power sheet immediately so it does not obscure the restored display; its result remains available when Power is reopened. Lock and Screen saver remain open while awaiting the host. Turn off display, Sign out, Restart PC, and Shut down PC open a dedicated warning screen and require an uninterrupted 1.6-second hold.
+- Lock PC, Blackout display, and an available Screen saver are direct actions.
+  Turn off display, Sign out, Restart PC, and Shut down PC require a 1.6-second
+  confirmation hold.
 - Host-disabled actions remain visible with a host-disabled explanation, except Screen saver, which is omitted when Windows does not expose an enabled, configured saver.
 - Media previous/play-pause/next.
 - Repeatable seek backward/forward through arrow-key shortcuts.
@@ -353,16 +345,17 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Task view through Win+Tab.
 - Show desktop, close the focused window, and minimize the focused top-level window directly, including when it is maximized.
 - Browser Back, new tab, close tab, reopen closed tab, next/previous tab, and reload.
-- The Fn panel includes an **Open URL** command that opens a dialog with detailed guidance, URL entry, and **Open**, **Clear**, and **Close** actions. When the effective PC permission is denied or the host does not support URL opening, the dialog explains why submission is unavailable. Bare addresses are normalized to HTTPS; explicit HTTP remains HTTP. The host accepts only absolute HTTP/HTTPS URLs with a host and opens them once through the signed-in user's Windows default browser.
-- The official client applies the same HTTPS-default rule and uses the browser URL parser to disable Open for malformed or unsupported drafts before sending. A dot is not required because single-label LAN hosts and `localhost` are valid hosts; the host still performs authoritative validation. URL opening uses its own acknowledged result and permission rather than text transfer or managed application launch. Validation and launch failures preserve the draft and expose Retry; success says **Open request sent** because the host cannot know whether the browser loaded the page. The dialog remains open to show that result until the user clears it or closes the dialog.
-- The host rejects file paths, commands, control characters, and non-web schemes such as `javascript:`, `data:`, and `mailto:`. It never searches for or falls back to a specific browser executable.
-- When application logging is enabled, URL opening records a sanitized `url.open` / `open_url` command receipt and its outcome without recording the submitted or normalized address.
+- The Fn panel includes an **Open URL** dialog. Bare addresses default to HTTPS;
+  explicit HTTP remains HTTP. The host accepts absolute HTTP/HTTPS URLs and opens
+  them through the signed-in user's default browser.
+- Invalid input and launch failures preserve the draft and offer Retry. Success
+  confirms that Windows accepted the open request. Application logging records
+  the outcome without the address.
 - Host-approved application buttons in a responsive Fn grid, with complete non-ellipsized labels, pending feedback, and PC result feedback that clears after four seconds.
 - Application launch can inherit the global host permission or be explicitly allowed/blocked per paired device.
-- Compact phone layouts keep the main remote surface within the viewport and move Windows and browser helper controls behind an Fn switch. Fn replaces the bottom portrait mode row or the top landscape mode row with the header mode selector, so the helpers and navigation use the reclaimed viewport space. Taller portrait phones retain a compact navigation ring below the Fn helpers while volume remains hidden; shorter portrait phones use the helpers-only view. In phone landscape, helpers replace the media column while volume and navigation remain visible.
-- Browser tabs use the dynamic viewport height, while installed/standalone PWAs use the large viewport height to avoid stale browser-chrome sizing reducing the app surface.
-- Portrait-tablet layouts keep the mode row at its natural button height so the trackpad or active mode retains the remaining space.
-- Tapping the active mode hides the full mode row and exposes the compact header selector without reducing the active mode's usable area.
+- Compact phone layouts move Windows and browser helpers behind an Fn switch and
+  keep the primary remote controls within the viewport.
+- Tapping the active mode collapses the mode row into the header selector.
 - Remote settings:
   - navigation ring.
   - Remote mode: Standard, YouTube, or Kodi.
@@ -374,11 +367,16 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 
 - Appears only after **Preferences > Developer tools > Enable alpha features** is enabled on the host. While the setting is off, the host advertises no Presentation capability, rejects direct Presentation commands without injecting input, and the mobile app hides Presentation from Menu and fourth-mode choices.
 - Provides a dedicated high-contrast, large-target presenter surface that is then reachable from Menu and can occupy the configurable fourth mode button.
-- Uses a user-selected PowerPoint, Google Slides, or PDF/browser target profile; it does not inspect presentation files, automate Office, screen-scrape, detect the focused application, or claim awareness of the current slide.
-- Sends one bounded `presentation.command` at a time and waits for its matching host result before another presentation control is enabled. Disconnecting clears pending work instead of replaying it after reconnect.
-- Uses Right/Left for Next/Previous and Escape for End across all three profiles. PowerPoint additionally offers F5 Start and Ctrl+L laser pointer; Google Slides offers L laser pointer. PowerPoint and Google Slides show **Blackout**, which uses the separate host-permissioned, system-wide Blackout display curtain across every monitor rather than an application-specific B shortcut. Start is hidden for browser targets, and Blackout/laser are hidden for PDF/browser targets.
+- Uses a user-selected PowerPoint, Google Slides, or PDF/browser profile and fixed
+  shortcuts. It does not detect the focused application or current slide.
+- Sends one acknowledged command at a time and clears pending work on disconnect.
+- Uses Right/Left for Next/Previous and Escape for End. PowerPoint also offers F5
+  Start and Ctrl+L laser pointer; Google Slides offers L laser pointer.
+  **Blackout** uses the separate system-wide display curtain. Browser targets
+  hide Start, and PDF/browser targets hide Blackout and laser.
 - Reports host permission denial, unsupported target actions, host-focus protection, native input failure, response timeout, and success without disconnecting the client.
-- Includes a device-local elapsed timer with Start, Pause, and Reset. Its state is intentionally not persisted across reloads.
+- Includes a device-local elapsed timer with Start, Pause, and Reset. Reloading
+  resets it.
 - Lets the presenter choose a 10, 15, 30, 45, or 60 minute plan. Visible live-region text announces five minutes remaining and planned time elapsed; browsers that expose `navigator.vibrate` can optionally add vibration at those same milestones.
 - Uses a single-column portrait layout and a compact two-column landscape layout while retaining the normal mode navigation as an obvious exit.
 
@@ -392,23 +390,31 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 ### Menu and text transfer
 
 - The hamburger drawer is a **Menu** with separate **Tools** and **Settings** groups.
-- Settings sections start collapsed and allow one section open at a time. Opening a section near the bottom of the visible drawer scrolls only enough to reveal its first control, leaves the accordion heading focused, and avoids animated scrolling when the device requests reduced motion.
 - Dictation, **Send text to PC**, and **Get text from PC** can be opened directly from Menu without changing the fourth-mode preference. Presentation is added only while the host advertises its enabled alpha capability.
-- Trackpad, Keyboard, and Remote remain fixed primary modes. The fourth mode can be configured as Dictation, Send text to PC, or Get text from PC and defaults to Dictation; Presentation is added only while its alpha capability is available. A previously saved Presentation choice falls back to Dictation while the gate is off. Navigation surfaces use one shared label/icon definition.
-- Dictation and the text tools use the persistent Menu and mode navigation without separate page-level Back controls.
+- Trackpad, Keyboard, and Remote remain fixed primary modes. The fourth mode can
+  be configured as Dictation, Send text to PC, or Get text from PC and defaults
+  to Dictation. Presentation is available while its alpha capability is enabled.
 - **Send text to PC** composes or pastes up to 4,096 characters. Focused application input remains the default; the host can instead use clipboard-only delivery, a configured fresh Notepad, Notepad++, Word, Visual Studio Code, Excel, or classic Outlook compose item, a new `.txt` draft in the Windows default text-file app, or a `mailto:` draft in the Windows default email client.
 - **Get text from PC** starts empty and fetches the current PC clipboard only after the user presses its button. It shows the returned maximum-4,096-character text in a selectable, read-only field, never writes to the phone/tablet clipboard, keeps prior fetched text after a failed request, and explains when the host has blocked the default-off **Read PC clipboard** permission. The permission can inherit the host global setting or be allowed/blocked per paired device. **Show snippets** reveals the existing local snippet controls for loading or saving text; they appear below the field in portrait and in a side panel in landscape.
-- The editor opens in **Keyboard** mode with a plain input background. Its left-aligned Keyboard/Touchpad switch shares one compact toolbar with a right-aligned ABC/123 selector; the active mode collapses to its icon without reserving label space while the inactive alternative keeps its text label. Touchpad mode uses the trackpad grid, hides the draft and keyboard-only send, clear, and snippet controls, and replaces the send row with Left/Right buttons that follow the trackpad's left-handed button-layout setting.
-- The top app-mode button row is hidden on the Send text page in landscape to leave more room for the editor. As viewport height becomes constrained in either orientation, the page progressively hides the destination warning, the **Text to send** field label, and finally the explanatory line below the page title.
+- The editor switches between Keyboard and Touchpad input. Touchpad mode uses
+  the trackpad grid and Left/Right buttons, including the saved left-handed
+  layout.
 - The destination warning is shown before delivery. Changing Windows focus changes the destination; the host refuses delivery while its own protected UI has focus.
 - Preserves multiline text by delivering each LF, CRLF, or CR line break as one Enter key event.
-- Keeps **Send text** and **Send text + Enter** side by side in both portrait and landscape. The optional final Enter is sent only after Windows accepts the complete text.
+- Offers **Send text** and **Send text + Enter**. The final Enter is sent only
+  after Windows accepts the complete text.
 - Confirms before sending 2,000 or more characters.
 - Shows pending, success, timeout, and native-delivery failure feedback from a host-acknowledged operation.
 - Supports an optional clear-after-send preference. The draft remains available after failure or when clearing is disabled.
-- Supports up to 20 locally stored snippets of up to 4,096 characters in a section that is folded by default. Names must be unique after trimming and without regard to letter case; duplicate saves and renames show inline feedback. Each snippet uses a compact bordered card with its name and a reorder-grip glyph on the first row and Rename, Update, and Delete together below it. Cards declare their custom touch behavior before contact begins: a normal vertical swipe scrolls the list under app control, while holding for 450 ms switches the same whole-card gesture into scroll-locked reordering. Releasing a drag automatically saves the new order. Loading a snippet briefly highlights the editor border and announces that its text was copied. Snippets are sent only after an explicit send action, and one whose text exactly matches the current draft remains visually neutral.
+- Stores up to 20 local snippets of up to 4,096 characters with unique,
+  case-insensitive names. Snippets can be loaded, renamed, updated, deleted, and
+  reordered with a 450 ms hold gesture. Loading never sends text automatically.
 - The authenticated host status advertises only the safe destination mode, display name, and current availability. Executable paths, process IDs, window handles, matching rules, and clipboard contents are not exposed.
-- Managed text transfer either creates a self-identifying local draft or stages text on the Windows clipboard. Paste-driven destinations paste only after the host has confirmed the intended new-item window is foreground and not elevated. Startup/activation uncertainty is a clipboard-only success for manual paste, never a blind retry or paste into another foreground window. Notepad++ opens a generated text draft directly rather than relying on a new-document shortcut. Generated Notepad++, Word, Excel, and text-file drafts are automatically removed after 24 hours by default. Their notice gives the exact removal date and points to **Preferences > Text destination > Keep generated draft files**, which can be enabled to retain new drafts; use Save As with a different filename to preserve important content.
+- Managed text transfer creates a local draft or stages text on the Windows
+  clipboard. Paste-driven destinations paste only after the intended window is
+  foreground and not elevated; otherwise the user receives a clipboard result
+  for manual paste. Generated drafts are removed after 24 hours by default.
+  **Keep generated draft files** retains them.
 
 ### Split mode
 
@@ -421,47 +427,3 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Hides mode buttons and the status row by default to maximize usable space.
 - Hides volume control in split mode.
 - Keeps the keyboard pane scrollable while keeping the trackpad pane fixed.
-
----
-
-## Current documentation
-
-- `README.md` - product promise, best-for/not-intended sections, requirements, build/test, release links.
-- `docs/features.md` - detailed current-state capability inventory and explicit list of features that must not be promised yet.
-- `docs/protocol.md` - WebSocket protocol and message examples.
-- `docs/pairing-feedback.md` - pairing failure UX and diagnostics model.
-- `docs/manual-network-selection.md` - network, port, and manual host behavior.
-- `docs/release.md` - release packaging and asset upload flow.
-- `CONTRIBUTING.md` - contribution quickstart.
-- `SECURITY.md` - security reporting policy.
-- `CODE_OF_CONDUCT.md` - project conduct policy.
-- `LICENSE` - MIT license.
-- `.github/FUNDING.yml` - Ko-fi and PayPal support links.
-
----
-
-## Current release/distribution state
-
-- Freeware.
-- Open source under MIT license.
-- GitHub releases are the expected distribution channel.
-- Release packaging creates:
-  - portable zip,
-  - NSIS setup executable.
-- Installer is per-user.
-- Installer does not require administrator rights.
-- Installer keeps pairing/settings data on uninstall.
-- Release assets are currently not code-signed.
-- Documentation explicitly warns not to claim the installer is signed.
-
-## Strongest current selling points
-
-- Browser-based phone/tablet/touch-browser control: no mobile app-store install.
-- Local Wi-Fi/LAN control: no account, no cloud relay, no paywall.
-- Practical couch-PC use: trackpad, keyboard, dictation, YouTube/Kodi remote modes, volume, and power/session controls.
-- Reviewed, acknowledged text transfer to the focused PC application with optional local snippets and Enter.
-- Host-managed Keep awake modes with an optional Keep screen on setting and a simple permissioned mobile toggle.
-- QR pairing with saved reconnect.
-- Recovery UX for stale QR codes, changed IP/port, and unreachable host.
-- Stronger trust baseline than a quick LAN remote: pairing tokens, hashed reconnect secret, origin checks, message validation, permissions, and redacted diagnostics.
-- Split keyboard + trackpad mode for landscape/tablet use.

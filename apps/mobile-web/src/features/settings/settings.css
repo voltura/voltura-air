@@ -1,0 +1,285 @@
+.drawer-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--scrim);
+  padding: 0;
+}
+
+.drawer-scrim:active {
+  color: inherit;
+  background: var(--scrim);
+  border-color: transparent;
+}
+
+.settings-drawer {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 11;
+  width: min(86vw, 360px);
+  height: var(--app-viewport-height);
+  max-height: var(--app-viewport-height);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: max(var(--space-lg), env(safe-area-inset-top)) var(--space-lg) max(var(--space-lg), env(safe-area-inset-bottom));
+  border-right: 1px solid var(--border);
+  background: var(--bg);
+  box-shadow: 18px 0 40px var(--drawer-shadow);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  transform: translateX(-105%);
+  transition: transform var(--motion-standard) ease;
+}
+
+.settings-drawer * {
+  touch-action: pan-y;
+}
+
+.settings-drawer input[type="range"] {
+  touch-action: pan-x;
+}
+
+.settings-drawer.open {
+  transform: translateX(0);
+}
+
+.drawer-header {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.drawer-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.drawer-title {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+}
+
+.drawer-title span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.drawer-group,
+.drawer-tool-list {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.drawer-group h3,
+.drawer-settings-title {
+  margin: var(--space-2xs) 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.drawer-tool-list button {
+  min-height: var(--control-prominent-height);
+  justify-content: flex-start;
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+.drawer-tool-list button svg {
+  color: var(--accent);
+}
+
+.settings-section {
+  display: grid;
+  gap: 10px;
+}
+
+.settings-section summary {
+  min-height: var(--control-prominent-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-medium);
+  background: var(--surface);
+  cursor: pointer;
+  list-style: none;
+  padding: var(--space-md);
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.settings-section summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-section summary::after {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg);
+  transition: transform var(--motion-fast) ease;
+}
+
+.settings-section[open] summary::after {
+  transform: translateY(3px) rotate(225deg);
+}
+
+.settings-section summary span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.settings-section-body {
+  display: grid;
+  gap: 10px;
+  padding-top: 10px;
+}
+
+.fourth-mode-select {
+  min-height: var(--control-prominent-height);
+  font-size: 1rem;
+  line-height: 1.25;
+  cursor: pointer;
+}
+
+.install-card {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-medium);
+  background: var(--surface);
+  padding: var(--space-md);
+}
+
+.install-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+
+.install-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-weight: 700;
+}
+
+.install-title svg {
+  color: var(--accent);
+}
+
+.install-card button {
+  width: 100%;
+}
+
+.install-card .info-button {
+  width: 30px;
+}
+
+.install-card .info-dialog-actions button {
+  width: auto;
+}
+
+.danger-button {
+  color: var(--danger);
+}
+
+.pc-list,
+.pc-row {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.pc-row {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-medium);
+  background: var(--surface-raised);
+  padding: 10px;
+}
+
+.pc-row.active {
+  border-color: var(--accent);
+}
+
+.pc-meta {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2xs);
+}
+
+.pc-meta small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pc-name-input {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: var(--radius-small);
+  color: var(--text);
+  background: transparent;
+  font-weight: 700;
+  outline: none;
+  padding: var(--space-xs) 6px;
+}
+
+.pc-name-input:focus {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+.pc-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: var(--space-sm);
+}
+
+.install-card .pc-actions button {
+  width: 100%;
+  min-width: 0;
+}
+
+.install-steps {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 22px;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+
+.manual-pc-form {
+  display: grid;
+  gap: 10px;
+  width: min(100%, 320px);
+}
+
+.manual-pc-form button {
+  width: 100%;
+  min-width: 0;
+}

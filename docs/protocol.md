@@ -1,5 +1,11 @@
 # Protocol
 
+This document defines the WebSocket wire contract: message shapes, semantics,
+authentication, capability negotiation, bounds, acknowledgements, and errors.
+See [features.md](features.md) for product behavior,
+[network-and-host-selection.md](network-and-host-selection.md) for host
+selection, and [pairing-feedback.md](pairing-feedback.md) for connection UX.
+
 Voltura Air uses JSON messages over a WebSocket connection at `/ws`. The host
 accepts missing WebSocket `Origin` headers, same-origin requests, configured
 development client origins, and loopback/private LAN origins. Clearly unrelated
@@ -34,31 +40,24 @@ Pairing links use query parameters:
 The mobile app removes `t` from the address after pairing. Non-secret
 parameters can remain in the address.
 
-## Host hints and manual PC profiles
+## Host hints
 
 The `h` host hint is connection routing metadata only. It is not a secret and
 must not be treated as proof that a device is paired. A WebSocket session still
 has to authenticate through `pair.hello` with either a valid `pairToken` or a
 stored reconnect `secret`.
 
-The mobile app can also accept a manually entered host from recovery UI or
-Settings. Manual host input may be:
+The reference client accepts these host forms:
 
 - an origin such as `http://192.168.1.50:51395`;
 - an address and port such as `192.168.1.50:51395`;
 - a full Voltura Air pairing link;
 - a port number, which resolves against the current page host.
 
-After valid manual host input, the mobile app creates or updates a saved PC
-profile, selects it as the active PC, and attempts to connect without navigating
-away from the app. If the manually entered host does not include a pairing token,
-the connection can only complete when the browser already has a valid stored
-secret for that PC. Otherwise the host rejects the request and the user must
-scan a fresh QR code.
-
-Manual host profiles are a recovery path for changed IP addresses, changed
-automatic ports, guest Wi-Fi mistakes, stale QR pages, and firewall/network
-troubleshooting. They do not bypass pairing.
+If the host value has no pairing token, authentication can complete only with a
+valid stored reconnect secret. Host hints and saved profiles never bypass
+pairing. Profile creation, selection, and recovery behavior are defined in
+[network-and-host-selection.md](network-and-host-selection.md).
 
 ## Pairing
 
@@ -203,12 +202,13 @@ The adapter name can reveal local hardware/vendor details, so it should only be 
 `remoteLaunch` is an authenticated capability. When `true`, the host allows this paired device to trigger the fixed host-defined launch actions documented below and exposes its approved configurable buttons through `host.appLaunchActions`. The host does not expose the configured YouTube URL, executable paths, or arguments through this metadata.
 `appLaunchActions` is an authenticated array of `{ id, label, kind }` summaries. It is empty when the effective **Allow paired devices to start applications** permission is disabled. `id` is an opaque host-owned identifier; clients must not derive a path or command from it. `label` is the host-managed 1–10 character button label. `kind` is one of `browser`, `spotify`, `vlc`, `powerpoint`, or `custom` and is presentation metadata only.
 `urlOpen` is an authenticated capability object emitted by hosts that support reviewed URL opening. `canOpen` is the effective **Open web addresses** permission for the paired device. The permission defaults off and is independent from application launch and text transfer.
-The official client hides its URL field and Open button while `canOpen` is false.
 `textTransfer` is an authenticated capability. When `true`, the client may use the host-acknowledged `text.send` operation described below. `host.textTransferTarget` contains only `{ mode, displayName, available }`, where `mode` is `focused`, `clipboard`, or `configured`. Executable paths, process identifiers, window handles, matching rules, and clipboard contents are never included.
-`clipboardRead` is an authenticated capability emitted by hosts that support explicit PC clipboard reading. `true` means the effective **Read PC clipboard** permission allows this paired device; `false` means the host blocks the operation. Older hosts omit the capability.
+`clipboardRead` is an authenticated capability. `true` means the effective **Read PC clipboard** permission allows this paired device; `false` means the host blocks the operation.
 `pointerSpeed` is the effective pointer speed for the authenticated paired device: the host default unless that device has an override. It is included only on authenticated `pair.accepted` and `status` messages. When the Windows host profile changes, the host may push the same lightweight `status` message to active sockets; the mobile app does not add a polling loop, timer, or extra battery cost for pointer-speed sync.
 `customPointerEnabled` is the host-wide Custom pointer state. It is not a paired-device preference: changing it affects the whole Windows desktop.
-`inputBlockedByElevation` is `true` only while Windows reports that a higher-integrity foreground application is active. The host pushes the existing authenticated `status` message when this state changes; the official client shows a recovery dialog and can send the existing Win+D shortcut, which the host routes to the Windows shell's minimize-all operation instead of through `SendInput`.
+`inputBlockedByElevation` is `true` only while Windows reports that a
+higher-integrity foreground application blocks normal injected input. The host
+pushes authenticated `status` when this state changes.
 `webClientBuildId` identifies the exact compiled mobile web bundle currently served by the host. Vite generates a new opaque ID for every build, and the same ID is embedded in the JavaScript bundle and written to `web-build-id.txt`. When auto-refresh is enabled, the client clears its service worker and caches and reloads only when the host build ID differs from the ID embedded in the running client. This build ID is separate from `hostVersion` and does not affect installer or release versioning.
 When host developer mode is enabled in **Preferences** -> **Developer tools**, host metadata also includes `developerMode: true` and a `developerSessionId` for the current host run.
 
@@ -232,7 +232,6 @@ Known pairing rejection reasons:
 | `expired-token` | The active pairing token expired before use. |
 | `stale-token` | The token was already consumed or replaced by a newer QR code. |
 | `device-revoked` / `secret-revoked` | The stored device credential is no longer valid. |
-| `protocol-version-mismatch` | The client and host pairing protocol versions are incompatible. |
 | `rate-limited` | Too many failed unauthenticated pairing attempts were made from the same remote address. |
 | `invalid-message` | The pairing request was not valid JSON protocol shape. |
 
@@ -330,9 +329,6 @@ Zoom gesture. `direction: "in"` is a two-finger spread/pinch-out and zooms in. `
 { "type": "pointer.zoom", "seq": 126, "direction": "in" }
 ```
 
-The mobile app has a **Pinch zoom** trackpad setting. It controls whether
-pinch/spread gestures emit `pointer.zoom` messages.
-
 Text input:
 
 ```json
@@ -410,7 +406,7 @@ and returns a result without closing the connection for an execution failure.
 }
 ```
 
-Failure codes currently include `permission-denied`, `not-configured`,
+Failure codes include `permission-denied`, `not-configured`,
 `invalid-target`, `not-found`, and `start-failed`. A malformed ID is a protocol
 shape violation and closes the authenticated socket. Custom `.exe` paths and
 arguments are approved, stored, validated, and executed only by the Windows
@@ -421,14 +417,6 @@ host; they are excluded from protocol metadata and application logs.
 URL opening is a separate acknowledged operation. The client generates an
 `operationId` and sends the reviewed draft; it does not send a browser path,
 command, or fallback choice.
-
-Before sending, the official client applies the same bare-address HTTPS rule
-and checks the candidate with the browser's standards-based URL parser. It
-requires HTTP or HTTPS and a non-empty host, rejects malformed input and control
-characters, and disables Open while the draft is invalid. It does not require a
-dot because valid local hosts can be single-label names such as `router` or
-`localhost`. This check is advisory; the host validation below remains
-authoritative.
 
 ```json
 {
@@ -464,8 +452,8 @@ does not locate or fall back to Chrome, Edge, Brave, Opera, or another browser.
 Result codes are `accepted`, `permission-denied`, `invalid-url`,
 `unsupported-scheme`, and `launch-failed`. Native process errors are mapped to
 friendly text and never returned raw. Validation and launch failures keep the
-authenticated socket open; the official client preserves the draft and offers
-Retry. A successful result says **Open request sent** because the host knows
+authenticated socket open. A successful result says **Open request sent**
+because the host knows
 only that Windows accepted the shell-launch request, not whether a page loaded.
 When application logging is enabled, the host writes a sanitized `url.open`
 command receipt with action `open_url` and a matching command outcome. Neither
@@ -497,7 +485,7 @@ The host preserves multiline text by translating LF, CRLF, and CR line breaks in
 }
 ```
 
-`deliveryKind` is `typed`, `pasted`, or `clipboard`. Current failure codes are `VAIR-TEXT-HOST-FOCUSED`, `VAIR-TEXT-NATIVE-SEND-FAILED`, `VAIR-TEXT-CLIPBOARD-FAILED`, and `VAIR-TEXT-DELIVERY-FAILED`. The mobile client can also produce `VAIR-TEXT-RESPONSE-TIMEOUT` when no matching result arrives. Delivery failures keep the authenticated socket open.
+`deliveryKind` is `typed`, `pasted`, or `clipboard`. Failure codes are `VAIR-TEXT-HOST-FOCUSED`, `VAIR-TEXT-NATIVE-SEND-FAILED`, `VAIR-TEXT-CLIPBOARD-FAILED`, and `VAIR-TEXT-DELIVERY-FAILED`. The mobile client can also produce `VAIR-TEXT-RESPONSE-TIMEOUT` when no matching result arrives. Delivery failures keep the authenticated socket open.
 
 ## Explicit PC clipboard read
 
@@ -533,7 +521,7 @@ Presentation mode is a default-off alpha feature. The host advertises it only wh
 }
 ```
 
-Targets are `powerpoint`, `google-slides`, and `pdf`. Actions are `next`, `previous`, `start`, `end`, `black`, and `pointer`; a recognized action can still be unavailable for a target and then returns `unsupported-action` without injecting input. The first-version mappings are:
+Targets are `powerpoint`, `google-slides`, and `pdf`. Actions are `next`, `previous`, `start`, `end`, `black`, and `pointer`; a recognized action can still be unavailable for a target and then returns `unsupported-action` without injecting input. Mappings are:
 
 | Target | Next | Previous | Start | End | Black | Pointer |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -541,7 +529,13 @@ Targets are `powerpoint`, `google-slides`, and `pdf`. Actions are `next`, `previ
 | Google Slides | Right | Left | unavailable | Esc | B | L |
 | PDF/browser | Right | Left | unavailable | Esc | unavailable | unavailable |
 
-These low-level mappings are intentionally user-selected. The host does not inspect the focused process, presentation file, slide number, or application state. The mobile UI hides unavailable actions: in particular it never sends F5 to a browser target. Its visible **Blackout** control for PowerPoint and Google Slides does not use the low-level `black` action; it sends the separately permissioned `system.power` `blackoutDisplay` action so Voltura Air covers every monitor with its broader black curtain. The target scope follows the current [PowerPoint presentation shortcuts](https://support.microsoft.com/en-us/office/use-keyboard-shortcuts-to-deliver-powerpoint-presentations-1524ffce-bd2a-45f4-9a7f-f18b992b93a0) and [Google Slides shortcuts](https://support.google.com/docs/answer/1696717).
+These low-level mappings are intentionally user-selected. The host does not
+inspect the focused process, presentation file, slide number, or application
+state. Clients must not send an unavailable target/action combination. The
+separately permissioned `system.power` `blackoutDisplay` action is distinct from
+the presentation `black` shortcut. The target scope follows the current
+[PowerPoint presentation shortcuts](https://support.microsoft.com/en-us/office/use-keyboard-shortcuts-to-deliver-powerpoint-presentations-1524ffce-bd2a-45f4-9a7f-f18b992b93a0)
+and [Google Slides shortcuts](https://support.google.com/docs/answer/1696717).
 
 With the alpha gate off, the capability is explicitly unavailable:
 
@@ -599,12 +593,9 @@ other connection-level failures.
 }
 ```
 
-When the host must close an authenticated controller socket for invalid
-protocol, the Windows tray shows a connection-closed notification when
-connection status notifications are enabled. The mobile client treats the close
-as unavailable/reconnecting, shows the WebSocket close reason or code when
-available, and does not replay dropped physical-control commands after the
-reconnect.
+When the host closes an authenticated socket for invalid protocol, the client
+must treat it as a connection failure and must not replay dropped physical-input
+commands after reconnecting.
 
 The mobile client treats missing acknowledgements for recent input as an
 unhealthy connection and reconnects. Heartbeat success alone is not enough to
@@ -625,15 +616,9 @@ reflect host-enforced permissions and host settings for the active device.
 `true` when the host confirms input delivery with `input.ack` / `input.error`.
 `capabilities.presentation` is `null` while the reusable, default-off alpha gate
 is disabled. While the gate is enabled, it is an object whose `canControl` value
-is the active device's effective Presentation control permission. The official
-mobile app hides all Presentation entry points when the value is absent or
-`null`, and falls a previously saved Presentation fourth-mode choice back to
-Dictation.
-The mobile app only shows the gesture debug entry when the host explicitly enables it. The mobile app only
-shows the keyboard sleep button when `capabilities.sleep` is `true` and the
-local **Show sleep button** keyboard setting is enabled. The mobile app only
-shows Remote launch settings when `capabilities.remoteLaunch` is `true`.
-The dedicated text tool and optional Keyboard Paste action use `text.send` only when `capabilities.textTransfer` is `true`.
+is the active device's effective Presentation control permission. Clients must
+not expose or send capability-gated operations while their corresponding
+capability is absent, false, or `null`.
 
 Put the PC to sleep:
 
@@ -645,8 +630,7 @@ The host ignores `system.sleep` when the effective **Allow PC sleep**
 permission is disabled.
 
 The host reports each Power & session permission separately in
-`capabilities.power`. The object remains present when every action is disabled
-so the mobile sheet can explain that the host has blocked those actions.
+`capabilities.power`. The object remains present when every action is disabled.
 
 ```json
 {
@@ -671,14 +655,8 @@ is `notExplicitlyDisabled`; that means no explicit user block was found, not
 that locking is proven to work. This keeps permission denial distinct from a
 Windows policy that prevents workstation locking. `screenSaverAvailable` is
 true only when Windows reports screen saving enabled and an actual `.scr`
-program is configured. The official client omits the action when it is false;
-the separate `screenSaver` Boolean remains the effective host permission.
-
-The host Preferences action for enabling locking writes only
-`HKCU\Software\Microsoft\Windows\CurrentVersion\Policies\System\DisableLockWorkstation`
-as `REG_DWORD` zero for the signed-in user, broadcasts a policy refresh, reads
-the value back, and tests `LockWorkStation`. It does not elevate, request UAC,
-write machine policy, or inspect or change automatic Windows sign-in settings.
+program is configured. The separate `screenSaver` Boolean remains the effective
+host permission.
 
 Request a fixed Windows power or session action:
 
@@ -691,18 +669,13 @@ Supported action values are `lock`, `blackoutDisplay`, `displayOff`,
 action name, checks platform availability, and checks its effective
 global/per-device permission before execution. Lock, blackout, and an available
 screen saver are allowed by default; display off and the three session-ending
-actions are blocked by default. The official mobile client
-requires an uninterrupted 1.6-second hold after a warning screen for
-`displayOff`, `signOut`, `restart`, and `shutdown`. Releasing, moving away, or
-cancelling sends nothing.
+actions are blocked by default.
 
 `blackoutDisplay` creates a borderless, topmost black WPF window for every
 connected monitor. It does not change display power state, so Windows, the host,
 and networking remain active. Local mouse, keyboard, touch, or pen input closes
 the blackout windows. The host also closes them before dispatching any later
 remote pointer or keyboard message, so the client reliably restores the view.
-When no blackout is active, this check takes a thread-safe fast path and does
-not synchronously enter the WPF UI dispatcher for ordinary pointer movement.
 
 `screenSaver` sends Windows' native screen-saver system command. It returns
 `VAIR-POWER-UNAVAILABLE` without execution when no enabled and configured screen
@@ -713,9 +686,9 @@ HDMI-connected TVs and receivers. Some PCs treat that explicit monitor-off
 request as sleep or Modern Standby, suspending the host and network connection.
 The protocol cannot reliably wake such a PC because no client message can reach
 the suspended host; physical keyboard or mouse input may be required. The
-official client probes the host one second after an accepted request and uses
-its normal health deadline rather than masking the loss with a display-specific
-grace period. Windows may present its sign-in UI after
+client must use normal connection-health handling rather than treating the
+accepted command as proof that the host remains reachable. Windows may present
+its sign-in UI after
 resuming; `displayOff` does not sign out the session and the protocol does not
 carry Windows credentials. Sign out, restart, and shut down use the fixed Windows
 `shutdown.exe` executable with fixed arguments; client-provided paths,
@@ -745,8 +718,7 @@ WebSocket. A malformed message still violates protocol policy.
 
 The host reports the shared Awake state and the active device's effective
 permission in `capabilities.awake`. State is reported even when control is
-blocked so the mobile Power & session sheet can show whether the PC is already
-being kept awake.
+blocked.
 
 ```json
 {
@@ -765,7 +737,7 @@ Preferences, timer expiry, and remote changes all update the same host-owned
 state. The host broadcasts a fresh `status` message to connected clients when
 that state changes.
 
-The official mobile client intentionally exposes only a basic on/off action:
+The mobile protocol intentionally exposes only a basic on/off action:
 
 ```json
 { "type": "awake.set", "enabled": true }
@@ -797,10 +769,8 @@ does not override manual sleep, lid close, or lock-screen behavior.
 
 ## Audio
 
-The mobile app only shows volume controls when `capabilities.volume` is `true`
-and the local **Show volume control** trackpad setting is enabled. The host
-ignores audio mute and volume commands when the effective **Allow volume
-control** permission is disabled.
+The host ignores audio mute and volume commands when the effective **Allow
+volume control** permission is disabled.
 
 Request the default Windows output device state:
 

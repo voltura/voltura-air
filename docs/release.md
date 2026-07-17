@@ -1,33 +1,30 @@
-# Release Packaging and GitHub Asset Upsert
+# Release
 
 This document describes how to prepare a Voltura Air version, verify it, build
-Windows release assets, and create or update the corresponding GitHub release.
+Windows release assets, and publish a GitHub release.
 
-## Requirements
-
-- Node.js and npm.
-- .NET 10 SDK.
-- Visual Studio Build Tools with the Desktop development with C++ workload.
-- NSIS 3.12 or later, with `makensis` available on `PATH`.
-- GitHub CLI authenticated with access to `voltura/voltura-air` for manual release work.
-
-To install NSIS with Chocolatey:
+## Quick release
 
 ```powershell
-choco install nsis --version=3.12.0 -y
+npm run release -- 0.6.0
+npm run branding:generate
 ```
+
+Review, commit, and push to `main`. Run **Publish Voltura Air release**
+in GitHub Actions. After it succeeds, upload the contents of `docs/site` to
+`voltura.se/air`. Increment every later public release (`0.6.1`, `0.6.2`, then
+`0.7.0` for the next larger milestone).
 
 ## Prepare the release version
 
 From the repository root, pass one semantic version to the release command:
 
 ```powershell
-npm run release -- 0.3.0
+npm run release -- 0.6.0
 ```
 
-Prerelease and build metadata are accepted when they use semantic-version syntax,
-for example `0.3.0-beta.1`. Each numeric component must also fit a Windows version
-resource.
+The command accepts semantic versions such as `0.6.0` and `0.6.0-beta.1`.
+Numeric components must fit a Windows version resource.
 
 The command updates these authoritative release values together:
 
@@ -38,36 +35,28 @@ The command updates these authoritative release values together:
   `AssemblyVersion`, `FileVersion`, and `InformationalVersion` values;
 - `.github/workflows/release.yml` defaults for `release_tag` and `version`.
 
-The script validates every expected target before writing. If a target is missing,
-ambiguous, or no longer has the expected structure, it stops with an error so the
-release process can be updated deliberately.
+The script validates every target before writing and stops if the expected file
+structure has changed.
 
-The following values are not separate release versions:
-
-- `.vscode/launch.json` uses VS Code's debug configuration schema version;
-- `.vscode/tasks.json` uses VS Code's task configuration schema version.
-
-Other release consumers are dynamic and do not require a version edit:
+Build and packaging consumers read those prepared values:
 
 - Vite reads the mobile package version and defines `__APP_VERSION__`;
 - the host project writes the numeric release core as `AssemblyVersion` and
-  `FileVersion` (`0.3.0.0`) and the full semantic version as
-  `InformationalVersion` (`0.3.0` or `0.3.0-beta.1`);
-- Windows File Explorer displays the file version, product version, product name,
-  company, and description on the Details tab for `VolturaAir.Host.exe` and
-  `VolturaAir.Host.dll`;
-- source revision hashes are disabled in `InformationalVersion`, so Explorer shows
-  the exact semantic product version prepared by `npm run release`;
+  `FileVersion` (`0.6.0.0`) and the full semantic version as
+  `InformationalVersion` (`0.6.0` or `0.6.0-beta.1`);
+- Windows File Explorer displays the prepared file and product versions for
+  `VolturaAir.Host.exe` and `VolturaAir.Host.dll`;
 - `AppVersion` reads the assembly informational version at runtime;
 - `scripts/package-win.ps1` reads the root package version by default;
 - the NSIS script receives `APP_VERSION` and `APP_VERSION_QUAD` from the packaging script.
 
-Review the resulting diff before committing. The preparation command does not
-commit, tag, publish, or upload anything.
+Review the resulting diff before committing. The command only updates files.
 
-## Build, test, and package locally
+## Optional local preflight
 
-Run release verification sequentially from the repository root:
+GitHub Actions performs the required build, tests, packaging, and metadata
+validation. To catch failures before pushing, optionally run these commands
+sequentially from the repository root:
 
 ```powershell
 npm run build
@@ -75,51 +64,32 @@ npm test
 npm run package:win
 ```
 
-`npm run package:win` builds the mobile client, publishes the full and runtime-dependent
-Windows hosts, compiles the native cursor watchdog once for both publish directories,
-creates the portable zip, and compiles both NSIS installers. The default installer
-downloads the required .NET 10 Desktop and ASP.NET Core runtimes when they are absent.
-It reads the version from the root
-`package.json` when `-Version` is omitted. Packaging then runs
-`scripts/verify-windows-version.ps1` and fails if the host EXE, native cursor
-watchdog, host DLL, or either installer exposes missing or stale Windows File Explorer
-version metadata. The watchdog check also requires the human-readable
-**Voltura Air Cursor Recovery Watchdog** description and its cursor-restoration
-comment so Task Manager and File Properties explain the helper's purpose.
+`npm run package:win` reads the root package version, builds the mobile client,
+publishes both host variants, compiles the cursor watchdog, creates the portable
+ZIP and both NSIS installers, and validates their Windows metadata.
 
-For a quick local build of only the small, framework-dependent installer, run:
+Build only the framework-dependent installer with:
 
 ```powershell
 npm run package:win:small
 ```
 
-It builds the mobile client, publishes only the framework-dependent host, compiles the
-default installer, and validates its Windows version metadata. It skips the portable zip,
-self-contained publish, and full installer; use `npm run package:win` for release
-verification.
-
-For a fast local verification of both installer definitions without spending time
-on NSIS compression, run:
+Validate both installer definitions without compression with:
 
 ```powershell
 npm run package:win:test
 ```
 
-This performs the normal builds, installer compilation, and Windows metadata checks,
-but skips the portable zip, LZMA compression, and NSIS datablock optimization and
-writes clearly marked uncompressed installers under `artifacts/test`:
+This writes test installers under `artifacts/test`:
 
 ```text
 artifacts/test/VolturaAir-Setup-<version>-win-x64-test-uncompressed.exe
 artifacts/test/VolturaAir-Setup-<version>-win-x64-full-test-uncompressed.exe
 ```
 
-These files exist only for local installer testing and must not be uploaded or
-distributed. Compression does not change installed contents, but every actual release
-must still run `npm run package:win`; the GitHub release workflow always creates the
-compressed installers.
+Never publish files from `artifacts/test`.
 
-When the publish directories already exist and only NSIS changes need validation, use:
+Reuse existing publish directories for an NSIS-only check with:
 
 ```powershell
 npm run package:win:test -- -SkipBuild
@@ -147,41 +117,18 @@ powershell -ExecutionPolicy Bypass -File scripts/package-win.ps1 -Version <versi
 
 ## GitHub Actions release path
 
-The `Build and upsert release assets` workflow performs the release path on a
-Windows runner:
+Run **Publish Voltura Air release** from the prepared `main` commit. The workflow
+defaults match the version written by `npm run release`.
 
-1. Use the runner's preinstalled .NET 10 SDK when available, falling back to
-   `actions/setup-dotnet` only when the image does not contain one.
-2. Install npm dependencies with `npm ci`.
-3. Verify that the workflow `version` equals the committed root package version and
-   that `release_tag` is `v<version>`.
-4. Run the mobile and Windows host tests.
-5. Install NSIS, build the mobile client and both Release host variants, compile the
-   native cursor watchdog once for both publish directories, and package the portable
-   zip, default installer, and full installer.
-6. Validate the built host EXE, native cursor watchdog, host DLL, and both installer
-   Windows version resources as part of packaging.
-7. The release workflow uploads the package outputs directly to the GitHub
-   release and does not upload duplicate workflow artifacts.
-8. Create or refresh the selected tag so beta releases can be replaced at the same
-   version. Existing tags are updated with a lease, so a concurrent remote change
-   causes the workflow to fail instead of being overwritten silently.
-9. Create the release when it does not exist.
-10. Upload all three assets, replacing same-named assets when present.
+The workflow verifies its version and tag inputs, runs tests, packages and
+validates the Windows assets, then creates the tag and GitHub release. It rejects
+an existing tag. Use a new version for every published build. Versions with a
+prerelease suffix are published as GitHub prereleases.
 
-After running `npm run release -- <version>` and committing the prepared files,
-the workflow defaults already match the release.
+## Create GitHub release assets manually
 
-During the limited beta, rerunning the workflow for the same version intentionally
-replaces the three assets and moves that version tag to the newly tested commit. The
-lease-protected tag update fails if another workflow changed the tag concurrently.
-The tag's current commit is the source provenance for the mutable beta build; once
-releases need broad rollback and third-party reproducibility, publish a new patch
-version instead of replacing an existing version.
-
-## Create or replace GitHub release assets manually
-
-Create a release when it does not exist:
+First confirm that the tag and release do not already exist. If either exists,
+prepare a new version rather than deleting or replacing it. Create a new release:
 
 ```powershell
 $version = "<version>"
@@ -189,20 +136,13 @@ gh release create "v$version" `
   --repo voltura/voltura-air `
   --target main `
   --title "Voltura Air v$version" `
-  --notes "Windows release assets for Voltura Air v$version."
-```
-
-Upload all three assets and overwrite files with the same names:
-
-```powershell
-$version = "<version>"
-gh release upload "v$version" `
+  --notes "Windows release assets for Voltura Air v$version." `
   "artifacts/publish/VolturaAir-$version-win-x64.zip" `
   "artifacts/publish/VolturaAir-Setup-$version-win-x64.exe" `
-  "artifacts/publish/VolturaAir-Setup-$version-win-x64-full.exe" `
-  --clobber `
-  --repo voltura/voltura-air
+  "artifacts/publish/VolturaAir-Setup-$version-win-x64-full.exe"
 ```
+
+Add `--prerelease` when the semantic version contains a prerelease suffix.
 
 ## Freeware release notes
 
@@ -255,14 +195,10 @@ Before announcing the release:
 - confirm the preparation diff contains the intended version only;
 - confirm build, tests, and packaging completed successfully;
 - confirm all three GitHub release assets exist with the expected names;
-- confirm source downloads, zip, and both installers are based on the same commit;
 - install both downloaded installers on clean or disposable Windows profiles; verify the default installer obtains missing runtimes and the full installer works without a runtime download;
-- inspect the downloaded installer and installed `VolturaAir.Host.exe` in File
-  Explorer Properties > Details and confirm the expected file/product versions;
+- inspect the downloaded installers, installed `VolturaAir.Host.exe`, and
+  `VolturaAir.Host.dll` in File Explorer Properties > Details and confirm the
+  expected file and product versions;
 - confirm the host and mobile UI display the expected version;
-- inspect `VolturaAir.Host.exe` and `VolturaAir.Host.dll` in File Explorer and
-  confirm File version and Product version match the release;
 - confirm a phone can pair from a fresh QR code and reconnect after host restart;
-- confirm Preferences accordions are themed in light and dark mode, start collapsed, keep only one section open, and reveal the first control of a lower section without losing its header;
-- confirm Diagnostics keeps log filters and actions visible while only log records scroll, and verify log enable, retention, filtering, copy, folder, and delete behavior;
 - update public release/download text when product-facing behavior changed.

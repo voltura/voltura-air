@@ -15,7 +15,7 @@ import { getDisplayPcName, normalizePointerSpeed } from "./connectionProtocol";
 import type { ConnectionError, ConnectionState, PairingAttempt } from "./connectionTypes";
 import { clearStoredSecret, revokePcPairing } from "./pairingCredentials";
 
-type PairedPcActionOptions = {
+interface PairedPcActionOptions {
   activePcId: string | null;
   clearRuntimeState: () => void;
   clientId: string;
@@ -34,7 +34,7 @@ type PairedPcActionOptions = {
   setState: Dispatch<SetStateAction<ConnectionState>>;
   socketRef: RefObject<WebSocket | null>;
   state: ConnectionState;
-};
+}
 
 export function usePairedPcActions(options: PairedPcActionOptions) {
   const {

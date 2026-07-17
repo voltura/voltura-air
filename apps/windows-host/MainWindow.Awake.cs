@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using ComboBox = System.Windows.Controls.ComboBox;
-using Orientation = System.Windows.Controls.Orientation;
 using TextBox = System.Windows.Controls.TextBox;
 
 namespace VolturaAir.Host;
@@ -18,8 +17,7 @@ public partial class MainWindow
         var mode = new ComboBox
         {
             Width = 280,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
-            Margin = new Thickness(0, 6, 0, 12)
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Left
         };
         mode.SetResourceReference(FrameworkElement.StyleProperty, "ModernComboBoxStyle");
         AddModeItem(mode, "Use selected power plan", AwakeMode.Off, state.Mode);
@@ -28,9 +26,9 @@ public partial class MainWindow
         AddModeItem(mode, "Keep awake until a date and time", AwakeMode.Expiration, state.Mode);
         parent.Children.Add(mode);
 
-        var timedPanel = new StackPanel();
+        var timedPanel = CreateVerticalStack(UiTokens.SpaceSm);
         timedPanel.Children.Add(CreateLabel("Interval"));
-        var intervalRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 12) };
+        var intervalRow = CreateHorizontalStack(UiTokens.SpaceSm);
         var hours = CreateAwakeTextBox((state.IntervalMinutes / 60).ToString(CultureInfo.CurrentCulture), 70);
         var minutes = CreateAwakeTextBox((state.IntervalMinutes % 60).ToString(CultureInfo.CurrentCulture), 70);
         intervalRow.Children.Add(hours);
@@ -41,16 +39,15 @@ public partial class MainWindow
         timedPanel.Children.Add(intervalRow);
         parent.Children.Add(timedPanel);
 
-        var expirationPanel = new StackPanel();
+        var expirationPanel = CreateVerticalStack(UiTokens.SpaceSm);
         expirationPanel.Children.Add(CreateLabel("Expiration"));
-        var expirationRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 12) };
+        var expirationRow = CreateHorizontalStack(UiTokens.SpaceSm);
         var suggestedExpiration = state.ExpiresAt is { } currentExpiration && currentExpiration > DateTimeOffset.Now
             ? currentExpiration.LocalDateTime
             : DateTime.Now.AddHours(1);
         var date = new ModernDatePicker(suggestedExpiration.Date, DateTime.Today)
         {
-            Width = 180,
-            Margin = new Thickness(0, 0, 8, 0)
+            Width = 180
         };
         var time = CreateAwakeTextBox(suggestedExpiration.ToString("t", CultureInfo.CurrentCulture), 100);
         expirationRow.Children.Add(date);
@@ -145,7 +142,6 @@ public partial class MainWindow
     {
         Text = text,
         Width = width,
-        Margin = new Thickness(0, 0, 8, 0),
         VerticalContentAlignment = VerticalAlignment.Center
     };
 
@@ -153,7 +149,6 @@ public partial class MainWindow
     {
         Text = text,
         VerticalAlignment = VerticalAlignment.Center,
-        Margin = new Thickness(0, 0, 12, 0),
         Foreground = (System.Windows.Media.Brush)Resources["TextBrush"]
     };
 

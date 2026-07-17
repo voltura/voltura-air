@@ -15,13 +15,13 @@ declare global {
   }
 }
 
-type PwaLifecycleOptions = {
+interface PwaLifecycleOptions {
   activePc: PcProfile | null;
   autoRefresh: boolean;
   clientId: string;
   hostStatus: HostStatusMetadata | null;
   state: ConnectionState;
-};
+}
 
 export function usePwaLifecycle({ activePc, autoRefresh, clientId, hostStatus, state }: PwaLifecycleOptions) {
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -62,21 +62,7 @@ export function usePwaLifecycle({ activePc, autoRefresh, clientId, hostStatus, s
 
   const refreshInstalledApp = async () => {
     setRefreshMessage("Refreshing app...");
-
-    if ("serviceWorker" in navigator) {
-      const registrations = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(registrations.map((registration) => registration.unregister()));
-    }
-
-    if ("caches" in window) {
-      const cacheNames = await caches.keys();
-      await Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName)));
-    }
-
-    const freshUrl = new URL(window.location.href);
-    freshUrl.searchParams.delete("t");
-    freshUrl.searchParams.set("refresh", Date.now().toString());
-    window.location.replace(freshUrl);
+    await replaceWithFreshAppUrl();
   };
 
   useEffect(() => {
@@ -89,13 +75,13 @@ export function usePwaLifecycle({ activePc, autoRefresh, clientId, hostStatus, s
       return;
     }
 
-    const refreshKey = getAutoRefreshSessionKey(clientId, activePc.id, webClientBuildId!);
+    const refreshKey = getAutoRefreshSessionKey(clientId, activePc.id, webClientBuildId);
     if (sessionStorage.getItem(refreshKey) === "true") {
       return;
     }
 
     sessionStorage.setItem(refreshKey, "true");
-    void refreshInstalledApp();
+    void replaceWithFreshAppUrl();
   }, [activePc, autoRefresh, clientId, hostStatus?.webClientBuildId, state]);
 
   return { installApp, installPrompt, isInstalled, refreshInstalledApp, refreshMessage };
@@ -107,4 +93,21 @@ export function shouldRefreshWebClient(webClientBuildId: string | undefined): we
 
 function isRunningStandalone(): boolean {
   return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+}
+
+async function replaceWithFreshAppUrl(): Promise<void> {
+  if ("serviceWorker" in navigator) {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations.map((registration) => registration.unregister()));
+  }
+
+  if ("caches" in window) {
+    const cacheNames = await caches.keys();
+    await Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName)));
+  }
+
+  const freshUrl = new URL(window.location.href);
+  freshUrl.searchParams.delete("t");
+  freshUrl.searchParams.set("refresh", Date.now().toString());
+  window.location.replace(freshUrl);
 }

@@ -1,0 +1,57 @@
+<!-- Generated from assets/ui-tokens.json. Do not edit directly. -->
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:system="clr-namespace:System;assembly=System.Runtime">
+    <system:Double x:Key="SpaceNone">0</system:Double>
+    <system:Double x:Key="Space2xs">2</system:Double>
+    <system:Double x:Key="SpaceXs">4</system:Double>
+    <system:Double x:Key="SpaceSm">8</system:Double>
+    <system:Double x:Key="SpaceMd">12</system:Double>
+    <system:Double x:Key="SpaceLg">16</system:Double>
+    <system:Double x:Key="SpaceXl">24</system:Double>
+    <system:Double x:Key="Space2xl">32</system:Double>
+    <system:Double x:Key="Space3xl">40</system:Double>
+    <system:Double x:Key="ControlCompactHeight">36</system:Double>
+    <system:Double x:Key="ControlMinHeight">44</system:Double>
+    <system:Double x:Key="ControlProminentHeight">48</system:Double>
+    <system:Double x:Key="IconSmall">16</system:Double>
+    <system:Double x:Key="IconMedium">20</system:Double>
+    <system:Double x:Key="IconLarge">24</system:Double>
+    <system:Double x:Key="TrackpadCenterIconSize">42</system:Double>
+    <system:Double x:Key="BottomModeNavHeight">63</system:Double>
+    <system:Double x:Key="PageGutter">16</system:Double>
+    <system:Double x:Key="DesktopPageGutter">28</system:Double>
+    <Thickness x:Key="InsetNone">0</Thickness>
+    <Thickness x:Key="Inset2xs">2</Thickness>
+    <Thickness x:Key="InsetXs">4</Thickness>
+    <Thickness x:Key="InsetSm">8</Thickness>
+    <Thickness x:Key="InsetMd">12</Thickness>
+    <Thickness x:Key="InsetLg">16</Thickness>
+    <Thickness x:Key="InsetXl">24</Thickness>
+    <Thickness x:Key="Inset2xl">32</Thickness>
+    <Thickness x:Key="Inset3xl">40</Thickness>
+    <Thickness x:Key="ControlCompactHeightInset">36</Thickness>
+    <Thickness x:Key="ControlMinHeightInset">44</Thickness>
+    <Thickness x:Key="ControlProminentHeightInset">48</Thickness>
+    <Thickness x:Key="IconSmallInset">16</Thickness>
+    <Thickness x:Key="IconMediumInset">20</Thickness>
+    <Thickness x:Key="IconLargeInset">24</Thickness>
+    <Thickness x:Key="TrackpadCenterIconSizeInset">42</Thickness>
+    <Thickness x:Key="BottomModeNavHeightInset">63</Thickness>
+    <Thickness x:Key="PageGutterInset">16</Thickness>
+    <Thickness x:Key="DesktopPageGutterInset">28</Thickness>
+    <GridLength x:Key="GridSpaceNone">0</GridLength>
+    <GridLength x:Key="GridSpace2xs">2</GridLength>
+    <GridLength x:Key="GridSpaceXs">4</GridLength>
+    <GridLength x:Key="GridSpaceSm">8</GridLength>
+    <GridLength x:Key="GridSpaceMd">12</GridLength>
+    <GridLength x:Key="GridSpaceLg">16</GridLength>
+    <GridLength x:Key="GridSpaceXl">24</GridLength>
+    <GridLength x:Key="GridSpace2xl">32</GridLength>
+    <GridLength x:Key="GridSpace3xl">40</GridLength>
+    <CornerRadius x:Key="RadiusSmall">6</CornerRadius>
+    <CornerRadius x:Key="RadiusMedium">8</CornerRadius>
+    <CornerRadius x:Key="RadiusLarge">12</CornerRadius>
+    <CornerRadius x:Key="RadiusPill">999</CornerRadius>
+</ResourceDictionary>

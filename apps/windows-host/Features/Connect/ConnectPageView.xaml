@@ -1,0 +1,69 @@
+<UserControl x:Class="VolturaAir.Host.Features.Connect.ConnectPageView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="clr-namespace:VolturaAir.Host.Ui">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="{DynamicResource GridSpace2xl}" />
+            <ColumnDefinition Width="320" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0"
+                Padding="{DynamicResource InsetXl}"
+                Background="{DynamicResource QrBackgroundBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="{DynamicResource RadiusMedium}">
+            <Image x:Name="QrCodeImage"
+                   MaxWidth="560"
+                   MaxHeight="560"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   Stretch="Uniform" />
+        </Border>
+
+        <ui:SpacingStackPanel Grid.Column="2" Spacing="{DynamicResource SpaceMd}">
+            <ui:InfoCard x:Name="StatusCard" Title="Current status" Emphasized="True" />
+
+            <Border x:Name="AddressWarningNotice"
+                    Padding="{DynamicResource InsetMd}"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource AccentBrush}"
+                    BorderThickness="1"
+                    CornerRadius="{DynamicResource RadiusMedium}"
+                    Visibility="Collapsed">
+                <TextBlock x:Name="AddressWarningText" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap" />
+            </Border>
+
+            <Border x:Name="PortWarningNotice"
+                    Padding="{DynamicResource InsetMd}"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource AccentBrush}"
+                    BorderThickness="1"
+                    CornerRadius="{DynamicResource RadiusMedium}"
+                    Visibility="Collapsed">
+                <TextBlock x:Name="PortWarningText" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap" />
+            </Border>
+
+            <Expander Header="Details"
+                      IsExpanded="False"
+                      Foreground="{DynamicResource TextBrush}"
+                      Background="{DynamicResource WindowBrush}">
+                <Border Padding="0,12,0,0">
+                    <ui:SpacingStackPanel Spacing="{DynamicResource SpaceMd}">
+                        <ui:InfoCard x:Name="PairingLinkCard" Title="Pairing link" Monospace="True" />
+                        <ui:InfoCard x:Name="HostUrlCard" Title="Host URL" Monospace="True" />
+                        <ui:InfoCard x:Name="SelectedIpCard" Title="Selected IP" Monospace="True" />
+                        <ui:InfoCard x:Name="SelectedPortCard" Title="Selected port" Monospace="True" />
+                    </ui:SpacingStackPanel>
+                </Border>
+            </Expander>
+
+            <ui:SpacingStackPanel Orientation="Horizontal" Spacing="{DynamicResource SpaceSm}">
+                <Button x:Name="NewCodeButton" Content="New code" Style="{DynamicResource PrimaryButtonStyle}" />
+                <Button x:Name="CopyLinkButton" Content="Copy link" />
+            </ui:SpacingStackPanel>
+        </ui:SpacingStackPanel>
+    </Grid>
+</UserControl>

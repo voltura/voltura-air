@@ -48,7 +48,7 @@ describe("useSpeechDictation", () => {
     render(<DictationHarness />);
 
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
-    const recognition = MockSpeechRecognition.instances[0];
+    const recognition = MockSpeechRecognition.instances.at(0)!;
 
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
     fireEvent(document, new Event("visibilitychange"));
@@ -63,7 +63,7 @@ describe("useSpeechDictation", () => {
     const view = render(<DictationHarness />);
 
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
-    const recognition = MockSpeechRecognition.instances[0];
+    const recognition = MockSpeechRecognition.instances.at(0)!;
     view.unmount();
 
     expect(recognition.stop).toHaveBeenCalledOnce();

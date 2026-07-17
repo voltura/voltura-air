@@ -1,8 +1,8 @@
-export type PcDisplaySource = {
+export interface PcDisplaySource {
   customName?: boolean;
   name: string;
   url: string;
-};
+}
 
 export function getPcDisplayName(pc: PcDisplaySource): string {
   const name = pc.name.trim();
@@ -15,6 +15,6 @@ export function getPcDisplayName(pc: PcDisplaySource): string {
 }
 
 export function isIpHost(value: string): boolean {
-  const hostName = value.split(":")[0];
+  const hostName = value.split(":", 1)[0] ?? "";
   return /^(\d{1,3}\.){3}\d{1,3}$/.test(hostName);
 }

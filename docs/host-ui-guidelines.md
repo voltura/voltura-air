@@ -1,0 +1,89 @@
+# Windows host UI guidelines
+
+These notes capture host-specific UI decisions. `docs/ui-system.md` is the
+product-wide authority for design tokens, primitives, layout ownership,
+adaptive states, AI-assisted UI work, and the UI definition of done.
+
+## WPF Host UI
+
+- The Windows host UI is WPF-first. WinForms is allowed only for tray interop.
+- Use one primary `Voltura Air` window with page navigation for Connect,
+  Devices, Connection, Preferences, and Diagnostics.
+- Use a real startup window for host initialization. It should appear
+  immediately, stay visible for at least the configured minimum duration, and
+  transition to an error state if startup fails.
+- Prefer WPF device-independent layout over manual pixel work. Use `Grid`
+  with `Auto` rows for headers/actions and `*` rows for growing content.
+- Use `SpacingStackPanel` and `SpacingWrapPanel` for tokenized gaps between WPF
+  siblings. Leaf controls and reusable content components have zero external
+  adjacency margin; the composition container inserts one gap and ignores
+  collapsed children. Margins remain valid for page insets, overlay placement,
+  control-template geometry, and documented optical corrections.
+- Put `ScrollViewer` only around content that can grow. Action rows and primary
+  navigation must remain outside scrollable regions.
+- Preferences uses themed accordion sections. Start them collapsed, allow only
+  one section to be expanded, and keep each header a full-width keyboard and
+  pointer target while individual actions remain content-sized. Expanded
+  content uses the shared balanced inset on every side; individual first or
+  last children must not compensate for the accordion boundary. Order sections
+  from broad application and appearance settings through control defaults and
+  host behavior, then permissions, platform policy, and advanced tools.
+- Nested Preferences disclosures use the shared nested-accordion variant, while
+  the enclosing settings stack owns the standard gap from the preceding visible
+  group. Neither the accordion nor the preceding button, checkbox, or hint owns
+  that external separation.
+- After an accordion expands and layout settles, scroll the Preferences viewer
+  only when its first usable control is clipped. Reveal that control with the
+  minimum offset that keeps the focused header visible; do not move focus or
+  animate the adjustment. Rebuilding Preferences after an in-section setting
+  change must keep that section expanded at the same scroll position.
+- Diagnostics uses a top-level view switch. In the Application log view, the
+  record region is the only vertical scroller; filters, status, and Refresh,
+  Copy, Open folder, and Delete actions remain visible. Log filters apply as
+  they change, and Event supports selecting multiple values.
+- Use the shared themed combo-box, text-field, and date-range styles for filters
+  and retention controls. New controls must support light, dark, system, hover,
+  focus, selected, disabled, warning, and error states as applicable.
+- Lists should use WPF list controls with recycling virtualization. Keep the
+  virtualizing items host responsible for scrolling; when rows need separation,
+  reserve the tokenized gap inside the collection-owned item template instead
+  of replacing the items host or adding a feature-control margin.
+- Do not use custom scrollbars or runtime layout shims to move controls after
+  layout. Fix the layout contract instead.
+- Keep the native Windows title bar unless there is a focused reason to revisit
+  window chrome.
+- Verify light, dark, and system theme modes when adding selected, inherited,
+  disabled, warning, or destructive states.
+- Add or update host UI tests for navigation, startup behavior, settings save
+  behavior, device actions, and permission state. Manual DPI checks should cover
+  100%, 125%, 150%, and 200% display scaling on Windows.
+
+
+## Connection feedback
+
+Connection errors are first-class UI states. Do not leave the user on an active
+trackpad or keyboard surface when the host reports disconnected status, health checks
+fail, input acknowledgement times out, or input dispatch fails. Show a clear
+unavailable/retrying panel with recovery actions and keep it scrollable on small
+phones and short landscape screens.
+
+## Remote action surfaces
+
+- Keep the mobile surface focused on current state and the smallest useful
+  action set. Detailed policy and platform-specific configuration belong to the
+  Windows host; do not duplicate them in the mobile client.
+- Place related actions in one responsive sheet when permanent buttons would
+  crowd the primary control surface. Preserve the user's context when the sheet
+  opens and return focus predictably when it closes.
+- Show supported but host-disabled actions with a permission explanation. Omit
+  actions for capabilities the host or Windows does not expose at all.
+- Keep reversible, low-risk actions direct. Use a dedicated warning state and an
+  explicit confirmation gesture for disruptive or session-ending actions.
+- Show pending, success, and failure state where the action was initiated. Keep
+  the surface open while acknowledgement is useful; close it when leaving it
+  open would obscure the action's result, while preserving feedback for later.
+- Use tray menus for quick access and common presets. Put complete configuration
+  in Preferences, and have both surfaces operate on the same service-owned state.
+- Tray submenu arrows and selected-state checkmarks use the active theme text
+  color. Checked menus reserve a DPI-scaled indicator gutter so the glyph never
+  overlaps labels; separators align with that gutter.

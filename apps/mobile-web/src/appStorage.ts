@@ -6,7 +6,6 @@ import { resolveRemoteSettings, type RemoteModeId, type RemoteSettings } from ".
 export type ThemeMode = "system" | "light" | "dark";
 
 const liveKeyboardKey = "voltura-air.liveKeyboard";
-const liveKeyboardDefaultMigrationKey = "voltura-air.liveKeyboardDefaultOn";
 const themeModeKey = "voltura-air.themeMode";
 const autoRefreshSessionPrefix = "voltura-air.autoRefresh";
 
@@ -27,12 +26,6 @@ export function keyboardSettingsKey(clientId: string): string {
 }
 
 export function loadLiveKeyboardDefault(): boolean {
-  if (localStorage.getItem(liveKeyboardDefaultMigrationKey) !== "true") {
-    localStorage.setItem(liveKeyboardDefaultMigrationKey, "true");
-    localStorage.setItem(liveKeyboardKey, "true");
-    return true;
-  }
-
   return localStorage.getItem(liveKeyboardKey) !== "false";
 }
 

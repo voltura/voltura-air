@@ -16,7 +16,7 @@ function createStorage(): Storage {
     get length() {
       return items.size;
     },
-    clear: () => items.clear(),
+    clear: () => { items.clear(); },
     getItem: (key: string) => items.get(key) ?? null,
     key: (index: number) => Array.from(items.keys())[index] ?? null,
     removeItem: (key: string) => {
@@ -33,10 +33,8 @@ beforeEach(() => {
 });
 
 describe("appStorage", () => {
-  it("keeps the live keyboard enabled when running the default migration", () => {
+  it("defaults the live keyboard to enabled and preserves an explicit preference", () => {
     expect(loadLiveKeyboardDefault()).toBe(true);
-    expect(localStorage.getItem("voltura-air.liveKeyboardDefaultOn")).toBe("true");
-    expect(localStorage.getItem("voltura-air.liveKeyboard")).toBe("true");
 
     localStorage.setItem("voltura-air.liveKeyboard", "false");
     expect(loadLiveKeyboardDefault()).toBe(false);

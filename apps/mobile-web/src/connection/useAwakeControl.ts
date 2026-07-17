@@ -31,7 +31,7 @@ export function useAwakeControl(state: ConnectionState, send: (payload: ClientMe
       });
     }, responseTimeoutMs);
 
-    return () => window.clearTimeout(timeout);
+    return () => { window.clearTimeout(timeout); };
   }, [pendingAwakeChange]);
 
   useEffect(() => {

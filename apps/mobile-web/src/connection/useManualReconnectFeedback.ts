@@ -3,11 +3,10 @@ import type { ConnectionState } from "./connectionTypes";
 
 export type ManualReconnectProgress = "reconnecting" | "connected";
 
-type ManualReconnectAttempt = {
+interface ManualReconnectAttempt {
   pcId: string;
   hasStarted: boolean;
-  phase: ManualReconnectProgress;
-};
+}
 
 const successDisplayMs = 500;
 
@@ -18,51 +17,40 @@ export function useManualReconnectFeedback(
 ) {
   const [attempt, setAttempt] = useState<ManualReconnectAttempt | null>(null);
 
-  useEffect(() => {
-    if (!attempt) {
-      return;
-    }
+  if (attempt?.pcId === activePcId && state === "connecting" && !attempt.hasStarted) {
+    setAttempt({ ...attempt, hasStarted: true });
+  } else if (attempt && (
+    attempt.pcId !== activePcId || state === "needs-pairing" || state === "rejected" ||
+    (state === "unavailable" && attempt.hasStarted)
+  )) {
+    setAttempt(null);
+  }
 
-    if (!activePcId || activePcId !== attempt.pcId || state === "needs-pairing" || state === "rejected") {
-      setAttempt(null);
-      return;
-    }
-
-    if (state === "connecting" && !attempt.hasStarted) {
-      setAttempt({ ...attempt, hasStarted: true });
-      return;
-    }
-
-    if (state === "paired" && attempt.phase !== "connected") {
-      setAttempt({ ...attempt, phase: "connected" });
-      return;
-    }
-
-    if (state === "unavailable" && attempt.hasStarted) {
-      setAttempt(null);
-    }
-  }, [activePcId, attempt, state]);
+  const progress: ManualReconnectProgress | undefined = attempt?.pcId !== activePcId ||
+    state === "needs-pairing" || state === "rejected"
+    ? undefined
+    : state === "paired" ? "connected" : "reconnecting";
 
   useEffect(() => {
-    if (attempt?.phase !== "connected") {
+    if (progress !== "connected") {
       return;
     }
 
-    const timeout = window.setTimeout(() => setAttempt(null), successDisplayMs);
-    return () => window.clearTimeout(timeout);
-  }, [attempt]);
+    const timeout = window.setTimeout(() => { setAttempt(null); }, successDisplayMs);
+    return () => { window.clearTimeout(timeout); };
+  }, [progress]);
 
   const reconnect = useCallback(() => {
     if (!activePcId) {
       return;
     }
 
-    setAttempt({ pcId: activePcId, hasStarted: false, phase: "reconnecting" });
+    setAttempt({ pcId: activePcId, hasStarted: false });
     selectPc(activePcId);
   }, [activePcId, selectPc]);
 
   return {
-    progress: attempt?.pcId === activePcId ? attempt.phase : undefined,
+    progress,
     reconnect
   };
 }

@@ -18,7 +18,7 @@ function createStorage(): Storage {
     get length() {
       return items.size;
     },
-    clear: () => items.clear(),
+    clear: () => { items.clear(); },
     getItem: (key: string) => items.get(key) ?? null,
     key: (index: number) => Array.from(items.keys())[index] ?? null,
     removeItem: (key: string) => {
@@ -28,6 +28,22 @@ function createStorage(): Storage {
       items.set(key, String(value));
     }
   };
+}
+
+function readStoredStringProperty(key: string, property: string): string[] {
+  const parsed: unknown = JSON.parse(localStorage.getItem(key) ?? "[]");
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+
+  return (parsed as unknown[]).flatMap((candidate) => {
+    if (typeof candidate !== "object" || candidate === null) {
+      return [];
+    }
+
+    const value = (candidate as Record<string, unknown>)[property];
+    return typeof value === "string" ? [value] : [];
+  });
 }
 
 function mockConnection(overrides: Partial<ReturnType<typeof useVolturaAirConnection>> = {}) {
@@ -119,7 +135,7 @@ beforeEach(() => {
 });
 
 describe("App header and mode navigation", () => {
-  it("refreshes after a developer-mode long press on the Voltura Air brand", () => {
+  it("refreshes after a developer-mode long press on the Voltura Air brand", async () => {
     vi.useFakeTimers();
     const refreshInstalledApp = vi.fn();
     vi.mocked(usePwaLifecycle).mockReturnValue({
@@ -134,9 +150,9 @@ describe("App header and mode navigation", () => {
 
     const brand = screen.getByText("Voltura Air").parentElement!;
     fireEvent.pointerDown(brand, { button: 0, clientX: 20, clientY: 20, pointerId: 1 });
-    act(() => vi.advanceTimersByTime(699));
+    await act(() => vi.advanceTimersByTime(699));
     expect(refreshInstalledApp).not.toHaveBeenCalled();
-    act(() => vi.advanceTimersByTime(1));
+    await act(() => vi.advanceTimersByTime(1));
     expect(refreshInstalledApp).toHaveBeenCalledTimes(1);
     fireEvent.pointerUp(brand, { pointerId: 1 });
     vi.useRealTimers();
@@ -176,7 +192,7 @@ describe("App header and mode navigation", () => {
     mockConnection({ presentationCapability: undefined });
     rerender(<App />);
 
-    await waitFor(() => expect(screen.queryByRole("heading", { name: "Presentation" })).toBeNull());
+    await waitFor(() => { expect(screen.queryByRole("heading", { name: "Presentation" })).toBeNull(); });
     expect(screen.getByLabelText("Dictation text")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Presentation" })).toBeNull();
   });
@@ -203,7 +219,7 @@ describe("App header and mode navigation", () => {
     mockConnection({ hostStatus: { inputBlockedByElevation: true }, send });
     rerender(<App />);
 
-    await waitFor(() => expect(screen.getByRole("dialog").textContent).toContain("Administrator app active"));
+    await waitFor(() => { expect(screen.getByRole("dialog").textContent).toContain("Administrator app active"); });
   });
 
   it("uses accessible mode labels and selected state in both navigation surfaces", () => {
@@ -211,10 +227,10 @@ describe("App header and mode navigation", () => {
 
     const keyboardModeButtons = screen.getAllByRole("button", { name: "Keyboard mode" });
     expect(keyboardModeButtons).toHaveLength(2);
-    expect(keyboardModeButtons.every((button) => button.getAttribute("aria-selected") === "false")).toBe(true);
+    expect(keyboardModeButtons.every((button) => button.getAttribute("aria-current") === null)).toBe(true);
 
     const trackpadModeButtons = screen.getAllByRole("button", { name: "Trackpad mode" });
-    expect(trackpadModeButtons.some((button) => button.getAttribute("aria-selected") === "true")).toBe(true);
+    expect(trackpadModeButtons.some((button) => button.getAttribute("aria-current") === "page")).toBe(true);
   });
 
   it("opens either tool from Menu without changing the configured fourth mode", () => {
@@ -228,7 +244,7 @@ describe("App header and mode navigation", () => {
     expect(screen.getAllByRole("button", { name: "Dictation" })).toHaveLength(2);
     expect(screen.queryByRole("button", { name: "Back to previous mode" })).toBeNull();
     fireEvent.click(screen.getAllByRole("button", { name: "Trackpad mode" }).at(-1)!);
-    expect(screen.getAllByRole("button", { name: "Trackpad mode" }).some((button) => button.getAttribute("aria-selected") === "true")).toBe(true);
+    expect(screen.getAllByRole("button", { name: "Trackpad mode" }).some((button) => button.getAttribute("aria-current") === "page")).toBe(true);
 
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
     const menu = screen.getByRole("heading", { name: "Menu" }).closest("aside");
@@ -241,7 +257,7 @@ describe("App header and mode navigation", () => {
   it("opens compact mode navigation as an overlay without moving the keyboard controls", () => {
     render(<App />);
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Keyboard mode" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Keyboard mode" }).at(0)!);
     const primaryKeys = screen.getByLabelText("Primary keyboard keys");
     const beforeParent = primaryKeys.parentElement;
 
@@ -257,7 +273,7 @@ describe("App header and mode navigation", () => {
 
     const appShell = document.querySelector(".app-shell");
     const activeTrackpadButtons = screen.getAllByRole("button", { name: "Trackpad mode" });
-    fireEvent.click(activeTrackpadButtons[activeTrackpadButtons.length - 1]);
+    fireEvent.click(activeTrackpadButtons.at(-1)!);
 
     expect(appShell?.classList.contains("mode-tabs-collapsed")).toBe(true);
     expect(document.querySelector(".bottom-mode-tabs")).toBeNull();
@@ -312,7 +328,7 @@ describe("App header and mode navigation", () => {
     expect(selectPc).toHaveBeenCalledWith("pc-a");
     expect(screen.getByRole("dialog").getAttribute("aria-modal")).toBe("true");
     expect(screen.getByRole("heading", { name: "Reconnecting to Very Long Living Room Editing Workstation…" })).toBe(document.activeElement);
-    expect((screen.getByRole("button", { name: "Reconnecting…" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Reconnecting…" }).disabled).toBe(true);
     expect(screen.getByRole("button", { name: "Expand trackpad" })).toBeTruthy();
 
     mockConnection({ state: "connecting", message: "Connecting...", selectPc });
@@ -346,7 +362,7 @@ describe("App header and mode navigation", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "PC not available" })).toBeTruthy();
     });
-    expect((screen.getByRole("button", { name: "Try reconnect" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Try reconnect" }).disabled).toBe(false);
     expect(screen.queryByText("Connected to Very Long Living Room Editing Workstation")).toBeNull();
   });
 
@@ -443,7 +459,7 @@ describe("Text transfer feedback", () => {
     fireEvent.click(screen.getByRole("button", { name: "Use device keyboard" }));
     fireEvent.change(screen.getByLabelText("Text to send"), { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: "Renamed snippet" }));
-    expect((screen.getByLabelText("Text to send") as HTMLTextAreaElement).value).toBe("Replacement text");
+    expect(screen.getByLabelText<HTMLTextAreaElement>("Text to send").value).toBe("Replacement text");
     expect(document.querySelector(".text-transfer-editor-surface")?.classList).toContain("snippet-copied");
     expect(screen.getByText("Renamed snippet copied to the text box.")).toBeTruthy();
   });
@@ -486,7 +502,7 @@ describe("Text transfer feedback", () => {
 
     fireEvent.change(nameInput, { target: { value: " first " } });
     expect(screen.getByText("A snippet with this name already exists.")).toBeTruthy();
-    expect((screen.getByRole("button", { name: "Save current text" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Save current text" }).disabled).toBe(true);
 
     const secondSnippetCard = screen.getByRole("button", { name: "Second" }).closest("li");
     expect(secondSnippetCard).not.toBeNull();
@@ -494,10 +510,10 @@ describe("Text transfer feedback", () => {
     const renameDialog = screen.getByRole("dialog", { name: "Rename snippet" });
     fireEvent.change(within(renameDialog).getByLabelText("Snippet name"), { target: { value: "FIRST" } });
     expect(within(renameDialog).getByText("A snippet with this name already exists.")).toBeTruthy();
-    expect((within(renameDialog).getByRole("button", { name: "Rename snippet" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(within(renameDialog).getByRole<HTMLButtonElement>("button", { name: "Rename snippet" }).disabled).toBe(true);
   });
 
-  it("reorders snippet cards after a long press and persists the new order", () => {
+  it("reorders snippet cards after a long press and persists the new order", async () => {
     vi.useFakeTimers();
     const originalElementFromPoint = document.elementFromPoint;
     try {
@@ -527,7 +543,7 @@ describe("Text transfer feedback", () => {
       Object.defineProperty(document, "elementFromPoint", { configurable: true, value: vi.fn(() => secondCard) });
       textTransferMode.scrollTop = 35;
       fireEvent.touchStart(firstButton, { touches: [{ identifier: 1, clientX: 20, clientY: 20 }] });
-      act(() => vi.advanceTimersByTime(450));
+      await act(() => vi.advanceTimersByTime(450));
       expect(firstCard.classList).toContain("snippet-dragging");
       expect(textTransferMode.scrollTop).toBe(35);
       textTransferMode.scrollTop = 60;
@@ -537,7 +553,7 @@ describe("Text transfer feedback", () => {
       fireEvent.touchEnd(firstButton, { touches: [], changedTouches: [{ identifier: 1, clientX: 20, clientY: 100 }] });
 
       expect(Array.from(document.querySelectorAll(".snippet-load"), (button) => button.textContent)).toEqual(["Second", "First"]);
-      expect(JSON.parse(localStorage.getItem("voltura-air.textSnippets.client-a") ?? "[]").map((snippet: { name: string }) => snippet.name)).toEqual(["Second", "First"]);
+      expect(readStoredStringProperty("voltura-air.textSnippets.client-a", "name")).toEqual(["Second", "First"]);
       expect(screen.getByText("First moved to position 2.")).toBeTruthy();
       fireEvent.click(firstButton);
       expect((editor as HTMLTextAreaElement).value).toBe("Second text");
@@ -545,15 +561,15 @@ describe("Text transfer feedback", () => {
       vi.mocked(document.elementFromPoint).mockReturnValue(null);
       vi.spyOn(secondCard, "getBoundingClientRect").mockReturnValue({ top: 40, bottom: 80 } as DOMRect);
       fireEvent.touchStart(firstCard, { touches: [{ identifier: 2, clientX: 20, clientY: 100 }] });
-      act(() => vi.advanceTimersByTime(450));
+      await act(() => vi.advanceTimersByTime(450));
       fireEvent.touchMove(firstCard, { touches: [{ identifier: 2, clientX: 20, clientY: 30 }] });
       fireEvent.touchMove(firstCard, { touches: [{ identifier: 2, clientX: 20, clientY: 20 }] });
       fireEvent.touchEnd(firstCard, { touches: [], changedTouches: [{ identifier: 2, clientX: 20, clientY: 30 }] });
 
       expect(Array.from(document.querySelectorAll(".snippet-load"), (button) => button.textContent)).toEqual(["First", "Second"]);
-      expect(JSON.parse(localStorage.getItem("voltura-air.textSnippets.client-a") ?? "[]").map((snippet: { name: string }) => snippet.name)).toEqual(["First", "Second"]);
+      expect(readStoredStringProperty("voltura-air.textSnippets.client-a", "name")).toEqual(["First", "Second"]);
       expect(screen.getByText("First moved to position 1.")).toBeTruthy();
-      act(() => vi.runOnlyPendingTimers());
+      await act(() => vi.runOnlyPendingTimers());
     } finally {
       if (originalElementFromPoint) {
         Object.defineProperty(document, "elementFromPoint", { configurable: true, value: originalElementFromPoint });
@@ -570,7 +586,7 @@ describe("Text transfer feedback", () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
     fireEvent.click(screen.getByRole("button", { name: "Send text to PC" }));
-    const editor = screen.getByLabelText("Text to send") as HTMLTextAreaElement;
+    const editor = screen.getByLabelText<HTMLTextAreaElement>("Text to send");
 
     expect(document.querySelector(".app-shell")?.classList).toContain("text-transfer-active");
     expect(editor.readOnly).toBe(false);

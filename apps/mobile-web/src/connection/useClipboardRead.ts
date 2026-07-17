@@ -27,7 +27,7 @@ export function useClipboardRead(state: ConnectionState, send: (payload: ClientM
       setPendingClipboardRead(false);
       setClipboardReadResult({ type: "clipboard.get.result", operationId, succeeded: false, code: "VAIR-CLIPBOARD-RESPONSE-TIMEOUT", message: "The PC did not confirm the clipboard request." });
     }, responseTimeoutMs);
-    return () => window.clearTimeout(timeout);
+    return () => { window.clearTimeout(timeout); };
   }, [pendingClipboardRead]);
 
   useEffect(() => {
@@ -42,12 +42,12 @@ export function useClipboardRead(state: ConnectionState, send: (payload: ClientM
   }, [state]);
 
   useEffect(() => {
-    if (clipboardReadResult === null || !clipboardReadResult.succeeded) {
+    if (!clipboardReadResult?.succeeded) {
       return;
     }
 
-    const timeout = window.setTimeout(() => setClipboardReadResult(null), resultVisibilityMs);
-    return () => window.clearTimeout(timeout);
+    const timeout = window.setTimeout(() => { setClipboardReadResult(null); }, resultVisibilityMs);
+    return () => { window.clearTimeout(timeout); };
   }, [clipboardReadResult]);
 
   const requestClipboardRead = (): string | null => {

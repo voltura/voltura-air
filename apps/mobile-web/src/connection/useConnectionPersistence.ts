@@ -3,7 +3,7 @@ import { saveActivePcId, savePcProfiles, type PcProfile } from "../pcProfiles";
 import { clearPairTokenFromAddress, deviceNameKey, ensureClientMetadataInAddress } from "./clientIdentity";
 import type { PairingAttempt } from "./connectionTypes";
 
-type ConnectionPersistenceOptions = {
+interface ConnectionPersistenceOptions {
   activePcId: string | null;
   clientId: string;
   deviceName: string;
@@ -12,7 +12,7 @@ type ConnectionPersistenceOptions = {
   pairedPcs: PcProfile[];
   pairingAttempt: PairingAttempt;
   pairingAttemptRef: RefObject<PairingAttempt>;
-};
+}
 
 export function useConnectionPersistence(options: ConnectionPersistenceOptions): void {
   const { activePcId, clientId, deviceName, deviceNameRef, hasInitialPairing, pairedPcs, pairingAttempt, pairingAttemptRef } = options;
@@ -36,6 +36,6 @@ export function useConnectionPersistence(options: ConnectionPersistenceOptions):
     pairingAttemptRef.current = pairingAttempt;
   }, [pairingAttempt, pairingAttemptRef]);
 
-  useEffect(() => savePcProfiles(pairedPcs), [pairedPcs]);
-  useEffect(() => saveActivePcId(activePcId), [activePcId]);
+  useEffect(() => { savePcProfiles(pairedPcs); }, [pairedPcs]);
+  useEffect(() => { saveActivePcId(activePcId); }, [activePcId]);
 }

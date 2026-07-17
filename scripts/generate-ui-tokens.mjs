@@ -137,6 +137,8 @@ ${renderPalette("LightPalette", source.color.light)}
 }
 `;
 
+const normalizeLineEndings = (value) => value.replaceAll("\r\n", "\n");
+
 async function updateGeneratedFile(targetPath, contents) {
   let current = null;
   try {
@@ -147,7 +149,7 @@ async function updateGeneratedFile(targetPath, contents) {
     }
   }
 
-  if (current === contents) {
+  if (current !== null && normalizeLineEndings(current) === normalizeLineEndings(contents)) {
     return false;
   }
 

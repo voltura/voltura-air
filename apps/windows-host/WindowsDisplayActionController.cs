@@ -148,7 +148,9 @@ internal sealed partial class WindowsDisplayActionController(Dispatcher dispatch
     {
         if (_blackoutWindows.Count > 0)
         {
-            return SystemPowerExecutionResult.Success;
+            return DismissBlackoutCore("toggle")
+                ? SystemPowerExecutionResult.Success
+                : new SystemPowerExecutionResult(false);
         }
 
         var monitors = GetMonitorRects();

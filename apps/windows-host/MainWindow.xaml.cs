@@ -59,7 +59,8 @@ public partial class MainWindow : Window
     private DispatcherTimer? _toastTimer;
     private int _lastPairedDeviceCount;
     private bool _isLoadingPreferences;
-    private bool _openAwakePreferences;
+    private string? _preferencesSectionToOpen;
+    private double? _preferencesScrollOffsetToRestore;
     private bool _pageNeedsRefresh = true;
     private bool _allowClose;
 
@@ -222,6 +223,7 @@ public partial class MainWindow : Window
                 PageTitleText.Text = "Preferences";
                 PageSubtitleText.Text = "Startup, alerts, permissions, device defaults, and theme.";
                 PageContent.Content = BuildPreferencesPage();
+                RestorePreferencesScrollPosition();
                 break;
             case HostPage.Diagnostics:
                 PageTitleText.Text = "Diagnostics";
@@ -352,6 +354,7 @@ public partial class MainWindow : Window
     {
         PcSleep,
         VolumeControl,
+        PresentationControl,
         RemoteAppLaunch,
         UrlOpen,
         PcLock,
@@ -367,7 +370,7 @@ public partial class MainWindow : Window
 
     public void ShowAwakePreferences()
     {
-        _openAwakePreferences = true;
+        _preferencesSectionToOpen = "Keep awake";
         ShowPage(HostPage.Preferences);
     }
 
@@ -377,10 +380,11 @@ public partial class MainWindow : Window
         {
             if (_activePage == HostPage.Preferences && IsVisible)
             {
-                SelectPage(HostPage.Preferences);
+                RefreshPreferencesPage();
             }
             else if (_activePage == HostPage.Preferences)
             {
+                RememberExpandedPreferencesSection();
                 _pageNeedsRefresh = true;
             }
         });

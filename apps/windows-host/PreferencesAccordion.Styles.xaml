@@ -5,6 +5,8 @@
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
         <Setter Property="Margin" Value="0,0,0,9" />
         <Setter Property="Template">
             <Setter.Value>
@@ -20,10 +22,11 @@
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <ToggleButton x:Name="HeaderButton"
-                                          MinHeight="48"
+                                          MinHeight="38"
                                           Background="Transparent"
                                           Foreground="{DynamicResource TextBrush}"
                                           BorderThickness="0"
+                                          FocusVisualStyle="{x:Null}"
                                           Cursor="Hand"
                                           Focusable="True"
                                           IsChecked="{Binding IsExpanded, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
@@ -32,7 +35,7 @@
                                         <Border x:Name="HeaderChrome"
                                                 Background="{TemplateBinding Background}"
                                                 CornerRadius="9"
-                                                Padding="16,11">
+                                                Padding="14,6">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />

@@ -3,6 +3,7 @@ import { ClipboardReadMode } from "./ClipboardReadMode";
 import { DictationMode } from "./DictationMode";
 import { GestureDebugMode } from "./GestureDebugMode";
 import { KeyboardMode } from "./KeyboardMode";
+import { PresentationMode } from "./PresentationMode";
 import { RemoteMode } from "./RemoteMode";
 import { TrackpadMode } from "./TrackpadMode";
 import { TextTransferMode } from "./TextTransferMode";
@@ -14,6 +15,7 @@ type AppModeContentProps = {
   supportsGestureDebug: boolean;
   trackpadMode: ComponentProps<typeof TrackpadMode>;
   keyboardMode: ComponentProps<typeof KeyboardMode>;
+  presentationMode: ComponentProps<typeof PresentationMode>;
   remoteMode: ComponentProps<typeof RemoteMode>;
   dictationMode: ComponentProps<typeof DictationMode>;
   textTransferMode: ComponentProps<typeof TextTransferMode>;
@@ -27,6 +29,7 @@ export function AppModeContent({
   supportsGestureDebug,
   trackpadMode,
   keyboardMode,
+  presentationMode,
   remoteMode,
   dictationMode,
   textTransferMode,
@@ -56,6 +59,10 @@ export function AppModeContent({
 
   if (tab === "remote") {
     return <RemoteMode {...remoteMode} />;
+  }
+
+  if (tab === "presentation") {
+    return <PresentationMode {...presentationMode} />;
   }
 
   if (tab === "dictation") {

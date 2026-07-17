@@ -34,6 +34,7 @@ public sealed partial class WebHostService : IAsyncDisposable
     private readonly IAwakeService _awakeService;
     private readonly IWorkstationLockPolicy _workstationLockPolicy;
     private readonly IAppLog _appLog;
+    private readonly bool _ownsAppLog;
     private readonly PairingAttemptRateLimiter _pairingAttemptRateLimiter = new();
     private readonly WebSocketConnectionRegistry _connections = new();
     private readonly SemaphoreSlim _webSocketSessionSlots = new(MaxConcurrentWebSocketSessions, MaxConcurrentWebSocketSessions);
@@ -78,13 +79,16 @@ public sealed partial class WebHostService : IAsyncDisposable
         _textDestinationService = textDestinationService ?? new FocusedTextDestinationService(inputDispatcher);
         _clipboardTextReader = clipboardTextReader ?? new WindowsClipboardTextReader();
         _powerController = powerController ?? (isolatedTestMode ? new NoOpSystemPowerController() : new SystemPowerController());
+        _ownsAppLog = appLog is null && !isolatedTestMode;
         _appLog = appLog ?? (isolatedTestMode ? NullAppLog.Instance : new AppLog());
         _awakeService = awakeService ?? (isolatedTestMode
             ? new NoOpAwakeService()
             : VolturaAir.Host.AwakeService.CreateWindows(_appLog));
         _workstationLockPolicy = workstationLockPolicy ?? new WorkstationLockPolicy(_appLog);
         _configureWebHost = configureWebHost;
-        _applyCustomPointer = applyCustomPointer;
+        // An isolated browser may exercise the protocol, but it must never
+        // call the native cursor API on the developer's Windows session.
+        _applyCustomPointer = isolatedTestMode ? null : applyCustomPointer;
         var settings = AppNetworkSettings.Load();
         var usesInMemoryTestServer = isolatedTestMode && configureWebHost is not null;
         var portSelection = usesInMemoryTestServer
@@ -345,7 +349,17 @@ public sealed partial class WebHostService : IAsyncDisposable
                     }
                     finally
                     {
-                        _lifetimeCancellation.Dispose();
+                        try
+                        {
+                            _lifetimeCancellation.Dispose();
+                        }
+                        finally
+                        {
+                            if (_ownsAppLog && _appLog is IAsyncDisposable asyncDisposableAppLog)
+                            {
+                                await asyncDisposableAppLog.DisposeAsync();
+                            }
+                        }
                     }
                 }
             }
@@ -410,12 +424,14 @@ public sealed partial class WebHostService : IAsyncDisposable
             return true;
         }
 
+#if DEBUG
         var configuredClientUrl = Environment.GetEnvironmentVariable("VOLTURA_AIR_CLIENT_URL");
         if (Uri.TryCreate(configuredClientUrl, UriKind.Absolute, out var configuredClientUri) &&
             SameOrigin(originUri, configuredClientUri))
         {
             return true;
         }
+#endif
 
         return IsLoopbackOrPrivateHost(originUri.Host);
     }
@@ -425,12 +441,14 @@ public sealed partial class WebHostService : IAsyncDisposable
         return context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
     }
 
+#if DEBUG
     private static bool SameOrigin(Uri first, Uri second)
     {
         return string.Equals(first.Scheme, second.Scheme, StringComparison.OrdinalIgnoreCase) &&
             string.Equals(first.Host, second.Host, StringComparison.OrdinalIgnoreCase) &&
             first.Port == second.Port;
     }
+#endif
 
     private static bool IsLoopbackOrPrivateHost(string host)
     {
@@ -520,6 +538,8 @@ internal sealed record HostStatusMetadata(
     bool InputBlockedByElevation);
 
 internal sealed record TextTransferTargetMetadata(string Mode, string DisplayName, bool Available);
+
+internal sealed record PresentationCommandResult(bool Succeeded, string? Code, string Message);
 
 public sealed class HostPortUnavailableException(string message) : Exception(message)
 {

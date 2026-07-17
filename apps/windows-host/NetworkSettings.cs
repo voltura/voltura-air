@@ -26,7 +26,7 @@ internal sealed record NetworkSettingsSnapshot(
 
 internal static class AppNetworkSettings
 {
-    private const string SettingsKeyPath = @"Software\VolturaAir";
+    private static string SettingsKeyPath => HostSettingsRegistry.SettingsKeyPath;
     private const string NetworkModeValueName = "NetworkMode";
     private const string ManualHostAddressValueName = "ManualHostAddress";
     private const string ManualAdapterIdValueName = "ManualAdapterId";

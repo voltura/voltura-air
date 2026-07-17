@@ -14,7 +14,7 @@ public sealed record TextDestinationSettings(TextDestinationMode Mode, TextDesti
 
 public static class AppTextDestinationSettings
 {
-    private const string SettingsKeyPath = @"Software\VolturaAir";
+    private static string SettingsKeyPath => HostSettingsRegistry.SettingsKeyPath;
     private const string ValueName = "TextDestination";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 

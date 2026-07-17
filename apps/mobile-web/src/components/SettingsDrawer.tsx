@@ -1,6 +1,6 @@
-import { useEffect, useState, type MouseEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
 import { X } from "lucide-react";
-import { toolModeDefinitions, type ToolAppTab } from "../appModeTabs";
+import { getAvailableToolModeIds, toolModeDefinitions, type ToolAppTab } from "../appModeTabs";
 import {
   AppSettingsSection,
   AppearanceSettingsSection,
@@ -16,6 +16,7 @@ import { SplitModeSettings } from "./SplitModeSettings";
 
 export function SettingsDrawer(props: SettingsDrawerProps) {
   const [openSection, setOpenSection] = useState<SettingsSection | null>(null);
+  const drawerRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (!props.isOpen) {
@@ -23,13 +24,25 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
     }
   }, [props.isOpen]);
 
+  useLayoutEffect(() => {
+    if (!props.isOpen || !openSection) {
+      return;
+    }
+
+    const drawer = drawerRef.current;
+    const section = drawer?.querySelector<HTMLDetailsElement>(`[data-settings-section="${openSection}"]`);
+    if (drawer && section) {
+      revealOpenedSection(drawer, section);
+    }
+  }, [openSection, props.isOpen]);
+
   const toggleSection = (event: MouseEvent<HTMLElement>, section: SettingsSection) => {
     event.preventDefault();
     setOpenSection((current) => (current === section ? null : section));
   };
 
   return (
-    <aside className={`settings-drawer ${props.isOpen ? "open" : ""}`} aria-hidden={!props.isOpen}>
+    <aside ref={drawerRef} className={`settings-drawer ${props.isOpen ? "open" : ""}`} aria-hidden={!props.isOpen}>
       <header className="drawer-header">
         <div className="drawer-title">
           <h2>Menu</h2>
@@ -43,7 +56,7 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
       <section className="drawer-group" aria-labelledby="drawer-tools-title">
         <h3 id="drawer-tools-title">Tools</h3>
         <div className="drawer-tool-list">
-          {(["dictation", "text-transfer", "clipboard-read"] satisfies ToolAppTab[]).map((toolId) => {
+          {getAvailableToolModeIds(props.presentationAvailable).map((toolId: ToolAppTab) => {
             const { Icon, ariaLabel } = toolModeDefinitions[toolId];
             return (
               <button key={toolId} type="button" onClick={() => props.onOpenTool?.(toolId)}>
@@ -76,10 +89,6 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
         />
       </SettingsSectionDetails>
 
-      <SettingsSectionDetails section="custom-pointer" label="Custom pointer" isOpen={openSection === "custom-pointer"} onToggle={toggleSection}>
-        <CustomPointerSettingsSection customPointerEnabled={props.customPointerEnabled} setHostCustomPointer={props.setHostCustomPointer} />
-      </SettingsSectionDetails>
-
       <SettingsSectionDetails section="trackpad" label="Trackpad" isOpen={openSection === "trackpad"} onToggle={toggleSection}>
         <TrackpadSettingsSection
           onOpenGestureDebug={props.onOpenGestureDebug}
@@ -93,20 +102,12 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
         <KeyboardSettingsSection keyboardSettings={props.keyboardSettings} updateKeyboardSetting={props.updateKeyboardSetting} />
       </SettingsSectionDetails>
 
-      <SettingsSectionDetails section="split" label="Split mode" isOpen={openSection === "split"} onToggle={toggleSection}>
-        <SplitModeSettings settings={props.trackpadSettings} updateSetting={props.updateTrackpadSetting} />
-      </SettingsSectionDetails>
-
       <SettingsSectionDetails section="remote" label="Remote" isOpen={openSection === "remote"} onToggle={toggleSection}>
         <RemoteSettingsSection
           remoteSettings={props.remoteSettings}
           supportsRemoteLaunch={props.supportsRemoteLaunch}
           updateRemoteSetting={props.updateRemoteSetting}
         />
-      </SettingsSectionDetails>
-
-      <SettingsSectionDetails section="appearance" label="Appearance" isOpen={openSection === "appearance"} onToggle={toggleSection}>
-        <AppearanceSettingsSection setThemeMode={props.setThemeMode} themeMode={props.themeMode} />
       </SettingsSectionDetails>
 
       <SettingsSectionDetails section="app" label="App" isOpen={openSection === "app"} onToggle={toggleSection}>
@@ -117,9 +118,51 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
           isInstalled={props.isInstalled}
           refreshInstalledApp={props.refreshInstalledApp}
           refreshMessage={props.refreshMessage}
+          presentationAvailable={props.presentationAvailable}
           updateAppSetting={props.updateAppSetting}
         />
       </SettingsSectionDetails>
+
+      <SettingsSectionDetails section="appearance" label="Appearance" isOpen={openSection === "appearance"} onToggle={toggleSection}>
+        <AppearanceSettingsSection setThemeMode={props.setThemeMode} themeMode={props.themeMode} />
+      </SettingsSectionDetails>
+
+      <SettingsSectionDetails section="split" label="Split mode" isOpen={openSection === "split"} onToggle={toggleSection}>
+        <SplitModeSettings settings={props.trackpadSettings} updateSetting={props.updateTrackpadSetting} />
+      </SettingsSectionDetails>
+
+      <SettingsSectionDetails section="custom-pointer" label="Custom pointer" isOpen={openSection === "custom-pointer"} onToggle={toggleSection}>
+        <CustomPointerSettingsSection customPointerEnabled={props.customPointerEnabled} setHostCustomPointer={props.setHostCustomPointer} />
+      </SettingsSectionDetails>
     </aside>
   );
+}
+
+const assistedScrollPadding = 16;
+
+function revealOpenedSection(drawer: HTMLElement, section: HTMLDetailsElement): void {
+  const summary = section.querySelector<HTMLElement>("summary");
+  const body = section.querySelector<HTMLElement>(".settings-section-body");
+  const firstControl = body?.querySelector<HTMLElement>("button, input, select, textarea, a[href], [tabindex]");
+  const revealTarget = firstControl ?? body;
+  if (!summary || !revealTarget) {
+    return;
+  }
+
+  const drawerRect = drawer.getBoundingClientRect();
+  const summaryRect = summary.getBoundingClientRect();
+  const targetRect = revealTarget.getBoundingClientRect();
+  const hiddenBy = targetRect.bottom - (drawerRect.bottom - assistedScrollPadding);
+  const availableScroll = summaryRect.top - (drawerRect.top + assistedScrollPadding);
+  const scrollDistance = Math.min(hiddenBy, availableScroll);
+
+  if (scrollDistance <= 0) {
+    return;
+  }
+
+  const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+  drawer.scrollBy({
+    top: scrollDistance,
+    behavior: reduceMotion ? "auto" : "smooth"
+  });
 }

@@ -4,9 +4,10 @@ namespace VolturaAir.Host;
 
 public static class AppPermissionSettings
 {
-    private const string SettingsKeyPath = @"Software\VolturaAir";
+    private static string SettingsKeyPath => HostSettingsRegistry.SettingsKeyPath;
     private const string AllowPcSleepValueName = "AllowPcSleep";
     private const string AllowVolumeControlValueName = "AllowVolumeControl";
+    private const string AllowPresentationControlValueName = "AllowPresentationControl";
     private const string AllowRemoteAppLaunchValueName = "AllowRemoteAppLaunch";
     private const string AllowUrlOpenValueName = "AllowUrlOpen";
     private const string AllowPcLockValueName = "AllowPcLock";
@@ -27,6 +28,7 @@ public static class AppPermissionSettings
         return new HostPermissionSet(
             AllowPcSleep: GetBooleanValue(key, AllowPcSleepValueName, HostPermissions.DefaultGlobal.AllowPcSleep),
             AllowVolumeControl: GetBooleanValue(key, AllowVolumeControlValueName, HostPermissions.DefaultGlobal.AllowVolumeControl),
+            AllowPresentationControl: GetBooleanValue(key, AllowPresentationControlValueName, HostPermissions.DefaultGlobal.AllowPresentationControl),
             AllowRemoteAppLaunch: GetBooleanValue(key, AllowRemoteAppLaunchValueName, HostPermissions.DefaultGlobal.AllowRemoteAppLaunch),
             AllowUrlOpen: GetBooleanValue(key, AllowUrlOpenValueName, HostPermissions.DefaultGlobal.AllowUrlOpen),
             AllowPcLock: GetBooleanValue(key, AllowPcLockValueName, HostPermissions.DefaultGlobal.AllowPcLock),
@@ -48,6 +50,7 @@ public static class AppPermissionSettings
 
         key.SetValue(AllowPcSleepValueName, permissions.AllowPcSleep ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowVolumeControlValueName, permissions.AllowVolumeControl ? 1 : 0, RegistryValueKind.DWord);
+        key.SetValue(AllowPresentationControlValueName, permissions.AllowPresentationControl ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowRemoteAppLaunchValueName, permissions.AllowRemoteAppLaunch ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowUrlOpenValueName, permissions.AllowUrlOpen ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowPcLockValueName, permissions.AllowPcLock ? 1 : 0, RegistryValueKind.DWord);

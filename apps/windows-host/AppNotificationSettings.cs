@@ -4,7 +4,7 @@ namespace VolturaAir.Host;
 
 public static class AppNotificationSettings
 {
-    private const string SettingsKeyPath = @"Software\VolturaAir";
+    private static string SettingsKeyPath => HostSettingsRegistry.SettingsKeyPath;
     private const string ConnectionStatusNotificationsValueName = "ShowConnectionStatusNotifications";
     private const string PairingWindowOnDisconnectValueName = "ShowPairingWindowOnDisconnect";
 

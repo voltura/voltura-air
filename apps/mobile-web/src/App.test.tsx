@@ -2,9 +2,14 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { useVolturaAirConnection } from "./useVolturaAirConnection";
+import { usePwaLifecycle } from "./pwa/usePwaLifecycle";
 
 vi.mock("./useVolturaAirConnection", () => ({
   useVolturaAirConnection: vi.fn()
+}));
+
+vi.mock("./pwa/usePwaLifecycle", () => ({
+  usePwaLifecycle: vi.fn()
 }));
 
 function createStorage(): Storage {
@@ -52,6 +57,10 @@ function mockConnection(overrides: Partial<ReturnType<typeof useVolturaAirConnec
     appLaunchResult: null,
     pendingAppLaunchId: null,
     requestAppLaunch: vi.fn(),
+    presentationCapability: { canControl: true },
+    pendingPresentationCommand: null,
+    presentationResult: null,
+    requestPresentationCommand: vi.fn(() => "presentation-operation-a"),
     pendingUrlOpen: false,
     urlOpenResult: null,
     urlOpenCapability: { canOpen: true },
@@ -100,9 +109,78 @@ beforeEach(() => {
     }))
   );
   mockConnection();
+  vi.mocked(usePwaLifecycle).mockReturnValue({
+    installApp: vi.fn(),
+    installPrompt: null,
+    isInstalled: false,
+    refreshInstalledApp: vi.fn(),
+    refreshMessage: "Reload from the PC if the home screen app looks stale."
+  });
 });
 
 describe("App header and mode navigation", () => {
+  it("refreshes after a developer-mode long press on the Voltura Air brand", () => {
+    vi.useFakeTimers();
+    const refreshInstalledApp = vi.fn();
+    vi.mocked(usePwaLifecycle).mockReturnValue({
+      installApp: vi.fn(),
+      installPrompt: null,
+      isInstalled: false,
+      refreshInstalledApp,
+      refreshMessage: "Reload from the PC if the home screen app looks stale."
+    });
+    mockConnection({ hostStatus: { developerMode: true } });
+    render(<App />);
+
+    const brand = screen.getByText("Voltura Air").parentElement!;
+    fireEvent.pointerDown(brand, { button: 0, clientX: 20, clientY: 20, pointerId: 1 });
+    act(() => vi.advanceTimersByTime(699));
+    expect(refreshInstalledApp).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(1));
+    expect(refreshInstalledApp).toHaveBeenCalledTimes(1);
+    fireEvent.pointerUp(brand, { pointerId: 1 });
+    vi.useRealTimers();
+  });
+
+  it("opens Presentation as a selectable mode and sends its primary action through the acknowledged command path", () => {
+    const requestPresentationCommand = vi.fn(() => "presentation-operation-a");
+    mockConnection({ requestPresentationCommand });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    fireEvent.click(screen.getByRole("button", { name: "Presentation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(screen.getByRole("heading", { name: "Presentation" })).toBeTruthy();
+    expect(requestPresentationCommand).toHaveBeenCalledExactlyOnceWith("powerpoint", "next");
+    expect(screen.getAllByRole("button", { name: "Trackpad mode" })).not.toHaveLength(0);
+  });
+
+  it("hides Presentation entry points when the host does not advertise the alpha feature", () => {
+    mockConnection({ presentationCapability: undefined });
+    render(<App />);
+
+    expect(screen.queryByRole("button", { name: "Presentation" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    expect(screen.queryByRole("button", { name: "Presentation" })).toBeNull();
+    fireEvent.click(screen.getByText("App"));
+    expect(screen.queryByRole("option", { name: "Presentation" })).toBeNull();
+  });
+
+  it("leaves Presentation immediately when the host disables alpha features", async () => {
+    const { rerender } = render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    fireEvent.click(screen.getByRole("button", { name: "Presentation" }));
+    expect(screen.getByRole("heading", { name: "Presentation" })).toBeTruthy();
+
+    mockConnection({ presentationCapability: undefined });
+    rerender(<App />);
+
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Presentation" })).toBeNull());
+    expect(screen.getByLabelText("Dictation text")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Presentation" })).toBeNull();
+  });
+
   it("offers desktop recovery while an administrator app blocks remote input", async () => {
     const send = vi.fn();
     mockConnection({ hostStatus: { inputBlockedByElevation: true }, send });
@@ -218,6 +296,58 @@ describe("App header and mode navigation", () => {
 
     expect(screen.queryByRole("button", { name: "Change mode" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Keyboard mode" })).toBeNull();
+  });
+
+  it("keeps a manually requested reconnect front and center until it succeeds", async () => {
+    const selectPc = vi.fn();
+    mockConnection({
+      state: "unavailable",
+      message: "PC is currently not available. Retrying...",
+      selectPc
+    });
+    const view = render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Try reconnect" }));
+
+    expect(selectPc).toHaveBeenCalledWith("pc-a");
+    expect(screen.getByRole("dialog").getAttribute("aria-modal")).toBe("true");
+    expect(screen.getByRole("heading", { name: "Reconnecting to Very Long Living Room Editing Workstation…" })).toBe(document.activeElement);
+    expect((screen.getByRole("button", { name: "Reconnecting…" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: "Expand trackpad" })).toBeTruthy();
+
+    mockConnection({ state: "connecting", message: "Connecting...", selectPc });
+    view.rerender(<App />);
+    expect(screen.getByRole("dialog").getAttribute("aria-busy")).toBe("true");
+
+    mockConnection({ state: "paired", message: "Connected", selectPc });
+    view.rerender(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Connected to Very Long Living Room Editing Workstation" })).toBeTruthy();
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull();
+    }, { timeout: 1200 });
+  });
+
+  it("returns a failed manual reconnect to the unavailable feedback without exposing a false connected state", async () => {
+    const selectPc = vi.fn();
+    mockConnection({ state: "unavailable", message: "PC is currently not available. Retrying...", selectPc });
+    const view = render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Try reconnect" }));
+    mockConnection({ state: "connecting", message: "Connecting...", selectPc });
+    view.rerender(<App />);
+    expect(screen.getByRole("heading", { name: /Reconnecting to/ })).toBeTruthy();
+
+    mockConnection({ state: "unavailable", message: "PC is currently not available. Retrying...", selectPc });
+    view.rerender(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "PC not available" })).toBeTruthy();
+    });
+    expect((screen.getByRole("button", { name: "Try reconnect" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.queryByText("Connected to Very Long Living Room Editing Workstation")).toBeNull();
   });
 
   it("applies stored split mode placement and chrome preferences on a landscape tablet", () => {

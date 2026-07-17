@@ -16,6 +16,6 @@ export function normalizeAppSettings(value: Partial<AppSettings>): AppSettings {
   return {
     autoRefresh: typeof value.autoRefresh === "boolean" ? value.autoRefresh : defaultAppSettings.autoRefresh,
     clearTextAfterSending: typeof value.clearTextAfterSending === "boolean" ? value.clearTextAfterSending : defaultAppSettings.clearTextAfterSending,
-    fourthMode: value.fourthMode === "text-transfer" || value.fourthMode === "clipboard-read" ? value.fourthMode : "dictation"
+    fourthMode: value.fourthMode === "presentation" || value.fourthMode === "text-transfer" || value.fourthMode === "clipboard-read" ? value.fourthMode : "dictation"
   };
 }

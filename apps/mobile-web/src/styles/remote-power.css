@@ -35,6 +35,12 @@
   backdrop-filter: blur(5px);
 }
 
+.power-sheet-scrim:active {
+  background: rgb(3 8 14 / 66%);
+  border-color: transparent;
+  color: inherit;
+}
+
 .power-sheet {
   position: relative;
   width: min(100%, 560px);

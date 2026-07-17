@@ -20,9 +20,11 @@ import { useKeyboardInput } from "./input/useKeyboardInput";
 import { usePcSettings } from "./settings/usePcSettings";
 import { useSpeechDictation } from "./input/useSpeechDictation";
 import { usePwaLifecycle } from "./pwa/usePwaLifecycle";
+import { useDeveloperRefreshLongPress } from "./useDeveloperRefreshLongPress";
 import { usePairingController } from "./pairing/usePairingController";
 import { supportsSplitModeLayout } from "./splitModeLayout";
 import { getModeDefinition, getModeTabs, type AppTab as Tab, type MainAppTab as MainTab, type ToolAppTab } from "./appModeTabs";
+import { useManualReconnectFeedback } from "./connection/useManualReconnectFeedback";
 
 export function App() {
   const initialPairing = useMemo(() => parsePairingLink(window.location.href, window.location.origin), []);
@@ -34,10 +36,14 @@ export function App() {
     requestPowerAction,
     requestAwakeChange,
     requestAppLaunch,
+    requestPresentationCommand,
     requestUrlOpen,
     requestTextTransfer,
     requestClipboardRead,
     pendingTextTransfer,
+    pendingPresentationCommand,
+    presentationResult,
+    presentationCapability,
     pendingClipboardRead,
     textTransferResult,
     clipboardReadResult,
@@ -91,12 +97,15 @@ export function App() {
   const [textTransferDraft, setTextTransferDraft] = useState("");
   const [isInputRecoveryDialogDismissed, setIsInputRecoveryDialogDismissed] = useState(false);
   const inputBlockedByElevation = hostStatus?.inputBlockedByElevation === true;
+  const developerMode = hostStatus?.developerMode === true;
+  const { progress: manualReconnectProgress, reconnect: reconnectActivePc } = useManualReconnectFeedback(activePc?.id ?? null, state, selectPc);
 
   useEffect(() => {
     if (!inputBlockedByElevation) {
       setIsInputRecoveryDialogDismissed(false);
     }
   }, [inputBlockedByElevation]);
+
   const hostPointerSpeed = hostStatus?.pointerSpeed;
   const hostDefaultRemoteMode = hostStatus?.defaultRemoteMode;
   const {
@@ -110,7 +119,8 @@ export function App() {
     setTrackpadSettingsState,
     trackpadSettings
   } = usePcSettings(clientId, activePc?.id ?? null, hostDefaultRemoteMode, hostPointerSpeed);
-  const modeTabs = useMemo(() => getModeTabs(appSettings.fourthMode), [appSettings.fourthMode]);
+  const presentationAvailable = presentationCapability !== undefined;
+  const modeTabs = useMemo(() => getModeTabs(appSettings.fourthMode, presentationAvailable), [appSettings.fourthMode, presentationAvailable]);
   const { installApp, installPrompt, isInstalled, refreshInstalledApp, refreshMessage } = usePwaLifecycle({
     activePc,
     autoRefresh: appSettings.autoRefresh,
@@ -118,6 +128,7 @@ export function App() {
     hostStatus,
     state
   });
+  const developerBrandLongPress = useDeveloperRefreshLongPress(developerMode, refreshInstalledApp);
   const {
     confirmPendingPairing,
     connectManualHost,
@@ -190,6 +201,14 @@ export function App() {
       setTab("trackpad");
     }
   }, [supportsGestureDebug, tab]);
+
+  useEffect(() => {
+    if (!presentationAvailable && tab === "presentation") {
+      setTab("dictation");
+      setAreModeTabsCollapsed(false);
+      setIsModeSelectorOpen(false);
+    }
+  }, [presentationAvailable, tab]);
 
   useEffect(() => {
     if (tab === "debug") {
@@ -334,20 +353,36 @@ export function App() {
   };
 
   const openToolFromMenu = (tool: ToolAppTab) => {
+    if (tool === "presentation" && !presentationAvailable) {
+      return;
+    }
+
     setTab(tool);
     setAreModeTabsCollapsed(false);
     setIsModeSelectorOpen(false);
     setIsSettingsOpen(false);
   };
 
+  const tryManualReconnect = () => {
+    if (!activePc) {
+      return;
+    }
+
+    setIsModeSelectorOpen(false);
+    setIsSettingsOpen(false);
+    reconnectActivePc();
+  };
+
+  const manualReconnectVisible = manualReconnectProgress !== undefined;
+
   return (
-    <main className={`app-shell ${isBottomModeNavigationVisible ? "has-mode-navigation" : ""} ${tab === "trackpad" ? "trackpad-active" : ""} ${tab === "remote" ? "remote-active" : ""} ${isRemoteUtilityPanelOpen ? "remote-utility-open" : ""} ${tab === "text-transfer" ? "text-transfer-active" : ""} ${tab === "clipboard-read" ? "clipboard-read-active" : ""} ${shouldShowSplitMode ? "split-mode-active" : ""} ${shouldShowSplitMode && trackpadSettings.splitShowModeButtons ? "split-show-mode-buttons" : ""} ${shouldShowSplitMode && trackpadSettings.splitShowStatusRow ? "split-show-status-row" : ""} ${areModeTabsCollapsed ? "mode-tabs-collapsed" : ""} ${isModeSelectorOpen ? "mode-selector-open" : ""}`}>
+    <main className={`app-shell ${isBottomModeNavigationVisible ? "has-mode-navigation" : ""} ${tab === "trackpad" ? "trackpad-active" : ""} ${tab === "remote" ? "remote-active" : ""} ${isRemoteUtilityPanelOpen ? "remote-utility-open" : ""} ${tab === "presentation" ? "presentation-active" : ""} ${tab === "text-transfer" ? "text-transfer-active" : ""} ${tab === "clipboard-read" ? "clipboard-read-active" : ""} ${shouldShowSplitMode ? "split-mode-active" : ""} ${shouldShowSplitMode && trackpadSettings.splitShowModeButtons ? "split-show-mode-buttons" : ""} ${shouldShowSplitMode && trackpadSettings.splitShowStatusRow ? "split-show-status-row" : ""} ${areModeTabsCollapsed ? "mode-tabs-collapsed" : ""} ${isModeSelectorOpen ? "mode-selector-open" : ""}`}>
       <header className="top-bar">
         <div className="brand-group">
           <button className="icon-button" type="button" aria-label="Open menu" onClick={() => setIsSettingsOpen(true)}>
             <Menu aria-hidden="true" />
           </button>
-          <div className="brand">
+          <div {...developerBrandLongPress} className={`brand ${developerBrandLongPress.className}`}>
             <MousePointer2 aria-hidden="true" />
             <span>Voltura Air</span>
           </div>
@@ -403,12 +438,22 @@ export function App() {
 
       {state === "rejected" && !isSettingsOpen && <PairingStatus diagnostics={mobileDiagnostics} message={message} onPrimaryAction={scanPairingQr} onManualHostSubmit={connectManualHost} primaryLabel="Take photo of new QR code" />}
 
-      {state === "unavailable" && activePc && !isSettingsOpen && (
+      {manualReconnectVisible && activePc && !isSettingsOpen && (
+        <PairingStatus
+          activePcUnavailable
+          connectionProgress={manualReconnectProgress}
+          message={message}
+          onPrimaryAction={tryManualReconnect}
+          pcName={getPcDisplayName(activePc)}
+        />
+      )}
+
+      {state === "unavailable" && activePc && !isSettingsOpen && !manualReconnectVisible && (
         <PairingStatus
           activePcUnavailable
           diagnostics={mobileDiagnostics}
           message={message}
-          onPrimaryAction={() => selectPc(activePc.id)}
+          onPrimaryAction={tryManualReconnect}
           onSecondaryAction={scanPairingQr}
           onManualHostSubmit={connectManualHost}
         />
@@ -439,6 +484,7 @@ export function App() {
         pairedPcs={pairedPcs}
         pairingQrInputRef={pairingQrInputRef}
         pairingScanMessage={pairingScanMessage}
+        presentationAvailable={presentationAvailable}
         refreshInstalledApp={refreshInstalledApp}
         refreshMessage={refreshMessage}
         renameDevice={renameDevice}
@@ -501,6 +547,14 @@ export function App() {
           showFunctionKeys: keyboardSettings.showFunctionKeys,
           showSleepButton: keyboardSettings.showSleepButton && supportsSleep,
           toLiveKeyboardValue
+        }}
+        presentationMode={{
+          capability: presentationCapability,
+          connected: state === "paired",
+          pending: pendingPresentationCommand,
+          result: presentationResult,
+          onCommand: requestPresentationCommand,
+          onPowerAction: requestPowerAction
         }}
         remoteMode={{
           appLaunchActions: hostStatus?.appLaunchActions ?? [],

@@ -9,7 +9,13 @@ installer artwork in `installer/assets`.
 - Chrome for deterministic browser captures.
 - Playwright installed in a temporary capture folder, not as a repo dependency.
 - The temporary host runs with `--isolated-test-mode`, so its empty pairing store
-  is reachable only from the local PC and cannot revoke a real phone pairing.
+  and host settings are separate from the normal host. A browser can pair with
+  it over loopback, but neither that pairing nor any paired-client setting can
+  change the user's device list or host preferences.
+- The isolated registry starts with Custom pointer disabled, so screenshot
+  capture does not start a cursor watchdog. Before capture, the launcher stops
+  any existing host without killing its recovery monitor and waits for that
+  monitor to restore the cursor scheme and exit.
 - A Windows Firewall prompt is unnecessary for this loopback-only preview and
   can be denied. Automated protocol tests use an in-memory server and should not
   display a firewall prompt at all.
@@ -51,21 +57,18 @@ client, and writes the public PNG files to `docs/site/assets`.
 ## Host Capture
 
 The Windows host supports light, dark, and system modes through the in-app
-settings. For screenshot automation, set the registry value before launching:
+settings. Screenshot automation passes the required theme to an isolated host;
+it never exports, edits, deletes, or restores `HKCU\Software\VolturaAir`.
 
-```powershell
-New-Item -Path HKCU:\Software\VolturaAir -Force | Out-Null
-New-ItemProperty -Path HKCU:\Software\VolturaAir -Name ThemeMode -Value Light -PropertyType String -Force | Out-Null
-New-ItemProperty -Path HKCU:\Software\VolturaAir -Name ThemeMode -Value Dark -PropertyType String -Force | Out-Null
-New-ItemProperty -Path HKCU:\Software\VolturaAir -Name ThemeMode -Value System -PropertyType String -Force | Out-Null
-```
-
-The host has developer automation flags for rendering public-safe screenshots
-and writing the real pairing URL to a local file:
+The Debug host has developer automation flags for rendering public-safe
+screenshots and writing the real pairing URL to a local file. These options are
+not processed by Release builds; see the complete
+[Windows host command-line reference](setup.md#windows-host-command-line-options):
 
 ```powershell
 apps\windows-host\bin\Debug\net10.0-windows\VolturaAir.Host.exe `
   --site-screenshot-mode `
+  --site-screenshot-theme Light `
   --isolated-test-mode `
   --pairing-store-root "$tempDir\appdata" `
   --pairing-url-file "$tempDir\pairing-url.txt"
@@ -75,18 +78,25 @@ In `--site-screenshot-mode`, the host window renders the visible QR code and
 visible pairing link as `https://voltura.se/air/`. The `--pairing-url-file`
 output remains the real local pairing URL so automation can pair the mobile
 browser. `--pairing-store-root` keeps capture-only pairing data out of the
-user's real device list. Do not publish a live pairing token, LAN address, or
-machine-specific QR.
+user's real device list. The host also redirects its settings to a disposable
+isolated registry key, so settings sent by the paired browser cannot alter the
+normal host configuration. Do not publish a live pairing token, LAN address,
+or machine-specific QR.
 
 The host screenshot is rendered directly from the Voltura Air window handle so
 foreground or topmost applications cannot replace the host image. Screen-copy
-capture is used only if direct window rendering is unavailable. The script
-temporarily blocks application launch, enables URL opening, disables connection
-notifications, and restores the complete original `HKCU\Software\VolturaAir`
-registry key when it exits. This preserves every local preference, including
-network mode, manual host or adapter choice, manual port, and automatic address
-or port history; screenshot capture must never alter a real phone's saved
-connection endpoint.
+capture is used only if direct window rendering is unavailable. The script sets
+its public-safe permissions, notifications, and theme only inside the isolated
+host. A normal exit removes that temporary settings key; if a capture process
+is interrupted, any stranded key is separate from the real settings key and
+cannot alter network mode, manual host or adapter choice, manual port, or
+automatic address and port history. Screenshot capture must never alter a real
+phone's saved connection endpoint.
+
+The host refreshes its in-memory hot-path setting caches whenever it enters or
+leaves the isolated registry scope. A setting cached before screenshot startup
+therefore cannot leak its production value into capture, and leaving capture
+reloads the cached production value without rewriting it.
 
 The capture script includes Connect plus **Preferences > Global permissions** in
 both themes. It launches a capture-only host with the requested accordion open;

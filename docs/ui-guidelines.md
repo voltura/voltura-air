@@ -19,6 +19,11 @@ These notes capture project-level UI decisions for the Windows host.
   pointer target while individual actions remain content-sized. Order sections
   from broad application and appearance settings through control defaults and
   host behavior, then permissions, platform policy, and advanced tools.
+- After an accordion expands and layout settles, scroll the Preferences viewer
+  only when its first usable control is clipped. Reveal that control with the
+  minimum offset that keeps the focused header visible; do not move focus or
+  animate the adjustment. Rebuilding Preferences after an in-section setting
+  change must keep that section expanded at the same scroll position.
 - Diagnostics uses a top-level view switch. In the Application log view, the
   record region is the only vertical scroller; filters, status, and Refresh,
   Copy, Open folder, and Delete actions remain visible. Log filters apply as
@@ -66,3 +71,8 @@ phones and short landscape screens.
 - Tray submenu arrows and selected-state checkmarks use the active theme text
   color. Checked menus reserve a DPI-scaled indicator gutter so the glyph never
   overlaps labels; separators align with that gutter.
+
+## Mobile menu and settings
+
+- Keep settings accordions collapsed on entry and allow only one section open at a time.
+- When an opened section's first control would be clipped below the drawer, scroll the drawer by the minimum distance needed to reveal that control while keeping its summary visible. Do not scroll sections that are already usable, move keyboard focus into the content, or animate the assisted scroll when `prefers-reduced-motion` is active.

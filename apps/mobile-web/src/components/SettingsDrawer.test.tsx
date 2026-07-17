@@ -25,6 +25,7 @@ const baseProps = {
   pairedPcs: [],
   pairingQrInputRef: { current: null },
   pairingScanMessage: "Scan the QR code shown on your PC.",
+  presentationAvailable: true,
   refreshInstalledApp: vi.fn(),
   refreshMessage: "Reload from the PC if the home screen app looks stale.",
   renameDevice: vi.fn(),
@@ -43,9 +44,39 @@ const baseProps = {
   updateTrackpadSetting: vi.fn()
 };
 
+function createRect(top: number, bottom: number): DOMRect {
+  return {
+    bottom,
+    height: bottom - top,
+    left: 0,
+    right: 360,
+    top,
+    width: 360,
+    x: 0,
+    y: top,
+    toJSON: () => ({})
+  };
+}
+
+function arrangeClippedAppSection(targetBottom: number) {
+  const drawer = screen.getByRole("complementary");
+  const summary = screen.getByText("App").closest("summary") as HTMLElement;
+  const section = summary.closest("details") as HTMLDetailsElement;
+  const firstControl = section.querySelector("select") as HTMLSelectElement;
+  const scrollBy = vi.fn();
+
+  vi.spyOn(drawer, "getBoundingClientRect").mockReturnValue(createRect(0, 600));
+  vi.spyOn(summary, "getBoundingClientRect").mockReturnValue(createRect(520, 568));
+  vi.spyOn(firstControl, "getBoundingClientRect").mockReturnValue(createRect(targetBottom - 58, targetBottom));
+  Object.defineProperty(drawer, "scrollBy", { configurable: true, value: scrollBy });
+
+  return { scrollBy, summary };
+}
+
 describe("SettingsDrawer", () => {
   beforeEach(() => {
     vi.stubGlobal("__APP_VERSION__", "test-version");
+    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false })));
     Object.defineProperty(navigator, "vibrate", { configurable: true, value: vi.fn(() => true) });
   });
 
@@ -62,6 +93,22 @@ describe("SettingsDrawer", () => {
     expect(Array.from(document.querySelectorAll("details")).every((details) => !details.open)).toBe(true);
   });
 
+  it("hides Presentation entry points and falls back from a stale fourth-mode choice when alpha is unavailable", () => {
+    render(
+      <SettingsDrawer
+        {...baseProps}
+        appSettings={{ ...defaultAppSettings, fourthMode: "presentation" }}
+        presentationAvailable={false}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Presentation" })).toBeNull();
+    fireEvent.click(screen.getByText("App"));
+    const fourthMode = screen.getByRole("combobox", { name: "Fourth mode button" }) as HTMLSelectElement;
+    expect(fourthMode.value).toBe("dictation");
+    expect(within(fourthMode).queryByRole("option", { name: "Presentation" })).toBeNull();
+  });
+
   it("keeps only one settings accordion open", () => {
     render(<SettingsDrawer {...baseProps} />);
 
@@ -71,6 +118,40 @@ describe("SettingsDrawer", () => {
     fireEvent.click(screen.getByText("Keyboard"));
     expect(screen.getByText("Trackpad").closest("details")?.open).toBe(false);
     expect(screen.getByText("Keyboard").closest("details")?.open).toBe(true);
+  });
+
+  it("scrolls only enough to reveal the first control of a clipped section", () => {
+    render(<SettingsDrawer {...baseProps} />);
+    const { scrollBy, summary } = arrangeClippedAppSection(668);
+    summary.focus();
+
+    fireEvent.click(summary);
+
+    expect(scrollBy).toHaveBeenCalledExactlyOnceWith({ top: 84, behavior: "smooth" });
+    expect(document.activeElement).toBe(summary);
+
+    scrollBy.mockClear();
+    fireEvent.click(summary);
+    expect(scrollBy).not.toHaveBeenCalled();
+  });
+
+  it("does not scroll when the opened section's first control is already visible", () => {
+    render(<SettingsDrawer {...baseProps} />);
+    const { scrollBy, summary } = arrangeClippedAppSection(570);
+
+    fireEvent.click(summary);
+
+    expect(scrollBy).not.toHaveBeenCalled();
+  });
+
+  it("avoids animated assisted scrolling when reduced motion is requested", () => {
+    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true })));
+    render(<SettingsDrawer {...baseProps} />);
+    const { scrollBy, summary } = arrangeClippedAppSection(668);
+
+    fireEvent.click(summary);
+
+    expect(scrollBy).toHaveBeenCalledExactlyOnceWith({ top: 84, behavior: "auto" });
   });
 
   it("keeps all split controls in the dedicated split mode accordion", () => {

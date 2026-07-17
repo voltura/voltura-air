@@ -1,6 +1,10 @@
 import { spawnSync } from "node:child_process";
 import { networkInterfaces } from "node:os";
 
+const windowsHostImage = "VolturaAir.Host.exe";
+const cursorWatchdogImage = "VolturaAir.CursorWatchdog.exe";
+const synchronousWaitBuffer = new Int32Array(new SharedArrayBuffer(4));
+
 export function getLanAddress() {
   for (const items of Object.values(networkInterfaces())) {
     for (const item of items ?? []) {
@@ -39,12 +43,37 @@ export function stopChild(child, signal) {
   child.kill(signal);
 }
 
-export function stopExistingHost() {
-  if (process.platform !== "win32") {
+export function stopExistingHost(options = {}) {
+  const platform = options.platform ?? process.platform;
+  const run = options.run ?? spawnSync;
+  const waitForProcessExit = options.waitForProcessExit ?? waitForWindowsProcessExit;
+  if (platform !== "win32") {
     return;
   }
 
-  spawnSync("taskkill", ["/IM", "VolturaAir.Host.exe", "/F", "/T"], { stdio: "ignore" });
+  run("taskkill", ["/IM", windowsHostImage, "/F"], { stdio: "ignore" });
+  if (!waitForProcessExit(cursorWatchdogImage, { run })) {
+    throw new Error("Timed out waiting for the cursor watchdog to restore the Windows cursor scheme.");
+  }
+}
+
+export function waitForWindowsProcessExit(imageName, options = {}) {
+  const run = options.run ?? spawnSync;
+  const now = options.now ?? Date.now;
+  const sleep = options.sleep ?? sleepSynchronously;
+  const timeoutMs = options.timeoutMs ?? 5000;
+  const pollIntervalMs = options.pollIntervalMs ?? 50;
+  const deadline = now() + timeoutMs;
+
+  while (isWindowsProcessRunning(imageName, run)) {
+    if (now() >= deadline) {
+      return false;
+    }
+
+    sleep(pollIntervalMs);
+  }
+
+  return true;
 }
 
 export function stopWindowsNodeListenersOnDevPorts(startPort, count) {
@@ -86,4 +115,16 @@ function isNodeProcess(pid) {
 
   const imageName = result.stdout.trim().match(/^"([^"]+)"/)?.[1]?.toLowerCase();
   return imageName === "node.exe";
+}
+
+function isWindowsProcessRunning(imageName, run) {
+  const result = run("tasklist", ["/FI", `IMAGENAME eq ${imageName}`, "/FO", "CSV", "/NH"], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"]
+  });
+  return result.stdout?.trim().match(/^"([^"]+)"/)?.[1]?.toLowerCase() === imageName.toLowerCase();
+}
+
+function sleepSynchronously(milliseconds) {
+  Atomics.wait(synchronousWaitBuffer, 0, 0, milliseconds);
 }

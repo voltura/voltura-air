@@ -4,7 +4,8 @@ import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
+import { stopExistingHost } from "./dev-shared.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const assetsDir = path.join(repoRoot, "docs", "site", "assets");
@@ -12,7 +13,6 @@ const tempDir = path.join(os.tmpdir(), "voltura-air-site-screenshots");
 const tempAppDataDir = path.join(tempDir, "appdata");
 const pairingUrlFile = path.join(tempDir, "pairing-url.txt");
 const hostCaptureScript = path.join(tempDir, "capture-window.ps1");
-const hostRegistryBackupFile = path.join(tempDir, "voltura-air-registry-backup.reg");
 const hostExe = path.join(repoRoot, "apps", "windows-host", "bin", "Debug", "net10.0-windows", "VolturaAir.Host.exe");
 
 const outputs = {
@@ -47,7 +47,6 @@ async function main() {
   await fs.mkdir(assetsDir, { recursive: true });
   await ensureCaptureDependencies();
   await writeHostCaptureScript();
-  const originalSettings = await snapshotHostRegistrySettings();
 
   try {
     const requireFromTemp = createRequire(path.join(tempDir, "package.json"));
@@ -57,8 +56,7 @@ async function main() {
     await run("npm", ["run", "build", "--workspace", "apps/mobile-web"]);
     await run("dotnet", ["build", "VolturaAir.slnx"]);
 
-    await setHostTheme("Light");
-    const lightHost = await launchHost();
+    const lightHost = await launchHost("Light");
     try {
       await captureHostWindow(outputs.hostLight);
       await captureMobileScreens(chromium, lightHost.pairingUrl);
@@ -66,22 +64,21 @@ async function main() {
       await stopProcess(lightHost.process);
     }
 
-    const lightPreferencesHost = await launchHost("Global permissions");
+    const lightPreferencesHost = await launchHost("Light", "Global permissions");
     try {
       await captureHostWindow(outputs.hostPreferencesLight);
     } finally {
       await stopProcess(lightPreferencesHost.process);
     }
 
-    await setHostTheme("Dark");
-    const darkHost = await launchHost();
+    const darkHost = await launchHost("Dark");
     try {
       await captureHostWindow(outputs.hostDark);
     } finally {
       await stopProcess(darkHost.process);
     }
 
-    const darkPreferencesHost = await launchHost("Global permissions");
+    const darkPreferencesHost = await launchHost("Dark", "Global permissions");
     try {
       await captureHostWindow(outputs.hostPreferencesDark);
     } finally {
@@ -91,7 +88,6 @@ async function main() {
     console.log(`Site screenshots written to ${assetsDir}`);
   } finally {
     await stopRunningHost();
-    await restoreHostRegistrySettings(originalSettings);
   }
 }
 
@@ -262,11 +258,13 @@ async function captureHostWindow(outputPath) {
   await fs.copyFile(rawPath, outputPath);
 }
 
-async function launchHost(preferencesSection) {
+async function launchHost(theme, preferencesSection) {
   await fs.rm(pairingUrlFile, { force: true });
   await fs.rm(path.join(tempAppDataDir, "Voltura Air"), { recursive: true, force: true });
   const hostArgs = [
     "--site-screenshot-mode",
+    "--site-screenshot-theme",
+    theme,
     "--isolated-test-mode",
     "--pairing-store-root",
     tempAppDataDir,
@@ -293,7 +291,7 @@ async function launchHost(preferencesSection) {
 }
 
 async function stopRunningHost() {
-  await runPowerShell("Stop-Process -Name VolturaAir.Host -Force -ErrorAction SilentlyContinue; exit 0");
+  stopExistingHost();
 }
 
 async function stopProcess(child) {
@@ -321,40 +319,6 @@ async function waitForProcessExit(child, timeoutMs) {
     new Promise((resolve) => child.once("exit", () => resolve(true))),
     delay(timeoutMs).then(() => false)
   ]);
-}
-
-async function setHostTheme(theme) {
-  await runPowerShell(`
-    New-Item -Path HKCU:\\Software\\VolturaAir -Force | Out-Null
-    New-ItemProperty -Path HKCU:\\Software\\VolturaAir -Name ThemeMode -Value ${JSON.stringify(theme)} -PropertyType String -Force | Out-Null
-    New-ItemProperty -Path HKCU:\\Software\\VolturaAir -Name EnableGestureDebug -Value 0 -PropertyType DWord -Force | Out-Null
-    New-ItemProperty -Path HKCU:\\Software\\VolturaAir -Name ShowConnectionStatusNotifications -Value 0 -PropertyType DWord -Force | Out-Null
-    New-ItemProperty -Path HKCU:\\Software\\VolturaAir -Name ShowPairingWindowOnDisconnect -Value 0 -PropertyType DWord -Force | Out-Null
-    New-ItemProperty -Path HKCU:\\Software\\VolturaAir -Name AllowUrlOpen -Value 1 -PropertyType DWord -Force | Out-Null
-    New-ItemProperty -Path HKCU:\\Software\\VolturaAir -Name AllowRemoteAppLaunch -Value 0 -PropertyType DWord -Force | Out-Null
-  `);
-}
-
-async function snapshotHostRegistrySettings() {
-  await fs.rm(hostRegistryBackupFile, { force: true });
-  const keyExists = spawnSync(
-    "powershell",
-    ["-NoProfile", "-Command", "[Console]::Out.Write((Test-Path -LiteralPath HKCU:\\Software\\VolturaAir).ToString())"],
-    { encoding: "utf8", windowsHide: true }
-  );
-  const exists = keyExists.status === 0 && keyExists.stdout.trim().toLowerCase() === "true";
-  if (exists) {
-    await run("reg", ["export", "HKCU\\Software\\VolturaAir", hostRegistryBackupFile, "/y"]);
-  }
-
-  return { exists };
-}
-
-async function restoreHostRegistrySettings(snapshot) {
-  await runPowerShell("Remove-Item -LiteralPath HKCU:\\Software\\VolturaAir -Recurse -Force -ErrorAction SilentlyContinue");
-  if (snapshot.exists) {
-    await run("reg", ["import", hostRegistryBackupFile]);
-  }
 }
 
 async function writeHostCaptureScript() {
@@ -434,19 +398,15 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function runPowerShell(script) {
-  await run("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script]);
-}
-
 async function run(command, args, options = {}) {
-  const useShell = process.platform === "win32" && (command === "npm" || command === "npx");
-  const executable = useShell ? command : resolveCommand(command);
+  const [executable, spawnArgs] = process.platform === "win32" && (command === "npm" || command === "npx")
+    ? ["cmd.exe", ["/d", "/s", "/c", command, ...args]]
+    : [resolveCommand(command), args];
   console.log(`> ${command} ${args.join(" ")}`);
   await new Promise((resolve, reject) => {
-    const child = spawn(executable, args, {
+    const child = spawn(executable, spawnArgs, {
       cwd: options.cwd ?? repoRoot,
       stdio: "inherit",
-      shell: useShell,
       windowsHide: true
     });
     child.once("exit", (code) => {

@@ -43,6 +43,7 @@ public sealed partial class PairingManager
         return new DevicePermissionOverrides(
             AllowPcSleep: permissionOverrides?.AllowPcSleep,
             AllowVolumeControl: permissionOverrides?.AllowVolumeControl,
+            AllowPresentationControl: permissionOverrides?.AllowPresentationControl,
             AllowRemoteAppLaunch: permissionOverrides?.AllowRemoteAppLaunch,
             AllowUrlOpen: permissionOverrides?.AllowUrlOpen,
             AllowPcLock: permissionOverrides?.AllowPcLock,

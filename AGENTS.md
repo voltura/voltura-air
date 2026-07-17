@@ -16,6 +16,7 @@ updated as the app structure, tooling, and release process become concrete.
 - Follow `docs/host-quality.md` for the Windows host analyzer policy, runtime ownership expectations, modern C# standard, and required quality gate. Do not enable all optional .NET analyzers globally; promote reviewed host-relevant rules and document narrow exceptions instead.
 - Keep host ownership boundaries explicit: `WpfHostRuntime` owns startup rollback and process-resource shutdown; `WpfTrayApplicationContext` and WPF windows render state and request commands or shutdown; services own their timers, subscriptions, native resources, protocol workers, and persistence. UI or tray code must not dispose or directly operate service internals.
 - Keep WebSocket sends serialized per registered socket and bounded by cancellation and operation timeouts. Status changes use the host-owned coalescing broadcaster; do not add fire-and-forget broadcast tasks, parallel sends on one socket, or a second background worker for the same state.
+- **Enable alpha features** is the reusable, default-off host umbrella gate for incomplete experimental work. Every alpha feature must advertise its own capability only while the gate is enabled and enforce the gate again at its production command boundary; hiding UI is not enforcement. Keep the gate cached and event-driven: never poll it, read the registry on an input/render hot path, add a timer or worker for it, or check it per pointer movement or animation frame. A disabled alpha feature must start no feature-specific timers, subscriptions, native resources, background work, or network activity. Reuse the existing coalescing status broadcaster when alpha availability changes.
 - Treat pairing data as untrusted persistence. Keep reads size/record bounded and validated, write replacement data atomically in the same directory, and never persist or log plaintext reconnect secrets.
 - The mobile client targets React 19 and TypeScript 6. Prefer function components, typed hooks, discriminated unions, `satisfies`, optional chaining, and modern platform APIs that work on the app's HTTP LAN origin. Avoid legacy React class components and compatibility patterns for older React or TypeScript releases.
 - For web UI interaction, layout, scrolling, touch, pointer, focus, viewport, and browser-compatibility behavior, research the relevant web standard and official browser documentation before implementing unfamiliar behavior or repeatedly patching a browser-specific symptom. Prefer W3C/WHATWG specifications, MDN, and official Chromium/WebKit documentation; record the standards constraint that drives any non-obvious design.
@@ -36,6 +37,12 @@ updated as the app structure, tooling, and release process become concrete.
   asks to keep them running. If a required port is already in use, reuse the
   relevant running process when practical or stop it instead of taking the next
   port; the user normally starts debugging from VS Code with `npm run dev`.
+- When the user is present and can validate a transient, subjective, or visual UI
+  result in seconds, hand that check to the user instead of spending substantial
+  time or tokens building temporary automation, preview harnesses, preview-only
+  production switches, or capture infrastructure. Run the normal automated quality gate,
+  but do not automate a quick human check unless the user explicitly asks Codex to
+  work autonomously or requests automated coverage for that behavior.
 - Never run multiple Voltura Air host instances in parallel, including normal,
   debug, development, screenshot, UI-validation, and isolated-test hosts. The
   single-instance behavior is a product invariant and scripts must not bypass
@@ -45,10 +52,21 @@ updated as the app structure, tooling, and release process become concrete.
   test mode, stop it when validation finishes, and leave no competing host
   process running. Automated in-memory `TestServer` protocol tests are not host
   application instances and do not require stopping the running app.
+- Development, UI-validation, and screenshot launchers must stop the host
+  process without recursively terminating `VolturaAir.CursorWatchdog.exe`, then
+  wait for the watchdog to restore the Windows cursor scheme and exit before
+  launching another host. Do not use host-tree termination that defeats cursor
+  recovery. The watchdog is a user-disableable runtime option, so generic
+  launchers, cleanup code, and unrelated tests must treat an absent watchdog
+  process as normal and already stopped; they may wait for an existing process
+  but must not require one or use its absence as proof that cursor recovery ran.
+  Packaging checks and dedicated watchdog tests may still require the binary or
+  a watchdog process that they explicitly start.
 - Any temporary host that uses a temporary or empty pairing store for tests,
   screenshots, or UI validation must pass `--isolated-test-mode`. This mode uses
   the same single-instance scope as the normal host, binds only to `127.0.0.1`,
-  advertises loopback, and does not persist automatic network or port choices.
+  advertises loopback, isolates host settings from the normal Voltura Air
+  registry key, and does not persist automatic network or port choices.
   The launching script must stop any running host before starting it. Never
   expose a temporary pairing store on the LAN because a real phone can interpret
   its rejection as revoked pairing and delete its saved reconnect secret.
@@ -158,15 +176,32 @@ updated as the app structure, tooling, and release process become concrete.
 - On Windows, run `npm run branding:generate` to regenerate static branding and
   then refresh all `docs/site/assets` product screenshots through the isolated
   screenshot workflow.
+- Run `npm run cache:purge` when Windows keeps showing an earlier Voltura Air
+  notification or application icon after branding changes. The command stops
+  the host, purges the current user's Windows icon cache, and restarts Explorer.
+- Run `npm run clean:temp:preview` before `npm run clean:temp` to remove ignored
+  build and cache files while retaining the local `.vs` folder and
+  `.vscode/settings.json`.
+- Run `npm run clean:git` to compact the local Git object database and prune
+  unreachable objects; do not run it while another Git operation is active.
+- Run `npm run clean` to stop the host and purge the Windows icon cache before
+  removing workspace and Git cleanup targets, then update dependencies within
+  their declared version ranges. It restarts Explorer during the cache purge.
 - GitHub CLI (`gh`) is available in the Codex shell. It is installed through
   WinGet and exposed to the current Codex environment through
   `%APPDATA%\npm\gh.cmd`.
+- Run `npm run branch:sync` from a clean feature branch to fetch the latest
+  `origin/main` and merge it into the current branch. It refuses `main` and a
+  dirty worktree; resolve merge conflicts through the normal Git workflow.
 - Run `npm run code:statistics` to report the maintained mobile-client,
   Windows-host, and NSIS installer source file and line counts, grouped by file
   type, plus repository document, image, cursor asset, script, npm-command,
   file-date, largest-file, and declared test counts. Pass `--report` to write
   the same report as HTML in a temporary directory and open it in the default
   browser.
+- `npm run dev:ui` and `npm run test:ui` explicitly enable alpha features only
+  inside their isolated test settings so development and smoke coverage can
+  exercise gated surfaces without changing the normal default-off host setting.
 - The native cursor watchdog is compiled with the Visual Studio x64 C++ toolset.
   `scripts/build-cursor-watchdog.ps1` discovers it through `vswhere`; install the
   Desktop development with C++ workload when the toolset is absent.

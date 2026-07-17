@@ -47,12 +47,17 @@ export type ServerCapabilities = {
   gestureDebug?: boolean;
   inputAck?: boolean;
   clipboardRead?: boolean;
+  presentation?: PresentationCapability | null;
   power?: PowerCapabilities;
   remoteLaunch?: boolean;
   urlOpen?: UrlOpenCapability;
   sleep?: boolean;
   textTransfer?: boolean;
   volume?: boolean;
+};
+
+export type PresentationCapability = {
+  canControl: boolean;
 };
 
 export type UrlOpenCapability = {
@@ -200,6 +205,27 @@ export type SystemSleepMessage = {
   type: "system.sleep";
 };
 
+export type PresentationTarget = "powerpoint" | "google-slides" | "pdf";
+
+export type PresentationAction = "next" | "previous" | "start" | "end" | "black" | "pointer";
+
+export type PresentationCommandMessage = {
+  type: "presentation.command";
+  operationId: string;
+  target: PresentationTarget;
+  action: PresentationAction;
+};
+
+export type PresentationCommandResultMessage = {
+  type: "presentation.command.result";
+  operationId: string;
+  target: PresentationTarget;
+  action: PresentationAction;
+  succeeded: boolean;
+  code?: string;
+  message: string;
+};
+
 export type AppLaunchActionKind = "browser" | "spotify" | "vlc" | "powerpoint" | "custom";
 
 export type AppLaunchActionSummary = {
@@ -331,6 +357,7 @@ export type ClientMessage =
   | PointerZoomMessage
   | KeyboardTextMessage
   | KeyboardSpecialMessage
+  | PresentationCommandMessage
   | SystemSleepMessage
   | SystemPowerMessage
   | AwakeSetMessage
@@ -342,4 +369,4 @@ export type ClientMessage =
   | AudioMuteToggleMessage
   | AudioVolumeSetMessage;
 
-export type ServerMessage = PairAcceptedMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | UrlOpenResultMessage | TextSendResultMessage | ClipboardGetResultMessage | AudioStateMessage;
+export type ServerMessage = PairAcceptedMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | PresentationCommandResultMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | UrlOpenResultMessage | TextSendResultMessage | ClipboardGetResultMessage | AudioStateMessage;

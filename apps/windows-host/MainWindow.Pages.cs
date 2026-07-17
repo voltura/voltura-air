@@ -210,10 +210,15 @@ public partial class MainWindow
         {
             // Reserve the scrollbar gutter so expanding a section never
             // changes the accordion width.
+            CanContentScroll = false,
+            Focusable = false,
+            FocusVisualStyle = null,
+            IsTabStop = false,
             VerticalScrollBarVisibility = ScrollBarVisibility.Visible,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             Content = CreateSectionPanel()
         };
+        System.Windows.Input.KeyboardNavigation.SetIsTabStop(root, false);
         var panel = (StackPanel)root.Content;
         var sections = new List<Expander>();
         var globalPermissions = AppPermissionSettings.Load();
@@ -256,9 +261,6 @@ public partial class MainWindow
         trackpadPanel.Children.Add(CreateMutedText("Default pointer speed for paired devices. Device-specific overrides take precedence."));
         AddGlobalPointerSpeedSetting(trackpadPanel);
 
-        var customPointerPanel = AddPreferencesSection(panel, sections, "Custom pointer");
-        AddCustomPointerSetting(customPointerPanel);
-
         var remotePanel = AddPreferencesSection(panel, sections, "Remote defaults");
         remotePanel.Children.Add(CreateMutedText("Choose the initial Remote mode for newly connected phones. Mobile settings can still override this per PC."));
         var activeRemoteMode = AppRemoteSettings.GetDefaultRemoteMode();
@@ -273,26 +275,8 @@ public partial class MainWindow
         remotePanel.Children.Add(CreateSegmentRow(standardRemote, youtubeRemote, kodiRemote));
         AddYoutubeUrlSetting(remotePanel);
 
-        var appLaunchPanel = AddPreferencesSection(panel, sections, "Application launch buttons");
-        var appLaunchSection = (Expander)panel.Children[^1];
-        AddAppLaunchSettings(appLaunchPanel);
-        if (_openAppLaunchPreferences)
-        {
-            appLaunchSection.IsExpanded = true;
-            _openAppLaunchPreferences = false;
-        }
-
-        var textDestinationPanel = AddPreferencesSection(panel, sections, "Text destination");
-        AddTextDestinationSettings(textDestinationPanel);
-
         var awakePanel = AddPreferencesSection(panel, sections, "Keep awake");
-        var awakeSection = (Expander)panel.Children[^1];
         AddAwakeSettings(awakePanel);
-        if (_openAwakePreferences)
-        {
-            awakeSection.IsExpanded = true;
-            _openAwakePreferences = false;
-        }
 
         var permissionsPanel = AddPreferencesSection(panel, sections, "Global permissions");
         var allowClientControl = CreateCheckBox("Allow paired devices to control Voltura Air host", AppClientControlSettings.IsEnabled());
@@ -300,8 +284,19 @@ public partial class MainWindow
         allowClientControl.Unchecked += (_, _) => AppClientControlSettings.SetEnabled(false);
         permissionsPanel.Children.Add(allowClientControl);
         permissionsPanel.Children.Add(CreateMutedText("When off, paired devices cannot inject input into Voltura Air itself. They can still control Windows and other permitted apps."));
+
+        var textDestinationPanel = AddPreferencesSection(panel, sections, "Text destination");
+        AddTextDestinationSettings(textDestinationPanel);
+
+        var appLaunchPanel = AddPreferencesSection(panel, sections, "Application launch buttons");
+        AddAppLaunchSettings(appLaunchPanel);
+
+        var customPointerPanel = AddPreferencesSection(panel, sections, "Custom pointer");
+        AddCustomPointerSetting(customPointerPanel);
+
         var sleep = CreateCheckBox("Allow paired devices to request PC sleep", globalPermissions.AllowPcSleep);
         var volume = CreateCheckBox("Allow paired devices to control volume", globalPermissions.AllowVolumeControl);
+        var presentation = CreateCheckBox("Allow paired devices to control presentations", globalPermissions.AllowPresentationControl);
         var remoteLaunch = CreateCheckBox("Allow paired devices to start applications", globalPermissions.AllowRemoteAppLaunch);
         var urlOpen = CreateCheckBox("Allow paired devices to open web addresses", globalPermissions.AllowUrlOpen);
         var pcLock = CreateCheckBox("Allow paired devices to lock the PC", globalPermissions.AllowPcLock);
@@ -313,14 +308,18 @@ public partial class MainWindow
         var signOut = CreateCheckBox("Allow paired devices to sign out", globalPermissions.AllowSignOut);
         var restart = CreateCheckBox("Allow paired devices to restart the PC", globalPermissions.AllowRestart);
         var shutdown = CreateCheckBox("Allow paired devices to shut down the PC", globalPermissions.AllowShutdown);
-        void SavePermissions() => SaveGlobalPermissions(sleep, volume, remoteLaunch, urlOpen, pcLock, blackoutDisplay, displayOff, screenSaver, awakeControl, clipboardRead, signOut, restart, shutdown);
-        foreach (var permission in new[] { sleep, volume, remoteLaunch, urlOpen, pcLock, blackoutDisplay, displayOff, screenSaver, awakeControl, clipboardRead, signOut, restart, shutdown })
+        void SavePermissions() => SaveGlobalPermissions(sleep, volume, presentation, remoteLaunch, urlOpen, pcLock, blackoutDisplay, displayOff, screenSaver, awakeControl, clipboardRead, signOut, restart, shutdown);
+        foreach (var permission in new[] { sleep, volume, presentation, remoteLaunch, urlOpen, pcLock, blackoutDisplay, displayOff, screenSaver, awakeControl, clipboardRead, signOut, restart, shutdown })
         {
             permission.Checked += (_, _) => SavePermissions();
             permission.Unchecked += (_, _) => SavePermissions();
         }
         permissionsPanel.Children.Add(sleep);
         permissionsPanel.Children.Add(volume);
+        if (AppDeveloperSettings.EnableAlphaFeatures())
+        {
+            permissionsPanel.Children.Add(presentation);
+        }
         permissionsPanel.Children.Add(remoteLaunch);
         permissionsPanel.Children.Add(urlOpen);
         permissionsPanel.Children.Add(pcLock);
@@ -338,22 +337,35 @@ public partial class MainWindow
         permissionsPanel.Children.Add(CreateMutedText("Display off and session-ending actions require hold-to-confirm on the mobile device."));
         permissionsPanel.Children.Add(CreateDetailsDisclosure("global permissions", "Lock and blackout are enabled by default. The screen-saver permission appears when Windows has a screen saver configured. Opening web addresses, reading the PC clipboard, display off, sign out, restart, and shut down require explicit host approval."));
 
-        var windowsLockingPanel = AddPreferencesSection(panel, sections, "Windows locking");
-        AddWindowsLockPolicySetting(windowsLockingPanel);
-
         var developerPanel = AddPreferencesSection(panel, sections, "Developer tools");
         var developerMode = CreateCheckBox("Developer mode", AppDeveloperSettings.DeveloperMode());
         developerMode.Checked += (_, _) => AppDeveloperSettings.SetDeveloperMode(true);
         developerMode.Unchecked += (_, _) => AppDeveloperSettings.SetDeveloperMode(false);
         developerPanel.Children.Add(developerMode);
 
+        var alphaFeatures = CreateCheckBox("Enable alpha features", AppDeveloperSettings.EnableAlphaFeatures());
+        alphaFeatures.Checked += (_, _) => SetAlphaFeatures(true);
+        alphaFeatures.Unchecked += (_, _) => SetAlphaFeatures(false);
+        developerPanel.Children.Add(alphaFeatures);
+        developerPanel.Children.Add(CreateMutedText("Shows experimental features that are still under development. Alpha features remain unavailable to paired devices until this setting is enabled."));
+
         var gestureDebug = CreateCheckBox("Show gesture debug screen in the mobile app", AppDeveloperSettings.EnableGestureDebug());
         gestureDebug.Checked += (_, _) => AppDeveloperSettings.SetEnableGestureDebug(true);
         gestureDebug.Unchecked += (_, _) => AppDeveloperSettings.SetEnableGestureDebug(false);
         developerPanel.Children.Add(gestureDebug);
 
+        var windowsLockingPanel = AddPreferencesSection(developerPanel, sections, "Windows locking", participatesInAccordion: false);
+        AddWindowsLockPolicySetting(windowsLockingPanel);
+
+        _preferencesSectionToOpen = null;
         _isLoadingPreferences = false;
         return root;
+
+        void SetAlphaFeatures(bool enabled)
+        {
+            AppDeveloperSettings.SetEnableAlphaFeatures(enabled);
+            RefreshPreferencesPage();
+        }
     }
 
 }

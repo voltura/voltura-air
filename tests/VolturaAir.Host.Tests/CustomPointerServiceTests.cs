@@ -3,6 +3,7 @@ using VolturaAir.Host;
 
 namespace VolturaAir.Host.Tests;
 
+[Collection(AppPermissionSettingsCollection.Name)]
 public sealed class CustomPointerServiceTests
 {
     [Theory]
@@ -44,6 +45,34 @@ public sealed class CustomPointerServiceTests
 
         service.Apply(new CustomPointerSettings(true, 6, AppPointerSettings.DefaultCustomPointerColor));
         service.Restore();
+    }
+
+    [Fact]
+    public void RecoveryMonitoringTracksTheActivePointerAndPreference()
+    {
+        var useRecoveryMonitoring = true;
+        var starts = 0;
+        var stops = 0;
+        using var service = new CustomPointerService(
+            () => useRecoveryMonitoring,
+            () => starts += 1,
+            () => stops += 1);
+
+        service.Apply(new CustomPointerSettings(true, 6, AppPointerSettings.DefaultCustomPointerColor));
+        Assert.Equal(1, starts);
+        Assert.Equal(0, stops);
+
+        useRecoveryMonitoring = false;
+        service.RefreshRecoveryMonitoring();
+        Assert.Equal(1, starts);
+        Assert.Equal(1, stops);
+
+        useRecoveryMonitoring = true;
+        service.RefreshRecoveryMonitoring();
+        Assert.Equal(2, starts);
+
+        service.Apply(new CustomPointerSettings(false, 6, AppPointerSettings.DefaultCustomPointerColor));
+        Assert.Equal(2, stops);
     }
 
     [Fact]

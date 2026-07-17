@@ -1,7 +1,9 @@
 @import "./styles/foundation.css";
+@import "./styles/developer-refresh-long-press.css";
 @import "./styles/trackpad-dictation.css";
 @import "./styles/text-transfer.css";
 @import "./styles/clipboard-read.css";
+@import "./styles/presentation.css";
 @import "./styles/settings-controls.css";
 @import "./styles/keyboard.css";
 @import "./styles/pairing.css";

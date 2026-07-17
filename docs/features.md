@@ -1,6 +1,6 @@
 # Voltura Air - Features
 
-Updated: 2026-07-15
+Updated: 2026-07-17
 Scope: current `voltura/voltura-air` `main` branch. This file describes current product capabilities.
 
 Voltura Air turns any phone, tablet, or modern browser into a local-network remote control surface for a Windows PC.
@@ -18,7 +18,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - YouTube, Kodi, and other couch/TV control.
 - Sofa/bed control.
 - Broken or annoying wireless keyboard/trackpad replacement.
-- Presentations where basic keyboard/trackpad control is enough.
+- PowerPoint, Google Slides, and browser/PDF presenting with a dedicated, acknowledged control surface.
 - Quick typing/search from phone.
 - Local-network control without a cloud account.
 
@@ -46,8 +46,9 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
   - Connection.
   - Preferences.
   - Diagnostics.
-- Organizes Preferences as themed accordion sections that are collapsed on entry and allow only one expanded section at a time.
+- Organizes Preferences as themed accordion sections that are collapsed on entry and allow only one expanded section at a time. Opening a lower section scrolls only when needed to reveal its first control while keeping the focused header visible.
 - Provides tray actions for opening the app, controlling Keep awake, opening the product page, and exit.
+- Starts with a neutral tray badge while paired devices reconnect, and holds the connected badge through the short automatic-reconnect grace period; it shows the disconnected badge only when a device remains offline.
 - Keeps the host window hidden when the last paired device disconnects by default; reopening it on disconnect is an opt-in preference.
 - Supports light, dark, and system theme modes.
 - Prevents accidental selection of static app text and button labels during touch gestures while preserving normal selection in inputs, textareas, selects, content-editable fields, and explicitly copyable text surfaces.
@@ -100,7 +101,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Supports duplicate cleanup.
 - Supports per-device permission overrides.
 - Supports a host default pointer speed with per-device overrides.
-- Supports a default-off host-wide Custom pointer with a colour and size selected in Windows Preferences and on/off control from paired devices.
+- Supports a default-off host-wide Custom pointer with a colour and size selected in Windows Preferences and on/off control from paired devices. Its separate cursor recovery watchdog is on by default and can be disabled only with a visible warning.
 
 ### Permissions and capabilities
 
@@ -108,6 +109,8 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Reports the host default Remote mode to the mobile client.
 - Supports host-enforced permission for PC sleep.
 - Supports host-enforced permission for volume control.
+- Supports the reusable, default-off **Enable alpha features** host gate. An alpha feature advertises its capability only while enabled and is also rejected at its production command boundary while disabled.
+- Supports an effective global/per-device Presentation control permission while Presentation's alpha gate is enabled.
 - Supports host-enforced permission for fixed Remote launch actions and host-configured application buttons.
 - Supports a separate default-off host permission for opening reviewed HTTP and HTTPS web addresses, with per-device overrides.
 - Configures optional Browser, Spotify, VLC, and PowerPoint launch presets in Windows Preferences.
@@ -128,9 +131,11 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 
 - Acknowledges dispatched input events when the host advertises input acknowledgement support.
 - Coalesces active movement to animation frames and uses low-rate acknowledgement barriers plus WebSocket-buffer limits to prevent delayed pointer queues without adding per-move replies or idle polling.
+- Decodes and bounds each authenticated pointer or keyboard message once before dispatch, keeps host-control settings in memory after startup, and reuses the native one-input movement buffer so steady pointer input performs no Registry access or one-element input-array allocation.
+- Sends Unicode text to Windows in bounded batches of up to 64 code units without splitting surrogate pairs. Partial native batches report failure, and an unmatched accepted Unicode key-down is released before the failure reaches the client.
 - Reports input dispatch failures to the mobile client instead of silently leaving dead controls.
 - Moves the Windows pointer.
-- Applies the optional host-wide Custom pointer across Windows. Its size and color are chosen in host Preferences, and paired devices can turn it on or off. The cursor watchdog restores the configured Windows cursor scheme after unexpected host termination.
+- Applies the optional host-wide Custom pointer across Windows. Its size and color are chosen in host Preferences, and paired devices can turn it on or off. The default-on cursor recovery watchdog restores the configured Windows cursor scheme after unexpected host termination, including forced development-host process-tree shutdown; normal shutdown performs the same restoration in the host.
 - Sends left/right mouse button down/up/click.
 - Sends vertical and horizontal wheel scroll.
 - Sends pinch zoom as Ctrl + mouse wheel.
@@ -167,7 +172,7 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 - Supports PC sleep when allowed by host permissions.
 - Locks the current Windows session with `LockWorkStation` when permission and the current-user policy allow it.
 - Reports accepted, denied, unsupported, policy-disabled, policy-unavailable, and failed power/session requests without disconnecting the client.
-- Offers opt-in daily JSON Lines application logging for troubleshooting. Logging is off by default, keeps files normally shareable, and allows reads without holding the protocol writer lock. It records remote command flow plus local host actions such as Windows-lock policy writes, readback failures, and native lock tests without typed text, opened web addresses, pointer coordinates, or pairing credentials.
+- Offers opt-in daily JSON Lines application logging for troubleshooting. Logging is off by default, keeps files normally shareable, and sends sanitized entries through one bounded single-writer queue so filesystem work never blocks protocol input. Accepted entries flush during clean host shutdown; if the queue fills, later diagnostics include a sanitized dropped-entry count. Reads flush accepted entries first and do not hold the protocol writer path. The log records remote command flow plus local host actions such as Windows-lock policy writes, readback failures, and native lock tests without typed text, opened web addresses, pointer coordinates, or pairing credentials.
 - Opens Diagnostics directly on a dedicated Application log view, with System details available from a clear top-level switch. The log view exposes its **Write application log** toggle directly and clearly distinguishes disabled logging from an empty filtered result. It uses themed activity cards, a two-month date-range picker plus event, source, action, and client filters, filtered copy, open-folder, confirmed delete actions, and an optional session-only **Automatic log refresh** toggle that is off by default. Log reads run off the WPF dispatcher, repeated requests are coalesced, and unchanged results retain their existing visuals. Automatic refresh reacts to successful host log writes only while the view is visible instead of polling a timer. Retention is configurable from 1 to 30 days with a 2-day default. Input commands record both receipt and their sanitized executed or blocked outcome, including the Remote mode minimize action, without logging typed text. Only the record area scrolls, so the filter and action controls remain reachable.
 - Blacks out every connected monitor with a topmost black WPF curtain without changing display power state. Windows, networking, and remote control remain active; any local or remote mouse/keyboard interaction removes the curtain, and touch or pen input also dismisses it locally. Ordinary remote movement bypasses the WPF dispatcher when no curtain is active.
 - Starts the native Windows screen saver only when Windows reports screen saving enabled and a configured `.scr` program exists. The action is omitted from host and mobile UI when unavailable.
@@ -365,6 +370,18 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
   - optional client-local launch toggles for Open YouTube and Start Kodi when the host allows paired devices to start applications.
   - selecting YouTube or Kodi from settings closes settings and opens the Remote screen for that mode.
 
+### Presentation mode (alpha, default off)
+
+- Appears only after **Preferences > Developer tools > Enable alpha features** is enabled on the host. While the setting is off, the host advertises no Presentation capability, rejects direct Presentation commands without injecting input, and the mobile app hides Presentation from Menu and fourth-mode choices.
+- Provides a dedicated high-contrast, large-target presenter surface that is then reachable from Menu and can occupy the configurable fourth mode button.
+- Uses a user-selected PowerPoint, Google Slides, or PDF/browser target profile; it does not inspect presentation files, automate Office, screen-scrape, detect the focused application, or claim awareness of the current slide.
+- Sends one bounded `presentation.command` at a time and waits for its matching host result before another presentation control is enabled. Disconnecting clears pending work instead of replaying it after reconnect.
+- Uses Right/Left for Next/Previous and Escape for End across all three profiles. PowerPoint additionally offers F5 Start and Ctrl+L laser pointer; Google Slides offers L laser pointer. PowerPoint and Google Slides show **Blackout**, which uses the separate host-permissioned, system-wide Blackout display curtain across every monitor rather than an application-specific B shortcut. Start is hidden for browser targets, and Blackout/laser are hidden for PDF/browser targets.
+- Reports host permission denial, unsupported target actions, host-focus protection, native input failure, response timeout, and success without disconnecting the client.
+- Includes a device-local elapsed timer with Start, Pause, and Reset. Its state is intentionally not persisted across reloads.
+- Lets the presenter choose a 10, 15, 30, 45, or 60 minute plan. Visible live-region text announces five minutes remaining and planned time elapsed; browsers that expose `navigator.vibrate` can optionally add vibration at those same milestones.
+- Uses a single-column portrait layout and a compact two-column landscape layout while retaining the normal mode navigation as an obvious exit.
+
 ### Dictation mode
 
 - Uses browser speech recognition API when supported by the browser and origin.
@@ -375,8 +392,9 @@ Voltura Air turns any phone, tablet, or modern browser into a local-network remo
 ### Menu and text transfer
 
 - The hamburger drawer is a **Menu** with separate **Tools** and **Settings** groups.
-- Dictation, **Send text to PC**, and **Get text from PC** can be opened directly from Menu without changing the fourth-mode preference.
-- Trackpad, Keyboard, and Remote remain fixed primary modes. The fourth mode can be configured as Dictation, Send text to PC, or Get text from PC, defaults to Dictation, and uses one shared label/icon definition across navigation surfaces.
+- Settings sections start collapsed and allow one section open at a time. Opening a section near the bottom of the visible drawer scrolls only enough to reveal its first control, leaves the accordion heading focused, and avoids animated scrolling when the device requests reduced motion.
+- Dictation, **Send text to PC**, and **Get text from PC** can be opened directly from Menu without changing the fourth-mode preference. Presentation is added only while the host advertises its enabled alpha capability.
+- Trackpad, Keyboard, and Remote remain fixed primary modes. The fourth mode can be configured as Dictation, Send text to PC, or Get text from PC and defaults to Dictation; Presentation is added only while its alpha capability is available. A previously saved Presentation choice falls back to Dictation while the gate is off. Navigation surfaces use one shared label/icon definition.
 - Dictation and the text tools use the persistent Menu and mode navigation without separate page-level Back controls.
 - **Send text to PC** composes or pastes up to 4,096 characters. Focused application input remains the default; the host can instead use clipboard-only delivery, a configured fresh Notepad, Notepad++, Word, Visual Studio Code, Excel, or classic Outlook compose item, a new `.txt` draft in the Windows default text-file app, or a `mailto:` draft in the Windows default email client.
 - **Get text from PC** starts empty and fetches the current PC clipboard only after the user presses its button. It shows the returned maximum-4,096-character text in a selectable, read-only field, never writes to the phone/tablet clipboard, keeps prior fetched text after a failed request, and explains when the host has blocked the default-off **Read PC clipboard** permission. The permission can inherit the host global setting or be allowed/blocked per paired device. **Show snippets** reveals the existing local snippet controls for loading or saving text; they appear below the field in portrait and in a side panel in landscape.

@@ -29,7 +29,7 @@ public static class AppLaunchSettings
     public const int MaxPathLength = 1024;
     public const int MaxArgumentsLength = 2048;
 
-    private const string SettingsKeyPath = @"Software\VolturaAir";
+    private static string SettingsKeyPath => HostSettingsRegistry.SettingsKeyPath;
     private const string ActionsValueName = "AppLaunchActions";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly AppLaunchAction[] Presets =

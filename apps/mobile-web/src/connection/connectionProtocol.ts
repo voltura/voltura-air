@@ -1,6 +1,6 @@
 import { getPcDisplayName } from "../pcDisplayName";
 import type { PcProfile } from "../pcProfiles";
-import type { AppLaunchActionSummary, AudioStateMessage, AwakeCapability, ClientMessage, HostStatusMetadata, PowerCapabilities, ServerCapabilities, ServerMessage, TextTransferTarget, UrlOpenCapability } from "../protocol";
+import type { AppLaunchActionSummary, AudioStateMessage, AwakeCapability, ClientMessage, HostStatusMetadata, PowerCapabilities, PresentationCapability, ServerCapabilities, ServerMessage, TextTransferTarget, UrlOpenCapability } from "../protocol";
 import { normalizeRemoteMode } from "../remoteSettings";
 
 const movementAckIntervalMs = 200;
@@ -180,6 +180,10 @@ export const getPowerCapabilities = (capabilities: ServerCapabilities | undefine
 };
 export const hasVolumeCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.volume === true;
 export const hasInputAckCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.inputAck === true;
+export const getPresentationCapability = (capabilities: ServerCapabilities | undefined): PresentationCapability | undefined =>
+  typeof capabilities?.presentation?.canControl === "boolean"
+    ? { canControl: capabilities.presentation.canControl }
+    : undefined;
 export const hasRemoteLaunchCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.remoteLaunch === true;
 export const hasTextTransferCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.textTransfer === true;
 export const getClipboardReadPermission = (capabilities: ServerCapabilities | undefined): boolean | undefined =>

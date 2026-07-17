@@ -11,8 +11,6 @@ namespace VolturaAir.Host;
 
 public partial class MainWindow
 {
-    private bool _openAppLaunchPreferences;
-
     private void AddAppLaunchSettings(StackPanel parent)
     {
         var configured = AppLaunchSettings.GetActions();
@@ -227,7 +225,6 @@ public partial class MainWindow
 
     private void ReopenAppLaunchPreferences()
     {
-        _openAppLaunchPreferences = true;
-        SelectPage(HostPage.Preferences);
+        RefreshPreferencesPage();
     }
 }

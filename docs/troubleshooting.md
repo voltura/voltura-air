@@ -91,14 +91,20 @@ Check these items first:
 - Refresh the mobile page or scan a fresh QR code if browser storage was cleaned.
 
 Custom pointer applies across the Windows desktop. Switch it off in **Preferences > Custom pointer** or from a paired device to restore the configured Windows
-cursor scheme immediately. The cursor watchdog also restores that scheme if the
-host exits unexpectedly. The host shows **Remote control paused** once and the
-phone shows **Administrator app active** when a higher-integrity foreground app
-blocks injected input. Choose **Show desktop** on the phone
+cursor scheme immediately. The default-on cursor recovery watchdog also restores that scheme if the
+host exits unexpectedly. While a phone is connected, the host shows **PC input
+paused** once and the phone shows **Administrator app active** when a
+higher-integrity foreground app blocks injected input. Choose **Show desktop** on the phone
 to minimize desktop windows through the Windows shell, or choose **Continue** to
 return to the client controls. A compact recovery toast remains available to reopen
 the dialog until a normal foreground application returns, when it clears automatically. Input to UAC prompts, the lock screen,
 and other secure desktops remains outside host control.
+
+## Custom pointer remains after Voltura Air closes
+
+Keep **Preferences > Custom pointer > Use cursor recovery watchdog** selected. The host restores the normal Windows cursor scheme during an orderly exit; the watchdog covers crashes, forced termination, and Ctrl+C development shutdown. When the setting is cleared, its label and information button turn red to indicate that only orderly-exit restoration remains. Reopen Voltura Air and switch **Custom pointer** off to recover, or reload the selected pointer scheme from Windows Mouse settings.
+
+While Custom pointer and its recovery setting are active, Task Manager may show `VolturaAir.CursorWatchdog.exe` as **Voltura Air Cursor Recovery Watchdog**. It is a small native helper installed beside `VolturaAir.Host.exe`, consumes no second .NET runtime, waits for that host process, restores the cursor scheme if needed, and then exits. File Properties > Details identifies Product name **Voltura Air**, Company **Voltura AB**, the recovery description, version, copyright, original filename, and the explanatory comment “Restores the user's Windows cursor scheme if Voltura Air stops unexpectedly.” Current beta release executables are not code-signed, so Windows can still report an unknown publisher; confirm that the file is beside the Voltura Air host from an official release rather than relying on metadata alone.
 
 ## Pointer movement feels delayed or continues after touch ends
 
@@ -142,9 +148,15 @@ invalid target, and Windows start failures without disconnecting. Enable
 Custom paths and arguments are excluded from the log. Launch result feedback
 under the buttons clears automatically after four seconds.
 
+## Presentation controls are disabled or affect the wrong app
+
+Presentation is a default-off alpha feature. First enable **Preferences > Developer tools > Enable alpha features** on the Windows host. If the setting is off, Presentation is intentionally absent from the mobile Menu and fourth-mode choices, its permission rows are hidden, and direct commands are rejected. Then enable **Allow paired devices to control presentations** under **Preferences > Global permissions**, or review the selected device's **Presentation control** override under **Devices > Permissions**. **Blackout** has its own separate Blackout display permission.
+
+Keep the intended slideshow or viewer focused on the PC; Voltura Air blocks Presentation shortcuts while its own protected host window is focused and cannot inject them into UAC, the secure desktop, or a higher-integrity application. Choose the matching target on the phone. PowerPoint is the only profile that sends F5 to start. Google Slides must already be presenting in the browser before its L control is used. **Blackout** covers every display with Voltura Air's system-wide black curtain; it does not send the presentation application's B shortcut. PDF/browser intentionally provides only Previous, Next, and End because Blackout, laser, and start controls are hidden for that target. A temporary disconnect clears the pending command; press the control again only after the app reconnects and the intended presentation is focused.
+
 ## Lock PC is disabled or fails
 
-Open the Windows host and go to **Preferences > Windows locking**. If the policy
+Open the Windows host and go to **Preferences > Developer tools > Windows locking**. If the policy
 value is missing or zero, select **Test Lock PC**; Voltura Air tests the native
 Windows lock action without writing an unnecessary registry value. If the policy
 explicitly disables locking, select **Enable Windows locking**. After local

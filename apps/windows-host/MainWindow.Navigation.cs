@@ -71,7 +71,14 @@ public partial class MainWindow
             WpfTheme.Apply(this);
             if (IsVisible)
             {
-                SelectPage(_activePage);
+                if (_activePage == HostPage.Preferences)
+                {
+                    RefreshPreferencesPage();
+                }
+                else
+                {
+                    SelectPage(_activePage);
+                }
             }
             else
             {

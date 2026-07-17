@@ -3,6 +3,7 @@ import type { ClientMessage } from "../protocol";
 import {
   getPowerCapabilities,
   getAwakeCapability,
+  getPresentationCapability,
   getPcDisconnectedMessage,
   getUrlOpenCapability,
   normalizeAppLaunchActions,
@@ -90,6 +91,13 @@ describe("connection protocol policy", () => {
     expect(getUrlOpenCapability({ urlOpen: { canOpen: true } })).toEqual({ canOpen: true });
     expect(getUrlOpenCapability({ urlOpen: { canOpen: false } })).toEqual({ canOpen: false });
     expect(getUrlOpenCapability(undefined)).toBeUndefined();
+  });
+
+  it("accepts presentation support only with an explicit effective permission", () => {
+    expect(getPresentationCapability({ presentation: { canControl: true } })).toEqual({ canControl: true });
+    expect(getPresentationCapability({ presentation: { canControl: false } })).toEqual({ canControl: false });
+    expect(getPresentationCapability({ presentation: null })).toBeUndefined();
+    expect(getPresentationCapability({ presentation: {} as never })).toBeUndefined();
   });
 
   it("keeps recognized Windows lock availability metadata", () => {

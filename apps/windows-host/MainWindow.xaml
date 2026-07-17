@@ -97,7 +97,11 @@
                            Foreground="{DynamicResource MutedTextBrush}" />
             </StackPanel>
 
-            <ContentControl x:Name="PageContent" Grid.Row="1" />
+            <ContentControl x:Name="PageContent"
+                            Grid.Row="1"
+                            Focusable="False"
+                            FocusVisualStyle="{x:Null}"
+                            IsTabStop="False" />
         </Grid>
     </Grid>
 </Window>

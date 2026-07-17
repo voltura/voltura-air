@@ -191,6 +191,83 @@ describe("useVolturaAirConnection", () => {
     expect(localStorage.getItem(`voltura-air.secret.client-a.${pc.id}`)).toBe("stored-credential");
   });
 
+  it("discards an unreachable manual address without changing the saved PC", async () => {
+    const pcUrl = "http://pc.local:51395";
+    const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };
+    localStorage.setItem("voltura-air.clientId", "client-a");
+    localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
+    localStorage.setItem("voltura-air.activePcId", pc.id);
+    localStorage.setItem(`voltura-air.secret.client-a.${pc.id}`, "stored-credential");
+
+    const { result } = renderHook(() => useVolturaAirConnection());
+
+    await waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+    act(() => {
+      result.current.addManualPc("http://jjjjjjjj");
+    });
+
+    await waitFor(() => expect(MockWebSocket.instances).toHaveLength(2));
+    const candidateSocket = MockWebSocket.instances[1];
+    expect(candidateSocket.url).toBe("ws://jjjjjjjj/ws");
+    expect(result.current.activePc).toEqual(pc);
+    expect(result.current.pairedPcs).toEqual([pc]);
+    expect(JSON.parse(localStorage.getItem("voltura-air.pcProfiles") ?? "[]")).toEqual([pc]);
+    expect(localStorage.getItem("voltura-air.activePcId")).toBe(pc.id);
+
+    dispatchSocketEvent(candidateSocket, "error");
+
+    await waitFor(() => expect(MockWebSocket.instances).toHaveLength(3));
+    expect(MockWebSocket.instances[2].url).toBe("ws://pc.local:51395/ws");
+    expect(result.current.activePc).toEqual(pc);
+    expect(result.current.pairedPcs).toEqual([pc]);
+    expect(JSON.parse(localStorage.getItem("voltura-air.pcProfiles") ?? "[]")).toEqual([pc]);
+    expect(localStorage.getItem("voltura-air.activePcId")).toBe(pc.id);
+    expect(localStorage.getItem(`voltura-air.secret.client-a.${pc.id}`)).toBe("stored-credential");
+    expect(localStorage.getItem("voltura-air.secret.client-a.http://jjjjjjjj")).toBeNull();
+  });
+
+  it("commits a manual address only after the host accepts it", async () => {
+    const pcUrl = "http://pc.local:51395";
+    const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };
+    const candidateUrl = "http://pc-two.local:51395";
+    localStorage.setItem("voltura-air.clientId", "client-a");
+    localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
+    localStorage.setItem("voltura-air.activePcId", pc.id);
+    localStorage.setItem(`voltura-air.secret.client-a.${pc.id}`, "stored-credential");
+
+    const { result } = renderHook(() => useVolturaAirConnection());
+
+    await waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+    act(() => {
+      result.current.addManualPc(candidateUrl);
+    });
+
+    await waitFor(() => expect(MockWebSocket.instances).toHaveLength(2));
+    const candidateSocket = MockWebSocket.instances[1];
+    expect(result.current.activePc).toEqual(pc);
+    expect(result.current.pairedPcs).toEqual([pc]);
+    expect(localStorage.getItem("voltura-air.activePcId")).toBe(pc.id);
+    expect(localStorage.getItem(`voltura-air.secret.client-a.${candidateUrl}`)).toBeNull();
+
+    candidateSocket.readyState = MockWebSocket.OPEN;
+    dispatchSocketEvent(candidateSocket, "open");
+    dispatchSocketEvent(candidateSocket, "message", {
+      data: JSON.stringify({
+        type: "pair.accepted",
+        clientId: "client-a",
+        pcName: "Second PC",
+        secret: "fresh-credential",
+        paired: true
+      })
+    });
+
+    await waitFor(() => expect(result.current.activePc?.id).toBe(candidateUrl));
+    expect(result.current.pairedPcs.map((profile) => profile.id)).toEqual([pc.id, candidateUrl]);
+    expect(JSON.parse(localStorage.getItem("voltura-air.pcProfiles") ?? "[]").map((profile: { id: string }) => profile.id)).toEqual([pc.id, candidateUrl]);
+    expect(localStorage.getItem("voltura-air.activePcId")).toBe(candidateUrl);
+    expect(localStorage.getItem(`voltura-air.secret.client-a.${candidateUrl}`)).toBe("fresh-credential");
+  });
+
   it("marks the connection unavailable when an input action is attempted on a closed socket", async () => {
     const pcUrl = "http://pc.local:51395";
     const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };

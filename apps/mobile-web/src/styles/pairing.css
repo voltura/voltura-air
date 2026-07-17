@@ -17,6 +17,20 @@
   color: var(--danger);
 }
 
+.pairing-required.connection-connected > svg {
+  color: var(--success);
+}
+
+.pairing-progress-icon {
+  animation: pairing-progress-spin 0.9s linear infinite;
+}
+
+@keyframes pairing-progress-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .pairing-status-label {
   margin: 0;
   color: var(--muted);
@@ -160,5 +174,11 @@
 
   .pairing-required button {
     min-height: 48px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pairing-progress-icon {
+    animation: none;
   }
 }

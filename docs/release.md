@@ -83,7 +83,9 @@ It reads the version from the root
 `package.json` when `-Version` is omitted. Packaging then runs
 `scripts/verify-windows-version.ps1` and fails if the host EXE, native cursor
 watchdog, host DLL, or either installer exposes missing or stale Windows File Explorer
-version metadata.
+version metadata. The watchdog check also requires the human-readable
+**Voltura Air Cursor Recovery Watchdog** description and its cursor-restoration
+comment so Task Manager and File Properties explain the helper's purpose.
 
 For a quick local build of only the small, framework-dependent installer, run:
 
@@ -261,6 +263,6 @@ Before announcing the release:
 - inspect `VolturaAir.Host.exe` and `VolturaAir.Host.dll` in File Explorer and
   confirm File version and Product version match the release;
 - confirm a phone can pair from a fresh QR code and reconnect after host restart;
-- confirm Preferences accordions are themed in light and dark mode, start collapsed, and keep only one section open;
+- confirm Preferences accordions are themed in light and dark mode, start collapsed, keep only one section open, and reveal the first control of a lower section without losing its header;
 - confirm Diagnostics keeps log filters and actions visible while only log records scroll, and verify log enable, retention, filtering, copy, folder, and delete behavior;
 - update public release/download text when product-facing behavior changed.

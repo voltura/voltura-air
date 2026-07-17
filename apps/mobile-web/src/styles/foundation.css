@@ -637,6 +637,12 @@ button span {
   padding: 0;
 }
 
+.drawer-scrim:active {
+  color: inherit;
+  background: var(--scrim);
+  border-color: transparent;
+}
+
 .settings-drawer {
   position: fixed;
   inset: 0 auto 0 0;

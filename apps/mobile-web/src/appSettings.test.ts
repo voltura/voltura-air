@@ -12,6 +12,7 @@ describe("normalizeAppSettings", () => {
   });
 
   it("normalizes the configurable fourth mode", () => {
+    expect(normalizeAppSettings({ fourthMode: "presentation" }).fourthMode).toBe("presentation");
     expect(normalizeAppSettings({ fourthMode: "text-transfer" }).fourthMode).toBe("text-transfer");
     expect(normalizeAppSettings({ fourthMode: "invalid" as never }).fourthMode).toBe("dictation");
   });

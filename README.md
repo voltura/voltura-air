@@ -14,7 +14,6 @@ Scan the QR code from a phone, tablet, or browser-capable device on the same net
 
 - Use a trackpad, keyboard, dictation, media remote, and app controls from your phone or tablet.
 - Send or paste multiline text to the focused Windows app, copy it to the PC clipboard, create a new document in a configured app, or explicitly fetch the PC clipboard into selectable web-app text when the host permits it.
-- Control YouTube, Kodi, browser tabs, presentation controls, and common Windows window actions.
 - Open a reviewed HTTP or HTTPS address once in the PC's default browser, with a separate host permission and retryable result.
 - Lock the PC, blackout displays, or use approved power controls with deliberate confirmation for destructive actions.
 - Choose per-device permissions and pointer speed, plus a host-wide Custom pointer for the Windows desktop.
@@ -27,7 +26,6 @@ Scan the QR code from a phone, tablet, or browser-capable device on the same net
 - Navigating Kodi with dedicated playback and interface controls.
 - Using your phone as a trackpad, keyboard, media remote, and app launcher.
 - Replacing a broken, unreliable, or inconvenient wireless keyboard and mouse.
-- Controlling presentations without staying beside the PC.
 - Quickly typing, pasting, searching, or dictating text from your phone.
 - Using a landscape tablet as a combined keyboard and trackpad, with the trackpad on either side.
 
@@ -70,6 +68,7 @@ Scan the QR code from a phone, tablet, or browser-capable device on the same net
 ## How it works
 
 Install the Windows host on the PC you want to control. It runs from the tray, displays a pairing QR code, and serves the mobile controls over your local network. Only one host runs per signed-in Windows user.
+At startup, the tray stays neutral briefly while previously paired phones reconnect. Its connected badge also stays visible through a brief automatic-reconnect grace period, so a phone refresh does not flash a disconnected state.
 
 The host keeps device permissions and app-launch settings on the PC. You can choose which devices may use remote, power, keep-awake, app-launch, and URL-opening controls. URL opening is off by default, appears on the phone only when allowed, accepts only HTTP and HTTPS, and uses the Windows default browser. Sensitive actions require confirmation, and remote wake is not available after a PC sleeps or shuts down.
 
@@ -87,7 +86,7 @@ selection behavior is documented in
 [docs/manual-network-selection.md](docs/manual-network-selection.md). Protocol
 message shapes are documented in [docs/protocol.md](docs/protocol.md).
 
-The optional **Custom pointer** applies across the desktop. Choose its size and color in Windows Preferences, or turn it on and off from a paired device. It restores the user's normal scheme when switched off or when the host exits. UAC prompts, the lock screen, and other secure Windows surfaces cannot be remotely controlled.
+The optional **Custom pointer** applies across the desktop. Choose its size and color in Windows Preferences, or turn it on and off from a paired device. It restores the user's normal scheme when switched off or during a normal host exit. A default-on cursor recovery watchdog also restores the scheme after a crash or forced host termination; disabling **Use cursor recovery watchdog** in **Preferences > Custom pointer** shows a warning because an unexpected exit can otherwise leave the custom cursor active. UAC prompts, the lock screen, and other secure Windows surfaces cannot be remotely controlled.
 
 ## Requirements
 
@@ -189,6 +188,10 @@ with:
 npm run branding:generate
 ```
 
+The screenshot capture pairs a browser with a separate loopback host. Its
+pairing data and host settings are isolated, so capture cannot reset or change
+the normal Windows-host preferences.
+
 Do not edit `apps/mobile-web/dist` or a host `wwwroot` copy. They are generated
 from `apps/mobile-web/public` by the normal build and packaging commands.
 
@@ -252,7 +255,17 @@ npm run dev:web
 npm run dev:host
 ```
 
-`npm run dev:host` stops any existing `VolturaAir.Host.exe` process before starting `dotnet run` so the Debug build output and preferred port are not locked. Set a client URL when the phone should load a separate web client:
+## Sync A Feature Branch
+
+From a clean checked-out branch other than `main`, run:
+
+```powershell
+npm run branch:sync
+```
+
+The helper fetches the latest `origin/main` and merges it into the current branch without switching branches. It refuses a dirty worktree or `main`; resolve any merge conflicts through the normal Git workflow.
+
+`npm run dev:host` stops any existing `VolturaAir.Host.exe` process before starting `dotnet run` so the Debug build output and preferred port are not locked. It terminates the host without killing the cursor recovery watchdog and waits for recovery to finish, including when the command is stopped with Ctrl+C. Set a client URL when the phone should load a separate web client:
 
 ```powershell
 $env:VOLTURA_AIR_CLIENT_URL = "http://192.168.1.20:5173"

@@ -11,7 +11,7 @@ public enum AppThemeMode
 
 public static class AppThemeSettings
 {
-    private const string SettingsKeyPath = @"Software\VolturaAir";
+    private static string SettingsKeyPath => HostSettingsRegistry.SettingsKeyPath;
     private const string ThemeValueName = "ThemeMode";
 
     public static event EventHandler? Changed;

@@ -153,7 +153,7 @@
             <li>Control a TV or stereo PC from the sofa.</li>
             <li>Type searches, messages, and notes, or open a reviewed web address in the PC's default browser.</li>
             <li>Use a tablet as a roomy couch keyboard and trackpad.</li>
-            <li>Navigate YouTube, Kodi, music, video, presentations, and open Windows apps.</li>
+            <li>Run PowerPoint or Google Slides from a dedicated presenter surface with large controls and a local elapsed timer.</li>
             <li>Keep a backup remote ready when your usual keyboard or mouse is out of reach.</li>
           </ul>
         </div>

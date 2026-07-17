@@ -4,11 +4,12 @@ namespace VolturaAir.Host;
 
 public static class AppPointerSettings
 {
-    private const string SettingsKeyPath = @"Software\VolturaAir";
+    private static string SettingsKeyPath => HostSettingsRegistry.SettingsKeyPath;
     private const string DefaultPointerSpeedValueName = "DefaultPointerSpeed";
     private const string CustomPointerEnabledValueName = "CustomPointerEnabled";
     private const string CustomPointerSizeValueName = "CustomPointerSize";
     private const string CustomPointerColorValueName = "CustomPointerColor";
+    private const string UseCursorRecoveryWatchdogValueName = "UseCursorRecoveryWatchdog";
     public const int MinCustomPointerSize = 1;
     public const int MaxCustomPointerSize = 15;
     public const int DefaultCustomPointerSize = 6;
@@ -62,6 +63,25 @@ public static class AppPointerSettings
         key.SetValue(CustomPointerColorValueName, unchecked((int)normalized.Color), RegistryValueKind.DWord);
 
         if (current != normalized)
+        {
+            Changed?.Invoke(null, EventArgs.Empty);
+        }
+    }
+
+    public static bool UseCursorRecoveryWatchdog()
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: false);
+        return key?.GetValue(UseCursorRecoveryWatchdogValueName) is not int enabled || enabled != 0;
+    }
+
+    public static void SetUseCursorRecoveryWatchdog(bool enabled)
+    {
+        var current = UseCursorRecoveryWatchdog();
+        using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: true) ??
+            Registry.CurrentUser.CreateSubKey(SettingsKeyPath, writable: true);
+        key.SetValue(UseCursorRecoveryWatchdogValueName, enabled ? 1 : 0, RegistryValueKind.DWord);
+
+        if (current != enabled)
         {
             Changed?.Invoke(null, EventArgs.Empty);
         }

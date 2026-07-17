@@ -29,7 +29,7 @@ public sealed class ThemedConfirmationDialog : Window
         string title,
         string message,
         string confirmText,
-        string cancelText,
+        string? cancelText,
         ConfirmationTone tone)
     {
         _tone = tone;
@@ -67,7 +67,21 @@ public sealed class ThemedConfirmationDialog : Window
         return dialog.ShowDialog() == true;
     }
 
-    private Grid CreateContent(string title, string message, string confirmText, string cancelText)
+    public static void ShowInformation(
+        Window owner,
+        string title,
+        string message,
+        ConfirmationTone tone = ConfirmationTone.Warning)
+    {
+        var dialog = new ThemedConfirmationDialog(title, message, "Close", null, tone)
+        {
+            Owner = owner
+        };
+
+        _ = dialog.ShowDialog();
+    }
+
+    private Grid CreateContent(string title, string message, string confirmText, string? cancelText)
     {
         var root = new Grid
         {
@@ -119,15 +133,18 @@ public sealed class ThemedConfirmationDialog : Window
         Grid.SetColumn(actions, 2);
         Grid.SetRow(actions, 1);
 
-        var cancel = CreateDialogButton(cancelText, isPrimary: false);
-        cancel.IsCancel = true;
-        cancel.Click += (_, _) => CloseWithResult(false);
+        if (!string.IsNullOrWhiteSpace(cancelText))
+        {
+            var cancel = CreateDialogButton(cancelText, isPrimary: false);
+            cancel.IsCancel = true;
+            cancel.Click += (_, _) => CloseWithResult(false);
+            actions.Children.Add(cancel);
+        }
 
         var confirm = CreateDialogButton(confirmText, isPrimary: true);
         confirm.IsDefault = true;
         confirm.Click += (_, _) => CloseWithResult(true);
 
-        actions.Children.Add(cancel);
         actions.Children.Add(confirm);
         panel.Children.Add(actions);
 

@@ -7,6 +7,7 @@ namespace VolturaAir.Host;
 internal static class Program
 {
     private static WpfHostRuntime? s_runtime;
+    private static IDisposable? s_isolatedSettingsScope;
     private static int s_activationRequested;
 
     [STAThread]
@@ -40,6 +41,19 @@ internal static class Program
         var startedAt = DateTimeOffset.UtcNow;
         try
         {
+            var isolatedTestMode = args.Contains("--isolated-test-mode", StringComparer.OrdinalIgnoreCase);
+#if DEBUG
+            if (args.Contains("--site-screenshot-mode", StringComparer.OrdinalIgnoreCase) && !isolatedTestMode)
+            {
+                throw new InvalidOperationException("Site screenshot mode requires --isolated-test-mode.");
+            }
+#endif
+
+            s_isolatedSettingsScope = isolatedTestMode ? HostSettingsRegistry.BeginIsolatedScope() : null;
+#if DEBUG
+            ConfigureIsolatedDevelopmentSettings(args, isolatedTestMode);
+            ConfigureSiteScreenshotSettings(args);
+#endif
             s_runtime = await WpfHostRuntime.StartAsync(args);
             var remaining = TimeSpan.FromMilliseconds(1500) - (DateTimeOffset.UtcNow - startedAt);
             if (remaining > TimeSpan.Zero)
@@ -48,6 +62,7 @@ internal static class Program
             }
 
             startupWindow.Close();
+#if DEBUG
             var screenshotPreferencesSection = args.Contains("--site-screenshot-mode", StringComparer.OrdinalIgnoreCase)
                 ? GetOption(args, "--site-screenshot-preferences-section")
                 : null;
@@ -56,6 +71,9 @@ internal static class Program
                 s_runtime.MainWindow.ShowPreferencesSectionForScreenshot(screenshotPreferencesSection);
             }
             else if (ConsumeActivationRequest() || ShouldShowMainWindowOnStartup(args, AppWindowSettings.StartHiddenInTray(), s_runtime.PairingManager.HasActiveController))
+#else
+            if (ConsumeActivationRequest() || ShouldShowMainWindowOnStartup(args, AppWindowSettings.StartHiddenInTray(), s_runtime.PairingManager.HasActiveController))
+#endif
             {
                 s_runtime.MainWindow.ShowPage(HostPage.Connect);
             }
@@ -93,6 +111,7 @@ internal static class Program
         return Interlocked.Exchange(ref s_activationRequested, 0) != 0;
     }
 
+#if DEBUG
     private static string? GetOption(string[] args, string name)
     {
         for (var index = 0; index < args.Length; index += 1)
@@ -107,6 +126,49 @@ internal static class Program
 
         return null;
     }
+#endif
+
+#if DEBUG
+    private static void ConfigureIsolatedDevelopmentSettings(string[] args, bool isolatedTestMode)
+    {
+        if (!args.Contains("--enable-alpha-features", StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (!isolatedTestMode)
+        {
+            throw new InvalidOperationException("The alpha-feature development switch requires --isolated-test-mode.");
+        }
+
+        AppDeveloperSettings.SetEnableAlphaFeatures(true);
+    }
+
+    private static void ConfigureSiteScreenshotSettings(string[] args)
+    {
+        if (!args.Contains("--site-screenshot-mode", StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var themeArgument = GetOption(args, "--site-screenshot-theme");
+        if (!Enum.TryParse<AppThemeMode>(themeArgument, ignoreCase: true, out var theme) || !Enum.IsDefined(theme))
+        {
+            throw new InvalidOperationException("Site screenshot mode requires --site-screenshot-theme Light, Dark, or System.");
+        }
+
+        AppThemeSettings.SetMode(theme);
+        AppDeveloperSettings.SetEnableAlphaFeatures(false);
+        AppDeveloperSettings.SetEnableGestureDebug(false);
+        AppNotificationSettings.SetShowConnectionStatusNotifications(false);
+        AppNotificationSettings.SetShowPairingWindowOnDisconnect(false);
+        AppPermissionSettings.Save(HostPermissions.DefaultGlobal with
+        {
+            AllowRemoteAppLaunch = false,
+            AllowUrlOpen = true
+        });
+    }
+#endif
 
     internal static bool ShouldShowMainWindowOnStartup(string[] args, bool startHiddenInTraySetting, bool hasActiveController)
     {
@@ -117,12 +179,15 @@ internal static class Program
 
     private static void OnApplicationExit(object sender, ExitEventArgs e)
     {
-        if (s_runtime is null)
+        try
         {
-            return;
+            s_runtime?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         }
-
-        s_runtime.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        s_runtime = null;
+        finally
+        {
+            s_runtime = null;
+            s_isolatedSettingsScope?.Dispose();
+            s_isolatedSettingsScope = null;
+        }
     }
 }

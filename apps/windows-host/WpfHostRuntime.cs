@@ -1,32 +1,31 @@
-using System.Diagnostics;
-using System.Globalization;
-
 namespace VolturaAir.Host;
 
 internal sealed class WpfHostRuntime : IAsyncDisposable
 {
     private readonly SendInputInjector _inputInjector;
-    private readonly Process? _cursorWatchdog;
+    private readonly CursorWatchdogService _cursorWatchdogService;
     private readonly CustomPointerService _customPointerService;
     private readonly PointerHighlightForegroundMonitor _pointerHighlightForegroundMonitor;
     private readonly IAsyncDisposable _textDestinationDraftCleanup;
     private readonly WebHostService _webHost;
     private readonly WpfTrayApplicationContext _trayContext;
+    private readonly IAppLog _appLog;
     private int _disposeState;
 
     private WpfHostRuntime(
         SendInputInjector inputInjector,
-        Process? cursorWatchdog,
+        CursorWatchdogService cursorWatchdogService,
         CustomPointerService customPointerService,
         PointerHighlightForegroundMonitor pointerHighlightForegroundMonitor,
         IAsyncDisposable textDestinationDraftCleanup,
         WebHostService webHost,
         PairingManager pairingManager,
         MainWindow mainWindow,
-        WpfTrayApplicationContext trayContext)
+        WpfTrayApplicationContext trayContext,
+        IAppLog appLog)
     {
         _inputInjector = inputInjector;
-        _cursorWatchdog = cursorWatchdog;
+        _cursorWatchdogService = cursorWatchdogService;
         _customPointerService = customPointerService;
         _pointerHighlightForegroundMonitor = pointerHighlightForegroundMonitor;
         _textDestinationDraftCleanup = textDestinationDraftCleanup;
@@ -34,6 +33,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         PairingManager = pairingManager;
         MainWindow = mainWindow;
         _trayContext = trayContext;
+        _appLog = appLog;
     }
 
     public PairingManager PairingManager { get; }
@@ -42,13 +42,19 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
 
     public static async Task<WpfHostRuntime> StartAsync(string[] args)
     {
+#if DEBUG
         var pairingStoreRoot = GetOption(args, "--pairing-store-root");
         var clientUrl = GetOption(args, "--client-url") ?? Environment.GetEnvironmentVariable("VOLTURA_AIR_CLIENT_URL");
         var usePublicScreenshotPairingUrl = HasOption(args, "--site-screenshot-mode");
+#else
+        string? pairingStoreRoot = null;
+        string? clientUrl = null;
+        const bool usePublicScreenshotPairingUrl = false;
+#endif
         var isolatedTestMode = HasOption(args, "--isolated-test-mode");
         IAppLog appLog = isolatedTestMode ? NullAppLog.Instance : new AppLog();
         SendInputInjector? inputInjector = null;
-        Process? cursorWatchdog = null;
+        CursorWatchdogService? cursorWatchdogService = null;
         CustomPointerService? customPointerService = null;
         IAsyncDisposable? textDestinationDraftCleanup = null;
         ISystemPowerController? powerController = null;
@@ -61,10 +67,12 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         {
             var pairingManager = new PairingManager(new PairingStore(string.IsNullOrWhiteSpace(pairingStoreRoot) ? null : pairingStoreRoot));
             inputInjector = new SendInputInjector();
-            cursorWatchdog = TryStartCursorWatchdog();
-            customPointerService = new CustomPointerService();
+            cursorWatchdogService = new CursorWatchdogService();
+            customPointerService = new CustomPointerService(
+                AppPointerSettings.UseCursorRecoveryWatchdog,
+                cursorWatchdogService.EnsureMonitoring,
+                cursorWatchdogService.StopMonitoring);
             customPointerService.Apply(AppPointerSettings.GetCustomPointer());
-            MonitorCursorWatchdog(cursorWatchdog, customPointerService);
             textDestinationDraftCleanup = TextDestinationDraftStore.CreateCleanupService(appLog);
             var inputDispatcher = new InputDispatcher(inputInjector);
             var workstationLockPolicy = new WorkstationLockPolicy(appLog);
@@ -91,6 +99,13 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
             inputDispatcher.TaskbarActivated += (_, _) => pointerHighlightForegroundMonitor.NotifyTaskbarActivation();
             webHost.SetInputBlockedByElevation(pointerHighlightForegroundMonitor.IsRemoteInputBlocked);
             await webHost.StartAsync();
+#if DEBUG
+            if (HasOption(args, "--print-host-client-url"))
+            {
+                Console.WriteLine($"Voltura Air phone client: Windows host URL ({webHost.ServerUrl})");
+            }
+#endif
+
             mainWindow = new MainWindow(
                 pairingManager,
                 webHost,
@@ -100,18 +115,21 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 awakeService,
                 customPointerService: customPointerService,
                 appLog: appLog);
+#if DEBUG
             WritePairingUrlIfRequested(args, mainWindow.PairingUrl);
+#endif
             trayContext = new WpfTrayApplicationContext(mainWindow, webHost, pairingManager, awakeService);
             return new WpfHostRuntime(
                 inputInjector,
-                cursorWatchdog,
+                cursorWatchdogService,
                 customPointerService,
                 pointerHighlightForegroundMonitor,
                 textDestinationDraftCleanup,
                 webHost,
                 pairingManager,
                 mainWindow,
-                trayContext);
+                trayContext,
+                appLog);
         }
         catch
         {
@@ -130,8 +148,9 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
             }
 
             TryDispose(customPointerService, appLog, "custom_pointer_service");
-            TryDispose(cursorWatchdog, appLog, "cursor_watchdog");
+            TryDispose(cursorWatchdogService, appLog, "cursor_watchdog_service");
             TryDispose(inputInjector, appLog, "input_injector");
+            await TryDisposeAsync(appLog as IAsyncDisposable, appLog, "application_log");
             throw;
         }
     }
@@ -143,7 +162,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
             return;
         }
 
-        var appLog = _webHost.AppLog;
+        var appLog = _appLog;
         TryDispose(_trayContext, appLog, "tray_context");
         TryCloseWindow(MainWindow, appLog);
         await TryStopWebHostAsync(_webHost, appLog);
@@ -151,8 +170,9 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         TryDispose(_pointerHighlightForegroundMonitor, appLog, "pointer_foreground_monitor");
         await TryDisposeAsync(_textDestinationDraftCleanup, appLog, "text_destination_draft_cleanup");
         TryDispose(_customPointerService, appLog, "custom_pointer_service");
-        TryDispose(_cursorWatchdog, appLog, "cursor_watchdog");
+        TryDispose(_cursorWatchdogService, appLog, "cursor_watchdog_service");
         TryDispose(_inputInjector, appLog, "input_injector");
+        await TryDisposeAsync(appLog as IAsyncDisposable, appLog, "application_log");
     }
 
     private static void TryCloseWindow(MainWindow? mainWindow, IAppLog appLog)
@@ -236,6 +256,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         }
     }
 
+#if DEBUG
     private static string? GetOption(string[] args, string name)
     {
         for (var index = 0; index < args.Length; index += 1)
@@ -250,55 +271,14 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
 
         return null;
     }
+#endif
 
     private static bool HasOption(string[] args, string name)
     {
         return args.Contains(name, StringComparer.OrdinalIgnoreCase);
     }
 
-    private static Process? TryStartCursorWatchdog()
-    {
-        try
-        {
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = Path.Combine(AppContext.BaseDirectory, "VolturaAir.CursorWatchdog.exe"),
-                CreateNoWindow = true,
-                UseShellExecute = false
-            };
-            startInfo.ArgumentList.Add(Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
-            return Process.Start(startInfo);
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static void MonitorCursorWatchdog(
-        Process? cursorWatchdog,
-        CustomPointerService customPointerService)
-    {
-        if (cursorWatchdog is null)
-        {
-            return;
-        }
-
-        try
-        {
-            cursorWatchdog.Exited += (_, _) => customPointerService.Restore();
-            cursorWatchdog.EnableRaisingEvents = true;
-            if (cursorWatchdog.HasExited)
-            {
-                customPointerService.Restore();
-            }
-        }
-        catch
-        {
-            customPointerService.Restore();
-        }
-    }
-
+#if DEBUG
     private static void WritePairingUrlIfRequested(string[] args, string pairingUrl)
     {
         var pairingUrlFile = GetOption(args, "--pairing-url-file");
@@ -316,4 +296,5 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
 
         File.WriteAllText(fullPath, pairingUrl);
     }
+#endif
 }

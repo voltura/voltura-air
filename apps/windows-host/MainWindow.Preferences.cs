@@ -101,7 +101,7 @@ public partial class MainWindow
         }
     }
 
-    private StackPanel AddPreferencesSection(StackPanel parent, List<Expander> sections, string title)
+    private StackPanel AddPreferencesSection(StackPanel parent, List<Expander> sections, string title, bool participatesInAccordion = true)
     {
         var content = new StackPanel();
         var expander = new Expander
@@ -111,28 +111,75 @@ public partial class MainWindow
             IsExpanded = false,
             Style = (Style)Resources["PreferencesAccordionStyle"]
         };
-        expander.Expanded += (_, _) =>
+        if (participatesInAccordion)
         {
-            foreach (var section in sections)
+            expander.Expanded += (_, _) =>
             {
-                if (!ReferenceEquals(section, expander))
+                foreach (var section in sections)
                 {
-                    section.IsExpanded = false;
+                    if (!ReferenceEquals(section, expander))
+                    {
+                        section.IsExpanded = false;
+                    }
                 }
-            }
 
-            SetPreferencesTitle(title);
-        };
-        expander.Collapsed += (_, _) =>
-        {
-            if (sections.All(section => !section.IsExpanded))
+                SetPreferencesTitle(title);
+                _ = expander.Dispatcher.InvokeAsync(
+                    () => RevealExpandedPreferencesSection(expander, content),
+                    DispatcherPriority.Loaded);
+            };
+            expander.Collapsed += (_, _) =>
             {
-                SetPreferencesTitle(null);
-            }
-        };
-        sections.Add(expander);
+                if (sections.All(section => !section.IsExpanded))
+                {
+                    SetPreferencesTitle(null);
+                }
+            };
+            sections.Add(expander);
+        }
+
         parent.Children.Add(expander);
+        if (string.Equals(_preferencesSectionToOpen, title, StringComparison.Ordinal))
+        {
+            expander.IsExpanded = true;
+        }
+
         return content;
+    }
+
+    private void RefreshPreferencesPage()
+    {
+        RememberExpandedPreferencesSection();
+        SelectPage(HostPage.Preferences);
+    }
+
+    private void RememberExpandedPreferencesSection()
+    {
+        if (PageContent.Content is not ScrollViewer { Content: StackPanel panel } scroller)
+        {
+            _preferencesSectionToOpen = null;
+            _preferencesScrollOffsetToRestore = null;
+            return;
+        }
+
+        _preferencesSectionToOpen = panel.Children
+            .OfType<Expander>()
+            .FirstOrDefault(section => section.IsExpanded)?
+            .Header as string;
+        _preferencesScrollOffsetToRestore = scroller.VerticalOffset;
+    }
+
+    private void RestorePreferencesScrollPosition()
+    {
+        if (_preferencesScrollOffsetToRestore is not { } offset || PageContent.Content is not ScrollViewer scroller)
+        {
+            return;
+        }
+
+        _preferencesScrollOffsetToRestore = null;
+        _ = scroller.Dispatcher.InvokeAsync(
+            () => scroller.ScrollToVerticalOffset(offset),
+            DispatcherPriority.Loaded);
     }
 
     private void SetPreferencesTitle(string? sectionTitle)
@@ -167,7 +214,7 @@ public partial class MainWindow
             var result = _workstationLockPolicy.TryEnable();
             if (!result.Succeeded)
             {
-                SelectPage(HostPage.Preferences);
+                RefreshPreferencesPage();
                 ShowToast(result.Message);
                 return;
             }
@@ -181,7 +228,7 @@ public partial class MainWindow
             Outcome: lockResult.Succeeded ? "lock_request_accepted" : "failed",
             Code: lockResult.Succeeded ? null : "VAIR-POWER-EXECUTION-FAILED",
             Win32Error: lockResult.Win32Error));
-        SelectPage(HostPage.Preferences);
+        RefreshPreferencesPage();
         ShowToast(lockResult.Succeeded
             ? "Windows accepted the lock request."
             : "Windows still prevents workstation locking. A Windows policy or another program may control this setting.");
@@ -222,75 +269,6 @@ public partial class MainWindow
         row.Children.Add(slider);
         row.Children.Add(output);
         parent.Children.Add(row);
-    }
-
-    private void AddCustomPointerSetting(StackPanel parent)
-    {
-        var current = AppPointerSettings.GetCustomPointer();
-        var customPointer = CreateCheckBox("Custom pointer", current.Enabled);
-        parent.Children.Add(customPointer);
-
-        var controls = new StackPanel { Margin = new Thickness(0, 0, 0, 12), IsEnabled = current.Enabled };
-        controls.Children.Add(CreateLabel("Size"));
-        var sizeRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 12) };
-        var size = new Slider
-        {
-            Style = (Style)Resources["ModernSliderStyle"],
-            Minimum = AppPointerSettings.MinCustomPointerSize,
-            Maximum = AppPointerSettings.MaxCustomPointerSize,
-            TickFrequency = 1,
-            IsSnapToTickEnabled = true,
-            Width = 220,
-            Value = current.Size,
-            Margin = new Thickness(0, 0, 12, 0)
-        };
-        var sizeValue = new TextBlock { Text = current.Size.ToString(CultureInfo.InvariantCulture), VerticalAlignment = VerticalAlignment.Center, MinWidth = 48, Foreground = (Brush)Resources["TextBrush"] };
-        sizeRow.Children.Add(size);
-        sizeRow.Children.Add(sizeValue);
-        controls.Children.Add(sizeRow);
-
-        controls.Children.Add(CreateLabel("Color"));
-        var colorRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
-        var colorButton = CreateButton(string.Empty, (_, _) => { }, primary: false);
-        colorButton.Width = 132;
-        var colorPopup = CreateCustomPointerColorPopup(colorButton, current.Color, selected =>
-        {
-            SaveCustomPointer(customPointer.IsChecked == true, (int)Math.Round(size.Value), selected);
-            SetCustomPointerColorButton(colorButton, selected);
-        });
-        colorButton.Click += (_, _) => colorPopup.IsOpen = !colorPopup.IsOpen;
-        SetCustomPointerColorButton(colorButton, current.Color);
-        colorRow.Children.Add(colorButton);
-        controls.Children.Add(colorRow);
-        parent.Children.Add(controls);
-
-        var sizePreviewTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
-        sizePreviewTimer.Tick += (_, _) =>
-        {
-            sizePreviewTimer.Stop();
-            SaveCustomPointer(customPointer.IsChecked == true, (int)Math.Round(size.Value), GetCustomPointerColor(colorButton));
-        };
-
-        customPointer.Checked += (_, _) =>
-        {
-            controls.IsEnabled = true;
-            SaveCustomPointer(true, (int)Math.Round(size.Value), GetCustomPointerColor(colorButton));
-        };
-        customPointer.Unchecked += (_, _) =>
-        {
-            controls.IsEnabled = false;
-            SaveCustomPointer(false, (int)Math.Round(size.Value), GetCustomPointerColor(colorButton));
-        };
-        size.ValueChanged += (_, _) =>
-        {
-            var selected = (int)Math.Round(size.Value);
-            sizeValue.Text = selected.ToString(CultureInfo.InvariantCulture);
-            if (!_isLoadingPreferences)
-            {
-                sizePreviewTimer.Stop();
-                sizePreviewTimer.Start();
-            }
-        };
     }
 
     private void SaveCustomPointer(bool enabled, int size, uint color)
@@ -503,6 +481,7 @@ public partial class MainWindow
     private void SaveGlobalPermissions(
         CheckBox sleep,
         CheckBox volume,
+        CheckBox presentation,
         CheckBox remoteLaunch,
         CheckBox urlOpen,
         CheckBox pcLock,
@@ -523,6 +502,7 @@ public partial class MainWindow
         AppPermissionSettings.Save(new HostPermissionSet(
             AllowPcSleep: sleep.IsChecked == true,
             AllowVolumeControl: volume.IsChecked == true,
+            AllowPresentationControl: presentation.IsChecked == true,
             AllowRemoteAppLaunch: remoteLaunch.IsChecked == true,
             AllowUrlOpen: urlOpen.IsChecked == true,
             AllowPcLock: pcLock.IsChecked == true,

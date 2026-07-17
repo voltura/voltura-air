@@ -20,6 +20,8 @@ dotnet build VolturaAir.slnx
 - UI-affine work stays on the WPF dispatcher; network, filesystem, and long-running native work must not block it.
 - Timers, event subscriptions, sockets, cancellation sources, streams, native handles, tray resources, and background services have one owner and deterministic disposal.
 - WebSocket concurrency and message sizes remain bounded. Authentication, origin validation, rate limiting, and permission checks precede privileged actions; sends are serialized and timed per connection, and status updates are coalesced through one host-owned worker.
+- Authenticated pointer and keyboard JSON is validated, normalized, and decoded once before dispatch. Hot input paths use cached settings state rather than per-event Registry reads, and native batching must retain ordering plus cleanup after partial sends.
+- Optional application logging uses one bounded non-blocking producer queue. Its owner flushes accepted entries during shutdown, and filesystem writes never run on a WebSocket input loop.
 - Persisted pairing data is bounded and validated before use and replaced atomically in its own directory, so a partial write cannot replace the last complete store.
 - External failures are caught at their owning boundary, logged without secrets or payload contents, and must not terminate the tray host.
 - Prefer event-driven behavior and avoid polling or allocations that repeat for the lifetime of the process without a measured reason.

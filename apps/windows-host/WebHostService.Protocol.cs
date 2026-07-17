@@ -97,13 +97,24 @@ public sealed partial class WebHostService
                     continue;
                 }
 
-                if (!ClientMessageValidator.IsValidAuthenticatedMessage(root))
+                ValidatedInputCommand? inputCommand = null;
+                if (IsInputMessage(type))
+                {
+                    if (!ClientMessageValidator.TryDecodeInputMessage(root, type!, out var decodedInput))
+                    {
+                        await CloseAuthenticatedSocketAsync(socket, authenticatedClientId, "Invalid message", WebSocketCloseStatus.PolicyViolation, cancellationToken);
+                        break;
+                    }
+
+                    inputCommand = decodedInput;
+                }
+                else if (type is null || !ClientMessageValidator.IsValidAuthenticatedMessage(root, type))
                 {
                     await CloseAuthenticatedSocketAsync(socket, authenticatedClientId, "Invalid message", WebSocketCloseStatus.PolicyViolation, cancellationToken);
                     break;
                 }
 
-                LogReceivedClientCommand(authenticatedClientId, type!, root);
+                LogReceivedClientCommand(authenticatedClientId, type!, root, inputCommand);
 
                 if (type == "pair.disconnect")
                 {
@@ -181,6 +192,12 @@ public sealed partial class WebHostService
                     continue;
                 }
 
+                if (type == "presentation.command")
+                {
+                    await HandlePresentationCommandAsync(socket, authenticatedClientId, root, cancellationToken);
+                    continue;
+                }
+
                 if (type == "remote.launch")
                 {
                     var action = GetString(root, "action");
@@ -236,9 +253,9 @@ public sealed partial class WebHostService
                     continue;
                 }
 
-                if (IsInputMessage(type))
+                if (inputCommand is { } command)
                 {
-                    await HandleInputMessageAsync(socket, root, authenticatedClientId, cancellationToken);
+                    await HandleInputMessageAsync(socket, command, authenticatedClientId, cancellationToken);
                     continue;
                 }
 
@@ -523,43 +540,6 @@ public sealed partial class WebHostService
             cancellationToken);
     }
 
-    private object CreateCapabilities(string clientId)
-    {
-        return new
-        {
-            sleep = CanSleepPc(clientId),
-            power = CreatePowerCapabilities(clientId),
-            awake = CreateAwakeCapability(clientId),
-            volume = CanControlVolume(clientId),
-            remoteLaunch = CanLaunchRemoteApps(clientId),
-            urlOpen = new { canOpen = CanOpenUrls(clientId) },
-            textTransfer = true,
-            clipboardRead = CanReadClipboard(clientId),
-            gestureDebug = AppDeveloperSettings.EnableGestureDebug(),
-            inputAck = true
-        };
-    }
-
-    private bool CanSleepPc(string clientId)
-    {
-        return _pairingManager.GetEffectivePermissions(clientId, AppPermissionSettings.Load()).AllowPcSleep;
-    }
-
-    private bool CanControlVolume(string clientId)
-    {
-        return _pairingManager.GetEffectivePermissions(clientId, AppPermissionSettings.Load()).AllowVolumeControl;
-    }
-
-    private bool CanLaunchRemoteApps(string clientId)
-    {
-        return _pairingManager.GetEffectivePermissions(clientId, AppPermissionSettings.Load()).AllowRemoteAppLaunch;
-    }
-
-    private bool CanOpenUrls(string clientId)
-    {
-        return _pairingManager.GetEffectivePermissions(clientId, AppPermissionSettings.Load()).AllowUrlOpen;
-    }
-
     private static bool IsInputMessage(string? type)
     {
         return type is "pointer.move" or "pointer.button" or "pointer.wheel" or "pointer.zoom" or "keyboard.text" or "keyboard.special";
@@ -575,23 +555,9 @@ public sealed partial class WebHostService
         return typeProperty.GetString() is "audio.mute.toggle" or "audio.volume.set";
     }
 
-    private static bool TryGetInputSequence(JsonElement root, out long sequence)
-    {
-        sequence = 0;
-        return root.TryGetProperty("seq", out var sequenceProperty) &&
-            sequenceProperty.ValueKind == JsonValueKind.Number &&
-            sequenceProperty.TryGetInt64(out sequence) &&
-            sequence > 0;
-    }
-
     private static string GetString(JsonElement root, string propertyName)
     {
         return root.TryGetProperty(propertyName, out var value) ? value.GetString() ?? string.Empty : string.Empty;
-    }
-
-    private bool CanReadClipboard(string clientId)
-    {
-        return _pairingManager.GetEffectivePermissions(clientId, AppPermissionSettings.Load()).AllowClipboardRead;
     }
 
     private Task HandleAppLaunchAsync(WebSocket socket, string clientId, string actionId, CancellationToken cancellationToken)
@@ -647,16 +613,6 @@ public sealed partial class WebHostService
     {
         ControllerSocketClosed?.Invoke(this, new ControllerSocketClosedEventArgs(clientId, reason, status));
         await CloseSocketAsync(socket, reason, status, cancellationToken);
-    }
-
-    private static string GetModifierDiagnostic(JsonElement root)
-    {
-        if (!root.TryGetProperty("modifiers", out var modifiers) || modifiers.ValueKind != JsonValueKind.Array)
-        {
-            return string.Empty;
-        }
-
-        return string.Join("+", modifiers.EnumerateArray().Select(modifier => modifier.GetString()).Where(value => !string.IsNullOrWhiteSpace(value)));
     }
 
     private static int GetInt(JsonElement root, string propertyName)

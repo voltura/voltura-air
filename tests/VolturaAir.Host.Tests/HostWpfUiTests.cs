@@ -81,6 +81,7 @@ public sealed partial class HostUiLayoutTests
                 var sections = FindWpfDescendants<Expander>(window).ToArray();
                 Assert.Equal(11, sections.Length);
                 var scroller = Assert.Single(FindWpfDescendants<ScrollViewer>(window));
+                Assert.False(scroller.CanContentScroll);
                 Assert.Equal(ScrollBarVisibility.Visible, scroller.VerticalScrollBarVisibility);
                 Assert.Equal(ScrollBarVisibility.Disabled, scroller.HorizontalScrollBarVisibility);
                 Assert.All(sections, section =>
@@ -250,6 +251,7 @@ public sealed partial class HostUiLayoutTests
             return;
         }
 
+        using var settingsScope = HostSettingsRegistry.BeginIsolatedScope();
         RunOnStaThread(() =>
         {
             var originalPermissions = AppPermissionSettings.Load();
@@ -290,6 +292,16 @@ public sealed partial class HostUiLayoutTests
                 Assert.Equal(new Thickness(2), clipboardBlock.BorderThickness);
                 var urlAllow = Assert.IsType<Button>(FindPermissionButton(window, "Open web addresses", "✓ Allow"));
                 Assert.Same(window.Resources["AccentBrush"], urlAllow.Background);
+                Assert.DoesNotContain(FindWpfDescendants<TextBlock>(window), text => text.Text == "Presentation control");
+
+                AppDeveloperSettings.SetEnableAlphaFeatures(true);
+                window.ShowPage(HostPage.Devices);
+                window.UpdateLayout();
+                var refreshedDevices = Assert.Single(FindWpfDescendants<ListBox>(window));
+                refreshedDevices.SelectedIndex = 0;
+                WaitForWpf(
+                    () => FindWpfDescendants<TextBlock>(window).Any(text => text.Text == "Presentation control"),
+                    "alpha Presentation permission");
             }
             finally
             {
@@ -437,6 +449,40 @@ public sealed partial class HostUiLayoutTests
             frame.Continue = false;
         }), DispatcherPriority.Background);
         Dispatcher.PushFrame(frame);
+    }
+
+    [Fact]
+    public void InformationDialogUsesASingleCloseAction()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            var dialog = new ThemedConfirmationDialog(
+                "Cursor recovery watchdog",
+                "Explains the recovery behavior.",
+                "Close",
+                null,
+                ConfirmationTone.Warning);
+            try
+            {
+                dialog.Show();
+                dialog.UpdateLayout();
+
+                var action = Assert.Single(FindWpfDescendants<Button>(dialog));
+                Assert.Equal("Close", action.Content);
+                Assert.True(action.IsDefault);
+                Assert.DoesNotContain(FindWpfDescendants<Button>(dialog), button => button.IsCancel);
+            }
+            finally
+            {
+                dialog.Close();
+            }
+        });
     }
 
     private static void WaitForWpf(Func<bool> condition, string expectation = "WPF update")

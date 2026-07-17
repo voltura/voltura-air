@@ -30,6 +30,7 @@ export type SettingsDrawerProps = {
   pairedPcs: PcProfile[];
   pairingQrInputRef: RefObject<HTMLInputElement | null>;
   pairingScanMessage: string;
+  presentationAvailable: boolean;
   refreshInstalledApp: () => void;
   refreshMessage: string;
   renameDevice: (name: string) => void;

@@ -6,6 +6,7 @@ import { normalizeManualHostInput } from "../pairingFeedback";
 import type { SettingsDrawerProps, SettingsSection } from "./SettingsDrawerTypes";
 import { InfoButton } from "./InfoButton";
 import { supportsHapticFeedback } from "../hapticFeedback";
+import { getEffectiveFourthMode } from "../appModeTabs";
 
 type SettingsSectionDetailsProps = {
   children: ReactNode;
@@ -17,7 +18,7 @@ type SettingsSectionDetailsProps = {
 
 export function SettingsSectionDetails({ children, isOpen, label, onToggle, section }: SettingsSectionDetailsProps) {
   return (
-    <details className="settings-section" open={isOpen}>
+    <details className="settings-section" data-settings-section={section} open={isOpen}>
       <summary onClick={(event) => onToggle(event, section)}>
         <span>{label}</span>
       </summary>
@@ -443,27 +444,29 @@ export function AppSettingsSection({
   installApp,
   installPrompt,
   isInstalled,
+  presentationAvailable,
   refreshInstalledApp,
   refreshMessage,
   updateAppSetting
-}: Pick<SettingsDrawerProps, "appSettings" | "installApp" | "installPrompt" | "isInstalled" | "refreshInstalledApp" | "refreshMessage" | "updateAppSetting">) {
+}: Pick<SettingsDrawerProps, "appSettings" | "installApp" | "installPrompt" | "isInstalled" | "presentationAvailable" | "refreshInstalledApp" | "refreshMessage" | "updateAppSetting">) {
   return (
     <div className="install-card">
       <label className="setting-group">
         <span>Fourth mode button</span>
-        <select className="text-input fourth-mode-select" value={appSettings.fourthMode} onChange={(event) => updateAppSetting("fourthMode", event.target.value === "text-transfer" || event.target.value === "clipboard-read" ? event.target.value : "dictation")}>
+        <select className="text-input fourth-mode-select" value={getEffectiveFourthMode(appSettings.fourthMode, presentationAvailable)} onChange={(event) => updateAppSetting("fourthMode", event.target.value === "presentation" || event.target.value === "text-transfer" || event.target.value === "clipboard-read" ? event.target.value : "dictation")}>
+          {presentationAvailable && <option value="presentation">Presentation</option>}
           <option value="dictation">Dictation</option>
           <option value="text-transfer">Send text to PC</option>
           <option value="clipboard-read">Get text from PC</option>
         </select>
       </label>
-      <div className="install-title">
-        <Download aria-hidden="true" />
-        <span>Home screen app</span>
-      </div>
-      {isInstalled ? (
-        <p>Voltura Air is already running like an installed app.</p>
-      ) : installPrompt ? (
+      {!isInstalled && (
+        <>
+          <div className="install-title">
+            <Download aria-hidden="true" />
+            <span>Home screen app</span>
+          </div>
+          {installPrompt ? (
         <>
           <p>Add Voltura Air to this device for a normal app icon and faster launching.</p>
           <button type="button" onClick={installApp}>
@@ -483,8 +486,10 @@ export function AppSettingsSection({
           <li>Choose Add to Home screen or Install app.</li>
           <li>Confirm the shortcut.</li>
         </ol>
+          )}
+        </>
       )}
-      <p>{refreshMessage}</p>
+      {!isInstalled && <p>{refreshMessage}</p>}
       <label className="toggle-row">
         <span>Auto refresh</span>
         <input type="checkbox" checked={appSettings.autoRefresh} onChange={(event) => updateAppSetting("autoRefresh", event.target.checked)} />

@@ -41,6 +41,10 @@ public partial class MainWindow
         _deviceDetailsPanel.Children.Add(CreateSectionHeading("Permissions"));
         AddPermissionChoices(_deviceDetailsPanel, device, "PC sleep", PermissionKind.PcSleep);
         AddPermissionChoices(_deviceDetailsPanel, device, "Volume control", PermissionKind.VolumeControl);
+        if (AppDeveloperSettings.EnableAlphaFeatures())
+        {
+            AddPermissionChoices(_deviceDetailsPanel, device, "Presentation control", PermissionKind.PresentationControl);
+        }
         AddPermissionChoices(_deviceDetailsPanel, device, "Application launch", PermissionKind.RemoteAppLaunch);
         AddPermissionChoices(_deviceDetailsPanel, device, "Open web addresses", PermissionKind.UrlOpen);
         AddPermissionChoices(_deviceDetailsPanel, device, "Lock PC", PermissionKind.PcLock);
@@ -123,6 +127,7 @@ public partial class MainWindow
         {
             PermissionKind.PcSleep => current with { AllowPcSleep = value },
             PermissionKind.VolumeControl => current with { AllowVolumeControl = value },
+            PermissionKind.PresentationControl => current with { AllowPresentationControl = value },
             PermissionKind.RemoteAppLaunch => current with { AllowRemoteAppLaunch = value },
             PermissionKind.UrlOpen => current with { AllowUrlOpen = value },
             PermissionKind.PcLock => current with { AllowPcLock = value },
@@ -146,6 +151,7 @@ public partial class MainWindow
         {
             PermissionKind.PcSleep => permissions.AllowPcSleep,
             PermissionKind.VolumeControl => permissions.AllowVolumeControl,
+            PermissionKind.PresentationControl => permissions.AllowPresentationControl,
             PermissionKind.RemoteAppLaunch => permissions.AllowRemoteAppLaunch,
             PermissionKind.UrlOpen => permissions.AllowUrlOpen,
             PermissionKind.PcLock => permissions.AllowPcLock,

@@ -14,7 +14,6 @@ Scan the QR code from a phone, tablet, or browser-capable device on the same net
 
 - Use a trackpad, keyboard, dictation, media remote, and app controls from your phone or tablet.
 - Send or paste multiline text to the focused Windows app, copy it to the PC clipboard, create a new document in a configured app, or explicitly fetch the PC clipboard into selectable web-app text when the host permits it.
-- Use a dedicated presenter surface for PowerPoint, Google Slides, and browser/PDF navigation, with acknowledged Next/Previous/End commands, target-safe Black screen and laser controls, and a local elapsed timer.
 - Open a reviewed HTTP or HTTPS address once in the PC's default browser, with a separate host permission and retryable result.
 - Lock the PC, blackout displays, or use approved power controls with deliberate confirmation for destructive actions.
 - Choose per-device permissions and pointer speed, plus a host-wide Custom pointer for the Windows desktop.
@@ -27,7 +26,6 @@ Scan the QR code from a phone, tablet, or browser-capable device on the same net
 - Navigating Kodi with dedicated playback and interface controls.
 - Using your phone as a trackpad, keyboard, media remote, and app launcher.
 - Replacing a broken, unreliable, or inconvenient wireless keyboard and mouse.
-- Controlling presentations without staying beside the PC.
 - Quickly typing, pasting, searching, or dictating text from your phone.
 - Using a landscape tablet as a combined keyboard and trackpad, with the trackpad on either side.
 

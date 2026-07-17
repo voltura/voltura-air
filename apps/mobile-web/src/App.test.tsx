@@ -156,6 +156,31 @@ describe("App header and mode navigation", () => {
     expect(screen.getAllByRole("button", { name: "Trackpad mode" })).not.toHaveLength(0);
   });
 
+  it("hides Presentation entry points when the host does not advertise the alpha feature", () => {
+    mockConnection({ presentationCapability: undefined });
+    render(<App />);
+
+    expect(screen.queryByRole("button", { name: "Presentation" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    expect(screen.queryByRole("button", { name: "Presentation" })).toBeNull();
+    fireEvent.click(screen.getByText("App"));
+    expect(screen.queryByRole("option", { name: "Presentation" })).toBeNull();
+  });
+
+  it("leaves Presentation immediately when the host disables alpha features", async () => {
+    const { rerender } = render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    fireEvent.click(screen.getByRole("button", { name: "Presentation" }));
+    expect(screen.getByRole("heading", { name: "Presentation" })).toBeTruthy();
+
+    mockConnection({ presentationCapability: undefined });
+    rerender(<App />);
+
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Presentation" })).toBeNull());
+    expect(screen.getByLabelText("Dictation text")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Presentation" })).toBeNull();
+  });
+
   it("offers desktop recovery while an administrator app blocks remote input", async () => {
     const send = vi.fn();
     mockConnection({ hostStatus: { inputBlockedByElevation: true }, send });

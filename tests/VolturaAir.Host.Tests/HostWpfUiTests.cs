@@ -251,6 +251,7 @@ public sealed partial class HostUiLayoutTests
             return;
         }
 
+        using var settingsScope = HostSettingsRegistry.BeginIsolatedScope();
         RunOnStaThread(() =>
         {
             var originalPermissions = AppPermissionSettings.Load();
@@ -291,6 +292,16 @@ public sealed partial class HostUiLayoutTests
                 Assert.Equal(new Thickness(2), clipboardBlock.BorderThickness);
                 var urlAllow = Assert.IsType<Button>(FindPermissionButton(window, "Open web addresses", "✓ Allow"));
                 Assert.Same(window.Resources["AccentBrush"], urlAllow.Background);
+                Assert.DoesNotContain(FindWpfDescendants<TextBlock>(window), text => text.Text == "Presentation control");
+
+                AppDeveloperSettings.SetEnableAlphaFeatures(true);
+                window.ShowPage(HostPage.Devices);
+                window.UpdateLayout();
+                var refreshedDevices = Assert.Single(FindWpfDescendants<ListBox>(window));
+                refreshedDevices.SelectedIndex = 0;
+                WaitForWpf(
+                    () => FindWpfDescendants<TextBlock>(window).Any(text => text.Text == "Presentation control"),
+                    "alpha Presentation permission");
             }
             finally
             {

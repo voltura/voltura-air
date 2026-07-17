@@ -29,12 +29,13 @@ export async function verifyResponsivePresentationLayout(page) {
 
   await selectPresentationTarget(page, "Google Slides");
   if (await page.getByRole("button", { name: "Start slideshow", exact: true }).count() !== 0 ||
+      await page.getByRole("button", { name: "Blackout", exact: true }).count() !== 1 ||
       await page.getByRole("button", { name: "Laser pointer", exact: true }).count() !== 1) {
     throw new Error("Google Slides exposed an unsafe or incomplete presentation command set.");
   }
 
   await selectPresentationTarget(page, "PDF / browser");
-  if (await page.getByRole("button", { name: "Black screen", exact: true }).count() !== 0 ||
+  if (await page.getByRole("button", { name: "Blackout", exact: true }).count() !== 0 ||
       await page.getByRole("button", { name: "Laser pointer", exact: true }).count() !== 0 ||
       await page.getByRole("button", { name: "End slideshow", exact: true }).count() !== 1) {
     throw new Error("PDF/browser exposed a target-incompatible presentation command.");

@@ -51,6 +51,7 @@ internal static class Program
 
             s_isolatedSettingsScope = isolatedTestMode ? HostSettingsRegistry.BeginIsolatedScope() : null;
 #if DEBUG
+            ConfigureIsolatedDevelopmentSettings(args, isolatedTestMode);
             ConfigureSiteScreenshotSettings(args);
 #endif
             s_runtime = await WpfHostRuntime.StartAsync(args);
@@ -128,6 +129,21 @@ internal static class Program
 #endif
 
 #if DEBUG
+    private static void ConfigureIsolatedDevelopmentSettings(string[] args, bool isolatedTestMode)
+    {
+        if (!args.Contains("--enable-alpha-features", StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (!isolatedTestMode)
+        {
+            throw new InvalidOperationException("The alpha-feature development switch requires --isolated-test-mode.");
+        }
+
+        AppDeveloperSettings.SetEnableAlphaFeatures(true);
+    }
+
     private static void ConfigureSiteScreenshotSettings(string[] args)
     {
         if (!args.Contains("--site-screenshot-mode", StringComparer.OrdinalIgnoreCase))
@@ -142,6 +158,7 @@ internal static class Program
         }
 
         AppThemeSettings.SetMode(theme);
+        AppDeveloperSettings.SetEnableAlphaFeatures(false);
         AppDeveloperSettings.SetEnableGestureDebug(false);
         AppNotificationSettings.SetShowConnectionStatusNotifications(false);
         AppNotificationSettings.SetShowPairingWindowOnDisconnect(false);

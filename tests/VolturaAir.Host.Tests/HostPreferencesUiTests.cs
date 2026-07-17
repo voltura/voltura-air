@@ -101,6 +101,7 @@ public sealed partial class HostUiLayoutTests
             return;
         }
 
+        using var settingsScope = HostSettingsRegistry.BeginIsolatedScope();
         RunOnStaThread(() =>
         {
             using var appScope = new WpfApplicationScope();
@@ -123,7 +124,59 @@ public sealed partial class HostUiLayoutTests
                 Assert.Empty(FindWpfDescendants<DatePicker>(window));
                 Assert.Contains(FindWpfDescendants<CheckBox>(window), checkbox =>
                     string.Equals(checkbox.Content?.ToString(), "Allow paired devices to open web addresses", StringComparison.Ordinal));
+                Assert.DoesNotContain(FindWpfDescendants<CheckBox>(window), checkbox =>
+                    string.Equals(checkbox.Content?.ToString(), "Allow paired devices to control presentations", StringComparison.Ordinal));
+                var alphaFeatures = Assert.Single(FindWpfDescendants<CheckBox>(window), checkbox =>
+                    string.Equals(checkbox.Content?.ToString(), "Enable alpha features", StringComparison.Ordinal));
+                Assert.False(alphaFeatures.IsChecked);
+            }
+            finally
+            {
+                window.Close();
+                webHost.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        });
+    }
+
+    [Fact]
+    public void AlphaFeatureSettingRefreshesPresentationPermissionVisibility()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var settingsScope = HostSettingsRegistry.BeginIsolatedScope();
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            using var store = new TempPairingStore();
+            using var injector = new SendInputInjector();
+            var manager = new PairingManager(store.Store);
+            var webHost = new WebHostService(manager, new InputDispatcher(injector), isolatedTestMode: true);
+            var window = new MainWindow(manager, webHost, clientUrl: null);
+            try
+            {
+                window.Show();
+                window.ShowPage(HostPage.Preferences);
+                window.UpdateLayout();
+
+                var alphaFeatures = Assert.Single(FindWpfDescendants<CheckBox>(window), checkbox =>
+                    string.Equals(checkbox.Content?.ToString(), "Enable alpha features", StringComparison.Ordinal));
+                alphaFeatures.IsChecked = true;
+                window.UpdateLayout();
+
+                Assert.True(AppDeveloperSettings.EnableAlphaFeatures());
                 Assert.Contains(FindWpfDescendants<CheckBox>(window), checkbox =>
+                    string.Equals(checkbox.Content?.ToString(), "Allow paired devices to control presentations", StringComparison.Ordinal));
+
+                var refreshedAlphaFeatures = Assert.Single(FindWpfDescendants<CheckBox>(window), checkbox =>
+                    string.Equals(checkbox.Content?.ToString(), "Enable alpha features", StringComparison.Ordinal));
+                refreshedAlphaFeatures.IsChecked = false;
+                window.UpdateLayout();
+
+                Assert.False(AppDeveloperSettings.EnableAlphaFeatures());
+                Assert.DoesNotContain(FindWpfDescendants<CheckBox>(window), checkbox =>
                     string.Equals(checkbox.Content?.ToString(), "Allow paired devices to control presentations", StringComparison.Ordinal));
             }
             finally

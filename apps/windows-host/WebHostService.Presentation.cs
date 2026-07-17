@@ -37,6 +37,11 @@ public sealed partial class WebHostService
 
     private PresentationCommandResult ExecutePresentationCommand(string clientId, string target, string action)
     {
+        if (!AlphaFeaturesEnabled)
+        {
+            return new(false, "feature-disabled", "Presentation is an alpha feature and is disabled on the PC.");
+        }
+
         if (!CanControlPresentations(clientId))
         {
             return new(false, "permission-denied", "Presentation control is disabled for this device on the PC.");

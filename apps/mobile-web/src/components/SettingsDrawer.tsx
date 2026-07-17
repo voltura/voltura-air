@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
 import { X } from "lucide-react";
-import { toolModeDefinitions, type ToolAppTab } from "../appModeTabs";
+import { getAvailableToolModeIds, toolModeDefinitions, type ToolAppTab } from "../appModeTabs";
 import {
   AppSettingsSection,
   AppearanceSettingsSection,
@@ -56,7 +56,7 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
       <section className="drawer-group" aria-labelledby="drawer-tools-title">
         <h3 id="drawer-tools-title">Tools</h3>
         <div className="drawer-tool-list">
-          {(["presentation", "dictation", "text-transfer", "clipboard-read"] satisfies ToolAppTab[]).map((toolId) => {
+          {getAvailableToolModeIds(props.presentationAvailable).map((toolId: ToolAppTab) => {
             const { Icon, ariaLabel } = toolModeDefinitions[toolId];
             return (
               <button key={toolId} type="button" onClick={() => props.onOpenTool?.(toolId)}>
@@ -118,6 +118,7 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
           isInstalled={props.isInstalled}
           refreshInstalledApp={props.refreshInstalledApp}
           refreshMessage={props.refreshMessage}
+          presentationAvailable={props.presentationAvailable}
           updateAppSetting={props.updateAppSetting}
         />
       </SettingsSectionDetails>

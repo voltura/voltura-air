@@ -119,7 +119,8 @@ export function App() {
     setTrackpadSettingsState,
     trackpadSettings
   } = usePcSettings(clientId, activePc?.id ?? null, hostDefaultRemoteMode, hostPointerSpeed);
-  const modeTabs = useMemo(() => getModeTabs(appSettings.fourthMode), [appSettings.fourthMode]);
+  const presentationAvailable = presentationCapability !== undefined;
+  const modeTabs = useMemo(() => getModeTabs(appSettings.fourthMode, presentationAvailable), [appSettings.fourthMode, presentationAvailable]);
   const { installApp, installPrompt, isInstalled, refreshInstalledApp, refreshMessage } = usePwaLifecycle({
     activePc,
     autoRefresh: appSettings.autoRefresh,
@@ -200,6 +201,14 @@ export function App() {
       setTab("trackpad");
     }
   }, [supportsGestureDebug, tab]);
+
+  useEffect(() => {
+    if (!presentationAvailable && tab === "presentation") {
+      setTab("dictation");
+      setAreModeTabsCollapsed(false);
+      setIsModeSelectorOpen(false);
+    }
+  }, [presentationAvailable, tab]);
 
   useEffect(() => {
     if (tab === "debug") {
@@ -344,6 +353,10 @@ export function App() {
   };
 
   const openToolFromMenu = (tool: ToolAppTab) => {
+    if (tool === "presentation" && !presentationAvailable) {
+      return;
+    }
+
     setTab(tool);
     setAreModeTabsCollapsed(false);
     setIsModeSelectorOpen(false);
@@ -471,6 +484,7 @@ export function App() {
         pairedPcs={pairedPcs}
         pairingQrInputRef={pairingQrInputRef}
         pairingScanMessage={pairingScanMessage}
+        presentationAvailable={presentationAvailable}
         refreshInstalledApp={refreshInstalledApp}
         refreshMessage={refreshMessage}
         renameDevice={renameDevice}

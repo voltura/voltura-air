@@ -41,7 +41,10 @@ public partial class MainWindow
         _deviceDetailsPanel.Children.Add(CreateSectionHeading("Permissions"));
         AddPermissionChoices(_deviceDetailsPanel, device, "PC sleep", PermissionKind.PcSleep);
         AddPermissionChoices(_deviceDetailsPanel, device, "Volume control", PermissionKind.VolumeControl);
-        AddPermissionChoices(_deviceDetailsPanel, device, "Presentation control", PermissionKind.PresentationControl);
+        if (AppDeveloperSettings.EnableAlphaFeatures())
+        {
+            AddPermissionChoices(_deviceDetailsPanel, device, "Presentation control", PermissionKind.PresentationControl);
+        }
         AddPermissionChoices(_deviceDetailsPanel, device, "Application launch", PermissionKind.RemoteAppLaunch);
         AddPermissionChoices(_deviceDetailsPanel, device, "Open web addresses", PermissionKind.UrlOpen);
         AddPermissionChoices(_deviceDetailsPanel, device, "Lock PC", PermissionKind.PcLock);

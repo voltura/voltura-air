@@ -96,6 +96,7 @@ describe("connection protocol policy", () => {
   it("accepts presentation support only with an explicit effective permission", () => {
     expect(getPresentationCapability({ presentation: { canControl: true } })).toEqual({ canControl: true });
     expect(getPresentationCapability({ presentation: { canControl: false } })).toEqual({ canControl: false });
+    expect(getPresentationCapability({ presentation: null })).toBeUndefined();
     expect(getPresentationCapability({ presentation: {} as never })).toBeUndefined();
   });
 

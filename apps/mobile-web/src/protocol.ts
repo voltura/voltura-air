@@ -47,7 +47,7 @@ export type ServerCapabilities = {
   gestureDebug?: boolean;
   inputAck?: boolean;
   clipboardRead?: boolean;
-  presentation?: PresentationCapability;
+  presentation?: PresentationCapability | null;
   power?: PowerCapabilities;
   remoteLaunch?: boolean;
   urlOpen?: UrlOpenCapability;

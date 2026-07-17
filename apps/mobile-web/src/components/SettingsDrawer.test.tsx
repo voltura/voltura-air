@@ -25,6 +25,7 @@ const baseProps = {
   pairedPcs: [],
   pairingQrInputRef: { current: null },
   pairingScanMessage: "Scan the QR code shown on your PC.",
+  presentationAvailable: true,
   refreshInstalledApp: vi.fn(),
   refreshMessage: "Reload from the PC if the home screen app looks stale.",
   renameDevice: vi.fn(),
@@ -90,6 +91,22 @@ describe("SettingsDrawer", () => {
     expect(screen.getByText("Appearance")).toBeTruthy();
     expect(screen.getByText("App")).toBeTruthy();
     expect(Array.from(document.querySelectorAll("details")).every((details) => !details.open)).toBe(true);
+  });
+
+  it("hides Presentation entry points and falls back from a stale fourth-mode choice when alpha is unavailable", () => {
+    render(
+      <SettingsDrawer
+        {...baseProps}
+        appSettings={{ ...defaultAppSettings, fourthMode: "presentation" }}
+        presentationAvailable={false}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Presentation" })).toBeNull();
+    fireEvent.click(screen.getByText("App"));
+    const fourthMode = screen.getByRole("combobox", { name: "Fourth mode button" }) as HTMLSelectElement;
+    expect(fourthMode.value).toBe("dictation");
+    expect(within(fourthMode).queryByRole("option", { name: "Presentation" })).toBeNull();
   });
 
   it("keeps only one settings accordion open", () => {

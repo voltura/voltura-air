@@ -54,3 +54,17 @@ test("waits until the named Windows process exits", () => {
   assert.equal(exited, true);
   assert.deepEqual(sleeps, [10, 10]);
 });
+
+test("treats an absent optional cursor watchdog as already stopped", () => {
+  let checks = 0;
+  const exited = waitForWindowsProcessExit("VolturaAir.CursorWatchdog.exe", {
+    run: () => {
+      checks += 1;
+      return { stdout: "INFO: No tasks are running which match the specified criteria." };
+    },
+    sleep: () => assert.fail("An absent watchdog must not be waited on")
+  });
+
+  assert.equal(exited, true);
+  assert.equal(checks, 1);
+});

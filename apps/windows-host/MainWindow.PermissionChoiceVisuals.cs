@@ -9,21 +9,6 @@ public partial class MainWindow
 {
     private const string PermissionChoiceCheckPrefix = "✓ ";
 
-    private bool _permissionChoiceVisualsHooked;
-
-    protected override void OnContentRendered(EventArgs e)
-    {
-        base.OnContentRendered(e);
-
-        if (_permissionChoiceVisualsHooked)
-        {
-            return;
-        }
-
-        _permissionChoiceVisualsHooked = true;
-        PageContent.LayoutUpdated += (_, _) => ApplyPermissionChoiceVisuals();
-    }
-
     private void ApplyPermissionChoiceVisuals()
     {
         if (_activePage != HostPage.Devices ||
@@ -42,7 +27,10 @@ public partial class MainWindow
         var globalPermissions = AppPermissionSettings.Load();
         ApplyPermissionChoiceVisuals("PC sleep", device.PermissionOverrides.AllowPcSleep, globalPermissions.AllowPcSleep);
         ApplyPermissionChoiceVisuals("Volume control", device.PermissionOverrides.AllowVolumeControl, globalPermissions.AllowVolumeControl);
-        ApplyPermissionChoiceVisuals("Presentation control", device.PermissionOverrides.AllowPresentationControl, globalPermissions.AllowPresentationControl);
+        if (AppDeveloperSettings.EnableAlphaFeatures())
+        {
+            ApplyPermissionChoiceVisuals("Presentation control", device.PermissionOverrides.AllowPresentationControl, globalPermissions.AllowPresentationControl);
+        }
         ApplyPermissionChoiceVisuals("Application launch", device.PermissionOverrides.AllowRemoteAppLaunch, globalPermissions.AllowRemoteAppLaunch);
         ApplyPermissionChoiceVisuals("Open web addresses", device.PermissionOverrides.AllowUrlOpen, globalPermissions.AllowUrlOpen);
         ApplyPermissionChoiceVisuals("Lock PC", device.PermissionOverrides.AllowPcLock, globalPermissions.AllowPcLock);

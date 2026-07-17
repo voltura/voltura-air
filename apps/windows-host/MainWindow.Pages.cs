@@ -316,7 +316,10 @@ public partial class MainWindow
         }
         permissionsPanel.Children.Add(sleep);
         permissionsPanel.Children.Add(volume);
-        permissionsPanel.Children.Add(presentation);
+        if (AppDeveloperSettings.EnableAlphaFeatures())
+        {
+            permissionsPanel.Children.Add(presentation);
+        }
         permissionsPanel.Children.Add(remoteLaunch);
         permissionsPanel.Children.Add(urlOpen);
         permissionsPanel.Children.Add(pcLock);
@@ -340,6 +343,12 @@ public partial class MainWindow
         developerMode.Unchecked += (_, _) => AppDeveloperSettings.SetDeveloperMode(false);
         developerPanel.Children.Add(developerMode);
 
+        var alphaFeatures = CreateCheckBox("Enable alpha features", AppDeveloperSettings.EnableAlphaFeatures());
+        alphaFeatures.Checked += (_, _) => SetAlphaFeatures(true);
+        alphaFeatures.Unchecked += (_, _) => SetAlphaFeatures(false);
+        developerPanel.Children.Add(alphaFeatures);
+        developerPanel.Children.Add(CreateMutedText("Shows experimental features that are still under development. Alpha features remain unavailable to paired devices until this setting is enabled."));
+
         var gestureDebug = CreateCheckBox("Show gesture debug screen in the mobile app", AppDeveloperSettings.EnableGestureDebug());
         gestureDebug.Checked += (_, _) => AppDeveloperSettings.SetEnableGestureDebug(true);
         gestureDebug.Unchecked += (_, _) => AppDeveloperSettings.SetEnableGestureDebug(false);
@@ -351,6 +360,12 @@ public partial class MainWindow
         _preferencesSectionToOpen = null;
         _isLoadingPreferences = false;
         return root;
+
+        void SetAlphaFeatures(bool enabled)
+        {
+            AppDeveloperSettings.SetEnableAlphaFeatures(enabled);
+            RefreshPreferencesPage();
+        }
     }
 
 }

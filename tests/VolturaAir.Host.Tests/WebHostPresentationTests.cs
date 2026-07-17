@@ -6,8 +6,56 @@ namespace VolturaAir.Host.Tests;
 public sealed class WebHostPresentationTests : WebHostServiceTestBase
 {
     [Fact]
+    public async Task PresentationIsNotAdvertisedOrExecutableWhileAlphaFeaturesAreDisabled()
+    {
+        using var settingsScope = HostSettingsRegistry.BeginIsolatedScope();
+        await using var fixture = await WebHostFixture.StartAsync();
+        var clientId = $"client-{Guid.NewGuid():N}";
+        using var socket = await ConnectAsync(fixture.WebHost);
+        var paired = await PairAsync(socket, fixture, clientId);
+
+        var result = await SendAndReceiveAsync(socket, new
+        {
+            type = "presentation.command",
+            operationId = "presentation-disabled",
+            target = "powerpoint",
+            action = "next"
+        });
+
+        Assert.False(AppDeveloperSettings.EnableAlphaFeatures());
+        Assert.Equal(JsonValueKind.Null, paired.GetProperty("capabilities").GetProperty("presentation").ValueKind);
+        Assert.False(result.GetProperty("succeeded").GetBoolean());
+        Assert.Equal("feature-disabled", result.GetProperty("code").GetString());
+        Assert.Empty(fixture.InputInjector.Events);
+        Assert.Equal(WebSocketState.Open, socket.State);
+    }
+
+    [Fact]
+    public async Task AlphaSettingBroadcastsPresentationAvailabilityChanges()
+    {
+        using var settingsScope = HostSettingsRegistry.BeginIsolatedScope();
+        await using var fixture = await WebHostFixture.StartAsync();
+        var clientId = $"client-{Guid.NewGuid():N}";
+        using var socket = await ConnectAsync(fixture.WebHost);
+        var paired = await PairAsync(socket, fixture, clientId);
+        Assert.Equal(JsonValueKind.Null, paired.GetProperty("capabilities").GetProperty("presentation").ValueKind);
+
+        AppDeveloperSettings.SetEnableAlphaFeatures(true);
+        using var enabledTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        using var enabledStatus = JsonDocument.Parse(await ReceiveTextAsync(socket, enabledTimeout.Token));
+        Assert.True(enabledStatus.RootElement.GetProperty("capabilities").GetProperty("presentation").GetProperty("canControl").GetBoolean());
+
+        AppDeveloperSettings.SetEnableAlphaFeatures(false);
+        using var disabledTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        using var disabledStatus = JsonDocument.Parse(await ReceiveTextAsync(socket, disabledTimeout.Token));
+        Assert.Equal(JsonValueKind.Null, disabledStatus.RootElement.GetProperty("capabilities").GetProperty("presentation").ValueKind);
+    }
+
+    [Fact]
     public async Task PresentationTapRunsReviewedShortcutAndReturnsItsMatchingResult()
     {
+        using var settingsScope = HostSettingsRegistry.BeginIsolatedScope();
+        AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
         try
         {
@@ -40,6 +88,8 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     [Fact]
     public async Task PresentationPermissionDenialReturnsFeedbackWithoutInjectingOrClosing()
     {
+        using var settingsScope = HostSettingsRegistry.BeginIsolatedScope();
+        AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
         try
         {
@@ -72,6 +122,8 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     [Fact]
     public async Task PresentationNativeFailureReturnsFeedbackAndNextTapStillWorks()
     {
+        using var settingsScope = HostSettingsRegistry.BeginIsolatedScope();
+        AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
         try
         {
@@ -112,6 +164,8 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     [Fact]
     public async Task UnsupportedTargetActionReturnsFeedbackWithoutInjection()
     {
+        using var settingsScope = HostSettingsRegistry.BeginIsolatedScope();
+        AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
         try
         {

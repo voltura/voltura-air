@@ -6,6 +6,7 @@ import { normalizeManualHostInput } from "../pairingFeedback";
 import type { SettingsDrawerProps, SettingsSection } from "./SettingsDrawerTypes";
 import { InfoButton } from "./InfoButton";
 import { supportsHapticFeedback } from "../hapticFeedback";
+import { getEffectiveFourthMode } from "../appModeTabs";
 
 type SettingsSectionDetailsProps = {
   children: ReactNode;
@@ -443,16 +444,17 @@ export function AppSettingsSection({
   installApp,
   installPrompt,
   isInstalled,
+  presentationAvailable,
   refreshInstalledApp,
   refreshMessage,
   updateAppSetting
-}: Pick<SettingsDrawerProps, "appSettings" | "installApp" | "installPrompt" | "isInstalled" | "refreshInstalledApp" | "refreshMessage" | "updateAppSetting">) {
+}: Pick<SettingsDrawerProps, "appSettings" | "installApp" | "installPrompt" | "isInstalled" | "presentationAvailable" | "refreshInstalledApp" | "refreshMessage" | "updateAppSetting">) {
   return (
     <div className="install-card">
       <label className="setting-group">
         <span>Fourth mode button</span>
-        <select className="text-input fourth-mode-select" value={appSettings.fourthMode} onChange={(event) => updateAppSetting("fourthMode", event.target.value === "presentation" || event.target.value === "text-transfer" || event.target.value === "clipboard-read" ? event.target.value : "dictation")}>
-          <option value="presentation">Presentation</option>
+        <select className="text-input fourth-mode-select" value={getEffectiveFourthMode(appSettings.fourthMode, presentationAvailable)} onChange={(event) => updateAppSetting("fourthMode", event.target.value === "presentation" || event.target.value === "text-transfer" || event.target.value === "clipboard-read" ? event.target.value : "dictation")}>
+          {presentationAvailable && <option value="presentation">Presentation</option>}
           <option value="dictation">Dictation</option>
           <option value="text-transfer">Send text to PC</option>
           <option value="clipboard-read">Get text from PC</option>

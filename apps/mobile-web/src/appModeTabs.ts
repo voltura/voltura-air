@@ -26,8 +26,20 @@ export const toolModeDefinitions: Record<ToolAppTab, ModeDefinition> = {
   "clipboard-read": { id: "clipboard-read", label: "Get text", ariaLabel: "Get text from PC", Icon: ClipboardPaste }
 };
 
-export function getModeTabs(fourthMode: FourthMode): ModeDefinition[] {
-  return [...primaryModeDefinitions, toolModeDefinitions[fourthMode] ?? toolModeDefinitions.dictation];
+const toolModeOrder = ["presentation", "dictation", "text-transfer", "clipboard-read"] satisfies ToolAppTab[];
+const stableToolModeOrder = ["dictation", "text-transfer", "clipboard-read"] satisfies ToolAppTab[];
+
+export function getAvailableToolModeIds(presentationAvailable: boolean): ToolAppTab[] {
+  return presentationAvailable ? toolModeOrder : stableToolModeOrder;
+}
+
+export function getEffectiveFourthMode(fourthMode: FourthMode, presentationAvailable: boolean): FourthMode {
+  return fourthMode === "presentation" && !presentationAvailable ? "dictation" : fourthMode;
+}
+
+export function getModeTabs(fourthMode: FourthMode, presentationAvailable: boolean): ModeDefinition[] {
+  const effectiveFourthMode = getEffectiveFourthMode(fourthMode, presentationAvailable);
+  return [...primaryModeDefinitions, toolModeDefinitions[effectiveFourthMode]];
 }
 
 export function getModeDefinition(tab: MainAppTab): ModeDefinition {

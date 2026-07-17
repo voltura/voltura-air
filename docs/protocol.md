@@ -115,7 +115,7 @@ Successful response:
     },
     "sleep": true,
     "volume": true,
-    "presentation": { "canControl": true },
+    "presentation": null,
     "remoteLaunch": true,
     "urlOpen": { "canOpen": false },
     "textTransfer": true
@@ -171,7 +171,7 @@ Host response:
     },
     "sleep": true,
     "volume": true,
-    "presentation": { "canControl": true },
+    "presentation": null,
     "remoteLaunch": true,
     "textTransfer": true
   },
@@ -522,7 +522,7 @@ When permission is blocked, no clipboard read occurs and the host returns `VAIR-
 
 ## Presentation commands
 
-Presentation mode uses a separate acknowledged command set rather than sending arbitrary `keyboard.special` messages. The client supplies one bounded operation ID, a reviewed target profile, and one fixed action. The official client permits only one in-flight presentation command, disables every presenter control until its matching result arrives, and clears pending state on disconnect instead of replaying a slide change later.
+Presentation mode is a default-off alpha feature. The host advertises it only while **Preferences > Developer tools > Enable alpha features** is enabled and enforces the same gate before any command reaches input injection. It uses a separate acknowledged command set rather than sending arbitrary `keyboard.special` messages. The client supplies one bounded operation ID, a reviewed target profile, and one fixed action. The official client permits only one in-flight presentation command, disables every presenter control until its matching result arrives, and clears pending state on disconnect instead of replaying a slide change later.
 
 ```json
 {
@@ -541,9 +541,15 @@ Targets are `powerpoint`, `google-slides`, and `pdf`. Actions are `next`, `previ
 | Google Slides | Right | Left | unavailable | Esc | B | L |
 | PDF/browser | Right | Left | unavailable | Esc | unavailable | unavailable |
 
-These mappings are intentionally user-selected. The host does not inspect the focused process, presentation file, slide number, or application state. The mobile UI hides unavailable actions: in particular it never sends F5 to a browser target. The target scope follows the current [PowerPoint presentation shortcuts](https://support.microsoft.com/en-us/office/use-keyboard-shortcuts-to-deliver-powerpoint-presentations-1524ffce-bd2a-45f4-9a7f-f18b992b93a0) and [Google Slides shortcuts](https://support.google.com/docs/answer/1696717).
+These low-level mappings are intentionally user-selected. The host does not inspect the focused process, presentation file, slide number, or application state. The mobile UI hides unavailable actions: in particular it never sends F5 to a browser target. Its visible **Blackout** control for PowerPoint and Google Slides does not use the low-level `black` action; it sends the separately permissioned `system.power` `blackoutDisplay` action so Voltura Air covers every monitor with its broader black curtain. The target scope follows the current [PowerPoint presentation shortcuts](https://support.microsoft.com/en-us/office/use-keyboard-shortcuts-to-deliver-powerpoint-presentations-1524ffce-bd2a-45f4-9a7f-f18b992b93a0) and [Google Slides shortcuts](https://support.google.com/docs/answer/1696717).
 
-The host advertises support and the paired device's effective global/per-device permission separately:
+With the alpha gate off, the capability is explicitly unavailable:
+
+```json
+{ "presentation": null }
+```
+
+With the gate on, the host advertises the paired device's effective global/per-device permission:
 
 ```json
 { "presentation": { "canControl": true } }
@@ -563,7 +569,7 @@ After validation and permission enforcement, the host performs one shortcut inje
 }
 ```
 
-Failure codes are `permission-denied`, `unsupported-action`, `host-ui-blocked`, and `input-failed`. The client can additionally report `VAIR-PRESENTATION-RESPONSE-TIMEOUT` if no matching result arrives. Expected denial and native input failures keep the authenticated socket open. Success confirms that Windows accepted the shortcut sequence; it does not claim that an application changed slides.
+Failure codes are `feature-disabled`, `permission-denied`, `unsupported-action`, `host-ui-blocked`, and `input-failed`. `feature-disabled` is returned before input work when the alpha gate is off. The client can additionally report `VAIR-PRESENTATION-RESPONSE-TIMEOUT` if no matching result arrives. Expected denial and native input failures keep the authenticated socket open. Success confirms that Windows accepted the shortcut sequence; it does not claim that an application changed slides.
 
 Input delivery acknowledgement:
 
@@ -617,9 +623,12 @@ The host reports optional PC features in `capabilities`. Capability values
 reflect host-enforced permissions and host settings for the active device.
 `capabilities.gestureDebug` defaults to `false`; `capabilities.inputAck` is
 `true` when the host confirms input delivery with `input.ack` / `input.error`.
-`capabilities.presentation` is present on hosts that support the dedicated
-command set, and its `canControl` value is the active device's effective
-Presentation control permission.
+`capabilities.presentation` is `null` while the reusable, default-off alpha gate
+is disabled. While the gate is enabled, it is an object whose `canControl` value
+is the active device's effective Presentation control permission. The official
+mobile app hides all Presentation entry points when the value is absent or
+`null`, and falls a previously saved Presentation fourth-mode choice back to
+Dictation.
 The mobile app only shows the gesture debug entry when the host explicitly enables it. The mobile app only
 shows the keyboard sleep button when `capabilities.sleep` is `true` and the
 local **Show sleep button** keyboard setting is enabled. The mobile app only

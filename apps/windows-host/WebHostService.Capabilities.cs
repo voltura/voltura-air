@@ -10,7 +10,7 @@ public sealed partial class WebHostService
             power = CreatePowerCapabilities(clientId),
             awake = CreateAwakeCapability(clientId),
             volume = CanControlVolume(clientId),
-            presentation = new { canControl = CanControlPresentations(clientId) },
+            presentation = CreatePresentationCapability(clientId),
             remoteLaunch = CanLaunchRemoteApps(clientId),
             urlOpen = new { canOpen = CanOpenUrls(clientId) },
             textTransfer = true,
@@ -34,6 +34,15 @@ public sealed partial class WebHostService
     {
         return GetEffectivePermissions(clientId).AllowPresentationControl;
     }
+
+    private object? CreatePresentationCapability(string clientId)
+    {
+        return AlphaFeaturesEnabled
+            ? new { canControl = CanControlPresentations(clientId) }
+            : null;
+    }
+
+    private static bool AlphaFeaturesEnabled => AppDeveloperSettings.EnableAlphaFeatures();
 
     private bool CanLaunchRemoteApps(string clientId)
     {

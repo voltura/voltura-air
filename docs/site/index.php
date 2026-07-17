@@ -232,7 +232,7 @@
         <ol class="steps">
           <li>Install and start Voltura Air on the Windows 11 PC you want to control.</li>
           <li>Scan the pairing QR code with a phone or tablet on the same Wi-Fi or local network.</li>
-          <li>Choose Trackpad, Keyboard, Remote, Presentation, Dictation, Send text to PC, Get text from PC, or tablet split mode.</li>
+          <li>Choose Trackpad, Keyboard, Remote, Dictation, Send text to PC, Get text from PC, or tablet split mode.</li>
           <li>Optionally add the mobile page to your home screen for faster access later.</li>
         </ol>
       </section>

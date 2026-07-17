@@ -136,6 +136,14 @@ need to occupy the context of unrelated work.
 
 ## Verification
 
+Use the smallest validation that provides reasonable confidence in the change.
+
+Validation commands listed in this repository are options, not a checklist.
+Run broad or release-level gates only when the scope or risk warrants them, or
+when the user explicitly requests them.
+
+Do not repeat a successful check unless later changes could affect its result.
+
 Choose validation by behavior and risk:
 
 - New or changed native, filesystem, registry, network, process, persistence, or
@@ -147,9 +155,8 @@ Choose validation by behavior and risk:
   focused visual check at the affected layouts, themes, and interaction states.
 - Documentation-only changes require reference, command, and factual checks.
 
-Start with the smallest focused check, then run the broader relevant gate once
-at the integration boundary. Run root build and test commands sequentially
-because host projects share .NET outputs:
+When root build and test commands are warranted, run them sequentially because
+host projects share .NET outputs:
 
 ```powershell
 npm run build

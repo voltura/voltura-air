@@ -136,13 +136,13 @@ jobs:
             exit $LASTEXITCODE
           }
 
-          $remoteTag = git ls-remote --exit-code --tags origin "refs/tags/$tag"
-          if ($LASTEXITCODE -eq 0) {
-            throw "Release tag '$tag' already exists. Prepare and publish a new semantic version instead of moving an existing tag."
+          $remoteTag = git ls-remote --tags origin "refs/tags/$tag"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not verify whether release tag '$tag' already exists."
           }
 
-          if ($LASTEXITCODE -ne 2) {
-            throw "Could not verify whether release tag '$tag' already exists."
+          if ($remoteTag) {
+            throw "Release tag '$tag' already exists. Prepare and publish a new semantic version instead of moving an existing tag."
           }
 
       - name: Create release and upload assets

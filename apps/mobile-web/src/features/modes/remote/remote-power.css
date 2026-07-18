@@ -282,7 +282,6 @@
   background: linear-gradient(90deg, var(--danger) var(--hold-progress), color-mix(in srgb, var(--danger) 12%, var(--surface-raised)) var(--hold-progress));
   color: var(--text);
   touch-action: none;
-  user-select: none;
 }
 
 .hold-confirm-button span {

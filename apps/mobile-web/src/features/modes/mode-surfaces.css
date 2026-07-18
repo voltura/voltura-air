@@ -64,10 +64,7 @@
   place-items: center;
   overscroll-behavior: none;
   touch-action: none;
-  -webkit-touch-callout: none;
   -webkit-user-drag: none;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 .trackpad-mode.expanded .trackpad-surface {
@@ -122,9 +119,6 @@
   padding-bottom: 10px;
   font-weight: 700;
   touch-action: manipulation;
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 .trackpad-mode.large-click-buttons .mouse-buttons button {
@@ -151,9 +145,6 @@
   background: transparent;
   font-weight: 700;
   touch-action: manipulation;
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 .trackpad-mode.large-click-buttons .trackpad-click-zones button {
@@ -194,9 +185,6 @@
   font-weight: 700;
   overscroll-behavior: none;
   touch-action: none;
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 @media (orientation: landscape) and (height <= 520px) {

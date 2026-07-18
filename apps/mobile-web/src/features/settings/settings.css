@@ -119,7 +119,6 @@
   list-style: none;
   padding: var(--space-md);
   touch-action: manipulation;
-  user-select: none;
 }
 
 .settings-section summary::-webkit-details-marker {

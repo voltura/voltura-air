@@ -33,7 +33,7 @@ export function PairingStatus({
   const feedback = useMemo(() => getPairingFeedback(message, activePcUnavailable), [activePcUnavailable, message]);
   const headingId = useId();
   const descriptionId = useId();
-  const headingRef = useRef<HTMLHeadingElement | null>(null);
+  const primaryActionRef = useRef<HTMLButtonElement | null>(null);
   const sectionRef = useRef<HTMLElement | null>(null);
   const isBlocking = activePcUnavailable || connectionProgress !== undefined;
   const [showHelp, setShowHelp] = useState(false);
@@ -49,8 +49,8 @@ export function PairingStatus({
       return;
     }
 
-    headingRef.current?.focus();
-  }, [connectionProgress, isBlocking]);
+    primaryActionRef.current?.focus();
+  }, [isBlocking]);
 
   useEffect(() => {
     if (!copyToast) {
@@ -105,7 +105,7 @@ export function PairingStatus({
     ) ?? [])];
     if (focusable.length === 0) {
       event.preventDefault();
-      headingRef.current?.focus();
+      primaryActionRef.current?.focus();
       return;
     }
 
@@ -129,6 +129,12 @@ export function PairingStatus({
   const progressBody = connectionProgress === "connected"
     ? "Connection restored. Returning to your previous screen."
     : "Checking whether Voltura Air is available.";
+  const primaryActionDisabled = connectionProgress !== undefined;
+  const primaryActionLabel = connectionProgress === "reconnecting"
+    ? "Reconnecting…"
+    : connectionProgress === "connected"
+      ? "Connected"
+      : primaryLabel ?? feedback.primaryLabel;
 
   return (
     <>
@@ -152,7 +158,7 @@ export function PairingStatus({
               ? <Power aria-hidden="true" />
               : <Camera aria-hidden="true" />}
         <p className="pairing-status-label">{connectionProgress ? "Connection status" : feedback.severity === "info" ? "Pairing" : "Pairing feedback"}</p>
-        <h1 ref={headingRef} id={headingId} tabIndex={isBlocking ? -1 : undefined}>{connectionProgress ? progressTitle : feedback.title}</h1>
+        <h1 id={headingId}>{connectionProgress ? progressTitle : feedback.title}</h1>
         <p id={descriptionId}>{connectionProgress ? progressBody : feedback.body}</p>
         {!connectionProgress && feedback.diagnosticCode && <p className="pairing-diagnostic-code">{feedback.diagnosticCode}</p>}
 
@@ -177,17 +183,34 @@ export function PairingStatus({
         )}
 
         <div className="pairing-actions">
-          {connectionProgress === "reconnecting" ? (
-            <button className="pairing-action-primary" type="button" disabled>
-              <LoaderCircle className="pairing-progress-icon" aria-hidden="true" />
-              <span>Reconnecting…</span>
-            </button>
-          ) : connectionProgress !== "connected" && (
-            <button className="pairing-action-primary" type="button" onClick={onPrimaryAction}>
-              <RefreshCw aria-hidden="true" />
-              <span>{primaryLabel ?? feedback.primaryLabel}</span>
-            </button>
-          )}
+          <button
+            ref={primaryActionRef}
+            className="pairing-action-primary"
+            type="button"
+            aria-disabled={primaryActionDisabled || undefined}
+            onClick={() => {
+              if (!primaryActionDisabled) {
+                onPrimaryAction();
+              }
+            }}
+          >
+            {connectionProgress === "reconnecting" ? (
+              <>
+                <LoaderCircle className="pairing-progress-icon" aria-hidden="true" />
+                <span>{primaryActionLabel}</span>
+              </>
+            ) : connectionProgress === "connected" ? (
+              <>
+                <CheckCircle2 aria-hidden="true" />
+                <span>{primaryActionLabel}</span>
+              </>
+            ) : (
+              <>
+                <RefreshCw aria-hidden="true" />
+                <span>{primaryActionLabel}</span>
+              </>
+            )}
+          </button>
           {!connectionProgress && onSecondaryAction && (
             <button className="pairing-action-secondary" type="button" onClick={onSecondaryAction}>
               <Camera aria-hidden="true" />

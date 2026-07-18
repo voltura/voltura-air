@@ -327,8 +327,11 @@ describe("App header and mode navigation", () => {
 
     expect(selectPc).toHaveBeenCalledWith("pc-a");
     expect(screen.getByRole("dialog").getAttribute("aria-modal")).toBe("true");
-    expect(screen.getByRole("heading", { name: "Reconnecting to Very Long Living Room Editing Workstation…" })).toBe(document.activeElement);
-    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Reconnecting…" }).disabled).toBe(true);
+    const reconnectingAction = screen.getByRole("button", { name: "Reconnecting…" });
+    expect(reconnectingAction).toBe(document.activeElement);
+    expect(reconnectingAction.getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(reconnectingAction);
+    expect(selectPc).toHaveBeenCalledOnce();
     expect(screen.getByRole("button", { name: "Expand trackpad" })).toBeTruthy();
 
     mockConnection({ state: "connecting", message: "Connecting...", selectPc });
@@ -341,6 +344,9 @@ describe("App header and mode navigation", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Connected to Very Long Living Room Editing Workstation" })).toBeTruthy();
     });
+    const connectedAction = screen.getByRole("button", { name: "Connected" });
+    expect(connectedAction).toBe(document.activeElement);
+    expect(connectedAction.getAttribute("aria-disabled")).toBe("true");
     await waitFor(() => {
       expect(screen.queryByRole("dialog")).toBeNull();
     }, { timeout: 1200 });

@@ -35,7 +35,6 @@ approved unfinished work.
 - Starts with a neutral tray badge while paired devices reconnect, and holds the connected badge through the short automatic-reconnect grace period; it shows the disconnected badge only when a device remains offline.
 - Keeps the host window hidden when the last paired device disconnects by default; reopening it on disconnect is an opt-in preference.
 - Supports light, dark, and system theme modes.
-- Prevents accidental selection of static app text and button labels during touch gestures while preserving normal selection in inputs, textareas, selects, content-editable fields, and explicitly copyable text surfaces.
 - Supports per-user installation without administrator rights.
 - Supports portable zip packaging.
 - Supports NSIS installer packaging.
@@ -191,6 +190,9 @@ approved unfinished work.
 - Stores saved text snippets locally on the current browser profile.
 - Stores theme preference.
 - Supports light, dark, and system theme modes.
+- Prevents accidental selection and touch callouts on static app text and
+  control chrome while preserving normal selection in inputs, textareas,
+  selects, content-editable fields, and explicitly copyable text surfaces.
 - Provides app refresh/cache reset flow for installed PWA cases.
 - Uses versioned QR links and service-worker caches so fresh host QR codes
   refresh stale mobile app shells.

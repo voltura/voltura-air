@@ -83,13 +83,6 @@
   grid-area: sleep;
 }
 
-.keyboard-mode button,
-.dictation-mode button {
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  user-select: none;
-}
-
 .function-key-row {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));

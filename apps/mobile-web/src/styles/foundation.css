@@ -62,9 +62,6 @@ button {
   gap: 8px;
   padding: 10px 14px;
   touch-action: manipulation;
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 button:focus-visible,
@@ -74,13 +71,7 @@ summary:focus-visible {
   outline-offset: 3px;
 }
 
-button * {
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  user-select: none;
-}
-
-button:active,
+button:not([aria-disabled="true"]):active,
 button.active {
   color: var(--on-accent);
   background: var(--accent-strong);
@@ -95,7 +86,8 @@ button[aria-checked="true"] {
   font-weight: 800;
 }
 
-button:disabled {
+button:disabled,
+button[aria-disabled="true"] {
   color: var(--disabled);
   background: var(--surface);
 }
@@ -131,6 +123,11 @@ svg {
   overflow: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+}
+
+.app-shell,
+.app-shell * {
+  -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
 }
@@ -139,7 +136,10 @@ svg {
 .app-shell textarea,
 .app-shell select,
 .app-shell [contenteditable="true"],
-.app-shell .selectable-text {
+.app-shell [contenteditable="true"] *,
+.app-shell .selectable-text,
+.app-shell .selectable-text *,
+.app-shell select * {
   -webkit-touch-callout: default;
   -webkit-user-select: text;
   user-select: text;

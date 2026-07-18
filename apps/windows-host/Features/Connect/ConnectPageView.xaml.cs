@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using WpfUserControl = System.Windows.Controls.UserControl;
@@ -9,6 +10,7 @@ namespace VolturaAir.Host.Features.Connect;
 public partial class ConnectPageView : WpfUserControl
 {
     private readonly Action _createNewCode;
+    private readonly Action _copyLink;
     private readonly Func<DateTimeOffset> _getCurrentTime;
     private readonly DateTimeOffset _refreshAt;
     private readonly DispatcherTimer _countdownTimer;
@@ -23,6 +25,7 @@ public partial class ConnectPageView : WpfUserControl
         string selectedIp,
         string selectedPort,
         string? addressWarning,
+        string? addressWarningEmphasis,
         string? portWarning,
         DateTimeOffset refreshAt,
         Action createNewCode,
@@ -31,6 +34,7 @@ public partial class ConnectPageView : WpfUserControl
     {
         InitializeComponent();
         _createNewCode = createNewCode;
+        _copyLink = copyLink;
         _getCurrentTime = getCurrentTime ?? GetCurrentTime;
         _refreshAt = refreshAt;
         _countdownTimer = new DispatcherTimer(DispatcherPriority.Normal, Dispatcher)
@@ -47,11 +51,9 @@ public partial class ConnectPageView : WpfUserControl
         HostUrlCard.Value = hostUrl;
         SelectedIpCard.Value = selectedIp;
         SelectedPortCard.Value = selectedPort;
-        SetNotice(AddressWarningNotice, AddressWarningText, addressWarning);
+        SetNotice(AddressWarningNotice, AddressWarningText, addressWarning, addressWarningEmphasis);
         SetNotice(PortWarningNotice, PortWarningText, portWarning);
         RenderCountdown(_getCurrentTime());
-        NewCodeButton.Click += (_, _) => RequestNewCode();
-        CopyLinkButton.Click += (_, _) => copyLink();
     }
 
     internal static string FormatRefreshCountdown(DateTimeOffset refreshAt, DateTimeOffset now)
@@ -77,10 +79,44 @@ public partial class ConnectPageView : WpfUserControl
 
     private static DateTimeOffset GetCurrentTime() => DateTimeOffset.UtcNow;
 
-    private static void SetNotice(FrameworkElement notice, TextBlock textBlock, string? message)
+    private static void SetNotice(
+        FrameworkElement notice,
+        TextBlock textBlock,
+        string? message,
+        string? emphasis = null)
     {
-        textBlock.Text = message ?? string.Empty;
-        notice.Visibility = string.IsNullOrWhiteSpace(message) ? Visibility.Collapsed : Visibility.Visible;
+        textBlock.Inlines.Clear();
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            notice.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        notice.Visibility = Visibility.Visible;
+        if (string.IsNullOrWhiteSpace(emphasis))
+        {
+            textBlock.Inlines.Add(new Run(message));
+            return;
+        }
+
+        var emphasisIndex = message.IndexOf(emphasis, StringComparison.Ordinal);
+        if (emphasisIndex < 0)
+        {
+            textBlock.Inlines.Add(new Run(message));
+            return;
+        }
+
+        if (emphasisIndex > 0)
+        {
+            textBlock.Inlines.Add(new Run(message[..emphasisIndex]));
+        }
+
+        textBlock.Inlines.Add(new Run(emphasis) { FontWeight = FontWeights.Bold });
+        var suffixIndex = emphasisIndex + emphasis.Length;
+        if (suffixIndex < message.Length)
+        {
+            textBlock.Inlines.Add(new Run(message[suffixIndex..]));
+        }
     }
 
     private void OnLoaded(object sender, RoutedEventArgs eventArgs)
@@ -116,6 +152,16 @@ public partial class ConnectPageView : WpfUserControl
     private void OnCountdownTick(object? sender, EventArgs eventArgs)
     {
         ProcessCountdown();
+    }
+
+    private void OnNewCodeClicked(object sender, RoutedEventArgs eventArgs)
+    {
+        RequestNewCode();
+    }
+
+    private void OnCopyLinkClicked(object sender, RoutedEventArgs eventArgs)
+    {
+        _copyLink();
     }
 
     private void StartCountdown()

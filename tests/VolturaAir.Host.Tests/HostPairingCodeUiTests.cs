@@ -1,4 +1,6 @@
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using VolturaAir.Host;
@@ -19,6 +21,7 @@ public sealed partial class HostUiLayoutTests
 
         RunOnStaThread(() =>
         {
+            using var settingsScope = HostSettingsRegistry.BeginIsolatedScope();
             using var appScope = new WpfApplicationScope();
             using var store = new TempPairingStore();
             using var inputInjector = new SendInputInjector();
@@ -145,6 +148,7 @@ public sealed partial class HostUiLayoutTests
                 "51395",
                 null,
                 null,
+                null,
                 now,
                 () => refreshCalls += 1,
                 static () => { },
@@ -168,6 +172,109 @@ public sealed partial class HostUiLayoutTests
 
         Assert.Equal("Refreshes in 4:45", ConnectPageView.FormatRefreshCountdown(now.AddMinutes(4).AddSeconds(45), now));
         Assert.Equal("Refreshes in 0:00", ConnectPageView.FormatRefreshCountdown(now.AddMilliseconds(-1), now));
+    }
+
+    [Fact]
+    public void ConnectDetailsUseRemainingSpaceAndOwnScrolling()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var settingsScope = HostSettingsRegistry.BeginIsolatedScope();
+            using var appScope = new WpfApplicationScope();
+            using var store = new TempPairingStore();
+            using var inputInjector = new SendInputInjector();
+            var manager = new PairingManager(store.Store);
+            var webHost = new WebHostService(manager, new InputDispatcher(inputInjector), isolatedTestMode: true);
+            var window = new MainWindow(manager, webHost, clientUrl: null)
+            {
+                Width = 920,
+                Height = 620
+            };
+            try
+            {
+                window.ShowPage(HostPage.Connect);
+                var windowContent = Assert.IsType<Grid>(window.Content);
+                var compactClientSize = new Size(920, 580);
+                windowContent.Measure(compactClientSize);
+                windowContent.Arrange(new Rect(compactClientSize));
+                windowContent.UpdateLayout();
+
+                var codeCard = FindWpfDescendants<InfoCard>(window).Single(card => card.Title == "QR code");
+                var actions = Assert.IsType<SpacingStackPanel>(codeCard.Actions);
+                Assert.Collection(
+                    actions.Children.OfType<Button>(),
+                    button => Assert.Equal("New code", button.Content),
+                    button => Assert.Equal("Copy link", button.Content));
+
+                var details = FindWpfDescendants<Expander>(window).Single(expander => expander.Header is "Details");
+                Assert.Same(window.Resources["BoundedAccordionStyle"], details.Style);
+                var scroller = Assert.Single(FindWpfDescendants<ScrollViewer>(details));
+                details.IsExpanded = true;
+                windowContent.Measure(compactClientSize);
+                windowContent.Arrange(new Rect(compactClientSize));
+                windowContent.UpdateLayout();
+
+                Assert.Equal(ScrollBarVisibility.Auto, scroller.VerticalScrollBarVisibility);
+                Assert.Equal(ScrollBarVisibility.Disabled, scroller.HorizontalScrollBarVisibility);
+                Assert.True(scroller.ViewportHeight > 0, $"Viewport height was {scroller.ViewportHeight}.");
+                Assert.True(scroller.ScrollableHeight > 0, $"Scrollable height was {scroller.ScrollableHeight}; viewport {scroller.ViewportHeight}; extent {scroller.ExtentHeight}; actual {scroller.ActualHeight}.");
+                Assert.True(scroller.ActualHeight < scroller.ExtentHeight, $"Actual height was {scroller.ActualHeight}; extent was {scroller.ExtentHeight}.");
+            }
+            finally
+            {
+                window.Close();
+                webHost.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        });
+    }
+
+    [Fact]
+    public void ConnectWarningEmphasizesTheSelectedAdapterName()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            const string adapterName = "Wi-Fi (Intel Wireless Adapter)";
+            const string warning = "Multiple network adapters found. Voltura Air selected Wi-Fi (Intel Wireless Adapter). If your phone cannot connect, choose the adapter connected to the same Wi-Fi/LAN.";
+            var now = DateTimeOffset.UtcNow;
+            var view = new ConnectPageView(
+                CreateTestBitmap(),
+                "Ready to pair",
+                "http://pc.local/pair?t=redacted",
+                "http://pc.local",
+                "192.168.1.10",
+                "51395",
+                warning,
+                adapterName,
+                null,
+                now.AddMinutes(5),
+                static () => { },
+                static () => { });
+
+            var runs = view.AddressWarningText.Inlines.OfType<Run>().ToArray();
+            Assert.Equal(3, runs.Length);
+            Assert.Equal("Multiple network adapters found. Voltura Air selected ", runs[0].Text);
+            Assert.Equal(adapterName, runs[1].Text);
+            Assert.Equal(FontWeights.Bold, runs[1].FontWeight);
+            Assert.Equal(". If your phone cannot connect, choose the adapter connected to the same Wi-Fi/LAN.", runs[2].Text);
+        });
+    }
+
+    private static Button FindPairingCodeAction(DependencyObject root, string label)
+    {
+        var codeCard = FindWpfDescendants<InfoCard>(root).Single(card => card.Title == "QR code");
+        var actions = Assert.IsAssignableFrom<Panel>(codeCard.Actions);
+        return actions.Children.OfType<Button>()
+            .Single(button => string.Equals(button.Content?.ToString(), label, StringComparison.Ordinal));
     }
 
     private static BitmapSource CreateTestBitmap()

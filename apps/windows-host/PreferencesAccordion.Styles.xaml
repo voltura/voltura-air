@@ -4,7 +4,7 @@
         <ResourceDictionary Source="Styles/Generated/UiTokens.xaml" />
     </ResourceDictionary.MergedDictionaries>
 
-    <Style x:Key="PreferencesAccordionStyle" TargetType="Expander">
+    <Style x:Key="AccordionStyle" TargetType="Expander">
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
@@ -23,7 +23,7 @@
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
                             <ToggleButton x:Name="HeaderButton"
                                           MinHeight="38"
@@ -107,6 +107,21 @@
             </Setter.Value>
         </Setter>
     </Style>
+
+    <Style x:Key="BoundedAccordionStyle"
+           TargetType="Expander"
+           BasedOn="{StaticResource AccordionStyle}">
+        <Setter Property="VerticalAlignment" Value="Top" />
+        <Style.Triggers>
+            <Trigger Property="IsExpanded" Value="True">
+                <Setter Property="VerticalAlignment" Value="Stretch" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="PreferencesAccordionStyle"
+           TargetType="Expander"
+           BasedOn="{StaticResource AccordionStyle}" />
 
     <Style x:Key="PreferencesNestedAccordionStyle"
            TargetType="Expander"

@@ -23,48 +23,63 @@
                    Stretch="Uniform" />
         </Border>
 
-        <ui:SpacingStackPanel Grid.Column="2" Spacing="{DynamicResource SpaceMd}">
-            <ui:InfoCard x:Name="StatusCard" Title="Current status" Emphasized="True" />
-            <ui:InfoCard x:Name="PairingCodeCard" Title="QR code" />
+        <Grid Grid.Column="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="{DynamicResource GridSpaceMd}" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-            <Border x:Name="AddressWarningNotice"
-                    Padding="{DynamicResource InsetMd}"
-                    Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource AccentBrush}"
-                    BorderThickness="1"
-                    CornerRadius="{DynamicResource RadiusMedium}"
-                    Visibility="Collapsed">
-                <TextBlock x:Name="AddressWarningText" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap" />
-            </Border>
+            <ui:SpacingStackPanel Spacing="{DynamicResource SpaceMd}">
+                <ui:InfoCard x:Name="StatusCard" Title="Current status" Emphasized="True" />
+                <ui:InfoCard x:Name="PairingCodeCard" Title="QR code">
+                    <ui:InfoCard.Actions>
+                        <ui:SpacingStackPanel Orientation="Horizontal" Spacing="{DynamicResource SpaceSm}">
+                            <Button Content="New code"
+                                    Style="{DynamicResource PrimaryButtonStyle}"
+                                    Click="OnNewCodeClicked" />
+                            <Button Content="Copy link" Click="OnCopyLinkClicked" />
+                        </ui:SpacingStackPanel>
+                    </ui:InfoCard.Actions>
+                </ui:InfoCard>
 
-            <Border x:Name="PortWarningNotice"
-                    Padding="{DynamicResource InsetMd}"
-                    Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource AccentBrush}"
-                    BorderThickness="1"
-                    CornerRadius="{DynamicResource RadiusMedium}"
-                    Visibility="Collapsed">
-                <TextBlock x:Name="PortWarningText" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap" />
-            </Border>
+                <Border x:Name="AddressWarningNotice"
+                        Padding="{DynamicResource InsetMd}"
+                        Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource AccentBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{DynamicResource RadiusMedium}"
+                        Visibility="Collapsed">
+                    <TextBlock x:Name="AddressWarningText" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap" />
+                </Border>
 
-            <Expander Header="Details"
+                <Border x:Name="PortWarningNotice"
+                        Padding="{DynamicResource InsetMd}"
+                        Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource AccentBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{DynamicResource RadiusMedium}"
+                        Visibility="Collapsed">
+                    <TextBlock x:Name="PortWarningText" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap" />
+                </Border>
+            </ui:SpacingStackPanel>
+
+            <Expander x:Name="DetailsExpander"
+                      Grid.Row="2"
+                      Header="Details"
                       IsExpanded="False"
-                      Foreground="{DynamicResource TextBrush}"
-                      Background="{DynamicResource WindowBrush}">
-                <Border Padding="0,12,0,0">
+                      Style="{DynamicResource BoundedAccordionStyle}">
+                <ScrollViewer x:Name="DetailsScroller"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
                     <ui:SpacingStackPanel Spacing="{DynamicResource SpaceMd}">
                         <ui:InfoCard x:Name="PairingLinkCard" Title="Pairing link" Monospace="True" />
                         <ui:InfoCard x:Name="HostUrlCard" Title="Host URL" Monospace="True" />
                         <ui:InfoCard x:Name="SelectedIpCard" Title="Selected IP" Monospace="True" />
                         <ui:InfoCard x:Name="SelectedPortCard" Title="Selected port" Monospace="True" />
                     </ui:SpacingStackPanel>
-                </Border>
+                </ScrollViewer>
             </Expander>
-
-            <ui:SpacingStackPanel Orientation="Horizontal" Spacing="{DynamicResource SpaceSm}">
-                <Button x:Name="NewCodeButton" Content="New code" Style="{DynamicResource PrimaryButtonStyle}" />
-                <Button x:Name="CopyLinkButton" Content="Copy link" />
-            </ui:SpacingStackPanel>
-        </ui:SpacingStackPanel>
+        </Grid>
     </Grid>
 </UserControl>

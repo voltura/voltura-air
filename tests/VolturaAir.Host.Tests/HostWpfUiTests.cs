@@ -73,7 +73,7 @@ public sealed partial class HostUiLayoutTests
                 window.ShowPage(HostPage.Connect);
                 window.UpdateLayout();
                 Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "Connect");
-                Assert.Contains(FindWpfDescendants<Button>(window), button => button.Content?.ToString() == "New code");
+                Assert.Equal("New code", FindPairingCodeAction(window, "New code").Content);
 
                 window.ShowPage(HostPage.Connection);
                 window.UpdateLayout();
@@ -206,8 +206,7 @@ public sealed partial class HostUiLayoutTests
                 window.ShowPage(HostPage.Connect);
                 window.UpdateLayout();
 
-                var copyLink = FindWpfDescendants<Button>(window)
-                    .Single(button => button.Content?.ToString() == "Copy link");
+                var copyLink = FindPairingCodeAction(window, "Copy link");
                 copyLink.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 DoWpfEvents();
 

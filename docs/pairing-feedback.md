@@ -28,6 +28,12 @@ expiry. It performs no countdown work while hidden; reopening Connect replaces a
 code that has reached its refresh time before showing it. **New code** replaces
 the visible code immediately.
 
+The Connect screen groups the countdown, **New code**, and **Copy link** in the
+QR status card so the code actions remain visible. Technical connection details
+use a collapsed accordion that grows only into the remaining page height; its
+body scrolls when the details do not fit. When automatic selection finds
+multiple network adapters, the warning emphasizes the selected adapter name.
+
 Rotation retains only the immediately previous code, for no more than 15
 seconds, so a scan already in progress can finish. Accepting a code consumes both
 available code slots and makes the Connect screen generate and display a new

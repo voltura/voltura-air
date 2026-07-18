@@ -49,6 +49,9 @@ approved unfinished work.
 - Serializes sends per authenticated socket, bounds send and close operations,
   and coalesces repeated host-status updates through one owned worker.
 - Uses QR pairing links for first-time setup.
+- Shows the pairing-code refresh countdown with **New code** and **Copy link**
+  in the QR status card, and keeps technical connection details in a bounded,
+  internally scrollable accordion.
 - Supports saved reconnects after pairing.
 - Supports manual host entry on mobile for recovery.
 - Supports automatic network adapter selection.
@@ -56,6 +59,7 @@ approved unfinished work.
 - Supports automatic port selection from the preferred Voltura Air port.
 - Supports manual port settings with validation.
 - Shows network/port warnings when automatic choices may be stale or unreachable.
+- Emphasizes the selected adapter name in the multiple-network-adapter warning.
 
 ### Pairing and trust
 

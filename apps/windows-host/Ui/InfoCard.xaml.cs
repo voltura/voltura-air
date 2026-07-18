@@ -30,6 +30,12 @@ public partial class InfoCard : WpfUserControl
         typeof(InfoCard),
         new PropertyMetadata(false));
 
+    public static readonly DependencyProperty ActionsProperty = DependencyProperty.Register(
+        nameof(Actions),
+        typeof(object),
+        typeof(InfoCard),
+        new PropertyMetadata(null));
+
     public InfoCard()
     {
         InitializeComponent();
@@ -57,5 +63,11 @@ public partial class InfoCard : WpfUserControl
     {
         get => (bool)GetValue(MonospaceProperty);
         set => SetValue(MonospaceProperty, value);
+    }
+
+    public object? Actions
+    {
+        get => GetValue(ActionsProperty);
+        set => SetValue(ActionsProperty, value);
     }
 }

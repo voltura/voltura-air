@@ -40,7 +40,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
 
     public MainWindow MainWindow { get; }
 
-    public static async Task<WpfHostRuntime> StartAsync(string[] args)
+    public static async Task<WpfHostRuntime> StartAsync(string[] args, Action requestShutdown)
     {
 #if DEBUG
         var pairingStoreRoot = GetOption(args, "--pairing-store-root");
@@ -118,7 +118,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
 #if DEBUG
             WritePairingUrlIfRequested(args, mainWindow.PairingUrl);
 #endif
-            trayContext = new WpfTrayApplicationContext(mainWindow, webHost, pairingManager, awakeService);
+            trayContext = new WpfTrayApplicationContext(mainWindow, webHost, pairingManager, awakeService, requestShutdown);
             return new WpfHostRuntime(
                 inputInjector,
                 cursorWatchdogService,

@@ -30,6 +30,18 @@
                     </Style>
                 </TextBlock.Style>
             </TextBlock>
+            <ContentPresenter Content="{Binding Actions, RelativeSource={RelativeSource AncestorType={x:Type local:InfoCard}}}">
+                <ContentPresenter.Style>
+                    <Style TargetType="ContentPresenter">
+                        <Setter Property="HorizontalAlignment" Value="Left" />
+                        <Style.Triggers>
+                            <Trigger Property="Content" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </ContentPresenter.Style>
+            </ContentPresenter>
         </local:SpacingStackPanel>
     </Border>
 </UserControl>

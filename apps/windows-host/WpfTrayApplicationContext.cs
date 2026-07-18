@@ -4,7 +4,6 @@ using System.Windows;
 using System.Windows.Threading;
 using Forms = System.Windows.Forms;
 using DrawingFontStyle = System.Drawing.FontStyle;
-using WpfApplication = System.Windows.Application;
 
 namespace VolturaAir.Host;
 
@@ -25,6 +24,7 @@ internal sealed partial class WpfTrayApplicationContext : IDisposable
     private readonly PairingManager _pairingManager;
     private readonly WebHostService _webHost;
     private readonly IAwakeService _awakeService;
+    private readonly Action _requestShutdown;
     private readonly Forms.NotifyIcon _trayIcon;
     private readonly Forms.ContextMenuStrip _trayMenu = new();
     private readonly Dictionary<TrayConnectionState, Icon> _trayIcons;
@@ -42,13 +42,19 @@ internal sealed partial class WpfTrayApplicationContext : IDisposable
     private bool _hadActiveController;
     private bool _disposed;
 
-    public WpfTrayApplicationContext(MainWindow mainWindow, WebHostService webHost, PairingManager pairingManager, IAwakeService awakeService)
+    public WpfTrayApplicationContext(
+        MainWindow mainWindow,
+        WebHostService webHost,
+        PairingManager pairingManager,
+        IAwakeService awakeService,
+        Action requestShutdown)
     {
         _mainWindow = mainWindow;
         _dispatcher = mainWindow.Dispatcher;
         _webHost = webHost;
         _pairingManager = pairingManager;
         _awakeService = awakeService;
+        _requestShutdown = requestShutdown;
         _hadActiveController = pairingManager.HasActiveController;
         _trayConnectionIndicator = new TrayConnectionIndicator(
             pairingManager.IsPaired,
@@ -89,7 +95,7 @@ internal sealed partial class WpfTrayApplicationContext : IDisposable
         BuildAwakeMenu();
         _trayMenu.Items.Add("Open product page", null, (_, _) => RunTrayCommand(OpenProductSite));
         _trayMenu.Items.Add(new Forms.ToolStripSeparator());
-        _trayMenu.Items.Add("Exit", null, (_, _) => RunTrayCommand(ExitApplication));
+        _trayMenu.Items.Add("Exit", null, (_, _) => RunTrayCommand(RequestExit));
     }
 
     private void ApplyMenuTheme()
@@ -117,27 +123,11 @@ internal sealed partial class WpfTrayApplicationContext : IDisposable
         });
     }
 
-    private void ExitApplication()
+    internal void RequestExit()
     {
-        try
-        {
-            _mainWindow.AllowClose();
-            _trayIcon.Visible = false;
-
-            var application = WpfApplication.Current;
-            if (application.Dispatcher.CheckAccess())
-            {
-                application.Shutdown();
-            }
-            else
-            {
-                application.Dispatcher.BeginInvoke(() => application.Shutdown());
-            }
-        }
-        catch (InvalidOperationException)
-        {
-            Environment.Exit(0);
-        }
+        _mainWindow.AllowClose();
+        _trayIcon.Visible = false;
+        _requestShutdown();
     }
 
     public void Dispose()

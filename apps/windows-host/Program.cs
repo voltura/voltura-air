@@ -27,16 +27,21 @@ internal static class Program
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown
         };
+        var shutdownCoordinator = new WpfShutdownCoordinator(
+            app.Dispatcher,
+            DisposeRuntimeAsync,
+            app.Shutdown,
+            static exception => Console.Error.WriteLine("Voltura Air shutdown cleanup failed: {0}", exception.Message));
         app.Exit += OnApplicationExit;
 
         var startupWindow = new StartupWindow();
         startupWindow.Show();
 
-        _ = app.Dispatcher.InvokeAsync(() => InitializeAsync(startupWindow, args));
+        _ = app.Dispatcher.InvokeAsync(() => InitializeAsync(startupWindow, args, shutdownCoordinator.RequestShutdown));
         app.Run();
     }
 
-    private static async Task InitializeAsync(StartupWindow startupWindow, string[] args)
+    private static async Task InitializeAsync(StartupWindow startupWindow, string[] args, Action requestShutdown)
     {
         var startedAt = DateTimeOffset.UtcNow;
         try
@@ -54,7 +59,7 @@ internal static class Program
             ConfigureIsolatedDevelopmentSettings(args, isolatedTestMode);
             ConfigureSiteScreenshotSettings(args);
 #endif
-            s_runtime = await WpfHostRuntime.StartAsync(args);
+            s_runtime = await WpfHostRuntime.StartAsync(args, requestShutdown);
             var remaining = TimeSpan.FromMilliseconds(1500) - (DateTimeOffset.UtcNow - startedAt);
             if (remaining > TimeSpan.Zero)
             {
@@ -179,13 +184,24 @@ internal static class Program
 
     private static void OnApplicationExit(object sender, ExitEventArgs e)
     {
+        s_runtime = null;
+        s_isolatedSettingsScope?.Dispose();
+        s_isolatedSettingsScope = null;
+    }
+
+    private static async ValueTask DisposeRuntimeAsync()
+    {
+        var runtime = s_runtime;
+        s_runtime = null;
         try
         {
-            s_runtime?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            if (runtime is not null)
+            {
+                await runtime.DisposeAsync();
+            }
         }
         finally
         {
-            s_runtime = null;
             s_isolatedSettingsScope?.Dispose();
             s_isolatedSettingsScope = null;
         }

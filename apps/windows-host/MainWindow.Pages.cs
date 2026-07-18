@@ -29,6 +29,7 @@ public partial class MainWindow
             _webHost.AdvertisedHostAddress,
             _webHost.Port.ToString(CultureInfo.InvariantCulture),
             _webHost.AddressSelectionWarning,
+            _webHost.SelectedAdapterName,
             _webHost.PortSelectionWarning,
             _pairingCode.RefreshAt,
             NewPairing,

@@ -36,6 +36,7 @@ document's role, subject, and update trigger.
 | [Root README](../README.md) | Derived public | Product orientation, screenshots, trust, installation choices, development entry point, and authority links. |
 | [Contributing guide](../CONTRIBUTING.md) | Contributor authority | Contribution scope, checks, conduct, and security routing. |
 | [Code of conduct](../CODE_OF_CONDUCT.md) | Governance authority | Community behavior and enforcement. |
+| [Privacy policy](../PRIVACY.md) | Privacy authority | Local data handling, external services, diagnostic logging, retention, and deletion. Update when those behaviors change. |
 | [Security policy](../SECURITY.md) | Security authority | Private vulnerability reporting and disclosure expectations. |
 | [Branding asset guide](../assets/branding/README.md) | Asset authority | Artwork inputs, generated consumers, and retained source assets. |
 | [Bug-report form](../.github/ISSUE_TEMPLATE/bug_report.yml) | Public intake | Reproduction, environment, connection, and redacted diagnostic fields. |

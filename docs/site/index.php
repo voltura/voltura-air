@@ -177,6 +177,7 @@
             <li>Choose what paired devices are allowed to do.</li>
             <li>Keep sensitive PC actions disabled until you explicitly enable them.</li>
           </ul>
+          <p><a href="https://github.com/voltura/voltura-air/blob/main/PRIVACY.md">Read the privacy policy</a></p>
         </div>
       </section>
 
@@ -231,6 +232,7 @@
     <footer>
       <a href="https://voltura.se/" aria-label="Voltura AB home">Voltura AB</a>
       <a href="https://github.com/voltura/voltura-air">GitHub</a>
+      <a href="https://github.com/voltura/voltura-air/blob/main/PRIVACY.md">Privacy</a>
       <a href="https://github.com/voltura/voltura-air/blob/main/LICENSE">MIT License</a>
       <a href="https://www.linkedin.com/in/joakim-voltura/">LinkedIn</a>
       <a href="https://ko-fi.com/voltura">Ko-fi</a>

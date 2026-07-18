@@ -35,6 +35,7 @@ portable ZIP.
 - Implemented capabilities: https://github.com/voltura/voltura-air/blob/main/docs/features.md
 - Setup: https://github.com/voltura/voltura-air/blob/main/docs/setup.md
 - Security policy: https://github.com/voltura/voltura-air/blob/main/SECURITY.md
+- Privacy policy: https://github.com/voltura/voltura-air/blob/main/PRIVACY.md
 - Source code: https://github.com/voltura/voltura-air
 - Latest release: https://github.com/voltura/voltura-air/releases/latest
 - License: https://github.com/voltura/voltura-air/blob/main/LICENSE

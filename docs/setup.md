@@ -65,6 +65,19 @@ This starts Vite on port `5173` for React fast refresh and starts the Windows
 host through `dotnet run`. The QR code normally opens the host-served client so
 the app and `/ws` use the same origin.
 
+For the quickest phone layout and interaction loop, run:
+
+```powershell
+npm run dev:quick
+```
+
+This runs a fast Vite bundle build without type checking, linting, tests, or the
+bundle-budget gate, then starts the current host through `dotnet run`. The host
+serves the newly built client from its normal origin, so an existing bookmarked
+app can receive it through the normal build-ID auto-refresh. Restart
+`npm run dev:quick` after another source edit. Use the normal build and
+validation commands before treating the change as complete.
+
 For direct mobile Vite hot reload:
 
 ```powershell

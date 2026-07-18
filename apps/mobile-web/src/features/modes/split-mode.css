@@ -4,10 +4,6 @@
   min-height: 0;
 }
 
-.pairing-required.connection-unavailable {
-  top: 4px;
-}
-
 @media (orientation: landscape) and (width >= 640px) {
   .app-shell.split-mode-active {
     grid-template-rows: minmax(0, 1fr);
@@ -50,13 +46,13 @@
 
   .split-mode-shell {
     display: grid;
-    grid-template-columns: minmax(356px, 0.95fr) minmax(240px, 1.05fr);
+    grid-template-columns: minmax(356px, 3fr) minmax(240px, 2fr);
     gap: 10px;
     overflow: hidden;
   }
 
   .split-mode-shell.split-trackpad-left {
-    grid-template-columns: minmax(240px, 1.05fr) minmax(356px, 0.95fr);
+    grid-template-columns: minmax(240px, 2fr) minmax(356px, 3fr);
   }
 
   .split-mode-shell.split-trackpad-left .split-trackpad-pane {
@@ -82,6 +78,14 @@
     min-width: 0;
     min-height: 0;
     align-content: start;
+    padding-bottom: 0;
+    scroll-padding-bottom: 0;
+  }
+
+  /* Keep the landscape bottom inset inside the final controls instead of
+     leaving an unusable strip below them. This mirrors the trackpad buttons. */
+  .split-keyboard-pane .app-switch-row button {
+    min-height: calc(48px + var(--mode-bottom-safe-area, 0px));
   }
 
   .split-keyboard-pane .live-typing-row {
@@ -118,5 +122,12 @@
 
   .split-trackpad-pane .trackpad-surface {
     min-height: 0;
+  }
+
+  /* A landscape side cutout sits below this top-corner control. Reserving its
+     full inline inset moves the toggle unnecessarily far into the trackpad. */
+  .split-trackpad-pane .trackpad-expand-button,
+  .split-trackpad-pane .trackpad-mode.expanded .trackpad-expand-button {
+    right: 10px;
   }
 }

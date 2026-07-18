@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Trash2 } from "lucide-react";
-import { GestureRecognizer, touchesFromList, type GestureOutput, type TouchPoint, type TrackpadSettings } from "../../../gestures";
+import { GestureRecognizer, touchesFromList, type GestureOutput, type TouchPoint, type TrackpadSettings } from "../../../foundation/input/gestures";
 
 interface GestureDebugModeProps {
   trackpadSettings: TrackpadSettings;

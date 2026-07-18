@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
-import type { AppTab } from "../../appModeTabs";
-import type { AppSettings } from "../../appSettings";
-import type { TrackpadSettings } from "../../gestures";
-import { triggerHapticFeedback } from "../../hapticFeedback";
-import { useKeyboardInput } from "../../input/useKeyboardInput";
-import { usePointerInput } from "../../input/usePointerInput";
-import { useSpeechDictation } from "../../input/useSpeechDictation";
-import type { KeyboardSettings } from "../../keyboardSettings";
-import { toLiveKeyboardValue } from "../../keyboardDelta";
-import type { RemoteSettings } from "../../remoteSettings";
-import type { useVolturaAirConnection } from "../../useVolturaAirConnection";
+import type { AppTab } from "./modeTypes";
+import type { AppSettings } from "../../foundation/settings/appSettings";
+import type { TrackpadSettings } from "../../foundation/input/gestures";
+import { triggerHapticFeedback } from "../../foundation/input/hapticFeedback";
+import { useKeyboardInput } from "../../foundation/input/useKeyboardInput";
+import { usePointerInput } from "../../foundation/input/usePointerInput";
+import { useSpeechDictation } from "../../foundation/input/useSpeechDictation";
+import type { KeyboardSettings } from "../../foundation/settings/keyboardSettings";
+import { toLiveKeyboardValue } from "../../foundation/input/keyboardDelta";
+import type { RemoteSettings } from "../../foundation/settings/remoteSettings";
+import type { useVolturaAirConnection } from "../../foundation/connection/useVolturaAirConnection";
 import { AppModeContent } from "./AppModeContent";
 
 type ConnectionContract = Pick<

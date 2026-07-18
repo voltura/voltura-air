@@ -36,9 +36,8 @@ Voltura Air is quiet, immediate, dependable, and native to its context.
    sheets, or dialogs.
 5. **Stable spatial behavior.** State changes do not unexpectedly move primary
    controls. Content growth is handled by an explicitly owned scroll region.
-6. **Input equality.** Touch, mouse, pen, keyboard, screen reader, and switch
-   access reach the same outcomes. Platform-only feedback such as vibration is
-   supplementary.
+6. **Surface input.** Follow the
+   [surface input priorities](#surface-input-priorities).
 7. **No silent degradation.** If a capability is unavailable, either omit it
    because the platform cannot support it or explain why it is disabled.
 
@@ -177,7 +176,7 @@ Every interactive primitive covers, as applicable:
 - default, hover, pressed, selected, focused, disabled, pending, success,
   warning, and error states;
 - light, dark, and system themes;
-- pointer, touch, and keyboard operation;
+- the input methods defined by the surface input priorities;
 - accessible name, role, value, and state;
 - reduced motion and high-contrast behavior.
 
@@ -207,6 +206,76 @@ focused test, or a short comment:
 - minimum usable inline and block size;
 - long-text and software-keyboard behavior.
 
+### Viewport and safe-area contract
+
+The mobile shell has one stable application frame:
+
+- in a normal browser, use the small viewport height (`svh`) so browser chrome
+  does not cover controls or continuously resize the shell;
+- in an installed borderless app, use the large viewport height (`lvh`) so the
+  application occupies the available display height;
+- retain `vh` only as the fallback when the newer viewport units are not
+  supported.
+
+The stable shell uses the layout viewport. The
+[visual viewport](https://www.w3.org/TR/cssom-view/#visual-viewport) is a
+separate, transient boundary used by overlays that must remain visible while a
+software keyboard or browser magnification reduces the visible area. Opening a
+keyboard must not resize the whole application shell.
+
+The shell normalizes the safe-area insets and each edge consumes its inset
+exactly once. An edge surface may extend to the display edge; its interactive
+content receives the inset as internal space. Do not apply the same inset in
+both the shell and a feature, and do not translate an entire control away from
+an edge to create safe-area space. These rules follow CSS
+[viewport units](https://www.w3.org/TR/css-values-4/#viewport-relative-lengths)
+and [environment variables](https://www.w3.org/TR/css-env-1/).
+
+Rotation is a size change, not a device-specific state. Layout is recomputed
+from the current available size and must not retain cached orientation geometry.
+
+### Adaptive composition contract
+
+- A composition changes from stacked to side by side only when every region
+  meets its declared minimum usable inline size.
+- Peer regions use equal tracks. An unequal ratio requires an explicit content
+  priority in the owning composition. Stack before labels overlap, controls are
+  clipped, or a region becomes unusable.
+- Dynamic collections use intrinsic or repeating tracks. Their layout must not
+  depend on a fixed item count.
+- When navigation or another shell region is hidden, the primary content slot
+  consumes all released inline and block space, including the correctly owned
+  edge inset.
+
+### Dialog contract
+
+Web dialogs use the shared dialog primitive based on the native
+[`dialog`](https://html.spec.whatwg.org/multipage/interactive-elements.html#the-dialog-element)
+element and the
+[WAI modal dialog pattern](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/).
+The primitive owns the scrim, focus, dismissal, safe-area bounds, and visual
+viewport adaptation. A feature owns only the title, body, actions, validation,
+and domain state.
+
+The dialog uses its intrinsic content height up to the visible maximum; it does
+not expand to fill the viewport. The title and action row remain visible. The
+body is the dialog's only scroll owner. A software keyboard may reduce the body
+but must not compress away the title, input, validation, or actions. Rotation,
+keyboard show/hide, and repeated open/close must recalculate the visible bounds
+without retaining stale geometry.
+On a wide landscape viewport, the dialog uses a horizontal composition with its
+content on the left and actions on the right. It returns to the stacked
+composition before either region becomes too narrow.
+Dialog width remains content-sized by default. The shared wide variant is used
+only when the content benefits from additional working width, such as a text
+entry form; short informational content does not expand across the viewport.
+When a software keyboard constrains a short landscape viewport, the dialog
+aligns with the visible keyboard boundary instead of preserving a decorative
+gap below it.
+Touch dismissal uses a visible close control, an explicit cancel or completion
+action, and light dismissal when the action is safe to abandon. Escape remains
+a secondary hardware-keyboard path.
+
 ### Canonical adaptive states
 
 Design and verify behavior, not device brands:
@@ -224,8 +293,12 @@ constraint. Do not introduce a device-specific breakpoint.
 
 ### React layout ownership
 
-- The application shell owns viewport height, safe areas, top-level navigation,
-  global overlays, and the one primary content slot.
+- The application shell owns the stable application frame, normalized safe
+  areas, top-level navigation, global overlay state, and the one primary content
+  slot. It does not use the visual viewport as the shell height.
+- Shared overlay primitives own portal placement, dialog mechanics, focus,
+  dismissal, and visual viewport adaptation. Features own overlay content and
+  domain state.
 - A mode root is a named containment context and owns its internal responsive
   behavior.
 - Prefer container queries for component and mode composition. Use viewport
@@ -233,10 +306,13 @@ constraint. Do not introduce a device-specific breakpoint.
   display mode, or the software keyboard boundary.
 - Keep global CSS limited to generated tokens, reset/base behavior, shell layout,
   and truly shared primitive styles. Feature layout is colocated with its React
-  component in a CSS module or a narrowly named feature stylesheet while it is
-  being migrated.
+  component in a CSS module or a narrowly named feature stylesheet.
 - A new shell state class requires a shell-level behavior. Feature details must
   not accumulate as application-shell modifiers.
+- Switching modes keeps the navigation shell stable and changes only selection
+  and mode content. Activating the selected mode toggles mode navigation without
+  removing the quick selector. The mode collection is dynamic; no layout may
+  assume a particular fourth mode or fixed mode count.
 - Settings disclosures start collapsed and allow only one section to be open at
   a time. When an opened section's first usable control would otherwise be
   clipped, scroll only the owning settings region by the minimum amount needed
@@ -280,15 +356,28 @@ that only fits the happy path.
 
 ## Content and accessibility
 
+### Surface input priorities
+
+- The mobile client is a touch-first control surface for phones and tablets that
+  replaces the PC keyboard and mouse. Mouse, trackpad, hardware navigation, and
+  keyboard input are secondary compatibility paths and do not drive its design.
+- The WPF host is keyboard-and-mouse-first and also supports touch monitors.
+- Preserve semantic controls and assistive-technology access. Touch interaction
+  must not leave visible focus artifacts or stacked focus boundaries.
+
 - Use direct, specific labels. Prefer **Copy pairing link** to **Copy** when
   context is not persistent.
 - Buttons use verbs. Headings name places or objects. Status text describes the
   current condition rather than blaming the user.
 - Do not encode meaning by color alone. Pair color with text, iconography, shape,
   or accessible state.
-- Preserve visible focus. Focus order follows visual and task order.
+- Preserve visible focus where keyboard operation is an intended input path.
+  Focus order follows visual and task order.
 - Mobile app chrome and static labels are not user-selectable; text entry,
   editable content, and explicitly copyable surfaces retain normal selection.
+- Text-entry controls use normal body-sized text, at least `1rem` at the default
+  scale. Do not use compact label typography for editable values or disable user
+  zoom to avoid browser focus magnification.
 - When a blocking dialog has a clear primary action, focus that control instead
   of making a static heading focusable.
 - Touch targets are at least the tokenized minimum control size unless the
@@ -307,7 +396,7 @@ For every non-trivial UI change, establish:
 3. the component/layout hierarchy;
 4. adaptive behavior at relevant canonical states;
 5. applicable interaction states from the state contract;
-6. touch, keyboard, focus, scrolling, accessibility, and validation behavior;
+6. applicable input methods, focus, scrolling, accessibility, and validation;
 7. the system-level purpose of each new token, primitive, shell modifier, or
    breakpoint.
 
@@ -333,8 +422,12 @@ and behavior are satisfied:
 - it composes approved primitives or explicitly extends the system;
 - relevant canonical layouts have been checked in portrait and landscape or at
   Windows compact and regular sizes;
-- affected long-content, scrolling, focus, keyboard, accessibility, and theme
+- viewport-sensitive mobile changes have been checked in both a normal browser
+  and an installed app, including mode navigation visible and hidden;
+- affected long-content, scrolling, focus, input-method, accessibility, and theme
   behavior is verified;
+- dialogs and text entry have been checked through keyboard show/hide and
+  rotation while open;
 - sizing, scrolling, focus, and gesture behavior each have one clear owner;
 - repeated visual decisions can be changed centrally;
 - stateful behavior, persistence, regressions, and resource ownership have

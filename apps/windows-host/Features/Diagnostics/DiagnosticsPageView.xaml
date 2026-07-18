@@ -1,0 +1,28 @@
+<UserControl x:Class="VolturaAir.Host.Features.Diagnostics.DiagnosticsPageView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="clr-namespace:VolturaAir.Host.Ui">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="{DynamicResource GridSpaceMd}" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <ui:SpacingStackPanel Orientation="Horizontal"
+                              Spacing="{DynamicResource SpaceSm}">
+            <ToggleButton x:Name="ApplicationLogButton"
+                          Content="Application log"
+                          Style="{DynamicResource SegmentButtonStyle}"
+                          IsChecked="True" />
+            <ToggleButton x:Name="SystemDetailsButton"
+                          Content="System details"
+                          Style="{DynamicResource SegmentButtonStyle}" />
+        </ui:SpacingStackPanel>
+
+        <ContentControl x:Name="ViewContent"
+                        Grid.Row="2"
+                        Focusable="False"
+                        IsTabStop="False" />
+    </Grid>
+</UserControl>

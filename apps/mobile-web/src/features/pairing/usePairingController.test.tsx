@@ -1,12 +1,14 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ChangeEvent } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { decodeQrImage } from "../../qrCode";
+import { decodeQrImage } from "../../foundation/pairing/qrCode";
 import { usePairingController } from "./usePairingController";
 
-vi.mock("../../qrCode", () => ({
+vi.mock("../../foundation/pairing/qrCode", () => ({
   decodeQrImage: vi.fn()
 }));
+
+const pairToken = "a".repeat(32);
 
 function createOptions() {
   return {
@@ -35,8 +37,21 @@ describe("usePairingController", () => {
     vi.mocked(decodeQrImage).mockReset();
   });
 
+  it("keeps connection progress out of the QR scan guidance", () => {
+    const options = {
+      ...createOptions(),
+      message: "Connecting to PC...",
+      state: "paired" as const
+    };
+
+    const { result } = renderHook(() => usePairingController(options));
+
+    expect(result.current.pairingScanMessage).toBe("Scan the QR code shown on your PC to pair this device.");
+    expect(result.current.pairingStatusMessage).toBe("Connecting to PC...");
+  });
+
   it("leaves an unavailable PC retry before confirming a newly scanned QR code", async () => {
-    vi.mocked(decodeQrImage).mockResolvedValue("http://phone.local/?t=fresh-token&h=http%3A%2F%2Fpc-two.local%3A51395");
+    vi.mocked(decodeQrImage).mockResolvedValue(`http://phone.local:5173/pair?t=${pairToken}&v=0.6.1&h=http%3A%2F%2Fpc-two.local%3A51395`);
     const options = createOptions();
     const { result } = renderHook(() => usePairingController(options));
 
@@ -47,7 +62,7 @@ describe("usePairingController", () => {
     expect(options.beginNewPairing).toHaveBeenCalledOnce();
     expect(options.setIsSettingsOpen).toHaveBeenCalledWith(false);
     expect(result.current.pendingPairing).toEqual({
-      pairToken: "fresh-token",
+      pairToken,
       pcUrl: "http://pc-two.local:51395"
     });
     expect(result.current.pairingScanMessage).toBe("Confirm the device name shown on the PC, or change it before pairing.");
@@ -64,5 +79,34 @@ describe("usePairingController", () => {
 
     await waitFor(() => { expect(result.current.pairingScanMessage).toBe("No Voltura Air pairing link found in that QR code."); });
     expect(options.beginNewPairing).not.toHaveBeenCalled();
+  });
+
+  it("routes a manually entered pairing link through pairing confirmation", () => {
+    const options = createOptions();
+    const { result } = renderHook(() => usePairingController(options));
+
+    act(() => {
+      result.current.connectManualHost({ kind: "pairing", pairToken, pcUrl: "http://pc-two.local:51395" });
+    });
+
+    expect(options.beginNewPairing).toHaveBeenCalledOnce();
+    expect(options.connectManualPc).not.toHaveBeenCalled();
+    expect(options.setIsSettingsOpen).toHaveBeenCalledWith(false);
+    expect(result.current.pendingPairing).toEqual({ pairToken, pcUrl: "http://pc-two.local:51395" });
+    expect(result.current.pairingScanMessage).toBe("Confirm the device name shown on the PC, or change it before pairing.");
+  });
+
+  it("routes a validated manual host through connection recovery", () => {
+    const options = createOptions();
+    const { result } = renderHook(() => usePairingController(options));
+
+    act(() => {
+      result.current.connectManualHost({ kind: "host", pcUrl: "http://pc-two.local:51395" });
+    });
+
+    expect(options.connectManualPc).toHaveBeenCalledExactlyOnceWith("http://pc-two.local:51395");
+    expect(options.beginNewPairing).not.toHaveBeenCalled();
+    expect(result.current.pendingPairing).toBeNull();
+    expect(result.current.pairingScanMessage).toBe("Connecting to manually entered PC...");
   });
 });

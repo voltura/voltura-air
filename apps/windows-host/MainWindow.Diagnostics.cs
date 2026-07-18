@@ -1,11 +1,5 @@
 using System.Globalization;
-using System.Windows;
-using System.Windows.Automation;
-using System.Windows.Controls;
-using System.Windows.Media;
-using ComboBox = System.Windows.Controls.ComboBox;
-using Control = System.Windows.Controls.Control;
-using Brush = System.Windows.Media.Brush;
+using VolturaAir.Host.Features.Diagnostics;
 
 namespace VolturaAir.Host;
 
@@ -105,37 +99,19 @@ public partial class MainWindow
         return value;
     }
 
-    private Grid BuildDiagnosticsPage()
+    private DiagnosticsPageView BuildDiagnosticsPage()
     {
-        var root = new Grid();
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(UiTokens.SpaceMd) });
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-
-        var applicationLogButton = CreateSegmentButton("Application log", isChecked: true);
-        var systemDetailsButton = CreateSegmentButton("System details", isChecked: false);
-        WireSegmentPair(applicationLogButton, systemDetailsButton);
-        var viewSelector = CreateSegmentRow(applicationLogButton, systemDetailsButton);
-        root.Children.Add(viewSelector);
-
-        var viewContent = new ContentControl();
-        Grid.SetRow(viewContent, 2);
-        root.Children.Add(viewContent);
-
-        void ShowApplicationLog()
-        {
-            SetDiagnosticsTitle("Application log");
-            viewContent.Content = CreateApplicationLogViewer();
-        }
-
-        applicationLogButton.Click += (_, _) => ShowApplicationLog();
-        systemDetailsButton.Click += (_, _) =>
-        {
-            SetDiagnosticsTitle("System details");
-            viewContent.Content = BuildSystemDiagnosticsView();
-        };
-        ShowApplicationLog();
-        return root;
+        return new DiagnosticsPageView(
+            () =>
+            {
+                SetDiagnosticsTitle("Application log");
+                return CreateApplicationLogViewer();
+            },
+            () =>
+            {
+                SetDiagnosticsTitle("System details");
+                return BuildSystemDiagnosticsView();
+            });
     }
 
     private void SetDiagnosticsTitle(string viewTitle)
@@ -146,36 +122,12 @@ public partial class MainWindow
         }
     }
 
-    private Grid BuildSystemDiagnosticsView()
+    private SystemDiagnosticsView BuildSystemDiagnosticsView()
     {
-        var root = new Grid();
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(UiTokens.SpaceSm) });
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(UiTokens.SpaceLg) });
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-        var rows = CreateVerticalStack(UiTokens.SpaceSm);
-        foreach (var detail in GetDiagnostics())
-        {
-            rows.Children.Add(CreateDiagnosticRow(detail));
-        }
-
-        root.Children.Add(CreateDiagnosticsHeaderRow());
-
-        var scroller = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = rows
-        };
-        Grid.SetRow(scroller, 2);
-        root.Children.Add(scroller);
-
-        var actions = CreateHorizontalStack(UiTokens.SpaceSm);
-        actions.Children.Add(CreateButton("Copy diagnostics", (_, _) => CopyToClipboard(BuildDiagnosticsText(), "Diagnostics copied"), primary: true));
-        actions.Children.Add(CreateButton("Open product page", (_, _) => OpenProductSite()));
-        Grid.SetRow(actions, 4);
-        root.Children.Add(actions);
-        return root;
+        return new SystemDiagnosticsView(
+            GetDiagnostics(),
+            detail => CopyToClipboard($"{detail.Name}: {detail.Value}", "Copied"),
+            () => CopyToClipboard(BuildDiagnosticsText(), "Diagnostics copied"),
+            OpenProductSite);
     }
 }

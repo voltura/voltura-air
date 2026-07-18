@@ -1,21 +1,17 @@
-.command-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
-}
-
 .keyboard-primary-keys {
+  display: grid;
   container-type: inline-size;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   grid-template-areas:
     "esc tab enter backspace"
     "win space space delete";
+  gap: var(--space-sm);
 }
 
 .keyboard-primary-keys.has-sleep-key {
   grid-template-areas:
     "esc tab enter backspace"
-    "win space space delete"
-    "sleep sleep sleep sleep";
+    "win space delete sleep";
 }
 
 .keyboard-primary-keys button {
@@ -200,28 +196,10 @@
   font-size: 0.92rem;
 }
 
-@media (width >= 720px) {
-  .app-shell {
-    padding: 18px;
-    gap: 14px;
-  }
-
-}
-
 @media (orientation: landscape) {
   .app-shell {
     grid-template-rows: auto auto minmax(0, 1fr);
     overflow-y: hidden;
-  }
-
-  .keyboard-primary-keys {
-    grid-template-columns: 0.8fr 0.8fr 0.8fr 1.5fr 1fr 1.35fr 1fr;
-    grid-template-areas: "esc tab win space enter backspace delete";
-  }
-
-  .keyboard-primary-keys.has-sleep-key {
-    grid-template-columns: 0.8fr 0.8fr 0.8fr 1.5fr 1fr 1.35fr 1fr minmax(0, 1fr);
-    grid-template-areas: "esc tab win space enter backspace delete sleep";
   }
 
   .keyboard-navigation-keys {
@@ -247,7 +225,7 @@
     grid-template:
       "status editor" auto
       "actions editor" minmax(0, 1fr)
-      / minmax(220px, 320px) minmax(0, 1fr);
+      / minmax(0, 1fr) minmax(0, 1fr);
   }
 
   .dictation-status {
@@ -256,11 +234,14 @@
 
   .dictation-actions {
     grid-template-columns: minmax(0, 1fr);
-    align-content: start;
+    grid-template-rows:
+      repeat(2, minmax(var(--control-min-height), 1fr))
+      minmax(calc(var(--control-min-height) + var(--mode-bottom-safe-area, 0px)), 1fr);
+    min-height: 0;
   }
 
   .dictation-actions button {
-    min-height: 54px;
+    min-height: 0;
   }
 }
 

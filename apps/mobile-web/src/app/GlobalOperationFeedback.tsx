@@ -1,5 +1,5 @@
-import type { AppTab } from "../appModeTabs";
-import type { AppLaunchResultMessage, ClipboardGetResultMessage, TextSendResultMessage } from "../protocol";
+import type { AppTab } from "./appModeTabs";
+import type { AppLaunchResultMessage, ClipboardGetResultMessage, TextSendResultMessage } from "../foundation/protocol/messages";
 import { AppToast } from "../ui/feedback/AppToast";
 
 interface GlobalOperationFeedbackProps {

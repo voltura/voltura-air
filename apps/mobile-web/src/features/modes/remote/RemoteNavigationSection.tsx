@@ -1,6 +1,6 @@
 import type { HTMLAttributes } from "react";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Captions, Info, Maximize2 } from "lucide-react";
-import type { PowerCapabilities, SystemPowerAction, SystemPowerResultMessage } from "../../../protocol";
+import type { PowerCapabilities, SystemPowerAction, SystemPowerResultMessage } from "../../../foundation/protocol/messages";
 import { PowerControlEntry, type AwakeControlProps } from "./PowerControlEntry";
 import { RemoteButton, type RepeatablePressProps } from "./RemoteButton";
 

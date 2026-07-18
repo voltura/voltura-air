@@ -1,10 +1,12 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { defaultAppSettings } from "../../appSettings";
-import { defaultTrackpadSettings } from "../../gestures";
-import { defaultKeyboardSettings } from "../../keyboardSettings";
-import { defaultRemoteSettings } from "../../remoteSettings";
+import { defaultAppSettings } from "../../foundation/settings/appSettings";
+import { defaultTrackpadSettings } from "../../foundation/input/gestures";
+import { defaultKeyboardSettings } from "../../foundation/settings/keyboardSettings";
+import { defaultRemoteSettings } from "../../foundation/settings/remoteSettings";
 import { SettingsDrawer } from "./SettingsDrawer";
+
+const ToolIcon = () => null;
 
 const baseProps = {
   activePc: null,
@@ -37,6 +39,12 @@ const baseProps = {
   showGestureDebug: false,
   supportsRemoteLaunch: false,
   themeMode: "system" as const,
+  toolOptions: [
+    { id: "presentation" as const, label: "Presentation", Icon: ToolIcon },
+    { id: "dictation" as const, label: "Dictation", Icon: ToolIcon },
+    { id: "text-transfer" as const, label: "Send text to PC", Icon: ToolIcon },
+    { id: "clipboard-read" as const, label: "Get text from PC", Icon: ToolIcon }
+  ],
   trackpadSettings: defaultTrackpadSettings,
   updateAppSetting: vi.fn(),
   updateKeyboardSetting: vi.fn(),
@@ -59,7 +67,7 @@ function createRect(top: number, bottom: number): DOMRect {
 }
 
 function arrangeClippedAppSection(targetBottom: number) {
-  const drawer = screen.getByRole("complementary");
+  const drawer = screen.getByRole("dialog", { name: "Menu" }).querySelector<HTMLElement>(".settings-drawer-scroll-region")!;
   const summary = screen.getByText("App").closest("summary")!;
   const section = summary.closest("details")!;
   const firstControl = section.querySelector("select")!;
@@ -93,6 +101,51 @@ describe("SettingsDrawer", () => {
     expect(Array.from(document.querySelectorAll("details")).every((details) => !details.open)).toBe(true);
   });
 
+  it("owns modal focus and returns it after a user close", () => {
+    const trigger = document.createElement("button");
+    document.body.append(trigger);
+    trigger.focus();
+    const onClose = vi.fn();
+
+    render(<SettingsDrawer {...baseProps} onClose={onClose} />);
+
+    const dialog = screen.getByRole("dialog", { name: "Menu" });
+    expect(dialog.hasAttribute("open")).toBe(true);
+    expect(document.activeElement).toBe(dialog);
+    expect(screen.getByRole("button", { name: "Close menu" }).tabIndex).toBe(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Close menu" }));
+
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(document.activeElement).toBe(trigger);
+    trigger.remove();
+  });
+
+  it("does not report another close when its controlled owner closes it", () => {
+    const onClose = vi.fn();
+    const { rerender } = render(<SettingsDrawer {...baseProps} onClose={onClose} />);
+
+    rerender(<SettingsDrawer {...baseProps} isOpen={false} onClose={onClose} />);
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog", { name: "Menu" })).toBeNull();
+  });
+
+  it("closes from the backdrop without treating blank drawer space as outside", () => {
+    const onClose = vi.fn();
+    render(<SettingsDrawer {...baseProps} onClose={onClose} />);
+    const dialog = screen.getByRole("dialog", { name: "Menu" });
+    const panel = dialog.querySelector(".settings-drawer-panel")!;
+    const backdrop = dialog.querySelector<HTMLButtonElement>(".settings-drawer-light-dismiss")!;
+
+    fireEvent.click(panel);
+    expect(onClose).not.toHaveBeenCalled();
+
+    expect(backdrop.tabIndex).toBe(-1);
+    fireEvent.click(backdrop);
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
   it("hides Presentation entry points and falls back from a stale fourth-mode choice when alpha is unavailable", () => {
     render(
       <SettingsDrawer
@@ -118,6 +171,29 @@ describe("SettingsDrawer", () => {
     fireEvent.click(screen.getByText("Keyboard"));
     expect(screen.getByText("Trackpad").closest("details")?.open).toBe(false);
     expect(screen.getByText("Keyboard").closest("details")?.open).toBe(true);
+  });
+
+  it("reveals a newly opened section after the preceding section collapses above the viewport", () => {
+    render(<SettingsDrawer {...baseProps} />);
+    fireEvent.click(screen.getByText("Connection"));
+
+    const drawer = screen.getByRole("dialog", { name: "Menu" }).querySelector<HTMLElement>(".settings-drawer-scroll-region")!;
+    const trackpadSummary = screen.getByText("Trackpad").closest("summary")!;
+    const trackpadSection = trackpadSummary.closest("details")!;
+    const firstControl = trackpadSection.querySelector("input")!;
+    const scrollBy = vi.fn();
+    vi.spyOn(drawer, "getBoundingClientRect").mockReturnValue(createRect(0, 600));
+    vi.spyOn(trackpadSummary, "getBoundingClientRect").mockReturnValue(createRect(-120, -72));
+    vi.spyOn(firstControl, "getBoundingClientRect").mockReturnValue(createRect(-38, -10));
+    Object.defineProperty(drawer, "scrollBy", { configurable: true, value: scrollBy });
+    trackpadSummary.focus();
+
+    fireEvent.click(trackpadSummary);
+
+    expect(screen.getByText("Connection").closest("details")?.open).toBe(false);
+    expect(trackpadSection.open).toBe(true);
+    expect(scrollBy).toHaveBeenCalledExactlyOnceWith({ top: -136, behavior: "smooth" });
+    expect(document.activeElement).toBe(trackpadSummary);
   });
 
   it("scrolls only enough to reveal the first control of a clipped section", () => {
@@ -188,15 +264,54 @@ describe("SettingsDrawer", () => {
   });
 
   it("uses compact connection help with details in an info dialog", () => {
-    render(<SettingsDrawer {...baseProps} />);
+    const onClose = vi.fn();
+    render(<SettingsDrawer {...baseProps} onClose={onClose} />);
 
     fireEvent.click(screen.getByText("Connection"));
     expect(screen.getByText("Copy redacted troubleshooting details.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "About Connection diagnostics" }));
 
     const dialog = screen.getByRole("dialog", { name: "Connection diagnostics" });
+    const connectionSection = screen.getByText("Connection").closest("details");
     expect(dialog.textContent).toContain("Pairing secrets, device tokens, and hashes are not included.");
     expect(dialog.classList.contains("info-dialog-detailed")).toBe(true);
+    expect(connectionSection?.open).toBe(true);
+
+    fireEvent.click(dialog, { clientX: -1, clientY: -1 });
+
+    expect(screen.queryByRole("dialog", { name: "Connection diagnostics" })).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Menu" })).toBeTruthy();
+    expect(connectionSection?.open).toBe(true);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("does not replace the active PC when manual pairing input is invalid", () => {
+    const activePc = {
+      customName: false,
+      id: "http://pc.local:51395",
+      name: "Current PC",
+      url: "http://pc.local:51395"
+    };
+    const onManualHostSubmit = vi.fn();
+    render(
+      <SettingsDrawer
+        {...baseProps}
+        activePc={activePc}
+        pairedPcs={[activePc]}
+        onManualHostSubmit={onManualHostSubmit}
+      />
+    );
+
+    fireEvent.click(screen.getByText("Connection"));
+    const input = screen.getByRole("textbox", { name: "Host or pairing link" });
+    fireEvent.change(input, { target: { value: "http://pc-two.local:51395/pair?t=short&v=0.6.1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Connect to PC" }));
+
+    expect(onManualHostSubmit).not.toHaveBeenCalled();
+    expect(screen.getByText("Active PC: Current PC")).toBeTruthy();
+    expect((input as HTMLInputElement).value).toBe("http://pc-two.local:51395/pair?t=short&v=0.6.1");
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    expect(screen.getByRole("alert").textContent).toBe("Enter the complete pairing link shown by Voltura Air on the PC.");
   });
 
   it("updates grouped helper visibility settings", () => {

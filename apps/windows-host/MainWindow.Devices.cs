@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
-using ListBoxItem = System.Windows.Controls.ListBoxItem;
+using VolturaAir.Host.Features.Devices;
 using Brush = System.Windows.Media.Brush;
 
 namespace VolturaAir.Host;
@@ -16,7 +16,7 @@ public partial class MainWindow
         }
 
         _deviceDetailsPanel.Children.Clear();
-        if (_devicesList?.SelectedItem is not ListBoxItem { Tag: DeviceListItem selected })
+        if (_devicesList?.SelectedItem is not DeviceListItem selected)
         {
             _deviceDetailsPanel.Children.Add(CreateSectionHeading("Device details"));
             _deviceDetailsPanel.Children.Add(CreateMutedText("Select a device to manage connection and permissions."));
@@ -175,8 +175,8 @@ public partial class MainWindow
     {
         SelectPage(HostPage.Devices);
         _devicesList?.SelectedItem = _devicesList.Items
-                .OfType<ListBoxItem>()
-                .FirstOrDefault(item => item.Tag is DeviceListItem device && device.ClientId == clientId);
+                .OfType<DeviceListItem>()
+                .FirstOrDefault(device => device.ClientId == clientId);
     }
 
     private void CleanUpDuplicates()

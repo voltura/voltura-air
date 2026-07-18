@@ -1,5 +1,5 @@
 import { Download, RefreshCw } from "lucide-react";
-import { getEffectiveFourthMode } from "../../appModeTabs";
+import { getEffectiveFourthMode } from "../../foundation/settings/appSettings";
 import type { SettingsDrawerProps } from "./SettingsDrawerTypes";
 
 export function AppearanceSettingsSection({ setThemeMode, themeMode }: Pick<SettingsDrawerProps, "setThemeMode" | "themeMode">) {

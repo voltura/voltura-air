@@ -19,6 +19,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const tempDir = path.join(tmpdir(), "voltura-air-dev-ui");
 const tempNodeDir = path.join(tempDir, "node");
 const tempAppDataDir = path.join(tempDir, "appdata");
+const tempArtifactsDir = path.join(tempDir, "artifacts");
 const browserProfileDir = path.join(tempDir, "chrome-profile");
 const pairingUrlFile = path.join(tempDir, "pairing-url.txt");
 const clientPort = readPreferredClientPort();
@@ -53,6 +54,7 @@ async function main() {
   await fs.mkdir(tempNodeDir, { recursive: true });
   await fs.mkdir(tempAppDataDir, { recursive: true });
   await fs.rm(path.join(tempAppDataDir, "Voltura Air"), { recursive: true, force: true });
+  await fs.rm(tempArtifactsDir, { recursive: true, force: true });
   await fs.rm(browserProfileDir, { recursive: true, force: true });
   await fs.rm(pairingUrlFile, { force: true });
   await seedBrowserProfile(debugDevice);
@@ -76,6 +78,9 @@ async function main() {
 
   const hostArguments = [
     "run",
+    "--artifacts-path",
+    tempArtifactsDir,
+    "--disable-build-servers",
     "--project",
     "apps/windows-host/VolturaAir.Host.csproj",
     "--",
@@ -103,11 +108,16 @@ async function main() {
   const page = await launchBrowser(chromium, pairingUrl);
 
   if (smokeTest) {
+    await verifySettingsDrawerLifecycle(page);
+    await verifyTrackpadButtonLayout(page);
+    await verifyKeyboardLayout(page);
+    await verifyLandscapeSafeAreaLayouts(page);
     await verifyResponsivePowerLayout(page);
     await verifyResponsiveTextTransferLayout(page);
     await verifyResponsivePresentationLayout(page);
     await verifyResponsiveUrlOpenLayout(page);
-    console.log("Voltura Air UI smoke test connected and passed responsive Power sheet, text transfer, Presentation, and URL opening checks.");
+    await verifyDisconnectedSavedPcReconnect(page);
+    console.log("Voltura Air UI smoke test connected and passed settings drawer lifecycle, trackpad, keyboard and landscape safe-area layout, responsive Power sheet, text transfer, Presentation, URL opening, and saved-PC reconnect checks.");
     shutdown("SIGTERM", 0);
     return;
   }
@@ -145,6 +155,357 @@ async function launchBrowser(chromium, pairingUrl) {
     await waitForConnected(page);
   }
   return page;
+}
+
+async function verifyTrackpadButtonLayout(page) {
+  const viewports = [
+    { name: "phone portrait", width: 393, height: 852 },
+    { name: "phone landscape", width: 852, height: 393 }
+  ];
+
+  for (const viewport of viewports) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    const result = await page.evaluate(() => {
+      const mode = document.querySelector(".trackpad-mode");
+      const row = document.querySelector(".trackpad-mode > .mouse-buttons");
+      const buttons = row ? Array.from(row.querySelectorAll("button")) : [];
+      if (!(mode instanceof HTMLElement) || !(row instanceof HTMLElement) || buttons.length !== 2) {
+        return { error: "Trackpad click buttons were not visible." };
+      }
+
+      const modeBounds = mode.getBoundingClientRect();
+      const rowBounds = row.getBoundingClientRect();
+      const buttonBounds = buttons.map((button) => button.getBoundingClientRect());
+      return {
+        equalButtonWidths: Math.abs(buttonBounds[0].width - buttonBounds[1].width) <= 1,
+        fillsModeWidth: Math.abs(rowBounds.width - modeBounds.width) <= 1,
+        fillsRowWidth: Math.abs(buttonBounds[0].left - rowBounds.left) <= 1 && Math.abs(buttonBounds[1].right - rowBounds.right) <= 1,
+        rowDisplay: getComputedStyle(row).display
+      };
+    });
+
+    if ("error" in result || !result.equalButtonWidths || !result.fillsModeWidth || !result.fillsRowWidth || result.rowDisplay !== "grid") {
+      throw new Error(`Trackpad click button layout failed for ${viewport.name}: ${JSON.stringify(result)}`);
+    }
+  }
+}
+
+async function verifyKeyboardLayout(page) {
+  await page.setViewportSize({ width: 393, height: 852 });
+  await page.getByRole("button", { name: "Keyboard mode", exact: true }).click();
+  await page.getByRole("tab", { name: "Show numeric keyboard", exact: true }).click();
+  await page.getByRole("tab", { name: "Show regular keyboard", exact: true }).click();
+
+  const portrait = await page.evaluate(() => {
+    const mode = document.querySelector(".keyboard-mode");
+    const primaryKeys = document.querySelector(".keyboard-primary-keys");
+    const input = document.querySelector(".keyboard-mode textarea");
+    const liveTyping = document.querySelector(".live-typing-switch");
+    const selector = document.querySelector(".keyboard-input-mode-buttons");
+    const selectorButtons = selector ? Array.from(selector.querySelectorAll("button")) : [];
+    const primaryButtons = primaryKeys ? Array.from(primaryKeys.querySelectorAll("button")) : [];
+    if (!(mode instanceof HTMLElement) || !(primaryKeys instanceof HTMLElement) ||
+        !(input instanceof HTMLTextAreaElement) || !(liveTyping instanceof HTMLElement) ||
+        !(selector instanceof HTMLElement) || selectorButtons.length !== 2 || primaryButtons.length < 7) {
+      return { error: "Keyboard controls were not visible." };
+    }
+
+    const inputBounds = input.getBoundingClientRect();
+    const liveTypingBounds = liveTyping.getBoundingClientRect();
+    const selectorButtonBounds = selectorButtons.map((button) => button.getBoundingClientRect());
+    const primaryButtonBounds = primaryButtons.map((button) => button.getBoundingClientRect());
+    const rowTops = new Set(primaryButtonBounds.map((bounds) => Math.round(bounds.top)));
+    const inputStyle = getComputedStyle(input);
+    return {
+      inputFocused: document.activeElement === input,
+      inputOutlineWidth: inputStyle.outlineWidth,
+      inputOutlineStyle: inputStyle.outlineStyle,
+      inputTopAligned: Math.abs(inputBounds.top - liveTypingBounds.top) <= 1,
+      inputBottomAligned: Math.abs(inputBounds.bottom - liveTypingBounds.bottom) <= 1,
+      primaryDisplay: getComputedStyle(primaryKeys).display,
+      primaryRowCount: rowTops.size,
+      selectorDisplay: getComputedStyle(selector).display,
+      selectorGap: selectorButtonBounds[1].left - selectorButtonBounds[0].right
+    };
+  });
+
+  if ("error" in portrait || !portrait.inputFocused ||
+      (portrait.inputOutlineWidth !== "0px" && portrait.inputOutlineStyle !== "none") ||
+      !portrait.inputTopAligned || !portrait.inputBottomAligned || portrait.primaryDisplay !== "grid" ||
+      portrait.primaryRowCount < 2 || portrait.selectorDisplay !== "grid" || Math.abs(portrait.selectorGap) > 1) {
+    throw new Error(`Keyboard portrait layout failed: ${JSON.stringify(portrait)}`);
+  }
+
+  const sleepButton = page.getByRole("button", { name: "Sleep", exact: true });
+  if (await sleepButton.count() === 1) {
+    await sleepButton.click();
+    const sleepDialog = page.getByRole("dialog", { name: "Put PC to sleep?", exact: true });
+    const confirmation = await sleepDialog.evaluate((dialog) => {
+      const cancel = dialog.querySelector(".confirmation-dialog-cancel");
+      const confirm = dialog.querySelector(".confirmation-dialog-confirm");
+      if (!(cancel instanceof HTMLButtonElement) || !(confirm instanceof HTMLButtonElement)) {
+        return { error: "Sleep confirmation buttons were not visible." };
+      }
+
+      return {
+        cancelFocused: document.activeElement === cancel,
+        cancelBorder: getComputedStyle(cancel).borderTopColor,
+        confirmBorder: getComputedStyle(confirm).borderTopColor,
+        confirmOutlineWidth: getComputedStyle(confirm).outlineWidth
+      };
+    });
+
+    if ("error" in confirmation || !confirmation.cancelFocused || confirmation.cancelBorder === confirmation.confirmBorder || confirmation.confirmOutlineWidth !== "0px") {
+      throw new Error(`Sleep confirmation default failed: ${JSON.stringify(confirmation)}`);
+    }
+    await sleepDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  }
+
+  await page.setViewportSize({ width: 1024, height: 768 });
+  const landscape = await page.evaluate(() => {
+    const shell = document.querySelector(".app-shell");
+    const mode = document.querySelector(".keyboard-mode");
+    if (!(shell instanceof HTMLElement) || !(mode instanceof HTMLElement)) {
+      return { error: "Keyboard landscape controls were not visible." };
+    }
+
+    const shellStyle = getComputedStyle(shell);
+    const availableWidth = shell.clientWidth - Number.parseFloat(shellStyle.paddingLeft) - Number.parseFloat(shellStyle.paddingRight);
+    return {
+      availableWidth,
+      modeWidth: mode.getBoundingClientRect().width
+    };
+  });
+
+  if ("error" in landscape || Math.abs(landscape.modeWidth - landscape.availableWidth) > 1) {
+    throw new Error(`Keyboard landscape width failed: ${JSON.stringify(landscape)}`);
+  }
+}
+
+async function verifyLandscapeSafeAreaLayouts(page) {
+  await page.setViewportSize({ width: 852, height: 393 });
+  await page.getByRole("button", { name: "Open menu", exact: true }).click();
+  const splitSection = page.locator('[data-settings-section="split"]');
+  await splitSection.locator("> summary").click();
+  const splitCheckbox = splitSection.getByRole("checkbox", { name: "Enable split mode", exact: true });
+  if (!await splitCheckbox.isChecked()) {
+    await splitCheckbox.click();
+  }
+  await page.getByRole("button", { name: "Close menu", exact: true }).click();
+  await page.waitForSelector(".app-shell.split-mode-active");
+
+  const splitLayout = await page.evaluate(() => {
+    const shell = document.querySelector(".app-shell");
+    const keyboardPane = document.querySelector(".split-keyboard-pane");
+    const keyboard = keyboardPane?.querySelector(".keyboard-mode");
+    const finalButtons = keyboardPane ? Array.from(keyboardPane.querySelectorAll(".app-switch-row button")) : [];
+    const trackpadSurface = document.querySelector(".split-trackpad-pane .trackpad-surface");
+    const expandButton = trackpadSurface?.querySelector(".trackpad-expand-button");
+    if (!(shell instanceof HTMLElement) || !(keyboardPane instanceof HTMLElement) ||
+        !(keyboard instanceof HTMLElement) || finalButtons.length !== 2 ||
+        !(trackpadSurface instanceof HTMLElement) || !(expandButton instanceof HTMLElement)) {
+      return { error: "Split keyboard or trackpad controls were not visible." };
+    }
+
+    shell.style.setProperty("--mode-bottom-safe-area", "32px");
+    shell.style.setProperty("--mode-inline-safe-end", "120px");
+    keyboardPane.scrollTop = keyboardPane.scrollHeight;
+    keyboard.scrollTop = keyboard.scrollHeight;
+
+    const paneBounds = keyboardPane.getBoundingClientRect();
+    const finalButtonBounds = finalButtons.map((button) => button.getBoundingClientRect());
+    const surfaceBounds = trackpadSurface.getBoundingClientRect();
+    const expandBounds = expandButton.getBoundingClientRect();
+    return {
+      expandRightGap: surfaceBounds.right - expandBounds.right,
+      finalButtonBottomGap: paneBounds.bottom - Math.max(...finalButtonBounds.map((bounds) => bounds.bottom)),
+      finalButtonMinHeight: Number.parseFloat(getComputedStyle(finalButtons[0]).minHeight),
+      keyboardPaddingBottom: Number.parseFloat(getComputedStyle(keyboard).paddingBottom),
+      panePaddingBottom: Number.parseFloat(getComputedStyle(keyboardPane).paddingBottom)
+    };
+  });
+
+  if ("error" in splitLayout || Math.abs(splitLayout.expandRightGap - 10) > 1 ||
+      Math.abs(splitLayout.finalButtonBottomGap) > 1 || splitLayout.finalButtonMinHeight < 80 ||
+      splitLayout.keyboardPaddingBottom !== 0 || splitLayout.panePaddingBottom !== 0) {
+    throw new Error(`Split landscape safe-area layout failed: ${JSON.stringify(splitLayout)}`);
+  }
+
+  await page.getByRole("button", { name: "Expand trackpad", exact: true }).click();
+  const expandedLayout = await page.evaluate(() => {
+    const button = document.querySelector(".split-trackpad-pane .trackpad-mode.expanded .trackpad-expand-button");
+    if (!(button instanceof HTMLElement)) {
+      return { error: "Expanded split trackpad toggle was not visible." };
+    }
+
+    return { rightGap: window.innerWidth - button.getBoundingClientRect().right };
+  });
+  if ("error" in expandedLayout || Math.abs(expandedLayout.rightGap - 10) > 1) {
+    throw new Error(`Expanded split trackpad safe-area layout failed: ${JSON.stringify(expandedLayout)}`);
+  }
+  await page.getByRole("button", { name: "Restore trackpad", exact: true }).click();
+
+  await page.setViewportSize({ width: 393, height: 852 });
+  await page.getByRole("button", { name: "Remote mode", exact: true }).click();
+  await page.setViewportSize({ width: 852, height: 393 });
+  const remoteVolumeLayout = await page.evaluate(() => {
+    const shell = document.querySelector(".app-shell");
+    const section = document.querySelector(".remote-volume-section");
+    const grid = section?.querySelector(".remote-volume-grid");
+    const buttons = grid ? Array.from(grid.querySelectorAll("button")) : [];
+    if (!(shell instanceof HTMLElement) || !(section instanceof HTMLElement) ||
+        !(grid instanceof HTMLElement) || buttons.length !== 3) {
+      return { error: "Remote landscape volume controls were not visible." };
+    }
+
+    shell.style.setProperty("--mode-inline-safe-end", "120px");
+    const sectionStyle = getComputedStyle(section);
+    const gridBounds = grid.getBoundingClientRect();
+    const buttonBounds = buttons.map((button) => button.getBoundingClientRect());
+    return {
+      equalButtonWidths: Math.max(...buttonBounds.map((bounds) => bounds.width)) - Math.min(...buttonBounds.map((bounds) => bounds.width)) <= 1,
+      gridRightGap: section.getBoundingClientRect().right - Number.parseFloat(sectionStyle.borderRightWidth) - Number.parseFloat(sectionStyle.paddingRight) - gridBounds.right,
+      sectionPaddingRight: Number.parseFloat(sectionStyle.paddingRight)
+    };
+  });
+  if ("error" in remoteVolumeLayout || !remoteVolumeLayout.equalButtonWidths ||
+      Math.abs(remoteVolumeLayout.gridRightGap) > 1 || Math.abs(remoteVolumeLayout.sectionPaddingRight - 9) > 1) {
+    throw new Error(`Remote landscape volume safe-area layout failed: ${JSON.stringify(remoteVolumeLayout)}`);
+  }
+
+  await page.evaluate(() => {
+    const shell = document.querySelector(".app-shell");
+    if (shell instanceof HTMLElement) {
+      shell.style.removeProperty("--mode-bottom-safe-area");
+      shell.style.removeProperty("--mode-inline-safe-end");
+    }
+  });
+  await page.setViewportSize({ width: 393, height: 852 });
+  await page.getByRole("button", { name: "Trackpad mode", exact: true }).click();
+}
+
+async function verifySettingsDrawerLifecycle(page) {
+  await page.setViewportSize({ width: 393, height: 852 });
+  const drawer = page.locator(".settings-drawer");
+  const readState = () => drawer.evaluate((dialog) => ({
+    display: getComputedStyle(dialog).display,
+    open: dialog instanceof HTMLDialogElement && dialog.open,
+    width: dialog.getBoundingClientRect().width
+  }));
+
+  const initiallyClosed = await readState();
+  if (initiallyClosed.open || initiallyClosed.display !== "none" || initiallyClosed.width !== 0) {
+    throw new Error(`Settings drawer should start closed and hidden: ${JSON.stringify(initiallyClosed)}`);
+  }
+
+  await page.getByRole("button", { name: "Open menu", exact: true }).click();
+  const opened = await readState();
+  if (!opened.open || opened.display === "none" || opened.width < 300) {
+    throw new Error(`Settings drawer did not open visibly: ${JSON.stringify(opened)}`);
+  }
+
+  const initialFocus = await page.evaluate(() => {
+    const dialog = document.querySelector(".settings-drawer");
+    const backdrop = document.querySelector(".settings-drawer-light-dismiss");
+    return {
+      backdropTabIndex: backdrop instanceof HTMLElement ? backdrop.tabIndex : null,
+      drawerFocused: document.activeElement === dialog
+    };
+  });
+  if (!initialFocus.drawerFocused || initialFocus.backdropTabIndex !== -1) {
+    throw new Error(`Settings drawer initial focus is incorrect: ${JSON.stringify(initialFocus)}`);
+  }
+
+  await page.keyboard.press("Tab");
+  const firstTabTarget = await page.evaluate(() => document.activeElement?.getAttribute("aria-label"));
+  if (firstTabTarget !== "Close menu") {
+    throw new Error(`Settings drawer first Tab target should be the close button, received: ${JSON.stringify(firstTabTarget)}`);
+  }
+
+  const connectionSection = page.locator('[data-settings-section="connection"]');
+  const trackpadSection = page.locator('[data-settings-section="trackpad"]');
+  const trackpadSummary = trackpadSection.locator("> summary");
+  await connectionSection.locator("> summary").click();
+  await trackpadSummary.evaluate((summary) => summary.scrollIntoView({ block: "end" }));
+  await trackpadSummary.click();
+  await page.waitForFunction(() => {
+    const scrollRegion = document.querySelector(".settings-drawer-scroll-region");
+    const connection = document.querySelector('[data-settings-section="connection"]');
+    const trackpad = document.querySelector('[data-settings-section="trackpad"]');
+    const summary = trackpad?.querySelector("summary");
+    const firstControl = trackpad?.querySelector(".settings-section-body button, .settings-section-body input, .settings-section-body select, .settings-section-body textarea, .settings-section-body a[href], .settings-section-body [tabindex]");
+    if (!(scrollRegion instanceof HTMLElement)
+      || !(connection instanceof HTMLDetailsElement)
+      || !(trackpad instanceof HTMLDetailsElement)
+      || !(summary instanceof HTMLElement)
+      || !(firstControl instanceof HTMLElement)
+      || connection.open
+      || !trackpad.open) {
+      return false;
+    }
+
+    const regionBounds = scrollRegion.getBoundingClientRect();
+    const summaryBounds = summary.getBoundingClientRect();
+    const controlBounds = firstControl.getBoundingClientRect();
+    return summaryBounds.top >= regionBounds.top - 1
+      && summaryBounds.bottom <= regionBounds.bottom + 1
+      && controlBounds.top >= regionBounds.top - 1
+      && controlBounds.bottom <= regionBounds.bottom + 1;
+  });
+
+  const accordionState = await page.evaluate(() => {
+    const scrollRegion = document.querySelector(".settings-drawer-scroll-region");
+    const connection = document.querySelector('[data-settings-section="connection"]');
+    const trackpad = document.querySelector('[data-settings-section="trackpad"]');
+    const summary = trackpad?.querySelector("summary");
+    const firstControl = trackpad?.querySelector(".settings-section-body button, .settings-section-body input, .settings-section-body select, .settings-section-body textarea, .settings-section-body a[href], .settings-section-body [tabindex]");
+    if (!(scrollRegion instanceof HTMLElement)
+      || !(connection instanceof HTMLDetailsElement)
+      || !(trackpad instanceof HTMLDetailsElement)
+      || !(summary instanceof HTMLElement)
+      || !(firstControl instanceof HTMLElement)) {
+      return { error: "Settings accordion controls were not visible." };
+    }
+
+    const regionBounds = scrollRegion.getBoundingClientRect();
+    const summaryBounds = summary.getBoundingClientRect();
+    const controlBounds = firstControl.getBoundingClientRect();
+    return {
+      connectionOpen: connection.open,
+      firstControlVisible: controlBounds.top >= regionBounds.top - 1 && controlBounds.bottom <= regionBounds.bottom + 1,
+      summaryFocused: document.activeElement === summary,
+      summaryVisible: summaryBounds.top >= regionBounds.top - 1 && summaryBounds.bottom <= regionBounds.bottom + 1,
+      trackpadOpen: trackpad.open
+    };
+  });
+  if ("error" in accordionState
+    || accordionState.connectionOpen
+    || !accordionState.trackpadOpen
+    || !accordionState.summaryVisible
+    || !accordionState.firstControlVisible
+    || !accordionState.summaryFocused) {
+    throw new Error(`Settings accordion assisted reveal failed: ${JSON.stringify(accordionState)}`);
+  }
+
+  await page.mouse.click(380, 426);
+  const closedByBackdrop = await readState();
+  if (closedByBackdrop.open || closedByBackdrop.display !== "none" || closedByBackdrop.width !== 0) {
+    throw new Error(`Settings drawer did not close from its backdrop: ${JSON.stringify(closedByBackdrop)}`);
+  }
+
+  await page.getByRole("button", { name: "Open menu", exact: true }).click();
+  await page.getByRole("button", { name: "Close menu", exact: true }).click();
+  const closedByButton = await readState();
+  if (closedByButton.open || closedByButton.display !== "none" || closedByButton.width !== 0) {
+    throw new Error(`Settings drawer did not close from its close button: ${JSON.stringify(closedByButton)}`);
+  }
+
+  await page.getByRole("button", { name: "Open menu", exact: true }).click();
+  await page.keyboard.press("Escape");
+  const closedByEscape = await readState();
+  if (closedByEscape.open || closedByEscape.display !== "none" || closedByEscape.width !== 0) {
+    throw new Error(`Settings drawer did not close with Escape: ${JSON.stringify(closedByEscape)}`);
+  }
 }
 
 async function verifyResponsivePowerLayout(page) {
@@ -367,6 +728,76 @@ async function verifyResponsiveUrlOpenLayout(page) {
       throw new Error(`Responsive URL opening check failed for ${viewport.name}: ${JSON.stringify(result)}`);
     }
   }
+}
+
+async function verifyDisconnectedSavedPcReconnect(page) {
+  await page.setViewportSize({ width: 393, height: 852 });
+  const urlDialog = page.getByRole("dialog", { name: "Open URL on PC", exact: true });
+  if (await urlDialog.isVisible().catch(() => false)) {
+    await urlDialog.getByRole("button", { name: "Close", exact: true }).click();
+  }
+
+  await page.getByRole("button", { name: "Open menu", exact: true }).click();
+  await page.locator('[data-settings-section="connection"] > summary').click();
+  const disconnectButton = page.getByRole("button", { name: "Disconnect this PC", exact: true });
+  await disconnectButton.scrollIntoViewIfNeeded();
+  await disconnectButton.click();
+  await page.getByRole("button", { name: "Close menu", exact: true }).click();
+
+  const reconnectPanel = page.locator(".pairing-required");
+  await reconnectPanel.getByRole("heading", { name: "PC disconnected", exact: true }).waitFor({ state: "visible" });
+  const blockingState = await page.evaluate(() => {
+    const panel = document.querySelector(".pairing-required");
+    const backdrop = document.querySelector(".pairing-backdrop");
+    const menuButton = document.querySelector('[aria-label="Open menu"]');
+    if (!(panel instanceof HTMLElement) || !(backdrop instanceof HTMLElement) || !(menuButton instanceof HTMLElement)) {
+      return { error: "Blocking reconnect panel was incomplete." };
+    }
+
+    const menuBounds = menuButton.getBoundingClientRect();
+    const hitTarget = document.elementFromPoint(menuBounds.left + menuBounds.width / 2, menuBounds.top + menuBounds.height / 2);
+    const backdropBounds = backdrop.getBoundingClientRect();
+    return {
+      appChromeBlocked: hitTarget === backdrop,
+      backdropCoversViewport: backdropBounds.left <= 0 && backdropBounds.top <= 0 && backdropBounds.right >= window.innerWidth && backdropBounds.bottom >= window.innerHeight,
+      modal: panel.getAttribute("aria-modal") === "true" && panel.getAttribute("role") === "dialog"
+    };
+  });
+  if ("error" in blockingState || !blockingState.appChromeBlocked || !blockingState.backdropCoversViewport || !blockingState.modal) {
+    throw new Error(`Disconnected saved-PC reconnect blocking state failed: ${JSON.stringify(blockingState)}`);
+  }
+  const reconnectButton = reconnectPanel.getByRole("button", { name: "Try reconnect", exact: true });
+  const qrButton = reconnectPanel.getByRole("button", { name: "Take photo of QR code", exact: true });
+
+  const viewports = [
+    { name: "regular portrait", width: 393, height: 852 },
+    { name: "short landscape", width: 640, height: 360 }
+  ];
+  for (const viewport of viewports) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await reconnectButton.scrollIntoViewIfNeeded();
+    await qrButton.scrollIntoViewIfNeeded();
+    const result = await reconnectPanel.evaluate((panel) => {
+      const actions = Array.from(panel.querySelectorAll(".pairing-actions button"));
+      const bounds = panel.getBoundingClientRect();
+      return {
+        actionCount: actions.length,
+        horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+        minActionHeight: Math.min(...actions.map((button) => button.getBoundingClientRect().height)),
+        outsideViewport: bounds.left < -1 || bounds.right > window.innerWidth + 1,
+        scrollableWhenNeeded: panel.scrollHeight <= panel.clientHeight + 1 || getComputedStyle(panel).overflowY === "auto"
+      };
+    });
+
+    if (result.actionCount !== 2 || result.horizontalOverflow || result.minActionHeight < 48 || result.outsideViewport || !result.scrollableWhenNeeded) {
+      throw new Error(`Disconnected saved-PC reconnect layout failed for ${viewport.name}: ${JSON.stringify(result)}`);
+    }
+  }
+
+  await page.setViewportSize({ width: 393, height: 852 });
+  await reconnectButton.scrollIntoViewIfNeeded();
+  await reconnectButton.click();
+  await waitForConnected(page);
 }
 
 async function launchPersistentContext(chromium) {

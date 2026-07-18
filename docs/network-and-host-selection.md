@@ -39,9 +39,15 @@ The mobile app accepts:
 - a full Voltura Air pairing link
 - a port number that resolves against the current host
 
-After valid entry, the app creates or updates a saved PC profile, selects it,
-and attempts connection without leaving the app. **Forget** removes a saved
-profile.
+Host entries require HTTP or HTTPS, a valid explicit port, and no credentials,
+path, query, or fragment. Pairing links must satisfy the generated-link contract
+in [protocol.md](protocol.md). Invalid input remains in the field with a specific
+validation message and does not change the active or saved PC profile.
+
+A valid host entry starts connection recovery and is saved only after the host
+accepts it. A valid pairing link opens the existing device-name confirmation and
+uses its pairing token; it is not reduced to a host-only connection. **Forget**
+removes a saved profile.
 
 Missing advertised input acknowledgements move the app to
 unavailable/retrying, as do health-check failures.

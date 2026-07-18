@@ -1,6 +1,6 @@
 import { ChevronDown, GripVertical, Save, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { createLocalId } from "../../../localId";
+import { createLocalId } from "../../../foundation/identity/localId";
 import {
   loadTextSnippets,
   maxSavedSnippets,
@@ -8,7 +8,7 @@ import {
   normalizeSnippetName,
   saveTextSnippets,
   type SavedTextSnippet
-} from "../../../textSnippets";
+} from "../../../foundation/settings/textSnippets";
 import { SnippetActionDialog, type SnippetAction } from "./SnippetActionDialog";
 import { useSnippetReorder } from "./useSnippetReorder";
 

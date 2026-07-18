@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
 import { Coffee, LockKeyhole, LogOut, Monitor, MonitorOff, Power, RotateCcw, ShieldAlert, Sparkles, X } from "lucide-react";
-import type { AwakeCapability, AwakeResultMessage, PowerCapabilities, SystemPowerAction, SystemPowerResultMessage } from "../../../protocol";
+import type { AwakeCapability, AwakeResultMessage, PowerCapabilities, SystemPowerAction, SystemPowerResultMessage } from "../../../foundation/protocol/messages";
 
 const holdDurationMs = 1600;
 const holdTickMs = 40;

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction, type SyntheticEvent, type TouchEvent } from "react";
-import { saveTextSnippets, type SavedTextSnippet } from "../../../textSnippets";
+import { saveTextSnippets, type SavedTextSnippet } from "../../../foundation/settings/textSnippets";
 
 const snippetLongPressMs = 450;
 const snippetDragCancelDistance = 10;

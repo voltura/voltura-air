@@ -1,13 +1,19 @@
-import type { ChangeEvent, Dispatch, RefObject, SetStateAction } from "react";
-import type { AppSettings } from "../../appSettings";
-import type { TrackpadSettings } from "../../gestures";
-import type { KeyboardSettings } from "../../keyboardSettings";
-import type { PcProfile } from "../../pcProfiles";
-import type { RemoteSettings } from "../../remoteSettings";
-import type { ToolAppTab } from "../../appModeTabs";
+import type { ChangeEvent, ComponentType, Dispatch, RefObject, SetStateAction } from "react";
+import type { AppSettings, FourthMode } from "../../foundation/settings/appSettings";
+import type { TrackpadSettings } from "../../foundation/input/gestures";
+import type { KeyboardSettings } from "../../foundation/settings/keyboardSettings";
+import type { PcProfile } from "../../foundation/connection/pcProfiles";
+import type { ManualConnectionTarget } from "../../foundation/pairing/pairingLink";
+import type { RemoteSettings } from "../../foundation/settings/remoteSettings";
 
 export type ThemeMode = "system" | "light" | "dark";
 export type SettingsSection = "connection" | "custom-pointer" | "trackpad" | "keyboard" | "split" | "remote" | "appearance" | "app";
+
+export interface SettingsToolOption {
+  id: FourthMode;
+  label: string;
+  Icon: ComponentType<{ "aria-hidden"?: "true" }>;
+}
 
 export interface SettingsDrawerProps {
   activePc: PcProfile | null;
@@ -24,9 +30,9 @@ export interface SettingsDrawerProps {
   keyboardSettings: KeyboardSettings;
   onClose: () => void;
   onPairingQrSelected: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
-  onManualHostSubmit: (target: string) => void;
+  onManualHostSubmit: (target: ManualConnectionTarget) => void;
   onOpenGestureDebug?: (() => void) | undefined;
-  onOpenTool?: (tool: ToolAppTab) => void;
+  onOpenTool?: (tool: FourthMode) => void;
   pairedPcs: PcProfile[];
   pairingQrInputRef: RefObject<HTMLInputElement | null>;
   pairingScanMessage: string;
@@ -43,6 +49,7 @@ export interface SettingsDrawerProps {
   showGestureDebug: boolean;
   supportsRemoteLaunch: boolean;
   themeMode: ThemeMode;
+  toolOptions: readonly SettingsToolOption[];
   trackpadSettings: TrackpadSettings;
   updateAppSetting: <Key extends keyof AppSettings>(key: Key, value: AppSettings[Key]) => void;
   updateKeyboardSetting: <Key extends keyof KeyboardSettings>(key: Key, value: KeyboardSettings[Key]) => void;

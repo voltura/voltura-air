@@ -101,7 +101,7 @@ export default defineConfig(
     // Clipboard API writes are unavailable on ordinary HTTP LAN origins. Keep
     // the narrowly isolated execCommand fallback until a standards-based API
     // supports that deployment context.
-    files: ["src/mobileDiagnostics.ts"],
+    files: ["src/foundation/diagnostics/mobileDiagnostics.ts"],
     rules: {
       "@typescript-eslint/no-deprecated": "off"
     }
@@ -112,13 +112,13 @@ export default defineConfig(
     // lifecycle ownership directly; a generic wrapper would hide that behavior
     // and add indirection solely to satisfy this rule.
     files: [
-      "src/connection/useAppLaunch.ts",
-      "src/connection/useAwakeControl.ts",
-      "src/connection/useClipboardRead.ts",
-      "src/connection/usePowerControl.ts",
-      "src/connection/usePresentationControl.ts",
-      "src/connection/useTextTransfer.ts",
-      "src/connection/useUrlOpen.ts"
+      "src/foundation/connection/useAppLaunch.ts",
+      "src/foundation/connection/useAwakeControl.ts",
+      "src/foundation/connection/useClipboardRead.ts",
+      "src/foundation/connection/usePowerControl.ts",
+      "src/foundation/connection/usePresentationControl.ts",
+      "src/foundation/connection/useTextTransfer.ts",
+      "src/foundation/connection/useUrlOpen.ts"
     ],
     rules: {
       "react-hooks/set-state-in-effect": "off"

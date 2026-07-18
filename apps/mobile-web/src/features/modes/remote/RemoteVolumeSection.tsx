@@ -1,6 +1,6 @@
 import { Volume2, VolumeX } from "lucide-react";
-import type { AudioStateMessage } from "../../../protocol";
-import type { RemoteModeId } from "../../../remoteSettings";
+import type { AudioStateMessage } from "../../../foundation/protocol/messages";
+import type { RemoteModeId } from "../../../foundation/settings/remoteSettings";
 import type { RemoteModeCopy } from "./remoteModeCopy";
 import { RemoteButton, type RepeatablePressProps } from "./RemoteButton";
 

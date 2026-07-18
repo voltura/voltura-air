@@ -3,7 +3,7 @@
   left: 10px;
   bottom: 10px;
   z-index: 3;
-  min-height: 42px;
+  min-height: calc(42px + var(--mode-bottom-safe-area, 0px));
   gap: 6px;
   border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
   background: color-mix(in srgb, var(--surface-raised) 90%, var(--accent));
@@ -13,6 +13,18 @@
 .remote-power-button svg {
   width: 18px;
   height: 18px;
+}
+
+@media (orientation: landscape) {
+  .remote-power-button {
+    left: max(10px, var(--mode-inline-safe-start, 0px));
+  }
+}
+
+@media (orientation: landscape) and (height <= 520px) {
+  .remote-power-button {
+    left: 10px;
+  }
 }
 
 .power-sheet-layer {

@@ -1,0 +1,84 @@
+<UserControl x:Class="VolturaAir.Host.Features.Preferences.PreferencesPageView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="clr-namespace:VolturaAir.Host.Ui">
+    <ScrollViewer x:Name="PreferencesScroller"
+                  CanContentScroll="False"
+                  Focusable="False"
+                  IsTabStop="False"
+                  HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Visible">
+        <ui:SpacingStackPanel Spacing="{DynamicResource SpaceSm}">
+            <Expander x:Name="ApplicationSection"
+                      Header="Application"
+                      IsExpanded="False"
+                      Style="{DynamicResource PreferencesAccordionStyle}">
+                <ui:SpacingStackPanel x:Name="ApplicationContent"
+                                      Spacing="{DynamicResource SpaceMd}" />
+            </Expander>
+            <Expander x:Name="AppearanceSection"
+                      Header="Appearance"
+                      IsExpanded="False"
+                      Style="{DynamicResource PreferencesAccordionStyle}">
+                <ui:SpacingStackPanel x:Name="AppearanceContent"
+                                      Spacing="{DynamicResource SpaceMd}" />
+            </Expander>
+            <Expander x:Name="TrackpadSection"
+                      Header="Trackpad defaults"
+                      IsExpanded="False"
+                      Style="{DynamicResource PreferencesAccordionStyle}">
+                <ui:SpacingStackPanel x:Name="TrackpadContent"
+                                      Spacing="{DynamicResource SpaceMd}" />
+            </Expander>
+            <Expander x:Name="RemoteSection"
+                      Header="Remote defaults"
+                      IsExpanded="False"
+                      Style="{DynamicResource PreferencesAccordionStyle}">
+                <ui:SpacingStackPanel x:Name="RemoteContent"
+                                      Spacing="{DynamicResource SpaceMd}" />
+            </Expander>
+            <Expander x:Name="AwakeSection"
+                      Header="Keep awake"
+                      IsExpanded="False"
+                      Style="{DynamicResource PreferencesAccordionStyle}">
+                <ui:SpacingStackPanel x:Name="AwakeContent"
+                                      Spacing="{DynamicResource SpaceMd}" />
+            </Expander>
+            <Expander x:Name="PermissionsSection"
+                      Header="Global permissions"
+                      IsExpanded="False"
+                      Style="{DynamicResource PreferencesAccordionStyle}">
+                <ui:SpacingStackPanel x:Name="PermissionsContent"
+                                      Spacing="{DynamicResource SpaceMd}" />
+            </Expander>
+            <Expander x:Name="TextDestinationSection"
+                      Header="Text destination"
+                      IsExpanded="False"
+                      Style="{DynamicResource PreferencesAccordionStyle}">
+                <ui:SpacingStackPanel x:Name="TextDestinationContent"
+                                      Spacing="{DynamicResource SpaceMd}" />
+            </Expander>
+            <Expander x:Name="AppLaunchSection"
+                      Header="Application launch buttons"
+                      IsExpanded="False"
+                      Style="{DynamicResource PreferencesAccordionStyle}">
+                <ui:SpacingStackPanel x:Name="AppLaunchContent"
+                                      Spacing="{DynamicResource SpaceMd}" />
+            </Expander>
+            <Expander x:Name="CustomPointerSection"
+                      Header="Custom pointer"
+                      IsExpanded="False"
+                      Style="{DynamicResource PreferencesAccordionStyle}">
+                <ui:SpacingStackPanel x:Name="CustomPointerContent"
+                                      Spacing="{DynamicResource SpaceMd}" />
+            </Expander>
+            <Expander x:Name="DeveloperSection"
+                      Header="Developer tools"
+                      IsExpanded="False"
+                      Style="{DynamicResource PreferencesAccordionStyle}">
+                <ui:SpacingStackPanel x:Name="DeveloperContent"
+                                      Spacing="{DynamicResource SpaceMd}" />
+            </Expander>
+        </ui:SpacingStackPanel>
+    </ScrollViewer>
+</UserControl>

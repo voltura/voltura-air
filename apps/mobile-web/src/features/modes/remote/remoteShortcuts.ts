@@ -1,4 +1,4 @@
-import type { RemoteModeId } from "../../../remoteSettings";
+import type { RemoteModeId } from "../../../foundation/settings/remoteSettings";
 
 export interface RemoteShortcut {
   key: string;

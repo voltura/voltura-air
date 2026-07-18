@@ -1,8 +1,9 @@
 import { ChevronDown, ChevronLeft, ChevronRight, CircleStop, Eclipse, MousePointer2, Pause, Play, RotateCcw, Timer, Vibrate } from "lucide-react";
 import { useState } from "react";
-import type { PendingPresentationCommand } from "../../../connection/usePresentationControl";
-import type { PresentationAction, PresentationCapability, PresentationCommandResultMessage, PresentationTarget, SystemPowerAction } from "../../../protocol";
-import { formatPresentationTime, usePresentationTimer } from "../../../presentationTimer";
+import "./presentation.css";
+import type { PendingPresentationCommand } from "../../../foundation/connection/usePresentationControl";
+import type { PresentationAction, PresentationCapability, PresentationCommandResultMessage, PresentationTarget, SystemPowerAction } from "../../../foundation/protocol/messages";
+import { formatPresentationTime, usePresentationTimer } from "./presentationTimer";
 import { InfoButton } from "../../../ui/overlays/InfoButton";
 
 interface PresentationModeProps {

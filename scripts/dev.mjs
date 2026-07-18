@@ -3,21 +3,33 @@ import { randomUUID } from "node:crypto";
 import { readPreferredClientPort, stopChild, stopExistingHost, stopWindowsNodeListenersOnDevPorts } from "./dev-shared.mjs";
 
 const clientPort = readPreferredClientPort();
+const quickStart = process.argv.includes("--quick");
 const childEnv = {
   ...process.env,
   VOLTURA_AIR_CLIENT_PORT: String(clientPort),
   VOLTURA_AIR_WEB_BUILD_ID: process.env.VOLTURA_AIR_WEB_BUILD_ID?.trim() || randomUUID()
 };
+if (quickStart) {
+  childEnv.VOLTURA_AIR_USE_VITE_CLIENT = "0";
+  delete childEnv.VOLTURA_AIR_CLIENT_URL;
+}
 const children = [];
 let shuttingDown = false;
 
-runCommand("npm", ["run", "build", "--workspace", "apps/mobile-web"], childEnv);
+if (quickStart) {
+  console.log("Quick phone development: building current mobile sources without validation.");
+  runCommand("npm", ["run", "build:quick", "--workspace", "apps/mobile-web"], childEnv);
+} else {
+  runCommand("npm", ["run", "build", "--workspace", "apps/mobile-web"], childEnv);
+}
 stopWindowsNodeListenersOnDevPorts(clientPort, 20);
-children.push(spawnCommand(
-  "node",
-  ["../../node_modules/vite/bin/vite.js", "--host", "0.0.0.0", "--strictPort", "--port", String(clientPort)],
-  childEnv,
-  { cwd: "apps/mobile-web" }));
+if (!quickStart) {
+  children.push(spawnCommand(
+    "node",
+    ["../../node_modules/vite/bin/vite.js", "--host", "0.0.0.0", "--strictPort", "--port", String(clientPort)],
+    childEnv,
+    { cwd: "apps/mobile-web" }));
+}
 children.push(spawnCommand("npm", ["run", "dev:host"], childEnv));
 
 for (const signal of ["SIGINT", "SIGTERM"]) {

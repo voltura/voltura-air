@@ -1,12 +1,8 @@
-.app-shell.presentation-active {
-  min-height: var(--app-viewport-height);
-}
-
 .presentation-mode {
   min-height: 0;
   overflow: auto;
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(260px, 0.75fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -24,6 +20,9 @@
   align-content: start;
   gap: 12px;
   padding: clamp(14px, 2.5vw, 24px);
+  padding-bottom: max(clamp(14px, 2.5vw, 24px), var(--mode-bottom-safe-area, 0px));
+  padding-right: max(clamp(14px, 2.5vw, 24px), var(--mode-inline-safe-end, 0px));
+  padding-left: max(clamp(14px, 2.5vw, 24px), var(--mode-inline-safe-start, 0px));
 }
 
 .presentation-header {
@@ -181,6 +180,9 @@
   flex-direction: column;
   gap: 12px;
   padding: clamp(14px, 2.5vw, 22px);
+  padding-bottom: max(clamp(14px, 2.5vw, 22px), var(--mode-bottom-safe-area, 0px));
+  padding-right: max(clamp(14px, 2.5vw, 22px), var(--mode-inline-safe-end, 0px));
+  padding-left: max(clamp(14px, 2.5vw, 22px), var(--mode-inline-safe-start, 0px));
 }
 
 .presentation-timer-heading {
@@ -320,13 +322,16 @@
 
   .presentation-mode {
     grid-row: 2;
-    grid-template-columns: minmax(420px, 1.4fr) minmax(240px, 0.7fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .presentation-controls-panel,
   .presentation-timer {
     gap: 7px;
     padding: 10px;
+    padding-bottom: max(10px, var(--mode-bottom-safe-area, 0px));
+    padding-right: max(10px, var(--mode-inline-safe-end, 0px));
+    padding-left: max(10px, var(--mode-inline-safe-start, 0px));
   }
 
   .presentation-header p,

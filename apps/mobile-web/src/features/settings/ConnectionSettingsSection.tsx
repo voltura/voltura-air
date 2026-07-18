@@ -1,8 +1,8 @@
-import { useState, type SubmitEvent } from "react";
+import { useId, useState, type SubmitEvent } from "react";
 import { Camera, Clipboard, Power, RefreshCw, X } from "lucide-react";
-import { copyTextToClipboard } from "../../mobileDiagnostics";
-import { normalizeManualHostInput } from "../../pairingFeedback";
-import { getPcDisplayName } from "../../pcDisplayName";
+import { copyTextToClipboard } from "../../foundation/diagnostics/mobileDiagnostics";
+import { validateManualConnectionInput } from "../../foundation/pairing/pairingLink";
+import { getPcDisplayName } from "../../foundation/pairing/pcDisplayName";
 import { InfoButton } from "../../ui/overlays/InfoButton";
 import type { SettingsDrawerProps } from "./SettingsDrawerTypes";
 
@@ -42,6 +42,7 @@ export function ConnectionSettingsSection({
 }: ConnectionSettingsProps) {
   const [manualHost, setManualHost] = useState("");
   const [manualHostError, setManualHostError] = useState("");
+  const manualHostErrorId = useId();
   const [copyDiagnosticsStatus, setCopyDiagnosticsStatus] = useState("");
   const [manualDiagnostics, setManualDiagnostics] = useState("");
 
@@ -60,13 +61,13 @@ export function ConnectionSettingsSection({
 
   const submitManualHost = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const target = normalizeManualHostInput(manualHost, window.location.href);
-    if (!target) {
-      setManualHostError("Enter a host URL, IP:port, pairing link, or port number.");
+    const validation = validateManualConnectionInput(manualHost, window.location.href);
+    if (!validation.valid) {
+      setManualHostError(validation.message);
       return;
     }
 
-    onManualHostSubmit(target);
+    onManualHostSubmit(validation.target);
     setManualHost("");
     setManualHostError("");
   };
@@ -127,10 +128,18 @@ export function ConnectionSettingsSection({
         <form className="manual-pc-form" onSubmit={submitManualHost}>
           <label className="setting-group">
             <span>Host or pairing link</span>
-            <input className="text-input" inputMode="url" placeholder="192.168.1.50:51395" value={manualHost} onChange={(event) => { setManualHost(event.target.value); setManualHostError(""); }} />
+            <input
+              className="text-input"
+              inputMode="url"
+              placeholder="192.168.1.50:51395"
+              aria-describedby={manualHostError ? manualHostErrorId : undefined}
+              aria-invalid={manualHostError ? true : undefined}
+              value={manualHost}
+              onChange={(event) => { setManualHost(event.target.value); setManualHostError(""); }}
+            />
           </label>
           <button type="submit">Connect to PC</button>
-          {manualHostError && <p className="pairing-inline-error">{manualHostError}</p>}
+          {manualHostError && <p id={manualHostErrorId} className="pairing-inline-error" role="alert">{manualHostError}</p>}
         </form>
       </div>
     </>

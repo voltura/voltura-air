@@ -79,20 +79,27 @@ test("rejects foundation dependencies on features", () => {
   assert.match(messages[0].message, /Foundation code/u);
 });
 
-test("keeps transitional root domains under foundation dependency rules", () => {
+test("rejects source files outside the completed target roots", () => {
   const messages = lint(
     "connection/useConnection.ts",
-    'import { ModeWorkspace } from "../features/modes";'
+    "export const connection = true;"
   );
 
   assert.equal(messages.length, 1);
-  assert.match(messages[0].message, /Foundation code/u);
+  assert.match(messages[0].message, /must be owned by app/u);
+});
+
+test("requires foundation files to declare a domain owner", () => {
+  const messages = lint("foundation/protocol.ts", "export const version = 1;");
+
+  assert.equal(messages.length, 1);
+  assert.match(messages[0].message, /foundation\/<domain>/u);
 });
 
 test("rejects shared UI dependencies on application foundation", () => {
   const messages = lint(
     "ui/overlays/InfoButton.tsx",
-    'import { saveSettings } from "../../appStorage";'
+    'import { saveSettings } from "../../foundation/settings/appStorage";'
   );
 
   assert.equal(messages.length, 1);

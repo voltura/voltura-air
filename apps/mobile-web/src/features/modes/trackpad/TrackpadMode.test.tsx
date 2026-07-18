@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { defaultTrackpadSettings } from "../../../gestures";
+import { defaultTrackpadSettings } from "../../../foundation/input/gestures";
 import { TrackpadMode } from "./TrackpadMode";
 
 const baseProps = {

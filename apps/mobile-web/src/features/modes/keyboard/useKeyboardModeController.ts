@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type React from "react";
-import { liveKeyboardSentinel } from "../../../keyboardDelta";
+import { liveKeyboardSentinel } from "../../../foundation/input/keyboardDelta";
 import type { KeyboardInputMode } from "./KeyboardInputModeButtons";
 
 const repeatStartDelayMs = 400;

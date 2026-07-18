@@ -1,7 +1,10 @@
 import { useRef, useState, type ChangeEvent, type Dispatch, type SetStateAction } from "react";
-import type { ConnectionState } from "../../connection/connectionTypes";
-import { parsePairingLink, type PairingLink } from "../../pairingLink";
-import { decodeQrImage } from "../../qrCode";
+import {
+  parsePairingLink,
+  type ManualConnectionTarget,
+  type PairingLink
+} from "../../foundation/pairing/pairingLink";
+import { decodeQrImage } from "../../foundation/pairing/qrCode";
 
 interface PairingControllerOptions {
   beginNewPairing: () => void;
@@ -11,20 +14,19 @@ interface PairingControllerOptions {
   message: string;
   pairWithToken: (token: string, pcUrl?: string, requestedDeviceName?: string) => void;
   setIsSettingsOpen: Dispatch<SetStateAction<boolean>>;
-  state: ConnectionState;
 }
 
 export function usePairingController(options: PairingControllerOptions) {
-  const { beginNewPairing, connectManualPc, deviceName, initialPairing, message, pairWithToken, setIsSettingsOpen, state } = options;
+  const { beginNewPairing, connectManualPc, deviceName, initialPairing, message, pairWithToken, setIsSettingsOpen } = options;
   const [pendingPairing, setPendingPairing] = useState<PairingLink | null>(initialPairing);
-  const defaultScanMessage = message.trim() || "Scan the QR code shown on your PC to pair this home screen app.";
+  const defaultScanMessage = "Scan the QR code shown on your PC to pair this device.";
   const [pairingFeedback, setPairingFeedback] = useState({
     sourceMessage: message,
-    scanMessage: defaultScanMessage
+    scanMessage: null as string | null
   });
-  const pairingScanMessage = state === "needs-pairing" && !pendingPairing && pairingFeedback.sourceMessage !== message
-    ? defaultScanMessage
-    : pairingFeedback.scanMessage;
+  const currentScanMessage = pairingFeedback.sourceMessage === message ? pairingFeedback.scanMessage : null;
+  const pairingScanMessage = currentScanMessage ?? defaultScanMessage;
+  const pairingStatusMessage = (currentScanMessage ?? message.trim()) || defaultScanMessage;
   const setPairingScanMessage = (scanMessage: string) => {
     setPairingFeedback({ sourceMessage: message, scanMessage });
   };
@@ -44,8 +46,17 @@ export function usePairingController(options: PairingControllerOptions) {
     pairWithToken(pendingPairing.pairToken, pendingPairing.pcUrl, name);
   };
 
-  const connectManualHost = (target: string) => {
-    connectManualPc(target);
+  const connectManualHost = (target: ManualConnectionTarget) => {
+    if (target.kind === "pairing") {
+      beginNewPairing();
+      setPendingPairing({ pairToken: target.pairToken, pcUrl: target.pcUrl });
+      setPairingDeviceName(deviceName);
+      setPairingScanMessage("Confirm the device name shown on the PC, or change it before pairing.");
+      setIsSettingsOpen(false);
+      return;
+    }
+
+    connectManualPc(target.pcUrl);
     setPendingPairing(null);
     setIsSettingsOpen(false);
     setPairingScanMessage("Connecting to manually entered PC...");
@@ -77,7 +88,7 @@ export function usePairingController(options: PairingControllerOptions) {
         return;
       }
 
-      const pairingInfo = parsePairingLink(scannedText, window.location.origin);
+      const pairingInfo = parsePairingLink(scannedText);
       if (!pairingInfo) {
         setPairingScanMessage("No Voltura Air pairing link found in that QR code.");
         return;
@@ -101,6 +112,7 @@ export function usePairingController(options: PairingControllerOptions) {
     pairingDeviceName,
     pairingQrInputRef,
     pairingScanMessage,
+    pairingStatusMessage,
     pendingPairing,
     scanPairingQr,
     setPairingDeviceName

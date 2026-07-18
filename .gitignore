@@ -13,6 +13,7 @@ TestResults/
 *.suo
 *.log
 *.tsbuildinfo
+*_wpftmp.csproj
 .DS_Store
 Thumbs.db
 ## Additional project-specific ignores

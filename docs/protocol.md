@@ -24,21 +24,39 @@ are coalesced by one host-owned broadcaster so settings activity cannot create a
 unbounded queue of send tasks. A stalled or removed socket cannot bypass the send
 gate or hold host shutdown indefinitely.
 
-Pairing links use query parameters:
+The Windows host generates an absolute HTTP or HTTPS pairing link on the exact
+`/pair` app route, without URL credentials or a fragment. A generated link
+contains exactly one `t` and one `v`, and at most one `h`. The mobile parser
+requires that route and parameter cardinality. The ordinary `/` app route does
+not import pairing credentials.
 
-- `t`: short-lived pairing token.
-- `v`: mobile app version expected by the Windows host. The host includes this
-  on QR links so browsers and installed PWAs can fetch the current app shell
-  instead of reusing stale cached code.
+Host-generated pairing links use these query parameters:
+
+- `t`: required 32-character URL-safe Base64 short-lived pairing token.
+- `v`: required semantic host application-version metadata. The mobile parser
+  validates its shape but does not use it as authentication, compatibility
+  enforcement, or a cache buster.
 - `h`: optional PC host hint for `/ws` traffic when the web app is served from
   a different origin than the Windows host. `h` can be a full origin such as
   `http://192.168.1.20:51395` or a port such as `51395`, which resolves against
   the current page host.
+
+The mobile app can add these non-secret identity parameters to its current
+address:
+
 - `d`: non-secret client identifier used by browser and Home Screen launches.
 - `n`: non-secret mobile device display name.
 
-The mobile app removes `t` from the address after pairing. Non-secret
-parameters can remain in the address.
+After importing a valid link into its pending pairing state, the mobile app
+removes `t` from the current history entry before device-name confirmation and
+network authentication. The route and non-secret parameters can remain.
+
+`/pair` is an application route, not a caching mechanism. App-shell navigation
+is network-first in the service worker, and the host serves the HTML entry point
+with `Cache-Control: no-store, no-cache, must-revalidate`. The cached `/` shell
+is used only when a navigation network request fails. Token uniqueness and
+expiry protect pairing; neither the `/pair` path nor `v` makes a stale token
+valid.
 
 ## Host hints
 
@@ -54,6 +72,9 @@ The reference client accepts these host forms:
 - a full Voltura Air pairing link;
 - a port number, which resolves against the current page host.
 
+The manual-entry validation and state-preservation behavior for these forms is
+defined in [network-and-host-selection.md](network-and-host-selection.md).
+
 If the host value has no pairing token, authentication can complete only with a
 valid stored reconnect secret. Host hints and saved profiles never bypass
 pairing. Profile creation, selection, and recovery behavior are defined in
@@ -62,10 +83,12 @@ pairing. Profile creation, selection, and recovery behavior are defined in
 ## Pairing
 
 The client must start every WebSocket session with `pair.hello`. `deviceName`
-is the current display name for the mobile device. On a first-time pairing the
-client also sends a short-lived single-use `pairToken`; on reconnect it sends
-the stored `secret`. The Windows host stores only a hash of the reconnect
-secret.
+is the current display name for the mobile device. A QR pairing attempt sends a
+short-lived single-use `pairToken`; a normal reconnect sends the stored
+`secret`. If `pairToken` is present, the host validates that explicit pairing
+attempt even when the request also contains a reconnect secret. The host uses a
+reconnect secret only when `pairToken` is absent and stores only a hash of each
+reconnect secret.
 
 The mobile app stores a generated `clientId` in browser storage and also keeps
 that same non-secret value in the page URL as `d`. This lets a browser-created
@@ -75,16 +98,27 @@ authentication secret; reconnect still requires the stored `secret`, and a
 fresh storage container must pair once with a valid `pairToken` before it can
 store its own secret.
 
-When a valid `pairToken` is accepted for an already-known `clientId`, the host
-rotates the secret, revokes existing active sockets for that client, and keeps one
-paired-device record instead of adding a duplicate browser/Home Screen entry.
+Accepting a valid `pairToken` generates a new reconnect secret and consumes both
+the current and overlap token slots. For an already-known `clientId`, the host
+also revokes the previous secret and existing active sockets while retaining one
+paired-device record.
 
 ```json
 {
   "type": "pair.hello",
   "clientId": "browser-generated-id",
   "deviceName": "iPhone",
-  "pairToken": "short-lived-token",
+  "pairToken": "short-lived-token"
+}
+```
+
+Reconnect request:
+
+```json
+{
+  "type": "pair.hello",
+  "clientId": "browser-generated-id",
+  "deviceName": "iPhone",
   "secret": "stored-secret-for-reconnect"
 }
 ```
@@ -112,12 +146,19 @@ Successful response:
       "restart": false,
       "shutdown": false
     },
+    "awake": {
+      "canControl": false,
+      "active": false,
+      "mode": "off",
+      "expiresAt": null
+    },
     "sleep": true,
     "volume": true,
     "presentation": null,
     "remoteLaunch": true,
     "urlOpen": { "canOpen": false },
-    "textTransfer": true
+    "textTransfer": true,
+    "clipboardRead": false
   },
   "host": {
     "hostVersion": "1.2.3",
@@ -168,11 +209,19 @@ Host response:
       "restart": false,
       "shutdown": false
     },
+    "awake": {
+      "canControl": false,
+      "active": false,
+      "mode": "off",
+      "expiresAt": null
+    },
     "sleep": true,
     "volume": true,
     "presentation": null,
     "remoteLaunch": true,
-    "textTransfer": true
+    "urlOpen": { "canOpen": false },
+    "textTransfer": true,
+    "clipboardRead": false
   },
   "host": {
     "hostVersion": "1.2.3",
@@ -212,15 +261,22 @@ pushes authenticated `status` when this state changes.
 `webClientBuildId` identifies the exact compiled mobile web bundle currently served by the host. Vite generates a new opaque ID for every build, and the same ID is embedded in the JavaScript bundle and written to `web-build-id.txt`. When auto-refresh is enabled, the client clears its service worker and caches and reloads only when the host build ID differs from the ID embedded in the running client. This build ID is separate from `hostVersion` and does not affect installer or release versioning.
 When host developer mode is enabled in **Preferences** -> **Developer tools**, host metadata also includes `developerMode: true` and a `developerSessionId` for the current host run.
 
+QR pairing tokens are valid for five minutes. The Connect screen rotates the
+visible token 15 seconds before expiry and keeps only the immediately previous
+token valid for at most that 15-second overlap. Successful pairing consumes both
+available token slots, and the Connect screen generates the next visible code.
+
 Rejected response:
 
 ```json
 {
   "type": "pair.rejected",
-  "reason": "invalid-token",
-  "diagnosticCode": "VAIR-PAIR-INVALID-TOKEN"
+  "reason": "invalid-token"
 }
 ```
+
+The mobile client derives the user-visible `VAIR-PAIR-*` diagnostic code from
+`reason`; the host does not send a diagnostic-code field.
 
 Known pairing rejection reasons:
 
@@ -228,10 +284,10 @@ Known pairing rejection reasons:
 | --- | --- |
 | `pair-first` | The client sent a non-pairing message before authentication. |
 | `missing-token` | No `pairToken` or valid reconnect `secret` was supplied. |
-| `invalid-token` | A supplied pairing token was not accepted by the host. |
-| `expired-token` | The active pairing token expired before use. |
-| `stale-token` | The token was already consumed or replaced by a newer QR code. |
-| `device-revoked` / `secret-revoked` | The stored device credential is no longer valid. |
+| `invalid-token` | The supplied token does not match the retained current or overlap code. |
+| `expired-token` | The supplied token matches a retained code whose validity ended. |
+| `stale-token` | No active pairing-code state is available. |
+| `secret-revoked` | The stored reconnect credential is no longer valid. |
 | `rate-limited` | Too many failed unauthenticated pairing attempts were made from the same remote address. |
 | `invalid-message` | The pairing request was not valid JSON protocol shape. |
 

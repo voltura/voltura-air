@@ -45,7 +45,7 @@ document's role, subject, and update trigger.
 
 | Document | Role | Subject and update trigger |
 | --- | --- | --- |
-| [Architecture](architecture.md) | Target authority | Subsystem ownership, dependency direction, transition state, invariants, and source-size review. |
+| [Architecture](architecture.md) | Target authority | Subsystem ownership, dependency direction, resource inventory, invariants, bundle budget, and source-size review. |
 | [Feature inventory](features.md) | Current authority | Implemented product capabilities and guarantees. Update with user-visible behavior. |
 | [One-page marketing site](site/index.php) | Derived public | Core use cases, capability summary, trust, screenshots, and downloads. |
 | [Machine-readable product summary](site/llms.txt) | Derived public | Compact product facts and authority links for AI systems. |
@@ -57,7 +57,7 @@ document's role, subject, and update trigger.
 | [Screenshot capture](screenshots.md) | Operational | Isolated screenshot and installer-artwork capture. |
 | [Setup](setup.md) | Operational | Installation, development startup, host options, and first connection. |
 | [Site deployment](site-deployment.md) | Operational | Marketing-site deployment and hosting behavior. |
-| [Project TODO](todo.md) | Approved TODO | P0 architecture and quality work, followed by P1 Presentation graduation. |
+| [Project TODO](todo.md) | Approved TODO | P1 Presentation graduation. |
 | [Candidate directions](ideas.md) | Candidate register | Product, platform, distribution, and project directions awaiting decisions. |
 | [Troubleshooting](troubleshooting.md) | Operational | Pairing, network, input, pointer, text, logging, and host recovery. |
 | [Windows host UI guidelines](host-ui-guidelines.md) | Target authority | WPF composition, accordion, scrolling, diagnostics, feedback, and tray behavior. |

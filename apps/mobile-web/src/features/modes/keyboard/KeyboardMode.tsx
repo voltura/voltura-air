@@ -1,5 +1,9 @@
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Send } from "lucide-react";
+import { useState } from "react";
 import type React from "react";
+import "./keyboard.css";
+import "./keyboard-viewport.css";
+import { ConfirmationDialog } from "../../../ui/overlays/ConfirmationDialog";
 import { InfoButton } from "../../../ui/overlays/InfoButton";
 import { KeyboardInputModeButtons } from "./KeyboardInputModeButtons";
 import { useKeyboardModeController } from "./useKeyboardModeController";
@@ -67,6 +71,7 @@ export function KeyboardMode({
   toLiveKeyboardValue,
   isComposingRef
 }: KeyboardModeProps) {
+  const [isSleepConfirmationOpen, setIsSleepConfirmationOpen] = useState(false);
   const {
     getRepeatableKeyProps,
     handleLiveTypingChange,
@@ -148,7 +153,7 @@ export function KeyboardMode({
           </button>
         </div>
       )}
-      <div className={`command-row keyboard-primary-keys ${showSleepButton ? "has-sleep-key" : ""}`} aria-label="Primary keyboard keys">
+      <div className={`keyboard-primary-keys ${showSleepButton ? "has-sleep-key" : ""}`} aria-label="Primary keyboard keys">
         <button className="key-esc" onClick={() => { sendSpecial("Escape"); }}>Esc</button>
         <button className="key-tab" {...getRepeatableKeyProps("Tab")}>Tab</button>
         <button className="key-win" onClick={() => { sendSpecial("Win"); }}>Win</button>
@@ -160,11 +165,22 @@ export function KeyboardMode({
         </button>
         <button className="key-delete" {...getRepeatableKeyProps("Delete")}>Delete</button>
         {showSleepButton && (
-          <button className="key-sleep" type="button" onClick={onSleep}>
+          <button className="key-sleep" type="button" aria-haspopup="dialog" aria-expanded={isSleepConfirmationOpen} onClick={() => { setIsSleepConfirmationOpen(true); }}>
             <span>Sleep</span>
           </button>
         )}
       </div>
+      <ConfirmationDialog
+        confirmLabel="Sleep PC"
+        description="Voltura Air will disconnect until the PC wakes again."
+        isOpen={isSleepConfirmationOpen}
+        onCancel={() => { setIsSleepConfirmationOpen(false); }}
+        onConfirm={() => {
+          setIsSleepConfirmationOpen(false);
+          onSleep();
+        }}
+        title="Put PC to sleep?"
+      />
       {showFunctionKeys && (
         <div className="function-key-row" aria-label="Function keys">
           {functionKeys.map((key) => (

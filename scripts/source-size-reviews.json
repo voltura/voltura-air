@@ -1,0 +1,11 @@
+{
+  "apps/mobile-web/src/App.test.tsx": "Shell integration scenarios share one app-composition harness and validate cross-slice state transitions; splitting would duplicate the boundary fixture without creating a new owner.",
+  "apps/mobile-web/src/foundation/connection/useConnectionSocketLifecycle.ts": "One React effect owns the complete WebSocket state machine, listeners, reconnect and health timers, background suspension, and cleanup; separating it would create competing lifetime owners or conceal closure state.",
+  "apps/mobile-web/src/features/modes/remote/remote.css": "The Remote slice uses one coordinated responsive cascade for media, volume, navigation, utility, and compact-state layout; its shared container and media-query rules are the sizing owner.",
+  "apps/mobile-web/src/features/modes/text-transfer/text-transfer.css": "The Text transfer slice uses one coordinated responsive cascade for its editor, saved-snippet disclosure, drag states, and dialog; the rules share layout states and remain slice-local.",
+  "apps/mobile-web/src/foundation/connection/useVolturaAirConnection.test.ts": "Connection lifetime scenarios share the same deterministic MockWebSocket harness and collectively verify socket, listener, timer, retry, and suspension cleanup.",
+  "tests/VolturaAir.Host.Tests/HostWpfUiTests.cs": "These Windows-only integration scenarios share the WPF application, dispatcher, isolated host, logical-tree, and native-skip harness for the primary host surfaces.",
+  "scripts/code-statistics.mjs": "This is one reporting pipeline whose collectors and text/HTML renderers consume the same in-memory repository statistics schema; there is no long-lived runtime ownership.",
+  "scripts/dev-ui.mjs": "This is one isolated UI acceptance runner that owns temporary host/browser startup, responsive checks, and deterministic shutdown as a single process lifetime.",
+  "scripts/generate-icons.mjs": "This is one offline branding pipeline with shared Sharp compositions, encoding validation, and output integrity checks across the generated icon family."
+}

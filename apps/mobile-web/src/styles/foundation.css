@@ -1,5 +1,6 @@
 :root {
   --app-viewport-height: 100vh;
+  --bottom-safe-area-inset: env(safe-area-max-inset-bottom, env(safe-area-inset-bottom, 0px));
 
   color: var(--text);
   background: var(--bg);
@@ -28,14 +29,10 @@ body {
   overscroll-behavior: none;
 }
 
-@supports (height: 100dvh) {
+@supports (height: 100svh) {
   :root {
-    --app-viewport-height: 100dvh;
+    --app-viewport-height: 100svh;
   }
-}
-
-:root[data-display-mode="installed"] {
-  --app-viewport-height: 100vh;
 }
 
 @supports (height: 100lvh) {
@@ -64,8 +61,13 @@ button {
   touch-action: manipulation;
 }
 
-button:focus-visible,
+button:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
 input:focus-visible,
+select:focus-visible,
 summary:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--accent) 76%, var(--text));
   outline-offset: 3px;
@@ -107,10 +109,24 @@ svg {
   white-space: nowrap;
 }
 
-.app-shell {
+.app-frame {
+  width: 100%;
   height: var(--app-viewport-height);
   max-height: var(--app-viewport-height);
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+
+.app-shell {
+  --mode-bottom-safe-area: 0px;
+  --mode-inline-safe-start: 0px;
+  --mode-inline-safe-end: 0px;
+
   width: 100%;
+  height: 100%;
+  max-height: 100%;
   min-height: 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -126,7 +142,9 @@ svg {
 }
 
 .app-shell,
-.app-shell * {
+.app-shell *,
+.bottom-mode-tabs,
+.bottom-mode-tabs * {
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
@@ -146,7 +164,7 @@ svg {
 }
 
 .app-shell.has-mode-navigation {
-  padding-bottom: var(--bottom-mode-nav-height);
+  padding-bottom: 0;
 }
 
 .app-shell.remote-active {
@@ -156,7 +174,7 @@ svg {
 }
 
 .app-shell.remote-active.has-mode-navigation {
-  padding-bottom: var(--bottom-mode-nav-height);
+  padding-bottom: 0;
 }
 
 .app-shell.mode-tabs-collapsed {
@@ -170,7 +188,6 @@ svg {
 .top-bar,
 .tabs,
 .command-row,
-.mouse-buttons,
 .toggle-row {
   display: flex;
   gap: 8px;
@@ -265,7 +282,8 @@ button span {
 
 .tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
   container-type: inline-size;
 }
 
@@ -276,17 +294,15 @@ button span {
 }
 
 .bottom-mode-tabs {
-  position: fixed;
-  inset: calc(var(--app-viewport-height) - var(--bottom-mode-nav-height)) 0 auto;
-  z-index: 7;
-  height: var(--bottom-mode-nav-height);
+  height: max(
+    var(--bottom-mode-nav-height),
+    calc(var(--space-xs) + var(--control-min-height) + var(--bottom-safe-area-inset))
+  );
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
-  padding: 8px max(10px, env(safe-area-inset-right)) 0 max(10px, env(safe-area-inset-left));
+  padding: var(--space-xs) max(10px, env(safe-area-inset-right)) 0 max(10px, env(safe-area-inset-left));
   border-top: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg) 94%, transparent);
-  backdrop-filter: blur(14px);
+  background: color-mix(in srgb, var(--bg) 94%, var(--surface-raised));
 }
 
 .bottom-mode-tabs button {
@@ -294,7 +310,7 @@ button span {
   height: 100%;
   flex-direction: column;
   gap: 3px;
-  padding: 6px 4px;
+  padding: var(--space-xs) 4px;
   font-size: 0.76rem;
 }
 
@@ -405,6 +421,13 @@ button span {
   }
 }
 
+@media (width >= 720px) {
+  .app-shell {
+    gap: 14px;
+    padding: 18px;
+  }
+}
+
 @media (width >= 561px), (orientation: landscape) {
   .app-shell,
   .app-shell.remote-active {
@@ -416,23 +439,26 @@ button span {
   }
 
   .app-shell {
-    padding-bottom: max(10px, env(safe-area-inset-bottom));
-  }
+    --mode-bottom-safe-area: var(--bottom-safe-area-inset);
 
-  .app-shell.remote-active {
-    padding-bottom: max(6px, env(safe-area-inset-bottom));
-  }
-
-  .app-shell.has-mode-navigation {
-    padding-bottom: max(10px, env(safe-area-inset-bottom));
-  }
-
-  .app-shell.remote-active.has-mode-navigation {
-    padding-bottom: max(6px, env(safe-area-inset-bottom));
+    padding-bottom: 0;
   }
 }
 
 @media (orientation: landscape) {
+  .app-shell {
+    --mode-inline-safe-start: env(safe-area-inset-left, 0px);
+    --mode-inline-safe-end: env(safe-area-inset-right, 0px);
+
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  .top-bar {
+    padding-right: max(12px, var(--mode-inline-safe-end));
+    padding-left: max(12px, var(--mode-inline-safe-start));
+  }
+
   .app-shell.remote-active.remote-utility-open .top-mode-tabs {
     display: none;
   }
@@ -451,8 +477,10 @@ button span {
   display: none;
 }
 
-.app-shell.mode-tabs-collapsed.has-mode-navigation {
-  padding-bottom: env(safe-area-inset-bottom, 0);
+.app-shell.bottom-mode-navigation-hidden {
+  --mode-bottom-safe-area: var(--bottom-safe-area-inset);
+
+  padding-bottom: 0;
 }
 
 .app-shell.mode-tabs-collapsed .compact-mode-button {

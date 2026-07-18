@@ -82,10 +82,9 @@ the app's own LAN transport.
 
 ## Dependencies
 
-1. P0 architecture and quality work precedes product expansion.
-2. The custom panel model precedes presets and panel-related device preferences.
-3. Release integrity and signing decisions precede automatic-update evaluation.
-4. Store distribution depends on packaging, signing, account, and update-channel
+1. The custom panel model precedes presets and panel-related device preferences.
+2. Release integrity and signing decisions precede automatic-update evaluation.
+3. Store distribution depends on packaging, signing, account, and update-channel
    ownership.
-5. External compatibility work precedes any upgrade guarantee.
-6. Each research-gated capability receives its own decision and evidence task.
+4. External compatibility work precedes any upgrade guarantee.
+5. Each research-gated capability receives its own decision and evidence task.

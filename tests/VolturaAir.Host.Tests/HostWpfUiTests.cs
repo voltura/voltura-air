@@ -198,7 +198,8 @@ public sealed partial class HostUiLayoutTests
             using var inputInjector = new SendInputInjector();
             var manager = new PairingManager(store.Store);
             var webHost = new WebHostService(manager, new InputDispatcher(inputInjector), isolatedTestMode: true);
-            var window = new MainWindow(manager, webHost, clientUrl: null);
+            var clipboard = new RecordingClipboardTextWriter();
+            var window = new MainWindow(manager, webHost, clientUrl: null, clipboardTextWriter: clipboard);
             try
             {
                 window.Show();
@@ -210,6 +211,8 @@ public sealed partial class HostUiLayoutTests
                 copyLink.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 DoWpfEvents();
 
+                Assert.Equal(window.PairingUrl, clipboard.Text);
+                Assert.Equal(1, clipboard.WriteCount);
                 Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "Link copied");
             }
             finally
@@ -218,6 +221,109 @@ public sealed partial class HostUiLayoutTests
                 webHost.DisposeAsync().AsTask().GetAwaiter().GetResult();
             }
         });
+    }
+
+    [Fact]
+    public void ApplicationLogControlsRemainHitTestableAndUpdateTheirState()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var settingsScope = HostSettingsRegistry.BeginIsolatedScope();
+            using var appScope = new WpfApplicationScope();
+            using var store = new TempPairingStore();
+            using var inputInjector = new SendInputInjector();
+            var manager = new PairingManager(store.Store);
+            var appLog = new FakeAppLog();
+            var webHost = new WebHostService(manager, new InputDispatcher(inputInjector), appLog: appLog, isolatedTestMode: true);
+            var window = new MainWindow(manager, webHost, clientUrl: null, appLog: appLog);
+            try
+            {
+                window.Show();
+                window.ShowPage(HostPage.Diagnostics);
+                window.UpdateLayout();
+                WaitForWpf(() => appLog.ReadCount > 0, "initial application log read");
+
+                var loggingToggle = FindWpfDescendants<CheckBox>(window)
+                    .Single(checkBox => checkBox.Content?.ToString() == "Write application log");
+                var automaticRefreshToggle = FindWpfDescendants<CheckBox>(window)
+                    .Single(checkBox => checkBox.Content?.ToString() == "Automatic log refresh");
+                var refreshButton = FindWpfDescendants<Button>(window)
+                    .Single(button => button.Content?.ToString() == "Refresh");
+                var dateRangeButton = FindWpfDescendants<ModernDateRangePicker>(window)
+                    .SelectMany(FindWpfDescendants<Button>)
+                    .Single(button => AutomationProperties.GetName(button) == "Choose application log date range");
+                var filters = FindWpfDescendants<ComboBox>(window).ToArray();
+
+                AssertControlReceivesPointerHit(window, loggingToggle);
+                AssertControlReceivesPointerHit(window, automaticRefreshToggle);
+                AssertControlReceivesPointerHit(window, refreshButton);
+                AssertControlReceivesPointerHit(window, dateRangeButton);
+                Assert.All(filters, filter => AssertControlReceivesPointerHit(window, filter));
+
+                Assert.False(AppLoggingSettings.IsEnabled());
+                loggingToggle.IsChecked = true;
+                Assert.True(AppLoggingSettings.IsEnabled());
+
+                var previousReadCount = appLog.ReadCount;
+                automaticRefreshToggle.IsChecked = true;
+                WaitForWpf(() => appLog.ReadCount > previousReadCount, "automatic log refresh subscription");
+
+                var sourceFilter = filters.Single(filter => filter.Items.Count == 3);
+                sourceFilter.IsDropDownOpen = true;
+                Assert.True(sourceFilter.IsDropDownOpen);
+                sourceFilter.IsDropDownOpen = false;
+            }
+            finally
+            {
+                window.Close();
+                webHost.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        });
+    }
+
+    private static void AssertControlReceivesPointerHit(Window window, FrameworkElement control)
+    {
+        Assert.True(control.IsEnabled, $"{control.GetType().Name} is disabled.");
+        Assert.True(control.IsHitTestVisible, $"{control.GetType().Name} is not hit-test visible.");
+        Assert.True(control.ActualWidth > 0 && control.ActualHeight > 0, $"{control.GetType().Name} has no arranged size.");
+
+        var center = control.TranslatePoint(new Point(control.ActualWidth / 2, control.ActualHeight / 2), window);
+        var hit = window.InputHitTest(center) as DependencyObject;
+        Assert.NotNull(hit);
+        Assert.True(
+            IsDescendantOf(hit, control),
+            $"{control.GetType().Name} is covered by {hit.GetType().Name} at its center point.");
+    }
+
+    private static bool IsDescendantOf(DependencyObject candidate, DependencyObject ancestor)
+    {
+        for (DependencyObject? current = candidate; current is not null; current = VisualTreeHelper.GetParent(current))
+        {
+            if (ReferenceEquals(current, ancestor))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private sealed class RecordingClipboardTextWriter : IClipboardTextWriter
+    {
+        public string? Text { get; private set; }
+
+        public int WriteCount { get; private set; }
+
+        public void WriteText(string text)
+        {
+            Text = text;
+            WriteCount++;
+        }
     }
 
     [Fact]

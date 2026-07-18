@@ -7,7 +7,7 @@ import { PresentationMode } from "./presentation/PresentationMode";
 import { RemoteMode } from "./remote/RemoteMode";
 import { TrackpadMode } from "./trackpad/TrackpadMode";
 import { TextTransferMode } from "./text-transfer/TextTransferMode";
-import type { AppTab as Tab } from "../../appModeTabs";
+import type { AppTab as Tab } from "./modeTypes";
 
 interface AppModeContentProps {
   tab: Tab;

@@ -32,6 +32,9 @@ returns instead, refresh the mobile app from the PC and scan the latest code.
 ## QR code expired, already used, or invalid
 
 Pairing QR codes are short-lived and single-use. Click **New code** on the PC and scan the latest QR code. Avoid using a QR page that was left open before the PC changed network or port.
+The PC Connect screen shows when its code will refresh and replaces it
+automatically before expiry; a scan already in progress has a brief overlap in
+which the immediately previous code remains valid.
 
 ## Too many pairing attempts
 

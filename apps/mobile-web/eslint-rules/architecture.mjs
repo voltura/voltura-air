@@ -19,6 +19,10 @@ function classify(filePath) {
     return { layer: "app" };
   }
 
+  if (first === "vite-env.d.ts") {
+    return { layer: "config" };
+  }
+
   if (first === "features" && relative[1]) {
     return { layer: "feature", slice: relative[1] };
   }
@@ -27,14 +31,11 @@ function classify(filePath) {
     return { layer: "ui" };
   }
 
-  if (first === "foundation") {
-    return { layer: "foundation", transitional: false };
+  if (first === "foundation" && relative[1] && relative[2]) {
+    return { layer: "foundation" };
   }
 
-  // Root domain modules and directories are the pre-foundation layout. Treat
-  // them as the same dependency layer while coherent domains move under the
-  // physical foundation/ target; docs/architecture.md owns that transition.
-  return { layer: "foundation", transitional: true };
+  return { layer: "invalid" };
 }
 
 function isPublicFeatureImport(resolvedPath, target) {
@@ -43,6 +44,10 @@ function isPublicFeatureImport(resolvedPath, target) {
 }
 
 function dependencyError(source, target, resolvedPath) {
+  if (source.layer === "invalid" || target.layer === "invalid" || target.layer === "config") {
+    return null;
+  }
+
   if (source.layer === "app") {
     if (target.layer === "feature" && !isPublicFeatureImport(resolvedPath, target)) {
       return `Import feature '${target.slice}' through its public index.`;
@@ -92,12 +97,20 @@ export const architectureRule = {
   meta: {
     type: "problem",
     docs: {
-      description: "Enforce Voltura Air's app, feature, UI, and target/transitional foundation dependency direction."
+      description: "Enforce Voltura Air's app, feature, UI, and domain-owned foundation dependency direction."
     },
     schema: []
   },
   create(context) {
     return {
+      Program(node) {
+        if (classify(context.filename)?.layer === "invalid") {
+          context.report({
+            node,
+            message: "Mobile source must be owned by app, features/<capability>, ui, or foundation/<domain>."
+          });
+        }
+      },
       ImportDeclaration(node) {
         checkDependency(context, node.source, node.source.value);
       },

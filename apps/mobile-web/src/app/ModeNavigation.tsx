@@ -1,4 +1,4 @@
-import type { AppTab, MainAppTab, ModeDefinition } from "../appModeTabs";
+import type { AppTab, MainAppTab, ModeDefinition } from "./appModeTabs";
 
 interface ModeNavigationProps {
   className: string;

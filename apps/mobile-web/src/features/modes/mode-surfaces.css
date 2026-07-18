@@ -24,6 +24,8 @@
   border-radius: 8px;
   background: var(--surface);
   padding: 8px 10px;
+  padding-right: max(10px, var(--mode-inline-safe-end, 0px));
+  padding-left: max(10px, var(--mode-inline-safe-start, 0px));
 }
 
 .volume-control.muted {
@@ -81,7 +83,7 @@
 .trackpad-expand-button {
   position: absolute;
   top: 10px;
-  right: 10px;
+  right: max(10px, var(--mode-inline-safe-end, 0px));
   z-index: 1;
   width: 44px;
   height: 44px;
@@ -111,18 +113,19 @@
 .mouse-buttons {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm);
 }
 
 .mouse-buttons button {
   position: relative;
-  min-height: 58px;
-  padding-bottom: 10px;
+  min-height: calc(58px + var(--mode-bottom-safe-area, 0px));
+  padding-block: 10px;
   font-weight: 700;
   touch-action: manipulation;
 }
 
 .trackpad-mode.large-click-buttons .mouse-buttons button {
-  min-height: calc(82px + env(safe-area-inset-bottom));
+  min-height: calc(82px + var(--mode-bottom-safe-area, 0px));
 }
 
 .trackpad-click-zones {
@@ -157,8 +160,7 @@
 
 .keyboard-mode {
   min-height: max-content;
-  width: min(100%, 960px);
-  justify-self: center;
+  width: 100%;
 }
 
 .gesture-debug-mode {
@@ -304,6 +306,8 @@
   border-radius: 8px;
   background: color-mix(in srgb, var(--surface) 92%, transparent);
   padding: 10px 12px;
+  padding-right: max(12px, var(--mode-inline-safe-end, 0px));
+  padding-left: max(12px, var(--mode-inline-safe-start, 0px));
 }
 
 .dictation-status > svg {
@@ -344,6 +348,9 @@
   height: 100%;
   min-height: 160px;
   overflow-y: auto;
+  padding-bottom: max(14px, var(--mode-bottom-safe-area, 0px));
+  padding-right: max(14px, var(--mode-inline-safe-end, 0px));
+  padding-left: max(14px, var(--mode-inline-safe-start, 0px));
   font-size: 1rem;
   line-height: 1.45;
 }
@@ -375,6 +382,10 @@
 
   .dictation-mode {
     padding-bottom: 8px;
+  }
+
+  .dictation-actions button {
+    min-height: calc(54px + var(--mode-bottom-safe-area, 0px));
   }
 
   .dictation-textarea {

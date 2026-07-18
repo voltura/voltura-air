@@ -1,0 +1,62 @@
+<UserControl x:Class="VolturaAir.Host.Features.Devices.DevicesPageView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="clr-namespace:VolturaAir.Host.Ui">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="{DynamicResource GridSpaceXl}" />
+            <ColumnDefinition Width="360" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="{DynamicResource GridSpaceLg}" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ListBox x:Name="DeviceList"
+                 Style="{DynamicResource ModernListBoxStyle}"
+                 ItemContainerStyle="{DynamicResource ModernListBoxItemStyle}"
+                 AutomationProperties.Name="Paired devices">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Border Padding="14"
+                            Background="{DynamicResource SurfaceBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="{DynamicResource RadiusMedium}">
+                        <ui:SpacingStackPanel Spacing="{DynamicResource SpaceXs}">
+                            <TextBlock Text="{Binding Name}"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextBrush}"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding Status}"
+                                       Foreground="{DynamicResource MutedTextBrush}"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding Activity}"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource MutedTextBrush}"
+                                       TextTrimming="CharacterEllipsis" />
+                        </ui:SpacingStackPanel>
+                    </Border>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <ScrollViewer Grid.Column="2"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+            <ui:SpacingStackPanel x:Name="DeviceDetailsPanel"
+                                  Spacing="{DynamicResource SpaceSm}" />
+        </ScrollViewer>
+
+        <ui:SpacingStackPanel Grid.Row="2"
+                              Orientation="Horizontal"
+                              Spacing="{DynamicResource SpaceSm}">
+            <Button x:Name="CleanUpDuplicatesButton" Content="Clean up duplicates" />
+            <Button x:Name="DisconnectAllButton"
+                    Content="Disconnect all"
+                    Style="{DynamicResource DangerButtonStyle}" />
+        </ui:SpacingStackPanel>
+    </Grid>
+</UserControl>

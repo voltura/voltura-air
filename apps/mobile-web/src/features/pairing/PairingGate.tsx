@@ -1,23 +1,27 @@
-import type { ConnectionState } from "../../connection/connectionTypes";
-import { getPcDisplayName } from "../../pcDisplayName";
-import type { PcProfile } from "../../pcProfiles";
+import { useState } from "react";
+import type { ConnectionState } from "../../foundation/connection/connectionTypes";
+import { getPcDisplayName } from "../../foundation/pairing/pcDisplayName";
+import type { ManualConnectionTarget } from "../../foundation/pairing/pairingLink";
+import type { PcProfile } from "../../foundation/connection/pcProfiles";
 import { PairingStatus } from "./PairingStatus";
 
 interface PairingGateProps {
   activePc: PcProfile | null;
-  connectManualHost: (target: string) => void;
+  connectManualHost: (target: ManualConnectionTarget) => void;
   confirmPendingPairing: () => void;
   diagnostics: string;
   isSettingsOpen: boolean;
   manualReconnectProgress?: "reconnecting" | "connected" | undefined;
   message: string;
   pairingDeviceName: string;
-  pairingScanMessage: string;
+  pairingStatusMessage: string;
   pendingPairing: boolean;
+  reconnectablePcs: PcProfile[];
   scanPairingQr: () => void;
   setPairingDeviceName: (name: string) => void;
   state: ConnectionState;
   tryManualReconnect: () => void;
+  tryReconnectPc: (pcId: string) => void;
 }
 
 export function PairingGate({
@@ -29,27 +33,59 @@ export function PairingGate({
   manualReconnectProgress,
   message,
   pairingDeviceName,
-  pairingScanMessage,
+  pairingStatusMessage,
   pendingPairing,
+  reconnectablePcs,
   scanPairingQr,
   setPairingDeviceName,
   state,
-  tryManualReconnect
+  tryManualReconnect,
+  tryReconnectPc
 }: PairingGateProps) {
+  const [selectedReconnectPcId, setSelectedReconnectPcId] = useState("");
+  const selectedReconnectPc = reconnectablePcs.find((pc) => pc.id === selectedReconnectPcId) ?? reconnectablePcs[0] ?? null;
+
   if (isSettingsOpen) {
     return null;
   }
 
-  if (state === "needs-pairing") {
+  if (manualReconnectProgress !== undefined && activePc) {
     return (
       <PairingStatus
+        activePcUnavailable
+        blocksAppInteraction
+        connectionProgress={manualReconnectProgress}
+        message={message}
+        onPrimaryAction={tryManualReconnect}
+        pcName={getPcDisplayName(activePc)}
+      />
+    );
+  }
+
+  if (state === "needs-pairing" || state === "disconnected") {
+    const canReconnectSavedPc = !pendingPairing && selectedReconnectPc !== null;
+    return (
+      <PairingStatus
+        blocksAppInteraction
         diagnostics={diagnostics}
         deviceName={pendingPairing ? pairingDeviceName : undefined}
-        message={pendingPairing ? "Confirm the device name shown on the PC, or change it before pairing." : pairingScanMessage}
+        heading={state === "disconnected" ? "PC disconnected" : undefined}
+        message={pendingPairing ? "Confirm the device name shown on the PC, or change it before pairing." : pairingStatusMessage}
         onDeviceNameChange={pendingPairing ? setPairingDeviceName : undefined}
-        onPrimaryAction={pendingPairing ? confirmPendingPairing : scanPairingQr}
+        onPrimaryAction={pendingPairing
+          ? confirmPendingPairing
+          : canReconnectSavedPc
+            ? () => { tryReconnectPc(selectedReconnectPc.id); }
+            : scanPairingQr}
+        onSecondaryAction={canReconnectSavedPc ? scanPairingQr : undefined}
         onManualHostSubmit={connectManualHost}
-        primaryLabel={pendingPairing ? "Pair" : undefined}
+        primaryLabel={pendingPairing ? "Pair" : canReconnectSavedPc ? "Try reconnect" : undefined}
+        savedPcOptions={canReconnectSavedPc
+          ? reconnectablePcs.map((pc) => ({ id: pc.id, label: getPcDisplayName(pc) }))
+          : undefined}
+        secondaryLabel={canReconnectSavedPc ? "Take photo of QR code" : undefined}
+        selectedSavedPcId={selectedReconnectPc?.id}
+        onSavedPcChange={setSelectedReconnectPcId}
       />
     );
   }
@@ -57,6 +93,7 @@ export function PairingGate({
   if (state === "rejected") {
     return (
       <PairingStatus
+        blocksAppInteraction
         diagnostics={diagnostics}
         message={message}
         onPrimaryAction={scanPairingQr}
@@ -70,18 +107,6 @@ export function PairingGate({
     return null;
   }
 
-  if (manualReconnectProgress !== undefined) {
-    return (
-      <PairingStatus
-        activePcUnavailable
-        connectionProgress={manualReconnectProgress}
-        message={message}
-        onPrimaryAction={tryManualReconnect}
-        pcName={getPcDisplayName(activePc)}
-      />
-    );
-  }
-
   if (state !== "unavailable") {
     return null;
   }
@@ -89,6 +114,7 @@ export function PairingGate({
   return (
     <PairingStatus
       activePcUnavailable
+      blocksAppInteraction
       diagnostics={diagnostics}
       message={message}
       onPrimaryAction={tryManualReconnect}

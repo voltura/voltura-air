@@ -28,9 +28,10 @@ if (useViteClient) {
 }
 
 stopExistingHost();
-await waitForClientFiles();
 if (useViteClient) {
   console.log(`Voltura Air phone client: ${clientUrl}`);
+} else {
+  await waitForClientFiles();
 }
 
 const child = spawn("dotnet", args, {

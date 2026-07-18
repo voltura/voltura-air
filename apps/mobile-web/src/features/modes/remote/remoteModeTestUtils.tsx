@@ -1,7 +1,7 @@
 import { render } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { vi } from "vitest";
-import { defaultRemoteSettings } from "../../../remoteSettings";
+import { defaultRemoteSettings } from "../../../foundation/settings/remoteSettings";
 import { RemoteMode } from "./RemoteMode";
 
 export function renderRemote(overrides: Partial<ComponentProps<typeof RemoteMode>> = {}) {

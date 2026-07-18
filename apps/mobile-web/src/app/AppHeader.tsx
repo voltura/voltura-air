@@ -1,6 +1,6 @@
 import { ChevronDown, Circle, Menu, MousePointer2 } from "lucide-react";
-import type { MainAppTab, ModeDefinition } from "../appModeTabs";
-import type { ConnectionState } from "../connection/connectionTypes";
+import type { MainAppTab, ModeDefinition } from "./appModeTabs";
+import type { ConnectionState } from "../foundation/connection/connectionTypes";
 import { useDeveloperRefreshLongPress } from "./useDeveloperRefreshLongPress";
 import { ModeSelector } from "./ModeNavigation";
 

@@ -102,42 +102,6 @@ public partial class MainWindow
         }
     }
 
-    private StackPanel AddPreferencesSection(StackPanel parent, List<Expander> sections, string title)
-    {
-        var (expander, content) = CreatePreferencesSection(title, "PreferencesAccordionStyle");
-        expander.Expanded += (_, _) =>
-        {
-            foreach (var section in sections)
-            {
-                if (!ReferenceEquals(section, expander))
-                {
-                    section.IsExpanded = false;
-                }
-            }
-
-            SetPreferencesTitle(title);
-            _ = expander.Dispatcher.InvokeAsync(
-                () => RevealExpandedPreferencesSection(expander, content),
-                DispatcherPriority.Loaded);
-        };
-        expander.Collapsed += (_, _) =>
-        {
-            if (sections.All(section => !section.IsExpanded))
-            {
-                SetPreferencesTitle(null);
-            }
-        };
-        sections.Add(expander);
-
-        parent.Children.Add(expander);
-        if (string.Equals(_preferencesSectionToOpen, title, StringComparison.Ordinal))
-        {
-            expander.IsExpanded = true;
-        }
-
-        return content;
-    }
-
     private StackPanel AddNestedPreferencesSection(StackPanel parent, string title)
     {
         var (expander, content) = CreatePreferencesSection(title, "PreferencesNestedAccordionStyle");
@@ -165,30 +129,28 @@ public partial class MainWindow
 
     private void RememberExpandedPreferencesSection()
     {
-        if (PageContent.Content is not ScrollViewer { Content: StackPanel panel } scroller)
+        if (PageContent.Content is not Features.Preferences.PreferencesPageView preferences)
         {
             _preferencesSectionToOpen = null;
             _preferencesScrollOffsetToRestore = null;
             return;
         }
 
-        _preferencesSectionToOpen = panel.Children
-            .OfType<Expander>()
-            .FirstOrDefault(section => section.IsExpanded)?
-            .Header as string;
-        _preferencesScrollOffsetToRestore = scroller.VerticalOffset;
+        _preferencesSectionToOpen = preferences.ExpandedSectionTitle;
+        _preferencesScrollOffsetToRestore = preferences.Scroller.VerticalOffset;
     }
 
     private void RestorePreferencesScrollPosition()
     {
-        if (_preferencesScrollOffsetToRestore is not { } offset || PageContent.Content is not ScrollViewer scroller)
+        if (_preferencesScrollOffsetToRestore is not { } offset ||
+            PageContent.Content is not Features.Preferences.PreferencesPageView preferences)
         {
             return;
         }
 
         _preferencesScrollOffsetToRestore = null;
-        _ = scroller.Dispatcher.InvokeAsync(
-            () => scroller.ScrollToVerticalOffset(offset),
+        _ = preferences.Scroller.Dispatcher.InvokeAsync(
+            () => preferences.Scroller.ScrollToVerticalOffset(offset),
             DispatcherPriority.Loaded);
     }
 
@@ -278,214 +240,6 @@ public partial class MainWindow
         row.Children.Add(slider);
         row.Children.Add(output);
         parent.Children.Add(row);
-    }
-
-    private void SaveCustomPointer(bool enabled, int size, uint color)
-    {
-        var settings = new CustomPointerSettings(enabled, size, color);
-        try
-        {
-            _customPointerService.Apply(settings);
-            AppPointerSettings.SetCustomPointer(settings);
-            _appLog.Write(new AppLogEntry(
-                Event: "host_action",
-                Source: "windows_host",
-                Action: "custom_pointer",
-                Outcome: enabled ? "enabled" : "disabled",
-                Detail: $"size={settings.Size};color=#{settings.Color:X6}"));
-        }
-        catch (Exception exception)
-        {
-            _appLog.Write(new AppLogEntry(
-                Event: "host_action",
-                Source: "windows_host",
-                Action: "custom_pointer",
-                Outcome: "failed",
-                Detail: exception.Message));
-            ShowToast("Custom pointer could not be applied. Your Windows cursor scheme was restored.");
-        }
-    }
-
-    private Popup CreateCustomPointerColorPopup(Button owner, uint initialColor, Action<uint> preview)
-    {
-        var initial = initialColor;
-        var (hue, saturation, value) = RgbToHsv(initialColor);
-        var draft = initialColor;
-        var synchronizing = false;
-        var input = new TextBox { Text = $"#{draft:X6}", Width = 104 };
-        var swatch = new Border { Width = 32, Height = 32, CornerRadius = new CornerRadius(5), Background = CreateCustomPointerBrush(draft), BorderBrush = (Brush)Resources["BorderBrush"], BorderThickness = new Thickness(1) };
-        var surface = new Canvas { Width = 184, Height = 116, Cursor = WpfCursors.Cross };
-        var saturationLayer = new Border { Width = 184, Height = 116 };
-        var valueLayer = new Border { Width = 184, Height = 116, Background = new MediaLinearGradientBrush(MediaColor.FromArgb(0, 0, 0, 0), MediaColors.Black, 90) };
-        var marker = new Ellipse { Width = 12, Height = 12, Stroke = MediaBrushes.White, StrokeThickness = 2, Fill = MediaBrushes.Transparent, IsHitTestVisible = false };
-        surface.Children.Add(saturationLayer);
-        surface.Children.Add(valueLayer);
-        surface.Children.Add(marker);
-        var hueSlider = new Slider
-        {
-            Style = (Style)Resources["ModernSliderStyle"],
-            Minimum = 0,
-            Maximum = 360,
-            Width = 184,
-            Value = hue
-        };
-        var popup = new Popup
-        {
-            PlacementTarget = owner,
-            Placement = PlacementMode.Bottom,
-            StaysOpen = true,
-            AllowsTransparency = true
-        };
-        void RefreshSurface()
-        {
-            saturationLayer.Background = new MediaLinearGradientBrush(MediaColors.White, CreateCustomPointerBrush(HsvToRgb(hue, 1, 1)).Color, 0);
-            Canvas.SetLeft(marker, saturation * surface.Width - marker.Width / 2);
-            Canvas.SetTop(marker, (1 - value) * surface.Height - marker.Height / 2);
-        }
-
-        void UpdateDraft(uint color, bool updateInput = true)
-        {
-            draft = color;
-            swatch.Background = CreateCustomPointerBrush(draft);
-            if (updateInput)
-            {
-                synchronizing = true;
-                input.Text = $"#{draft:X6}";
-                synchronizing = false;
-            }
-
-            preview(draft);
-        }
-
-        hueSlider.ValueChanged += (_, _) =>
-        {
-            hue = hueSlider.Value;
-            RefreshSurface();
-            UpdateDraft(HsvToRgb(hue, saturation, value));
-        };
-        void PickSurface(MediaPoint point)
-        {
-            saturation = Math.Clamp(point.X / surface.Width, 0, 1);
-            value = Math.Clamp(1 - point.Y / surface.Height, 0, 1);
-            RefreshSurface();
-            UpdateDraft(HsvToRgb(hue, saturation, value));
-        }
-
-        surface.MouseLeftButtonDown += (_, eventArgs) =>
-        {
-            surface.CaptureMouse();
-            PickSurface(eventArgs.GetPosition(surface));
-        };
-        surface.MouseMove += (_, eventArgs) =>
-        {
-            if (surface.IsMouseCaptured)
-            {
-                PickSurface(eventArgs.GetPosition(surface));
-            }
-        };
-        surface.MouseLeftButtonUp += (_, _) => surface.ReleaseMouseCapture();
-        input.TextChanged += (_, _) =>
-        {
-            if (!synchronizing && TryParseCustomPointerColor(input.Text, out var color))
-            {
-                (hue, saturation, value) = RgbToHsv(color);
-                hueSlider.Value = hue;
-                RefreshSurface();
-                UpdateDraft(color, updateInput: false);
-            }
-        };
-        var applyButton = CreateButton("Apply", (_, _) => popup.IsOpen = false, primary: true);
-        var cancelButton = CreateButton("Cancel", (_, _) =>
-        {
-            preview(initial);
-            popup.IsOpen = false;
-        });
-        popup.Opened += (_, _) =>
-        {
-            initial = GetCustomPointerColor(owner);
-            draft = initial;
-            (hue, saturation, value) = RgbToHsv(draft);
-            synchronizing = true;
-            hueSlider.Value = hue;
-            input.Text = $"#{draft:X6}";
-            synchronizing = false;
-            swatch.Background = CreateCustomPointerBrush(draft);
-            RefreshSurface();
-        };
-        RefreshSurface();
-        var colorInputs = CreateHorizontalStack(UiTokens.SpaceSm);
-        colorInputs.Children.Add(swatch);
-        colorInputs.Children.Add(input);
-        var popupActions = CreateHorizontalStack(UiTokens.SpaceSm);
-        popupActions.Children.Add(applyButton);
-        popupActions.Children.Add(cancelButton);
-        var popupContent = CreateVerticalStack(UiTokens.SpaceSm);
-        popupContent.Children.Add(new TextBlock { Text = "Custom color", FontWeight = FontWeights.SemiBold, Foreground = (Brush)Resources["TextBrush"] });
-        popupContent.Children.Add(colorInputs);
-        popupContent.Children.Add(surface);
-        popupContent.Children.Add(new TextBlock { Text = "Hue", Foreground = (Brush)Resources["MutedTextBrush"] });
-        popupContent.Children.Add(hueSlider);
-        popupContent.Children.Add(popupActions);
-        popup.Child = new Border
-        {
-            Background = (Brush)Resources["SurfaceRaisedBrush"],
-            BorderBrush = (Brush)Resources["BorderBrush"],
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(12),
-            Child = popupContent
-        };
-        return popup;
-    }
-
-    private static bool TryParseCustomPointerColor(string value, out uint color)
-    {
-        var hex = value.Trim().TrimStart('#');
-        return uint.TryParse(hex, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out color) && color <= 0xFFFFFF;
-    }
-
-    private static uint GetCustomPointerColor(Button button) => button.Tag is uint color ? color : AppPointerSettings.DefaultCustomPointerColor;
-
-    private static (double Hue, double Saturation, double Value) RgbToHsv(uint color)
-    {
-        var red = ((color >> 16) & 0xFF) / 255d;
-        var green = ((color >> 8) & 0xFF) / 255d;
-        var blue = (color & 0xFF) / 255d;
-        var max = Math.Max(red, Math.Max(green, blue));
-        var min = Math.Min(red, Math.Min(green, blue));
-        var delta = max - min;
-        var hue = delta == 0 ? 0 : max == red ? 60 * ((green - blue) / delta % 6) : max == green ? 60 * ((blue - red) / delta + 2) : 60 * ((red - green) / delta + 4);
-        return (hue < 0 ? hue + 360 : hue, max == 0 ? 0 : delta / max, max);
-    }
-
-    private static uint HsvToRgb(double hue, double saturation, double value)
-    {
-        var chroma = value * saturation;
-        var second = chroma * (1 - Math.Abs(hue / 60 % 2 - 1));
-        var offset = value - chroma;
-        var (red, green, blue) = hue switch
-        {
-            < 60 => (chroma, second, 0d),
-            < 120 => (second, chroma, 0d),
-            < 180 => (0d, chroma, second),
-            < 240 => (0d, second, chroma),
-            < 300 => (second, 0d, chroma),
-            _ => (chroma, 0d, second)
-        };
-        var redByte = (uint)Math.Round((red + offset) * 255);
-        var greenByte = (uint)Math.Round((green + offset) * 255);
-        var blueByte = (uint)Math.Round((blue + offset) * 255);
-        return (redByte << 16) | (greenByte << 8) | blueByte;
-    }
-
-    private static SolidColorBrush CreateCustomPointerBrush(uint color) => new(MediaColor.FromRgb((byte)(color >> 16), (byte)(color >> 8), (byte)color));
-
-    private static void SetCustomPointerColorButton(Button button, uint color)
-    {
-        button.Tag = color;
-        button.Content = $"#{color:X6}";
-        button.Background = CreateCustomPointerBrush(color);
-        button.Foreground = color > 0x808080 ? MediaBrushes.Black : MediaBrushes.White;
     }
 
     private void SaveGlobalPermissions(

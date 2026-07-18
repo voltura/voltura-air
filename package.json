@@ -1,7 +1,7 @@
 {
   "name": "voltura-air",
   "private": true,
-  "version": "0.6.1",
+  "version": "0.6.2",
   "license": "MIT",
   "workspaces": [
     "apps/mobile-web"
@@ -21,6 +21,7 @@
     "lint": "npm run lint --workspace apps/mobile-web",
     "maintenance:full": "npm run cache:purge && npm run clean:temp && npm run clean:git && npm run deps:update",
     "dev": "node scripts/dev.mjs",
+    "dev:quick": "node scripts/dev.mjs --quick",
     "dev:bare-source": "npm run package:source:bare",
     "dev:host": "node scripts/dev-host.mjs",
     "dev:source": "npm run package:source",
@@ -34,7 +35,8 @@
     "release": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1",
     "screenshots:site": "node scripts/capture-site-screenshots.mjs",
     "size:report": "node scripts/report-source-sizes.mjs",
-    "test": "npm run docs:check && npm run ui:tokens:check && npm run test --workspace apps/mobile-web -- --run && npm run test:scripts && dotnet test VolturaAir.slnx",
+    "size:check": "node scripts/report-source-sizes.mjs --check",
+    "test": "npm run docs:check && npm run ui:tokens:check && npm run size:check && npm run test --workspace apps/mobile-web -- --run && npm run test:scripts && dotnet test VolturaAir.slnx",
     "test:web": "npm run test --workspace apps/mobile-web -- --run",
     "test:host": "dotnet test VolturaAir.slnx",
     "test:scripts": "node --test tests/scripts/*.test.mjs",

@@ -1,15 +1,16 @@
 import { useMemo, useState } from "react";
+import { getAvailableToolModeIds, toolModeDefinitions } from "./app/appModeTabs";
 import { createSettingsActions, SettingsDrawer } from "./features/settings";
-import { parsePairingLink } from "./pairingLink";
-import { getPcDisplayName } from "./pcDisplayName";
-import type { RemoteLaunchAction } from "./protocol";
-import { buildMobileDiagnostics } from "./mobileDiagnostics";
-import type { RemoteSettings } from "./remoteSettings";
-import { useVolturaAirConnection } from "./useVolturaAirConnection";
-import { usePcSettings } from "./settings/usePcSettings";
-import { usePwaLifecycle } from "./pwa/usePwaLifecycle";
+import { parsePairingLink } from "./foundation/pairing/pairingLink";
+import { getPcDisplayName } from "./foundation/pairing/pcDisplayName";
+import type { RemoteLaunchAction } from "./foundation/protocol/messages";
+import { buildMobileDiagnostics } from "./foundation/diagnostics/mobileDiagnostics";
+import type { RemoteSettings } from "./foundation/settings/remoteSettings";
+import { useVolturaAirConnection } from "./foundation/connection/useVolturaAirConnection";
+import { usePcSettings } from "./foundation/settings/usePcSettings";
+import { usePwaLifecycle } from "./foundation/pwa/usePwaLifecycle";
 import { PairingGate, usePairingController } from "./features/pairing";
-import { useManualReconnectFeedback } from "./connection/useManualReconnectFeedback";
+import { useManualReconnectFeedback } from "./foundation/connection/useManualReconnectFeedback";
 import { AppHeader } from "./app/AppHeader";
 import { GlobalOperationFeedback } from "./app/GlobalOperationFeedback";
 import { ModeNavigation } from "./app/ModeNavigation";
@@ -19,7 +20,7 @@ import { InputRecoveryNotice } from "./features/input-recovery";
 import { ModeWorkspace } from "./features/modes";
 
 export function App() {
-  const initialPairing = useMemo(() => parsePairingLink(window.location.href, window.location.origin), []);
+  const initialPairing = useMemo(() => parsePairingLink(window.location.href), []);
   const connection = useVolturaAirConnection();
   const {
     state,
@@ -36,6 +37,7 @@ export function App() {
     deviceName,
     activePc,
     pairedPcs,
+    reconnectablePcs,
     supportsGestureDebug,
     supportsRemoteLaunch,
     lastConnectionError,
@@ -62,7 +64,7 @@ export function App() {
   }
   const isInputRecoveryDialogDismissed = inputRecoveryDialog.dismissed;
   const developerMode = hostStatus?.developerMode === true;
-  const { progress: manualReconnectProgress, reconnect: reconnectActivePc } = useManualReconnectFeedback(activePc?.id ?? null, state, selectPc);
+  const { progress: manualReconnectProgress, reconnect: reconnectPc } = useManualReconnectFeedback(activePc?.id ?? null, state, selectPc);
 
   const hostPointerSpeed = hostStatus?.pointerSpeed;
   const hostDefaultRemoteMode = hostStatus?.defaultRemoteMode;
@@ -157,10 +159,11 @@ export function App() {
     pairingDeviceName,
     pairingQrInputRef,
     pairingScanMessage,
+    pairingStatusMessage,
     pendingPairing,
     scanPairingQr,
     setPairingDeviceName
-  } = usePairingController({ beginNewPairing, connectManualPc, deviceName, initialPairing, message, pairWithToken, setIsSettingsOpen, state });
+  } = usePairingController({ beginNewPairing, connectManualPc, deviceName, initialPairing, message, pairWithToken, setIsSettingsOpen });
 
   const mobileDiagnostics = useMemo(() => buildMobileDiagnostics({
     activePc,
@@ -174,129 +177,138 @@ export function App() {
 
   const connectionPcName = state === "paired" && activePc ? getPcDisplayName(activePc) : message;
 
-  const tryManualReconnect = () => {
-    if (!activePc) {
-      return;
-    }
-
+  const tryReconnectPc = (pcId: string) => {
     closeTransientSurfaces();
-    reconnectActivePc();
+    reconnectPc(pcId);
+  };
+
+  const tryManualReconnect = () => {
+    if (activePc) {
+      tryReconnectPc(activePc.id);
+    }
   };
 
   return (
-    <main className={shellClassName}>
-      <AppHeader
-        activeMode={activeModeTab}
-        canShowModeNavigation={canShowModeNavigation}
-        connectionPcName={connectionPcName}
-        developerMode={developerMode}
-        isModeSelectorOpen={isModeSelectorOpen}
-        message={message}
-        modeTabs={modeTabs}
-        onCloseModeSelector={closeModeSelector}
-        onOpenSettings={openSettings}
-        onSelectMode={(nextTab) => { selectModeTab(nextTab, "selector"); }}
-        onToggleModeSelector={toggleModeSelector}
-        refreshInstalledApp={refreshInstalledApp}
-        state={state}
-        tab={tab}
-      />
+    <div className="app-frame">
+      <main className={shellClassName}>
+        <AppHeader
+          activeMode={activeModeTab}
+          canShowModeNavigation={canShowModeNavigation}
+          connectionPcName={connectionPcName}
+          developerMode={developerMode}
+          isModeSelectorOpen={isModeSelectorOpen}
+          message={message}
+          modeTabs={modeTabs}
+          onCloseModeSelector={closeModeSelector}
+          onOpenSettings={openSettings}
+          onSelectMode={(nextTab) => { selectModeTab(nextTab, "selector"); }}
+          onToggleModeSelector={toggleModeSelector}
+          refreshInstalledApp={refreshInstalledApp}
+          state={state}
+          tab={tab}
+        />
 
-      {isSettingsOpen && <button className="drawer-scrim" type="button" aria-label="Close menu" onClick={() => { setIsSettingsOpen(false); }} />}
+        <PairingGate
+          activePc={activePc}
+          connectManualHost={connectManualHost}
+          confirmPendingPairing={confirmPendingPairing}
+          diagnostics={mobileDiagnostics}
+          isSettingsOpen={isSettingsOpen}
+          manualReconnectProgress={manualReconnectProgress}
+          message={message}
+          pairingDeviceName={pairingDeviceName}
+          pairingStatusMessage={pairingStatusMessage}
+          pendingPairing={pendingPairing !== null}
+          reconnectablePcs={reconnectablePcs}
+          scanPairingQr={scanPairingQr}
+          setPairingDeviceName={setPairingDeviceName}
+          state={state}
+          tryManualReconnect={tryManualReconnect}
+          tryReconnectPc={tryReconnectPc}
+        />
 
-      <PairingGate
-        activePc={activePc}
-        connectManualHost={connectManualHost}
-        confirmPendingPairing={confirmPendingPairing}
-        diagnostics={mobileDiagnostics}
-        isSettingsOpen={isSettingsOpen}
-        manualReconnectProgress={manualReconnectProgress}
-        message={message}
-        pairingDeviceName={pairingDeviceName}
-        pairingScanMessage={pairingScanMessage}
-        pendingPairing={pendingPairing !== null}
-        scanPairingQr={scanPairingQr}
-        setPairingDeviceName={setPairingDeviceName}
-        state={state}
-        tryManualReconnect={tryManualReconnect}
-      />
+        <SettingsDrawer
+          activePc={activePc}
+          appSettings={appSettings}
+          customPointerEnabled={hostStatus?.customPointerEnabled}
+          diagnostics={mobileDiagnostics}
+          deviceName={deviceName}
+          disconnectActivePc={disconnectActivePc}
+          forgetPc={forgetPcAndSettings}
+          installApp={installApp}
+          installPrompt={installPrompt}
+          isInstalled={isInstalled}
+          isOpen={isSettingsOpen}
+          keyboardSettings={keyboardSettings}
+          onClose={() => { setIsSettingsOpen(false); }}
+          onOpenGestureDebug={supportsGestureDebug ? openGestureDebug : undefined}
+          onOpenTool={openToolFromMenu}
+          onPairingQrSelected={onPairingQrSelected}
+          onManualHostSubmit={connectManualHost}
+          pairedPcs={pairedPcs}
+          pairingQrInputRef={pairingQrInputRef}
+          pairingScanMessage={pairingScanMessage}
+          presentationAvailable={presentationAvailable}
+          refreshInstalledApp={refreshInstalledApp}
+          refreshMessage={refreshMessage}
+          renameDevice={renameDevice}
+          renamePc={renamePc}
+          remoteSettings={remoteSettings}
+          scanPairingQr={scanPairingQr}
+          selectPc={selectPc}
+          setHostCustomPointer={setHostCustomPointer}
+          setThemeMode={setThemeMode}
+          showGestureDebug={supportsGestureDebug}
+          supportsRemoteLaunch={supportsRemoteLaunch}
+          themeMode={themeMode}
+          toolOptions={getAvailableToolModeIds(presentationAvailable).map((id) => ({
+            id,
+            label: toolModeDefinitions[id].ariaLabel,
+            Icon: toolModeDefinitions[id].Icon
+          }))}
+          trackpadSettings={effectiveTrackpadSettings}
+          updateKeyboardSetting={updateKeyboardSetting}
+          updateRemoteSetting={updateRemoteSetting}
+          updateAppSetting={updateAppSetting}
+          updateTrackpadSetting={updateTrackpadSetting}
+        />
 
-      <SettingsDrawer
-        activePc={activePc}
-        appSettings={appSettings}
-        customPointerEnabled={hostStatus?.customPointerEnabled}
-        diagnostics={mobileDiagnostics}
-        deviceName={deviceName}
-        disconnectActivePc={disconnectActivePc}
-        forgetPc={forgetPcAndSettings}
-        installApp={installApp}
-        installPrompt={installPrompt}
-        isInstalled={isInstalled}
-        isOpen={isSettingsOpen}
-        keyboardSettings={keyboardSettings}
-        onClose={() => { setIsSettingsOpen(false); }}
-        onOpenGestureDebug={supportsGestureDebug ? openGestureDebug : undefined}
-        onOpenTool={openToolFromMenu}
-        onPairingQrSelected={onPairingQrSelected}
-        onManualHostSubmit={connectManualHost}
-        pairedPcs={pairedPcs}
-        pairingQrInputRef={pairingQrInputRef}
-        pairingScanMessage={pairingScanMessage}
-        presentationAvailable={presentationAvailable}
-        refreshInstalledApp={refreshInstalledApp}
-        refreshMessage={refreshMessage}
-        renameDevice={renameDevice}
-        renamePc={renamePc}
-        remoteSettings={remoteSettings}
-        scanPairingQr={scanPairingQr}
-        selectPc={selectPc}
-        setHostCustomPointer={setHostCustomPointer}
-        setThemeMode={setThemeMode}
-        showGestureDebug={supportsGestureDebug}
-        supportsRemoteLaunch={supportsRemoteLaunch}
-        themeMode={themeMode}
-        trackpadSettings={effectiveTrackpadSettings}
-        updateKeyboardSetting={updateKeyboardSetting}
-        updateRemoteSetting={updateRemoteSetting}
-        updateAppSetting={updateAppSetting}
-        updateTrackpadSetting={updateTrackpadSetting}
-      />
+        {canShowModeNavigation && <ModeNavigation className="tabs top-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTab} />}
 
-      {canShowModeNavigation && <ModeNavigation className="tabs top-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTab} />}
+        <ModeWorkspace
+          appSettings={appSettings}
+          connection={connection}
+          keyboardSettings={keyboardSettings}
+          onClearAfterSendingChange={(value) => { updateAppSetting("clearTextAfterSending", value); }}
+          onRemoteUtilityPanelOpenChange={setIsRemoteUtilityPanelOpen}
+          remoteSettings={remoteSettings}
+          shouldShowSplitMode={shouldShowSplitMode}
+          showVolumeControl={trackpadSettings.showVolumeControl}
+          tab={tab}
+          trackpadSettings={effectiveTrackpadSettings}
+        />
 
-      <ModeWorkspace
-        appSettings={appSettings}
-        connection={connection}
-        keyboardSettings={keyboardSettings}
-        onClearAfterSendingChange={(value) => { updateAppSetting("clearTextAfterSending", value); }}
-        onRemoteUtilityPanelOpenChange={setIsRemoteUtilityPanelOpen}
-        remoteSettings={remoteSettings}
-        shouldShowSplitMode={shouldShowSplitMode}
-        showVolumeControl={trackpadSettings.showVolumeControl}
-        tab={tab}
-        trackpadSettings={effectiveTrackpadSettings}
-      />
+        {inputBlockedByElevation && (
+          <InputRecoveryNotice
+            dismissed={isInputRecoveryDialogDismissed}
+            onDismiss={() => { setInputRecoveryDialog((current) => ({ ...current, dismissed: true })); }}
+            onOpen={() => { setInputRecoveryDialog((current) => ({ ...current, dismissed: false })); }}
+            onShowDesktop={() => { send({ type: "keyboard.special", key: "D", modifiers: ["Win"] }); }}
+          />
+        )}
+
+        <GlobalOperationFeedback
+          appLaunchResult={appLaunchResult}
+          clipboardReadResult={clipboardReadResult}
+          pendingAppLaunchId={pendingAppLaunchId}
+          pendingClipboardRead={pendingClipboardRead}
+          pendingTextTransfer={pendingTextTransfer}
+          tab={tab}
+          textTransferResult={textTransferResult}
+        />
+      </main>
 
       {isBottomModeNavigationVisible && <ModeNavigation className="tabs bottom-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTab} />}
-
-      {inputBlockedByElevation && (
-        <InputRecoveryNotice
-          dismissed={isInputRecoveryDialogDismissed}
-          onDismiss={() => { setInputRecoveryDialog((current) => ({ ...current, dismissed: true })); }}
-          onOpen={() => { setInputRecoveryDialog((current) => ({ ...current, dismissed: false })); }}
-          onShowDesktop={() => { send({ type: "keyboard.special", key: "D", modifiers: ["Win"] }); }}
-        />
-      )}
-
-      <GlobalOperationFeedback
-        appLaunchResult={appLaunchResult}
-        clipboardReadResult={clipboardReadResult}
-        pendingAppLaunchId={pendingAppLaunchId}
-        pendingClipboardRead={pendingClipboardRead}
-        pendingTextTransfer={pendingTextTransfer}
-        tab={tab}
-        textTransferResult={textTransferResult}
-      />
-    </main>
+    </div>
   );
 }

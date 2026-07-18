@@ -57,3 +57,5 @@ public sealed class PairingRevokedEventArgs(string? clientId) : EventArgs
 }
 
 public sealed record PairingResult(bool Accepted, string? Secret, string Reason);
+
+internal sealed record PairingCode(string Value, DateTimeOffset ExpiresAt, DateTimeOffset RefreshAt);

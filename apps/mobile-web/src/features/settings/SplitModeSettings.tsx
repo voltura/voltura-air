@@ -1,5 +1,5 @@
 import { useId } from "react";
-import type { TrackpadSettings } from "../../gestures";
+import type { TrackpadSettings } from "../../foundation/input/gestures";
 import { InfoButton } from "../../ui/overlays/InfoButton";
 
 const splitModeDescription = "Shows the keyboard and trackpad side by side. It is intended mainly for landscape phones and tablets.";

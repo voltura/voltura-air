@@ -61,6 +61,12 @@ jobs:
       - name: Check documentation map
         run: npm run docs:check
 
+      - name: Check generated UI tokens
+        run: npm run ui:tokens:check
+
+      - name: Check source ownership reviews
+        run: npm run size:check
+
       - name: Build mobile client
         run: npm run build --workspace apps/mobile-web
 
@@ -72,6 +78,9 @@ jobs:
 
       - name: Test mobile client
         run: npm run test:web
+
+      - name: Test automation scripts
+        run: npm run test:scripts
 
       - name: Test Windows host
         run: dotnet test tests/VolturaAir.Host.Tests/VolturaAir.Host.Tests.csproj --no-build --no-restore

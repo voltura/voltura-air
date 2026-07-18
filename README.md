@@ -107,7 +107,9 @@ npm test
 ```
 
 Use `npm install` instead when intentionally changing dependency manifests.
-Start the normal development loop with `npm run dev`.
+Start the checked development loop with `npm run dev`. The faster
+`npm run dev:quick` phone-validation path and the distinction between the two
+commands are documented in [Setup and development](docs/setup.md#development-loop).
 
 - [Documentation map](docs/README.md)
 - [Setup and development](docs/setup.md)

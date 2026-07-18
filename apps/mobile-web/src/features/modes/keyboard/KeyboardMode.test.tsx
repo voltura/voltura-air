@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { useRef, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { liveKeyboardSentinel, toLiveKeyboardValue } from "../../../keyboardDelta";
+import { liveKeyboardSentinel, toLiveKeyboardValue } from "../../../foundation/input/keyboardDelta";
 import { KeyboardMode } from "./KeyboardMode";
 
 const repeatStartDelayMs = 400;
@@ -397,12 +397,28 @@ describe("KeyboardMode sleep button", () => {
     expect(screen.queryByRole("button", { name: "Sleep" })).toBeNull();
   });
 
-  it("calls onSleep when the sleep button is shown", () => {
+  it("does not sleep when the confirmation is cancelled", () => {
     const onSleep = vi.fn();
     render(<KeyboardModeHarness onSleep={onSleep} showSleepButton />);
 
     fireEvent.click(screen.getByRole("button", { name: "Sleep" }));
 
+    expect(screen.getByRole("dialog", { name: "Put PC to sleep?" })).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Cancel" }));
+    expect(onSleep).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog", { name: "Put PC to sleep?" })).toBeNull();
+    expect(onSleep).not.toHaveBeenCalled();
+  });
+
+  it("sleeps only after confirmation", () => {
+    const onSleep = vi.fn();
+    render(<KeyboardModeHarness onSleep={onSleep} showSleepButton />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Sleep" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sleep PC" }));
+
     expect(onSleep).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("dialog", { name: "Put PC to sleep?" })).toBeNull();
   });
 });

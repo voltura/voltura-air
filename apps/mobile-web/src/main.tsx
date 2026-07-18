@@ -1,7 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
-import { getDisplayMode } from "./clientEnvironment";
+import { getDisplayMode } from "./foundation/platform/clientEnvironment";
 import "./styles.css";
 
 document.documentElement.dataset.displayMode = getDisplayMode();

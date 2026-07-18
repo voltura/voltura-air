@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import "./remote.css";
+import "./remote-power.css";
 import type {
   AppLaunchActionSummary,
   AudioStateMessage,
@@ -7,8 +9,8 @@ import type {
   SystemPowerResultMessage,
   UrlOpenCapability,
   UrlOpenResultMessage
-} from "../../../protocol";
-import type { RemoteSettings } from "../../../remoteSettings";
+} from "../../../foundation/protocol/messages";
+import type { RemoteSettings } from "../../../foundation/settings/remoteSettings";
 import type { AwakeControlProps } from "./PowerControlEntry";
 import { RemoteMediaSection } from "./RemoteMediaSection";
 import { RemoteNavigationSection } from "./RemoteNavigationSection";

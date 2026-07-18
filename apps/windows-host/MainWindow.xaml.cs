@@ -9,6 +9,9 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using QRCoder;
 using VolturaAir.Host.Features.Connection;
+using VolturaAir.Host.Features.Devices;
+using VolturaAir.Host.Features.Diagnostics;
+using VolturaAir.Host.Features.Preferences;
 using Button = System.Windows.Controls.Button;
 using CheckBox = System.Windows.Controls.CheckBox;
 using Image = System.Windows.Controls.Image;
@@ -24,14 +27,14 @@ namespace VolturaAir.Host;
 public partial class MainWindow : Window
 {
     private const string ProductSiteUrl = "https://voltura.se/air/";
-    private const double FullDeviceRowMinimumWidth = 760;
-
+    private const string PairingPath = "/pair";
     private readonly PairingManager _pairingManager;
     private readonly WebHostService _webHost;
     private readonly IWorkstationLockPolicy _workstationLockPolicy;
     private readonly ISystemPowerController _powerController;
     private readonly IAwakeService _awakeService;
     private readonly IAppLog _appLog;
+    private readonly IClipboardTextWriter _clipboardTextWriter;
     private readonly CustomPointerService _customPointerService;
     private readonly string _initialClientUrl;
     private readonly bool _usesServerUrlAsClientUrl;
@@ -40,13 +43,12 @@ public partial class MainWindow : Window
     private HostPage _activePage;
     private string _serverUrl;
     private string _clientUrl;
-    private string _pairingUrl;
+    private PairingDisplayCode _pairingCode;
     private ListBox? _devicesList;
     private StackPanel? _deviceDetailsPanel;
     private ConnectionPageView? _connectionPage;
     private Border? _toast;
     private DispatcherTimer? _toastTimer;
-    private int _lastPairedDeviceCount;
     private bool _isLoadingPreferences;
     private string? _preferencesSectionToOpen;
     private double? _preferencesScrollOffsetToRestore;
@@ -62,7 +64,8 @@ public partial class MainWindow : Window
         IAwakeService? awakeService = null,
         ISystemPowerController? powerController = null,
         CustomPointerService? customPointerService = null,
-        IAppLog? appLog = null)
+        IAppLog? appLog = null,
+        IClipboardTextWriter? clipboardTextWriter = null)
     {
         _pairingManager = pairingManager;
         _webHost = webHost;
@@ -70,14 +73,14 @@ public partial class MainWindow : Window
         _powerController = powerController ?? webHost.PowerController;
         _awakeService = awakeService ?? webHost.AwakeService;
         _appLog = appLog ?? webHost.AppLog;
+        _clipboardTextWriter = clipboardTextWriter ?? new WindowsClipboardTextWriter();
         _customPointerService = customPointerService ?? new CustomPointerService();
         _usePublicScreenshotPairingUrl = usePublicScreenshotPairingUrl;
         _serverUrl = webHost.ServerUrl;
         _usesServerUrlAsClientUrl = string.IsNullOrWhiteSpace(clientUrl);
         _initialClientUrl = string.IsNullOrWhiteSpace(clientUrl) ? webHost.ServerUrl : clientUrl.TrimEnd('/');
         _clientUrl = _initialClientUrl;
-        _pairingUrl = CreatePairingUrl();
-        _lastPairedDeviceCount = pairingManager.PairedDeviceCount;
+        _pairingCode = CreatePairingCode();
 
         InitializeComponent();
         SetIcon(this);
@@ -93,6 +96,7 @@ public partial class MainWindow : Window
         ];
 
         _pairingManager.ConnectionChanged += OnConnectionChanged;
+        _pairingManager.PairingCodeInvalidated += OnPairingCodeInvalidated;
         AppThemeSettings.Changed += OnThemeChanged;
         _awakeService.StateChanged += OnAwakeStateChanged;
         IsVisibleChanged += OnWindowIsVisibleChanged;
@@ -100,7 +104,7 @@ public partial class MainWindow : Window
         RefreshNavigationTheme();
     }
 
-    public string PairingUrl => _pairingUrl;
+    public string PairingUrl => _pairingCode.Url;
 
     public string ServerUrl => _serverUrl;
 
@@ -115,15 +119,12 @@ public partial class MainWindow : Window
     public void ShowPreferencesSectionForScreenshot(string sectionTitle)
     {
         ShowPage(HostPage.Preferences);
-        if (PageContent.Content is not ScrollViewer { Content: StackPanel panel })
+        if (PageContent.Content is not PreferencesPageView preferences)
         {
             return;
         }
 
-        var section = panel.Children
-            .OfType<Expander>()
-            .FirstOrDefault(candidate => string.Equals(candidate.Header as string, sectionTitle, StringComparison.Ordinal));
-        section?.SetCurrentValue(Expander.IsExpandedProperty, true);
+        preferences.FindSection(sectionTitle)?.SetCurrentValue(Expander.IsExpandedProperty, true);
     }
 
     public void ShowPairedStatus()
@@ -158,6 +159,7 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _pairingManager.ConnectionChanged -= OnConnectionChanged;
+        _pairingManager.PairingCodeInvalidated -= OnPairingCodeInvalidated;
         AppThemeSettings.Changed -= OnThemeChanged;
         _awakeService.StateChanged -= OnAwakeStateChanged;
         IsVisibleChanged -= OnWindowIsVisibleChanged;
@@ -194,6 +196,7 @@ public partial class MainWindow : Window
         switch (page)
         {
             case HostPage.Connect:
+                RefreshPairingCodeIfDue(DateTimeOffset.UtcNow);
                 PageTitleText.Text = "Connect";
                 PageSubtitleText.Text = "Pair a phone, tablet, or browser on the same network.";
                 PageContent.Content = BuildConnectPage();
@@ -224,7 +227,7 @@ public partial class MainWindow : Window
 
     private void CopyToClipboard(string value, string confirmation)
     {
-        System.Windows.Clipboard.SetText(value);
+        _clipboardTextWriter.WriteText(value);
         ShowToast(confirmation, "Clipboard");
     }
 
@@ -299,11 +302,13 @@ public partial class MainWindow : Window
         var handle = bitmap.GetHbitmap();
         try
         {
-            return System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(
+            var source = System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(
                 handle,
                 IntPtr.Zero,
                 Int32Rect.Empty,
                 BitmapSizeOptions.FromEmptyOptions());
+            source.Freeze();
+            return source;
         }
         finally
         {
@@ -331,10 +336,6 @@ public partial class MainWindow : Window
     private void OnDiagnosticsNavClicked(object sender, RoutedEventArgs e) => SelectPage(HostPage.Diagnostics);
 
     private void OnHideClicked(object sender, RoutedEventArgs e) => Hide();
-
-    private sealed record DeviceListItem(string ClientId, string Name, string Status, string Activity, string Metadata);
-
-    private sealed record DiagnosticItem(string Name, string Value);
 
     private enum PermissionKind
     {

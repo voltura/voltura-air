@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
-import { getModeDefinition, getModeTabs, type AppTab, type MainAppTab, type ToolAppTab } from "../appModeTabs";
-import type { AppSettings } from "../appSettings";
-import type { TrackpadSettings } from "../gestures";
-import { supportsSplitModeLayout } from "../splitModeLayout";
+import { getModeDefinition, getModeTabs, type AppTab, type MainAppTab, type ToolAppTab } from "./appModeTabs";
+import type { AppSettings } from "../foundation/settings/appSettings";
+import type { TrackpadSettings } from "../foundation/input/gestures";
+import { supportsSplitModeLayout } from "./splitModeLayout";
 
 type NavigationTrackpadSettings = Pick<
   TrackpadSettings,
@@ -120,6 +120,7 @@ export function useAppNavigation({
   const shellClassName = [
     "app-shell",
     isBottomModeNavigationVisible && "has-mode-navigation",
+    canShowModeNavigation && !isBottomModeNavigationVisible && "bottom-mode-navigation-hidden",
     tab === "trackpad" && "trackpad-active",
     tab === "remote" && "remote-active",
     tab === "presentation" && "presentation-active",

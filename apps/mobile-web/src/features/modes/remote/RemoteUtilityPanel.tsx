@@ -1,8 +1,8 @@
 import { useEffect, useEffectEvent, useId, useRef, useState, type PointerEvent } from "react";
 import { AppWindow, ArrowLeft, ArrowRight, CornerDownLeft, ExternalLink, Monitor, Plus, RefreshCw, RotateCcw, Search, SquareX } from "lucide-react";
-import type { AppLaunchActionSummary, UrlOpenCapability, UrlOpenResultMessage } from "../../../protocol";
-import type { RemoteSettings } from "../../../remoteSettings";
-import { validateUrlDraft } from "../../../urlOpenValidation";
+import type { AppLaunchActionSummary, UrlOpenCapability, UrlOpenResultMessage } from "../../../foundation/protocol/messages";
+import type { RemoteSettings } from "../../../foundation/settings/remoteSettings";
+import { validateUrlDraft } from "./urlOpenValidation";
 import { InfoButton } from "../../../ui/overlays/InfoButton";
 import { RemoteButton, type RepeatablePressProps } from "./RemoteButton";
 

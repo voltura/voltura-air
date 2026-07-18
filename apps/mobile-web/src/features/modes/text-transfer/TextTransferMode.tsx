@@ -1,7 +1,8 @@
 import { Keyboard, MousePointer2, Send } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { TextSendResultMessage, TextTransferTarget } from "../../../protocol";
-import { maxSnippetLength, type SavedTextSnippet } from "../../../textSnippets";
+import "./text-transfer.css";
+import type { TextSendResultMessage, TextTransferTarget } from "../../../foundation/protocol/messages";
+import { maxSnippetLength, type SavedTextSnippet } from "../../../foundation/settings/textSnippets";
 import { InfoButton } from "../../../ui/overlays/InfoButton";
 import { KeyboardInputModeButtons, type KeyboardInputMode } from "../keyboard/KeyboardInputModeButtons";
 import { SavedTextSnippets } from "./SavedTextSnippets";

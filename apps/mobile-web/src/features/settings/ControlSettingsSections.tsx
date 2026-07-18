@@ -1,6 +1,6 @@
 import { useId } from "react";
 import { MousePointer2 } from "lucide-react";
-import { supportsHapticFeedback } from "../../hapticFeedback";
+import { supportsHapticFeedback } from "../../foundation/input/hapticFeedback";
 import { InfoButton } from "../../ui/overlays/InfoButton";
 import type { SettingsDrawerProps } from "./SettingsDrawerTypes";
 

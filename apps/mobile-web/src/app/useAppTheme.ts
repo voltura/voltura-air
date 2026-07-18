@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { loadThemeMode, resolveTheme, saveThemeMode, type ThemeMode } from "../appStorage";
+import { loadThemeMode, resolveTheme, saveThemeMode, type ThemeMode } from "../foundation/settings/appStorage";
 import { uiThemeColors } from "../ui/tokens.g";
 
 export function useAppTheme() {

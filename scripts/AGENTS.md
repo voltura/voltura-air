@@ -19,7 +19,8 @@ and release automation under `scripts`.
   reserve, or open the configured port or create firewall permissions.
 - Reuse the required port or stop the relevant process instead of silently
   selecting another port. The ordinary VS Code development path is
-  `npm run dev`.
+  `npm run dev`; `npm run dev:quick` is the no-validation host-served build path
+  for rapid current-source testing on a phone.
 
 ## Destructive and maintenance commands
 
@@ -61,6 +62,9 @@ and release automation under `scripts`.
 - `scripts/check-documentation-map.mjs` enforces the canonical catalog, required
   public documentation surfaces, and local document-link integrity. Update its
   focused tests when the coverage contract changes.
+- `npm run size:check` requires every strong source-size warning to have a
+  current, specific rationale in `source-size-reviews.json`. Split mixed
+  ownership before recording a cohesive exception.
 - Run `npm run test:scripts` after changing JavaScript automation or root package
   script composition. Run packaging only when the changed behavior reaches that
   boundary.

@@ -2,6 +2,15 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 
 const root = process.cwd();
+const checkReviews = process.argv.includes("--check");
+const unsupportedArguments = process.argv.slice(2).filter((argument) => argument !== "--check");
+if (unsupportedArguments.length > 0) {
+  throw new Error(`Unsupported option: ${unsupportedArguments.join(", ")}. Use --check to enforce strong-warning reviews.`);
+}
+
+const reviewReasons = new Map(Object.entries(JSON.parse(
+  await readFile(path.join(root, "scripts/source-size-reviews.json"), "utf8")
+)));
 const reviewBytes = 12 * 1024;
 const warningBytes = 20 * 1024;
 const reviewLines = 300;
@@ -57,17 +66,51 @@ const reviewCandidates = (await collect(root)).sort((left, right) => {
   const rightScore = Math.max(right.size / reviewBytes, right.lineCount / reviewLines);
   return rightScore - leftScore;
 });
+const strongWarnings = reviewCandidates.filter(
+  (file) => file.size > warningBytes || file.lineCount > warningLines
+);
+const strongWarningPaths = new Set(strongWarnings.map((file) => file.relativePath));
+const reviewErrors = [];
+
+for (const file of strongWarnings) {
+  const reason = reviewReasons.get(file.relativePath);
+  if (typeof reason !== "string" || reason.trim().length < 40) {
+    reviewErrors.push(`Strong size warning needs a specific review: ${file.relativePath}`);
+  }
+}
+
+for (const reviewedPath of reviewReasons.keys()) {
+  if (!strongWarningPaths.has(reviewedPath)) {
+    reviewErrors.push(`Source-size review is stale because the file is no longer a strong warning: ${reviewedPath}`);
+  }
+}
 
 if (reviewCandidates.length === 0) {
   console.log("All actively maintained source files are at or below 12 KB and 300 lines.");
 } else {
   console.log("Actively maintained source files above 12 KB or 300 lines (review only):");
   for (const file of reviewCandidates) {
-    const marker = file.size > warningBytes || file.lineCount > warningLines ? "WARNING" : "review";
+    const strongWarning = file.size > warningBytes || file.lineCount > warningLines;
+    const marker = strongWarning
+      ? reviewReasons.has(file.relativePath) ? "reviewed" : "WARNING"
+      : "review";
     console.log(
       `${(file.size / 1024).toFixed(1).padStart(6)} KB  ${String(file.lineCount).padStart(5)} lines  ${marker.padEnd(7)}  ${file.relativePath}`
     );
   }
+}
+
+if (reviewErrors.length > 0) {
+  console.error("\nSource-size review findings:");
+  for (const error of reviewErrors) {
+    console.error(`- ${error}`);
+  }
+
+  if (checkReviews) {
+    process.exitCode = 1;
+  }
+} else if (checkReviews) {
+  console.log("\nEvery strong source-size warning has a current cohesive-ownership review.");
 }
 
 function countLines(contents) {

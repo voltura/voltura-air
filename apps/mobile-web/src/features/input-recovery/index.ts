@@ -1,2 +1,3 @@
-export { InputRecoveryNotice } from "./InputRecoveryNotice";
+import "./input-recovery.css";
 
+export { InputRecoveryNotice } from "./InputRecoveryNotice";

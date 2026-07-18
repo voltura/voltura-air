@@ -1,11 +1,10 @@
 # Architecture
 
-Voltura Air has two runtime halves: a React PWA that captures user intent and a Windows host that authenticates clients, applies permissions, and performs Windows operations. The protocol in `apps/mobile-web/src/protocol.ts` and `docs/protocol.md` is their compatibility boundary.
+Voltura Air has two runtime halves: a React PWA that captures user intent and a Windows host that authenticates clients, applies permissions, and performs Windows operations. The typed client protocol in `apps/mobile-web/src/foundation/protocol/messages.ts` and the wire authority in `docs/protocol.md` form their compatibility boundary.
 
-The target mobile structure is `app`, `features`, `ui`, and `foundation`. Until
-P0 completes, the root-level foundation paths listed below remain part of the
-current source layout. New and refactored code moves a coherent ownership
-boundary and its tests into the target structure.
+The mobile source structure is `app`, `features`, `ui`, and `foundation`.
+Architecture lint rejects source outside those roots and requires every
+foundation file to live under a named domain.
 
 ## Dependency direction
 
@@ -29,19 +28,36 @@ React components send typed intents through `useVolturaAirConnection`; the conne
 
 ## Host subsystems
 
-- `Program.cs` and `WpfHostRuntime.cs` compose the one-host tray application and own startup rollback and process-resource shutdown. `WpfTrayApplicationContext.cs` requests user commands and application shutdown but does not own service internals. `WebHostService.*.cs` owns HTTP/WebSocket lifetime, bounded messages, receive/send/close deadlines, per-socket send serialization, the single coalescing status broadcaster, authenticated status, and static PWA serving. `AppDeveloperSettings.cs` owns the cached, default-off **Enable alpha features** umbrella gate; individual alpha features own their capability advertisement and command-boundary enforcement.
+- `Program.cs` and `WpfHostRuntime.cs` compose the one-host tray application and own startup rollback and process-resource shutdown. `WpfTrayApplicationContext.*.cs` owns tray presentation, dispatcher one-shots, menu state, icons, and subscriptions; it requests commands and application shutdown but does not own service internals. `WebHostService.*.cs` separates host lifetime, network/origin selection, socket-session routing, socket transport, status broadcasting, and command operations while retaining one service owner for HTTP/WebSocket lifetime, bounded messages, deadlines, per-socket send serialization, authenticated status, and static PWA serving. `AppDeveloperSettings.cs` owns the cached, default-off **Enable alpha features** umbrella gate; individual alpha features own their capability advertisement and command-boundary enforcement.
 - `PairingManager.*.cs`, `PairingStore.cs`, and `PairingAttemptRateLimiter.cs` own authentication, bounded and validated atomic pairing persistence, and per-device permissions and pointer-speed overrides.
 - `ClientMessageValidator.cs` decodes each bounded authenticated input message once into a `ValidatedInputCommand`; `InputDispatcher.cs` consumes that command without rereading JSON and translates it for `SendInputInjector.cs`. The injector serializes native calls, reuses its single-input movement buffer, and sends text in bounded batches with partial-send cleanup. `PresentationCommands.cs` owns the fixed target-specific presenter shortcut allowlist. `TextDestination.cs` owns safe focused/clipboard/configured text delivery. `WindowsProcessIntegrity.cs` and `PointerHighlightForegroundMonitor.cs` use a single foreground event hook solely to block remote input when a higher-integrity app owns the foreground; they have no cursor responsibilities.
-- `AppLog.cs` owns the optional bounded single-writer filesystem queue and shutdown flush. `WpfHostRuntime` disposes it after every producer; a standalone `WebHostService` disposes only a logger it created itself.
+- `AppLog.*.cs` separates public models, bounded single-writer persistence, and bounded queries. `WpfHostRuntime` disposes the log after every producer; a standalone `WebHostService` disposes only a logger it created itself.
 - `CustomPointerService.cs` builds Windows cursors from the packaged maximum-size templates, preserves the Windows role mapping, applies them through the Windows cursor API, and reloads the user's configured cursor scheme on disable or normal exit. It owns the enabled, size, RGB, and default-on recovery-watchdog settings.
 - `CursorWatchdogService.cs` owns the native monitor while Custom pointer and **Use cursor recovery watchdog** are both enabled. `VolturaAir.CursorWatchdog.exe` starts a ready-confirmed monitor outside the live host process tree. The monitor waits on the host process handle, restores the configured Windows cursor scheme after unexpected termination, and exits. Normal host shutdown restores the cursor before stopping the monitor.
-- `RemoteActionExecutor.*.cs`, `AppLaunchService.cs`, `SystemAudioController.cs`, `SystemPowerController.cs`, `WindowsDisplayActionController.cs`, and `AwakeService.cs` own their focused platform functions. `MainWindow.*.cs` and `WpfTrayApplicationContext.cs` own WPF/tray presentation and dispatcher-affine state; they request lifecycle actions while `Program.cs` and `WpfHostRuntime.cs` perform shutdown.
+- `RemoteActionExecutor.*.cs`, `AppLaunchService.cs`, `SystemAudioController.cs`, `SystemPowerController.cs`, `WindowsDisplayActionController.cs`, and `AwakeService.cs` own their focused platform functions. `MainWindow.xaml` and the XAML views under `Features/` own page and reusable-section composition for Connect, Connection, Devices, Preferences, and Diagnostics. `MainWindow.*.cs` supplies data and behavior. WPF/tray presentation requests lifecycle actions while `Program.cs` and `WpfHostRuntime.cs` perform shutdown.
 
 ## Mobile subsystems
 
-- `App.tsx` is the thin composition root. `app/` owns shell state and global overlays, `features/<capability>/` owns each user-facing vertical slice with its tests and CSS, and `ui/` owns domain-neutral controls and feedback primitives. Feature surfaces emit typed intents rather than controlling sockets or persistence directly.
-- `foundation/<domain>/` is the target for typed non-presentation boundaries. It owns identity, credentials, connection health, acknowledgements, congestion limits, reconnect policy, protocol translation, persisted settings, and platform lifecycle. `useVolturaAirConnection` is the public communication entry point exposed from that layer.
-- The current root `connection/`, `input/`, `pairing/`, `pwa/`, and `settings/` directories and root modules such as `appStorage.ts`, `pcProfiles.ts`, `gestures.ts`, and `keyboardDelta.ts` are transitional foundation code. The interim architecture lint rule treats non-`app`, non-`features`, and non-`ui` source as foundation until coherent domains move under `foundation/`; it must tighten as migration removes those roots.
+- `App.tsx` is the thin composition root. `app/` owns shell state, the stable
+  application frame, safe-area allocation, top-level navigation, and global
+  overlay state. `features/<capability>/` owns each user-facing vertical slice
+  with its tests and CSS. `ui/` owns domain-neutral controls, feedback, and
+  overlay primitives. Feature surfaces emit typed intents rather than
+  controlling sockets or persistence directly.
+- `foundation/<domain>/` owns typed non-presentation boundaries for connection, diagnostics, identity, input, pairing, platform, protocol, PWA lifecycle, and persisted settings. `useVolturaAirConnection` is the public communication entry point. It composes focused command and persistence hooks with `useConnectionSocketLifecycle`, whose single effect owns the socket state machine, listeners, health and retry timers, background suspension, and cleanup.
+- `app/` owns mode-tab and cross-feature split-layout composition contracts. A
+  feature owns its internal responsive composition, local models, timers,
+  validation, tests, and stylesheet imports. Global CSS is limited to generated
+  tokens, base behavior, the shell, and shared primitives.
+- The shell exposes normalized viewport and safe-area contracts to features.
+  Features do not set shell geometry or branch on device identity. Ordinary
+  responsive layout uses CSS Grid, Flexbox, containment, and media or container
+  queries. Runtime viewport observation is reserved for shared overlays that
+  must follow the transient visual viewport while a software keyboard is open.
+- A shared overlay primitive owns native dialog behavior, focus and dismissal,
+  safe-area bounds, and visual viewport listeners. The invoking feature owns
+  dialog content, validation, actions, and whether the dialog is present. It
+  does not duplicate the primitive's mechanics.
 - Persisted client formats are owned by the appropriate foundation domain and
   follow the current design policy in the root `AGENTS.md`.
 
@@ -59,8 +75,28 @@ and service classes should rarely need that exception.
 
 `npm run size:report` applies these repository-wide review and warning thresholds
 to actively maintained source while excluding generated and vendored output.
-`docs/ui-system.md` applies the same review threshold specifically to
-presentation ownership.
+Strong warnings have their current cohesive-ownership rationale in
+`scripts/source-size-reviews.json`; `npm run size:check` rejects missing or stale
+reviews. Mixed host protocol, logging, tray, and Preferences responsibilities
+were split before the remaining exceptions were recorded. `docs/ui-system.md`
+applies the same review threshold specifically to presentation ownership.
+
+The production mobile build also enforces the measured JavaScript budget after
+Vite compression: at most 560 KB raw and 132 KB Brotli across emitted JavaScript
+assets. Budget changes require an intentional ownership and payload review.
+
+## Long-lived resource inventory
+
+| Owner | Long-lived resources | Deterministic cleanup and coverage |
+| --- | --- | --- |
+| `WpfHostRuntime` | App log, web host, input guard, custom pointer/watchdog, tray context, windows, and single-instance activation | Startup rollback and reverse-order `DisposeAsync`; host runtime/startup tests cover failure and shutdown paths. |
+| `WebHostService` | Lifetime cancellation, bounded status channel/worker, session semaphore, ASP.NET host, registered sockets/send gates, settings and pairing subscriptions, owned adapters | `StopAsync` cancels, completes the channel, closes sockets with deadlines, awaits workers/host, and `DisposeAsync` releases subscriptions and owned services; protocol/connection tests cover limits, failures, disconnects, and shutdown. |
+| `AppLog` | Bounded channel and single writer task | `DisposeAsync` completes the channel and awaits the writer after accepted-entry flush; log tests cover backpressure, read/write failure, pruning, flush, and disposal. |
+| `AwakeService` | Dedicated request thread, bounded blocking collection, expiration timer, execution-state ownership | `Dispose` stops intake/timer, wakes and joins the thread, then releases Windows execution state; awake tests cover transitions, expiration, failure, and cleanup. |
+| `SingleInstanceCoordinator` | Named synchronization objects and registered activation wait | `Dispose` unregisters the wait and releases handles; focused single-instance tests cover activation and disposal. |
+| `PointerHighlightForegroundMonitor` and `TextDestinationDraftStore` | Windows foreground hook/dispatcher timer and periodic draft-cleanup timer | Each service stops its timer, unregisters native/event state, and is disposed by its composition owner; focused platform/service tests cover inactive and cleanup behavior. |
+| `WpfTrayApplicationContext` | Notify icon/menu/icons, subscriptions, startup and disconnect one-shots | `Dispose` cancels owned one-shots, unsubscribes, hides/disposes tray resources, and releases icons. `OwnedDispatcherTimer` tests cover fire-once and dispose-before-fire behavior. |
+| Mobile connection/PWA/input hooks | WebSocket listeners, health/retry/feedback timers, page listeners, pointer capture, animation frames, and speech events | React effect cleanup closes/releases each acquired resource. Connection lifetime tests cover listener release, reconnect replacement, suspension, timeouts, and unmount; focused input/PWA tests cover their exit paths. |
 
 ## Invariants
 

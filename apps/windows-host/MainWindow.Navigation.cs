@@ -43,13 +43,6 @@ public partial class MainWindow
     {
         Dispatcher.BeginInvoke(() =>
         {
-            var pairedDeviceCount = _pairingManager.PairedDeviceCount;
-            if (pairedDeviceCount != _lastPairedDeviceCount)
-            {
-                _lastPairedDeviceCount = pairedDeviceCount;
-                _pairingUrl = CreatePairingUrl();
-            }
-
             RefreshStatusText();
             if (!IsVisible)
             {
@@ -62,6 +55,11 @@ public partial class MainWindow
                 SelectPage(_activePage);
             }
         });
+    }
+
+    private void OnPairingCodeInvalidated(object? sender, EventArgs eventArgs)
+    {
+        Dispatcher.BeginInvoke(NewPairing);
     }
 
     private void OnThemeChanged(object? sender, EventArgs e)

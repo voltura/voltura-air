@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, type MouseEvent, type PointerEvent } from "react";
+import "./developer-refresh-long-press.css";
 
 const developerRefreshLongPressMs = 700;
 const developerRefreshMovementThreshold = 10;

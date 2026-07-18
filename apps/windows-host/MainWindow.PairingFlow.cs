@@ -6,7 +6,7 @@ public partial class MainWindow
 {
     private void NewPairing()
     {
-        _pairingUrl = CreatePairingUrl();
+        _pairingCode = CreatePairingCode();
         if (_activePage == HostPage.Connect && IsVisible)
         {
             SelectPage(HostPage.Connect);
@@ -17,12 +17,13 @@ public partial class MainWindow
         }
     }
 
-    private string CreatePairingUrl()
+    private PairingDisplayCode CreatePairingCode(DateTimeOffset? now = null)
     {
-        var token = _pairingManager.CreatePairingToken();
+        var pairingCode = _pairingManager.CreatePairingCode(now);
         var url = new UriBuilder(_clientUrl)
         {
-            Query = $"t={Uri.EscapeDataString(token)}&v={Uri.EscapeDataString(AppVersion.Display)}"
+            Path = PairingPath,
+            Query = $"t={Uri.EscapeDataString(pairingCode.Value)}&v={Uri.EscapeDataString(AppVersion.Display)}"
         };
 
         if (!string.Equals(_clientUrl, _serverUrl, StringComparison.OrdinalIgnoreCase))
@@ -30,12 +31,23 @@ public partial class MainWindow
             url.Query = $"{url.Query.TrimStart('?')}&h={Uri.EscapeDataString(CreateHostHint(_clientUrl, _serverUrl))}";
         }
 
-        return url.Uri.ToString();
+        return new PairingDisplayCode(url.Uri.ToString(), pairingCode.RefreshAt);
     }
 
     private string GetVisiblePairingUrl()
     {
-        return _usePublicScreenshotPairingUrl ? ProductSiteUrl : _pairingUrl;
+        return _usePublicScreenshotPairingUrl ? ProductSiteUrl : _pairingCode.Url;
+    }
+
+    internal bool RefreshPairingCodeIfDue(DateTimeOffset now)
+    {
+        if (_pairingCode.RefreshAt > now)
+        {
+            return false;
+        }
+
+        _pairingCode = CreatePairingCode(now);
+        return true;
     }
 
     internal static string CreateHostHint(string clientUrl, string serverUrl)
@@ -50,4 +62,6 @@ public partial class MainWindow
 
         return serverUrl;
     }
+
+    private sealed record PairingDisplayCode(string Url, DateTimeOffset RefreshAt);
 }

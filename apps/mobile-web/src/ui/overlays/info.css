@@ -1,8 +1,8 @@
 .info-button {
-  width: 30px;
-  height: 30px;
-  min-height: 30px;
-  flex: 0 0 30px;
+  width: var(--control-min-height);
+  height: var(--control-min-height);
+  min-height: var(--control-min-height);
+  flex: 0 0 var(--control-min-height);
   border-radius: var(--radius-pill);
   border-color: transparent;
   color: var(--accent);
@@ -21,58 +21,233 @@
 }
 
 .info-button svg {
-  width: 17px;
-  height: 17px;
+  width: var(--icon-small);
+  height: var(--icon-small);
 }
 
-.info-dialog {
+.info-dialog,
+.modal-dialog {
+  box-sizing: border-box;
   width: min(360px, calc(100vw - var(--space-2xl)));
   max-width: none;
-  max-height: calc(var(--app-viewport-height) - var(--space-2xl));
+  height: fit-content;
+  min-height: 0;
+  max-height: calc(
+    var(--app-viewport-height)
+    - max(var(--space-lg), env(safe-area-inset-top))
+    - max(var(--space-lg), env(safe-area-inset-bottom))
+  );
+  display: grid;
+  align-content: start;
+  gap: var(--space-md);
   overflow-y: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius-large);
   color: var(--text);
   background: var(--surface);
   box-shadow: 0 18px 48px var(--drawer-shadow);
-  padding: 20px;
+  padding: var(--space-lg);
+  margin: auto;
 }
 
-.info-dialog-detailed {
+.modal-dialog {
+  --modal-visual-viewport-width: 100vw;
+  --modal-visual-viewport-height: var(--app-viewport-height);
+  --modal-visual-viewport-center-x: 50vw;
+  --modal-visual-viewport-center-y: 50vh;
+  --modal-visual-viewport-bottom-offset: 0px;
+  --modal-block-padding: clamp(
+    var(--space-sm),
+    calc(var(--modal-visual-viewport-height) / 30),
+    var(--space-lg)
+  );
+  --modal-row-gap: clamp(
+    var(--space-sm),
+    calc(var(--modal-visual-viewport-height) / 30),
+    var(--space-md)
+  );
+
+  position: fixed;
+  inset: var(--modal-visual-viewport-center-y) auto auto var(--modal-visual-viewport-center-x);
+  width: min(360px, calc(var(--modal-visual-viewport-width) - var(--space-2xl)));
+  height: auto;
+  max-height: calc(
+    var(--modal-visual-viewport-height)
+    - max(var(--space-sm), env(safe-area-inset-top))
+    - max(var(--space-sm), env(safe-area-inset-bottom))
+  );
   display: flex;
   flex-direction: column;
-  min-height: min(260px, calc(var(--app-viewport-height) - var(--space-2xl)));
+  align-content: initial;
+  gap: var(--modal-row-gap);
+  overflow: hidden;
+  padding-block: var(--modal-block-padding);
+  margin: 0;
+  transform: translate(-50%, -50%);
 }
 
-.info-dialog-detailed .info-dialog-actions {
-  margin-top: auto;
+.modal-dialog.info-dialog-detailed {
+  width: min(400px, calc(var(--modal-visual-viewport-width) - var(--space-2xl)));
 }
 
-.info-dialog::backdrop {
+.info-dialog::backdrop,
+.modal-dialog::backdrop {
   background: var(--scrim);
 }
 
-.info-dialog h2 {
-  margin: 0 0 10px;
+.info-dialog h2,
+.modal-dialog h2 {
+  margin: 0;
   font-size: 1.15rem;
 }
 
-.info-dialog p {
-  margin: 0 0 var(--space-lg);
+.info-dialog p,
+.modal-dialog p {
+  margin: 0;
   color: var(--muted);
   line-height: 1.5;
 }
 
-.info-dialog-actions {
+.modal-dialog-header {
+  flex: 0 0 auto;
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.modal-dialog-close {
+  width: var(--control-min-height);
+  min-width: var(--control-min-height);
+  height: var(--control-min-height);
+  min-height: var(--control-min-height);
+  border-color: transparent;
+  background: transparent;
+  padding: 0;
+}
+
+.modal-dialog-close svg {
+  width: var(--icon-small);
+  height: var(--icon-small);
+}
+
+.modal-dialog-body {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.modal-dialog-form {
+  flex: 0 1 auto;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--modal-row-gap);
+  overflow: hidden;
+}
+
+.info-dialog-actions,
+.modal-dialog-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
   justify-content: flex-end;
 }
 
-.info-dialog-actions button {
+.info-dialog-actions button,
+.modal-dialog-actions button {
+  height: var(--control-min-height);
+  max-height: var(--control-min-height);
+  flex: 0 0 auto;
   min-width: 88px;
   border-color: var(--accent);
 }
 
-.info-dialog-actions button:focus-visible {
+.info-dialog-actions button:focus-visible,
+.modal-dialog-actions button:focus-visible {
   outline: none;
+}
+
+.confirmation-dialog-actions {
+  gap: var(--space-sm);
+}
+
+.confirmation-dialog-actions button {
+  min-width: 96px;
+}
+
+.confirmation-dialog-actions .confirmation-dialog-cancel {
+  border-color: var(--accent);
+}
+
+.confirmation-dialog-actions .confirmation-dialog-confirm {
+  border-color: var(--border);
+  color: var(--danger);
+}
+
+@media (orientation: landscape) and (width >= 640px) {
+  .modal-dialog {
+    width: min(
+      520px,
+      calc(
+        var(--modal-visual-viewport-width)
+        - max(var(--space-lg), env(safe-area-inset-left, 0px))
+        - max(var(--space-lg), env(safe-area-inset-right, 0px))
+      )
+    );
+    flex-flow: row wrap;
+    align-items: stretch;
+  }
+
+  .modal-dialog.modal-dialog-landscape-wide {
+    width: min(
+      760px,
+      calc(
+        var(--modal-visual-viewport-width)
+        - max(var(--space-lg), env(safe-area-inset-left, 0px))
+        - max(var(--space-lg), env(safe-area-inset-right, 0px))
+      )
+    );
+  }
+
+  .modal-dialog-header {
+    flex: 0 0 100%;
+  }
+
+  .modal-dialog > .modal-dialog-body {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .modal-dialog > .modal-dialog-actions {
+    align-self: flex-end;
+  }
+
+  .modal-dialog-form {
+    flex: 0 1 100%;
+    flex-direction: row;
+    align-items: stretch;
+  }
+
+  .modal-dialog-form > .modal-dialog-body {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .modal-dialog-form > .modal-dialog-actions {
+    align-self: flex-end;
+  }
+
+  .modal-dialog[data-visual-viewport-bottom-constrained] {
+    inset: auto auto var(--modal-visual-viewport-bottom-offset) var(--modal-visual-viewport-center-x);
+    transform: translateX(-50%);
+  }
+}
+
+@media (orientation: landscape) and (width >= 640px) and (height <= 320px) {
+  .modal-dialog {
+    inset: auto auto var(--modal-visual-viewport-bottom-offset) var(--modal-visual-viewport-center-x);
+    transform: translateX(-50%);
+  }
 }

@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { Maximize2, Minimize2, MousePointer2, Volume2, VolumeX } from "lucide-react";
-import type { TrackpadSettings } from "../../../gestures";
-import type { AudioStateMessage } from "../../../protocol";
+import type { TrackpadSettings } from "../../../foundation/input/gestures";
+import type { AudioStateMessage } from "../../../foundation/protocol/messages";
 
 type MouseButtonName = "left" | "right";
 

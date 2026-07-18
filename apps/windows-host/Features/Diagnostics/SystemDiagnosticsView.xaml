@@ -1,0 +1,82 @@
+<UserControl x:Class="VolturaAir.Host.Features.Diagnostics.SystemDiagnosticsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="clr-namespace:VolturaAir.Host.Ui">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="{DynamicResource GridSpaceSm}" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="{DynamicResource GridSpaceLg}" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid Margin="{DynamicResource InsetSm}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="180" />
+                <ColumnDefinition Width="{DynamicResource GridSpaceMd}" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="{DynamicResource GridSpaceMd}" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Name"
+                       FontSize="11"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource MutedTextBrush}" />
+            <TextBlock Grid.Column="2"
+                       Text="Value"
+                       FontSize="11"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource MutedTextBrush}" />
+        </Grid>
+
+        <ListBox x:Name="DetailsList"
+                 Grid.Row="2"
+                 Style="{DynamicResource ModernListBoxStyle}"
+                 ItemContainerStyle="{DynamicResource ModernListBoxItemStyle}"
+                 AutomationProperties.Name="System diagnostic details">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Border Padding="10,8"
+                            Background="{DynamicResource SurfaceBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="{DynamicResource RadiusMedium}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="180" />
+                                <ColumnDefinition Width="{DynamicResource GridSpaceMd}" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="{DynamicResource GridSpaceMd}" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{Binding Name}"
+                                       FontSize="13"
+                                       FontWeight="Bold"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextBrush}" />
+                            <TextBlock Grid.Column="2"
+                                       Text="{Binding Value}"
+                                       FontFamily="Cascadia Mono, Consolas"
+                                       FontSize="13"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextBrush}" />
+                            <Button Grid.Column="4"
+                                    Content="Copy"
+                                    Click="OnCopyDetailClicked" />
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <ui:SpacingStackPanel Grid.Row="4"
+                              Orientation="Horizontal"
+                              Spacing="{DynamicResource SpaceSm}">
+            <Button x:Name="CopyDiagnosticsButton"
+                    Content="Copy diagnostics"
+                    Style="{DynamicResource PrimaryButtonStyle}" />
+            <Button x:Name="OpenProductPageButton" Content="Open product page" />
+        </ui:SpacingStackPanel>
+    </Grid>
+</UserControl>

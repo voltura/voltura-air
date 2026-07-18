@@ -56,8 +56,9 @@ apps\windows-host\bin\Debug\net10.0-windows\VolturaAir.Host.exe `
 Keep that file temporary and never publish live tokens, LAN addresses, or
 machine-specific QR codes. Pairing and settings remain in disposable storage.
 
-The script captures the Voltura Air window directly and falls back to a screen
-copy only when direct rendering is unavailable.
+The script brings the isolated Voltura Air window to the foreground and copies
+its visible DWM bounds from the unlocked desktop. Keep the capture desktop
+unobstructed while the host images are written.
 
 The public capture set includes the Connect screen in both themes. The landing
 page and README select the matching image with `prefers-color-scheme`. Capture

@@ -146,7 +146,7 @@
   align-content: stretch;
   touch-action: none;
   overflow: hidden;
-  padding-bottom: 56px;
+  padding-bottom: calc(56px + var(--mode-bottom-safe-area, 0px));
 }
 
 .remote-dpad {
@@ -181,6 +181,12 @@
   box-shadow: inset 0 0 0 8px color-mix(in srgb, var(--surface) 82%, transparent);
 }
 
+.remote-dpad,
+.remote-navigation-ring {
+  grid-row: 2;
+  z-index: 4;
+}
+
 .remote-fn-button {
   flex: 0 0 auto;
   min-height: 30px;
@@ -191,11 +197,11 @@
 
 .remote-floating-fn {
   position: absolute;
-  right: 10px;
+  right: max(10px, var(--mode-inline-safe-end, 0px));
   bottom: 10px;
   z-index: 3;
   min-width: 54px;
-  min-height: 40px;
+  min-height: calc(40px + var(--mode-bottom-safe-area, 0px));
   box-shadow: 0 8px 24px color-mix(in srgb, var(--drawer-shadow) 42%, transparent);
 }
 
@@ -222,12 +228,12 @@
 
 .remote-nav-action-fullscreen {
   top: 48px;
-  right: 10px;
+  right: max(10px, var(--mode-inline-safe-end, 0px));
 }
 
 .remote-nav-action-info {
   left: 10px;
-  bottom: 10px;
+  bottom: calc(10px + var(--mode-bottom-safe-area, 0px));
 }
 
 .remote-utility-section {
@@ -440,7 +446,7 @@
   }
 
   .remote-navigation-section {
-    padding-bottom: 52px;
+    padding-bottom: calc(52px + var(--mode-bottom-safe-area, 0px));
   }
 
   .remote-floating-fn {
@@ -603,7 +609,45 @@
   }
 }
 
+@media (orientation: landscape) {
+  .remote-section {
+    padding-right: max(9px, var(--mode-inline-safe-end, 0px));
+    padding-left: max(9px, var(--mode-inline-safe-start, 0px));
+  }
+
+  .remote-navigation-section {
+    padding-right: 9px;
+    padding-left: 9px;
+  }
+
+  .remote-navigation-section .remote-section-title {
+    padding-right: max(0px, calc(var(--mode-inline-safe-end, 0px) - 9px));
+    padding-left: max(0px, calc(var(--mode-inline-safe-start, 0px) - 9px));
+  }
+
+  .remote-nav-action-subtitles,
+  .remote-nav-action-info {
+    left: max(10px, var(--mode-inline-safe-start, 0px));
+  }
+}
+
 @media (orientation: landscape) and (height <= 520px) {
+  .remote-media-section,
+  .remote-utility-section {
+    padding-right: 9px;
+    padding-left: 9px;
+  }
+
+  .remote-volume-section {
+    padding-right: 9px;
+    padding-left: 9px;
+  }
+
+  .remote-nav-action-subtitles,
+  .remote-nav-action-info {
+    left: 10px;
+  }
+
   .remote-mode {
     grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr);
     grid-template-rows: auto minmax(0, 1fr);
@@ -656,7 +700,7 @@
 
   .remote-navigation-section {
     min-height: 150px;
-    padding-bottom: 6px;
+    padding-bottom: calc(6px + var(--mode-bottom-safe-area, 0px));
   }
 
   .remote-navigation-ring {

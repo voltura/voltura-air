@@ -1,27 +1,48 @@
-.drawer-scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 10;
-  min-height: 0;
-  border: 0;
-  border-radius: 0;
-  background: var(--scrim);
-  padding: 0;
-}
-
-.drawer-scrim:active {
-  color: inherit;
-  background: var(--scrim);
-  border-color: transparent;
-}
-
 .settings-drawer {
   position: fixed;
-  inset: 0 auto 0 0;
+  inset: 0;
   z-index: 11;
-  width: min(86vw, 360px);
+  margin: 0;
+  width: 100vw;
+  max-width: none;
   height: var(--app-viewport-height);
   max-height: var(--app-viewport-height);
+  display: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  overflow: hidden;
+}
+
+.settings-drawer[open] {
+  display: block;
+}
+
+.settings-drawer::backdrop {
+  background: var(--scrim);
+}
+
+.settings-drawer-light-dismiss,
+.settings-drawer-light-dismiss:not([aria-disabled="true"]):active {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.settings-drawer-panel {
+  position: relative;
+  z-index: 1;
+  width: min(86vw, 360px);
+  height: 100%;
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
@@ -29,24 +50,23 @@
   border-right: 1px solid var(--border);
   background: var(--bg);
   box-shadow: 18px 0 40px var(--drawer-shadow);
+  overflow: hidden;
+}
+
+.settings-drawer-scroll-region {
+  min-height: 0;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-md);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   touch-action: pan-y;
-  transform: translateX(-105%);
-  transition: transform var(--motion-standard) ease;
 }
 
-.settings-drawer * {
-  touch-action: pan-y;
-}
-
-.settings-drawer input[type="range"] {
+.settings-drawer-scroll-region input[type="range"] {
   touch-action: pan-x;
-}
-
-.settings-drawer.open {
-  transform: translateX(0);
 }
 
 .drawer-header {
@@ -153,7 +173,7 @@
   padding-top: 10px;
 }
 
-.fourth-mode-select {
+.text-input.fourth-mode-select {
   min-height: var(--control-prominent-height);
   font-size: 1rem;
   line-height: 1.25;
@@ -192,7 +212,7 @@
 }
 
 .install-card .info-button {
-  width: 30px;
+  width: var(--control-min-height);
 }
 
 .install-card .info-dialog-actions button {

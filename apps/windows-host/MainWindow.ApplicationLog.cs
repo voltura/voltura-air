@@ -1,8 +1,8 @@
 using System.Globalization;
 using System.Windows;
-using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
+using VolturaAir.Host.Features.Diagnostics;
 using VolturaAir.Host.Ui;
 using ComboBox = System.Windows.Controls.ComboBox;
 using Control = System.Windows.Controls.Control;
@@ -12,19 +12,10 @@ namespace VolturaAir.Host;
 
 public partial class MainWindow
 {
-    private Grid CreateApplicationLogViewer()
+    private ApplicationLogView CreateApplicationLogViewer()
     {
-        var root = new Grid();
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(UiTokens.SpaceMd) });
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(UiTokens.SpaceMd) });
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        var controls = CreateVerticalStack(UiTokens.SpaceMd);
-        controls.Children.Add(CreateSectionHeading("Application log"));
-        controls.Children.Add(CreateMutedText("Filter the newest 250 sanitized remote-command and Windows-host activity entries."));
-        var loggingToggle = CreateCheckBox("Write application log", AppLoggingSettings.IsEnabled());
-        controls.Children.Add(loggingToggle);
+        var root = new ApplicationLogView(AppLoggingSettings.IsEnabled());
+        var loggingToggle = root.LoggingToggle;
 
         var today = DateTime.Today;
         var dateRange = new ModernDateRangePicker(today.AddDays(-(AppLoggingSettings.GetMaxAgeDays() - 1)), today);
@@ -40,44 +31,13 @@ public partial class MainWindow
             ("Windows host", "windows_host"));
         var actionFilter = CreateLogFilter(("All actions", null));
 
-        var filters = CreateWrap(UiTokens.SpaceSm, UiTokens.SpaceSm);
-        filters.Children.Add(CreateLogFilterField("Date range", dateRange));
-        filters.Children.Add(CreateLogFilterField("Event", eventFilter));
-        filters.Children.Add(CreateLogFilterField("Source", sourceFilter));
-        filters.Children.Add(CreateLogFilterField("Action", actionFilter));
-        controls.Children.Add(filters);
-
-        var status = CreateMutedText(string.Empty);
-        var statusCard = new Border
-        {
-            Background = (Brush)Resources["SurfaceBrush"],
-            BorderBrush = (Brush)Resources["BorderBrush"],
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(12),
-            Child = status
-        };
-        controls.Children.Add(statusCard);
-        root.Children.Add(controls);
-        var logRows = CreateVerticalStack(UiTokens.SpaceSm);
-        var logScroller = new ScrollViewer
-        {
-            MinHeight = 100,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = logRows
-        };
-        var logFrame = new Border
-        {
-            Background = (Brush)Resources["WindowBrush"],
-            BorderBrush = (Brush)Resources["BorderBrush"],
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(8),
-            Child = logScroller
-        };
-        Grid.SetRow(logFrame, 2);
-        root.Children.Add(logFrame);
+        root.FiltersPanel.Children.Insert(0, CreateLogFilterField("Date range", dateRange));
+        root.FiltersPanel.Children.Insert(1, CreateLogFilterField("Event", eventFilter));
+        root.FiltersPanel.Children.Insert(2, CreateLogFilterField("Source", sourceFilter));
+        root.FiltersPanel.Children.Insert(3, CreateLogFilterField("Action", actionFilter));
+        var status = root.StatusText;
+        var logRows = root.LogRows;
+        var logScroller = root.LogScroller;
 
         var visibleText = string.Empty;
         var updatingFilters = false;
@@ -207,7 +167,7 @@ public partial class MainWindow
             RefreshLog();
         };
 
-        var clearFilters = CreateButton(string.Empty, (_, _) =>
+        root.ClearFiltersButton.Click += (_, _) =>
         {
             updatingFilters = true;
             dateRange.SetRange(today.AddDays(-(AppLoggingSettings.GetMaxAgeDays() - 1)), today);
@@ -216,41 +176,9 @@ public partial class MainWindow
             actionFilter.SelectedIndex = 0;
             updatingFilters = false;
             RefreshLog();
-        });
-        clearFilters.Style = (Style)Resources["CompactIconButtonStyle"];
-        clearFilters.Content = new Grid
-        {
-            Width = 16,
-            Height = 16,
-            Children =
-            {
-                new System.Windows.Shapes.Path
-                {
-                    Data = Geometry.Parse("M 3,3 L 13,13"),
-                    Stroke = (Brush)Resources["TextBrush"],
-                    StrokeThickness = 1.8,
-                    StrokeStartLineCap = PenLineCap.Round,
-                    StrokeEndLineCap = PenLineCap.Round
-                },
-                new System.Windows.Shapes.Path
-                {
-                    Data = Geometry.Parse("M 13,3 L 3,13"),
-                    Stroke = (Brush)Resources["TextBrush"],
-                    StrokeThickness = 1.8,
-                    StrokeStartLineCap = PenLineCap.Round,
-                    StrokeEndLineCap = PenLineCap.Round
-                }
-            }
         };
-        clearFilters.VerticalAlignment = VerticalAlignment.Bottom;
-        clearFilters.FocusVisualStyle = null;
-        clearFilters.ToolTip = "Clear filters";
-        AutomationProperties.SetName(clearFilters, "Clear filters");
-        filters.Children.Add(clearFilters);
-
-        var actions = CreateWrap(UiTokens.SpaceSm, UiTokens.SpaceSm);
-        actions.Children.Add(CreateButton("Refresh", (_, _) => RefreshLog()));
-        actions.Children.Add(CreateButton("Copy filtered log", (_, _) =>
+        root.RefreshButton.Click += (_, _) => RefreshLog();
+        root.CopyButton.Click += (_, _) =>
         {
             if (string.IsNullOrWhiteSpace(visibleText))
             {
@@ -259,12 +187,10 @@ public partial class MainWindow
             }
 
             CopyToClipboard(visibleText, "Filtered log copied");
-        }));
-        actions.Children.Add(CreateButton("Open log folder", (_, _) => OpenApplicationLogFolder()));
-        actions.Children.Add(CreateButton("Delete logs", (_, _) => DeleteApplicationLogs(RefreshLog), danger: true));
-        var automaticRefresh = CreateCheckBox("Automatic log refresh", isChecked: false);
-        automaticRefresh.VerticalAlignment = VerticalAlignment.Center;
-        actions.Children.Add(automaticRefresh);
+        };
+        root.OpenFolderButton.Click += (_, _) => OpenApplicationLogFolder();
+        root.DeleteButton.Click += (_, _) => DeleteApplicationLogs(RefreshLog);
+        var automaticRefresh = root.AutomaticRefreshToggle;
 
         var automaticRefreshSubscribed = false;
 
@@ -312,9 +238,6 @@ public partial class MainWindow
 
             StateChanged -= OnWindowStateChanged;
         };
-        Grid.SetRow(actions, 4);
-        root.Children.Add(actions);
-
         RefreshLog();
         return root;
     }

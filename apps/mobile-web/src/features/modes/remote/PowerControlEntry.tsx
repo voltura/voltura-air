@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Power } from "lucide-react";
-import type { AwakeCapability, AwakeResultMessage, PowerCapabilities, SystemPowerAction, SystemPowerResultMessage } from "../../../protocol";
+import type { AwakeCapability, AwakeResultMessage, PowerCapabilities, SystemPowerAction, SystemPowerResultMessage } from "../../../foundation/protocol/messages";
 import { PowerControlSheet } from "./PowerControlSheet";
 
 export interface AwakeControlProps {

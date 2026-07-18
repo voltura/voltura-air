@@ -126,8 +126,8 @@ need to occupy the context of unrelated work.
 - Treat `README.md`, `docs/site/index.php`, and `docs/site/llms.txt` as derived
   communication. They select and simplify facts owned by current product,
   setup, release, security, and troubleshooting documents.
-- `docs/todo.md` orders approved work: P0 architecture and quality, then P1
-  Presentation. `docs/ideas.md` records candidate directions; explicit product
+- `docs/todo.md` orders approved work; P1 Presentation is the current approved
+  outcome. `docs/ideas.md` records candidate directions; explicit product
   approval moves a candidate into the TODO.
 - When externally documented behavior changes, update the affected documentation,
   static site, and README. Update `AGENTS.md` only when working policy changes.

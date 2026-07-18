@@ -16,8 +16,29 @@ The mobile app derives visible feedback from these connection states:
 | `unavailable` | The browser cannot reach the active PC host, or health checks failed after a previous connection. |
 | `disconnected` | The user intentionally disconnected from the active PC. |
 
-When a QR link contains a pairing token, the app asks the user to confirm the
-mobile device name before it sends the pairing request.
+A valid `/pair` link imports its token into a pending pairing attempt and removes
+`t` from the visible address. The app then asks the user to confirm the mobile
+device name before it opens the pairing connection.
+
+## PC pairing-code lifecycle
+
+Each generated pairing code is valid for five minutes. The visible Connect screen
+shows a minute-and-second countdown and replaces its code 15 seconds before
+expiry. It performs no countdown work while hidden; reopening Connect replaces a
+code that has reached its refresh time before showing it. **New code** replaces
+the visible code immediately.
+
+Rotation retains only the immediately previous code, for no more than 15
+seconds, so a scan already in progress can finish. Accepting a code consumes both
+available code slots and makes the Connect screen generate and display a new
+code. This also applies when a previously paired client explicitly pairs again.
+
+Generated links use the dedicated `/pair` app route. The ordinary `/` route
+opens Voltura Air without importing pairing credentials.
+
+Pairing, intentional-disconnect, rejection, and unavailable panels block the
+inactive app controls behind them. Their recovery actions remain available in
+the panel's scrollable content.
 
 ## Failure mapping
 
@@ -28,10 +49,10 @@ Map pairing failures to friendly messages and recovery actions.
 | `qr-unreadable` | The uploaded photo did not contain a readable QR code. | Retake the photo, zoom in, avoid glare, or scan a fresh QR code. |
 | `qr-not-pairing-link` | The QR code is not a Voltura Air pairing link. | Scan the QR code from the PC Connect screen. |
 | `missing-token` | The request did not include a pairing token or valid reconnect secret. | Scan the PC QR code. |
-| `expired-token` | The active QR token expired before use. | Click **New code** on the PC and scan again. |
-| `stale-token` / `used-token` / `token-already-used` | The QR code was already used or replaced. | Click **New code** on the PC and scan the latest QR code. |
-| `invalid-token` | The pairing token is invalid, old, replaced, or from another PC. | Scan a fresh QR code from the PC. |
-| `device-revoked` / `secret-revoked` | The saved device credential is no longer valid. | Scan a fresh QR code to pair again. |
+| `expired-token` | The supplied token matches a retained code, but its validity ended before use. | Click **New code** on the PC and scan again. |
+| `stale-token` | The PC has no active pairing-code state, normally because the available code was consumed or cleared. | Scan the code currently displayed by the PC. |
+| `invalid-token` | The supplied token does not match the current code or its bounded overlap code. | Scan the code currently displayed by the PC. |
+| `secret-revoked` | The saved reconnect credential is no longer valid. | Scan a fresh QR code to pair again. |
 | `rate-limited` | The PC temporarily blocked repeated failed pairing attempts. | Wait a moment, click **New code** on the PC, and scan again. |
 | `invalid-message` | The host rejected the pairing request because it was not in the expected format. | Refresh the mobile app from the PC and scan a fresh QR code. |
 | `pair-first` | The host received a non-pairing message before authentication. | Scan a fresh QR code and reconnect. |
@@ -55,7 +76,7 @@ unavailable/reconnecting state with copyable diagnostics.
 
 The pairing screen should expose the relevant actions directly near the error:
 
-- **Take photo of QR code** / **Scan new QR code** for first pairing and QR/token failures.
+- **Take photo of QR code** / **Take photo of new QR code** for first pairing and QR/token failures.
 - **Try reconnect** for host-unavailable failures.
 - **Enter host manually** for changed IP address, changed port, stale QR page, or network troubleshooting.
 - **Open troubleshooting help** for same Wi-Fi/LAN, firewall, stale QR, and changed host/port guidance.
@@ -65,7 +86,7 @@ The pairing screen should expose the relevant actions directly near the error:
 and shows progress. Success returns to the previous mode; failure restores
 **PC not available**. Automatic retries never replay disconnected input.
 
-From `unavailable`, **Scan new QR code** keeps the saved PC and opens the new
+From `unavailable`, **Take photo of new QR code** keeps the saved PC and opens the new
 device-name confirmation. Events from the previous connection cannot replace
 that confirmation.
 
@@ -78,14 +99,23 @@ The UI must remain usable on small phones and short landscape viewports. Pairing
 feedback panels must scroll inside the viewport instead of hiding action buttons
 below the screen.
 
-When troubleshooting help and manual host entry are both expanded, these controls
-must remain reachable:
+Portrait and narrow layouts stack the status and recovery actions. Landscape
+layouts with enough inline space use equal left and right regions: status and
+diagnostic information on the left, recovery actions on the right. The layout
+stacks before either region becomes too narrow. Landscape does not reserve the
+portrait camera-area spacing above the panel.
 
-- primary QR/reconnect action;
-- optional secondary QR action;
-- manual host input and submit button;
-- troubleshooting help;
-- copy diagnostics.
+**Enter host manually** and **Open troubleshooting help** keep their labels and
+open shared modal dialogs; they do not expand content inside the feedback panel.
+The manual-host dialog provides a close control, **Cancel**, and **Connect**.
+The troubleshooting dialog provides a close control and **OK**. Tapping the
+scrim dismisses either dialog, and Escape remains a secondary hardware-keyboard
+path.
+
+Dialog title and actions remain visible while the body is the only scroll owner.
+The dialog follows the visible viewport through keyboard show/hide and rotation,
+so the input, validation, and actions remain reachable in portrait and
+landscape.
 
 ## Diagnostics
 
@@ -94,7 +124,7 @@ Copied diagnostics are for troubleshooting only and must not include secrets or 
 - pairing state;
 - failure reason;
 - diagnostic code;
-- current page URL;
+- current page URL with credential values redacted;
 - browser user agent;
 - display mode;
 - timestamp.

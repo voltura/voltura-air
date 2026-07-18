@@ -294,7 +294,7 @@ approved unfinished work.
   - show function keys,
   - show control keys,
   - show arrow keys,
-  - show sleep button.
+  - show sleep button, with mandatory confirmation before the command is sent.
 
 ### Remote mode
 

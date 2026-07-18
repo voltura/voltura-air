@@ -5,6 +5,8 @@
   grid-auto-rows: auto;
   grid-template-rows: none;
   overflow-y: auto;
+  padding-bottom: var(--mode-bottom-safe-area, 0);
+  scroll-padding-bottom: var(--mode-bottom-safe-area, 0);
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
@@ -53,9 +55,10 @@
 }
 
 .keyboard-mode.live-typing textarea {
-  height: 50px;
-  min-height: 50px;
-  max-height: 50px;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  align-self: stretch;
   overflow: hidden;
   padding-top: 10px;
   padding-bottom: 10px;
@@ -67,12 +70,6 @@
     height: clamp(76px, 16svh, 104px);
     min-height: 76px;
     max-height: 104px;
-  }
-
-  .keyboard-mode.live-typing textarea {
-    height: 50px;
-    min-height: 50px;
-    max-height: 50px;
   }
 
   .live-typing-row {
@@ -115,15 +112,15 @@
 }
 
 @media (orientation: landscape) {
+  .live-typing-row {
+    padding-right: var(--mode-inline-safe-end, 0);
+    padding-left: var(--mode-inline-safe-start, 0);
+  }
+
   .keyboard-mode textarea {
     height: 84px;
     min-height: 84px;
     max-height: 84px;
   }
 
-  .keyboard-mode.live-typing textarea {
-    height: 50px;
-    min-height: 50px;
-    max-height: 50px;
-  }
 }

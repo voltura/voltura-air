@@ -5,13 +5,15 @@
   gap: 12px;
   overflow-y: auto;
   overflow-anchor: none;
-  padding: 2px;
+  padding: 2px 2px max(2px, var(--mode-bottom-safe-area, 0px));
 }
 
 .tool-page-header {
   display: flex;
   align-items: flex-start;
   gap: 12px;
+  padding-right: var(--mode-inline-safe-end, 0);
+  padding-left: var(--mode-inline-safe-start, 0);
 }
 
 .tool-page-header h1,
@@ -36,6 +38,8 @@
   border-radius: 8px;
   background: var(--surface);
   padding: 10px 12px;
+  padding-right: max(12px, var(--mode-inline-safe-end, 0px));
+  padding-left: max(12px, var(--mode-inline-safe-start, 0px));
 }
 
 .text-transfer-warning-with-info {

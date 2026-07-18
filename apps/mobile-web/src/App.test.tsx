@@ -1,14 +1,14 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
-import { useVolturaAirConnection } from "./useVolturaAirConnection";
-import { usePwaLifecycle } from "./pwa/usePwaLifecycle";
+import { useVolturaAirConnection } from "./foundation/connection/useVolturaAirConnection";
+import { usePwaLifecycle } from "./foundation/pwa/usePwaLifecycle";
 
-vi.mock("./useVolturaAirConnection", () => ({
+vi.mock("./foundation/connection/useVolturaAirConnection", () => ({
   useVolturaAirConnection: vi.fn()
 }));
 
-vi.mock("./pwa/usePwaLifecycle", () => ({
+vi.mock("./foundation/pwa/usePwaLifecycle", () => ({
   usePwaLifecycle: vi.fn()
 }));
 
@@ -61,6 +61,7 @@ function mockConnection(overrides: Partial<ReturnType<typeof useVolturaAirConnec
       url: "http://pc.local:51395"
     },
     pairedPcs: [],
+    reconnectablePcs: [],
     audioState: null,
     awakeCapability: null,
     awakeResult: null,
@@ -247,7 +248,7 @@ describe("App header and mode navigation", () => {
     expect(screen.getAllByRole("button", { name: "Trackpad mode" }).some((button) => button.getAttribute("aria-current") === "page")).toBe(true);
 
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
-    const menu = screen.getByRole("heading", { name: "Menu" }).closest("aside");
+    const menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog");
     expect(menu).not.toBeNull();
     fireEvent.click(within(menu!).getByRole("button", { name: "Dictation" }));
     expect(screen.getByLabelText("Dictation text")).toBeTruthy();
@@ -268,21 +269,73 @@ describe("App header and mode navigation", () => {
     expect(primaryKeys.parentElement).toBe(beforeParent);
   });
 
-  it("collapses the bottom mode row from the active tab and restores it from the compact selector", () => {
+  it("keeps the bottom mode row mounted across mode changes, then collapses it from the active tab", () => {
     render(<App />);
 
     const appShell = document.querySelector(".app-shell");
-    const activeTrackpadButtons = screen.getAllByRole("button", { name: "Trackpad mode" });
-    fireEvent.click(activeTrackpadButtons.at(-1)!);
+    const bottomModeNavigation = document.querySelector<HTMLElement>(".bottom-mode-tabs");
+    expect(bottomModeNavigation).not.toBeNull();
+    expect(appShell?.contains(bottomModeNavigation)).toBe(false);
+    expect(bottomModeNavigation?.parentElement).toBe(appShell?.parentElement);
+    expect(bottomModeNavigation?.parentElement?.classList).toContain("app-frame");
+
+    for (const modeName of ["Keyboard mode", "Remote mode", "Dictation"]) {
+      fireEvent.click(within(bottomModeNavigation!).getByRole("button", { name: modeName }));
+
+      expect(document.querySelector(".bottom-mode-tabs")).toBe(bottomModeNavigation);
+      expect(appShell?.classList.contains("mode-tabs-collapsed")).toBe(false);
+      expect(within(bottomModeNavigation!).getByRole("button", { name: modeName }).getAttribute("aria-current")).toBe("page");
+    }
+
+    fireEvent.click(within(bottomModeNavigation!).getByRole("button", { name: "Dictation" }));
 
     expect(appShell?.classList.contains("mode-tabs-collapsed")).toBe(true);
     expect(document.querySelector(".bottom-mode-tabs")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Change mode" }));
-    fireEvent.click(screen.getByRole("menuitemradio", { name: "Trackpad mode" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Keyboard mode" }));
 
     expect(appShell?.classList.contains("mode-tabs-collapsed")).toBe(false);
     expect(document.querySelector(".bottom-mode-tabs")).toBeTruthy();
+  });
+
+  it.each([
+    { ariaLabel: "Dictation", fourthMode: "dictation" },
+    { ariaLabel: "Send text to PC", fourthMode: "text-transfer" },
+    { ariaLabel: "Get text from PC", fourthMode: "clipboard-read" },
+    { ariaLabel: "Presentation", fourthMode: "presentation" }
+  ])("keeps the configured $fourthMode fourth mode in the isolated bottom navigation", ({ ariaLabel, fourthMode }) => {
+    localStorage.setItem("voltura-air.appSettings.client-a.pc-a", JSON.stringify({ fourthMode }));
+    render(<App />);
+
+    const bottomModeNavigation = document.querySelector<HTMLElement>(".bottom-mode-tabs");
+    expect(bottomModeNavigation).not.toBeNull();
+    const fourthModeButton = within(bottomModeNavigation!).getByRole("button", { name: ariaLabel });
+
+    fireEvent.click(fourthModeButton);
+
+    expect(document.querySelector(".bottom-mode-tabs")).toBe(bottomModeNavigation);
+    expect(fourthModeButton.getAttribute("aria-current")).toBe("page");
+  });
+
+  it("keeps Presentation navigation available when it is the configured fourth mode", () => {
+    localStorage.setItem("voltura-air.appSettings.client-a.pc-a", JSON.stringify({ fourthMode: "presentation" }));
+    render(<App />);
+
+    const appShell = document.querySelector(".app-shell");
+    const bottomModeNavigation = document.querySelector<HTMLElement>(".bottom-mode-tabs");
+    const presentationButton = within(bottomModeNavigation!).getByRole("button", { name: "Presentation" });
+
+    fireEvent.click(presentationButton);
+
+    expect(appShell?.classList.contains("presentation-active")).toBe(true);
+    expect(document.querySelector(".bottom-mode-tabs")).toBe(bottomModeNavigation);
+    expect(presentationButton.getAttribute("aria-current")).toBe("page");
+
+    fireEvent.click(presentationButton);
+
+    expect(document.querySelector(".bottom-mode-tabs")).toBeNull();
+    expect(screen.getByRole("button", { name: "Change mode" })).toBeTruthy();
   });
 
   it("hides the bottom mode row and keeps the header selector available while remote Fn is open", () => {
@@ -312,6 +365,62 @@ describe("App header and mode navigation", () => {
 
     expect(screen.queryByRole("button", { name: "Change mode" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Keyboard mode" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Take photo of new QR code" })).toBeTruthy();
+  });
+
+  it("offers direct saved-PC reconnect without removing QR pairing", () => {
+    const selectPc = vi.fn();
+    const inputClick = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => undefined);
+    const savedPc = {
+      customName: true,
+      id: "pc-a",
+      name: "Living Room PC",
+      url: "http://pc.local:51395"
+    };
+    mockConnection({
+      activePc: null,
+      message: "Disconnected. Choose a saved PC or scan a pairing QR.",
+      pairedPcs: [savedPc],
+      reconnectablePcs: [savedPc],
+      selectPc,
+      state: "disconnected"
+    });
+
+    render(<App />);
+
+    expect(screen.getByRole("heading", { name: "PC disconnected" })).toBeTruthy();
+    expect(screen.getByRole("dialog").getAttribute("aria-modal")).toBe("true");
+    expect(screen.getByText("Reconnect to Living Room PC, or pair another PC by taking a photo of its QR code.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Take photo of QR code" }));
+    expect(inputClick).toHaveBeenCalledOnce();
+
+    fireEvent.click(screen.getByRole("button", { name: "Try reconnect" }));
+    expect(selectPc).toHaveBeenCalledExactlyOnceWith("pc-a");
+    inputClick.mockRestore();
+  });
+
+  it("lets the user choose which saved PC to reconnect", () => {
+    const selectPc = vi.fn();
+    const savedPcs = [
+      { customName: true, id: "pc-a", name: "Office PC", url: "http://office.local:51395" },
+      { customName: true, id: "pc-b", name: "Living Room PC", url: "http://living-room.local:51395" }
+    ];
+    mockConnection({
+      activePc: null,
+      message: "Choose a PC or scan a pairing QR.",
+      pairedPcs: savedPcs,
+      reconnectablePcs: savedPcs,
+      selectPc,
+      state: "needs-pairing"
+    });
+
+    render(<App />);
+
+    expect(screen.getByRole("heading", { name: "Connect to a PC" })).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Saved PC"), { target: { value: "pc-b" } });
+    fireEvent.click(screen.getByRole("button", { name: "Try reconnect" }));
+
+    expect(selectPc).toHaveBeenCalledExactlyOnceWith("pc-b");
   });
 
   it("keeps a manually requested reconnect front and center until it succeeds", async () => {

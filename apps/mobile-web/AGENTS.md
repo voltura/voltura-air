@@ -12,13 +12,13 @@ The physical target is:
 src/app/                    composition, shell state, global overlays
 src/features/<capability>/  capability UI, state, copy, styles, and tests
 src/ui/                     domain-neutral controls and layout primitives
-src/foundation/             connection, protocol, persistence, and platform adapters
+src/foundation/<domain>/    connection, protocol, input, settings, persistence, and platform adapters
 ```
 
-Until P0 is complete, root modules and the `connection`, `input`, `pairing`,
-`pwa`, and `settings` directories count as foundation ownership. New foundation
-code belongs under `foundation/<domain>`. A refactor moves a coherent ownership
-unit and its tests.
+Source files belong to one of these physical roots. Foundation files always
+declare a domain directory; root-level foundation modules and transitional
+`connection`, `input`, `pairing`, `pwa`, or `settings` directories are rejected
+by the architecture rule.
 
 Dependency direction is `app -> features -> ui`, with `app` and `features`
 allowed to consume foundation contracts. `ui` imports neither features nor
@@ -51,6 +51,7 @@ slice's components, hooks, models, copy, tests, and narrowly owned styles.
 
 ## Web interaction and layout
 
+- Follow the [surface input priorities](../../docs/ui-system.md#surface-input-priorities).
 - Research unfamiliar or repeatedly failing interaction, layout, scrolling,
   touch, pointer, focus, viewport, and compatibility behavior in the relevant
   web standard and official browser documentation before implementing a fix.
@@ -62,7 +63,7 @@ slice's components, hooks, models, copy, tests, and narrowly owned styles.
   listener workarounds, or scroll correction to revoke an active native gesture.
 - Keep gesture state machines explicit: tap, pre-activation scroll, long press,
   drag, cancellation, and release. Clean up capture, timers, and listeners on
-  every exit and preserve keyboard and accessible operation.
+  every exit and preserve accessible semantics.
 - Keep global CSS limited to generated tokens, base/reset behavior, shell layout,
   and shared primitives. A feature owns its layout and styles.
 

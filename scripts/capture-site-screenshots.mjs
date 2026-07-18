@@ -273,7 +273,6 @@ public static class NativeWindowCapture {
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
-  [DllImport("user32.dll", SetLastError = true)] public static extern bool PrintWindow(IntPtr hWnd, IntPtr hdcBlt, uint nFlags);
   [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out RECT pvAttribute, int cbAttribute);
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
 }
@@ -296,20 +295,15 @@ if ($dwmResult -ne 0) {
 }
 $width = $rect.Right - $rect.Left
 $height = $rect.Bottom - $rect.Top
-if ($width -lt 1160 -or $height -lt 760) {
+# DWM extended-frame bounds omit the invisible resize border from the
+# 1160 x 760 WPF window. At 100% scaling the visible frame is typically
+# 1146 x 753, while the startup window remains far below this guard.
+if ($width -lt 1120 -or $height -lt 720) {
   throw "Voltura Air host window capture bounds were too small: $($width)x$($height)."
 }
 $bitmap = New-Object System.Drawing.Bitmap($width, $height)
 $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-$hdc = $graphics.GetHdc()
-try {
-  $captured = [NativeWindowCapture]::PrintWindow($hwnd, $hdc, 2)
-} finally {
-  $graphics.ReleaseHdc($hdc)
-}
-if (-not $captured) {
-  $graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, [System.Drawing.Size]::new($width, $height))
-}
+$graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, [System.Drawing.Size]::new($width, $height))
 $graphics.Dispose()
 $bitmap.Save($OutputPath, [System.Drawing.Imaging.ImageFormat]::Png)
 $bitmap.Dispose()

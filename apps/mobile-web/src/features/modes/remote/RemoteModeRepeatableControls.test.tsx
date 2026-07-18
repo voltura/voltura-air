@@ -1,6 +1,6 @@
 import { act, fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { defaultRemoteSettings } from "../../../remoteSettings";
+import { defaultRemoteSettings } from "../../../foundation/settings/remoteSettings";
 import { renderRemote } from "./remoteModeTestUtils";
 
 const repeatStartDelayMs = 400;

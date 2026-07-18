@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using VolturaAir.Host.Features.Devices;
 using Button = System.Windows.Controls.Button;
 using Brush = System.Windows.Media.Brush;
 
@@ -13,7 +14,7 @@ public partial class MainWindow
     {
         if (_activePage != HostPage.Devices ||
             _deviceDetailsPanel is null ||
-            _devicesList?.SelectedItem is not ListBoxItem { Tag: DeviceListItem selected })
+            _devicesList?.SelectedItem is not DeviceListItem selected)
         {
             return;
         }

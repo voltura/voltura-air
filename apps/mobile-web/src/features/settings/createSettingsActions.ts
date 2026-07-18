@@ -1,10 +1,10 @@
-import { clearAppSettings, clearRemoteSettings, clearTrackpadSettings } from "../../appStorage";
-import type { AppSettings } from "../../appSettings";
-import type { TrackpadSettings } from "../../gestures";
-import { triggerHapticFeedback } from "../../hapticFeedback";
-import type { KeyboardSettings } from "../../keyboardSettings";
-import type { RemoteSettings } from "../../remoteSettings";
-import type { usePcSettings } from "../../settings/usePcSettings";
+import { clearAppSettings, clearRemoteSettings, clearTrackpadSettings } from "../../foundation/settings/appStorage";
+import type { AppSettings } from "../../foundation/settings/appSettings";
+import type { TrackpadSettings } from "../../foundation/input/gestures";
+import { triggerHapticFeedback } from "../../foundation/input/hapticFeedback";
+import type { KeyboardSettings } from "../../foundation/settings/keyboardSettings";
+import type { RemoteSettings } from "../../foundation/settings/remoteSettings";
+import type { usePcSettings } from "../../foundation/settings/usePcSettings";
 
 type SettingsState = Pick<
   ReturnType<typeof usePcSettings>,

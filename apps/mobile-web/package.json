@@ -1,12 +1,14 @@
 {
   "name": "@voltura-air/mobile-web",
   "private": true,
-  "version": "0.6.1",
+  "version": "0.6.2",
   "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --strictPort",
-    "build": "npm run check && vite build",
+    "build": "npm run check && vite build && npm run bundle:check",
+    "build:quick": "vite build",
+    "bundle:check": "node ../../scripts/check-mobile-bundle-size.mjs",
     "check": "npm run typecheck && npm run lint",
     "lint": "npm run lint:code && npm run lint:styles",
     "lint:code": "npm run lint:architecture && eslint . --max-warnings 0",

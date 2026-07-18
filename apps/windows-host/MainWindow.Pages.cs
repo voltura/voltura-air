@@ -4,6 +4,8 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using VolturaAir.Host.Features.Connect;
 using VolturaAir.Host.Features.Connection;
+using VolturaAir.Host.Features.Devices;
+using VolturaAir.Host.Features.Preferences;
 using Button = System.Windows.Controls.Button;
 using CheckBox = System.Windows.Controls.CheckBox;
 using Image = System.Windows.Controls.Image;
@@ -28,41 +30,20 @@ public partial class MainWindow
             _webHost.Port.ToString(CultureInfo.InvariantCulture),
             _webHost.AddressSelectionWarning,
             _webHost.PortSelectionWarning,
+            _pairingCode.RefreshAt,
             NewPairing,
             () => CopyToClipboard(GetVisiblePairingUrl(), "Link copied"));
     }
 
-    private Grid BuildDevicesPage()
+    private DevicesPageView BuildDevicesPage()
     {
-        var root = new Grid();
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(360) });
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(UiTokens.SpaceLg) });
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-        _devicesList = CreateModernList(GetDeviceItems(), CreateDeviceListRow);
-        _devicesList.SelectionChanged += (_, _) => RefreshDeviceDetails();
-        Grid.SetColumn(_devicesList, 0);
-        root.Children.Add(_devicesList);
-
-        _deviceDetailsPanel = CreateSectionPanel();
-        var detailsScroll = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = _deviceDetailsPanel
-        };
-        Grid.SetColumn(detailsScroll, 2);
-        root.Children.Add(detailsScroll);
-
-        var actions = CreateHorizontalStack(UiTokens.SpaceSm);
-        actions.Children.Add(CreateButton("Clean up duplicates", (_, _) => CleanUpDuplicates()));
-        actions.Children.Add(CreateButton("Disconnect all", (_, _) => DisconnectAllDevices(), danger: true));
-        Grid.SetColumn(actions, 0);
-        Grid.SetRow(actions, 2);
-        root.Children.Add(actions);
+        var root = new DevicesPageView(
+            GetDeviceItems(),
+            RefreshDeviceDetails,
+            CleanUpDuplicates,
+            DisconnectAllDevices);
+        _devicesList = root.Devices;
+        _deviceDetailsPanel = root.Details;
         RefreshDeviceDetails();
         return root;
     }
@@ -92,27 +73,16 @@ public partial class MainWindow
         return _connectionPage;
     }
 
-    private ScrollViewer BuildPreferencesPage()
+    private PreferencesPageView BuildPreferencesPage()
     {
         _isLoadingPreferences = true;
-        var root = new ScrollViewer
-        {
-            // Reserve the scrollbar gutter so expanding a section never
-            // changes the accordion width.
-            CanContentScroll = false,
-            Focusable = false,
-            FocusVisualStyle = null,
-            IsTabStop = false,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Visible,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = CreateSectionPanel(UiTokens.SpaceSm)
-        };
-        System.Windows.Input.KeyboardNavigation.SetIsTabStop(root, false);
-        var panel = (StackPanel)root.Content;
-        var sections = new List<Expander>();
+        var root = new PreferencesPageView(
+            _preferencesSectionToOpen,
+            SetPreferencesTitle,
+            RevealExpandedPreferencesSection);
         var globalPermissions = AppPermissionSettings.Load();
 
-        var applicationPanel = AddPreferencesSection(panel, sections, "Application");
+        var applicationPanel = root.ApplicationContent;
         var start = CreateCheckBox("Start Voltura Air when I sign in to Windows", AppStartupSettings.IsEnabled());
         start.Checked += (_, _) => AppStartupSettings.SetEnabled(true);
         start.Unchecked += (_, _) => AppStartupSettings.SetEnabled(false);
@@ -135,7 +105,7 @@ public partial class MainWindow
 
         AddApplicationLoggingSettings(applicationPanel);
 
-        var appearancePanel = AddPreferencesSection(panel, sections, "Appearance");
+        var appearancePanel = root.AppearanceContent;
         var activeTheme = AppThemeSettings.GetMode();
         var systemTheme = CreateSegmentButton("System", activeTheme == AppThemeMode.System);
         var lightTheme = CreateSegmentButton("Light", activeTheme == AppThemeMode.Light);
@@ -146,11 +116,11 @@ public partial class MainWindow
         darkTheme.Click += (_, _) => SetThemeMode(AppThemeMode.Dark);
         appearancePanel.Children.Add(CreateSegmentRow(systemTheme, lightTheme, darkTheme));
 
-        var trackpadPanel = AddPreferencesSection(panel, sections, "Trackpad defaults");
+        var trackpadPanel = root.TrackpadContent;
         trackpadPanel.Children.Add(CreateMutedText("Default pointer speed for paired devices. Device-specific overrides take precedence."));
         AddGlobalPointerSpeedSetting(trackpadPanel);
 
-        var remotePanel = AddPreferencesSection(panel, sections, "Remote defaults");
+        var remotePanel = root.RemoteContent;
         remotePanel.Children.Add(CreateMutedText("Choose the initial Remote mode for newly connected phones. Mobile settings can still override this per PC."));
         var activeRemoteMode = AppRemoteSettings.GetDefaultRemoteMode();
         var standardRemote = CreateSegmentButton("Standard", activeRemoteMode == AppRemoteMode.Standard);
@@ -164,23 +134,23 @@ public partial class MainWindow
         remotePanel.Children.Add(CreateSegmentRow(standardRemote, youtubeRemote, kodiRemote));
         AddYoutubeUrlSetting(remotePanel);
 
-        var awakePanel = AddPreferencesSection(panel, sections, "Keep awake");
+        var awakePanel = root.AwakeContent;
         AddAwakeSettings(awakePanel);
 
-        var permissionsPanel = AddPreferencesSection(panel, sections, "Global permissions");
+        var permissionsPanel = root.PermissionsContent;
         var allowClientControl = CreateCheckBox("Allow paired devices to control Voltura Air host", AppClientControlSettings.IsEnabled());
         allowClientControl.Checked += (_, _) => AppClientControlSettings.SetEnabled(true);
         allowClientControl.Unchecked += (_, _) => AppClientControlSettings.SetEnabled(false);
         permissionsPanel.Children.Add(allowClientControl);
         permissionsPanel.Children.Add(CreateMutedText("When off, paired devices cannot inject input into Voltura Air itself. They can still control Windows and other permitted apps."));
 
-        var textDestinationPanel = AddPreferencesSection(panel, sections, "Text destination");
+        var textDestinationPanel = root.TextDestinationContent;
         AddTextDestinationSettings(textDestinationPanel);
 
-        var appLaunchPanel = AddPreferencesSection(panel, sections, "Application launch buttons");
+        var appLaunchPanel = root.AppLaunchContent;
         AddAppLaunchSettings(appLaunchPanel);
 
-        var customPointerPanel = AddPreferencesSection(panel, sections, "Custom pointer");
+        var customPointerPanel = root.CustomPointerContent;
         AddCustomPointerSetting(customPointerPanel);
 
         var sleep = CreateCheckBox("Allow paired devices to request PC sleep", globalPermissions.AllowPcSleep);
@@ -227,7 +197,7 @@ public partial class MainWindow
         var globalPermissionDetailsPanel = AddNestedPreferencesSection(permissionsPanel, "More about global permissions");
         globalPermissionDetailsPanel.Children.Add(CreateMutedText("Lock and blackout are enabled by default. The screen-saver permission appears when Windows has a screen saver configured. Opening web addresses, reading the PC clipboard, display off, sign out, restart, and shut down require explicit host approval."));
 
-        var developerPanel = AddPreferencesSection(panel, sections, "Developer tools");
+        var developerPanel = root.DeveloperContent;
         var developerMode = CreateCheckBox("Developer mode", AppDeveloperSettings.DeveloperMode());
         developerMode.Checked += (_, _) => AppDeveloperSettings.SetDeveloperMode(true);
         developerMode.Unchecked += (_, _) => AppDeveloperSettings.SetDeveloperMode(false);

@@ -7,7 +7,7 @@ interface KeyboardInputModeButtonsProps {
 
 export function KeyboardInputModeButtons({ inputMode, onInputModeChange }: KeyboardInputModeButtonsProps) {
   return (
-    <div className="keyboard-input-mode-buttons segmented-control" role="tablist" aria-label="Device keyboard type">
+    <div className="keyboard-input-mode-buttons" role="tablist" aria-label="Device keyboard type">
       <button
         type="button"
         className={inputMode === "text" ? "active" : ""}

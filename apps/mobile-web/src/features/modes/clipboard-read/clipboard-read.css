@@ -7,7 +7,7 @@
   align-content: start;
   gap: 12px;
   overflow-y: auto;
-  padding: 2px;
+  padding: 2px 2px max(2px, var(--mode-bottom-safe-area, 0px));
 }
 
 .clipboard-read-main {
@@ -26,6 +26,8 @@
   border-radius: 8px;
   background: var(--surface);
   padding: 10px 12px;
+  padding-right: max(12px, var(--mode-inline-safe-end, 0px));
+  padding-left: max(12px, var(--mode-inline-safe-start, 0px));
 }
 
 .clipboard-read-guidance.error {
@@ -73,6 +75,8 @@
   background: var(--surface-raised);
   color: var(--text);
   padding: 12px;
+  padding-right: max(12px, var(--mode-inline-safe-end, 0px));
+  padding-left: max(12px, var(--mode-inline-safe-start, 0px));
   font: inherit;
   line-height: 1.4;
   appearance: none;
@@ -80,7 +84,6 @@
 }
 
 .clipboard-read-text textarea:focus {
-  outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 24%, transparent);
 }

@@ -1,7 +1,8 @@
 import { ClipboardPaste } from "lucide-react";
 import { useRef, useState } from "react";
-import type { ClipboardGetResultMessage } from "../../../protocol";
-import type { SavedTextSnippet } from "../../../textSnippets";
+import "./clipboard-read.css";
+import type { ClipboardGetResultMessage } from "../../../foundation/protocol/messages";
+import type { SavedTextSnippet } from "../../../foundation/settings/textSnippets";
 import { InfoDialog } from "../../../ui/overlays/InfoDialog";
 import { SavedTextSnippets } from "../text-transfer/SavedTextSnippets";
 

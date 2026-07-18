@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { normalizeSnippetName, type SavedTextSnippet } from "../../../textSnippets";
+import { normalizeSnippetName, type SavedTextSnippet } from "../../../foundation/settings/textSnippets";
 
 export interface SnippetAction {
   kind: "rename" | "update" | "delete";

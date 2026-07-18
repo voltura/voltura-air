@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PowerCapabilities } from "../../../protocol";
+import type { PowerCapabilities } from "../../../foundation/protocol/messages";
 import { PowerControlSheet } from "./PowerControlSheet";
 
 const allAllowed: PowerCapabilities = {

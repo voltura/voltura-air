@@ -1,6 +1,6 @@
 import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { defaultRemoteSettings } from "../../../remoteSettings";
+import { defaultRemoteSettings } from "../../../foundation/settings/remoteSettings";
 import { RemoteMode } from "./RemoteMode";
 import { renderRemote } from "./remoteModeTestUtils";
 describe("RemoteMode", () => {

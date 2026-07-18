@@ -1,4 +1,5 @@
 using System.Globalization;
+using VolturaAir.Host.Features.Devices;
 
 namespace VolturaAir.Host;
 

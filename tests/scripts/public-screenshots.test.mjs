@@ -31,6 +31,9 @@ test("public screenshot inventory stays curated and aligned", async () => {
   assert.deepEqual(extractScreenshots(assetFiles.join("\n")), expectedScreenshots);
 
   assert.deepEqual(extractScreenshots(`${readme}\n${marketingPage}`), expectedScreenshots);
+  assert.match(captureScript, /DwmGetWindowAttributeUInt\(\$hwnd, 37,/u);
+  assert.match(captureScript, /\$rect\.Left \+= \$borderInset/u);
+  assert.match(captureScript, /\$rect\.Bottom -= \$borderInset/u);
   assert.equal(marketingPage.match(/<figure class="screen-card/gu)?.length, 4);
   assert.equal(marketingPage.match(/<picture>/gu)?.length, 2);
   assert.equal(readme.match(/<picture>/gu)?.length, 2);

@@ -274,6 +274,7 @@ public static class NativeWindowCapture {
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
   [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out RECT pvAttribute, int cbAttribute);
+  [DllImport("dwmapi.dll", EntryPoint = "DwmGetWindowAttribute")] public static extern int DwmGetWindowAttributeUInt(IntPtr hwnd, int dwAttribute, out uint pvAttribute, int cbAttribute);
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
 }
 "@
@@ -293,11 +294,21 @@ $dwmResult = [NativeWindowCapture]::DwmGetWindowAttribute($hwnd, 9, [ref]$rect, 
 if ($dwmResult -ne 0) {
   [NativeWindowCapture]::GetWindowRect($hwnd, [ref]$rect) | Out-Null
 }
+$visibleFrameBorder = [uint32]0
+$borderResult = [NativeWindowCapture]::DwmGetWindowAttributeUInt($hwnd, 37, [ref]$visibleFrameBorder, [Runtime.InteropServices.Marshal]::SizeOf([type][uint32]))
+if ($borderResult -eq 0 -and $visibleFrameBorder -gt 0) {
+  $borderInset = [int]$visibleFrameBorder
+  $rect.Left += $borderInset
+  $rect.Top += $borderInset
+  $rect.Right -= $borderInset
+  $rect.Bottom -= $borderInset
+}
 $width = $rect.Right - $rect.Left
 $height = $rect.Bottom - $rect.Top
-# DWM extended-frame bounds omit the invisible resize border from the
-# 1160 x 760 WPF window. At 100% scaling the visible frame is typically
-# 1146 x 753, while the startup window remains far below this guard.
+# DWM extended-frame bounds omit the invisible resize border. Windows 11 also
+# reports its DPI-aware visible border separately; exclude that colored frame
+# so the PNG begins at the actual host surface. The startup window remains far
+# below this size guard after the inset is applied.
 if ($width -lt 1120 -or $height -lt 720) {
   throw "Voltura Air host window capture bounds were too small: $($width)x$($height)."
 }

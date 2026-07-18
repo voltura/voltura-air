@@ -90,9 +90,9 @@
   width: min(400px, calc(var(--modal-visual-viewport-width) - var(--space-2xl)));
 }
 
-.info-dialog::backdrop,
-.modal-dialog::backdrop {
+dialog::backdrop {
   background: var(--scrim);
+  backdrop-filter: blur(4px);
 }
 
 .info-dialog h2,
@@ -121,6 +121,7 @@
   min-width: var(--control-min-height);
   height: var(--control-min-height);
   min-height: var(--control-min-height);
+  justify-content: flex-end;
   border-color: transparent;
   background: transparent;
   padding: 0;

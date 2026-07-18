@@ -2,6 +2,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
+import sharp from "sharp";
 import {
   assertBmp24,
   assertIco,
@@ -427,7 +428,57 @@ async function writeSvg(buffer, targets) {
 
 async function writePng(artwork, width, height, targets) {
   assertPng(artwork.png, width, height, targets[0]);
-  await writeOutputs(artwork.png, targets, { kind: "png", width, height });
+  const optimized = await optimizePng(artwork.png, width, height, artwork.opaque, targets[0]);
+  await writeOutputs(optimized, targets, {
+    kind: "png",
+    width,
+    height,
+    opaque: artwork.opaque,
+  });
+}
+
+async function optimizePng(buffer, width, height, opaque, label) {
+  let pipeline = sharp(buffer);
+  if (opaque) {
+    pipeline = pipeline.removeAlpha();
+  }
+
+  const optimized = await pipeline
+    .png({ adaptiveFiltering: true, compressionLevel: 9, palette: false })
+    .toBuffer();
+  assertPng(optimized, width, height, label);
+  await assertPngEncoding(optimized, opaque, label);
+
+  if (opaque) {
+    await assertOpaquePngPixelEquivalent(buffer, optimized, width, height, label);
+  }
+
+  return optimized;
+}
+
+async function assertPngEncoding(buffer, opaque, label) {
+  const metadata = await sharp(buffer).metadata();
+  if (opaque && (metadata.hasAlpha || metadata.channels !== 3)) {
+    throw new Error(`${label} must be an opaque RGB PNG without an alpha channel.`);
+  }
+  if (!opaque && !metadata.hasAlpha) {
+    throw new Error(`${label} must preserve its alpha channel.`);
+  }
+}
+
+async function assertOpaquePngPixelEquivalent(source, optimized, width, height, label) {
+  const [sourcePixels, optimizedPixels] = await Promise.all([
+    sharp(source).removeAlpha().raw().toBuffer({ resolveWithObject: true }),
+    sharp(optimized).raw().toBuffer({ resolveWithObject: true }),
+  ]);
+  for (const image of [sourcePixels, optimizedPixels]) {
+    if (image.info.width !== width || image.info.height !== height || image.info.channels !== 3) {
+      throw new Error(`${label} pixel-equivalence check did not produce ${width}x${height} RGB data.`);
+    }
+  }
+  if (!sourcePixels.data.equals(optimizedPixels.data)) {
+    throw new Error(`${label} changed visible pixels during lossless PNG optimization.`);
+  }
 }
 
 async function writeIco(buffer, sizes, targets) {
@@ -454,6 +505,7 @@ async function validateWrittenOutputs() {
     const buffer = await readFile(path.join(repoRoot, output.relativePath));
     if (output.kind === "png") {
       assertPng(buffer, output.width, output.height, output.relativePath);
+      await assertPngEncoding(buffer, output.opaque, output.relativePath);
     } else if (output.kind === "ico") {
       assertIco(buffer, output.sizes, output.relativePath);
     } else if (output.kind === "bmp") {

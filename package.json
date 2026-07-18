@@ -1,7 +1,7 @@
 {
   "name": "voltura-air",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.6.1",
   "license": "MIT",
   "workspaces": [
     "apps/mobile-web"
@@ -41,5 +41,8 @@
     "test:ui": "node scripts/dev-ui-with-devices.mjs --smoke-test",
     "ui:tokens:check": "node scripts/generate-ui-tokens.mjs --check",
     "ui:tokens:generate": "node scripts/generate-ui-tokens.mjs"
+  },
+  "devDependencies": {
+    "sharp": "^0.35.3"
   }
 }

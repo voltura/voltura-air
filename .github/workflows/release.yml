@@ -6,11 +6,11 @@ on:
       release_tag:
         description: New GitHub release tag to create
         required: true
-        default: v0.6.0
+        default: v0.6.1
       version:
         description: Version used in release asset names
         required: true
-        default: 0.6.0
+        default: 0.6.1
       runtime:
         description: .NET runtime identifier
         required: true

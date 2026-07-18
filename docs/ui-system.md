@@ -287,13 +287,10 @@ that only fits the happy path.
 - Do not encode meaning by color alone. Pair color with text, iconography, shape,
   or accessible state.
 - Preserve visible focus. Focus order follows visual and task order.
-- In the mobile client, static labels and control chrome are not user-selectable
-  and do not open WebKit touch callouts. Text entry, editable content, and
-  surfaces explicitly intended for copying opt into normal selection through
-  the shared base interaction contract.
-- When a blocking dialog has a clear primary action, move initial focus to that
-  control instead of making a static heading focusable. Pending and success
-  feedback keep focus visible and bound without allowing repeat activation.
+- Mobile app chrome and static labels are not user-selectable; text entry,
+  editable content, and explicitly copyable surfaces retain normal selection.
+- When a blocking dialog has a clear primary action, focus that control instead
+  of making a static heading focusable.
 - Touch targets are at least the tokenized minimum control size unless the
   platform supplies a larger accessible hit target.
 - Text must wrap or truncate intentionally. Critical instructions and errors

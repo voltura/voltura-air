@@ -11,8 +11,10 @@ public sealed class PairingStoreTests
         try
         {
             var store = new PairingStore(root.FullName);
-            store.Save([new PairingRecord("client-a", new string('A', 64), "First name")]);
-            store.Save([new PairingRecord("client-a", new string('B', 64), "Updated name")]);
+            using var firstKey = new PairingTestKey();
+            using var secondKey = new PairingTestKey();
+            store.Save([new PairingRecord("client-a", firstKey.PublicKey, "First name")]);
+            store.Save([new PairingRecord("client-a", secondKey.PublicKey, "Updated name")]);
 
             var record = Assert.Single(store.Load());
             Assert.Equal("Updated name", record.DeviceName);
@@ -31,13 +33,15 @@ public sealed class PairingStoreTests
         try
         {
             _ = new PairingStore(root.FullName);
+            using var key = new PairingTestKey();
             var pairingPath = Path.Combine(root.FullName, "Voltura Air", "pairing.json");
             File.WriteAllText(pairingPath, $$"""
                 {
                   "devices": [
-                    { "clientId": null, "secretHash": "{{new string('A', 64)}}", "deviceName": "Invalid" },
-                    { "clientId": "client-a", "secretHash": "not-a-hash", "deviceName": "Invalid" },
-                    { "clientId": "client-b", "secretHash": "{{new string('B', 64)}}", "deviceName": "Phone" }
+                    { "clientId": null, "reconnectPublicKey": "{{key.PublicKey}}", "deviceName": "Invalid" },
+                    { "clientId": "client-a", "reconnectPublicKey": "", "deviceName": "Invalid" },
+                    { "clientId": "client-compressed", "reconnectPublicKey": "AjW9eU9yrZWu_unsupported_compressed_point", "deviceName": "Invalid" },
+                    { "clientId": "client-b", "reconnectPublicKey": "{{key.PublicKey}}", "deviceName": "Phone" }
                   ]
                 }
                 """);

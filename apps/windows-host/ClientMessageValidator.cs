@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Collections.Frozen;
 
 namespace VolturaAir.Host;
 
@@ -6,13 +7,53 @@ internal sealed record PairHelloRequest(
     string ClientId,
     string DeviceName,
     string? PairToken,
-    string? Secret,
+    string? ReconnectPublicKey,
     string? Platform,
     string? Browser,
     string? DisplayMode);
 
+internal sealed record PairProofRequest(
+    string ClientId,
+    string Signature);
+
 internal static class ClientMessageValidator
 {
+    private static readonly FrozenSet<string> PairHelloProperties = new[]
+    {
+        "type", "clientId", "deviceName", "pairToken", "reconnectPublicKey", "platform", "browser", "displayMode"
+    }.ToFrozenSet(StringComparer.Ordinal);
+    private static readonly FrozenSet<string> PairProofProperties = new[]
+    {
+        "type", "clientId", "signature"
+    }.ToFrozenSet(StringComparer.Ordinal);
+    private static readonly FrozenDictionary<string, FrozenSet<string>> AuthenticatedMessageProperties =
+        new Dictionary<string, FrozenSet<string>>(StringComparer.Ordinal)
+        {
+            ["pair.disconnect"] = Fields("type"),
+            ["device.rename"] = Fields("type", "deviceName"),
+            ["health.ping"] = Fields("type"),
+            ["status.get"] = Fields("type"),
+            ["pointer.speed.set"] = Fields("type", "pointerSpeed"),
+            ["custom.pointer.set"] = Fields("type", "enabled"),
+            ["audio.get"] = Fields("type"),
+            ["system.sleep"] = Fields("type"),
+            ["system.power"] = Fields("type", "operationId", "action"),
+            ["awake.set"] = Fields("type", "operationId", "enabled"),
+            ["presentation.command"] = Fields("type", "operationId", "target", "action"),
+            ["remote.launch"] = Fields("type", "action"),
+            ["app.launch"] = Fields("type", "operationId", "actionId"),
+            ["url.open"] = Fields("type", "operationId", "url"),
+            ["text.send"] = Fields("type", "operationId", "text", "sendEnter"),
+            ["clipboard.get"] = Fields("type", "operationId"),
+            ["audio.mute.toggle"] = Fields("type"),
+            ["audio.volume.set"] = Fields("type", "volume"),
+            ["pointer.move"] = Fields("type", "seq", "dx", "dy"),
+            ["pointer.button"] = Fields("type", "seq", "button", "action"),
+            ["pointer.wheel"] = Fields("type", "seq", "dx", "dy"),
+            ["pointer.zoom"] = Fields("type", "seq", "direction"),
+            ["keyboard.text"] = Fields("type", "seq", "text"),
+            ["keyboard.special"] = Fields("type", "seq", "key", "modifiers")
+        }.ToFrozenDictionary(StringComparer.Ordinal);
     private const int MaxClientIdLength = 128;
     private const int MaxDeviceNameLength = 120;
     private const int MaxCredentialLength = 512;
@@ -41,7 +82,9 @@ internal static class ClientMessageValidator
     public static bool TryValidatePairHello(JsonElement root, out PairHelloRequest request)
     {
         request = new PairHelloRequest(string.Empty, string.Empty, null, null, null, null, null);
-        if (!TryReadType(root, out var type) || type != "pair.hello")
+        if (!TryReadType(root, out var type) ||
+            type != "pair.hello" ||
+            !HasOnlyUniqueProperties(root, PairHelloProperties))
         {
             return false;
         }
@@ -50,7 +93,7 @@ internal static class ClientMessageValidator
             !TryGetRequiredString(root, "deviceName", MaxDeviceNameLength, allowEmpty: false, out var deviceName) ||
             string.IsNullOrWhiteSpace(deviceName) ||
             !TryGetOptionalString(root, "pairToken", MaxCredentialLength, out var pairToken) ||
-            !TryGetOptionalString(root, "secret", MaxCredentialLength, out var secret) ||
+            !TryGetOptionalString(root, "reconnectPublicKey", MaxCredentialLength, out var reconnectPublicKey) ||
             !TryGetOptionalString(root, "platform", MaxMetadataLength, out var platform) ||
             !TryGetOptionalString(root, "browser", MaxMetadataLength, out var browser) ||
             !TryGetOptionalString(root, "displayMode", MaxMetadataLength, out var displayMode))
@@ -58,12 +101,38 @@ internal static class ClientMessageValidator
             return false;
         }
 
-        request = new PairHelloRequest(clientId, deviceName, pairToken, secret, platform, browser, displayMode);
+        request = new PairHelloRequest(clientId, deviceName, pairToken, reconnectPublicKey, platform, browser, displayMode);
+        return true;
+    }
+
+    public static bool TryValidatePairProof(JsonElement root, out PairProofRequest request)
+    {
+        request = new PairProofRequest(string.Empty, string.Empty);
+        if (!TryReadType(root, out var type) ||
+            type != "pair.proof" ||
+            !HasOnlyUniqueProperties(root, PairProofProperties))
+        {
+            return false;
+        }
+
+        if (!TryGetRequiredString(root, "clientId", MaxClientIdLength, allowEmpty: false, out var clientId) ||
+            !TryGetRequiredString(root, "signature", MaxCredentialLength, allowEmpty: false, out var signature))
+        {
+            return false;
+        }
+
+        request = new PairProofRequest(clientId, signature);
         return true;
     }
 
     public static bool IsValidAuthenticatedMessage(JsonElement root, string type)
     {
+        if (!AuthenticatedMessageProperties.TryGetValue(type, out var allowedProperties) ||
+            !HasOnlyUniqueProperties(root, allowedProperties))
+        {
+            return false;
+        }
+
         return type switch
         {
             "pair.disconnect" => true,
@@ -189,6 +258,22 @@ internal static class ClientMessageValidator
     private static bool IsValidOperationId(string operationId)
     {
         return operationId.All(character => char.IsAsciiLetterOrDigit(character) || character is '-');
+    }
+
+    private static FrozenSet<string> Fields(params string[] names) => names.ToFrozenSet(StringComparer.Ordinal);
+
+    private static bool HasOnlyUniqueProperties(JsonElement root, FrozenSet<string> allowedProperties)
+    {
+        var seenProperties = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var property in root.EnumerateObject())
+        {
+            if (!allowedProperties.Contains(property.Name) || !seenProperties.Add(property.Name))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static bool TryGetRequiredString(JsonElement root, string propertyName, int maxLength, bool allowEmpty, out string value)

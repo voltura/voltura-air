@@ -28,6 +28,7 @@ internal sealed class WebSocketSessionHandler(
     {
         var authenticated = false;
         var authenticatedClientId = string.Empty;
+        PendingReconnect? pendingReconnect = null;
         IDisposable? activeConnection = null;
         var buffer = new byte[WebSocketTransport.MaxMessageBytes];
         using var receiveTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -67,9 +68,25 @@ internal sealed class WebSocketSessionHandler(
 
                 if (!authenticated)
                 {
-                    var authentication = await TryAuthenticateAsync(socket, root, type, rateLimitKey, cancellationToken);
+                    var reconnectAttempt = pendingReconnect;
+                    if (type == "pair.proof")
+                    {
+                        pendingReconnect = null;
+                    }
+
+                    var authentication = await TryAuthenticateAsync(socket, root, type, rateLimitKey, reconnectAttempt, cancellationToken);
                     if (authentication is null)
                     {
+                        continue;
+                    }
+
+                    if (authentication.PendingReconnect is { } nextReconnect)
+                    {
+                        pendingReconnect = nextReconnect;
+                        await WebSocketTransport.SendUnauthenticatedAsync(
+                            socket,
+                            new { type = "pair.challenge", clientId = nextReconnect.ClientId, challenge = nextReconnect.Challenge },
+                            cancellationToken);
                         continue;
                     }
 
@@ -79,7 +96,7 @@ internal sealed class WebSocketSessionHandler(
                     activeConnection = pairingManager.TrackConnection(authentication.ClientId);
                     await transport.SendAsync(
                         socket,
-                        statusFactory.CreatePairAccepted(authentication.ClientId, authentication.Secret),
+                        statusFactory.CreatePairAccepted(authentication.ClientId),
                         cancellationToken);
                     continue;
                 }
@@ -142,13 +159,44 @@ internal sealed class WebSocketSessionHandler(
         JsonElement root,
         string? type,
         string rateLimitKey,
+        PendingReconnect? pendingReconnect,
         CancellationToken cancellationToken)
     {
-        if (type != "pair.hello")
+        if (type != "pair.hello" && type != "pair.proof")
         {
             await RejectPairingAsync(socket, "pair-first", cancellationToken);
             _pairingAttemptRateLimiter.RecordFailure(rateLimitKey);
             return null;
+        }
+
+        if (type == "pair.proof")
+        {
+            if (pendingReconnect is null ||
+                !ClientMessageValidator.TryValidatePairProof(root, out var proof) ||
+                !string.Equals(proof.ClientId, pendingReconnect.ClientId, StringComparison.Ordinal))
+            {
+                _pairingAttemptRateLimiter.RecordFailure(rateLimitKey);
+                await RejectPairingAsync(socket, "invalid-message", cancellationToken);
+                return null;
+            }
+
+            var proofResult = pairingManager.AcceptReconnectProof(
+                proof.ClientId,
+                pendingReconnect.Challenge,
+                proof.Signature,
+                pendingReconnect.DeviceName,
+                pendingReconnect.Platform,
+                pendingReconnect.Browser,
+                pendingReconnect.DisplayMode);
+            if (!proofResult.Accepted)
+            {
+                _pairingAttemptRateLimiter.RecordFailure(rateLimitKey);
+                await RejectPairingAsync(socket, proofResult.Reason, cancellationToken);
+                return null;
+            }
+
+            _pairingAttemptRateLimiter.Reset(rateLimitKey);
+            return new AuthenticatedClient(proof.ClientId, null);
         }
 
         if (!ClientMessageValidator.TryValidatePairHello(root, out var hello))
@@ -159,11 +207,40 @@ internal sealed class WebSocketSessionHandler(
         }
 
         var isRateLimited = _pairingAttemptRateLimiter.IsBlocked(rateLimitKey);
-        var result = pairingManager.Accept(
+        if (hello.PairToken is null)
+        {
+            var challenge = pairingManager.CreateReconnectChallenge(hello.ClientId);
+            if (challenge is not null)
+            {
+                return new AuthenticatedClient(
+                    hello.ClientId,
+                    new PendingReconnect(
+                        hello.ClientId,
+                        challenge,
+                        hello.DeviceName,
+                        hello.Platform,
+                        hello.Browser,
+                        hello.DisplayMode));
+            }
+
+            await RejectPairingAsync(socket, "device-revoked", cancellationToken);
+            _pairingAttemptRateLimiter.RecordFailure(rateLimitKey);
+            return null;
+        }
+
+        if (hello.ReconnectPublicKey is null)
+        {
+            await RejectPairingAsync(socket, "invalid-message", cancellationToken);
+            _pairingAttemptRateLimiter.RecordFailure(rateLimitKey);
+            return null;
+        }
+
+        var result = pairingManager.AcceptPairing(
             hello.ClientId,
             hello.DeviceName,
             hello.PairToken,
-            hello.Secret,
+            now: null,
+            reconnectPublicKey: hello.ReconnectPublicKey,
             platform: hello.Platform,
             browser: hello.Browser,
             displayMode: hello.DisplayMode);
@@ -183,8 +260,7 @@ internal sealed class WebSocketSessionHandler(
         }
 
         _pairingAttemptRateLimiter.Reset(rateLimitKey);
-        var secret = result.Secret ?? pairingManager.RotateSecret(hello.ClientId, hello.DeviceName);
-        return new AuthenticatedClient(hello.ClientId, secret);
+        return new AuthenticatedClient(hello.ClientId, null);
     }
 
     private async Task<bool> DispatchAuthenticatedAsync(
@@ -264,6 +340,13 @@ internal sealed class WebSocketSessionHandler(
 
         if (inputCommand is { } command)
         {
+            if (!statusFactory.CanUseRemoteInput(clientId))
+            {
+                await transport.SendAsync(socket, new { type = "input.error", seq = command.Sequence, code = "VAIR-INPUT-DENIED", message = "Remote input is disabled for this device on the PC." }, cancellationToken);
+                commandLog.Outcome(clientId, command.Type, HostCommandLog.GetAction(command.Type, command), "permission_denied");
+                return true;
+            }
+
             if (await inputCommands.HandleAsync(socket, command, clientId, cancellationToken))
             {
                 return true;
@@ -366,5 +449,13 @@ internal sealed class WebSocketSessionHandler(
         }
     }
 
-    private sealed record AuthenticatedClient(string ClientId, string Secret);
+    private sealed record AuthenticatedClient(string ClientId, PendingReconnect? PendingReconnect);
+
+    private sealed record PendingReconnect(
+        string ClientId,
+        string Challenge,
+        string DeviceName,
+        string? Platform,
+        string? Browser,
+        string? DisplayMode);
 }

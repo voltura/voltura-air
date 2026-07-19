@@ -1,5 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { revokePcPairing } from "./pairingCredentials";
+import { createPairingKeyMaterial, revokePcPairing } from "./pairingCredentials";
+
+function decodeBase64Url(value: string): Uint8Array {
+  const binary = atob(value.replace(/-/g, "+").replace(/_/g, "/").padEnd(value.length + ((4 - value.length % 4) % 4), "="));
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
+
+describe("createPairingKeyMaterial", () => {
+  it("exports the protocol-defined uncompressed P-256 public key", () => {
+    const key = createPairingKeyMaterial();
+
+    expect(key).not.toBeNull();
+    const publicKey = decodeBase64Url(key!.reconnectPublicKey);
+    expect(publicKey).toHaveLength(65);
+    expect(publicKey[0]).toBe(0x04);
+  });
+});
 
 class MockWebSocket {
   static CONNECTING = 0;
@@ -51,7 +67,7 @@ describe("revokePcPairing", () => {
   afterEach(() => { vi.useRealTimers(); });
 
   it("closes a rejected best-effort revocation socket", () => {
-    localStorage.setItem("voltura-air.secret.client-a.pc-b", "saved-secret");
+    localStorage.setItem("voltura-air.reconnect-key.client-a.pc-b", createPairingKeyMaterial()!.privateKey);
     revokePcPairing({ customName: false, id: "pc-b", name: "PC B", url: "http://pc-b.local:51395" }, "client-a", "Phone", null);
     const socket = MockWebSocket.instances[0]!;
 
@@ -64,7 +80,7 @@ describe("revokePcPairing", () => {
 
   it("bounds an unopened best-effort revocation socket", () => {
     vi.useFakeTimers();
-    localStorage.setItem("voltura-air.secret.client-a.pc-b", "saved-secret");
+    localStorage.setItem("voltura-air.reconnect-key.client-a.pc-b", createPairingKeyMaterial()!.privateKey);
     revokePcPairing({ customName: false, id: "pc-b", name: "PC B", url: "http://pc-b.local:51395" }, "client-a", "Phone", null);
     const socket = MockWebSocket.instances[0]!;
 

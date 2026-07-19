@@ -7,6 +7,8 @@ public sealed class WebHostMessageValidationTests : WebHostServiceTestBase
 {
     [Theory]
     [InlineData("{\"type\":\"pair.hello\",\"clientId\":\"client-a\",\"deviceName\":\"Phone\",\"pairToken\":null}")]
+    [InlineData("{\"type\":\"pair.hello\",\"clientId\":\"client-a\",\"deviceName\":\"Phone\",\"secret\":\"removed-bearer-credential\"}")]
+    [InlineData("{\"type\":\"pair.hello\",\"clientId\":\"client-a\",\"clientId\":\"client-b\",\"deviceName\":\"Phone\"}")]
     [InlineData("{\"type\":\"pair.hello\",\"clientId\":\"client-a\",\"deviceName\":\"Phone\",\"platform\":\"\"}")]
     [InlineData("{\"type\":\"device.rename\",\"deviceName\":\"   \"}")]
     [InlineData("{\"type\":\"keyboard.text\",\"text\":\"\"}")]
@@ -21,6 +23,19 @@ public sealed class WebHostMessageValidationTests : WebHostServiceTestBase
         Assert.False(type == "pair.hello"
             ? ClientMessageValidator.TryValidatePairHello(root, out _)
             : ClientMessageValidator.IsValidAuthenticatedMessage(root, type!));
+    }
+
+    [Theory]
+    [InlineData("{\"type\":\"pointer.move\",\"dx\":1,\"dy\":2,\"unexpected\":true}")]
+    [InlineData("{\"type\":\"status.get\",\"type\":\"status.get\"}")]
+    [InlineData("{\"type\":\"text.send\",\"operationId\":\"op-1\",\"text\":\"Hello\",\"sendEnter\":false,\"legacy\":\"removed\"}")]
+    public void RejectsUndeclaredAndDuplicateAuthenticatedFields(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+
+        Assert.True(ClientMessageValidator.TryReadType(root, out var type));
+        Assert.False(ClientMessageValidator.IsValidAuthenticatedMessage(root, type!));
     }
 
     [Fact]
@@ -66,7 +81,8 @@ public sealed class WebHostMessageValidationTests : WebHostServiceTestBase
             type = "pair.hello",
             clientId,
             deviceName = "Phone",
-            pairToken = token
+            pairToken = token,
+            reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing
         });
 
         await SendAsync(socket, new { type = "pointer.teleport", dx = 10, dy = 10 });
@@ -92,7 +108,8 @@ public sealed class WebHostMessageValidationTests : WebHostServiceTestBase
             type = "pair.hello",
             clientId,
             deviceName = "Phone",
-            pairToken = token
+            pairToken = token,
+            reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing
         });
 
         await SendAsync(socket, new { type = "pointer.move", dx = "not-a-number", dy = 10 });
@@ -126,7 +143,8 @@ public sealed class WebHostMessageValidationTests : WebHostServiceTestBase
             type = "pair.hello",
             clientId = $"client-{Guid.NewGuid():N}",
             deviceName = "Phone",
-            pairToken = fixture.Manager.CreatePairingToken()
+            pairToken = fixture.Manager.CreatePairingToken(),
+            reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing
         });
         var resolvedOperationId = operationId == "too-long" ? new string('a', 65) : operationId;
         object payload = (type, includeOperationId) switch
@@ -147,36 +165,46 @@ public sealed class WebHostMessageValidationTests : WebHostServiceTestBase
     [Fact]
     public async Task WebSocketKeepsAuthenticatedSocketOpenAfterRecoverableInputFailure()
     {
-        await using var fixture = await WebHostFixture.StartAsync();
-        fixture.InputInjector.Failures.Enqueue(new InputDispatchException(
-            "Windows did not accept all input events.",
-            "keyboard.special",
-            requestedCount: 4,
-            acceptedCount: 2,
-            win32Error: 5,
-            cleanupAttempted: true,
-            cleanupSucceeded: true));
-        var clientId = $"client-{Guid.NewGuid():N}";
-        var token = fixture.Manager.CreatePairingToken();
-        using var socket = await ConnectAsync(fixture.WebHost);
-
-        var paired = await SendAndReceiveAsync(socket, new
+        var originalPermissions = AppPermissionSettings.Load();
+        try
         {
-            type = "pair.hello",
-            clientId,
-            deviceName = "Phone",
-            pairToken = token
-        });
-        var inputError = await SendAndReceiveAsync(socket, new { type = "keyboard.special", key = "Tab", modifiers = new[] { "Alt" }, seq = 7 });
-        var inputAck = await SendAndReceiveAsync(socket, new { type = "pointer.move", dx = 3.7, dy = -2.2, seq = 8 });
+            AppPermissionSettings.Save(originalPermissions with { AllowRemoteInput = true });
+            await using var fixture = await WebHostFixture.StartAsync();
+            fixture.InputInjector.Failures.Enqueue(new InputDispatchException(
+                "Windows did not accept all input events.",
+                "keyboard.special",
+                requestedCount: 4,
+                acceptedCount: 2,
+                win32Error: 5,
+                cleanupAttempted: true,
+                cleanupSucceeded: true));
+            var clientId = $"client-{Guid.NewGuid():N}";
+            var token = fixture.Manager.CreatePairingToken();
+            using var socket = await ConnectAsync(fixture.WebHost);
 
-        Assert.Equal("pair.accepted", paired.GetProperty("type").GetString());
-        Assert.Equal("input.error", inputError.GetProperty("type").GetString());
-        Assert.Equal(7, inputError.GetProperty("seq").GetInt64());
-        Assert.Equal("VAIR-INPUT-NATIVE-SEND-FAILED", inputError.GetProperty("code").GetString());
-        Assert.Equal("input.ack", inputAck.GetProperty("type").GetString());
-        Assert.Equal(8, inputAck.GetProperty("seq").GetInt64());
-        Assert.Equal(WebSocketState.Open, socket.State);
-        Assert.Equal(new[] { "MoveMouse:4:-2" }, fixture.InputInjector.Events);
+            var paired = await SendAndReceiveAsync(socket, new
+            {
+                type = "pair.hello",
+                clientId,
+                deviceName = "Phone",
+                pairToken = token,
+                reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing
+            });
+            var inputError = await SendAndReceiveAsync(socket, new { type = "keyboard.special", key = "Tab", modifiers = new[] { "Alt" }, seq = 7 });
+            var inputAck = await SendAndReceiveAsync(socket, new { type = "pointer.move", dx = 3.7, dy = -2.2, seq = 8 });
+
+            Assert.Equal("pair.accepted", paired.GetProperty("type").GetString());
+            Assert.Equal("input.error", inputError.GetProperty("type").GetString());
+            Assert.Equal(7, inputError.GetProperty("seq").GetInt64());
+            Assert.Equal("VAIR-INPUT-NATIVE-SEND-FAILED", inputError.GetProperty("code").GetString());
+            Assert.Equal("input.ack", inputAck.GetProperty("type").GetString());
+            Assert.Equal(8, inputAck.GetProperty("seq").GetInt64());
+            Assert.Equal(WebSocketState.Open, socket.State);
+            Assert.Equal(new[] { "MoveMouse:4:-2" }, fixture.InputInjector.Events);
+        }
+        finally
+        {
+            AppPermissionSettings.Save(originalPermissions);
+        }
     }
 }

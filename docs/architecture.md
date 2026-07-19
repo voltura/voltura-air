@@ -109,8 +109,11 @@ remain confined to one maintained source file. `docs/ui-system.md` applies the
 same review threshold specifically to presentation ownership.
 
 The production mobile build also enforces the measured JavaScript budget after
-Vite compression: at most 560 KB raw and 132 KB Brotli across emitted JavaScript
-assets. Budget changes require an intentional ownership and payload review.
+Vite compression: at most 568 KB raw and 136 KB Brotli across emitted JavaScript
+assets. The July 2026 review raised the previous 560 KB / 132 KB limits narrowly
+for the synchronous P-256 reconnect signer used on HTTP LAN origins; keeping it
+in the main bundle avoids a pairing-time network fetch. Budget changes require
+an intentional ownership and payload review.
 
 ## Long-lived resource inventory
 

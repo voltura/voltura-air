@@ -22,12 +22,11 @@ internal sealed class HostStatusPayloadFactory(
         host = CreateHostStatus(clientId)
     };
 
-    public object CreatePairAccepted(string clientId, string secret) => new
+    public object CreatePairAccepted(string clientId) => new
     {
         type = "pair.accepted",
         clientId,
         pcName = Environment.MachineName,
-        secret,
         paired = true,
         capabilities = CreateCapabilities(clientId),
         host = CreateHostStatus(clientId)
@@ -44,6 +43,7 @@ internal sealed class HostStatusPayloadFactory(
     };
 
     public bool CanSleepPc(string clientId) => GetEffectivePermissions(clientId).AllowPcSleep;
+    public bool CanUseRemoteInput(string clientId) => GetEffectivePermissions(clientId).AllowRemoteInput;
     public bool CanControlVolume(string clientId) => GetEffectivePermissions(clientId).AllowVolumeControl;
     public bool CanControlPresentations(string clientId) => GetEffectivePermissions(clientId).AllowPresentationControl;
     public bool CanLaunchRemoteApps(string clientId) => GetEffectivePermissions(clientId).AllowRemoteAppLaunch;
@@ -56,6 +56,7 @@ internal sealed class HostStatusPayloadFactory(
     private object CreateCapabilities(string clientId) => new
     {
         sleep = CanSleepPc(clientId),
+        remoteInput = CanUseRemoteInput(clientId),
         power = CreatePowerCapabilities(clientId),
         awake = CreateAwakeCapability(clientId),
         volume = CanControlVolume(clientId),
@@ -64,7 +65,7 @@ internal sealed class HostStatusPayloadFactory(
             : null,
         remoteLaunch = CanLaunchRemoteApps(clientId),
         urlOpen = new { canOpen = CanOpenUrls(clientId) },
-        textTransfer = true,
+        textTransfer = CanUseRemoteInput(clientId),
         clipboardRead = CanReadClipboard(clientId),
         gestureDebug = AppDeveloperSettings.EnableGestureDebug(),
         inputAck = true

@@ -53,6 +53,7 @@ document's role, subject, and update trigger.
 | [Network and host selection](network-and-host-selection.md) | Current authority | Adapter/port selection, host hints, saved-PC behavior, validation, and recovery. |
 | [Pairing feedback](pairing-feedback.md) | UX authority | Pairing and connection states, failure mapping, recovery, layout, and diagnostics. |
 | [Protocol](protocol.md) | Wire authority | Messages, authentication, capabilities, acknowledgements, bounds, and errors. |
+| [Security architecture diagrams](security-architecture-diagrams.md) | Derived engineering | Security-sensitive runtime, pairing, authorization, and release-flow diagrams. Update when trust boundaries, authentication, authorization, or release artifact production changes. |
 | [Release](release.md) | Operational | Versioning, verification, packaging, and publication. |
 | [Screenshot capture](screenshots.md) | Operational | Isolated screenshot and installer-artwork capture. |
 | [Setup](setup.md) | Operational | Installation, development startup, host options, and first connection. |

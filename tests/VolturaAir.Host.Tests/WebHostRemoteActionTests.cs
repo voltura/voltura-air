@@ -24,7 +24,8 @@ public sealed class WebHostRemoteActionTests : WebHostServiceTestBase
                 type = "pair.hello",
                 clientId,
                 deviceName = "Phone",
-                pairToken = token
+                pairToken = token,
+                reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing
             });
             await SendAsync(socket, new { type = "remote.launch", action = "openYoutube" });
             var status = await SendAndReceiveAsync(socket, new { type = "status.get" });
@@ -59,7 +60,8 @@ public sealed class WebHostRemoteActionTests : WebHostServiceTestBase
                 type = "pair.hello",
                 clientId,
                 deviceName = "Phone",
-                pairToken = token
+                pairToken = token,
+                reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing
             });
             await SendAsync(socket, new { type = "remote.launch", action = "openYoutube" });
             var status = await SendAndReceiveAsync(socket, new { type = "status.get" });
@@ -94,7 +96,8 @@ public sealed class WebHostRemoteActionTests : WebHostServiceTestBase
                 type = "pair.hello",
                 clientId,
                 deviceName = "Phone",
-                pairToken = token
+                pairToken = token,
+                reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing
             });
             await SendAsync(socket, new { type = "remote.launch", action = "cmd.exe" });
             var closeStatus = await ReceiveCloseStatusAsync(socket);

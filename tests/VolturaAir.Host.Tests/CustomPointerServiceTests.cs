@@ -4,7 +4,7 @@ using VolturaAir.Host;
 namespace VolturaAir.Host.Tests;
 
 [Collection(AppPermissionSettingsCollection.Name)]
-public sealed class CustomPointerServiceTests
+public sealed class CustomPointerServiceTests : IsolatedHostSettingsTest
 {
     [Theory]
     [InlineData(1, 32)]

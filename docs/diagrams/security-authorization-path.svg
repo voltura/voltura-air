@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="840" viewBox="0 0 1440 840" role="img" aria-labelledby="title desc">
+  <title id="title">Voltura Air authorization decision path</title>
+  <desc id="desc">Three authorization lanes branch from validated session dispatch. Each command family reaches its own permission decision, whose true branch reaches an allowed handler and whose false branch reaches a denied result.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#344054"/>
+    </marker>
+    <marker id="allow-arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#027a48"/>
+    </marker>
+    <marker id="deny-arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#b42318"/>
+    </marker>
+    <style>
+      text{font-family:Segoe UI,Arial,sans-serif;fill:#101828;letter-spacing:0}.bg{fill:#f7f9fc}.box{fill:#fff;stroke:#344054;stroke-width:2}.decision{fill:#eef4ff;stroke:#175cd3;stroke-width:2.5}.allow{fill:#eef8f1;stroke:#027a48;stroke-width:2.5}.deny{fill:#fff1f3;stroke:#b42318;stroke-width:2.5}.arrow{stroke:#344054;stroke-width:2.4;fill:none;marker-end:url(#arrow)}.allow-path{stroke:#027a48;stroke-width:2.5;fill:none;marker-end:url(#allow-arrow)}.deny-path{stroke:#b42318;stroke-width:2.5;fill:none;marker-end:url(#deny-arrow)}.title{font-size:28px;font-weight:700}.subtitle{font-size:14px;fill:#475467}.label{font-size:16px;font-weight:700}.small{font-size:13px;fill:#475467}.branch{font-size:13px;font-weight:700}
+    </style>
+  </defs>
+
+  <rect class="bg" width="1440" height="840"/>
+  <text class="title" x="40" y="42">Authorization Decision Path</text>
+  <text class="subtitle" x="40" y="68">Validation happens once; authorization is enforced at the host boundary for every command family.</text>
+
+  <rect class="box" x="170" y="100" width="270" height="84" rx="10"/>
+  <text class="label" x="305" y="134" text-anchor="middle">Authenticated frame</text>
+  <text class="small" x="305" y="159" text-anchor="middle">untrusted JSON</text>
+
+  <rect class="box" x="500" y="100" width="270" height="84" rx="10"/>
+  <text class="label" x="635" y="134" text-anchor="middle">ClientMessageValidator</text>
+  <text class="small" x="635" y="159" text-anchor="middle">known type, bounded fields</text>
+
+  <rect class="box" x="830" y="100" width="270" height="84" rx="10"/>
+  <text class="label" x="965" y="134" text-anchor="middle">Session dispatch</text>
+  <text class="small" x="965" y="159" text-anchor="middle">single host-side boundary</text>
+
+  <path class="arrow" d="M440 142 H500"/>
+  <path class="arrow" d="M770 142 H830"/>
+
+  <path class="arrow" d="M890 184 V216 H240 V280"/>
+  <path class="arrow" d="M965 184 V240 H720 V280"/>
+  <path class="arrow" d="M1040 184 V216 H1200 V280"/>
+
+  <rect class="box" x="90" y="280" width="300" height="90" rx="10"/>
+  <text class="label" x="240" y="316" text-anchor="middle">Pointer / keyboard</text>
+  <text class="small" x="240" y="342" text-anchor="middle">input messages</text>
+
+  <rect class="box" x="570" y="280" width="300" height="90" rx="10"/>
+  <text class="label" x="720" y="316" text-anchor="middle">text.send</text>
+  <text class="small" x="720" y="342" text-anchor="middle">text transfer command</text>
+
+  <rect class="box" x="1050" y="280" width="300" height="90" rx="10"/>
+  <text class="label" x="1200" y="310" text-anchor="middle">Other commands</text>
+  <text class="small" x="1200" y="336" text-anchor="middle">launch, URL, clipboard, power,</text>
+  <text class="small" x="1200" y="355" text-anchor="middle">awake, presentation, audio</text>
+
+  <path class="arrow" d="M240 370 V420"/>
+  <path class="arrow" d="M720 370 V420"/>
+  <path class="arrow" d="M1200 370 V420"/>
+
+  <polygon class="decision" points="240,420 360,490 240,560 120,490"/>
+  <text class="label" x="240" y="484" text-anchor="middle">AllowRemoteInput?</text>
+  <text class="small" x="240" y="507" text-anchor="middle">host + device</text>
+
+  <polygon class="decision" points="720,420 840,490 720,560 600,490"/>
+  <text class="label" x="720" y="484" text-anchor="middle">AllowRemoteInput?</text>
+  <text class="small" x="720" y="507" text-anchor="middle">host + device</text>
+
+  <polygon class="decision" points="1200,420 1320,490 1200,560 1080,490"/>
+  <text class="label" x="1200" y="476" text-anchor="middle">Specific permission?</text>
+  <text class="small" x="1200" y="499" text-anchor="middle">host + device</text>
+
+  <path class="allow-path" d="M120 490 H70 V620 H122 V650"/>
+  <text class="branch" x="76" y="476" fill="#027a48">true</text>
+  <path class="deny-path" d="M360 490 H410 V620 H358 V650"/>
+  <text class="branch" x="374" y="476" fill="#b42318">false</text>
+
+  <path class="allow-path" d="M600 490 H550 V620 H602 V650"/>
+  <text class="branch" x="556" y="476" fill="#027a48">true</text>
+  <path class="deny-path" d="M840 490 H890 V620 H838 V650"/>
+  <text class="branch" x="854" y="476" fill="#b42318">false</text>
+
+  <path class="allow-path" d="M1080 490 H1030 V620 H1082 V650"/>
+  <text class="branch" x="1036" y="476" fill="#027a48">true</text>
+  <path class="deny-path" d="M1320 490 H1370 V620 H1318 V650"/>
+  <text class="branch" x="1334" y="476" fill="#b42318">false</text>
+
+  <rect class="allow" x="20" y="650" width="205" height="112" rx="10"/>
+  <text class="label" x="122" y="684" text-anchor="middle">SendInput path</text>
+  <text class="small" x="122" y="709" text-anchor="middle">InputCommandHandler</text>
+  <text class="small" x="122" y="730" text-anchor="middle">InputDispatcher</text>
+
+  <rect class="deny" x="255" y="650" width="205" height="112" rx="10"/>
+  <text class="label" x="358" y="690" text-anchor="middle">input.error</text>
+  <text class="small" x="358" y="717" text-anchor="middle">VAIR-INPUT-DENIED</text>
+
+  <rect class="allow" x="500" y="650" width="205" height="112" rx="10"/>
+  <text class="label" x="602" y="690" text-anchor="middle">Text destination</text>
+  <text class="small" x="602" y="717" text-anchor="middle">focused / configured</text>
+
+  <rect class="deny" x="735" y="650" width="205" height="112" rx="10"/>
+  <text class="label" x="838" y="690" text-anchor="middle">text.send.result</text>
+  <text class="small" x="838" y="717" text-anchor="middle">VAIR-TEXT-DENIED</text>
+
+  <rect class="allow" x="980" y="650" width="205" height="112" rx="10"/>
+  <text class="label" x="1082" y="684" text-anchor="middle">Focused handler</text>
+  <text class="small" x="1082" y="709" text-anchor="middle">Windows API or</text>
+  <text class="small" x="1082" y="730" text-anchor="middle">allowlisted process</text>
+
+  <rect class="deny" x="1215" y="650" width="205" height="112" rx="10"/>
+  <text class="label" x="1318" y="690" text-anchor="middle">Denied result</text>
+  <text class="small" x="1318" y="717" text-anchor="middle">recoverable response</text>
+</svg>

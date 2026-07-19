@@ -1,6 +1,7 @@
 <UserControl x:Class="VolturaAir.Host.Features.Connect.ConnectPageView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:VolturaAir.Host.Features.Connect"
              xmlns:ui="clr-namespace:VolturaAir.Host.Ui">
     <Grid>
         <Grid.ColumnDefinitions>
@@ -32,27 +33,16 @@
 
             <ui:SpacingStackPanel Spacing="{DynamicResource SpaceMd}">
                 <ui:InfoCard x:Name="StatusCard" Title="Current status" Emphasized="True" />
-                <ui:InfoCard x:Name="SelectedAdapterCard" Title="Network adapter" />
                 <ui:InfoCard x:Name="PairingCodeCard" Title="QR code">
                     <ui:InfoCard.Actions>
                         <ui:SpacingStackPanel Orientation="Horizontal" Spacing="{DynamicResource SpaceSm}">
-                            <Button Content="New code"
+                            <Button Content="Copy link"
                                     Style="{DynamicResource PrimaryButtonStyle}"
-                                    Click="OnNewCodeClicked" />
-                            <Button Content="Copy link" Click="OnCopyLinkClicked" />
+                                    Click="OnCopyLinkClicked" />
+                            <Button Content="New code" Click="OnNewCodeClicked" />
                         </ui:SpacingStackPanel>
                     </ui:InfoCard.Actions>
                 </ui:InfoCard>
-
-                <Border x:Name="AddressWarningNotice"
-                        Padding="{DynamicResource InsetMd}"
-                        Background="{DynamicResource SurfaceBrush}"
-                        BorderBrush="{DynamicResource AccentBrush}"
-                        BorderThickness="1"
-                        CornerRadius="{DynamicResource RadiusMedium}"
-                        Visibility="Collapsed">
-                    <TextBlock x:Name="AddressWarningText" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap" />
-                </Border>
 
                 <Border x:Name="PortWarningNotice"
                         Padding="{DynamicResource InsetMd}"
@@ -74,6 +64,11 @@
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
                     <ui:SpacingStackPanel Spacing="{DynamicResource SpaceMd}">
+                        <ui:InfoCard x:Name="SelectedAdapterCard" Title="Network adapter">
+                            <ui:InfoCard.Actions>
+                                <local:AdapterWarningNotice />
+                            </ui:InfoCard.Actions>
+                        </ui:InfoCard>
                         <ui:InfoCard x:Name="PairingLinkCard" Title="Pairing link" Monospace="True" />
                         <ui:InfoCard x:Name="HostUrlCard" Title="Host URL" Monospace="True" />
                         <ui:InfoCard x:Name="SelectedIpCard" Title="Selected IP" Monospace="True" />

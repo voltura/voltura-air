@@ -21,17 +21,18 @@ public sealed class PairingCodeLifecycleTests
     public void RotationKeepsImmediatelyPreviousCodeValidDuringBoundedOverlap()
     {
         using var store = new TempPairingStore();
+        using var key = new PairingTestKey();
         var manager = new PairingManager(store.Store);
         var now = DateTimeOffset.UtcNow;
         var previous = manager.CreatePairingCode(now);
 
         manager.CreatePairingCode(now.AddMinutes(1));
-        var accepted = manager.Accept(
+        var accepted = manager.AcceptPairing(
             "client-a",
             "Phone",
             previous.Value,
-            null,
-            now.AddMinutes(1).Add(PairingManager.TokenRotationOverlap).AddMilliseconds(-1));
+            now.AddMinutes(1).Add(PairingManager.TokenRotationOverlap).AddMilliseconds(-1),
+            reconnectPublicKey: key.PublicKey);
 
         Assert.True(accepted.Accepted);
     }
@@ -40,17 +41,18 @@ public sealed class PairingCodeLifecycleTests
     public void RotationRejectsPreviousCodeAfterOverlap()
     {
         using var store = new TempPairingStore();
+        using var key = new PairingTestKey();
         var manager = new PairingManager(store.Store);
         var now = DateTimeOffset.UtcNow;
         var previous = manager.CreatePairingCode(now);
 
         manager.CreatePairingCode(now.AddMinutes(1));
-        var rejected = manager.Accept(
+        var rejected = manager.AcceptPairing(
             "client-a",
             "Phone",
             previous.Value,
-            null,
-            now.AddMinutes(1).Add(PairingManager.TokenRotationOverlap));
+            now.AddMinutes(1).Add(PairingManager.TokenRotationOverlap),
+            reconnectPublicKey: key.PublicKey);
 
         Assert.False(rejected.Accepted);
         Assert.Equal("expired-token", rejected.Reason);
@@ -60,68 +62,87 @@ public sealed class PairingCodeLifecycleTests
     public void RotationRetainsOnlyOnePreviousCode()
     {
         using var store = new TempPairingStore();
+        using var key = new PairingTestKey();
         var manager = new PairingManager(store.Store);
         var now = DateTimeOffset.UtcNow;
         var oldest = manager.CreatePairingCode(now);
 
         manager.CreatePairingCode(now.AddSeconds(1));
         manager.CreatePairingCode(now.AddSeconds(2));
-        var rejected = manager.Accept("client-a", "Phone", oldest.Value, null, now.AddSeconds(2));
+        var rejected = manager.AcceptPairing("client-a", "Phone", oldest.Value, now.AddSeconds(2), reconnectPublicKey: key.PublicKey);
 
         Assert.False(rejected.Accepted);
         Assert.Equal("invalid-token", rejected.Reason);
     }
 
     [Fact]
-    public void ExplicitPairingTokenTakesPrecedenceOverStoredReconnectSecret()
+    public void PairingAgainReplacesTheStoredReconnectKey()
     {
         using var store = new TempPairingStore();
+        using var initialKey = new PairingTestKey();
+        using var replacementKey = new PairingTestKey();
         var manager = new PairingManager(store.Store);
         var now = DateTimeOffset.UtcNow;
         var initialCode = manager.CreatePairingCode(now);
-        var initialPairing = manager.Accept("client-a", "Phone", initialCode.Value, null, now);
+        var initialPairing = manager.AcceptPairing("client-a", "Phone", initialCode.Value, now, reconnectPublicKey: initialKey.PublicKey);
         var replacementCode = manager.CreatePairingCode(now.AddMinutes(1));
         var invalidations = 0;
         manager.PairingCodeInvalidated += (_, _) => invalidations += 1;
 
-        var repaired = manager.Accept(
+        var repaired = manager.AcceptPairing(
             "client-a",
             "Phone",
             replacementCode.Value,
-            initialPairing.Secret,
-            now.AddMinutes(1));
-        var oldSecret = manager.Accept("client-a", "Phone", null, initialPairing.Secret, now.AddMinutes(2));
+            now.AddMinutes(1),
+            reconnectPublicKey: replacementKey.PublicKey);
+        var oldKeyChallenge = Assert.IsType<string>(manager.CreateReconnectChallenge("client-a"));
+        var oldKeyReconnect = manager.AcceptReconnectProof(
+            "client-a",
+            oldKeyChallenge,
+            initialKey.SignReconnectChallenge("client-a", oldKeyChallenge),
+            "Phone",
+            now: now.AddMinutes(2));
+        var replacementKeyChallenge = Assert.IsType<string>(manager.CreateReconnectChallenge("client-a"));
+        var replacementKeyReconnect = manager.AcceptReconnectProof(
+            "client-a",
+            replacementKeyChallenge,
+            replacementKey.SignReconnectChallenge("client-a", replacementKeyChallenge),
+            "Phone",
+            now: now.AddMinutes(3));
 
         Assert.True(repaired.Accepted);
-        Assert.Equal("paired-with-new-secret", repaired.Reason);
-        Assert.NotEqual(initialPairing.Secret, repaired.Secret);
+        Assert.True(initialPairing.Accepted);
+        Assert.Equal("paired", repaired.Reason);
         Assert.Equal(1, invalidations);
-        Assert.False(oldSecret.Accepted);
-        Assert.Equal("secret-revoked", oldSecret.Reason);
+        Assert.False(oldKeyReconnect.Accepted);
+        Assert.Equal("invalid-proof", oldKeyReconnect.Reason);
+        Assert.True(replacementKeyReconnect.Accepted);
     }
 
     [Fact]
-    public void InvalidExplicitPairingTokenDoesNotFallBackToStoredSecret()
+    public void InvalidPairingTokenDoesNotReplaceStoredReconnectKey()
     {
         using var store = new TempPairingStore();
+        using var initialKey = new PairingTestKey();
+        using var replacementKey = new PairingTestKey();
         var manager = new PairingManager(store.Store);
         var now = DateTimeOffset.UtcNow;
         var initialCode = manager.CreatePairingCode(now);
-        var initialPairing = manager.Accept("client-a", "Phone", initialCode.Value, null, now);
+        manager.AcceptPairing("client-a", "Phone", initialCode.Value, now, reconnectPublicKey: initialKey.PublicKey);
         var currentCode = manager.CreatePairingCode(now.AddMinutes(1));
 
-        var rejected = manager.Accept(
+        var rejected = manager.AcceptPairing(
             "client-a",
             "Phone",
             "not-the-current-code",
-            initialPairing.Secret,
-            now.AddMinutes(1));
-        var accepted = manager.Accept(
+            now.AddMinutes(1),
+            reconnectPublicKey: replacementKey.PublicKey);
+        var accepted = manager.AcceptPairing(
             "client-a",
             "Phone",
             currentCode.Value,
-            initialPairing.Secret,
-            now.AddMinutes(1));
+            now.AddMinutes(1),
+            reconnectPublicKey: replacementKey.PublicKey);
 
         Assert.False(rejected.Accepted);
         Assert.Equal("invalid-token", rejected.Reason);

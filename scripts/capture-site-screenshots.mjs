@@ -48,19 +48,19 @@ async function main() {
     await run("npm", ["run", "build", "--workspace", "apps/mobile-web"]);
     await run("dotnet", ["build", "VolturaAir.slnx"]);
 
+    const darkHost = await launchHost("Dark");
+    try {
+      await captureHostWindow(outputs.hostDark);
+    } finally {
+      await stopProcess(darkHost.process);
+    }
+
     const lightHost = await launchHost("Light");
     try {
       await captureHostWindow(outputs.hostLight);
       await captureMobileScreens(chromium, lightHost.pairingUrl);
     } finally {
       await stopProcess(lightHost.process);
-    }
-
-    const darkHost = await launchHost("Dark");
-    try {
-      await captureHostWindow(outputs.hostDark);
-    } finally {
-      await stopProcess(darkHost.process);
     }
 
     console.log(`Site screenshots written to ${assetsDir}`);

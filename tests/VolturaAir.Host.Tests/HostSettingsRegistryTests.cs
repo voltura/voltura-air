@@ -1,42 +1,23 @@
 namespace VolturaAir.Host.Tests;
 
 [Collection(AppPermissionSettingsCollection.Name)]
-public sealed class HostSettingsRegistryTests
+public sealed class HostSettingsRegistryTests : IsolatedHostSettingsTest
 {
     [Fact]
-    public void IsolatedScopeRefreshesCachedHotPathSettingsAndRestoresProductionValues()
+    public void ActiveIsolatedScopeRefreshesCachedHotPathSettings()
     {
-        var productionClientControl = AppClientControlSettings.IsEnabled();
-        var productionLogging = AppLoggingSettings.IsEnabled();
-        var productionAlphaFeatures = AppDeveloperSettings.EnableAlphaFeatures();
+        AppClientControlSettings.SetEnabled(false);
+        AppLoggingSettings.SetEnabled(true);
+        AppDeveloperSettings.SetEnableAlphaFeatures(true);
 
-        using (HostSettingsRegistry.BeginIsolatedScope())
-        {
-            Assert.False(AppClientControlSettings.IsEnabled());
-            Assert.False(AppLoggingSettings.IsEnabled());
-            Assert.False(AppDeveloperSettings.EnableAlphaFeatures());
-
-            var isolatedClientControl = !productionClientControl;
-            var isolatedLogging = !productionLogging;
-            AppClientControlSettings.SetEnabled(isolatedClientControl);
-            AppLoggingSettings.SetEnabled(isolatedLogging);
-            AppDeveloperSettings.SetEnableAlphaFeatures(true);
-
-            Assert.Equal(isolatedClientControl, AppClientControlSettings.IsEnabled());
-            Assert.Equal(isolatedLogging, AppLoggingSettings.IsEnabled());
-            Assert.True(AppDeveloperSettings.EnableAlphaFeatures());
-        }
-
-        Assert.Equal(productionClientControl, AppClientControlSettings.IsEnabled());
-        Assert.Equal(productionLogging, AppLoggingSettings.IsEnabled());
-        Assert.Equal(productionAlphaFeatures, AppDeveloperSettings.EnableAlphaFeatures());
+        Assert.False(AppClientControlSettings.IsEnabled());
+        Assert.True(AppLoggingSettings.IsEnabled());
+        Assert.True(AppDeveloperSettings.EnableAlphaFeatures());
     }
 
     [Fact]
     public void CursorRecoveryWatchdogIsEnabledByDefaultAndCanBeDisabled()
     {
-        using var scope = HostSettingsRegistry.BeginIsolatedScope();
-
         Assert.True(AppPointerSettings.UseCursorRecoveryWatchdog());
 
         AppPointerSettings.SetUseCursorRecoveryWatchdog(false);
@@ -47,10 +28,9 @@ public sealed class HostSettingsRegistryTests
     }
 
     [Fact]
-    public void AlphaFeaturesAreDisabledByDefaultAndCanBeEnabled()
+    public void AlphaFeaturesCanBeEnabledAndDisabled()
     {
-        using var scope = HostSettingsRegistry.BeginIsolatedScope();
-
+        AppDeveloperSettings.SetEnableAlphaFeatures(false);
         Assert.False(AppDeveloperSettings.EnableAlphaFeatures());
 
         AppDeveloperSettings.SetEnableAlphaFeatures(true);
@@ -58,5 +38,12 @@ public sealed class HostSettingsRegistryTests
 
         AppDeveloperSettings.SetEnableAlphaFeatures(false);
         Assert.False(AppDeveloperSettings.EnableAlphaFeatures());
+    }
+
+    [Fact]
+    public void CloseToTrayNotificationIsOnlyMarkedOnce()
+    {
+        Assert.True(AppWindowSettings.TryMarkCloseToTrayNotificationShown());
+        Assert.False(AppWindowSettings.TryMarkCloseToTrayNotificationShown());
     }
 }

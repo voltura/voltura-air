@@ -4,6 +4,19 @@ These instructions apply to the .NET Windows host. Follow
 `../../docs/host-quality.md`, `../../docs/architecture.md`,
 `../../docs/ui-system.md`, and `../../docs/host-ui-guidelines.md`.
 
+## Mandatory host-process preflight
+
+Before any command that builds, tests, runs, packages, captures, or otherwise
+uses the Windows host:
+
+1. Find every running `VolturaAir.Host` process.
+2. Force-stop each exact process with `Stop-Process -Force`.
+3. Continue.
+
+This is standing authorization. Do not ask the user, use a workaround such as
+`UseAppHost=false`, or substitute a graceful tray exit unless the user explicitly
+asks for one.
+
 ## Runtime and language
 
 - Target .NET 10 and stable C# 14. Use current language and runtime features when
@@ -46,8 +59,8 @@ These instructions apply to the .NET Windows host. Follow
   it clarifies ownership. Keep classic interop only for unsupported callback,
   activation, or lifetime cases with a narrow rationale.
 - Treat pairing data as untrusted. Bound and validate reads and records, replace
-  the store atomically in its directory, and never persist or log plaintext
-  reconnect secrets.
+  the store atomically in its directory, and never persist or log private
+  reconnect keys or reconnect proofs.
 - Keep WebSocket input bounded, authenticated, permission checked, normalized,
   and decoded once before dispatch. Expected boundary failures restore partial
   state, preserve the running host, and give useful feedback.

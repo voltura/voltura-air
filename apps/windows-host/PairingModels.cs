@@ -4,7 +4,7 @@ namespace VolturaAir.Host;
 
 public sealed record PairingRecord(
     string ClientId,
-    string SecretHash,
+    string ReconnectPublicKey,
     string DeviceName,
     DateTimeOffset AddedAt = default,
     DateTimeOffset? LastConnectedAt = null,
@@ -56,6 +56,6 @@ public sealed class PairingRevokedEventArgs(string? clientId) : EventArgs
     public string? ClientId { get; } = clientId;
 }
 
-public sealed record PairingResult(bool Accepted, string? Secret, string Reason);
+public sealed record PairingResult(bool Accepted, string Reason);
 
 internal sealed record PairingCode(string Value, DateTimeOffset ExpiresAt, DateTimeOffset RefreshAt);

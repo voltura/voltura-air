@@ -18,7 +18,6 @@ public sealed partial class HostUiLayoutTests
             return;
         }
 
-        using var settingsScope = HostSettingsRegistry.BeginIsolatedScope();
         RunOnStaThread(() =>
         {
             using var appScope = new WpfApplicationScope();
@@ -113,7 +112,6 @@ public sealed partial class HostUiLayoutTests
             return;
         }
 
-        using var settingsScope = HostSettingsRegistry.BeginIsolatedScope();
         RunOnStaThread(() =>
         {
             using var appScope = new WpfApplicationScope();

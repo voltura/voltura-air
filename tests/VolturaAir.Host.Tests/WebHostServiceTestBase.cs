@@ -4,7 +4,7 @@ using VolturaAir.Host;
 
 namespace VolturaAir.Host.Tests;
 
-public abstract class WebHostServiceTestBase
+public abstract class WebHostServiceTestBase : IsolatedHostSettingsTest
 {
     protected static async Task<JsonElement> SendHelloAsync(WebHostService webHost, object payload)
     {
@@ -21,6 +21,27 @@ public abstract class WebHostServiceTestBase
         var response = await ReceiveTextAsync(socket);
         using var document = JsonDocument.Parse(response);
         return document.RootElement.Clone();
+    }
+
+    protected static async Task<JsonElement> SendReconnectAsync(WebHostService webHost, string clientId, string deviceName, PairingTestKey key)
+    {
+        using var socket = await ConnectAsync(webHost);
+        var challenge = await SendAndReceiveAsync(socket, new
+        {
+            type = "pair.hello",
+            clientId,
+            deviceName
+        });
+        Assert.Equal("pair.challenge", challenge.GetProperty("type").GetString());
+
+        var accepted = await SendAndReceiveAsync(socket, new
+        {
+            type = "pair.proof",
+            clientId,
+            signature = key.SignReconnectChallenge(clientId, challenge.GetProperty("challenge").GetString()!)
+        });
+        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
+        return accepted;
     }
 
     protected static Task SendAsync(WebSocket socket, object payload)

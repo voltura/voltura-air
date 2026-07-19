@@ -37,6 +37,13 @@ relying on the user to name every document.
 ## Working agreements
 
 - Read this file and the closest scoped `AGENTS.md` before changing files.
+- Work from persisted repository evidence first: current files, committed
+  documentation, tests, scripts, and explicit instructions in this thread. Do
+  not design from memory of prior turns when the workspace can answer the
+  question.
+- Before introducing a new helper, abstraction, storage location, protocol
+  field, or test harness behavior, search for the existing owner and use or
+  extend it when it fits.
 - Keep each change coherent and focused on the requested outcome. Do not reduce
   necessary scope merely to avoid a justified rewrite.
 - Preserve user work and unrelated changes in the tree.
@@ -58,6 +65,12 @@ have no compatibility guarantee. Remove replaced structures and formats. Keep
 persisted-data readers bounded and defensive because stored data remains
 untrusted. Define an external compatibility policy before promising upgrade
 compatibility.
+
+Protocol and security tests must express the current protocol directly. Do not
+hide required fields, authentication steps, default settings, or permission
+state inside generic send helpers. Helpers may reduce repeated transport code,
+but they must not silently repair, enrich, or reinterpret the message being
+tested.
 
 ## AI execution and tools
 
@@ -110,8 +123,17 @@ need to occupy the context of unrelated work.
   `--isolated-test-mode` when settings or pairing data are temporary.
 - Automated host protocol tests use ASP.NET Core `TestServer`; they do not open a
   configured TCP port or create Windows Firewall permissions.
-- Never log typed text, pointer coordinates, pairing tokens, reconnect secrets,
-  or other credential material.
+- Tests, screenshot runs, smoke tests, and development UI runs must never read or
+  write the production settings registry key. Use the existing
+  `HostSettingsRegistry.BeginIsolatedScope()` abstraction, or a production path
+  that enters it such as `--isolated-test-mode`; do not create a second registry
+  isolation mechanism.
+- Never log typed text, pointer coordinates, pairing tokens, private reconnect
+  keys, reconnect proofs, or other credential material.
+- Pairing URLs and QR codes must stay short and human-scannable. Do not place
+  reconnect keys, signatures, proofs, device metadata, or other large credential
+  material in the pairing URL; exchange that material after the browser opens
+  the normal short pairing link.
 - Incomplete experimental host features use the default-off **Enable alpha
   features** umbrella gate and enforce it at the production command boundary.
   Hidden UI is not enforcement.

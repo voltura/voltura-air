@@ -23,6 +23,9 @@ approved unfinished work.
 ### App shell
 
 - Runs as a Windows tray application.
+- Closing its window keeps the host running; the first close shows a
+  notification that paired devices can still control the PC and points to the
+  notification-area icon for reopening or exit.
 - Allows one host process per signed-in Windows user; another launch focuses the existing host window.
 - Uses a WPF host UI.
 - Provides pages for:
@@ -66,9 +69,9 @@ approved unfinished work.
 
 - Requires every WebSocket session to start with `pair.hello`.
 - Uses short-lived QR pairing tokens.
-- Uses stored reconnect secrets after first pairing.
-- Stores only a hash of the reconnect secret on the host.
-- Rotates the secret when a valid token is accepted for an already-known client.
+- Uses P-256 proof-of-possession reconnects after first pairing without sending the private reconnect key.
+- Stores only the reconnect public key on the host.
+- Replaces the registered public key when a valid token is accepted for an already-known client.
 - Keeps one paired-device record for each client ID.
 - Tracks active connected devices.
 - Supports revoking/disconnecting paired devices.
@@ -228,14 +231,14 @@ approved unfinished work.
 - Handles unreadable QR codes.
 - Handles non-Voltura QR codes.
 - Handles expired/stale/invalid tokens.
-- Handles revoked stored credentials.
+- Handles removed registrations and invalid reconnect proofs.
 - Handles host unavailable/network failures.
 - Provides recovery actions:
   - take photo of new QR code,
   - reconnect,
   - enter host manually,
   - copy diagnostics.
-- Copies redacted diagnostics without pairing secrets or full tokens.
+- Copies redacted diagnostics without full pairing tokens, private reconnect keys, challenges, or proofs.
 
 ### Trackpad mode
 

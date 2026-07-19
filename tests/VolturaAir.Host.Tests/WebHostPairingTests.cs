@@ -15,7 +15,8 @@ public sealed class WebHostPairingTests : WebHostServiceTestBase
         {
             type = "pair.hello",
             deviceName = "Phone",
-            pairToken = token
+            pairToken = token,
+            reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing
         });
 
         Assert.Equal("pair.rejected", rejected.GetProperty("type").GetString());
@@ -23,7 +24,7 @@ public sealed class WebHostPairingTests : WebHostServiceTestBase
     }
 
     [Fact]
-    public async Task WebSocketRejectsPairHelloWithoutTokenOrSecretAsMissingToken()
+    public async Task WebSocketRejectsUnknownReconnectIdentityAsRevoked()
     {
         await using var fixture = await WebHostFixture.StartAsync();
 
@@ -35,7 +36,7 @@ public sealed class WebHostPairingTests : WebHostServiceTestBase
         });
 
         Assert.Equal("pair.rejected", rejected.GetProperty("type").GetString());
-        Assert.Equal("missing-token", rejected.GetProperty("reason").GetString());
+        Assert.Equal("device-revoked", rejected.GetProperty("reason").GetString());
     }
 
     [Fact]
@@ -49,7 +50,8 @@ public sealed class WebHostPairingTests : WebHostServiceTestBase
             type = "pair.hello",
             clientId = $"client-{Guid.NewGuid():N}",
             deviceName = "Phone",
-            pairToken = "wrong-token"
+            pairToken = "wrong-token",
+            reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing
         });
 
         Assert.Equal("pair.rejected", rejected.GetProperty("type").GetString());
@@ -71,7 +73,8 @@ public sealed class WebHostPairingTests : WebHostServiceTestBase
                 type = "pair.hello",
                 clientId = $"client-{Guid.NewGuid():N}",
                 deviceName = "Phone",
-                pairToken = "wrong-token"
+                pairToken = "wrong-token",
+                reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing
             });
         }
 
@@ -83,6 +86,7 @@ public sealed class WebHostPairingTests : WebHostServiceTestBase
     public async Task WebSocketAllowsValidReconnectWhileFailedPairingAttemptsAreRateLimited()
     {
         await using var fixture = await WebHostFixture.StartAsync();
+        using var key = new PairingTestKey();
         var clientId = $"client-{Guid.NewGuid():N}";
         var token = fixture.Manager.CreatePairingToken();
         var paired = await SendHelloAsync(fixture.WebHost, new
@@ -90,9 +94,9 @@ public sealed class WebHostPairingTests : WebHostServiceTestBase
             type = "pair.hello",
             clientId,
             deviceName = "Phone",
-            pairToken = token
+            pairToken = token,
+            reconnectPublicKey = key.PublicKey
         });
-        var secret = paired.GetProperty("secret").GetString();
 
         using var failedSocket = await ConnectAsync(fixture.WebHost);
         for (var attempt = 0; attempt < PairingAttemptRateLimiter.DefaultMaxFailures; attempt++)
@@ -102,17 +106,12 @@ public sealed class WebHostPairingTests : WebHostServiceTestBase
                 type = "pair.hello",
                 clientId = $"failed-{Guid.NewGuid():N}",
                 deviceName = "Phone",
-                pairToken = "wrong-token"
+                pairToken = "wrong-token",
+                reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing
             });
         }
 
-        var reconnected = await SendHelloAsync(fixture.WebHost, new
-        {
-            type = "pair.hello",
-            clientId,
-            deviceName = "Phone",
-            secret
-        });
+        var reconnected = await SendReconnectAsync(fixture.WebHost, clientId, "Phone", key);
 
         Assert.Equal("pair.accepted", paired.GetProperty("type").GetString());
         Assert.Equal("pair.accepted", reconnected.GetProperty("type").GetString());

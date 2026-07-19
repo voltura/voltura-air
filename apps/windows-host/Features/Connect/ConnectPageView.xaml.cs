@@ -52,10 +52,12 @@ public partial class ConnectPageView : WpfUserControl
         PairingLinkCard.Value = pairingLink;
         HostUrlCard.Value = hostUrl;
         SelectedAdapterCard.Value = selectedAdapter;
-        SelectedAdapterCard.Visibility = showSelectedAdapter ? Visibility.Visible : Visibility.Collapsed;
+        SelectedAdapterCard.Visibility = showSelectedAdapter || !string.IsNullOrWhiteSpace(addressWarning)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         SelectedIpCard.Value = selectedIp;
         SelectedPortCard.Value = selectedPort;
-        SetNotice(AddressWarningNotice, AddressWarningText, addressWarning, addressWarningEmphasis);
+        AddressWarningNotice.SetMessage(addressWarning, addressWarningEmphasis);
         SetNotice(PortWarningNotice, PortWarningText, portWarning);
         RenderCountdown(_getCurrentTime());
     }
@@ -82,6 +84,11 @@ public partial class ConnectPageView : WpfUserControl
     }
 
     private static DateTimeOffset GetCurrentTime() => DateTimeOffset.UtcNow;
+
+    internal AdapterWarningNotice AddressWarningNotice => SelectedAdapterCard.Actions as AdapterWarningNotice
+        ?? throw new InvalidOperationException("The network adapter warning notice is unavailable.");
+
+    internal TextBlock AddressWarningText => AddressWarningNotice.Text;
 
     private static void SetNotice(
         FrameworkElement notice,

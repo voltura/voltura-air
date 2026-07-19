@@ -16,7 +16,7 @@ import { useClipboardRead } from "./useClipboardRead";
 import { useUrlOpen } from "./useUrlOpen";
 import { usePresentationControl } from "./usePresentationControl";
 import { useConnectionSocketLifecycle } from "./useConnectionSocketLifecycle";
-import { getStoredSecret } from "./pairingCredentials";
+import { hasStoredReconnectKey } from "./pairingCredentials";
 
 export type { PcProfile } from "./pcProfiles";
 export type { ConnectionError, ConnectionState } from "./connectionTypes";
@@ -39,7 +39,7 @@ export function useVolturaAirConnection() {
   const [activePcId, setActivePcId] = useState<string | null>(() => initialPairing !== null ? null : shouldActivateAddressPc ? addressPcProfile.id : effectiveStoredActivePcId);
   const [pendingManualPc, setPendingManualPc] = useState<PcProfile | null>(null);
   const activePc = useMemo(() => pairedPcs.find((pc) => pc.id === activePcId) ?? null, [activePcId, pairedPcs]);
-  const reconnectablePcs = pairedPcs.filter((pc) => getStoredSecret(clientId, pc.id) !== null);
+  const reconnectablePcs = pairedPcs.filter((pc) => hasStoredReconnectKey(clientId, pc.id));
   const connectionPc = pendingManualPc ?? activePc;
   const hasStoredPcWithoutConnection = connectionPc === null && pairedPcs.length > 0;
   const [state, setState] = useState<ConnectionState>(() => connectionPc ? "connecting" : "needs-pairing");
@@ -149,4 +149,4 @@ export function useVolturaAirConnection() {
 }
 
 
-export { shouldClearStoredSecretForRejection } from "./pairingCredentials";
+export { shouldClearStoredReconnectKeyForRejection } from "./pairingCredentials";

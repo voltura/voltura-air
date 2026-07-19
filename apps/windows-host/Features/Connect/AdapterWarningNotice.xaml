@@ -1,0 +1,15 @@
+<UserControl x:Class="VolturaAir.Host.Features.Connect.AdapterWarningNotice"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Border x:Name="NoticeBorder"
+            Padding="{DynamicResource InsetMd}"
+            Background="{DynamicResource SurfaceBrush}"
+            BorderBrush="{DynamicResource AccentBrush}"
+            BorderThickness="1"
+            CornerRadius="{DynamicResource RadiusMedium}"
+            Visibility="Collapsed">
+        <TextBlock x:Name="NoticeText"
+                   Foreground="{DynamicResource TextBrush}"
+                   TextWrapping="Wrap" />
+    </Border>
+</UserControl>

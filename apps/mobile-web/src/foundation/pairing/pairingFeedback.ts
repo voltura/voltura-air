@@ -3,7 +3,6 @@ export type PairingFailureReason =
   | "qr-not-pairing-link"
   | "expired-token"
   | "stale-token"
-  | "missing-token"
   | "invalid-token"
   | "host-unreachable"
   | "socket-closed"
@@ -101,14 +100,6 @@ export function getPairingFeedback(message: string, activePcUnavailable = false)
     };
   }
 
-  if (/^scan .+'s pairing qr to pair this app\.?$/i.test(normalizedMessage)) {
-    return feedbackForReason("missing-token");
-  }
-
-  if (/pairing code expired/i.test(normalizedMessage)) {
-    return feedbackForReason("invalid-token");
-  }
-
   if (/qr code expired/i.test(normalizedMessage)) {
     return feedbackForReason("expired-token");
   }
@@ -168,11 +159,7 @@ function feedbackForRejectedReason(reason: string): PairingFeedback {
     return feedbackForReason("stale-token");
   }
 
-  if (reason === "missing-token") {
-    return feedbackForReason("missing-token");
-  }
-
-  if (reason === "device-revoked" || reason === "secret-revoked") {
+  if (reason === "device-revoked" || reason === "invalid-proof") {
     return feedbackForReason("device-revoked");
   }
 
@@ -237,17 +224,6 @@ function feedbackForReason(reason: PairingFailureReason): PairingFeedback {
         diagnosticCode: "VAIR-PAIR-STALE-TOKEN",
         hints: ["Only the latest unused pairing QR code can pair a device.", "Use New code on the PC before scanning again."],
         primaryLabel: "Take photo of new QR code",
-        reason,
-        severity: "warning",
-        showRecoveryActions: true
-      };
-    case "missing-token":
-      return {
-        title: "Pairing code missing",
-        body: "This link does not contain a pairing code. Scan the QR code shown by Voltura Air on the PC.",
-        diagnosticCode: "VAIR-PAIR-MISSING-TOKEN",
-        hints: ["Open the Connect screen on the PC and scan its QR code."],
-        primaryLabel: "Take photo of QR code",
         reason,
         severity: "warning",
         showRecoveryActions: true

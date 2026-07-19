@@ -40,7 +40,7 @@ which the immediately previous code remains valid.
 
 The Windows host temporarily rate-limits repeated failed unauthenticated pairing
 attempts from the same remote address. Wait a moment, click **New code**, and
-scan again. Successful fresh pairing and saved-secret reconnects are not counted
+scan again. Successful fresh pairing and valid signed reconnects are not counted
 as failures.
 
 ## Wrong network adapter selected
@@ -62,7 +62,8 @@ Manual port mode does not silently fall back. If the chosen manual port is occup
 
 ## Device was disconnected or revoked
 
-If the PC says the device was disconnected, the stored mobile credential is no longer valid. Scan a fresh QR code to pair the device again.
+If the PC says the device was disconnected, its registered reconnect public key
+was removed. Scan a fresh QR code to create and register a new key pair.
 
 ## Pairing request invalid
 
@@ -79,7 +80,8 @@ Include:
 - whether a VPN, guest Wi-Fi, or mobile data is involved;
 - what changed recently: network, firewall, IP address, port, browser, or app version.
 
-Do not include screenshots or text containing live pairing tokens, secrets, or secret hashes.
+Do not include screenshots or text containing live pairing tokens, private
+reconnect keys, reconnect challenges, or reconnect proofs.
 
 ## Connected but input does nothing
 
@@ -94,7 +96,7 @@ Check these items first:
   surface that rejects normal input injection.
 - The phone did not switch network, sleep the browser, or lose LAN reachability.
 - If browser storage was cleaned, scan a fresh QR code; refreshing cannot restore
-  a removed reconnect credential.
+  a removed private reconnect key.
 
 When a higher-integrity application blocks input, the host shows **PC input
 paused** and the phone shows **Administrator app active**. Use **Show desktop**

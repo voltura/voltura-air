@@ -73,8 +73,8 @@ valid.
 
 The `h` host hint is connection routing metadata only. It is not a secret and
 must not be treated as proof that a device is paired. A WebSocket session still
-has to authenticate through `pair.hello` with either a valid `pairToken` or a
-stored reconnect `secret`.
+has to authenticate through fresh token pairing or prove possession of the
+private reconnect key registered for its `clientId`.
 
 The reference client accepts these host forms:
 
@@ -86,32 +86,32 @@ The reference client accepts these host forms:
 The manual-entry validation and state-preservation behavior for these forms is
 defined in [network-and-host-selection.md](network-and-host-selection.md).
 
-If the host value has no pairing token, authentication can complete only with a
-valid stored reconnect secret. Host hints and saved profiles never bypass
-pairing. Profile creation, selection, and recovery behavior are defined in
-[network-and-host-selection.md](network-and-host-selection.md).
+If the host value has no pairing token, authentication can complete only through
+the reconnect challenge/proof exchange. Host hints and saved profiles never
+bypass pairing. Profile creation, selection, and recovery behavior are defined
+in [network-and-host-selection.md](network-and-host-selection.md).
 
 ## Pairing
 
 The client must start every WebSocket session with `pair.hello`. `deviceName`
-is the current display name for the mobile device. A QR pairing attempt sends a
-short-lived single-use `pairToken`; a normal reconnect sends the stored
-`secret`. If `pairToken` is present, the host validates that explicit pairing
-attempt even when the request also contains a reconnect secret. The host uses a
-reconnect secret only when `pairToken` is absent and stores only a hash of each
-reconnect secret.
+is the current display name for the mobile device. During QR pairing, the client
+generates a P-256 key pair and sends the short-lived single-use `pairToken` with
+the Base64url-encoded uncompressed public key in `reconnectPublicKey`. The
+private key remains in browser storage and never crosses the protocol. The host
+stores the public key with the paired-device record and never stores a reconnect
+secret.
 
 The mobile app stores a generated `clientId` in browser storage and also keeps
 that same non-secret value in the page URL as `d`. This lets a browser-created
 Home Screen bookmark reopen with the same logical client identity even if the
 standalone web app starts with separate storage. The value is not treated as an
-authentication secret; reconnect still requires the stored `secret`, and a
-fresh storage container must pair once with a valid `pairToken` before it can
-store its own secret.
+authentication secret; reconnect still requires a signature from the stored
+private key, and a fresh storage container must pair once with a valid
+`pairToken` before it has that key.
 
-Accepting a valid `pairToken` generates a new reconnect secret and consumes both
-the current and overlap token slots. For an already-known `clientId`, the host
-also revokes the previous secret and existing active sockets while retaining one
+Accepting a valid `pairToken` and reconnect public key consumes both the current
+and overlap token slots. For an already-known `clientId`, the host replaces the
+registered public key and revokes existing active sockets while retaining one
 paired-device record.
 
 ```json
@@ -119,20 +119,49 @@ paired-device record.
   "type": "pair.hello",
   "clientId": "browser-generated-id",
   "deviceName": "iPhone",
-  "pairToken": "short-lived-token"
+  "pairToken": "short-lived-token",
+  "reconnectPublicKey": "base64url-uncompressed-p256-public-key"
 }
 ```
 
-Reconnect request:
+Reconnect begins without a token or public key:
 
 ```json
 {
   "type": "pair.hello",
   "clientId": "browser-generated-id",
-  "deviceName": "iPhone",
-  "secret": "stored-secret-for-reconnect"
+  "deviceName": "iPhone"
 }
 ```
+
+For a known `clientId`, the host returns a cryptographically random challenge
+owned by that WebSocket session. The session accepts at most one proof for that
+challenge and consumes the challenge before verification.
+
+```json
+{
+  "type": "pair.challenge",
+  "clientId": "browser-generated-id",
+  "challenge": "base64url-host-challenge"
+}
+```
+
+The client signs the UTF-8 bytes of
+`VolturaAir reconnect:v1:<clientId>:<challenge>` using ECDSA P-256 with SHA-256
+and the IEEE P1363 fixed-field signature format.
+
+```json
+{
+  "type": "pair.proof",
+  "clientId": "browser-generated-id",
+  "signature": "base64url-p1363-signature"
+}
+```
+
+A proof is valid only on the session that issued its challenge. Reusing a proof
+on another session, against another challenge, or after host restart fails
+before authenticated command dispatch. Reconnect proof verification performs no
+registry, disk, QR, or pairing-token work on the command path.
 
 Successful response:
 
@@ -141,9 +170,9 @@ Successful response:
   "type": "pair.accepted",
   "clientId": "browser-generated-id",
   "pcName": "WINDOWS-PC",
-  "secret": "secret-to-store",
   "paired": true,
   "capabilities": {
+    "remoteInput": true,
     "gestureDebug": false,
     "inputAck": true,
     "power": {
@@ -190,6 +219,9 @@ Successful response:
 }
 ```
 
+Fresh pairing and reconnect return the same `pair.accepted` shape. It contains no
+private key, reconnect credential, challenge, proof, or pairing token.
+
 Request current connection status after pairing has been accepted:
 
 ```json
@@ -205,6 +237,7 @@ Host response:
   "message": "Connected",
   "pcName": "WINDOWS-PC",
   "capabilities": {
+    "remoteInput": true,
     "gestureDebug": false,
     "inputAck": true,
     "power": {
@@ -258,7 +291,8 @@ The adapter name can reveal local hardware/vendor details, so it should only be 
 `remoteLaunch` is an authenticated capability. When `true`, the host allows this paired device to trigger the fixed host-defined launch actions documented below and exposes its approved configurable buttons through `host.appLaunchActions`. The host does not expose the configured YouTube URL, executable paths, or arguments through this metadata.
 `appLaunchActions` is an authenticated array of `{ id, label, kind }` summaries. It is empty when the effective **Allow paired devices to start applications** permission is disabled. `id` is an opaque host-owned identifier; clients must not derive a path or command from it. `label` is the host-managed 1–10 character button label. `kind` is one of `browser`, `spotify`, `vlc`, `powerpoint`, or `custom` and is presentation metadata only.
 `urlOpen` is an authenticated capability object emitted by hosts that support reviewed URL opening. `canOpen` is the effective **Open web addresses** permission for the paired device. The permission defaults off and is independent from application launch and text transfer.
-`textTransfer` is an authenticated capability. When `true`, the client may use the host-acknowledged `text.send` operation described below. `host.textTransferTarget` contains only `{ mode, displayName, available }`, where `mode` is `focused`, `clipboard`, or `configured`. Executable paths, process identifiers, window handles, matching rules, and clipboard contents are never included.
+`remoteInput` is an authenticated capability. When `true`, the effective **Allow paired devices to control pointer and keyboard** permission allows this paired device to send pointer and keyboard input. The permission defaults on and can be disabled globally or for an individual paired device.
+`textTransfer` is an authenticated capability. When `true`, the same effective remote-input permission allows the client to use the host-acknowledged `text.send` operation described below. `host.textTransferTarget` contains only `{ mode, displayName, available }`, where `mode` is `focused`, `clipboard`, or `configured`. Executable paths, process identifiers, window handles, matching rules, and clipboard contents are never included.
 `clipboardRead` is an authenticated capability. `true` means the effective **Read PC clipboard** permission allows this paired device; `false` means the host blocks the operation.
 `pointerSpeed` is the effective pointer speed for the authenticated paired device: the host default unless that device has an override. It is included only on authenticated `pair.accepted` and `status` messages. When the Windows host profile changes, the host may push the same lightweight `status` message to active sockets; the mobile app does not add a polling loop, timer, or extra battery cost for pointer-speed sync.
 `customPointerEnabled` is the host-wide Custom pointer state. It is not a paired-device preference: changing it affects the whole Windows desktop.
@@ -290,20 +324,21 @@ Known pairing rejection reasons:
 | Reason | Meaning |
 | --- | --- |
 | `pair-first` | The client sent a non-pairing message before authentication. |
-| `missing-token` | No `pairToken` or valid reconnect `secret` was supplied. |
 | `invalid-token` | The supplied token does not match the retained current or overlap code. |
 | `expired-token` | The supplied token matches a retained code whose validity ended. |
 | `stale-token` | No active pairing-code state is available. |
-| `secret-revoked` | The stored reconnect credential is no longer valid. |
+| `device-revoked` | The `clientId` has no paired-device record on this host. |
+| `invalid-proof` | The reconnect signature does not verify for the session challenge and registered public key. |
 | `rate-limited` | Too many failed unauthenticated pairing attempts were made from the same remote address. |
 | `invalid-message` | The pairing request was not valid JSON protocol shape. |
 
 The mobile client must treat unknown reasons as diagnosable pairing failures and
 show a diagnostic code instead of raw protocol text.
 
-After authentication, the host accepts only known message types with the expected
-JSON shape. Unknown or malformed authenticated messages are closed with a
-WebSocket policy violation and are not dispatched as input.
+After authentication, the host accepts only known message types with the exact
+documented JSON shape. Duplicate or undeclared fields, unknown message types,
+and malformed messages are closed with a WebSocket policy violation and are not
+dispatched as input.
 
 Forget this device on the PC after pairing has been accepted:
 
@@ -552,7 +587,13 @@ The host preserves multiline text by translating LF, CRLF, and CR line breaks in
 }
 ```
 
-`deliveryKind` is `typed`, `pasted`, or `clipboard`. Failure codes are `VAIR-TEXT-HOST-FOCUSED`, `VAIR-TEXT-NATIVE-SEND-FAILED`, `VAIR-TEXT-CLIPBOARD-FAILED`, and `VAIR-TEXT-DELIVERY-FAILED`. The mobile client can also produce `VAIR-TEXT-RESPONSE-TIMEOUT` when no matching result arrives. Delivery failures keep the authenticated socket open.
+`deliveryKind` is `typed`, `pasted`, or `clipboard`. Failure codes are
+`VAIR-TEXT-DENIED`, `VAIR-TEXT-HOST-FOCUSED`,
+`VAIR-TEXT-NATIVE-SEND-FAILED`, `VAIR-TEXT-CLIPBOARD-FAILED`, and
+`VAIR-TEXT-DELIVERY-FAILED`. `VAIR-TEXT-DENIED` means the active device's
+effective remote-input permission is off. The mobile client can also produce
+`VAIR-TEXT-RESPONSE-TIMEOUT` when no matching result arrives. Delivery failures
+keep the authenticated socket open.
 
 ## Explicit PC clipboard read
 
@@ -769,6 +810,10 @@ restart or shutdown completed.
   "message": "Windows locking is disabled. Enable it in the Voltura Air host settings."
 }
 ```
+
+When the active device's effective remote-input permission is off, the host
+returns the same recoverable shape with `code: "VAIR-INPUT-DENIED"` and does not
+invoke the input handler or Windows injection boundary.
 
 `operationId` is a client-generated 1–64 character ASCII alphanumeric/hyphen
 identifier. The host echoes it unchanged in every power result so the client

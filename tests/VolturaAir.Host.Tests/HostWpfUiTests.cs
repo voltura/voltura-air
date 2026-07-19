@@ -11,7 +11,7 @@ using VolturaAir.Host.Ui;
 namespace VolturaAir.Host.Tests;
 
 [Collection(AppPermissionSettingsCollection.Name)]
-public sealed partial class HostUiLayoutTests
+public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
 {
     [Fact]
     public void StartupWindowCanTransitionToErrorState()
@@ -71,6 +71,7 @@ public sealed partial class HostUiLayoutTests
                 var sidebarHeader = Assert.IsType<VolturaAir.Host.Ui.SpacingStackPanel>(window.NavStatusText.Parent);
                 var sidebarLayout = Assert.IsType<Grid>(sidebarHeader.Parent);
                 Assert.Equal(new GridLength(UiTokens.SpaceXl), sidebarLayout.RowDefinitions[1].Height);
+                Assert.DoesNotContain(FindWpfDescendants<Button>(window), button => button.Content?.ToString() == "Hide to tray");
                 window.ShowPage(HostPage.Connect);
                 window.UpdateLayout();
                 Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "Connect");
@@ -170,7 +171,8 @@ public sealed partial class HostUiLayoutTests
                 var token = initialParameters["t"];
 
                 Assert.Equal(AppVersion.Display, Uri.UnescapeDataString(initialParameters["v"]));
-                var accepted = manager.Accept("client-a", "Phone", Uri.UnescapeDataString(token), null);
+                using var key = new PairingTestKey();
+                var accepted = manager.AcceptPairing("client-a", "Phone", Uri.UnescapeDataString(token), reconnectPublicKey: key.PublicKey);
                 DoWpfEvents();
 
                 Assert.True(accepted.Accepted);
@@ -233,7 +235,6 @@ public sealed partial class HostUiLayoutTests
 
         RunOnStaThread(() =>
         {
-            using var settingsScope = HostSettingsRegistry.BeginIsolatedScope();
             using var appScope = new WpfApplicationScope();
             using var store = new TempPairingStore();
             using var inputInjector = new SendInputInjector();
@@ -385,11 +386,9 @@ public sealed partial class HostUiLayoutTests
             return;
         }
 
-        using var settingsScope = HostSettingsRegistry.BeginIsolatedScope();
         RunOnStaThread(() =>
         {
-            var originalPermissions = AppPermissionSettings.Load();
-            AppPermissionSettings.Save(originalPermissions with
+            AppPermissionSettings.Save(AppPermissionSettings.Load() with
             {
                 AllowBlackoutDisplay = true,
                 AllowClipboardRead = false,
@@ -401,7 +400,8 @@ public sealed partial class HostUiLayoutTests
             using var inputInjector = new SendInputInjector();
             var manager = new PairingManager(store.Store);
             var token = manager.CreatePairingToken();
-            Assert.True(manager.Accept("client-a", "Phone", token, null).Accepted);
+            using var key = new PairingTestKey();
+            Assert.True(manager.AcceptPairing("client-a", "Phone", token, reconnectPublicKey: key.PublicKey).Accepted);
             Assert.True(manager.SetDevicePermissionOverrides("client-a", new DevicePermissionOverrides(AllowBlackoutDisplay: true, AllowUrlOpen: true)));
 
             var webHost = new WebHostService(
@@ -441,7 +441,6 @@ public sealed partial class HostUiLayoutTests
             {
                 window.Close();
                 DisposeWebHost(webHost);
-                AppPermissionSettings.Save(originalPermissions);
             }
         });
     }

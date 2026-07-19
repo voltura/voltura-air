@@ -34,7 +34,6 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="{DynamicResource GridSpaceXl}" />
                     <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <ui:SpacingStackPanel Spacing="{DynamicResource SpaceSm}">
@@ -67,12 +66,6 @@
                     <Button x:Name="PreferencesNavButton" Content="Preferences" Style="{StaticResource MenuButtonStyle}" Click="OnPreferencesNavClicked" />
                     <Button x:Name="DiagnosticsNavButton" Content="Diagnostics" Style="{StaticResource MenuButtonStyle}" Click="OnDiagnosticsNavClicked" />
                 </ui:SpacingStackPanel>
-
-                <Button x:Name="HideToTrayButton"
-                        Grid.Row="3"
-                        Content="Hide to tray"
-                        Style="{StaticResource MenuButtonStyle}"
-                        Click="OnHideClicked" />
             </Grid>
         </Border>
 

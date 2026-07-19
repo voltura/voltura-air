@@ -61,6 +61,7 @@ internal sealed class DevicesPageController(
         AddPointerSpeedProfile(_deviceDetailsPanel, device);
 
         _deviceDetailsPanel.Children.Add(visuals.CreateSectionHeading("Permissions"));
+        AddPermissionChoices(_deviceDetailsPanel, device, "Pointer and keyboard", PermissionKind.RemoteInput);
         AddPermissionChoices(_deviceDetailsPanel, device, "PC sleep", PermissionKind.PcSleep);
         AddPermissionChoices(_deviceDetailsPanel, device, "Volume control", PermissionKind.VolumeControl);
         if (AppDeveloperSettings.EnableAlphaFeatures())
@@ -148,6 +149,7 @@ internal sealed class DevicesPageController(
         var current = pairingManager.GetDevicePermissionOverrides(clientId);
         var updated = kind switch
         {
+            PermissionKind.RemoteInput => current with { AllowRemoteInput = value },
             PermissionKind.PcSleep => current with { AllowPcSleep = value },
             PermissionKind.VolumeControl => current with { AllowVolumeControl = value },
             PermissionKind.PresentationControl => current with { AllowPresentationControl = value },
@@ -172,6 +174,7 @@ internal sealed class DevicesPageController(
     {
         return kind switch
         {
+            PermissionKind.RemoteInput => permissions.AllowRemoteInput,
             PermissionKind.PcSleep => permissions.AllowPcSleep,
             PermissionKind.VolumeControl => permissions.AllowVolumeControl,
             PermissionKind.PresentationControl => permissions.AllowPresentationControl,
@@ -310,6 +313,7 @@ internal sealed class DevicesPageController(
         }
 
         var globalPermissions = AppPermissionSettings.Load();
+        ApplyPermissionChoiceVisuals("Pointer and keyboard", device.PermissionOverrides.AllowRemoteInput, globalPermissions.AllowRemoteInput);
         ApplyPermissionChoiceVisuals("PC sleep", device.PermissionOverrides.AllowPcSleep, globalPermissions.AllowPcSleep);
         ApplyPermissionChoiceVisuals("Volume control", device.PermissionOverrides.AllowVolumeControl, globalPermissions.AllowVolumeControl);
         if (AppDeveloperSettings.EnableAlphaFeatures())
@@ -440,5 +444,7 @@ internal sealed class DevicesPageController(
         SignOut,
         Restart,
         Shutdown
+        ,
+        RemoteInput
     }
 }

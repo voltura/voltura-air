@@ -7,6 +7,7 @@ public sealed class HostPermissionsTests
     [Fact]
     public void GlobalDefaultBlocksSleep()
     {
+        Assert.True(HostPermissions.DefaultGlobal.AllowRemoteInput);
         Assert.False(HostPermissions.DefaultGlobal.AllowPcSleep);
         Assert.True(HostPermissions.DefaultGlobal.AllowVolumeControl);
         Assert.True(HostPermissions.DefaultGlobal.AllowPresentationControl);
@@ -178,10 +179,11 @@ public sealed class HostPermissionsTests
     public void RemovedDeviceLosesPermissionOverridesWithPairingRecord()
     {
         using var store = new TempPairingStore();
+        using var key = new PairingTestKey();
         var manager = new PairingManager(store.Store);
         var now = DateTimeOffset.UtcNow;
         var token = manager.CreatePairingToken(now);
-        manager.Accept("client-a", "Phone", token, null, now);
+        manager.AcceptPairing("client-a", "Phone", token, now, reconnectPublicKey: key.PublicKey);
 
         var saved = manager.SetDevicePermissionOverrides("client-a", new DevicePermissionOverrides(
             AllowPcSleep: true,

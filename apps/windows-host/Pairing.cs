@@ -105,12 +105,12 @@ public sealed class PairingManager(PairingStore store)
         }
     }
 
-    public PairingResult Accept(
+    public PairingResult AcceptPairing(
         string clientId,
         string deviceName,
-        string? pairToken,
-        string? secret,
+        string pairToken,
         DateTimeOffset? now = null,
+        string? reconnectPublicKey = null,
         string? platform = null,
         string? browser = null,
         string? displayMode = null)
@@ -121,56 +121,43 @@ public sealed class PairingManager(PairingStore store)
         var normalizedBrowser = PairedDeviceRegistry.NormalizeMetadata(browser);
         var normalizedDisplayMode = PairedDeviceRegistry.NormalizeMetadata(displayMode);
         string? revokedClientId = null;
-        var pairingCodeInvalidated = false;
+        bool pairingCodeInvalidated;
         bool connectionChanged;
         PairingResult result;
 
         lock (_gate)
         {
             var existing = _devices.Find(clientId);
-            if (pairToken is not null)
+            if (_tokens.Validate(pairToken, acceptedAt) is { } rejectionReason)
             {
-                if (_tokens.Validate(pairToken, acceptedAt) is { } rejectionReason)
-                {
-                    return new PairingResult(false, null, rejectionReason);
-                }
-
-                var newSecret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
-                var replacesExistingClient = existing is not null;
-                _devices.UpsertAndSave(new PairingRecord(
-                    clientId,
-                    HashSecret(newSecret),
-                    normalizedDeviceName,
-                    acceptedAt,
-                    Platform: normalizedPlatform,
-                    Browser: normalizedBrowser,
-                    DisplayMode: normalizedDisplayMode));
-                _tokens.Invalidate();
-                pairingCodeInvalidated = true;
-                connectionChanged = true;
-
-                if (replacesExistingClient)
-                {
-                    revokedClientId = clientId;
-                }
-
-                result = new PairingResult(true, newSecret, "paired-with-new-secret");
+                return new PairingResult(false, rejectionReason);
             }
-            else if (existing is not null && secret is not null && existing.SecretHash == HashSecret(secret))
+
+            var validatedReconnectPublicKey = reconnectPublicKey;
+            if (validatedReconnectPublicKey is null || !IsValidReconnectPublicKey(validatedReconnectPublicKey))
             {
-                connectionChanged = _devices.UpdateDeviceDetails(
-                    clientId,
-                    normalizedDeviceName,
-                    normalizedPlatform,
-                    normalizedBrowser,
-                    normalizedDisplayMode,
-                    acceptedAt);
-                result = new PairingResult(true, secret, "paired");
+                return new PairingResult(false, "invalid-message");
             }
-            else
+
+            var replacesExistingClient = existing is not null;
+            _devices.UpsertAndSave(new PairingRecord(
+                clientId,
+                validatedReconnectPublicKey,
+                normalizedDeviceName,
+                acceptedAt,
+                Platform: normalizedPlatform,
+                Browser: normalizedBrowser,
+                DisplayMode: normalizedDisplayMode));
+            _tokens.Invalidate();
+            pairingCodeInvalidated = true;
+            connectionChanged = true;
+
+            if (replacesExistingClient)
             {
-                return new PairingResult(false, null, secret is null ? "missing-token" : "secret-revoked");
+                revokedClientId = clientId;
             }
+
+            result = new PairingResult(true, "paired");
         }
 
         if (revokedClientId is not null)
@@ -191,21 +178,58 @@ public sealed class PairingManager(PairingStore store)
         return result;
     }
 
-    public string RotateSecret(string clientId, string deviceName)
+    public string? CreateReconnectChallenge(string clientId)
     {
-        var now = DateTimeOffset.UtcNow;
-        var newSecret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
         lock (_gate)
         {
-            _devices.UpsertAndSave(new PairingRecord(
+            return _devices.Find(clientId) is null ? null : CreateBase64UrlRandom(32);
+        }
+    }
+
+    public PairingResult AcceptReconnectProof(
+        string clientId,
+        string challenge,
+        string signature,
+        string deviceName,
+        string? platform = null,
+        string? browser = null,
+        string? displayMode = null,
+        DateTimeOffset? now = null)
+    {
+        var acceptedAt = now ?? DateTimeOffset.UtcNow;
+        var normalizedDeviceName = PairedDeviceRegistry.NormalizeDeviceName(deviceName);
+        var normalizedPlatform = PairedDeviceRegistry.NormalizeMetadata(platform);
+        var normalizedBrowser = PairedDeviceRegistry.NormalizeMetadata(browser);
+        var normalizedDisplayMode = PairedDeviceRegistry.NormalizeMetadata(displayMode);
+        bool connectionChanged;
+
+        lock (_gate)
+        {
+            if (_devices.Find(clientId) is not { } existing)
+            {
+                return new PairingResult(false, "device-revoked");
+            }
+
+            if (!IsValidReconnectSignature(existing, clientId, challenge, signature))
+            {
+                return new PairingResult(false, "invalid-proof");
+            }
+
+            connectionChanged = _devices.UpdateDeviceDetails(
                 clientId,
-                HashSecret(newSecret),
-                PairedDeviceRegistry.NormalizeDeviceName(deviceName),
-                now));
+                normalizedDeviceName,
+                normalizedPlatform,
+                normalizedBrowser,
+                normalizedDisplayMode,
+                acceptedAt);
         }
 
-        ConnectionChanged?.Invoke(this, EventArgs.Empty);
-        return newSecret;
+        if (connectionChanged)
+        {
+            ConnectionChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        return new PairingResult(true, "paired");
     }
 
     public bool RenameDevice(string clientId, string deviceName, DateTimeOffset? now = null)
@@ -365,8 +389,89 @@ public sealed class PairingManager(PairingStore store)
         return removed;
     }
 
-    public static string HashSecret(string secret) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(secret)));
+    public static string GetReconnectSigningPayload(string clientId, string challenge) =>
+        $"VolturaAir reconnect:v1:{clientId}:{challenge}";
+
+    internal static bool IsValidReconnectPublicKey(string? reconnectPublicKey)
+    {
+        if (string.IsNullOrWhiteSpace(reconnectPublicKey) ||
+            reconnectPublicKey.Length > 512 ||
+            !IsBase64Url(reconnectPublicKey))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var ecdsa = CreateReconnectPublicKey(DecodeBase64Url(reconnectPublicKey));
+            return true;
+        }
+        catch (Exception ex) when (ex is CryptographicException or FormatException)
+        {
+            return false;
+        }
+    }
+
+    private static bool IsValidReconnectSignature(PairingRecord existing, string clientId, string challenge, string signature)
+    {
+        if (string.IsNullOrWhiteSpace(signature) ||
+            signature.Length > 512 ||
+            !IsBase64Url(signature))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var ecdsa = CreateReconnectPublicKey(DecodeBase64Url(existing.ReconnectPublicKey));
+            return ecdsa.VerifyData(
+                Encoding.UTF8.GetBytes(GetReconnectSigningPayload(clientId, challenge)),
+                DecodeBase64Url(signature),
+                HashAlgorithmName.SHA256,
+                DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
+        }
+        catch (Exception ex) when (ex is CryptographicException or FormatException)
+        {
+            return false;
+        }
+    }
+
+    private static ECDsa CreateReconnectPublicKey(byte[] publicKey)
+    {
+        if (publicKey.Length != 65 || publicKey[0] != 0x04)
+        {
+            throw new CryptographicException("Invalid reconnect public key.");
+        }
+
+        var parameters = new ECParameters
+        {
+            Curve = ECCurve.NamedCurves.nistP256,
+            Q = new ECPoint
+            {
+                X = publicKey[1..33],
+                Y = publicKey[33..65]
+            }
+        };
+        var ecdsa = ECDsa.Create();
+        ecdsa.ImportParameters(parameters);
+        return ecdsa;
+    }
+
+    private static string CreateBase64UrlRandom(int byteCount) =>
+        EncodeBase64Url(RandomNumberGenerator.GetBytes(byteCount));
+
+    private static string EncodeBase64Url(byte[] bytes) =>
+        Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+
+    private static byte[] DecodeBase64Url(string value)
+    {
+        var padded = value.Replace('-', '+').Replace('_', '/');
+        padded = padded.PadRight(padded.Length + ((4 - padded.Length % 4) % 4), '=');
+        return Convert.FromBase64String(padded);
+    }
+
+    private static bool IsBase64Url(string value) =>
+        value.All(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_');
 
     private void ReleaseConnection(string clientId)
     {

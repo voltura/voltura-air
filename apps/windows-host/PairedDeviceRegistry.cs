@@ -297,6 +297,7 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
         _records.FindIndex(record => string.Equals(record.ClientId, clientId, StringComparison.Ordinal));
 
     private static DevicePermissionOverrides NormalizePermissionOverrides(DevicePermissionOverrides? permissionOverrides) => new(
+        AllowRemoteInput: permissionOverrides?.AllowRemoteInput,
         AllowPcSleep: permissionOverrides?.AllowPcSleep,
         AllowVolumeControl: permissionOverrides?.AllowVolumeControl,
         AllowPresentationControl: permissionOverrides?.AllowPresentationControl,

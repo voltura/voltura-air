@@ -23,6 +23,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
     private readonly Dictionary<TrayConnectionState, Icon> _trayIcons;
     private readonly TrayAwakeMenuController _awakeMenuController;
     private readonly TrayConnectionFeedbackController _connectionFeedbackController;
+    private readonly Action<string, string, Forms.ToolTipIcon>? _notificationSink;
     private bool _disposed;
 
     public WpfTrayApplicationContext(
@@ -30,12 +31,14 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         WebHostService webHost,
         PairingManager pairingManager,
         IAwakeService awakeService,
-        Action requestShutdown)
+        Action requestShutdown,
+        Action<string, string, Forms.ToolTipIcon>? notificationSink = null)
     {
         _mainWindow = mainWindow;
         _dispatcher = mainWindow.Dispatcher;
         _pairingManager = pairingManager;
         _requestShutdown = requestShutdown;
+        _notificationSink = notificationSink;
         _awakeMenuController = new TrayAwakeMenuController(
             _dispatcher,
             awakeService,
@@ -59,6 +62,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
             Visible = true
         };
         _trayIcon.DoubleClick += (_, _) => _mainWindow.ShowPage(HostPage.Connect);
+        _mainWindow.HiddenToTray += OnMainWindowHiddenToTray;
         TrayIconVisibilityPromoter.PromoteWhenReady(_components, _trayIcon);
 
         ApplyMenuTheme();
@@ -88,6 +92,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
 
         _disposed = true;
         AppThemeSettings.Changed -= OnAppThemeChanged;
+        _mainWindow.HiddenToTray -= OnMainWindowHiddenToTray;
         _connectionFeedbackController.Dispose();
         _awakeMenuController.Dispose();
         _trayIcon.Visible = false;
@@ -162,8 +167,24 @@ internal sealed class WpfTrayApplicationContext : IDisposable
             Forms.ToolTipIcon.Warning);
     }
 
-    private void ShowNotification(string title, string message, Forms.ToolTipIcon icon) =>
+    private void OnMainWindowHiddenToTray(object? sender, EventArgs e)
+    {
+        if (AppWindowSettings.TryMarkCloseToTrayNotificationShown())
+        {
+            ShowNotification(CloseToTrayNotification.Title, CloseToTrayNotification.Message, Forms.ToolTipIcon.Info);
+        }
+    }
+
+    private void ShowNotification(string title, string message, Forms.ToolTipIcon icon)
+    {
+        if (_notificationSink is not null)
+        {
+            _notificationSink(title, message, icon);
+            return;
+        }
+
         _trayIcon.ShowBalloonTip(3000, title, message, icon);
+    }
 
     private Icon GetTrayIcon(TrayConnectionState state) => _trayIcons.TryGetValue(state, out var icon)
         ? icon

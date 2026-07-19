@@ -153,6 +153,12 @@ actually experience. Omit refactors, code organization, tests, CI, tooling,
 documentation, dependency maintenance, and other internal work. Keep the
 freeware notice that the workflow prepends.
 
+When a release changes pairing, authentication, permissions, or network
+exposure, state the practical security impact without implying transport
+protection. Voltura Air remains an HTTP/WebSocket application for trusted local
+networks; link to [SECURITY.md](../SECURITY.md) for the LAN and same-user trust
+boundary.
+
 ## Create GitHub release assets manually
 
 First confirm that the tag and release do not already exist. If either exists,

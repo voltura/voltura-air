@@ -8,7 +8,13 @@ export interface PairHelloMessage {
   browser?: string;
   displayMode?: "browser" | "installed" | "unknown";
   pairToken?: string | undefined;
-  secret?: string | undefined;
+  reconnectPublicKey?: string | undefined;
+}
+
+export interface PairProofMessage {
+  type: "pair.proof";
+  clientId: string;
+  signature: string;
 }
 
 export interface PairDisconnectMessage {
@@ -43,6 +49,7 @@ export interface AudioGetMessage {
 }
 
 export interface ServerCapabilities {
+  remoteInput?: boolean;
   awake?: AwakeCapability;
   gestureDebug?: boolean;
   inputAck?: boolean;
@@ -111,20 +118,24 @@ export interface PairAcceptedMessage {
   type: "pair.accepted";
   clientId: string;
   pcName: string;
-  secret: string;
   paired: true;
   capabilities?: ServerCapabilities;
   host?: HostStatusMetadata;
 }
 
+export interface PairChallengeMessage {
+  type: "pair.challenge";
+  clientId: string;
+  challenge: string;
+}
+
 export type PairRejectionReason =
   | "pair-first"
-  | "missing-token"
   | "invalid-token"
   | "expired-token"
   | "stale-token"
   | "device-revoked"
-  | "secret-revoked"
+  | "invalid-proof"
   | "protocol-version-mismatch"
   | "rate-limited"
   | "invalid-message"
@@ -133,7 +144,6 @@ export type PairRejectionReason =
 export interface PairRejectedMessage {
   type: "pair.rejected";
   reason: PairRejectionReason;
-  diagnosticCode?: string;
 }
 
 export interface StatusMessage {
@@ -350,6 +360,7 @@ export interface AudioStateMessage {
 
 export type ClientMessage =
   | PairHelloMessage
+  | PairProofMessage
   | PairDisconnectMessage
   | DeviceRenameMessage
   | HealthPingMessage
@@ -375,4 +386,4 @@ export type ClientMessage =
   | AudioMuteToggleMessage
   | AudioVolumeSetMessage;
 
-export type ServerMessage = PairAcceptedMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | PresentationCommandResultMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | UrlOpenResultMessage | TextSendResultMessage | ClipboardGetResultMessage | AudioStateMessage;
+export type ServerMessage = PairAcceptedMessage | PairChallengeMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | PresentationCommandResultMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | UrlOpenResultMessage | TextSendResultMessage | ClipboardGetResultMessage | AudioStateMessage;

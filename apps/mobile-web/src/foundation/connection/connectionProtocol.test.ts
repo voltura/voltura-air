@@ -149,6 +149,14 @@ describe("parseServerMessage", () => {
     expect(parseServerMessage(JSON.stringify(message))).toEqual(message);
   });
 
+  it.each([
+    { type: "pair.accepted", clientId: "client-a", pcName: "PC", paired: true, secret: "removed" },
+    { type: "pair.challenge", clientId: "client-a", challenge: "challenge", secretNonce: "removed" },
+    { type: "pair.rejected", reason: "invalid-token", diagnosticCode: "removed" }
+  ])("rejects undeclared pairing fields: $type", (message) => {
+    expect(parseServerMessage(JSON.stringify(message))).toBeNull();
+  });
+
   it.each(Object.entries(serverFrameCatalog).flatMap(([type, contract]) =>
     contract.frames.flatMap((message) => contract.required.map((field) => ({ type, message, field })))))(
     "rejects $type when required field $field is missing or null",

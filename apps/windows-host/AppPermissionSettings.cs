@@ -5,6 +5,7 @@ namespace VolturaAir.Host;
 public static class AppPermissionSettings
 {
     private static string SettingsKeyPath => HostSettingsRegistry.SettingsKeyPath;
+    private const string AllowRemoteInputValueName = "AllowRemoteInput";
     private const string AllowPcSleepValueName = "AllowPcSleep";
     private const string AllowVolumeControlValueName = "AllowVolumeControl";
     private const string AllowPresentationControlValueName = "AllowPresentationControl";
@@ -26,6 +27,7 @@ public static class AppPermissionSettings
     {
         using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: false);
         return new HostPermissionSet(
+            AllowRemoteInput: GetBooleanValue(key, AllowRemoteInputValueName, HostPermissions.DefaultGlobal.AllowRemoteInput),
             AllowPcSleep: GetBooleanValue(key, AllowPcSleepValueName, HostPermissions.DefaultGlobal.AllowPcSleep),
             AllowVolumeControl: GetBooleanValue(key, AllowVolumeControlValueName, HostPermissions.DefaultGlobal.AllowVolumeControl),
             AllowPresentationControl: GetBooleanValue(key, AllowPresentationControlValueName, HostPermissions.DefaultGlobal.AllowPresentationControl),
@@ -48,6 +50,7 @@ public static class AppPermissionSettings
         using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: true) ??
             Registry.CurrentUser.CreateSubKey(SettingsKeyPath, writable: true);
 
+        key.SetValue(AllowRemoteInputValueName, permissions.AllowRemoteInput ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowPcSleepValueName, permissions.AllowPcSleep ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowVolumeControlValueName, permissions.AllowVolumeControl ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowPresentationControlValueName, permissions.AllowPresentationControl ? 1 : 0, RegistryValueKind.DWord);

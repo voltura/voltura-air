@@ -21,6 +21,7 @@ internal sealed class GlobalPermissionsSettingsSection(
 
         var controls = new[]
         {
+            (Control: visuals.CreateCheckBox("Allow paired devices to control pointer and keyboard", permissions.AllowRemoteInput), Key: "input"),
             (Control: visuals.CreateCheckBox("Allow paired devices to request PC sleep", permissions.AllowPcSleep), Key: "sleep"),
             (Control: visuals.CreateCheckBox("Allow paired devices to control volume", permissions.AllowVolumeControl), Key: "volume"),
             (Control: visuals.CreateCheckBox("Allow paired devices to control presentations", permissions.AllowPresentationControl), Key: "presentation"),
@@ -50,7 +51,7 @@ internal sealed class GlobalPermissionsSettingsSection(
         }
         parent.Children.Add(visuals.CreateMutedText("Display off and session-ending actions require hold-to-confirm on the mobile device."));
         var details = preferenceVisuals.AddNestedSection(parent, "More about global permissions");
-        details.Children.Add(visuals.CreateMutedText("Lock and blackout are enabled by default. The screen-saver permission appears when Windows has a screen saver configured. Opening web addresses, reading the PC clipboard, display off, sign out, restart, and shut down require explicit host approval."));
+        details.Children.Add(visuals.CreateMutedText("Pointer and keyboard control, lock, and blackout are enabled by default. The screen-saver permission appears when Windows has a screen saver configured. Opening web addresses, reading the PC clipboard, display off, sign out, restart, and shut down require explicit host approval."));
     }
 
     private void Save((CheckBox Control, string Key)[] controls)
@@ -63,6 +64,7 @@ internal sealed class GlobalPermissionsSettingsSection(
         bool IsAllowed(string key) => controls.First(item => item.Key == key).Control.IsChecked == true;
         AppPermissionSettings.Save(new HostPermissionSet(
             AllowPcSleep: IsAllowed("sleep"),
+            AllowRemoteInput: IsAllowed("input"),
             AllowVolumeControl: IsAllowed("volume"),
             AllowPresentationControl: IsAllowed("presentation"),
             AllowRemoteAppLaunch: IsAllowed("launch"),

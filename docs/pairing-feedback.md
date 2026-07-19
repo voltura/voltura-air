@@ -54,11 +54,11 @@ Map pairing failures to friendly messages and recovery actions.
 | --- | --- | --- |
 | `qr-unreadable` | The uploaded photo did not contain a readable QR code. | Retake the photo, zoom in, avoid glare, or scan a fresh QR code. |
 | `qr-not-pairing-link` | The QR code is not a Voltura Air pairing link. | Scan the QR code from the PC Connect screen. |
-| `missing-token` | The request did not include a pairing token or valid reconnect secret. | Scan the PC QR code. |
 | `expired-token` | The supplied token matches a retained code, but its validity ended before use. | Click **New code** on the PC and scan again. |
 | `stale-token` | The PC has no active pairing-code state, normally because the available code was consumed or cleared. | Scan the code currently displayed by the PC. |
 | `invalid-token` | The supplied token does not match the current code or its bounded overlap code. | Scan the code currently displayed by the PC. |
-| `secret-revoked` | The saved reconnect credential is no longer valid. | Scan a fresh QR code to pair again. |
+| `device-revoked` | The PC has no paired-device record for this client identifier. | Scan a fresh QR code to pair again. |
+| `invalid-proof` | The saved private key did not produce a valid signature for the host's reconnect challenge. | Scan a fresh QR code to replace the pairing. |
 | `rate-limited` | The PC temporarily blocked repeated failed pairing attempts. | Wait a moment, click **New code** on the PC, and scan again. |
 | `invalid-message` | The host rejected the pairing request because it was not in the expected format. | Refresh the mobile app from the PC and scan a fresh QR code. |
 | `pair-first` | The host received a non-pairing message before authentication. | Scan a fresh QR code and reconnect. |
@@ -125,7 +125,9 @@ landscape.
 
 ## Diagnostics
 
-Copied diagnostics are for troubleshooting only and must not include secrets or full pairing tokens. They may include:
+Copied diagnostics are for troubleshooting only and must not include full
+pairing tokens, private reconnect keys, reconnect challenges, or reconnect
+proofs. They may include:
 
 - pairing state;
 - failure reason;
@@ -136,4 +138,4 @@ Copied diagnostics are for troubleshooting only and must not include secrets or 
 - timestamp.
 
 Diagnostic codes should use the `VAIR-PAIR-*` shape so a user can paste a short
-identifier into an issue or support request without exposing secrets.
+identifier into an issue or support request without exposing credential material.

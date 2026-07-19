@@ -32,9 +32,9 @@ in-app setting.
 4. Scan the current QR code and confirm the device name.
 
 The QR code contains the selected host origin and a short-lived pairing token.
-After successful pairing, the host stores only a hash of the reconnect secret
-and the browser stores its credential locally. Paired devices can reconnect
-while that credential remains valid.
+During pairing, the browser creates a P-256 key pair, keeps the private key in
+local browser storage, and registers only the public key with the host. Paired
+devices reconnect by signing a fresh host challenge with that private key.
 
 If the PC address, adapter, or port changes, scan a fresh QR code or use the
 mobile manual-host recovery. See [network and host selection](network-and-host-selection.md)

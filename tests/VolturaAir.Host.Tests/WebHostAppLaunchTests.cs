@@ -25,7 +25,8 @@ public sealed class WebHostAppLaunchTests : WebHostServiceTestBase
                 type = "pair.hello",
                 clientId,
                 deviceName = "Phone",
-                pairToken = fixture.Manager.CreatePairingToken()
+                pairToken = fixture.Manager.CreatePairingToken(),
+                reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing
             });
             var advertised = Assert.Single(paired.GetProperty("host").GetProperty("appLaunchActions").EnumerateArray());
             var result = await SendAndReceiveAsync(socket, new { type = "app.launch", operationId = "op-app-1", actionId = "preset.browser" });
@@ -64,7 +65,8 @@ public sealed class WebHostAppLaunchTests : WebHostServiceTestBase
                 type = "pair.hello",
                 clientId,
                 deviceName = "Phone",
-                pairToken = fixture.Manager.CreatePairingToken()
+                pairToken = fixture.Manager.CreatePairingToken(),
+                reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing
             });
 
             Assert.True(fixture.Manager.SetDevicePermissionOverrides(
@@ -104,7 +106,8 @@ public sealed class WebHostAppLaunchTests : WebHostServiceTestBase
                 type = "pair.hello",
                 clientId,
                 deviceName = "Phone",
-                pairToken = fixture.Manager.CreatePairingToken()
+                pairToken = fixture.Manager.CreatePairingToken(),
+                reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing
             });
 
             Assert.True(fixture.Manager.SetDevicePermissionOverrides(
@@ -134,7 +137,8 @@ public sealed class WebHostAppLaunchTests : WebHostServiceTestBase
             type = "pair.hello",
             clientId = $"client-{Guid.NewGuid():N}",
             deviceName = "Phone",
-            pairToken = fixture.Manager.CreatePairingToken()
+            pairToken = fixture.Manager.CreatePairingToken(),
+            reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing
         });
 
         await SendAsync(socket, new { type = "app.launch", operationId = "op-app-4", actionId = "..\\cmd.exe /c calc" });

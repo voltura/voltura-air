@@ -18,8 +18,10 @@ public sealed class PairingLinkControllerTests
         var parameters = ParseQuery(url);
 
         Assert.Equal("/pair", url.AbsolutePath);
+        Assert.InRange(controller.Url.Length, 1, 256);
         Assert.Matches("^[A-Za-z0-9_-]{32}$", parameters["t"]);
         Assert.Equal(AppVersion.Display, parameters["v"]);
+        Assert.Equal(2, parameters.Count);
         Assert.DoesNotContain("h", parameters.Keys);
     }
 
@@ -72,7 +74,9 @@ public sealed class PairingLinkControllerTests
 
         Assert.Equal("http://192.168.68.51:5173", url.GetLeftPart(UriPartial.Authority));
         Assert.Equal("/pair", url.AbsolutePath);
+        Assert.InRange(controller.Url.Length, 1, 256);
         Assert.Equal("51395", parameters["h"]);
+        Assert.Equal(3, parameters.Count);
     }
 
     [Theory]

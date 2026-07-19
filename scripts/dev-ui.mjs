@@ -106,7 +106,8 @@ async function main() {
   const pairingUrl = await waitForTextFile(pairingUrlFile, hostStartupTimeoutMs);
   const requireFromTemp = createRequire(path.join(tempNodeDir, "package.json"));
   const { chromium } = requireFromTemp("playwright");
-  const page = await launchBrowser(chromium, pairingUrl);
+  const qrCode = requireFromTemp("qrcode");
+  const page = await launchBrowser(chromium, qrCode, pairingUrl);
 
   if (smokeTest) {
     await verifySettingsDrawerLifecycle(page);
@@ -136,14 +137,15 @@ async function ensureDebugDependencies() {
     await fs.writeFile(packageJson, JSON.stringify({ private: true, type: "commonjs" }, null, 2));
   }
 
-  if (existsSync(path.join(tempNodeDir, "node_modules", "playwright"))) {
+  if (existsSync(path.join(tempNodeDir, "node_modules", "playwright")) &&
+      existsSync(path.join(tempNodeDir, "node_modules", "qrcode"))) {
     return;
   }
 
-  await run("npm", ["install", "--no-audit", "--no-fund", "--no-save", "playwright"], { cwd: tempNodeDir });
+  await run("npm", ["install", "--no-audit", "--no-fund", "--no-save", "playwright", "qrcode"], { cwd: tempNodeDir });
 }
 
-async function launchBrowser(chromium, pairingUrl) {
+async function launchBrowser(chromium, qrCode, pairingUrl) {
   const url = new URL(pairingUrl);
   url.searchParams.set("debug", "1");
 
@@ -151,9 +153,19 @@ async function launchBrowser(chromium, pairingUrl) {
   const page = browserContext.pages()[0] ?? await browserContext.newPage();
   await applyDeviceEmulation(page, debugDevice);
   await page.goto(url.href, { waitUntil: "networkidle" });
-  await clickPairIfPresent(page);
   if (smokeTest) {
+    await page.getByRole("button", { name: "Pair", exact: true }).waitFor({ state: "visible", timeout: 10000 });
+    const qrImageFile = path.join(tempDir, "pairing-qr.png");
+    await qrCode.toFile(qrImageFile, pairingUrl, { errorCorrectionLevel: "H", margin: 4, width: 1024 });
+    const ordinaryUrl = new URL(clientUrl);
+    ordinaryUrl.searchParams.set("debug", "1");
+    await page.goto(ordinaryUrl.href, { waitUntil: "networkidle" });
+    await page.locator('input[type="file"][accept="image/*"]').first().setInputFiles(qrImageFile);
+    await page.getByRole("button", { name: "Pair", exact: true }).waitFor({ state: "visible", timeout: 10000 });
+    await clickPairIfPresent(page);
     await waitForConnected(page);
+  } else {
+    await clickPairIfPresent(page);
   }
   return page;
 }
@@ -626,19 +638,22 @@ async function verifyResponsiveTextTransferLayout(page) {
   const dialogMetrics = await renameDialog.evaluate((dialog) => {
     const standardInput = document.querySelector(".snippet-save-row input");
     const input = dialog.querySelector("input");
-    const buttons = Array.from(dialog.querySelectorAll("button"));
-    if (!(standardInput instanceof HTMLInputElement) || !(input instanceof HTMLInputElement) || buttons.length !== 2) {
+    const buttons = Array.from(dialog.querySelectorAll(".modal-dialog-actions button"));
+    const closeButton = dialog.querySelector(".modal-dialog-close");
+    if (!(standardInput instanceof HTMLInputElement) || !(input instanceof HTMLInputElement) ||
+        !(closeButton instanceof HTMLButtonElement) || buttons.length !== 2) {
       return { error: "Themed snippet dialog controls were not visible." };
     }
     return {
       buttonsUseElements: buttons.every((button) => button instanceof HTMLButtonElement),
+      closeButtonAccessible: closeButton.getAttribute("aria-label") === "Close Rename snippet",
       fontMatchesApp: getComputedStyle(dialog).fontFamily === getComputedStyle(document.body).fontFamily,
       inputMatchesTheme: getComputedStyle(input).backgroundColor === getComputedStyle(standardInput).backgroundColor,
       minButtonHeight: Math.min(...buttons.map((button) => button.getBoundingClientRect().height)),
       opaqueBackground: getComputedStyle(dialog).backgroundColor !== "rgba(0, 0, 0, 0)"
     };
   });
-  if ("error" in dialogMetrics || !dialogMetrics.buttonsUseElements || !dialogMetrics.fontMatchesApp ||
+  if ("error" in dialogMetrics || !dialogMetrics.buttonsUseElements || !dialogMetrics.closeButtonAccessible || !dialogMetrics.fontMatchesApp ||
       !dialogMetrics.inputMatchesTheme || dialogMetrics.minButtonHeight < 48 || !dialogMetrics.opaqueBackground) {
     throw new Error(`Themed snippet dialog check failed: ${JSON.stringify(dialogMetrics)}`);
   }

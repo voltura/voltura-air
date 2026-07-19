@@ -50,7 +50,7 @@ internal sealed class ApplicationSettingsSection(
             AppLoggingSettings.SetEnabled(false);
         };
         parent.Children.Add(applicationLogging);
-        parent.Children.Add(visuals.CreateMutedText("Off by default. Typed text, pointer coordinates, and pairing secrets are excluded."));
+        parent.Children.Add(visuals.CreateMutedText("Off by default. Typed text, pointer coordinates, pairing tokens, private reconnect keys, and proofs are excluded."));
         var details = preferenceVisuals.AddNestedSection(parent, "More about application logs");
         details.Children.Add(visuals.CreateMutedText($"Records sanitized remote commands, host actions, outcomes, responses, and Windows errors. Daily JSON Lines files are written to {appLog.LogDirectory}."));
 

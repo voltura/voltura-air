@@ -10,9 +10,9 @@ export interface ServerFrameContract<T extends ServerMessageType> {
 
 export const serverFrameCatalog = {
   "pair.accepted": {
-    required: ["clientId", "pcName", "secret", "paired"],
+    required: ["clientId", "pcName", "paired"],
     frames: [{
-      type: "pair.accepted", clientId: "client-a", pcName: "Office PC", secret: "secret-a", paired: true,
+      type: "pair.accepted", clientId: "client-a", pcName: "Office PC", paired: true,
       capabilities: {
         awake: { canControl: true, active: false, mode: "off" },
         gestureDebug: false, inputAck: true, clipboardRead: true,
@@ -31,7 +31,8 @@ export const serverFrameCatalog = {
       }
     }]
   },
-  "pair.rejected": { required: ["reason"], frames: [{ type: "pair.rejected", reason: "invalid-token", diagnosticCode: "VAIR-PAIR-INVALID-TOKEN" }] },
+  "pair.challenge": { required: ["clientId", "challenge"], frames: [{ type: "pair.challenge", clientId: "client-a", challenge: "challenge-a" }] },
+  "pair.rejected": { required: ["reason"], frames: [{ type: "pair.rejected", reason: "invalid-token" }] },
   "status": {
     required: ["connected"],
     frames: [

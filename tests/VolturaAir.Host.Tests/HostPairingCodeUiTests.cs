@@ -21,7 +21,6 @@ public sealed partial class HostUiLayoutTests
 
         RunOnStaThread(() =>
         {
-            using var settingsScope = HostSettingsRegistry.BeginIsolatedScope();
             using var appScope = new WpfApplicationScope();
             using var store = new TempPairingStore();
             using var inputInjector = new SendInputInjector();
@@ -62,9 +61,11 @@ public sealed partial class HostUiLayoutTests
             using var appScope = new WpfApplicationScope();
             using var store = new TempPairingStore();
             using var inputInjector = new SendInputInjector();
+            using var initialKey = new PairingTestKey();
+            using var replacementKey = new PairingTestKey();
             var manager = new PairingManager(store.Store);
             var initialToken = manager.CreatePairingToken();
-            var initialPairing = manager.Accept("client-a", "Phone", initialToken, null);
+            manager.AcceptPairing("client-a", "Phone", initialToken, reconnectPublicKey: initialKey.PublicKey);
             var webHost = new WebHostService(manager, new InputDispatcher(inputInjector), isolatedTestMode: true);
             var window = new MainWindow(manager, webHost, clientUrl: null);
             try
@@ -75,11 +76,11 @@ public sealed partial class HostUiLayoutTests
                     .Select(part => part.Split('=', 2))
                     .Single(part => part[0] == "t")[1];
 
-                var repaired = manager.Accept(
+                var repaired = manager.AcceptPairing(
                     "client-a",
                     "Phone",
                     Uri.UnescapeDataString(displayedToken),
-                    initialPairing.Secret);
+                    reconnectPublicKey: replacementKey.PublicKey);
                 DoWpfEvents();
 
                 Assert.True(repaired.Accepted);
@@ -154,7 +155,6 @@ public sealed partial class HostUiLayoutTests
 
         RunOnStaThread(() =>
         {
-            using var settingsScope = HostSettingsRegistry.BeginIsolatedScope();
             using var appScope = new WpfApplicationScope();
             using var store = new TempPairingStore();
             using var inputInjector = new SendInputInjector();
@@ -178,11 +178,13 @@ public sealed partial class HostUiLayoutTests
                 var actions = Assert.IsType<SpacingStackPanel>(codeCard.Actions);
                 Assert.Collection(
                     actions.Children.OfType<Button>(),
-                    button => Assert.Equal("New code", button.Content),
-                    button => Assert.Equal("Copy link", button.Content));
+                    button => Assert.Equal("Copy link", button.Content),
+                    button => Assert.Equal("New code", button.Content));
+                Assert.Same(window.Resources["PrimaryButtonStyle"], actions.Children.OfType<Button>().First().Style);
 
                 var details = FindWpfDescendants<Expander>(window).Single(expander => expander.Header is "Details");
                 Assert.Same(window.Resources["BoundedAccordionStyle"], details.Style);
+                Assert.Contains(FindWpfDescendants<InfoCard>(details), card => card.Title == "Network adapter");
                 var scroller = Assert.Single(FindWpfDescendants<ScrollViewer>(details));
                 details.IsExpanded = true;
                 windowContent.Measure(compactClientSize);
@@ -240,6 +242,7 @@ public sealed partial class HostUiLayoutTests
             Assert.Equal(". If your phone cannot connect, choose the adapter connected to the same Wi-Fi/LAN.", runs[2].Text);
             Assert.Equal(adapterName, view.SelectedAdapterCard.Value);
             Assert.Equal(Visibility.Visible, view.SelectedAdapterCard.Visibility);
+            Assert.Same(view.AddressWarningNotice, view.SelectedAdapterCard.Actions);
         });
     }
 

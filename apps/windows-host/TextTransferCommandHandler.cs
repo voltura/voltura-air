@@ -6,6 +6,7 @@ namespace VolturaAir.Host;
 internal sealed class TextTransferCommandHandler(
     ITextDestinationService textDestinationService,
     ISystemPowerController powerController,
+    HostStatusPayloadFactory statusFactory,
     HostCommandLog commandLog,
     WebSocketTransport transport)
 {
@@ -16,6 +17,20 @@ internal sealed class TextTransferCommandHandler(
         CancellationToken cancellationToken)
     {
         var operationId = ProtocolMessageFields.GetString(root, "operationId");
+        if (!statusFactory.CanUseRemoteInput(clientId))
+        {
+            commandLog.Outcome(clientId, "text.send", "text_transfer", "permission_denied");
+            await SendResultAsync(
+                socket,
+                operationId,
+                false,
+                "VAIR-TEXT-DENIED",
+                "Text transfer is disabled for this device on the PC.",
+                "typed",
+                cancellationToken);
+            return;
+        }
+
         try
         {
             _ = powerController.DismissBlackoutIfActive();

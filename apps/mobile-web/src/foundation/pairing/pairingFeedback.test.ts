@@ -12,22 +12,6 @@ describe("getPairingFeedback", () => {
     expect(feedback.showRecoveryActions).toBe(true);
   });
 
-  it("maps legacy missing-token UI text to the missing token reason", () => {
-    const feedback = getPairingFeedback("Scan Living room PC's pairing QR to pair this app.");
-
-    expect(feedback.reason).toBe("missing-token");
-    expect(feedback.title).toBe("Pairing code missing");
-    expect(feedback.diagnosticCode).toBe("VAIR-PAIR-MISSING-TOKEN");
-  });
-
-  it("maps legacy invalid-token UI text to the invalid token reason", () => {
-    const feedback = getPairingFeedback("Pairing code expired. Scan a new QR code.");
-
-    expect(feedback.reason).toBe("invalid-token");
-    expect(feedback.title).toBe("Pairing code invalid");
-    expect(feedback.diagnosticCode).toBe("VAIR-PAIR-INVALID-TOKEN");
-  });
-
   it("maps unavailable hosts to LAN and firewall guidance", () => {
     const feedback = getPairingFeedback("PC is currently not available. Retrying...", true);
 

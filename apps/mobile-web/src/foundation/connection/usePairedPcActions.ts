@@ -13,7 +13,7 @@ import type { ClientMessage, HostStatusMetadata } from "../protocol/messages";
 import { deviceNameKey, normalizeDeviceNameInput } from "./clientIdentity";
 import { getDisplayPcName, normalizePointerSpeed } from "./connectionProtocol";
 import type { ConnectionError, ConnectionState, PairingAttempt } from "./connectionTypes";
-import { clearStoredSecret, revokePcPairing } from "./pairingCredentials";
+import { clearStoredReconnectKey, revokePcPairing } from "./pairingCredentials";
 
 interface PairedPcActionOptions {
   activePcId: string | null;
@@ -138,7 +138,7 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
 
     const isActivePc = activePcId === pcId;
     revokePcPairing(pc, clientId, deviceNameRef.current, isActivePc ? socketRef.current : null);
-    clearStoredSecret(clientId, pcId);
+    clearStoredReconnectKey(clientId, pcId);
     setPairedPcs((current) => forgetPcProfile(current, activePcId, pcId).profiles);
     if (!isActivePc) {
       return;

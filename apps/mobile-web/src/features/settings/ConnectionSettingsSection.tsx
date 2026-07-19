@@ -111,7 +111,7 @@ export function ConnectionSettingsSection({
       <div className="install-card">
         <div className="install-title">
           <Clipboard aria-hidden="true" />
-          <span className="setting-label-with-info"><span>Diagnostics</span><InfoButton title="Connection diagnostics" size="detailed" description="Copies redacted connection details for troubleshooting. Pairing secrets, device tokens, and hashes are not included." /></span>
+          <span className="setting-label-with-info"><span>Diagnostics</span><InfoButton title="Connection diagnostics" size="detailed" description="Copies redacted connection details for troubleshooting. Pairing tokens, private reconnect keys, challenges, and proofs are not included." /></span>
         </div>
         <p>Copy redacted troubleshooting details.</p>
         <button type="button" onClick={() => { void copyDiagnostics(); }}><Clipboard aria-hidden="true" /><span>Copy diagnostics</span></button>

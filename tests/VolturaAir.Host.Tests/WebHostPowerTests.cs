@@ -4,7 +4,7 @@ using VolturaAir.Host;
 namespace VolturaAir.Host.Tests;
 
 [Collection(AppPermissionSettingsCollection.Name)]
-public sealed class WebHostPowerTests
+public sealed class WebHostPowerTests : IsolatedHostSettingsTest
 {
     [Fact]
     public async Task AppliesPermissionGatedBasicAwakeControlWithoutChangingHostScreenSetting()
@@ -225,15 +225,25 @@ public sealed class WebHostPowerTests
     [Fact]
     public async Task RemoteInputDismissesBlackoutBeforeInputDispatch()
     {
+        var originalPermissions = AppPermissionSettings.Load();
         var powerActions = new FakeSystemPowerController { BlackoutActive = true };
-        await using var fixture = await PowerHostFixture.StartAsync(powerActions);
-        using var socket = await fixture.ConnectAsync();
-        await fixture.PairAsync(socket);
 
-        var inputAck = await SendAndReceiveAsync(socket, new { type = "keyboard.special", key = "Tab", seq = 21 });
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowRemoteInput = true });
+            await using var fixture = await PowerHostFixture.StartAsync(powerActions);
+            using var socket = await fixture.ConnectAsync();
+            await fixture.PairAsync(socket);
 
-        Assert.Equal("input.ack", inputAck.GetProperty("type").GetString());
-        Assert.Equal(1, powerActions.BlackoutDismissals);
+            var inputAck = await SendAndReceiveAsync(socket, new { type = "keyboard.special", key = "Tab", seq = 21 });
+
+            Assert.Equal("input.ack", inputAck.GetProperty("type").GetString());
+            Assert.Equal(1, powerActions.BlackoutDismissals);
+        }
+        finally
+        {
+            AppPermissionSettings.Save(originalPermissions);
+        }
     }
 
     [Theory]
@@ -415,7 +425,8 @@ public sealed class WebHostPowerTests
                 type = "pair.hello",
                 clientId = $"client-{Guid.NewGuid():N}",
                 deviceName = "Phone",
-                pairToken = Manager.CreatePairingToken()
+                pairToken = Manager.CreatePairingToken(),
+                reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing
             });
         }
 

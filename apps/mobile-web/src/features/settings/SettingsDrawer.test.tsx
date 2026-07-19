@@ -273,7 +273,7 @@ describe("SettingsDrawer", () => {
 
     const dialog = screen.getByRole("dialog", { name: "Connection diagnostics" });
     const connectionSection = screen.getByText("Connection").closest("details");
-    expect(dialog.textContent).toContain("Pairing secrets, device tokens, and hashes are not included.");
+    expect(dialog.textContent).toContain("Pairing tokens, private reconnect keys, challenges, and proofs are not included.");
     expect(dialog.classList.contains("info-dialog-detailed")).toBe(true);
     expect(connectionSection?.open).toBe(true);
 

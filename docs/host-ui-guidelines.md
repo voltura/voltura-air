@@ -21,6 +21,14 @@ adaptive states, AI-assisted UI work, and the UI definition of done.
   control-template geometry, and documented optical corrections.
 - Put `ScrollViewer` only around content that can grow. Action rows and primary
   navigation must remain outside scrollable regions.
+- Closing the host window hides it to the notification area rather than exiting
+  the host. On the first such close, show a tray notification that paired
+  devices remain able to control the PC and directs the user to the
+  notification-area icon to reopen or exit.
+- On Connect, keep the QR code and its immediate pairing actions visible. Put
+  network-adapter information, including its selection warning, and technical
+  pairing details in the collapsed Details accordion; the Details viewer owns
+  their scrolling.
 - Preferences uses themed accordion sections. Start them collapsed, allow only
   one section to be expanded, and keep each header a full-width keyboard and
   pointer target while individual actions remain content-sized. Expanded

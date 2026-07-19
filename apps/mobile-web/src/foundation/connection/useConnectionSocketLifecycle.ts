@@ -27,7 +27,7 @@ import {
 } from "./connectionProtocol";
 import { requestHostState, trySendClientMessage } from "./connectionSocketMessages";
 import type { ConnectionError, ConnectionState, PairingAttempt } from "./connectionTypes";
-import { clearStoredSecret, getStoredSecret, handlePairAccepted, shouldClearStoredSecretForRejection } from "./pairingCredentials";
+import { clearStoredReconnectKey, createPairingKeyMaterial, handlePairAccepted, hasStoredReconnectKey, signReconnectChallenge, shouldClearStoredReconnectKeyForRejection, type PairingKeyMaterial } from "./pairingCredentials";
 import {
   applyPcNameFromHost,
   getWebSocketUrl,
@@ -145,6 +145,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     let removeSocketListeners: (() => void) | undefined;
     let backgroundSuspended = document.visibilityState === "hidden";
     let hasShownUnavailable = false;
+    let pendingPairingKey: PairingKeyMaterial | null = null;
   
     if (!connectionPcId || !connectionPcUrl) {
       clearRuntimeStateFromSocket();
@@ -352,6 +353,18 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
         setState("connecting");
         setMessage(`Connecting to ${getDisplayPcName(currentPc(), "", screenshotMode)}...`);
         const currentPairingAttempt = pairingAttemptRef.current;
+        pendingPairingKey = null;
+        if (currentPairingAttempt.token !== undefined) {
+          pendingPairingKey = createPairingKeyMaterial();
+          if (!pendingPairingKey) {
+            markUnavailable(ws, "This browser cannot create a saved pairing. Scan from a browser with cryptographic random support.", "VAIR-PAIR-KEY-UNAVAILABLE");
+            return;
+          }
+        } else if (!hasStoredReconnectKey(clientId, pc.id)) {
+          markUnavailable(ws, "Saved pairing is missing in this browser. Scan a fresh QR code to pair again.", "VAIR-PAIR-RECONNECT-KEY-MISSING");
+          return;
+        }
+
         const hello: ClientMessage = {
           type: "pair.hello",
           clientId,
@@ -360,7 +373,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
           browser: getBrowserName(),
           displayMode: getDisplayMode(),
           pairToken: currentPairingAttempt.token,
-          secret: getStoredSecret(clientId, pc.id) ?? undefined
+          reconnectPublicKey: pendingPairingKey?.reconnectPublicKey
         };
         ws.send(JSON.stringify(hello));
       }
@@ -375,6 +388,11 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
           return;
         }
   
+        if (response.type === "pair.challenge") {
+          sendPairProof(response.challenge);
+          return;
+        }
+
         if (response.type === "pair.accepted") {
           touchHealthy();
           if (commitManualPcOnAcceptance) {
@@ -389,7 +407,8 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
             setActivePcId(pc.id);
             setPendingManualPc((current) => current?.id === pc.id && current.url === pc.url ? null : current);
           }
-          handlePairAccepted(response, pc.id);
+          handlePairAccepted(response, pc.id, pendingPairingKey?.privateKey ?? null);
+          pendingPairingKey = null;
           updateCapabilitiesFromSocket(response.capabilities);
           updateHostStatusFromSocket(response.host);
           if (!screenshotMode) {
@@ -428,14 +447,15 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
             return;
           }
   
-          const wasStoredReconnectRejected = shouldClearStoredSecretForRejection(response.reason) && pairingAttemptRef.current.token === undefined;
-          if (shouldClearStoredSecretForRejection(response.reason)) {
-            clearStoredSecret(clientId, pc.id);
+          const wasStoredReconnectRejected = shouldClearStoredReconnectKeyForRejection(response.reason) && pairingAttemptRef.current.token === undefined;
+          if (shouldClearStoredReconnectKeyForRejection(response.reason)) {
+            clearStoredReconnectKey(clientId, pc.id);
           }
+          pendingPairingKey = null;
           clearRuntimeStateFromSocket();
           const rejectedMessage = `Pairing rejected: ${response.reason}`;
           setLastConnectionError({ code: diagnosticCodeForPairingReason(response.reason), message: rejectedMessage });
-          setState(response.reason === "missing-token" || wasStoredReconnectRejected ? "needs-pairing" : "rejected");
+          setState(wasStoredReconnectRejected ? "needs-pairing" : "rejected");
           setMessage(wasStoredReconnectRejected ? "Saved pairing was removed on the PC. Scan a fresh QR code to pair again." : rejectedMessage);
           releaseSocketListeners();
           ws.close();
@@ -599,6 +619,20 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
           scheduleHealthCheck(ws);
         }
       }
+
+      function sendPairProof(challenge: string) {
+        if (disposed || ws !== socketRef.current) {
+          return;
+        }
+
+        const signature = signReconnectChallenge(clientId, pc.id, challenge);
+        if (!signature) {
+          markUnavailable(ws, "This browser cannot prove the saved pairing. Scan a fresh QR code to pair again.", "VAIR-PAIR-RECONNECT-PROOF-UNAVAILABLE");
+          return;
+        }
+
+        ws.send(JSON.stringify({ type: "pair.proof", clientId, signature }));
+      }
   
       function onSocketClose() {
         if (disposed || !shouldRetry || backgroundSuspended || ws !== socketRef.current) {
@@ -620,7 +654,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
         close: onSocketClose,
         error: onSocketError,
         message: onSocketMessage,
-        open: onSocketOpen
+        open: () => { void onSocketOpen(); }
       });
     }
   

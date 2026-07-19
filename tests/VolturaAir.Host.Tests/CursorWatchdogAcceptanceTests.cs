@@ -4,7 +4,7 @@ using System.Globalization;
 namespace VolturaAir.Host.Tests;
 
 [Collection(AppPermissionSettingsCollection.Name)]
-public sealed class CursorWatchdogAcceptanceTests
+public sealed class CursorWatchdogAcceptanceTests : IsolatedHostSettingsTest
 {
     private static readonly TimeSpan ProcessTimeout = TimeSpan.FromSeconds(10);
 

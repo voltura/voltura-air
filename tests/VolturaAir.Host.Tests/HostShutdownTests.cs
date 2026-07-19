@@ -79,7 +79,6 @@ public sealed partial class HostUiLayoutTests
 
         RunOnStaThread(() =>
         {
-            using var settingsScope = HostSettingsRegistry.BeginIsolatedScope();
             using var appScope = new WpfApplicationScope();
             using var store = new TempPairingStore();
             using var inputInjector = new SendInputInjector();
@@ -102,6 +101,55 @@ public sealed partial class HostUiLayoutTests
             }
             finally
             {
+                window.Close();
+                var disposal = webHost.DisposeAsync().AsTask();
+                WaitForWpf(() => disposal.IsCompleted, "test web host cleanup");
+                disposal.GetAwaiter().GetResult();
+            }
+        });
+    }
+
+    [Fact]
+    public void ClosingTheWindowNotifiesOnceAndKeepsTheTrayHostRunning()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            using var store = new TempPairingStore();
+            using var inputInjector = new SendInputInjector();
+            var manager = new PairingManager(store.Store);
+            var webHost = new WebHostService(manager, new InputDispatcher(inputInjector), isolatedTestMode: true);
+            var window = new MainWindow(manager, webHost, clientUrl: null);
+            var notifications = new List<(string Title, string Message)>();
+            using var trayContext = new WpfTrayApplicationContext(
+                window,
+                webHost,
+                manager,
+                webHost.AwakeService,
+                static () => { },
+                (title, message, _) => notifications.Add((title, message)));
+            try
+            {
+                window.Show();
+                window.Close();
+
+                Assert.False(window.IsVisible);
+                Assert.Single(notifications);
+                Assert.Equal(CloseToTrayNotification.Title, notifications[0].Title);
+                Assert.Equal(CloseToTrayNotification.Message, notifications[0].Message);
+
+                window.Show();
+                window.Close();
+                Assert.Single(notifications);
+            }
+            finally
+            {
+                trayContext.RequestExit();
                 window.Close();
                 var disposal = webHost.DisposeAsync().AsTask();
                 WaitForWpf(() => disposal.IsCompleted, "test web host cleanup");

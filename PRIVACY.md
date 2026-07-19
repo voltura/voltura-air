@@ -1,6 +1,6 @@
 # Privacy policy
 
-Last updated: July 18, 2026
+Last updated: July 19, 2026
 
 Voltura Air is designed to operate between a Windows PC and paired devices on
 the same local network. Voltura AB does not provide an account system, cloud
@@ -14,7 +14,7 @@ storage:
 
 - a random client identifier and the device name chosen by the user;
 - saved PC addresses and names;
-- reconnect credentials for paired PCs;
+- private reconnect keys for paired PCs;
 - app, keyboard, remote, and trackpad settings; and
 - text snippets the user explicitly saves.
 
@@ -23,7 +23,7 @@ application-data directory:
 
 - host settings and permissions;
 - paired-device identifiers and names;
-- a one-way hash of each reconnect credential;
+- the public reconnect key registered by each paired browser;
 - device platform, browser, and display-mode descriptions;
 - pairing and connection timestamps; and
 - per-device permission and pointer settings.
@@ -34,8 +34,13 @@ This information remains on the user's devices. Voltura AB does not receive it.
 
 Pointer, keyboard, text, and control commands travel directly from the paired
 browser to the Windows host over the local network. Text, pointer coordinates,
-opened web addresses, and pairing credentials are not included in Voltura Air
-application logs.
+opened web addresses, pairing tokens, private reconnect keys, and reconnect
+proofs are not included in Voltura Air application logs.
+
+Because Voltura Air is a local HTTP/WebSocket app, local-network observers or
+interfering devices on an untrusted network may be able to observe connection
+metadata or disrupt remote-control traffic. Use Voltura Air only on networks
+you trust and remove paired devices that should no longer control the PC.
 
 Typed or dictated text is delivered to Windows only when the user requests it.
 Text may become part of the Windows clipboard or the selected destination
@@ -61,7 +66,8 @@ is governed by the privacy practices of that destination.
 Application logging on the Windows host is off by default. When enabled, logs
 contain timestamps, event and action types, outcomes, error details, and random
 client identifiers. They do not contain typed text, clipboard contents, opened
-web addresses, pointer coordinates, pairing tokens, or reconnect credentials.
+web addresses, pointer coordinates, pairing tokens, private reconnect keys, or
+reconnect proofs.
 Log retention is configurable from 1 to 30 days and defaults to 2 days. Logs are
 stored locally and can be viewed or deleted from Voltura Air Diagnostics.
 
@@ -89,6 +95,7 @@ directory after uninstalling to remove the retained Windows-host data.
 
 Voltura AB maintains Voltura Air. Privacy questions may be submitted through the
 [project's GitHub issue tracker](https://github.com/voltura/voltura-air/issues)
-without including private text, pairing credentials, or other sensitive data.
+without including private text, pairing tokens, private reconnect keys, or other
+sensitive data.
 Report security vulnerabilities using the private process in the
 [security policy](SECURITY.md).

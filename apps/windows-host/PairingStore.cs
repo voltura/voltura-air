@@ -8,7 +8,6 @@ public sealed class PairingStore
     private const long MaxStoreBytes = 1024 * 1024;
     private const int MaxRecords = 1024;
     private const int MaxClientIdLength = 128;
-    private const int SecretHashLength = 64;
     private const int MaxDeviceNameLength = 120;
     private readonly string _filePath;
 
@@ -73,8 +72,7 @@ public sealed class PairingStore
     {
         return !string.IsNullOrWhiteSpace(record.ClientId) &&
             record.ClientId.Length <= MaxClientIdLength &&
-            record.SecretHash is { Length: SecretHashLength } &&
-            record.SecretHash.All(Uri.IsHexDigit) &&
+            PairingManager.IsValidReconnectPublicKey(record.ReconnectPublicKey) &&
             record.DeviceName is not null &&
             record.DeviceName.Length <= MaxDeviceNameLength;
     }

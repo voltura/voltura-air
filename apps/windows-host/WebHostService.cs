@@ -131,6 +131,7 @@ public sealed class WebHostService : IAsyncDisposable
         var textTransferCommands = new TextTransferCommandHandler(
             resolvedTextDestinationService,
             _powerController,
+            statusFactory,
             commandLog,
             _transport);
         var clipboardCommands = new ClipboardCommandHandler(

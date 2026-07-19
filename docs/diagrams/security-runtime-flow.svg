@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1560" height="780" viewBox="0 0 1560 780" role="img" aria-labelledby="title desc">
+  <title id="title">Voltura Air runtime data flow and trust boundaries</title>
+  <desc id="desc">A left-to-right runtime flow separates the untrusted client and network, the Windows host process, and the Windows user session. Attacker paths enter only through the host network boundary.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth"><path d="M0 0 L10 5 L0 10 Z" fill="#344054"/></marker>
+    <marker id="risk-arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth"><path d="M0 0 L10 5 L0 10 Z" fill="#b42318"/></marker>
+    <style>
+      text{font-family:Segoe UI,Arial,sans-serif;fill:#101828;letter-spacing:0}.bg{fill:#f7f9fc}.zone-a{fill:#f8fafc}.zone-b{fill:#f4f7fb}.zone-c{fill:#f6fbf8}.box{fill:#fff;stroke:#344054;stroke-width:2}.store{fill:#fff7e6;stroke:#a15c00;stroke-width:2}.attacker{fill:#fff1f3;stroke:#b42318;stroke-width:2}.sink{fill:#eef8f1;stroke:#027a48;stroke-width:2.5}.trust{stroke:#667085;stroke-width:2;stroke-dasharray:8 8}.arrow{stroke:#344054;stroke-width:2.4;fill:none;marker-end:url(#arrow)}.risk-path{stroke:#b42318;stroke-width:2.2;stroke-dasharray:7 6;fill:none;marker-end:url(#risk-arrow)}.title{font-size:28px;font-weight:700}.subtitle{font-size:14px;fill:#475467}.zone-label{font-size:14px;font-weight:700;fill:#344054}.label{font-size:16px;font-weight:700}.small{font-size:13px;fill:#475467}.edge{font-size:12px;font-weight:600;fill:#475467;paint-order:stroke;stroke:#f7f9fc;stroke-width:6px;stroke-linejoin:round}
+    </style>
+  </defs>
+
+  <rect class="bg" width="1560" height="780"/>
+  <text class="title" x="40" y="42">Runtime Data Flow and Trust Boundaries</text>
+  <text class="subtitle" x="40" y="68">Authentication, policy, and command checks remain inside the host process before any Windows action.</text>
+
+  <rect class="zone-a" x="30" y="96" width="360" height="640" rx="8"/>
+  <rect class="zone-b" x="390" y="96" width="840" height="640"/>
+  <rect class="zone-c" x="1230" y="96" width="300" height="640" rx="8"/>
+  <line class="trust" x1="390" y1="96" x2="390" y2="736"/>
+  <line class="trust" x1="1230" y1="96" x2="1230" y2="736"/>
+  <text class="zone-label" x="52" y="124">UNTRUSTED CLIENT / NETWORK</text>
+  <text class="zone-label" x="420" y="124">WINDOWS HOST PROCESS</text>
+  <text class="zone-label" x="1260" y="124">WINDOWS USER SESSION</text>
+
+  <rect class="box" x="70" y="164" width="280" height="112" rx="10"/>
+  <text class="label" x="210" y="200" text-anchor="middle">PWA / browser client</text>
+  <text class="small" x="210" y="226" text-anchor="middle">untrusted UI</text>
+  <text class="small" x="210" y="248" text-anchor="middle">private reconnect key storage</text>
+
+  <rect class="attacker" x="70" y="430" width="280" height="92" rx="10"/>
+  <text class="label" x="210" y="466" text-anchor="middle">LAN attacker</text>
+  <text class="small" x="210" y="492" text-anchor="middle">can reach listener if the network allows</text>
+
+  <rect class="attacker" x="70" y="574" width="280" height="92" rx="10"/>
+  <text class="label" x="210" y="610" text-anchor="middle">Internet-origin site</text>
+  <text class="small" x="210" y="636" text-anchor="middle">sends an untrusted Origin</text>
+
+  <rect class="box" x="440" y="164" width="250" height="112" rx="10"/>
+  <text class="label" x="565" y="198" text-anchor="middle">ASP.NET host</text>
+  <text class="small" x="565" y="224" text-anchor="middle">HTTP app shell + /ws</text>
+  <text class="small" x="565" y="246" text-anchor="middle">Origin check before accept</text>
+
+  <rect class="box" x="440" y="356" width="250" height="138" rx="10"/>
+  <text class="label" x="565" y="390" text-anchor="middle">WebSocketSessionHandler</text>
+  <text class="small" x="565" y="416" text-anchor="middle">pair.hello first</text>
+  <text class="small" x="565" y="438" text-anchor="middle">message validation</text>
+  <text class="small" x="565" y="460" text-anchor="middle">single dispatch point</text>
+
+  <rect class="store" x="750" y="164" width="200" height="112" rx="10"/>
+  <text class="label" x="850" y="198" text-anchor="middle">Pairing store</text>
+  <text class="small" x="850" y="224" text-anchor="middle">reconnect public keys</text>
+  <text class="small" x="850" y="246" text-anchor="middle">permission overrides</text>
+
+  <rect class="box" x="750" y="356" width="200" height="138" rx="10"/>
+  <text class="label" x="850" y="390" text-anchor="middle">Policy factory</text>
+  <text class="small" x="850" y="416" text-anchor="middle">global permissions</text>
+  <text class="small" x="850" y="438" text-anchor="middle">per-device permissions</text>
+  <text class="small" x="850" y="460" text-anchor="middle">advertised capabilities</text>
+
+  <rect class="box" x="1010" y="356" width="190" height="138" rx="10"/>
+  <text class="label" x="1105" y="390" text-anchor="middle">Command handlers</text>
+  <text class="small" x="1105" y="416" text-anchor="middle">input, text, clipboard</text>
+  <text class="small" x="1105" y="438" text-anchor="middle">launch, URL, power</text>
+  <text class="small" x="1105" y="460" text-anchor="middle">awake, presentation, audio</text>
+
+  <rect class="sink" x="1280" y="356" width="230" height="138" rx="10"/>
+  <text class="label" x="1395" y="390" text-anchor="middle">Windows session</text>
+  <text class="small" x="1395" y="416" text-anchor="middle">SendInput + clipboard</text>
+  <text class="small" x="1395" y="438" text-anchor="middle">process + power APIs</text>
+  <text class="small" x="1395" y="460" text-anchor="middle">focused user context</text>
+
+  <path class="arrow" d="M350 200 H440"/>
+  <text class="edge" x="395" y="188" text-anchor="middle">HTTP / WebSocket</text>
+
+  <path class="arrow" d="M565 276 V356"/>
+  <text class="edge" x="578" y="321">accepted socket</text>
+
+  <path class="arrow" d="M690 392 H718 V220 H750"/>
+  <text class="edge" x="720" y="300">paired record access</text>
+
+  <path class="arrow" d="M690 425 H750"/>
+  <text class="edge" x="720" y="413" text-anchor="middle">client identity</text>
+
+  <path class="arrow" d="M850 276 V356"/>
+  <text class="edge" x="862" y="321">device overrides</text>
+
+  <path class="arrow" d="M950 425 H1010"/>
+  <text class="edge" x="980" y="413" text-anchor="middle">authorized command</text>
+
+  <path class="arrow" d="M1200 425 H1280"/>
+  <text class="edge" x="1240" y="413" text-anchor="middle">focused action</text>
+
+  <path class="risk-path" d="M350 476 H405 V232 H440"/>
+
+  <path class="risk-path" d="M350 620 H420 V264 H440"/>
+</svg>

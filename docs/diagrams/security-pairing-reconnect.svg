@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1160" viewBox="0 0 1440 1160" role="img" aria-labelledby="title desc">
+  <title id="title">Voltura Air pairing and reconnect sequence</title>
+  <desc id="desc">Initial pairing registers a browser-generated P-256 public key. Reconnect uses a one-time host challenge and a signature created by the browser's private key.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth"><path d="M0 0 L10 5 L0 10 Z" fill="#344054"/></marker>
+    <marker id="red-arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth"><path d="M0 0 L10 5 L0 10 Z" fill="#b42318"/></marker>
+    <style>
+      text{font-family:Segoe UI,Arial,sans-serif;fill:#101828;letter-spacing:0}.bg{fill:#f7f9fc}.head{fill:#fff;stroke:#344054;stroke-width:2}.store{fill:#fff7e6;stroke:#a15c00;stroke-width:2}.note{fill:#eef8f1;stroke:#027a48;stroke-width:1.8}.lifeline{stroke:#98a2b3;stroke-width:2;stroke-dasharray:6 6}.msg{stroke:#344054;stroke-width:2.2;fill:none;marker-end:url(#arrow)}.reply{stroke:#667085;stroke-width:2.2;stroke-dasharray:6 5;fill:none;marker-end:url(#arrow)}.rev{stroke:#b42318;stroke-width:2.2;fill:none;marker-end:url(#red-arrow);stroke-dasharray:7 6}.divider{stroke:#98a2b3;stroke-width:1.5}.title{font-size:28px;font-weight:700}.subtitle{font-size:14px;fill:#475467}.label{font-size:16px;font-weight:700}.small{font-size:13px;fill:#475467;paint-order:stroke;stroke:#f7f9fc;stroke-width:6px;stroke-linejoin:round}.note-text{font-size:13px;fill:#05603a}.phase{font-size:13px;font-weight:700;fill:#344054;letter-spacing:1px}
+    </style>
+  </defs>
+
+  <rect class="bg" width="1440" height="1160"/>
+  <text class="title" x="40" y="42">Pairing and Proof-of-Possession Reconnect</text>
+  <text class="subtitle" x="40" y="68">The QR remains short; the browser creates its reconnect key only after importing the pairing link.</text>
+
+  <rect class="head" x="50" y="96" width="220" height="64" rx="8"/>
+  <text class="label" x="160" y="134" text-anchor="middle">Windows host</text>
+  <rect class="head" x="370" y="96" width="220" height="64" rx="8"/>
+  <text class="label" x="480" y="134" text-anchor="middle">QR / pair link</text>
+  <rect class="head" x="710" y="96" width="220" height="64" rx="8"/>
+  <text class="label" x="820" y="134" text-anchor="middle">PWA client</text>
+  <rect class="store" x="1130" y="96" width="220" height="64" rx="8"/>
+  <text class="label" x="1240" y="134" text-anchor="middle">Pairing store</text>
+
+  <line class="lifeline" x1="160" y1="160" x2="160" y2="1120"/>
+  <line class="lifeline" x1="480" y1="160" x2="480" y2="1120"/>
+  <line class="lifeline" x1="820" y1="160" x2="820" y2="1120"/>
+  <line class="lifeline" x1="1240" y1="160" x2="1240" y2="1120"/>
+
+  <text class="phase" x="40" y="192">INITIAL PAIRING</text>
+
+  <path class="msg" d="M160 226 H480"/>
+  <text class="small" x="320" y="214" text-anchor="middle">create short-lived pairToken</text>
+
+  <path class="msg" d="M480 286 H820"/>
+  <text class="small" x="650" y="274" text-anchor="middle">/pair?t=token&amp;v=version&amp;h=host</text>
+
+  <path class="msg" d="M820 326 H950 V372 H820"/>
+  <text class="small" x="966" y="344">generate P-256 key pair</text>
+  <text class="small" x="966" y="366">keep private key locally</text>
+
+  <path class="msg" d="M820 432 H160"/>
+  <text class="small" x="490" y="420" text-anchor="middle">pair.hello(clientId, deviceName, pairToken, publicKey)</text>
+
+  <path class="msg" d="M160 466 H280 V508 H160"/>
+  <text class="small" x="294" y="484">validate message</text>
+  <text class="small" x="294" y="506">consume token</text>
+
+  <path class="msg" d="M160 560 H1240"/>
+  <text class="small" x="700" y="548" text-anchor="middle">store clientId + reconnect public key</text>
+
+  <path class="reply" d="M160 620 H820"/>
+  <text class="small" x="490" y="608" text-anchor="middle">pair.accepted (no credential)</text>
+
+  <rect class="note" x="704" y="646" width="232" height="48" rx="6"/>
+  <text class="note-text" x="820" y="666" text-anchor="middle">Private key remains only in</text>
+  <text class="note-text" x="820" y="684" text-anchor="middle">this browser's local storage</text>
+
+  <line class="divider" x1="40" y1="730" x2="1400" y2="730"/>
+  <rect class="bg" x="650" y="718" width="140" height="24"/>
+  <text class="phase" x="720" y="735" text-anchor="middle">RECONNECT</text>
+
+  <path class="msg" d="M820 780 H160"/>
+  <text class="small" x="490" y="768" text-anchor="middle">pair.hello(clientId, deviceName)</text>
+
+  <path class="msg" d="M160 830 H1240"/>
+  <text class="small" x="700" y="818" text-anchor="middle">load registered reconnect public key</text>
+
+  <path class="reply" d="M160 884 H820"/>
+  <text class="small" x="490" y="872" text-anchor="middle">pair.challenge(clientId, one-time session challenge)</text>
+
+  <path class="msg" d="M820 920 H950 V960 H820"/>
+  <text class="small" x="966" y="944">sign challenge payload</text>
+
+  <path class="msg" d="M820 1000 H160"/>
+  <text class="small" x="490" y="988" text-anchor="middle">pair.proof(clientId, P1363 signature)</text>
+
+  <path class="msg" d="M160 1028 H280 V1068 H160"/>
+  <text class="small" x="294" y="1044">consume challenge</text>
+  <text class="small" x="294" y="1066">verify signature</text>
+
+  <path class="reply" d="M160 1104 H820"/>
+  <text class="small" x="490" y="1092" text-anchor="middle">pair.accepted (no credential)</text>
+
+  <path class="rev" d="M160 1136 H820"/>
+  <text class="small" x="490" y="1124" text-anchor="middle">revocation closes active sockets</text>
+</svg>

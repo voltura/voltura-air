@@ -8,7 +8,7 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     [Fact]
     public async Task PresentationIsNotAdvertisedOrExecutableWhileAlphaFeaturesAreDisabled()
     {
-        using var settingsScope = HostSettingsRegistry.BeginIsolatedScope();
+        AppDeveloperSettings.SetEnableAlphaFeatures(false);
         await using var fixture = await WebHostFixture.StartAsync();
         var clientId = $"client-{Guid.NewGuid():N}";
         using var socket = await ConnectAsync(fixture.WebHost);
@@ -33,7 +33,7 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     [Fact]
     public async Task AlphaSettingBroadcastsPresentationAvailabilityChanges()
     {
-        using var settingsScope = HostSettingsRegistry.BeginIsolatedScope();
+        AppDeveloperSettings.SetEnableAlphaFeatures(false);
         await using var fixture = await WebHostFixture.StartAsync();
         var clientId = $"client-{Guid.NewGuid():N}";
         using var socket = await ConnectAsync(fixture.WebHost);
@@ -54,7 +54,6 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     [Fact]
     public async Task PresentationTapRunsReviewedShortcutAndReturnsItsMatchingResult()
     {
-        using var settingsScope = HostSettingsRegistry.BeginIsolatedScope();
         AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
         try
@@ -88,7 +87,6 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     [Fact]
     public async Task PresentationPermissionDenialReturnsFeedbackWithoutInjectingOrClosing()
     {
-        using var settingsScope = HostSettingsRegistry.BeginIsolatedScope();
         AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
         try
@@ -122,7 +120,6 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     [Fact]
     public async Task PresentationNativeFailureReturnsFeedbackAndNextTapStillWorks()
     {
-        using var settingsScope = HostSettingsRegistry.BeginIsolatedScope();
         AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
         try
@@ -164,7 +161,6 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     [Fact]
     public async Task UnsupportedTargetActionReturnsFeedbackWithoutInjection()
     {
-        using var settingsScope = HostSettingsRegistry.BeginIsolatedScope();
         AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
         try
@@ -201,7 +197,8 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
             type = "pair.hello",
             clientId,
             deviceName = "Presenter phone",
-            pairToken = token
+            pairToken = token,
+            reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing
         });
     }
 }

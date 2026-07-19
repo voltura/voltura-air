@@ -145,15 +145,19 @@ function isServerMessage(value: unknown): value is ServerMessage {
 
   switch (value.type) {
     case "pair.accepted":
-      return isBoundedString(value.clientId, 128, false) &&
+      return hasOnlyFields(value, ["type", "clientId", "pcName", "paired", "capabilities", "host"]) &&
+        isBoundedString(value.clientId, 128, false) &&
         isBoundedString(value.pcName, 120, false) &&
-        isBoundedString(value.secret, 512, false) &&
         value.paired === true &&
         isOptional(value, "capabilities", isServerCapabilities) &&
         isOptional(value, "host", isHostStatusMetadata);
+    case "pair.challenge":
+      return hasOnlyFields(value, ["type", "clientId", "challenge"]) &&
+        isBoundedString(value.clientId, 128, false) &&
+        isBoundedString(value.challenge, 512, false);
     case "pair.rejected":
-      return isBoundedString(value.reason, 120, false) &&
-        isOptional(value, "diagnosticCode", isString);
+      return hasOnlyFields(value, ["type", "reason"]) &&
+        isBoundedString(value.reason, 120, false);
     case "status":
       return typeof value.connected === "boolean" &&
         isOptional(value, "message", isString) &&
@@ -204,6 +208,7 @@ function isServerCapabilities(value: unknown): boolean {
   return isOptional(value, "awake", isAwakeCapability) &&
     isOptional(value, "gestureDebug", isBoolean) &&
     isOptional(value, "inputAck", isBoolean) &&
+    isOptional(value, "remoteInput", isBoolean) &&
     isOptional(value, "clipboardRead", isBoolean) &&
     isOptional(value, "presentation", (candidate) => isBooleanCapability(candidate, "canControl")) &&
     isOptional(value, "power", isPowerCapabilities) &&
@@ -279,6 +284,10 @@ function isBooleanCapability(value: unknown, field: string): boolean {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasOnlyFields(value: Record<string, unknown>, allowedFields: readonly string[]): boolean {
+  return Object.keys(value).every((field) => allowedFields.includes(field));
 }
 
 function isOptional(value: Record<string, unknown>, field: string, predicate: (candidate: unknown) => boolean): boolean {

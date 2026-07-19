@@ -127,6 +127,8 @@ public partial class MainWindow : Window
 
     public string ServerUrl => _connectPage.ServerUrl;
 
+    internal event EventHandler? HiddenToTray;
+
     public void ShowPage(HostPage page)
     {
         SelectPage(page);
@@ -183,6 +185,7 @@ public partial class MainWindow : Window
         {
             e.Cancel = true;
             Hide();
+            HiddenToTray?.Invoke(this, EventArgs.Empty);
             return;
         }
 
@@ -393,7 +396,6 @@ public partial class MainWindow : Window
     private void OnConnectionNavClicked(object sender, RoutedEventArgs e) => SelectPage(HostPage.Connection);
     private void OnPreferencesNavClicked(object sender, RoutedEventArgs e) => SelectPage(HostPage.Preferences);
     private void OnDiagnosticsNavClicked(object sender, RoutedEventArgs e) => SelectPage(HostPage.Diagnostics);
-    private void OnHideClicked(object sender, RoutedEventArgs e) => Hide();
 
     private static string Plural(int count) => count == 1 ? string.Empty : "s";
 }

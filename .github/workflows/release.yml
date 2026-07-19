@@ -161,7 +161,10 @@ jobs:
             "--repo", $env:GITHUB_REPOSITORY,
             "--target", $env:GITHUB_SHA,
             "--title", "Voltura Air $tag",
-            "--notes", "Windows release assets for Voltura Air $tag."
+            "--draft",
+            "--generate-notes",
+            "--fail-on-no-commits",
+            "--notes", "Voltura Air is free software from Voltura AB. If it helps you, optional support links are available through Ko-fi and PayPal."
           )
 
           if ($tag.Contains("-")) {

@@ -11,9 +11,10 @@ npm run branding:generate
 ```
 
 Review, commit, and push to `main`. Run **Publish Voltura Air release**
-in GitHub Actions. After it succeeds, upload the contents of `docs/site` to
-`voltura.se/air`. Increment every later public release (`0.6.1`, `0.6.2`, then
-`0.7.0` for the next larger milestone).
+in GitHub Actions. It creates a draft GitHub release with generated notes and
+the release assets. Review and publish that draft, then upload the contents of
+`docs/site` to `voltura.se/air`. Increment every later public release (`0.6.1`,
+`0.6.2`, then `0.7.0` for the next larger milestone).
 
 ## Prepare the release version
 
@@ -121,9 +122,36 @@ Run **Publish Voltura Air release** from the prepared `main` commit. The workflo
 defaults match the version written by `npm run release`.
 
 The workflow verifies its version and tag inputs, runs tests, packages and
-validates the Windows assets, then creates the tag and GitHub release. It rejects
-an existing tag. Use a new version for every published build. Versions with a
-prerelease suffix are published as GitHub prereleases.
+validates the Windows assets, then creates the tag and a draft GitHub release.
+GitHub generates a commit/PR-based release-notes baseline and prepends the
+freeware notice. Review the draft's notes and release assets before publishing
+it. The workflow rejects an existing tag and fails when no commits exist since
+the prior release. Use a new version for every published build. Versions with a
+prerelease suffix are marked as GitHub prereleases.
+
+## Review generated release notes
+
+GitHub's generated notes are raw material, not release notes. Before publishing
+the draft, replace the generated commit list with a concise user-facing summary:
+
+```markdown
+## Highlights
+
+- <New capability or important user-visible improvement.>
+
+## Fixes and reliability
+
+- <Important defect, recovery, pairing, or compatibility improvement.>
+
+## Notes
+
+- <Any setup, compatibility, alpha-feature, or known-limitation note.>
+```
+
+Include only new user-facing features and fixes for defects that users could
+actually experience. Omit refactors, code organization, tests, CI, tooling,
+documentation, dependency maintenance, and other internal work. Keep the
+freeware notice that the workflow prepends.
 
 ## Create GitHub release assets manually
 

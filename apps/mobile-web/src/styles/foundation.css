@@ -62,21 +62,25 @@ button {
 }
 
 button:focus-visible {
-  border-color: var(--accent);
+  border-color: var(--focus);
   outline: none;
 }
 
 input:focus-visible,
 select:focus-visible,
 summary:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--accent) 76%, var(--text));
-  outline-offset: 3px;
+  outline: none;
 }
 
-button:not([aria-disabled="true"]):active,
+button:not([aria-disabled="true"]):active {
+  color: var(--text);
+  background: var(--surface-raised);
+  border-color: var(--accent);
+}
+
 button.active {
-  color: var(--on-accent);
-  background: var(--accent-strong);
+  color: var(--on-action);
+  background: var(--action);
   border-color: var(--accent);
 }
 

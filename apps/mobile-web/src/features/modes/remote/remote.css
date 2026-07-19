@@ -104,8 +104,8 @@
 }
 
 .remote-utility-grid button.remote-switch-app.active {
-  color: var(--on-accent);
-  background: var(--accent-strong);
+  color: var(--on-action);
+  background: var(--action);
   border-color: var(--accent);
 }
 
@@ -246,51 +246,13 @@
   margin-top: 8px;
 }
 
-.remote-url-dialog {
-  width: min(420px, calc(100vw - 28px));
-  max-width: 100%;
-  max-height: calc(var(--app-viewport-height) - 28px);
-  margin: auto;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: 0 20px 60px var(--drawer-shadow);
-  padding: 0;
-}
-
-.remote-url-dialog::backdrop {
-  background: var(--scrim);
-  backdrop-filter: blur(4px);
-}
-
-.remote-url-dialog form {
-  display: grid;
-  gap: 16px;
-  padding: 20px;
-}
-
-.remote-url-dialog header,
 .remote-url-dialog label {
   display: grid;
   gap: 8px;
 }
 
-.remote-url-dialog h2,
-.remote-url-dialog p {
-  margin: 0;
-}
-
-.remote-url-dialog h2 {
-  font-size: 1.25rem;
-}
-
 .remote-url-dialog label > span {
   font-weight: 700;
-}
-
-.remote-url-open-label {
-  width: fit-content;
 }
 
 .remote-url-dialog input {
@@ -304,8 +266,8 @@
 }
 
 .remote-url-dialog input:focus-visible {
-  border-color: color-mix(in srgb, var(--accent) 76%, var(--text));
-  outline-offset: 0;
+  border-color: var(--focus);
+  outline: none;
 }
 
 :root:not([data-theme="light"]) .remote-url-dialog input {
@@ -336,8 +298,8 @@
 
 .remote-url-dialog-primary {
   border-color: var(--accent);
-  background: var(--accent-strong);
-  color: var(--on-accent);
+  background: var(--action);
+  color: var(--on-action);
 }
 
 .remote-url-dialog-actions svg {
@@ -504,8 +466,8 @@
 }
 
 .remote-ring-zone:active {
-  color: var(--on-accent);
-  background: color-mix(in srgb, var(--accent-strong) 68%, transparent);
+  color: var(--on-action);
+  background: color-mix(in srgb, var(--action) 68%, transparent);
 }
 
 .remote-ring-zone svg {
@@ -579,8 +541,8 @@
 
 .remote-dpad-ok {
   grid-area: ok;
-  color: var(--on-accent);
-  background: var(--accent-strong);
+  color: var(--on-action);
+  background: var(--action);
   border-color: var(--accent);
 }
 

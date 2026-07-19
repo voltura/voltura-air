@@ -141,6 +141,11 @@
   touch-action: manipulation;
 }
 
+.settings-section summary:focus-visible {
+  border-color: var(--focus);
+  outline: none;
+}
+
 .settings-section summary::-webkit-details-marker {
   display: none;
 }
@@ -267,7 +272,8 @@
 }
 
 .pc-name-input:focus {
-  border-color: var(--accent);
+  border-color: var(--focus);
+  outline: none;
   background: var(--surface);
 }
 

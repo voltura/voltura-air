@@ -15,6 +15,7 @@ public sealed record ThemePalette(
     Color Accent,
     Color AccentStrong,
     Color AccentText,
+    Color Focus,
     Color SuccessStrong,
     Color Danger,
     Color DangerStrong,

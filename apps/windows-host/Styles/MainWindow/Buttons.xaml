@@ -3,7 +3,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <Style TargetType="Button">
-        <Setter Property="MinHeight" Value="38" />
+        <Setter Property="MinHeight" Value="{DynamicResource ControlMinHeight}" />
         <Setter Property="Padding" Value="14,6" />
         <Setter Property="Margin" Value="0" />
         <Setter Property="BorderThickness" Value="1" />
@@ -33,7 +33,7 @@
                             <Setter TargetName="Chrome" Property="Opacity" Value="0.82" />
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource FocusBrush}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -49,8 +49,8 @@
         <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
     </Style>
     <Style x:Key="CompactIconButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-        <Setter Property="Width" Value="38" />
-        <Setter Property="Height" Value="38" />
+        <Setter Property="Width" Value="{DynamicResource ControlMinHeight}" />
+        <Setter Property="Height" Value="{DynamicResource ControlMinHeight}" />
         <Setter Property="MinHeight" Value="0" />
         <Setter Property="Padding" Value="0" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
@@ -88,7 +88,7 @@
         <Setter Property="BorderBrush" Value="Transparent" />
     </Style>
     <Style x:Key="SegmentButtonStyle" TargetType="ToggleButton">
-        <Setter Property="MinHeight" Value="38" />
+        <Setter Property="MinHeight" Value="{DynamicResource ControlMinHeight}" />
         <Setter Property="Padding" Value="14,6" />
         <Setter Property="Margin" Value="0" />
         <Setter Property="Cursor" Value="Hand" />
@@ -118,7 +118,7 @@
                 <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
             </Trigger>
             <Trigger Property="IsKeyboardFocused" Value="True">
-                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource FocusBrush}" />
             </Trigger>
         </Style.Triggers>
     </Style>

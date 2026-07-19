@@ -112,6 +112,7 @@ public partial class MainWindow : Window
             PreferencesNavButton,
             DiagnosticsNavButton
         ];
+        WpfTheme.TrackAccessibilityChanges(this, RefreshAfterSystemThemeChange);
 
         _pairingManager.ConnectionChanged += OnConnectionChanged;
         _pairingManager.PairingCodeInvalidated += OnPairingCodeInvalidated;
@@ -349,6 +350,26 @@ public partial class MainWindow : Window
                 RefreshNavigationTheme();
             }
         });
+    }
+
+    private void RefreshAfterSystemThemeChange()
+    {
+        if (IsVisible)
+        {
+            if (_activePage == HostPage.Preferences)
+            {
+                _preferencesPage.RefreshPreservingState();
+            }
+            else
+            {
+                SelectPage(_activePage);
+            }
+        }
+        else
+        {
+            _pageNeedsRefresh = true;
+            RefreshNavigationTheme();
+        }
     }
 
     private void OnAwakeStateChanged(object? sender, EventArgs e)

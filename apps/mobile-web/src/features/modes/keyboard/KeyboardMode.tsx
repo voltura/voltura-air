@@ -35,7 +35,9 @@ interface KeyboardModeProps {
   keyboardText: string;
   keyboardTextareaRef: React.RefObject<HTMLTextAreaElement | null>;
   liveKeyboard: boolean;
+  liveTypingInfoOpen?: boolean | undefined;
   onKeyboardTextChange: (next: string) => void;
+  onLiveTypingInfoOpenChange?: ((isOpen: boolean) => void) | undefined;
   onSleep: () => void;
   placeLiveKeyboardCaret: () => void;
   sendEmptyDelete: (inputTypeOrKey: string, timeStamp: number) => boolean;
@@ -56,7 +58,9 @@ export function KeyboardMode({
   keyboardText,
   keyboardTextareaRef,
   liveKeyboard,
+  liveTypingInfoOpen,
   onKeyboardTextChange,
+  onLiveTypingInfoOpenChange,
   onSleep,
   placeLiveKeyboardCaret,
   sendEmptyDelete,
@@ -97,6 +101,8 @@ export function KeyboardMode({
             <InfoButton
               title="Live typing"
               description="Sends each character to the focused application on your PC as you type. Turn it off to compose text on your device first, then press Send."
+              isOpen={liveTypingInfoOpen}
+              onOpenChange={onLiveTypingInfoOpenChange}
             />
           </span>
           <label className="switch-control" htmlFor={liveTypingId}>

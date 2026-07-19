@@ -118,6 +118,7 @@ function renderPalette(name, theme) {
         ${renderColor(theme.accent)},
         ${renderColor(theme.accentStrong)},
         ${renderColor(theme.onAccent)},
+        ${renderColor(theme.focus)},
         ${renderColor(theme.successStrong)},
         ${renderColor(theme.danger)},
         ${renderColor(theme.dangerStrong)},

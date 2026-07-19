@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 
 interface ModalDialogProps {
   actionsClassName?: string | undefined;
+  actions?: ReactNode | undefined;
   ariaDescribedBy?: string | undefined;
   children: ReactNode;
   className?: string | undefined;
@@ -13,15 +14,18 @@ interface ModalDialogProps {
   initialFocusRef?: RefObject<HTMLElement | null> | undefined;
   isOpen: boolean;
   landscapeSize?: "content" | "wide" | undefined;
+  noValidate?: boolean | undefined;
   onClose: () => void;
   onSubmit?: ((event: React.SubmitEvent<HTMLFormElement>) => boolean) | undefined;
   submitClassName?: string | undefined;
   submitLabel?: string | undefined;
   title: string;
+  titleAccessory?: ReactNode | undefined;
 }
 
 export function ModalDialog({
   actionsClassName,
+  actions,
   ariaDescribedBy,
   children,
   className,
@@ -31,11 +35,13 @@ export function ModalDialog({
   initialFocusRef,
   isOpen,
   landscapeSize = "content",
+  noValidate,
   onClose,
   onSubmit,
   submitClassName,
   submitLabel,
-  title
+  title,
+  titleAccessory
 }: ModalDialogProps) {
   const dialogRef = useRef<HTMLDialogElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -76,7 +82,7 @@ export function ModalDialog({
     } else {
       dialog.setAttribute("open", "");
     }
-    (initialFocusRef?.current ?? (focusDismissAction ? dismissButtonRef.current : closeButtonRef.current))?.focus();
+    (initialFocusRef?.current ?? (focusDismissAction ? dismissButtonRef.current : null) ?? closeButtonRef.current)?.focus();
   }, [focusDismissAction, initialFocusRef, isOpen]);
 
   useEffect(() => {
@@ -188,10 +194,15 @@ export function ModalDialog({
         event.preventDefault();
         closeDialog();
       }}
-      onClose={finishClosing}
+      onClose={(event) => {
+        if (event.target === event.currentTarget) {
+          finishClosing();
+        }
+      }}
     >
       <header className="modal-dialog-header">
         <h2 id={titleId}>{title}</h2>
+        {titleAccessory}
         <button
           ref={closeButtonRef}
           className="modal-dialog-close"
@@ -205,6 +216,7 @@ export function ModalDialog({
       {onSubmit ? (
         <form
           className={`modal-dialog-form${formClassName ? ` ${formClassName}` : ""}`}
+          noValidate={noValidate}
           onSubmit={(event) => {
             if (onSubmit(event)) {
               closeDialog();
@@ -213,15 +225,17 @@ export function ModalDialog({
         >
           <div className="modal-dialog-body">{children}</div>
           <div className={`modal-dialog-actions${actionsClassName ? ` ${actionsClassName}` : ""}`}>
-            <button ref={dismissButtonRef} type="button" onClick={closeDialog}>{dismissLabel}</button>
-            {submitLabel && <button className={submitClassName} type="submit">{submitLabel}</button>}
+            {actions ?? <>
+              <button ref={dismissButtonRef} type="button" onClick={closeDialog}>{dismissLabel}</button>
+              {submitLabel && <button className={submitClassName} type="submit">{submitLabel}</button>}
+            </>}
           </div>
         </form>
       ) : (
         <>
           <div className="modal-dialog-body">{children}</div>
           <div className={`modal-dialog-actions${actionsClassName ? ` ${actionsClassName}` : ""}`}>
-            <button ref={dismissButtonRef} type="button" onClick={closeDialog}>{dismissLabel}</button>
+            {actions ?? <button ref={dismissButtonRef} type="button" onClick={closeDialog}>{dismissLabel}</button>}
           </div>
         </>
       )}

@@ -22,6 +22,7 @@ describe("InfoButton", () => {
 
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.activeElement).toBe(trigger);
+    expect(trigger.getAttribute("data-dialog-focus-returned")).toBeNull();
   });
 
   it("closes with Escape and returns focus to the trigger", () => {
@@ -33,6 +34,18 @@ describe("InfoButton", () => {
 
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.activeElement).toBe(trigger);
+  });
+
+  it("does not restore pointer focus after a touch-style dismissal", () => {
+    render(<InfoButton {...props} />);
+
+    const trigger = screen.getByRole("button", { name: "About Live typing" });
+    fireEvent.pointerDown(trigger);
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("button", { name: "OK" }));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).not.toBe(trigger);
   });
 
   it("closes when the dialog backdrop is tapped", () => {

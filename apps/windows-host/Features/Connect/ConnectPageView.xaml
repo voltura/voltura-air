@@ -32,6 +32,7 @@
 
             <ui:SpacingStackPanel Spacing="{DynamicResource SpaceMd}">
                 <ui:InfoCard x:Name="StatusCard" Title="Current status" Emphasized="True" />
+                <ui:InfoCard x:Name="SelectedAdapterCard" Title="Network adapter" />
                 <ui:InfoCard x:Name="PairingCodeCard" Title="QR code">
                     <ui:InfoCard.Actions>
                         <ui:SpacingStackPanel Orientation="Horizontal" Spacing="{DynamicResource SpaceSm}">

@@ -111,6 +111,8 @@ public sealed partial class HostUiLayoutTests
                 "Ready to pair",
                 "http://pc.local/pair?t=redacted",
                 "http://pc.local",
+                "Ethernet (Test adapter)",
+                false,
                 "127.0.0.1",
                 "51395",
                 null,
@@ -124,6 +126,7 @@ public sealed partial class HostUiLayoutTests
             view.ProcessCountdown();
             view.ProcessCountdown();
             Assert.Equal(1, refreshCalls);
+            Assert.Equal(Visibility.Collapsed, view.SelectedAdapterCard.Visibility);
             Assert.Equal("Refreshing code…", view.PairingCodeCard.Value);
 
             view.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent));
@@ -218,6 +221,8 @@ public sealed partial class HostUiLayoutTests
                 "Ready to pair",
                 "http://pc.local/pair?t=redacted",
                 "http://pc.local",
+                adapterName,
+                true,
                 "192.168.1.10",
                 "51395",
                 warning,
@@ -233,6 +238,8 @@ public sealed partial class HostUiLayoutTests
             Assert.Equal(adapterName, runs[1].Text);
             Assert.Equal(FontWeights.Bold, runs[1].FontWeight);
             Assert.Equal(". If your phone cannot connect, choose the adapter connected to the same Wi-Fi/LAN.", runs[2].Text);
+            Assert.Equal(adapterName, view.SelectedAdapterCard.Value);
+            Assert.Equal(Visibility.Visible, view.SelectedAdapterCard.Visibility);
         });
     }
 

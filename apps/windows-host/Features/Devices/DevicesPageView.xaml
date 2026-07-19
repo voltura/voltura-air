@@ -17,7 +17,9 @@
         <ListBox x:Name="DeviceList"
                  Style="{DynamicResource ModernListBoxStyle}"
                  ItemContainerStyle="{DynamicResource ModernListBoxItemStyle}"
-                 AutomationProperties.Name="Paired devices">
+                 AutomationProperties.Name="Paired devices"
+                 AutomationProperties.HelpText="Press Up or Down Arrow to select a device. Tab moves to the selected device details."
+                 GotKeyboardFocus="OnDeviceListKeyboardFocus">
             <ListBox.ItemTemplate>
                 <DataTemplate>
                     <Border x:Name="DeviceCard"

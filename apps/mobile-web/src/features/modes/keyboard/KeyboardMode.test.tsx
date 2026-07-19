@@ -10,6 +10,8 @@ const repeatIntervalMs = 55;
 interface HarnessProps {
   initialText?: string;
   liveKeyboard?: boolean;
+  liveTypingInfoOpen?: boolean;
+  onLiveTypingInfoOpenChange?: (isOpen: boolean) => void;
   onSleep?: () => void;
   sendSpecial?: (key: string, modifiers?: string[]) => void;
   sendText?: (text: string) => void;
@@ -22,6 +24,8 @@ interface HarnessProps {
 function KeyboardModeHarness({
   initialText = "",
   liveKeyboard = true,
+  liveTypingInfoOpen,
+  onLiveTypingInfoOpenChange,
   onSleep = vi.fn(),
   sendSpecial = vi.fn(),
   sendText = vi.fn(),
@@ -43,10 +47,12 @@ function KeyboardModeHarness({
       keyboardText={keyboardText}
       keyboardTextareaRef={keyboardTextareaRef}
       liveKeyboard={isLive}
+      liveTypingInfoOpen={liveTypingInfoOpen}
       onKeyboardTextChange={(next) => {
         setKeyboardText(next);
         committedKeyboardTextRef.current = next;
       }}
+      onLiveTypingInfoOpenChange={onLiveTypingInfoOpenChange}
       onSleep={onSleep}
       placeLiveKeyboardCaret={vi.fn()}
       sendEmptyDelete={vi.fn(() => false)}
@@ -63,6 +69,24 @@ function KeyboardModeHarness({
   );
 }
 
+function KeyboardOrientationHarness() {
+  const [isSplit, setIsSplit] = useState(false);
+  const [isLiveTypingInfoOpen, setIsLiveTypingInfoOpen] = useState(false);
+  const keyboard = (
+    <KeyboardModeHarness
+      liveTypingInfoOpen={isLiveTypingInfoOpen}
+      onLiveTypingInfoOpenChange={setIsLiveTypingInfoOpen}
+    />
+  );
+
+  return (
+    <>
+      <button type="button" onClick={() => { setIsSplit((current) => !current); }}>Rotate</button>
+      {isSplit ? <div className="split-keyboard-pane">{keyboard}</div> : keyboard}
+    </>
+  );
+}
+
 describe("KeyboardMode live typing", () => {
   it("explains live typing and buffered send in a compact info dialog", () => {
     render(<KeyboardModeHarness />);
@@ -71,6 +95,15 @@ describe("KeyboardMode live typing", () => {
 
     expect(screen.getByRole("dialog", { name: "Live typing" })).toBeTruthy();
     expect(screen.getByText("Sends each character to the focused application on your PC as you type. Turn it off to compose text on your device first, then press Send.")).toBeTruthy();
+  });
+
+  it("keeps live typing guidance open when orientation changes the keyboard layout", () => {
+    render(<KeyboardOrientationHarness />);
+
+    fireEvent.click(screen.getByRole("button", { name: "About Live typing" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rotate" }));
+
+    expect(screen.getByRole("dialog", { name: "Live typing" })).toBeTruthy();
   });
 
   it("focuses the text input when live typing is enabled", () => {

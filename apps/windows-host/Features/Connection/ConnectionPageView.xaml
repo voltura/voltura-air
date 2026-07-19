@@ -45,7 +45,10 @@
                      Grid.Row="6"
                      MinHeight="260"
                      ItemContainerStyle="{DynamicResource ModernListBoxItemStyle}"
-                     Style="{DynamicResource ModernListBoxStyle}">
+                     Style="{DynamicResource ModernListBoxStyle}"
+                     AutomationProperties.Name="Network adapters"
+                     AutomationProperties.HelpText="Press Up or Down Arrow to select a network adapter. Tab moves to the port settings."
+                     GotKeyboardFocus="OnNetworkCandidateListKeyboardFocus">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <Border x:Name="NetworkCandidateCard"

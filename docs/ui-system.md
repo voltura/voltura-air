@@ -19,8 +19,9 @@ Voltura Air is quiet, immediate, dependable, and native to its context.
 - Familiar platform behavior wins over novelty. A user should not have to learn
   a visual trick before they can complete a primary action.
 - Decoration never competes with control space, status, or recovery guidance.
-- The accent color communicates selection, activation, focus, or important
-  progress. It is not general decoration.
+- The accent color communicates selection, activation, or important progress.
+  Keyboard and controller focus uses the dedicated focus color. Neither is
+  general decoration.
 
 ## Experience principles
 

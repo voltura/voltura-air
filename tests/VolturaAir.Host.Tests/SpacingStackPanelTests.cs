@@ -12,6 +12,61 @@ namespace VolturaAir.Host.Tests;
 public sealed partial class HostUiLayoutTests
 {
     [Fact]
+    public void HighContrastThemeUsesWindowsSystemColors()
+    {
+        RunOnStaThread(() =>
+        {
+            var window = new Window();
+
+            WpfTheme.Apply(window, highContrast: true);
+
+            Assert.Same(SystemColors.WindowBrush, window.Resources["WindowBrush"]);
+            Assert.Same(SystemColors.ControlTextBrush, window.Resources["TextBrush"]);
+            Assert.Same(SystemColors.HighlightBrush, window.Resources["AccentBrush"]);
+            Assert.Same(SystemColors.HighlightTextBrush, window.Resources["AccentTextBrush"]);
+            Assert.Same(SystemColors.WindowTextBrush, window.Resources["FocusBrush"]);
+        });
+    }
+
+    [Fact]
+    public void SharedControlsMeetTheTouchTargetMinimum()
+    {
+        RunOnStaThread(() =>
+        {
+            var window = new Window();
+            window.Resources.MergedDictionaries.Add(new ResourceDictionary
+            {
+                Source = new Uri("/VolturaAir.Host;component/MainWindow.Styles.xaml", UriKind.Relative)
+            });
+            WpfTheme.Apply(window);
+            var button = new Button();
+            var iconButton = new Button { Style = (Style)window.Resources["CompactIconButtonStyle"] };
+            var segment = new ToggleButton { Style = (Style)window.Resources["SegmentButtonStyle"] };
+            var input = new TextBox();
+            var filterInput = new TextBox { Style = (Style)window.Resources["FilterTextBoxStyle"] };
+            var comboBox = new ComboBox { Style = (Style)window.Resources["ModernComboBoxStyle"] };
+            window.Content = new StackPanel { Children = { button, iconButton, segment, input, filterInput, comboBox } };
+
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+
+                Assert.True(button.ActualHeight >= 40);
+                Assert.True(iconButton.ActualHeight >= 40);
+                Assert.True(segment.ActualHeight >= 40);
+                Assert.True(input.ActualHeight >= 40);
+                Assert.True(filterInput.ActualHeight >= 40);
+                Assert.True(comboBox.ActualHeight >= 40);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public void ModernHostListRowsLeaveSelectionChromeToTheirCards()
     {
         RunOnStaThread(() =>
@@ -63,6 +118,11 @@ public sealed partial class HostUiLayoutTests
                 window.UpdateLayout();
 
                 Assert.Same(window.Resources["BorderBrush"], card.BorderBrush);
+
+                Assert.True(item.Focus());
+                window.UpdateLayout();
+
+                Assert.Same(window.Resources["FocusBrush"], card.BorderBrush);
             }
             finally
             {
@@ -245,6 +305,9 @@ public sealed partial class HostUiLayoutTests
 
         Assert.True(VirtualizingPanel.GetIsVirtualizing(list));
         Assert.Equal(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(list));
+        Assert.True(list.IsTabStop);
+        Assert.Equal(System.Windows.Input.KeyboardNavigationMode.Once, System.Windows.Input.KeyboardNavigation.GetTabNavigation(list));
+        Assert.Equal(System.Windows.Input.KeyboardNavigationMode.Contained, System.Windows.Input.KeyboardNavigation.GetDirectionalNavigation(list));
         var itemsHost = Assert.IsType<VirtualizingStackPanel>(list.ItemsPanel.LoadContent());
         Assert.IsAssignableFrom<IScrollInfo>(itemsHost);
     }

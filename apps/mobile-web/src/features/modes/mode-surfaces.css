@@ -370,8 +370,8 @@
 }
 
 .dictation-mode.is-listening .dictation-listen-button {
-  color: var(--on-accent);
-  background: var(--accent-strong);
+  color: var(--on-action);
+  background: var(--action);
   border-color: var(--accent);
 }
 

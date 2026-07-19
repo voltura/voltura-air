@@ -21,11 +21,18 @@ internal sealed class ConnectPageController(
     {
         _pairingLinks.RefreshIfDue(DateTimeOffset.UtcNow);
         var pairingLink = GetVisiblePairingUrl();
+        var hasMultipleAdapters = LanAddressSelector.GetCandidates()
+            .Select(candidate => candidate.AdapterId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Skip(1)
+            .Any();
         return new ConnectPageView(
             PairingQrCodeRenderer.Create(pairingLink),
             GetConnectionStatus(),
             pairingLink,
             webHost.ServerUrl,
+            webHost.SelectedAdapterName,
+            hasMultipleAdapters,
             webHost.AdvertisedHostAddress,
             webHost.Port.ToString(CultureInfo.InvariantCulture),
             webHost.AddressSelectionWarning,

@@ -69,17 +69,17 @@
 
 .live-typing-switch input:checked + .switch-track {
   border-color: var(--accent);
-  background: var(--accent-strong);
+  background: var(--action);
 }
 
 .live-typing-switch input:checked + .switch-track .switch-thumb {
-  background: var(--on-accent);
+  background: var(--on-action);
   transform: translateX(22px);
 }
 
 .live-typing-switch input:focus-visible + .switch-track {
-  outline: 3px solid color-mix(in srgb, var(--accent) 76%, var(--text));
-  outline-offset: 3px;
+  border-color: var(--focus);
+  outline: none;
 }
 
 .toggle-row input {
@@ -116,7 +116,8 @@
 }
 
 .text-input:focus {
-  border-color: var(--accent);
+  border-color: var(--focus);
+  outline: none;
 }
 
 input:where(
@@ -129,7 +130,7 @@ input:where(
   [type="text"],
   [type="url"]
 ):focus-visible {
-  border-color: var(--accent);
+  border-color: var(--focus);
   outline: none;
 }
 
@@ -163,9 +164,9 @@ input:where(
 
 .keyboard-input-mode-buttons button.active,
 .keyboard-input-mode-buttons button[aria-selected="true"] {
-  color: var(--on-accent);
-  background: var(--accent-strong);
-  box-shadow: inset 0 -3px 0 var(--on-accent);
+  color: var(--on-action);
+  background: var(--action);
+  box-shadow: inset 0 -3px 0 var(--on-action);
 }
 
 .keyboard-input-mode-buttons button + button {
@@ -242,5 +243,6 @@ textarea {
 }
 
 textarea:focus {
-  border-color: var(--accent);
+  border-color: var(--focus);
+  outline: none;
 }

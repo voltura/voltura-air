@@ -161,8 +161,8 @@
   flex: 0 0 42px;
   width: 42px;
   border-color: var(--accent);
-  background: var(--accent-strong);
-  color: var(--on-accent);
+  background: var(--action);
+  color: var(--on-action);
   box-shadow: 0 2px 8px var(--drawer-shadow);
   padding-inline: 0;
 }
@@ -452,48 +452,6 @@
   text-align: center;
 }
 
-.snippet-action-dialog {
-  width: min(420px, calc(100vw - 28px));
-  max-width: 100%;
-  margin: auto;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: 0 20px 60px var(--drawer-shadow);
-  padding: 0;
-}
-
-.snippet-action-dialog::backdrop {
-  background: var(--scrim);
-  backdrop-filter: blur(4px);
-}
-
-.snippet-action-dialog form {
-  display: grid;
-  gap: 18px;
-  padding: 20px;
-}
-
-.snippet-action-dialog header {
-  display: grid;
-  gap: 8px;
-}
-
-.snippet-action-dialog h2,
-.snippet-action-dialog p {
-  margin: 0;
-}
-
-.snippet-action-dialog h2 {
-  font-size: 1.25rem;
-}
-
-.snippet-action-dialog p {
-  color: var(--muted);
-  line-height: 1.45;
-}
-
 .snippet-action-dialog label {
   display: grid;
   gap: 7px;
@@ -525,8 +483,8 @@
 
 .snippet-dialog-primary {
   border-color: var(--accent);
-  background: var(--accent-strong);
-  color: var(--on-accent);
+  background: var(--action);
+  color: var(--on-action);
 }
 
 .snippet-dialog-danger {

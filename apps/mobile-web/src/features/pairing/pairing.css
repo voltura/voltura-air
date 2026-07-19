@@ -85,8 +85,8 @@
 
 .pairing-manual-host-actions .pairing-manual-host-connect {
   border-color: var(--accent);
-  color: var(--on-accent);
-  background: var(--accent-strong);
+  color: var(--on-action);
+  background: var(--action);
 }
 
 .pairing-device-name span,
@@ -189,8 +189,8 @@
 }
 
 .pairing-action-primary {
-  color: var(--on-accent);
-  background: var(--accent-strong);
+  color: var(--on-action);
+  background: var(--action);
   border-color: var(--accent);
 }
 

@@ -30,7 +30,7 @@ export function DictationMode({
         <Mic aria-hidden="true" />
         <div>
           <strong>{isListening ? "Listening" : canUseSpeech ? "Ready to dictate" : "Speech recognition unavailable"}</strong>
-          <p>{canUseSpeech ? "Speak, edit the text, then send it to Windows." : "Use your phone keyboard dictation in the text box, then send."}</p>
+          <p>{canUseSpeech ? "Speak, edit the text, then send it to your PC." : "Use your phone keyboard dictation in the text box, then send."}</p>
         </div>
       </div>
       <textarea

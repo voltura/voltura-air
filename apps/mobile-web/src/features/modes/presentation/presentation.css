@@ -111,9 +111,9 @@
 }
 
 .presentation-target-selector-menu button.active {
-  color: var(--on-accent);
+  color: var(--on-action);
   border-color: var(--accent);
-  background: var(--accent);
+  background: var(--action);
 }
 
 .presentation-permission-message,

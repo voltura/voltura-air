@@ -10,14 +10,18 @@
   padding: 0;
 }
 
-.info-button:focus,
-.info-button:focus-visible,
 .info-button:active {
   outline: none;
   border-color: transparent;
   color: var(--accent);
   background: transparent;
   box-shadow: none;
+}
+
+.info-button:focus-visible {
+  border-color: transparent;
+  color: var(--focus);
+  outline: none;
 }
 
 .info-button svg {
@@ -163,11 +167,6 @@ dialog::backdrop {
   flex: 0 0 auto;
   min-width: 88px;
   border-color: var(--accent);
-}
-
-.info-dialog-actions button:focus-visible,
-.modal-dialog-actions button:focus-visible {
-  outline: none;
 }
 
 .confirmation-dialog-actions {

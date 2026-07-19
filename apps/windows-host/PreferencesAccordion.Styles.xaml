@@ -26,7 +26,7 @@
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
                             <ToggleButton x:Name="HeaderButton"
-                                          MinHeight="38"
+                                          MinHeight="{DynamicResource ControlMinHeight}"
                                           Background="Transparent"
                                           Foreground="{DynamicResource TextBrush}"
                                           BorderThickness="0"
@@ -71,7 +71,8 @@
                                                 <Setter TargetName="HeaderChrome" Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
                                             </Trigger>
                                             <Trigger Property="IsKeyboardFocused" Value="True">
-                                                <Setter TargetName="HeaderChrome" Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
+                                                <Setter TargetName="HeaderChrome" Property="BorderBrush" Value="{DynamicResource FocusBrush}" />
+                                                <Setter TargetName="HeaderChrome" Property="BorderThickness" Value="1" />
                                             </Trigger>
                                             <Trigger Property="IsChecked" Value="True">
                                                 <Setter TargetName="HeaderChrome" Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />

@@ -46,8 +46,8 @@ adaptive states, AI-assisted UI work, and the UI definition of done.
   focus, selected, disabled, warning, and error states as applicable.
 - Do not expose the default dashed or dotted WPF focus adorner. Bordered controls
   show keyboard and controller focus by recoloring their existing one-DIP border
-  with the theme accent; focus must not add a second outline or increase the
-  border thickness.
+  with the theme focus color; focus must not add a second outline or increase
+  the border thickness.
 - Lists should use WPF list controls with recycling virtualization. Keep the
   virtualizing items host responsible for scrolling; when rows need separation,
   reserve the tokenized gap inside the collection-owned item template instead

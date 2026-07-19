@@ -1,3 +1,5 @@
+using System.Windows.Controls;
+using System.Windows.Threading;
 using WpfTextBlock = System.Windows.Controls.TextBlock;
 using WpfTextBox = System.Windows.Controls.TextBox;
 using WpfToggleButton = System.Windows.Controls.Primitives.ToggleButton;
@@ -53,6 +55,30 @@ public partial class ConnectionPageView : WpfUserControl
     internal WpfToggleButton AutomaticPortButton => PortAutomaticButton;
 
     internal WpfToggleButton ManualPortButton => PortManualButton;
+
+    private void OnNetworkCandidateListKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs eventArgs)
+    {
+        if (eventArgs.NewFocus != NetworkCandidateList || NetworkCandidateList.Items.Count == 0)
+        {
+            return;
+        }
+
+        if (NetworkCandidateList.SelectedIndex < 0)
+        {
+            NetworkCandidateList.SelectedIndex = 0;
+        }
+
+        _ = Dispatcher.BeginInvoke(() =>
+        {
+            if (!NetworkCandidateList.IsKeyboardFocusWithin ||
+                NetworkCandidateList.ItemContainerGenerator.ContainerFromIndex(NetworkCandidateList.SelectedIndex) is not ListBoxItem selectedItem)
+            {
+                return;
+            }
+
+            selectedItem.Focus();
+        }, DispatcherPriority.Input);
+    }
 
     private static void WireSegmentPair(WpfToggleButton first, WpfToggleButton second)
     {

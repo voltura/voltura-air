@@ -1,4 +1,4 @@
-import type { ComponentProps } from "react";
+import { useState, type ComponentProps } from "react";
 import { ClipboardReadMode } from "./clipboard-read/ClipboardReadMode";
 import { DictationMode } from "./dictation/DictationMode";
 import { GestureDebugMode } from "./gesture-debug/GestureDebugMode";
@@ -36,8 +36,15 @@ export function AppModeContent({
   clipboardReadMode,
   gestureDebugMode
 }: AppModeContentProps) {
+  const [isLiveTypingInfoOpen, setIsLiveTypingInfoOpen] = useState(false);
   const trackpad = <TrackpadMode {...trackpadMode} />;
-  const keyboard = <KeyboardMode {...keyboardMode} />;
+  const keyboard = (
+    <KeyboardMode
+      {...keyboardMode}
+      liveTypingInfoOpen={isLiveTypingInfoOpen}
+      onLiveTypingInfoOpenChange={setIsLiveTypingInfoOpen}
+    />
+  );
 
   if (tab === "trackpad") {
     return shouldShowSplitMode ? (

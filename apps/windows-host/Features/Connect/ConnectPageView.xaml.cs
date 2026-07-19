@@ -22,6 +22,8 @@ public partial class ConnectPageView : WpfUserControl
         string status,
         string pairingLink,
         string hostUrl,
+        string selectedAdapter,
+        bool showSelectedAdapter,
         string selectedIp,
         string selectedPort,
         string? addressWarning,
@@ -49,6 +51,8 @@ public partial class ConnectPageView : WpfUserControl
         StatusCard.Value = status;
         PairingLinkCard.Value = pairingLink;
         HostUrlCard.Value = hostUrl;
+        SelectedAdapterCard.Value = selectedAdapter;
+        SelectedAdapterCard.Visibility = showSelectedAdapter ? Visibility.Visible : Visibility.Collapsed;
         SelectedIpCard.Value = selectedIp;
         SelectedPortCard.Value = selectedPort;
         SetNotice(AddressWarningNotice, AddressWarningText, addressWarning, addressWarningEmphasis);

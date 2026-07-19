@@ -12,6 +12,8 @@ for a Windows 11 PC.
   controls.
 - Acknowledged text transfer to reviewed PC destinations and an explicit,
   host-permitted PC clipboard text read.
+- Keep Windows awake while Voltura Air runs, with an optional Keep screen on
+  setting.
 - Host-controlled permissions for paired devices and disruptive PC actions.
 - QR pairing with saved reconnect on the same Wi-Fi or LAN.
 

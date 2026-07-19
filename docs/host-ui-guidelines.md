@@ -61,8 +61,10 @@ adaptive states, AI-assisted UI work, and the UI definition of done.
   layout. Fix the layout contract instead.
 - Keep the native Windows title bar unless there is a focused reason to revisit
   window chrome.
-- Verify light, dark, and system theme modes when adding selected, inherited,
-  disabled, warning, or destructive states.
+- Verify light, dark, system, and Windows High Contrast modes when adding
+  selected, inherited, disabled, warning, or destructive states. In High
+  Contrast, preserve readable semantic state and keyboard-focus feedback using
+  system-visible colors rather than relying on custom theme colors alone.
 - Add or update host UI tests for navigation, startup behavior, settings save
   behavior, device actions, and permission state. Manual DPI checks should cover
   100%, 125%, 150%, and 200% display scaling on Windows.

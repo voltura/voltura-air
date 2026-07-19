@@ -35,6 +35,7 @@ approved unfinished work.
 - Starts with a neutral tray badge while paired devices reconnect, and holds the connected badge through the short automatic-reconnect grace period; it shows the disconnected badge only when a device remains offline.
 - Keeps the host window hidden when the last paired device disconnects by default; reopening it on disconnect is an opt-in preference.
 - Supports light, dark, and system theme modes.
+- Follows Windows High Contrast settings with readable semantic state and keyboard-focus feedback.
 - Supports per-user installation without administrator rights.
 - Supports portable zip packaging.
 - Supports NSIS installer packaging.

@@ -114,6 +114,10 @@
           <p>Control media, volume, YouTube, Kodi, and common browser or window actions.</p>
         </article>
         <article>
+          <h2>Keep awake</h2>
+          <p>Prevent idle sleep while Voltura Air runs, with an optional setting to keep the PC screen on.</p>
+        </article>
+        <article>
           <h2>Tablet split mode</h2>
           <p>Use a landscape tablet as a roomy keyboard and trackpad.</p>
         </article>

@@ -15,6 +15,7 @@ install, account, subscription, or cloud relay.
 - Move, click, scroll, and type from a phone or tablet.
 - Dictate on supported browsers or send longer text composed on the mobile device.
 - Control media, volume, YouTube, Kodi, and common browser or window actions.
+- Keep the PC awake while Voltura Air runs, with an optional setting to keep its screen on.
 - Use a landscape tablet as a combined keyboard and trackpad.
 
 See the [complete implemented feature list](docs/features.md).

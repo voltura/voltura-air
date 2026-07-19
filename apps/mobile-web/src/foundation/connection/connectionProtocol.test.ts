@@ -13,44 +13,7 @@ import {
   shouldTrackInputAck,
   trimPendingInputAcks
 } from "./connectionProtocol";
-
-const validServerMessages = [
-  {
-    message: {
-      type: "pair.accepted", clientId: "client-a", pcName: "Office PC", secret: "secret-a", paired: true,
-      capabilities: {
-        awake: { canControl: true, active: false, mode: "off", expiresAt: null },
-        gestureDebug: false, inputAck: true, clipboardRead: true,
-        presentation: { canControl: true },
-        power: { lock: true, lockAvailability: "notExplicitlyDisabled", blackoutDisplay: true, displayOff: true, screenSaver: true, screenSaverAvailable: true, signOut: true, restart: true, shutdown: true },
-        remoteLaunch: true, urlOpen: { canOpen: true }, sleep: true, textTransfer: true, volume: true
-      },
-      host: {
-        appLaunchActions: [{ id: "custom.notes", label: "Notes", kind: "custom" }],
-        defaultRemoteMode: "youtube", developerMode: true, developerSessionId: "session-a",
-        hostVersion: "0.6.4", webClientBuildId: "build-a", pcName: "Office PC", pointerSpeed: 55,
-        customPointerEnabled: true, inputBlockedByElevation: false, selectedAdapterName: "Ethernet",
-        selectedIp: "192.168.1.50", selectedPort: 51395,
-        textTransferTarget: { mode: "focused", displayName: "Focused app", available: true },
-        webSocketUrl: "ws://192.168.1.50:51395/ws"
-      }
-    },
-    required: ["clientId", "pcName", "secret", "paired"]
-  },
-  { message: { type: "pair.rejected", reason: "invalid-token", diagnosticCode: "VAIR-PAIR-INVALID-TOKEN" }, required: ["reason"] },
-  { message: { type: "status", connected: true, message: "Connected", pcName: "Office PC" }, required: ["connected"] },
-  { message: { type: "health.pong" }, required: [] },
-  { message: { type: "input.ack", seq: 4 }, required: [] },
-  { message: { type: "input.error", seq: 4, code: "VAIR-INPUT", message: "Input failed" }, required: ["message"] },
-  { message: { type: "presentation.command.result", operationId: "op-1", target: "powerpoint", action: "next", succeeded: true, code: "OK", message: "Done" }, required: ["operationId", "target", "action", "succeeded", "message"] },
-  { message: { type: "system.power.result", operationId: "op-power", action: "lock", succeeded: true, code: "OK", message: "Locked" }, required: ["operationId", "action", "succeeded", "message"] },
-  { message: { type: "awake.result", operationId: "op-awake", enabled: true, succeeded: true, code: "OK", message: "Awake" }, required: ["operationId", "enabled", "succeeded", "message"] },
-  { message: { type: "app.launch.result", actionId: "custom.notes", succeeded: true, code: "OK", message: "Opened" }, required: ["actionId", "succeeded", "message"] },
-  { message: { type: "url.open.result", operationId: "op-2", succeeded: true, code: "OK", message: "Opened", normalizedUrl: "https://example.com/" }, required: ["operationId", "succeeded", "message"] },
-  { message: { type: "text.send.result", operationId: "op-3", succeeded: true, code: "OK", message: "Sent", deliveryKind: "typed" }, required: ["operationId", "succeeded", "message"] },
-  { message: { type: "clipboard.get.result", operationId: "op-4", succeeded: true, code: "OK", message: "Read", text: null }, required: ["operationId", "succeeded", "message"] },
-  { message: { type: "audio.state", volume: 72, muted: false }, required: ["volume", "muted"] }
-] as const;
+import { catalogFrames, serverFrameCatalog } from "./serverFrameCatalog.testData";
 
 describe("connection protocol policy", () => {
   it("throttles movement acknowledgements without throttling discrete input", () => {
@@ -141,7 +104,7 @@ describe("connection protocol policy", () => {
   it("accepts presentation support only with an explicit effective permission", () => {
     expect(getPresentationCapability({ presentation: { canControl: true } })).toEqual({ canControl: true });
     expect(getPresentationCapability({ presentation: { canControl: false } })).toEqual({ canControl: false });
-    expect(getPresentationCapability({ presentation: null })).toBeUndefined();
+    expect(getPresentationCapability({})).toBeUndefined();
     expect(getPresentationCapability({ presentation: {} as never })).toBeUndefined();
   });
 
@@ -153,13 +116,42 @@ describe("connection protocol policy", () => {
 });
 
 describe("parseServerMessage", () => {
-  it.each(validServerMessages)("accepts a complete $message.type message", ({ message }) => {
+  it.each(Object.entries(serverFrameCatalog).filter(([type]) => type.endsWith(".result")))(
+    "covers both outcomes for acknowledged $0 frames",
+    (_type, contract) => {
+      const frames = contract.frames as unknown as readonly { succeeded: boolean }[];
+      expect(frames.some((frame) => frame.succeeded)).toBe(true);
+      expect(frames.some((frame) => !frame.succeeded)).toBe(true);
+    }
+  );
+
+  it("rejects a result with a null optional code", () => {
+    expect(parseServerMessage(JSON.stringify({
+      type: "text.send.result",
+      operationId: "op-text",
+      succeeded: true,
+      code: null,
+      message: "Text was added to a new Notepad document.",
+      deliveryKind: "pasted"
+    }))).toBeNull();
+  });
+
+  it.each([
+    { type: "url.open.result", operationId: "op-url", succeeded: false, code: "invalid-url", message: "Invalid URL", normalizedUrl: null },
+    { type: "clipboard.get.result", operationId: "op-clipboard", succeeded: false, code: "unavailable", message: "Unavailable", text: null },
+    { type: "status", connected: true, capabilities: { presentation: null } },
+    { type: "status", connected: true, capabilities: { awake: { canControl: true, active: false, mode: "off", expiresAt: null } } }
+  ])("rejects null optional protocol fields: $type", (message) => {
+    expect(parseServerMessage(JSON.stringify(message))).toBeNull();
+  });
+
+  it.each(catalogFrames)("accepts the catalogued $type frame", (message) => {
     expect(parseServerMessage(JSON.stringify(message))).toEqual(message);
   });
 
-  it.each(validServerMessages.flatMap(({ message, required }) =>
-    required.map((field) => ({ message, field }))))(
-    "rejects $message.type when required field $field is missing or has the wrong type",
+  it.each(Object.entries(serverFrameCatalog).flatMap(([type, contract]) =>
+    contract.frames.flatMap((message) => contract.required.map((field) => ({ type, message, field })))))(
+    "rejects $type when required field $field is missing or null",
     ({ message, field }) => {
       const missing = { ...message } as Record<string, unknown>;
       delete missing[field];

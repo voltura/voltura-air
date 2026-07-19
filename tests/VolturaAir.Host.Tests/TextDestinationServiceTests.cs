@@ -70,6 +70,32 @@ public sealed class TextDestinationServiceTests
     }
 
     [Fact]
+    public async Task NotepadAlwaysOpensAGeneratedDraftInsteadOfChangingAnExistingTab()
+    {
+        using var injector = new FakeInputInjector();
+        var platform = new FakeTextDestinationPlatform("notepad.exe") { ClipboardAvailable = false, RunningWindow = (nint)42 };
+        var settings = new TextDestinationSettings(TextDestinationMode.Managed, TextDestinationPreset.Notepad, null);
+        var service = new TextDestinationService(new InputDispatcher(injector), injector, platform, () => settings);
+        string? draftPath = null;
+        try
+        {
+            var result = await service.DeliverAsync("Important number", sendEnter: false, CancellationToken.None);
+
+            Assert.True(result.Succeeded);
+            Assert.Equal("Text was added to a new Notepad document.", result.Message);
+            Assert.Empty(platform.ClipboardWrites);
+            draftPath = platform.Starts.Single().Arguments.Trim('"');
+            Assert.Contains("Important number", File.ReadAllText(draftPath));
+            Assert.DoesNotContain(injector.Events, value => value.StartsWith("SpecialKey:N", StringComparison.Ordinal));
+            Assert.DoesNotContain(injector.Events, value => value.StartsWith("SpecialKey:V", StringComparison.Ordinal));
+        }
+        finally
+        {
+            if (draftPath is not null) File.Delete(draftPath);
+        }
+    }
+
+    [Fact]
     public async Task ClipboardDestinationDoesNotStartOrTargetAnApplication()
     {
         using var injector = new FakeInputInjector();

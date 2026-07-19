@@ -47,7 +47,8 @@ internal static class ClientMessageValidator
         }
 
         if (!TryGetRequiredString(root, "clientId", MaxClientIdLength, allowEmpty: false, out var clientId) ||
-            !TryGetRequiredString(root, "deviceName", MaxDeviceNameLength, allowEmpty: true, out var deviceName) ||
+            !TryGetRequiredString(root, "deviceName", MaxDeviceNameLength, allowEmpty: false, out var deviceName) ||
+            string.IsNullOrWhiteSpace(deviceName) ||
             !TryGetOptionalString(root, "pairToken", MaxCredentialLength, out var pairToken) ||
             !TryGetOptionalString(root, "secret", MaxCredentialLength, out var secret) ||
             !TryGetOptionalString(root, "platform", MaxMetadataLength, out var platform) ||
@@ -66,7 +67,8 @@ internal static class ClientMessageValidator
         return type switch
         {
             "pair.disconnect" => true,
-            "device.rename" => TryGetRequiredString(root, "deviceName", MaxDeviceNameLength, allowEmpty: true, out _),
+            "device.rename" => TryGetRequiredString(root, "deviceName", MaxDeviceNameLength, allowEmpty: false, out var deviceName) &&
+                !string.IsNullOrWhiteSpace(deviceName),
             "health.ping" => true,
             "status.get" => true,
             "pointer.speed.set" => TryGetNumber(root, "pointerSpeed", DevicePointerProfile.MinPointerSpeed, DevicePointerProfile.MaxPointerSpeed, out _),
@@ -88,7 +90,9 @@ internal static class ClientMessageValidator
                 PresentationCommands.IsAction(presentationAction),
             "remote.launch" => TryGetRequiredString(root, "action", MaxRemoteActionLength, allowEmpty: false, out var action) &&
                 RemoteLaunchActions.IsSupported(action),
-            "app.launch" => TryGetRequiredString(root, "actionId", AppLaunchSettings.MaxIdLength, allowEmpty: false, out var actionId) &&
+            "app.launch" => TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var appLaunchOperationId) &&
+                IsValidOperationId(appLaunchOperationId) &&
+                TryGetRequiredString(root, "actionId", AppLaunchSettings.MaxIdLength, allowEmpty: false, out var actionId) &&
                 IsValidAppLaunchActionId(actionId),
             "url.open" => TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var urlOperationId) &&
                 IsValidOperationId(urlOperationId) &&
@@ -156,7 +160,7 @@ internal static class ClientMessageValidator
                 command = new ValidatedInputCommand(InputCommandKind.PointerZoom, sequence, Action: direction);
                 return true;
             case "keyboard.text":
-                if (!TryGetRequiredString(root, "text", TextTransferLimits.MaxTextLength, allowEmpty: true, out var text))
+                if (!TryGetRequiredString(root, "text", TextTransferLimits.MaxTextLength, allowEmpty: false, out var text))
                 {
                     return false;
                 }
@@ -202,7 +206,7 @@ internal static class ClientMessageValidator
     private static bool TryGetOptionalString(JsonElement root, string propertyName, int maxLength, out string? value)
     {
         value = null;
-        if (!root.TryGetProperty(propertyName, out var property) || property.ValueKind == JsonValueKind.Null)
+        if (!root.TryGetProperty(propertyName, out var property))
         {
             return true;
         }
@@ -213,7 +217,7 @@ internal static class ClientMessageValidator
         }
 
         value = property.GetString();
-        return value is null || value.Length <= maxLength;
+        return value is not null && !string.IsNullOrWhiteSpace(value) && value.Length <= maxLength;
     }
 
     private static bool TryGetNumber(JsonElement root, string propertyName, double min, double max, out double value)
@@ -251,7 +255,7 @@ internal static class ClientMessageValidator
         out string[] values)
     {
         values = [];
-        if (!root.TryGetProperty(propertyName, out var property) || property.ValueKind == JsonValueKind.Null)
+        if (!root.TryGetProperty(propertyName, out var property))
         {
             return true;
         }
@@ -283,7 +287,7 @@ internal static class ClientMessageValidator
         }
 
         values = [.. items];
-        return true;
+        return values.Length > 0;
     }
 
     private static bool TryGetPointerDelta(JsonElement root, string propertyName, out int value)

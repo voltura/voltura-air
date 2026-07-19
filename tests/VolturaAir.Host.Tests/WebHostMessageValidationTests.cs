@@ -5,6 +5,24 @@ namespace VolturaAir.Host.Tests;
 [Collection(AppPermissionSettingsCollection.Name)]
 public sealed class WebHostMessageValidationTests : WebHostServiceTestBase
 {
+    [Theory]
+    [InlineData("{\"type\":\"pair.hello\",\"clientId\":\"client-a\",\"deviceName\":\"Phone\",\"pairToken\":null}")]
+    [InlineData("{\"type\":\"pair.hello\",\"clientId\":\"client-a\",\"deviceName\":\"Phone\",\"platform\":\"\"}")]
+    [InlineData("{\"type\":\"device.rename\",\"deviceName\":\"   \"}")]
+    [InlineData("{\"type\":\"keyboard.text\",\"text\":\"\"}")]
+    [InlineData("{\"type\":\"keyboard.special\",\"key\":\"Enter\",\"modifiers\":null}")]
+    [InlineData("{\"type\":\"keyboard.special\",\"key\":\"Enter\",\"modifiers\":[]}")]
+    public void RejectsNullAndSemanticallyEmptyClientFields(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+
+        Assert.True(ClientMessageValidator.TryReadType(root, out var type));
+        Assert.False(type == "pair.hello"
+            ? ClientMessageValidator.TryValidatePairHello(root, out _)
+            : ClientMessageValidator.IsValidAuthenticatedMessage(root, type!));
+    }
+
     [Fact]
     public async Task WebSocketClosesOversizedFragmentedMessageBeforeParsing()
     {

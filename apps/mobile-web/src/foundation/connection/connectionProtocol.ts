@@ -178,16 +178,16 @@ function isServerMessage(value: unknown): value is ServerMessage {
     case "awake.result":
       return isOperationId(value.operationId) && typeof value.enabled === "boolean" && isResultBase(value);
     case "app.launch.result":
-      return isAppLaunchActionId(value.actionId) && isResultBase(value);
+      return isOperationId(value.operationId) && isAppLaunchActionId(value.actionId) && isResultBase(value);
     case "url.open.result":
       return isOperationId(value.operationId) && isResultBase(value) &&
-        isOptional(value, "normalizedUrl", isNullableString);
+        isOptional(value, "normalizedUrl", isString);
     case "text.send.result":
       return isOperationId(value.operationId) && isResultBase(value) &&
         isOptional(value, "deliveryKind", (candidate) => isOneOf(candidate, ["typed", "pasted", "clipboard"]));
     case "clipboard.get.result":
       return isOperationId(value.operationId) && isResultBase(value) &&
-        isOptional(value, "text", isNullableString);
+        isOptional(value, "text", isString);
     case "audio.state":
       return typeof value.volume === "number" && Number.isFinite(value.volume) && value.volume >= 0 && value.volume <= 100 &&
         typeof value.muted === "boolean";
@@ -205,7 +205,7 @@ function isServerCapabilities(value: unknown): boolean {
     isOptional(value, "gestureDebug", isBoolean) &&
     isOptional(value, "inputAck", isBoolean) &&
     isOptional(value, "clipboardRead", isBoolean) &&
-    isOptional(value, "presentation", (candidate) => candidate === null || isBooleanCapability(candidate, "canControl")) &&
+    isOptional(value, "presentation", (candidate) => isBooleanCapability(candidate, "canControl")) &&
     isOptional(value, "power", isPowerCapabilities) &&
     isOptional(value, "remoteLaunch", isBoolean) &&
     isOptional(value, "urlOpen", (candidate) => isBooleanCapability(candidate, "canOpen")) &&
@@ -219,7 +219,7 @@ function isAwakeCapability(value: unknown): boolean {
     typeof value.canControl === "boolean" &&
     typeof value.active === "boolean" &&
     isOneOf(value.mode, ["off", "indefinite", "timed", "expiration"]) &&
-    isOptional(value, "expiresAt", isNullableString);
+    isOptional(value, "expiresAt", isString);
 }
 
 function isPowerCapabilities(value: unknown): boolean {
@@ -287,10 +287,6 @@ function isOptional(value: Record<string, unknown>, field: string, predicate: (c
 
 function isString(value: unknown): value is string {
   return typeof value === "string";
-}
-
-function isNullableString(value: unknown): boolean {
-  return value === null || typeof value === "string";
 }
 
 function isBoolean(value: unknown): boolean {

@@ -39,6 +39,25 @@ public sealed class WebHostPairingTests : WebHostServiceTestBase
     }
 
     [Fact]
+    public async Task RejectedPairingMessagesDoNotExtendTheHandshakeDeadline()
+    {
+        await using var fixture = await WebHostFixture.StartAsync();
+        using var socket = await ConnectAsync(fixture.WebHost);
+
+        var rejected = await SendAndReceiveAsync(socket, new
+        {
+            type = "pair.hello",
+            clientId = $"client-{Guid.NewGuid():N}",
+            deviceName = "Phone",
+            pairToken = "wrong-token"
+        });
+
+        Assert.Equal("pair.rejected", rejected.GetProperty("type").GetString());
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(12));
+        Assert.Equal(WebSocketCloseStatus.EndpointUnavailable, await ReceiveCloseStatusAsync(socket, timeout.Token));
+    }
+
+    [Fact]
     public async Task WebSocketRateLimitsRepeatedFailedPairingAttempts()
     {
         await using var fixture = await WebHostFixture.StartAsync();

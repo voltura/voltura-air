@@ -23,7 +23,7 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
         });
 
         Assert.False(AppDeveloperSettings.EnableAlphaFeatures());
-        Assert.Equal(JsonValueKind.Null, paired.GetProperty("capabilities").GetProperty("presentation").ValueKind);
+        Assert.False(paired.GetProperty("capabilities").TryGetProperty("presentation", out _));
         Assert.False(result.GetProperty("succeeded").GetBoolean());
         Assert.Equal("feature-disabled", result.GetProperty("code").GetString());
         Assert.Empty(fixture.InputInjector.Events);
@@ -38,7 +38,7 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
         var clientId = $"client-{Guid.NewGuid():N}";
         using var socket = await ConnectAsync(fixture.WebHost);
         var paired = await PairAsync(socket, fixture, clientId);
-        Assert.Equal(JsonValueKind.Null, paired.GetProperty("capabilities").GetProperty("presentation").ValueKind);
+        Assert.False(paired.GetProperty("capabilities").TryGetProperty("presentation", out _));
 
         AppDeveloperSettings.SetEnableAlphaFeatures(true);
         using var enabledTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
@@ -48,7 +48,7 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
         AppDeveloperSettings.SetEnableAlphaFeatures(false);
         using var disabledTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         using var disabledStatus = JsonDocument.Parse(await ReceiveTextAsync(socket, disabledTimeout.Token));
-        Assert.Equal(JsonValueKind.Null, disabledStatus.RootElement.GetProperty("capabilities").GetProperty("presentation").ValueKind);
+        Assert.False(disabledStatus.RootElement.GetProperty("capabilities").TryGetProperty("presentation", out _));
     }
 
     [Fact]

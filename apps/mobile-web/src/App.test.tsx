@@ -511,6 +511,7 @@ describe("App launch feedback", () => {
     mockConnection({
       appLaunchResult: {
         type: "app.launch.result",
+        operationId: "op-app",
         actionId: "preset.browser",
         succeeded: false,
         code: "not-configured",

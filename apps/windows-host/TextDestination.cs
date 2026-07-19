@@ -187,7 +187,7 @@ public sealed class TextDestinationService(InputDispatcher inputDispatcher, IInp
         var useNewItemShortcut = window is not null;
         var timeout = window is null ? StartupTimeout : ActivationTimeout;
         var startedWithPreparedDraft = false;
-        var prepareDraft = settings.Preset == TextDestinationPreset.NotepadPlusPlus ||
+        var prepareDraft = settings.Preset is TextDestinationPreset.Notepad or TextDestinationPreset.NotepadPlusPlus ||
             (window is null && settings.Preset is TextDestinationPreset.Excel or TextDestinationPreset.Word);
         if (!prepareDraft && !_platform.TrySetClipboardText(text)) return ClipboardFailure();
         if (window is null || prepareDraft)
@@ -201,6 +201,7 @@ public sealed class TextDestinationService(InputDispatcher inputDispatcher, IInp
                     {
                         TextDestinationPreset.Excel => ExcelDraftWorkbook.Create(text, sendEnter),
                         TextDestinationPreset.Word => WordDraftDocument.Create(text, sendEnter),
+                        TextDestinationPreset.Notepad => PlainTextDraft.Create(text, sendEnter),
                         TextDestinationPreset.NotepadPlusPlus => PlainTextDraft.Create(text, sendEnter),
                         _ => throw new InvalidOperationException("Unsupported text destination preset.")
                     });
@@ -229,6 +230,7 @@ public sealed class TextDestinationService(InputDispatcher inputDispatcher, IInp
             {
                 TextDestinationPreset.Excel => "Text was added to cell A1 in a new Excel workbook.",
                 TextDestinationPreset.Word => "Text was added to a new Word document.",
+                TextDestinationPreset.Notepad => "Text was added to a new Notepad document.",
                 TextDestinationPreset.NotepadPlusPlus => "Text was added to a new Notepad++ document.",
                 _ => throw new InvalidOperationException("Unsupported text destination preset.")
             });

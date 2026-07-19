@@ -11,6 +11,17 @@ accepts missing WebSocket `Origin` headers, same-origin requests, configured
 development client origins, and loopback/private LAN origins. Clearly unrelated
 public origins are rejected before the WebSocket is accepted.
 
+Protocol fields with no value are omitted. Required fields are always present;
+an optional field is absent rather than sent as `null` or an empty placeholder.
+Empty strings remain valid only where the individual message explicitly assigns
+them meaning. For example, a successful `clipboard.get.result` may carry an
+empty `text` value; an empty `appLaunchActions` array means no launch buttons
+are available. They are not placeholders for missing scalar values.
+
+When a wire message changes, update the test-only server-frame catalog and run
+both the host WebSocket integration suite and the mobile protocol parser suite.
+Those checks are build-time only and add no client or host runtime work.
+
 The host accepts at most 64 concurrent WebSocket sessions. Every session must
 send `pair.hello` within 10 seconds, and an authenticated session is closed
 after 2 minutes without a client message. Text messages are limited to 64 KiB
@@ -149,12 +160,10 @@ Successful response:
     "awake": {
       "canControl": false,
       "active": false,
-      "mode": "off",
-      "expiresAt": null
+      "mode": "off"
     },
     "sleep": true,
     "volume": true,
-    "presentation": null,
     "remoteLaunch": true,
     "urlOpen": { "canOpen": false },
     "textTransfer": true,
@@ -212,12 +221,10 @@ Host response:
     "awake": {
       "canControl": false,
       "active": false,
-      "mode": "off",
-      "expiresAt": null
+      "mode": "off"
     },
     "sleep": true,
     "volume": true,
-    "presentation": null,
     "remoteLaunch": true,
     "urlOpen": { "canOpen": false },
     "textTransfer": true,
@@ -313,8 +320,8 @@ latest-activity ordering.
 { "type": "device.rename", "deviceName": "Joakim iPhone" }
 ```
 
-The host trims `deviceName`; if the client sends a blank name, the host stores
-`Mobile device`.
+`deviceName` must contain non-whitespace text. The client supplies its default
+device name before sending the message when a user leaves the rename field blank.
 
 Set this device's pointer speed override on the PC after pairing has been accepted. This is sent only from a user action such as changing the mobile pointer speed slider:
 
@@ -391,6 +398,9 @@ Text input:
 { "type": "keyboard.text", "seq": 127, "text": "Hello" }
 ```
 
+`keyboard.text.text` must not be empty. Whitespace itself is valid text and is
+sent as such when the user types it.
+
 Special key:
 
 ```json
@@ -430,7 +440,8 @@ Remote launch actions are fixed host-defined actions. They are only accepted aft
 `openYoutube` opens Chrome with the host-configured YouTube URL. `startOrActivateKodi` focuses Kodi when it is already running or starts Kodi when it is not. Unsupported action names are rejected as invalid protocol shape. The host ignores valid launch actions when the effective **Allow paired devices to start applications** permission is disabled.
 
 Configurable application buttons use a separate message. The client sends only
-an `actionId` that was advertised in authenticated host metadata. It must never
+an `actionId` that was advertised in authenticated host metadata and a unique
+`operationId` used to correlate the response. It must never
 send a path, URL, process name, arguments, or shell command.
 
 ```json
@@ -445,7 +456,7 @@ send a path, URL, process name, arguments, or shell command.
 ```
 
 ```json
-{ "type": "app.launch", "actionId": "custom.1234" }
+{ "type": "app.launch", "operationId": "550e8400-e29b-41d4-a716-446655440000", "actionId": "custom.1234" }
 ```
 
 The host authenticates the socket, applies the effective launch permission,
@@ -455,6 +466,7 @@ and returns a result without closing the connection for an execution failure.
 ```json
 {
   "type": "app.launch.result",
+  "operationId": "550e8400-e29b-41d4-a716-446655440000",
   "actionId": "custom.1234",
   "succeeded": true,
   "code": "started",
@@ -528,14 +540,13 @@ Text transfer uses a separate acknowledged operation so the client can distingui
 }
 ```
 
-The host preserves multiline text by translating LF, CRLF, and CR line breaks into physical Enter key events for paste-driven destinations; CRLF produces one Enter. Generated text, Word, and Excel drafts preserve line breaks in their file formats. Notepad++ opens a generated text draft by file path instead of receiving new-item or paste shortcuts. **Send text + Enter** adds a final Enter or trailing blank draft line. The host refuses focused delivery while the protected Voltura Air host UI has focus. A native partial-input failure is reported as failure and requires an explicit retry; clients keep the draft and warn users to inspect the destination before retrying.
+The host preserves multiline text by translating LF, CRLF, and CR line breaks into physical Enter key events for paste-driven destinations; CRLF produces one Enter. Generated text, Word, and Excel drafts preserve line breaks in their file formats. Windows Notepad and Notepad++ open a generated text draft by file path instead of receiving new-item or paste shortcuts, so an existing tab is never changed. **Send text + Enter** adds a final Enter or trailing blank draft line. The host refuses focused delivery while the protected Voltura Air host UI has focus. A native partial-input failure is reported as failure and requires an explicit retry; clients keep the draft and warn users to inspect the destination before retrying.
 
 ```json
 {
   "type": "text.send.result",
   "operationId": "820c1314-d8a1-499d-a969-6520f681baea",
   "succeeded": true,
-  "code": null,
   "message": "Text pasted into Windows Notepad.",
   "deliveryKind": "pasted"
 }
@@ -556,7 +567,6 @@ The host preserves multiline text by translating LF, CRLF, and CR line breaks in
   "type": "clipboard.get.result",
   "operationId": "820c1314-d8a1-499d-a969-6520f681baea",
   "succeeded": true,
-  "code": null,
   "message": "Text fetched from the PC clipboard.",
   "text": "Example PC clipboard text"
 }
@@ -593,11 +603,7 @@ the presentation `black` shortcut. The target scope follows the current
 [PowerPoint presentation shortcuts](https://support.microsoft.com/en-us/office/use-keyboard-shortcuts-to-deliver-powerpoint-presentations-1524ffce-bd2a-45f4-9a7f-f18b992b93a0)
 and [Google Slides shortcuts](https://support.google.com/docs/answer/1696717).
 
-With the alpha gate off, the capability is explicitly unavailable:
-
-```json
-{ "presentation": null }
-```
+With the alpha gate off, the `presentation` capability is omitted.
 
 With the gate on, the host advertises the paired device's effective global/per-device permission:
 
@@ -614,7 +620,6 @@ After validation and permission enforcement, the host performs one shortcut inje
   "target": "powerpoint",
   "action": "next",
   "succeeded": true,
-  "code": null,
   "message": "Next slide command sent."
 }
 ```
@@ -670,11 +675,11 @@ The host reports optional PC features in `capabilities`. Capability values
 reflect host-enforced permissions and host settings for the active device.
 `capabilities.gestureDebug` defaults to `false`; `capabilities.inputAck` is
 `true` when the host confirms input delivery with `input.ack` / `input.error`.
-`capabilities.presentation` is `null` while the reusable, default-off alpha gate
+`capabilities.presentation` is omitted while the reusable, default-off alpha gate
 is disabled. While the gate is enabled, it is an object whose `canControl` value
 is the active device's effective Presentation control permission. Clients must
 not expose or send capability-gated operations while their corresponding
-capability is absent, false, or `null`.
+capability is absent or false.
 
 Put the PC to sleep:
 
@@ -794,7 +799,7 @@ blocked.
 ```
 
 `mode` is `off`, `indefinite`, `timed`, or `expiration`. `expiresAt` is a UTC
-ISO-8601 timestamp for timed and expiration modes and `null` otherwise. Tray,
+ISO-8601 timestamp for timed and expiration modes and omitted otherwise. Tray,
 Preferences, timer expiry, and remote changes all update the same host-owned
 state. The host broadcasts a fresh `status` message to connected clients when
 that state changes.

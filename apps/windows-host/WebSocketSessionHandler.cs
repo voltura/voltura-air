@@ -31,12 +31,16 @@ internal sealed class WebSocketSessionHandler(
         IDisposable? activeConnection = null;
         var buffer = new byte[WebSocketTransport.MaxMessageBytes];
         using var receiveTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        receiveTimeout.CancelAfter(PairingHandshakeTimeout);
 
         try
         {
             while (socket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
             {
-                receiveTimeout.CancelAfter(authenticated ? AuthenticatedInactivityTimeout : PairingHandshakeTimeout);
+                if (authenticated)
+                {
+                    receiveTimeout.CancelAfter(AuthenticatedInactivityTimeout);
+                }
                 JsonDocument? receivedDocument;
                 try
                 {
@@ -52,7 +56,6 @@ internal sealed class WebSocketSessionHandler(
                     break;
                 }
 
-                receiveTimeout.CancelAfter(Timeout.InfiniteTimeSpan);
                 if (receivedDocument is null)
                 {
                     break;
@@ -235,7 +238,7 @@ internal sealed class WebSocketSessionHandler(
                 await externalActionCommands.HandleRemoteLaunchAsync(clientId, ProtocolMessageFields.GetString(root, "action"), cancellationToken);
                 return true;
             case "app.launch":
-                await externalActionCommands.HandleAppLaunchAsync(socket, clientId, ProtocolMessageFields.GetString(root, "actionId"), cancellationToken);
+                await externalActionCommands.HandleAppLaunchAsync(socket, clientId, ProtocolMessageFields.GetString(root, "operationId"), ProtocolMessageFields.GetString(root, "actionId"), cancellationToken);
                 return true;
             case "url.open":
                 await externalActionCommands.HandleUrlOpenAsync(

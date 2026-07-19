@@ -28,13 +28,14 @@ public sealed class WebHostAppLaunchTests : WebHostServiceTestBase
                 pairToken = fixture.Manager.CreatePairingToken()
             });
             var advertised = Assert.Single(paired.GetProperty("host").GetProperty("appLaunchActions").EnumerateArray());
-            var result = await SendAndReceiveAsync(socket, new { type = "app.launch", actionId = "preset.browser" });
+            var result = await SendAndReceiveAsync(socket, new { type = "app.launch", operationId = "op-app-1", actionId = "preset.browser" });
 
             Assert.Equal("preset.browser", advertised.GetProperty("id").GetString());
             Assert.Equal("Browser", advertised.GetProperty("label").GetString());
             Assert.Equal("browser", advertised.GetProperty("kind").GetString());
             Assert.Equal(new[] { "preset.browser" }, appLaunch.ActionIds);
             Assert.Equal("app.launch.result", result.GetProperty("type").GetString());
+            Assert.Equal("op-app-1", result.GetProperty("operationId").GetString());
             Assert.True(result.GetProperty("succeeded").GetBoolean());
             Assert.Equal("started", result.GetProperty("code").GetString());
         }
@@ -71,7 +72,7 @@ public sealed class WebHostAppLaunchTests : WebHostServiceTestBase
                 new DevicePermissionOverrides(AllowRemoteAppLaunch: false)));
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
             using var pushedStatus = JsonDocument.Parse(await ReceiveTextAsync(socket, timeout.Token));
-            var result = await SendAndReceiveAsync(socket, new { type = "app.launch", actionId = "preset.browser" });
+            var result = await SendAndReceiveAsync(socket, new { type = "app.launch", operationId = "op-app-2", actionId = "preset.browser" });
 
             Assert.Empty(pushedStatus.RootElement.GetProperty("host").GetProperty("appLaunchActions").EnumerateArray());
             Assert.Empty(appLaunch.ActionIds);
@@ -111,7 +112,7 @@ public sealed class WebHostAppLaunchTests : WebHostServiceTestBase
                 new DevicePermissionOverrides(AllowRemoteAppLaunch: true)));
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
             using var pushedStatus = JsonDocument.Parse(await ReceiveTextAsync(socket, timeout.Token));
-            var result = await SendAndReceiveAsync(socket, new { type = "app.launch", actionId = "preset.browser" });
+            var result = await SendAndReceiveAsync(socket, new { type = "app.launch", operationId = "op-app-3", actionId = "preset.browser" });
 
             Assert.Single(pushedStatus.RootElement.GetProperty("host").GetProperty("appLaunchActions").EnumerateArray());
             Assert.Equal(new[] { "preset.browser" }, appLaunch.ActionIds);
@@ -136,7 +137,7 @@ public sealed class WebHostAppLaunchTests : WebHostServiceTestBase
             pairToken = fixture.Manager.CreatePairingToken()
         });
 
-        await SendAsync(socket, new { type = "app.launch", actionId = "..\\cmd.exe /c calc" });
+        await SendAsync(socket, new { type = "app.launch", operationId = "op-app-4", actionId = "..\\cmd.exe /c calc" });
         var closeStatus = await ReceiveCloseStatusAsync(socket);
 
         Assert.Equal(WebSocketCloseStatus.PolicyViolation, closeStatus);

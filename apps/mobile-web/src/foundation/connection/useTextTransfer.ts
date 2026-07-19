@@ -71,12 +71,13 @@ export function useTextTransfer(state: ConnectionState, send: (payload: ClientMe
 
   const completeTextTransfer = (result: TextSendResultMessage) => {
     if (pendingOperationRef.current !== result.operationId) {
-      return;
+      return false;
     }
 
     pendingOperationRef.current = null;
     setPendingTextTransfer(false);
     setTextTransferResult(result);
+    return true;
   };
 
   return { completeTextTransfer, pendingTextTransfer, requestTextTransfer, textTransferResult };

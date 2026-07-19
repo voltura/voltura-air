@@ -65,7 +65,7 @@ export function useClipboardRead(state: ConnectionState, send: (payload: ClientM
 
   const completeClipboardRead = (result: ClipboardGetResultMessage) => {
     if (pendingOperationRef.current !== result.operationId) {
-      return;
+      return false;
     }
 
     pendingOperationRef.current = null;
@@ -74,6 +74,7 @@ export function useClipboardRead(state: ConnectionState, send: (payload: ClientM
     if (result.succeeded && typeof result.text === "string") {
       setClipboardText(result.text);
     }
+    return true;
   };
 
   return { clipboardReadResult, clipboardText, completeClipboardRead, pendingClipboardRead, requestClipboardRead, setClipboardText };

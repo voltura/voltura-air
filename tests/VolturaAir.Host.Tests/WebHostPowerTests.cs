@@ -343,7 +343,10 @@ public sealed class WebHostPowerTests
             stream.Write(buffer, 0, result.Count);
         } while (!result.EndOfMessage);
 
-        return Encoding.UTF8.GetString(stream.ToArray());
+        var text = Encoding.UTF8.GetString(stream.ToArray());
+        using var document = JsonDocument.Parse(text);
+        ProtocolFrameAssert.Conforms(document.RootElement);
+        return text;
     }
 
     private static async Task<WebSocketCloseStatus?> ReceiveCloseStatusAsync(WebSocket socket)

@@ -46,13 +46,13 @@ const displayOffHealthCheckDelayMs = 1000;
 interface ConnectionSocketLifecycleOptions {
   clearRuntimeStateFromSocket: () => void;
   clientId: string;
-  completeAppLaunch: (result: AppLaunchResultMessage) => void;
+  completeAppLaunch: (result: AppLaunchResultMessage) => boolean;
   completeAwakeChange: (result: AwakeResultMessage) => boolean;
-  completeClipboardRead: (result: ClipboardGetResultMessage) => void;
+  completeClipboardRead: (result: ClipboardGetResultMessage) => boolean;
   completePowerAction: (result: SystemPowerResultMessage) => boolean;
-  completePresentationCommand: (result: PresentationCommandResultMessage) => void;
-  completeTextTransfer: (result: TextSendResultMessage) => void;
-  completeUrlOpen: (result: UrlOpenResultMessage) => void;
+  completePresentationCommand: (result: PresentationCommandResultMessage) => boolean;
+  completeTextTransfer: (result: TextSendResultMessage) => boolean;
+  completeUrlOpen: (result: UrlOpenResultMessage) => boolean;
   connectionPcId: string | null;
   connectionPcUrl: string | null;
   deviceNameRef: RefObject<string>;
@@ -524,11 +524,12 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
   
         if (response.type === "presentation.command.result") {
           touchHealthy();
-          completePresentationCommand(response);
-          setMessage(response.message);
-          setLastConnectionError(response.succeeded
-            ? null
-            : { code: response.code ?? "VAIR-PRESENTATION-COMMAND-FAILED", message: response.message });
+          if (completePresentationCommand(response)) {
+            setMessage(response.message);
+            setLastConnectionError(response.succeeded
+              ? null
+              : { code: response.code ?? "VAIR-PRESENTATION-COMMAND-FAILED", message: response.message });
+          }
           scheduleHealthCheck(ws);
           return;
         }
@@ -547,41 +548,45 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
   
         if (response.type === "app.launch.result") {
           touchHealthy();
-          completeAppLaunch(response);
-          setMessage(response.message);
-          setLastConnectionError(response.succeeded
-            ? null
-            : { code: response.code ?? "VAIR-APP-LAUNCH-FAILED", message: response.message });
+          if (completeAppLaunch(response)) {
+            setMessage(response.message);
+            setLastConnectionError(response.succeeded
+              ? null
+              : { code: response.code ?? "VAIR-APP-LAUNCH-FAILED", message: response.message });
+          }
           scheduleHealthCheck(ws);
           return;
         }
   
         if (response.type === "url.open.result") {
           touchHealthy();
-          completeUrlOpen(response);
-          setLastConnectionError(response.succeeded
-            ? null
-            : { code: response.code ?? "VAIR-URL-OPEN-FAILED", message: response.message });
+          if (completeUrlOpen(response)) {
+            setLastConnectionError(response.succeeded
+              ? null
+              : { code: response.code ?? "VAIR-URL-OPEN-FAILED", message: response.message });
+          }
           scheduleHealthCheck(ws);
           return;
         }
   
         if (response.type === "text.send.result") {
           touchHealthy();
-          completeTextTransfer(response);
-          setLastConnectionError(response.succeeded
-            ? null
-            : { code: response.code ?? "VAIR-TEXT-DELIVERY-FAILED", message: response.message });
+          if (completeTextTransfer(response)) {
+            setLastConnectionError(response.succeeded
+              ? null
+              : { code: response.code ?? "VAIR-TEXT-DELIVERY-FAILED", message: response.message });
+          }
           scheduleHealthCheck(ws);
           return;
         }
   
         if (response.type === "clipboard.get.result") {
           touchHealthy();
-          completeClipboardRead(response);
-          setLastConnectionError(response.succeeded
-            ? null
-            : { code: response.code ?? "VAIR-CLIPBOARD-READ-FAILED", message: response.message });
+          if (completeClipboardRead(response)) {
+            setLastConnectionError(response.succeeded
+              ? null
+              : { code: response.code ?? "VAIR-CLIPBOARD-READ-FAILED", message: response.message });
+          }
           scheduleHealthCheck(ws);
           return;
         }

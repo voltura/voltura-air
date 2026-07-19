@@ -47,7 +47,7 @@ export interface ServerCapabilities {
   gestureDebug?: boolean;
   inputAck?: boolean;
   clipboardRead?: boolean;
-  presentation?: PresentationCapability | null;
+  presentation?: PresentationCapability;
   power?: PowerCapabilities;
   remoteLaunch?: boolean;
   urlOpen?: UrlOpenCapability;
@@ -74,7 +74,7 @@ export interface AwakeCapability {
   canControl: boolean;
   active: boolean;
   mode: "off" | "indefinite" | "timed" | "expiration";
-  expiresAt?: string | null | undefined;
+  expiresAt?: string | undefined;
 }
 
 export interface PowerCapabilities {
@@ -275,11 +275,13 @@ export interface RemoteLaunchMessage {
 
 export interface AppLaunchMessage {
   type: "app.launch";
+  operationId: string;
   actionId: string;
 }
 
 export interface AppLaunchResultMessage {
   type: "app.launch.result";
+  operationId: string;
   actionId: string;
   succeeded: boolean;
   code?: string;
@@ -298,7 +300,7 @@ export interface UrlOpenResultMessage {
   succeeded: boolean;
   code?: string;
   message: string;
-  normalizedUrl?: string | null;
+  normalizedUrl?: string;
 }
 
 export interface TextSendMessage {
@@ -328,7 +330,7 @@ export interface ClipboardGetResultMessage {
   succeeded: boolean;
   code?: string;
   message: string;
-  text?: string | null;
+  text?: string;
 }
 
 export interface AudioMuteToggleMessage {

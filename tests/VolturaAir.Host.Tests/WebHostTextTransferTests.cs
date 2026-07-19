@@ -21,8 +21,32 @@ public sealed class WebHostTextTransferTests : WebHostServiceTestBase
 
             Assert.True(paired.GetProperty("capabilities").GetProperty("clipboardRead").GetBoolean());
             Assert.True(result.GetProperty("succeeded").GetBoolean());
+            Assert.False(result.TryGetProperty("code", out _));
             Assert.Equal("Copied from PC", result.GetProperty("text").GetString());
             Assert.Equal(1, clipboard.ReadCount);
+        }
+        finally
+        {
+            AppPermissionSettings.Save(originalPermissions);
+        }
+    }
+
+    [Fact]
+    public async Task ReturnsAnEmptyClipboardTextValueWhenTheReadSucceeded()
+    {
+        var originalPermissions = AppPermissionSettings.Load();
+        var clipboard = new FakeClipboardTextReader(new ClipboardTextReadResult(true, string.Empty, null, "Text fetched from the PC clipboard."));
+
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowClipboardRead = true });
+            await using var fixture = await WebHostFixture.StartAsync(clipboardTextReader: clipboard);
+            using var socket = await ConnectAsync(fixture.WebHost);
+            _ = await SendAndReceiveAsync(socket, new { type = "pair.hello", clientId = $"client-{Guid.NewGuid():N}", deviceName = "Phone", pairToken = fixture.Manager.CreatePairingToken() });
+            var result = await SendAndReceiveAsync(socket, new { type = "clipboard.get", operationId = "clipboard-empty" });
+
+            Assert.True(result.GetProperty("succeeded").GetBoolean());
+            Assert.Equal(string.Empty, result.GetProperty("text").GetString());
         }
         finally
         {

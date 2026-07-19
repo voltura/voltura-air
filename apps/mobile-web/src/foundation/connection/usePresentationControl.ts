@@ -76,12 +76,13 @@ export function usePresentationControl(state: ConnectionState, send: (payload: C
 
   const completePresentationCommand = (result: PresentationCommandResultMessage) => {
     if (pendingRef.current?.operationId !== result.operationId) {
-      return;
+      return false;
     }
 
     pendingRef.current = null;
     setPendingPresentationCommand(null);
     setPresentationResult(result);
+    return true;
   };
 
   return { completePresentationCommand, pendingPresentationCommand, presentationResult, requestPresentationCommand };

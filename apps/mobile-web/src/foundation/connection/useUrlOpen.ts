@@ -69,12 +69,13 @@ export function useUrlOpen(state: ConnectionState, send: (payload: ClientMessage
 
   const completeUrlOpen = (result: UrlOpenResultMessage) => {
     if (pendingOperationRef.current !== result.operationId) {
-      return;
+      return false;
     }
 
     pendingOperationRef.current = null;
     setPendingUrlOpen(false);
     setUrlOpenResult(result);
+    return true;
   };
 
   return { completeUrlOpen, pendingUrlOpen, requestUrlOpen, urlOpenResult };

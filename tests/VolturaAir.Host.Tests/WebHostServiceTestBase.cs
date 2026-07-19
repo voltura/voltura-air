@@ -40,15 +40,18 @@ public abstract class WebHostServiceTestBase
             stream.Write(buffer, 0, result.Count);
         } while (!result.EndOfMessage);
 
-        return Encoding.UTF8.GetString(stream.ToArray());
+        var text = Encoding.UTF8.GetString(stream.ToArray());
+        using var document = JsonDocument.Parse(text);
+        ProtocolFrameAssert.Conforms(document.RootElement);
+        return text;
     }
 
-    protected static async Task<WebSocketCloseStatus?> ReceiveCloseStatusAsync(WebSocket socket)
+    protected static async Task<WebSocketCloseStatus?> ReceiveCloseStatusAsync(WebSocket socket, CancellationToken cancellationToken = default)
     {
         var buffer = new byte[8192];
         while (socket.State == WebSocketState.Open || socket.State == WebSocketState.CloseReceived)
         {
-            var result = await socket.ReceiveAsync(buffer, CancellationToken.None);
+            var result = await socket.ReceiveAsync(buffer, cancellationToken);
             if (result.MessageType == WebSocketMessageType.Close)
             {
                 return result.CloseStatus;

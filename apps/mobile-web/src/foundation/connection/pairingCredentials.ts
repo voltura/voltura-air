@@ -3,6 +3,8 @@ import { getWebSocketUrl, type PcProfile } from "./pcProfiles";
 import type { PairAcceptedMessage } from "../protocol/messages";
 import { parseServerMessage } from "./connectionProtocol";
 
+const revocationTimeoutMs = 10_000;
+
 export function handlePairAccepted(message: PairAcceptedMessage, pcId: string): void {
   localStorage.setItem(secretKey(message.clientId, pcId), message.secret);
 }
@@ -35,9 +37,30 @@ export function revokePcPairing(pc: PcProfile | null, clientId: string, deviceNa
   }
 
   const socket = new WebSocket(getWebSocketUrl(pc));
-  let authenticated = false;
+  let finished = false;
+  const timeout = window.setTimeout(finish, revocationTimeoutMs);
 
-  socket.addEventListener("open", () => {
+  function finish() {
+    if (finished) {
+      return;
+    }
+
+    finished = true;
+    window.clearTimeout(timeout);
+    socket.removeEventListener("open", onOpen);
+    socket.removeEventListener("message", onMessage);
+    socket.removeEventListener("close", finish);
+    socket.removeEventListener("error", finish);
+    if (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN) {
+      socket.close();
+    }
+  }
+
+  function onOpen() {
+    if (finished) {
+      return;
+    }
+
     socket.send(JSON.stringify({
       type: "pair.hello",
       clientId,
@@ -47,22 +70,31 @@ export function revokePcPairing(pc: PcProfile | null, clientId: string, deviceNa
       displayMode: getDisplayMode(),
       secret
     }));
-  });
+  }
 
-  socket.addEventListener("message", (event) => {
+  function onMessage(event: MessageEvent) {
     const response = parseServerMessage(event.data);
-    if (response?.type !== "pair.accepted" || authenticated) {
+    if (finished) {
       return;
     }
 
-    authenticated = true;
-    socket.send(JSON.stringify({ type: "pair.disconnect" }));
-    socket.close();
-  });
+    if (response?.type === "pair.rejected") {
+      finish();
+      return;
+    }
 
-  socket.addEventListener("error", () => {
-    socket.close();
-  });
+    if (response?.type !== "pair.accepted") {
+      return;
+    }
+
+    socket.send(JSON.stringify({ type: "pair.disconnect" }));
+    finish();
+  }
+
+  socket.addEventListener("open", onOpen);
+  socket.addEventListener("message", onMessage);
+  socket.addEventListener("close", finish);
+  socket.addEventListener("error", finish);
 }
 
 function secretKey(clientId: string, pcId: string): string {

@@ -25,6 +25,7 @@ internal sealed class ExternalActionCommandHandler(
     public Task HandleAppLaunchAsync(
         WebSocket socket,
         string clientId,
+        string operationId,
         string actionId,
         CancellationToken cancellationToken)
     {
@@ -43,6 +44,7 @@ internal sealed class ExternalActionCommandHandler(
         return transport.SendAsync(socket, new
         {
             type = "app.launch.result",
+            operationId,
             actionId,
             succeeded = result.Succeeded,
             code = result.Code,

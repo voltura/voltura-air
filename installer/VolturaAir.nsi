@@ -50,6 +50,7 @@
 
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
+!include "WinMessages.nsh"
 
 Unicode true
 Name "${APP_NAME}"
@@ -91,6 +92,7 @@ VIAddVersionKey "Comments" "Developer: ${DEVELOPER}; Website: ${PRODUCT_URL}; Em
 !define MUI_FINISHPAGE_TEXT "Start ${APP_NAME}, scan the pairing code from your phone or tablet, and control your PC from the sofa."
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${EXE_NAME}"
 !define MUI_FINISHPAGE_RUN_TEXT "Start ${APP_NAME}"
+!define MUI_CUSTOMFUNCTION_GUIINIT RestoreInstallerWindow
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_INSTFILES
@@ -99,6 +101,11 @@ VIAddVersionKey "Comments" "Developer: ${DEVELOPER}; Website: ${PRODUCT_URL}; Em
 !insertmacro MUI_UNPAGE_INSTFILES
 
 !insertmacro MUI_LANGUAGE "English"
+
+Function RestoreInstallerWindow
+  ShowWindow $HWNDPARENT ${SW_RESTORE}
+  BringToFront
+FunctionEnd
 
 Section "Install"
   Call PromptCloseRunningApp

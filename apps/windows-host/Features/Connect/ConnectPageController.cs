@@ -9,7 +9,8 @@ internal sealed class ConnectPageController(
     string? clientUrl,
     bool usePublicScreenshotPairingUrl,
     HostClipboardFeedback clipboard,
-    Action requestViewRefresh)
+    Action requestViewRefresh,
+    Action openConnectionPage)
 {
     private readonly PairingLinkController _pairingLinks = new(pairingManager, webHost.ServerUrl, clientUrl);
 
@@ -28,7 +29,6 @@ internal sealed class ConnectPageController(
             .Any();
         return new ConnectPageView(
             PairingQrCodeRenderer.Create(pairingLink),
-            GetConnectionStatus(),
             pairingLink,
             webHost.ServerUrl,
             webHost.SelectedAdapterName,
@@ -40,7 +40,8 @@ internal sealed class ConnectPageController(
             webHost.PortSelectionWarning,
             _pairingLinks.RefreshAt,
             CreateNewCode,
-            () => clipboard.Copy(GetVisiblePairingUrl(), "Link copied"));
+            () => clipboard.Copy(GetVisiblePairingUrl(), "Link copied"),
+            openConnectionPage);
     }
 
     public void CreateNewCode()

@@ -36,9 +36,9 @@ internal sealed class DiagnosticsPageController(
             ProductWebsite.Open);
     }
 
-    private IReadOnlyList<DiagnosticItem> GetDiagnostics()
+    private List<DiagnosticItem> GetDiagnostics()
     {
-        return
+        List<DiagnosticItem> diagnostics =
         [
             new("Voltura Air version", AppVersion.Display),
             new("Voltura Air web client version", "copy mobile diagnostics for web client version"),
@@ -53,15 +53,25 @@ internal sealed class DiagnosticsPageController(
             new("Application log retention", $"{AppLoggingSettings.GetMaxAgeDays().ToString(CultureInfo.InvariantCulture)} days"),
             new("Application log folder", appLog.LogDirectory),
             new("Pairing state", GetPairingState()),
-            new("Last error code", GetLastErrorCode()),
-            new("Last error message", GetLastErrorMessage()),
+        ];
+
+        foreach (var advisory in GetAdvisories())
+        {
+            diagnostics.Add(new(advisory.Name, advisory.Summary));
+            diagnostics.Add(new($"{advisory.Name} details", advisory.Message));
+        }
+
+        diagnostics.AddRange(
+        [
             new("Paired device count", pairingManager.PairedDeviceCount.ToString(CultureInfo.InvariantCulture)),
             new("Connected device count", pairingManager.ActiveControllerCount.ToString(CultureInfo.InvariantCulture)),
             new("Paired devices", pairingManager.PairedDeviceSummary),
             new("Active devices", pairingManager.HasActiveController ? pairingManager.ActiveDeviceSummary : "none"),
             new("Data folder", Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Voltura Air")),
             new("Executable", Environment.ProcessPath ?? string.Empty)
-        ];
+        ]);
+
+        return diagnostics;
     }
 
     private string BuildDiagnosticsText()
@@ -72,6 +82,7 @@ internal sealed class DiagnosticsPageController(
             $"Generated: {DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz}"
         };
         lines.AddRange(GetDiagnostics().Select(detail => $"{detail.Name}: {RedactDiagnosticValue(detail.Value)}"));
+        lines.AddRange(GetAdvisories().Select(advisory => $"{advisory.Name} code: {advisory.Code}"));
         return string.Join(Environment.NewLine, lines);
     }
 
@@ -85,27 +96,25 @@ internal sealed class DiagnosticsPageController(
         return pairingManager.IsPaired ? "paired-not-connected" : "ready-to-pair";
     }
 
-    private string GetLastErrorCode()
+    private IEnumerable<DiagnosticAdvisory> GetAdvisories()
     {
-        if (!string.IsNullOrWhiteSpace(webHost.PortSelectionWarning))
+        if (!string.IsNullOrWhiteSpace(webHost.AddressSelectionWarning))
         {
-            return "VAIR-HOST-PORT-WARNING";
+            yield return new DiagnosticAdvisory(
+                "Network advisory",
+                "Multiple network adapters detected",
+                webHost.AddressSelectionWarning,
+                "VAIR-HOST-NETWORK-WARNING");
         }
 
-        return string.IsNullOrWhiteSpace(webHost.AddressSelectionWarning)
-            ? "none"
-            : "VAIR-HOST-NETWORK-WARNING";
-    }
-
-    private string GetLastErrorMessage()
-    {
-        var messages = new[]
+        if (!string.IsNullOrWhiteSpace(webHost.PortSelectionWarning))
         {
-            webHost.AddressSelectionWarning,
-            webHost.PortSelectionWarning
-        }.Where(message => !string.IsNullOrWhiteSpace(message)).ToArray();
-
-        return messages.Length == 0 ? "none" : string.Join(" ", messages);
+            yield return new DiagnosticAdvisory(
+                "Port advisory",
+                "Port configuration needs attention",
+                webHost.PortSelectionWarning,
+                "VAIR-HOST-PORT-WARNING");
+        }
     }
 
     private static string RedactDiagnosticValue(string value)
@@ -123,4 +132,6 @@ internal sealed class DiagnosticsPageController(
             ? "[redacted]"
             : value;
     }
+
+    private sealed record DiagnosticAdvisory(string Name, string Summary, string Message, string Code);
 }

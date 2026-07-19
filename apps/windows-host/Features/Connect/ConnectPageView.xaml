@@ -32,8 +32,7 @@
             </Grid.RowDefinitions>
 
             <ui:SpacingStackPanel Spacing="{DynamicResource SpaceMd}">
-                <ui:InfoCard x:Name="StatusCard" Title="Current status" Emphasized="True" />
-                <ui:InfoCard x:Name="PairingCodeCard" Title="QR code">
+                <ui:InfoCard x:Name="PairingCodeCard" Title="Pairing code">
                     <ui:InfoCard.Actions>
                         <ui:SpacingStackPanel Orientation="Horizontal" Spacing="{DynamicResource SpaceSm}">
                             <Button Content="Copy link"
@@ -66,7 +65,12 @@
                     <ui:SpacingStackPanel Spacing="{DynamicResource SpaceMd}">
                         <ui:InfoCard x:Name="SelectedAdapterCard" Title="Network adapter">
                             <ui:InfoCard.Actions>
-                                <local:AdapterWarningNotice />
+                                <ui:SpacingStackPanel Spacing="{DynamicResource SpaceSm}">
+                                    <local:AdapterWarningNotice />
+                                    <Button Content="Change"
+                                            Visibility="Collapsed"
+                                            Click="OnChangeAdapterClicked" />
+                                </ui:SpacingStackPanel>
                             </ui:InfoCard.Actions>
                         </ui:InfoCard>
                         <ui:InfoCard x:Name="PairingLinkCard" Title="Pairing link" Monospace="True" />

@@ -8,6 +8,7 @@ const clientFileRetryCount = 3;
 const clientFileRetryDelayMs = 2000;
 
 const clientPort = process.env.VOLTURA_AIR_CLIENT_PORT ?? "5173";
+const restartExitCode = 23;
 let shuttingDown = false;
 const args = [
   "run",
@@ -34,26 +35,36 @@ if (useViteClient) {
   await waitForClientFiles();
 }
 
-const child = spawn("dotnet", args, {
-  stdio: ["inherit", "pipe", "inherit"]
-});
-child.stdout.pipe(process.stdout);
+let child = startHost();
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.once(signal, () => shutdown(signal));
 }
 
-child.on("exit", (code, signal) => {
-  if (shuttingDown) {
-    return;
-  }
+function startHost() {
+  const next = spawn("dotnet", args, {
+    stdio: ["inherit", "pipe", "inherit"],
+    env: { ...process.env, VOLTURA_AIR_DEV_HOST: "1" }
+  });
+  next.stdout.pipe(process.stdout);
+  next.on("exit", (code, signal) => {
+    if (shuttingDown) {
+      return;
+    }
 
-  if (signal) {
-    process.kill(process.pid, signal);
-  }
+    if (code === restartExitCode) {
+      child = startHost();
+      return;
+    }
 
-  process.exit(code ?? 0);
-});
+    if (signal) {
+      process.kill(process.pid, signal);
+    }
+
+    process.exit(code ?? 0);
+  });
+  return next;
+}
 
 function shutdown(signal) {
   if (shuttingDown) {

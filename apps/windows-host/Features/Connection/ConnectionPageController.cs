@@ -9,10 +9,13 @@ using WpfDataObject = System.Windows.DataObject;
 namespace VolturaAir.Host.Features.Connection;
 
 internal sealed class ConnectionPageController(
+    Window owner,
+    PairingManager pairingManager,
     WebHostService webHost,
     HostVisualFactory visuals,
     Action<string> serverUrlChanged,
-    Action requestViewRefresh)
+    Action requestViewRefresh,
+    Action requestRestart)
 {
     private ConnectionPageView? _page;
 
@@ -106,7 +109,29 @@ internal sealed class ConnectionPageController(
             PortMode = portMode,
             ManualPort = manualPort
         };
+
+        var requiresRestart = updated != current;
+        var restartMessage = pairingManager.IsPaired
+            ? "Restart Voltura Air to apply the new connection settings. Connected devices will disconnect. After restart, scan the pairing code displayed by Voltura Air on each device to update its connection."
+            : "Restart Voltura Air to apply the new connection settings.";
+        if (requiresRestart && !ThemedConfirmationDialog.Show(
+                owner,
+                "Restart Voltura Air?",
+                restartMessage,
+                "Restart",
+                "Cancel",
+                ConfirmationTone.Question))
+        {
+            return;
+        }
+
         AppNetworkSettings.Save(updated);
+
+        if (requiresRestart)
+        {
+            requestRestart();
+            return;
+        }
 
         var selection = LanAddressSelector.Select(LanAddressSelector.GetCandidates(), updated);
         var hostAddress = selection?.Address.ToString() ?? WebHostService.GetDnsLanAddressFallback() ?? "127.0.0.1";

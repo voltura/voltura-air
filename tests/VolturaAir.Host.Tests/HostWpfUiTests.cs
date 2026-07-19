@@ -72,9 +72,13 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
                 var sidebarLayout = Assert.IsType<Grid>(sidebarHeader.Parent);
                 Assert.Equal(new GridLength(UiTokens.SpaceXl), sidebarLayout.RowDefinitions[1].Height);
                 Assert.DoesNotContain(FindWpfDescendants<Button>(window), button => button.Content?.ToString() == "Hide to tray");
+                Assert.Equal("Ready to pair", window.NavStatusText.Text);
                 window.ShowPage(HostPage.Connect);
                 window.UpdateLayout();
                 Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "Connect");
+                Assert.Contains(
+                    FindWpfDescendants<TextBlock>(window),
+                    text => text.Text == "Pair a phone, tablet, or browser on the same network.");
                 Assert.Equal("New code", FindPairingCodeAction(window, "New code").Content);
 
                 window.ShowPage(HostPage.Connection);
@@ -176,6 +180,7 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
                 DoWpfEvents();
 
                 Assert.True(accepted.Accepted);
+                Assert.Equal("1 paired device", window.NavStatusText.Text);
                 Assert.NotEqual(initialPairingUrl, window.PairingUrl);
             }
             finally

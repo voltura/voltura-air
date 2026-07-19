@@ -6,42 +6,65 @@ namespace VolturaAir.Host;
 
 internal static class Program
 {
+    private const int DevelopmentRestartExitCode = 23;
     private static WpfHostRuntime? s_runtime;
     private static IDisposable? s_isolatedSettingsScope;
     private static int s_activationRequested;
+    private static int s_restartRequested;
 
     [STAThread]
     private static void Main(string[] args)
     {
-        using var singleInstance = SingleInstanceCoordinator.TryAcquire(RequestMainWindow);
-        if (singleInstance is null)
+        SingleInstanceCoordinator? singleInstance = null;
+        try
         {
-            return;
+            singleInstance = SingleInstanceCoordinator.TryAcquire(RequestMainWindow);
+            if (singleInstance is null)
+            {
+                return;
+            }
+
+            Forms.Application.SetHighDpiMode(Forms.HighDpiMode.PerMonitorV2);
+            Forms.Application.EnableVisualStyles();
+            Forms.Application.SetCompatibleTextRenderingDefault(false);
+
+            var app = new WpfApplication
+            {
+                ShutdownMode = ShutdownMode.OnExplicitShutdown
+            };
+            var shutdownCoordinator = new WpfShutdownCoordinator(
+                app.Dispatcher,
+                DisposeRuntimeAsync,
+                app.Shutdown,
+                static exception => Console.Error.WriteLine("Voltura Air shutdown cleanup failed: {0}", exception.Message));
+            app.Exit += OnApplicationExit;
+
+            var startupWindow = new StartupWindow();
+            startupWindow.Show();
+
+            _ = app.Dispatcher.InvokeAsync(() => InitializeAsync(
+                startupWindow,
+                args,
+                shutdownCoordinator.RequestShutdown,
+                () => RequestRestart(shutdownCoordinator.RequestShutdown)));
+            app.Run();
+        }
+        finally
+        {
+            singleInstance?.Dispose();
         }
 
-        Forms.Application.SetHighDpiMode(Forms.HighDpiMode.PerMonitorV2);
-        Forms.Application.EnableVisualStyles();
-        Forms.Application.SetCompatibleTextRenderingDefault(false);
-
-        var app = new WpfApplication
+        if (Interlocked.Exchange(ref s_restartRequested, 0) != 0 && !IsDevelopmentHostSupervisor())
         {
-            ShutdownMode = ShutdownMode.OnExplicitShutdown
-        };
-        var shutdownCoordinator = new WpfShutdownCoordinator(
-            app.Dispatcher,
-            DisposeRuntimeAsync,
-            app.Shutdown,
-            static exception => Console.Error.WriteLine("Voltura Air shutdown cleanup failed: {0}", exception.Message));
-        app.Exit += OnApplicationExit;
-
-        var startupWindow = new StartupWindow();
-        startupWindow.Show();
-
-        _ = app.Dispatcher.InvokeAsync(() => InitializeAsync(startupWindow, args, shutdownCoordinator.RequestShutdown));
-        app.Run();
+            RestartCurrentProcess();
+        }
     }
 
-    private static async Task InitializeAsync(StartupWindow startupWindow, string[] args, Action requestShutdown)
+    private static async Task InitializeAsync(
+        StartupWindow startupWindow,
+        string[] args,
+        Action requestShutdown,
+        Action requestRestart)
     {
         var startedAt = DateTimeOffset.UtcNow;
         try
@@ -59,7 +82,7 @@ internal static class Program
             ConfigureIsolatedDevelopmentSettings(args, isolatedTestMode);
             ConfigureSiteScreenshotSettings(args);
 #endif
-            s_runtime = await WpfHostRuntime.StartAsync(args, requestShutdown);
+            s_runtime = await WpfHostRuntime.StartAsync(args, requestShutdown, requestRestart);
             var remaining = TimeSpan.FromMilliseconds(1500) - (DateTimeOffset.UtcNow - startedAt);
             if (remaining > TimeSpan.Zero)
             {
@@ -184,9 +207,53 @@ internal static class Program
 
     private static void OnApplicationExit(object sender, ExitEventArgs e)
     {
+        if (Volatile.Read(ref s_restartRequested) != 0 && IsDevelopmentHostSupervisor())
+        {
+            e.ApplicationExitCode = DevelopmentRestartExitCode;
+        }
+
         s_runtime = null;
         s_isolatedSettingsScope?.Dispose();
         s_isolatedSettingsScope = null;
+    }
+
+    private static void RequestRestart(Action requestShutdown)
+    {
+        if (Interlocked.Exchange(ref s_restartRequested, 1) == 0)
+        {
+            requestShutdown();
+        }
+    }
+
+    private static bool IsDevelopmentHostSupervisor() =>
+        string.Equals(Environment.GetEnvironmentVariable("VOLTURA_AIR_DEV_HOST"), "1", StringComparison.Ordinal);
+
+    private static void RestartCurrentProcess()
+    {
+        var executable = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(executable))
+        {
+            return;
+        }
+
+        try
+        {
+            var startInfo = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = executable,
+                UseShellExecute = false
+            };
+            foreach (var argument in Environment.GetCommandLineArgs().Skip(1))
+            {
+                startInfo.ArgumentList.Add(argument);
+            }
+
+            _ = System.Diagnostics.Process.Start(startInfo);
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            Console.Error.WriteLine("Voltura Air restart failed: {0}", ex.Message);
+        }
     }
 
     private static async ValueTask DisposeRuntimeAsync()

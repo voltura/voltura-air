@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using VolturaAir.Host.Ui;
 using WpfUserControl = System.Windows.Controls.UserControl;
 
 namespace VolturaAir.Host.Features.Connect;
@@ -11,6 +12,7 @@ public partial class ConnectPageView : WpfUserControl
 {
     private readonly Action _createNewCode;
     private readonly Action _copyLink;
+    private readonly Action _changeAdapter;
     private readonly Func<DateTimeOffset> _getCurrentTime;
     private readonly DateTimeOffset _refreshAt;
     private readonly DispatcherTimer _countdownTimer;
@@ -19,7 +21,6 @@ public partial class ConnectPageView : WpfUserControl
 
     public ConnectPageView(
         BitmapSource qrCode,
-        string status,
         string pairingLink,
         string hostUrl,
         string selectedAdapter,
@@ -32,11 +33,13 @@ public partial class ConnectPageView : WpfUserControl
         DateTimeOffset refreshAt,
         Action createNewCode,
         Action copyLink,
+        Action changeAdapter,
         Func<DateTimeOffset>? getCurrentTime = null)
     {
         InitializeComponent();
         _createNewCode = createNewCode;
         _copyLink = copyLink;
+        _changeAdapter = changeAdapter;
         _getCurrentTime = getCurrentTime ?? GetCurrentTime;
         _refreshAt = refreshAt;
         _countdownTimer = new DispatcherTimer(DispatcherPriority.Normal, Dispatcher)
@@ -48,13 +51,13 @@ public partial class ConnectPageView : WpfUserControl
         Unloaded += OnUnloaded;
         IsVisibleChanged += OnIsVisibleChanged;
         QrCodeImage.Source = qrCode;
-        StatusCard.Value = status;
         PairingLinkCard.Value = pairingLink;
         HostUrlCard.Value = hostUrl;
         SelectedAdapterCard.Value = selectedAdapter;
         SelectedAdapterCard.Visibility = showSelectedAdapter || !string.IsNullOrWhiteSpace(addressWarning)
             ? Visibility.Visible
             : Visibility.Collapsed;
+        AdapterChangeButton.Visibility = showSelectedAdapter ? Visibility.Visible : Visibility.Collapsed;
         SelectedIpCard.Value = selectedIp;
         SelectedPortCard.Value = selectedPort;
         AddressWarningNotice.SetMessage(addressWarning, addressWarningEmphasis);
@@ -85,8 +88,15 @@ public partial class ConnectPageView : WpfUserControl
 
     private static DateTimeOffset GetCurrentTime() => DateTimeOffset.UtcNow;
 
-    internal AdapterWarningNotice AddressWarningNotice => SelectedAdapterCard.Actions as AdapterWarningNotice
+    internal AdapterWarningNotice AddressWarningNotice => (SelectedAdapterCard.Actions as SpacingStackPanel)?.Children
+        .OfType<AdapterWarningNotice>()
+        .SingleOrDefault()
         ?? throw new InvalidOperationException("The network adapter warning notice is unavailable.");
+
+    private System.Windows.Controls.Button AdapterChangeButton => (SelectedAdapterCard.Actions as SpacingStackPanel)?.Children
+        .OfType<System.Windows.Controls.Button>()
+        .SingleOrDefault()
+        ?? throw new InvalidOperationException("The network adapter change action is unavailable.");
 
     internal TextBlock AddressWarningText => AddressWarningNotice.Text;
 
@@ -173,6 +183,11 @@ public partial class ConnectPageView : WpfUserControl
     private void OnCopyLinkClicked(object sender, RoutedEventArgs eventArgs)
     {
         _copyLink();
+    }
+
+    private void OnChangeAdapterClicked(object sender, RoutedEventArgs eventArgs)
+    {
+        _changeAdapter();
     }
 
     private void StartCountdown()

@@ -40,7 +40,8 @@ public partial class MainWindow : Window
         ISystemPowerController? powerController = null,
         CustomPointerService? customPointerService = null,
         IAppLog? appLog = null,
-        IClipboardTextWriter? clipboardTextWriter = null)
+        IClipboardTextWriter? clipboardTextWriter = null,
+        Action? requestRestart = null)
     {
         _pairingManager = pairingManager;
         _awakeService = awakeService ?? webHost.AwakeService;
@@ -65,7 +66,8 @@ public partial class MainWindow : Window
             clientUrl,
             usePublicScreenshotPairingUrl,
             clipboard,
-            RefreshConnectPagePresentation);
+            RefreshConnectPagePresentation,
+            () => SelectPage(HostPage.Connection));
         _devicesPage = new DevicesPageController(
             this,
             pairingManager,
@@ -73,10 +75,13 @@ public partial class MainWindow : Window
             _visuals,
             () => SelectPage(HostPage.Devices));
         _connectionPage = new ConnectionPageController(
+            this,
+            pairingManager,
             webHost,
             _visuals,
             _connectPage.UpdateServerUrl,
-            () => SelectPage(HostPage.Connection));
+            () => SelectPage(HostPage.Connection),
+            requestRestart ?? (static () => { }));
         _preferencesPage = new PreferencesPageController(
             this,
             effectivePowerController,
@@ -245,7 +250,7 @@ public partial class MainWindow : Window
     private void RefreshStatusText()
     {
         NavStatusText.Text = _pairingManager.HasActiveController
-            ? $"Connected: {_pairingManager.ActiveDeviceSummary}"
+            ? $"Connected to {_pairingManager.ActiveDeviceSummary}"
             : _pairingManager.IsPaired
                 ? $"{_pairingManager.PairedDeviceCount} paired device{Plural(_pairingManager.PairedDeviceCount)}"
                 : "Ready to pair";

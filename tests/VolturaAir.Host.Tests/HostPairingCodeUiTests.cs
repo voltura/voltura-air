@@ -33,7 +33,7 @@ public sealed partial class HostUiLayoutTests
                 window.UpdateLayout();
 
                 Assert.Equal("/pair", new Uri(window.PairingUrl).AbsolutePath);
-                var codeCard = FindWpfDescendants<InfoCard>(window).Single(card => card.Title == "QR code");
+                var codeCard = FindWpfDescendants<InfoCard>(window).Single(card => card.Title == "Pairing code");
                 var qrImage = FindWpfDescendants<System.Windows.Controls.Image>(window).Single(image => image.Name == "QrCodeImage");
                 var qrSource = Assert.IsAssignableFrom<BitmapSource>(qrImage.Source);
                 Assert.StartsWith("Refreshes in ", codeCard.Value, StringComparison.Ordinal);
@@ -109,7 +109,6 @@ public sealed partial class HostUiLayoutTests
             var now = DateTimeOffset.UtcNow;
             var view = new ConnectPageView(
                 CreateTestBitmap(),
-                "Ready to pair",
                 "http://pc.local/pair?t=redacted",
                 "http://pc.local",
                 "Ethernet (Test adapter)",
@@ -121,6 +120,7 @@ public sealed partial class HostUiLayoutTests
                 null,
                 now,
                 () => refreshCalls += 1,
+                static () => { },
                 static () => { },
                 () => now);
 
@@ -174,7 +174,14 @@ public sealed partial class HostUiLayoutTests
                 windowContent.Arrange(new Rect(compactClientSize));
                 windowContent.UpdateLayout();
 
-                var codeCard = FindWpfDescendants<InfoCard>(window).Single(card => card.Title == "QR code");
+                Assert.Contains(
+                    FindWpfDescendants<TextBlock>(window),
+                    textBlock => textBlock.Text == "Pair a phone, tablet, or browser on the same network.");
+                Assert.DoesNotContain(
+                    FindWpfDescendants<InfoCard>(window),
+                    card => card.Title == "Current status");
+
+                var codeCard = FindWpfDescendants<InfoCard>(window).Single(card => card.Title == "Pairing code");
                 var actions = Assert.IsType<SpacingStackPanel>(codeCard.Actions);
                 Assert.Collection(
                     actions.Children.OfType<Button>(),
@@ -206,7 +213,7 @@ public sealed partial class HostUiLayoutTests
     }
 
     [Fact]
-    public void ConnectWarningEmphasizesTheSelectedAdapterName()
+    public void ConnectWarningDoesNotRepeatTheSelectedAdapterName()
     {
         if (ShouldSkipNativeUiLayoutTests())
         {
@@ -216,11 +223,11 @@ public sealed partial class HostUiLayoutTests
         RunOnStaThread(() =>
         {
             const string adapterName = "Wi-Fi (Intel Wireless Adapter)";
-            const string warning = "Multiple network adapters found. Voltura Air selected Wi-Fi (Intel Wireless Adapter). If your phone cannot connect, choose the adapter connected to the same Wi-Fi/LAN.";
+            const string warning = "Multiple network adapters found. If pairing fails, choose the one on the same network.";
             var now = DateTimeOffset.UtcNow;
+            var changeCalls = 0;
             var view = new ConnectPageView(
                 CreateTestBitmap(),
-                "Ready to pair",
                 "http://pc.local/pair?t=redacted",
                 "http://pc.local",
                 adapterName,
@@ -232,23 +239,26 @@ public sealed partial class HostUiLayoutTests
                 null,
                 now.AddMinutes(5),
                 static () => { },
-                static () => { });
+                static () => { },
+                () => changeCalls += 1);
 
             var runs = view.AddressWarningText.Inlines.OfType<Run>().ToArray();
-            Assert.Equal(3, runs.Length);
-            Assert.Equal("Multiple network adapters found. Voltura Air selected ", runs[0].Text);
-            Assert.Equal(adapterName, runs[1].Text);
-            Assert.Equal(FontWeights.Bold, runs[1].FontWeight);
-            Assert.Equal(". If your phone cannot connect, choose the adapter connected to the same Wi-Fi/LAN.", runs[2].Text);
+            var warningText = Assert.Single(runs);
+            Assert.Equal(warning, warningText.Text);
             Assert.Equal(adapterName, view.SelectedAdapterCard.Value);
             Assert.Equal(Visibility.Visible, view.SelectedAdapterCard.Visibility);
-            Assert.Same(view.AddressWarningNotice, view.SelectedAdapterCard.Actions);
+            var adapterActions = Assert.IsType<SpacingStackPanel>(view.SelectedAdapterCard.Actions);
+            Assert.Contains(adapterActions.Children.OfType<AdapterWarningNotice>(), notice => ReferenceEquals(notice, view.AddressWarningNotice));
+            var changeButton = adapterActions.Children.OfType<Button>().Single(button => button.Content?.ToString() == "Change");
+            Assert.Equal(Visibility.Visible, changeButton.Visibility);
+            changeButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal(1, changeCalls);
         });
     }
 
     private static Button FindPairingCodeAction(DependencyObject root, string label)
     {
-        var codeCard = FindWpfDescendants<InfoCard>(root).Single(card => card.Title == "QR code");
+        var codeCard = FindWpfDescendants<InfoCard>(root).Single(card => card.Title == "Pairing code");
         var actions = Assert.IsAssignableFrom<Panel>(codeCard.Actions);
         return actions.Children.OfType<Button>()
             .Single(button => string.Equals(button.Content?.ToString(), label, StringComparison.Ordinal));

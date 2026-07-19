@@ -285,7 +285,7 @@ internal static class LanAddressSelector
         }
 
         return candidateCount > 1
-            ? $"Multiple network adapters found. Voltura Air selected {GetAdapterDisplayName(candidate)}. If your phone cannot connect, choose the adapter connected to the same Wi-Fi/LAN."
+            ? "Multiple network adapters found. If pairing fails, choose the one on the same network."
             : null;
     }
 

@@ -40,7 +40,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
 
     public MainWindow MainWindow { get; }
 
-    public static async Task<WpfHostRuntime> StartAsync(string[] args, Action requestShutdown)
+    public static async Task<WpfHostRuntime> StartAsync(string[] args, Action requestShutdown, Action requestRestart)
     {
 #if DEBUG
         var pairingStoreRoot = GetOption(args, "--pairing-store-root");
@@ -114,7 +114,8 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 workstationLockPolicy,
                 awakeService,
                 customPointerService: customPointerService,
-                appLog: appLog);
+                appLog: appLog,
+                requestRestart: requestRestart);
 #if DEBUG
             WritePairingUrlIfRequested(args, mainWindow.PairingUrl);
 #endif

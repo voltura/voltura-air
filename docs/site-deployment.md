@@ -13,6 +13,33 @@ Source product claims from `features.md`, installation facts from `setup.md`,
 publication behavior from `release.md`, and security claims from `SECURITY.md`.
 Keep the page focused on core use cases.
 
+## Publishing
+
+Set up the SFTP password once, then publish whenever needed:
+
+```powershell
+npm run publish:site:password
+npm run publish:site:list
+npm run publish:site
+```
+
+The setup command hides your typed password and saves it encrypted with Windows
+DPAPI for your current Windows account. Paste a long password with `Ctrl+V`;
+the prompt reads it from the Windows clipboard without displaying it. It is
+stored outside the repository in `%LOCALAPPDATA%\Voltura Air`; do not add the
+password to a file, `package.json`, Git, or a CI log. Remove it with
+`npm run publish:site:password:clear`.
+
+Publishing uploads the contents of `docs/site` over SFTP to `ssh.voltura.se:22`
+as `voltura.se`, targeting the `air` folder relative to the one.com SFTP login
+directory. The first successful connection records the server identity locally;
+later publishes stop if it changes. The command overwrites matching remote files
+and uploads new files and folders; it intentionally does not delete remote-only
+files.
+
+Run `npm run publish:site:list` at any time to inspect the current top-level
+contents of `air` without changing remote files.
+
 Keep release links and feature copy aligned with the latest GitHub release and
 installed app behavior.
 

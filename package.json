@@ -35,6 +35,10 @@
     "package:win:test": "powershell -ExecutionPolicy Bypass -File scripts/package-win.ps1 -NoInstallerCompression",
     "release": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1",
     "screenshots:site": "node scripts/capture-site-screenshots.mjs",
+    "publish:site": "node scripts/publish-site.mjs",
+    "publish:site:list": "node scripts/publish-site.mjs --list",
+    "publish:site:password": "node scripts/publish-site.mjs --store-password",
+    "publish:site:password:clear": "node scripts/publish-site.mjs --clear-password",
     "size:report": "node scripts/report-source-sizes.mjs",
     "size:check": "node scripts/report-source-sizes.mjs --check",
     "test": "npm run docs:check && npm run ui:tokens:check && npm run size:check && npm run host:ownership:check && npm run test --workspace apps/mobile-web -- --run && npm run test:scripts && dotnet test VolturaAir.slnx",
@@ -46,7 +50,8 @@
     "ui:tokens:generate": "node scripts/generate-ui-tokens.mjs"
   },
   "devDependencies": {
-    "sharp": "^0.35.3"
+    "sharp": "^0.35.3",
+    "ssh2-sftp-client": "^12.1.1"
   },
   "allowScripts": {
     "unrs-resolver@1.12.2": true

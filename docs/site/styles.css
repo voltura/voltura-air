@@ -231,6 +231,14 @@ h2 {
   gap: 18px;
 }
 
+#promise {
+  padding-bottom: 18px;
+}
+
+#features {
+  padding-top: 18px;
+}
+
 .feature-band article,
 .content-section,
 .download-band {

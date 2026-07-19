@@ -107,7 +107,7 @@ export function ModeWorkspace({
     setKeyboardText,
     setLiveTyping
   } = useKeyboardInput(emit);
-  const { canUseSpeech, dictationText, isListening, setDictationText, startSpeech, stopSpeech } = useSpeechDictation(sendText);
+  const { canUseSpeech, dictationText, isListening, setDictationText, startSpeech, stopSpeech } = useSpeechDictation();
   const { requestAudioState, state: connectionState, supportsVolumeControl } = connection;
 
   useEffect(() => {

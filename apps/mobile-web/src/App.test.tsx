@@ -673,6 +673,15 @@ describe("Text transfer feedback", () => {
       fireEvent.click(firstButton);
       expect((editor as HTMLTextAreaElement).value).toBe("Second text");
 
+      fireEvent.touchStart(firstButton, { touches: [{ identifier: 7, clientX: 20, clientY: 20 }] });
+      await act(() => vi.advanceTimersByTime(450));
+      fireEvent.touchMove(firstButton, { touches: [{ identifier: 7, clientX: 20, clientY: 100 }] });
+      fireEvent.touchCancel(firstButton, { touches: [], changedTouches: [{ identifier: 7, clientX: 20, clientY: 100 }] });
+
+      expect(Array.from(document.querySelectorAll(".snippet-load"), (button) => button.textContent)).toEqual(["Second", "First"]);
+      expect(readStoredStringProperty("voltura-air.textSnippets.client-a", "name")).toEqual(["Second", "First"]);
+      expect(firstCard.classList).not.toContain("snippet-dragging");
+
       vi.mocked(document.elementFromPoint).mockReturnValue(null);
       vi.spyOn(secondCard, "getBoundingClientRect").mockReturnValue({ top: 40, bottom: 80 } as DOMRect);
       fireEvent.touchStart(firstCard, { touches: [{ identifier: 2, clientX: 20, clientY: 100 }] });

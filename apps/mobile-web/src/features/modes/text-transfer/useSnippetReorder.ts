@@ -8,6 +8,7 @@ const snippetClickSuppressionMs = 750;
 interface SnippetTouchState {
   active: boolean;
   id: string;
+  originalSnippets: SavedTextSnippet[];
   lastY: number;
   scrolling: boolean;
   scrollTarget: HTMLElement | null;
@@ -86,6 +87,7 @@ export function useSnippetReorder({ clientId, setSnippets, snippets }: UseSnippe
     const drag = {
       active: false,
       id: snippet.id,
+      originalSnippets: snippetsRef.current,
       lastY: touch.clientY,
       scrolling: false,
       scrollTarget,
@@ -196,6 +198,28 @@ export function useSnippetReorder({ clientId, setSnippets, snippets }: UseSnippe
     suppressSnippetClickUntilRef.current = Date.now() + snippetClickSuppressionMs;
   };
 
+  const cancelSnippetDrag = (event: TouchEvent<HTMLLIElement>) => {
+    const drag = snippetDragRef.current;
+    if (!drag) {
+      return;
+    }
+
+    window.clearTimeout(drag.timer);
+    snippetDragRef.current = null;
+    event.preventDefault();
+    event.stopPropagation();
+    if (drag.active) {
+      snippetsRef.current = drag.originalSnippets;
+      setSnippets(drag.originalSnippets);
+      snippetDragScrollRef.current?.restore();
+      snippetDragScrollRef.current = null;
+      setDraggingSnippetId(null);
+      setSnippetDragOffsetY(0);
+      setSnippetReorderFeedback(null);
+    }
+    suppressSnippetClickUntilRef.current = Date.now() + snippetClickSuppressionMs;
+  };
+
   const suppressSnippetClick = (event: SyntheticEvent<HTMLLIElement>) => {
     if (Date.now() < suppressSnippetClickUntilRef.current) {
       event.preventDefault();
@@ -205,6 +229,7 @@ export function useSnippetReorder({ clientId, setSnippets, snippets }: UseSnippe
 
   return {
     draggingSnippetId,
+    cancelSnippetDrag,
     finishSnippetDrag,
     moveSnippet,
     snippetDragOffsetY,

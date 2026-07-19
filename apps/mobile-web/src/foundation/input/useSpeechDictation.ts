@@ -14,6 +14,7 @@ interface SpeechRecognition {
 }
 
 interface SpeechRecognitionEvent {
+  resultIndex: number;
   results: ArrayLike<ArrayLike<{ transcript: string } & { isFinal?: boolean }> & { isFinal?: boolean }>;
 }
 
@@ -24,7 +25,7 @@ declare global {
   }
 }
 
-export function useSpeechDictation(sendText: (text: string) => void) {
+export function useSpeechDictation() {
   const [dictationText, setDictationText] = useState("");
   const [isListening, setIsListening] = useState(false);
   const speechRef = useRef<SpeechRecognition | null>(null);
@@ -64,7 +65,7 @@ export function useSpeechDictation(sendText: (text: string) => void) {
       }
 
       let finalText = "";
-      for (const result of Array.from(event.results)) {
+      for (const result of Array.from(event.results).slice(event.resultIndex)) {
         if (result.isFinal) {
           finalText += result[0]?.transcript ?? "";
         }
@@ -72,7 +73,6 @@ export function useSpeechDictation(sendText: (text: string) => void) {
       if (finalText.trim().length > 0) {
         const text = `${finalText.trim()} `;
         setDictationText((current) => `${current}${text}`);
-        sendText(text);
       }
     };
     speechRef.current = recognition;

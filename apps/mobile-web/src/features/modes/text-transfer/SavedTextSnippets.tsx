@@ -31,6 +31,7 @@ export function SavedTextSnippets({ clientId, draft, initiallyOpen, onLoadSnippe
   const snippetNameTaken = normalizedSnippetName.length > 0 && snippets.some((snippet) => snippetNamesMatch(snippet.name, normalizedSnippetName));
   const {
     draggingSnippetId,
+    cancelSnippetDrag,
     finishSnippetDrag,
     moveSnippet,
     snippetDragOffsetY,
@@ -119,7 +120,7 @@ export function SavedTextSnippets({ clientId, draft, initiallyOpen, onLoadSnippe
                     style={draggingSnippetId === snippet.id ? { transform: `translateY(${snippetDragOffsetY}px) scale(1.015)` } : undefined}
                     onClickCapture={suppressSnippetClick}
                     onContextMenu={(event) => { event.preventDefault(); }}
-                    onTouchCancel={finishSnippetDrag}
+                    onTouchCancel={cancelSnippetDrag}
                     onTouchEnd={finishSnippetDrag}
                     onTouchMove={moveSnippet}
                     onTouchStart={(event) => { startSnippetLongPress(event, snippet); }}

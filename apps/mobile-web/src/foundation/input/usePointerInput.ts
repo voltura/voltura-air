@@ -15,6 +15,13 @@ export function usePointerInput({ send, state, trackpadSettings }: PointerInputO
   const pointerFrameRef = useRef<number | null>(null);
   const pendingPointerMoveRef = useRef<{ dx: number; dy: number } | null>(null);
   const pendingPointerWheelRef = useRef<{ dx: number; dy: number } | null>(null);
+  const sendRef = useRef(send);
+  const stateRef = useRef(state);
+
+  useEffect(() => {
+    sendRef.current = send;
+    stateRef.current = state;
+  }, [send, state]);
 
   useEffect(() => () => {
     if (pointerFrameRef.current !== null) {
@@ -33,16 +40,16 @@ export function usePointerInput({ send, state, trackpadSettings }: PointerInputO
     pendingPointerMoveRef.current = null;
     pendingPointerWheelRef.current = null;
 
-    if (state !== "paired") {
+    if (stateRef.current !== "paired") {
       return;
     }
 
     if (move && (move.dx !== 0 || move.dy !== 0)) {
-      send({ type: "pointer.move", dx: roundDelta(move.dx), dy: roundDelta(move.dy) });
+      sendRef.current({ type: "pointer.move", dx: roundDelta(move.dx), dy: roundDelta(move.dy) });
     }
 
     if (wheel && (wheel.dx !== 0 || wheel.dy !== 0)) {
-      send({ type: "pointer.wheel", dx: roundDelta(wheel.dx), dy: roundDelta(wheel.dy) });
+      sendRef.current({ type: "pointer.wheel", dx: roundDelta(wheel.dx), dy: roundDelta(wheel.dy) });
     }
   };
 

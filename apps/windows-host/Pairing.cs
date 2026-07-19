@@ -329,7 +329,6 @@ public sealed class PairingManager(PairingStore store)
         if (changed)
         {
             DeviceProfileChanged?.Invoke(this, EventArgs.Empty);
-            ConnectionChanged?.Invoke(this, EventArgs.Empty);
         }
 
         return changed;

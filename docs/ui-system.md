@@ -368,6 +368,10 @@ that only fits the happy path.
 
 - Use direct, specific labels. Prefer **Copy pairing link** to **Copy** when
   context is not persistent.
+- Name actions for their durable outcome. When an action revokes a remembered
+  relationship and requires setup again, use **Remove** rather than the
+  temporary-session term **Disconnect**, and state the recovery consequence in
+  its confirmation.
 - Buttons use verbs. Headings name places or objects. Status text describes the
   current condition rather than blaming the user.
 - Do not encode meaning by color alone. Pair color with text, iconography, shape,

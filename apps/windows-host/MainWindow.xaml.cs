@@ -72,7 +72,6 @@ public partial class MainWindow : Window
             this,
             pairingManager,
             effectivePowerController,
-            _visuals,
             () => SelectPage(HostPage.Devices));
         _connectionPage = new ConnectionPageController(
             this,
@@ -120,6 +119,7 @@ public partial class MainWindow : Window
         WpfTheme.TrackAccessibilityChanges(this, RefreshAfterSystemThemeChange);
 
         _pairingManager.ConnectionChanged += OnConnectionChanged;
+        _pairingManager.DeviceProfileChanged += OnDeviceProfileChanged;
         _pairingManager.PairingCodeInvalidated += OnPairingCodeInvalidated;
         AppThemeSettings.Changed += OnThemeChanged;
         _awakeService.StateChanged += OnAwakeStateChanged;
@@ -175,6 +175,7 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _pairingManager.ConnectionChanged -= OnConnectionChanged;
+        _pairingManager.DeviceProfileChanged -= OnDeviceProfileChanged;
         _pairingManager.PairingCodeInvalidated -= OnPairingCodeInvalidated;
         AppThemeSettings.Changed -= OnThemeChanged;
         _awakeService.StateChanged -= OnAwakeStateChanged;
@@ -199,6 +200,11 @@ public partial class MainWindow : Window
 
     private void SelectPage(HostPage page)
     {
+        if (_activePage == HostPage.Devices && page != HostPage.Devices)
+        {
+            _devicesPage.ResetDisclosureState();
+        }
+
         _activePage = page;
         _pageNeedsRefresh = false;
         RefreshStatusText();
@@ -334,6 +340,17 @@ public partial class MainWindow : Window
     private void OnPairingCodeInvalidated(object? sender, EventArgs e)
     {
         _ = Dispatcher.BeginInvoke(_connectPage.CreateNewCode);
+    }
+
+    private void OnDeviceProfileChanged(object? sender, EventArgs e)
+    {
+        _ = Dispatcher.BeginInvoke(() =>
+        {
+            if (_activePage == HostPage.Devices && IsVisible)
+            {
+                _devicesPage.RefreshDeviceProfiles();
+            }
+        });
     }
 
     private void OnThemeChanged(object? sender, EventArgs e)

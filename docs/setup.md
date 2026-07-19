@@ -55,6 +55,16 @@ manifests.
 
 ## Development loop
 
+To browse every root command with a plain-English description and the underlying
+script, run:
+
+```powershell
+npm run help
+```
+
+`npm run` itself lists script names and their raw command strings; npm does not
+support per-script descriptions in `package.json`.
+
 Run the normal combined development command:
 
 ```powershell

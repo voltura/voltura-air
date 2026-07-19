@@ -40,6 +40,39 @@ adaptive states, AI-assisted UI work, and the UI definition of done.
   the enclosing settings stack owns the standard gap from the preceding visible
   group. Neither the accordion nor the preceding button, checkbox, or hint owns
   that external separation.
+- Devices is a full-width virtualized accordion list. Every collapsed device
+  header keeps its name, connection-status pill, and recent activity visible;
+  opening one device closes the others. Its metadata appears directly below the
+  header, while Trackpad profile and Permissions use the shared nested accordion
+  treatment and start collapsed. Permission choices use wrapping compact cards
+  so each permission label and its choices stay together without creating a
+  separate narrow detail column. The page list owns scrolling and its bottom
+  action row remains visible. Keep list virtualization enabled and use pixel
+  scrolling so content inside a device taller than the viewport remains
+  reachable without jumping to the next device.
+- Each device permission is a three-state choice. An inherited value fills
+  **Use global** with the accent colour and outlines the currently effective
+  **Allow** or **Block** choice with that colour. An explicit **Allow** or
+  **Block** choice is accent-filled. Apply a choice in place so its card updates
+  immediately without collapsing the device or Permissions accordion. All three
+  buttons use the same fixed width, including room for the checkmark, and never
+  stretch with the permission card or host window.
+- Applying **Save speed** or **Use global** in a device's Trackpad profile keeps
+  both the device and Trackpad profile accordions expanded so the result remains
+  in context.
+- Device disclosure state is local to the current Devices-page visit. Keep it
+  while editing on that page, but collapse every device after navigating away
+  and returning so the overview is restored.
+- Trackpad profile and Permissions form a single-open nested disclosure group
+  within each device. Opening either child accordion collapses the other.
+  Collapsing the parent device also collapses both children, so reopening a
+  device always starts with its nested sections folded.
+- In the Devices list, Up and Down select a device, Enter or Space expands or
+  collapses it, and Tab moves through the expanded device controls. Accessibility
+  help text states those exact keys.
+- Removing a device revokes its pairing record and requires it to pair again.
+  Use **Remove** and **Remove all**, never **Disconnect**, for those actions;
+  both require a confirmation that states the re-pairing consequence.
 - After an accordion expands and layout settles, scroll the Preferences viewer
   only when its first usable control is clipped. Reveal that control with the
   minimum offset that keeps the focused header visible; do not move focus or

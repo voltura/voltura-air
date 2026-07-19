@@ -12,6 +12,7 @@ document's role, subject, and update trigger.
 | Operational | Gives commands and procedures derived from authorities. |
 | Derived public | Selects current facts for users or prospective users. |
 | Approved TODO | Orders approved unfinished outcomes. |
+| Approved design | Records a decision-complete design without assigning implementation order. |
 | Candidate register | Records directions that require a product decision. |
 
 ## Writing rules
@@ -59,6 +60,7 @@ document's role, subject, and update trigger.
 | [Setup](setup.md) | Operational | Installation, development startup, host options, and first connection. |
 | [Site deployment](site-deployment.md) | Operational | Marketing-site deployment and hosting behavior. |
 | [Project TODO](todo.md) | Approved TODO | P1 Presentation graduation. |
+| [PC-assisted Dictate plan](dictate-pc-assist-plan.md) | Approved design | Alpha-gated PC microphone and Windows Voice Typing assistance within Dictate; implementation order is unassigned. |
 | [Candidate directions](ideas.md) | Candidate register | Product, platform, distribution, and project directions awaiting decisions. |
 | [Troubleshooting](troubleshooting.md) | Operational | Pairing, network, input, pointer, text, logging, and host recovery. |
 | [Windows host UI guidelines](host-ui-guidelines.md) | Target authority | WPF composition, accordion, scrolling, diagnostics, feedback, and tray behavior. |

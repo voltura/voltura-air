@@ -74,7 +74,8 @@ approved unfinished work.
 - Replaces the registered public key when a valid token is accepted for an already-known client.
 - Keeps one paired-device record for each client ID.
 - Tracks active connected devices.
-- Supports revoking/disconnecting paired devices.
+- Supports removing paired devices; removal revokes the pairing and requires a
+  fresh pairing before the device can reconnect.
 - Closes active sockets when a device is revoked.
 - Applies pairing attempt rate limiting with bounded, expiring per-address state.
 - Rejects unrelated public WebSocket origins before accepting the socket.
@@ -88,7 +89,8 @@ approved unfinished work.
 - Stores platform/browser/display-mode metadata.
 - Stores added/last connected/last disconnected/last renamed timestamps.
 - Supports device rename.
-- Supports disconnect/remove.
+- Supports removing one paired device or all paired devices, with fresh pairing
+  required after removal.
 - Supports duplicate cleanup.
 - Supports per-device permission overrides.
 - Supports a host default pointer speed with per-device overrides.

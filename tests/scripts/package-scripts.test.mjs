@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import { commandDescriptions, findStaleDescriptions, findUndocumentedCommands } from "../../scripts/command-help.mjs";
+
 const packageJson = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
 const mobilePackageJson = JSON.parse(readFileSync(new URL("../../apps/mobile-web/package.json", import.meta.url), "utf8"));
 const releaseWorkflow = readFileSync(new URL("../../.github/workflows/release.yml", import.meta.url), "utf8");
@@ -12,6 +14,13 @@ const devHostScript = readFileSync(new URL("../../scripts/dev-host.mjs", import.
 test("documentation coverage runs in the root and pull-request quality gates", () => {
   assert.equal(packageJson.scripts.test.split(" && ")[0], "npm run docs:check");
   assert.match(qualityWorkflow, /run: npm run docs:check/u);
+});
+
+test("every root npm command has a current human-readable description", () => {
+  assert.equal(packageJson.scripts.help, "node scripts/command-help.mjs");
+  assert.deepEqual(findUndocumentedCommands(packageJson.scripts), []);
+  assert.deepEqual(findStaleDescriptions(packageJson.scripts), []);
+  assert.match(commandDescriptions.dev, /development loop/u);
 });
 
 test("strong source-size warnings require current reviews in pull-request quality", () => {

@@ -1,6 +1,7 @@
 # Voltura Air TODO
 
-Approved work is listed in execution order. Each checkbox is one coherent
+Scheduled approved work is listed in execution order. Decision-complete designs
+without assigned priority are linked separately. Each checkbox is one coherent
 outcome. Current behavior is defined in
 [features.md](features.md), governing documents are listed in
 [README.md](README.md), and candidate directions are recorded in
@@ -37,3 +38,9 @@ outcome. Current behavior is defined in
 
 An entry from [ideas.md](ideas.md) moves here after a product decision defines
 its outcome, priority, structural boundary, and validation expectations.
+
+## Unscheduled approved design
+
+- [PC-assisted controls within Dictate](dictate-pc-assist-plan.md) has an
+  approved product and technical design. Its implementation timing and order
+  are intentionally not assigned here.

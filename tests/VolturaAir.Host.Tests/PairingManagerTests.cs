@@ -222,6 +222,24 @@ public sealed class PairingManagerTests
     }
 
     [Fact]
+    public void DevicePointerSpeedChangeDoesNotReportAConnectionChange()
+    {
+        using var store = new TempPairingStore();
+        using var key = new PairingTestKey();
+        var manager = new PairingManager(store.Store);
+        manager.AcceptPairing("client-a", "Phone", manager.CreatePairingToken(), reconnectPublicKey: key.PublicKey);
+        var connectionChanges = 0;
+        var profileChanges = 0;
+        manager.ConnectionChanged += (_, _) => connectionChanges++;
+        manager.DeviceProfileChanged += (_, _) => profileChanges++;
+
+        Assert.True(manager.SetDevicePointerSpeedOverride("client-a", 75));
+
+        Assert.Equal(0, connectionChanges);
+        Assert.Equal(1, profileChanges);
+    }
+
+    [Fact]
     public void DisconnectDeviceRemovesOnlySelectedDevice()
     {
         using var store = new TempPairingStore();

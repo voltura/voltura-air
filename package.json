@@ -1,7 +1,7 @@
 {
   "name": "voltura-air",
   "private": true,
-  "version": "0.6.5",
+  "version": "0.6.6",
   "license": "MIT",
   "workspaces": [
     "apps/mobile-web"
@@ -19,6 +19,7 @@
     "docs:check": "node scripts/check-documentation-map.mjs",
     "icons:generate": "node scripts/generate-icons.mjs",
     "host:ownership:check": "node scripts/check-host-partial-ownership.mjs",
+    "help": "node scripts/command-help.mjs",
     "lint": "npm run lint --workspace apps/mobile-web",
     "maintenance:full": "npm run cache:purge && npm run clean:temp && npm run clean:git && npm run deps:update",
     "dev": "node scripts/dev.mjs",

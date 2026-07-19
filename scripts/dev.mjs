@@ -17,7 +17,7 @@ const children = [];
 let shuttingDown = false;
 
 if (quickStart) {
-  console.log("Quick phone development: building current mobile sources without validation.");
+  console.log("Quick phone development: building current mobile sources without validation, and the host if needed.");
   runCommand("npm", ["run", "build:quick", "--workspace", "apps/mobile-web"], childEnv);
 } else {
   runCommand("npm", ["run", "build", "--workspace", "apps/mobile-web"], childEnv);

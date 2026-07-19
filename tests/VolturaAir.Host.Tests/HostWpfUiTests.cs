@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.AspNetCore.TestHost;
 using VolturaAir.Host;
+using VolturaAir.Host.Features.Devices;
 using VolturaAir.Host.Ui;
 
 namespace VolturaAir.Host.Tests;
@@ -89,7 +90,7 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
                 window.ShowPage(HostPage.Devices);
                 window.UpdateLayout();
                 Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "Devices");
-                Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "Device details");
+                Assert.Contains(FindWpfDescendants<ListBox>(window), list => Equals(list.GetValue(AutomationProperties.NameProperty), "Paired devices"));
 
                 window.ShowPage(HostPage.Preferences);
                 window.UpdateLayout();
@@ -421,26 +422,225 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
                 window.ShowPage(HostPage.Devices);
                 window.UpdateLayout();
 
-                var devices = Assert.Single(FindWpfDescendants<ListBox>(window));
-                devices.SelectedIndex = 0;
+                ExpandDevicePermissions(window);
                 WaitForWpf(() => FindPermissionButton(window, "Blackout display", "✓ Allow") is not null, "blackout display effective state");
 
                 var blackoutAllow = Assert.IsType<Button>(FindPermissionButton(window, "Blackout display", "✓ Allow"));
+                var clipboardUseGlobal = Assert.IsType<Button>(FindPermissionButton(window, "Read PC clipboard", "✓ Use global"));
+                var clipboardAllow = Assert.IsType<Button>(FindPermissionButton(window, "Read PC clipboard", "Allow"));
                 var clipboardBlock = Assert.IsType<Button>(FindPermissionButton(window, "Read PC clipboard", "✓ Block"));
+                Assert.Equal("✓ Allow", blackoutAllow.Content);
+                Assert.Equal("✓ Block", clipboardBlock.Content);
+                var choiceStyle = Assert.IsType<Style>(window.Resources["ChoiceStateButtonStyle"]);
+                Assert.Same(choiceStyle, clipboardUseGlobal.Style);
+                Assert.Same(window.Resources["StandardButtonStyle"], choiceStyle.BasedOn);
+                Assert.Equal(new Thickness(14, 6, 14, 6), clipboardUseGlobal.Padding);
+                Assert.Equal(112, clipboardUseGlobal.Width);
+                Assert.Equal(112, clipboardAllow.Width);
+                Assert.Equal(112, clipboardBlock.Width);
+                var permissionButtonY = clipboardUseGlobal.TranslatePoint(new Point(), window).Y;
+                Assert.InRange(Math.Abs(clipboardAllow.TranslatePoint(new Point(), window).Y - permissionButtonY), 0, 0.1);
+                Assert.InRange(Math.Abs(clipboardBlock.TranslatePoint(new Point(), window).Y - permissionButtonY), 0, 0.1);
                 Assert.Same(window.Resources["AccentBrush"], blackoutAllow.Background);
+                Assert.Same(window.Resources["AccentBrush"], clipboardUseGlobal.Background);
+                Assert.Same(window.Resources["AccentBrush"], clipboardBlock.BorderBrush);
                 Assert.Equal(new Thickness(2), clipboardBlock.BorderThickness);
                 var urlAllow = Assert.IsType<Button>(FindPermissionButton(window, "Open web addresses", "✓ Allow"));
-                Assert.Same(window.Resources["AccentBrush"], urlAllow.Background);
+                Assert.Equal("✓ Allow", urlAllow.Content);
+
+                var blackoutBlock = Assert.IsType<Button>(FindPermissionButton(window, "Blackout display", "Block"));
+                blackoutBlock.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                WaitForWpf(
+                    () => manager.GetDevicePermissionOverrides("client-a").AllowBlackoutDisplay == false,
+                    "blackout display block override");
+                var selectedBlackoutBlock = Assert.IsType<Button>(FindPermissionButton(window, "Blackout display", "✓ Block"));
+                Assert.Equal(112, selectedBlackoutBlock.Width);
+                Assert.Same(window.Resources["AccentBrush"], selectedBlackoutBlock.Background);
+                Assert.True(FindVisualDescendants<Expander>(window)
+                    .First(expander => string.Equals(expander.Header as string, "Permissions", StringComparison.Ordinal))
+                    .IsExpanded);
                 Assert.DoesNotContain(FindWpfDescendants<TextBlock>(window), text => text.Text == "Presentation control");
 
                 AppDeveloperSettings.SetEnableAlphaFeatures(true);
                 window.ShowPage(HostPage.Devices);
                 window.UpdateLayout();
-                var refreshedDevices = Assert.Single(FindWpfDescendants<ListBox>(window));
-                refreshedDevices.SelectedIndex = 0;
+                ExpandDevicePermissions(window);
                 WaitForWpf(
-                    () => FindWpfDescendants<TextBlock>(window).Any(text => text.Text == "Presentation control"),
+                    () => FindVisualDescendants<TextBlock>(window).Any(text => text.Text == "Presentation control"),
                     "alpha Presentation permission");
+            }
+            finally
+            {
+                window.Close();
+                DisposeWebHost(webHost);
+            }
+        });
+    }
+
+    [Fact]
+    public void DeviceTrackpadChangesUpdateInPlaceAndKeepAccordionExpanded()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            using var store = new TempPairingStore();
+            using var inputInjector = new SendInputInjector();
+            var manager = new PairingManager(store.Store);
+            var token = manager.CreatePairingToken();
+            using var key = new PairingTestKey();
+            Assert.True(manager.AcceptPairing("client-a", "Phone", token, reconnectPublicKey: key.PublicKey).Accepted);
+
+            var webHost = new WebHostService(
+                manager,
+                new InputDispatcher(inputInjector),
+                isolatedTestMode: true,
+                configureWebHost: builder => builder.UseTestServer());
+            var window = new MainWindow(manager, webHost, clientUrl: null);
+            try
+            {
+                window.Show();
+                window.ShowPage(HostPage.Devices);
+                window.UpdateLayout();
+
+                var page = window.PageContent.Content;
+                var device = FindVisualDescendants<Expander>(window)
+                    .First(expander => expander.Header is DeviceListItem);
+                device.IsExpanded = true;
+                window.UpdateLayout();
+                var trackpad = FindVisualDescendants<Expander>(window)
+                    .First(expander => string.Equals(expander.Header as string, "Trackpad profile", StringComparison.Ordinal));
+                trackpad.IsExpanded = true;
+                window.UpdateLayout();
+
+                var slider = Assert.Single(FindVisualDescendants<Slider>(trackpad));
+                slider.Value = 75;
+                FindVisualDescendants<Button>(trackpad)
+                    .Single(button => string.Equals(button.Content as string, "Save speed", StringComparison.Ordinal))
+                    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                WaitForWpf(
+                    () => manager.GetDevices().Single().PointerSpeedOverride == 75,
+                    "device pointer-speed override");
+                DoWpfEvents();
+
+                Assert.Same(page, window.PageContent.Content);
+                Assert.True(trackpad.IsExpanded);
+                Assert.Contains(FindVisualDescendants<TextBlock>(trackpad), text => text.Text == "Override active. Effective speed: 75%.");
+
+                FindVisualDescendants<Button>(trackpad)
+                    .Single(button => string.Equals(button.Content as string, "Use global", StringComparison.Ordinal))
+                    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                WaitForWpf(
+                    () => manager.GetDevices().Single().PointerSpeedOverride is null,
+                    "global device pointer speed");
+                DoWpfEvents();
+
+                Assert.Same(page, window.PageContent.Content);
+                Assert.True(trackpad.IsExpanded);
+                Assert.Contains(FindVisualDescendants<TextBlock>(trackpad), text => text.Text.StartsWith("Using global default:", StringComparison.Ordinal));
+            }
+            finally
+            {
+                window.Close();
+                DisposeWebHost(webHost);
+            }
+        });
+    }
+
+    [Fact]
+    public void DeviceDisclosureCollapsesAfterLeavingAndReturningToPage()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            using var store = new TempPairingStore();
+            using var inputInjector = new SendInputInjector();
+            var manager = new PairingManager(store.Store);
+            var token = manager.CreatePairingToken();
+            using var key = new PairingTestKey();
+            Assert.True(manager.AcceptPairing("client-a", "Phone", token, reconnectPublicKey: key.PublicKey).Accepted);
+            var webHost = new WebHostService(manager, new InputDispatcher(inputInjector), isolatedTestMode: true);
+            var window = new MainWindow(manager, webHost, clientUrl: null);
+            try
+            {
+                window.Show();
+                window.ShowPage(HostPage.Devices);
+                window.UpdateLayout();
+                var device = FindVisualDescendants<Expander>(window)
+                    .First(expander => expander.Header is DeviceListItem);
+                device.IsExpanded = true;
+                window.UpdateLayout();
+                Assert.True(device.IsExpanded);
+
+                window.ShowPage(HostPage.Preferences);
+                window.ShowPage(HostPage.Devices);
+                window.UpdateLayout();
+
+                Assert.All(
+                    FindVisualDescendants<Expander>(window).Where(expander => expander.Header is DeviceListItem),
+                    expander => Assert.False(expander.IsExpanded));
+            }
+            finally
+            {
+                window.Close();
+                DisposeWebHost(webHost);
+            }
+        });
+    }
+
+    [Fact]
+    public void CollapsedDeviceStaysCollapsedAfterConnectionRefresh()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            using var store = new TempPairingStore();
+            using var inputInjector = new SendInputInjector();
+            var manager = new PairingManager(store.Store);
+            var token = manager.CreatePairingToken();
+            using var key = new PairingTestKey();
+            Assert.True(manager.AcceptPairing("client-a", "Phone", token, reconnectPublicKey: key.PublicKey).Accepted);
+            var webHost = new WebHostService(manager, new InputDispatcher(inputInjector), isolatedTestMode: true);
+            var window = new MainWindow(manager, webHost, clientUrl: null);
+            try
+            {
+                window.Show();
+                window.ShowPage(HostPage.Devices);
+                window.UpdateLayout();
+                var originalPage = window.PageContent.Content;
+                var device = FindVisualDescendants<Expander>(window)
+                    .First(expander => expander.Header is DeviceListItem);
+                device.IsExpanded = true;
+                DoWpfEvents();
+                Assert.True(device.IsExpanded);
+
+                device.IsExpanded = false;
+                DoWpfEvents();
+                Assert.False(device.IsExpanded);
+
+                using var connection = manager.TrackConnection("client-a");
+                WaitForWpf(
+                    () => !ReferenceEquals(originalPage, window.PageContent.Content),
+                    "Devices page connection refresh");
+                window.UpdateLayout();
+
+                Assert.All(
+                    FindVisualDescendants<Expander>(window).Where(expander => expander.Header is DeviceListItem),
+                    expander => Assert.False(expander.IsExpanded));
             }
             finally
             {
@@ -639,24 +839,55 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
 
     private static Button? FindPermissionButton(DependencyObject root, string label, string text)
     {
-        foreach (var panel in FindWpfDescendants<StackPanel>(root))
+        foreach (var card in FindVisualDescendants<Border>(root))
         {
-            for (var index = 0; index < panel.Children.Count - 1; index++)
+            if (card.DataContext is not DevicePermissionItem)
             {
-                if (panel.Children[index] is not TextBlock { Text: var rowLabel } ||
-                    !string.Equals(rowLabel, label, StringComparison.Ordinal) ||
-                    panel.Children[index + 1] is not StackPanel row)
-                {
-                    continue;
-                }
-
-                return row.Children
-                    .OfType<Button>()
-                    .SingleOrDefault(button => string.Equals(button.Content?.ToString(), text, StringComparison.Ordinal));
+                continue;
             }
+
+            if (!FindVisualDescendants<TextBlock>(card).Any(textBlock => string.Equals(textBlock.Text, label, StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
+            return FindVisualDescendants<Button>(card)
+                .SingleOrDefault(button => string.Equals(button.Content?.ToString(), text, StringComparison.Ordinal));
         }
 
         return null;
+    }
+
+    private static void ExpandDevicePermissions(Window window)
+    {
+        var device = FindVisualDescendants<Expander>(window)
+            .First(expander => expander.Header is DeviceListItem);
+        device.IsExpanded = true;
+        window.UpdateLayout();
+
+        var permissions = FindVisualDescendants<Expander>(window)
+            .First(expander => string.Equals(expander.Header as string, "Permissions", StringComparison.Ordinal));
+        permissions.IsExpanded = true;
+        window.UpdateLayout();
+    }
+
+    private static IEnumerable<T> FindVisualDescendants<T>(DependencyObject root)
+        where T : DependencyObject
+    {
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (var index = 0; index < count; index++)
+        {
+            var child = VisualTreeHelper.GetChild(root, index);
+            if (child is T match)
+            {
+                yield return match;
+            }
+
+            foreach (var descendant in FindVisualDescendants<T>(child))
+            {
+                yield return descendant;
+            }
+        }
     }
 
     private sealed class WpfApplicationScope : IDisposable

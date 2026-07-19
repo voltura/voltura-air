@@ -8,5 +8,6 @@
   "tests/VolturaAir.Host.Tests/WebHostPowerTests.cs": "Power and awake protocol scenarios share one authenticated TestServer WebSocket fixture plus boundary fakes, and collectively verify capability advertisement, operation correlation, permission enforcement, native failure, and continued-session behavior.",
   "scripts/code-statistics.mjs": "This is one reporting pipeline whose collectors and text/HTML renderers consume the same in-memory repository statistics schema; there is no long-lived runtime ownership.",
   "scripts/dev-ui.mjs": "This is one isolated UI acceptance runner that owns temporary host/browser startup, responsive checks, and deterministic shutdown as a single process lifetime.",
-  "scripts/generate-icons.mjs": "This is one offline branding pipeline with shared Sharp compositions, encoding validation, and output integrity checks across the generated icon family."
+  "scripts/generate-icons.mjs": "This is one offline branding pipeline with shared Sharp compositions, encoding validation, and output integrity checks across the generated icon family.",
+  "apps/mobile-web/src/features/modes/keyboard/KeyboardMode.test.tsx": "Keyboard-mode scenarios share one stateful rendering harness and together verify live typing, repeatable and shortcut keys, navigation, optional controls, focus, and confirmation behavior for the same user-facing surface."
 }

@@ -100,7 +100,7 @@ public sealed partial class HostUiLayoutTests
             finally
             {
                 window.Close();
-                webHost.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                DisposeWebHost(webHost);
             }
         });
     }
@@ -138,7 +138,7 @@ public sealed partial class HostUiLayoutTests
             finally
             {
                 window.Close();
-                webHost.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                DisposeWebHost(webHost);
             }
         });
     }

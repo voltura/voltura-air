@@ -35,7 +35,7 @@ internal sealed class NoOpWindowsDisplayActionController : IWindowsDisplayAction
     }
 }
 
-internal sealed partial class WindowsDisplayActionController(Dispatcher dispatcher, IAppLog appLog) : IWindowsDisplayActionController
+internal sealed partial class WindowsDisplayActionController(Dispatcher dispatcher, IAppLogWriter appLog) : IWindowsDisplayActionController
 {
     private const uint SpiGetScreenSaveActive = 0x0010;
     private const uint WmSysCommand = 0x0112;
@@ -45,7 +45,7 @@ internal sealed partial class WindowsDisplayActionController(Dispatcher dispatch
     private static readonly nint HwndBroadcast = new(0xffff);
     private static readonly nint HwndTopmost = new(-1);
     private readonly Dispatcher _dispatcher = dispatcher;
-    private readonly IAppLog _appLog = appLog;
+    private readonly IAppLogWriter _appLog = appLog;
     private readonly List<Window> _blackoutWindows = [];
     private int _blackoutActive;
     private DateTimeOffset _inputArmedAt;

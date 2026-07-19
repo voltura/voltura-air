@@ -10,11 +10,13 @@ protocol safety, and maintainable modern C#.
 - `apps/windows-host/.editorconfig` promotes reviewed disposal, cancellation, async, native interop, security, ASP.NET Core, performance, and behavior-neutral modern C# rules to errors.
 - Rules designed for reusable public libraries or context-free libraries remain disabled when their assumptions conflict with a WPF executable. Every production suppression must be narrow and include its reason beside the affected code.
 - Native calls use source-generated `LibraryImport` where supported, exact Unicode entry points for text-sensitive Windows APIs, explicit native boolean marshalling, and a process-wide System32 DLL search policy.
+- A maintained host type is declared in one source file. XAML and interop types may remain partial for framework or source-generation requirements; `npm run host:ownership:check` rejects multi-file partial type families.
 
-The checked-in policy runs during ordinary host and host-test builds. A clean build is the quality gate:
+The checked-in analyzer and ownership gates are:
 
 ```powershell
 dotnet build VolturaAir.slnx
+npm run host:ownership:check
 ```
 
 ## Runtime expectations

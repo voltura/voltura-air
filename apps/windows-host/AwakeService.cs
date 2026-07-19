@@ -35,7 +35,7 @@ public sealed class AwakeService : IAwakeService
     private readonly Lock _gate = new();
     private readonly IAwakeExecutionStateBridge _bridge;
     private readonly Action<AwakeState> _save;
-    private readonly IAppLog _appLog;
+    private readonly IAppLogWriter _appLog;
     private readonly BlockingCollection<ExecutionRequest> _requests = [];
     private readonly Thread _executionThread;
     private System.Threading.Timer? _expirationTimer;
@@ -46,7 +46,7 @@ public sealed class AwakeService : IAwakeService
         IAwakeExecutionStateBridge bridge,
         AwakeState initialState,
         Action<AwakeState>? save = null,
-        IAppLog? appLog = null)
+        IAppLogWriter? appLog = null)
     {
         _bridge = bridge;
         _save = save ?? AppAwakeSettings.Save;
@@ -70,7 +70,7 @@ public sealed class AwakeService : IAwakeService
         ScheduleExpiration();
     }
 
-    public static AwakeService CreateWindows(IAppLog? appLog = null) => new(
+    public static AwakeService CreateWindows(IAppLogWriter? appLog = null) => new(
         new WindowsAwakeExecutionStateBridge(),
         AppAwakeSettings.Load(),
         appLog: appLog);

@@ -78,8 +78,7 @@
 
         <Grid x:Name="MainContentRoot"
               Grid.Column="1"
-              Margin="{DynamicResource DesktopPageGutterInset}"
-              LayoutUpdated="OnMainContentRootLayoutUpdated">
+              Margin="{DynamicResource DesktopPageGutterInset}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="{DynamicResource GridSpaceXl}" />

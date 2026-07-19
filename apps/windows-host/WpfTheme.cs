@@ -20,8 +20,11 @@ internal static partial class WpfTheme
         resources["MutedTextBrush"] = ToBrush(theme.MutedText);
         resources["BorderBrush"] = ToBrush(theme.Border);
         resources["AccentBrush"] = ToBrush(theme.Accent);
+        resources["AccentStrongBrush"] = ToBrush(theme.AccentStrong);
         resources["AccentTextBrush"] = ToBrush(theme.AccentText);
+        resources["SuccessStrongBrush"] = ToBrush(theme.SuccessStrong);
         resources["DangerBrush"] = ToBrush(theme.Danger);
+        resources["DangerStrongBrush"] = ToBrush(theme.DangerStrong);
         resources["QrBackgroundBrush"] = ToBrush(theme.QrBackground);
 
         window.Background = (Brush)resources["WindowBrush"];

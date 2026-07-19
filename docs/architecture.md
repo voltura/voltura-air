@@ -18,23 +18,49 @@ mobile app shell -> capability slices -> UI primitives
        (connection, protocol, input, settings, storage, platform)
                          |
                          v
-Windows WebHostService -> validation/policy -> input, audio, and remote services
-                                                |
-                                                v
-                                         Windows platform APIs
+Windows WebHostService -> WebSocketSessionHandler -> validation and policy
+                                                     |
+                                                     v
+                                   focused command handlers and platform APIs
 ```
 
-React components send typed intents through `useVolturaAirConnection`; the connection subsystem owns pairing, reconnects, acknowledgements, and protocol parsing. On the host, `WebHostService` validates and routes messages, while `HostPermissions` and paired-device settings decide policy before Windows adapters execute an approved command.
+React components send typed intents through `useVolturaAirConnection`; the connection subsystem owns pairing, reconnects, acknowledgements, and protocol parsing. On the host, `WebHostService` owns ASP.NET lifetime and composes `WebSocketSessionHandler`. The session handler authenticates and routes validated messages to focused command handlers, while `HostStatusPayloadFactory`, `HostPermissions`, and paired-device settings decide policy before Windows adapters execute an approved command.
 
 ## Host subsystems
 
-- `Program.cs` and `WpfHostRuntime.cs` compose the one-host tray application and own startup rollback and process-resource shutdown. `WpfTrayApplicationContext.*.cs` owns tray presentation, dispatcher one-shots, menu state, icons, and subscriptions; it requests commands and application shutdown but does not own service internals. `WebHostService.*.cs` separates host lifetime, network/origin selection, socket-session routing, socket transport, status broadcasting, and command operations while retaining one service owner for HTTP/WebSocket lifetime, bounded messages, deadlines, per-socket send serialization, authenticated status, and static PWA serving. `AppDeveloperSettings.cs` owns the cached, default-off **Enable alpha features** umbrella gate; individual alpha features own their capability advertisement and command-boundary enforcement.
-- `PairingManager.*.cs`, `PairingStore.cs`, and `PairingAttemptRateLimiter.cs` own authentication, bounded and validated atomic pairing persistence, and per-device permissions and pointer-speed overrides.
+- `Program.cs` and `WpfHostRuntime.cs` compose the one-host tray application and own startup rollback and process-resource shutdown. `WpfTrayApplicationContext.cs` owns the notify icon, themed menu, icons, and shutdown requests. `TrayConnectionFeedbackController.cs` owns connection/elevation subscriptions and its dispatcher one-shots; `TrayAwakeMenuController.cs` owns Keep awake menu state and its service subscription.
+- `WebHostService.cs` owns ASP.NET/static-PWA lifetime and the bounded session semaphore. `WebHostNetwork.cs` owns adapter-independent URL, origin, and rate-limit-key helpers. `WebSocketSessionHandler.cs` owns pairing and authenticated protocol state. `WebSocketTransport.cs` owns bounded framing, close/send deadlines, active sockets, and per-socket send serialization. `HostStatusBroadcaster.cs` owns the single bounded coalescing status worker and settings subscriptions. `HostStatusPayloadFactory.cs` owns capability and status payload construction. Focused command handlers own input, power, Awake, presentation, external launch, text-transfer, clipboard, and command-log behavior. `AppDeveloperSettings.cs` owns the cached, default-off **Enable alpha features** umbrella gate; individual alpha features advertise capability only while enabled and enforce the gate at their command boundary.
+- `PairingManager.cs` owns the synchronization boundary and publishes pairing/device events. `PairingTokenAuthority.cs` owns pairing-code creation, rotation overlap, validation, and invalidation. `PairedDeviceRegistry.cs` owns normalized paired-device state, active connection counts, device permissions, and pointer-speed overrides. `PairingStore.cs` owns bounded, validated, atomic persistence, and `PairingAttemptRateLimiter.cs` owns per-source authentication throttling.
 - `ClientMessageValidator.cs` decodes each bounded authenticated input message once into a `ValidatedInputCommand`; `InputDispatcher.cs` consumes that command without rereading JSON and translates it for `SendInputInjector.cs`. The injector serializes native calls, reuses its single-input movement buffer, and sends text in bounded batches with partial-send cleanup. `PresentationCommands.cs` owns the fixed target-specific presenter shortcut allowlist. `TextDestination.cs` owns safe focused/clipboard/configured text delivery. `WindowsProcessIntegrity.cs` and `PointerHighlightForegroundMonitor.cs` use a single foreground event hook solely to block remote input when a higher-integrity app owns the foreground; they have no cursor responsibilities.
-- `AppLog.*.cs` separates public models, bounded single-writer persistence, and bounded queries. `WpfHostRuntime` disposes the log after every producer; a standalone `WebHostService` disposes only a logger it created itself.
+- `AppLog.Models.cs` defines separate writer and reader contracts. `AppLog.cs` owns the bounded single-writer queue, flush barriers, backpressure records, and change notifications; `AppLogFileStore.cs` owns JSONL append, retention, bounded queries, and deletion. `WpfHostRuntime` disposes the log after every producer; a standalone `WebHostService` disposes only a logger it created itself.
 - `CustomPointerService.cs` builds Windows cursors from the packaged maximum-size templates, preserves the Windows role mapping, applies them through the Windows cursor API, and reloads the user's configured cursor scheme on disable or normal exit. It owns the enabled, size, RGB, and default-on recovery-watchdog settings.
-- `CursorWatchdogService.cs` owns the native monitor while Custom pointer and **Use cursor recovery watchdog** are both enabled. `VolturaAir.CursorWatchdog.exe` starts a ready-confirmed monitor outside the live host process tree. The monitor waits on the host process handle, restores the configured Windows cursor scheme after unexpected termination, and exits. Normal host shutdown restores the cursor before stopping the monitor.
-- `RemoteActionExecutor.*.cs`, `AppLaunchService.cs`, `SystemAudioController.cs`, `SystemPowerController.cs`, `WindowsDisplayActionController.cs`, and `AwakeService.cs` own their focused platform functions. `MainWindow.xaml` and the XAML views under `Features/` own page and reusable-section composition for Connect, Connection, Devices, Preferences, and Diagnostics. `MainWindow.*.cs` supplies data and behavior. WPF/tray presentation requests lifecycle actions while `Program.cs` and `WpfHostRuntime.cs` perform shutdown.
+- `CursorWatchdogService.cs` owns the native monitor while Custom pointer and **Use cursor recovery watchdog** are both enabled. `VolturaAir.CursorWatchdog.exe` starts a ready-confirmed monitor outside the live host process tree. One monitor is allowed per host process ID. The monitor blocks on a synchronized host-process handle, restores the configured Windows cursor scheme after every confirmed host exit, optionally signals successful restoration for validation, and exits. The host confirms readiness before replacing a cursor. Feature-disable paths restore cursors before explicitly stopping the monitor. Final host shutdown restores cursors, detaches the managed process wrapper without killing the monitor, and lets the monitor perform the harmless second restoration after actual host exit.
+- `RemoteActionExecutor.cs` routes allowlisted remote modes to `YoutubeRemoteAction.cs` and `KodiRemoteAction.cs`; `WindowsWindowActivator.cs` owns Windows window discovery and activation. `AppLaunchService.cs`, `SystemAudioController.cs`, `SystemPowerController.cs`, `WindowsDisplayActionController.cs`, and `AwakeService.cs` own their focused platform functions. `MainWindow.xaml` is the WPF shell and page-composition root; XAML views and feature-owned controllers or models under `Features/` own each page's presentation, non-visual state, and behavior. The Connect feature's `PairingLinkController` owns pairing-link construction, host hints, rotation, and refresh state, while `PairingQrCodeRenderer` owns QR bitmap creation and its native GDI handle. WPF/tray presentation requests lifecycle actions while `Program.cs` and `WpfHostRuntime.cs` perform shutdown.
+
+### Host presentation ownership
+
+`MainWindow` owns only window-level concerns: navigation, shell visibility, visual
+composition, and the subscriptions needed to refresh visible views. It forwards
+user intent and host events to feature-owned types; it does not own feature
+rules, persistence, platform operations, or non-visual feature state.
+
+`MainWindow.xaml.cs` is the only `MainWindow` source file; its partial declaration
+exists solely for the WPF-generated XAML half. Page behavior is grouped under
+`Features/Connect`, `Features/Connection`, `Features/Devices`,
+`Features/Preferences`, and `Features/Diagnostics`. Each page controller owns
+its view construction and interaction state. Focused preference sections own
+application/logging, Keep awake, global permissions, app-launch,
+text-destination, custom-pointer, and developer/Windows-policy behavior, while
+the preferences page controller coordinates page-level settings and preserved
+scroll/expansion state. Domain-neutral WPF construction, toast, clipboard, and
+window-artwork helpers live under `Ui/`.
+
+Adding another `MainWindow` partial file is not a feature boundary. Move a
+cohesive responsibility into a named type under `Features/<feature>` (or into an
+existing host service when that service already owns the state) and test that
+owner without constructing a WPF window. Partial types remain appropriate where
+WPF XAML or source-generated interop requires them, but not as the default way
+to split a growing class.
 
 ## Mobile subsystems
 
@@ -77,9 +103,10 @@ and service classes should rarely need that exception.
 to actively maintained source while excluding generated and vendored output.
 Strong warnings have their current cohesive-ownership rationale in
 `scripts/source-size-reviews.json`; `npm run size:check` rejects missing or stale
-reviews. Mixed host protocol, logging, tray, and Preferences responsibilities
-were split before the remaining exceptions were recorded. `docs/ui-system.md`
-applies the same review threshold specifically to presentation ownership.
+reviews. `npm run host:ownership:check` rejects a host type spread across
+multiple maintained partial source files; framework and generated partial types
+remain confined to one maintained source file. `docs/ui-system.md` applies the
+same review threshold specifically to presentation ownership.
 
 The production mobile build also enforces the measured JavaScript budget after
 Vite compression: at most 560 KB raw and 132 KB Brotli across emitted JavaScript
@@ -89,13 +116,16 @@ assets. Budget changes require an intentional ownership and payload review.
 
 | Owner | Long-lived resources | Deterministic cleanup and coverage |
 | --- | --- | --- |
-| `WpfHostRuntime` | App log, web host, input guard, custom pointer/watchdog, tray context, windows, and single-instance activation | Startup rollback and reverse-order `DisposeAsync`; host runtime/startup tests cover failure and shutdown paths. |
-| `WebHostService` | Lifetime cancellation, bounded status channel/worker, session semaphore, ASP.NET host, registered sockets/send gates, settings and pairing subscriptions, owned adapters | `StopAsync` cancels, completes the channel, closes sockets with deadlines, awaits workers/host, and `DisposeAsync` releases subscriptions and owned services; protocol/connection tests cover limits, failures, disconnects, and shutdown. |
+| `WpfHostRuntime` | App log, web host, input injector, custom pointer/watchdog, foreground monitor, draft cleanup, tray context, and main window | Startup rollback and reverse-order `DisposeAsync`; host runtime/startup tests cover failure and shutdown paths. |
+| `WebHostService` | ASP.NET application, static PWA mapping, session semaphore, composed protocol services, and owned platform adapters | `StopAsync` aborts active sockets and stops ASP.NET with a deadline. `DisposeAsync` stops the status owner, disposes the app/transport, and releases owned adapters; protocol/connection tests cover limits, failures, disconnects, and shutdown. |
+| `WebSocketTransport` | Registered sockets and per-socket send gates | Bounded close/send operations and `Dispose` retire connection state; connection tests cover serialized sends, unregister races, limits, and shutdown. |
+| `HostStatusBroadcaster` | Bounded coalescing channel, cancellation source, worker, settings/pairing subscriptions, and tracked revocation-close tasks | `DisposeAsync` unsubscribes, cancels and completes the channel, then awaits the worker and tracked closes; status tests cover propagation and disconnect behavior. |
 | `AppLog` | Bounded channel and single writer task | `DisposeAsync` completes the channel and awaits the writer after accepted-entry flush; log tests cover backpressure, read/write failure, pruning, flush, and disposal. |
 | `AwakeService` | Dedicated request thread, bounded blocking collection, expiration timer, execution-state ownership | `Dispose` stops intake/timer, wakes and joins the thread, then releases Windows execution state; awake tests cover transitions, expiration, failure, and cleanup. |
 | `SingleInstanceCoordinator` | Named synchronization objects and registered activation wait | `Dispose` unregisters the wait and releases handles; focused single-instance tests cover activation and disposal. |
 | `PointerHighlightForegroundMonitor` and `TextDestinationDraftStore` | Windows foreground hook/dispatcher timer and periodic draft-cleanup timer | Each service stops its timer, unregisters native/event state, and is disposed by its composition owner; focused platform/service tests cover inactive and cleanup behavior. |
-| `WpfTrayApplicationContext` | Notify icon/menu/icons, subscriptions, startup and disconnect one-shots | `Dispose` cancels owned one-shots, unsubscribes, hides/disposes tray resources, and releases icons. `OwnedDispatcherTimer` tests cover fire-once and dispose-before-fire behavior. |
+| `CursorWatchdogService` | Managed wrapper for the ready native monitor | Explicit feature stop terminates the monitor; final `Dispose` detaches the wrapper so the native process remains until host exit. Watchdog acceptance tests cover startup results, PID reuse, forced termination, restoration, and final detachment. |
+| `WpfTrayApplicationContext`, `TrayConnectionFeedbackController`, and `TrayAwakeMenuController` | Notify icon/menu/icons, theme/Awake/connection subscriptions, and startup/disconnect one-shots | Their `Dispose` methods unsubscribe, cancel owned one-shots, hide/dispose tray resources, and release icons. Tray and `OwnedDispatcherTimer` tests cover state and cleanup behavior. |
 | Mobile connection/PWA/input hooks | WebSocket listeners, health/retry/feedback timers, page listeners, pointer capture, animation frames, and speech events | React effect cleanup closes/releases each acquired resource. Connection lifetime tests cover listener release, reconnect replacement, suspension, timeouts, and unmount; focused input/PWA tests cover their exit paths. |
 
 ## Invariants

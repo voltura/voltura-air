@@ -24,12 +24,11 @@ internal sealed record ConnectionCandidateItem(
                         ? "Not recommended"
                         : string.Empty;
                 var isSelected = candidate.Address.Equals(selectedCandidate?.Address);
-                var displayStatus = isSelected ? $"{status} selected".Trim() : status;
                 return new ConnectionCandidateItem(
                     candidate,
                     $"{GetAdapterTypeDisplayName(candidate)} - {GetAdapterDescription(candidate)}",
                     candidate.Address.ToString(),
-                    string.IsNullOrWhiteSpace(displayStatus) ? "Available" : displayStatus,
+                    string.IsNullOrWhiteSpace(status) ? "Available" : status,
                     isSelected);
             })
         ];

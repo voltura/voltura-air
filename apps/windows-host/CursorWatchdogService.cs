@@ -5,12 +5,23 @@ namespace VolturaAir.Host;
 
 internal sealed class CursorWatchdogService : IDisposable
 {
-    private static readonly TimeSpan StartupTimeout = TimeSpan.FromSeconds(5);
+    internal static readonly TimeSpan BootstrapExitTimeout = TimeSpan.FromSeconds(7);
     private readonly Lock _gate = new();
     private readonly string _watchdogPath;
     private readonly int _hostProcessId;
     private Process? _monitor;
     private bool _disposed;
+
+    internal int? MonitorProcessId
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _monitor is { HasExited: false } monitor ? monitor.Id : null;
+            }
+        }
+    }
 
     public CursorWatchdogService()
         : this(
@@ -46,7 +57,7 @@ internal sealed class CursorWatchdogService : IDisposable
             {
                 using var bootstrap = Process.Start(CreateStartInfo(_watchdogPath, _hostProcessId)) ??
                     throw new InvalidOperationException("Windows did not start the cursor recovery watchdog.");
-                if (!bootstrap.WaitForExit(StartupTimeout))
+                if (!bootstrap.WaitForExit(BootstrapExitTimeout))
                 {
                     bootstrap.Kill(entireProcessTree: true);
                     bootstrap.WaitForExit();
@@ -91,7 +102,7 @@ internal sealed class CursorWatchdogService : IDisposable
                 return;
             }
 
-            StopMonitoringCore();
+            DetachMonitoringCore();
             _disposed = true;
         }
     }
@@ -110,7 +121,7 @@ internal sealed class CursorWatchdogService : IDisposable
             if (!monitor.HasExited)
             {
                 monitor.Kill();
-                _ = monitor.WaitForExit(StartupTimeout);
+                _ = monitor.WaitForExit(BootstrapExitTimeout);
             }
         }
         catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
@@ -121,6 +132,13 @@ internal sealed class CursorWatchdogService : IDisposable
         {
             monitor.Dispose();
         }
+    }
+
+    private void DetachMonitoringCore()
+    {
+        var monitor = _monitor;
+        _monitor = null;
+        monitor?.Dispose();
     }
 
     internal static ProcessStartInfo CreateStartInfo(string watchdogPath, int hostProcessId)

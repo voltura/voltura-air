@@ -39,7 +39,7 @@ internal static class TextDestinationDraftStore
             AppTextDestinationDraftSettings.AutomaticallyRemoveDraftFiles());
     }
 
-    public static IAsyncDisposable CreateCleanupService(IAppLog appLog) => new TextDestinationDraftCleanup(appLog);
+    public static IAsyncDisposable CreateCleanupService(IAppLogWriter appLog) => new TextDestinationDraftCleanup(appLog);
 
     public static bool TryOpenFolder()
     {
@@ -104,17 +104,17 @@ internal static class TextDestinationDraftStore
 
 internal sealed class TextDestinationDraftCleanup : IAsyncDisposable
 {
-    private readonly IAppLog _appLog;
+    private readonly IAppLogWriter _appLog;
     private readonly Action _cleanup;
     private readonly System.Threading.Timer _timer;
     private int _cleanupRunning;
 
-    public TextDestinationDraftCleanup(IAppLog appLog)
+    public TextDestinationDraftCleanup(IAppLogWriter appLog)
         : this(appLog, TextDestinationDraftStore.DeleteExpiredIfEnabled, TimeSpan.Zero, TimeSpan.FromHours(1))
     {
     }
 
-    internal TextDestinationDraftCleanup(IAppLog appLog, Action cleanup, TimeSpan dueTime, TimeSpan period)
+    internal TextDestinationDraftCleanup(IAppLogWriter appLog, Action cleanup, TimeSpan dueTime, TimeSpan period)
     {
         _appLog = appLog;
         _cleanup = cleanup;

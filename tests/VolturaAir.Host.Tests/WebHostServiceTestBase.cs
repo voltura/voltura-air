@@ -162,10 +162,10 @@ public abstract class WebHostServiceTestBase
     {
         public List<string> Actions { get; } = new();
 
-        public bool TryExecute(string action)
+        public Task<bool> TryExecuteAsync(string action, CancellationToken cancellationToken)
         {
             Actions.Add(action);
-            return true;
+            return Task.FromResult(true);
         }
     }
 

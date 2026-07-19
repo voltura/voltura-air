@@ -116,8 +116,11 @@ function renderPalette(name, theme) {
         ${renderColor(theme.muted)},
         ${renderColor(theme.border)},
         ${renderColor(theme.accent)},
+        ${renderColor(theme.accentStrong)},
         ${renderColor(theme.onAccent)},
+        ${renderColor(theme.successStrong)},
         ${renderColor(theme.danger)},
+        ${renderColor(theme.dangerStrong)},
         ${renderColor(theme.qrBackground)});`;
 }
 

@@ -1,6 +1,6 @@
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using VolturaAir.Host;
+using VolturaAir.Host.Features.Connect;
 
 namespace VolturaAir.Host.Tests;
 
@@ -9,7 +9,7 @@ public sealed class PairingQrCodeRenderingTests
     [Fact]
     public void PairingQrCodeIncludesVolturaAirIconInCenter()
     {
-        var source = MainWindow.CreateQrSource("http://192.168.1.20:51395/pair?t=redacted&v=0.6.3");
+        var source = PairingQrCodeRenderer.Create("http://192.168.1.20:51395/pair?t=redacted&v=0.6.3");
         var converted = new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
         var stride = converted.PixelWidth * 4;
         var pixels = new byte[stride * converted.PixelHeight];

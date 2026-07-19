@@ -12,7 +12,9 @@
   --accent: #12A894;
   --accent-strong: #0F7B6C;
   --success: #25D0A7;
+  --success-strong: #087A60;
   --danger: #FF745F;
+  --danger-strong: #C0533A;
   --trackpad-icon: #63717A;
   --scrim: rgb(0 0 0 / 45%);
   --drawer-shadow: rgb(0 0 0 / 36%);
@@ -65,7 +67,9 @@
   --accent: #0F8F80;
   --accent-strong: #0F7B6C;
   --success: #0A8F70;
+  --success-strong: #087A60;
   --danger: #C0533A;
+  --danger-strong: #C0533A;
   --trackpad-icon: #6E7A83;
   --scrim: rgb(16 20 24 / 25%);
   --drawer-shadow: rgb(16 20 24 / 18%);
@@ -92,7 +96,9 @@
   --accent: #0F8F80;
   --accent-strong: #0F7B6C;
   --success: #0A8F70;
+  --success-strong: #087A60;
   --danger: #C0533A;
+  --danger-strong: #C0533A;
   --trackpad-icon: #6E7A83;
   --scrim: rgb(16 20 24 / 25%);
   --drawer-shadow: rgb(16 20 24 / 18%);

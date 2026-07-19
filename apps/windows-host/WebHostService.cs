@@ -1,9 +1,4 @@
-using System.Net;
-using System.Net.Sockets;
 using System.Net.WebSockets;
-using System.Text;
-using System.Text.Json;
-using System.Threading.Channels;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -12,46 +7,28 @@ using Microsoft.Extensions.FileProviders;
 
 namespace VolturaAir.Host;
 
-public sealed partial class WebHostService : IAsyncDisposable
+public sealed class WebHostService : IAsyncDisposable
 {
-    private static readonly string DeveloperSessionId = Guid.NewGuid().ToString("N");
     private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(3);
-    internal static readonly TimeSpan PairingHandshakeTimeout = TimeSpan.FromSeconds(10);
-    internal static readonly TimeSpan AuthenticatedInactivityTimeout = TimeSpan.FromMinutes(2);
-    private static readonly TimeSpan WebSocketCloseTimeout = TimeSpan.FromSeconds(1);
-    private static readonly TimeSpan WebSocketSendTimeout = TimeSpan.FromSeconds(5);
-    internal const int MaxWebSocketMessageBytes = 64 * 1024;
+    internal static readonly TimeSpan PairingHandshakeTimeout = WebSocketSessionHandler.PairingHandshakeTimeout;
+    internal static readonly TimeSpan AuthenticatedInactivityTimeout = WebSocketSessionHandler.AuthenticatedInactivityTimeout;
+    internal const int MaxWebSocketMessageBytes = WebSocketTransport.MaxMessageBytes;
     private const int MaxConcurrentWebSocketSessions = 64;
-    private readonly PairingManager _pairingManager;
-    private readonly InputDispatcher _inputDispatcher;
-    private readonly ISystemAudioController _audioController;
-    private readonly IRemoteActionExecutor _remoteActionExecutor;
-    private readonly IAppLaunchService _appLaunchService;
-    private readonly IUrlOpenService _urlOpenService;
-    private readonly ITextDestinationService _textDestinationService;
-    private readonly IClipboardTextReader _clipboardTextReader;
+
     private readonly ISystemPowerController _powerController;
     private readonly IAwakeService _awakeService;
     private readonly IWorkstationLockPolicy _workstationLockPolicy;
     private readonly IAppLog _appLog;
     private readonly bool _ownsAppLog;
-    private readonly PairingAttemptRateLimiter _pairingAttemptRateLimiter = new();
-    private readonly WebSocketConnectionRegistry _connections = new();
+    private readonly WebSocketTransport _transport = new();
     private readonly SemaphoreSlim _webSocketSessionSlots = new(MaxConcurrentWebSocketSessions, MaxConcurrentWebSocketSessions);
-    private readonly CancellationTokenSource _lifetimeCancellation = new();
-    private readonly Channel<bool> _statusBroadcastRequests = Channel.CreateBounded<bool>(new BoundedChannelOptions(1)
-    {
-        FullMode = BoundedChannelFullMode.DropWrite,
-        SingleReader = true,
-        SingleWriter = false
-    });
+    private readonly HostStatusBroadcaster _statusBroadcaster;
+    private readonly WebSocketSessionHandler _sessionHandler;
     private readonly Action<IWebHostBuilder>? _configureWebHost;
-    private readonly Action<CustomPointerSettings>? _applyCustomPointer;
     private readonly string _listenAddress;
     private int _inputBlockedByElevation;
     private int _disposeState;
     private WebApplication? _app;
-    private Task _statusBroadcastTask = Task.CompletedTask;
 
     public WebHostService(
         PairingManager pairingManager,
@@ -70,25 +47,8 @@ public sealed partial class WebHostService : IAsyncDisposable
         bool isolatedTestMode = false,
         Action<IWebHostBuilder>? configureWebHost = null)
     {
-        _pairingManager = pairingManager;
-        _inputDispatcher = inputDispatcher;
-        _audioController = audioController ?? new SystemAudioController();
-        _remoteActionExecutor = remoteActionExecutor ?? new RemoteActionExecutor();
-        _appLaunchService = appLaunchService ?? new AppLaunchService();
-        _urlOpenService = urlOpenService ?? new UrlOpenService();
-        _textDestinationService = textDestinationService ?? new FocusedTextDestinationService(inputDispatcher);
-        _clipboardTextReader = clipboardTextReader ?? new WindowsClipboardTextReader();
-        _powerController = powerController ?? (isolatedTestMode ? new NoOpSystemPowerController() : new SystemPowerController());
-        _ownsAppLog = appLog is null && !isolatedTestMode;
-        _appLog = appLog ?? (isolatedTestMode ? NullAppLog.Instance : new AppLog());
-        _awakeService = awakeService ?? (isolatedTestMode
-            ? new NoOpAwakeService()
-            : VolturaAir.Host.AwakeService.CreateWindows(_appLog));
-        _workstationLockPolicy = workstationLockPolicy ?? new WorkstationLockPolicy(_appLog);
         _configureWebHost = configureWebHost;
-        // An isolated browser may exercise the protocol, but it must never
-        // call the native cursor API on the developer's Windows session.
-        _applyCustomPointer = isolatedTestMode ? null : applyCustomPointer;
+
         var settings = AppNetworkSettings.Load();
         var usesInMemoryTestServer = isolatedTestMode && configureWebHost is not null;
         var portSelection = usesInMemoryTestServer
@@ -118,7 +78,7 @@ public sealed partial class WebHostService : IAsyncDisposable
             _listenAddress = "0.0.0.0";
             var addressSelection = LanAddressSelector.Select(LanAddressSelector.GetCandidates(), settings);
             AdvertisedHostAddress = addressSelection?.Address.ToString() ?? GetDnsLanAddressFallback() ?? "127.0.0.1";
-            SelectedAdapterName = GetSelectedAdapterName(addressSelection?.Candidate);
+            SelectedAdapterName = WebHostNetwork.GetSelectedAdapterName(addressSelection?.Candidate);
             AddressSelectionWarning = addressSelection?.Warning;
             if (settings.NetworkMode == NetworkSelectionMode.Automatic)
             {
@@ -127,55 +87,112 @@ public sealed partial class WebHostService : IAsyncDisposable
         }
 
         ServerUrl = BuildServerUrl(AdvertisedHostAddress, Port);
-        _pairingManager.PairingRevoked += OnPairingRevoked;
-        _pairingManager.PermissionsChanged += OnPermissionsChanged;
-        _pairingManager.DeviceProfileChanged += OnPermissionsChanged;
-        AppPermissionSettings.Changed += OnPermissionsChanged;
-        AppDeveloperSettings.Changed += OnPermissionsChanged;
-        AppRemoteSettings.Changed += OnPermissionsChanged;
-        AppLaunchSettings.Changed += OnPermissionsChanged;
-        AppTextDestinationSettings.Changed += OnPermissionsChanged;
-        AppPointerSettings.Changed += OnPermissionsChanged;
-        _workstationLockPolicy.Changed += OnPermissionsChanged;
-        _awakeService.StateChanged += OnAwakeStateChanged;
-        _statusBroadcastTask = ProcessStatusBroadcastsAsync();
+
+        var resolvedAudioController = audioController ?? new SystemAudioController();
+        var resolvedRemoteActionExecutor = remoteActionExecutor ?? new RemoteActionExecutor();
+        var resolvedAppLaunchService = appLaunchService ?? new AppLaunchService();
+        var resolvedUrlOpenService = urlOpenService ?? new UrlOpenService();
+        var resolvedTextDestinationService = textDestinationService ?? new FocusedTextDestinationService(inputDispatcher);
+        var resolvedClipboardTextReader = clipboardTextReader ?? new WindowsClipboardTextReader();
+        _powerController = powerController ?? (isolatedTestMode ? new NoOpSystemPowerController() : new SystemPowerController());
+        _ownsAppLog = appLog is null && !isolatedTestMode;
+        _appLog = appLog ?? (isolatedTestMode ? NullAppLog.Instance : new AppLog());
+        _awakeService = awakeService ?? (isolatedTestMode
+            ? new NoOpAwakeService()
+            : VolturaAir.Host.AwakeService.CreateWindows(_appLog));
+        _workstationLockPolicy = workstationLockPolicy ?? new WorkstationLockPolicy(_appLog);
+
+        var statusFactory = new HostStatusPayloadFactory(
+            pairingManager,
+            _powerController,
+            _awakeService,
+            _workstationLockPolicy,
+            resolvedAppLaunchService,
+            resolvedTextDestinationService,
+            GetNetworkSnapshot,
+            () => IsInputBlockedByElevation);
+        var commandLog = new HostCommandLog(_appLog);
+        var powerCommands = new PowerCommandHandler(
+            _powerController,
+            _workstationLockPolicy,
+            statusFactory,
+            _transport,
+            _appLog);
+        var awakeCommands = new AwakeCommandHandler(_awakeService, statusFactory, _transport, _appLog);
+        var presentationCommands = new PresentationCommandHandler(inputDispatcher, statusFactory, _transport, _appLog);
+        var externalActionCommands = new ExternalActionCommandHandler(
+            resolvedRemoteActionExecutor,
+            resolvedAppLaunchService,
+            resolvedUrlOpenService,
+            statusFactory,
+            commandLog,
+            _transport,
+            _appLog);
+        var textTransferCommands = new TextTransferCommandHandler(
+            resolvedTextDestinationService,
+            _powerController,
+            commandLog,
+            _transport);
+        var clipboardCommands = new ClipboardCommandHandler(
+            resolvedClipboardTextReader,
+            statusFactory,
+            commandLog,
+            _transport);
+        var inputCommands = new InputCommandHandler(inputDispatcher, _powerController, commandLog, _transport);
+        // An isolated browser may exercise the protocol, but it must never call
+        // the native cursor API on the developer's Windows session.
+        var resolvedApplyCustomPointer = isolatedTestMode ? null : applyCustomPointer;
+        _sessionHandler = new WebSocketSessionHandler(
+            pairingManager,
+            resolvedAudioController,
+            resolvedApplyCustomPointer,
+            statusFactory,
+            commandLog,
+            _transport,
+            powerCommands,
+            awakeCommands,
+            presentationCommands,
+            externalActionCommands,
+            textTransferCommands,
+            clipboardCommands,
+            inputCommands,
+            _appLog,
+            args => ControllerSocketClosed?.Invoke(this, args));
+        _statusBroadcaster = new HostStatusBroadcaster(
+            pairingManager,
+            _awakeService,
+            _workstationLockPolicy,
+            _transport,
+            statusFactory,
+            _appLog);
     }
 
     public int Port { get; }
-
     public string ServerUrl { get; private set; }
-
     public string WebSocketUrl => BuildWebSocketUrl(AdvertisedHostAddress, Port);
-
     public string AdvertisedHostAddress { get; private set; }
-
     public string SelectedAdapterName { get; private set; }
-
     public string? AddressSelectionWarning { get; }
-
     public string? PortSelectionWarning { get; }
-
     internal string ListenAddress => _listenAddress;
-
     internal WebApplication? Application => _app;
-
     internal IWorkstationLockPolicy WorkstationLockPolicy => _workstationLockPolicy;
-
     internal ISystemPowerController PowerController => _powerController;
-
     internal IAwakeService AwakeService => _awakeService;
-
     internal IAppLog AppLog => _appLog;
-
-    internal int ActiveSocketCount => _connections.ActiveSocketCount;
-
-    internal int SendGateCount => _connections.SendGateCount;
+    internal int ActiveSocketCount => _transport.ActiveSocketCount;
+    internal int SendGateCount => _transport.SendGateCount;
+    internal bool IsInputBlockedByElevation => Volatile.Read(ref _inputBlockedByElevation) != 0;
 
     public event EventHandler<ControllerSocketClosedEventArgs>? ControllerSocketClosed;
-
     internal event EventHandler<RemoteInputBlockedChangedEventArgs>? RemoteInputBlockedChanged;
 
-    internal bool IsInputBlockedByElevation => Volatile.Read(ref _inputBlockedByElevation) != 0;
+    internal static bool IsPortAvailable(int port) => WebHostNetwork.IsPortAvailable(port);
+    internal static int FindFreePort() => WebHostNetwork.FindFreePort();
+    internal static string? GetDnsLanAddressFallback() => WebHostNetwork.GetDnsLanAddressFallback();
+    internal static string BuildServerUrl(string hostAddress, int port) => WebHostNetwork.BuildServerUrl(hostAddress, port);
+    internal static string BuildWebSocketUrl(string hostAddress, int port) => WebHostNetwork.BuildWebSocketUrl(hostAddress, port);
+    internal static bool IsAllowedWebSocketOrigin(HttpRequest request) => WebHostNetwork.IsAllowedWebSocketOrigin(request);
 
     internal void SetInputBlockedByElevation(bool blocked)
     {
@@ -185,13 +202,13 @@ public sealed partial class WebHostService : IAsyncDisposable
         }
 
         RemoteInputBlockedChanged?.Invoke(this, new RemoteInputBlockedChangedEventArgs(blocked));
-        QueueStatusBroadcast();
+        _statusBroadcaster.Queue();
     }
 
     internal void UpdateAdvertisedHostAddress(string hostAddress, LanAddressCandidate? selectedCandidate = null)
     {
         AdvertisedHostAddress = hostAddress;
-        SelectedAdapterName = GetSelectedAdapterName(selectedCandidate);
+        SelectedAdapterName = WebHostNetwork.GetSelectedAdapterName(selectedCandidate);
         ServerUrl = BuildServerUrl(hostAddress, Port);
     }
 
@@ -206,9 +223,9 @@ public sealed partial class WebHostService : IAsyncDisposable
         {
             _configureWebHost(builder.WebHost);
         }
+
         var app = builder.Build();
         app.UseWebSockets();
-
         app.Map("/ws", async context =>
         {
             if (!context.WebSockets.IsWebSocketRequest)
@@ -232,7 +249,7 @@ public sealed partial class WebHostService : IAsyncDisposable
             try
             {
                 using var socket = await context.WebSockets.AcceptWebSocketAsync();
-                await HandleSocketAsync(socket, GetRateLimitKey(context), context.RequestAborted);
+                await _sessionHandler.HandleAsync(socket, WebHostNetwork.GetRateLimitKey(context), context.RequestAborted);
             }
             finally
             {
@@ -240,47 +257,14 @@ public sealed partial class WebHostService : IAsyncDisposable
             }
         });
 
-        var staticRoot = WebHostStaticFiles.ResolveStaticRoot();
-        if (Directory.Exists(staticRoot))
-        {
-            app.UseDefaultFiles(new DefaultFilesOptions
-            {
-                FileProvider = new PhysicalFileProvider(staticRoot)
-            });
-            app.Use(async (context, next) =>
-            {
-                if (await WebHostStaticFiles.TryServeCompressedJavaScriptAsync(context, staticRoot))
-                {
-                    return;
-                }
-
-                await next();
-            });
-            app.UseStaticFiles(new StaticFileOptions
-            {
-                FileProvider = new PhysicalFileProvider(staticRoot),
-                OnPrepareResponse = context => WebHostStaticFiles.SetStaticCacheHeaders(context.Context.Response, context.Context.Request.Path.Value)
-            });
-            app.MapFallback(async context =>
-            {
-                WebHostStaticFiles.SetStaticCacheHeaders(context.Response, "index.html");
-                context.Response.ContentType = "text/html";
-                await context.Response.SendFileAsync(Path.Combine(staticRoot, "index.html"));
-            });
-        }
-        else
-        {
-            app.MapGet("/", () => Results.Text("Mobile web build missing. Run: npm run build --workspace apps/mobile-web", "text/plain"));
-        }
-
+        MapStaticFiles(app);
         _app = app;
         await app.StartAsync();
     }
 
     public async Task StopAsync()
     {
-        AbortActiveSockets();
-
+        _transport.AbortAll();
         if (_app is null)
         {
             return;
@@ -303,23 +287,10 @@ public sealed partial class WebHostService : IAsyncDisposable
             return;
         }
 
-        _pairingManager.PairingRevoked -= OnPairingRevoked;
-        _pairingManager.PermissionsChanged -= OnPermissionsChanged;
-        _pairingManager.DeviceProfileChanged -= OnPermissionsChanged;
-        AppPermissionSettings.Changed -= OnPermissionsChanged;
-        AppDeveloperSettings.Changed -= OnPermissionsChanged;
-        AppRemoteSettings.Changed -= OnPermissionsChanged;
-        AppLaunchSettings.Changed -= OnPermissionsChanged;
-        AppTextDestinationSettings.Changed -= OnPermissionsChanged;
-        AppPointerSettings.Changed -= OnPermissionsChanged;
-        _workstationLockPolicy.Changed -= OnPermissionsChanged;
-        _awakeService.StateChanged -= OnAwakeStateChanged;
-        _statusBroadcastRequests.Writer.TryComplete();
-        await _lifetimeCancellation.CancelAsync();
+        await _statusBroadcaster.DisposeAsync();
+        _transport.AbortAll();
         try
         {
-            AbortActiveSockets();
-            await _statusBroadcastTask;
             if (_app is not null)
             {
                 await _app.DisposeAsync();
@@ -327,7 +298,7 @@ public sealed partial class WebHostService : IAsyncDisposable
         }
         finally
         {
-            _connections.Dispose();
+            _transport.Dispose();
             try
             {
                 if (_powerController is IDisposable disposablePowerController)
@@ -349,16 +320,9 @@ public sealed partial class WebHostService : IAsyncDisposable
                     }
                     finally
                     {
-                        try
+                        if (_ownsAppLog && _appLog is IAsyncDisposable asyncDisposableAppLog)
                         {
-                            _lifetimeCancellation.Dispose();
-                        }
-                        finally
-                        {
-                            if (_ownsAppLog && _appLog is IAsyncDisposable asyncDisposableAppLog)
-                            {
-                                await asyncDisposableAppLog.DisposeAsync();
-                            }
+                            await asyncDisposableAppLog.DisposeAsync();
                         }
                     }
                 }
@@ -366,15 +330,53 @@ public sealed partial class WebHostService : IAsyncDisposable
         }
     }
 
+    private HostNetworkSnapshot GetNetworkSnapshot() => new(
+        SelectedAdapterName,
+        AdvertisedHostAddress,
+        Port,
+        WebSocketUrl);
 
+    private static void MapStaticFiles(WebApplication app)
+    {
+        var staticRoot = WebHostStaticFiles.ResolveStaticRoot();
+        if (!Directory.Exists(staticRoot))
+        {
+            app.MapGet("/", () => Results.Text("Mobile web build missing. Run: npm run build --workspace apps/mobile-web", "text/plain"));
+            return;
+        }
+
+        var fileProvider = new PhysicalFileProvider(staticRoot);
+        app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = fileProvider });
+        app.Use(async (context, next) =>
+        {
+            if (!await WebHostStaticFiles.TryServeCompressedJavaScriptAsync(context, staticRoot))
+            {
+                await next();
+            }
+        });
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            FileProvider = fileProvider,
+            OnPrepareResponse = context => WebHostStaticFiles.SetStaticCacheHeaders(
+                context.Context.Response,
+                context.Context.Request.Path.Value)
+        });
+        app.MapFallback(async context =>
+        {
+            WebHostStaticFiles.SetStaticCacheHeaders(context.Response, "index.html");
+            context.Response.ContentType = "text/html";
+            await context.Response.SendFileAsync(Path.Combine(staticRoot, "index.html"));
+        });
+    }
 }
 
-public sealed class ControllerSocketClosedEventArgs(string clientId, string reason, WebSocketCloseStatus status) : EventArgs
+public sealed class ControllerSocketClosedEventArgs(
+    string clientId,
+    string reason,
+    WebSocketCloseStatus status) : EventArgs
 {
     public string ClientId { get; } = clientId;
-
     public string Reason { get; } = reason;
-
     public WebSocketCloseStatus Status { get; } = status;
 }
 
@@ -396,9 +398,6 @@ internal sealed record HostStatusMetadata(
     bool InputBlockedByElevation);
 
 internal sealed record TextTransferTargetMetadata(string Mode, string DisplayName, bool Available);
-
 internal sealed record PresentationCommandResult(bool Succeeded, string? Code, string Message);
 
-public sealed class HostPortUnavailableException(string message) : Exception(message)
-{
-}
+public sealed class HostPortUnavailableException(string message) : Exception(message);

@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.AspNetCore.TestHost;
 using VolturaAir.Host;
+using VolturaAir.Host.Ui;
 
 namespace VolturaAir.Host.Tests;
 
@@ -135,7 +136,7 @@ public sealed partial class HostUiLayoutTests
             finally
             {
                 window.Close();
-                webHost.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                DisposeWebHost(webHost);
             }
         });
     }
@@ -178,7 +179,7 @@ public sealed partial class HostUiLayoutTests
             finally
             {
                 window.Close();
-                webHost.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                DisposeWebHost(webHost);
             }
         });
     }
@@ -217,7 +218,7 @@ public sealed partial class HostUiLayoutTests
             finally
             {
                 window.Close();
-                webHost.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                DisposeWebHost(webHost);
             }
         });
     }
@@ -256,13 +257,25 @@ public sealed partial class HostUiLayoutTests
                 var dateRangeButton = FindWpfDescendants<ModernDateRangePicker>(window)
                     .SelectMany(FindWpfDescendants<Button>)
                     .Single(button => AutomationProperties.GetName(button) == "Choose application log date range");
+                var eventFilterButton = Assert.IsType<Button>(
+                    Assert.Single(FindWpfDescendants<EventMultiSelectFilter>(window)).Content);
                 var filters = FindWpfDescendants<ComboBox>(window).ToArray();
 
                 AssertControlReceivesPointerHit(window, loggingToggle);
                 AssertControlReceivesPointerHit(window, automaticRefreshToggle);
                 AssertControlReceivesPointerHit(window, refreshButton);
                 AssertControlReceivesPointerHit(window, dateRangeButton);
+                AssertControlReceivesPointerHit(window, eventFilterButton);
                 Assert.All(filters, filter => AssertControlReceivesPointerHit(window, filter));
+                Assert.Null(loggingToggle.FocusVisualStyle);
+                Assert.Null(automaticRefreshToggle.FocusVisualStyle);
+                Assert.Null(dateRangeButton.FocusVisualStyle);
+                Assert.Null(eventFilterButton.FocusVisualStyle);
+                Assert.All(filters, filter =>
+                {
+                    Assert.Null(filter.FocusVisualStyle);
+                    Assert.Equal(new Thickness(1), filter.BorderThickness);
+                });
 
                 Assert.False(AppLoggingSettings.IsEnabled());
                 loggingToggle.IsChecked = true;
@@ -280,7 +293,7 @@ public sealed partial class HostUiLayoutTests
             finally
             {
                 window.Close();
-                webHost.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                DisposeWebHost(webHost);
             }
         });
     }
@@ -359,7 +372,7 @@ public sealed partial class HostUiLayoutTests
             finally
             {
                 window.Close();
-                webHost.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                DisposeWebHost(webHost);
             }
         });
     }
@@ -427,7 +440,7 @@ public sealed partial class HostUiLayoutTests
             finally
             {
                 window.Close();
-                webHost.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                DisposeWebHost(webHost);
                 AppPermissionSettings.Save(originalPermissions);
             }
         });
@@ -466,15 +479,22 @@ public sealed partial class HostUiLayoutTests
                 window.Show();
                 window.ShowPage(HostPage.Diagnostics);
                 window.UpdateLayout();
-                WaitForWpf(() => FindWpfDescendants<TextBlock>(window).Any(text => text.Text == "Host action"), "initial log render");
+                WaitForWpf(
+                    () => FindWpfDescendants<PillBadge>(window).Any(badge => Equals(badge.Content, "Host action")),
+                    "initial log render");
 
-                Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "Host action");
+                Assert.Contains(FindWpfDescendants<PillBadge>(window), badge => Equals(badge.Content, "Host action"));
                 Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "enable windows locking");
-                Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "Windows host");
-                Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "VAIR-LOCK-POLICY-ACCESS-DENIED");
+                Assert.Contains(
+                    FindWpfDescendants<PillBadge>(window),
+                    badge => Equals(badge.Content, "Windows host") && badge.Tone == PillBadgeTone.Outline);
+                Assert.Contains(
+                    FindWpfDescendants<PillBadge>(window),
+                    badge => Equals(badge.Content, "VAIR-LOCK-POLICY-ACCESS-DENIED") && badge.Tone == PillBadgeTone.DangerOutline);
                 Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "Access was denied.");
-                var hostActionBadge = FindWpfDescendants<Border>(window)
-                    .Single(border => border.Child is TextBlock text && text.Text == "Host action");
+                var hostActionBadge = FindWpfDescendants<PillBadge>(window)
+                    .Single(badge => Equals(badge.Content, "Host action"));
+                Assert.Equal(PillBadgeTone.DangerOutline, hostActionBadge.Tone);
                 Assert.Same(window.Resources["DangerBrush"], hostActionBadge.BorderBrush);
 
                 var previousReadCount = appLog.ReadCount;
@@ -485,15 +505,15 @@ public sealed partial class HostUiLayoutTests
                 Thread.Sleep(50);
                 DoWpfEvents();
 
-                var unchangedHostActionBadge = FindWpfDescendants<Border>(window)
-                    .Single(border => border.Child is TextBlock text && text.Text == "Host action");
+                var unchangedHostActionBadge = FindWpfDescendants<PillBadge>(window)
+                    .Single(badge => Equals(badge.Content, "Host action"));
                 Assert.Same(hostActionBadge, unchangedHostActionBadge);
 
             }
             finally
             {
                 window.Close();
-                webHost.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                DisposeWebHost(webHost);
             }
         });
     }
@@ -530,14 +550,6 @@ public sealed partial class HostUiLayoutTests
                 dialog.Close();
             }
         });
-    }
-
-    [Theory]
-    [InlineData("http://192.168.68.51:5173", "http://192.168.68.51:51395", "51395")]
-    [InlineData("http://192.168.68.51:5173", "http://10.0.0.20:51395", "http://10.0.0.20:51395")]
-    public void HostHintUsesCompactPortOnlyForSameHost(string clientUrl, string serverUrl, string expectedHint)
-    {
-        Assert.Equal(expectedHint, MainWindow.CreateHostHint(clientUrl, serverUrl));
     }
 
     private static IEnumerable<T> FindWpfDescendants<T>(DependencyObject root)

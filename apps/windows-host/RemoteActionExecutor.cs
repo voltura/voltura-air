@@ -7,74 +7,58 @@ public static class RemoteLaunchActions
     public const string OpenYoutube = "openYoutube";
     public const string StartOrActivateKodi = "startOrActivateKodi";
 
-    public static bool IsSupported(string action)
-    {
-        return action is OpenYoutube or StartOrActivateKodi;
-    }
+    public static bool IsSupported(string action) =>
+        action is OpenYoutube or StartOrActivateKodi;
 }
 
 public interface IRemoteActionExecutor
 {
-    bool TryExecute(string action);
+    Task<bool> TryExecuteAsync(string action, CancellationToken cancellationToken);
 }
 
-public sealed partial class RemoteActionExecutor : IRemoteActionExecutor
+internal interface IRemoteLaunchAction
 {
-    public bool TryExecute(string action)
+    Task<bool> ExecuteAsync(CancellationToken cancellationToken);
+}
+
+public sealed class RemoteActionExecutor : IRemoteActionExecutor
+{
+    private readonly IRemoteLaunchAction _youtube;
+    private readonly IRemoteLaunchAction _kodi;
+
+    public RemoteActionExecutor()
+    {
+        var windowActivator = new WindowsWindowActivator();
+        var processLauncher = new ShellProcessLauncher();
+        _youtube = new YoutubeRemoteAction(windowActivator, processLauncher);
+        _kodi = new KodiRemoteAction(windowActivator, processLauncher);
+    }
+
+    internal RemoteActionExecutor(IRemoteLaunchAction youtube, IRemoteLaunchAction kodi)
+    {
+        _youtube = youtube;
+        _kodi = kodi;
+    }
+
+    public Task<bool> TryExecuteAsync(string action, CancellationToken cancellationToken)
     {
         return action switch
         {
-            RemoteLaunchActions.OpenYoutube => TryOpenYoutube(),
-            RemoteLaunchActions.StartOrActivateKodi => TryStartOrActivateKodi(),
-            _ => false
+            RemoteLaunchActions.OpenYoutube => _youtube.ExecuteAsync(cancellationToken),
+            RemoteLaunchActions.StartOrActivateKodi => _kodi.ExecuteAsync(cancellationToken),
+            _ => Task.FromResult(false)
         };
     }
+}
 
-    private static bool TryOpenYoutube()
-    {
-        var youtubeUrl = AppRemoteSettings.GetYoutubeUrl();
-        if (TryActivateExistingYoutubeTab(youtubeUrl))
-        {
-            return true;
-        }
+internal interface IRemoteProcessLauncher
+{
+    bool TryStart(string fileName, string? arguments);
+}
 
-        foreach (var browser in BrowserCandidates)
-        {
-            if (!TryStartProcess(browser.ExecutableName, BrowserCandidate.BuildNewTabArguments(youtubeUrl)))
-            {
-                continue;
-            }
-
-            // The browser accepted the launch request. Prefer waiting until the
-            // YouTube tab is visible, but still fullscreen the browser window if
-            // Chromium accepted the new-tab request without exposing enough UIA
-            // state for the address/tab verification loop.
-            return TryActivateYoutubeBrowserWhenReady(browser.ProcessName, youtubeUrl, TimeSpan.FromSeconds(5))
-                || TryActivateMostRecentBrowserWindow(browser.ProcessName, ensureFullscreen: true);
-        }
-
-        return false;
-    }
-
-    private static bool TryStartOrActivateKodi()
-    {
-        if (TryActivateRunningKodi())
-        {
-            return true;
-        }
-
-        foreach (var candidate in GetKodiLaunchCandidates())
-        {
-            if (TryStartProcess(candidate.FileName, candidate.Arguments) && TryActivateKodiWhenReady(KodiStartWait))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool TryStartProcess(string fileName, string? arguments)
+internal sealed class ShellProcessLauncher : IRemoteProcessLauncher
+{
+    public bool TryStart(string fileName, string? arguments)
     {
         try
         {
@@ -86,10 +70,9 @@ public sealed partial class RemoteActionExecutor : IRemoteActionExecutor
             });
             return process is not null;
         }
-        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or FileNotFoundException)
+        catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception or FileNotFoundException)
         {
             return false;
         }
     }
-
 }

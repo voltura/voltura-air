@@ -10,6 +10,7 @@ import type { KeyboardSettings } from "../../foundation/settings/keyboardSetting
 import { toLiveKeyboardValue } from "../../foundation/input/keyboardDelta";
 import type { RemoteSettings } from "../../foundation/settings/remoteSettings";
 import type { useVolturaAirConnection } from "../../foundation/connection/useVolturaAirConnection";
+import type { AppToastMessage } from "../../ui/feedback/AppToast";
 import { AppModeContent } from "./AppModeContent";
 
 type ConnectionContract = Pick<
@@ -58,6 +59,7 @@ interface ModeWorkspaceProps {
   connection: ConnectionContract;
   keyboardSettings: KeyboardSettings;
   onClearAfterSendingChange: (value: boolean) => void;
+  onClipboardCopyFeedback: (feedback: AppToastMessage) => void;
   onRemoteUtilityPanelOpenChange: (isOpen: boolean) => void;
   remoteSettings: RemoteSettings;
   shouldShowSplitMode: boolean;
@@ -71,6 +73,7 @@ export function ModeWorkspace({
   connection,
   keyboardSettings,
   onClearAfterSendingChange,
+  onClipboardCopyFeedback,
   onRemoteUtilityPanelOpenChange,
   remoteSettings,
   shouldShowSplitMode,
@@ -235,8 +238,10 @@ export function ModeWorkspace({
         pending: connection.pendingClipboardRead,
         result: connection.clipboardReadResult,
         text: connection.clipboardText,
+        onCopyFeedback: onClipboardCopyFeedback,
         onGetText: connection.requestClipboardRead,
-        onLoadSnippet: (snippet) => { connection.setClipboardText(snippet.text); }
+        onLoadSnippet: (snippet) => { connection.setClipboardText(snippet.text); },
+        onTextChange: connection.setClipboardText
       }}
       gestureDebugMode={{ trackpadSettings }}
     />

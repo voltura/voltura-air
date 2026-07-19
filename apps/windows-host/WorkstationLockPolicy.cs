@@ -34,9 +34,9 @@ public sealed partial class WorkstationLockPolicy : IWorkstationLockPolicy
     private readonly Func<LockPolicyRegistryValue> _readValue;
     private readonly Action _writeEnabledValue;
     private readonly Action _broadcastPolicyChange;
-    private readonly IAppLog _appLog;
+    private readonly IAppLogWriter _appLog;
 
-    public WorkstationLockPolicy(IAppLog? appLog = null)
+    public WorkstationLockPolicy(IAppLogWriter? appLog = null)
         : this(ReadRegistryValue, WriteEnabledRegistryValue, BroadcastPolicyChange, appLog)
     {
     }
@@ -45,7 +45,7 @@ public sealed partial class WorkstationLockPolicy : IWorkstationLockPolicy
         Func<LockPolicyRegistryValue> readValue,
         Action writeEnabledValue,
         Action broadcastPolicyChange,
-        IAppLog? appLog = null)
+        IAppLogWriter? appLog = null)
     {
         _readValue = readValue;
         _writeEnabledValue = writeEnabledValue;

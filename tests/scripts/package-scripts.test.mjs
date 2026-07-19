@@ -19,6 +19,12 @@ test("strong source-size warnings require current reviews in pull-request qualit
   assert.match(qualityWorkflow, /run: npm run size:check/u);
 });
 
+test("host partial ownership runs in root and pull-request quality gates", () => {
+  assert.equal(packageJson.scripts["host:ownership:check"], "node scripts/check-host-partial-ownership.mjs");
+  assert.match(packageJson.scripts.test, /npm run host:ownership:check/u);
+  assert.match(qualityWorkflow, /run: npm run host:ownership:check/u);
+});
+
 test("the production mobile build enforces its measured JavaScript budget", () => {
   assert.match(mobilePackageJson.scripts.build, /vite build && npm run bundle:check/u);
   assert.equal(mobilePackageJson.scripts["bundle:check"], "node ../../scripts/check-mobile-bundle-size.mjs");

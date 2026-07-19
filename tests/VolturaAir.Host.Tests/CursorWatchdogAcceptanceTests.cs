@@ -9,6 +9,45 @@ public sealed class CursorWatchdogAcceptanceTests
     private static readonly TimeSpan ProcessTimeout = TimeSpan.FromSeconds(10);
 
     [Fact]
+    public void HostBootstrapFailSafeExceedsTheNativeReadinessTimeout()
+    {
+        Assert.True(CursorWatchdogService.BootstrapExitTimeout > TimeSpan.FromSeconds(5));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" 1")]
+    [InlineData("1 ")]
+    [InlineData("+1")]
+    [InlineData("-1")]
+    [InlineData("0")]
+    [InlineData("1x")]
+    [InlineData("4294967296")]
+    [InlineData("18446744073709551616")]
+    public void WatchdogRejectsNonCanonicalOrOverflowingProcessIds(string processId)
+    {
+        using var watchdog = StartWatchdog(processId);
+
+        Assert.True(watchdog.WaitForExit(ProcessTimeout), "The watchdog did not reject the invalid process ID promptly.");
+        Assert.Equal(1, watchdog.ExitCode);
+    }
+
+    [Fact]
+    public void WatchdogReportsMonitorStartupFailureWithoutWaitingForReadinessTimeout()
+    {
+        var stopwatch = Stopwatch.StartNew();
+        using var watchdog = StartWatchdog(uint.MaxValue.ToString(CultureInfo.InvariantCulture));
+
+        Assert.True(watchdog.WaitForExit(ProcessTimeout), "The watchdog launcher did not exit.");
+        stopwatch.Stop();
+
+        Assert.Equal(-4, watchdog.ExitCode);
+        Assert.True(
+            stopwatch.Elapsed < TimeSpan.FromSeconds(4),
+            $"Early monitor failure took {stopwatch.Elapsed.TotalSeconds:F2} seconds.");
+    }
+
+    [Fact]
     public void WatchdogMetadataExplainsItsRecoveryPurpose()
     {
         var versionInfo = FileVersionInfo.GetVersionInfo(GetWatchdogPath());
@@ -39,27 +78,80 @@ public sealed class CursorWatchdogAcceptanceTests
     }
 
     [Fact]
+    public void EnsureMonitoringReusesTheLiveMonitor()
+    {
+        using var dummyHost = StartSleepingHost();
+        using var service = new CursorWatchdogService(GetWatchdogPath(), dummyHost.Id);
+        try
+        {
+            service.EnsureMonitoring();
+            var firstMonitorProcessId = Assert.IsType<int>(service.MonitorProcessId);
+
+            service.EnsureMonitoring();
+
+            Assert.Equal(firstMonitorProcessId, service.MonitorProcessId);
+        }
+        finally
+        {
+            service.StopMonitoring();
+            StopProcess(dummyHost);
+        }
+    }
+
+    [Fact]
+    public void FinalServiceDisposalLeavesTheMonitorUntilTheHostExits()
+    {
+        using var dummyHost = StartSleepingHost();
+        var service = new CursorWatchdogService(GetWatchdogPath(), dummyHost.Id);
+        try
+        {
+            service.EnsureMonitoring();
+            var monitorProcessId = Assert.IsType<int>(service.MonitorProcessId);
+
+            service.Dispose();
+
+            using (var monitor = Process.GetProcessById(monitorProcessId))
+            {
+                Assert.False(monitor.HasExited);
+            }
+
+            StopProcess(dummyHost);
+            Assert.True(
+                WaitForProcessExit(monitorProcessId, ProcessTimeout),
+                "The detached watchdog did not exit after its host process stopped.");
+        }
+        finally
+        {
+            service.Dispose();
+            StopProcess(dummyHost);
+        }
+    }
+
+    [Fact]
     public void WatchdogSurvivesForcedHostTreeTerminationAndRestoresCursor()
     {
         var watchdogPath = GetWatchdogPath();
 
         var readyFile = Path.Combine(Path.GetTempPath(), "VolturaAir.Tests", $"watchdog-ready-{Guid.NewGuid():N}.txt");
         Directory.CreateDirectory(Path.GetDirectoryName(readyFile)!);
-        var completionEventName = $"Local\\VolturaAir.CursorWatchdog.Test.{Guid.NewGuid():N}";
-        using var completionEvent = new EventWaitHandle(false, EventResetMode.ManualReset, completionEventName);
+        var restoreCompletedEventName = $"Local\\VolturaAir.CursorWatchdog.Test.{Guid.NewGuid():N}";
+        using var restoreCompletedEvent = new EventWaitHandle(false, EventResetMode.ManualReset, restoreCompletedEventName);
         using var pointer = new CustomPointerService();
-        using var dummyHost = StartDummyHost(watchdogPath, completionEventName, readyFile);
+        using var dummyHost = StartDummyHost(watchdogPath, restoreCompletedEventName, readyFile);
         try
         {
             Assert.True(WaitForFile(readyFile, ProcessTimeout), "The watchdog monitor did not become ready.");
+            var monitorProcessId = int.Parse(File.ReadAllText(readyFile), CultureInfo.InvariantCulture);
             pointer.Apply(new CustomPointerSettings(true, 6, AppPointerSettings.DefaultCustomPointerColor));
 
             ForceTerminateProcessTree(dummyHost);
 
             Assert.True(
-                completionEvent.WaitOne(ProcessTimeout),
+                restoreCompletedEvent.WaitOne(ProcessTimeout),
                 "The watchdog did not survive the forced host tree termination and restore the cursor scheme.");
-            Assert.True(WaitForWatchdogExit(ProcessTimeout), "The cursor watchdog did not exit after recovery.");
+            Assert.True(
+                WaitForProcessExit(monitorProcessId, ProcessTimeout),
+                "The cursor watchdog did not exit after recovery.");
         }
         finally
         {
@@ -73,17 +165,17 @@ public sealed class CursorWatchdogAcceptanceTests
         }
     }
 
-    private static Process StartDummyHost(string watchdogPath, string completionEventName, string readyFile)
+    private static Process StartDummyHost(string watchdogPath, string restoreCompletedEventName, string readyFile)
     {
         var escapedWatchdogPath = EscapePowerShellLiteral(watchdogPath);
-        var escapedCompletionEventName = EscapePowerShellLiteral(completionEventName);
+        var escapedRestoreCompletedEventName = EscapePowerShellLiteral(restoreCompletedEventName);
         var escapedReadyFile = EscapePowerShellLiteral(readyFile);
         var command = $"$watchdog = Start-Process -FilePath '{escapedWatchdogPath}' " +
-            $"-ArgumentList @($PID, '--completion-event', '{escapedCompletionEventName}') " +
+            $"-ArgumentList @($PID, '--restore-completed-event', '{escapedRestoreCompletedEventName}') " +
             "-WindowStyle Hidden -PassThru; " +
             "$watchdog.WaitForExit(); " +
             "if ($watchdog.ExitCode -le 0) { exit 1 }; " +
-            $"[IO.File]::WriteAllText('{escapedReadyFile}', 'ready'); " +
+            $"[IO.File]::WriteAllText('{escapedReadyFile}', $watchdog.ExitCode.ToString([Globalization.CultureInfo]::InvariantCulture)); " +
             "Start-Sleep -Seconds 30";
         var startInfo = new ProcessStartInfo
         {
@@ -110,6 +202,38 @@ public sealed class CursorWatchdogAcceptanceTests
         return watchdogPath;
     }
 
+    private static Process StartWatchdog(string processId)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = GetWatchdogPath(),
+            CreateNoWindow = true,
+            UseShellExecute = false
+        };
+        startInfo.ArgumentList.Add(processId);
+        return Process.Start(startInfo) ?? throw new InvalidOperationException("The cursor watchdog did not start.");
+    }
+
+    private static Process StartSleepingHost()
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+                "System32",
+                "WindowsPowerShell",
+                "v1.0",
+                "powershell.exe"),
+            CreateNoWindow = true,
+            UseShellExecute = false
+        };
+        startInfo.ArgumentList.Add("-NoProfile");
+        startInfo.ArgumentList.Add("-NonInteractive");
+        startInfo.ArgumentList.Add("-Command");
+        startInfo.ArgumentList.Add("Start-Sleep -Seconds 30");
+        return Process.Start(startInfo) ?? throw new InvalidOperationException("The watchdog test host did not start.");
+    }
+
     private static void ForceTerminateProcessTree(Process process)
     {
         if (process.HasExited)
@@ -133,6 +257,15 @@ public sealed class CursorWatchdogAcceptanceTests
         Assert.True(process.WaitForExit(ProcessTimeout), "The dummy watchdog host did not exit.");
     }
 
+    private static void StopProcess(Process process)
+    {
+        if (!process.HasExited)
+        {
+            process.Kill(entireProcessTree: true);
+            Assert.True(process.WaitForExit(ProcessTimeout), "The watchdog test host did not exit.");
+        }
+    }
+
     private static bool WaitForFile(string path, TimeSpan timeout)
     {
         var deadline = DateTime.UtcNow + timeout;
@@ -149,13 +282,20 @@ public sealed class CursorWatchdogAcceptanceTests
         return File.Exists(path);
     }
 
-    private static bool WaitForWatchdogExit(TimeSpan timeout)
+    private static bool WaitForProcessExit(int processId, TimeSpan timeout)
     {
         var deadline = DateTime.UtcNow + timeout;
         while (DateTime.UtcNow < deadline)
         {
-            using var watchdog = Process.GetProcessesByName("VolturaAir.CursorWatchdog").SingleOrDefault();
-            if (watchdog is null)
+            try
+            {
+                using var process = Process.GetProcessById(processId);
+                if (process.HasExited)
+                {
+                    return true;
+                }
+            }
+            catch (ArgumentException)
             {
                 return true;
             }
@@ -163,7 +303,15 @@ public sealed class CursorWatchdogAcceptanceTests
             Thread.Sleep(25);
         }
 
-        return Process.GetProcessesByName("VolturaAir.CursorWatchdog").Length == 0;
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            return process.HasExited;
+        }
+        catch (ArgumentException)
+        {
+            return true;
+        }
     }
 
     private static string EscapePowerShellLiteral(string value) => value.Replace("'", "''", StringComparison.Ordinal);

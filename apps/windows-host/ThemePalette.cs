@@ -13,8 +13,11 @@ public sealed record ThemePalette(
     Color MutedText,
     Color Border,
     Color Accent,
+    Color AccentStrong,
     Color AccentText,
+    Color SuccessStrong,
     Color Danger,
+    Color DangerStrong,
     Color QrBackground);
 
 public static partial class WindowsTheme

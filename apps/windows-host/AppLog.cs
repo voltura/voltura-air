@@ -1,24 +1,19 @@
-using System.Text;
-using System.Text.Json;
 using System.Threading.Channels;
 
 namespace VolturaAir.Host;
 
-public sealed partial class AppLog : IAppLog, IAsyncDisposable
+public sealed class AppLog : IAppLog, IAsyncDisposable
 {
     private const int MaxPendingWrites = 512;
-    private readonly Lock _gate = new();
     private readonly Func<bool> _isEnabled;
-    private readonly Func<int> _maxAgeDays;
     private readonly Func<DateTimeOffset> _now;
-    private readonly Action<string, string> _appendLine;
+    private readonly AppLogFileStore _store;
     private readonly Channel<LogWorkItem> _pendingWrites;
     private readonly Task _writerTask;
     private int _disposeState;
     private int _droppedEntryCount;
     private int _notifyingChanged;
     private int _reportedWriteFailure;
-    private DateOnly? _lastPruneUtcDate;
 
     public AppLog()
         : this(
@@ -37,10 +32,8 @@ public sealed partial class AppLog : IAppLog, IAsyncDisposable
         Action<string, string>? appendLine = null)
     {
         _isEnabled = isEnabled;
-        _maxAgeDays = maxAgeDays;
         _now = now;
-        _appendLine = appendLine ?? AppendLine;
-        LogDirectory = logDirectory;
+        _store = new AppLogFileStore(logDirectory, maxAgeDays, now, appendLine);
         _pendingWrites = Channel.CreateBounded<LogWorkItem>(new BoundedChannelOptions(MaxPendingWrites)
         {
             FullMode = BoundedChannelFullMode.Wait,
@@ -55,7 +48,7 @@ public sealed partial class AppLog : IAppLog, IAsyncDisposable
         "Voltura Air",
         "Logs");
 
-    public string LogDirectory { get; }
+    public string LogDirectory => _store.LogDirectory;
 
     public event EventHandler? Changed;
 
@@ -74,10 +67,22 @@ public sealed partial class AppLog : IAppLog, IAsyncDisposable
                 Interlocked.Increment(ref _droppedEntryCount);
             }
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            ReportWriteFailure(ex);
+            ReportWriteFailure(exception);
         }
+    }
+
+    public AppLogReadResult Read(AppLogQuery query)
+    {
+        FlushPendingWrites();
+        return _store.Read(query);
+    }
+
+    public AppLogDeleteResult DeleteAll()
+    {
+        FlushPendingWrites();
+        return _store.DeleteAll();
     }
 
     internal async ValueTask FlushAsync(CancellationToken cancellationToken = default)
@@ -141,9 +146,9 @@ public sealed partial class AppLog : IAppLog, IAsyncDisposable
 
             RaiseChanged(PersistDroppedEntries());
         }
-        catch (Exception ex) when (ex is not OutOfMemoryException)
+        catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            ReportWriteFailure(ex);
+            ReportWriteFailure(exception);
             Interlocked.Exchange(ref _disposeState, 1);
             _pendingWrites.Writer.TryComplete();
             while (_pendingWrites.Reader.TryRead(out var workItem))
@@ -157,29 +162,21 @@ public sealed partial class AppLog : IAppLog, IAsyncDisposable
     {
         try
         {
-            lock (_gate)
+            var droppedEntries = Interlocked.Exchange(ref _droppedEntryCount, 0);
+            if (droppedEntries > 0)
             {
-                var droppedEntries = Interlocked.Exchange(ref _droppedEntryCount, 0);
-                if (droppedEntries > 0)
-                {
-                    AppendEntry(
-                        pendingEntry.Timestamp,
-                        new AppLogEntry(
-                            Event: "host_lifecycle",
-                            Source: "windows_host",
-                            Action: "application_log_backpressure",
-                            Outcome: "entries_dropped",
-                            Detail: $"count={droppedEntries}"));
-                }
-
-                AppendEntry(pendingEntry.Timestamp, pendingEntry.Entry);
+                _store.Append(
+                    pendingEntry.Timestamp,
+                    [CreateDroppedEntriesRecord(droppedEntries), pendingEntry.Entry]);
+                return true;
             }
 
+            _store.Append(pendingEntry.Timestamp, pendingEntry.Entry);
             return true;
         }
-        catch (Exception ex) when (ex is not OutOfMemoryException)
+        catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            ReportWriteFailure(ex);
+            ReportWriteFailure(exception);
             return false;
         }
     }
@@ -194,47 +191,22 @@ public sealed partial class AppLog : IAppLog, IAsyncDisposable
 
         try
         {
-            lock (_gate)
-            {
-                AppendEntry(
-                    _now(),
-                    new AppLogEntry(
-                        Event: "host_lifecycle",
-                        Source: "windows_host",
-                        Action: "application_log_backpressure",
-                        Outcome: "entries_dropped",
-                        Detail: $"count={droppedEntries}"));
-            }
-
+            _store.Append(_now(), CreateDroppedEntriesRecord(droppedEntries));
             return true;
         }
-        catch (Exception ex) when (ex is not OutOfMemoryException)
+        catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            ReportWriteFailure(ex);
+            ReportWriteFailure(exception);
             return false;
         }
     }
 
-    private void AppendEntry(DateTimeOffset timestamp, AppLogEntry entry)
-    {
-        var path = Path.Combine(LogDirectory, $"app-log-{timestamp:yyyy-MM-dd}.jsonl");
-        TryPruneExpired(timestamp, force: false);
-        Directory.CreateDirectory(LogDirectory);
-        var line = JsonSerializer.Serialize(new
-        {
-            timestampUtc = timestamp.ToUniversalTime(),
-            @event = entry.Event,
-            source = entry.Source,
-            clientId = entry.ClientId,
-            messageType = entry.MessageType,
-            action = entry.Action,
-            outcome = entry.Outcome,
-            code = entry.Code,
-            win32Error = entry.Win32Error,
-            detail = entry.Detail
-        });
-        _appendLine(path, line);
-    }
+    private static AppLogEntry CreateDroppedEntriesRecord(int droppedEntries) => new(
+        Event: "host_lifecycle",
+        Source: "windows_host",
+        Action: "application_log_backpressure",
+        Outcome: "entries_dropped",
+        Detail: $"count={droppedEntries}");
 
     private void FlushPendingWrites()
     {
@@ -247,9 +219,9 @@ public sealed partial class AppLog : IAppLog, IAsyncDisposable
         {
             FlushAsync().AsTask().GetAwaiter().GetResult();
         }
-        catch (Exception ex) when (ex is not OutOfMemoryException)
+        catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            ReportWriteFailure(ex);
+            ReportWriteFailure(exception);
         }
     }
 
@@ -265,9 +237,9 @@ public sealed partial class AppLog : IAppLog, IAsyncDisposable
             Volatile.Write(ref _notifyingChanged, 1);
             Changed?.Invoke(this, EventArgs.Empty);
         }
-        catch (Exception ex) when (ex is not OutOfMemoryException)
+        catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            ReportWriteFailure(ex);
+            ReportWriteFailure(exception);
         }
         finally
         {
@@ -288,55 +260,6 @@ public sealed partial class AppLog : IAppLog, IAsyncDisposable
     private readonly record struct LogWorkItem(PendingLogEntry? Entry, TaskCompletionSource? FlushCompletion)
     {
         public static LogWorkItem ForEntry(PendingLogEntry entry) => new(entry, null);
-
         public static LogWorkItem ForFlush(TaskCompletionSource completion) => new(null, completion);
-    }
-
-    private static void AppendLine(string path, string line)
-    {
-        using var stream = new FileStream(
-            path,
-            FileMode.Append,
-            FileAccess.Write,
-            FileShare.ReadWrite | FileShare.Delete,
-            bufferSize: 4096,
-            FileOptions.SequentialScan);
-        using var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-        writer.WriteLine(line);
-    }
-
-    private void TryPruneExpired(DateTimeOffset now, bool force)
-    {
-        var utcDate = DateOnly.FromDateTime(now.UtcDateTime);
-        if (!force && _lastPruneUtcDate == utcDate)
-        {
-            return;
-        }
-
-        _lastPruneUtcDate = utcDate;
-        try
-        {
-            if (!Directory.Exists(LogDirectory))
-            {
-                return;
-            }
-
-            var maxAgeDays = Math.Clamp(
-                _maxAgeDays(),
-                AppLoggingSettings.MinMaxAgeDays,
-                AppLoggingSettings.MaxMaxAgeDays);
-            var cutoff = now.UtcDateTime.AddDays(-maxAgeDays);
-            foreach (var path in Directory.EnumerateFiles(LogDirectory, "app-log-*.jsonl"))
-            {
-                if (File.GetLastWriteTimeUtc(path) < cutoff)
-                {
-                    File.Delete(path);
-                }
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            Console.Error.WriteLine("Voltura Air could not prune the application log: {0}", ex.Message);
-        }
     }
 }

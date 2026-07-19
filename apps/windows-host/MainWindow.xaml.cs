@@ -1,57 +1,32 @@
-using System.Globalization;
 using System.ComponentModel;
-using System.Runtime.InteropServices;
+using System.Diagnostics.CodeAnalysis;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Threading;
-using QRCoder;
+using VolturaAir.Host.Features.Connect;
 using VolturaAir.Host.Features.Connection;
 using VolturaAir.Host.Features.Devices;
 using VolturaAir.Host.Features.Diagnostics;
 using VolturaAir.Host.Features.Preferences;
+using VolturaAir.Host.Ui;
 using Button = System.Windows.Controls.Button;
-using CheckBox = System.Windows.Controls.CheckBox;
-using Image = System.Windows.Controls.Image;
-using ListBox = System.Windows.Controls.ListBox;
-using Brush = System.Windows.Media.Brush;
-using FontFamily = System.Windows.Media.FontFamily;
-using HorizontalAlignment = System.Windows.HorizontalAlignment;
-using Orientation = System.Windows.Controls.Orientation;
-using SystemFonts = System.Windows.SystemFonts;
 
 namespace VolturaAir.Host;
 
+[SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable", Justification = "WPF Window ownership is released deterministically from OnClosed.")]
 public partial class MainWindow : Window
 {
-    private const string ProductSiteUrl = "https://voltura.se/air/";
-    private const string PairingPath = "/pair";
     private readonly PairingManager _pairingManager;
-    private readonly WebHostService _webHost;
-    private readonly IWorkstationLockPolicy _workstationLockPolicy;
-    private readonly ISystemPowerController _powerController;
     private readonly IAwakeService _awakeService;
-    private readonly IAppLog _appLog;
-    private readonly IClipboardTextWriter _clipboardTextWriter;
-    private readonly CustomPointerService _customPointerService;
-    private readonly string _initialClientUrl;
-    private readonly bool _usesServerUrlAsClientUrl;
-    private readonly bool _usePublicScreenshotPairingUrl;
+    private readonly HostVisualFactory _visuals;
+    private readonly HostToastPresenter _toasts;
+    private readonly ConnectPageController _connectPage;
+    private readonly DevicesPageController _devicesPage;
+    private readonly ConnectionPageController _connectionPage;
+    private readonly PreferencesPageController _preferencesPage;
+    private readonly DiagnosticsPageController _diagnosticsPage;
+    private readonly CustomPointerService? _ownedCustomPointerService;
     private readonly List<Button> _navigationButtons;
     private HostPage _activePage;
-    private string _serverUrl;
-    private string _clientUrl;
-    private PairingDisplayCode _pairingCode;
-    private ListBox? _devicesList;
-    private StackPanel? _deviceDetailsPanel;
-    private ConnectionPageView? _connectionPage;
-    private Border? _toast;
-    private DispatcherTimer? _toastTimer;
-    private bool _isLoadingPreferences;
-    private string? _preferencesSectionToOpen;
-    private double? _preferencesScrollOffsetToRestore;
     private bool _pageNeedsRefresh = true;
     private bool _allowClose;
 
@@ -68,24 +43,67 @@ public partial class MainWindow : Window
         IClipboardTextWriter? clipboardTextWriter = null)
     {
         _pairingManager = pairingManager;
-        _webHost = webHost;
-        _workstationLockPolicy = workstationLockPolicy ?? webHost.WorkstationLockPolicy;
-        _powerController = powerController ?? webHost.PowerController;
         _awakeService = awakeService ?? webHost.AwakeService;
-        _appLog = appLog ?? webHost.AppLog;
-        _clipboardTextWriter = clipboardTextWriter ?? new WindowsClipboardTextWriter();
-        _customPointerService = customPointerService ?? new CustomPointerService();
-        _usePublicScreenshotPairingUrl = usePublicScreenshotPairingUrl;
-        _serverUrl = webHost.ServerUrl;
-        _usesServerUrlAsClientUrl = string.IsNullOrWhiteSpace(clientUrl);
-        _initialClientUrl = string.IsNullOrWhiteSpace(clientUrl) ? webHost.ServerUrl : clientUrl.TrimEnd('/');
-        _clientUrl = _initialClientUrl;
-        _pairingCode = CreatePairingCode();
+        var effectiveLockPolicy = workstationLockPolicy ?? webHost.WorkstationLockPolicy;
+        var effectivePowerController = powerController ?? webHost.PowerController;
+        _ownedCustomPointerService = null;
+        var effectiveCustomPointerService = customPointerService ?? (_ownedCustomPointerService = new CustomPointerService());
+        var effectiveAppLog = appLog ?? webHost.AppLog;
 
         InitializeComponent();
-        SetIcon(this);
-        SetSidebarAppIcon();
         WpfTheme.Apply(this);
+        WindowArtwork.Apply(this, SidebarAppIcon);
+        _visuals = new HostVisualFactory(Resources);
+        _toasts = new HostToastPresenter(MainContentRoot, _visuals, GetToastTitle);
+        var clipboard = new HostClipboardFeedback(
+            clipboardTextWriter ?? new WindowsClipboardTextWriter(),
+            _toasts);
+
+        _connectPage = new ConnectPageController(
+            pairingManager,
+            webHost,
+            clientUrl,
+            usePublicScreenshotPairingUrl,
+            clipboard,
+            RefreshConnectPagePresentation);
+        _devicesPage = new DevicesPageController(
+            this,
+            pairingManager,
+            effectivePowerController,
+            _visuals,
+            () => SelectPage(HostPage.Devices));
+        _connectionPage = new ConnectionPageController(
+            webHost,
+            _visuals,
+            _connectPage.UpdateServerUrl,
+            () => SelectPage(HostPage.Connection));
+        _preferencesPage = new PreferencesPageController(
+            this,
+            effectivePowerController,
+            effectiveLockPolicy,
+            _awakeService,
+            effectiveCustomPointerService,
+            effectiveAppLog,
+            _visuals,
+            _toasts,
+            () => SelectPage(HostPage.Preferences),
+            SetPreferencesTitle);
+        var applicationLog = new ApplicationLogController(
+            this,
+            effectiveAppLog,
+            _visuals,
+            new AppLogVisualFactory(_visuals),
+            clipboard,
+            _toasts);
+        _diagnosticsPage = new DiagnosticsPageController(
+            pairingManager,
+            webHost,
+            effectiveLockPolicy,
+            effectiveAppLog,
+            applicationLog,
+            clipboard,
+            SetDiagnosticsTitle);
+
         _navigationButtons =
         [
             ConnectNavButton,
@@ -104,9 +122,9 @@ public partial class MainWindow : Window
         RefreshNavigationTheme();
     }
 
-    public string PairingUrl => _pairingCode.Url;
+    public string PairingUrl => _connectPage.PairingUrl;
 
-    public string ServerUrl => _serverUrl;
+    public string ServerUrl => _connectPage.ServerUrl;
 
     public void ShowPage(HostPage page)
     {
@@ -119,20 +137,21 @@ public partial class MainWindow : Window
     public void ShowPreferencesSectionForScreenshot(string sectionTitle)
     {
         ShowPage(HostPage.Preferences);
-        if (PageContent.Content is not PreferencesPageView preferences)
+        if (PageContent.Content is PreferencesPageView preferences)
         {
-            return;
+            preferences.FindSection(sectionTitle)?.SetCurrentValue(Expander.IsExpandedProperty, true);
         }
-
-        preferences.FindSection(sectionTitle)?.SetCurrentValue(Expander.IsExpandedProperty, true);
     }
 
     public void ShowPairedStatus()
     {
-        SelectPage(HostPage.Connect);
-        Show();
-        WindowState = WindowState.Normal;
-        Activate();
+        ShowPage(HostPage.Connect);
+    }
+
+    public void ShowAwakePreferences()
+    {
+        _preferencesPage.OpenSection("Keep awake");
+        ShowPage(HostPage.Preferences);
     }
 
     public void AllowClose()
@@ -142,18 +161,7 @@ public partial class MainWindow : Window
 
     public void UpdateServerUrl(string serverUrl)
     {
-        if (string.Equals(_serverUrl, serverUrl, StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
-        _serverUrl = serverUrl;
-        if (_usesServerUrlAsClientUrl)
-        {
-            _clientUrl = serverUrl;
-        }
-
-        NewPairing();
+        _connectPage.UpdateServerUrl(serverUrl);
     }
 
     protected override void OnClosed(EventArgs e)
@@ -163,15 +171,9 @@ public partial class MainWindow : Window
         AppThemeSettings.Changed -= OnThemeChanged;
         _awakeService.StateChanged -= OnAwakeStateChanged;
         IsVisibleChanged -= OnWindowIsVisibleChanged;
+        _toasts.Dispose();
+        _ownedCustomPointerService?.Dispose();
         base.OnClosed(e);
-    }
-
-    private void OnWindowIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
-    {
-        if (IsVisible && _pageNeedsRefresh)
-        {
-            SelectPage(_activePage);
-        }
     }
 
     protected override void OnClosing(CancelEventArgs e)
@@ -196,81 +198,92 @@ public partial class MainWindow : Window
         switch (page)
         {
             case HostPage.Connect:
-                RefreshPairingCodeIfDue(DateTimeOffset.UtcNow);
                 PageTitleText.Text = "Connect";
                 PageSubtitleText.Text = "Pair a phone, tablet, or browser on the same network.";
-                PageContent.Content = BuildConnectPage();
+                PageContent.Content = _connectPage.CreateView();
                 break;
             case HostPage.Devices:
                 PageTitleText.Text = "Devices";
                 PageSubtitleText.Text = "Manage trusted devices, active connections, and per-device permissions.";
-                PageContent.Content = BuildDevicesPage();
+                PageContent.Content = _devicesPage.CreateView();
                 break;
             case HostPage.Connection:
                 PageTitleText.Text = "Connection";
                 PageSubtitleText.Text = "Choose the LAN address and port advertised to phones and tablets.";
-                PageContent.Content = BuildConnectionPage();
+                PageContent.Content = _connectionPage.CreateView();
                 break;
             case HostPage.Preferences:
                 PageTitleText.Text = "Preferences";
                 PageSubtitleText.Text = "Startup, alerts, permissions, device defaults, and theme.";
-                PageContent.Content = BuildPreferencesPage();
-                RestorePreferencesScrollPosition();
+                PageContent.Content = _preferencesPage.CreateView();
+                _preferencesPage.RestoreScrollPosition();
                 break;
             case HostPage.Diagnostics:
                 PageTitleText.Text = "Diagnostics";
                 PageSubtitleText.Text = "Review application activity or inspect system details for troubleshooting.";
-                PageContent.Content = BuildDiagnosticsPage();
+                PageContent.Content = _diagnosticsPage.CreateView();
                 break;
         }
     }
 
-    private void CopyToClipboard(string value, string confirmation)
+    private void RefreshConnectPagePresentation()
     {
-        _clipboardTextWriter.WriteText(value);
-        ShowToast(confirmation, "Clipboard");
+        if (_activePage == HostPage.Connect && IsVisible)
+        {
+            SelectPage(HostPage.Connect);
+        }
+        else if (_activePage == HostPage.Connect)
+        {
+            _pageNeedsRefresh = true;
+        }
     }
 
-    private void ShowToast(string message, string? title = null)
+    private void RefreshStatusText()
     {
-        if (_toast is not null)
+        NavStatusText.Text = _pairingManager.HasActiveController
+            ? $"Connected: {_pairingManager.ActiveDeviceSummary}"
+            : _pairingManager.IsPaired
+                ? $"{_pairingManager.PairedDeviceCount} paired device{Plural(_pairingManager.PairedDeviceCount)}"
+                : "Ready to pair";
+    }
+
+    private void RefreshNavigationTheme()
+    {
+        foreach (var button in _navigationButtons)
         {
-            MainContentRoot.Children.Remove(_toast);
+            var isActive = button == GetButtonForPage(_activePage);
+            button.Background = _visuals.Brush(isActive ? "AccentBrush" : "SurfaceRaisedBrush");
+            button.Foreground = _visuals.Brush(isActive ? "AccentTextBrush" : "TextBrush");
+            button.BorderBrush = _visuals.Brush(isActive ? "AccentBrush" : "BorderBrush");
         }
+    }
 
-        _toastTimer?.Stop();
-        _toast = new Border
-        {
-            Tag = title ?? GetToastTitle(),
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Bottom,
-            Background = (Brush)Resources["SurfaceRaisedBrush"],
-            BorderBrush = (Brush)Resources["AccentBrush"],
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(14, 10, 14, 10),
-            Margin = new Thickness(0, 0, 0, UiTokens.SpaceSm),
-            Child = new TextBlock
-            {
-                Text = message,
-                Foreground = (Brush)Resources["TextBrush"],
-                FontWeight = FontWeights.SemiBold
-            }
-        };
-        Grid.SetRow(_toast, 2);
-        MainContentRoot.Children.Add(_toast);
+    private Button GetButtonForPage(HostPage page) => page switch
+    {
+        HostPage.Connect => ConnectNavButton,
+        HostPage.Devices => DevicesNavButton,
+        HostPage.Connection => ConnectionNavButton,
+        HostPage.Preferences => PreferencesNavButton,
+        HostPage.Diagnostics => DiagnosticsNavButton,
+        _ => ConnectNavButton
+    };
 
-        _toastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.4) };
-        _toastTimer.Tick += (_, _) =>
+    private void SetPreferencesTitle(string? sectionTitle)
+    {
+        if (_activePage == HostPage.Preferences)
         {
-            _toastTimer?.Stop();
-            if (_toast is not null)
-            {
-                MainContentRoot.Children.Remove(_toast);
-                _toast = null;
-            }
-        };
-        _toastTimer.Start();
+            PageTitleText.Text = string.IsNullOrWhiteSpace(sectionTitle)
+                ? "Preferences"
+                : $"Preferences > {sectionTitle}";
+        }
+    }
+
+    private void SetDiagnosticsTitle(string viewTitle)
+    {
+        if (_activePage == HostPage.Diagnostics)
+        {
+            PageTitleText.Text = $"Diagnostics > {viewTitle}";
+        }
     }
 
     private string GetToastTitle() => _activePage switch
@@ -283,109 +296,85 @@ public partial class MainWindow : Window
         _ => "Voltura Air"
     };
 
-    private CheckBox CreateCheckBox(string text, bool isChecked)
+    private void OnWindowIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
-        return new CheckBox
+        if (IsVisible && _pageNeedsRefresh)
         {
-            Content = text,
-            IsChecked = isChecked,
-            Foreground = (Brush)Resources["TextBrush"]
-        };
-    }
-
-    internal static BitmapSource CreateQrSource(string url)
-    {
-        var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "VolturaAir-256.png");
-        using var icon = File.Exists(iconPath) ? new System.Drawing.Bitmap(iconPath) : null;
-        using var generator = new QRCodeGenerator();
-        using var data = generator.CreateQrCode(url, QRCodeGenerator.ECCLevel.Q);
-        using var code = new QRCode(data);
-        using var bitmap = code.GetGraphic(
-            18,
-            System.Drawing.Color.Black,
-            System.Drawing.Color.White,
-            icon,
-            iconSizePercent: 15,
-            iconBorderWidth: 6,
-            drawQuietZones: true,
-            iconBackgroundColor: System.Drawing.Color.White);
-        var handle = bitmap.GetHbitmap();
-        try
-        {
-            var source = System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(
-                handle,
-                IntPtr.Zero,
-                Int32Rect.Empty,
-                BitmapSizeOptions.FromEmptyOptions());
-            source.Freeze();
-            return source;
-        }
-        finally
-        {
-            _ = DeleteObject(handle);
+            SelectPage(_activePage);
         }
     }
 
-    private static void OpenProductSite()
+    private void OnConnectionChanged(object? sender, EventArgs e)
     {
-        using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        _ = Dispatcher.BeginInvoke(() =>
         {
-            FileName = ProductSiteUrl,
-            UseShellExecute = true
+            RefreshStatusText();
+            if (!IsVisible)
+            {
+                _pageNeedsRefresh = true;
+                return;
+            }
+
+            if (_activePage is HostPage.Connect or HostPage.Devices or HostPage.Diagnostics || _pageNeedsRefresh)
+            {
+                SelectPage(_activePage);
+            }
         });
     }
 
-    private void OnConnectNavClicked(object sender, RoutedEventArgs e) => SelectPage(HostPage.Connect);
-
-    private void OnDevicesNavClicked(object sender, RoutedEventArgs e) => SelectPage(HostPage.Devices);
-
-    private void OnConnectionNavClicked(object sender, RoutedEventArgs e) => SelectPage(HostPage.Connection);
-
-    private void OnPreferencesNavClicked(object sender, RoutedEventArgs e) => SelectPage(HostPage.Preferences);
-
-    private void OnDiagnosticsNavClicked(object sender, RoutedEventArgs e) => SelectPage(HostPage.Diagnostics);
-
-    private void OnHideClicked(object sender, RoutedEventArgs e) => Hide();
-
-    private enum PermissionKind
+    private void OnPairingCodeInvalidated(object? sender, EventArgs e)
     {
-        PcSleep,
-        VolumeControl,
-        PresentationControl,
-        RemoteAppLaunch,
-        UrlOpen,
-        PcLock,
-        BlackoutDisplay,
-        DisplayOff,
-        ScreenSaver,
-        AwakeControl,
-        ClipboardRead,
-        SignOut,
-        Restart,
-        Shutdown
+        _ = Dispatcher.BeginInvoke(_connectPage.CreateNewCode);
     }
 
-    public void ShowAwakePreferences()
+    private void OnThemeChanged(object? sender, EventArgs e)
     {
-        _preferencesSectionToOpen = "Keep awake";
-        ShowPage(HostPage.Preferences);
+        _ = Dispatcher.BeginInvoke(() =>
+        {
+            WpfTheme.Apply(this);
+            if (IsVisible)
+            {
+                if (_activePage == HostPage.Preferences)
+                {
+                    _preferencesPage.RefreshPreservingState();
+                }
+                else
+                {
+                    SelectPage(_activePage);
+                }
+            }
+            else
+            {
+                _pageNeedsRefresh = true;
+                RefreshNavigationTheme();
+            }
+        });
     }
 
     private void OnAwakeStateChanged(object? sender, EventArgs e)
     {
-        Dispatcher.BeginInvoke(() =>
+        _ = Dispatcher.BeginInvoke(() =>
         {
             if (_activePage == HostPage.Preferences && IsVisible)
             {
-                RefreshPreferencesPage();
+                _preferencesPage.RefreshPreservingState();
             }
             else if (_activePage == HostPage.Preferences)
             {
-                RememberExpandedPreferencesSection();
+                _preferencesPage.RememberViewState();
                 _pageNeedsRefresh = true;
             }
         });
     }
+
+    private void OnConnectNavClicked(object sender, RoutedEventArgs e) => SelectPage(HostPage.Connect);
+    private void OnDevicesNavClicked(object sender, RoutedEventArgs e) => SelectPage(HostPage.Devices);
+    private void OnConnectionNavClicked(object sender, RoutedEventArgs e) => SelectPage(HostPage.Connection);
+    private void OnPreferencesNavClicked(object sender, RoutedEventArgs e) => SelectPage(HostPage.Preferences);
+    private void OnDiagnosticsNavClicked(object sender, RoutedEventArgs e) => SelectPage(HostPage.Diagnostics);
+    private void OnHideClicked(object sender, RoutedEventArgs e) => Hide();
+
+    private static string Plural(int count) => count == 1 ? string.Empty : "s";
 }
 
 public enum HostPage

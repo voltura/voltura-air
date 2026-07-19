@@ -61,6 +61,11 @@ These instructions apply to the .NET Windows host. Follow
   narrow legacy code not yet removed. Qualify or alias collision-prone framework
   names such as `Application`, `Brushes`, `Button`, `CheckBox`, `Color`,
   `DataFormats`, `Image`, and `HorizontalAlignment`.
+- Follow the host-presentation ownership in `../../docs/architecture.md`:
+  `MainWindow` is the WPF shell and composition root, while feature-owned types
+  own non-visual state and behavior. Do not add `MainWindow` partial files as a
+  substitute for a feature boundary. Keep partial types for WPF XAML,
+  source-generated interop, or another framework requirement.
 - Prefer declarative XAML and device-independent `Grid`, `DockPanel`,
   `StackPanel`, `ScrollViewer`, `ItemsControl`, and `ListView` layout over manual
   positioning or code-built ordinary visual trees.

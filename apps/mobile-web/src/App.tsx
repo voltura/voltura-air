@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getAvailableToolModeIds, toolModeDefinitions } from "./app/appModeTabs";
 import { createSettingsActions, SettingsDrawer } from "./features/settings";
 import { parsePairingLink } from "./foundation/pairing/pairingLink";
@@ -18,6 +18,7 @@ import { useAppTheme } from "./app/useAppTheme";
 import { useAppNavigation } from "./app/useAppNavigation";
 import { InputRecoveryNotice } from "./features/input-recovery";
 import { ModeWorkspace } from "./features/modes";
+import type { AppToastMessage } from "./ui/feedback/AppToast";
 
 export function App() {
   const initialPairing = useMemo(() => parsePairingLink(window.location.href), []);
@@ -54,6 +55,8 @@ export function App() {
     setHostPointerSpeed
   } = connection;
   const { setThemeMode, themeMode } = useAppTheme();
+  const [transientFeedback, setTransientFeedback] = useState<AppToastMessage | null>(null);
+  const [suppressedClipboardResultId, setSuppressedClipboardResultId] = useState<string | null>(null);
   const inputBlockedByElevation = hostStatus?.inputBlockedByElevation === true;
   const [inputRecoveryDialog, setInputRecoveryDialog] = useState({
     blocked: inputBlockedByElevation,
@@ -177,6 +180,20 @@ export function App() {
 
   const connectionPcName = state === "paired" && activePc ? getPcDisplayName(activePc) : message;
 
+  useEffect(() => {
+    if (!transientFeedback) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => { setTransientFeedback(null); }, 3000);
+    return () => { window.clearTimeout(timeout); };
+  }, [transientFeedback]);
+
+  const showClipboardCopyFeedback = (feedback: AppToastMessage) => {
+    setSuppressedClipboardResultId(clipboardReadResult?.operationId ?? null);
+    setTransientFeedback(feedback);
+  };
+
   const tryReconnectPc = (pcId: string) => {
     closeTransientSurfaces();
     reconnectPc(pcId);
@@ -280,6 +297,7 @@ export function App() {
           connection={connection}
           keyboardSettings={keyboardSettings}
           onClearAfterSendingChange={(value) => { updateAppSetting("clearTextAfterSending", value); }}
+          onClipboardCopyFeedback={showClipboardCopyFeedback}
           onRemoteUtilityPanelOpenChange={setIsRemoteUtilityPanelOpen}
           remoteSettings={remoteSettings}
           shouldShowSplitMode={shouldShowSplitMode}
@@ -299,12 +317,13 @@ export function App() {
 
         <GlobalOperationFeedback
           appLaunchResult={appLaunchResult}
-          clipboardReadResult={clipboardReadResult}
+          clipboardReadResult={clipboardReadResult?.operationId === suppressedClipboardResultId ? null : clipboardReadResult}
           pendingAppLaunchId={pendingAppLaunchId}
           pendingClipboardRead={pendingClipboardRead}
           pendingTextTransfer={pendingTextTransfer}
           tab={tab}
           textTransferResult={textTransferResult}
+          transientFeedback={transientFeedback}
         />
       </main>
 

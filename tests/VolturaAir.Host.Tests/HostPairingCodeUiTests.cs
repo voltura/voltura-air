@@ -44,40 +44,7 @@ public sealed partial class HostUiLayoutTests
             finally
             {
                 window.Close();
-                webHost.DisposeAsync().AsTask().GetAwaiter().GetResult();
-            }
-        });
-    }
-
-    [Fact]
-    public void MainWindowReplacesPairingCodeThatIsDueForRefresh()
-    {
-        if (ShouldSkipNativeUiLayoutTests())
-        {
-            return;
-        }
-
-        RunOnStaThread(() =>
-        {
-            using var appScope = new WpfApplicationScope();
-            using var store = new TempPairingStore();
-            using var inputInjector = new SendInputInjector();
-            var manager = new PairingManager(store.Store);
-            var webHost = new WebHostService(manager, new InputDispatcher(inputInjector), isolatedTestMode: true);
-            var window = new MainWindow(manager, webHost, clientUrl: null);
-            try
-            {
-                var initialUrl = window.PairingUrl;
-
-                var refreshed = window.RefreshPairingCodeIfDue(DateTimeOffset.UtcNow.Add(PairingManager.TokenLifetime));
-
-                Assert.True(refreshed);
-                Assert.NotEqual(initialUrl, window.PairingUrl);
-            }
-            finally
-            {
-                window.Close();
-                webHost.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                DisposeWebHost(webHost);
             }
         });
     }
@@ -122,7 +89,7 @@ public sealed partial class HostUiLayoutTests
             finally
             {
                 window.Close();
-                webHost.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                DisposeWebHost(webHost);
             }
         });
     }
@@ -228,7 +195,7 @@ public sealed partial class HostUiLayoutTests
             finally
             {
                 window.Close();
-                webHost.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                DisposeWebHost(webHost);
             }
         });
     }

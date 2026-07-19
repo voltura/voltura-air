@@ -3,7 +3,6 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using Button = System.Windows.Controls.Button;
 using ContextMenu = System.Windows.Controls.ContextMenu;
-using Control = System.Windows.Controls.Control;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
 using MenuItem = System.Windows.Controls.MenuItem;
 using UserControl = System.Windows.Controls.UserControl;
@@ -29,9 +28,6 @@ public sealed class EventMultiSelectFilter : UserControl
             Placement = PlacementMode.Bottom,
             PlacementTarget = _button
         };
-        menu.SetResourceReference(Control.BackgroundProperty, "SurfaceBrush");
-        menu.SetResourceReference(Control.ForegroundProperty, "TextBrush");
-        menu.SetResourceReference(Control.BorderBrushProperty, "BorderBrush");
         _items = [.. options.Select(option => new MenuItem
         {
             Header = option.Label,
@@ -48,6 +44,7 @@ public sealed class EventMultiSelectFilter : UserControl
 
         menu.Opened += (_, _) =>
         {
+            menu.Style = (Style)_button.FindResource("EventMultiSelectContextMenuStyle");
             var itemStyle = (Style)_button.FindResource("EventMultiSelectMenuItemStyle");
             foreach (var item in _items)
             {

@@ -60,6 +60,22 @@ export async function copyTextToClipboard(value: string): Promise<"copied" | "ma
   return "manual";
 }
 
+export function canCopyTextToClipboard(): boolean {
+  if (typeof navigator.clipboard?.writeText === "function" && window.isSecureContext) {
+    return true;
+  }
+
+  if (typeof document.execCommand !== "function") {
+    return false;
+  }
+
+  try {
+    return typeof document.queryCommandSupported !== "function" || document.queryCommandSupported("copy");
+  } catch {
+    return false;
+  }
+}
+
 function tryLegacyCopy(value: string): boolean {
   if (typeof document.execCommand !== "function") {
     return false;

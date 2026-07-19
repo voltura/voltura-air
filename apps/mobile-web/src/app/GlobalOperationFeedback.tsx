@@ -1,6 +1,7 @@
 import type { AppTab } from "./appModeTabs";
 import type { AppLaunchResultMessage, ClipboardGetResultMessage, TextSendResultMessage } from "../foundation/protocol/messages";
 import { AppToast } from "../ui/feedback/AppToast";
+import type { AppToastMessage } from "../ui/feedback/AppToast";
 
 interface GlobalOperationFeedbackProps {
   appLaunchResult: AppLaunchResultMessage | null;
@@ -10,6 +11,7 @@ interface GlobalOperationFeedbackProps {
   pendingTextTransfer: boolean;
   tab: AppTab;
   textTransferResult: TextSendResultMessage | null;
+  transientFeedback: AppToastMessage | null;
 }
 
 export function GlobalOperationFeedback({
@@ -19,20 +21,24 @@ export function GlobalOperationFeedback({
   pendingClipboardRead,
   pendingTextTransfer,
   tab,
-  textTransferResult
+  textTransferResult,
+  transientFeedback
 }: GlobalOperationFeedbackProps) {
-  return (
-    <>
-      {pendingAppLaunchId !== null && <AppToast tone="pending">Waiting for the PC to respond…</AppToast>}
-      {pendingAppLaunchId === null && appLaunchResult && (
-        <AppToast tone={appLaunchResult.succeeded ? "success" : "error"}>{appLaunchResult.message}</AppToast>
-      )}
-      {tab !== "text-transfer" && pendingTextTransfer && <AppToast tone="pending">Waiting for the PC to send text…</AppToast>}
-      {tab !== "text-transfer" && !pendingTextTransfer && textTransferResult && (
-        <AppToast tone={textTransferResult.succeeded ? "success" : "error"}>{textTransferResult.message}</AppToast>
-      )}
-      {pendingClipboardRead && <AppToast tone="pending">Getting text from PC…</AppToast>}
-      {!pendingClipboardRead && clipboardReadResult?.succeeded && <AppToast tone="success">{clipboardReadResult.message}</AppToast>}
-    </>
-  );
+  let feedback = transientFeedback;
+
+  if (!feedback && pendingClipboardRead) {
+    feedback = { message: "Getting text from PC…", tone: "pending" };
+  } else if (!feedback && clipboardReadResult?.succeeded) {
+    feedback = { message: clipboardReadResult.message, tone: "success" };
+  } else if (!feedback && tab !== "text-transfer" && pendingTextTransfer) {
+    feedback = { message: "Waiting for the PC to send text…", tone: "pending" };
+  } else if (!feedback && tab !== "text-transfer" && textTransferResult) {
+    feedback = { message: textTransferResult.message, tone: textTransferResult.succeeded ? "success" : "error" };
+  } else if (!feedback && pendingAppLaunchId !== null) {
+    feedback = { message: "Waiting for the PC to respond…", tone: "pending" };
+  } else if (!feedback && appLaunchResult) {
+    feedback = { message: appLaunchResult.message, tone: appLaunchResult.succeeded ? "success" : "error" };
+  }
+
+  return feedback ? <AppToast tone={feedback.tone}>{feedback.message}</AppToast> : null;
 }

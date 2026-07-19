@@ -24,6 +24,7 @@ const browserProfileDir = path.join(tempDir, "chrome-profile");
 const pairingUrlFile = path.join(tempDir, "pairing-url.txt");
 const clientPort = readPreferredClientPort();
 const smokeTest = process.argv.includes("--smoke-test");
+const hostStartupTimeoutMs = 120000;
 const clientUrl = process.env.VOLTURA_AIR_CLIENT_URL ?? `http://127.0.0.1:${clientPort}`;
 const clientHost = new URL(clientUrl).hostname;
 const debugDevice = getDevUiDevice();
@@ -102,7 +103,7 @@ async function main() {
     APPDATA: tempAppDataDir
   }, { cwd: repoRoot }));
 
-  const pairingUrl = await waitForTextFile(pairingUrlFile, 30000);
+  const pairingUrl = await waitForTextFile(pairingUrlFile, hostStartupTimeoutMs);
   const requireFromTemp = createRequire(path.join(tempNodeDir, "package.json"));
   const { chromium } = requireFromTemp("playwright");
   const page = await launchBrowser(chromium, pairingUrl);

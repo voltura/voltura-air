@@ -48,11 +48,9 @@
                      Style="{DynamicResource ModernListBoxStyle}">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <Border Padding="{DynamicResource InsetMd}"
-                                Background="{DynamicResource SurfaceBrush}"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="{DynamicResource RadiusMedium}">
+                        <Border x:Name="NetworkCandidateCard"
+                                Padding="{DynamicResource InsetMd}"
+                                Style="{DynamicResource SelectableListCardStyle}">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="2.5*" />
@@ -92,6 +90,22 @@
                                                Foreground="{DynamicResource TextBrush}"
                                                Text="{Binding Status, TargetNullValue=Available, FallbackValue=Available}"
                                                TextWrapping="Wrap" />
+                                    <Grid x:Name="SelectedStatusPillContainer"
+                                          HorizontalAlignment="Left">
+                                        <Grid.Style>
+                                            <Style TargetType="Grid">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Grid.Style>
+                                        <ui:PillBadge x:Name="SelectedStatusPill"
+                                                      Content="Selected"
+                                                      Tone="Accent" />
+                                    </Grid>
                                 </ui:SpacingStackPanel>
                             </Grid>
                         </Border>

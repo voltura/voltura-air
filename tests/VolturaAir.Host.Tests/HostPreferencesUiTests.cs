@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using VolturaAir.Host.Features.Preferences;
 using WpfFocusManager = System.Windows.Input.FocusManager;
 
 namespace VolturaAir.Host.Tests;
@@ -28,7 +29,7 @@ public sealed partial class HostUiLayoutTests
             WpfFocusManager.SetFocusedElement(scroller, header);
             Assert.Same(header, WpfFocusManager.GetFocusedElement(scroller));
 
-            MainWindow.RevealExpandedPreferencesSection(scroller, section, content);
+            PreferencesScrollCoordinator.RevealExpandedSection(scroller, section, content);
             scroller.UpdateLayout();
 
             var firstControlTop = firstControl.TransformToAncestor(scroller).Transform(new Point()).Y;
@@ -52,7 +53,7 @@ public sealed partial class HostUiLayoutTests
         {
             var (scroller, section, content, _, _) = CreatePreferencesScrollFixture(0);
 
-            MainWindow.RevealExpandedPreferencesSection(scroller, section, content);
+            PreferencesScrollCoordinator.RevealExpandedSection(scroller, section, content);
 
             Assert.InRange(scroller.VerticalOffset, 0, 0.5);
         });
@@ -133,7 +134,7 @@ public sealed partial class HostUiLayoutTests
             finally
             {
                 window.Close();
-                webHost.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                DisposeWebHost(webHost);
             }
         });
     }
@@ -182,7 +183,7 @@ public sealed partial class HostUiLayoutTests
             finally
             {
                 window.Close();
-                webHost.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                DisposeWebHost(webHost);
             }
         });
     }
@@ -217,7 +218,7 @@ public sealed partial class HostUiLayoutTests
             finally
             {
                 window.Close();
-                webHost.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                DisposeWebHost(webHost);
             }
         });
     }
@@ -268,7 +269,7 @@ public sealed partial class HostUiLayoutTests
             finally
             {
                 window.Close();
-                webHost.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                DisposeWebHost(webHost);
             }
         });
     }
@@ -319,7 +320,7 @@ public sealed partial class HostUiLayoutTests
             finally
             {
                 window.Close();
-                webHost.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                DisposeWebHost(webHost);
             }
         });
     }

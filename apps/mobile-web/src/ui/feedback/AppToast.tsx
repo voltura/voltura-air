@@ -1,8 +1,15 @@
 import type { ReactNode } from "react";
 
+export type AppToastTone = "pending" | "success" | "error";
+
+export interface AppToastMessage {
+  message: string;
+  tone: AppToastTone;
+}
+
 interface AppToastProps {
   children: ReactNode;
-  tone: "pending" | "success" | "error";
+  tone: AppToastTone;
 }
 
 export function AppToast({ children, tone }: AppToastProps) {

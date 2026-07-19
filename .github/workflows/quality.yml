@@ -67,6 +67,9 @@ jobs:
       - name: Check source ownership reviews
         run: npm run size:check
 
+      - name: Check host partial ownership
+        run: npm run host:ownership:check
+
       - name: Build mobile client
         run: npm run build --workspace apps/mobile-web
 

@@ -55,6 +55,7 @@ public sealed partial class CustomPointerService : IDisposable
 
             try
             {
+                // Readiness means the watchdog holds a synchronized host handle before any cursor is replaced.
                 RefreshRecoveryMonitoringCore(customPointerActive: true);
                 _mayHaveApplied = true;
                 foreach (var role in Roles)
@@ -130,7 +131,8 @@ public sealed partial class CustomPointerService : IDisposable
             }
 
             Restore();
-            _stopRecoveryMonitoring();
+            // Final shutdown leaves a ready watchdog alive until this host exits,
+            // so it can perform the harmless fallback restoration after host cleanup.
             _disposed = true;
         }
     }

@@ -45,18 +45,23 @@ public sealed record AppLogReadResult(
 
 public sealed record AppLogDeleteResult(bool Succeeded, int DeletedFiles, string? Error = null);
 
-public interface IAppLog
+public interface IAppLogWriter
+{
+    void Write(AppLogEntry entry);
+}
+
+public interface IAppLogReader
 {
     event EventHandler? Changed;
 
     string LogDirectory { get; }
 
-    void Write(AppLogEntry entry);
-
     AppLogReadResult Read(AppLogQuery query);
 
     AppLogDeleteResult DeleteAll();
 }
+
+public interface IAppLog : IAppLogWriter, IAppLogReader;
 
 public sealed class NullAppLog : IAppLog
 {

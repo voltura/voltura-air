@@ -44,10 +44,19 @@ adaptive states, AI-assisted UI work, and the UI definition of done.
 - Use the shared themed combo-box, text-field, and date-range styles for filters
   and retention controls. New controls must support light, dark, system, hover,
   focus, selected, disabled, warning, and error states as applicable.
+- Do not expose the default dashed or dotted WPF focus adorner. Bordered controls
+  show keyboard and controller focus by recoloring their existing one-DIP border
+  with the theme accent; focus must not add a second outline or increase the
+  border thickness.
 - Lists should use WPF list controls with recycling virtualization. Keep the
   virtualizing items host responsible for scrolling; when rows need separation,
   reserve the tokenized gap inside the collection-owned item template instead
   of replacing the items host or adding a feature-control margin.
+- Use the shared `PillBadge` primitive for compact status and metadata labels.
+  Filled accent, success, and danger tones communicate current state; outlined
+  neutral, accent, and danger tones identify log metadata without overstating it.
+  Features provide the label and semantic tone rather than recreating badge
+  geometry, typography, or theme brushes.
 - Do not use custom scrollbars or runtime layout shims to move controls after
   layout. Fix the layout contract instead.
 - Keep the native Windows title bar unless there is a focused reason to revisit

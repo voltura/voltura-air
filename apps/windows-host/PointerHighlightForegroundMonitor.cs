@@ -10,7 +10,7 @@ internal sealed partial class PointerHighlightForegroundMonitor : IDisposable
     private const uint WinEventSkipOwnProcess = 0x0002;
     private static readonly TimeSpan TaskbarActivationDelay = TimeSpan.FromMilliseconds(150);
     private readonly Dispatcher _dispatcher;
-    private readonly IAppLog _appLog;
+    private readonly IAppLogWriter _appLog;
     private readonly uint _hostIntegrityLevel;
     private readonly WinEventProc _callback;
     private readonly DispatcherTimer _taskbarActivationTimer;
@@ -18,7 +18,7 @@ internal sealed partial class PointerHighlightForegroundMonitor : IDisposable
     private int _remoteInputBlocked;
     private bool _disposed;
 
-    public PointerHighlightForegroundMonitor(IAppLog appLog)
+    public PointerHighlightForegroundMonitor(IAppLogWriter appLog)
     {
         _dispatcher = Dispatcher.CurrentDispatcher;
         _appLog = appLog;

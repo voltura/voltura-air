@@ -20,19 +20,17 @@
                  AutomationProperties.Name="Paired devices">
             <ListBox.ItemTemplate>
                 <DataTemplate>
-                    <Border Padding="14"
-                            Background="{DynamicResource SurfaceBrush}"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="{DynamicResource RadiusMedium}">
+                    <Border x:Name="DeviceCard"
+                            Padding="14"
+                            Style="{DynamicResource SelectableListCardStyle}">
                         <ui:SpacingStackPanel Spacing="{DynamicResource SpaceXs}">
                             <TextBlock Text="{Binding Name}"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextBrush}"
                                        TextTrimming="CharacterEllipsis" />
-                            <TextBlock Text="{Binding Status}"
-                                       Foreground="{DynamicResource MutedTextBrush}"
-                                       TextTrimming="CharacterEllipsis" />
+                            <ui:PillBadge x:Name="ConnectionStatusPill"
+                                          Content="{Binding Status}"
+                                          Tone="{Binding StatusTone}" />
                             <TextBlock Text="{Binding Activity}"
                                        FontSize="12"
                                        Foreground="{DynamicResource MutedTextBrush}"

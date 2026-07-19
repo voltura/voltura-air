@@ -9,7 +9,6 @@ const repeatIntervalMs = 55;
 type RepeatableKey = "Backspace" | "Delete" | "Enter" | "Tab" | "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "Home" | "End" | "PageUp" | "PageDown";
 interface KeyboardModeControllerOptions {
   committedKeyboardTextRef: React.RefObject<string>;
-  keyboardText: string;
   keyboardTextareaRef: React.RefObject<HTMLTextAreaElement | null>;
   liveKeyboard: boolean;
   sendSpecial: (key: string, modifiers?: string[]) => void;
@@ -19,7 +18,6 @@ interface KeyboardModeControllerOptions {
 
 export function useKeyboardModeController({
   committedKeyboardTextRef,
-  keyboardText,
   keyboardTextareaRef,
   liveKeyboard,
   sendSpecial,
@@ -29,6 +27,8 @@ export function useKeyboardModeController({
   const repeatTimeoutRef = useRef<number | null>(null);
   const repeatIntervalRef = useRef<number | null>(null);
   const ignoreNextClickRef = useRef(false);
+  const liveKeyboardRef = useRef(liveKeyboard);
+  const sendSpecialRef = useRef(sendSpecial);
   const [keyboardInputMode, setKeyboardInputMode] = useState<KeyboardInputMode>("text");
   const liveTypingId = useId();
 
@@ -44,7 +44,29 @@ export function useKeyboardModeController({
     }
   };
 
-  useEffect(() => stopRepeatingKey, []);
+  useEffect(() => {
+    const stopOnVisibilityLoss = () => {
+      if (document.visibilityState === "hidden") {
+        stopRepeatingKey();
+      }
+    };
+    window.addEventListener("blur", stopRepeatingKey);
+    document.addEventListener("visibilitychange", stopOnVisibilityLoss);
+    return () => {
+      window.removeEventListener("blur", stopRepeatingKey);
+      document.removeEventListener("visibilitychange", stopOnVisibilityLoss);
+      stopRepeatingKey();
+    };
+  }, []);
+
+  useEffect(() => {
+    liveKeyboardRef.current = liveKeyboard;
+    stopRepeatingKey();
+  }, [liveKeyboard]);
+
+  useEffect(() => {
+    sendSpecialRef.current = sendSpecial;
+  }, [sendSpecial]);
 
   const focusLiveKeyboardTarget = (inputMode = keyboardInputMode) => {
     const textarea = keyboardTextareaRef.current;
@@ -121,10 +143,10 @@ export function useKeyboardModeController({
     });
   };
 
-  const getLiveSelection = () => {
+  const getLiveSelection = (currentText: string) => {
     const textarea = keyboardTextareaRef.current;
     if (!textarea) {
-      return { start: keyboardText.length, end: keyboardText.length };
+      return { start: currentText.length, end: currentText.length };
     }
 
     const selectionStart = textarea.selectionStart ?? textarea.value.length;
@@ -132,41 +154,43 @@ export function useKeyboardModeController({
     const start = Math.max(0, Math.min(selectionStart, selectionEnd) - liveKeyboardSentinel.length);
     const end = Math.max(0, Math.max(selectionStart, selectionEnd) - liveKeyboardSentinel.length);
     return {
-      start: Math.min(start, keyboardText.length),
-      end: Math.min(end, keyboardText.length)
+      start: Math.min(start, currentText.length),
+      end: Math.min(end, currentText.length)
     };
   };
 
   const insertLiveKeyboardText = (text: string) => {
-    const { start, end } = getLiveSelection();
-    const nextText = `${keyboardText.slice(0, start)}${text}${keyboardText.slice(end)}`;
+    const currentText = committedKeyboardTextRef.current;
+    const { start, end } = getLiveSelection(currentText);
+    const nextText = `${currentText.slice(0, start)}${text}${currentText.slice(end)}`;
     setLiveKeyboardText(nextText, start + text.length);
   };
 
   const applyLiveSpecialKey = (key: RepeatableKey) => {
-    const { start, end } = getLiveSelection();
+    const currentText = committedKeyboardTextRef.current;
+    const { start, end } = getLiveSelection(currentText);
 
     if (key === "Backspace") {
       if (start !== end) {
-        setLiveKeyboardText(`${keyboardText.slice(0, start)}${keyboardText.slice(end)}`, start);
+        setLiveKeyboardText(`${currentText.slice(0, start)}${currentText.slice(end)}`, start);
         return;
       }
 
       if (start > 0) {
         const nextCaret = start - 1;
-        setLiveKeyboardText(`${keyboardText.slice(0, nextCaret)}${keyboardText.slice(end)}`, nextCaret);
+        setLiveKeyboardText(`${currentText.slice(0, nextCaret)}${currentText.slice(end)}`, nextCaret);
       }
       return;
     }
 
     if (key === "Delete") {
       if (start !== end) {
-        setLiveKeyboardText(`${keyboardText.slice(0, start)}${keyboardText.slice(end)}`, start);
+        setLiveKeyboardText(`${currentText.slice(0, start)}${currentText.slice(end)}`, start);
         return;
       }
 
-      if (end < keyboardText.length) {
-        setLiveKeyboardText(`${keyboardText.slice(0, start)}${keyboardText.slice(end + 1)}`, start);
+      if (end < currentText.length) {
+        setLiveKeyboardText(`${currentText.slice(0, start)}${currentText.slice(end + 1)}`, start);
       }
       return;
     }
@@ -177,32 +201,32 @@ export function useKeyboardModeController({
     }
 
     if (key === "Home") {
-      setLiveKeyboardText(keyboardText, getLineStart(keyboardText, start));
+      setLiveKeyboardText(currentText, getLineStart(currentText, start));
       return;
     }
 
     if (key === "End") {
-      setLiveKeyboardText(keyboardText, getLineEnd(keyboardText, end));
+      setLiveKeyboardText(currentText, getLineEnd(currentText, end));
       return;
     }
 
     if (key === "PageUp" || key === "PageDown") {
-      setLiveKeyboardText(keyboardText, key === "PageUp" ? 0 : keyboardText.length);
+      setLiveKeyboardText(currentText, key === "PageUp" ? 0 : currentText.length);
       return;
     }
 
     if (key === "ArrowLeft") {
-      setLiveKeyboardText(keyboardText, start === end ? Math.max(0, start - 1) : start);
+      setLiveKeyboardText(currentText, start === end ? Math.max(0, start - 1) : start);
       return;
     }
 
     if (key === "ArrowRight") {
-      setLiveKeyboardText(keyboardText, start === end ? Math.min(keyboardText.length, end + 1) : end);
+      setLiveKeyboardText(currentText, start === end ? Math.min(currentText.length, end + 1) : end);
       return;
     }
 
-    const nextCaret = getVerticalCaretPosition(keyboardText, start, key === "ArrowUp" ? -1 : 1);
-    setLiveKeyboardText(keyboardText, nextCaret);
+    const nextCaret = getVerticalCaretPosition(currentText, start, key === "ArrowUp" ? -1 : 1);
+    setLiveKeyboardText(currentText, nextCaret);
   };
 
   const applyBufferedSpecialKey = (key: RepeatableKey) => {
@@ -294,8 +318,8 @@ export function useKeyboardModeController({
   };
 
   const pressRepeatableKey = (key: RepeatableKey) => {
-    if (liveKeyboard) {
-      sendSpecial(key);
+    if (liveKeyboardRef.current) {
+      sendSpecialRef.current(key);
       applyLiveSpecialKey(key);
       return;
     }
@@ -341,6 +365,7 @@ export function useKeyboardModeController({
     onPointerUp: stopRepeatingKey,
     onPointerCancel: stopRepeatingKey,
     onPointerLeave: stopRepeatingKey,
+    onLostPointerCapture: stopRepeatingKey,
     onClick: () => {
       if (ignoreNextClickRef.current) {
         ignoreNextClickRef.current = false;

@@ -9,9 +9,48 @@ import {
   normalizeAppLaunchActions,
   normalizeAudioState,
   normalizeHostStatus,
+  parseServerMessage,
   shouldTrackInputAck,
   trimPendingInputAcks
 } from "./connectionProtocol";
+
+const validServerMessages = [
+  {
+    message: {
+      type: "pair.accepted", clientId: "client-a", pcName: "Office PC", secret: "secret-a", paired: true,
+      capabilities: {
+        awake: { canControl: true, active: false, mode: "off", expiresAt: null },
+        gestureDebug: false, inputAck: true, clipboardRead: true,
+        presentation: { canControl: true },
+        power: { lock: true, lockAvailability: "notExplicitlyDisabled", blackoutDisplay: true, displayOff: true, screenSaver: true, screenSaverAvailable: true, signOut: true, restart: true, shutdown: true },
+        remoteLaunch: true, urlOpen: { canOpen: true }, sleep: true, textTransfer: true, volume: true
+      },
+      host: {
+        appLaunchActions: [{ id: "custom.notes", label: "Notes", kind: "custom" }],
+        defaultRemoteMode: "youtube", developerMode: true, developerSessionId: "session-a",
+        hostVersion: "0.6.4", webClientBuildId: "build-a", pcName: "Office PC", pointerSpeed: 55,
+        customPointerEnabled: true, inputBlockedByElevation: false, selectedAdapterName: "Ethernet",
+        selectedIp: "192.168.1.50", selectedPort: 51395,
+        textTransferTarget: { mode: "focused", displayName: "Focused app", available: true },
+        webSocketUrl: "ws://192.168.1.50:51395/ws"
+      }
+    },
+    required: ["clientId", "pcName", "secret", "paired"]
+  },
+  { message: { type: "pair.rejected", reason: "invalid-token", diagnosticCode: "VAIR-PAIR-INVALID-TOKEN" }, required: ["reason"] },
+  { message: { type: "status", connected: true, message: "Connected", pcName: "Office PC" }, required: ["connected"] },
+  { message: { type: "health.pong" }, required: [] },
+  { message: { type: "input.ack", seq: 4 }, required: [] },
+  { message: { type: "input.error", seq: 4, code: "VAIR-INPUT", message: "Input failed" }, required: ["message"] },
+  { message: { type: "presentation.command.result", operationId: "op-1", target: "powerpoint", action: "next", succeeded: true, code: "OK", message: "Done" }, required: ["operationId", "target", "action", "succeeded", "message"] },
+  { message: { type: "system.power.result", operationId: "op-power", action: "lock", succeeded: true, code: "OK", message: "Locked" }, required: ["operationId", "action", "succeeded", "message"] },
+  { message: { type: "awake.result", operationId: "op-awake", enabled: true, succeeded: true, code: "OK", message: "Awake" }, required: ["operationId", "enabled", "succeeded", "message"] },
+  { message: { type: "app.launch.result", actionId: "custom.notes", succeeded: true, code: "OK", message: "Opened" }, required: ["actionId", "succeeded", "message"] },
+  { message: { type: "url.open.result", operationId: "op-2", succeeded: true, code: "OK", message: "Opened", normalizedUrl: "https://example.com/" }, required: ["operationId", "succeeded", "message"] },
+  { message: { type: "text.send.result", operationId: "op-3", succeeded: true, code: "OK", message: "Sent", deliveryKind: "typed" }, required: ["operationId", "succeeded", "message"] },
+  { message: { type: "clipboard.get.result", operationId: "op-4", succeeded: true, code: "OK", message: "Read", text: null }, required: ["operationId", "succeeded", "message"] },
+  { message: { type: "audio.state", volume: 72, muted: false }, required: ["volume", "muted"] }
+] as const;
 
 describe("connection protocol policy", () => {
   it("throttles movement acknowledgements without throttling discrete input", () => {
@@ -110,5 +149,59 @@ describe("connection protocol policy", () => {
     const power = { lock: true, lockAvailability: "disabledByPolicy" as const, blackoutDisplay: true, displayOff: false, screenSaver: true, screenSaverAvailable: true, signOut: false, restart: false, shutdown: false };
 
     expect(getPowerCapabilities({ power })).toEqual(power);
+  });
+});
+
+describe("parseServerMessage", () => {
+  it.each(validServerMessages)("accepts a complete $message.type message", ({ message }) => {
+    expect(parseServerMessage(JSON.stringify(message))).toEqual(message);
+  });
+
+  it.each(validServerMessages.flatMap(({ message, required }) =>
+    required.map((field) => ({ message, field }))))(
+    "rejects $message.type when required field $field is missing or has the wrong type",
+    ({ message, field }) => {
+      const missing = { ...message } as Record<string, unknown>;
+      delete missing[field];
+      expect(parseServerMessage(JSON.stringify(missing))).toBeNull();
+      expect(parseServerMessage(JSON.stringify({ ...message, [field]: null }))).toBeNull();
+    }
+  );
+
+  it.each([
+    ["not JSON"], ["null"], ["true"], ["42"], ['"text"'], ["[]"], ["{}"],
+    [JSON.stringify({ type: "future.message" })]
+  ])("rejects invalid envelope %s", (data) => {
+    expect(parseServerMessage(data)).toBeNull();
+  });
+
+  it.each([
+    { type: "status", connected: true, pcName: {} },
+    { type: "status", connected: true, message: 3 },
+    { type: "status", connected: true, capabilities: [] },
+    { type: "status", connected: true, capabilities: { awake: { canControl: true, active: false } } },
+    { type: "status", connected: true, capabilities: { presentation: [] } },
+    { type: "status", connected: true, capabilities: { power: { lock: true } } },
+    { type: "status", connected: true, capabilities: { urlOpen: { canOpen: "yes" } } },
+    { type: "status", connected: true, host: [] },
+    { type: "status", connected: true, host: { appLaunchActions: {} } },
+    { type: "status", connected: true, host: { appLaunchActions: [{ id: "../bad", label: "Bad", kind: "custom" }] } },
+    { type: "status", connected: true, host: { defaultRemoteMode: "future" } },
+    { type: "status", connected: true, host: { selectedPort: "51395" } },
+    { type: "status", connected: true, host: { textTransferTarget: { mode: "focused", displayName: {}, available: true } } },
+    { type: "input.ack", seq: "4" },
+    { type: "input.error", message: "Failed", code: 9 },
+    { type: "presentation.command.result", operationId: "bad/id", target: "powerpoint", action: "next", succeeded: true, message: "Done" },
+    { type: "presentation.command.result", operationId: "op-1", target: "keynote", action: "next", succeeded: true, message: "Done" },
+    { type: "url.open.result", operationId: "op-2", succeeded: true, message: "Opened", normalizedUrl: 4 },
+    { type: "text.send.result", operationId: "op-3", succeeded: true, message: "Sent", deliveryKind: "future" },
+    { type: "clipboard.get.result", operationId: "op-4", succeeded: true, message: "Read", text: 7 },
+    { type: "audio.state", volume: "72", muted: false }
+  ])("rejects malformed known message %#", (message) => {
+    expect(parseServerMessage(JSON.stringify(message))).toBeNull();
+  });
+
+  it("rejects non-string socket payloads", () => {
+    expect(parseServerMessage(new Blob())).toBeNull();
   });
 });

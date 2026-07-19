@@ -3,9 +3,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { PresentationMode } from "./PresentationMode";
 
 const defaultProps = {
+  blackoutAvailable: true,
   capability: { canControl: true },
   connected: true,
   pending: null,
+  pendingPowerAction: null,
   result: null,
   onCommand: vi.fn()
 } as const;
@@ -46,6 +48,41 @@ describe("PresentationMode", () => {
 
     expect(onPowerAction).toHaveBeenCalledExactlyOnceWith("blackoutDisplay");
     expect(onCommand).not.toHaveBeenCalled();
+  });
+
+  it("blocks Blackout with an accessible reason when the host denies it", () => {
+    const onPowerAction = vi.fn();
+    render(<PresentationMode {...defaultProps} blackoutAvailable={false} onPowerAction={onPowerAction} />);
+
+    const blackout = screen.getByRole<HTMLButtonElement>("button", { name: "Blackout" });
+    expect(blackout.disabled).toBe(true);
+    expect(screen.getByRole("alert").textContent).toContain("Blackout is disabled by the host");
+    fireEvent.click(blackout);
+    expect(onPowerAction).not.toHaveBeenCalled();
+  });
+
+  it("blocks Blackout for presentation denial or any pending power action", () => {
+    const onPowerAction = vi.fn();
+    const view = render(<PresentationMode {...defaultProps} capability={{ canControl: false }} onPowerAction={onPowerAction} />);
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Blackout" }).disabled).toBe(true);
+
+    view.rerender(<PresentationMode {...defaultProps} pendingPowerAction="lock" onPowerAction={onPowerAction} />);
+    const blackout = screen.getByRole<HTMLButtonElement>("button", { name: "Blackout" });
+    expect(blackout.disabled).toBe(true);
+    fireEvent.click(blackout);
+    expect(onPowerAction).not.toHaveBeenCalled();
+  });
+
+  it("reacts to Blackout capability changes while mounted", () => {
+    const onPowerAction = vi.fn();
+    const view = render(<PresentationMode {...defaultProps} blackoutAvailable={false} onPowerAction={onPowerAction} />);
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Blackout" }).disabled).toBe(true);
+
+    view.rerender(<PresentationMode {...defaultProps} blackoutAvailable onPowerAction={onPowerAction} />);
+    const blackout = screen.getByRole<HTMLButtonElement>("button", { name: "Blackout" });
+    expect(blackout.disabled).toBe(false);
+    fireEvent.click(blackout);
+    expect(onPowerAction).toHaveBeenCalledExactlyOnceWith("blackoutDisplay");
   });
 
   it("collapses the active target into a header selector and restores the full target row on reselection", () => {

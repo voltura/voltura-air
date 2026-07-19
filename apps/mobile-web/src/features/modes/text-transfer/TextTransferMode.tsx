@@ -34,7 +34,13 @@ export function TextTransferMode(props: TextTransferModeProps) {
   const [isEditing, setIsEditing] = useState(true);
   const [keyboardInputMode, setKeyboardInputMode] = useState<KeyboardInputMode>("text");
   const editorRef = useRef<HTMLTextAreaElement>(null);
-  const pendingClearOperation = useRef<string | null>(null);
+  const draftRevision = useRef(0);
+  const pendingClearOperation = useRef<{
+    operationId: string;
+    submittedText: string;
+    clearAfterSending: boolean;
+    draftRevision: number;
+  } | null>(null);
   const target = props.target ?? { mode: "focused" as const, displayName: "Currently focused application", available: props.supported };
   const canSend = props.supported && target.available && !props.pending && props.draft.length > 0;
   const clickButtons = props.leftHandedButtons
@@ -65,15 +71,23 @@ export function TextTransferMode(props: TextTransferModeProps) {
         };
 
   useEffect(() => {
-    if (!result?.succeeded || result.operationId !== pendingClearOperation.current) {
+    draftRevision.current += 1;
+  }, [props.draft]);
+
+  useEffect(() => {
+    const pendingClear = pendingClearOperation.current;
+    if (!result || result.operationId !== pendingClear?.operationId) {
       return;
     }
 
     pendingClearOperation.current = null;
-    if (clearAfterSending) {
+    if (result.succeeded &&
+      pendingClear.clearAfterSending &&
+      props.draft === pendingClear.submittedText &&
+      draftRevision.current === pendingClear.draftRevision) {
       onDraftChange("");
     }
-  }, [clearAfterSending, onDraftChange, result]);
+  }, [onDraftChange, props.draft, result]);
 
   useEffect(() => {
     if (!snippetCopyFeedback) {
@@ -90,7 +104,15 @@ export function TextTransferMode(props: TextTransferModeProps) {
       return;
     }
 
-    pendingClearOperation.current = props.requestTextTransfer(props.draft, sendEnter);
+    const operationId = props.requestTextTransfer(props.draft, sendEnter);
+    pendingClearOperation.current = operationId
+      ? {
+          operationId,
+          submittedText: props.draft,
+          clearAfterSending,
+          draftRevision: draftRevision.current
+        }
+      : null;
   };
 
   const loadSnippet = (snippet: SavedTextSnippet) => {

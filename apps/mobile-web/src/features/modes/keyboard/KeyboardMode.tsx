@@ -82,7 +82,6 @@ export function KeyboardMode({
     showKeyboardInputMode
   } = useKeyboardModeController({
     committedKeyboardTextRef,
-    keyboardText,
     keyboardTextareaRef,
     liveKeyboard,
     sendSpecial,

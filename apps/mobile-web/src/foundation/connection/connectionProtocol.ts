@@ -1,7 +1,7 @@
 import { getPcDisplayName } from "../pairing/pcDisplayName";
 import type { PcProfile } from "./pcProfiles";
 import type { AppLaunchActionSummary, AudioStateMessage, AwakeCapability, ClientMessage, HostStatusMetadata, PowerCapabilities, PresentationCapability, ServerCapabilities, ServerMessage, TextTransferTarget, UrlOpenCapability } from "../protocol/messages";
-import { normalizeRemoteMode } from "../settings/remoteSettings";
+import { isRemoteModeId, normalizeRemoteMode } from "../settings/remoteSettings";
 
 const movementAckIntervalMs = 200;
 const maxPendingInputAcks = 64;
@@ -131,10 +131,190 @@ export function parseServerMessage(data: unknown): ServerMessage | null {
   }
 
   try {
-    return JSON.parse(data) as ServerMessage;
+    const parsed: unknown = JSON.parse(data);
+    return isServerMessage(parsed) ? parsed : null;
   } catch {
     return null;
   }
+}
+
+function isServerMessage(value: unknown): value is ServerMessage {
+  if (!isRecord(value) || typeof value.type !== "string") {
+    return false;
+  }
+
+  switch (value.type) {
+    case "pair.accepted":
+      return isBoundedString(value.clientId, 128, false) &&
+        isBoundedString(value.pcName, 120, false) &&
+        isBoundedString(value.secret, 512, false) &&
+        value.paired === true &&
+        isOptional(value, "capabilities", isServerCapabilities) &&
+        isOptional(value, "host", isHostStatusMetadata);
+    case "pair.rejected":
+      return isBoundedString(value.reason, 120, false) &&
+        isOptional(value, "diagnosticCode", isString);
+    case "status":
+      return typeof value.connected === "boolean" &&
+        isOptional(value, "message", isString) &&
+        isOptional(value, "pcName", isString) &&
+        isOptional(value, "capabilities", isServerCapabilities) &&
+        isOptional(value, "host", isHostStatusMetadata);
+    case "health.pong":
+      return true;
+    case "input.ack":
+      return isOptional(value, "seq", isInputSequence);
+    case "input.error":
+      return isString(value.message) &&
+        isOptional(value, "seq", isInputSequence) &&
+        isOptional(value, "code", isString);
+    case "presentation.command.result":
+      return isOperationId(value.operationId) &&
+        isOneOf(value.target, ["powerpoint", "google-slides", "pdf"]) &&
+        isOneOf(value.action, ["next", "previous", "start", "end", "black", "pointer"]) &&
+        isResultBase(value);
+    case "system.power.result":
+      return isOperationId(value.operationId) && isBoundedString(value.action, 80, false) && isResultBase(value);
+    case "awake.result":
+      return isOperationId(value.operationId) && typeof value.enabled === "boolean" && isResultBase(value);
+    case "app.launch.result":
+      return isAppLaunchActionId(value.actionId) && isResultBase(value);
+    case "url.open.result":
+      return isOperationId(value.operationId) && isResultBase(value) &&
+        isOptional(value, "normalizedUrl", isNullableString);
+    case "text.send.result":
+      return isOperationId(value.operationId) && isResultBase(value) &&
+        isOptional(value, "deliveryKind", (candidate) => isOneOf(candidate, ["typed", "pasted", "clipboard"]));
+    case "clipboard.get.result":
+      return isOperationId(value.operationId) && isResultBase(value) &&
+        isOptional(value, "text", isNullableString);
+    case "audio.state":
+      return typeof value.volume === "number" && Number.isFinite(value.volume) && value.volume >= 0 && value.volume <= 100 &&
+        typeof value.muted === "boolean";
+    default:
+      return false;
+  }
+}
+
+function isServerCapabilities(value: unknown): boolean {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return isOptional(value, "awake", isAwakeCapability) &&
+    isOptional(value, "gestureDebug", isBoolean) &&
+    isOptional(value, "inputAck", isBoolean) &&
+    isOptional(value, "clipboardRead", isBoolean) &&
+    isOptional(value, "presentation", (candidate) => candidate === null || isBooleanCapability(candidate, "canControl")) &&
+    isOptional(value, "power", isPowerCapabilities) &&
+    isOptional(value, "remoteLaunch", isBoolean) &&
+    isOptional(value, "urlOpen", (candidate) => isBooleanCapability(candidate, "canOpen")) &&
+    isOptional(value, "sleep", isBoolean) &&
+    isOptional(value, "textTransfer", isBoolean) &&
+    isOptional(value, "volume", isBoolean);
+}
+
+function isAwakeCapability(value: unknown): boolean {
+  return isRecord(value) &&
+    typeof value.canControl === "boolean" &&
+    typeof value.active === "boolean" &&
+    isOneOf(value.mode, ["off", "indefinite", "timed", "expiration"]) &&
+    isOptional(value, "expiresAt", isNullableString);
+}
+
+function isPowerCapabilities(value: unknown): boolean {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  const booleanFields = ["lock", "blackoutDisplay", "displayOff", "screenSaver", "screenSaverAvailable", "signOut", "restart", "shutdown"];
+  return booleanFields.every((field) => typeof value[field] === "boolean") &&
+    isOptional(value, "lockAvailability", (candidate) =>
+      isOneOf(candidate, ["notExplicitlyDisabled", "disabledByPolicy", "unavailable"]));
+}
+
+function isHostStatusMetadata(value: unknown): boolean {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  const stringFields = ["developerSessionId", "hostVersion", "webClientBuildId", "pcName", "selectedAdapterName", "selectedIp", "webSocketUrl"];
+  const booleanFields = ["developerMode", "customPointerEnabled", "inputBlockedByElevation"];
+  return isOptional(value, "appLaunchActions", isAppLaunchActions) &&
+    isOptional(value, "defaultRemoteMode", isRemoteModeId) &&
+    stringFields.every((field) => isOptional(value, field, isString)) &&
+    booleanFields.every((field) => isOptional(value, field, isBoolean)) &&
+    isOptional(value, "pointerSpeed", (candidate) =>
+      typeof candidate === "number" && Number.isFinite(candidate) && candidate >= 10 && candidate <= 100) &&
+    isOptional(value, "selectedPort", (candidate) =>
+      typeof candidate === "number" && Number.isInteger(candidate) && candidate > 0 && candidate <= 65535) &&
+    isOptional(value, "textTransferTarget", (candidate) => normalizeTextTransferTarget(candidate) !== undefined);
+}
+
+function isAppLaunchActions(value: unknown): boolean {
+  if (!Array.isArray(value) || value.length > 16) {
+    return false;
+  }
+
+  const ids = new Set<string>();
+  return value.every((candidate) => {
+    if (!isRecord(candidate) || !isAppLaunchActionId(candidate.id) || ids.has(candidate.id) ||
+      !isBoundedString(candidate.label, 10, false) ||
+      !isOneOf(candidate.kind, ["browser", "spotify", "vlc", "powerpoint", "custom"])) {
+      return false;
+    }
+
+    ids.add(candidate.id);
+    return true;
+  });
+}
+
+function isResultBase(value: Record<string, unknown>): boolean {
+  return typeof value.succeeded === "boolean" && isString(value.message) && isOptional(value, "code", isString);
+}
+
+function isBooleanCapability(value: unknown, field: string): boolean {
+  return isRecord(value) && typeof value[field] === "boolean";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isOptional(value: Record<string, unknown>, field: string, predicate: (candidate: unknown) => boolean): boolean {
+  return !Object.hasOwn(value, field) || predicate(value[field]);
+}
+
+function isString(value: unknown): value is string {
+  return typeof value === "string";
+}
+
+function isNullableString(value: unknown): boolean {
+  return value === null || typeof value === "string";
+}
+
+function isBoolean(value: unknown): boolean {
+  return typeof value === "boolean";
+}
+
+function isBoundedString(value: unknown, maxLength: number, allowEmpty: boolean): value is string {
+  return typeof value === "string" && value.length <= maxLength && (allowEmpty || value.trim().length > 0);
+}
+
+function isOperationId(value: unknown): value is string {
+  return isBoundedString(value, 64, false) && /^[A-Za-z0-9-]+$/.test(value);
+}
+
+function isAppLaunchActionId(value: unknown): value is string {
+  return isBoundedString(value, 64, false) && /^[A-Za-z0-9._-]+$/.test(value);
+}
+
+function isInputSequence(value: unknown): boolean {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
+
+function isOneOf(value: unknown, allowed: readonly string[]): value is string {
+  return typeof value === "string" && allowed.includes(value);
 }
 
 export function normalizeAudioState(message: { muted?: unknown; volume?: unknown }): AudioStateMessage {

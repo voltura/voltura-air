@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from
 import { getModeDefinition, getModeTabs, type AppTab, type MainAppTab, type ToolAppTab } from "./appModeTabs";
 import type { AppSettings } from "../foundation/settings/appSettings";
 import type { TrackpadSettings } from "../foundation/input/gestures";
-import { supportsSplitModeLayout } from "./splitModeLayout";
+import { getStableScreenOrientation, supportsSplitModeLayout } from "./splitModeLayout";
 
 type NavigationTrackpadSettings = Pick<
   TrackpadSettings,
@@ -31,7 +31,7 @@ export interface AppNavigation {
   openGestureDebug: () => void;
   openSettings: () => void;
   openToolFromMenu: (tool: ToolAppTab) => void;
-  selectModeTab: (tab: MainAppTab, source?: "tabs" | "selector") => void;
+  selectModeTab: (tab: MainAppTab, source?: "tabs" | "selector" | "settings") => void;
   setIsRemoteUtilityPanelOpen: Dispatch<SetStateAction<boolean>>;
   setIsSettingsOpen: Dispatch<SetStateAction<boolean>>;
   shellClassName: string;
@@ -50,17 +50,22 @@ export function useAppNavigation({
 }: AppNavigationOptions): AppNavigation {
   const [requestedTab, setRequestedTab] = useState<AppTab>("trackpad");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [canUseSplitMode, setCanUseSplitMode] = useState(() => supportsSplitModeLayout(window.innerWidth, window.innerHeight));
+  const [canUseSplitMode, setCanUseSplitMode] = useState(readSplitModeSupport);
   const [areModeTabsCollapsed, setAreModeTabsCollapsed] = useState(false);
   const [isModeSelectorOpen, setIsModeSelectorOpen] = useState(false);
   const [isRemoteUtilityPanelOpen, setIsRemoteUtilityPanelOpen] = useState(false);
   const modeTabs = useMemo(() => getModeTabs(fourthMode, presentationAvailable), [fourthMode, presentationAvailable]);
 
   useEffect(() => {
-    const onResize = () => { setCanUseSplitMode(supportsSplitModeLayout(window.innerWidth, window.innerHeight)); };
+    const onResize = () => { setCanUseSplitMode(readSplitModeSupport()); };
+    const orientation = screen.orientation;
     onResize();
     window.addEventListener("resize", onResize);
-    return () => { window.removeEventListener("resize", onResize); };
+    orientation?.addEventListener("change", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      orientation?.removeEventListener("change", onResize);
+    };
   }, []);
 
   const tab = requestedTab === "debug" && !supportsGestureDebug
@@ -72,15 +77,17 @@ export function useAppNavigation({
   const effectiveModeSelectorOpen = tab === "debug" ? false : isModeSelectorOpen;
   const effectiveRemoteUtilityPanelOpen = tab === "remote" && isRemoteUtilityPanelOpen;
 
-  const selectModeTab = (nextTab: MainAppTab, source: "tabs" | "selector" = "tabs") => {
-    if (nextTab === "remote") {
-      onEnterRemote();
-    }
-
+  const selectModeTab = (nextTab: MainAppTab, source: "tabs" | "selector" | "settings" = "tabs") => {
     if (tab === nextTab) {
-      setAreModeTabsCollapsed(source === "selector" ? false : true);
+      if (source !== "settings") {
+        setAreModeTabsCollapsed(source === "selector" ? false : true);
+      }
       setIsModeSelectorOpen(false);
       return;
+    }
+
+    if (nextTab === "remote" && source !== "settings") {
+      onEnterRemote();
     }
 
     setRequestedTab(nextTab);
@@ -155,4 +162,14 @@ export function useAppNavigation({
     tab,
     toggleModeSelector: () => { setIsModeSelectorOpen((current) => !current); }
   };
+}
+
+function readSplitModeSupport(): boolean {
+  const isTouchDevice = navigator.maxTouchPoints > 0;
+  return supportsSplitModeLayout(
+    window.innerWidth,
+    window.innerHeight,
+    isTouchDevice ? getStableScreenOrientation(screen) : null,
+    isTouchDevice
+  );
 }

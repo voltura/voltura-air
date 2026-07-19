@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import { Maximize2, Minimize2, MousePointer2, Volume2, VolumeX } from "lucide-react";
 import type { TrackpadSettings } from "../../../foundation/input/gestures";
 import type { AudioStateMessage } from "../../../foundation/protocol/messages";
@@ -37,6 +37,30 @@ export function TrackpadMode({
   onMouseButtonUp
 }: TrackpadModeProps) {
   const activeButtonPointers = useRef(new Map<number, MouseButtonName>());
+  const releaseAllMouseButtons = useEffectEvent(() => {
+    const heldButtons = new Set(activeButtonPointers.current.values());
+    activeButtonPointers.current.clear();
+    for (const button of heldButtons) {
+      onMouseButtonUp(button);
+    }
+  });
+
+  useEffect(() => {
+    const releaseOnHidden = () => {
+      if (document.visibilityState === "hidden") {
+        releaseAllMouseButtons();
+      }
+    };
+
+    window.addEventListener("blur", releaseAllMouseButtons);
+    document.addEventListener("visibilitychange", releaseOnHidden);
+    return () => {
+      window.removeEventListener("blur", releaseAllMouseButtons);
+      document.removeEventListener("visibilitychange", releaseOnHidden);
+      releaseAllMouseButtons();
+    };
+  }, []);
+
   const stopTouchPropagation = (event: React.TouchEvent<HTMLButtonElement>) => {
     event.stopPropagation();
   };
@@ -57,8 +81,15 @@ export function TrackpadMode({
   const pressMouseButton = (event: React.PointerEvent<HTMLButtonElement>, button: MouseButtonName) => {
     event.preventDefault();
     event.stopPropagation();
+    if (activeButtonPointers.current.has(event.pointerId)) {
+      return;
+    }
+
+    const buttonWasAlreadyHeld = [...activeButtonPointers.current.values()].includes(button);
     activeButtonPointers.current.set(event.pointerId, button);
-    onMouseButtonDown(button);
+    if (!buttonWasAlreadyHeld) {
+      onMouseButtonDown(button);
+    }
     try {
       event.currentTarget.setPointerCapture?.(event.pointerId);
     } catch {
@@ -76,7 +107,9 @@ export function TrackpadMode({
     }
 
     activeButtonPointers.current.delete(event.pointerId);
-    onMouseButtonUp(button);
+    if (![...activeButtonPointers.current.values()].includes(button)) {
+      onMouseButtonUp(button);
+    }
     try {
       if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
         event.currentTarget.releasePointerCapture?.(event.pointerId);
@@ -141,6 +174,7 @@ export function TrackpadMode({
               <button
                 key={button.label}
                 type="button"
+                onLostPointerCapture={releaseMouseButton}
                 onPointerCancel={releaseMouseButton}
                 onPointerDown={(event) => { pressMouseButton(event, button.button); }}
                 onPointerUp={releaseMouseButton}
@@ -159,6 +193,7 @@ export function TrackpadMode({
           {clickButtons.map((button) => (
             <button
               key={button.label}
+              onLostPointerCapture={releaseMouseButton}
               onPointerCancel={releaseMouseButton}
               onPointerDown={(event) => { pressMouseButton(event, button.button); }}
               onPointerUp={releaseMouseButton}

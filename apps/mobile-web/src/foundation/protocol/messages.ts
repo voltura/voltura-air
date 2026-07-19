@@ -238,11 +238,13 @@ export type SystemPowerAction = "lock" | "blackoutDisplay" | "displayOff" | "scr
 
 export interface SystemPowerMessage {
   type: "system.power";
+  operationId: string;
   action: SystemPowerAction;
 }
 
 export interface SystemPowerResultMessage {
   type: "system.power.result";
+  operationId: string;
   action: string;
   succeeded: boolean;
   code?: string;
@@ -251,11 +253,13 @@ export interface SystemPowerResultMessage {
 
 export interface AwakeSetMessage {
   type: "awake.set";
+  operationId: string;
   enabled: boolean;
 }
 
 export interface AwakeResultMessage {
   type: "awake.result";
+  operationId: string;
   enabled: boolean;
   succeeded: boolean;
   code?: string;

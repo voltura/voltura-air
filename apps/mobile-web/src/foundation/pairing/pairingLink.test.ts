@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parsePairingLink, validateManualConnectionInput } from "./pairingLink";
+import { parsePairingLink, parsePcUrl, validateManualConnectionInput } from "./pairingLink";
 
 const pairToken = "a".repeat(32);
 const version = "0.6.1";
@@ -87,5 +87,50 @@ describe("validateManualConnectionInput", () => {
     [`http://pc.local:51395/?t=${pairToken}&v=${version}`, "Enter the complete pairing link shown by Voltura Air on the PC."]
   ])("rejects %s with a specific message", (value, message) => {
     expect(validateManualConnectionInput(value, fallbackUrl)).toEqual({ valid: false, message });
+  });
+});
+
+describe("parsePcUrl", () => {
+  const fallbackUrl = "http://fallback.local:51395/path";
+  const addressWithHint = (hint: string) =>
+    `http://client.local:5173/app?h=${encodeURIComponent(hint)}`;
+
+  it.each([
+    ["http://pc.local:51395", "http://pc.local:51395"],
+    [" https://pc.local:51395/path?ignored=true ", "https://pc.local:51395"],
+    ["http://192.168.1.50:51395", "http://192.168.1.50:51395"],
+    ["http://[2001:db8::1]:51395", "http://[2001:db8::1]:51395"],
+    ["http://workstation.local:51395", "http://workstation.local:51395"],
+    ["https://workstation.local:8443", "https://workstation.local:8443"]
+  ])("normalizes valid host hint %s", (hint, expected) => {
+    expect(parsePcUrl(addressWithHint(hint), fallbackUrl)).toBe(expected);
+  });
+
+  it("resolves the supported port-only development hint", () => {
+    expect(parsePcUrl("?h=51396", fallbackUrl)).toBe("http://fallback.local:51396");
+  });
+
+  it.each([
+    "javascript:alert(1)",
+    "data:text/plain,hello",
+    "file:///C:/Windows/System32",
+    "ftp://pc.local:51395",
+    "http://user:password@pc.local:51395",
+    "http://:51395",
+    "http://pc.local:99999",
+    "   "
+  ])("falls back safely for invalid host hint %s", (hint) => {
+    expect(() => parsePcUrl(addressWithHint(hint), fallbackUrl)).not.toThrow();
+    expect(parsePcUrl(addressWithHint(hint), fallbackUrl)).toBe("http://client.local:5173");
+  });
+
+  it("falls back for empty and malformed encoded hints", () => {
+    expect(parsePcUrl("http://client.local:5173/?h=", fallbackUrl)).toBe("http://client.local:5173");
+    expect(parsePcUrl("http://client.local:5173/?h=%E0%A4%A", fallbackUrl)).toBe("http://client.local:5173");
+  });
+
+  it("handles non-string input without throwing", () => {
+    expect(() => parsePcUrl({ host: "javascript:alert(1)" } as unknown, fallbackUrl)).not.toThrow();
+    expect(parsePcUrl({ host: "javascript:alert(1)" } as unknown, fallbackUrl)).toBe("http://fallback.local:51395");
   });
 });

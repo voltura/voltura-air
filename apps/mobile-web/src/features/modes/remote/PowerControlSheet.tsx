@@ -71,7 +71,7 @@ export function PowerControlSheet({ awake = null, awakeResult = null, capabiliti
   }, [onClose, pendingAction]);
 
   const chooseAction = (definition: PowerActionDefinition) => {
-    if (!capabilities[definition.action]) {
+    if (pendingRequest !== null || !capabilities[definition.action]) {
       return;
     }
 
@@ -102,9 +102,15 @@ export function PowerControlSheet({ awake = null, awakeResult = null, capabiliti
 
         {pendingAction ? (
           <PowerConfirmation
+            key={pendingRequest ?? "ready"}
+            blockedByPending={pendingRequest !== null}
             definition={pendingAction}
             onCancel={() => { setPendingAction(null); }}
             onConfirm={() => {
+              if (pendingRequest !== null) {
+                setPendingAction(null);
+                return;
+              }
               onAction(pendingAction.action);
               onClose();
             }}
@@ -131,7 +137,7 @@ export function PowerControlSheet({ awake = null, awakeResult = null, capabiliti
                 </button>
               )}
               {standardActions.filter((definition) => definition.action !== "screenSaver" || capabilities.screenSaverAvailable).map((definition) => (
-                <PowerActionRow key={definition.action} definition={definition} disabledReason={getDisabledReason(definition, capabilities)} pending={pendingRequest === definition.action} onChoose={chooseAction} />
+                <PowerActionRow key={definition.action} blockedByPending={pendingRequest !== null} definition={definition} disabledReason={getDisabledReason(definition, capabilities)} pending={pendingRequest === definition.action} onChoose={chooseAction} />
               ))}
             </div>
 
@@ -142,7 +148,7 @@ export function PowerControlSheet({ awake = null, awakeResult = null, capabiliti
               </div>
               <div className="power-action-list">
                 {destructiveActions.map((definition) => (
-                  <PowerActionRow key={definition.action} definition={definition} enabled={capabilities[definition.action]} onChoose={chooseAction} />
+                  <PowerActionRow key={definition.action} blockedByPending={pendingRequest !== null} definition={definition} enabled={capabilities[definition.action]} pending={pendingRequest === definition.action} onChoose={chooseAction} />
                 ))}
               </div>
             </div>
@@ -181,9 +187,9 @@ function getDisabledReason(definition: PowerActionDefinition, capabilities: Powe
   return null;
 }
 
-function PowerActionRow({ definition, enabled, disabledReason, pending = false, onChoose }: { definition: PowerActionDefinition; enabled?: boolean; disabledReason?: string | null; pending?: boolean; onChoose: (definition: PowerActionDefinition) => void }) {
+function PowerActionRow({ blockedByPending = false, definition, enabled, disabledReason, pending = false, onChoose }: { blockedByPending?: boolean; definition: PowerActionDefinition; enabled?: boolean; disabledReason?: string | null; pending?: boolean; onChoose: (definition: PowerActionDefinition) => void }) {
   const { Icon } = definition;
-  const isEnabled = !pending && (enabled ?? disabledReason === null);
+  const isEnabled = !blockedByPending && !pending && (enabled ?? disabledReason === null);
   return (
     <button
       className={`power-action-row ${definition.destructive ? "destructive" : ""}`}
@@ -194,25 +200,25 @@ function PowerActionRow({ definition, enabled, disabledReason, pending = false, 
       <span className="power-action-icon"><Icon aria-hidden="true" /></span>
       <span className="power-action-copy">
         <strong>{definition.label}</strong>
-        <small>{pending ? "Waiting for the PC…" : isEnabled ? definition.description : disabledReason ?? "Disabled by the host."}</small>
+        <small>{pending ? "Waiting for the PC…" : blockedByPending ? "Wait for the current power request to finish." : isEnabled ? definition.description : disabledReason ?? "Disabled by the host."}</small>
       </span>
       {definition.destructive && isEnabled && <span className="power-action-safety">Hold</span>}
     </button>
   );
 }
 
-function PowerConfirmation({ definition, onCancel, onConfirm }: { definition: PowerActionDefinition; onCancel: () => void; onConfirm: () => void }) {
+function PowerConfirmation({ blockedByPending, definition, onCancel, onConfirm }: { blockedByPending: boolean; definition: PowerActionDefinition; onCancel: () => void; onConfirm: () => void }) {
   return (
     <div className="power-confirmation">
       <div className="power-confirmation-icon"><definition.Icon aria-hidden="true" /></div>
       <p>{definition.warning}</p>
-      <HoldToConfirmButton label={definition.label} onConfirm={onConfirm} />
+      <HoldToConfirmButton disabled={blockedByPending} label={definition.label} onConfirm={onConfirm} />
       <button className="power-confirm-cancel" type="button" onClick={onCancel}>Cancel</button>
     </div>
   );
 }
 
-function HoldToConfirmButton({ label, onConfirm }: { label: string; onConfirm: () => void }) {
+function HoldToConfirmButton({ disabled, label, onConfirm }: { disabled: boolean; label: string; onConfirm: () => void }) {
   const [progress, setProgress] = useState(0);
   const intervalRef = useRef<number | null>(null);
   const timeoutRef = useRef<number | null>(null);
@@ -236,7 +242,7 @@ function HoldToConfirmButton({ label, onConfirm }: { label: string; onConfirm: (
   useEffect(() => () => { clearHold(false); }, []);
 
   const beginHold = () => {
-    if (timeoutRef.current !== null || completedRef.current) {
+    if (disabled || timeoutRef.current !== null || completedRef.current) {
       return;
     }
     startedAtRef.current = performance.now();
@@ -275,6 +281,7 @@ function HoldToConfirmButton({ label, onConfirm }: { label: string; onConfirm: (
     <button
       className="hold-confirm-button"
       type="button"
+      disabled={disabled}
       style={style}
       aria-label={`Hold to ${label.toLocaleLowerCase()}`}
       onClick={(event) => { event.preventDefault(); }}
@@ -285,7 +292,7 @@ function HoldToConfirmButton({ label, onConfirm }: { label: string; onConfirm: (
       onPointerLeave={cancelHold}
       onPointerUp={cancelHold}
     >
-      <span>{progress > 0 ? "Keep holding…" : `Hold to ${label.toLocaleLowerCase()}`}</span>
+      <span>{disabled ? "Wait for the current power request to finish." : progress > 0 ? "Keep holding…" : `Hold to ${label.toLocaleLowerCase()}`}</span>
     </button>
   );
 }

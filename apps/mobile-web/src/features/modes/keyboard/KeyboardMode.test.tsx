@@ -168,10 +168,12 @@ describe("KeyboardMode live typing", () => {
 describe("KeyboardMode repeatable keys", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
   });
 
   it("sends one key press for a normal pointer press", () => {
@@ -188,8 +190,10 @@ describe("KeyboardMode repeatable keys", () => {
 
   it("repeats Backspace in live typing mode until release", () => {
     const sendSpecial = vi.fn();
-    render(<KeyboardModeHarness sendSpecial={sendSpecial} />);
+    render(<KeyboardModeHarness initialText="abc" sendSpecial={sendSpecial} />);
 
+    const textarea = screen.getByRole<HTMLTextAreaElement>("textbox");
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
     const backspaceButton = screen.getByRole("button", { name: "Backspace" });
     fireEvent.pointerDown(backspaceButton, { button: 0, pointerId: 1 });
 
@@ -201,6 +205,7 @@ describe("KeyboardMode repeatable keys", () => {
     expect(sendSpecial).toHaveBeenNthCalledWith(1, "Backspace");
     expect(sendSpecial).toHaveBeenNthCalledWith(2, "Backspace");
     expect(sendSpecial).toHaveBeenNthCalledWith(3, "Backspace");
+    expect(textarea.value).toBe(liveKeyboardSentinel);
 
     fireEvent.pointerUp(backspaceButton, { pointerId: 1 });
 
@@ -209,6 +214,63 @@ describe("KeyboardMode repeatable keys", () => {
     });
 
     expect(sendSpecial).toHaveBeenCalledTimes(3);
+  });
+
+  it.each(["blur", "hidden", "lost capture", "unmount"] as const)("stops repeat ownership on %s", (boundary) => {
+    const sendSpecial = vi.fn();
+    const view = render(<KeyboardModeHarness initialText="abcdef" sendSpecial={sendSpecial} />);
+    const backspaceButton = screen.getByRole("button", { name: "Backspace" });
+    fireEvent.pointerDown(backspaceButton, { button: 0, pointerId: 1 });
+
+    if (boundary === "blur") {
+      fireEvent.blur(window);
+    } else if (boundary === "hidden") {
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+      fireEvent(document, new Event("visibilitychange"));
+    } else if (boundary === "lost capture") {
+      fireEvent.lostPointerCapture(backspaceButton, { pointerId: 1 });
+    } else {
+      view.unmount();
+    }
+    act(() => { vi.advanceTimersByTime(repeatStartDelayMs + repeatIntervalMs * 2); });
+
+    expect(sendSpecial).toHaveBeenCalledExactlyOnceWith("Backspace");
+  });
+
+  it("stops an active repeat when live typing mode changes", () => {
+    const sendSpecial = vi.fn();
+    render(<KeyboardModeHarness initialText="abc" sendSpecial={sendSpecial} />);
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Backspace" }), { button: 0, pointerId: 1 });
+
+    fireEvent.click(screen.getByRole("switch", { name: "Live typing" }));
+    act(() => { vi.advanceTimersByTime(repeatStartDelayMs + repeatIntervalMs); });
+
+    expect(sendSpecial).toHaveBeenCalledExactlyOnceWith("Backspace");
+  });
+
+  it("uses the latest command callback for subsequent repeat ticks", () => {
+    const firstSend = vi.fn();
+    const secondSend = vi.fn();
+    const view = render(<KeyboardModeHarness initialText="abc" sendSpecial={firstSend} />);
+    const backspaceButton = screen.getByRole("button", { name: "Backspace" });
+    fireEvent.pointerDown(backspaceButton, { button: 0, pointerId: 1 });
+
+    view.rerender(<KeyboardModeHarness initialText="abc" sendSpecial={secondSend} />);
+    act(() => { vi.advanceTimersByTime(repeatStartDelayMs + repeatIntervalMs); });
+
+    expect(firstSend).toHaveBeenCalledExactlyOnceWith("Backspace");
+    expect(secondSend).toHaveBeenCalledTimes(2);
+  });
+
+  it("replaces an earlier repeat timer when a second key starts", () => {
+    const sendSpecial = vi.fn();
+    render(<KeyboardModeHarness initialText="abc" sendSpecial={sendSpecial} />);
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Backspace" }), { button: 0, pointerId: 1 });
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Delete" }), { button: 0, pointerId: 2 });
+
+    act(() => { vi.advanceTimersByTime(repeatStartDelayMs); });
+
+    expect(sendSpecial.mock.calls).toEqual([["Backspace"], ["Delete"], ["Delete"]]);
   });
 
   it("repeats Backspace against the local textarea in buffered mode", () => {

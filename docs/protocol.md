@@ -717,7 +717,7 @@ host permission.
 Request a fixed Windows power or session action:
 
 ```json
-{ "type": "system.power", "action": "lock" }
+{ "type": "system.power", "operationId": "power-lock-7f31", "action": "lock" }
 ```
 
 Supported action values are `lock`, `blackoutDisplay`, `displayOff`,
@@ -757,12 +757,18 @@ restart or shutdown completed.
 ```json
 {
   "type": "system.power.result",
+  "operationId": "power-lock-7f31",
   "action": "lock",
   "succeeded": false,
   "code": "VAIR-POWER-LOCK-DISABLED",
   "message": "Windows locking is disabled. Enable it in the Voltura Air host settings."
 }
 ```
+
+`operationId` is a client-generated 1–64 character ASCII alphanumeric/hyphen
+identifier. The host echoes it unchanged in every power result so the client
+completes only the matching request; a missing or malformed identifier violates
+protocol policy.
 
 Failure codes distinguish `VAIR-POWER-DENIED`,
 `VAIR-POWER-UNSUPPORTED`, `VAIR-POWER-UNAVAILABLE`, `VAIR-POWER-LOCK-DISABLED`,
@@ -796,7 +802,7 @@ that state changes.
 The mobile protocol intentionally exposes only a basic on/off action:
 
 ```json
-{ "type": "awake.set", "enabled": true }
+{ "type": "awake.set", "operationId": "awake-enable-83c2", "enabled": true }
 ```
 
 `enabled: true` selects indefinite mode and `enabled: false` selects Off. The
@@ -810,12 +816,17 @@ Every valid request receives a result and keeps the authenticated socket open:
 ```json
 {
   "type": "awake.result",
+  "operationId": "awake-enable-83c2",
   "enabled": true,
   "succeeded": false,
   "code": "VAIR-AWAKE-DENIED",
   "message": "Keep awake control is disabled by the PC host."
 }
 ```
+
+Awake uses the same operation-ID grammar and exact echo contract as power.
+Missing or malformed identifiers violate protocol policy, and a client ignores
+a valid result for completion when its ID does not match the current request.
 
 Failure codes are `VAIR-AWAKE-DENIED` and
 `VAIR-AWAKE-EXECUTION-FAILED`. A malformed `enabled` value violates normal

@@ -180,9 +180,11 @@ export function ModeWorkspace({
         toLiveKeyboardValue
       }}
       presentationMode={{
+        blackoutAvailable: connection.powerCapabilities?.blackoutDisplay === true,
         capability: connection.presentationCapability,
         connected: connection.state === "paired",
         pending: connection.pendingPresentationCommand,
+        pendingPowerAction: connection.pendingPowerAction,
         result: connection.presentationResult,
         onCommand: connection.requestPresentationCommand,
         onPowerAction: connection.requestPowerAction

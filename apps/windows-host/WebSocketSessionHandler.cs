@@ -223,10 +223,10 @@ internal sealed class WebSocketSessionHandler(
 
                 return true;
             case "system.power":
-                await powerCommands.HandleAsync(socket, clientId, ProtocolMessageFields.GetString(root, "action"), cancellationToken);
+                await powerCommands.HandleAsync(socket, clientId, ProtocolMessageFields.GetString(root, "operationId"), ProtocolMessageFields.GetString(root, "action"), cancellationToken);
                 return true;
             case "awake.set":
-                await awakeCommands.HandleAsync(socket, clientId, root.GetProperty("enabled").GetBoolean(), cancellationToken);
+                await awakeCommands.HandleAsync(socket, clientId, ProtocolMessageFields.GetString(root, "operationId"), root.GetProperty("enabled").GetBoolean(), cancellationToken);
                 return true;
             case "presentation.command":
                 await presentationCommands.HandleAsync(socket, clientId, root, cancellationToken);

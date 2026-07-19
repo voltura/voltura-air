@@ -73,8 +73,12 @@ internal static class ClientMessageValidator
             "custom.pointer.set" => root.TryGetProperty("enabled", out var customPointerEnabled) && customPointerEnabled.ValueKind is JsonValueKind.True or JsonValueKind.False,
             "audio.get" => true,
             "system.sleep" => true,
-            "system.power" => TryGetRequiredString(root, "action", MaxRemoteActionLength, allowEmpty: false, out _),
-            "awake.set" => root.TryGetProperty("enabled", out var enabled) &&
+            "system.power" => TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var powerOperationId) &&
+                IsValidOperationId(powerOperationId) &&
+                TryGetRequiredString(root, "action", MaxRemoteActionLength, allowEmpty: false, out _),
+            "awake.set" => TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var awakeOperationId) &&
+                IsValidOperationId(awakeOperationId) &&
+                root.TryGetProperty("enabled", out var enabled) &&
                 enabled.ValueKind is JsonValueKind.True or JsonValueKind.False,
             "presentation.command" => TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var presentationOperationId) &&
                 IsValidOperationId(presentationOperationId) &&

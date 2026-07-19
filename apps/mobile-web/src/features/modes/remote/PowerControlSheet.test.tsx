@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PowerCapabilities } from "../../../foundation/protocol/messages";
+import type { PowerCapabilities, SystemPowerAction } from "../../../foundation/protocol/messages";
 import { PowerControlSheet } from "./PowerControlSheet";
 
 const allAllowed: PowerCapabilities = {
@@ -13,6 +13,16 @@ const allAllowed: PowerCapabilities = {
   signOut: true,
   restart: true,
   shutdown: true
+};
+
+const actionNames: Record<SystemPowerAction, RegExp> = {
+  lock: /Lock PC/,
+  blackoutDisplay: /Blackout display/,
+  displayOff: /Turn off display/,
+  screenSaver: /Turn on screen saver/,
+  signOut: /Sign out/,
+  restart: /Restart PC/,
+  shutdown: /Shut down PC/
 };
 
 describe("PowerControlSheet", () => {
@@ -121,7 +131,7 @@ describe("PowerControlSheet", () => {
         onAction={onAction}
         onClose={onClose}
         pendingAction={null}
-        result={{ type: "system.power.result", action: "blackoutDisplay", succeeded: true, message: "Displays are blacked out." }}
+        result={{ type: "system.power.result", operationId: "power-success", action: "blackoutDisplay", succeeded: true, message: "Displays are blacked out." }}
       />
     );
     expect(screen.getByRole("status").textContent).toBe("Displays are blacked out.");
@@ -145,12 +155,57 @@ describe("PowerControlSheet", () => {
         onAction={onAction}
         onClose={vi.fn()}
         pendingAction={null}
-        result={{ type: "system.power.result", action: "lock", succeeded: false, code: "VAIR-POWER-EXECUTION-FAILED", message: "Windows rejected the lock request." }}
+        result={{ type: "system.power.result", operationId: "power-failure", action: "lock", succeeded: false, code: "VAIR-POWER-EXECUTION-FAILED", message: "Windows rejected the lock request." }}
       />
     );
 
     expect(screen.getByRole("alert").textContent).toBe("Windows rejected the lock request.");
     expect(screen.getByRole("button", { name: /Lock PC/ }).hasAttribute("disabled")).toBe(false);
+  });
+
+  it.each(["lock", "blackoutDisplay", "displayOff", "screenSaver", "signOut", "restart", "shutdown"] as const)("disables every power action while %s is pending", (pendingAction) => {
+    const onAction = vi.fn();
+    const onClose = vi.fn();
+    const { rerender } = render(
+      <PowerControlSheet capabilities={allAllowed} onAction={onAction} onClose={onClose} pendingAction={pendingAction} result={null} />
+    );
+
+    for (const name of [/Lock PC/, /Blackout display/, /Turn off display/, /Turn on screen saver/, /Sign out/, /Restart PC/, /Shut down PC/]) {
+      const action = screen.getByRole<HTMLButtonElement>("button", { name });
+      expect(action.disabled).toBe(true);
+      fireEvent.click(action);
+    }
+    expect(screen.getByRole("button", { name: actionNames[pendingAction] }).textContent).toContain("Waiting for the PC");
+    expect(screen.getByRole("dialog", { name: "Power & session" })).toBeTruthy();
+    expect(onAction).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+
+    rerender(<PowerControlSheet capabilities={allAllowed} onAction={onAction} onClose={onClose} pendingAction={null} result={null} />);
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: /Restart PC/ }).disabled).toBe(false);
+  });
+
+  it("cancels an open destructive confirmation when another request becomes pending", async () => {
+    const onAction = vi.fn();
+    const onClose = vi.fn();
+    const { rerender } = render(
+      <PowerControlSheet capabilities={allAllowed} onAction={onAction} onClose={onClose} pendingAction={null} result={null} />
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Shut down PC/ }));
+    const holdButton = screen.getByRole("button", { name: "Hold to shut down pc" });
+    fireEvent.pointerDown(holdButton, { button: 0, pointerId: 1 });
+    await act(() => vi.advanceTimersByTime(800));
+
+    rerender(<PowerControlSheet capabilities={allAllowed} onAction={onAction} onClose={onClose} pendingAction="lock" result={null} />);
+    expect(screen.getByRole("dialog", { name: "Shut down PC" })).toBeTruthy();
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Hold to shut down pc" }).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: "Hold to shut down pc" }).textContent).toContain("Wait for the current power request");
+    await act(() => vi.advanceTimersByTime(1000));
+
+    expect(onAction).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+
+    rerender(<PowerControlSheet capabilities={allAllowed} onAction={onAction} onClose={onClose} pendingAction={null} result={null} />);
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Hold to shut down pc" }).disabled).toBe(false);
   });
 
   it("explains when Windows policy disables locking", () => {

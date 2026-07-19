@@ -14,6 +14,7 @@ export type ManualConnectionValidation =
 const pairingTokenPattern = /^[A-Za-z0-9_-]{32}$/;
 const versionPattern = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const pairingPath = "/pair";
+const safeDefaultPcUrl = "http://127.0.0.1";
 const invalidHostMessage = "Enter a host with a valid port, for example 192.168.1.50:51395.";
 const invalidPairingLinkMessage = "Enter the complete pairing link shown by Voltura Air on the PC.";
 
@@ -103,17 +104,42 @@ export function validateManualConnectionInput(value: string, fallbackUrl: string
   }
 }
 
-export function parsePcUrl(source: string, fallbackPcUrl: string): string {
+export function parsePcUrl(source: unknown, fallbackPcUrl: unknown): string {
+  const normalizedFallback = normalizePcUrl(fallbackPcUrl) ?? safeDefaultPcUrl;
+  if (typeof source !== "string") {
+    return normalizedFallback;
+  }
+
   const trimmedSource = source.trim();
   if (!trimmedSource) {
-    return normalizePcUrl(fallbackPcUrl, fallbackPcUrl);
+    return normalizedFallback;
   }
 
   try {
     const url = new URL(trimmedSource);
-    return getPcUrl(url.searchParams, url.origin);
+    return getPcUrl(url.searchParams, normalizePcUrl(url.origin) ?? normalizedFallback);
   } catch {
-    return getPcUrl(new URLSearchParams(trimmedSource), fallbackPcUrl);
+    return getPcUrl(new URLSearchParams(trimmedSource), normalizedFallback);
+  }
+}
+
+export function normalizePcUrl(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  try {
+    const url = new URL(trimmed);
+    return isHttpUrl(url) && !hasCredentials(url) && Boolean(url.hostname) && url.origin !== "null"
+      ? url.origin
+      : null;
+  } catch {
+    return null;
   }
 }
 
@@ -146,20 +172,26 @@ function resolvePairingPcUrl(url: URL): string | null {
 }
 
 function getPcUrl(parameters: URLSearchParams, fallbackPcUrl: string): string {
-  return normalizePcUrl(parameters.get("h") ?? fallbackPcUrl, fallbackPcUrl);
-}
+  const hostHints = parameters.getAll("h");
+  if (hostHints.length !== 1) {
+    return fallbackPcUrl;
+  }
 
-function normalizePcUrl(pcUrl: string, fallbackPcUrl: string): string {
-  if (/^\d{1,5}$/.test(pcUrl)) {
-    const port = Number.parseInt(pcUrl, 10);
+  const hostHint = hostHints[0]!.trim();
+  if (/^\d{1,5}$/.test(hostHint)) {
+    const port = Number.parseInt(hostHint, 10);
     if (port > 0 && port <= 65535) {
-      const fallback = new URL(fallbackPcUrl);
-      fallback.port = String(port);
-      return fallback.origin;
+      try {
+        const fallback = new URL(fallbackPcUrl);
+        fallback.port = String(port);
+        return fallback.origin;
+      } catch {
+        return fallbackPcUrl;
+      }
     }
   }
 
-  return new URL(pcUrl).origin;
+  return normalizePcUrl(hostHint) ?? fallbackPcUrl;
 }
 
 function isHttpUrl(url: URL): boolean {

@@ -23,10 +23,12 @@ public sealed class WebHostPowerTests
             Assert.True(capability.GetProperty("canControl").GetBoolean());
             Assert.False(capability.GetProperty("active").GetBoolean());
 
-            await SendAsync(socket, new { type = "awake.set", enabled = true });
+            const string operationId = "awake-success";
+            await SendAsync(socket, new { type = "awake.set", operationId, enabled = true });
             var result = await ReceiveTypeAsync(socket, "awake.result");
 
             Assert.True(result.GetProperty("succeeded").GetBoolean());
+            Assert.Equal(operationId, result.GetProperty("operationId").GetString());
             Assert.Equal(AwakeMode.Indefinite, awake.State.Mode);
             Assert.True(awake.State.KeepScreenOn);
         }
@@ -50,10 +52,38 @@ public sealed class WebHostPowerTests
             var paired = await fixture.PairAsync(socket);
 
             Assert.False(paired.GetProperty("capabilities").GetProperty("awake").GetProperty("canControl").GetBoolean());
-            var result = await SendAndReceiveAsync(socket, new { type = "awake.set", enabled = true });
+            const string operationId = "awake-denied";
+            var result = await SendAndReceiveAsync(socket, new { type = "awake.set", operationId, enabled = true });
 
             Assert.Equal("VAIR-AWAKE-DENIED", result.GetProperty("code").GetString());
+            Assert.Equal(operationId, result.GetProperty("operationId").GetString());
             Assert.Equal(AwakeMode.Off, awake.State.Mode);
+        }
+        finally
+        {
+            AppPermissionSettings.Save(originalPermissions);
+        }
+    }
+
+    [Fact]
+    public async Task EchoesAwakeOperationIdWhenWindowsRejectsTheChange()
+    {
+        var originalPermissions = AppPermissionSettings.Load();
+        var awake = new FailingAwakeService();
+
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowAwakeControl = true });
+            await using var fixture = await PowerHostFixture.StartAsync(new FakeSystemPowerController(), awakeService: awake);
+            using var socket = await fixture.ConnectAsync();
+            await fixture.PairAsync(socket);
+
+            const string operationId = "awake-native-failure";
+            var result = await SendAndReceiveAsync(socket, new { type = "awake.set", operationId, enabled = true });
+
+            Assert.False(result.GetProperty("succeeded").GetBoolean());
+            Assert.Equal("VAIR-AWAKE-EXECUTION-FAILED", result.GetProperty("code").GetString());
+            Assert.Equal(operationId, result.GetProperty("operationId").GetString());
         }
         finally
         {
@@ -85,8 +115,10 @@ public sealed class WebHostPowerTests
 
             foreach (var action in new[] { "lock", "blackoutDisplay", "displayOff", "screenSaver", "signOut", "restart", "shutdown" })
             {
-                var result = await SendAndReceiveAsync(socket, new { type = "system.power", action });
+                var operationId = $"power-{action}";
+                var result = await SendAndReceiveAsync(socket, new { type = "system.power", operationId, action });
                 Assert.Equal("system.power.result", result.GetProperty("type").GetString());
+                Assert.Equal(operationId, result.GetProperty("operationId").GetString());
                 Assert.True(result.GetProperty("succeeded").GetBoolean());
             }
 
@@ -130,14 +162,16 @@ public sealed class WebHostPowerTests
             using var socket = await fixture.ConnectAsync();
             var paired = await fixture.PairAsync(socket);
 
-            var lockResult = await SendAndReceiveAsync(socket, new { type = "system.power", action = "lock" });
-            var shutdownResult = await SendAndReceiveAsync(socket, new { type = "system.power", action = "shutdown" });
+            var lockResult = await SendAndReceiveAsync(socket, new { type = "system.power", operationId = "power-lock-denied", action = "lock" });
+            var shutdownResult = await SendAndReceiveAsync(socket, new { type = "system.power", operationId = "power-shutdown-denied", action = "shutdown" });
 
             var capabilities = paired.GetProperty("capabilities").GetProperty("power");
             Assert.False(capabilities.GetProperty("lock").GetBoolean());
             Assert.False(capabilities.GetProperty("shutdown").GetBoolean());
             Assert.Equal("VAIR-POWER-DENIED", lockResult.GetProperty("code").GetString());
             Assert.Equal("VAIR-POWER-DENIED", shutdownResult.GetProperty("code").GetString());
+            Assert.Equal("power-lock-denied", lockResult.GetProperty("operationId").GetString());
+            Assert.Equal("power-shutdown-denied", shutdownResult.GetProperty("operationId").GetString());
             Assert.Empty(powerActions.Actions);
         }
         finally
@@ -153,11 +187,12 @@ public sealed class WebHostPowerTests
         using var socket = await fixture.ConnectAsync();
         await fixture.PairAsync(socket);
 
-        var result = await SendAndReceiveAsync(socket, new { type = "system.power", action = "hibernate" });
+        var result = await SendAndReceiveAsync(socket, new { type = "system.power", operationId = "power-unsupported", action = "hibernate" });
         var status = await SendAndReceiveAsync(socket, new { type = "status.get" });
 
         Assert.False(result.GetProperty("succeeded").GetBoolean());
         Assert.Equal("VAIR-POWER-UNSUPPORTED", result.GetProperty("code").GetString());
+        Assert.Equal("power-unsupported", result.GetProperty("operationId").GetString());
         Assert.True(status.GetProperty("connected").GetBoolean());
     }
 
@@ -174,10 +209,11 @@ public sealed class WebHostPowerTests
             using var socket = await fixture.ConnectAsync();
             var paired = await fixture.PairAsync(socket);
 
-            var result = await SendAndReceiveAsync(socket, new { type = "system.power", action = "screenSaver" });
+            var result = await SendAndReceiveAsync(socket, new { type = "system.power", operationId = "power-unavailable", action = "screenSaver" });
 
             Assert.False(paired.GetProperty("capabilities").GetProperty("power").GetProperty("screenSaverAvailable").GetBoolean());
             Assert.Equal("VAIR-POWER-UNAVAILABLE", result.GetProperty("code").GetString());
+            Assert.Equal("power-unavailable", result.GetProperty("operationId").GetString());
             Assert.Empty(powerActions.Actions);
         }
         finally
@@ -219,11 +255,13 @@ public sealed class WebHostPowerTests
             using var socket = await fixture.ConnectAsync();
             var paired = await fixture.PairAsync(socket);
 
-            var result = await SendAndReceiveAsync(socket, new { type = "system.power", action = "lock" });
+            var operationId = $"power-lock-{policyState}";
+            var result = await SendAndReceiveAsync(socket, new { type = "system.power", operationId, action = "lock" });
 
             Assert.Equal(expectedAvailability, paired.GetProperty("capabilities").GetProperty("power").GetProperty("lockAvailability").GetString());
             Assert.False(result.GetProperty("succeeded").GetBoolean());
             Assert.Equal(expectedCode, result.GetProperty("code").GetString());
+            Assert.Equal(operationId, result.GetProperty("operationId").GetString());
             Assert.Empty(powerActions.Actions);
         }
         finally
@@ -246,13 +284,15 @@ public sealed class WebHostPowerTests
             using var socket = await fixture.ConnectAsync();
             await fixture.PairAsync(socket);
 
-            var result = await SendAndReceiveAsync(socket, new { type = "system.power", action = "lock" });
+            var result = await SendAndReceiveAsync(socket, new { type = "system.power", operationId = "power-native-failure", action = "lock" });
             powerActions.Result = SystemPowerExecutionResult.Success;
-            var nextAction = await SendAndReceiveAsync(socket, new { type = "system.power", action = "displayOff" });
+            var nextAction = await SendAndReceiveAsync(socket, new { type = "system.power", operationId = "power-next-success", action = "displayOff" });
             var status = await SendAndReceiveAsync(socket, new { type = "status.get" });
 
             Assert.Equal("VAIR-POWER-EXECUTION-FAILED", result.GetProperty("code").GetString());
+            Assert.Equal("power-native-failure", result.GetProperty("operationId").GetString());
             Assert.True(nextAction.GetProperty("succeeded").GetBoolean());
+            Assert.Equal("power-next-success", nextAction.GetProperty("operationId").GetString());
             Assert.True(status.GetProperty("connected").GetBoolean());
             Assert.Equal(new[] { "lock", "displayOff" }, powerActions.Actions);
             Assert.Contains(appLog.Entries, entry => entry.Event == "command_received" && entry.MessageType == "system.power" && entry.Action == "lock");
@@ -440,6 +480,33 @@ public sealed class WebHostPowerTests
             Changed?.Invoke(this, EventArgs.Empty);
             return new WorkstationLockEnableResult(true, "Windows locking is enabled for this user.");
         }
+    }
+
+    private sealed class FailingAwakeService : IAwakeService
+    {
+        public AwakeState State { get; } = new(AwakeMode.Off, false, 60, null);
+
+        public event EventHandler? StateChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public AwakeOperationResult SetOff() => Failure();
+
+        public AwakeOperationResult SetIndefinite() => Failure();
+
+        public AwakeOperationResult SetTimed(TimeSpan duration) => Failure();
+
+        public AwakeOperationResult SetExpiration(DateTimeOffset expiresAt) => Failure();
+
+        public AwakeOperationResult SetKeepScreenOn(bool keepScreenOn) => Failure();
+
+        public void Dispose()
+        {
+        }
+
+        private static AwakeOperationResult Failure() => new(false, "Windows rejected the keep-awake request.");
     }
 
     private sealed class FakeAppLog : IAppLog

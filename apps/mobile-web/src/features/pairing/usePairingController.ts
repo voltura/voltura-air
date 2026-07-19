@@ -1,4 +1,4 @@
-import { useRef, useState, type ChangeEvent, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type Dispatch, type SetStateAction } from "react";
 import {
   parsePairingLink,
   type ManualConnectionTarget,
@@ -33,6 +33,9 @@ export function usePairingController(options: PairingControllerOptions) {
   const [enteredPairingDeviceName, setPairingDeviceName] = useState(deviceName);
   const pairingDeviceName = enteredPairingDeviceName || deviceName;
   const pairingQrInputRef = useRef<HTMLInputElement | null>(null);
+  const scanGenerationRef = useRef(0);
+
+  useEffect(() => () => { scanGenerationRef.current += 1; }, []);
 
   const confirmPendingPairing = () => {
     if (!pendingPairing) {
@@ -65,6 +68,8 @@ export function usePairingController(options: PairingControllerOptions) {
   const scanPairingQr = () => pairingQrInputRef.current?.click();
 
   const onPairingQrSelected = async (event: ChangeEvent<HTMLInputElement>) => {
+    const scanGeneration = scanGenerationRef.current + 1;
+    scanGenerationRef.current = scanGeneration;
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) {
@@ -78,8 +83,15 @@ export function usePairingController(options: PairingControllerOptions) {
       try {
         scannedText = await decodeQrImage(file);
       } catch (decodeError) {
+        if (scanGenerationRef.current !== scanGeneration) {
+          return;
+        }
         console.error("QR decode error", decodeError, { name: file.name, type: file.type });
         setPairingScanMessage("Could not read the QR code. Try zooming in, retaking the picture, or scanning a new code.");
+        return;
+      }
+
+      if (scanGenerationRef.current !== scanGeneration) {
         return;
       }
 
@@ -100,6 +112,9 @@ export function usePairingController(options: PairingControllerOptions) {
       setPairingScanMessage("Confirm the device name shown on the PC, or change it before pairing.");
       setIsSettingsOpen(false);
     } catch (error) {
+      if (scanGenerationRef.current !== scanGeneration) {
+        return;
+      }
       console.error("Pairing QR scan failed", error, { name: file.name, type: file.type });
       setPairingScanMessage("Could not read the QR code. Try zooming in, retaking the picture, or scanning a new code.");
     }

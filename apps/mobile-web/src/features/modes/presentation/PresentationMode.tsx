@@ -7,9 +7,11 @@ import { formatPresentationTime, usePresentationTimer } from "./presentationTime
 import { InfoButton } from "../../../ui/overlays/InfoButton";
 
 interface PresentationModeProps {
+  blackoutAvailable: boolean;
   capability: PresentationCapability | undefined;
   connected: boolean;
   pending: PendingPresentationCommand | null;
+  pendingPowerAction: SystemPowerAction | null;
   result: PresentationCommandResultMessage | null;
   onCommand: (target: PresentationTarget, action: PresentationAction) => void;
   onPowerAction?: (action: SystemPowerAction) => void;
@@ -21,7 +23,7 @@ const targetOptions = [
   { id: "pdf", label: "PDF / browser" }
 ] satisfies { id: PresentationTarget; label: string }[];
 
-export function PresentationMode({ capability, connected, pending, result, onCommand, onPowerAction }: PresentationModeProps) {
+export function PresentationMode({ blackoutAvailable, capability, connected, pending, pendingPowerAction, result, onCommand, onPowerAction }: PresentationModeProps) {
   const [target, setTarget] = useState<PresentationTarget>("powerpoint");
   const [isTargetSelectorOpen, setIsTargetSelectorOpen] = useState(false);
   const [isTimerExpanded, setIsTimerExpanded] = useState(true);
@@ -29,6 +31,7 @@ export function PresentationMode({ capability, connected, pending, result, onCom
   const supported = capability !== undefined;
   const canControl = connected && capability?.canControl === true;
   const controlsDisabled = !canControl || pending !== null;
+  const blackoutDisabled = controlsDisabled || !blackoutAvailable || pendingPowerAction !== null || !onPowerAction;
   const targetLabel = targetOptions.find((option) => option.id === target)?.label ?? target;
 
   const request = (action: PresentationAction) => { onCommand(target, action); };
@@ -86,6 +89,7 @@ export function PresentationMode({ capability, connected, pending, result, onCom
         </header>
         {!supported && <p className="presentation-permission-message" role="alert">Update the Windows host to use Presentation mode.</p>}
         {supported && !capability.canControl && <p className="presentation-permission-message" role="alert">Presentation control is blocked by the host. Enable its global or per-device permission.</p>}
+        {supported && capability.canControl && !blackoutAvailable && <p id="presentation-blackout-disabled" className="presentation-permission-message" role="alert">Blackout is disabled by the host. Enable its power permission for this device.</p>}
 
         <div className="presentation-navigation">
           <button type="button" disabled={controlsDisabled} onClick={() => { request("previous"); }}>
@@ -108,7 +112,16 @@ export function PresentationMode({ capability, connected, pending, result, onCom
             <CircleStop aria-hidden="true" /><span>End slideshow</span>
           </button>
           {target !== "pdf" && (
-            <button type="button" disabled={controlsDisabled || !onPowerAction} onClick={() => onPowerAction?.("blackoutDisplay")}>
+            <button
+              type="button"
+              aria-describedby={!blackoutAvailable ? "presentation-blackout-disabled" : undefined}
+              disabled={blackoutDisabled}
+              onClick={() => {
+                if (!blackoutDisabled) {
+                  onPowerAction("blackoutDisplay");
+                }
+              }}
+            >
               <Eclipse aria-hidden="true" /><span>Blackout</span>
             </button>
           )}

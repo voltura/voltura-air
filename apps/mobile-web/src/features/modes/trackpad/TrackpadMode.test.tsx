@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { defaultTrackpadSettings } from "../../../foundation/input/gestures";
 import { TrackpadMode } from "./TrackpadMode";
 
@@ -18,6 +18,11 @@ const baseProps = {
   onTouchMove: vi.fn(),
   onTouchStart: vi.fn()
 };
+
+afterEach(() => {
+  Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+  vi.restoreAllMocks();
+});
 
 describe("TrackpadMode volume control", () => {
   it("renders in normal mode when enabled and audio state exists", () => {
@@ -91,7 +96,7 @@ describe("TrackpadMode click buttons", () => {
     fireEvent.pointerUp(leftButton, { pointerId: 7 });
 
     expect(onMouseButtonDown).toHaveBeenCalledWith("left");
-    expect(onMouseButtonUp).toHaveBeenCalledWith("left");
+    expect(onMouseButtonUp).toHaveBeenCalledExactlyOnceWith("left");
   });
 
   it("still sends button events when pointer capture fails", () => {
@@ -113,5 +118,121 @@ describe("TrackpadMode click buttons", () => {
 
     expect(onMouseButtonDown).toHaveBeenCalledWith("left");
     expect(onMouseButtonUp).toHaveBeenCalledWith("left");
+  });
+
+  it("releases a held button exactly once when the component unmounts", () => {
+    const onMouseButtonUp = vi.fn();
+    const view = render(<TrackpadMode {...baseProps} onMouseButtonUp={onMouseButtonUp} />);
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Left" }), { pointerId: 9 });
+    view.unmount();
+
+    expect(onMouseButtonUp).toHaveBeenCalledExactlyOnceWith("left");
+  });
+
+  it("releases a held button after pointer capture is lost", () => {
+    const onMouseButtonUp = vi.fn();
+    render(<TrackpadMode {...baseProps} onMouseButtonUp={onMouseButtonUp} />);
+    const leftButton = screen.getByRole("button", { name: "Left" });
+
+    fireEvent.pointerDown(leftButton, { pointerId: 10 });
+    fireEvent.lostPointerCapture(leftButton, { pointerId: 10 });
+
+    expect(onMouseButtonUp).toHaveBeenCalledExactlyOnceWith("left");
+  });
+
+  it("releases a held button when the window loses focus", () => {
+    const onMouseButtonUp = vi.fn();
+    render(<TrackpadMode {...baseProps} onMouseButtonUp={onMouseButtonUp} />);
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Left" }), { pointerId: 11 });
+    fireEvent.blur(window);
+
+    expect(onMouseButtonUp).toHaveBeenCalledExactlyOnceWith("left");
+  });
+
+  it("releases a held button when the document becomes hidden", () => {
+    const onMouseButtonUp = vi.fn();
+    render(<TrackpadMode {...baseProps} onMouseButtonUp={onMouseButtonUp} />);
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Left" }), { pointerId: 12 });
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    fireEvent(document, new Event("visibilitychange"));
+
+    expect(onMouseButtonUp).toHaveBeenCalledExactlyOnceWith("left");
+  });
+
+  it("does not duplicate releases when several cleanup signals arrive", () => {
+    const onMouseButtonUp = vi.fn();
+    const view = render(<TrackpadMode {...baseProps} onMouseButtonUp={onMouseButtonUp} />);
+    const leftButton = screen.getByRole("button", { name: "Left" });
+
+    fireEvent.pointerDown(leftButton, { pointerId: 13 });
+    fireEvent.blur(window);
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    fireEvent(document, new Event("visibilitychange"));
+    fireEvent.pointerCancel(leftButton, { pointerId: 13 });
+    view.unmount();
+
+    expect(onMouseButtonUp).toHaveBeenCalledExactlyOnceWith("left");
+  });
+
+  it("releases each independently held logical button", () => {
+    const onMouseButtonUp = vi.fn();
+    render(<TrackpadMode {...baseProps} onMouseButtonUp={onMouseButtonUp} />);
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Left" }), { pointerId: 14 });
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Right" }), { pointerId: 15 });
+    fireEvent.blur(window);
+
+    expect(onMouseButtonUp).toHaveBeenCalledTimes(2);
+    expect(onMouseButtonUp).toHaveBeenCalledWith("left");
+    expect(onMouseButtonUp).toHaveBeenCalledWith("right");
+  });
+
+  it("releases a logical button once when multiple pointers own it", () => {
+    const onMouseButtonUp = vi.fn();
+    render(<TrackpadMode {...baseProps} onMouseButtonUp={onMouseButtonUp} />);
+    const leftButton = screen.getByRole("button", { name: "Left" });
+
+    fireEvent.pointerDown(leftButton, { pointerId: 16 });
+    fireEvent.pointerDown(leftButton, { pointerId: 17 });
+    fireEvent.blur(window);
+
+    expect(onMouseButtonUp).toHaveBeenCalledExactlyOnceWith("left");
+  });
+
+  it("does not treat a callback-only rerender as a cleanup boundary", () => {
+    const onMouseButtonUp = vi.fn();
+    const view = render(
+      <TrackpadMode {...baseProps} onMouseButtonUp={(button) => { onMouseButtonUp(button); }} />
+    );
+    const leftButton = screen.getByRole("button", { name: "Left" });
+    fireEvent.pointerDown(leftButton, { pointerId: 18 });
+
+    view.rerender(
+      <TrackpadMode {...baseProps} onMouseButtonUp={(button) => { onMouseButtonUp(button); }} />
+    );
+
+    expect(onMouseButtonUp).not.toHaveBeenCalled();
+    fireEvent.pointerUp(leftButton, { pointerId: 18 });
+    expect(onMouseButtonUp).toHaveBeenCalledExactlyOnceWith("left");
+  });
+
+  it("removes its global cleanup listeners on unmount", () => {
+    const addWindowListener = vi.spyOn(window, "addEventListener");
+    const removeWindowListener = vi.spyOn(window, "removeEventListener");
+    const addDocumentListener = vi.spyOn(document, "addEventListener");
+    const removeDocumentListener = vi.spyOn(document, "removeEventListener");
+    const view = render(<TrackpadMode {...baseProps} />);
+    const blurListener = addWindowListener.mock.calls.find(([type]) => type === "blur")?.[1];
+    const visibilityListener = addDocumentListener.mock.calls.find(([type]) => type === "visibilitychange")?.[1];
+
+    view.unmount();
+
+    expect(blurListener).toBeTypeOf("function");
+    expect(visibilityListener).toBeTypeOf("function");
+    expect(removeWindowListener).toHaveBeenCalledWith("blur", blurListener);
+    expect(removeDocumentListener).toHaveBeenCalledWith("visibilitychange", visibilityListener);
   });
 });

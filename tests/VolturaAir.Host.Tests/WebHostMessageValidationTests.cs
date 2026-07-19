@@ -89,6 +89,43 @@ public sealed class WebHostMessageValidationTests : WebHostServiceTestBase
         Assert.Empty(fixture.InputInjector.Events);
     }
 
+    [Theory]
+    [InlineData("system.power", null, false)]
+    [InlineData("awake.set", null, false)]
+    [InlineData("system.power", "bad/id", true)]
+    [InlineData("awake.set", "bad/id", true)]
+    [InlineData("system.power", "too-long", true)]
+    [InlineData("awake.set", "too-long", true)]
+    public async Task WebSocketRejectsMissingOrMalformedPowerOperationIds(
+        string type,
+        string? operationId,
+        bool includeOperationId)
+    {
+        await using var fixture = await WebHostFixture.StartAsync();
+        using var socket = await ConnectAsync(fixture.WebHost);
+        await SendAndReceiveAsync(socket, new
+        {
+            type = "pair.hello",
+            clientId = $"client-{Guid.NewGuid():N}",
+            deviceName = "Phone",
+            pairToken = fixture.Manager.CreatePairingToken()
+        });
+        var resolvedOperationId = operationId == "too-long" ? new string('a', 65) : operationId;
+        object payload = (type, includeOperationId) switch
+        {
+            ("system.power", true) => new { type, operationId = resolvedOperationId, action = "lock" },
+            ("system.power", false) => new { type, action = "lock" },
+            ("awake.set", true) => new { type, operationId = resolvedOperationId, enabled = true },
+            _ => new { type, enabled = true }
+        };
+
+        await SendAsync(socket, payload);
+        var closeStatus = await ReceiveCloseStatusAsync(socket);
+
+        Assert.Equal(WebSocketCloseStatus.PolicyViolation, closeStatus);
+        Assert.Empty(fixture.InputInjector.Events);
+    }
+
     [Fact]
     public async Task WebSocketKeepsAuthenticatedSocketOpenAfterRecoverableInputFailure()
     {

@@ -47,9 +47,9 @@ interface ConnectionSocketLifecycleOptions {
   clearRuntimeStateFromSocket: () => void;
   clientId: string;
   completeAppLaunch: (result: AppLaunchResultMessage) => void;
-  completeAwakeChange: (result: AwakeResultMessage) => void;
+  completeAwakeChange: (result: AwakeResultMessage) => boolean;
   completeClipboardRead: (result: ClipboardGetResultMessage) => void;
-  completePowerAction: (result: SystemPowerResultMessage) => void;
+  completePowerAction: (result: SystemPowerResultMessage) => boolean;
   completePresentationCommand: (result: PresentationCommandResultMessage) => void;
   completeTextTransfer: (result: TextSendResultMessage) => void;
   completeUrlOpen: (result: UrlOpenResultMessage) => void;
@@ -506,11 +506,13 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
   
         if (response.type === "system.power.result") {
           touchHealthy();
-          completePowerAction(response);
-          setMessage(response.message);
-          setLastConnectionError(response.succeeded
-            ? null
-            : { code: response.code ?? "VAIR-POWER-EXECUTION-FAILED", message: response.message });
+          const matched = completePowerAction(response);
+          if (matched) {
+            setMessage(response.message);
+            setLastConnectionError(response.succeeded
+              ? null
+              : { code: response.code ?? "VAIR-POWER-EXECUTION-FAILED", message: response.message });
+          }
           if (response.action === "displayOff" && response.succeeded) {
             window.clearTimeout(healthCheckTimer);
             healthCheckTimer = window.setTimeout(() => { sendHealthCheck(ws); }, displayOffHealthCheckDelayMs);
@@ -533,11 +535,12 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
   
         if (response.type === "awake.result") {
           touchHealthy();
-          completeAwakeChange(response);
-          setMessage(response.message);
-          setLastConnectionError(response.succeeded
-            ? null
-            : { code: response.code ?? "VAIR-AWAKE-EXECUTION-FAILED", message: response.message });
+          if (completeAwakeChange(response)) {
+            setMessage(response.message);
+            setLastConnectionError(response.succeeded
+              ? null
+              : { code: response.code ?? "VAIR-AWAKE-EXECUTION-FAILED", message: response.message });
+          }
           scheduleHealthCheck(ws);
           return;
         }

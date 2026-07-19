@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getAutoRefreshSessionKey } from "../settings/appStorage";
 import type { ConnectionState } from "../connection/connectionTypes";
 import type { PcProfile } from "../connection/pcProfiles";
 import type { HostStatusMetadata } from "../protocol/messages";
+import { refreshWithFreshAppUrl, type FreshAppRefreshResult } from "./freshAppRefresh";
 
 export type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -27,6 +28,15 @@ export function usePwaLifecycle({ activePc, autoRefresh, clientId, hostStatus, s
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(() => isRunningStandalone());
   const [refreshMessage, setRefreshMessage] = useState("Reload from the PC if the home screen app looks stale.");
+  const refreshAttemptRef = useRef<Promise<FreshAppRefreshResult> | null>(null);
+  const refreshKeysRef = useRef(new Set<string>());
+  const refreshGuardsCommittedRef = useRef(false);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => { isMountedRef.current = false; };
+  }, []);
 
   useEffect(() => {
     const onBeforeInstallPrompt = (event: Event) => {
@@ -60,10 +70,62 @@ export function usePwaLifecycle({ activePc, autoRefresh, clientId, hostStatus, s
     setInstallPrompt(null);
   };
 
-  const refreshInstalledApp = async () => {
+  const runRefreshAttempt = useCallback((refreshKey?: string): Promise<FreshAppRefreshResult> => {
+    if (refreshKey) {
+      refreshKeysRef.current.add(refreshKey);
+      if (refreshGuardsCommittedRef.current) {
+        setRefreshGuard(refreshKey);
+      }
+    }
+
+    const activeAttempt = refreshAttemptRef.current;
+    if (activeAttempt) {
+      return activeAttempt;
+    }
+
+    refreshGuardsCommittedRef.current = false;
+    const attempt = (async () => {
+      let result: FreshAppRefreshResult;
+      try {
+        result = await refreshWithFreshAppUrl(undefined, () => {
+          refreshGuardsCommittedRef.current = true;
+          for (const key of refreshKeysRef.current) {
+            setRefreshGuard(key);
+          }
+        });
+      } catch (error) {
+        result = {
+          navigationStarted: false,
+          navigationMethod: null,
+          warnings: [`refresh boundary failed: ${error instanceof Error ? error.message : String(error)}`]
+        };
+      }
+
+      if (!result.navigationStarted) {
+        for (const key of refreshKeysRef.current) {
+          clearRefreshGuard(key);
+        }
+      }
+      return result;
+    })();
+    refreshAttemptRef.current = attempt;
+    void attempt.then(() => {
+      if (refreshAttemptRef.current === attempt) {
+        refreshAttemptRef.current = null;
+        refreshKeysRef.current.clear();
+        refreshGuardsCommittedRef.current = false;
+      }
+    });
+    return attempt;
+  }, []);
+
+  const refreshInstalledApp = useCallback(async () => {
     setRefreshMessage("Refreshing app...");
-    await replaceWithFreshAppUrl();
-  };
+    const result = await runRefreshAttempt();
+    if (!result.navigationStarted && isMountedRef.current) {
+      setRefreshMessage("Could not refresh the app. Check this browser's site permissions and try again.");
+    }
+  }, [runRefreshAttempt]);
 
   useEffect(() => {
     if (!autoRefresh || state !== "paired" || !activePc) {
@@ -76,13 +138,16 @@ export function usePwaLifecycle({ activePc, autoRefresh, clientId, hostStatus, s
     }
 
     const refreshKey = getAutoRefreshSessionKey(clientId, activePc.id, webClientBuildId);
-    if (sessionStorage.getItem(refreshKey) === "true") {
+    if (hasRefreshGuard(refreshKey)) {
       return;
     }
 
-    sessionStorage.setItem(refreshKey, "true");
-    void replaceWithFreshAppUrl();
-  }, [activePc, autoRefresh, clientId, hostStatus?.webClientBuildId, state]);
+    void runRefreshAttempt(refreshKey).then((result) => {
+      if (!result.navigationStarted && isMountedRef.current) {
+        setRefreshMessage("Could not refresh the app automatically. Use Refresh app to try again.");
+      }
+    });
+  }, [activePc, autoRefresh, clientId, hostStatus, runRefreshAttempt, state]);
 
   return { installApp, installPrompt, isInstalled, refreshInstalledApp, refreshMessage };
 }
@@ -95,19 +160,26 @@ function isRunningStandalone(): boolean {
   return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
 }
 
-async function replaceWithFreshAppUrl(): Promise<void> {
-  if ("serviceWorker" in navigator) {
-    const registrations = await navigator.serviceWorker.getRegistrations();
-    await Promise.all(registrations.map((registration) => registration.unregister()));
+function hasRefreshGuard(key: string): boolean {
+  try {
+    return sessionStorage.getItem(key) === "true";
+  } catch {
+    return false;
   }
+}
 
-  if ("caches" in window) {
-    const cacheNames = await caches.keys();
-    await Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName)));
+function setRefreshGuard(key: string): void {
+  try {
+    sessionStorage.setItem(key, "true");
+  } catch {
+    // Navigation remains safer than leaving a known stale application loaded.
   }
+}
 
-  const freshUrl = new URL(window.location.href);
-  freshUrl.searchParams.delete("t");
-  freshUrl.searchParams.set("refresh", Date.now().toString());
-  window.location.replace(freshUrl);
+function clearRefreshGuard(key: string): void {
+  try {
+    sessionStorage.removeItem(key);
+  } catch {
+    // A blocked storage API cannot retain a guard written by this attempt.
+  }
 }

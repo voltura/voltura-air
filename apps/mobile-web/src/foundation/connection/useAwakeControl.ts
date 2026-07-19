@@ -1,30 +1,35 @@
 import { useEffect, useRef, useState } from "react";
+import { createLocalId } from "../identity/localId";
 import type { AwakeResultMessage, ClientMessage } from "../protocol/messages";
 import type { ConnectionState } from "./connectionTypes";
 
 const responseTimeoutMs = 5000;
 
+interface PendingAwakeOperation {
+  operationId: string;
+  enabled: boolean;
+}
+
 export function useAwakeControl(state: ConnectionState, send: (payload: ClientMessage) => void) {
-  const [pendingAwakeChange, setPendingAwakeChange] = useState<boolean | null>(null);
+  const [pendingOperation, setPendingOperation] = useState<PendingAwakeOperation | null>(null);
   const [awakeResult, setAwakeResult] = useState<AwakeResultMessage | null>(null);
-  const pendingRef = useRef<boolean | null>(null);
+  const pendingRef = useRef<PendingAwakeOperation | null>(null);
 
   useEffect(() => {
-    if (pendingAwakeChange === null) {
+    if (pendingOperation === null) {
       return;
     }
 
-    const requestedState = pendingAwakeChange;
     const timeout = window.setTimeout(() => {
-      if (pendingRef.current !== requestedState) {
+      if (pendingRef.current?.operationId !== pendingOperation.operationId) {
         return;
       }
 
       pendingRef.current = null;
-      setPendingAwakeChange(null);
+      setPendingOperation(null);
       setAwakeResult({
         type: "awake.result",
-        enabled: requestedState,
+        ...pendingOperation,
         succeeded: false,
         code: "VAIR-AWAKE-RESPONSE-TIMEOUT",
         message: "The PC did not respond to the Keep awake request."
@@ -32,7 +37,7 @@ export function useAwakeControl(state: ConnectionState, send: (payload: ClientMe
     }, responseTimeoutMs);
 
     return () => { window.clearTimeout(timeout); };
-  }, [pendingAwakeChange]);
+  }, [pendingOperation]);
 
   useEffect(() => {
     if (state === "paired") {
@@ -40,7 +45,7 @@ export function useAwakeControl(state: ConnectionState, send: (payload: ClientMe
     }
 
     pendingRef.current = null;
-    setPendingAwakeChange(null);
+    setPendingOperation(null);
     setAwakeResult(null);
   }, [state]);
 
@@ -49,17 +54,24 @@ export function useAwakeControl(state: ConnectionState, send: (payload: ClientMe
       return;
     }
 
-    pendingRef.current = enabled;
-    setPendingAwakeChange(enabled);
+    const pending = { operationId: createLocalId(), enabled } satisfies PendingAwakeOperation;
+    pendingRef.current = pending;
+    setPendingOperation(pending);
     setAwakeResult(null);
-    send({ type: "awake.set", enabled });
+    send({ type: "awake.set", ...pending });
   };
 
   const completeAwakeChange = (result: AwakeResultMessage) => {
+    if (pendingRef.current?.operationId !== result.operationId) {
+      return false;
+    }
+
     pendingRef.current = null;
-    setPendingAwakeChange(null);
+    setPendingOperation(null);
     setAwakeResult(result);
+    return true;
   };
 
+  const pendingAwakeChange = pendingOperation?.enabled ?? null;
   return { awakeResult, completeAwakeChange, pendingAwakeChange, requestAwakeChange };
 }

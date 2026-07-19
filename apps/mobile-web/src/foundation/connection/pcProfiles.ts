@@ -1,4 +1,5 @@
 import { isIpHost } from "../pairing/pcDisplayName";
+import { normalizePcUrl } from "../pairing/pairingLink";
 
 export const activePcIdKey = "voltura-air.activePcId";
 export const pcProfilesKey = "voltura-air.pcProfiles";
@@ -11,8 +12,11 @@ export interface PcProfile {
 }
 
 export function createPcProfile(pcUrl: string): PcProfile {
-  const url = new URL(pcUrl);
-  const origin = url.origin;
+  const origin = normalizePcUrl(pcUrl);
+  if (!origin) {
+    throw new TypeError("Invalid PC URL.");
+  }
+
   return {
     customName: false,
     id: origin,
@@ -69,11 +73,7 @@ export function loadActivePcId(storage: Storage = localStorage): string | null {
     return null;
   }
 
-  try {
-    return new URL(stored).origin;
-  } catch {
-    return stored;
-  }
+  return normalizePcUrl(stored);
 }
 
 export function saveActivePcId(pcId: string | null, storage: Storage = localStorage): void {

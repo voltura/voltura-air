@@ -34,6 +34,17 @@ describe("pcProfiles", () => {
     });
   });
 
+  it.each([
+    "javascript:alert(1)",
+    "data:text/plain,hello",
+    "file:///C:/Windows/System32",
+    "ftp://pc.local:51395",
+    "http://user:password@pc.local:51395"
+  ])("rejects an unsafe stored profile URL %s", (url) => {
+    expect(normalizePcProfile({ customName: false, name: "PC", url })).toBeNull();
+    expect(() => createPcProfile(url)).toThrow(TypeError);
+  });
+
   it("falls back to PC for non-custom IP-like stored names", () => {
     expect(
       normalizePcProfile({

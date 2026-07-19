@@ -139,10 +139,10 @@ export function App() {
     clientId,
     effectiveTrackpadSettings,
     forgetPc,
-    onLaunchRemoteMode: maybeLaunchRemoteMode,
-    onOpenRemote: () => {
-      selectModeTab("remote");
+    onSelectRemoteMode: (mode, nextSettings) => {
+      selectModeTab("remote", "settings");
       setIsSettingsOpen(false);
+      maybeLaunchRemoteMode(mode, nextSettings);
     },
     remoteSettings,
     setHostPointerSpeed,

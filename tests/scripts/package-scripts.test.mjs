@@ -20,13 +20,14 @@ test("documentation coverage runs in the root and pull-request quality gates", (
 test("every root npm command has a current human-readable description", () => {
   assert.equal(packageJson.scripts.help, "node scripts/command-help.mjs");
   assert.equal(packageJson.scripts["ai:create-shortcut"], undefined);
-  assert.equal(packageJson.scripts["ai:init"], "npm run ai:update && npm run ai:schedule && npm run ai:shortcut:create");
-  assert.equal(packageJson.scripts["ai:schedule"], "node scripts/ai-schedule.mjs");
+  assert.equal(packageJson.scripts["ai:init"], "npm run ai:update && npm run ai:schedule:create && npm run ai:shortcut:create");
+  assert.equal(packageJson.scripts["ai:schedule"], undefined);
+  assert.equal(packageJson.scripts["ai:schedule:create"], "node scripts/ai-schedule.mjs");
   assert.equal(packageJson.scripts["ai:schedule:remove"], "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/remove-chatgpt-codex-schedule.ps1");
   assert.equal(packageJson.scripts["ai:shortcut:create"], "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/create-chatgpt-codex-shortcut.ps1");
   assert.equal(packageJson.scripts["ai:shortcut:remove"], "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/remove-chatgpt-codex-shortcut.ps1");
   assert.equal(packageJson.scripts["ai:update"], "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/update-chatgpt-codex.ps1");
-  assert.match(commandDescriptions["ai:schedule"], /--time HH:mm:ss/u);
+  assert.match(commandDescriptions["ai:schedule:create"], /--time HH:mm:ss/u);
   assert.match(commandDescriptions["ai:update"], /ChatGPT\/Codex/u);
   assert.deepEqual(findUndocumentedCommands(packageJson.scripts), []);
   assert.deepEqual(findStaleDescriptions(packageJson.scripts), []);

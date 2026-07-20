@@ -7,9 +7,9 @@
     "apps/mobile-web"
   ],
   "scripts": {
-    "ai:init": "npm run ai:update && npm run ai:schedule && npm run ai:shortcut:create",
+    "ai:init": "npm run ai:update && npm run ai:schedule:create && npm run ai:shortcut:create",
+    "ai:schedule:create": "node scripts/ai-schedule.mjs",
     "ai:schedule:remove": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/remove-chatgpt-codex-schedule.ps1",
-    "ai:schedule": "node scripts/ai-schedule.mjs",
     "ai:shortcut:create": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/create-chatgpt-codex-shortcut.ps1",
     "ai:shortcut:remove": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/remove-chatgpt-codex-shortcut.ps1",
     "ai:update": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/update-chatgpt-codex.ps1",

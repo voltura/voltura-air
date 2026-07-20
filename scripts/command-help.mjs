@@ -6,7 +6,7 @@ const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url))
 
 export const commandDescriptions = {
   "ai:init": "Install the newest ChatGPT/Codex package if needed, then configure the daily task and desktop shortcut.",
-  "ai:schedule": "Create or refresh the hidden daily ChatGPT/Codex update task; accepts --time HH:mm:ss.",
+  "ai:schedule:create": "Create or refresh the hidden daily ChatGPT/Codex update task; accepts --time HH:mm:ss.",
   "ai:schedule:remove": "Remove every ChatGPT/Codex updater scheduled task created by this repository.",
   "ai:shortcut:create": "Create or refresh the desktop shortcut for a visible ChatGPT/Codex update check.",
   "ai:shortcut:remove": "Remove the ChatGPT/Codex updater desktop shortcut created by this repository.",

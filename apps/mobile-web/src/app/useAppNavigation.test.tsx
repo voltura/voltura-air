@@ -5,7 +5,6 @@ import { useAppNavigation } from "./useAppNavigation";
 
 const trackpadSettings = {
   enableSplitMode: false,
-  splitShowModeButtons: true,
   splitShowStatusRow: true
 };
 
@@ -58,6 +57,22 @@ function renderNavigation(onEnterRemote: () => void, strict = false) {
 }
 
 describe("useAppNavigation remote entry ownership", () => {
+  it("uses the effective host appearance setting to hide both mode-button rows", () => {
+    const { result } = renderHook(() => useAppNavigation({
+      fourthMode: "dictation",
+      isPaired: true,
+      onEnterRemote: vi.fn(),
+      presentationAvailable: true,
+      showModeButtons: false,
+      supportsGestureDebug: false,
+      trackpadSettings
+    }));
+
+    expect(result.current.isModeButtonsVisible).toBe(false);
+    expect(result.current.isBottomModeNavigationVisible).toBe(false);
+    expect(result.current.shellClassName).toContain("mode-buttons-hidden");
+  });
+
   it("runs remote entry only for actual transitions while preserving active-tab collapse", () => {
     const onEnterRemote = vi.fn();
     const { result } = renderNavigation(onEnterRemote);
@@ -104,6 +119,34 @@ describe("useAppNavigation remote entry ownership", () => {
 });
 
 describe("useAppNavigation split orientation", () => {
+  it("reclaims hidden split chrome and anchors its quick selector to the trackpad", () => {
+    configureTouchScreen(1200, 800, "landscape-primary");
+    const { result } = renderHook(() => useAppNavigation({
+      fourthMode: "dictation",
+      isPaired: true,
+      onEnterRemote: vi.fn(),
+      presentationAvailable: true,
+      supportsGestureDebug: false,
+      trackpadSettings: {
+        ...trackpadSettings,
+        enableSplitMode: true,
+        splitShowStatusRow: false
+      }
+    }));
+
+    act(() => { result.current.selectModeTab("trackpad"); });
+
+    expect(result.current.shellClassName).toContain("split-mode-active");
+    expect(result.current.shellClassName).not.toContain("split-show-header");
+    expect(result.current.shellClassName).not.toContain("split-show-mode-buttons");
+    expect(result.current.showTrackpadCompactModeSelector).toBe(true);
+
+    act(() => { result.current.toggleModeSelector("trackpad"); });
+
+    expect(result.current.isModeSelectorOpen).toBe(true);
+    expect(result.current.modeSelectorAnchor).toBe("trackpad");
+  });
+
   it("keeps Split mode off when a portrait touch screen only loses viewport height", () => {
     configureTouchScreen(800, 1200, "portrait-primary");
     const { result } = renderHook(() => useAppNavigation({

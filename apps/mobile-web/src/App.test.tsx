@@ -108,6 +108,7 @@ function mockConnection(overrides: Partial<ReturnType<typeof useVolturaAirConnec
     renamePc: vi.fn(),
     renameDevice: vi.fn(),
     setHostCustomPointer: vi.fn(),
+    setHostShowModeButtons: vi.fn(),
     setHostPointerSpeed: vi.fn(),
     ...overrides
   });
@@ -485,7 +486,6 @@ describe("App header and mode navigation", () => {
     localStorage.setItem("voltura-air.trackpadSettings.client-a.pc-a", JSON.stringify({
       enableSplitMode: true,
       splitTrackpadPlacement: "left",
-      splitShowModeButtons: true,
       splitShowStatusRow: true
     }));
 
@@ -493,7 +493,7 @@ describe("App header and mode navigation", () => {
 
     expect(document.querySelector(".app-shell")?.classList).toContain("split-mode-active");
     expect(document.querySelector(".app-shell")?.classList).toContain("split-show-mode-buttons");
-    expect(document.querySelector(".app-shell")?.classList).toContain("split-show-status-row");
+    expect(document.querySelector(".app-shell")?.classList).toContain("split-show-header");
     expect(document.querySelector(".split-mode-shell")?.classList).toContain("split-trackpad-left");
   });
 });

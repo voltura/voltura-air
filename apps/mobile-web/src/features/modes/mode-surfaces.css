@@ -94,6 +94,23 @@
   touch-action: manipulation;
 }
 
+.trackpad-compact-mode-selector {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 7;
+}
+
+.trackpad-compact-mode-selector .compact-mode-button {
+  display: inline-flex;
+}
+
+.trackpad-compact-mode-selector .mode-selector-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+}
+
 .trackpad-mode.expanded .trackpad-expand-button {
   top: max(10px, env(safe-area-inset-top));
   right: max(10px, env(safe-area-inset-right));

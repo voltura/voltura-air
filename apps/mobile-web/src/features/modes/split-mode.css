@@ -12,36 +12,34 @@
   }
 
   .app-shell.split-mode-active .top-bar,
-  .app-shell.split-mode-active .tabs,
+  .app-shell.split-mode-active .top-mode-tabs,
   .app-shell.split-mode-active .volume-control {
     display: none;
   }
 
-  .app-shell.split-mode-active.split-show-status-row .top-bar {
+  .app-shell.split-mode-active.split-show-header .top-bar {
     display: grid;
-    grid-template-columns: minmax(0, 1fr);
   }
 
-  .app-shell.split-mode-active.split-show-status-row .brand-group {
-    display: none;
-  }
-
-  .app-shell.split-mode-active.split-show-status-row .status {
-    justify-content: flex-start;
+  .app-shell.split-mode-active.split-show-header,
+  .app-shell.split-mode-active.split-show-mode-buttons {
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 10px;
   }
 
   .app-shell.split-mode-active.split-show-mode-buttons .top-mode-tabs {
     display: grid;
   }
 
-  .app-shell.split-mode-active.split-show-status-row,
-  .app-shell.split-mode-active.split-show-mode-buttons {
-    grid-template-rows: auto minmax(0, 1fr);
-    gap: 10px;
+  .app-shell.split-mode-active.split-show-header.split-show-mode-buttons {
+    grid-template-rows: auto auto minmax(0, 1fr);
   }
 
-  .app-shell.split-mode-active.split-show-status-row.split-show-mode-buttons {
-    grid-template-rows: auto auto minmax(0, 1fr);
+  /* When both split chrome rows are absent, reclaim their tracks even though
+     the general landscape shell rules are loaded later in the cascade. */
+  .app-shell.split-mode-active:not(.split-show-header, .split-show-mode-buttons) {
+    grid-template-rows: minmax(0, 1fr);
+    gap: 0;
   }
 
   .split-mode-shell {

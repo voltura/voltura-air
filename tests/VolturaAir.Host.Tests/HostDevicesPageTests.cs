@@ -213,12 +213,20 @@ public sealed partial class HostUiLayoutTests
                 window.UpdateLayout();
                 var trackpad = FindVisualDescendants<Expander>(device)
                     .Single(expander => string.Equals(expander.Header as string, "Trackpad profile", StringComparison.Ordinal));
+                var appearance = FindVisualDescendants<Expander>(device)
+                    .Single(expander => string.Equals(expander.Header as string, "Appearance", StringComparison.Ordinal));
                 var permissions = FindVisualDescendants<Expander>(device)
                     .Single(expander => string.Equals(expander.Header as string, "Permissions", StringComparison.Ordinal));
 
                 trackpad.IsExpanded = true;
                 DoWpfEvents();
                 Assert.True(trackpad.IsExpanded);
+                Assert.False(permissions.IsExpanded);
+
+                appearance.IsExpanded = true;
+                DoWpfEvents();
+                Assert.True(appearance.IsExpanded);
+                Assert.False(trackpad.IsExpanded);
                 Assert.False(permissions.IsExpanded);
 
                 permissions.IsExpanded = true;
@@ -271,6 +279,8 @@ public sealed partial class HostUiLayoutTests
                 window.UpdateLayout();
                 var trackpad = FindVisualDescendants<Expander>(device)
                     .Single(expander => string.Equals(expander.Header as string, "Trackpad profile", StringComparison.Ordinal));
+                var appearance = FindVisualDescendants<Expander>(device)
+                    .Single(expander => string.Equals(expander.Header as string, "Appearance", StringComparison.Ordinal));
                 var permissions = FindVisualDescendants<Expander>(device)
                     .Single(expander => string.Equals(expander.Header as string, "Permissions", StringComparison.Ordinal));
 
@@ -284,6 +294,7 @@ public sealed partial class HostUiLayoutTests
                 DoWpfEvents();
 
                 Assert.False(trackpad.IsExpanded);
+                Assert.False(appearance.IsExpanded);
                 Assert.False(permissions.IsExpanded);
             }
             finally
@@ -315,6 +326,7 @@ public sealed partial class HostUiLayoutTests
         devices,
         static _ => { },
         static _ => { },
+        static (_, value) => (value, value ?? true),
         static (_, _) => true,
         static _ => DevicePointerProfile.DefaultPointerSpeed,
         static (_, _, _) => true,
@@ -331,6 +343,8 @@ public sealed partial class HostUiLayoutTests
         "Windows / Chrome / Browser",
         DevicePointerProfile.DefaultPointerSpeed,
         false,
+        null,
+        true,
         [],
         false);
 }

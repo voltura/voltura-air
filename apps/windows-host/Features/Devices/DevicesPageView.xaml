@@ -51,6 +51,37 @@
                             <TextBlock Text="{Binding Metadata, TargetNullValue=No device metadata}"
                                        Foreground="{DynamicResource TextBrush}"
                                        TextWrapping="Wrap" />
+                            <Expander Header="Appearance"
+                                      IsExpanded="{Binding IsAppearanceExpanded, Mode=TwoWay}"
+                                      Expanded="OnAppearanceExpanded"
+                                      Style="{DynamicResource PreferencesNestedAccordionStyle}">
+                                <ui:SpacingStackPanel Spacing="{DynamicResource SpaceSm}">
+                                    <TextBlock Text="Show mode buttons"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextBrush}" />
+                                    <TextBlock Text="{Binding ModeButtonsHint}"
+                                               Foreground="{DynamicResource MutedTextBrush}"
+                                               TextWrapping="Wrap" />
+                                    <ui:SpacingWrapPanel HorizontalSpacing="{DynamicResource SpaceXs}"
+                                                         VerticalSpacing="{DynamicResource SpaceXs}">
+                                        <Button Content="{Binding UseGlobalModeButtonsLabel}"
+                                                Width="{StaticResource PermissionChoiceButtonWidth}"
+                                                Tag="{Binding UseGlobalModeButtonsVisualState}"
+                                                Style="{DynamicResource ChoiceStateButtonStyle}"
+                                                Click="OnUseGlobalModeButtons" />
+                                        <Button Content="{Binding ShowModeButtonsLabel}"
+                                                Width="{StaticResource PermissionChoiceButtonWidth}"
+                                                Tag="{Binding ShowModeButtonsVisualState}"
+                                                Style="{DynamicResource ChoiceStateButtonStyle}"
+                                                Click="OnShowModeButtons" />
+                                        <Button Content="{Binding HideModeButtonsLabel}"
+                                                Width="{StaticResource PermissionChoiceButtonWidth}"
+                                                Tag="{Binding HideModeButtonsVisualState}"
+                                                Style="{DynamicResource ChoiceStateButtonStyle}"
+                                                Click="OnHideModeButtons" />
+                                    </ui:SpacingWrapPanel>
+                                </ui:SpacingStackPanel>
+                            </Expander>
                             <Expander Header="Trackpad profile"
                                       IsExpanded="{Binding IsTrackpadExpanded, Mode=TwoWay}"
                                       Expanded="OnTrackpadExpanded"

@@ -49,6 +49,7 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
         AppLaunchSettings.Changed += OnStatusChanged;
         AppTextDestinationSettings.Changed += OnStatusChanged;
         AppPointerSettings.Changed += OnStatusChanged;
+        AppAppearanceSettings.Changed += OnStatusChanged;
         _workstationLockPolicy.Changed += OnStatusChanged;
         _awakeService.StateChanged += OnStatusChanged;
         _worker = ProcessAsync();
@@ -78,6 +79,7 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
         AppLaunchSettings.Changed -= OnStatusChanged;
         AppTextDestinationSettings.Changed -= OnStatusChanged;
         AppPointerSettings.Changed -= OnStatusChanged;
+        AppAppearanceSettings.Changed -= OnStatusChanged;
         _workstationLockPolicy.Changed -= OnStatusChanged;
         _awakeService.StateChanged -= OnStatusChanged;
 

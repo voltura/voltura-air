@@ -33,6 +33,8 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
 
     public int GetDevicePointerSpeed(string clientId) => GetEffectivePointerSpeed(Find(clientId));
 
+    public bool GetDeviceShowModeButtons(string clientId) => GetEffectiveShowModeButtons(Find(clientId));
+
     public void UpsertAndSave(PairingRecord record)
     {
         Upsert(record);
@@ -118,6 +120,25 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
         }
 
         _records[index] = existing with { PointerSpeedOverride = normalized };
+        _store.Save(_records);
+        return true;
+    }
+
+    public bool SetShowModeButtonsOverride(string clientId, bool? showModeButtons)
+    {
+        var index = FindIndex(clientId);
+        if (index < 0)
+        {
+            return false;
+        }
+
+        var existing = _records[index];
+        if (existing.ShowModeButtonsOverride == showModeButtons)
+        {
+            return false;
+        }
+
+        _records[index] = existing with { ShowModeButtonsOverride = showModeButtons };
         _store.Save(_records);
         return true;
     }
@@ -214,7 +235,9 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
             record.DisplayMode,
             record.PermissionOverrides ?? new DevicePermissionOverrides(),
             record.PointerSpeedOverride,
-            GetEffectivePointerSpeed(record));
+            GetEffectivePointerSpeed(record),
+            record.ShowModeButtonsOverride,
+            GetEffectiveShowModeButtons(record));
     })];
 
     private PairedDeviceStatus[] GetDuplicateCleanupCandidatesCore() => [.. BuildDeviceStatuses()
@@ -253,7 +276,8 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
             Browser = string.IsNullOrWhiteSpace(record.Browser) ? existing.Browser : record.Browser,
             DisplayMode = string.IsNullOrWhiteSpace(record.DisplayMode) ? existing.DisplayMode : record.DisplayMode,
             PermissionOverrides = existing.PermissionOverrides,
-            PointerSpeedOverride = existing.PointerSpeedOverride
+            PointerSpeedOverride = existing.PointerSpeedOverride,
+            ShowModeButtonsOverride = existing.ShowModeButtonsOverride
         };
     }
 
@@ -319,6 +343,9 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
 
     private static int GetEffectivePointerSpeed(PairingRecord? record) =>
         record?.PointerSpeedOverride ?? AppPointerSettings.GetDefaultPointerSpeed();
+
+    private static bool GetEffectiveShowModeButtons(PairingRecord? record) =>
+        record?.ShowModeButtonsOverride ?? AppAppearanceSettings.ShowModeButtons();
 
     private static string SummarizeDevices(IEnumerable<string> deviceNames)
     {

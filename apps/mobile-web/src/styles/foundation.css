@@ -189,6 +189,7 @@ svg {
   grid-template-rows: auto minmax(0, 1fr);
 }
 
+
 .top-bar,
 .tabs,
 .command-row,
@@ -477,16 +478,17 @@ button span {
   }
 }
 
-.app-shell.mode-tabs-collapsed .top-mode-tabs {
-  display: none;
-}
-
 .app-shell.bottom-mode-navigation-hidden {
   --mode-bottom-safe-area: var(--bottom-safe-area-inset);
 
   padding-bottom: 0;
 }
 
-.app-shell.mode-tabs-collapsed .compact-mode-button {
+.app-shell.mode-tabs-collapsed .top-mode-tabs {
+  display: none;
+}
+
+.app-shell.mode-tabs-collapsed .compact-mode-button,
+.app-shell.mode-buttons-hidden .compact-mode-button {
   display: inline-flex;
 }

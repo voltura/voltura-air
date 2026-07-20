@@ -125,7 +125,7 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
           <div className="drawer-tool-list">
             {props.toolOptions.filter(({ id }) => id !== "presentation" || props.presentationAvailable).map(({ id, Icon, label }) => {
               return (
-                <button key={id} type="button" onClick={() => props.onOpenTool?.(id)}>
+                <button key={id} type="button" onClick={() => props.onOpenMode?.(id)}>
                   <Icon aria-hidden="true" />
                   <span>{label}</span>
                 </button>
@@ -190,7 +190,7 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
         </SettingsSectionDetails>
 
         <SettingsSectionDetails section="appearance" label="Appearance" isOpen={openSection === "appearance"} onToggle={toggleSection}>
-          <AppearanceSettingsSection setThemeMode={props.setThemeMode} themeMode={props.themeMode} />
+          <AppearanceSettingsSection setHostShowModeButtons={props.setHostShowModeButtons} setThemeMode={props.setThemeMode} showModeButtons={props.showModeButtons} themeMode={props.themeMode} />
         </SettingsSectionDetails>
 
         <SettingsSectionDetails section="split" label="Split mode" isOpen={openSection === "split"} onToggle={toggleSection}>

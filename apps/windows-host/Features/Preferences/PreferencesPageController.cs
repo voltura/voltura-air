@@ -115,6 +115,7 @@ internal sealed class PreferencesPageController
 
     private void AddAppearanceSettings(StackPanel parent)
     {
+        parent.Children.Add(_visuals.CreateLabel("Theme"));
         var activeTheme = AppThemeSettings.GetMode();
         var systemTheme = _visuals.CreateSegmentButton("System", activeTheme == AppThemeMode.System);
         var lightTheme = _visuals.CreateSegmentButton("Light", activeTheme == AppThemeMode.Light);
@@ -124,6 +125,11 @@ internal sealed class PreferencesPageController
         lightTheme.Click += (_, _) => SetThemeMode(AppThemeMode.Light);
         darkTheme.Click += (_, _) => SetThemeMode(AppThemeMode.Dark);
         parent.Children.Add(HostVisualFactory.CreateSegmentRow(systemTheme, lightTheme, darkTheme));
+        parent.Children.Add(_visuals.CreateLabel("Device"));
+        var showModeButtons = _visuals.CreateCheckBox("Show mode buttons", AppAppearanceSettings.ShowModeButtons());
+        showModeButtons.Checked += (_, _) => AppAppearanceSettings.SetShowModeButtons(true);
+        showModeButtons.Unchecked += (_, _) => AppAppearanceSettings.SetShowModeButtons(false);
+        parent.Children.Add(showModeButtons);
     }
 
     private void AddTrackpadSettings(StackPanel parent)

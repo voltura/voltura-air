@@ -402,7 +402,7 @@ approved unfinished work.
 ### Menu and text transfer
 
 - The hamburger drawer is a **Menu** with separate **Tools** and **Settings** groups.
-- Dictation, **Send text to PC**, and **Get text from PC** can be opened directly from Menu without changing the fourth-mode preference. Presentation is added only while the host advertises its enabled alpha capability.
+- Trackpad, Keyboard, Remote, and the configured fourth mode appear first in Menu > Tools in mode-tab order. Dictation, **Send text to PC**, and **Get text from PC** can also be opened directly from Menu without changing the fourth-mode preference. Presentation is added only while the host advertises its enabled alpha capability.
 - Trackpad, Keyboard, and Remote remain fixed primary modes. The fourth mode can
   be configured as Dictation, Send text to PC, or Get text from PC and defaults
   to Dictation. Presentation is available while its alpha capability is enabled.
@@ -435,7 +435,9 @@ approved unfinished work.
 - Activates in landscape at wider viewport sizes.
 - Has a dedicated Split mode settings category for enabling and configuring the layout.
 - Lets the user place the trackpad on the left or right.
-- Lets the user independently show or hide the mode buttons and connection status row.
-- Hides mode buttons and the status row by default to maximize usable space.
+- Shows the complete header (menu, Voltura Air branding, and connection status) by default. The saved per-device **Show header in split mode** choice controls that complete row.
+- Uses the host Appearance **Show mode buttons** preference in every orientation. It is enabled globally by default and each paired device can inherit it or explicitly show or hide mode buttons.
+- A user can still tap the currently active mode button to temporarily collapse the mode buttons to the quick selector for the current session.
+- When both the split header and mode buttons are hidden, the compact mode selector stays at the trackpad pane's upper-left corner.
 - Hides volume control in split mode.
 - Keeps the keyboard pane scrollable while keeping the trackpad pane fixed.

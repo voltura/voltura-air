@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
-import { getModeDefinition, getModeTabs, type AppTab, type MainAppTab, type ToolAppTab } from "./appModeTabs";
+import { getModeDefinition, getModeTabs, type AppTab, type MainAppTab } from "./appModeTabs";
 import type { AppSettings } from "../foundation/settings/appSettings";
 import type { TrackpadSettings } from "../foundation/input/gestures";
 import { getStableScreenOrientation, supportsSplitModeLayout } from "./splitModeLayout";
 
 type NavigationTrackpadSettings = Pick<
   TrackpadSettings,
-  "enableSplitMode" | "splitShowModeButtons" | "splitShowStatusRow"
+  "enableSplitMode" | "splitShowStatusRow"
 >;
 
 interface AppNavigationOptions {
@@ -14,9 +14,12 @@ interface AppNavigationOptions {
   isPaired: boolean;
   onEnterRemote: () => void;
   presentationAvailable: boolean;
+  showModeButtons?: boolean;
   supportsGestureDebug: boolean;
   trackpadSettings: NavigationTrackpadSettings;
 }
+
+export type ModeSelectorAnchor = "header" | "trackpad";
 
 export interface AppNavigation {
   activeModeTab: ReturnType<typeof getModeDefinition> | undefined;
@@ -24,20 +27,23 @@ export interface AppNavigation {
   closeModeSelector: () => void;
   closeTransientSurfaces: () => void;
   isBottomModeNavigationVisible: boolean;
+  isModeButtonsVisible: boolean;
   isModeSelectorOpen: boolean;
+  modeSelectorAnchor: ModeSelectorAnchor | null;
   isRemoteUtilityPanelOpen: boolean;
   isSettingsOpen: boolean;
   modeTabs: ReturnType<typeof getModeTabs>;
   openGestureDebug: () => void;
   openSettings: () => void;
-  openToolFromMenu: (tool: ToolAppTab) => void;
-  selectModeTab: (tab: MainAppTab, source?: "tabs" | "selector" | "settings") => void;
+  openModeFromMenu: (mode: MainAppTab) => void;
+  selectModeTab: (tab: MainAppTab, source?: "tabs" | "selector" | "settings" | "menu") => void;
   setIsRemoteUtilityPanelOpen: Dispatch<SetStateAction<boolean>>;
   setIsSettingsOpen: Dispatch<SetStateAction<boolean>>;
   shellClassName: string;
   shouldShowSplitMode: boolean;
+  showTrackpadCompactModeSelector: boolean;
   tab: AppTab;
-  toggleModeSelector: () => void;
+  toggleModeSelector: (anchor?: ModeSelectorAnchor) => void;
 }
 
 export function useAppNavigation({
@@ -45,6 +51,7 @@ export function useAppNavigation({
   isPaired,
   onEnterRemote,
   presentationAvailable,
+  showModeButtons = true,
   supportsGestureDebug,
   trackpadSettings
 }: AppNavigationOptions): AppNavigation {
@@ -52,7 +59,7 @@ export function useAppNavigation({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [canUseSplitMode, setCanUseSplitMode] = useState(readSplitModeSupport);
   const [areModeTabsCollapsed, setAreModeTabsCollapsed] = useState(false);
-  const [isModeSelectorOpen, setIsModeSelectorOpen] = useState(false);
+  const [modeSelectorAnchor, setModeSelectorAnchor] = useState<ModeSelectorAnchor | null>(null);
   const [isRemoteUtilityPanelOpen, setIsRemoteUtilityPanelOpen] = useState(false);
   const modeTabs = useMemo(() => getModeTabs(fourthMode, presentationAvailable), [fourthMode, presentationAvailable]);
 
@@ -73,16 +80,17 @@ export function useAppNavigation({
     : requestedTab === "presentation" && !presentationAvailable
       ? "dictation"
       : requestedTab;
+  const effectiveModeSelectorAnchor = tab === "debug" ? null : modeSelectorAnchor;
+  const effectiveModeSelectorOpen = effectiveModeSelectorAnchor !== null;
   const effectiveModeTabsCollapsed = tab === "debug" ? false : areModeTabsCollapsed;
-  const effectiveModeSelectorOpen = tab === "debug" ? false : isModeSelectorOpen;
   const effectiveRemoteUtilityPanelOpen = tab === "remote" && isRemoteUtilityPanelOpen;
 
-  const selectModeTab = (nextTab: MainAppTab, source: "tabs" | "selector" | "settings" = "tabs") => {
+  const selectModeTab = (nextTab: MainAppTab, source: "tabs" | "selector" | "settings" | "menu" = "tabs") => {
     if (tab === nextTab) {
-      if (source !== "settings") {
-        setAreModeTabsCollapsed(source === "selector" ? false : true);
+      if (source !== "settings" && source !== "menu") {
+        setAreModeTabsCollapsed(source === "tabs");
       }
-      setIsModeSelectorOpen(false);
+      setModeSelectorAnchor(null);
       return;
     }
 
@@ -93,37 +101,36 @@ export function useAppNavigation({
     setRequestedTab(nextTab);
     setIsRemoteUtilityPanelOpen(false);
     setAreModeTabsCollapsed(false);
-    setIsModeSelectorOpen(false);
+    setModeSelectorAnchor(null);
   };
 
-  const openToolFromMenu = (tool: ToolAppTab) => {
-    if (tool === "presentation" && !presentationAvailable) {
+  const openModeFromMenu = (mode: MainAppTab) => {
+    if (mode === "presentation" && !presentationAvailable) {
       return;
     }
 
-    setRequestedTab(tool);
-    setIsRemoteUtilityPanelOpen(false);
-    setAreModeTabsCollapsed(false);
-    setIsModeSelectorOpen(false);
+    selectModeTab(mode, "menu");
     setIsSettingsOpen(false);
   };
 
   const openGestureDebug = () => {
     setRequestedTab("debug");
-    setIsModeSelectorOpen(false);
+    setModeSelectorAnchor(null);
     setIsRemoteUtilityPanelOpen(false);
     setAreModeTabsCollapsed(false);
     setIsSettingsOpen(false);
   };
 
   const closeTransientSurfaces = () => {
-    setIsModeSelectorOpen(false);
+    setModeSelectorAnchor(null);
     setIsSettingsOpen(false);
   };
 
   const shouldShowSplitMode = canUseSplitMode && trackpadSettings.enableSplitMode && (tab === "trackpad" || tab === "keyboard");
   const canShowModeNavigation = isPaired;
-  const isBottomModeNavigationVisible = canShowModeNavigation && !effectiveModeTabsCollapsed && !effectiveRemoteUtilityPanelOpen;
+  const isModeButtonsVisible = canShowModeNavigation && showModeButtons && !effectiveModeTabsCollapsed && !effectiveRemoteUtilityPanelOpen;
+  const isBottomModeNavigationVisible = isModeButtonsVisible;
+  const showTrackpadCompactModeSelector = shouldShowSplitMode && !trackpadSettings.splitShowStatusRow && !isModeButtonsVisible && canShowModeNavigation;
   const shellClassName = [
     "app-shell",
     isBottomModeNavigationVisible && "has-mode-navigation",
@@ -135,32 +142,38 @@ export function useAppNavigation({
     tab === "clipboard-read" && "clipboard-read-active",
     effectiveRemoteUtilityPanelOpen && "remote-utility-open",
     shouldShowSplitMode && "split-mode-active",
-    shouldShowSplitMode && trackpadSettings.splitShowModeButtons && "split-show-mode-buttons",
-    shouldShowSplitMode && trackpadSettings.splitShowStatusRow && "split-show-status-row",
+    !showModeButtons && "mode-buttons-hidden",
     effectiveModeTabsCollapsed && "mode-tabs-collapsed",
+    shouldShowSplitMode && trackpadSettings.splitShowStatusRow && "split-show-header",
+    shouldShowSplitMode && isModeButtonsVisible && "split-show-mode-buttons",
     effectiveModeSelectorOpen && "mode-selector-open"
   ].filter(Boolean).join(" ");
 
   return {
     activeModeTab: tab === "debug" ? undefined : getModeDefinition(tab),
     canShowModeNavigation,
-    closeModeSelector: () => { setIsModeSelectorOpen(false); },
+    closeModeSelector: () => { setModeSelectorAnchor(null); },
     closeTransientSurfaces,
     isBottomModeNavigationVisible,
+    isModeButtonsVisible,
     isModeSelectorOpen: effectiveModeSelectorOpen,
     isRemoteUtilityPanelOpen: effectiveRemoteUtilityPanelOpen,
     isSettingsOpen,
     modeTabs,
+    modeSelectorAnchor: effectiveModeSelectorAnchor,
     openGestureDebug,
     openSettings: () => { setIsSettingsOpen(true); },
-    openToolFromMenu,
+    openModeFromMenu,
     selectModeTab,
     setIsRemoteUtilityPanelOpen,
     setIsSettingsOpen,
     shellClassName,
     shouldShowSplitMode,
+    showTrackpadCompactModeSelector,
     tab,
-    toggleModeSelector: () => { setIsModeSelectorOpen((current) => !current); }
+    toggleModeSelector: (anchor = "header") => {
+      setModeSelectorAnchor((current) => current === anchor ? null : anchor);
+    }
   };
 }
 

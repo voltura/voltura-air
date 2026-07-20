@@ -35,12 +35,7 @@ export function SplitModeSettings({ settings, updateSetting }: SplitModeSettings
       </div>
 
       <label className="toggle-row">
-        <span>Show mode buttons in split mode</span>
-        <input type="checkbox" checked={settings.splitShowModeButtons} onChange={(event) => { updateSetting("splitShowModeButtons", event.target.checked); }} />
-      </label>
-
-      <label className="toggle-row">
-        <span>Show status row in split mode</span>
+        <span>Show header in split mode</span>
         <input type="checkbox" checked={settings.splitShowStatusRow} onChange={(event) => { updateSetting("splitShowStatusRow", event.target.checked); }} />
       </label>
     </>

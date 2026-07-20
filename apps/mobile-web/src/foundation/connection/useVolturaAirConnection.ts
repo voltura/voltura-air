@@ -138,14 +138,14 @@ export function useVolturaAirConnection() {
 
   const {
     addManualPc, beginNewPairing, connectManualPc, disconnectActivePc, forgetPc,
-    pairWithToken, renameDevice, renamePc, selectPc, setHostCustomPointer, setHostPointerSpeed
+    pairWithToken, renameDevice, renamePc, selectPc, setHostCustomPointer, setHostShowModeButtons, setHostPointerSpeed
   } = usePairedPcActions({
     activePcId, clearRuntimeState, clientId, deviceNameRef, pairedPcs, screenshotMode, send,
     setActivePcId, setDeviceName, setHostStatus, setLastConnectionError, setMessage, setPairedPcs,
     setPairingAttempt, setPendingManualPc, setState, socketRef, state
   });
 
-  return { state, message: displayMessage, send, requestAudioState, requestPowerAction, requestAwakeChange, requestAppLaunch, requestPresentationCommand, requestUrlOpen, requestTextTransfer, requestClipboardRead, pendingPresentationCommand, presentationResult, presentationCapability, pendingTextTransfer, pendingClipboardRead, textTransferResult, clipboardReadResult, clipboardText, setClipboardText, clipboardReadPermission, pendingAppLaunchId, appLaunchResult, pendingUrlOpen, urlOpenResult, urlOpenCapability, pendingPowerAction, powerActionResult, pendingAwakeChange, awakeResult, clientId, deviceName, activePc, pairedPcs, reconnectablePcs, audioState, awakeCapability, powerCapabilities, supportsGestureDebug, supportsSleep, supportsVolumeControl, supportsRemoteLaunch, supportsTextTransfer, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, beginNewPairing, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice, setHostCustomPointer, setHostPointerSpeed };
+  return { state, message: displayMessage, send, requestAudioState, requestPowerAction, requestAwakeChange, requestAppLaunch, requestPresentationCommand, requestUrlOpen, requestTextTransfer, requestClipboardRead, pendingPresentationCommand, presentationResult, presentationCapability, pendingTextTransfer, pendingClipboardRead, textTransferResult, clipboardReadResult, clipboardText, setClipboardText, clipboardReadPermission, pendingAppLaunchId, appLaunchResult, pendingUrlOpen, urlOpenResult, urlOpenCapability, pendingPowerAction, powerActionResult, pendingAwakeChange, awakeResult, clientId, deviceName, activePc, pairedPcs, reconnectablePcs, audioState, awakeCapability, powerCapabilities, supportsGestureDebug, supportsSleep, supportsVolumeControl, supportsRemoteLaunch, supportsTextTransfer, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, beginNewPairing, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice, setHostCustomPointer, setHostShowModeButtons, setHostPointerSpeed };
 }
 
 

@@ -126,6 +126,7 @@ internal sealed class HostStatusPayloadFactory(
             new TextTransferTargetMetadata(textDestination.Mode, textDestination.DisplayName, textDestination.Available),
             pairingManager.GetDevicePointerSpeed(clientId),
             AppPointerSettings.GetCustomPointer().Enabled,
+            pairingManager.GetDeviceShowModeButtons(clientId),
             developerMode,
             developerMode ? DeveloperSessionId : null,
             isInputBlockedByElevation());

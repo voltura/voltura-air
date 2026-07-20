@@ -15,6 +15,7 @@ public partial class DevicesPageView : WpfUserControl
         IReadOnlyList<DeviceListItem> devices,
         Action<string> deviceExpanded,
         Action<string> deviceCollapsed,
+        Func<string, bool?, (bool? Override, bool Effective)?> setShowModeButtons,
         Func<string, int, bool> savePointerSpeed,
         Func<string, int?> useGlobalPointerSpeed,
         Func<string, DevicePermissionKind, bool?, bool> setPermission,
@@ -26,6 +27,7 @@ public partial class DevicesPageView : WpfUserControl
         DeviceList.ItemsSource = devices;
         _deviceExpanded = deviceExpanded;
         _deviceCollapsed = deviceCollapsed;
+        _setShowModeButtons = setShowModeButtons;
         _savePointerSpeed = savePointerSpeed;
         _useGlobalPointerSpeed = useGlobalPointerSpeed;
         _setPermission = setPermission;
@@ -38,6 +40,7 @@ public partial class DevicesPageView : WpfUserControl
 
     private readonly Action<string> _deviceExpanded;
     private readonly Action<string> _deviceCollapsed;
+    private readonly Func<string, bool?, (bool? Override, bool Effective)?> _setShowModeButtons;
     private readonly Func<string, int, bool> _savePointerSpeed;
     private readonly Func<string, int?> _useGlobalPointerSpeed;
     private readonly Func<string, DevicePermissionKind, bool?, bool> _setPermission;
@@ -106,6 +109,14 @@ public partial class DevicesPageView : WpfUserControl
         }
     }
 
+    private void OnAppearanceExpanded(object sender, RoutedEventArgs eventArgs)
+    {
+        if (sender is Expander { DataContext: DeviceListItem device })
+        {
+            device.OpenAppearance();
+        }
+    }
+
     private void OnPermissionsExpanded(object sender, RoutedEventArgs eventArgs)
     {
         if (sender is Expander { DataContext: DeviceListItem device })
@@ -122,6 +133,25 @@ public partial class DevicesPageView : WpfUserControl
             {
                 device.ApplyPointerSpeed(pointerSpeed, hasOverride: false);
             }
+        }
+    }
+
+    private void OnUseGlobalModeButtons(object sender, RoutedEventArgs eventArgs) => SetModeButtons(sender, null);
+
+    private void OnShowModeButtons(object sender, RoutedEventArgs eventArgs) => SetModeButtons(sender, true);
+
+    private void OnHideModeButtons(object sender, RoutedEventArgs eventArgs) => SetModeButtons(sender, false);
+
+    private void SetModeButtons(object sender, bool? value)
+    {
+        if (sender is not WpfButton button || FindAncestor<DeviceListItem>(button) is not { } device)
+        {
+            return;
+        }
+
+        if (_setShowModeButtons(device.ClientId, value) is { } profile)
+        {
+            device.ApplyShowModeButtons(profile.Override, profile.Effective);
         }
     }
 

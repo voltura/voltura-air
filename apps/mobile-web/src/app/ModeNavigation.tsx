@@ -1,3 +1,4 @@
+import { ChevronDown } from "lucide-react";
 import type { AppTab, MainAppTab, ModeDefinition } from "./appModeTabs";
 
 interface ModeNavigationProps {
@@ -40,5 +41,29 @@ export function ModeSelector({ modeTabs, onClose, onSelect, tab }: ModeSelectorP
         ))}
       </div>
     </>
+  );
+}
+
+interface CompactModeSelectorButtonProps {
+  activeMode: ModeDefinition;
+  isOpen: boolean;
+  onToggle: () => void;
+}
+
+export function CompactModeSelectorButton({ activeMode, isOpen, onToggle }: CompactModeSelectorButtonProps) {
+  const ActiveModeIcon = activeMode.Icon;
+  return (
+    <button
+      className="compact-mode-button"
+      type="button"
+      aria-expanded={isOpen}
+      aria-haspopup="menu"
+      aria-label="Change mode"
+      title={`Change mode (${activeMode.label})`}
+      onClick={onToggle}
+    >
+      <ActiveModeIcon aria-hidden="true" />
+      <ChevronDown aria-hidden="true" />
+    </button>
   );
 }

@@ -13,7 +13,7 @@ import { PairingGate, usePairingController } from "./features/pairing";
 import { useManualReconnectFeedback } from "./foundation/connection/useManualReconnectFeedback";
 import { AppHeader } from "./app/AppHeader";
 import { GlobalOperationFeedback } from "./app/GlobalOperationFeedback";
-import { ModeNavigation } from "./app/ModeNavigation";
+import { CompactModeSelectorButton, ModeNavigation, ModeSelector } from "./app/ModeNavigation";
 import { useAppTheme } from "./app/useAppTheme";
 import { useAppNavigation } from "./app/useAppNavigation";
 import { InputRecoveryNotice } from "./features/input-recovery";
@@ -52,6 +52,7 @@ export function App() {
     renamePc,
     renameDevice,
     setHostCustomPointer,
+    setHostShowModeButtons,
     setHostPointerSpeed
   } = connection;
   const { setThemeMode, themeMode } = useAppTheme();
@@ -71,6 +72,7 @@ export function App() {
 
   const hostPointerSpeed = hostStatus?.pointerSpeed;
   const hostDefaultRemoteMode = hostStatus?.defaultRemoteMode;
+  const showModeButtons = hostStatus?.showModeButtons ?? true;
   const pcSettings = usePcSettings(clientId, activePc?.id ?? null, hostDefaultRemoteMode, hostPointerSpeed);
   const {
     appSettings,
@@ -108,17 +110,20 @@ export function App() {
     closeModeSelector,
     closeTransientSurfaces,
     isBottomModeNavigationVisible,
+    isModeButtonsVisible,
     isModeSelectorOpen,
     isSettingsOpen,
+    modeSelectorAnchor,
     modeTabs,
     openGestureDebug,
     openSettings,
-    openToolFromMenu,
+    openModeFromMenu,
     selectModeTab,
     setIsRemoteUtilityPanelOpen,
     setIsSettingsOpen,
     shellClassName,
     shouldShowSplitMode,
+    showTrackpadCompactModeSelector,
     tab,
     toggleModeSelector
   } = useAppNavigation({
@@ -127,7 +132,8 @@ export function App() {
     onEnterRemote: () => { maybeLaunchRemoteMode(remoteSettings.mode, remoteSettings); },
     presentationAvailable,
     supportsGestureDebug,
-    trackpadSettings
+    trackpadSettings,
+    showModeButtons
   });
   const {
     forgetPcAndSettings,
@@ -213,13 +219,13 @@ export function App() {
           canShowModeNavigation={canShowModeNavigation}
           connectionPcName={connectionPcName}
           developerMode={developerMode}
-          isModeSelectorOpen={isModeSelectorOpen}
+          isModeSelectorOpen={isModeSelectorOpen && modeSelectorAnchor === "header"}
           message={message}
           modeTabs={modeTabs}
           onCloseModeSelector={closeModeSelector}
           onOpenSettings={openSettings}
           onSelectMode={(nextTab) => { selectModeTab(nextTab, "selector"); }}
-          onToggleModeSelector={toggleModeSelector}
+          onToggleModeSelector={() => { toggleModeSelector("header"); }}
           refreshInstalledApp={refreshInstalledApp}
           state={state}
           tab={tab}
@@ -259,7 +265,7 @@ export function App() {
           keyboardSettings={keyboardSettings}
           onClose={() => { setIsSettingsOpen(false); }}
           onOpenGestureDebug={supportsGestureDebug ? openGestureDebug : undefined}
-          onOpenTool={openToolFromMenu}
+          onOpenMode={openModeFromMenu}
           onPairingQrSelected={onPairingQrSelected}
           onManualHostSubmit={connectManualHost}
           pairedPcs={pairedPcs}
@@ -274,15 +280,18 @@ export function App() {
           scanPairingQr={scanPairingQr}
           selectPc={selectPc}
           setHostCustomPointer={setHostCustomPointer}
+          setHostShowModeButtons={setHostShowModeButtons}
           setThemeMode={setThemeMode}
           showGestureDebug={supportsGestureDebug}
           supportsRemoteLaunch={supportsRemoteLaunch}
           themeMode={themeMode}
-          toolOptions={getAvailableToolModeIds(presentationAvailable).map((id) => ({
-            id,
-            label: toolModeDefinitions[id].ariaLabel,
-            Icon: toolModeDefinitions[id].Icon
-          }))}
+          showModeButtons={showModeButtons}
+          toolOptions={[
+            ...modeTabs,
+            ...getAvailableToolModeIds(presentationAvailable)
+              .filter((id) => !modeTabs.some((mode) => mode.id === id))
+              .map((id) => toolModeDefinitions[id])
+          ].map(({ id, ariaLabel, Icon }) => ({ id, label: ariaLabel, Icon }))}
           trackpadSettings={effectiveTrackpadSettings}
           updateKeyboardSetting={updateKeyboardSetting}
           updateRemoteSetting={updateRemoteSetting}
@@ -290,7 +299,7 @@ export function App() {
           updateTrackpadSetting={updateTrackpadSetting}
         />
 
-        {canShowModeNavigation && <ModeNavigation className="tabs top-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTab} />}
+        {isModeButtonsVisible && <ModeNavigation className="tabs top-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTab} />}
 
         <ModeWorkspace
           appSettings={appSettings}
@@ -301,6 +310,24 @@ export function App() {
           onRemoteUtilityPanelOpenChange={setIsRemoteUtilityPanelOpen}
           remoteSettings={remoteSettings}
           shouldShowSplitMode={shouldShowSplitMode}
+          showTrackpadCompactModeSelector={showTrackpadCompactModeSelector}
+          trackpadCompactModeSelector={showTrackpadCompactModeSelector && activeModeTab ? (
+            <>
+              <CompactModeSelectorButton
+                activeMode={activeModeTab}
+                isOpen={isModeSelectorOpen && modeSelectorAnchor === "trackpad"}
+                onToggle={() => { toggleModeSelector("trackpad"); }}
+              />
+              {isModeSelectorOpen && modeSelectorAnchor === "trackpad" && (
+                <ModeSelector
+                  modeTabs={modeTabs}
+                  tab={tab}
+                  onClose={closeModeSelector}
+                  onSelect={(nextTab) => { selectModeTab(nextTab, "selector"); }}
+                />
+              )}
+            </>
+          ) : undefined}
           showVolumeControl={trackpadSettings.showVolumeControl}
           tab={tab}
           trackpadSettings={effectiveTrackpadSettings}

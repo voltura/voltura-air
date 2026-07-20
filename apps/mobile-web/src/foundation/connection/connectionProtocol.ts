@@ -56,6 +56,7 @@ export function normalizeHostStatus(metadata: HostStatusMetadata | undefined): H
     webClientBuildId: normalizeOptionalString(metadata.webClientBuildId),
     pcName: normalizeOptionalString(metadata.pcName),
     pointerSpeed: normalizePointerSpeed(metadata.pointerSpeed),
+    showModeButtons: typeof metadata.showModeButtons === "boolean" ? metadata.showModeButtons : undefined,
     customPointerEnabled: typeof metadata.customPointerEnabled === "boolean" ? metadata.customPointerEnabled : undefined,
     selectedAdapterName: normalizeOptionalString(metadata.selectedAdapterName),
     selectedIp: normalizeOptionalString(metadata.selectedIp),
@@ -244,7 +245,7 @@ function isHostStatusMetadata(value: unknown): boolean {
   }
 
   const stringFields = ["developerSessionId", "hostVersion", "webClientBuildId", "pcName", "selectedAdapterName", "selectedIp", "webSocketUrl"];
-  const booleanFields = ["developerMode", "customPointerEnabled", "inputBlockedByElevation"];
+  const booleanFields = ["developerMode", "customPointerEnabled", "inputBlockedByElevation", "showModeButtons"];
   return isOptional(value, "appLaunchActions", isAppLaunchActions) &&
     isOptional(value, "defaultRemoteMode", isRemoteModeId) &&
     stringFields.every((field) => isOptional(value, field, isString)) &&

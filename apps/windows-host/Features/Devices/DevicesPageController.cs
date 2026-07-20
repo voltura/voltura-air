@@ -18,6 +18,7 @@ internal sealed class DevicesPageController(
             GetDeviceItems(),
             ExpandDevice,
             CollapseDevice,
+            SetDeviceShowModeButtonsOverride,
             SetDevicePointerSpeedOverride,
             UseGlobalPointerSpeed,
             SetDevicePermission,
@@ -40,6 +41,7 @@ internal sealed class DevicesPageController(
             if (profiles.TryGetValue(item.ClientId, out var profile))
             {
                 item.ApplyPointerSpeed(profile.PointerSpeed, profile.PointerSpeedOverride is not null);
+                item.ApplyShowModeButtons(profile.ShowModeButtonsOverride, profile.ShowModeButtons);
             }
         }
     }
@@ -66,6 +68,13 @@ internal sealed class DevicesPageController(
     private bool SetDevicePointerSpeedOverride(string clientId, int pointerSpeed)
     {
         return pairingManager.SetDevicePointerSpeedOverride(clientId, pointerSpeed);
+    }
+
+    private (bool? Override, bool Effective)? SetDeviceShowModeButtonsOverride(string clientId, bool? showModeButtons)
+    {
+        pairingManager.SetDeviceShowModeButtonsOverride(clientId, showModeButtons);
+        var device = pairingManager.GetDevices().FirstOrDefault(item => item.ClientId == clientId);
+        return device is null ? null : (device.ShowModeButtonsOverride, device.ShowModeButtons);
     }
 
     private int? UseGlobalPointerSpeed(string clientId)
@@ -184,6 +193,8 @@ internal sealed class DevicesPageController(
                 GetDeviceMetadataText(device) is { Length: > 0 } metadata ? metadata : "No device metadata",
                 device.PointerSpeed,
                 device.PointerSpeedOverride is not null,
+                device.ShowModeButtonsOverride,
+                device.ShowModeButtons,
                 GetPermissionItems(device, globalPermissions),
                 device.ClientId == _expandedClientId))];
     }

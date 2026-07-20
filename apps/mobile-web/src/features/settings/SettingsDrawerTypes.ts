@@ -8,9 +8,10 @@ import type { RemoteSettings } from "../../foundation/settings/remoteSettings";
 
 export type ThemeMode = "system" | "light" | "dark";
 export type SettingsSection = "connection" | "custom-pointer" | "trackpad" | "keyboard" | "split" | "remote" | "appearance" | "app";
+export type SettingsModeId = "trackpad" | "keyboard" | "remote" | FourthMode;
 
 export interface SettingsToolOption {
-  id: FourthMode;
+  id: SettingsModeId;
   label: string;
   Icon: ComponentType<{ "aria-hidden"?: "true" }>;
 }
@@ -32,7 +33,7 @@ export interface SettingsDrawerProps {
   onPairingQrSelected: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
   onManualHostSubmit: (target: ManualConnectionTarget) => void;
   onOpenGestureDebug?: (() => void) | undefined;
-  onOpenTool?: (tool: FourthMode) => void;
+  onOpenMode?: (mode: SettingsModeId) => void;
   pairedPcs: PcProfile[];
   pairingQrInputRef: RefObject<HTMLInputElement | null>;
   pairingScanMessage: string;
@@ -45,10 +46,12 @@ export interface SettingsDrawerProps {
   scanPairingQr: () => void;
   selectPc: (pcId: string) => void;
   setHostCustomPointer?: ((enabled: boolean) => void) | undefined;
+  setHostShowModeButtons?: ((showModeButtons: boolean) => void) | undefined;
   setThemeMode: Dispatch<SetStateAction<ThemeMode>>;
   showGestureDebug: boolean;
   supportsRemoteLaunch: boolean;
   themeMode: ThemeMode;
+  showModeButtons?: boolean | undefined;
   toolOptions: readonly SettingsToolOption[];
   trackpadSettings: TrackpadSettings;
   updateAppSetting: <Key extends keyof AppSettings>(key: Key, value: AppSettings[Key]) => void;

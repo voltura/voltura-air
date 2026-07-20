@@ -240,6 +240,28 @@ public sealed class PairingManagerTests
     }
 
     [Fact]
+    public void DeviceModeButtonOverrideWinsOverTheGlobalDefaultAndPersists()
+    {
+        using var store = new TempPairingStore();
+        using var key = new PairingTestKey();
+        var manager = new PairingManager(store.Store);
+        manager.AcceptPairing("client-a", "Phone", manager.CreatePairingToken(), reconnectPublicKey: key.PublicKey);
+
+        Assert.True(manager.GetDeviceShowModeButtons("client-a"));
+        Assert.True(manager.SetDeviceShowModeButtonsOverride("client-a", false));
+
+        var device = Assert.Single(manager.GetDevices());
+        Assert.False(manager.GetDeviceShowModeButtons("client-a"));
+        Assert.False(device.ShowModeButtons);
+        Assert.False(device.ShowModeButtonsOverride);
+        Assert.False(Assert.Single(store.Store.Load()).ShowModeButtonsOverride);
+
+        Assert.True(manager.SetDeviceShowModeButtonsOverride("client-a", null));
+        Assert.True(manager.GetDeviceShowModeButtons("client-a"));
+        Assert.Null(Assert.Single(store.Store.Load()).ShowModeButtonsOverride);
+    }
+
+    [Fact]
     public void DisconnectDeviceRemovesOnlySelectedDevice()
     {
         using var store = new TempPairingStore();

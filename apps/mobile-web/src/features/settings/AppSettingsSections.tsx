@@ -2,7 +2,7 @@ import { Download, RefreshCw } from "lucide-react";
 import { getEffectiveFourthMode } from "../../foundation/settings/appSettings";
 import type { SettingsDrawerProps } from "./SettingsDrawerTypes";
 
-export function AppearanceSettingsSection({ setThemeMode, themeMode }: Pick<SettingsDrawerProps, "setThemeMode" | "themeMode">) {
+export function AppearanceSettingsSection({ setHostShowModeButtons, setThemeMode, showModeButtons = true, themeMode }: Pick<SettingsDrawerProps, "setHostShowModeButtons" | "setThemeMode" | "showModeButtons" | "themeMode">) {
   return (
     <div className="setting-group">
       <span>Theme</span>
@@ -11,6 +11,7 @@ export function AppearanceSettingsSection({ setThemeMode, themeMode }: Pick<Sett
         <button type="button" className={themeMode === "light" ? "active" : ""} onClick={() => { setThemeMode("light"); }}>Light</button>
         <button type="button" className={themeMode === "dark" ? "active" : ""} onClick={() => { setThemeMode("dark"); }}>Dark</button>
       </div>
+      <label className="toggle-row"><span>Show mode buttons</span><input type="checkbox" checked={showModeButtons} onChange={(event) => { setHostShowModeButtons?.(event.target.checked); }} /></label>
     </div>
   );
 }

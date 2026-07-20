@@ -288,6 +288,9 @@ internal sealed class WebSocketSessionHandler(
             case "pointer.speed.set":
                 pairingManager.SetDevicePointerSpeedOverride(clientId, ProtocolMessageFields.GetInt(root, "pointerSpeed"));
                 return true;
+            case "appearance.mode-buttons.set":
+                pairingManager.SetDeviceShowModeButtonsOverride(clientId, root.GetProperty("showModeButtons").GetBoolean());
+                return true;
             case "custom.pointer.set":
                 ApplyCustomPointer(clientId, root.GetProperty("enabled").GetBoolean());
                 return true;

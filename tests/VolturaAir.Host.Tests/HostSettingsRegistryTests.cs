@@ -41,6 +41,18 @@ public sealed class HostSettingsRegistryTests : IsolatedHostSettingsTest
     }
 
     [Fact]
+    public void ModeButtonsAreEnabledByDefaultAndCanBeDisabled()
+    {
+        Assert.True(AppAppearanceSettings.ShowModeButtons());
+
+        AppAppearanceSettings.SetShowModeButtons(false);
+        Assert.False(AppAppearanceSettings.ShowModeButtons());
+
+        AppAppearanceSettings.SetShowModeButtons(true);
+        Assert.True(AppAppearanceSettings.ShowModeButtons());
+    }
+
+    [Fact]
     public void CloseToTrayNotificationIsOnlyMarkedOnce()
     {
         Assert.True(AppWindowSettings.TryMarkCloseToTrayNotificationShown());

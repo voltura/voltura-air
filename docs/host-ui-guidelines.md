@@ -43,7 +43,7 @@ adaptive states, AI-assisted UI work, and the UI definition of done.
 - Devices is a full-width virtualized accordion list. Every collapsed device
   header keeps its name, connection-status pill, and recent activity visible;
   opening one device closes the others. Its metadata appears directly below the
-  header, while Trackpad profile and Permissions use the shared nested accordion
+  header, while Appearance, Trackpad profile, and Permissions use the shared nested accordion
   treatment and start collapsed. Permission choices use wrapping compact cards
   so each permission label and its choices stay together without creating a
   separate narrow detail column. The page list owns scrolling and its bottom
@@ -63,9 +63,10 @@ adaptive states, AI-assisted UI work, and the UI definition of done.
 - Device disclosure state is local to the current Devices-page visit. Keep it
   while editing on that page, but collapse every device after navigating away
   and returning so the overview is restored.
-- Trackpad profile and Permissions form a single-open nested disclosure group
-  within each device. Opening either child accordion collapses the other.
-  Collapsing the parent device also collapses both children, so reopening a
+- Appearance, Trackpad profile, and Permissions form a single-open nested disclosure group
+  within each device. Opening any child accordion collapses the other two.
+  Appearance offers the three-state **Use global**, **Show**, and **Hide** mode-button
+  preference. Collapsing the parent device also collapses all children, so reopening a
   device always starts with its nested sections folded.
 - In the Devices list, Up and Down select a device, Enter or Space expands or
   collapses it, and Tab moves through the expanded device controls. Accessibility

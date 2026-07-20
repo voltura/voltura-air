@@ -1,8 +1,8 @@
-import { ChevronDown, Circle, Menu, MousePointer2 } from "lucide-react";
+import { Circle, Menu, MousePointer2 } from "lucide-react";
 import type { MainAppTab, ModeDefinition } from "./appModeTabs";
 import type { ConnectionState } from "../foundation/connection/connectionTypes";
 import { useDeveloperRefreshLongPress } from "./useDeveloperRefreshLongPress";
-import { ModeSelector } from "./ModeNavigation";
+import { CompactModeSelectorButton, ModeSelector } from "./ModeNavigation";
 
 interface AppHeaderProps {
   activeMode?: ModeDefinition | undefined;
@@ -38,7 +38,6 @@ export function AppHeader({
   tab
 }: AppHeaderProps) {
   const developerBrandLongPress = useDeveloperRefreshLongPress(developerMode, refreshInstalledApp);
-  const ActiveModeIcon = activeMode?.Icon;
 
   return (
     <>
@@ -51,20 +50,7 @@ export function AppHeader({
             <MousePointer2 aria-hidden="true" />
             <span>Voltura Air</span>
           </div>
-          {canShowModeNavigation && ActiveModeIcon && activeMode && (
-            <button
-              className="compact-mode-button"
-              type="button"
-              aria-expanded={isModeSelectorOpen}
-              aria-haspopup="menu"
-              aria-label="Change mode"
-              title={`Change mode (${activeMode.label})`}
-              onClick={onToggleModeSelector}
-            >
-              <ActiveModeIcon aria-hidden="true" />
-              <ChevronDown aria-hidden="true" />
-            </button>
-          )}
+          {canShowModeNavigation && activeMode && <CompactModeSelectorButton activeMode={activeMode} isOpen={isModeSelectorOpen} onToggle={onToggleModeSelector} />}
         </div>
         <div className={`status ${state}`} title={message}>
           <Circle aria-hidden="true" />

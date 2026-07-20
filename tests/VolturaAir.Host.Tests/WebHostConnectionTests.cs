@@ -159,6 +159,7 @@ public sealed class WebHostConnectionTests : WebHostServiceTestBase
         Assert.Equal("status", status.GetProperty("type").GetString());
         Assert.True(status.GetProperty("connected").GetBoolean());
         Assert.Equal(AppPointerSettings.GetDefaultPointerSpeed(), status.GetProperty("host").GetProperty("pointerSpeed").GetInt32());
+        Assert.True(status.GetProperty("host").GetProperty("showModeButtons").GetBoolean());
         Assert.Equal("audio.state", audioState.GetProperty("type").GetString());
         Assert.Equal(38, audioState.GetProperty("volume").GetInt32());
         Assert.False(audioState.GetProperty("muted").GetBoolean());
@@ -293,6 +294,66 @@ public sealed class WebHostConnectionTests : WebHostServiceTestBase
         Assert.Equal(45, Assert.Single(fixture.Manager.GetDevices()).PointerSpeedOverride);
         Assert.Equal("status", pushedStatus.RootElement.GetProperty("type").GetString());
         Assert.Equal(45, pushedStatus.RootElement.GetProperty("host").GetProperty("pointerSpeed").GetInt32());
+    }
+
+    [Fact]
+    public async Task WebSocketStoresClientModeButtonVisibilityAsDeviceOverrideAndBroadcastsIt()
+    {
+        await using var fixture = await WebHostFixture.StartAsync();
+        using var key = new PairingTestKey();
+        var clientId = $"client-{Guid.NewGuid():N}";
+        using var socket = await ConnectAsync(fixture.WebHost);
+
+        var paired = await SendAndReceiveAsync(socket, new
+        {
+            type = "pair.hello",
+            clientId,
+            deviceName = "Phone",
+            pairToken = fixture.Manager.CreatePairingToken(),
+            reconnectPublicKey = key.PublicKey
+        });
+        await SendAsync(socket, new { type = "appearance.mode-buttons.set", showModeButtons = false });
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var pushedStatusText = await ReceiveTextAsync(socket, timeout.Token);
+        using var pushedStatus = JsonDocument.Parse(pushedStatusText);
+
+        Assert.Equal("pair.accepted", paired.GetProperty("type").GetString());
+        Assert.False(fixture.Manager.GetDeviceShowModeButtons(clientId));
+        Assert.False(Assert.Single(fixture.Manager.GetDevices()).ShowModeButtonsOverride);
+        Assert.Equal("status", pushedStatus.RootElement.GetProperty("type").GetString());
+        Assert.False(pushedStatus.RootElement.GetProperty("host").GetProperty("showModeButtons").GetBoolean());
+    }
+
+    [Fact]
+    public async Task WebSocketBroadcastsGlobalModeButtonVisibilityChanges()
+    {
+        await using var fixture = await WebHostFixture.StartAsync();
+        using var key = new PairingTestKey();
+        var clientId = $"client-{Guid.NewGuid():N}";
+        using var socket = await ConnectAsync(fixture.WebHost);
+
+        _ = await SendAndReceiveAsync(socket, new
+        {
+            type = "pair.hello",
+            clientId,
+            deviceName = "Phone",
+            pairToken = fixture.Manager.CreatePairingToken(),
+            reconnectPublicKey = key.PublicKey
+        });
+        try
+        {
+            AppAppearanceSettings.SetShowModeButtons(false);
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            var pushedStatusText = await ReceiveTextAsync(socket, timeout.Token);
+            using var pushedStatus = JsonDocument.Parse(pushedStatusText);
+
+            Assert.Equal("status", pushedStatus.RootElement.GetProperty("type").GetString());
+            Assert.False(pushedStatus.RootElement.GetProperty("host").GetProperty("showModeButtons").GetBoolean());
+        }
+        finally
+        {
+            AppAppearanceSettings.SetShowModeButtons(true);
+        }
     }
 
     private static async Task WaitForConnectionCleanupAsync(WebHostService webHost)

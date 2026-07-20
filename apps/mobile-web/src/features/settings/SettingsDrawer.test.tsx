@@ -331,13 +331,21 @@ describe("SettingsDrawer", () => {
     fireEvent.click(screen.getByText("Split mode"));
     fireEvent.click(screen.getByRole("checkbox", { name: "Enable split mode" }));
     fireEvent.click(screen.getByRole("button", { name: "Left" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Show mode buttons in split mode" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Show status row in split mode" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Show header in split mode" }));
 
     expect(updateTrackpadSetting).toHaveBeenNthCalledWith(1, "enableSplitMode", true);
     expect(updateTrackpadSetting).toHaveBeenNthCalledWith(2, "splitTrackpadPlacement", "left");
-    expect(updateTrackpadSetting).toHaveBeenNthCalledWith(3, "splitShowModeButtons", true);
-    expect(updateTrackpadSetting).toHaveBeenNthCalledWith(4, "splitShowStatusRow", true);
+    expect(updateTrackpadSetting).toHaveBeenNthCalledWith(3, "splitShowStatusRow", false);
+  });
+
+  it("sets the current device mode-button preference from Appearance", () => {
+    const setHostShowModeButtons = vi.fn();
+    render(<SettingsDrawer {...baseProps} setHostShowModeButtons={setHostShowModeButtons} showModeButtons />);
+
+    fireEvent.click(screen.getByText("Appearance"));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Show mode buttons" }));
+
+    expect(setHostShowModeButtons).toHaveBeenCalledExactlyOnceWith(false);
   });
 
   it("updates haptic feedback when browser vibration is available", () => {

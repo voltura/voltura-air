@@ -394,6 +394,7 @@ internal sealed record HostStatusMetadata(
     TextTransferTargetMetadata TextTransferTarget,
     int PointerSpeed,
     bool CustomPointerEnabled,
+    bool ShowModeButtons,
     bool DeveloperMode,
     string? DeveloperSessionId,
     bool InputBlockedByElevation);

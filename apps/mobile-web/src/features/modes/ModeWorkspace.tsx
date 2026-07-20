@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { AppTab } from "./modeTypes";
 import type { AppSettings } from "../../foundation/settings/appSettings";
 import type { TrackpadSettings } from "../../foundation/input/gestures";
@@ -64,7 +64,9 @@ interface ModeWorkspaceProps {
   remoteSettings: RemoteSettings;
   shouldShowSplitMode: boolean;
   showVolumeControl: boolean;
+  showTrackpadCompactModeSelector: boolean;
   tab: AppTab;
+  trackpadCompactModeSelector?: ReactNode | undefined;
   trackpadSettings: TrackpadSettings;
 }
 
@@ -77,8 +79,10 @@ export function ModeWorkspace({
   onRemoteUtilityPanelOpenChange,
   remoteSettings,
   shouldShowSplitMode,
+  showTrackpadCompactModeSelector,
   showVolumeControl,
   tab,
+  trackpadCompactModeSelector,
   trackpadSettings
 }: ModeWorkspaceProps) {
   const [optimisticAudioState, setOptimisticAudioState] = useState<{
@@ -157,6 +161,7 @@ export function ModeWorkspace({
         onTouchMove,
         onTouchStart,
         supportsVolumeControl: connection.supportsVolumeControl,
+        compactModeSelector: showTrackpadCompactModeSelector ? trackpadCompactModeSelector : undefined,
         trackpadSettings
       }}
       keyboardMode={{

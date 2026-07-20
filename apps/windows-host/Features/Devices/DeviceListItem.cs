@@ -13,12 +13,17 @@ internal sealed class DeviceListItem(
     string metadata,
     int pointerSpeed,
     bool hasPointerSpeedOverride,
+    bool? showModeButtonsOverride,
+    bool showModeButtons,
     IReadOnlyList<DevicePermissionItem> permissions,
     bool isExpanded) : INotifyPropertyChanged
 {
     private int _pointerSpeed = pointerSpeed;
     private bool _hasPointerSpeedOverride = hasPointerSpeedOverride;
+    private bool? _showModeButtonsOverride = showModeButtonsOverride;
+    private bool _showModeButtons = showModeButtons;
     private bool _isExpanded = isExpanded;
+    private bool _isAppearanceExpanded;
     private bool _isTrackpadExpanded;
     private bool _isPermissionsExpanded;
 
@@ -51,6 +56,20 @@ internal sealed class DeviceListItem(
         ? $"Override active. Effective speed: {PointerSpeed}%."
         : $"Using global default: {PointerSpeed}%.";
     public IReadOnlyList<DevicePermissionItem> Permissions { get; } = permissions;
+    public bool? ShowModeButtonsOverride => _showModeButtonsOverride;
+    public bool ShowModeButtons => _showModeButtons;
+    public bool IsModeButtonsInherited => ShowModeButtonsOverride is null;
+    public bool IsModeButtonsExplicitlyShown => ShowModeButtonsOverride == true;
+    public bool IsModeButtonsExplicitlyHidden => ShowModeButtonsOverride == false;
+    public string ModeButtonsHint => IsModeButtonsInherited
+        ? $"Using global default: {(ShowModeButtons ? "shown" : "hidden")}."
+        : $"Override active: {(ShowModeButtons ? "shown" : "hidden")}.";
+    public string UseGlobalModeButtonsVisualState => IsModeButtonsInherited ? "Selected" : "Default";
+    public string ShowModeButtonsVisualState => IsModeButtonsExplicitlyShown || (IsModeButtonsInherited && ShowModeButtons) ? "Selected" : "Default";
+    public string HideModeButtonsVisualState => IsModeButtonsExplicitlyHidden || (IsModeButtonsInherited && !ShowModeButtons) ? "Selected" : "Default";
+    public string UseGlobalModeButtonsLabel => IsModeButtonsInherited ? "\u2713 Use global" : "Use global";
+    public string ShowModeButtonsLabel => IsModeButtonsExplicitlyShown || (IsModeButtonsInherited && ShowModeButtons) ? "\u2713 Show" : "Show";
+    public string HideModeButtonsLabel => IsModeButtonsExplicitlyHidden || (IsModeButtonsInherited && !ShowModeButtons) ? "\u2713 Hide" : "Hide";
     public bool IsExpanded
     {
         get => _isExpanded;
@@ -77,6 +96,21 @@ internal sealed class DeviceListItem(
             }
 
             _isTrackpadExpanded = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool IsAppearanceExpanded
+    {
+        get => _isAppearanceExpanded;
+        set
+        {
+            if (_isAppearanceExpanded == value)
+            {
+                return;
+            }
+
+            _isAppearanceExpanded = value;
             OnPropertyChanged();
         }
     }
@@ -111,20 +145,53 @@ internal sealed class DeviceListItem(
         OnPropertyChanged(nameof(PointerSpeedHint));
     }
 
+    public void ApplyShowModeButtons(bool? overrideValue, bool effectiveValue)
+    {
+        if (_showModeButtonsOverride == overrideValue && _showModeButtons == effectiveValue)
+        {
+            return;
+        }
+
+        _showModeButtonsOverride = overrideValue;
+        _showModeButtons = effectiveValue;
+        OnPropertyChanged(nameof(ShowModeButtonsOverride));
+        OnPropertyChanged(nameof(ShowModeButtons));
+        OnPropertyChanged(nameof(IsModeButtonsInherited));
+        OnPropertyChanged(nameof(IsModeButtonsExplicitlyShown));
+        OnPropertyChanged(nameof(IsModeButtonsExplicitlyHidden));
+        OnPropertyChanged(nameof(ModeButtonsHint));
+        OnPropertyChanged(nameof(UseGlobalModeButtonsVisualState));
+        OnPropertyChanged(nameof(ShowModeButtonsVisualState));
+        OnPropertyChanged(nameof(HideModeButtonsVisualState));
+        OnPropertyChanged(nameof(UseGlobalModeButtonsLabel));
+        OnPropertyChanged(nameof(ShowModeButtonsLabel));
+        OnPropertyChanged(nameof(HideModeButtonsLabel));
+    }
+
+    public void OpenAppearance()
+    {
+        IsTrackpadExpanded = false;
+        IsPermissionsExpanded = false;
+        IsAppearanceExpanded = true;
+    }
+
     public void OpenTrackpad()
     {
+        IsAppearanceExpanded = false;
         IsPermissionsExpanded = false;
         IsTrackpadExpanded = true;
     }
 
     public void OpenPermissions()
     {
+        IsAppearanceExpanded = false;
         IsTrackpadExpanded = false;
         IsPermissionsExpanded = true;
     }
 
     public void CollapseChildren()
     {
+        IsAppearanceExpanded = false;
         IsTrackpadExpanded = false;
         IsPermissionsExpanded = false;
     }

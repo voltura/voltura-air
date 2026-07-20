@@ -310,27 +310,21 @@ public sealed class PairingManager(PairingStore store)
         }
     }
 
-    public int GetDevicePointerSpeed(string clientId)
-    {
-        lock (_gate)
-        {
-            return _devices.GetDevicePointerSpeed(clientId);
-        }
-    }
+    public int GetDevicePointerSpeed(string clientId) { lock (_gate) return _devices.GetDevicePointerSpeed(clientId); }
 
-    public bool SetDevicePointerSpeedOverride(string clientId, int? pointerSpeed)
+    public bool GetDeviceShowModeButtons(string clientId) { lock (_gate) return _devices.GetDeviceShowModeButtons(clientId); }
+
+    public bool SetDevicePointerSpeedOverride(string clientId, int? pointerSpeed) =>
+        UpdateDeviceProfile(() => _devices.SetPointerSpeedOverride(clientId, pointerSpeed));
+
+    public bool SetDeviceShowModeButtonsOverride(string clientId, bool? showModeButtons) =>
+        UpdateDeviceProfile(() => _devices.SetShowModeButtonsOverride(clientId, showModeButtons));
+
+    private bool UpdateDeviceProfile(Func<bool> update)
     {
         bool changed;
-        lock (_gate)
-        {
-            changed = _devices.SetPointerSpeedOverride(clientId, pointerSpeed);
-        }
-
-        if (changed)
-        {
-            DeviceProfileChanged?.Invoke(this, EventArgs.Empty);
-        }
-
+        lock (_gate) changed = update();
+        if (changed) DeviceProfileChanged?.Invoke(this, EventArgs.Empty);
         return changed;
     }
 

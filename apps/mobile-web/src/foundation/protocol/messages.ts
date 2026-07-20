@@ -39,6 +39,11 @@ export interface PointerSpeedSetMessage {
   pointerSpeed: number;
 }
 
+export interface AppearanceModeButtonsSetMessage {
+  type: "appearance.mode-buttons.set";
+  showModeButtons: boolean;
+}
+
 export interface CustomPointerSetMessage {
   type: "custom.pointer.set";
   enabled: boolean;
@@ -105,6 +110,7 @@ export interface HostStatusMetadata {
   webClientBuildId?: string | undefined;
   pcName?: string | undefined;
   pointerSpeed?: number | undefined;
+  showModeButtons?: boolean | undefined;
   customPointerEnabled?: boolean | undefined;
   inputBlockedByElevation?: boolean | undefined;
   selectedAdapterName?: string | undefined;
@@ -366,6 +372,7 @@ export type ClientMessage =
   | HealthPingMessage
   | StatusGetMessage
   | PointerSpeedSetMessage
+  | AppearanceModeButtonsSetMessage
   | CustomPointerSetMessage
   | AudioGetMessage
   | PointerMoveMessage

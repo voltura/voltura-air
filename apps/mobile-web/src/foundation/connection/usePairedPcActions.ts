@@ -177,6 +177,13 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
     }
   }, [send, setHostStatus, state]);
 
+  const setHostShowModeButtons = useCallback((showModeButtons: boolean) => {
+    setHostStatus((current) => (current ? { ...current, showModeButtons } : current));
+    if (state === "paired") {
+      send({ type: "appearance.mode-buttons.set", showModeButtons });
+    }
+  }, [send, setHostStatus, state]);
+
   const setHostCustomPointer = useCallback((enabled: boolean) => {
     setHostStatus((current) => (current ? { ...current, customPointerEnabled: enabled } : current));
     if (state === "paired") {
@@ -195,6 +202,7 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
     renamePc,
     selectPc,
     setHostCustomPointer,
+    setHostShowModeButtons,
     setHostPointerSpeed
   };
 }

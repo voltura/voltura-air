@@ -247,14 +247,12 @@ describe("normalizeTrackpadSettings", () => {
     expect(normalizeTrackpadSettings({ enableSplitMode: true }).enableSplitMode).toBe(true);
   });
 
-  it("preserves split layout preferences", () => {
+  it("preserves the current split layout preferences while discarding the replaced mode-button setting", () => {
     expect(normalizeTrackpadSettings({
       splitTrackpadPlacement: "left",
-      splitShowModeButtons: true,
       splitShowStatusRow: true
     })).toMatchObject({
       splitTrackpadPlacement: "left",
-      splitShowModeButtons: true,
       splitShowStatusRow: true
     });
   });

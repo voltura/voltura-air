@@ -21,7 +21,6 @@ export interface TrackpadSettings {
   showVolumeControl: boolean;
   enableSplitMode: boolean;
   splitTrackpadPlacement: "left" | "right";
-  splitShowModeButtons: boolean;
   splitShowStatusRow: boolean;
   hapticFeedback: boolean;
   leftHandedButtons: boolean;
@@ -52,8 +51,7 @@ export const defaultTrackpadSettings: TrackpadSettings = {
   showVolumeControl: true,
   enableSplitMode: false,
   splitTrackpadPlacement: "right",
-  splitShowModeButtons: false,
-  splitShowStatusRow: false,
+  splitShowStatusRow: true,
   hapticFeedback: false,
   leftHandedButtons: false,
   largeClickButtons: false
@@ -76,7 +74,6 @@ export function normalizeTrackpadSettings(value: unknown): TrackpadSettings {
     showVolumeControl: typeof candidate.showVolumeControl === "boolean" ? candidate.showVolumeControl : defaultTrackpadSettings.showVolumeControl,
     enableSplitMode: typeof candidate.enableSplitMode === "boolean" ? candidate.enableSplitMode : defaultTrackpadSettings.enableSplitMode,
     splitTrackpadPlacement: candidate.splitTrackpadPlacement === "left" ? "left" : "right",
-    splitShowModeButtons: typeof candidate.splitShowModeButtons === "boolean" ? candidate.splitShowModeButtons : defaultTrackpadSettings.splitShowModeButtons,
     splitShowStatusRow: typeof candidate.splitShowStatusRow === "boolean" ? candidate.splitShowStatusRow : defaultTrackpadSettings.splitShowStatusRow,
     hapticFeedback: typeof candidate.hapticFeedback === "boolean" ? candidate.hapticFeedback : defaultTrackpadSettings.hapticFeedback,
     leftHandedButtons: typeof candidate.leftHandedButtons === "boolean" ? candidate.leftHandedButtons : defaultTrackpadSettings.leftHandedButtons,

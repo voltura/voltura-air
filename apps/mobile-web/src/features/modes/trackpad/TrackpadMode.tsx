@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useRef } from "react";
+import { useEffect, useEffectEvent, useRef, type ReactNode } from "react";
 import { Maximize2, Minimize2, MousePointer2, Volume2, VolumeX } from "lucide-react";
 import type { TrackpadSettings } from "../../../foundation/input/gestures";
 import type { AudioStateMessage } from "../../../foundation/protocol/messages";
@@ -7,6 +7,7 @@ type MouseButtonName = "left" | "right";
 
 interface TrackpadModeProps {
   audioState: AudioStateMessage | null;
+  compactModeSelector?: ReactNode | undefined;
   isExpanded: boolean;
   supportsVolumeControl: boolean;
   trackpadSettings: TrackpadSettings;
@@ -23,6 +24,7 @@ interface TrackpadModeProps {
 
 export function TrackpadMode({
   audioState,
+  compactModeSelector,
   isExpanded,
   supportsVolumeControl,
   trackpadSettings,
@@ -152,6 +154,7 @@ export function TrackpadMode({
         </div>
       )}
       <div className="trackpad-surface" onContextMenu={stopContextMenu} onTouchCancel={onTouchCancel} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+        {compactModeSelector && <div className="trackpad-compact-mode-selector">{compactModeSelector}</div>}
         <button
           className="trackpad-expand-button"
           type="button"

@@ -28,7 +28,8 @@
 
   <rect class="box" x="275" y="274" width="210" height="108" rx="10"/>
   <text class="label" x="380" y="312" text-anchor="middle">Release workflow</text>
-  <text class="small" x="380" y="338" text-anchor="middle">workflow_dispatch</text>
+  <text class="small" x="380" y="338" text-anchor="middle">version bump on main</text>
+  <text class="small" x="380" y="360" text-anchor="middle">or manual retry</text>
 
   <rect class="box" x="520" y="274" width="190" height="108" rx="10"/>
   <text class="label" x="615" y="312" text-anchor="middle">Validation</text>

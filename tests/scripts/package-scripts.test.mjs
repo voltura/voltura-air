@@ -7,6 +7,7 @@ import { commandDescriptions, findStaleDescriptions, findUndocumentedCommands } 
 const packageJson = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
 const mobilePackageJson = JSON.parse(readFileSync(new URL("../../apps/mobile-web/package.json", import.meta.url), "utf8"));
 const releaseWorkflow = readFileSync(new URL("../../.github/workflows/release.yml", import.meta.url), "utf8");
+const prepareReleaseScript = readFileSync(new URL("../../scripts/prepare-release.ps1", import.meta.url), "utf8");
 const qualityWorkflow = readFileSync(new URL("../../.github/workflows/quality.yml", import.meta.url), "utf8");
 const devScript = readFileSync(new URL("../../scripts/dev.mjs", import.meta.url), "utf8");
 const devHostScript = readFileSync(new URL("../../scripts/dev-host.mjs", import.meta.url), "utf8");
@@ -66,4 +67,24 @@ test("release publication rejects existing tags and asset replacement", () => {
   assert.match(releaseWorkflow, /"release", "create"/u);
   assert.match(releaseWorkflow, /--prerelease/u);
   assert.doesNotMatch(releaseWorkflow, /force-with-lease|tag --force|--clobber|release upload/u);
+});
+
+test("release publication derives its inputs from the root package version", () => {
+  assert.match(releaseWorkflow, /workflow_dispatch:\s*\n\s+push:/u);
+  assert.match(releaseWorkflow, /paths:\s*\n\s+- package\.json/u);
+  assert.match(releaseWorkflow, /previousVersion -eq \$version/u);
+  assert.match(releaseWorkflow, /should_publish/u);
+  assert.match(releaseWorkflow, /tag = "v\$version"/u);
+  assert.match(releaseWorkflow, /runtime=win-x64/u);
+  assert.match(releaseWorkflow, /group: release-\$\{\{ needs\.resolve-release\.outputs\.tag \}\}/u);
+  assert.doesNotMatch(releaseWorkflow, /inputs\.(release_tag|version|runtime)/u);
+  assert.doesNotMatch(releaseWorkflow, /workflow_dispatch:\s*\n\s+inputs:/u);
+});
+
+test("release preparation synchronizes version-bearing files without editing the workflow", () => {
+  assert.match(prepareReleaseScript, /\$rootPackagePath = 'package\.json'/u);
+  assert.match(prepareReleaseScript, /\$mobilePackagePath = 'apps\\mobile-web\\package\.json'/u);
+  assert.match(prepareReleaseScript, /\$packageLockPath = 'package-lock\.json'/u);
+  assert.match(prepareReleaseScript, /\$hostProjectPath = 'apps\\windows-host\\VolturaAir\.Host\.csproj'/u);
+  assert.doesNotMatch(prepareReleaseScript, /releaseWorkflowPath|release\.yml/u);
 });

@@ -86,8 +86,10 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-  Source["Prepared main commit\nversion files updated"] --> Workflow["GitHub Actions\nPublish Voltura Air release"]
-  Workflow --> Test["npm test\nhost tests\nscript/doc checks"]
+  Source["Prepared main commit\nroot package version bumped"] --> Workflow["GitHub Actions\nPublish Voltura Air release"]
+  Workflow --> Guard["Compare current and previous\npackage.json versions"]
+  Guard -->|"version changed"| Test["npm test\nhost tests\nscript/doc checks"]
+  Guard -->|"version unchanged"| Skip["Exit successfully\nno build or publication"]
   Test --> Package["package-win.ps1\nmobile build\n.NET publish\ncursor watchdog\nNSIS installers"]
   Package --> Artifacts["ZIP + installers\nartifacts/publish"]
   Artifacts --> Draft["Draft GitHub release\nmanual review before publish"]

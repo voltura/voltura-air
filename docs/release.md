@@ -10,9 +10,9 @@ npm run release -- 0.6.0
 npm run branding:generate
 ```
 
-Review, commit, and push to `main`. Run **Publish Voltura Air release**
-in GitHub Actions. It creates a draft GitHub release with generated notes and
-the release assets. Review and publish that draft, then upload the contents of
+Review, commit, and push the version bump to `main`. GitHub Actions automatically
+creates a draft GitHub release with generated notes and the release assets.
+Review and publish that draft, then upload the contents of
 `docs/site` to `voltura.se/air`. Increment every later public release (`0.6.1`,
 `0.6.2`, then `0.7.0` for the next larger milestone).
 
@@ -24,6 +24,36 @@ From the repository root, pass one semantic version to the release command:
 npm run release -- 0.6.0
 ```
 
+For the usual release sequence, use:
+
+```powershell
+npm run release:bump
+```
+
+It advances the current stable version as an odometer: `0.6.7` becomes `0.6.8`,
+`0.6.9` becomes `0.7.0`, and `0.9.9` becomes `1.0.0`. It supports one-digit
+minor and patch components only; use `npm run release -- <version>` when choosing
+another semantic version explicitly.
+
+Run the complete local release preparation, branding generation, and site
+publication sequence with:
+
+```powershell
+npm run release:full
+```
+
+To commit and push those generated release changes after the sequence completes,
+run:
+
+```powershell
+npm run release:full -- auto
+```
+
+Both full-release modes require a clean working tree before they change files or
+publish the site. Automatic mode also requires a configured Git author and
+tracking branch. It commits `Release version <version>` and runs a normal `git
+push`; it never force-pushes or includes pre-existing local changes.
+
 The command accepts semantic versions such as `0.6.0` and `0.6.0-beta.1`.
 Numeric components must fit a Windows version resource.
 
@@ -34,7 +64,6 @@ The command updates these authoritative release values together:
 - the root and mobile workspace versions in `package-lock.json`;
 - `apps/windows-host/VolturaAir.Host.csproj` `<Version>` and explicit
   `AssemblyVersion`, `FileVersion`, and `InformationalVersion` values;
-- `.github/workflows/release.yml` defaults for `release_tag` and `version`.
 
 The script validates every target before writing and stops if the expected file
 structure has changed.
@@ -118,11 +147,15 @@ powershell -ExecutionPolicy Bypass -File scripts/package-win.ps1 -Version <versi
 
 ## GitHub Actions release path
 
-Run **Publish Voltura Air release** from the prepared `main` commit. The workflow
-defaults match the version written by `npm run release`.
+Pushing a genuine root `package.json` version change to `main` runs **Publish
+Voltura Air release**. The workflow derives the release version and tag from
+that file and uses the verified `win-x64` runtime. It exits successfully without
+building or publishing when the root package version did not change. Run the
+workflow manually only to retry the version already committed in the selected
+repository revision; it has no version, tag, or runtime inputs.
 
-The workflow verifies its version and tag inputs, runs tests, packages and
-validates the Windows assets, then creates the tag and a draft GitHub release.
+The workflow runs tests, packages and validates the Windows assets, then creates
+the tag and a draft GitHub release.
 GitHub generates a commit/PR-based release-notes baseline and prepends the
 freeware notice. Review the draft's notes and release assets before publishing
 it. The workflow rejects an existing tag and fails when no commits exist since

@@ -177,7 +177,6 @@ $rootPackagePath = 'package.json'
 $mobilePackagePath = 'apps\mobile-web\package.json'
 $packageLockPath = 'package-lock.json'
 $hostProjectPath = 'apps\windows-host\VolturaAir.Host.csproj'
-$releaseWorkflowPath = '.github\workflows\release.yml'
 
 $rootPackage = Get-RepoText $rootPackagePath | ConvertFrom-Json
 $currentVersion = [string]$rootPackage.version
@@ -241,20 +240,6 @@ Set-RegexValue `
     -ExpectedCount 1 `
     -Description '.NET informational version'
 
-Set-RegexValue `
-    -RelativePath $releaseWorkflowPath `
-    -Pattern '(?<prefix>^      release_tag:[ \t]*\r?\n(?:^        [^\r\n]*\r?\n)*?^        default:[ \t]*)[^\r\n]+(?<suffix>[ \t]*\r?$)' `
-    -NewValue "v$Version" `
-    -ExpectedCount 1 `
-    -Description 'release workflow tag default'
-
-Set-RegexValue `
-    -RelativePath $releaseWorkflowPath `
-    -Pattern '(?<prefix>^      version:[ \t]*\r?\n(?:^        [^\r\n]*\r?\n)*?^        default:[ \t]*)[^\r\n]+(?<suffix>[ \t]*\r?$)' `
-    -NewValue $Version `
-    -ExpectedCount 1 `
-    -Description 'release workflow version default'
-
 $updatedRootPackage = Get-RepoText $rootPackagePath | ConvertFrom-Json
 $updatedMobilePackage = Get-RepoText $mobilePackagePath | ConvertFrom-Json
 $updatedHostProject = [xml](Get-RepoText $hostProjectPath)
@@ -279,16 +264,6 @@ if ([string]$updatedHostProject.Project.PropertyGroup.FileVersion -ne $windowsVe
 }
 if ([string]$updatedHostProject.Project.PropertyGroup.InformationalVersion -ne $Version) {
     throw "VolturaAir.Host.csproj did not validate with informational version '$Version'."
-}
-
-$updatedWorkflow = Get-RepoText $releaseWorkflowPath
-$escapedReleaseTag = [regex]::Escape("v$Version")
-$escapedVersion = [regex]::Escape($Version)
-if ($updatedWorkflow -notmatch "(?m)^        default: $escapedReleaseTag\s*$") {
-    throw "release.yml did not validate with release tag 'v$Version'."
-}
-if ($updatedWorkflow -notmatch "(?m)^        default: $escapedVersion\s*$") {
-    throw "release.yml did not validate with version '$Version'."
 }
 
 $writtenPaths = New-Object System.Collections.Generic.List[string]

@@ -37,6 +37,8 @@ export const commandDescriptions = {
   "publish:site:password": "Store the public-site deployment password securely for this user.",
   "publish:site:password:clear": "Remove the stored public-site deployment password.",
   release: "Prepare a versioned release and update its authoritative version values.",
+  "release:bump": "Advance the release version through the project's one-digit patch and minor sequence.",
+  "release:full": "Bump a release, generate branding, and publish the site; auto mode also commits and pushes a clean branch.",
   "screenshots:site": "Capture screenshots for the public documentation site.",
   "size:check": "Fail if strong source-size warnings lack current review rationales.",
   "size:report": "Report source-file size and ownership signals.",

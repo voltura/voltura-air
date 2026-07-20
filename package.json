@@ -1,7 +1,7 @@
 {
   "name": "voltura-air",
   "private": true,
-  "version": "0.6.6",
+  "version": "0.6.7",
   "license": "MIT",
   "workspaces": [
     "apps/mobile-web"
@@ -35,6 +35,8 @@
     "package:win:small": "powershell -ExecutionPolicy Bypass -File scripts/package-win.ps1 -FrameworkDependentOnly",
     "package:win:test": "powershell -ExecutionPolicy Bypass -File scripts/package-win.ps1 -NoInstallerCompression",
     "release": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1",
+    "release:bump": "node scripts/bump-release.mjs",
+    "release:full": "node scripts/release-full.mjs",
     "screenshots:site": "node scripts/capture-site-screenshots.mjs",
     "publish:site": "node scripts/publish-site.mjs",
     "publish:site:list": "node scripts/publish-site.mjs --list",

@@ -2,19 +2,11 @@ name: Publish Voltura Air release
 
 on:
   workflow_dispatch:
-    inputs:
-      release_tag:
-        description: New GitHub release tag to create
-        required: true
-        default: v0.6.6
-      version:
-        description: Version used in release asset names
-        required: true
-        default: 0.6.6
-      runtime:
-        description: .NET runtime identifier
-        required: true
-        default: win-x64
+  push:
+    branches:
+      - main
+    paths:
+      - package.json
 
 permissions:
   contents: write
@@ -24,14 +16,70 @@ env:
   DOTNET_NOLOGO: true
   NUGET_XMLDOC_MODE: skip
 
-concurrency:
-  group: release-${{ inputs.release_tag }}
-  cancel-in-progress: false
-
 jobs:
+  resolve-release:
+    name: Resolve release information
+    runs-on: windows-latest
+    outputs:
+      should_publish: ${{ steps.release.outputs.should_publish }}
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
+      runtime: ${{ steps.release.outputs.runtime }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Resolve and validate release information
+        id: release
+        shell: pwsh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PREVIOUS_SHA: ${{ github.event.before }}
+        run: |
+          $semVerPattern = '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$'
+          $version = [string]((Get-Content package.json -Raw | ConvertFrom-Json).version)
+          if ($version -notmatch $semVerPattern) {
+            throw "package.json version '$version' is not a supported semantic version."
+          }
+
+          $tag = "v$version"
+          git check-ref-format "refs/tags/$tag"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Derived release tag '$tag' is invalid."
+          }
+
+          $shouldPublish = $true
+          if ($env:EVENT_NAME -eq 'push') {
+            $previousPackageJson = git show "$env:PREVIOUS_SHA`:package.json" 2>$null
+            if ($LASTEXITCODE -eq 0) {
+              $previousVersion = [string]($previousPackageJson | ConvertFrom-Json).version
+              if ($previousVersion -eq $version) {
+                $shouldPublish = $false
+                Write-Host "package.json version remains $version; no release will be published."
+              }
+            }
+          }
+
+          "should_publish=$($shouldPublish.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "runtime=win-x64" >> $env:GITHUB_OUTPUT
+
   build-and-publish-release:
     name: Build and publish release
+    needs: resolve-release
+    if: needs.resolve-release.outputs.should_publish == 'true'
+    concurrency:
+      group: release-${{ needs.resolve-release.outputs.tag }}
+      cancel-in-progress: false
     runs-on: windows-latest
+    env:
+      RELEASE_VERSION: ${{ needs.resolve-release.outputs.version }}
+      RELEASE_TAG: ${{ needs.resolve-release.outputs.tag }}
+      RUNTIME: ${{ needs.resolve-release.outputs.runtime }}
 
     steps:
       - name: Checkout
@@ -66,25 +114,16 @@ jobs:
       - name: Install npm dependencies
         run: npm ci --no-audit --fund=false
 
-      - name: Validate release inputs
+      - name: Validate release information
         shell: pwsh
-        env:
-          RELEASE_TAG: ${{ inputs.release_tag }}
-          RELEASE_VERSION: ${{ inputs.version }}
-          RUNTIME: ${{ inputs.runtime }}
         run: |
           $packageVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
-
           if ($env:RELEASE_VERSION -ne $packageVersion) {
-            throw "Workflow version '$env:RELEASE_VERSION' does not match package.json version '$packageVersion'. Run npm run release -- <version> and commit the prepared files first."
+            throw "Resolved release version '$env:RELEASE_VERSION' does not match package.json version '$packageVersion'."
           }
 
           if ($env:RELEASE_TAG -ne "v$packageVersion") {
-            throw "Workflow release tag '$env:RELEASE_TAG' must be 'v$packageVersion'."
-          }
-
-          if ($env:RUNTIME -ne "win-x64") {
-            throw "The release workflow currently supports only the verified win-x64 runtime."
+            throw "Resolved release tag '$env:RELEASE_TAG' must be 'v$packageVersion'."
           }
 
       - name: Test
@@ -96,17 +135,11 @@ jobs:
 
       - name: Package release assets
         shell: pwsh
-        env:
-          RELEASE_VERSION: ${{ inputs.version }}
-          RUNTIME: ${{ inputs.runtime }}
         run: npm run package:win -- -Version $env:RELEASE_VERSION -Runtime $env:RUNTIME
 
       - name: Collect asset paths
         id: package
         shell: pwsh
-        env:
-          RELEASE_VERSION: ${{ inputs.version }}
-          RUNTIME: ${{ inputs.runtime }}
         run: |
           $version = $env:RELEASE_VERSION
           $runtime = $env:RUNTIME
@@ -126,8 +159,6 @@ jobs:
 
       - name: Reject an existing release tag
         shell: pwsh
-        env:
-          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           $tag = $env:RELEASE_TAG
           git check-ref-format "refs/tags/$tag"
@@ -149,7 +180,6 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           $tag = $env:RELEASE_TAG
           $zipPath = "${{ steps.package.outputs.zip_path }}"
@@ -167,7 +197,7 @@ jobs:
             "--notes", "Voltura Air is free software from Voltura AB. If it helps you, optional support links are available through Ko-fi and PayPal."
           )
 
-          if ($tag.Contains("-")) {
+          if ($env:RELEASE_VERSION.Contains("-")) {
             $releaseArguments += "--prerelease"
           }
 

@@ -13,19 +13,20 @@ interface ConfirmationDialogProps {
 
 export function ConfirmationDialog({ confirmLabel, destructive = true, description, isOpen, onCancel, onConfirm, title }: ConfirmationDialogProps) {
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
 
   return (
     <ModalDialog
       actions={(
         <>
           <button ref={confirmButtonRef} type="button" className={`confirmation-dialog-confirm${destructive ? " confirmation-dialog-destructive" : ""}`} onClick={onConfirm}>{confirmLabel}</button>
-          <button type="button" className="confirmation-dialog-cancel" onClick={onCancel}>Cancel</button>
+          <button ref={cancelButtonRef} type="button" className="confirmation-dialog-cancel" onClick={onCancel}>Cancel</button>
         </>
       )}
       actionsClassName="confirmation-dialog-actions"
       className="confirmation-dialog"
       dismissLabel="Cancel"
-      initialFocusRef={confirmButtonRef}
+      initialFocusRef={destructive ? cancelButtonRef : confirmButtonRef}
       isOpen={isOpen}
       onClose={onCancel}
       title={title}

@@ -86,6 +86,28 @@ describe("useAppNavigation remote entry ownership", () => {
     expect(result.current.isBottomModeNavigationVisible).toBe(false);
   });
 
+  it("reports active-tab collapse only for mode tab presses", () => {
+    const onActiveModeTabCollapse = vi.fn();
+    const { result } = renderHook(() => useAppNavigation({
+      fourthMode: "dictation",
+      isPaired: true,
+      onActiveModeTabCollapse,
+      onEnterRemote: vi.fn(),
+      presentationAvailable: true,
+      supportsGestureDebug: false,
+      trackpadSettings
+    }));
+
+    act(() => { result.current.selectModeTab("keyboard"); });
+    expect(onActiveModeTabCollapse).not.toHaveBeenCalled();
+
+    act(() => { result.current.selectModeTab("keyboard", "selector"); });
+    expect(onActiveModeTabCollapse).not.toHaveBeenCalled();
+
+    act(() => { result.current.selectModeTab("keyboard"); });
+    expect(onActiveModeTabCollapse).toHaveBeenCalledTimes(1);
+  });
+
   it("runs entry again after navigating away and back", () => {
     const onEnterRemote = vi.fn();
     const { result } = renderNavigation(onEnterRemote);

@@ -7,10 +7,14 @@ import { commandDescriptions, findStaleDescriptions, findUndocumentedCommands, f
 const packageJson = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
 const mobilePackageJson = JSON.parse(readFileSync(new URL("../../apps/mobile-web/package.json", import.meta.url), "utf8"));
 const releaseWorkflow = readFileSync(new URL("../../.github/workflows/release.yml", import.meta.url), "utf8");
+const packageWindowsScript = readFileSync(new URL("../../scripts/package-win.ps1", import.meta.url), "utf8");
+const verifyWindowsVersionScript = readFileSync(new URL("../../scripts/verify-windows-version.ps1", import.meta.url), "utf8");
 const prepareReleaseScript = readFileSync(new URL("../../scripts/prepare-release.ps1", import.meta.url), "utf8");
 const qualityWorkflow = readFileSync(new URL("../../.github/workflows/quality.yml", import.meta.url), "utf8");
 const devScript = readFileSync(new URL("../../scripts/dev.mjs", import.meta.url), "utf8");
 const devHostScript = readFileSync(new URL("../../scripts/dev-host.mjs", import.meta.url), "utf8");
+const hostProject = readFileSync(new URL("../../apps/windows-host/VolturaAir.Host.csproj", import.meta.url), "utf8");
+const directoryBuildProps = readFileSync(new URL("../../Directory.Build.props", import.meta.url), "utf8");
 
 test("documentation coverage runs in the root and pull-request quality gates", () => {
   assert.equal(packageJson.scripts.test.split(" && ")[0], "npm run docs:check");
@@ -66,10 +70,23 @@ test("quick phone development rebuilds the host-served client without validation
   assert.equal(mobilePackageJson.scripts["build:quick"], "vite build");
   assert.match(devScript, /process\.argv\.includes\("--quick"\)/u);
   assert.match(devScript, /childEnv\.VOLTURA_AIR_USE_VITE_CLIENT = "0"/u);
+  assert.match(devScript, /childEnv\.VOLTURA_AIR_SKIP_CURSOR_WATCHDOG_BUILD = "1"/u);
   assert.match(devScript, /delete childEnv\.VOLTURA_AIR_CLIENT_URL/u);
-  assert.match(devScript, /if \(quickStart\)[\s\S]*runCommand\("npm", \["run", "build:quick"/u);
+  assert.match(devScript, /if \(quickStart\)[\s\S]*spawnCommand\("npm", \["run", "build:quick"/u);
+  assert.doesNotMatch(devScript, /if \(quickStart\)[\s\S]*runCommand\("npm", \["run", "build:quick"/u);
+  assert.match(devScript, /persistentChildren\.push\(spawnCommand\("npm", \["run", "dev:host"\]/u);
   assert.match(devScript, /if \(!quickStart\)[\s\S]*vite\.js/u);
   assert.match(devHostScript, /if \(useViteClient\)[\s\S]*else \{\s*await waitForClientFiles\(\)/u);
+  assert.match(devHostScript, /VOLTURA_AIR_SKIP_CURSOR_WATCHDOG_BUILD/u);
+  assert.match(devHostScript, /args\.push\("-p:SkipCursorWatchdogBuild=true"\)/u);
+  assert.doesNotMatch(devHostScript, /IntermediateOutputPath/u);
+  assert.match(directoryBuildProps, /Condition="'\$\(DesignTimeBuild\)' != 'true' AND '\$\(BuildingInsideVisualStudio\)' != 'true' AND '\$\(Configuration\)' != 'Release'"/u);
+  assert.match(directoryBuildProps, /<Configuration Condition="'\$\(Configuration\)' == ''">Debug<\/Configuration>/u);
+  assert.match(directoryBuildProps, /<OutputPath>bin\\cli\\\$\(Configuration\)\\<\/OutputPath>/u);
+  assert.match(directoryBuildProps, /<IntermediateOutputPath>obj\\cli\\\$\(Configuration\)\\<\/IntermediateOutputPath>/u);
+  assert.match(releaseWorkflow, /npm run package:win -- -Version \$env:RELEASE_VERSION -Runtime \$env:RUNTIME/u);
+  assert.match(hostProject, /!\$\(MSBuildProjectFile\.EndsWith\('_wpftmp\.csproj'\)\)/u);
+  assert.match(hostProject, /'\$\(SkipCursorWatchdogBuild\)' != 'true' OR !Exists\('\$\(OutDir\)VolturaAir\.CursorWatchdog\.exe'\)/u);
 });
 
 test("full maintenance stops the host before deleting locked build outputs", () => {
@@ -100,6 +117,15 @@ test("release publication derives its inputs from the root package version", () 
   assert.match(releaseWorkflow, /group: release-\$\{\{ needs\.resolve-release\.outputs\.tag \}\}/u);
   assert.doesNotMatch(releaseWorkflow, /inputs\.(release_tag|version|runtime)/u);
   assert.doesNotMatch(releaseWorkflow, /workflow_dispatch:\s*\n\s+inputs:/u);
+});
+
+test("release packaging retains the standard Release build outputs", () => {
+  assert.equal(packageWindowsScript.match(/dotnet publish apps\/windows-host\/VolturaAir\.Host\.csproj/gu)?.length, 2);
+  assert.equal(packageWindowsScript.match(/-c Release/gu)?.length, 2);
+  assert.match(packageWindowsScript, /-o \$publishDir/u);
+  assert.match(packageWindowsScript, /-o \$frameworkDependentPublishDir/u);
+  assert.match(verifyWindowsVersionScript, /apps\\windows-host\\bin\\Release/u);
+  assert.match(directoryBuildProps, /'\$\(Configuration\)' != 'Release'/u);
 });
 
 test("release preparation synchronizes version-bearing files without editing the workflow", () => {

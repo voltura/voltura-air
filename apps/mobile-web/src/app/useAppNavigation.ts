@@ -12,6 +12,7 @@ type NavigationTrackpadSettings = Pick<
 interface AppNavigationOptions {
   fourthMode: AppSettings["fourthMode"];
   isPaired: boolean;
+  onActiveModeTabCollapse?: (() => void) | undefined;
   onEnterRemote: () => void;
   presentationAvailable: boolean;
   showModeButtons?: boolean;
@@ -49,6 +50,7 @@ export interface AppNavigation {
 export function useAppNavigation({
   fourthMode,
   isPaired,
+  onActiveModeTabCollapse,
   onEnterRemote,
   presentationAvailable,
   showModeButtons = true,
@@ -89,6 +91,9 @@ export function useAppNavigation({
     if (tab === nextTab) {
       if (source !== "settings" && source !== "menu") {
         setAreModeTabsCollapsed(source === "tabs");
+        if (source === "tabs") {
+          onActiveModeTabCollapse?.();
+        }
       }
       setModeSelectorAnchor(null);
       return;

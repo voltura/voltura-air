@@ -1,4 +1,10 @@
 <Project>
+  <PropertyGroup Condition="'$(DesignTimeBuild)' != 'true' AND '$(BuildingInsideVisualStudio)' != 'true' AND '$(Configuration)' != 'Release'">
+    <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
+    <OutputPath>bin\cli\$(Configuration)\</OutputPath>
+    <IntermediateOutputPath>obj\cli\$(Configuration)\</IntermediateOutputPath>
+  </PropertyGroup>
+
   <PropertyGroup>
     <Authors>Joakim Skoglund</Authors>
     <Company>Voltura AB</Company>

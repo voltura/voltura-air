@@ -6,6 +6,26 @@ namespace VolturaAir.Host.Tests;
 public sealed class WebHostStaticFilesTests
 {
     [Fact]
+    public void ResolveStaticRootSupportsStandardAndCliBuildLayouts()
+    {
+        var repositoryRoot = Path.Combine(Path.GetTempPath(), $"voltura-air-static-root-{Guid.NewGuid():N}");
+        var staticRoot = Path.Combine(repositoryRoot, "apps", "mobile-web", "dist");
+        var standardBase = Path.Combine(repositoryRoot, "apps", "windows-host", "bin", "Debug", "net10.0-windows");
+        var cliBase = Path.Combine(repositoryRoot, "apps", "windows-host", "bin", "cli", "Debug", "net10.0-windows");
+        Directory.CreateDirectory(staticRoot);
+
+        try
+        {
+            Assert.Equal(staticRoot, WebHostStaticFiles.ResolveStaticRoot(standardBase));
+            Assert.Equal(staticRoot, WebHostStaticFiles.ResolveStaticRoot(cliBase));
+        }
+        finally
+        {
+            Directory.Delete(repositoryRoot, recursive: true);
+        }
+    }
+
+    [Fact]
     public void ResolveStaticFilePathKeepsRequestsInsideStaticRoot()
     {
         var staticRoot = Path.Combine(Path.GetTempPath(), $"voltura-air-static-{Guid.NewGuid():N}");

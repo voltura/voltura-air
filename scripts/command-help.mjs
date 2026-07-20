@@ -23,7 +23,7 @@ export const commandDescriptions = {
   "dev": "Start the normal checked development loop for the host and mobile client.",
   "dev:bare-source": "Create a source archive without repository metadata or development files.",
   "dev:host": "Start only the Windows host development server.",
-  "dev:quick": "Rebuild the host-served client quickly, without the normal validation steps.",
+  "dev:quick": "Start the host quickly while rebuilding the host-served client without validation or watchdog compilation.",
   "dev:source": "Create a clean source archive for development handoff.",
   "dev:ui": "Open an interactive Chrome device-mode session against the real pairing flow.",
   "dev:web": "Start only the mobile web development server.",

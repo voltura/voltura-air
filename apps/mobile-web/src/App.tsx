@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getAvailableToolModeIds, toolModeDefinitions } from "./app/appModeTabs";
 import { createSettingsActions, SettingsDrawer } from "./features/settings";
 import { parsePairingLink } from "./foundation/pairing/pairingLink";
@@ -19,6 +19,8 @@ import { useAppNavigation } from "./app/useAppNavigation";
 import { InputRecoveryNotice } from "./features/input-recovery";
 import { ModeWorkspace } from "./features/modes";
 import type { AppToastMessage } from "./ui/feedback/AppToast";
+import { AnchoredHint } from "./ui/guidance/AnchoredHint";
+import { useOneShotHint } from "./ui/guidance/useOneShotHint";
 import { ConfirmationDialog } from "./ui/overlays/ConfirmationDialog";
 
 export function App() {
@@ -84,6 +86,14 @@ export function App() {
     trackpadSettings
   } = pcSettings;
   const presentationAvailable = presentationCapability !== undefined;
+  const {
+    dismiss: dismissModeSwitchHint,
+    open: isModeSwitchHintOpen,
+    showOnce: showModeSwitchHintOnce
+  } = useOneShotHint({ autoHideMs: 4000 });
+  const headerCompactModeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const trackpadCompactModeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const previousTabRef = useRef<string | null>(null);
 
   const launchRemoteAction = (action: RemoteLaunchAction) => {
     if (supportsRemoteLaunch && state === "paired") {
@@ -131,6 +141,7 @@ export function App() {
   } = useAppNavigation({
     fourthMode: appSettings.fourthMode,
     isPaired: state === "paired",
+    onActiveModeTabCollapse: showModeSwitchHintOnce,
     onEnterRemote: () => { requestRemoteModeLaunch(remoteSettings.mode, remoteSettings); },
     presentationAvailable,
     supportsGestureDebug,
@@ -187,6 +198,15 @@ export function App() {
   }), [activePc, hostStatus, lastConnectionError?.code, lastConnectionError?.message, message, pairedPcs.length, state]);
 
   const connectionPcName = state === "paired" && activePc ? getPcDisplayName(activePc) : message;
+  const modeSwitchHintAnchorRef = showTrackpadCompactModeSelector ? trackpadCompactModeButtonRef : headerCompactModeButtonRef;
+
+  useEffect(() => {
+    const tabChanged = previousTabRef.current !== null && previousTabRef.current !== tab;
+    previousTabRef.current = tab;
+    if (isModeSwitchHintOpen && (tabChanged || isModeSelectorOpen || isSettingsOpen || !canShowModeNavigation || !activeModeTab)) {
+      dismissModeSwitchHint();
+    }
+  }, [activeModeTab, canShowModeNavigation, dismissModeSwitchHint, isModeSelectorOpen, isModeSwitchHintOpen, isSettingsOpen, tab]);
 
   useEffect(() => {
     if (!transientFeedback) {
@@ -203,6 +223,7 @@ export function App() {
   };
 
   const tryReconnectPc = (pcId: string) => {
+    dismissModeSwitchHint();
     closeTransientSurfaces();
     reconnectPc(pcId);
   };
@@ -219,15 +240,25 @@ export function App() {
         <AppHeader
           activeMode={activeModeTab}
           canShowModeNavigation={canShowModeNavigation}
+          compactModeButtonRef={headerCompactModeButtonRef}
           connectionPcName={connectionPcName}
           developerMode={developerMode}
           isModeSelectorOpen={isModeSelectorOpen && modeSelectorAnchor === "header"}
           message={message}
           modeTabs={modeTabs}
           onCloseModeSelector={closeModeSelector}
-          onOpenSettings={openSettings}
-          onSelectMode={(nextTab) => { selectModeTab(nextTab, "selector"); }}
-          onToggleModeSelector={() => { toggleModeSelector("header"); }}
+          onOpenSettings={() => {
+            dismissModeSwitchHint();
+            openSettings();
+          }}
+          onSelectMode={(nextTab) => {
+            dismissModeSwitchHint();
+            selectModeTab(nextTab, "selector");
+          }}
+          onToggleModeSelector={() => {
+            dismissModeSwitchHint();
+            toggleModeSelector("header");
+          }}
           refreshInstalledApp={refreshInstalledApp}
           state={state}
           tab={tab}
@@ -267,7 +298,10 @@ export function App() {
           keyboardSettings={keyboardSettings}
           onClose={() => { setIsSettingsOpen(false); }}
           onOpenGestureDebug={supportsGestureDebug ? openGestureDebug : undefined}
-          onOpenMode={openModeFromMenu}
+          onOpenMode={(mode) => {
+            dismissModeSwitchHint();
+            openModeFromMenu(mode);
+          }}
           onPairingQrSelected={onPairingQrSelected}
           onManualHostSubmit={connectManualHost}
           pairedPcs={pairedPcs}
@@ -316,16 +350,23 @@ export function App() {
           trackpadCompactModeSelector={showTrackpadCompactModeSelector && activeModeTab ? (
             <>
               <CompactModeSelectorButton
+                buttonRef={trackpadCompactModeButtonRef}
                 activeMode={activeModeTab}
                 isOpen={isModeSelectorOpen && modeSelectorAnchor === "trackpad"}
-                onToggle={() => { toggleModeSelector("trackpad"); }}
+                onToggle={() => {
+                  dismissModeSwitchHint();
+                  toggleModeSelector("trackpad");
+                }}
               />
               {isModeSelectorOpen && modeSelectorAnchor === "trackpad" && (
                 <ModeSelector
                   modeTabs={modeTabs}
                   tab={tab}
                   onClose={closeModeSelector}
-                  onSelect={(nextTab) => { selectModeTab(nextTab, "selector"); }}
+                  onSelect={(nextTab) => {
+                    dismissModeSwitchHint();
+                    selectModeTab(nextTab, "selector");
+                  }}
                 />
               )}
             </>
@@ -334,6 +375,14 @@ export function App() {
           tab={tab}
           trackpadSettings={effectiveTrackpadSettings}
         />
+
+        <AnchoredHint
+          anchorRef={modeSwitchHintAnchorRef}
+          open={isModeSwitchHintOpen}
+          preferredPlacement={showTrackpadCompactModeSelector ? "below-start" : "below-end"}
+        >
+          Switch modes from here.
+        </AnchoredHint>
 
         {inputBlockedByElevation && (
           <InputRecoveryNotice

@@ -4,72 +4,67 @@
              xmlns:ui="clr-namespace:VolturaAir.Host.Ui">
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="{DynamicResource GridSpaceMd}" />
             <RowDefinition Height="*" />
             <RowDefinition Height="{DynamicResource GridSpaceMd}" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <ui:SpacingStackPanel Spacing="{DynamicResource SpaceMd}">
-            <TextBlock Text="Application log"
-                       FontSize="18"
-                       FontWeight="SemiBold"
-                       Foreground="{DynamicResource TextBrush}" />
-            <TextBlock Text="Filter the newest 250 sanitized remote-command and Windows-host activity entries."
-                       TextWrapping="Wrap"
-                       Foreground="{DynamicResource MutedTextBrush}" />
-            <CheckBox x:Name="LoggingToggle"
-                      Content="Write application log" />
-            <ui:SpacingWrapPanel x:Name="FiltersPanel"
-                                 HorizontalSpacing="{DynamicResource SpaceSm}"
-                                 VerticalSpacing="{DynamicResource SpaceSm}">
-                <Button x:Name="ClearFiltersButton"
-                        VerticalAlignment="Bottom"
-                        AutomationProperties.Name="Clear filters"
-                        Style="{DynamicResource CompactIconButtonStyle}"
-                        ToolTip="Clear filters">
-                    <Grid Width="16" Height="16">
-                        <Path Data="M 3,3 L 13,13"
-                              Stroke="{DynamicResource TextBrush}"
-                              StrokeThickness="1.8"
-                              StrokeStartLineCap="Round"
-                              StrokeEndLineCap="Round" />
-                        <Path Data="M 13,3 L 3,13"
-                              Stroke="{DynamicResource TextBrush}"
-                              StrokeThickness="1.8"
-                              StrokeStartLineCap="Round"
-                              StrokeEndLineCap="Round" />
-                    </Grid>
-                </Button>
-            </ui:SpacingWrapPanel>
-            <Border Padding="{DynamicResource InsetMd}"
-                    Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="{DynamicResource RadiusMedium}">
-                <TextBlock x:Name="StatusText"
+        <ScrollViewer x:Name="LogScroller"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+            <ui:SpacingStackPanel Spacing="{DynamicResource SpaceMd}">
+                <TextBlock Text="Application log"
+                           FontSize="18"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextBrush}" />
+                <TextBlock Text="Filter the newest 250 sanitized remote-command and Windows-host activity entries."
                            TextWrapping="Wrap"
                            Foreground="{DynamicResource MutedTextBrush}" />
-            </Border>
-        </ui:SpacingStackPanel>
+                <CheckBox x:Name="LoggingToggle"
+                          Content="Write application log" />
+                <ui:SpacingWrapPanel x:Name="FiltersPanel"
+                                     HorizontalSpacing="{DynamicResource SpaceSm}"
+                                     VerticalSpacing="{DynamicResource SpaceSm}">
+                    <Button x:Name="ClearFiltersButton"
+                            VerticalAlignment="Bottom"
+                            AutomationProperties.Name="Clear filters"
+                            Style="{DynamicResource CompactIconButtonStyle}"
+                            ToolTip="Clear filters">
+                        <Grid Width="16" Height="16">
+                            <Path Data="M 3,3 L 13,13"
+                                  Stroke="{DynamicResource TextBrush}"
+                                  StrokeThickness="1.8"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round" />
+                            <Path Data="M 13,3 L 3,13"
+                                  Stroke="{DynamicResource TextBrush}"
+                                  StrokeThickness="1.8"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round" />
+                        </Grid>
+                    </Button>
+                </ui:SpacingWrapPanel>
+                <Border Padding="{DynamicResource InsetMd}"
+                        Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{DynamicResource RadiusMedium}">
+                    <TextBlock x:Name="StatusText"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource MutedTextBrush}" />
+                </Border>
+                <Border Padding="{DynamicResource InsetSm}"
+                        Background="{DynamicResource WindowBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{DynamicResource RadiusMedium}">
+                    <ui:SpacingStackPanel x:Name="LogRows"
+                                          Spacing="{DynamicResource SpaceSm}" />
+                </Border>
+            </ui:SpacingStackPanel>
+        </ScrollViewer>
 
-        <Border Grid.Row="2"
-                Padding="{DynamicResource InsetSm}"
-                Background="{DynamicResource WindowBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="1"
-                CornerRadius="{DynamicResource RadiusMedium}">
-            <ScrollViewer x:Name="LogScroller"
-                          MinHeight="100"
-                          HorizontalScrollBarVisibility="Disabled"
-                          VerticalScrollBarVisibility="Auto">
-                <ui:SpacingStackPanel x:Name="LogRows"
-                                      Spacing="{DynamicResource SpaceSm}" />
-            </ScrollViewer>
-        </Border>
-
-        <ui:SpacingWrapPanel Grid.Row="4"
+        <ui:SpacingWrapPanel Grid.Row="2"
                              HorizontalSpacing="{DynamicResource SpaceSm}"
                              VerticalSpacing="{DynamicResource SpaceSm}">
             <Button x:Name="RefreshButton" Content="Refresh" />

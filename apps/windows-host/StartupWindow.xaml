@@ -23,66 +23,84 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="{DynamicResource GridSpaceXl}" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="{DynamicResource GridSpaceMd}" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="1"
-                Width="96"
-                Height="96"
-                CornerRadius="24"
-                HorizontalAlignment="Center"
-                Background="Transparent">
-            <Image x:Name="StartupAppImage"
-                   Width="96"
-                   Height="96"
-                   Stretch="Uniform"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Center" />
+        <ScrollViewer Grid.Row="0"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalContentAlignment="Center">
+            <ui:SpacingStackPanel Spacing="{DynamicResource SpaceXl}">
+                <Border Width="96"
+                        Height="96"
+                        CornerRadius="24"
+                        HorizontalAlignment="Center"
+                        Background="Transparent">
+                    <Image x:Name="StartupAppImage"
+                           Width="96"
+                           Height="96"
+                           Stretch="Uniform"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center" />
+                </Border>
+
+                <ui:SpacingStackPanel Spacing="{DynamicResource SpaceLg}">
+                    <TextBlock Text="Voltura Air"
+                               FontSize="30"
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource TextBrush}"
+                               HorizontalAlignment="Center" />
+
+                    <ui:SpacingStackPanel Spacing="{DynamicResource SpaceLg}">
+                        <ui:SpacingStackPanel x:Name="StartupProgressState" Spacing="{DynamicResource SpaceLg}">
+                            <TextBlock x:Name="StatusText"
+                                       Text="Starting connection services."
+                                       FontSize="15"
+                                       Foreground="{DynamicResource MutedTextBrush}"
+                                       HorizontalAlignment="Center" />
+                            <ProgressBar x:Name="StartupProgress"
+                                         MaxWidth="288"
+                                         Height="6"
+                                         IsIndeterminate="True" />
+                        </ui:SpacingStackPanel>
+                        <TextBlock x:Name="ErrorText"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   Visibility="Collapsed"
+                                   Foreground="{DynamicResource DangerBrush}" />
+                    </ui:SpacingStackPanel>
+                </ui:SpacingStackPanel>
+            </ui:SpacingStackPanel>
+        </ScrollViewer>
+
+        <Border x:Name="ErrorActions"
+                Grid.Row="1"
+                Visibility="Collapsed">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="{DynamicResource GridSpaceLg}" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <ui:SpacingStackPanel Grid.Row="1"
+                                      Orientation="Horizontal"
+                                      HorizontalAlignment="Center"
+                                      Spacing="{DynamicResource SpaceSm}">
+                    <Button x:Name="DisableWatchdogButton"
+                            Content="Disable watchdog and restart"
+                            MinWidth="176"
+                            Height="38"
+                            Visibility="Collapsed"
+                            Click="OnDisableWatchdogClicked" />
+                    <Button x:Name="CopyDetailsButton"
+                            Content="Copy details"
+                            MinWidth="120"
+                            Height="38"
+                            Click="OnCopyDetailsClicked" />
+                    <Button Content="Close"
+                            MinWidth="120"
+                            Height="38"
+                            Click="OnCloseClicked" />
+                </ui:SpacingStackPanel>
+            </Grid>
         </Border>
-
-        <TextBlock Grid.Row="3"
-                   Text="Voltura Air"
-                   FontSize="30"
-                   FontWeight="Bold"
-                   Foreground="{DynamicResource TextBrush}"
-                   HorizontalAlignment="Center" />
-
-        <ui:SpacingStackPanel Grid.Row="5" Spacing="{DynamicResource SpaceLg}">
-            <ui:SpacingStackPanel x:Name="StartupProgressState" Spacing="{DynamicResource SpaceLg}">
-                <TextBlock x:Name="StatusText"
-                           Text="Starting connection services."
-                           FontSize="15"
-                           Foreground="{DynamicResource MutedTextBrush}"
-                           HorizontalAlignment="Center" />
-                <ProgressBar x:Name="StartupProgress"
-                             MaxWidth="288"
-                             Height="6"
-                             IsIndeterminate="True" />
-            </ui:SpacingStackPanel>
-            <TextBlock x:Name="ErrorText"
-                       TextWrapping="Wrap"
-                       TextAlignment="Center"
-                       Visibility="Collapsed"
-                       Foreground="{DynamicResource DangerBrush}" />
-            <ui:SpacingStackPanel x:Name="ErrorActions"
-                                  Orientation="Horizontal"
-                                  HorizontalAlignment="Center"
-                                  Spacing="{DynamicResource SpaceSm}"
-                                  Visibility="Collapsed">
-                <Button x:Name="CopyDetailsButton"
-                        Content="Copy details"
-                        MinWidth="120"
-                        Height="38"
-                        Click="OnCopyDetailsClicked" />
-                <Button Content="Close"
-                        MinWidth="120"
-                        Height="38"
-                        Click="OnCloseClicked" />
-            </ui:SpacingStackPanel>
-        </ui:SpacingStackPanel>
     </Grid>
 </Window>

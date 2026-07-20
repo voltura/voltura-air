@@ -80,9 +80,14 @@ adaptive states, AI-assisted UI work, and the UI definition of done.
   animate the adjustment. Rebuilding Preferences after an in-section setting
   change must keep that section expanded at the same scroll position.
 - Diagnostics uses a top-level view switch. In the Application log view, the
-  record region is the only vertical scroller; filters, status, and Refresh,
-  Copy, Open folder, and Delete actions remain visible. Log filters apply as
-  they change, and Event supports selecting multiple values.
+  content above the bottom action row owns vertical scrolling so filters,
+  status, and records remain reachable while Refresh, Copy, Open folder, and
+  Delete actions stay visible. Log filters apply as they change, and Event
+  supports selecting multiple values.
+- The startup window retains its compact size during normal startup and expands
+  only for an error. Error actions stay outside the fallback content scroller.
+  A watchdog startup failure offers **Disable watchdog and restart** in addition
+  to copying details or closing the host.
 - Use the shared themed combo-box, text-field, and date-range styles for filters
   and retention controls. New controls must support light, dark, system, hover,
   focus, selected, disabled, warning, and error states as applicable.

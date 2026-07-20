@@ -169,6 +169,25 @@ The maintained primitive set is deliberately small:
 - toast and local status feedback;
 - loading, empty, unavailable, denied, disconnected, and error states.
 
+Anchored guidance is the shared primitive for brief contextual education. It is
+used when the product needs to point to a visible control after the user has
+triggered a state change that reveals or relocates that control. Anchored
+guidance is not a toast, because it does not report operation progress or
+success; it is not an information dialog, because the user did not request a
+detailed explanation; and it is not a notice, because it should not occupy
+durable layout space for an unavailable or recovery state.
+
+Anchored guidance stays attached to its anchor through the visible viewport. It
+uses the visual viewport when a software keyboard, browser magnification, or
+browser chrome changes the visible area, and falls back to the layout viewport
+when the visual viewport API is unavailable. It must recalculate on viewport
+resize/scroll, orientation changes, and anchor or hint size changes; preserve
+the hint while those changes settle; choose the first placement that fits the
+current visible space; and clamp within safe visible bounds when no placement
+fully fits. Feature code supplies the copy and show/dismiss policy while the
+shared primitive owns placement, pointer geometry, viewport tracking, and
+non-interactive live-region semantics.
+
 Primitives own their visual variants and interaction states. Features own labels,
 content, intent, domain state, and composition.
 

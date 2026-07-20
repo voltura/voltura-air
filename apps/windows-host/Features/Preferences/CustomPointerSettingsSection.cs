@@ -25,6 +25,9 @@ internal sealed class CustomPointerSettingsSection(
     HostToastPresenter toasts,
     Func<bool> isLoading)
 {
+    internal const string WatchdogStartFailureMessage =
+        "Cursor recovery watchdog could not be started. Reinstall Voltura Air to restore it.";
+
     public void AddTo(StackPanel parent)
     {
         var current = AppPointerSettings.GetCustomPointer();
@@ -130,7 +133,7 @@ internal sealed class CustomPointerSettingsSection(
                     Action: "cursor_recovery_watchdog",
                     Outcome: "failed",
                     Detail: exception.Message));
-                toasts.Show("Cursor recovery watchdog could not be started");
+                toasts.Show(WatchdogStartFailureMessage);
             }
 
             UpdateWatchdogVisual();

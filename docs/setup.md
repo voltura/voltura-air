@@ -81,10 +81,23 @@ For the quickest phone layout and interaction loop, run:
 npm run dev:quick
 ```
 
-This runs a fast Vite bundle build without type checking, linting, tests, or the
-bundle-budget gate, then starts the current host through `dotnet run`. The host
-serves the newly built client from its normal origin, so an existing bookmarked
-app can receive it through the normal build-ID auto-refresh. Restart
+This starts the current host through `dotnet run` while running a fast Vite
+bundle build in parallel without type checking, linting, tests, or the
+bundle-budget gate. The quick path reuses a cached native cursor watchdog when
+available and builds it once when the shared command-line output is empty. Quick
+launches share a stable
+command-line build cache with direct `dotnet` builds, tests, and other repository
+automation. Command-line compiled and WPF-generated outputs use each .NET
+project's `bin/cli` and `obj/cli` directories, while IDE design-time and
+IDE-initiated builds retain the standard `bin` and `obj` output directories.
+NuGet keeps its normal shared `obj` project metadata, which is safe to reuse and
+preserves the SDK's generated-file exclusions. This keeps competing WPF-generated
+sources out of each other's way without sacrificing incremental reuse between
+command-line workflows. Release builds retain the standard paths used by the
+existing packaging and release workflow. The
+host serves client files directly from `apps/mobile-web/dist` in Debug, so an
+existing bookmarked app can receive the rebuilt client through the normal
+build-ID auto-refresh as soon as the bundle finishes. Restart
 `npm run dev:quick` after another source edit. Use the normal build and
 validation commands before treating the change as complete.
 

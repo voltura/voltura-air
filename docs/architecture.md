@@ -108,12 +108,15 @@ multiple maintained partial source files; framework and generated partial types
 remain confined to one maintained source file. `docs/ui-system.md` applies the
 same review threshold specifically to presentation ownership.
 
-The production mobile build also enforces the measured JavaScript budget after
-Vite compression: at most 568 KB raw and 136 KB Brotli across emitted JavaScript
-assets. The July 2026 review raised the previous 560 KB / 132 KB limits narrowly
-for the synchronous P-256 reconnect signer used on HTTP LAN origins; keeping it
-in the main bundle avoids a pairing-time network fetch. Budget changes require
-an intentional ownership and payload review.
+The production mobile build also enforces the measured initial JavaScript budget
+after Vite compression: at most 568 KB raw and 136 KB Brotli for the module
+scripts referenced directly by `index.html`. The checker still reports total
+emitted JavaScript so on-demand chunks remain visible during review, but async
+feature chunks do not count against the initial control-surface budget. The July
+2026 review raised the previous 560 KB / 132 KB limits narrowly for the
+synchronous P-256 reconnect signer used on HTTP LAN origins; keeping it in the
+initial bundle avoids a pairing-time network fetch. Budget changes require an
+intentional ownership and payload review.
 
 ## Long-lived resource inventory
 

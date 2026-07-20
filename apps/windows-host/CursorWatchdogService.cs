@@ -3,6 +3,9 @@ using System.Globalization;
 
 namespace VolturaAir.Host;
 
+internal sealed class CursorWatchdogUnavailableException(string message, Exception? innerException = null)
+    : InvalidOperationException(message, innerException);
+
 internal sealed class CursorWatchdogService : IDisposable
 {
     internal static readonly TimeSpan BootstrapExitTimeout = TimeSpan.FromSeconds(7);
@@ -50,23 +53,23 @@ internal sealed class CursorWatchdogService : IDisposable
             _monitor = null;
             if (!File.Exists(_watchdogPath))
             {
-                throw new InvalidOperationException("The cursor recovery watchdog is missing.");
+                throw new CursorWatchdogUnavailableException("The cursor recovery watchdog is missing.");
             }
 
             try
             {
                 using var bootstrap = Process.Start(CreateStartInfo(_watchdogPath, _hostProcessId)) ??
-                    throw new InvalidOperationException("Windows did not start the cursor recovery watchdog.");
+                    throw new CursorWatchdogUnavailableException("Windows did not start the cursor recovery watchdog.");
                 if (!bootstrap.WaitForExit(BootstrapExitTimeout))
                 {
                     bootstrap.Kill(entireProcessTree: true);
                     bootstrap.WaitForExit();
-                    throw new InvalidOperationException("The cursor recovery watchdog did not become ready.");
+                    throw new CursorWatchdogUnavailableException("The cursor recovery watchdog did not become ready.");
                 }
 
                 if (bootstrap.ExitCode <= 0)
                 {
-                    throw new InvalidOperationException(
+                    throw new CursorWatchdogUnavailableException(
                         $"The cursor recovery watchdog failed to start (exit code {bootstrap.ExitCode.ToString(CultureInfo.InvariantCulture)}).");
                 }
 
@@ -75,12 +78,12 @@ internal sealed class CursorWatchdogService : IDisposable
                 {
                     _monitor.Dispose();
                     _monitor = null;
-                    throw new InvalidOperationException("The cursor recovery watchdog exited during startup.");
+                    throw new CursorWatchdogUnavailableException("The cursor recovery watchdog exited during startup.");
                 }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or ArgumentException)
             {
-                throw new InvalidOperationException("Windows could not start the cursor recovery watchdog.", ex);
+                throw new CursorWatchdogUnavailableException("Windows could not start the cursor recovery watchdog.", ex);
             }
         }
     }

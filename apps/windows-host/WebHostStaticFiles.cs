@@ -62,13 +62,26 @@ internal static class WebHostStaticFiles
 
     public static string ResolveStaticRoot()
     {
-        var devRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "mobile-web", "dist"));
-        if (Directory.Exists(devRoot))
+        return ResolveStaticRoot(AppContext.BaseDirectory);
+    }
+
+    internal static string ResolveStaticRoot(string baseDirectory)
+    {
+        var cliDevRoot = Path.GetFullPath(
+            Path.Combine(baseDirectory, "..", "..", "..", "..", "..", "mobile-web", "dist"));
+        if (Directory.Exists(cliDevRoot))
         {
-            return devRoot;
+            return cliDevRoot;
         }
 
-        return Path.Combine(AppContext.BaseDirectory, "wwwroot");
+        var standardDevRoot = Path.GetFullPath(
+            Path.Combine(baseDirectory, "..", "..", "..", "..", "mobile-web", "dist"));
+        if (Directory.Exists(standardDevRoot))
+        {
+            return standardDevRoot;
+        }
+
+        return Path.Combine(baseDirectory, "wwwroot");
     }
 
     public static string? ReadWebClientBuildId(string staticRoot)

@@ -9,6 +9,14 @@ namespace VolturaAir.Host.Tests;
 public sealed partial class HostUiLayoutTests
 {
     [Fact]
+    public void WatchdogStartFailureDirectsTheUserToReinstall()
+    {
+        Assert.Equal(
+            "Cursor recovery watchdog could not be started. Reinstall Voltura Air to restore it.",
+            CustomPointerSettingsSection.WatchdogStartFailureMessage);
+    }
+
+    [Fact]
     public void PreferencesExpansionRevealsFirstControlWithoutMovingHeaderFocus()
     {
         if (!OperatingSystem.IsWindows())

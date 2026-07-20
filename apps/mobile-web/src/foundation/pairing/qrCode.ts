@@ -1,22 +1,27 @@
-import jsQR from "jsqr";
+import type jsQrDecoder from "jsqr";
+
+type QrDecoder = typeof jsQrDecoder;
+
+let qrDecoderPromise: Promise<QrDecoder> | null = null;
 
 export async function decodeQrImage(file: File): Promise<string> {
   const imageUrl = URL.createObjectURL(file);
   try {
+    const jsQR = await loadQrDecoder();
     const image = await loadImage(imageUrl);
     const imageData = drawImageToCanvas(image, 2048);
-    const code = scanImageData(imageData);
+    const code = scanImageData(imageData, jsQR);
     if (code?.data) {
       return code.data;
     }
 
     const smallerImageData = drawImageToCanvas(image, 1024);
-    const smallerCode = scanImageData(smallerImageData) ?? scanRotatedImageData(smallerImageData);
+    const smallerCode = scanImageData(smallerImageData, jsQR) ?? scanRotatedImageData(smallerImageData, jsQR);
     if (smallerCode?.data) {
       return smallerCode.data;
     }
 
-    const centerCode = scanCenterCrop(imageData);
+    const centerCode = scanCenterCrop(imageData, jsQR);
     if (centerCode?.data) {
       return centerCode.data;
     }
@@ -31,6 +36,11 @@ export async function decodeQrImage(file: File): Promise<string> {
   } finally {
     URL.revokeObjectURL(imageUrl);
   }
+}
+
+function loadQrDecoder(): Promise<QrDecoder> {
+  qrDecoderPromise ??= import("jsqr").then((module) => module.default);
+  return qrDecoderPromise;
 }
 
 function drawImageToCanvas(image: HTMLImageElement, maxDimension: number): ImageData {
@@ -49,29 +59,29 @@ function drawImageToCanvas(image: HTMLImageElement, maxDimension: number): Image
   return context.getImageData(0, 0, width, height);
 }
 
-function scanImageData(imageData: ImageData) {
+function scanImageData(imageData: ImageData, jsQR: QrDecoder) {
   return jsQR(imageData.data, imageData.width, imageData.height);
 }
 
-function scanRotatedImageData(imageData: ImageData) {
+function scanRotatedImageData(imageData: ImageData, jsQR: QrDecoder) {
   const rotated90 = rotateImageData(imageData, 90);
-  const code90 = scanImageData(rotated90);
+  const code90 = scanImageData(rotated90, jsQR);
   if (code90?.data) {
     return code90;
   }
 
   const rotated180 = rotateImageData(imageData, 180);
-  const code180 = scanImageData(rotated180);
+  const code180 = scanImageData(rotated180, jsQR);
   if (code180?.data) {
     return code180;
   }
 
-  return scanImageData(rotateImageData(imageData, 270));
+  return scanImageData(rotateImageData(imageData, 270), jsQR);
 }
 
-function scanCenterCrop(imageData: ImageData) {
+function scanCenterCrop(imageData: ImageData, jsQR: QrDecoder) {
   const centerCrop = cropCenter(imageData, 0.8);
-  return scanImageData(centerCrop) ?? scanRotatedImageData(centerCrop);
+  return scanImageData(centerCrop, jsQR) ?? scanRotatedImageData(centerCrop, jsQR);
 }
 
 function rotateImageData(imageData: ImageData, degrees: 90 | 180 | 270): ImageData {

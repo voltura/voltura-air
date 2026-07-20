@@ -71,7 +71,7 @@ public sealed class CursorWatchdogAcceptanceTests : IsolatedHostSettingsTest
             watchdog.EnsureMonitoring,
             watchdog.StopMonitoring);
 
-        var exception = Assert.Throws<InvalidOperationException>(() => pointer.Apply(
+        var exception = Assert.Throws<CursorWatchdogUnavailableException>(() => pointer.Apply(
             new CustomPointerSettings(true, 6, AppPointerSettings.DefaultCustomPointerColor)));
 
         Assert.Contains("watchdog", exception.Message, StringComparison.OrdinalIgnoreCase);

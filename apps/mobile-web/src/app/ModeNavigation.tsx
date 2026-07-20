@@ -1,3 +1,4 @@
+import type { Ref } from "react";
 import { ChevronDown } from "lucide-react";
 import type { AppTab, MainAppTab, ModeDefinition } from "./appModeTabs";
 
@@ -46,14 +47,16 @@ export function ModeSelector({ modeTabs, onClose, onSelect, tab }: ModeSelectorP
 
 interface CompactModeSelectorButtonProps {
   activeMode: ModeDefinition;
+  buttonRef?: Ref<HTMLButtonElement> | undefined;
   isOpen: boolean;
   onToggle: () => void;
 }
 
-export function CompactModeSelectorButton({ activeMode, isOpen, onToggle }: CompactModeSelectorButtonProps) {
+export function CompactModeSelectorButton({ activeMode, buttonRef, isOpen, onToggle }: CompactModeSelectorButtonProps) {
   const ActiveModeIcon = activeMode.Icon;
   return (
     <button
+      ref={buttonRef}
       className="compact-mode-button"
       type="button"
       aria-expanded={isOpen}

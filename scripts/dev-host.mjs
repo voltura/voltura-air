@@ -13,14 +13,22 @@ let shuttingDown = false;
 const args = [
   "run",
   "--project",
-  "apps/windows-host/VolturaAir.Host.csproj",
-  "--"
+  "apps/windows-host/VolturaAir.Host.csproj"
 ];
+const skipCursorWatchdogBuild =
+  process.env.VOLTURA_AIR_SKIP_CURSOR_WATCHDOG_BUILD === "1" ||
+  process.env.VOLTURA_AIR_SKIP_CURSOR_WATCHDOG_BUILD?.toLowerCase() === "true";
 const useViteClient =
   process.env.VOLTURA_AIR_USE_VITE_CLIENT === "1" ||
   process.env.VOLTURA_AIR_USE_VITE_CLIENT?.toLowerCase() === "true" ||
   Boolean(process.env.VOLTURA_AIR_CLIENT_URL);
 const clientUrl = process.env.VOLTURA_AIR_CLIENT_URL ?? `http://${getLanAddress()}:${clientPort}`;
+
+if (skipCursorWatchdogBuild) {
+  args.push("-p:SkipCursorWatchdogBuild=true");
+}
+
+args.push("--");
 
 if (useViteClient) {
   args.push("--client-url", clientUrl);

@@ -1,3 +1,4 @@
+import type { RefObject } from "react";
 import { Circle, Menu, MousePointer2 } from "lucide-react";
 import type { MainAppTab, ModeDefinition } from "./appModeTabs";
 import type { ConnectionState } from "../foundation/connection/connectionTypes";
@@ -7,6 +8,7 @@ import { CompactModeSelectorButton, ModeSelector } from "./ModeNavigation";
 interface AppHeaderProps {
   activeMode?: ModeDefinition | undefined;
   canShowModeNavigation: boolean;
+  compactModeButtonRef: RefObject<HTMLButtonElement | null>;
   connectionPcName: string;
   developerMode: boolean;
   isModeSelectorOpen: boolean;
@@ -24,6 +26,7 @@ interface AppHeaderProps {
 export function AppHeader({
   activeMode,
   canShowModeNavigation,
+  compactModeButtonRef,
   connectionPcName,
   developerMode,
   isModeSelectorOpen,
@@ -50,7 +53,9 @@ export function AppHeader({
             <MousePointer2 aria-hidden="true" />
             <span>Voltura Air</span>
           </div>
-          {canShowModeNavigation && activeMode && <CompactModeSelectorButton activeMode={activeMode} isOpen={isModeSelectorOpen} onToggle={onToggleModeSelector} />}
+          {canShowModeNavigation && activeMode && (
+            <CompactModeSelectorButton buttonRef={compactModeButtonRef} activeMode={activeMode} isOpen={isModeSelectorOpen} onToggle={onToggleModeSelector} />
+          )}
         </div>
         <div className={`status ${state}`} title={message}>
           <Circle aria-hidden="true" />

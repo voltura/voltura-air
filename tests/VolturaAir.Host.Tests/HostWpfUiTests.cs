@@ -28,6 +28,10 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
             var window = new StartupWindow();
             try
             {
+                AppPointerSettings.SetUseCursorRecoveryWatchdog(true);
+                var restartRequested = false;
+                Assert.Equal(520, window.Width);
+                Assert.Equal(360, window.Height);
                 window.Show();
                 var progress = Assert.Single(FindWpfDescendants<ProgressBar>(window));
                 var progressGroup = Assert.IsType<VolturaAir.Host.Ui.SpacingStackPanel>(progress.Parent);
@@ -35,12 +39,32 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
                 Assert.Contains(
                     progressGroup.Children.OfType<TextBlock>(),
                     text => string.Equals(text.Text, "Starting connection services.", StringComparison.Ordinal));
-                window.ShowError("Could not bind to port.", "details");
+                window.ShowError(
+                    "Cursor recovery could not start.",
+                    "details",
+                    () => Program.DisableCursorWatchdogAndRestart(() => restartRequested = true));
                 window.UpdateLayout();
 
+                Assert.Equal(620, window.Width);
+                Assert.Equal(440, window.Height);
                 Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "Voltura Air could not start.");
-                Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "Could not bind to port.");
-                Assert.Contains(FindWpfDescendants<Button>(window), button => button.Content?.ToString() == "Copy details");
+                Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "Cursor recovery could not start.");
+                var scroller = Assert.Single(FindWpfDescendants<ScrollViewer>(window));
+                Assert.Equal(0, scroller.ScrollableHeight);
+                var disableWatchdogButton = FindWpfDescendants<Button>(window).Single(button => button.Content?.ToString() == "Disable watchdog and restart");
+                var copyDetailsButton = FindWpfDescendants<Button>(window).Single(button => button.Content?.ToString() == "Copy details");
+                var closeButton = FindWpfDescendants<Button>(window).Single(button => button.Content?.ToString() == "Close");
+                Assert.False(IsDescendantOf(disableWatchdogButton, scroller));
+                AssertControlReceivesPointerHit(window, disableWatchdogButton);
+                AssertControlIsFullyWithinWindow(window, disableWatchdogButton);
+                Assert.False(IsDescendantOf(copyDetailsButton, scroller));
+                AssertControlReceivesPointerHit(window, copyDetailsButton);
+                AssertControlIsFullyWithinWindow(window, copyDetailsButton);
+                AssertControlReceivesPointerHit(window, closeButton);
+                AssertControlIsFullyWithinWindow(window, closeButton);
+                disableWatchdogButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.False(AppPointerSettings.UseCursorRecoveryWatchdog());
+                Assert.True(restartRequested);
             }
             finally
             {
@@ -305,6 +329,102 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
         });
     }
 
+    [Fact]
+    public void ApplicationLogKeepsActionsVisibleAndScrollsContentAtCompactHeight()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            using var store = new TempPairingStore();
+            using var inputInjector = new SendInputInjector();
+            var manager = new PairingManager(store.Store);
+            var records = Enumerable.Range(0, 30)
+                .Select(index => new AppLogRecord(
+                    DateTimeOffset.Now.AddMinutes(-index),
+                    "host_action",
+                    "windows_host",
+                    null,
+                    null,
+                    "application_logging",
+                    "changed",
+                    null,
+                    null,
+                    $"Record {index}"))
+                .ToArray();
+            var appLog = new FakeAppLog(records);
+            var webHost = new WebHostService(manager, new InputDispatcher(inputInjector), appLog: appLog, isolatedTestMode: true);
+            var window = new MainWindow(manager, webHost, clientUrl: null, appLog: appLog)
+            {
+                Width = 920,
+                Height = 620
+            };
+            try
+            {
+                window.Show();
+                window.ShowPage(HostPage.Diagnostics);
+                window.UpdateLayout();
+                WaitForWpf(
+                    () => FindWpfDescendants<TextBlock>(window).Any(text => text.Text == "Record 0"),
+                    "initial compact application log render");
+                window.UpdateLayout();
+
+                var logScroller = Assert.Single(FindWpfDescendants<ScrollViewer>(window));
+                Assert.Equal(ScrollBarVisibility.Auto, logScroller.VerticalScrollBarVisibility);
+                Assert.Equal(ScrollBarVisibility.Disabled, logScroller.HorizontalScrollBarVisibility);
+                Assert.True(logScroller.ScrollableHeight > 0, $"Scrollable height was {logScroller.ScrollableHeight}; viewport {logScroller.ViewportHeight}; extent {logScroller.ExtentHeight}; actual {logScroller.ActualHeight}.");
+
+                var applicationLogView = Assert.Single(FindWpfDescendants<VolturaAir.Host.Features.Diagnostics.ApplicationLogView>(window));
+                var refreshButton = FindWpfDescendants<Button>(window).Single(button => button.Content?.ToString() == "Refresh");
+                var actionRow = Assert.IsAssignableFrom<FrameworkElement>(refreshButton.Parent);
+                Assert.False(IsDescendantOf(actionRow, logScroller));
+                Assert.True(IsDescendantOf(FindWpfDescendants<TextBlock>(window).Single(text => text.Text == "Record 0"), logScroller));
+                var actionRowBottom = actionRow.TranslatePoint(new Point(0, actionRow.ActualHeight), applicationLogView).Y;
+                Assert.InRange(actionRowBottom, applicationLogView.ActualHeight - 0.5, applicationLogView.ActualHeight + 0.5);
+
+                AssertControlReceivesPointerHit(
+                    window,
+                    refreshButton);
+                AssertControlIsFullyWithinWindow(
+                    window,
+                    refreshButton);
+                AssertControlReceivesPointerHit(
+                    window,
+                    FindWpfDescendants<Button>(window).Single(button => button.Content?.ToString() == "Copy filtered log"));
+                AssertControlIsFullyWithinWindow(
+                    window,
+                    FindWpfDescendants<Button>(window).Single(button => button.Content?.ToString() == "Copy filtered log"));
+                AssertControlReceivesPointerHit(
+                    window,
+                    FindWpfDescendants<Button>(window).Single(button => button.Content?.ToString() == "Open log folder"));
+                AssertControlIsFullyWithinWindow(
+                    window,
+                    FindWpfDescendants<Button>(window).Single(button => button.Content?.ToString() == "Open log folder"));
+                AssertControlReceivesPointerHit(
+                    window,
+                    FindWpfDescendants<Button>(window).Single(button => button.Content?.ToString() == "Delete logs"));
+                AssertControlIsFullyWithinWindow(
+                    window,
+                    FindWpfDescendants<Button>(window).Single(button => button.Content?.ToString() == "Delete logs"));
+                AssertControlReceivesPointerHit(
+                    window,
+                    FindWpfDescendants<CheckBox>(window).Single(checkBox => checkBox.Content?.ToString() == "Automatic log refresh"));
+                AssertControlIsFullyWithinWindow(
+                    window,
+                    FindWpfDescendants<CheckBox>(window).Single(checkBox => checkBox.Content?.ToString() == "Automatic log refresh"));
+            }
+            finally
+            {
+                window.Close();
+                DisposeWebHost(webHost);
+            }
+        });
+    }
+
     private static void AssertControlReceivesPointerHit(Window window, FrameworkElement control)
     {
         Assert.True(control.IsEnabled, $"{control.GetType().Name} is disabled.");
@@ -317,6 +437,18 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
         Assert.True(
             IsDescendantOf(hit, control),
             $"{control.GetType().Name} is covered by {hit.GetType().Name} at its center point.");
+    }
+
+    private static void AssertControlIsFullyWithinWindow(Window window, FrameworkElement control)
+    {
+        var content = Assert.IsAssignableFrom<FrameworkElement>(window.Content);
+        var topLeft = control.TranslatePoint(new Point(0, 0), content);
+        var bottomRight = control.TranslatePoint(new Point(control.ActualWidth, control.ActualHeight), content);
+
+        Assert.True(topLeft.X >= 0, $"{control.GetType().Name} starts before the window content.");
+        Assert.True(topLeft.Y >= 0, $"{control.GetType().Name} starts above the window content.");
+        Assert.True(bottomRight.X <= content.ActualWidth, $"{control.GetType().Name} extends past the window content width.");
+        Assert.True(bottomRight.Y <= content.ActualHeight, $"{control.GetType().Name} extends past the window content height.");
     }
 
     private static bool IsDescendantOf(DependencyObject candidate, DependencyObject ancestor)

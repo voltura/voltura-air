@@ -108,10 +108,22 @@ internal static class Program
         }
         catch (Exception ex)
         {
+            var watchdogUnavailable = ex is CursorWatchdogUnavailableException;
             startupWindow.ShowError(
-                ex is HostPortUnavailableException ? ex.Message : "An unexpected startup error occurred.",
-                ex.ToString());
+                ex is HostPortUnavailableException
+                    ? ex.Message
+                    : watchdogUnavailable
+                        ? "Cursor recovery could not start. Disable the watchdog to continue."
+                        : "An unexpected startup error occurred.",
+                ex.ToString(),
+                watchdogUnavailable ? () => DisableCursorWatchdogAndRestart(requestRestart) : null);
         }
+    }
+
+    internal static void DisableCursorWatchdogAndRestart(Action requestRestart)
+    {
+        AppPointerSettings.SetUseCursorRecoveryWatchdog(false);
+        requestRestart();
     }
 
     private static void RequestMainWindow()

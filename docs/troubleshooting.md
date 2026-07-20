@@ -14,6 +14,16 @@ Diagnostics omit credentials and client identifiers but can contain device
 names, local addresses and paths, adapter details, and browser information.
 Review them before posting publicly.
 
+## Voltura Air could not start
+
+The startup window grows only when it needs to show an error and keeps its
+actions visible below the error content. If cursor recovery is enabled but its
+native watchdog cannot start, choose **Disable watchdog and restart** to turn off
+that user setting and retry startup. Reinstall Voltura Air to restore a missing
+or damaged watchdog, then re-enable it in Preferences.
+
+For another startup error, choose **Copy details** before closing Voltura Air.
+
 ## Phone or tablet cannot reach the PC
 
 Check these first:

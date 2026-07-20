@@ -1,0 +1,104 @@
+.anchored-hint {
+  --anchored-hint-arrow-size: 9px;
+  --anchored-hint-arrow-x: 50%;
+  --anchored-hint-arrow-y: 50%;
+  --anchored-hint-background: color-mix(in srgb, var(--surface-raised) 94%, var(--accent) 6%);
+  --anchored-hint-border: color-mix(in srgb, var(--accent) 42%, var(--border));
+
+  position: fixed;
+  z-index: 1000;
+  width: max-content;
+  max-width: min(260px, calc(100vw - var(--space-xl)));
+  border: 1px solid var(--anchored-hint-border);
+  border-radius: var(--radius-large);
+  color: var(--text);
+  background: var(--anchored-hint-background);
+  box-shadow: 0 8px 24px var(--floating-shadow);
+  padding: 10px 12px;
+  font-size: 0.94rem;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+
+.anchored-hint::before,
+.anchored-hint::after {
+  content: "";
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.anchored-hint[data-placement^="below"]::before {
+  top: calc(-1 * var(--anchored-hint-arrow-size) - 1px);
+  left: var(--anchored-hint-arrow-x);
+  border-right: var(--anchored-hint-arrow-size) solid transparent;
+  border-bottom: var(--anchored-hint-arrow-size) solid var(--anchored-hint-border);
+  border-left: var(--anchored-hint-arrow-size) solid transparent;
+  transform: translateX(-50%);
+}
+
+.anchored-hint[data-placement^="below"]::after {
+  top: calc(-1 * var(--anchored-hint-arrow-size));
+  left: var(--anchored-hint-arrow-x);
+  border-right: var(--anchored-hint-arrow-size) solid transparent;
+  border-bottom: var(--anchored-hint-arrow-size) solid var(--anchored-hint-background);
+  border-left: var(--anchored-hint-arrow-size) solid transparent;
+  transform: translateX(-50%);
+}
+
+.anchored-hint[data-placement^="above"]::before {
+  bottom: calc(-1 * var(--anchored-hint-arrow-size) - 1px);
+  left: var(--anchored-hint-arrow-x);
+  border-top: var(--anchored-hint-arrow-size) solid var(--anchored-hint-border);
+  border-right: var(--anchored-hint-arrow-size) solid transparent;
+  border-left: var(--anchored-hint-arrow-size) solid transparent;
+  transform: translateX(-50%);
+}
+
+.anchored-hint[data-placement^="above"]::after {
+  bottom: calc(-1 * var(--anchored-hint-arrow-size));
+  left: var(--anchored-hint-arrow-x);
+  border-top: var(--anchored-hint-arrow-size) solid var(--anchored-hint-background);
+  border-right: var(--anchored-hint-arrow-size) solid transparent;
+  border-left: var(--anchored-hint-arrow-size) solid transparent;
+  transform: translateX(-50%);
+}
+
+.anchored-hint[data-placement="right"]::before {
+  top: var(--anchored-hint-arrow-y);
+  left: calc(-1 * var(--anchored-hint-arrow-size) - 1px);
+  border-top: var(--anchored-hint-arrow-size) solid transparent;
+  border-right: var(--anchored-hint-arrow-size) solid var(--anchored-hint-border);
+  border-bottom: var(--anchored-hint-arrow-size) solid transparent;
+  transform: translateY(-50%);
+}
+
+.anchored-hint[data-placement="right"]::after {
+  top: var(--anchored-hint-arrow-y);
+  left: calc(-1 * var(--anchored-hint-arrow-size));
+  border-top: var(--anchored-hint-arrow-size) solid transparent;
+  border-right: var(--anchored-hint-arrow-size) solid var(--anchored-hint-background);
+  border-bottom: var(--anchored-hint-arrow-size) solid transparent;
+  transform: translateY(-50%);
+}
+
+.anchored-hint[data-placement="left"]::before {
+  top: var(--anchored-hint-arrow-y);
+  right: calc(-1 * var(--anchored-hint-arrow-size) - 1px);
+  border-top: var(--anchored-hint-arrow-size) solid transparent;
+  border-bottom: var(--anchored-hint-arrow-size) solid transparent;
+  border-left: var(--anchored-hint-arrow-size) solid var(--anchored-hint-border);
+  transform: translateY(-50%);
+}
+
+.anchored-hint[data-placement="left"]::after {
+  top: var(--anchored-hint-arrow-y);
+  right: calc(-1 * var(--anchored-hint-arrow-size));
+  border-top: var(--anchored-hint-arrow-size) solid transparent;
+  border-bottom: var(--anchored-hint-arrow-size) solid transparent;
+  border-left: var(--anchored-hint-arrow-size) solid var(--anchored-hint-background);
+  transform: translateY(-50%);
+}

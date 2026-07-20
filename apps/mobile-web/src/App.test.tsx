@@ -292,12 +292,17 @@ describe("App header and mode navigation", () => {
 
     expect(appShell?.classList.contains("mode-tabs-collapsed")).toBe(true);
     expect(document.querySelector(".bottom-mode-tabs")).toBeNull();
+    expect(screen.getByText("Switch modes from here.")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Change mode" }));
+    expect(screen.queryByText("Switch modes from here.")).toBeNull();
     fireEvent.click(screen.getByRole("menuitemradio", { name: "Keyboard" }));
 
     expect(appShell?.classList.contains("mode-tabs-collapsed")).toBe(false);
     expect(document.querySelector(".bottom-mode-tabs")).toBeTruthy();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Keyboard" }).at(-1)!);
+    expect(screen.queryByText("Switch modes from here.")).toBeNull();
   });
 
   it("confirms opening the configured remote app before sending the launch command", () => {

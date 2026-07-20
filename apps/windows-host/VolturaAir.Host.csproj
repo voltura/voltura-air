@@ -59,18 +59,21 @@
     </Content>
   </ItemGroup>
 
-  <Target Name="InvalidateStaleWpfMarkupCache" BeforeTargets="MarkupCompilePass1">
+  <Target Name="InvalidateStaleWpfMarkupCache"
+          BeforeTargets="MarkupCompilePass1"
+          Condition="'$(DesignTimeBuild)' != 'true' AND !$(MSBuildProjectFile.EndsWith('_wpftmp.csproj'))">
     <ItemGroup>
-      <MissingWpfGeneratedSource Include="$(IntermediateOutputPath)MainWindow.g.cs" Condition="!Exists('$(IntermediateOutputPath)MainWindow.g.cs')" />
-      <MissingWpfGeneratedSource Include="$(IntermediateOutputPath)StartupWindow.g.cs" Condition="!Exists('$(IntermediateOutputPath)StartupWindow.g.cs')" />
+      <ExpectedWpfGeneratedSource Include="@(Page->'$(IntermediateOutputPath)%(RelativeDir)%(Filename).g.cs')" />
+      <MissingWpfGeneratedSource Include="@(ExpectedWpfGeneratedSource)" Condition="!Exists('%(ExpectedWpfGeneratedSource.Identity)')" />
       <MissingWpfGeneratedSource Include="$(IntermediateOutputPath)$(AssemblyName)_Content.g.cs" Condition="!Exists('$(IntermediateOutputPath)$(AssemblyName)_Content.g.cs')" />
-      <StaleWpfMarkupCache Include="$(IntermediateOutputPath)$(AssemblyName)_MarkupCompile*.cache" Condition="'@(MissingWpfGeneratedSource)' != ''" />
+      <StaleWpfMarkupCache Include="$(IntermediateOutputPath)$(AssemblyName)_MarkupCompile*.cache"
+                           Condition="'@(MissingWpfGeneratedSource)' != ''" />
     </ItemGroup>
 
     <Delete Files="@(StaleWpfMarkupCache)" />
   </Target>
 
-  <Target Name="BuildCursorWatchdog" AfterTargets="Build" Condition="'$(DesignTimeBuild)' != 'true' AND '$(PublishSingleFile)' == ''">
+  <Target Name="BuildCursorWatchdog" AfterTargets="Build" Condition="'$(DesignTimeBuild)' != 'true' AND '$(PublishSingleFile)' == '' AND ('$(SkipCursorWatchdogBuild)' != 'true' OR !Exists('$(OutDir)VolturaAir.CursorWatchdog.exe'))">
     <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\..\scripts\build-cursor-watchdog.ps1&quot; -OutputPath &quot;$(OutDir)VolturaAir.CursorWatchdog.exe&quot;" />
   </Target>
 

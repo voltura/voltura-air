@@ -5,6 +5,12 @@ import { fileURLToPath } from "node:url";
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 export const commandDescriptions = {
+  "ai:init": "Install the newest ChatGPT/Codex package if needed, then configure the daily task and desktop shortcut.",
+  "ai:schedule": "Create or refresh the hidden daily ChatGPT/Codex update task; accepts --time HH:mm:ss.",
+  "ai:schedule:remove": "Remove every ChatGPT/Codex updater scheduled task created by this repository.",
+  "ai:shortcut:create": "Create or refresh the desktop shortcut for a visible ChatGPT/Codex update check.",
+  "ai:shortcut:remove": "Remove the ChatGPT/Codex updater desktop shortcut created by this repository.",
+  "ai:update": "Check the official ChatGPT/Codex package version and silently install it when newer.",
   "branch:sync": "Synchronize the current branch with its configured upstream.",
   build: "Validate UI tokens, then build the mobile app and Windows host.",
   "branding:generate": "Generate application icons, NSIS installer artwork, and public-site screenshots.",
@@ -59,12 +65,22 @@ export function findStaleDescriptions(scripts) {
   return Object.keys(commandDescriptions).filter((name) => !(name in scripts));
 }
 
-export function formatCommandHelp(scripts) {
-  const commands = Object.keys(scripts).sort();
+export function formatCommandHelp(scripts, filterText = "") {
+  const normalizedFilter = filterText.toLocaleLowerCase();
+  const commands = Object.keys(scripts)
+    .filter((name) => name.toLocaleLowerCase().includes(normalizedFilter))
+    .sort();
   const widestName = Math.max(...commands.map((name) => name.length));
+  const heading = filterText
+    ? `Voltura Air npm commands matching "${filterText}"`
+    : "Voltura Air npm commands";
+
+  if (commands.length === 0) {
+    return [heading, "", "No npm commands matched the filter.", "", "Run a command with: npm run <name>"].join("\n");
+  }
 
   return [
-    "Voltura Air npm commands",
+    heading,
     "",
     ...commands.flatMap((name) => [
       `  ${name.padEnd(widestName)}  ${commandDescriptions[name]}`,
@@ -89,7 +105,7 @@ async function main() {
     throw new Error(`Command help is out of date. ${issues.join(". ")}`);
   }
 
-  console.log(formatCommandHelp(packageJson.scripts));
+  console.log(formatCommandHelp(packageJson.scripts, process.argv.slice(2).join(" ")));
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

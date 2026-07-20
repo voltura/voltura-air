@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { commandDescriptions, findStaleDescriptions, findUndocumentedCommands } from "../../scripts/command-help.mjs";
+import { commandDescriptions, findStaleDescriptions, findUndocumentedCommands, formatCommandHelp } from "../../scripts/command-help.mjs";
 
 const packageJson = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
 const mobilePackageJson = JSON.parse(readFileSync(new URL("../../apps/mobile-web/package.json", import.meta.url), "utf8"));
@@ -19,9 +19,29 @@ test("documentation coverage runs in the root and pull-request quality gates", (
 
 test("every root npm command has a current human-readable description", () => {
   assert.equal(packageJson.scripts.help, "node scripts/command-help.mjs");
+  assert.equal(packageJson.scripts["ai:create-shortcut"], undefined);
+  assert.equal(packageJson.scripts["ai:init"], "npm run ai:update && npm run ai:schedule && npm run ai:shortcut:create");
+  assert.equal(packageJson.scripts["ai:schedule"], "node scripts/ai-schedule.mjs");
+  assert.equal(packageJson.scripts["ai:schedule:remove"], "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/remove-chatgpt-codex-schedule.ps1");
+  assert.equal(packageJson.scripts["ai:shortcut:create"], "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/create-chatgpt-codex-shortcut.ps1");
+  assert.equal(packageJson.scripts["ai:shortcut:remove"], "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/remove-chatgpt-codex-shortcut.ps1");
+  assert.equal(packageJson.scripts["ai:update"], "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/update-chatgpt-codex.ps1");
+  assert.match(commandDescriptions["ai:schedule"], /--time HH:mm:ss/u);
+  assert.match(commandDescriptions["ai:update"], /ChatGPT\/Codex/u);
   assert.deepEqual(findUndocumentedCommands(packageJson.scripts), []);
   assert.deepEqual(findStaleDescriptions(packageJson.scripts), []);
   assert.match(commandDescriptions.dev, /development loop/u);
+});
+
+test("help filters root npm commands by a case-insensitive name fragment", () => {
+  const aiHelp = formatCommandHelp(packageJson.scripts, "ai:");
+  const checkHelp = formatCommandHelp(packageJson.scripts, "check");
+
+  assert.match(aiHelp, /ai:update/u);
+  assert.doesNotMatch(aiHelp, /branch:sync/u);
+  assert.match(checkHelp, /size:check/u);
+  assert.match(checkHelp, /ui:tokens:check/u);
+  assert.doesNotMatch(checkHelp, /branch:sync/u);
 });
 
 test("strong source-size warnings require current reviews in pull-request quality", () => {

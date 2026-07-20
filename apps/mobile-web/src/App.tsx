@@ -19,6 +19,7 @@ import { useAppNavigation } from "./app/useAppNavigation";
 import { InputRecoveryNotice } from "./features/input-recovery";
 import { ModeWorkspace } from "./features/modes";
 import type { AppToastMessage } from "./ui/feedback/AppToast";
+import { ConfirmationDialog } from "./ui/overlays/ConfirmationDialog";
 
 export function App() {
   const initialPairing = useMemo(() => parsePairingLink(window.location.href), []);
@@ -57,6 +58,7 @@ export function App() {
   } = connection;
   const { setThemeMode, themeMode } = useAppTheme();
   const [transientFeedback, setTransientFeedback] = useState<AppToastMessage | null>(null);
+  const [pendingRemoteLaunch, setPendingRemoteLaunch] = useState<RemoteLaunchAction | null>(null);
   const [suppressedClipboardResultId, setSuppressedClipboardResultId] = useState<string | null>(null);
   const inputBlockedByElevation = hostStatus?.inputBlockedByElevation === true;
   const [inputRecoveryDialog, setInputRecoveryDialog] = useState({
@@ -89,18 +91,18 @@ export function App() {
     }
   };
 
-  const maybeLaunchRemoteMode = (mode: unknown, settings: RemoteSettings) => {
+  const requestRemoteModeLaunch = (mode: unknown, settings: RemoteSettings) => {
     if (!supportsRemoteLaunch) {
       return;
     }
 
     if (mode === "youtube" && settings.openYoutube) {
-      launchRemoteAction("openYoutube");
+      setPendingRemoteLaunch("openYoutube");
       return;
     }
 
     if (mode === "kodi" && settings.startKodi) {
-      launchRemoteAction("startOrActivateKodi");
+      setPendingRemoteLaunch("startOrActivateKodi");
     }
   };
 
@@ -129,7 +131,7 @@ export function App() {
   } = useAppNavigation({
     fourthMode: appSettings.fourthMode,
     isPaired: state === "paired",
-    onEnterRemote: () => { maybeLaunchRemoteMode(remoteSettings.mode, remoteSettings); },
+    onEnterRemote: () => { requestRemoteModeLaunch(remoteSettings.mode, remoteSettings); },
     presentationAvailable,
     supportsGestureDebug,
     trackpadSettings,
@@ -148,7 +150,7 @@ export function App() {
     onSelectRemoteMode: (mode, nextSettings) => {
       selectModeTab("remote", "settings");
       setIsSettingsOpen(false);
-      maybeLaunchRemoteMode(mode, nextSettings);
+      requestRemoteModeLaunch(mode, nextSettings);
     },
     remoteSettings,
     setHostPointerSpeed,
@@ -351,6 +353,21 @@ export function App() {
           tab={tab}
           textTransferResult={textTransferResult}
           transientFeedback={transientFeedback}
+        />
+        <ConfirmationDialog
+          confirmLabel={`Open ${pendingRemoteLaunch === "openYoutube" ? "YouTube" : "Kodi"}`}
+          destructive={false}
+          description={`This will open ${pendingRemoteLaunch === "openYoutube" ? "YouTube" : "Kodi"} on the PC.`}
+          isOpen={pendingRemoteLaunch !== null}
+          onCancel={() => { setPendingRemoteLaunch(null); }}
+          onConfirm={() => {
+            const action = pendingRemoteLaunch;
+            setPendingRemoteLaunch(null);
+            if (action) {
+              launchRemoteAction(action);
+            }
+          }}
+          title={`Open ${pendingRemoteLaunch === "openYoutube" ? "YouTube" : "Kodi"}?`}
         />
       </main>
 

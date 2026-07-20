@@ -300,6 +300,54 @@ describe("App header and mode navigation", () => {
     expect(document.querySelector(".bottom-mode-tabs")).toBeTruthy();
   });
 
+  it("confirms opening the configured remote app before sending the launch command", () => {
+    const send = vi.fn();
+    localStorage.setItem("voltura-air.remoteSettings.client-a.pc-a", JSON.stringify({ mode: "kodi" }));
+    mockConnection({ send, supportsRemoteLaunch: true });
+    render(<App />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Remote mode" }).at(-1)!);
+
+    const dialog = screen.getByRole("dialog", { name: "Open Kodi?" });
+    expect(send).not.toHaveBeenCalled();
+    expect(within(dialog).getByRole("button", { name: "Open Kodi" })).toBe(document.activeElement);
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Open Kodi" }));
+
+    expect(send).toHaveBeenCalledExactlyOnceWith({ type: "remote.launch", action: "startOrActivateKodi" });
+  });
+
+  it("does not launch a remote app when its confirmation is cancelled", () => {
+    const send = vi.fn();
+    localStorage.setItem("voltura-air.remoteSettings.client-a.pc-a", JSON.stringify({ mode: "youtube" }));
+    mockConnection({ send, supportsRemoteLaunch: true });
+    render(<App />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Remote mode" }).at(-1)!);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog", { name: "Open YouTube?" })).toBeNull();
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("confirms a remote app selected from settings before sending the launch command", () => {
+    const send = vi.fn();
+    mockConnection({ send, supportsRemoteLaunch: true });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    const remoteSettingsSummary = document.querySelector<HTMLElement>("[data-settings-section=\"remote\"] > summary");
+    expect(remoteSettingsSummary).not.toBeNull();
+    fireEvent.click(remoteSettingsSummary!);
+    fireEvent.click(screen.getByRole("button", { name: "YouTube" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Open YouTube?" });
+    expect(send).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Open YouTube" }));
+
+    expect(send).toHaveBeenCalledExactlyOnceWith({ type: "remote.launch", action: "openYoutube" });
+  });
+
   it.each([
     { ariaLabel: "Dictation", fourthMode: "dictation" },
     { ariaLabel: "Send text to PC", fourthMode: "text-transfer" },

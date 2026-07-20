@@ -11,12 +11,12 @@ const settingsState = {
 };
 
 function createRemoteActions(remoteSettings: RemoteSettings) {
-  const launches: string[] = [];
-  const maybeLaunchRemoteMode = (mode: unknown, settings: RemoteSettings) => {
+  const launchRequests: string[] = [];
+  const requestRemoteModeLaunch = (mode: unknown, settings: RemoteSettings) => {
     if (mode === "youtube" && settings.openYoutube) {
-      launches.push("openYoutube");
+      launchRequests.push("openYoutube");
     } else if (mode === "kodi" && settings.startKodi) {
-      launches.push("startOrActivateKodi");
+      launchRequests.push("startOrActivateKodi");
     }
   };
 
@@ -24,34 +24,34 @@ function createRemoteActions(remoteSettings: RemoteSettings) {
     clientId: "client-a",
     effectiveTrackpadSettings: defaultTrackpadSettings,
     forgetPc: vi.fn(),
-    onSelectRemoteMode: maybeLaunchRemoteMode,
+    onSelectRemoteMode: requestRemoteModeLaunch,
     remoteSettings,
     setHostPointerSpeed: vi.fn(),
     settingsState
   });
-  return { actions, launches };
+  return { actions, launchRequests };
 }
 
-describe("createSettingsActions remote launch ownership", () => {
+describe("createSettingsActions remote launch request ownership", () => {
   it.each([
     ["kodi" as const, "youtube" as const, "openYoutube"],
     ["youtube" as const, "kodi" as const, "startOrActivateKodi"]
-  ])("launches only the newly selected mode when changing from %s to %s", (from, to, expectedLaunch) => {
+  ])("requests only the newly selected mode when changing from %s to %s", (from, to, expectedLaunch) => {
     const remoteSettings = {
       ...defaultRemoteSettings,
       mode: from,
       openYoutube: true,
       startKodi: true
     };
-    const { actions, launches } = createRemoteActions(remoteSettings);
+    const { actions, launchRequests } = createRemoteActions(remoteSettings);
 
     actions.updateRemoteSetting("mode", to);
 
-    expect(launches).toEqual([expectedLaunch]);
+    expect(launchRequests).toEqual([expectedLaunch]);
   });
 
   it("does not launch when an unrelated remote setting changes", () => {
-    const { actions, launches } = createRemoteActions({
+    const { actions, launchRequests } = createRemoteActions({
       ...defaultRemoteSettings,
       mode: "youtube",
       openYoutube: true
@@ -59,6 +59,6 @@ describe("createSettingsActions remote launch ownership", () => {
 
     actions.updateRemoteSetting("navigationRing", false);
 
-    expect(launches).toEqual([]);
+    expect(launchRequests).toEqual([]);
   });
 });

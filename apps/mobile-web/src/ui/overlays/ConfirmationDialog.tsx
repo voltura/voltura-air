@@ -3,6 +3,7 @@ import { ModalDialog } from "./ModalDialog";
 
 interface ConfirmationDialogProps {
   confirmLabel: string;
+  destructive?: boolean;
   description: string;
   isOpen: boolean;
   onCancel: () => void;
@@ -10,22 +11,21 @@ interface ConfirmationDialogProps {
   title: string;
 }
 
-export function ConfirmationDialog({ confirmLabel, description, isOpen, onCancel, onConfirm, title }: ConfirmationDialogProps) {
-  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+export function ConfirmationDialog({ confirmLabel, destructive = true, description, isOpen, onCancel, onConfirm, title }: ConfirmationDialogProps) {
+  const confirmButtonRef = useRef<HTMLButtonElement>(null);
 
   return (
     <ModalDialog
       actions={(
         <>
-          <button ref={cancelButtonRef} type="button" className="confirmation-dialog-cancel" onClick={onCancel}>Cancel</button>
-          <button type="button" className="confirmation-dialog-confirm" onClick={onConfirm}>{confirmLabel}</button>
+          <button ref={confirmButtonRef} type="button" className={`confirmation-dialog-confirm${destructive ? " confirmation-dialog-destructive" : ""}`} onClick={onConfirm}>{confirmLabel}</button>
+          <button type="button" className="confirmation-dialog-cancel" onClick={onCancel}>Cancel</button>
         </>
       )}
       actionsClassName="confirmation-dialog-actions"
       className="confirmation-dialog"
       dismissLabel="Cancel"
-      focusDismissAction
-      initialFocusRef={cancelButtonRef}
+      initialFocusRef={confirmButtonRef}
       isOpen={isOpen}
       onClose={onCancel}
       title={title}

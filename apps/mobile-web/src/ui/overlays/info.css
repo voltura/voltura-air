@@ -182,6 +182,11 @@ dialog::backdrop {
 }
 
 .confirmation-dialog-actions .confirmation-dialog-confirm {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.confirmation-dialog-actions .confirmation-dialog-confirm.confirmation-dialog-destructive {
   border-color: var(--border);
   color: var(--danger);
 }

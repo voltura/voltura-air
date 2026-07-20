@@ -14,9 +14,9 @@ export interface ModeDefinition {
 }
 
 export const primaryModeDefinitions: ModeDefinition[] = [
-  { id: "trackpad", label: "Trackpad", ariaLabel: "Trackpad mode", Icon: MousePointer2 },
-  { id: "keyboard", label: "Keyboard", ariaLabel: "Keyboard mode", Icon: Keyboard },
-  { id: "remote", label: "Remote", ariaLabel: "Remote mode", Icon: Tv }
+  { id: "trackpad", label: "Trackpad", ariaLabel: "Trackpad", Icon: MousePointer2 },
+  { id: "keyboard", label: "Keyboard", ariaLabel: "Keyboard", Icon: Keyboard },
+  { id: "remote", label: "Remote", ariaLabel: "Remote", Icon: Tv }
 ];
 
 export const toolModeDefinitions: Record<ToolAppTab, ModeDefinition> = {

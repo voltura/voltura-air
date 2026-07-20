@@ -293,7 +293,7 @@ export function App() {
             ...getAvailableToolModeIds(presentationAvailable)
               .filter((id) => !modeTabs.some((mode) => mode.id === id))
               .map((id) => toolModeDefinitions[id])
-          ].map(({ id, ariaLabel, Icon }) => ({ id, label: ariaLabel, Icon }))}
+          ].map(({ id, label, ariaLabel, Icon }) => ({ id, label: id === "trackpad" || id === "keyboard" || id === "remote" ? label : ariaLabel, Icon }))}
           trackpadSettings={effectiveTrackpadSettings}
           updateKeyboardSetting={updateKeyboardSetting}
           updateRemoteSetting={updateRemoteSetting}

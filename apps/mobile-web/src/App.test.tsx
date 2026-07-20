@@ -171,7 +171,7 @@ describe("App header and mode navigation", () => {
 
     expect(screen.getByRole("heading", { name: "Presentation" })).toBeTruthy();
     expect(requestPresentationCommand).toHaveBeenCalledExactlyOnceWith("powerpoint", "next");
-    expect(screen.getAllByRole("button", { name: "Trackpad mode" })).not.toHaveLength(0);
+    expect(screen.getAllByRole("button", { name: "Trackpad" })).not.toHaveLength(0);
   });
 
   it("hides Presentation entry points when the host does not advertise the alpha feature", () => {
@@ -227,11 +227,11 @@ describe("App header and mode navigation", () => {
   it("uses accessible mode labels and selected state in both navigation surfaces", () => {
     render(<App />);
 
-    const keyboardModeButtons = screen.getAllByRole("button", { name: "Keyboard mode" });
+    const keyboardModeButtons = screen.getAllByRole("button", { name: "Keyboard" });
     expect(keyboardModeButtons).toHaveLength(2);
     expect(keyboardModeButtons.every((button) => button.getAttribute("aria-current") === null)).toBe(true);
 
-    const trackpadModeButtons = screen.getAllByRole("button", { name: "Trackpad mode" });
+    const trackpadModeButtons = screen.getAllByRole("button", { name: "Trackpad" });
     expect(trackpadModeButtons.some((button) => button.getAttribute("aria-current") === "page")).toBe(true);
   });
 
@@ -245,8 +245,8 @@ describe("App header and mode navigation", () => {
     expect(screen.getByRole("heading", { name: "Send text to PC" })).toBeTruthy();
     expect(screen.getAllByRole("button", { name: "Dictation" })).toHaveLength(2);
     expect(screen.queryByRole("button", { name: "Back to previous mode" })).toBeNull();
-    fireEvent.click(screen.getAllByRole("button", { name: "Trackpad mode" }).at(-1)!);
-    expect(screen.getAllByRole("button", { name: "Trackpad mode" }).some((button) => button.getAttribute("aria-current") === "page")).toBe(true);
+    fireEvent.click(screen.getAllByRole("button", { name: "Trackpad" }).at(-1)!);
+    expect(screen.getAllByRole("button", { name: "Trackpad" }).some((button) => button.getAttribute("aria-current") === "page")).toBe(true);
 
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
     const menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog");
@@ -259,7 +259,7 @@ describe("App header and mode navigation", () => {
   it("opens compact mode navigation as an overlay without moving the keyboard controls", () => {
     render(<App />);
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Keyboard mode" }).at(0)!);
+    fireEvent.click(screen.getAllByRole("button", { name: "Keyboard" }).at(0)!);
     const primaryKeys = screen.getByLabelText("Primary keyboard keys");
     const beforeParent = primaryKeys.parentElement;
 
@@ -280,7 +280,7 @@ describe("App header and mode navigation", () => {
     expect(bottomModeNavigation?.parentElement).toBe(appShell?.parentElement);
     expect(bottomModeNavigation?.parentElement?.classList).toContain("app-frame");
 
-    for (const modeName of ["Keyboard mode", "Remote mode", "Dictation"]) {
+    for (const modeName of ["Keyboard", "Remote", "Dictation"]) {
       fireEvent.click(within(bottomModeNavigation!).getByRole("button", { name: modeName }));
 
       expect(document.querySelector(".bottom-mode-tabs")).toBe(bottomModeNavigation);
@@ -294,7 +294,7 @@ describe("App header and mode navigation", () => {
     expect(document.querySelector(".bottom-mode-tabs")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Change mode" }));
-    fireEvent.click(screen.getByRole("menuitemradio", { name: "Keyboard mode" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Keyboard" }));
 
     expect(appShell?.classList.contains("mode-tabs-collapsed")).toBe(false);
     expect(document.querySelector(".bottom-mode-tabs")).toBeTruthy();
@@ -306,7 +306,7 @@ describe("App header and mode navigation", () => {
     mockConnection({ send, supportsRemoteLaunch: true });
     render(<App />);
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Remote mode" }).at(-1)!);
+    fireEvent.click(screen.getAllByRole("button", { name: "Remote" }).at(-1)!);
 
     const dialog = screen.getByRole("dialog", { name: "Open Kodi?" });
     expect(send).not.toHaveBeenCalled();
@@ -323,7 +323,7 @@ describe("App header and mode navigation", () => {
     mockConnection({ send, supportsRemoteLaunch: true });
     render(<App />);
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Remote mode" }).at(-1)!);
+    fireEvent.click(screen.getAllByRole("button", { name: "Remote" }).at(-1)!);
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(screen.queryByRole("dialog", { name: "Open YouTube?" })).toBeNull();
@@ -390,7 +390,7 @@ describe("App header and mode navigation", () => {
   it("hides the bottom mode row and keeps the header selector available while remote Fn is open", () => {
     render(<App />);
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Remote mode" }).at(-1)!);
+    fireEvent.click(screen.getAllByRole("button", { name: "Remote" }).at(-1)!);
     expect(document.querySelector(".bottom-mode-tabs")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Fn" }));
@@ -413,7 +413,7 @@ describe("App header and mode navigation", () => {
     render(<App />);
 
     expect(screen.queryByRole("button", { name: "Change mode" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Keyboard mode" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Keyboard" })).toBeNull();
     expect(screen.getByRole("button", { name: "Take photo of new QR code" })).toBeTruthy();
   });
 

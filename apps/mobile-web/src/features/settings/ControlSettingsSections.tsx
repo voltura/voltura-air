@@ -82,8 +82,8 @@ export function RemoteSettingsSection({ remoteSettings, supportsRemoteLaunch, up
     <>
       <label className="toggle-row"><span>Navigation ring</span><input type="checkbox" checked={remoteSettings.navigationRing} onChange={(event) => { updateRemoteSetting("navigationRing", event.target.checked); }} /></label>
       <div className="setting-group">
-        <span>Remote mode</span>
-        <div className="segmented-control three" aria-label="Remote mode">
+        <span>Remote</span>
+        <div className="segmented-control three" aria-label="Remote">
           <button type="button" className={remoteSettings.mode === "standard" ? "active" : ""} onClick={() => { updateRemoteSetting("mode", "standard"); }}>Standard</button>
           <button type="button" className={remoteSettings.mode === "youtube" ? "active" : ""} onClick={() => { updateRemoteSetting("mode", "youtube"); }}>YouTube</button>
           <button type="button" className={remoteSettings.mode === "kodi" ? "active" : ""} onClick={() => { updateRemoteSetting("mode", "kodi"); }}>Kodi</button>
@@ -96,8 +96,8 @@ export function RemoteSettingsSection({ remoteSettings, supportsRemoteLaunch, up
       </div>
       {supportsRemoteLaunch && (
         <>
-          <label className="toggle-row"><span>Open YouTube from Remote mode</span><input type="checkbox" checked={remoteSettings.openYoutube} onChange={(event) => { updateRemoteSetting("openYoutube", event.target.checked); }} /></label>
-          <label className="toggle-row"><span>Start Kodi from Remote mode</span><input type="checkbox" checked={remoteSettings.startKodi} onChange={(event) => { updateRemoteSetting("startKodi", event.target.checked); }} /></label>
+          <label className="toggle-row"><span>Open YouTube from Remote</span><input type="checkbox" checked={remoteSettings.openYoutube} onChange={(event) => { updateRemoteSetting("openYoutube", event.target.checked); }} /></label>
+          <label className="toggle-row"><span>Start Kodi from Remote</span><input type="checkbox" checked={remoteSettings.startKodi} onChange={(event) => { updateRemoteSetting("startKodi", event.target.checked); }} /></label>
         </>
       )}
     </>

@@ -81,6 +81,10 @@ function arrangeClippedAppSection(targetBottom: number) {
   return { scrollBy, summary };
 }
 
+function getRemoteSectionSummary(): HTMLElement {
+  return document.querySelector<HTMLElement>("[data-settings-section=\"remote\"] > summary")!;
+}
+
 describe("SettingsDrawer", () => {
   beforeEach(() => {
     vi.stubGlobal("__APP_VERSION__", "test-version");
@@ -95,7 +99,7 @@ describe("SettingsDrawer", () => {
     expect(screen.getByText("Trackpad")).toBeTruthy();
     expect(screen.getByText("Keyboard")).toBeTruthy();
     expect(screen.getByText("Split mode")).toBeTruthy();
-    expect(screen.getByText("Remote")).toBeTruthy();
+    expect(getRemoteSectionSummary().textContent).toBe("Remote");
     expect(screen.getByText("Appearance")).toBeTruthy();
     expect(screen.getByText("App")).toBeTruthy();
     expect(Array.from(document.querySelectorAll("details")).every((details) => !details.open)).toBe(true);
@@ -257,7 +261,7 @@ describe("SettingsDrawer", () => {
     const updateRemoteSetting = vi.fn();
     render(<SettingsDrawer {...baseProps} updateRemoteSetting={updateRemoteSetting} />);
 
-    fireEvent.click(screen.getByText("Remote"));
+    fireEvent.click(getRemoteSectionSummary());
     fireEvent.click(screen.getByRole("checkbox", { name: "Navigation ring" }));
 
     expect(updateRemoteSetting).toHaveBeenCalledExactlyOnceWith("navigationRing", false);
@@ -318,7 +322,7 @@ describe("SettingsDrawer", () => {
     const updateRemoteSetting = vi.fn();
     render(<SettingsDrawer {...baseProps} updateRemoteSetting={updateRemoteSetting} />);
 
-    fireEvent.click(screen.getByText("Remote"));
+    fireEvent.click(getRemoteSectionSummary());
     fireEvent.click(screen.getByRole("checkbox", { name: "Browser tabs and reload" }));
 
     expect(updateRemoteSetting).toHaveBeenCalledExactlyOnceWith("showBrowserHelpers", false);
@@ -362,7 +366,7 @@ describe("SettingsDrawer", () => {
     const updateRemoteSetting = vi.fn();
     render(<SettingsDrawer {...baseProps} updateRemoteSetting={updateRemoteSetting} />);
 
-    fireEvent.click(screen.getByText("Remote"));
+    fireEvent.click(getRemoteSectionSummary());
     fireEvent.click(screen.getByRole("button", { name: "Kodi" }));
 
     expect(updateRemoteSetting).toHaveBeenCalledExactlyOnceWith("mode", "kodi");
@@ -372,22 +376,22 @@ describe("SettingsDrawer", () => {
   it("shows launch action settings only when the host allows remote launch", () => {
     const { rerender } = render(<SettingsDrawer {...baseProps} />);
 
-    fireEvent.click(screen.getByText("Remote"));
-    expect(screen.queryByRole("checkbox", { name: "Open YouTube from Remote mode" })).toBeNull();
-    expect(screen.queryByRole("checkbox", { name: "Start Kodi from Remote mode" })).toBeNull();
+    fireEvent.click(getRemoteSectionSummary());
+    expect(screen.queryByRole("checkbox", { name: "Open YouTube from Remote" })).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: "Start Kodi from Remote" })).toBeNull();
 
     rerender(<SettingsDrawer {...baseProps} supportsRemoteLaunch />);
 
-    expect(screen.getByRole("checkbox", { name: "Open YouTube from Remote mode" })).toBeTruthy();
-    expect(screen.getByRole("checkbox", { name: "Start Kodi from Remote mode" })).toBeTruthy();
+    expect(screen.getByRole("checkbox", { name: "Open YouTube from Remote" })).toBeTruthy();
+    expect(screen.getByRole("checkbox", { name: "Start Kodi from Remote" })).toBeTruthy();
   });
 
   it("updates local remote launch action settings", () => {
     const updateRemoteSetting = vi.fn();
     render(<SettingsDrawer {...baseProps} supportsRemoteLaunch updateRemoteSetting={updateRemoteSetting} />);
 
-    fireEvent.click(screen.getByText("Remote"));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Open YouTube from Remote mode" }));
+    fireEvent.click(getRemoteSectionSummary());
+    fireEvent.click(screen.getByRole("checkbox", { name: "Open YouTube from Remote" }));
 
     expect(updateRemoteSetting).toHaveBeenCalledExactlyOnceWith("openYoutube", false);
   });

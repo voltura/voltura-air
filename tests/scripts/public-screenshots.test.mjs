@@ -31,6 +31,8 @@ test("public screenshot inventory stays curated and aligned", async () => {
   assert.deepEqual(extractScreenshots(assetFiles.join("\n")), expectedScreenshots);
 
   assert.deepEqual(extractScreenshots(`${readme}\n${marketingPage}`), expectedScreenshots);
+  assert.match(captureScript, /"bin", "cli", "Debug", "net10\.0-windows"/u);
+  assert.match(captureScript, /getByRole\("button", \{ name: "Remote", exact: true \}\)/u);
   assert.match(captureScript, /DwmGetWindowAttributeUInt\(\$hwnd, 37,/u);
   assert.match(captureScript, /\$rect\.Left \+= \$borderInset/u);
   assert.match(captureScript, /\$rect\.Bottom -= \$borderInset/u);

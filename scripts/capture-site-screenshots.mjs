@@ -13,7 +13,7 @@ const tempDir = path.join(os.tmpdir(), "voltura-air-site-screenshots");
 const tempAppDataDir = path.join(tempDir, "appdata");
 const pairingUrlFile = path.join(tempDir, "pairing-url.txt");
 const hostCaptureScript = path.join(tempDir, "capture-window.ps1");
-const hostExe = path.join(repoRoot, "apps", "windows-host", "bin", "Debug", "net10.0-windows", "VolturaAir.Host.exe");
+const hostExe = path.join(repoRoot, "apps", "windows-host", "bin", "cli", "Debug", "net10.0-windows", "VolturaAir.Host.exe");
 
 const outputs = {
   hostLight: path.join(assetsDir, "voltura-air-host.png"),
@@ -150,7 +150,7 @@ async function captureKodiRemote(page) {
   });
   await page.reload({ waitUntil: "networkidle" });
   await waitForConnected(page);
-  const remoteTab = page.getByRole("button", { name: "Remote mode" });
+  const remoteTab = page.getByRole("button", { name: "Remote", exact: true });
   await remoteTab.click();
   await page.locator(".remote-navigation-ring").waitFor({ timeout: 5000 });
   await remoteTab.click();

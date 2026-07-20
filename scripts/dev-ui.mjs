@@ -205,7 +205,7 @@ async function verifyTrackpadButtonLayout(page) {
 
 async function verifyKeyboardLayout(page) {
   await page.setViewportSize({ width: 393, height: 852 });
-  await page.getByRole("button", { name: "Keyboard mode", exact: true }).click();
+  await page.getByRole("button", { name: "Keyboard", exact: true }).click();
   await page.getByRole("tab", { name: "Show numeric keyboard", exact: true }).click();
   await page.getByRole("tab", { name: "Show regular keyboard", exact: true }).click();
 
@@ -359,7 +359,7 @@ async function verifyLandscapeSafeAreaLayouts(page) {
   await page.getByRole("button", { name: "Restore trackpad", exact: true }).click();
 
   await page.setViewportSize({ width: 393, height: 852 });
-  await page.getByRole("button", { name: "Remote mode", exact: true }).click();
+  await page.getByRole("button", { name: "Remote", exact: true }).click();
   await page.setViewportSize({ width: 852, height: 393 });
   const remoteVolumeLayout = await page.evaluate(() => {
     const shell = document.querySelector(".app-shell");
@@ -394,7 +394,7 @@ async function verifyLandscapeSafeAreaLayouts(page) {
     }
   });
   await page.setViewportSize({ width: 393, height: 852 });
-  await page.getByRole("button", { name: "Trackpad mode", exact: true }).click();
+  await page.getByRole("button", { name: "Trackpad", exact: true }).click();
 }
 
 async function verifySettingsDrawerLifecycle(page) {
@@ -522,7 +522,7 @@ async function verifySettingsDrawerLifecycle(page) {
 }
 
 async function verifyResponsivePowerLayout(page) {
-  await page.getByRole("button", { name: "Remote mode", exact: true }).click();
+  await page.getByRole("button", { name: "Remote", exact: true }).click();
   await page.getByRole("button", { name: "Power", exact: true }).click();
 
   const viewports = [
@@ -662,7 +662,7 @@ async function verifyResponsiveTextTransferLayout(page) {
 
 async function verifyResponsiveUrlOpenLayout(page) {
   await page.setViewportSize({ width: 393, height: 852 });
-  await page.getByRole("button", { name: "Remote mode", exact: true }).click();
+  await page.getByRole("button", { name: "Remote", exact: true }).click();
   await page.getByRole("button", { name: "Fn", exact: true }).click();
   await page.getByRole("button", { name: "Open URL", exact: true }).click();
   const urlDialog = page.getByRole("dialog", { name: "Open URL on PC", exact: true });

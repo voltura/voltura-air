@@ -321,4 +321,87 @@ public sealed partial class HostUiLayoutTests
             }
         });
     }
+
+    [Fact]
+    public void AppLaunchPresetTestButtonUsesTheSharedLaunchService()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        Assert.True(AppLaunchSettings.SetPresetEnabled(AppLaunchKind.Browser, true, out var error), error);
+        Assert.True(
+            AppLaunchSettings.TrySaveCustom("Example", Environment.ProcessPath!, null, null, out var customAction, out error),
+            error);
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            using var store = new TempPairingStore();
+            using var injector = new SendInputInjector();
+            var appLaunch = new RecordingAppLaunchService();
+            var manager = new PairingManager(store.Store);
+            var webHost = new WebHostService(
+                manager,
+                new InputDispatcher(injector),
+                appLaunchService: appLaunch,
+                isolatedTestMode: true);
+            var window = new MainWindow(manager, webHost, clientUrl: null);
+            try
+            {
+                window.Show();
+                window.ShowPage(HostPage.Preferences);
+                var section = Assert.Single(
+                    FindWpfDescendants<Expander>(window),
+                    item => string.Equals(item.Header as string, "Application launch buttons", StringComparison.Ordinal));
+                section.IsExpanded = true;
+                window.UpdateLayout();
+
+                var test = Assert.Single(
+                    FindWpfDescendants<Button>(section),
+                    button => string.Equals(
+                        System.Windows.Automation.AutomationProperties.GetName(button),
+                        "Test Browser launch",
+                        StringComparison.Ordinal));
+                var disabledTest = Assert.Single(
+                    FindWpfDescendants<Button>(section),
+                    button => string.Equals(
+                        System.Windows.Automation.AutomationProperties.GetName(button),
+                        "Test Spotify launch",
+                        StringComparison.Ordinal));
+                var customTest = Assert.Single(
+                    FindWpfDescendants<Button>(section),
+                    button => string.Equals(
+                        System.Windows.Automation.AutomationProperties.GetName(button),
+                        "Test Example launch",
+                        StringComparison.Ordinal));
+
+                Assert.True(test.IsEnabled);
+                Assert.False(disabledTest.IsEnabled);
+                test.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                customTest.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+                Assert.Equal(["preset.browser", customAction.Id], appLaunch.ActionIds);
+                Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "Started WWW.");
+            }
+            finally
+            {
+                window.Close();
+                DisposeWebHost(webHost);
+            }
+        });
+    }
+
+    private sealed class RecordingAppLaunchService : IAppLaunchService
+    {
+        public List<string> ActionIds { get; } = [];
+
+        public IReadOnlyList<AppLaunchActionSummary> GetActions() => [];
+
+        public AppLaunchExecutionResult Execute(string actionId)
+        {
+            ActionIds.Add(actionId);
+            return new AppLaunchExecutionResult(true, "started", "Started WWW.");
+        }
+    }
 }

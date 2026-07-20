@@ -10,6 +10,7 @@ namespace VolturaAir.Host.Features.Preferences;
 
 internal sealed class AppLaunchSettingsSection(
     Window owner,
+    IAppLaunchService appLaunchService,
     HostVisualFactory visuals,
     PreferencesVisualFactory preferenceVisuals,
     HostToastPresenter toasts,
@@ -72,6 +73,15 @@ internal sealed class AppLaunchSettingsSection(
         };
         Grid.SetColumn(label, 2);
         header.Children.Add(label);
+
+        var test = new TextBlock
+        {
+            Text = "Test",
+            FontWeight = FontWeights.SemiBold,
+            Foreground = visuals.Brush("TextBrush")
+        };
+        Grid.SetColumn(test, 4);
+        header.Children.Add(test);
         return header;
     }
 
@@ -106,6 +116,15 @@ internal sealed class AppLaunchSettingsSection(
         Grid.SetColumn(labelInput, 2);
         row.Children.Add(labelInput);
         labelInput.TextChanged += (_, _) => SavePresetLabel(preset.Kind, labelInput);
+
+        var test = visuals.CreateButton("Test", (_, _) => TestAction(configured!));
+        test.IsEnabled = configured is not null;
+        AutomationProperties.SetName(test, $"Test {presetName} launch");
+        AutomationProperties.SetHelpText(test, configured is null
+            ? $"Enable {presetName} before testing it."
+            : $"Start {presetName} locally and show the launch result.");
+        Grid.SetColumn(test, 4);
+        row.Children.Add(test);
         return row;
     }
 
@@ -134,6 +153,10 @@ internal sealed class AppLaunchSettingsSection(
         grid.Children.Add(details);
 
         var actions = HostVisualFactory.CreateHorizontalStack(UiTokens.SpaceSm);
+        var test = visuals.CreateButton("Test", (_, _) => TestAction(action));
+        AutomationProperties.SetName(test, $"Test {action.Label} launch");
+        AutomationProperties.SetHelpText(test, $"Start {action.Label} locally and show the launch result.");
+        actions.Children.Add(test);
         actions.Children.Add(visuals.CreateButton("Edit", (_, _) => OpenEditor(action)));
         actions.Children.Add(visuals.CreateButton("Remove", (_, _) => Remove(action), danger: true));
         Grid.SetColumn(actions, 2);
@@ -218,12 +241,20 @@ internal sealed class AppLaunchSettingsSection(
         refresh();
     }
 
+    private void TestAction(AppLaunchAction action)
+    {
+        var result = appLaunchService.Execute(action.Id);
+        toasts.Show(result.Message);
+    }
+
     private static Grid CreatePresetGrid()
     {
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(UiTokens.SpaceSm) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(UiTokens.SpaceSm) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         return grid;
     }
 }

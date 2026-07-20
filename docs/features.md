@@ -106,7 +106,7 @@ approved unfinished work.
 - Supports an effective global/per-device Presentation control permission while Presentation's alpha gate is enabled.
 - Supports host-enforced permission for fixed Remote launch actions and host-configured application buttons.
 - Supports a separate default-off host permission for opening reviewed HTTP and HTTPS web addresses, with per-device overrides.
-- Configures optional Browser, Spotify, VLC, and PowerPoint launch presets in Windows Preferences.
+- Configures optional Browser, Spotify, VLC, and PowerPoint launch presets in Windows Preferences, where each enabled preset can be tested locally and reports its launch result.
 - Lets the host choose a 1–10 character mobile button label for every enabled preset and custom application command; preset label edits save automatically and inputs stop accepting text at 10 characters.
 - Configures custom `.exe` launch buttons with optional arguments after a local host warning confirmation on every add or edit.
 - Keeps custom paths and arguments on the PC; paired devices receive and send only opaque action IDs and display labels.

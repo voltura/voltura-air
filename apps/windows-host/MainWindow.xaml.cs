@@ -88,6 +88,7 @@ public partial class MainWindow : Window
             _awakeService,
             effectiveCustomPointerService,
             effectiveAppLog,
+            webHost.AppLaunchService,
             _visuals,
             _toasts,
             () => SelectPage(HostPage.Preferences),

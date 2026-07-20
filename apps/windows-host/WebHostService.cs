@@ -91,6 +91,7 @@ public sealed class WebHostService : IAsyncDisposable
         var resolvedAudioController = audioController ?? new SystemAudioController();
         var resolvedRemoteActionExecutor = remoteActionExecutor ?? new RemoteActionExecutor();
         var resolvedAppLaunchService = appLaunchService ?? new AppLaunchService();
+        AppLaunchService = resolvedAppLaunchService;
         var resolvedUrlOpenService = urlOpenService ?? new UrlOpenService();
         var resolvedTextDestinationService = textDestinationService ?? new FocusedTextDestinationService(inputDispatcher);
         var resolvedClipboardTextReader = clipboardTextReader ?? new WindowsClipboardTextReader();
@@ -180,6 +181,7 @@ public sealed class WebHostService : IAsyncDisposable
     internal IWorkstationLockPolicy WorkstationLockPolicy => _workstationLockPolicy;
     internal ISystemPowerController PowerController => _powerController;
     internal IAwakeService AwakeService => _awakeService;
+    internal IAppLaunchService AppLaunchService { get; }
     internal IAppLog AppLog => _appLog;
     internal int ActiveSocketCount => _transport.ActiveSocketCount;
     internal int SendGateCount => _transport.SendGateCount;

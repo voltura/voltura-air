@@ -95,6 +95,7 @@ export async function runFullRelease(
     verifyAutomaticPublicationPreconditions(run);
   }
 
+  run("npm", ["run", "size:check"]);
   run("npm", ["run", "release:bump"]);
   run("npm", ["run", "branding:generate"]);
   run("npm", ["run", "publish:site"]);

@@ -53,6 +53,9 @@ Both full-release modes require a clean working tree before they change files or
 publish the site. Automatic mode also requires a configured Git author and
 tracking branch. It commits `Release version <version>` and runs a normal `git
 push`; it never force-pushes or includes pre-existing local changes.
+Before changing the version or publishing anything, both modes run
+`npm run size:check` and stop if a refactor introduced an unresolved strong
+source-size warning.
 
 The command accepts semantic versions such as `0.6.0` and `0.6.0-beta.1`.
 Numeric components must fit a Windows version resource.

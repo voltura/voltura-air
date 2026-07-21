@@ -13,7 +13,7 @@ test("full release rejects unsupported arguments", () => {
   assert.throws(() => useAutomaticPublication(["auto", "extra"]), /Usage/u);
 });
 
-test("full release runs release preparation, branding, and site publication in order", async () => {
+test("full release checks source size before release preparation, branding, and site publication", async () => {
   const calls = [];
   const run = (command, args, options) => {
     calls.push([command, args]);
@@ -24,6 +24,7 @@ test("full release runs release preparation, branding, and site publication in o
 
   assert.deepEqual(calls, [
     ["git", ["status", "--porcelain=v1"]],
+    ["npm", ["run", "size:check"]],
     ["npm", ["run", "release:bump"]],
     ["npm", ["run", "branding:generate"]],
     ["npm", ["run", "publish:site"]]
@@ -41,6 +42,24 @@ test("full release stops before any release action when the working tree is dirt
   assert.deepEqual(calls, [["git", ["status", "--porcelain=v1"]]]);
 });
 
+test("full release stops before versioning when the source-size check fails", async () => {
+  const calls = [];
+  const run = (command, args, options) => {
+    calls.push([command, args]);
+    if (command === "npm" && args.join(" ") === "run size:check") {
+      throw new Error("Source-size check failed.");
+    }
+
+    return options?.captureOutput ? "" : undefined;
+  };
+
+  await assert.rejects(() => runFullRelease([], { run }), /source-size check failed/iu);
+  assert.deepEqual(calls, [
+    ["git", ["status", "--porcelain=v1"]],
+    ["npm", ["run", "size:check"]]
+  ]);
+});
+
 test("automatic full release commits the resolved version and pushes after publication", async () => {
   const calls = [];
   const run = (command, args, options) => {
@@ -54,6 +73,7 @@ test("automatic full release commits the resolved version and pushes after publi
     ["git", ["status", "--porcelain=v1"]],
     ["git", ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"]],
     ["git", ["var", "GIT_AUTHOR_IDENT"]],
+    ["npm", ["run", "size:check"]],
     ["npm", ["run", "release:bump"]],
     ["npm", ["run", "branding:generate"]],
     ["npm", ["run", "publish:site"]],

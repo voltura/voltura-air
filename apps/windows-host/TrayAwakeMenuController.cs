@@ -17,6 +17,7 @@ internal sealed class TrayAwakeMenuController : IDisposable
     private readonly Forms.ToolStripMenuItem _keepScreenOnItem;
 #pragma warning restore CA2213
     private bool _disposed;
+    private int _operationRunning;
 
     public TrayAwakeMenuController(
         Dispatcher dispatcher,
@@ -32,7 +33,7 @@ internal sealed class TrayAwakeMenuController : IDisposable
         _offItem = new Forms.ToolStripMenuItem(
             "Use selected power plan",
             null,
-            (_, _) => RunProtected(() => Apply(_awakeService.SetOff())));
+            async (_, _) => await RunProtectedAsync(() => _awakeService.SetOffAsync()));
         _timedItem = new Forms.ToolStripMenuItem("For an interval");
         AddInterval("30 minutes", 30);
         AddInterval("1 hour", 60);
@@ -41,11 +42,11 @@ internal sealed class TrayAwakeMenuController : IDisposable
         _indefiniteItem = new Forms.ToolStripMenuItem(
             "Indefinitely",
             null,
-            (_, _) => RunProtected(() => Apply(_awakeService.SetIndefinite())));
+            async (_, _) => await RunProtectedAsync(() => _awakeService.SetIndefiniteAsync()));
         _keepScreenOnItem = new Forms.ToolStripMenuItem(
             "Keep screen on",
             null,
-            (_, _) => RunProtected(() => Apply(_awakeService.SetKeepScreenOn(!_awakeService.State.KeepScreenOn))));
+            async (_, _) => await RunProtectedAsync(() => _awakeService.SetKeepScreenOnAsync(!_awakeService.State.KeepScreenOn)));
 
         MenuItem.DropDownItems.Add(_offItem);
         MenuItem.DropDownItems.Add(_timedItem);
@@ -76,14 +77,36 @@ internal sealed class TrayAwakeMenuController : IDisposable
         _timedItem.DropDownItems.Add(
             label,
             null,
-            (_, _) => RunProtected(() => Apply(_awakeService.SetTimed(TimeSpan.FromMinutes(minutes)))));
+            async (_, _) => await RunProtectedAsync(() => _awakeService.SetTimedAsync(TimeSpan.FromMinutes(minutes))));
     }
 
-    private void Apply(AwakeOperationResult result)
+    private async Task RunProtectedAsync(Func<Task<AwakeOperationResult>> operation)
     {
-        if (!result.Succeeded)
+        if (HostUiInputGuard.IsRecentProtectedClientInput() || Interlocked.Exchange(ref _operationRunning, 1) != 0)
         {
-            _reportFailure(result);
+            return;
+        }
+
+        MenuItem.Enabled = false;
+        try
+        {
+            var result = await operation();
+            if (!result.Succeeded)
+            {
+                _reportFailure(result);
+            }
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            _reportFailure(new AwakeOperationResult(false, exception.Message, AwakeOperationFailure.Unavailable));
+        }
+        finally
+        {
+            Volatile.Write(ref _operationRunning, 0);
+            if (!_disposed)
+            {
+                MenuItem.Enabled = true;
+            }
         }
     }
 

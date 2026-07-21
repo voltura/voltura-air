@@ -100,7 +100,7 @@ public sealed class WebHostService : IAsyncDisposable
         _appLog = appLog ?? (isolatedTestMode ? NullAppLog.Instance : new AppLog());
         _awakeService = awakeService ?? (isolatedTestMode
             ? new NoOpAwakeService()
-            : VolturaAir.Host.AwakeService.CreateWindows(_appLog));
+            : throw new ArgumentNullException(nameof(awakeService), "Production host composition must provide the Awake service."));
         _workstationLockPolicy = workstationLockPolicy ?? new WorkstationLockPolicy(_appLog);
 
         var statusFactory = new HostStatusPayloadFactory(
@@ -313,7 +313,7 @@ public sealed class WebHostService : IAsyncDisposable
             {
                 try
                 {
-                    _awakeService.Dispose();
+                    await _awakeService.DisposeAsync();
                 }
                 finally
                 {

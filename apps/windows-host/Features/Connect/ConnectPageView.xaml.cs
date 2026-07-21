@@ -161,6 +161,10 @@ public partial class ConnectPageView : WpfUserControl
 
     private void OnOwnerWindowStateChanged(object? sender, EventArgs eventArgs) => UpdateCountdownActivity();
 
+    private void OnOwnerWindowActivated(object? sender, EventArgs eventArgs) => UpdateCountdownActivity();
+
+    private void OnOwnerWindowDeactivated(object? sender, EventArgs eventArgs) => UpdateCountdownActivity();
+
     private void OnCountdownTick(object? sender, EventArgs eventArgs)
     {
         ProcessCountdown();
@@ -197,7 +201,7 @@ public partial class ConnectPageView : WpfUserControl
             return;
         }
 
-        if (IsVisible && _ownerWindow?.WindowState != WindowState.Minimized)
+        if (IsLoaded && IsVisible && _ownerWindow is { IsActive: true, WindowState: not WindowState.Minimized })
         {
             StartCountdown();
         }
@@ -215,10 +219,15 @@ public partial class ConnectPageView : WpfUserControl
             return;
         }
 
-        _ownerWindow?.StateChanged -= OnOwnerWindowStateChanged;
+        UntrackOwnerWindow();
 
         _ownerWindow = ownerWindow;
-        _ownerWindow?.StateChanged += OnOwnerWindowStateChanged;
+        if (_ownerWindow is not null)
+        {
+            _ownerWindow.StateChanged += OnOwnerWindowStateChanged;
+            _ownerWindow.Activated += OnOwnerWindowActivated;
+            _ownerWindow.Deactivated += OnOwnerWindowDeactivated;
+        }
     }
 
     private void RenderCountdown(DateTimeOffset now)
@@ -249,11 +258,23 @@ public partial class ConnectPageView : WpfUserControl
         _timerReleased = true;
         _countdownTimer.Stop();
         _countdownTimer.Tick -= OnCountdownTick;
-        _ownerWindow?.StateChanged -= OnOwnerWindowStateChanged;
-        _ownerWindow = null;
+        UntrackOwnerWindow();
 
         Loaded -= OnLoaded;
         Unloaded -= OnUnloaded;
         IsVisibleChanged -= OnIsVisibleChanged;
+    }
+
+    private void UntrackOwnerWindow()
+    {
+        if (_ownerWindow is null)
+        {
+            return;
+        }
+
+        _ownerWindow.StateChanged -= OnOwnerWindowStateChanged;
+        _ownerWindow.Activated -= OnOwnerWindowActivated;
+        _ownerWindow.Deactivated -= OnOwnerWindowDeactivated;
+        _ownerWindow = null;
     }
 }

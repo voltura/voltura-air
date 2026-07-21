@@ -24,9 +24,11 @@ device name before it opens the pairing connection.
 
 Each generated pairing code is valid for five minutes. The visible Connect screen
 shows a minute-and-second countdown and replaces its code 15 seconds before
-expiry. It performs no countdown work while hidden; reopening Connect replaces a
-code that has reached its refresh time before showing it. **New code** replaces
-the visible code immediately.
+expiry. It performs no countdown work while Connect is hidden, the host is
+minimized, or the host window is inactive. Restoring or activating the host
+immediately catches the display up; if the refresh time passed while suspended,
+Connect requests exactly one replacement. **New code** replaces the visible code
+immediately.
 
 The Connect screen groups the countdown, **New code**, and **Copy link** in the
 QR status card so the code actions remain visible. Technical connection details

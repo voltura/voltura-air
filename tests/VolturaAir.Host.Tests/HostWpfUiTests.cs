@@ -315,6 +315,7 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
                 var previousReadCount = appLog.ReadCount;
                 automaticRefreshToggle.IsChecked = true;
                 WaitForWpf(() => appLog.ReadCount > previousReadCount, "automatic log refresh subscription");
+                DoWpfEvents();
 
                 var sourceFilter = filters.Single(filter => filter.Items.Count == 3);
                 sourceFilter.IsDropDownOpen = true;
@@ -419,6 +420,130 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
             }
             finally
             {
+                window.Close();
+                DisposeWebHost(webHost);
+            }
+        });
+    }
+
+    [Fact]
+    public void ApplicationLogAutomaticRefreshCoalescesBurstsAndRecoversAfterReadFailure()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            using var store = new TempPairingStore();
+            using var inputInjector = new SendInputInjector();
+            var manager = new PairingManager(store.Store);
+            var appLog = new FakeAppLog();
+            var webHost = new WebHostService(manager, new InputDispatcher(inputInjector), appLog: appLog, isolatedTestMode: true);
+            var window = new MainWindow(manager, webHost, clientUrl: null, appLog: appLog);
+            try
+            {
+                window.Show();
+                window.ShowPage(HostPage.Diagnostics);
+                WaitForWpf(() => appLog.ReadCount > 0, "initial application log read");
+                var automaticRefresh = FindWpfDescendants<CheckBox>(window)
+                    .Single(checkBox => checkBox.Content?.ToString() == "Automatic log refresh");
+                var refresh = FindWpfDescendants<Button>(window)
+                    .Single(button => button.Content?.ToString() == "Refresh");
+                var beforeAutomaticRefresh = appLog.ReadCount;
+                automaticRefresh.IsChecked = true;
+                WaitForWpf(() => appLog.SubscriberCount == 1, "automatic refresh subscription");
+                WaitForWpf(() => appLog.ReadCount > beforeAutomaticRefresh, "automatic refresh read");
+                WaitForWpf(() => appLog.CompletedReadCount == appLog.ReadCount, "automatic refresh completion");
+                DoWpfEvents();
+
+                appLog.BlockReads();
+                var beforeBurst = appLog.ReadCount;
+                appLog.RaiseChanged();
+                DoWpfEvents();
+                Assert.True(appLog.ReadEntered.Wait(TimeSpan.FromSeconds(1)));
+                Task.Run(() => appLog.RaiseChanged(100)).GetAwaiter().GetResult();
+                DoWpfEvents();
+                appLog.ReleaseReads();
+                try
+                {
+                    WaitForWpf(() => appLog.ReadCount >= beforeBurst + 2, "coalesced follow-up application log read");
+                }
+                catch (TimeoutException exception)
+                {
+                    throw new TimeoutException($"{exception.Message} Reads: {appLog.ReadCount}; expected at least {beforeBurst + 2}; subscribers: {appLog.SubscriberCount}; delivered changes: {appLog.DeliveredChangeCount}.", exception);
+                }
+                DoWpfEvents();
+                Assert.Equal(beforeBurst + 2, appLog.ReadCount);
+                WaitForWpf(() => appLog.CompletedReadCount == appLog.ReadCount, "coalesced follow-up completion");
+                automaticRefresh.IsChecked = false;
+                WaitForWpf(() => appLog.SubscriberCount == 0, "automatic refresh unsubscription");
+                DoWpfEvents();
+
+                appLog.ThrowOnNextRead = true;
+                var beforeFailure = appLog.ReadCount;
+                refresh.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                WaitForWpf(() => appLog.ReadCount > beforeFailure, "application log failing read");
+                WaitForWpf(() => appLog.FailedReadCount == 1, "application log read failure containment");
+                var beforeRecovery = appLog.ReadCount;
+                refresh.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                WaitForWpf(() => appLog.ReadCount > beforeRecovery, "application log recovery read");
+                WaitForWpf(
+                    () => FindWpfDescendants<TextBlock>(window).Any(text => text.Text.Contains("Showing", StringComparison.Ordinal)),
+                    "application log read recovery");
+            }
+            finally
+            {
+                window.Close();
+                DisposeWebHost(webHost);
+            }
+        });
+    }
+
+    [Fact]
+    public void ApplicationLogUnloadReleasesAutomaticRefreshSubscriptionDuringRead()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            using var store = new TempPairingStore();
+            using var inputInjector = new SendInputInjector();
+            var manager = new PairingManager(store.Store);
+            var appLog = new FakeAppLog();
+            var webHost = new WebHostService(manager, new InputDispatcher(inputInjector), appLog: appLog, isolatedTestMode: true);
+            var window = new MainWindow(manager, webHost, clientUrl: null, appLog: appLog);
+            try
+            {
+                window.Show();
+                window.ShowPage(HostPage.Diagnostics);
+                WaitForWpf(() => appLog.ReadCount > 0, "initial application log read");
+                var automaticRefresh = FindWpfDescendants<CheckBox>(window)
+                    .Single(checkBox => checkBox.Content?.ToString() == "Automatic log refresh");
+                automaticRefresh.IsChecked = true;
+                WaitForWpf(() => appLog.SubscriberCount == 1, "automatic refresh subscription");
+
+                appLog.BlockReads();
+                appLog.RaiseChanged();
+                DoWpfEvents();
+                Assert.True(appLog.ReadEntered.Wait(TimeSpan.FromSeconds(1)));
+                window.ShowPage(HostPage.Connection);
+                DoWpfEvents();
+
+                Assert.Equal(0, appLog.SubscriberCount);
+                appLog.ReleaseReads();
+                DoWpfEvents();
+                Assert.DoesNotContain(FindWpfDescendants<VolturaAir.Host.Features.Diagnostics.ApplicationLogView>(window), _ => true);
+            }
+            finally
+            {
+                appLog.ReleaseReads();
                 window.Close();
                 DisposeWebHost(webHost);
             }
@@ -1066,25 +1191,107 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
 
     private sealed class FakeAppLog(params AppLogRecord[] entries) : IAppLog
     {
+        private readonly object _eventGate = new();
+        private EventHandler? _changed;
         private int _readCount;
+        private int _completedReadCount;
+        private int _subscriberCount;
+        private int _deliveredChangeCount;
+        private int _throwOnNextRead;
+        private int _failedReadCount;
+        private ManualResetEventSlim? _readGate;
 
         public string LogDirectory => string.Empty;
 
         public int ReadCount => Volatile.Read(ref _readCount);
 
-        public event EventHandler? Changed;
+        public int CompletedReadCount => Volatile.Read(ref _completedReadCount);
+
+        public int SubscriberCount => Volatile.Read(ref _subscriberCount);
+
+        public int DeliveredChangeCount => Volatile.Read(ref _deliveredChangeCount);
+
+        public int FailedReadCount => Volatile.Read(ref _failedReadCount);
+
+        public ManualResetEventSlim ReadEntered { get; private set; } = new(false);
+
+        public bool ThrowOnNextRead
+        {
+            get => Volatile.Read(ref _throwOnNextRead) != 0;
+            set => Volatile.Write(ref _throwOnNextRead, value ? 1 : 0);
+        }
+
+        public event EventHandler? Changed
+        {
+            add
+            {
+                lock (_eventGate)
+                {
+                    _changed += value;
+                    Interlocked.Increment(ref _subscriberCount);
+                }
+            }
+            remove
+            {
+                lock (_eventGate)
+                {
+                    _changed -= value;
+                    Interlocked.Decrement(ref _subscriberCount);
+                }
+            }
+        }
 
         public void Write(AppLogEntry entry)
         {
-            Changed?.Invoke(this, EventArgs.Empty);
+            RaiseChanged();
         }
 
         public AppLogReadResult Read(AppLogQuery query)
         {
             Interlocked.Increment(ref _readCount);
+            var readGate = Volatile.Read(ref _readGate);
+            if (readGate is not null)
+            {
+                ReadEntered.Set();
+                readGate.Wait();
+            }
+
+            if (Interlocked.Exchange(ref _throwOnNextRead, 0) != 0)
+            {
+                Interlocked.Increment(ref _failedReadCount);
+                throw new IOException("Expected application log read failure.");
+            }
+
+            Interlocked.Increment(ref _completedReadCount);
             return new(true, entries);
         }
 
         public AppLogDeleteResult DeleteAll() => new(true, 0);
+
+        public void BlockReads()
+        {
+            ReadEntered = new ManualResetEventSlim(false);
+            Volatile.Write(ref _readGate, new ManualResetEventSlim(false));
+        }
+
+        public void ReleaseReads()
+        {
+            Interlocked.Exchange(ref _readGate, null)?.Set();
+        }
+
+        public void RaiseChanged(int count = 1)
+        {
+            EventHandler? changed;
+            lock (_eventGate)
+            {
+                changed = _changed;
+            }
+
+            for (var index = 0; index < count; index += 1)
+            {
+                changed?.Invoke(this, EventArgs.Empty);
+                Interlocked.Increment(ref _deliveredChangeCount);
+            }
+        }
     }
 }

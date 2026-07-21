@@ -22,7 +22,9 @@ internal sealed class AwakeCommandHandler(
             return;
         }
 
-        var result = enabled ? awakeService.SetIndefinite() : awakeService.SetOff();
+        var result = enabled
+            ? await awakeService.SetIndefiniteAsync(cancellationToken).ConfigureAwait(false)
+            : await awakeService.SetOffAsync(cancellationToken).ConfigureAwait(false);
         LogAction(clientId, enabled, result.Succeeded ? "succeeded" : "execution_failed", result.Error);
         await SendResultAsync(
             socket,

@@ -49,19 +49,20 @@ public sealed class WebHostLifetimeTests : IsolatedHostSettingsTest
             remove { }
         }
 
-        public AwakeOperationResult SetOff() => AwakeOperationResult.Success;
+        public Task<AwakeOperationResult> SetOffAsync(CancellationToken cancellationToken = default) => Task.FromResult(AwakeOperationResult.Success);
 
-        public AwakeOperationResult SetIndefinite() => AwakeOperationResult.Success;
+        public Task<AwakeOperationResult> SetIndefiniteAsync(CancellationToken cancellationToken = default) => Task.FromResult(AwakeOperationResult.Success);
 
-        public AwakeOperationResult SetTimed(TimeSpan duration) => AwakeOperationResult.Success;
+        public Task<AwakeOperationResult> SetTimedAsync(TimeSpan duration, CancellationToken cancellationToken = default) => Task.FromResult(AwakeOperationResult.Success);
 
-        public AwakeOperationResult SetExpiration(DateTimeOffset expiresAt) => AwakeOperationResult.Success;
+        public Task<AwakeOperationResult> SetExpirationAsync(DateTimeOffset expiresAt, CancellationToken cancellationToken = default) => Task.FromResult(AwakeOperationResult.Success);
 
-        public AwakeOperationResult SetKeepScreenOn(bool keepScreenOn) => AwakeOperationResult.Success;
+        public Task<AwakeOperationResult> SetKeepScreenOnAsync(bool keepScreenOn, CancellationToken cancellationToken = default) => Task.FromResult(AwakeOperationResult.Success);
 
-        public void Dispose()
+        public ValueTask DisposeAsync()
         {
             Disposed = true;
+            return ValueTask.CompletedTask;
         }
     }
 }

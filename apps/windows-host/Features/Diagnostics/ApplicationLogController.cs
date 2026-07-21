@@ -44,47 +44,34 @@ internal sealed class ApplicationLogController(
 
         var visibleText = string.Empty;
         var updatingFilters = false;
-        var refreshVersion = 0L;
-        var refreshRunning = false;
         var unloaded = false;
         string? lastRenderSignature = null;
-        async void RefreshLog()
-        {
-            refreshVersion += 1;
-            if (refreshRunning || unloaded)
-            {
-                return;
-            }
 
-            refreshRunning = true;
-            var requestedVersion = refreshVersion;
-            var selectedAction = GetLogFilterValue(actionFilter);
-            var selectedEvents = eventFilter.SelectedValues;
-            var query = new AppLogQuery(
-                DateOnly.FromDateTime(dateRange.SelectedStartDate),
-                DateOnly.FromDateTime(dateRange.SelectedEndDate),
-                Source: GetLogFilterValue(sourceFilter),
-                MaxEntries: 5000);
-            var result = await Task.Run(() => appLog.Read(query)).ConfigureAwait(false);
-            if (owner.Dispatcher.HasShutdownStarted)
+        // The view's Unloaded handler owns this per-view session and releases its dispatcher callback.
+#pragma warning disable CA2000
+        var refreshSession = new ApplicationLogRefreshSession<LogRefreshRequest, AppLogReadResult>(
+            owner.Dispatcher,
+            () => new LogRefreshRequest(
+                new AppLogQuery(
+                    DateOnly.FromDateTime(dateRange.SelectedStartDate),
+                    DateOnly.FromDateTime(dateRange.SelectedEndDate),
+                    Source: GetLogFilterValue(sourceFilter),
+                    MaxEntries: 5000),
+                GetLogFilterValue(actionFilter),
+                eventFilter.SelectedValues),
+            request =>
             {
-                return;
-            }
-
-            _ = owner.Dispatcher.BeginInvoke(() =>
-            {
-                refreshRunning = false;
-                if (unloaded)
+                try
                 {
-                    return;
+                    return appLog.Read(request.Query);
                 }
-
-                if (requestedVersion != refreshVersion)
+                catch (Exception exception) when (exception is not OutOfMemoryException)
                 {
-                    RefreshLog();
-                    return;
+                    return new AppLogReadResult(false, [], Error: exception.Message);
                 }
-
+            },
+            (request, result) =>
+            {
                 if (!result.Succeeded)
                 {
                     var errorMessage = $"The application log could not be read: {result.Error}";
@@ -100,10 +87,10 @@ internal sealed class ApplicationLogController(
                 }
 
                 var eventEntries = result.Entries
-                    .Where(entry => selectedEvents.Count == 0 || selectedEvents.Contains(entry.Event))
+                    .Where(entry => request.SelectedEvents.Count == 0 || request.SelectedEvents.Contains(entry.Event))
                     .ToArray();
                 updatingFilters = true;
-                PopulateActionFilter(actionFilter, eventEntries, selectedAction);
+                PopulateActionFilter(actionFilter, eventEntries, request.SelectedAction);
                 updatingFilters = false;
                 var effectiveAction = GetLogFilterValue(actionFilter);
                 var filtered = eventEntries
@@ -142,14 +129,19 @@ internal sealed class ApplicationLogController(
                     : "Logging is off. No new activity is being written; existing entries remain available.";
                 var limitNote = result.Truncated || filtered.Length == 250 ? " Only the newest matching entries are shown." : string.Empty;
                 status.Text = $"{state} Showing {filtered.Length.ToString(CultureInfo.InvariantCulture)} entries.{limitNote}";
+            },
+            exception =>
+            {
+                logVisuals.SetError(status, logRows, $"The application log could not be refreshed: {exception.Message}");
+                visibleText = string.Empty;
             });
-        }
+#pragma warning restore CA2000
 
         void RefreshForFilterChange()
         {
             if (!updatingFilters)
             {
-                RefreshLog();
+                refreshSession.RequestRefresh();
             }
         }
 
@@ -161,13 +153,13 @@ internal sealed class ApplicationLogController(
         {
             AppLoggingSettings.SetEnabled(true);
             appLog.Write(new AppLogEntry("host_action", "windows_host", Action: "application_logging", Outcome: "enabled"));
-            RefreshLog();
+            refreshSession.RequestRefresh();
         };
         loggingToggle.Unchecked += (_, _) =>
         {
             appLog.Write(new AppLogEntry("host_action", "windows_host", Action: "application_logging", Outcome: "disabled"));
             AppLoggingSettings.SetEnabled(false);
-            RefreshLog();
+            refreshSession.RequestRefresh();
         };
 
         root.ClearFiltersButton.Click += (_, _) =>
@@ -178,9 +170,9 @@ internal sealed class ApplicationLogController(
             sourceFilter.SelectedIndex = 0;
             actionFilter.SelectedIndex = 0;
             updatingFilters = false;
-            RefreshLog();
+            refreshSession.RequestRefresh();
         };
-        root.RefreshButton.Click += (_, _) => RefreshLog();
+        root.RefreshButton.Click += (_, _) => refreshSession.RequestRefresh();
         root.CopyButton.Click += (_, _) =>
         {
             if (string.IsNullOrWhiteSpace(visibleText))
@@ -192,22 +184,19 @@ internal sealed class ApplicationLogController(
             clipboard.Copy(visibleText, "Filtered log copied");
         };
         root.OpenFolderButton.Click += (_, _) => OpenApplicationLogFolder();
-        root.DeleteButton.Click += async (_, _) => await DeleteApplicationLogsAsync(RefreshLog);
+        root.DeleteButton.Click += async (_, _) => await DeleteApplicationLogsAsync(refreshSession.RequestRefresh);
 
         var automaticRefresh = root.AutomaticRefreshToggle;
         var automaticRefreshSubscribed = false;
 
         void OnApplicationLogChanged(object? sender, EventArgs eventArgs)
         {
-            if (!owner.Dispatcher.HasShutdownStarted)
-            {
-                _ = owner.Dispatcher.BeginInvoke(RefreshLog);
-            }
+            refreshSession.QueueAutomaticRefresh();
         }
 
         void UpdateAutomaticRefresh()
         {
-            var shouldSubscribe = automaticRefresh.IsChecked == true && owner.IsVisible && owner.WindowState != WindowState.Minimized;
+            var shouldSubscribe = !unloaded && automaticRefresh.IsChecked == true && owner.IsVisible && owner.WindowState != WindowState.Minimized;
             if (shouldSubscribe == automaticRefreshSubscribed)
             {
                 return;
@@ -217,11 +206,12 @@ internal sealed class ApplicationLogController(
             if (shouldSubscribe)
             {
                 appLog.Changed += OnApplicationLogChanged;
-                RefreshLog();
+                refreshSession.RequestRefresh();
             }
             else
             {
                 appLog.Changed -= OnApplicationLogChanged;
+                refreshSession.ClearAutomaticRefreshRequest();
             }
         }
 
@@ -234,16 +224,23 @@ internal sealed class ApplicationLogController(
         root.Unloaded += (_, _) =>
         {
             unloaded = true;
+            refreshSession.Dispose();
             if (automaticRefreshSubscribed)
             {
                 appLog.Changed -= OnApplicationLogChanged;
+                automaticRefreshSubscribed = false;
             }
 
             owner.StateChanged -= OnWindowStateChanged;
         };
-        RefreshLog();
+        refreshSession.RequestRefresh();
         return root;
     }
+
+    private sealed record LogRefreshRequest(
+        AppLogQuery Query,
+        string? SelectedAction,
+        IReadOnlySet<string> SelectedEvents);
 
     private static ComboBox CreateLogFilter(params (string Label, string? Value)[] options)
     {

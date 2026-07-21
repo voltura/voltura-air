@@ -81,7 +81,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 : new SystemPowerController(new WindowsDisplayActionController(System.Windows.Application.Current.Dispatcher, appLog));
             awakeService = isolatedTestMode
                 ? new NoOpAwakeService()
-                : AwakeService.CreateWindows(appLog);
+                : await AwakeService.CreateWindowsAsync(appLog);
             webHost = new WebHostService(
                 pairingManager,
                 inputDispatcher,
@@ -145,7 +145,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
             else
             {
                 TryDispose(powerController as IDisposable, appLog, "power_controller");
-                TryDispose(awakeService, appLog, "awake_service");
+                await TryDisposeAsync(awakeService, appLog, "awake_service");
             }
 
             TryDispose(customPointerService, appLog, "custom_pointer_service");

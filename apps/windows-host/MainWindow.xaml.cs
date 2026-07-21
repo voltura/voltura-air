@@ -26,6 +26,11 @@ public partial class MainWindow : Window
     private readonly DiagnosticsPageController _diagnosticsPage;
     private readonly CustomPointerService? _ownedCustomPointerService;
     private readonly List<Button> _navigationButtons;
+    private readonly OwnedDispatcherAction _connectionChangedAction;
+    private readonly OwnedDispatcherAction _pairingCodeInvalidatedAction;
+    private readonly OwnedDispatcherAction _deviceProfileChangedAction;
+    private readonly OwnedDispatcherAction _themeChangedAction;
+    private readonly OwnedDispatcherAction _awakeStateChangedAction;
     private HostPage _activePage;
     private bool _pageNeedsRefresh = true;
     private bool _allowClose;
@@ -117,6 +122,11 @@ public partial class MainWindow : Window
             PreferencesNavButton,
             DiagnosticsNavButton
         ];
+        _connectionChangedAction = new OwnedDispatcherAction(Dispatcher, HandleConnectionChanged);
+        _pairingCodeInvalidatedAction = new OwnedDispatcherAction(Dispatcher, _connectPage.CreateNewCode);
+        _deviceProfileChangedAction = new OwnedDispatcherAction(Dispatcher, HandleDeviceProfileChanged);
+        _themeChangedAction = new OwnedDispatcherAction(Dispatcher, HandleThemeChanged);
+        _awakeStateChangedAction = new OwnedDispatcherAction(Dispatcher, HandleAwakeStateChanged);
         WpfTheme.TrackAccessibilityChanges(this, RefreshAfterSystemThemeChange);
 
         _pairingManager.ConnectionChanged += OnConnectionChanged;
@@ -181,6 +191,11 @@ public partial class MainWindow : Window
         AppThemeSettings.Changed -= OnThemeChanged;
         _awakeService.StateChanged -= OnAwakeStateChanged;
         IsVisibleChanged -= OnWindowIsVisibleChanged;
+        _connectionChangedAction.Dispose();
+        _pairingCodeInvalidatedAction.Dispose();
+        _deviceProfileChangedAction.Dispose();
+        _themeChangedAction.Dispose();
+        _awakeStateChangedAction.Dispose();
         _toasts.Dispose();
         _ownedCustomPointerService?.Dispose();
         base.OnClosed(e);
@@ -320,62 +335,56 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnConnectionChanged(object? sender, EventArgs e)
-    {
-        _ = Dispatcher.BeginInvoke(() =>
-        {
-            RefreshStatusText();
-            if (!IsVisible)
-            {
-                _pageNeedsRefresh = true;
-                return;
-            }
+    private void OnConnectionChanged(object? sender, EventArgs e) => _connectionChangedAction.Queue();
 
-            if (_activePage is HostPage.Connect or HostPage.Devices or HostPage.Diagnostics || _pageNeedsRefresh)
-            {
-                SelectPage(_activePage);
-            }
-        });
+    private void HandleConnectionChanged()
+    {
+        RefreshStatusText();
+        if (!IsVisible)
+        {
+            _pageNeedsRefresh = true;
+            return;
+        }
+
+        if (_activePage is HostPage.Connect or HostPage.Devices or HostPage.Diagnostics || _pageNeedsRefresh)
+        {
+            SelectPage(_activePage);
+        }
     }
 
-    private void OnPairingCodeInvalidated(object? sender, EventArgs e)
+    private void OnPairingCodeInvalidated(object? sender, EventArgs e) => _pairingCodeInvalidatedAction.Queue();
+
+    private void OnDeviceProfileChanged(object? sender, EventArgs e) => _deviceProfileChangedAction.Queue();
+
+    private void HandleDeviceProfileChanged()
     {
-        _ = Dispatcher.BeginInvoke(_connectPage.CreateNewCode);
+        if (_activePage == HostPage.Devices && IsVisible)
+        {
+            _devicesPage.RefreshDeviceProfiles();
+        }
     }
 
-    private void OnDeviceProfileChanged(object? sender, EventArgs e)
-    {
-        _ = Dispatcher.BeginInvoke(() =>
-        {
-            if (_activePage == HostPage.Devices && IsVisible)
-            {
-                _devicesPage.RefreshDeviceProfiles();
-            }
-        });
-    }
+    private void OnThemeChanged(object? sender, EventArgs e) => _themeChangedAction.Queue();
 
-    private void OnThemeChanged(object? sender, EventArgs e)
+    private void HandleThemeChanged()
     {
-        _ = Dispatcher.BeginInvoke(() =>
+        WpfTheme.Apply(this);
+        if (IsVisible)
         {
-            WpfTheme.Apply(this);
-            if (IsVisible)
+            if (_activePage == HostPage.Preferences)
             {
-                if (_activePage == HostPage.Preferences)
-                {
-                    _preferencesPage.RefreshPreservingState();
-                }
-                else
-                {
-                    SelectPage(_activePage);
-                }
+                _preferencesPage.RefreshPreservingState();
             }
             else
             {
-                _pageNeedsRefresh = true;
-                RefreshNavigationTheme();
+                SelectPage(_activePage);
             }
-        });
+        }
+        else
+        {
+            _pageNeedsRefresh = true;
+            RefreshNavigationTheme();
+        }
     }
 
     private void RefreshAfterSystemThemeChange()
@@ -398,20 +407,19 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnAwakeStateChanged(object? sender, EventArgs e)
+    private void OnAwakeStateChanged(object? sender, EventArgs e) => _awakeStateChangedAction.Queue();
+
+    private void HandleAwakeStateChanged()
     {
-        _ = Dispatcher.BeginInvoke(() =>
+        if (_activePage == HostPage.Preferences && IsVisible)
         {
-            if (_activePage == HostPage.Preferences && IsVisible)
-            {
-                _preferencesPage.RefreshPreservingState();
-            }
-            else if (_activePage == HostPage.Preferences)
-            {
-                _preferencesPage.RememberViewState();
-                _pageNeedsRefresh = true;
-            }
-        });
+            _preferencesPage.RefreshPreservingState();
+        }
+        else if (_activePage == HostPage.Preferences)
+        {
+            _preferencesPage.RememberViewState();
+            _pageNeedsRefresh = true;
+        }
     }
 
     private void OnConnectNavClicked(object sender, RoutedEventArgs e) => SelectPage(HostPage.Connect);

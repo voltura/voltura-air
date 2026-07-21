@@ -292,7 +292,7 @@ public sealed partial class HostUiLayoutTests
             using var appScope = new WpfApplicationScope();
             using var store = new TempPairingStore();
             using var injector = new SendInputInjector();
-            using var awakeService = new NoOpAwakeService();
+            var awakeService = new NoOpAwakeService();
             var manager = new PairingManager(store.Store);
             var webHost = new WebHostService(manager, new InputDispatcher(injector), isolatedTestMode: true);
             var window = new MainWindow(manager, webHost, clientUrl: null, awakeService: awakeService);

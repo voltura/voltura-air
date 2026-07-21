@@ -84,6 +84,11 @@ adaptive states, AI-assisted UI work, and the UI definition of done.
   status, and records remain reachable while Refresh, Copy, Open folder, and
   Delete actions stay visible. Log filters apply as they change, and Event
   supports selecting multiple values.
+- Diagnostics automatic refresh runs only while its view is visible and the host
+  is not minimized. Its per-view refresh session permits one read and one latest-
+  filter follow-up, keeps at most one dispatcher callback pending, presents read
+  failures as recoverable content, and releases log, window, and dispatcher work
+  when the view unloads. Manual refresh and logging remain usable after a failure.
 - The startup window retains its compact size during normal startup and expands
   only for an error. Error actions stay outside the fallback content scroller.
   A watchdog startup failure offers **Disable watchdog and restart** in addition

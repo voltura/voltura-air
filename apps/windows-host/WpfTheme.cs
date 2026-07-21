@@ -49,35 +49,28 @@ internal static partial class WpfTheme
 
     public static void TrackAccessibilityChanges(Window window, Action afterApply)
     {
-        var refreshQueued = false;
-        void ScheduleRefresh()
+        // The tracked window's Closed event owns and disposes this queued action.
+#pragma warning disable CA2000
+        var refresh = new OwnedDispatcherAction(window.Dispatcher, () =>
         {
-            if (refreshQueued)
-            {
-                return;
-            }
-
-            refreshQueued = true;
-            _ = window.Dispatcher.InvokeAsync(() =>
-            {
-                refreshQueued = false;
-                Apply(window);
-                afterApply();
-            }, DispatcherPriority.ApplicationIdle);
-        }
+            Apply(window);
+            afterApply();
+        });
+#pragma warning restore CA2000
 
         PropertyChangedEventHandler? handler = null;
         handler = (_, eventArgs) =>
         {
             if (SystemParameters.HighContrast || eventArgs.PropertyName == nameof(SystemParameters.HighContrast))
             {
-                ScheduleRefresh();
+                refresh.Queue(DispatcherPriority.ApplicationIdle);
             }
         };
         SystemParameters.StaticPropertyChanged += handler;
         window.Closed += (_, _) =>
         {
             SystemParameters.StaticPropertyChanged -= handler;
+            refresh.Dispose();
         };
     }
 

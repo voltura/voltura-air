@@ -245,6 +245,73 @@ public sealed partial class HostUiLayoutTests
     }
 
     [Fact]
+    public void ConnectCountdownPausesWhileWindowIsInactiveAndCatchesUpOnActivation()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            var now = DateTimeOffset.UtcNow;
+            var refreshCalls = 0;
+            var view = new ConnectPageView(
+                CreateTestBitmap(),
+                "http://pc.local/pair?t=redacted",
+                "http://pc.local",
+                "Ethernet (Test adapter)",
+                false,
+                "127.0.0.1",
+                "51395",
+                null,
+                null,
+                null,
+                now.AddMinutes(5),
+                () => refreshCalls += 1,
+                static () => { },
+                static () => { },
+                () => now);
+            var owner = new Window { Content = view };
+            var other = new Window();
+            try
+            {
+                owner.Show();
+                owner.Activate();
+                DoWpfEvents();
+                Assert.True(view.IsCountdownActive);
+
+                other.Show();
+                other.Activate();
+                DoWpfEvents();
+                Assert.False(view.IsCountdownActive);
+
+                now = now.AddMinutes(2);
+                owner.Activate();
+                DoWpfEvents();
+                Assert.True(view.IsCountdownActive);
+                Assert.Equal("Refreshes in 3:00", view.PairingCodeCard.Value);
+
+                other.Activate();
+                DoWpfEvents();
+                now = now.AddMinutes(4);
+                owner.Activate();
+                DoWpfEvents();
+
+                Assert.False(view.IsCountdownActive);
+                Assert.Equal("Refreshing code\u2026", view.PairingCodeCard.Value);
+                Assert.Equal(1, refreshCalls);
+            }
+            finally
+            {
+                other.Close();
+                owner.Close();
+            }
+        });
+    }
+
+    [Fact]
     public void ConnectDetailsUseRemainingSpaceAndOwnScrolling()
     {
         if (ShouldSkipNativeUiLayoutTests())

@@ -14,6 +14,8 @@ internal sealed class AwakeSettingsSection(
     HostToastPresenter toasts,
     Func<bool> isLoading)
 {
+    private int _updateRunning;
+
     public void AddTo(StackPanel parent)
     {
         var state = awakeService.State;
@@ -41,7 +43,7 @@ internal sealed class AwakeSettingsSection(
         intervalRow.Children.Add(CreateInlineText("hours"));
         intervalRow.Children.Add(minutes);
         intervalRow.Children.Add(CreateInlineText("minutes"));
-        intervalRow.Children.Add(visuals.CreateButton("Start", (_, _) => StartInterval(hours, minutes), primary: true));
+        intervalRow.Children.Add(visuals.CreateButton("Start", async (_, _) => await StartIntervalAsync(hours, minutes), primary: true));
         timedPanel.Children.Add(intervalRow);
         parent.Children.Add(timedPanel);
 
@@ -55,13 +57,13 @@ internal sealed class AwakeSettingsSection(
         var time = CreateTextBox(suggestedExpiration.ToString("t", CultureInfo.CurrentCulture), 100);
         expirationRow.Children.Add(date);
         expirationRow.Children.Add(time);
-        expirationRow.Children.Add(visuals.CreateButton("Start", (_, _) => StartUntil(date, time), primary: true));
+        expirationRow.Children.Add(visuals.CreateButton("Start", async (_, _) => await StartUntilAsync(date, time), primary: true));
         expirationPanel.Children.Add(expirationRow);
         parent.Children.Add(expirationPanel);
 
         var keepScreenOn = visuals.CreateCheckBox("Keep screen on while Keep awake is active", state.KeepScreenOn);
-        keepScreenOn.Checked += (_, _) => Apply(awakeService.SetKeepScreenOn(true));
-        keepScreenOn.Unchecked += (_, _) => Apply(awakeService.SetKeepScreenOn(false));
+        keepScreenOn.Checked += async (_, _) => await ApplyAsync(() => awakeService.SetKeepScreenOnAsync(true));
+        keepScreenOn.Unchecked += async (_, _) => await ApplyAsync(() => awakeService.SetKeepScreenOnAsync(false));
         parent.Children.Add(keepScreenOn);
         parent.Children.Add(visuals.CreateMutedText("Keeping the screen on uses more power and can delay normal idle behavior; paired devices cannot change this host setting."));
 
@@ -74,7 +76,7 @@ internal sealed class AwakeSettingsSection(
             expirationPanel.Visibility = selected == AwakeMode.Expiration ? Visibility.Visible : Visibility.Collapsed;
         }
 
-        mode.SelectionChanged += (_, _) =>
+        mode.SelectionChanged += async (_, _) =>
         {
             UpdateModePanels();
             if (isLoading() || mode.SelectedItem is not ComboBoxItem { Tag: AwakeMode selectedMode })
@@ -84,17 +86,17 @@ internal sealed class AwakeSettingsSection(
 
             if (selectedMode == AwakeMode.Off)
             {
-                Apply(awakeService.SetOff());
+                await ApplyAsync(() => awakeService.SetOffAsync());
             }
             else if (selectedMode == AwakeMode.Indefinite)
             {
-                Apply(awakeService.SetIndefinite());
+                await ApplyAsync(() => awakeService.SetIndefiniteAsync());
             }
         };
         UpdateModePanels();
     }
 
-    private void StartInterval(TextBox hours, TextBox minutes)
+    private async Task StartIntervalAsync(TextBox hours, TextBox minutes)
     {
         if (!int.TryParse(hours.Text, NumberStyles.Integer, CultureInfo.CurrentCulture, out var hourValue) || hourValue < 0 ||
             !int.TryParse(minutes.Text, NumberStyles.Integer, CultureInfo.CurrentCulture, out var minuteValue) || minuteValue is < 0 or > 59)
@@ -110,10 +112,10 @@ internal sealed class AwakeSettingsSection(
             return;
         }
 
-        Apply(awakeService.SetTimed(TimeSpan.FromMinutes(totalMinutes)));
+        await ApplyAsync(() => awakeService.SetTimedAsync(TimeSpan.FromMinutes(totalMinutes)));
     }
 
-    private void StartUntil(ModernDatePicker date, TextBox time)
+    private async Task StartUntilAsync(ModernDatePicker date, TextBox time)
     {
         if (!DateTime.TryParse(time.Text, CultureInfo.CurrentCulture, DateTimeStyles.NoCurrentDateDefault, out var selectedTime))
         {
@@ -128,11 +130,30 @@ internal sealed class AwakeSettingsSection(
             return;
         }
 
-        Apply(awakeService.SetExpiration(new DateTimeOffset(local)));
+        await ApplyAsync(() => awakeService.SetExpirationAsync(new DateTimeOffset(local)));
     }
 
-    private void Apply(AwakeOperationResult result) =>
-        toasts.Show(result.Succeeded ? "Keep awake updated" : result.Error ?? "Keep awake could not be updated");
+    private async Task ApplyAsync(Func<Task<AwakeOperationResult>> operation)
+    {
+        if (Interlocked.Exchange(ref _updateRunning, 1) != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var result = await operation();
+            toasts.Show(result.Succeeded ? "Keep awake updated" : result.Error ?? "Keep awake could not be updated");
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            toasts.Show($"Keep awake could not be updated: {exception.Message}");
+        }
+        finally
+        {
+            Volatile.Write(ref _updateRunning, 0);
+        }
+    }
 
     private static void AddModeItem(ComboBox comboBox, string text, AwakeMode mode, AwakeMode selectedMode) =>
         comboBox.Items.Add(new ComboBoxItem { Content = text, Tag = mode, IsSelected = mode == selectedMode });

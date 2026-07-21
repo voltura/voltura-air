@@ -16,6 +16,8 @@ internal sealed class TrayConnectionFeedbackController : IDisposable
     private readonly Action<string, string, Forms.ToolTipIcon> _showNotification;
     private readonly Action _showConnectPage;
     private readonly TrayConnectionIndicator _indicator;
+    private readonly OwnedDispatcherAction _connectionChangedAction;
+    private readonly OwnedDispatcherAction _remoteInputBlockedAction;
     private OwnedDispatcherTimer? _pendingDisconnectNotification;
     private OwnedDispatcherTimer? _pendingStartupConnectionGrace;
     private bool _hadActiveController;
@@ -41,6 +43,8 @@ internal sealed class TrayConnectionFeedbackController : IDisposable
             pairingManager.IsPaired,
             _hadActiveController,
             holdInitialDisconnectedState: pairingManager.IsPaired && !_hadActiveController);
+        _connectionChangedAction = new OwnedDispatcherAction(_dispatcher, HandleConnectionChanged);
+        _remoteInputBlockedAction = new OwnedDispatcherAction(_dispatcher, ReportRemoteInputBlockedIfCurrent);
     }
 
     public TrayConnectionState DisplayedState => _indicator.DisplayedState;
@@ -72,6 +76,8 @@ internal sealed class TrayConnectionFeedbackController : IDisposable
         }
 
         _disposed = true;
+        _connectionChangedAction.Dispose();
+        _remoteInputBlockedAction.Dispose();
         CancelStartupConnectionGrace();
         CancelPendingDisconnectNotification();
         if (_started)
@@ -82,7 +88,7 @@ internal sealed class TrayConnectionFeedbackController : IDisposable
         }
     }
 
-    private void OnConnectionChanged(object? sender, EventArgs e) => _ = _dispatcher.BeginInvoke(HandleConnectionChanged);
+    private void OnConnectionChanged(object? sender, EventArgs e) => _connectionChangedAction.Queue();
 
     private void HandleConnectionChanged()
     {
@@ -248,7 +254,15 @@ internal sealed class TrayConnectionFeedbackController : IDisposable
     {
         if (e.IsBlocked)
         {
-            _ = _dispatcher.BeginInvoke(ReportRemoteInputBlocked);
+            _remoteInputBlockedAction.Queue();
+        }
+    }
+
+    private void ReportRemoteInputBlockedIfCurrent()
+    {
+        if (_webHost.IsInputBlockedByElevation)
+        {
+            ReportRemoteInputBlocked();
         }
     }
 

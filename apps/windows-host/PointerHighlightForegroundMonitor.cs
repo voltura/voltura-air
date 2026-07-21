@@ -14,6 +14,7 @@ internal sealed partial class PointerHighlightForegroundMonitor : IDisposable
     private readonly uint _hostIntegrityLevel;
     private readonly WinEventProc _callback;
     private readonly DispatcherTimer _taskbarActivationTimer;
+    private readonly OwnedDispatcherAction _taskbarActivationAction;
     private nint _hook;
     private int _remoteInputBlocked;
     private bool _disposed;
@@ -28,6 +29,7 @@ internal sealed partial class PointerHighlightForegroundMonitor : IDisposable
             Interval = TaskbarActivationDelay
         };
         _taskbarActivationTimer.Tick += OnTaskbarActivationTimerTick;
+        _taskbarActivationAction = new OwnedDispatcherAction(_dispatcher, ScheduleTaskbarActivationRecheck);
 
         if (!WindowsProcessIntegrity.TryGetCurrentProcessIntegrityLevel(out _hostIntegrityLevel))
         {
@@ -67,6 +69,7 @@ internal sealed partial class PointerHighlightForegroundMonitor : IDisposable
         }
 
         _disposed = true;
+        _taskbarActivationAction.Dispose();
         _taskbarActivationTimer.Stop();
         _taskbarActivationTimer.Tick -= OnTaskbarActivationTimerTick;
         if (_hook != nint.Zero)
@@ -87,17 +90,19 @@ internal sealed partial class PointerHighlightForegroundMonitor : IDisposable
             return;
         }
 
-        _ = _dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
-        {
-            if (_disposed)
-            {
-                return;
-            }
+        _taskbarActivationAction.Queue(DispatcherPriority.Background);
+    }
 
-            _taskbarActivationTimer.Stop();
-            _taskbarActivationTimer.Start();
-            WriteDiagnostic("taskbar_activation_recheck_scheduled");
-        });
+    private void ScheduleTaskbarActivationRecheck()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _taskbarActivationTimer.Stop();
+        _taskbarActivationTimer.Start();
+        WriteDiagnostic("taskbar_activation_recheck_scheduled");
     }
 
     private void OnForegroundWindowChanged(

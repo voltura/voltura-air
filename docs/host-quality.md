@@ -22,6 +22,10 @@ npm run host:ownership:check
 ## Runtime expectations
 
 - UI-affine work stays on the WPF dispatcher; network, filesystem, and long-running native work must not block it.
+- Long-lived non-UI workers composed from WPF code start with explicit scheduler ownership and use context-free continuations; construction on the dispatcher must not make their progress depend on it.
+- Recurring latest-state notifications use one owner and bounded, coalesced dispatcher work. Preserve separate dispatcher operations only when each event carries distinct information or validates a specific transition.
+- Potentially blocking services expose cancellation-aware awaitable operations instead of synchronously waiting from WPF or tray handlers.
+- A non-cancellable native call has a bounded caller deadline. If it completes after timeout or cancellation, its owning worker reconciles the native state to the last committed state before accepting more work.
 - Timers, event subscriptions, sockets, cancellation sources, streams, native handles, tray resources, and background services have one owner and deterministic disposal.
 - WebSocket concurrency and message sizes remain bounded. Authentication, origin validation, rate limiting, and permission checks precede privileged actions; sends are serialized and timed per connection, and status updates are coalesced through one host-owned worker.
 - Authenticated pointer and keyboard JSON is validated, normalized, and decoded once before dispatch. Hot input paths use cached settings state rather than per-event Registry reads, and native batching must retain ordering plus cleanup after partial sends.

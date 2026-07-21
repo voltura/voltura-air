@@ -17,60 +17,105 @@ public sealed record AwakeState(
     public bool IsActive => Mode != AwakeMode.Off;
 }
 
-public sealed record AwakeOperationResult(bool Succeeded, string? Error = null)
+public enum AwakeOperationFailure
+{
+    InvalidRequest,
+    Rejected,
+    Busy,
+    TimedOut,
+    Cancelled,
+    ShuttingDown,
+    Unavailable
+}
+
+public sealed record AwakeOperationResult(
+    bool Succeeded,
+    string? Error = null,
+    AwakeOperationFailure? Failure = null)
 {
     public static AwakeOperationResult Success { get; } = new(true);
 }
 
-public interface IAwakeService : IDisposable
+public interface IAwakeService : IAsyncDisposable
 {
     AwakeState State { get; }
 
     event EventHandler? StateChanged;
 
-    AwakeOperationResult SetOff();
+    Task<AwakeOperationResult> SetOffAsync(CancellationToken cancellationToken = default);
 
-    AwakeOperationResult SetIndefinite();
+    Task<AwakeOperationResult> SetIndefiniteAsync(CancellationToken cancellationToken = default);
 
-    AwakeOperationResult SetTimed(TimeSpan duration);
+    Task<AwakeOperationResult> SetTimedAsync(TimeSpan duration, CancellationToken cancellationToken = default);
 
-    AwakeOperationResult SetExpiration(DateTimeOffset expiresAt);
+    Task<AwakeOperationResult> SetExpirationAsync(DateTimeOffset expiresAt, CancellationToken cancellationToken = default);
 
-    AwakeOperationResult SetKeepScreenOn(bool keepScreenOn);
+    Task<AwakeOperationResult> SetKeepScreenOnAsync(bool keepScreenOn, CancellationToken cancellationToken = default);
 }
 
 internal sealed class NoOpAwakeService(AwakeState? initialState = null) : IAwakeService
 {
-    public AwakeState State { get; private set; } = initialState ?? new AwakeState(AwakeMode.Off, false, 60, null);
+    private AwakeState _state = initialState ?? new AwakeState(AwakeMode.Off, false, 60, null);
+    private bool _disposed;
+
+    public AwakeState State => _state;
 
     public event EventHandler? StateChanged;
 
-    public AwakeOperationResult SetOff() => Set(State with { Mode = AwakeMode.Off, ExpiresAt = null });
+    public Task<AwakeOperationResult> SetOffAsync(CancellationToken cancellationToken = default) =>
+        SetAsync(_state with { Mode = AwakeMode.Off, ExpiresAt = null }, cancellationToken);
 
-    public AwakeOperationResult SetIndefinite() => Set(State with { Mode = AwakeMode.Indefinite, ExpiresAt = null });
+    public Task<AwakeOperationResult> SetIndefiniteAsync(CancellationToken cancellationToken = default) =>
+        SetAsync(_state with { Mode = AwakeMode.Indefinite, ExpiresAt = null }, cancellationToken);
 
-    public AwakeOperationResult SetTimed(TimeSpan duration) => Set(State with
+    public Task<AwakeOperationResult> SetTimedAsync(TimeSpan duration, CancellationToken cancellationToken = default)
     {
-        Mode = AwakeMode.Timed,
-        IntervalMinutes = Math.Max(1, (int)Math.Ceiling(duration.TotalMinutes)),
-        ExpiresAt = DateTimeOffset.Now.Add(duration)
-    });
+        var minutes = (int)Math.Ceiling(duration.TotalMinutes);
+        return minutes is < 1 or > 525_600
+            ? Task.FromResult(Failed(AwakeOperationFailure.InvalidRequest, "Choose an interval between 1 minute and 1 year."))
+            : SetAsync(_state with
+            {
+                Mode = AwakeMode.Timed,
+                IntervalMinutes = minutes,
+                ExpiresAt = DateTimeOffset.Now.AddMinutes(minutes)
+            }, cancellationToken);
+    }
 
-    public AwakeOperationResult SetExpiration(DateTimeOffset expiresAt) =>
+    public Task<AwakeOperationResult> SetExpirationAsync(DateTimeOffset expiresAt, CancellationToken cancellationToken = default) =>
         expiresAt <= DateTimeOffset.Now
-            ? new AwakeOperationResult(false, "Choose a future date and time.")
-            : Set(State with { Mode = AwakeMode.Expiration, ExpiresAt = expiresAt });
+            ? Task.FromResult(Failed(AwakeOperationFailure.InvalidRequest, "Choose a future date and time."))
+            : SetAsync(_state with { Mode = AwakeMode.Expiration, ExpiresAt = expiresAt }, cancellationToken);
 
-    public AwakeOperationResult SetKeepScreenOn(bool keepScreenOn) => Set(State with { KeepScreenOn = keepScreenOn });
+    public Task<AwakeOperationResult> SetKeepScreenOnAsync(bool keepScreenOn, CancellationToken cancellationToken = default) =>
+        SetAsync(_state with { KeepScreenOn = keepScreenOn }, cancellationToken);
 
-    public void Dispose()
+    public ValueTask DisposeAsync()
     {
+        _disposed = true;
+        return ValueTask.CompletedTask;
     }
 
-    private AwakeOperationResult Set(AwakeState state)
+    private Task<AwakeOperationResult> SetAsync(AwakeState state, CancellationToken cancellationToken)
     {
-        State = state;
+        if (_disposed)
+        {
+            return Task.FromResult(Failed(AwakeOperationFailure.ShuttingDown, "Keep awake is shutting down."));
+        }
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Task.FromResult(Failed(AwakeOperationFailure.Cancelled, "The keep-awake request was cancelled."));
+        }
+
+        if (_state == state)
+        {
+            return Task.FromResult(AwakeOperationResult.Success);
+        }
+
+        _state = state;
         StateChanged?.Invoke(this, EventArgs.Empty);
-        return AwakeOperationResult.Success;
+        return Task.FromResult(AwakeOperationResult.Success);
     }
+
+    private static AwakeOperationResult Failed(AwakeOperationFailure failure, string error) => new(false, error, failure);
 }

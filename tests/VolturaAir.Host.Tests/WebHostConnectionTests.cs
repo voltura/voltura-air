@@ -269,6 +269,61 @@ public sealed class WebHostConnectionTests : WebHostServiceTestBase
     }
 
     [Fact]
+    public async Task StatusBroadcasterDoesNotDependOnConstructionSynchronizationContext()
+    {
+        using var store = new TempPairingStore();
+        using var inputInjector = new FakeInputInjector();
+        using var key = new PairingTestKey();
+        var manager = new PairingManager(store.Store);
+        WebHostService? webHost = null;
+        var previousContext = SynchronizationContext.Current;
+
+        try
+        {
+            SynchronizationContext.SetSynchronizationContext(new NonPumpingSynchronizationContext());
+            webHost = new WebHostService(
+                manager,
+                new InputDispatcher(inputInjector),
+                isolatedTestMode: true,
+                configureWebHost: builder => builder.UseTestServer());
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(previousContext);
+        }
+
+        try
+        {
+            await webHost.StartAsync();
+            var clientId = $"client-{Guid.NewGuid():N}";
+            using var socket = await ConnectAsync(webHost);
+            _ = await SendAndReceiveAsync(socket, new
+            {
+                type = "pair.hello",
+                clientId,
+                deviceName = "Phone",
+                pairToken = manager.CreatePairingToken(),
+                reconnectPublicKey = key.PublicKey
+            });
+
+            webHost.SetInputBlockedByElevation(true);
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            using var status = JsonDocument.Parse(await ReceiveTextAsync(socket, timeout.Token));
+
+            Assert.Equal("status", status.RootElement.GetProperty("type").GetString());
+            Assert.True(status.RootElement.GetProperty("host").GetProperty("inputBlockedByElevation").GetBoolean());
+        }
+        finally
+        {
+            if (webHost is not null)
+            {
+                await webHost.StopAsync();
+                await webHost.DisposeAsync();
+            }
+        }
+    }
+
+    [Fact]
     public async Task WebSocketStoresClientPointerSpeedAsDeviceOverride()
     {
         await using var fixture = await WebHostFixture.StartAsync();
@@ -364,5 +419,12 @@ public sealed class WebHostConnectionTests : WebHostServiceTestBase
             Assert.True(DateTime.UtcNow < timeout, "The WebSocket registry did not release the closed connection.");
             await Task.Delay(10);
         }
+    }
+}
+
+file sealed class NonPumpingSynchronizationContext : SynchronizationContext
+{
+    public override void Post(SendOrPostCallback callback, object? state)
+    {
     }
 }

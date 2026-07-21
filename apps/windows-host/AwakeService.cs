@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
 
@@ -32,25 +33,39 @@ internal sealed class NoOpAwakeExecutionStateBridge : IAwakeExecutionStateBridge
 
 public sealed class AwakeService : IAwakeService
 {
+    private const int RequestQueueCapacity = 8;
+    private static readonly TimeSpan DefaultOperationTimeout = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(2);
     private readonly Lock _gate = new();
     private readonly IAwakeExecutionStateBridge _bridge;
     private readonly Action<AwakeState> _save;
     private readonly IAppLogWriter _appLog;
-    private readonly BlockingCollection<ExecutionRequest> _requests = [];
+    [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "The background execution thread disposes the queue after a bounded DisposeAsync may return while an uninterruptible native call is still running.")]
+    private readonly BlockingCollection<ExecutionRequest> _requests = new(RequestQueueCapacity);
+    [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "The background execution thread disposes cancellation state after a bounded DisposeAsync may return while an uninterruptible native call is still running.")]
+    private readonly CancellationTokenSource _shutdownCancellation = new();
+    private readonly TaskCompletionSource _workerCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Thread _executionThread;
+    private readonly TimeSpan _operationTimeout;
+    private readonly TimeSpan _shutdownTimeout;
     private System.Threading.Timer? _expirationTimer;
     private AwakeState _state;
-    private bool _disposed;
+    private bool _unavailable;
+    private int _disposeState;
 
     internal AwakeService(
         IAwakeExecutionStateBridge bridge,
         AwakeState initialState,
         Action<AwakeState>? save = null,
-        IAppLogWriter? appLog = null)
+        IAppLogWriter? appLog = null,
+        TimeSpan? operationTimeout = null,
+        TimeSpan? shutdownTimeout = null)
     {
         _bridge = bridge;
         _save = save ?? AppAwakeSettings.Save;
         _appLog = appLog ?? NullAppLog.Instance;
+        _operationTimeout = operationTimeout ?? DefaultOperationTimeout;
+        _shutdownTimeout = shutdownTimeout ?? ShutdownTimeout;
         _state = NormalizeInitialState(initialState);
         _executionThread = new Thread(ProcessRequests)
         {
@@ -59,21 +74,18 @@ public sealed class AwakeService : IAwakeService
         };
         _executionThread.Start();
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
-
-        if (_state.IsActive && !ApplyExecutionState(_state))
-        {
-            _state = _state with { Mode = AwakeMode.Off, ExpiresAt = null };
-            _save(_state);
-            LogState("execution_failed", "Windows rejected the persisted keep-awake request.");
-        }
-
-        ScheduleExpiration();
+        ReplaceExpirationTimer(_state);
     }
 
-    public static AwakeService CreateWindows(IAppLogWriter? appLog = null) => new(
-        new WindowsAwakeExecutionStateBridge(),
-        AppAwakeSettings.Load(),
-        appLog: appLog);
+    public static async Task<AwakeService> CreateWindowsAsync(IAppLogWriter? appLog = null)
+    {
+        var service = new AwakeService(
+            new WindowsAwakeExecutionStateBridge(),
+            AppAwakeSettings.Load(),
+            appLog: appLog);
+        await service.InitializeAsync().ConfigureAwait(false);
+        return service;
+    }
 
     public AwakeState State
     {
@@ -88,70 +100,252 @@ public sealed class AwakeService : IAwakeService
 
     public event EventHandler? StateChanged;
 
-    public AwakeOperationResult SetOff() => TrySetState(State with { Mode = AwakeMode.Off, ExpiresAt = null });
+    public Task<AwakeOperationResult> SetOffAsync(CancellationToken cancellationToken = default) =>
+        SubmitAsync(AwakeMutation.Off, cancellationToken);
 
-    public AwakeOperationResult SetIndefinite() => TrySetState(State with { Mode = AwakeMode.Indefinite, ExpiresAt = null });
+    public Task<AwakeOperationResult> SetIndefiniteAsync(CancellationToken cancellationToken = default) =>
+        SubmitAsync(AwakeMutation.Indefinite, cancellationToken);
 
-    public AwakeOperationResult SetTimed(TimeSpan duration)
+    public Task<AwakeOperationResult> SetTimedAsync(TimeSpan duration, CancellationToken cancellationToken = default)
     {
         var minutes = (int)Math.Ceiling(duration.TotalMinutes);
-        if (minutes <= 0 || minutes > 525_600)
-        {
-            return new AwakeOperationResult(false, "Choose an interval between 1 minute and 1 year.");
-        }
-
-        return TrySetState(State with
-        {
-            Mode = AwakeMode.Timed,
-            IntervalMinutes = minutes,
-            ExpiresAt = DateTimeOffset.Now.AddMinutes(minutes)
-        });
+        return minutes is < 1 or > 525_600
+            ? Task.FromResult(Failed(AwakeOperationFailure.InvalidRequest, "Choose an interval between 1 minute and 1 year."))
+            : SubmitAsync(AwakeMutation.Timed(minutes), cancellationToken);
     }
 
-    public AwakeOperationResult SetExpiration(DateTimeOffset expiresAt)
+    public Task<AwakeOperationResult> SetExpirationAsync(DateTimeOffset expiresAt, CancellationToken cancellationToken = default) =>
+        expiresAt <= DateTimeOffset.Now
+            ? Task.FromResult(Failed(AwakeOperationFailure.InvalidRequest, "Choose a future date and time."))
+            : SubmitAsync(AwakeMutation.Expiration(expiresAt), cancellationToken);
+
+    public Task<AwakeOperationResult> SetKeepScreenOnAsync(bool keepScreenOn, CancellationToken cancellationToken = default) =>
+        SubmitAsync(AwakeMutation.KeepScreenOn(keepScreenOn), cancellationToken);
+
+    public async ValueTask DisposeAsync()
     {
-        if (expiresAt <= DateTimeOffset.Now)
+        if (Interlocked.Exchange(ref _disposeState, 1) == 0)
         {
-            return new AwakeOperationResult(false, "Choose a future date and time.");
+            SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+            await _shutdownCancellation.CancelAsync().ConfigureAwait(false);
+            ReplaceExpirationTimer(null);
+            _requests.CompleteAdding();
         }
 
-        return TrySetState(State with { Mode = AwakeMode.Expiration, ExpiresAt = expiresAt });
+        try
+        {
+            await _workerCompletion.Task.WaitAsync(_shutdownTimeout).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            LogState(State, "shutdown_timeout", "The keep-awake execution thread did not stop before the shutdown deadline.");
+        }
     }
 
-    public AwakeOperationResult SetKeepScreenOn(bool keepScreenOn) =>
-        TrySetState(State with { KeepScreenOn = keepScreenOn });
-
-    private AwakeOperationResult TrySetState(AwakeState next)
+    private async Task InitializeAsync()
     {
+        var initialState = State;
+        if (!initialState.IsActive)
+        {
+            return;
+        }
+
+        var result = await SubmitAsync(AwakeMutation.Reapply, CancellationToken.None).ConfigureAwait(false);
+        if (result.Succeeded)
+        {
+            return;
+        }
+
+        var offState = initialState with { Mode = AwakeMode.Off, ExpiresAt = null };
+        SetCommittedState(offState);
+        SaveState(offState);
+        ReplaceExpirationTimer(offState);
+        LogState(offState, "execution_failed", result.Error);
+        var restoreResult = await SubmitAsync(AwakeMutation.Reapply, CancellationToken.None).ConfigureAwait(false);
+        if (!restoreResult.Succeeded)
+        {
+            LogState(offState, "initial_state_restore_failed", restoreResult.Error);
+        }
+    }
+
+    private Task<AwakeOperationResult> SubmitAsync(AwakeMutation mutation, CancellationToken cancellationToken)
+    {
+        AwakeOperationResult? rejection = null;
         lock (_gate)
         {
-            if (_disposed)
+            if (Volatile.Read(ref _disposeState) != 0)
             {
-                return new AwakeOperationResult(false, "Keep awake is shutting down.");
+                rejection = Failed(AwakeOperationFailure.ShuttingDown, "Keep awake is shutting down.");
             }
-
-            if (_state == next)
+            else if (_unavailable)
             {
-                return AwakeOperationResult.Success;
+                rejection = Failed(AwakeOperationFailure.Unavailable, "Keep awake is unavailable until Voltura Air restarts.");
             }
-
-            if (!ApplyExecutionState(next))
-            {
-                LogState("execution_failed", "Windows rejected the requested execution state.");
-                return new AwakeOperationResult(false, "Windows rejected the keep-awake request.");
-            }
-
-            _state = next;
-            _save(_state);
-            ScheduleExpiration();
-            LogState("changed");
         }
 
-        StateChanged?.Invoke(this, EventArgs.Empty);
-        return AwakeOperationResult.Success;
+        if (rejection is not null)
+        {
+            return Task.FromResult(rejection);
+        }
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Task.FromResult(Failed(AwakeOperationFailure.Cancelled, "The keep-awake request was cancelled."));
+        }
+
+        var request = new ExecutionRequest(mutation);
+        try
+        {
+            if (!_requests.TryAdd(request))
+            {
+                return Task.FromResult(Failed(AwakeOperationFailure.Busy, "Keep awake is busy. Try again."));
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            return Task.FromResult(Failed(AwakeOperationFailure.ShuttingDown, "Keep awake is shutting down."));
+        }
+
+        return AwaitRequestAsync(request, cancellationToken);
     }
 
-    private bool ApplyExecutionState(AwakeState state)
+    private async Task<AwakeOperationResult> AwaitRequestAsync(ExecutionRequest request, CancellationToken cancellationToken)
+    {
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _shutdownCancellation.Token);
+        try
+        {
+            return await request.Completion.Task.WaitAsync(_operationTimeout, cancellation.Token).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            var result = Failed(AwakeOperationFailure.TimedOut, "Windows did not respond to the keep-awake request in time.");
+            return request.TryAbandon(result)
+                ? result
+                : await request.Completion.Task.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            var result = Volatile.Read(ref _disposeState) != 0
+                ? Failed(AwakeOperationFailure.ShuttingDown, "Keep awake is shutting down.")
+                : Failed(AwakeOperationFailure.Cancelled, "The keep-awake request was cancelled.");
+            return request.TryAbandon(result)
+                ? result
+                : await request.Completion.Task.ConfigureAwait(false);
+        }
+    }
+
+    private void ProcessRequests()
+    {
+        try
+        {
+            foreach (var request in _requests.GetConsumingEnumerable())
+            {
+                ProcessRequest(request);
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogState(State, "worker_failed", ex.Message);
+        }
+        finally
+        {
+            TryRestoreNormalExecutionState();
+            _workerCompletion.TrySetResult();
+            _requests.Dispose();
+            _shutdownCancellation.Dispose();
+        }
+    }
+
+    private void ProcessRequest(ExecutionRequest request)
+    {
+        if (!request.TryStart())
+        {
+            return;
+        }
+
+        var currentState = State;
+        var nextState = request.Mutation.Apply(currentState);
+        if (!request.Mutation.ForceApply && nextState == currentState)
+        {
+            if (request.TryClaimCompletion())
+            {
+                request.PublishCompletion(AwakeOperationResult.Success);
+            }
+
+            return;
+        }
+
+        var accepted = TryApplyExecutionState(nextState);
+        var result = accepted
+            ? AwakeOperationResult.Success
+            : Failed(AwakeOperationFailure.Rejected, "Windows rejected the keep-awake request.");
+        if (!request.TryClaimCompletion())
+        {
+            if (accepted)
+            {
+                ReconcileLateCompletion(nextState);
+            }
+
+            return;
+        }
+
+        if (!accepted || !request.Mutation.CommitState)
+        {
+            if (!accepted)
+            {
+                LogState(currentState, "execution_failed", result.Error);
+            }
+
+            request.PublishCompletion(result);
+            return;
+        }
+
+        SetCommittedState(nextState);
+        SaveState(nextState);
+        ReplaceExpirationTimer(nextState);
+        LogState(nextState, "changed");
+        PublishStateChanged();
+        request.PublishCompletion(result);
+    }
+
+    private void ReconcileLateCompletion(AwakeState appliedState)
+    {
+        var committedState = Volatile.Read(ref _disposeState) != 0
+            ? State with { Mode = AwakeMode.Off, ExpiresAt = null }
+            : State;
+        if (ToExecutionState(appliedState) == ToExecutionState(committedState))
+        {
+            return;
+        }
+
+        if (TryApplyExecutionState(committedState))
+        {
+            LogState(committedState, "late_request_restored");
+            return;
+        }
+
+        lock (_gate)
+        {
+            _unavailable = true;
+        }
+
+        LogState(committedState, "late_request_restore_failed", "Windows rejected restoration after a late keep-awake request.");
+    }
+
+    private bool TryApplyExecutionState(AwakeState state)
+    {
+        try
+        {
+            return _bridge.TrySet(ToExecutionState(state));
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogState(State, "execution_failed", ex.Message);
+            return false;
+        }
+    }
+
+    private static AwakeExecutionState ToExecutionState(AwakeState state)
     {
         var executionState = AwakeExecutionState.Continuous;
         if (state.IsActive)
@@ -163,79 +357,111 @@ public sealed class AwakeService : IAwakeService
             }
         }
 
-        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        return executionState;
+    }
+
+    private void SetCommittedState(AwakeState state)
+    {
+        lock (_gate)
+        {
+            _state = state;
+        }
+    }
+
+    private void SaveState(AwakeState state)
+    {
         try
         {
-            _requests.Add(new ExecutionRequest(executionState, completion));
-            return completion.Task.GetAwaiter().GetResult();
+            _save(state);
         }
-        catch (InvalidOperationException)
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            return false;
+            LogState(state, "persistence_failed", ex.Message);
         }
     }
 
-    private void ProcessRequests()
+    private void ReplaceExpirationTimer(AwakeState? state)
     {
-        foreach (var request in _requests.GetConsumingEnumerable())
+        System.Threading.Timer? previous;
+        lock (_gate)
         {
-            try
-            {
-                request.Completion.SetResult(_bridge.TrySet(request.State));
-            }
-            catch (Exception ex) when (ex is not OutOfMemoryException)
-            {
-                request.Completion.SetResult(false);
-            }
+            previous = _expirationTimer;
+            _expirationTimer = null;
         }
-    }
 
-    private void ScheduleExpiration()
-    {
-        _expirationTimer?.Dispose();
-        _expirationTimer = null;
-        if (_state.Mode is not (AwakeMode.Timed or AwakeMode.Expiration) || _state.ExpiresAt is not { } expiresAt)
+        previous?.Dispose();
+        if (state is not { Mode: AwakeMode.Timed or AwakeMode.Expiration, ExpiresAt: { } expiresAt } ||
+            Volatile.Read(ref _disposeState) != 0)
         {
             return;
         }
 
         var due = expiresAt - DateTimeOffset.Now;
-        if (due <= TimeSpan.Zero)
+        System.Threading.Timer? timer = new(OnExpiration, null, due > TimeSpan.Zero ? due : TimeSpan.Zero, Timeout.InfiniteTimeSpan);
+        lock (_gate)
         {
-            ThreadPool.QueueUserWorkItem(_ => SetOff());
-            return;
+            if (Volatile.Read(ref _disposeState) == 0 && _state == state)
+            {
+                _expirationTimer = timer;
+                timer = null;
+            }
         }
 
-        _expirationTimer = new System.Threading.Timer(_ => SetOff(), null, due, Timeout.InfiniteTimeSpan);
+        timer?.Dispose();
+    }
+
+    private void OnExpiration(object? state) => _ = CompleteExpirationAsync();
+
+    private async Task CompleteExpirationAsync()
+    {
+        try
+        {
+            var result = await SetOffAsync().ConfigureAwait(false);
+            if (!result.Succeeded && result.Failure is not AwakeOperationFailure.ShuttingDown)
+            {
+                LogState(State, "expiration_failed", result.Error);
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogState(State, "expiration_failed", ex.Message);
+        }
     }
 
     private void OnPowerModeChanged(object sender, PowerModeChangedEventArgs e)
     {
         if (e.Mode is PowerModes.Resume or PowerModes.StatusChange && State.IsActive)
         {
-            _ = ApplyExecutionState(State);
+            _ = ReapplyAfterPowerChangeAsync();
         }
     }
 
-    public void Dispose()
+    private async Task ReapplyAfterPowerChangeAsync()
     {
-        lock (_gate)
+        try
         {
-            if (_disposed)
+            var result = await SubmitAsync(AwakeMutation.Reapply, CancellationToken.None).ConfigureAwait(false);
+            if (!result.Succeeded && result.Failure is not AwakeOperationFailure.ShuttingDown)
             {
-                return;
+                LogState(State, "resume_reapply_failed", result.Error);
             }
-
-            _disposed = true;
-            SystemEvents.PowerModeChanged -= OnPowerModeChanged;
-            _expirationTimer?.Dispose();
-            _expirationTimer = null;
-            _ = ApplyExecutionState(_state with { Mode = AwakeMode.Off, ExpiresAt = null });
-            _requests.CompleteAdding();
         }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogState(State, "resume_reapply_failed", ex.Message);
+        }
+    }
 
-        _executionThread.Join(TimeSpan.FromSeconds(2));
-        _requests.Dispose();
+    private void TryRestoreNormalExecutionState()
+    {
+        try
+        {
+            _ = _bridge.TrySet(AwakeExecutionState.Continuous);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogState(State, "shutdown_restore_failed", ex.Message);
+        }
     }
 
     private static AwakeState NormalizeInitialState(AwakeState state)
@@ -247,15 +473,117 @@ public sealed class AwakeService : IAwakeService
             : state with { IntervalMinutes = interval };
     }
 
-    private void LogState(string outcome, string? detail = null)
+    private void LogState(AwakeState state, string outcome, string? detail = null)
     {
-        _appLog.Write(new AppLogEntry(
-            Event: "host_action",
-            Source: "windows_host",
-            Action: "keep_awake",
-            Outcome: outcome,
-            Detail: detail ?? $"mode={_state.Mode}; keepScreenOn={_state.KeepScreenOn}"));
+        try
+        {
+            _appLog.Write(new AppLogEntry(
+                Event: "host_action",
+                Source: "windows_host",
+                Action: "keep_awake",
+                Outcome: outcome,
+                Detail: detail ?? $"mode={state.Mode}; keepScreenOn={state.KeepScreenOn}"));
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // Diagnostics must not terminate the execution-state owner.
+        }
     }
 
-    private sealed record ExecutionRequest(AwakeExecutionState State, TaskCompletionSource<bool> Completion);
+    private void PublishStateChanged()
+    {
+        var handlers = StateChanged;
+        if (handlers is null)
+        {
+            return;
+        }
+
+        foreach (EventHandler handler in handlers.GetInvocationList())
+        {
+            try
+            {
+                handler(this, EventArgs.Empty);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                LogState(State, "state_notification_failed", ex.Message);
+            }
+        }
+    }
+
+    private static AwakeOperationResult Failed(AwakeOperationFailure failure, string error) => new(false, error, failure);
+
+    private enum AwakeMutationKind
+    {
+        Off,
+        Indefinite,
+        Timed,
+        Expiration,
+        KeepScreenOn,
+        Reapply
+    }
+
+    private readonly record struct AwakeMutation(
+        AwakeMutationKind Kind,
+        int IntervalMinutes = 0,
+        DateTimeOffset? ExpiresAt = null,
+        bool KeepScreenOnValue = false)
+    {
+        public static AwakeMutation Off { get; } = new(AwakeMutationKind.Off);
+        public static AwakeMutation Indefinite { get; } = new(AwakeMutationKind.Indefinite);
+        public static AwakeMutation Reapply { get; } = new(AwakeMutationKind.Reapply);
+        public static AwakeMutation Timed(int minutes) => new(AwakeMutationKind.Timed, IntervalMinutes: minutes);
+        public static AwakeMutation Expiration(DateTimeOffset expiresAt) => new(AwakeMutationKind.Expiration, ExpiresAt: expiresAt);
+        public static AwakeMutation KeepScreenOn(bool value) => new(AwakeMutationKind.KeepScreenOn, KeepScreenOnValue: value);
+
+        public bool CommitState => Kind != AwakeMutationKind.Reapply;
+        public bool ForceApply => Kind == AwakeMutationKind.Reapply;
+
+        public AwakeState Apply(AwakeState state) => Kind switch
+        {
+            AwakeMutationKind.Off => state with { Mode = AwakeMode.Off, ExpiresAt = null },
+            AwakeMutationKind.Indefinite => state with { Mode = AwakeMode.Indefinite, ExpiresAt = null },
+            AwakeMutationKind.Timed => state with
+            {
+                Mode = AwakeMode.Timed,
+                IntervalMinutes = IntervalMinutes,
+                ExpiresAt = DateTimeOffset.Now.AddMinutes(IntervalMinutes)
+            },
+            AwakeMutationKind.Expiration => state with { Mode = AwakeMode.Expiration, ExpiresAt = ExpiresAt },
+            AwakeMutationKind.KeepScreenOn => state with { KeepScreenOn = KeepScreenOnValue },
+            _ => state
+        };
+    }
+
+    private sealed class ExecutionRequest(AwakeMutation mutation)
+    {
+        private int _state;
+
+        public AwakeMutation Mutation { get; } = mutation;
+        public TaskCompletionSource<AwakeOperationResult> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool TryStart() => Interlocked.CompareExchange(ref _state, 1, 0) == 0;
+
+        public bool TryClaimCompletion() => Interlocked.CompareExchange(ref _state, 3, 1) == 1;
+
+        public void PublishCompletion(AwakeOperationResult result) => Completion.TrySetResult(result);
+
+        public bool TryAbandon(AwakeOperationResult result)
+        {
+            while (true)
+            {
+                var state = Volatile.Read(ref _state);
+                if (state is 2 or 3)
+                {
+                    return false;
+                }
+
+                if (Interlocked.CompareExchange(ref _state, 2, state) == state)
+                {
+                    Completion.TrySetResult(result);
+                    return true;
+                }
+            }
+        }
+    }
 }

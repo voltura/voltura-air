@@ -10,6 +10,7 @@ internal static class Program
     private static WpfHostRuntime? s_runtime;
     private static IDisposable? s_isolatedSettingsScope;
     private static int s_activationRequested;
+    private static int s_activationDispatchPending;
     private static int s_restartRequested;
 
     [STAThread]
@@ -132,8 +133,13 @@ internal static class Program
     private static void RequestMainWindow()
     {
         Interlocked.Exchange(ref s_activationRequested, 1);
+        QueueActivationDispatch();
+    }
+
+    private static void QueueActivationDispatch()
+    {
         var runtime = s_runtime;
-        if (runtime is not null)
+        if (runtime is not null && Interlocked.CompareExchange(ref s_activationDispatchPending, 1, 0) == 0)
         {
             _ = runtime.MainWindow.Dispatcher.BeginInvoke(ShowRequestedMainWindow);
         }
@@ -141,12 +147,23 @@ internal static class Program
 
     private static void ShowRequestedMainWindow()
     {
-        if (s_runtime is null || !ConsumeActivationRequest())
+        try
         {
-            return;
-        }
+            if (s_runtime is null || !ConsumeActivationRequest())
+            {
+                return;
+            }
 
-        s_runtime.MainWindow.ShowPage(HostPage.Connect);
+            s_runtime.MainWindow.ShowPage(HostPage.Connect);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref s_activationDispatchPending, 0);
+            if (Volatile.Read(ref s_activationRequested) != 0)
+            {
+                QueueActivationDispatch();
+            }
+        }
     }
 
     private static bool ConsumeActivationRequest()

@@ -506,19 +506,17 @@ public sealed class WebHostPowerTests : IsolatedHostSettingsTest
             remove { }
         }
 
-        public AwakeOperationResult SetOff() => Failure();
+        public Task<AwakeOperationResult> SetOffAsync(CancellationToken cancellationToken = default) => Task.FromResult(Failure());
 
-        public AwakeOperationResult SetIndefinite() => Failure();
+        public Task<AwakeOperationResult> SetIndefiniteAsync(CancellationToken cancellationToken = default) => Task.FromResult(Failure());
 
-        public AwakeOperationResult SetTimed(TimeSpan duration) => Failure();
+        public Task<AwakeOperationResult> SetTimedAsync(TimeSpan duration, CancellationToken cancellationToken = default) => Task.FromResult(Failure());
 
-        public AwakeOperationResult SetExpiration(DateTimeOffset expiresAt) => Failure();
+        public Task<AwakeOperationResult> SetExpirationAsync(DateTimeOffset expiresAt, CancellationToken cancellationToken = default) => Task.FromResult(Failure());
 
-        public AwakeOperationResult SetKeepScreenOn(bool keepScreenOn) => Failure();
+        public Task<AwakeOperationResult> SetKeepScreenOnAsync(bool keepScreenOn, CancellationToken cancellationToken = default) => Task.FromResult(Failure());
 
-        public void Dispose()
-        {
-        }
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
         private static AwakeOperationResult Failure() => new(false, "Windows rejected the keep-awake request.");
     }

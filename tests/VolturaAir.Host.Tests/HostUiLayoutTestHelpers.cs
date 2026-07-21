@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Runtime.ExceptionServices;
 using System.Windows.Forms;
 using VolturaAir.Host;
 
@@ -110,7 +111,7 @@ public sealed partial class HostUiLayoutTests
             _completed.Wait();
             if (_exception is not null)
             {
-                throw _exception;
+                ExceptionDispatchInfo.Capture(_exception).Throw();
             }
         }
     }

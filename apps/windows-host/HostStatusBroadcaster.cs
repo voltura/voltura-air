@@ -52,7 +52,7 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
         AppAppearanceSettings.Changed += OnStatusChanged;
         _workstationLockPolicy.Changed += OnStatusChanged;
         _awakeService.StateChanged += OnStatusChanged;
-        _worker = ProcessAsync();
+        _worker = Task.Run(ProcessAsync);
     }
 
     public void Queue()
@@ -84,17 +84,17 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
         _awakeService.StateChanged -= OnStatusChanged;
 
         _requests.Writer.TryComplete();
-        await _lifetimeCancellation.CancelAsync();
+        await _lifetimeCancellation.CancelAsync().ConfigureAwait(false);
         try
         {
-            await _worker;
+            await _worker.ConfigureAwait(false);
             Task[] closeTasks;
             lock (_closeTasksGate)
             {
                 closeTasks = [.. _closeTasks];
             }
 
-            await Task.WhenAll(closeTasks);
+            await Task.WhenAll(closeTasks).ConfigureAwait(false);
         }
         finally
         {
@@ -145,7 +145,7 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
     {
         try
         {
-            while (await _requests.Reader.WaitToReadAsync(_lifetimeToken))
+            while (await _requests.Reader.WaitToReadAsync(_lifetimeToken).ConfigureAwait(false))
             {
                 while (_requests.Reader.TryRead(out _))
                 {
@@ -153,7 +153,7 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
 
                 try
                 {
-                    await BroadcastAsync(_lifetimeToken);
+                    await BroadcastAsync(_lifetimeToken).ConfigureAwait(false);
                 }
                 catch (Exception ex) when (ex is not OutOfMemoryException)
                 {
@@ -177,7 +177,7 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
         {
             try
             {
-                await _transport.SendAsync(socket, _statusFactory.CreateConnectedStatus(clientId), cancellationToken);
+                await _transport.SendAsync(socket, _statusFactory.CreateConnectedStatus(clientId), cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is WebSocketException or OperationCanceledException or ObjectDisposedException)
             {
@@ -191,7 +191,7 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
         {
             try
             {
-                await WebSocketTransport.CloseAsync(socket, "Device disconnected", cancellationToken);
+                await WebSocketTransport.CloseAsync(socket, "Device disconnected", cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is WebSocketException or ObjectDisposedException or OperationCanceledException)
             {

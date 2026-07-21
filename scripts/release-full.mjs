@@ -16,24 +16,55 @@ export function useAutomaticPublication(args) {
   throw new Error("Usage: npm run release:full [-- auto]");
 }
 
-function runCommand(command, args, { captureOutput = false } = {}) {
-  const useWindowsNpmShell = process.platform === "win32" && command === "npm";
-  const executable = useWindowsNpmShell ? "npm.cmd" : command;
-  const result = spawnSync(executable, args, {
+function runCommand(command, args = [], { captureOutput = false } = {}) {
+  if (typeof command !== "string" || command.trim().length === 0) {
+    throw new TypeError("Command must be a non-empty string.");
+  }
+
+  if (!Array.isArray(args) || !args.every((arg) => typeof arg === "string")) {
+    throw new TypeError("Command arguments must be an array of strings.");
+  }
+
+  let executable = command;
+  let executableArgs = args;
+
+  if (command === "npm") {
+    const npmCliPath = process.env.npm_execpath;
+
+    if (!npmCliPath) {
+      throw new Error(
+        "Full release must be run through npm: npm run release:full"
+      );
+    }
+
+    executable = process.execPath;
+    executableArgs = [npmCliPath, ...args];
+  }
+
+  const result = spawnSync(executable, executableArgs, {
     cwd: repositoryRoot,
     encoding: "utf8",
-    shell: useWindowsNpmShell,
-    stdio: captureOutput ? ["ignore", "pipe", "inherit"] : "inherit"
+    stdio: captureOutput ? ["ignore", "pipe", "inherit"] : "inherit",
+    windowsHide: true
   });
 
   if (result.error) {
     throw result.error;
   }
-  if (result.status !== 0) {
-    throw new Error(`${command} ${args.join(" ")} failed with exit code ${result.status ?? "unknown"}.`);
+
+  if (result.signal) {
+    throw new Error(
+      `${command} ${args.join(" ")} was terminated by signal ${result.signal}.`
+    );
   }
 
-  return captureOutput ? result.stdout.trim() : undefined;
+  if (result.status !== 0) {
+    throw new Error(
+      `${command} ${args.join(" ")} failed with exit code ${result.status ?? "unknown"}.`
+    );
+  }
+
+  return captureOutput ? (result.stdout ?? "").trim() : undefined;
 }
 
 function verifyCleanWorkingTree(run) {

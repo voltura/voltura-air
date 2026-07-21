@@ -189,6 +189,12 @@ Run `npm run package:win` only for release verification or changes that affect
 packaging. Run `npm run size:report` to review ownership and separation concerns;
 size is a review signal, not a mechanical failure.
 
+After every refactor or structural pass, run `npm run size:check` before handoff,
+commit, or release. Resolve each new strong warning in that same pass: split mixed
+ownership first, or record a current, specific cohesive-ownership rationale in
+`scripts/source-size-reviews.json` when separation would make ownership less
+clear. Do not defer this gate to the GitHub release workflow.
+
 ## Release and Git
 
 - Use a new semantic version for every published build. Do not replace release

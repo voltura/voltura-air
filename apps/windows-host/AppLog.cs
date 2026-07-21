@@ -40,7 +40,7 @@ public sealed class AppLog : IAppLog, IAsyncDisposable
             SingleReader = true,
             SingleWriter = false
         });
-        _writerTask = ProcessPendingWritesAsync();
+        _writerTask = Task.Run(ProcessPendingWritesAsync);
     }
 
     public static string DefaultLogDirectory => Path.Combine(
@@ -121,7 +121,7 @@ public sealed class AppLog : IAppLog, IAsyncDisposable
     {
         try
         {
-            while (await _pendingWrites.Reader.WaitToReadAsync())
+            while (await _pendingWrites.Reader.WaitToReadAsync().ConfigureAwait(false))
             {
                 var changed = false;
                 while (_pendingWrites.Reader.TryRead(out var workItem))

@@ -192,7 +192,8 @@ internal sealed class ApplicationLogController(
             clipboard.Copy(visibleText, "Filtered log copied");
         };
         root.OpenFolderButton.Click += (_, _) => OpenApplicationLogFolder();
-        root.DeleteButton.Click += (_, _) => DeleteApplicationLogs(RefreshLog);
+        root.DeleteButton.Click += async (_, _) => await DeleteApplicationLogsAsync(RefreshLog);
+
         var automaticRefresh = root.AutomaticRefreshToggle;
         var automaticRefreshSubscribed = false;
 
@@ -365,7 +366,7 @@ internal sealed class ApplicationLogController(
         }
     }
 
-    private void DeleteApplicationLogs(Action refresh)
+    private async Task DeleteApplicationLogsAsync(Action refresh)
     {
         if (!ThemedConfirmationDialog.Show(
                 owner,
@@ -378,7 +379,8 @@ internal sealed class ApplicationLogController(
             return;
         }
 
-        var result = appLog.DeleteAll();
+        var result = await Task.Run(appLog.DeleteAll);
+
         if (!result.Succeeded)
         {
             appLog.Write(new AppLogEntry(
@@ -387,6 +389,7 @@ internal sealed class ApplicationLogController(
                 Action: "delete_application_logs",
                 Outcome: "failed",
                 Detail: result.Error));
+
             toasts.Show($"Could not delete logs: {result.Error}");
             return;
         }
@@ -397,7 +400,12 @@ internal sealed class ApplicationLogController(
             Action: "delete_application_logs",
             Outcome: "succeeded",
             Detail: $"deletedFiles={result.DeletedFiles.ToString(CultureInfo.InvariantCulture)}"));
+
         refresh();
-        toasts.Show(result.DeletedFiles == 1 ? "1 log file deleted" : $"{result.DeletedFiles.ToString(CultureInfo.InvariantCulture)} log files deleted");
+
+        toasts.Show(
+            result.DeletedFiles == 1
+                ? "1 log file deleted"
+                : $"{result.DeletedFiles.ToString(CultureInfo.InvariantCulture)} log files deleted");
     }
 }

@@ -1,4 +1,4 @@
-﻿{
+{
   "version": "0.2.0",
   "configurations": [
     {
@@ -6,7 +6,7 @@
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build: windows host",
-      "program": "${workspaceFolder}/apps/windows-host/bin/Debug/net10.0-windows/VolturaAir.Host.exe",
+      "program": "${workspaceFolder}/apps/windows-host/bin/cli/Debug/net10.0-windows/VolturaAir.Host.exe",
       "args": [],
       "cwd": "${workspaceFolder}",
       "stopAtEntry": false,

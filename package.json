@@ -63,6 +63,7 @@
     "ssh2-sftp-client": "^12.1.1"
   },
   "allowScripts": {
+    "ssh2@1.17.0": true,
     "unrs-resolver@1.12.2": true
   }
 }

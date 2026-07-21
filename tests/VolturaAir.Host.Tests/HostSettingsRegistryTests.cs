@@ -1,3 +1,5 @@
+using Microsoft.Win32;
+
 namespace VolturaAir.Host.Tests;
 
 [Collection(AppPermissionSettingsCollection.Name)]
@@ -9,10 +11,31 @@ public sealed class HostSettingsRegistryTests : IsolatedHostSettingsTest
         AppClientControlSettings.SetEnabled(false);
         AppLoggingSettings.SetEnabled(true);
         AppDeveloperSettings.SetEnableAlphaFeatures(true);
+        AppPermissionSettings.Save(HostPermissions.DefaultGlobal with { AllowRemoteInput = false });
 
         Assert.False(AppClientControlSettings.IsEnabled());
         Assert.True(AppLoggingSettings.IsEnabled());
         Assert.True(AppDeveloperSettings.EnableAlphaFeatures());
+        Assert.False(AppPermissionSettings.Load().AllowRemoteInput);
+    }
+
+    [Fact]
+    public void PermissionHotPathUsesWriteThroughCache()
+    {
+        var blocked = HostPermissions.DefaultGlobal with { AllowRemoteInput = false };
+        AppPermissionSettings.Save(blocked);
+
+        using (var key = Registry.CurrentUser.OpenSubKey(HostSettingsRegistry.SettingsKeyPath, writable: true))
+        {
+            Assert.NotNull(key);
+            key.SetValue("AllowRemoteInput", 1, RegistryValueKind.DWord);
+        }
+
+        Assert.Same(blocked, AppPermissionSettings.Load());
+
+        var allowed = blocked with { AllowRemoteInput = true };
+        AppPermissionSettings.Save(allowed);
+        Assert.Same(allowed, AppPermissionSettings.Load());
     }
 
     [Fact]

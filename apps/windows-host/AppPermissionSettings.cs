@@ -20,28 +20,19 @@ public static class AppPermissionSettings
     private const string AllowSignOutValueName = "AllowSignOut";
     private const string AllowRestartValueName = "AllowRestart";
     private const string AllowShutdownValueName = "AllowShutdown";
+    private static HostPermissionSet _cachedPermissions = HostPermissions.DefaultGlobal;
+
+    static AppPermissionSettings()
+    {
+        HostSettingsRegistry.SettingsScopeChanged += RefreshCachedPermissions;
+        RefreshCachedPermissions();
+    }
 
     public static event EventHandler? Changed;
 
     public static HostPermissionSet Load()
     {
-        using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: false);
-        return new HostPermissionSet(
-            AllowRemoteInput: GetBooleanValue(key, AllowRemoteInputValueName, HostPermissions.DefaultGlobal.AllowRemoteInput),
-            AllowPcSleep: GetBooleanValue(key, AllowPcSleepValueName, HostPermissions.DefaultGlobal.AllowPcSleep),
-            AllowVolumeControl: GetBooleanValue(key, AllowVolumeControlValueName, HostPermissions.DefaultGlobal.AllowVolumeControl),
-            AllowPresentationControl: GetBooleanValue(key, AllowPresentationControlValueName, HostPermissions.DefaultGlobal.AllowPresentationControl),
-            AllowRemoteAppLaunch: GetBooleanValue(key, AllowRemoteAppLaunchValueName, HostPermissions.DefaultGlobal.AllowRemoteAppLaunch),
-            AllowUrlOpen: GetBooleanValue(key, AllowUrlOpenValueName, HostPermissions.DefaultGlobal.AllowUrlOpen),
-            AllowPcLock: GetBooleanValue(key, AllowPcLockValueName, HostPermissions.DefaultGlobal.AllowPcLock),
-            AllowBlackoutDisplay: GetBooleanValue(key, AllowBlackoutDisplayValueName, HostPermissions.DefaultGlobal.AllowBlackoutDisplay),
-            AllowDisplayOff: GetBooleanValue(key, AllowDisplayOffValueName, HostPermissions.DefaultGlobal.AllowDisplayOff),
-            AllowScreenSaver: GetBooleanValue(key, AllowScreenSaverValueName, HostPermissions.DefaultGlobal.AllowScreenSaver),
-            AllowAwakeControl: GetBooleanValue(key, AllowAwakeControlValueName, HostPermissions.DefaultGlobal.AllowAwakeControl),
-            AllowClipboardRead: GetBooleanValue(key, AllowClipboardReadValueName, HostPermissions.DefaultGlobal.AllowClipboardRead),
-            AllowSignOut: GetBooleanValue(key, AllowSignOutValueName, HostPermissions.DefaultGlobal.AllowSignOut),
-            AllowRestart: GetBooleanValue(key, AllowRestartValueName, HostPermissions.DefaultGlobal.AllowRestart),
-            AllowShutdown: GetBooleanValue(key, AllowShutdownValueName, HostPermissions.DefaultGlobal.AllowShutdown));
+        return Volatile.Read(ref _cachedPermissions);
     }
 
     public static void Save(HostPermissionSet permissions)
@@ -65,6 +56,7 @@ public static class AppPermissionSettings
         key.SetValue(AllowSignOutValueName, permissions.AllowSignOut ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowRestartValueName, permissions.AllowRestart ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowShutdownValueName, permissions.AllowShutdown ? 1 : 0, RegistryValueKind.DWord);
+        Volatile.Write(ref _cachedPermissions, permissions);
 
         if (current != permissions)
         {
@@ -75,5 +67,38 @@ public static class AppPermissionSettings
     private static bool GetBooleanValue(RegistryKey? key, string valueName, bool defaultValue)
     {
         return key?.GetValue(valueName) is int value ? value != 0 : defaultValue;
+    }
+
+    private static HostPermissionSet ReadPermissions()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: false);
+            return new HostPermissionSet(
+                AllowRemoteInput: GetBooleanValue(key, AllowRemoteInputValueName, HostPermissions.DefaultGlobal.AllowRemoteInput),
+                AllowPcSleep: GetBooleanValue(key, AllowPcSleepValueName, HostPermissions.DefaultGlobal.AllowPcSleep),
+                AllowVolumeControl: GetBooleanValue(key, AllowVolumeControlValueName, HostPermissions.DefaultGlobal.AllowVolumeControl),
+                AllowPresentationControl: GetBooleanValue(key, AllowPresentationControlValueName, HostPermissions.DefaultGlobal.AllowPresentationControl),
+                AllowRemoteAppLaunch: GetBooleanValue(key, AllowRemoteAppLaunchValueName, HostPermissions.DefaultGlobal.AllowRemoteAppLaunch),
+                AllowUrlOpen: GetBooleanValue(key, AllowUrlOpenValueName, HostPermissions.DefaultGlobal.AllowUrlOpen),
+                AllowPcLock: GetBooleanValue(key, AllowPcLockValueName, HostPermissions.DefaultGlobal.AllowPcLock),
+                AllowBlackoutDisplay: GetBooleanValue(key, AllowBlackoutDisplayValueName, HostPermissions.DefaultGlobal.AllowBlackoutDisplay),
+                AllowDisplayOff: GetBooleanValue(key, AllowDisplayOffValueName, HostPermissions.DefaultGlobal.AllowDisplayOff),
+                AllowScreenSaver: GetBooleanValue(key, AllowScreenSaverValueName, HostPermissions.DefaultGlobal.AllowScreenSaver),
+                AllowAwakeControl: GetBooleanValue(key, AllowAwakeControlValueName, HostPermissions.DefaultGlobal.AllowAwakeControl),
+                AllowClipboardRead: GetBooleanValue(key, AllowClipboardReadValueName, HostPermissions.DefaultGlobal.AllowClipboardRead),
+                AllowSignOut: GetBooleanValue(key, AllowSignOutValueName, HostPermissions.DefaultGlobal.AllowSignOut),
+                AllowRestart: GetBooleanValue(key, AllowRestartValueName, HostPermissions.DefaultGlobal.AllowRestart),
+                AllowShutdown: GetBooleanValue(key, AllowShutdownValueName, HostPermissions.DefaultGlobal.AllowShutdown));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            return HostPermissions.DefaultGlobal;
+        }
+    }
+
+    private static void RefreshCachedPermissions()
+    {
+        Volatile.Write(ref _cachedPermissions, ReadPermissions());
     }
 }

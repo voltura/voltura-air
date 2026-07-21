@@ -70,7 +70,9 @@ internal static class HostSettingsRegistry
                 }
             }
 
-            SettingsScopeChanged?.Invoke();
+            // Isolated hosts and tests are process-scoped. Cached values stay
+            // isolated during cleanup so automation never reads production
+            // settings immediately before that process or test scope ends.
         }
     }
 }

@@ -24,6 +24,9 @@ internal static class Program
                 return;
             }
 
+            var isolatedTestMode = args.Contains("--isolated-test-mode", StringComparer.OrdinalIgnoreCase);
+            s_isolatedSettingsScope = isolatedTestMode ? HostSettingsRegistry.BeginIsolatedScope() : null;
+
             Forms.Application.SetHighDpiMode(Forms.HighDpiMode.PerMonitorV2);
             Forms.Application.EnableVisualStyles();
             Forms.Application.SetCompatibleTextRenderingDefault(false);
@@ -51,6 +54,7 @@ internal static class Program
         }
         finally
         {
+            DisposeIsolatedSettingsScope();
             singleInstance?.Dispose();
         }
 
@@ -77,7 +81,6 @@ internal static class Program
             }
 #endif
 
-            s_isolatedSettingsScope = isolatedTestMode ? HostSettingsRegistry.BeginIsolatedScope() : null;
 #if DEBUG
             ConfigureIsolatedDevelopmentSettings(args, isolatedTestMode);
             ConfigureSiteScreenshotSettings(args);
@@ -225,8 +228,7 @@ internal static class Program
         }
 
         s_runtime = null;
-        s_isolatedSettingsScope?.Dispose();
-        s_isolatedSettingsScope = null;
+        DisposeIsolatedSettingsScope();
     }
 
     private static void RequestRestart(Action requestShutdown)
@@ -281,8 +283,12 @@ internal static class Program
         }
         finally
         {
-            s_isolatedSettingsScope?.Dispose();
-            s_isolatedSettingsScope = null;
+            DisposeIsolatedSettingsScope();
         }
+    }
+
+    private static void DisposeIsolatedSettingsScope()
+    {
+        Interlocked.Exchange(ref s_isolatedSettingsScope, null)?.Dispose();
     }
 }

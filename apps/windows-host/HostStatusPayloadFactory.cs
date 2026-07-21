@@ -12,35 +12,47 @@ internal sealed class HostStatusPayloadFactory(
 {
     private static readonly string DeveloperSessionId = Guid.NewGuid().ToString("N");
 
-    public object CreateConnectedStatus(string clientId) => new
+    public object CreateConnectedStatus(string clientId)
     {
-        type = "status",
-        connected = true,
-        message = "Connected",
-        pcName = Environment.MachineName,
-        capabilities = CreateCapabilities(clientId),
-        host = CreateHostStatus(clientId)
-    };
+        var permissions = GetEffectivePermissions(clientId);
+        return new
+        {
+            type = "status",
+            connected = true,
+            message = "Connected",
+            pcName = Environment.MachineName,
+            capabilities = CreateCapabilities(permissions),
+            host = CreateHostStatus(clientId, permissions)
+        };
+    }
 
-    public object CreatePairAccepted(string clientId) => new
+    public object CreatePairAccepted(string clientId)
     {
-        type = "pair.accepted",
-        clientId,
-        pcName = Environment.MachineName,
-        paired = true,
-        capabilities = CreateCapabilities(clientId),
-        host = CreateHostStatus(clientId)
-    };
+        var permissions = GetEffectivePermissions(clientId);
+        return new
+        {
+            type = "pair.accepted",
+            clientId,
+            pcName = Environment.MachineName,
+            paired = true,
+            capabilities = CreateCapabilities(permissions),
+            host = CreateHostStatus(clientId, permissions)
+        };
+    }
 
-    public object CreateDisconnectedStatus(string clientId, string message) => new
+    public object CreateDisconnectedStatus(string clientId, string message)
     {
-        type = "status",
-        connected = false,
-        message,
-        pcName = Environment.MachineName,
-        capabilities = CreateCapabilities(clientId),
-        host = CreateHostStatus(clientId)
-    };
+        var permissions = GetEffectivePermissions(clientId);
+        return new
+        {
+            type = "status",
+            connected = false,
+            message,
+            pcName = Environment.MachineName,
+            capabilities = CreateCapabilities(permissions),
+            host = CreateHostStatus(clientId, permissions)
+        };
+    }
 
     public bool CanSleepPc(string clientId) => GetEffectivePermissions(clientId).AllowPcSleep;
     public bool CanUseRemoteInput(string clientId) => GetEffectivePermissions(clientId).AllowRemoteInput;
@@ -53,27 +65,26 @@ internal sealed class HostStatusPayloadFactory(
     public HostPermissionSet GetEffectivePermissions(string clientId) =>
         pairingManager.GetEffectivePermissions(clientId, AppPermissionSettings.Load());
 
-    private object CreateCapabilities(string clientId) => new
+    private object CreateCapabilities(HostPermissionSet permissions) => new
     {
-        sleep = CanSleepPc(clientId),
-        remoteInput = CanUseRemoteInput(clientId),
-        power = CreatePowerCapabilities(clientId),
-        awake = CreateAwakeCapability(clientId),
-        volume = CanControlVolume(clientId),
+        sleep = permissions.AllowPcSleep,
+        remoteInput = permissions.AllowRemoteInput,
+        power = CreatePowerCapabilities(permissions),
+        awake = CreateAwakeCapability(permissions),
+        volume = permissions.AllowVolumeControl,
         presentation = AppDeveloperSettings.EnableAlphaFeatures()
-            ? new { canControl = CanControlPresentations(clientId) }
+            ? new { canControl = permissions.AllowPresentationControl }
             : null,
-        remoteLaunch = CanLaunchRemoteApps(clientId),
-        urlOpen = new { canOpen = CanOpenUrls(clientId) },
-        textTransfer = CanUseRemoteInput(clientId),
-        clipboardRead = CanReadClipboard(clientId),
+        remoteLaunch = permissions.AllowRemoteAppLaunch,
+        urlOpen = new { canOpen = permissions.AllowUrlOpen },
+        textTransfer = permissions.AllowRemoteInput,
+        clipboardRead = permissions.AllowClipboardRead,
         gestureDebug = AppDeveloperSettings.EnableGestureDebug(),
         inputAck = true
     };
 
-    private object CreatePowerCapabilities(string clientId)
+    private object CreatePowerCapabilities(HostPermissionSet permissions)
     {
-        var permissions = GetEffectivePermissions(clientId);
         var lockStatus = workstationLockPolicy.GetStatus();
         return new
         {
@@ -89,12 +100,12 @@ internal sealed class HostStatusPayloadFactory(
         };
     }
 
-    private object CreateAwakeCapability(string clientId)
+    private object CreateAwakeCapability(HostPermissionSet permissions)
     {
         var state = awakeService.State;
         return new
         {
-            canControl = CanControlAwake(clientId),
+            canControl = permissions.AllowAwakeControl,
             active = state.IsActive,
             mode = state.Mode switch
             {
@@ -107,7 +118,7 @@ internal sealed class HostStatusPayloadFactory(
         };
     }
 
-    private HostStatusMetadata CreateHostStatus(string clientId)
+    private HostStatusMetadata CreateHostStatus(string clientId, HostPermissionSet permissions)
     {
         var network = getNetwork();
         var developerMode = AppDeveloperSettings.DeveloperMode();
@@ -122,7 +133,7 @@ internal sealed class HostStatusPayloadFactory(
             network.Port,
             network.WebSocketUrl,
             AppRemoteSettings.ToProtocolId(AppRemoteSettings.GetDefaultRemoteMode()),
-            CanLaunchRemoteApps(clientId) ? appLaunchService.GetActions() : [],
+            permissions.AllowRemoteAppLaunch ? appLaunchService.GetActions() : [],
             new TextTransferTargetMetadata(textDestination.Mode, textDestination.DisplayName, textDestination.Available),
             pairingManager.GetDevicePointerSpeed(clientId),
             AppPointerSettings.GetCustomPointer().Enabled,

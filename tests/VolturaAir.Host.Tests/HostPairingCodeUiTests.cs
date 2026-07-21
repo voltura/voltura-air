@@ -146,6 +146,105 @@ public sealed partial class HostUiLayoutTests
     }
 
     [Fact]
+    public void ConnectCountdownPausesWhileMinimizedAndCatchesUpWhenRestored()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            var now = DateTimeOffset.UtcNow;
+            var refreshCalls = 0;
+            var view = new ConnectPageView(
+                CreateTestBitmap(),
+                "http://pc.local/pair?t=redacted",
+                "http://pc.local",
+                "Ethernet (Test adapter)",
+                false,
+                "127.0.0.1",
+                "51395",
+                null,
+                null,
+                null,
+                now.AddMinutes(5),
+                () => refreshCalls += 1,
+                static () => { },
+                static () => { },
+                () => now);
+            var window = new Window { Content = view };
+            try
+            {
+                window.Show();
+                DoWpfEvents();
+                Assert.True(view.IsCountdownActive);
+                Assert.Equal("Refreshes in 5:00", view.PairingCodeCard.Value);
+
+                window.WindowState = WindowState.Minimized;
+                DoWpfEvents();
+                Assert.False(view.IsCountdownActive);
+
+                now = now.AddMinutes(2);
+                window.WindowState = WindowState.Normal;
+                DoWpfEvents();
+                Assert.True(view.IsCountdownActive);
+                Assert.Equal("Refreshes in 3:00", view.PairingCodeCard.Value);
+                Assert.Equal(0, refreshCalls);
+
+                window.WindowState = WindowState.Minimized;
+                DoWpfEvents();
+                now = now.AddMinutes(4);
+                window.WindowState = WindowState.Normal;
+                DoWpfEvents();
+                Assert.False(view.IsCountdownActive);
+                Assert.Equal("Refreshing code\u2026", view.PairingCodeCard.Value);
+                Assert.Equal(1, refreshCalls);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void ConnectCountdownStopsWhenAnotherHostPageIsSelected()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            using var store = new TempPairingStore();
+            using var inputInjector = new SendInputInjector();
+            var manager = new PairingManager(store.Store);
+            var webHost = new WebHostService(manager, new InputDispatcher(inputInjector), isolatedTestMode: true);
+            var window = new MainWindow(manager, webHost, clientUrl: null);
+            try
+            {
+                window.ShowPage(HostPage.Connect);
+                DoWpfEvents();
+                var connectView = Assert.Single(FindWpfDescendants<ConnectPageView>(window));
+                Assert.True(connectView.IsCountdownActive);
+
+                window.ShowPage(HostPage.Connection);
+                DoWpfEvents();
+                Assert.False(connectView.IsCountdownActive);
+            }
+            finally
+            {
+                window.Close();
+                DisposeWebHost(webHost);
+            }
+        });
+    }
+
+    [Fact]
     public void ConnectDetailsUseRemainingSpaceAndOwnScrolling()
     {
         if (ShouldSkipNativeUiLayoutTests())

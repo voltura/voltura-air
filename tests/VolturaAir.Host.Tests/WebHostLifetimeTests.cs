@@ -3,7 +3,8 @@ using VolturaAir.Host;
 
 namespace VolturaAir.Host.Tests;
 
-public sealed class WebHostLifetimeTests
+[Collection(AppPermissionSettingsCollection.Name)]
+public sealed class WebHostLifetimeTests : IsolatedHostSettingsTest
 {
     [Fact]
     public async Task DisposalReleasesRemainingOwnersWhenOneOwnerFails()

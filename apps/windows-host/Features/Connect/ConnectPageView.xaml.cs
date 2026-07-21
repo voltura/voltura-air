@@ -16,6 +16,7 @@ public partial class ConnectPageView : WpfUserControl
     private readonly Func<DateTimeOffset> _getCurrentTime;
     private readonly DateTimeOffset _refreshAt;
     private readonly DispatcherTimer _countdownTimer;
+    private Window? _ownerWindow;
     private bool _refreshRequested;
     private bool _timerReleased;
 
@@ -93,6 +94,8 @@ public partial class ConnectPageView : WpfUserControl
         .SingleOrDefault()
         ?? throw new InvalidOperationException("The network adapter warning notice is unavailable.");
 
+    internal bool IsCountdownActive => _countdownTimer.IsEnabled;
+
     private System.Windows.Controls.Button AdapterChangeButton => (SelectedAdapterCard.Actions as SpacingStackPanel)?.Children
         .OfType<System.Windows.Controls.Button>()
         .SingleOrDefault()
@@ -142,10 +145,8 @@ public partial class ConnectPageView : WpfUserControl
 
     private void OnLoaded(object sender, RoutedEventArgs eventArgs)
     {
-        if (IsVisible)
-        {
-            StartCountdown();
-        }
+        TrackOwnerWindow();
+        UpdateCountdownActivity();
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs eventArgs)
@@ -155,20 +156,10 @@ public partial class ConnectPageView : WpfUserControl
 
     private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs eventArgs)
     {
-        if (_timerReleased)
-        {
-            return;
-        }
-
-        if (IsVisible)
-        {
-            StartCountdown();
-        }
-        else
-        {
-            _countdownTimer.Stop();
-        }
+        UpdateCountdownActivity();
     }
+
+    private void OnOwnerWindowStateChanged(object? sender, EventArgs eventArgs) => UpdateCountdownActivity();
 
     private void OnCountdownTick(object? sender, EventArgs eventArgs)
     {
@@ -199,6 +190,37 @@ public partial class ConnectPageView : WpfUserControl
         }
     }
 
+    private void UpdateCountdownActivity()
+    {
+        if (_timerReleased)
+        {
+            return;
+        }
+
+        if (IsVisible && _ownerWindow?.WindowState != WindowState.Minimized)
+        {
+            StartCountdown();
+        }
+        else
+        {
+            _countdownTimer.Stop();
+        }
+    }
+
+    private void TrackOwnerWindow()
+    {
+        var ownerWindow = Window.GetWindow(this);
+        if (ReferenceEquals(_ownerWindow, ownerWindow))
+        {
+            return;
+        }
+
+        _ownerWindow?.StateChanged -= OnOwnerWindowStateChanged;
+
+        _ownerWindow = ownerWindow;
+        _ownerWindow?.StateChanged += OnOwnerWindowStateChanged;
+    }
+
     private void RenderCountdown(DateTimeOffset now)
     {
         PairingCodeCard.Value = FormatRefreshCountdown(_refreshAt, now);
@@ -227,6 +249,9 @@ public partial class ConnectPageView : WpfUserControl
         _timerReleased = true;
         _countdownTimer.Stop();
         _countdownTimer.Tick -= OnCountdownTick;
+        _ownerWindow?.StateChanged -= OnOwnerWindowStateChanged;
+        _ownerWindow = null;
+
         Loaded -= OnLoaded;
         Unloaded -= OnUnloaded;
         IsVisibleChanged -= OnIsVisibleChanged;

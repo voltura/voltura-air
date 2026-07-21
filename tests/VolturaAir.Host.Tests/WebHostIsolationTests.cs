@@ -3,7 +3,8 @@ using VolturaAir.Host;
 
 namespace VolturaAir.Host.Tests;
 
-public sealed class WebHostIsolationTests
+[Collection(AppPermissionSettingsCollection.Name)]
+public sealed class WebHostIsolationTests : IsolatedHostSettingsTest
 {
     [Fact]
     public async Task IsolatedTestModeUsesLoopbackWithoutChangingNetworkSettings()

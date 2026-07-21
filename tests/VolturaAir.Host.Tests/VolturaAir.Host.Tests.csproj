@@ -26,10 +26,9 @@
 
   <Target Name="CopyCursorWatchdogForTests" AfterTargets="Build">
     <PropertyGroup>
-      <CursorWatchdogPath>$(MSBuildThisFileDirectory)..\..\apps\windows-host\bin\$(Configuration)\$(TargetFramework)\VolturaAir.CursorWatchdog.exe</CursorWatchdogPath>
+      <CursorWatchdogPath>$(MSBuildThisFileDirectory)..\..\apps\windows-host\$(OutputPath)VolturaAir.CursorWatchdog.exe</CursorWatchdogPath>
     </PropertyGroup>
     <Error Condition="!Exists('$(CursorWatchdogPath)')" Text="The native cursor watchdog was not built: $(CursorWatchdogPath)" />
     <Copy SourceFiles="$(CursorWatchdogPath)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
   </Target>
 </Project>
-

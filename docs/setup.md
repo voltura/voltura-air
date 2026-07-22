@@ -94,7 +94,7 @@ NuGet keeps its normal shared `obj` project metadata, which is safe to reuse and
 preserves the SDK's generated-file exclusions. This keeps competing WPF-generated
 sources out of each other's way without sacrificing incremental reuse between
 command-line workflows. Release builds retain the standard paths used by the
-existing packaging and release workflow. The
+packaging commands. The
 host serves client files directly from `apps/mobile-web/dist` in Debug, so an
 existing bookmarked app can receive the rebuilt client through the normal
 build-ID auto-refresh as soon as the bundle finishes. Restart

@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 export const commandDescriptions = {
+  "actions:restore": "Restore the archived GitHub Actions workflow files for deliberate future re-enabling.",
   "ai:init": "Install the newest ChatGPT/Codex package if needed, then configure the daily task and desktop shortcut.",
   "ai:schedule:create": "Create or refresh the hidden daily ChatGPT/Codex update task; accepts --time HH:mm:ss.",
   "ai:schedule:remove": "Remove every ChatGPT/Codex updater scheduled task created by this repository.",
@@ -45,6 +46,8 @@ export const commandDescriptions = {
   release: "Prepare a versioned release and update its authoritative version values.",
   "release:bump": "Advance the release version through the project's one-digit patch and minor sequence.",
   "release:full": "Bump a release, generate branding, and publish the site; auto mode also commits and pushes a clean branch.",
+  "release:local": "Build, test, package, push, and create a GitHub draft locally; append latest to publish it.",
+  "release:sync-release-notes": "Synchronize a published GitHub release's marked editorial notes into the matching local section.",
   "screenshots:site": "Capture screenshots for the public documentation site.",
   "size:check": "Fail if strong source-size warnings lack current review rationales.",
   "size:report": "Report source-file size and ownership signals.",

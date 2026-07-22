@@ -5,16 +5,47 @@ Windows release assets, and publish a GitHub release.
 
 ## Quick release
 
+Prepare `docs/release-notes.md` for the next version, commit that notes change,
+and start from a clean `main` branch. Create an audited GitHub draft with:
+
 ```powershell
-npm run release -- 0.6.0
-npm run branding:generate
+npm run release:local
 ```
 
-Review, commit, and push the version bump to `main`. GitHub Actions automatically
-creates a draft GitHub release with generated notes and the release assets.
-Review and publish that draft, then upload the contents of
-`docs/site` to `voltura.se/air`. Increment every later public release (`0.6.1`,
-`0.6.2`, then `0.7.0` for the next larger milestone).
+The default advances the existing stable odometer version. Supply an explicit
+version when needed:
+
+```powershell
+npm run release:local -- 0.8.0
+```
+
+The command leaves the audited release as a draft. Append `latest` to publish a
+stable version immediately as GitHub's Latest release:
+
+```powershell
+npm run release:local -- latest
+npm run release:local -- 0.8.0 latest
+```
+
+The local release validates its environment, prepares the version, regenerates
+branding and screenshots, runs all tests, builds and validates the ZIP and both
+installers, commits and pushes the generated release changes, rebuilds from the
+final commit, creates or resumes a matching draft, audits its assets, and
+publishes `docs/site`. Only the `latest` mode makes the GitHub release public.
+Prerelease versions can be prepared as drafts but cannot be marked Latest.
+
+## Local release prerequisites
+
+- Windows with Node.js/npm, the .NET 10 SDK, Git, and NSIS available;
+- an authenticated GitHub CLI with write access to `voltura/voltura-air`;
+- the one.com SFTP password stored with `npm run publish:site:password`;
+- a clean `main` worktree with no merge or rebase in progress and no divergence
+  from `origin/main`;
+- no workflow YAML under `.github/workflows`;
+- one committed, publishable target section in `docs/release-notes.md`.
+
+Generated binaries remain under `artifacts/publish`. The command prints SHA-256
+hashes for the ZIP and both installers after the draft or release is complete.
 
 ## Prepare the release version
 
@@ -85,11 +116,11 @@ Build and packaging consumers read those prepared values:
 
 Review the resulting diff before committing. The command only updates files.
 
-## Optional local preflight
+## Optional standalone preflight
 
-GitHub Actions performs the required build, tests, packaging, and metadata
-validation. To catch failures before pushing, optionally run these commands
-sequentially from the repository root:
+The local release command performs the required checks. To run the same major
+boundaries independently, use these commands sequentially from the repository
+root:
 
 ```powershell
 npm run build
@@ -148,46 +179,76 @@ To rebuild the zip and installer from an existing publish directory:
 powershell -ExecutionPolicy Bypass -File scripts/package-win.ps1 -Version <version> -Runtime win-x64 -SkipBuild
 ```
 
-## GitHub Actions release path
+## GitHub Actions state
 
-Pushing a genuine root `package.json` version change to `main` runs **Publish
-Voltura Air release**. The workflow derives the release version and tag from
-that file and uses the verified `win-x64` runtime. It exits successfully without
-building or publishing when the root package version did not change. Run the
-workflow manually only to retry the version already committed in the selected
-repository revision; it has no version, tag, or runtime inputs.
+The Release and Quality workflow sources are stored under `scripts/legacy/`. No
+workflow YAML exists under `.github/workflows`, so GitHub cannot discover or run
+repository workflows. GitHub also records both workflows as manually disabled.
+The local release command refuses to run if workflow YAML has been restored,
+preventing local and hosted publication paths from competing.
 
-The workflow runs tests, packages and validates the Windows assets, then creates
-the tag and a draft GitHub release.
-GitHub generates a commit/PR-based release-notes baseline and prepends the
-freeware notice. Review the draft's notes and release assets before publishing
-it. The workflow rejects an existing tag and fails when no commits exist since
-the prior release. Use a new version for every published build. Versions with a
-prerelease suffix are marked as GitHub prereleases.
+To deliberately copy both workflows back to `.github/workflows` for review and
+possible future re-enabling, run:
 
-## Review generated release notes
+```powershell
+npm run actions:restore
+```
 
-GitHub's generated notes are raw material, not release notes. Before publishing
-the draft, replace the generated commit list with a concise user-facing summary:
+The restore command refuses to overwrite existing workflow files. Restoring the
+files changes repository state but does not inspect or change GitHub's remote
+workflow setting; review triggers and remote state before committing them.
+
+## Maintain release notes
+
+Maintain `docs/release-notes.md` newest first. Each release uses one heading such
+as `## v0.8.0`, followed by concise user-facing bullets. The local release
+command refuses to prepare a version when its section is missing, duplicated,
+empty, or contains only an editorial HTML comment.
 
 ```markdown
-## Highlights
+## v0.8.0
 
 - <New capability or important user-visible improvement.>
-
-## Fixes and reliability
-
 - <Important defect, recovery, pairing, or compatibility improvement.>
-
-## Notes
-
 - <Any setup, compatibility, alpha-feature, or known-limitation note.>
 ```
 
 Include only new user-facing features and fixes for defects that users could
 actually experience. Omit refactors, code organization, tests, CI, tooling,
-documentation, dependency maintenance, and other internal work. Keep the
-freeware notice that the workflow prepends.
+documentation, dependency maintenance, and other internal work. End every
+version section with these paragraphs:
+
+```markdown
+Voltura Air is free software from Voltura AB. If it helps you, optional support is available through [Ko-fi](https://ko-fi.com/voltura) or [PayPal](https://www.paypal.me/voltura).
+
+Release binaries are not code-signed. Windows may show an unknown-publisher or Microsoft Defender SmartScreen warning. Download release files only from the official Voltura Air website or GitHub release page.
+```
+
+The local command requires at least one user-facing change in addition to these
+paragraphs, then adds download guidance and a changelog link to the GitHub body.
+The generated body places invisible synchronization markers around the editable
+notes and notices. Preserve those HTML comments when editing a draft in GitHub.
+
+After publishing the draft manually in GitHub, synchronize the published
+editorial block back into its matching local section:
+
+```powershell
+npm run release:sync-release-notes
+```
+
+With no argument, the command selects GitHub's Latest published release. Select
+another published stable or prerelease version explicitly with:
+
+```powershell
+npm run release:sync-release-notes -- 0.8.0
+```
+
+Synchronization requires a clean worktree, exactly one marker pair, both exact
+notices, user-facing content, and one matching local version section. It updates
+only `docs/release-notes.md`, preserves its line endings, and does not edit
+GitHub, commit, push, bump a version, or publish anything. Review and commit the
+resulting documentation diff manually. Repeating the command when both copies
+already match succeeds without rewriting the file.
 
 When a release changes pairing, authentication, permissions, or network
 exposure, state the practical security impact without implying transport
@@ -213,23 +274,6 @@ gh release create "v$version" `
 ```
 
 Add `--prerelease` when the semantic version contains a prerelease suffix.
-
-## Freeware release notes
-
-Voltura Air is distributed as freeware. Release notes should avoid trial,
-license-key, premium, and paid-upgrade language.
-
-Suggested wording:
-
-```text
-Voltura Air is free software from Voltura AB. If it helps you, optional support links are available through Ko-fi and PayPal.
-```
-
-## Unsigned installer status
-
-Release assets are not code-signed. Do not claim that the installer or executable
-is signed. Windows may show an unknown publisher or Microsoft Defender SmartScreen
-warning. Direct users only to the official product page or GitHub releases page.
 
 ## Installer behavior
 

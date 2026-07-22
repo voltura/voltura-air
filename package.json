@@ -7,6 +7,7 @@
     "apps/mobile-web"
   ],
   "scripts": {
+    "actions:restore": "node scripts/restore-github-actions.mjs",
     "ai:init": "npm run ai:update && npm run ai:schedule:create && npm run ai:shortcut:create",
     "ai:schedule:create": "node scripts/ai-schedule.mjs",
     "ai:schedule:remove": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/remove-chatgpt-codex-schedule.ps1",
@@ -43,6 +44,8 @@
     "release": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1",
     "release:bump": "node scripts/bump-release.mjs",
     "release:full": "node scripts/release-full.mjs",
+    "release:local": "node scripts/release-local.mjs",
+    "release:sync-release-notes": "node scripts/sync-release-notes.mjs",
     "screenshots:site": "node scripts/capture-site-screenshots.mjs",
     "publish:site": "node scripts/publish-site.mjs",
     "publish:site:list": "node scripts/publish-site.mjs --list",

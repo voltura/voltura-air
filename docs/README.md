@@ -56,6 +56,7 @@ document's role, subject, and update trigger.
 | [Protocol](protocol.md) | Wire authority | Messages, authentication, capabilities, acknowledgements, bounds, and errors. |
 | [Security architecture diagrams](security-architecture-diagrams.md) | Derived engineering | Security-sensitive runtime, pairing, authorization, and release-flow diagrams. Update when trust boundaries, authentication, authorization, or release artifact production changes. |
 | [Release](release.md) | Operational | Versioning, verification, packaging, and publication. |
+| [Release notes](release-notes.md) | Operational | User-facing notes consumed by the local release command. |
 | [Screenshot capture](screenshots.md) | Operational | Isolated screenshot and installer-artwork capture. |
 | [Setup](setup.md) | Operational | Installation, development startup, host options, and first connection. |
 | [Site deployment](site-deployment.md) | Operational | Marketing-site deployment and hosting behavior. |

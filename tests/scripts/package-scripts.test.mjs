@@ -1,16 +1,16 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 import { commandDescriptions, findStaleDescriptions, findUndocumentedCommands, formatCommandHelp } from "../../scripts/command-help.mjs";
 
 const packageJson = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
 const mobilePackageJson = JSON.parse(readFileSync(new URL("../../apps/mobile-web/package.json", import.meta.url), "utf8"));
-const releaseWorkflow = readFileSync(new URL("../../.github/workflows/release.yml", import.meta.url), "utf8");
+const releaseWorkflow = readFileSync(new URL("../../scripts/legacy/release.yml", import.meta.url), "utf8");
 const packageWindowsScript = readFileSync(new URL("../../scripts/package-win.ps1", import.meta.url), "utf8");
 const verifyWindowsVersionScript = readFileSync(new URL("../../scripts/verify-windows-version.ps1", import.meta.url), "utf8");
 const prepareReleaseScript = readFileSync(new URL("../../scripts/prepare-release.ps1", import.meta.url), "utf8");
-const qualityWorkflow = readFileSync(new URL("../../.github/workflows/quality.yml", import.meta.url), "utf8");
+const qualityWorkflow = readFileSync(new URL("../../scripts/legacy/quality.yml", import.meta.url), "utf8");
 const devScript = readFileSync(new URL("../../scripts/dev.mjs", import.meta.url), "utf8");
 const devHostScript = readFileSync(new URL("../../scripts/dev-host.mjs", import.meta.url), "utf8");
 const hostProject = readFileSync(new URL("../../apps/windows-host/VolturaAir.Host.csproj", import.meta.url), "utf8");
@@ -36,6 +36,14 @@ test("every root npm command has a current human-readable description", () => {
   assert.deepEqual(findUndocumentedCommands(packageJson.scripts), []);
   assert.deepEqual(findStaleDescriptions(packageJson.scripts), []);
   assert.match(commandDescriptions.dev, /development loop/u);
+});
+
+test("GitHub Actions stay archived but can be restored deliberately", () => {
+  assert.equal(packageJson.scripts["actions:restore"], "node scripts/restore-github-actions.mjs");
+  assert.equal(packageJson.scripts["release:local"], "node scripts/release-local.mjs");
+  assert.equal(packageJson.scripts["release:sync-release-notes"], "node scripts/sync-release-notes.mjs");
+  assert.equal(existsSync(new URL("../../.github/workflows/release.yml", import.meta.url)), false);
+  assert.equal(existsSync(new URL("../../.github/workflows/quality.yml", import.meta.url)), false);
 });
 
 test("help filters root npm commands by a case-insensitive name fragment", () => {

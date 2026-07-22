@@ -29,6 +29,12 @@ adaptive states, AI-assisted UI work, and the UI definition of done.
   network-adapter information, including its selection warning, and technical
   pairing details in the collapsed Details accordion; the Details viewer owns
   their scrolling.
+- Connection uses one constrained information column. Show the active adapter,
+  endpoint, and compact automatic/custom status once; keep adapter recovery in
+  **Choose another adapter** and custom-port controls in a collapsed disclosure
+  whose header exposes the active or pending port state. A fixed, structured
+  change summary lists only changed settings and provides **Discard changes**
+  and **Save and restart** without presenting pending values as active.
 - Preferences uses themed accordion sections. Start them collapsed, allow only
   one section to be expanded, and keep each header a full-width keyboard and
   pointer target while individual actions remain content-sized. Expanded

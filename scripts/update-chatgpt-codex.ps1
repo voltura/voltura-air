@@ -119,7 +119,10 @@ try {
     $options = [Windows.Management.Deployment.DeploymentOptions]::ForceTargetApplicationShutdown
     $operation = $packageManager.AddPackageAsync($packageUri, $dependencies, $options)
     $deploymentResult = Wait-WinRtDeploymentOperation $operation
-    if ($deploymentResult.ExtendedErrorCode -ne 0) {
+    # Windows PowerShell's WinRT task adapter can complete this operation without
+    # returning its DeploymentResult. The deployment still succeeds, so verify
+    # the installed version below instead of treating a missing result as error 0.
+    if ($null -ne $deploymentResult -and [int64]$deploymentResult.ExtendedErrorCode -ne 0) {
         throw "Windows package deployment failed (0x{0:X8}): {1}" -f (([int64]$deploymentResult.ExtendedErrorCode -band 0xffffffffL)), $deploymentResult.ErrorText
     }
 

@@ -16,7 +16,7 @@ internal static class PortSelector
     public const int AutomaticPortSearchCount = 31;
     public const int MinimumUserPort = 49152;
     public const int MaximumPort = 65535;
-    public const string ManualPortRangeMessage = "Manual port must be between 49152 and 65535.";
+    public const string ManualPortRangeMessage = "Custom port must be between 49152 and 65535.";
     private static readonly HashSet<int> ReservedManualPorts =
     [
         80,
@@ -90,7 +90,7 @@ internal static class PortSelector
 
             if (!isPortAvailable(manualPort))
             {
-                return new PortSelectionResult(false, 0, IsAutomatic: false, $"Manual port {manualPort} is already in use.");
+                return new PortSelectionResult(false, 0, IsAutomatic: false, $"Custom port {manualPort} is already in use.");
             }
 
             return new PortSelectionResult(true, manualPort, IsAutomatic: false, ErrorMessage: null);
@@ -138,7 +138,7 @@ internal static class PortSelector
 
         if (ReservedManualPorts.Contains(port))
         {
-            return $"Manual port {port} is reserved for common services. Choose another port.";
+            return $"Custom port {port} is reserved for common services. Choose another port.";
         }
 
         return null;

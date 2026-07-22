@@ -87,6 +87,9 @@ test("quick phone development rebuilds the host-served client without validation
   assert.match(devHostScript, /if \(useViteClient\)[\s\S]*else \{\s*await waitForClientFiles\(\)/u);
   assert.match(devHostScript, /VOLTURA_AIR_SKIP_CURSOR_WATCHDOG_BUILD/u);
   assert.match(devHostScript, /args\.push\("-p:SkipCursorWatchdogBuild=true"\)/u);
+  assert.match(devHostScript, /stopExistingHost\(\)[\s\S]*startHost\(\)/u);
+  assert.doesNotMatch(devHostScript, /"--no-build"/u);
+  assert.doesNotMatch(devHostScript, /--isolated-test-mode/u);
   assert.doesNotMatch(devHostScript, /IntermediateOutputPath/u);
   assert.match(directoryBuildProps, /Condition="'\$\(DesignTimeBuild\)' != 'true' AND '\$\(BuildingInsideVisualStudio\)' != 'true' AND '\$\(Configuration\)' != 'Release'"/u);
   assert.match(directoryBuildProps, /<Configuration Condition="'\$\(Configuration\)' == ''">Debug<\/Configuration>/u);

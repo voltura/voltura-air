@@ -81,11 +81,13 @@ For the quickest phone layout and interaction loop, run:
 npm run dev:quick
 ```
 
-This starts the current host through `dotnet run` while running a fast Vite
-bundle build in parallel without type checking, linting, tests, or the
-bundle-budget gate. The quick path reuses a cached native cursor watchdog when
-available and builds it once when the shared command-line output is empty. Quick
-launches share a stable
+This stops and verifies the exit of any existing host, then starts the host
+through `dotnet run`, whose incremental build compiles only when inputs changed.
+It runs a fast Vite bundle build in parallel without type checking, linting,
+tests, or the bundle-budget gate. The launched host uses the normal production
+settings registry; the quick path does not enable isolated test mode. It reuses
+a cached native cursor watchdog when available and builds it once when the shared
+command-line output is empty. Quick launches share a stable
 command-line build cache with direct `dotnet` builds, tests, and other repository
 automation. Command-line compiled and WPF-generated outputs use each .NET
 project's `bin/cli` and `obj/cli` directories, while IDE design-time and

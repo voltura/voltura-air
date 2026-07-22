@@ -59,11 +59,16 @@ approved unfinished work.
 - Supports saved reconnects after pairing.
 - Supports manual host entry on mobile for recovery.
 - Supports automatic network adapter selection.
-- Supports manual network adapter selection.
-- Supports automatic port selection from the preferred Voltura Air port.
-- Supports manual port settings with validation.
-- Shows network/port warnings when automatic choices may be stale or unreachable.
-- Emphasizes the selected adapter name in the multiple-network-adapter warning.
+- Selects a suitable network adapter automatically and lets users choose another
+  adapter directly when a device cannot connect.
+- Selects an available port automatically from the preferred Voltura Air port;
+  advanced settings support a validated custom port.
+- Saves adapter and port overrides together and restarts Voltura Air before they
+  become active.
+- Shows relevant network/port warnings when choices may be stale or unreachable;
+  neutral multiple-adapter guidance appears only in the adapter chooser.
+- Summarizes active connection modes and pending adapter/port changes compactly,
+  with one combined save and restart action.
 
 ### Pairing and trust
 

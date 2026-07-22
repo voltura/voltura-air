@@ -91,7 +91,7 @@ public sealed class PortSelectorTests
         var result = PortSelector.Select(settings, _ => true, () => 60000);
 
         Assert.False(result.Succeeded);
-        Assert.Equal("Manual port must be between 49152 and 65535.", result.ErrorMessage);
+        Assert.Equal("Custom port must be between 49152 and 65535.", result.ErrorMessage);
     }
 
     [Fact]

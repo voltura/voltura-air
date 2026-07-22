@@ -3,163 +3,254 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="clr-namespace:VolturaAir.Host.Ui">
     <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="{DynamicResource GridSpaceXl}" />
-            <ColumnDefinition Width="330" />
-        </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
-            <RowDefinition Height="{DynamicResource GridSpaceLg}" />
+            <RowDefinition Height="{DynamicResource GridSpaceSm}" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Grid Grid.Column="0" Background="{DynamicResource WindowBrush}">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="{DynamicResource GridSpaceSm}" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="{DynamicResource GridSpaceMd}" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="{DynamicResource GridSpaceMd}" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
+        <ScrollViewer x:Name="ConnectionScrollViewer"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+            <ui:SpacingStackPanel MaxWidth="760"
+                                  HorizontalAlignment="Left"
+                                  Spacing="{DynamicResource SpaceLg}">
+                <Border Padding="{DynamicResource InsetMd}"
+                        Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{DynamicResource RadiusMedium}">
+                    <ui:SpacingStackPanel Spacing="{DynamicResource SpaceXs}">
+                        <TextBlock FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource MutedTextBrush}"
+                                   Text="Current connection" />
+                        <TextBlock x:Name="ActiveAdapterText"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   TextWrapping="Wrap" />
+                        <TextBlock x:Name="ActiveEndpointText"
+                                   FontFamily="Consolas"
+                                   FontSize="14"
+                                   Foreground="{DynamicResource TextBrush}" />
+                        <TextBlock x:Name="ActiveSelectionModeText"
+                                   Foreground="{DynamicResource MutedTextBrush}"
+                                   TextWrapping="Wrap" />
+                        <TextBlock x:Name="ConnectionWarningText"
+                                   Foreground="{DynamicResource MutedTextBrush}"
+                                   TextWrapping="Wrap"
+                                   Visibility="Collapsed" />
+                        <ui:SpacingWrapPanel HorizontalSpacing="{DynamicResource SpaceSm}"
+                                             VerticalSpacing="{DynamicResource SpaceSm}">
+                            <Button x:Name="ChooseAdapterButton" Content="Choose another adapter" />
+                            <Button x:Name="ReturnAutomaticAdapterButton"
+                                    Content="Return to automatic selection"
+                                    Visibility="Collapsed" />
+                        </ui:SpacingWrapPanel>
+                    </ui:SpacingStackPanel>
+                </Border>
 
-            <TextBlock FontSize="17"
-                       FontWeight="Bold"
-                       Foreground="{DynamicResource TextBrush}"
-                       Text="Network" />
-            <TextBlock Grid.Row="2"
-                       Foreground="{DynamicResource MutedTextBrush}"
-                       Text="Automatic uses the best available private IPv4 address. Manual mode pins Voltura Air to a selected adapter."
-                       TextWrapping="Wrap" />
-            <ui:SpacingStackPanel Grid.Row="4" Orientation="Horizontal" Spacing="{DynamicResource SpaceSm}">
-                <ToggleButton x:Name="NetworkAutomaticButton"
-                              Content="Automatic"
-                              Style="{DynamicResource SegmentButtonStyle}" />
-                <ToggleButton x:Name="NetworkManualButton"
-                              Content="Manual"
-                              Style="{DynamicResource SegmentButtonStyle}" />
-            </ui:SpacingStackPanel>
-            <ListBox x:Name="NetworkCandidateList"
-                     Grid.Row="6"
-                     MinHeight="260"
-                     ItemContainerStyle="{DynamicResource ModernListBoxItemStyle}"
-                     Style="{DynamicResource ModernListBoxStyle}"
-                     AutomationProperties.Name="Network adapters"
-                     AutomationProperties.HelpText="Press Up or Down Arrow to select a network adapter. Tab moves to the port settings."
-                     GotKeyboardFocus="OnNetworkCandidateListKeyboardFocus">
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <Border x:Name="NetworkCandidateCard"
-                                Padding="{DynamicResource InsetMd}"
-                                Style="{DynamicResource SelectableListCardStyle}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="2.5*" />
-                                    <ColumnDefinition Width="{DynamicResource GridSpaceLg}" />
-                                    <ColumnDefinition Width="1.1*" />
-                                    <ColumnDefinition Width="{DynamicResource GridSpaceLg}" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <ui:SpacingStackPanel Spacing="{DynamicResource SpaceXs}">
-                                    <TextBlock FontSize="11"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource MutedTextBrush}"
-                                               Text="Adapter" />
-                                    <TextBlock FontSize="13"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextBrush}"
-                                               Text="{Binding Adapter}"
-                                               TextWrapping="Wrap" />
-                                </ui:SpacingStackPanel>
-                                <ui:SpacingStackPanel Grid.Column="2" Spacing="{DynamicResource SpaceXs}">
-                                    <TextBlock FontSize="11"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource MutedTextBrush}"
-                                               Text="Address" />
-                                    <TextBlock FontFamily="Consolas"
-                                               FontSize="13"
-                                               Foreground="{DynamicResource TextBrush}"
-                                               Text="{Binding Address}"
-                                               TextWrapping="Wrap" />
-                                </ui:SpacingStackPanel>
-                                <ui:SpacingStackPanel Grid.Column="4" Spacing="{DynamicResource SpaceXs}">
-                                    <TextBlock FontSize="11"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource MutedTextBrush}"
-                                               Text="Status" />
-                                    <TextBlock FontSize="13"
-                                               Foreground="{DynamicResource TextBrush}"
-                                               Text="{Binding Status, TargetNullValue=Available, FallbackValue=Available}"
-                                               TextWrapping="Wrap" />
-                                    <Grid x:Name="SelectedStatusPillContainer"
-                                          HorizontalAlignment="Left">
-                                        <Grid.Style>
-                                            <Style TargetType="Grid">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                        <Setter Property="Visibility" Value="Visible" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Grid.Style>
-                                        <ui:PillBadge x:Name="SelectedStatusPill"
-                                                      Content="Selected"
-                                                      Tone="Accent" />
-                                    </Grid>
-                                </ui:SpacingStackPanel>
-                            </Grid>
-                        </Border>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
-        </Grid>
+                <Border x:Name="AdapterChooserPanel"
+                        Padding="{DynamicResource InsetMd}"
+                        Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{DynamicResource RadiusMedium}"
+                        Visibility="Collapsed">
+                    <ui:SpacingStackPanel Spacing="{DynamicResource SpaceSm}">
+                        <TextBlock FontSize="15"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   Text="Choose a network adapter" />
+                        <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                                   Text="Choose the adapter connected to the same network as your device."
+                                   TextWrapping="Wrap" />
+                        <TextBlock x:Name="PendingAdapterUnavailableText"
+                                   Foreground="{DynamicResource DangerBrush}"
+                                   Text="This adapter is no longer available. Choose another adapter or return to automatic selection."
+                                   TextWrapping="Wrap"
+                                   Visibility="Collapsed" />
+                        <TextBlock x:Name="AdapterChooserEmptyText"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                                   Text="No usable private IPv4 adapters were found."
+                                   TextWrapping="Wrap"
+                                   Visibility="Collapsed" />
+                        <ListBox x:Name="NetworkCandidateList"
+                                     AutomationProperties.Name="Available network adapters"
+                                     AutomationProperties.HelpText="Press Up or Down Arrow to select an adapter. Press Enter or Space to use it."
+                                     ItemContainerStyle="{DynamicResource ModernListBoxItemStyle}"
+                                     SelectionMode="Single"
+                                     ScrollViewer.CanContentScroll="False"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                     VirtualizingPanel.IsVirtualizing="False"
+                                     Style="{DynamicResource ModernListBoxStyle}"
+                                     PreviewMouseWheel="OnNetworkCandidatePreviewMouseWheel"
+                                     PreviewMouseLeftButtonUp="OnNetworkCandidateMouseUp"
+                                     KeyDown="OnNetworkCandidateKeyDown">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Padding="{DynamicResource InsetMd}"
+                                                AutomationProperties.Name="{Binding AccessibleName}"
+                                                Style="{DynamicResource SelectableListCardStyle}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="{DynamicResource GridSpaceSm}" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock x:Name="SelectionIndicator"
+                                                           FontSize="18"
+                                                           Foreground="{DynamicResource MutedTextBrush}"
+                                                           Text="○"
+                                                           VerticalAlignment="Top" />
+                                                <ui:SpacingStackPanel Grid.Column="2" Spacing="{DynamicResource SpaceXs}">
+                                                    <TextBlock FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource TextBrush}"
+                                                               Text="{Binding Adapter}"
+                                                               TextWrapping="Wrap" />
+                                                    <TextBlock FontFamily="Consolas"
+                                                               Foreground="{DynamicResource TextBrush}"
+                                                               Text="{Binding Address}" />
+                                                    <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                                                               Text="{Binding Status}"
+                                                               TextWrapping="Wrap">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                                <Style.Triggers>
+                                                                    <Trigger Property="Text" Value="">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                    </Trigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </ui:SpacingStackPanel>
+                                            </Grid>
+                                        </Border>
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}" Value="True">
+                                                <Setter TargetName="SelectionIndicator" Property="Text" Value="●" />
+                                                <Setter TargetName="SelectionIndicator" Property="Foreground" Value="{DynamicResource AccentStrongBrush}" />
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                        </ListBox>
+                        <ui:SpacingWrapPanel HorizontalSpacing="{DynamicResource SpaceSm}"
+                                             VerticalSpacing="{DynamicResource SpaceSm}">
+                            <Button x:Name="RefreshAdaptersButton" Content="Refresh adapters" />
+                            <Button x:Name="CancelAdapterChooserButton" Content="Cancel" />
+                        </ui:SpacingWrapPanel>
+                    </ui:SpacingStackPanel>
+                </Border>
 
-        <ui:SpacingStackPanel Grid.Column="2"
-                              Background="{DynamicResource WindowBrush}"
-                              Spacing="{DynamicResource SpaceMd}">
-            <TextBlock FontSize="17"
-                       FontWeight="Bold"
-                       Foreground="{DynamicResource TextBrush}"
-                       Text="Port" />
-            <TextBlock Foreground="{DynamicResource MutedTextBrush}"
-                       Text="Automatic is recommended. Manual port changes apply after restarting Voltura Air."
-                       TextWrapping="Wrap" />
-            <ui:SpacingStackPanel Orientation="Horizontal" Spacing="{DynamicResource SpaceSm}">
-                <ToggleButton x:Name="PortAutomaticButton"
-                              Content="Automatic"
-                              Style="{DynamicResource SegmentButtonStyle}" />
-                <ToggleButton x:Name="PortManualButton"
-                              Content="Manual"
-                              Style="{DynamicResource SegmentButtonStyle}" />
-            </ui:SpacingStackPanel>
-            <ui:SpacingStackPanel Spacing="{DynamicResource SpaceXs}">
-                <TextBlock FontWeight="SemiBold"
-                           Foreground="{DynamicResource TextBrush}"
-                           Text="Manual port number" />
-                <TextBox x:Name="ManualPortTextBox" />
-                <TextBlock x:Name="ManualPortValidationText"
+                <Expander x:Name="AdvancedConnectionExpander"
+                          VerticalAlignment="Top"
+                          Style="{DynamicResource AccordionStyle}">
+                    <Expander.Header>
+                        <Grid HorizontalAlignment="Stretch">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="{DynamicResource GridSpaceLg}" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock FontWeight="SemiBold" Text="Port settings" />
+                            <TextBlock x:Name="PortHeaderStatusText"
+                                       Grid.Column="2"
+                                       Foreground="{DynamicResource MutedTextBrush}"
+                                       TextWrapping="Wrap" />
+                        </Grid>
+                    </Expander.Header>
+                    <ui:SpacingStackPanel Spacing="{DynamicResource SpaceSm}">
+                        <TextBlock Foreground="{DynamicResource MutedTextBrush}"
+                                   Text="Use a custom port only when required by your network, firewall policy, or another application."
+                                   TextWrapping="Wrap" />
+                        <CheckBox x:Name="UseSpecificPortCheckBox"
+                                  Content="Use a custom port" />
+                        <ui:SpacingStackPanel x:Name="ManualPortPanel"
+                                              HorizontalAlignment="Left"
+                                              Spacing="{DynamicResource SpaceXs}"
+                                              Visibility="Collapsed">
+                            <TextBlock FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextBrush}"
+                                       Text="Custom port" />
+                            <TextBox x:Name="ManualPortTextBox"
+                                     Width="180"
+                                     HorizontalAlignment="Left"
+                                     MaxLength="5"
+                                     AutomationProperties.Name="Custom port"
+                                     AutomationProperties.HelpText="Use a port from 49152 through 65535." />
+                            <TextBlock x:Name="ManualPortValidationText"
+                                       AutomationProperties.LiveSetting="Polite"
+                                       Foreground="{DynamicResource MutedTextBrush}"
+                                       TextWrapping="Wrap" />
+                        </ui:SpacingStackPanel>
+                    </ui:SpacingStackPanel>
+                </Expander>
+
+                <TextBlock x:Name="ConnectionStatusText"
+                           AutomationProperties.LiveSetting="Polite"
                            Foreground="{DynamicResource MutedTextBrush}"
-                           TextWrapping="Wrap" />
+                           TextWrapping="Wrap"
+                           Visibility="Collapsed" />
             </ui:SpacingStackPanel>
-            <ui:InfoCard x:Name="CurrentHostUrlCard" Title="Current host URL" Monospace="True" />
-            <ui:InfoCard x:Name="SelectedIpCard" Title="Selected IP" Monospace="True" />
-            <ui:InfoCard x:Name="SelectedPortCard" Title="Selected port" Monospace="True" />
-            <TextBlock x:Name="ConnectionStatusText"
-                       Foreground="{DynamicResource MutedTextBrush}"
-                       TextWrapping="Wrap" />
-        </ui:SpacingStackPanel>
+        </ScrollViewer>
 
-        <ui:SpacingStackPanel Grid.Row="2"
-                              Grid.Column="0"
-                              Orientation="Horizontal"
-                              Spacing="{DynamicResource SpaceSm}">
-            <Button x:Name="SaveButton"
-                    Content="Save"
-                    Style="{DynamicResource PrimaryButtonStyle}" />
-            <Button x:Name="RefreshButton" Content="Refresh adapters" />
-        </ui:SpacingStackPanel>
+        <Border x:Name="PendingActionsPanel"
+                Grid.Row="2"
+                MaxWidth="760"
+                HorizontalAlignment="Left"
+                Padding="{DynamicResource InsetSm}"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="{DynamicResource RadiusMedium}"
+                Visibility="Collapsed">
+            <ui:SpacingWrapPanel HorizontalSpacing="{DynamicResource SpaceLg}"
+                                 VerticalSpacing="{DynamicResource SpaceSm}">
+                <ui:SpacingStackPanel MaxWidth="440" Spacing="{DynamicResource SpaceXs}">
+                    <TextBlock x:Name="PendingActionHeadingText"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextBrush}"
+                               Text="Restart required"
+                               TextWrapping="Wrap" />
+                    <ui:SpacingStackPanel x:Name="PendingAdapterChangePanel"
+                                          Spacing="{DynamicResource SpaceXs}"
+                                          Visibility="Collapsed">
+                        <TextBlock FontWeight="SemiBold"
+                                   Foreground="{DynamicResource MutedTextBrush}"
+                                   Text="Network adapter" />
+                        <TextBlock x:Name="PendingAdapterChangeText"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   TextWrapping="Wrap" />
+                    </ui:SpacingStackPanel>
+                    <ui:SpacingStackPanel x:Name="PendingPortChangePanel"
+                                          Spacing="{DynamicResource SpaceXs}"
+                                          Visibility="Collapsed">
+                        <TextBlock FontWeight="SemiBold"
+                                   Foreground="{DynamicResource MutedTextBrush}"
+                                   Text="Port" />
+                        <TextBlock x:Name="PendingPortChangeText"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   TextWrapping="Wrap" />
+                    </ui:SpacingStackPanel>
+                    <TextBlock x:Name="PendingActionGuidanceText"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="Save changes and restart Voltura Air to apply them."
+                               TextWrapping="Wrap" />
+                </ui:SpacingStackPanel>
+                <ui:SpacingWrapPanel HorizontalSpacing="{DynamicResource SpaceSm}"
+                                     VerticalSpacing="{DynamicResource SpaceSm}"
+                                     VerticalAlignment="Center">
+                    <Button x:Name="CancelChangesButton" Content="Discard changes" />
+                    <Button x:Name="SaveRestartButton"
+                            Content="Save and restart"
+                            Style="{DynamicResource PrimaryButtonStyle}" />
+                </ui:SpacingWrapPanel>
+            </ui:SpacingWrapPanel>
+        </Border>
     </Grid>
 </UserControl>

@@ -30,6 +30,7 @@
                                           Background="Transparent"
                                           Foreground="{DynamicResource TextBrush}"
                                           BorderThickness="0"
+                                          HorizontalContentAlignment="Stretch"
                                           FocusVisualStyle="{x:Null}"
                                           Cursor="Hand"
                                           Focusable="True"
@@ -46,6 +47,7 @@
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
                                                 <ContentPresenter VerticalAlignment="Center"
+                                                                  HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                                                   RecognizesAccessKey="True"
                                                                   TextElement.FontSize="15"
                                                                   TextElement.FontWeight="SemiBold" />

@@ -10,16 +10,23 @@ that origin over WebSocket `/ws`.
 
 ## Windows host behavior
 
-- Automatic network mode inspects active private IPv4 adapters and ranks likely real LAN adapters above VPN, tunnel, and virtual adapters.
-- Manual network mode saves the selected adapter identity as well as the selected IP address. This lets the same adapter be reselected if DHCP later gives it a different address.
+- Voltura Air normally selects the network adapter automatically. The Connection
+  page presents choosing another adapter as the primary troubleshooting override;
+  selecting one saves its identity and current IP address without a separate mode
+  step. This lets the same adapter be reselected if DHCP later gives it a
+  different address.
+- Automatic selection inspects active private IPv4 adapters and ranks likely real
+  LAN adapters above VPN, tunnel, and virtual adapters. A manual override can be
+  returned to automatic selection independently of the port setting.
 - If the saved adapter is unavailable, the host falls back to the recommended adapter and shows a warning instead of advertising a stale address.
-- With multiple adapters, the host shows the selected adapter and guidance to
-  choose the phone's Wi-Fi/LAN adapter when pairing fails.
+- With multiple adapters, the default Connection summary remains neutral. The
+  adapter chooser explains that the device and selected adapter must use the
+  same Wi-Fi/LAN.
 - VPN and virtual adapters show a reachability warning.
 
 ## Port behavior
 
-- Automatic port mode reuses the last successful automatic port when it remains
+- Port selection is an advanced override. Automatic mode reuses the last successful automatic port when it remains
   available. Without a usable saved port, selection starts at the preferred
   Voltura Air port `51395` and tries the next ports.
 - The host exposes the actual selected port. It warns when automatic selection
@@ -27,6 +34,12 @@ that origin over WebSocket `/ws`.
   code.
 - Manual port mode does not fall back. An invalid or occupied manual port shows
   a validation error.
+- The collapsed Port settings header distinguishes the active port from an
+  unsaved or saved-pending-restart override without predicting a future
+  automatically selected port.
+- Saving an adapter or port change persists all pending connection settings and
+  requires Voltura Air to restart. Pending settings are not presented as active
+  before that restart.
 
 ## Mobile manual host behavior
 

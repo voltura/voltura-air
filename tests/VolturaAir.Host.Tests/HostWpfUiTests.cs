@@ -109,7 +109,8 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
                 window.ShowPage(HostPage.Connection);
                 window.UpdateLayout();
                 Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "Connection");
-                Assert.Contains(FindWpfDescendants<Button>(window), button => button.Content?.ToString() == "Save");
+                Assert.Contains(FindWpfDescendants<Button>(window), button => button.Content?.ToString() == "Choose another adapter");
+                Assert.DoesNotContain(FindWpfDescendants<Button>(window), button => button.Content?.ToString() == "Save and restart" && button.IsVisible);
 
                 window.ShowPage(HostPage.Devices);
                 window.UpdateLayout();

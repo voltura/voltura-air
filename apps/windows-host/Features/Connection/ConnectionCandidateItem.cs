@@ -7,6 +7,7 @@ internal sealed record ConnectionCandidateItem(
     string Adapter,
     string Address,
     string Status,
+    string AccessibleName,
     bool IsSelected)
 {
     public static ConnectionCandidateItem[] Create(
@@ -18,17 +19,23 @@ internal sealed record ConnectionCandidateItem(
         [
             .. candidates.Select(candidate =>
             {
-                var status = candidate == recommended
-                    ? "Recommended"
-                    : candidate.IsLikelyVpnOrVirtual
-                        ? "Not recommended"
+                var status = candidate.IsLikelyVpnOrVirtual
+                    ? "Virtual adapter — unlikely to work with devices"
+                    : candidate == recommended
+                        ? "Recommended"
                         : string.Empty;
                 var isSelected = candidate.Address.Equals(selectedCandidate?.Address);
                 return new ConnectionCandidateItem(
                     candidate,
-                    $"{GetAdapterTypeDisplayName(candidate)} - {GetAdapterDescription(candidate)}",
+                    $"{GetAdapterTypeDisplayName(candidate)} — {GetAdapterDescription(candidate)}",
                     candidate.Address.ToString(),
-                    string.IsNullOrWhiteSpace(status) ? "Available" : status,
+                    status,
+                    string.Join(", ", new[]
+                    {
+                        $"{GetAdapterTypeDisplayName(candidate)} — {GetAdapterDescription(candidate)}",
+                        candidate.Address.ToString(),
+                        status
+                    }.Where(value => !string.IsNullOrWhiteSpace(value))),
                     isSelected);
             })
         ];

@@ -24,6 +24,9 @@ internal sealed record LanAddressSelectionResult(
 
 internal static class LanAddressSelector
 {
+    internal const string MultipleAdaptersWarning =
+        "Multiple network adapters found. If pairing fails, choose the one on the same network.";
+
     private static readonly string[] VpnOrVirtualMarkers =
     [
         "vpn",
@@ -281,11 +284,11 @@ internal static class LanAddressSelector
     {
         if (candidate.IsLikelyVpnOrVirtual)
         {
-            return "Selected network looks like VPN or virtual networking and may not be reachable from your phone or tablet.";
+            return "Selected network looks like VPN or virtual networking and may not be reachable from your device.";
         }
 
         return candidateCount > 1
-            ? "Multiple network adapters found. If pairing fails, choose the one on the same network."
+            ? MultipleAdaptersWarning
             : null;
     }
 

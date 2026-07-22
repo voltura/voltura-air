@@ -82,10 +82,8 @@ public partial class MainWindow : Window
             this,
             pairingManager,
             webHost,
-            _visuals,
-            _connectPage.UpdateServerUrl,
-            () => SelectPage(HostPage.Connection),
-            requestRestart ?? (static () => { }));
+            requestRestart ?? (static () => { }),
+            effectiveAppLog);
         _preferencesPage = new PreferencesPageController(
             this,
             effectivePowerController,
@@ -216,6 +214,12 @@ public partial class MainWindow : Window
 
     private void SelectPage(HostPage page)
     {
+        var previousPage = _activePage;
+        if (previousPage == HostPage.Connection && page != HostPage.Connection && !_connectionPage.TryLeavePage())
+        {
+            return;
+        }
+
         if (_activePage == HostPage.Devices && page != HostPage.Devices)
         {
             _devicesPage.ResetDisclosureState();
@@ -240,8 +244,8 @@ public partial class MainWindow : Window
                 break;
             case HostPage.Connection:
                 PageTitleText.Text = "Connection";
-                PageSubtitleText.Text = "Choose the LAN address and port advertised to phones and tablets.";
-                PageContent.Content = _connectionPage.CreateView();
+                PageSubtitleText.Text = "Voltura Air selects connection settings automatically. Change them only if a device cannot connect.";
+                PageContent.Content = _connectionPage.CreateView(preserveState: previousPage == HostPage.Connection);
                 break;
             case HostPage.Preferences:
                 PageTitleText.Text = "Preferences";

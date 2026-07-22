@@ -60,6 +60,7 @@ public sealed class WebHostService : IAsyncDisposable
         }
 
         Port = portSelection.Port;
+        IsPortSelectionAutomatic = portSelection.IsAutomatic;
         PortSelectionWarning = portSelection.Warning;
         if (portSelection.IsAutomatic && !isolatedTestMode)
         {
@@ -71,6 +72,7 @@ public sealed class WebHostService : IAsyncDisposable
             _listenAddress = "127.0.0.1";
             AdvertisedHostAddress = "127.0.0.1";
             SelectedAdapterName = "Loopback (isolated test)";
+            IsAdapterSelectionAutomatic = true;
             AddressSelectionWarning = null;
         }
         else
@@ -79,6 +81,7 @@ public sealed class WebHostService : IAsyncDisposable
             var addressSelection = LanAddressSelector.Select(LanAddressSelector.GetCandidates(), settings);
             AdvertisedHostAddress = addressSelection?.Address.ToString() ?? GetDnsLanAddressFallback() ?? "127.0.0.1";
             SelectedAdapterName = WebHostNetwork.GetSelectedAdapterName(addressSelection?.Candidate);
+            IsAdapterSelectionAutomatic = addressSelection?.UsedManualAddress != true;
             AddressSelectionWarning = addressSelection?.Warning;
             if (settings.NetworkMode == NetworkSelectionMode.Automatic)
             {
@@ -176,6 +179,8 @@ public sealed class WebHostService : IAsyncDisposable
     public string SelectedAdapterName { get; private set; }
     public string? AddressSelectionWarning { get; }
     public string? PortSelectionWarning { get; }
+    internal bool IsAdapterSelectionAutomatic { get; }
+    internal bool IsPortSelectionAutomatic { get; }
     internal string ListenAddress => _listenAddress;
     internal WebApplication? Application => _app;
     internal IWorkstationLockPolicy WorkstationLockPolicy => _workstationLockPolicy;

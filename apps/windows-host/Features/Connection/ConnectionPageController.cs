@@ -1,269 +1,303 @@
-using System.Globalization;
 using System.Windows;
-using System.Windows.Controls;
-using VolturaAir.Host.Ui;
-using TextBox = System.Windows.Controls.TextBox;
-using WpfDataFormats = System.Windows.DataFormats;
-using WpfDataObject = System.Windows.DataObject;
 
 namespace VolturaAir.Host.Features.Connection;
 
-internal sealed class ConnectionPageController(
-    Window owner,
-    PairingManager pairingManager,
-    WebHostService webHost,
-    HostVisualFactory visuals,
-    Action<string> serverUrlChanged,
-    Action requestViewRefresh,
-    Action requestRestart)
+internal sealed class ConnectionPageController
 {
+    private readonly PairingManager _pairingManager;
+    private readonly WebHostService _webHost;
+    private readonly Action _requestRestart;
+    private readonly Func<NetworkSettingsSnapshot> _loadSettings;
+    private readonly Action<NetworkSettingsSnapshot> _saveSettings;
+    private readonly Func<IReadOnlyList<LanAddressCandidate>> _loadCandidates;
+    private readonly ConnectionPageBoundaryFeedback _feedback;
+    private readonly ConnectionConfiguration _activeConfiguration;
+    private readonly ConnectionPortController _portInput;
+    private ConnectionPageState? _state;
     private ConnectionPageView? _page;
 
-    public ConnectionPageView CreateView()
+    public ConnectionPageController(
+        Window owner,
+        PairingManager pairingManager,
+        WebHostService webHost,
+        Action requestRestart,
+        IAppLogWriter appLog,
+        Func<NetworkSettingsSnapshot>? loadSettings = null,
+        Action<NetworkSettingsSnapshot>? saveSettings = null,
+        Func<ConnectionConfirmation, bool>? confirm = null,
+        Func<IReadOnlyList<LanAddressCandidate>>? loadCandidates = null)
     {
-        var settings = AppNetworkSettings.Load();
-        var candidates = LanAddressSelector.GetCandidates();
-        var selection = LanAddressSelector.Select(candidates, settings);
+        _pairingManager = pairingManager;
+        _webHost = webHost;
+        _requestRestart = requestRestart;
+        _loadSettings = loadSettings ?? AppNetworkSettings.Load;
+        _saveSettings = saveSettings ?? AppNetworkSettings.Save;
+        _loadCandidates = loadCandidates ?? LanAddressSelector.GetCandidates;
+        _feedback = new ConnectionPageBoundaryFeedback(owner, appLog, confirm);
+        _activeConfiguration = ConnectionConfiguration.FromSnapshot(_loadSettings());
+        _portInput = new ConnectionPortController(Render);
+    }
+
+    public bool HasPendingChanges => _state?.HasPendingChanges == true;
+
+    public ConnectionPageView CreateView(bool preserveState = false)
+    {
+        if (!preserveState || _state is null)
+        {
+            var saved = ConnectionConfiguration.FromSnapshot(_loadSettings());
+            _state = new ConnectionPageState(
+                _activeConfiguration,
+                saved,
+                _webHost.SelectedAdapterName,
+                _webHost.AdvertisedHostAddress,
+                _webHost.Port,
+                _loadCandidates(),
+                detectExistingRestartRequirement: true);
+        }
+
         _page = new ConnectionPageView(
-            ConnectionCandidateItem.Create(candidates, selection?.Candidate),
-            settings.NetworkMode == NetworkSelectionMode.Automatic,
-            settings.PortMode == PortSelectionMode.Automatic,
-            (settings.ManualPort ?? webHost.Port).ToString(CultureInfo.InvariantCulture),
-            webHost.ServerUrl,
-            webHost.AdvertisedHostAddress,
-            webHost.Port.ToString(CultureInfo.InvariantCulture),
-            selection?.Warning ?? webHost.AddressSelectionWarning ?? webHost.PortSelectionWarning ?? string.Empty,
-            Save,
-            requestViewRefresh);
-        _page.AutomaticPortButton.Click += (_, _) => UpdatePortInputState();
-        _page.ManualPortButton.Click += (_, _) => UpdatePortInputState();
-        _page.PortTextBox.PreviewTextInput += OnManualPortPreviewTextInput;
-        _page.PortTextBox.TextChanged += OnManualPortTextChanged;
-        WpfDataObject.AddPastingHandler(_page.PortTextBox, OnManualPortPaste);
-        UpdatePortInputState();
+            OpenAdapterChooser,
+            UseAutomaticAdapter,
+            RefreshAdapters,
+            CancelAdapterChooser,
+            SetUseCustomPort,
+            SetAdvancedExpanded,
+            CancelPendingChanges,
+            SaveAndRestart);
+        _page.CandidateSelected += SelectAdapter;
+        _portInput.Attach(_page, _state);
+        Render();
         return _page;
     }
 
-    private void Save()
+    public bool TryLeavePage()
     {
-        if (_page is not { } page)
+        if (_state?.HasPendingChanges == true && !_feedback.Confirm(ConnectionConfirmation.DiscardPendingChanges))
         {
-            return;
-        }
-
-        var current = AppNetworkSettings.Load();
-        var networkMode = page.UsesAutomaticNetwork ? NetworkSelectionMode.Automatic : NetworkSelectionMode.Manual;
-        var portMode = page.UsesAutomaticPort ? PortSelectionMode.Automatic : PortSelectionMode.Manual;
-        string? manualAddress = null;
-        string? manualAdapterId = null;
-        string? manualAdapterName = null;
-        if (networkMode == NetworkSelectionMode.Manual)
-        {
-            if (page.SelectedCandidate is not { } selected)
-            {
-                ShowStatus("Choose a network address before saving manual mode.", isError: true);
-                return;
-            }
-
-            manualAddress = selected.Candidate.Address.ToString();
-            manualAdapterId = selected.Candidate.AdapterId;
-            manualAdapterName = LanAddressSelector.GetAdapterDisplayName(selected.Candidate);
-        }
-
-        int? manualPort = null;
-        if (portMode == PortSelectionMode.Manual)
-        {
-            if (!ValidateManualPortText(showEmptyWarning: true))
-            {
-                return;
-            }
-
-            if (!int.TryParse(page.PortTextBox.Text.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var parsedPort))
-            {
-                ShowStatus(PortSelector.ManualPortRangeMessage, isError: true);
-                return;
-            }
-
-            var portValidationError = PortSelector.GetManualPortValidationError(parsedPort);
-            if (portValidationError is not null)
-            {
-                ShowStatus(portValidationError, isError: true);
-                return;
-            }
-
-            if (parsedPort != webHost.Port && !WebHostService.IsPortAvailable(parsedPort))
-            {
-                ShowStatus($"Port {parsedPort} is already in use.", isError: true);
-                return;
-            }
-
-            manualPort = parsedPort;
-        }
-
-        var updated = current with
-        {
-            NetworkMode = networkMode,
-            ManualHostAddress = manualAddress,
-            ManualAdapterId = manualAdapterId,
-            ManualAdapterName = manualAdapterName,
-            PortMode = portMode,
-            ManualPort = manualPort
-        };
-
-        var requiresRestart = updated != current;
-        var restartMessage = pairingManager.IsPaired
-            ? "Restart Voltura Air to apply the new connection settings. Connected devices will disconnect. After restart, scan the pairing code displayed by Voltura Air on each device to update its connection."
-            : "Restart Voltura Air to apply the new connection settings.";
-        if (requiresRestart && !ThemedConfirmationDialog.Show(
-                owner,
-                "Restart Voltura Air?",
-                restartMessage,
-                "Restart",
-                "Cancel",
-                ConfirmationTone.Question))
-        {
-            return;
-        }
-
-        AppNetworkSettings.Save(updated);
-
-        if (requiresRestart)
-        {
-            requestRestart();
-            return;
-        }
-
-        var selection = LanAddressSelector.Select(LanAddressSelector.GetCandidates(), updated);
-        var hostAddress = selection?.Address.ToString() ?? WebHostService.GetDnsLanAddressFallback() ?? "127.0.0.1";
-        webHost.UpdateAdvertisedHostAddress(hostAddress, selection?.Candidate);
-        serverUrlChanged(webHost.ServerUrl);
-        if (networkMode == NetworkSelectionMode.Automatic)
-        {
-            AppNetworkSettings.SetLastAutomaticHostAddress(hostAddress);
-        }
-
-        var status = selection?.Warning ?? "Connection settings saved.";
-        if (portMode == PortSelectionMode.Manual && manualPort != webHost.Port)
-        {
-            status = $"{status} Port change will apply after restarting Voltura Air.";
-        }
-
-        ShowStatus(status, selection?.Warning is not null);
-    }
-
-    private void ShowStatus(string message, bool isError)
-    {
-        if (_page is not { } page)
-        {
-            return;
-        }
-
-        page.StatusText.Text = message;
-        page.StatusText.Foreground = visuals.Brush(isError ? "DangerBrush" : "AccentBrush");
-    }
-
-    private void UpdatePortInputState()
-    {
-        if (_page is not { } page)
-        {
-            return;
-        }
-
-        var enabled = !page.UsesAutomaticPort;
-        page.PortTextBox.IsEnabled = enabled;
-        page.PortTextBox.Opacity = enabled ? 1 : 0.62;
-        if (enabled)
-        {
-            ValidateManualPortText(showEmptyWarning: false);
-        }
-        else
-        {
-            ShowManualPortValidation(string.Empty, isError: false);
-        }
-    }
-
-    private void OnManualPortPreviewTextInput(object sender, System.Windows.Input.TextCompositionEventArgs eventArgs)
-    {
-        if (_page is not { } page)
-        {
-            return;
-        }
-
-        var proposed = GetProposedText(page.PortTextBox, eventArgs.Text);
-        if (proposed.Any(character => !char.IsDigit(character)) || proposed.Length > 5)
-        {
-            eventArgs.Handled = true;
-            ShowManualPortValidation(proposed.Length > 5 ? PortSelector.ManualPortRangeMessage : "Port must use numbers only.", isError: true);
-        }
-    }
-
-    private void OnManualPortPaste(object sender, DataObjectPastingEventArgs eventArgs)
-    {
-        if (!eventArgs.DataObject.GetDataPresent(WpfDataFormats.Text) ||
-            eventArgs.DataObject.GetData(WpfDataFormats.Text) is not string text ||
-            text.Any(character => !char.IsDigit(character)) ||
-            text.Length > 5)
-        {
-            eventArgs.CancelCommand();
-            ShowManualPortValidation("Port must use numbers only and be between 49152 and 65535.", isError: true);
-        }
-    }
-
-    private void OnManualPortTextChanged(object sender, TextChangedEventArgs eventArgs)
-    {
-        ValidateManualPortText(showEmptyWarning: false);
-    }
-
-    private bool ValidateManualPortText(bool showEmptyWarning)
-    {
-        if (_page is not { } page)
-        {
-            return true;
-        }
-
-        var text = page.PortTextBox.Text.Trim();
-        if (text.Length == 0)
-        {
-            if (showEmptyWarning)
-            {
-                ShowManualPortValidation(PortSelector.ManualPortRangeMessage, isError: true);
-            }
-
-            return !showEmptyWarning;
-        }
-
-        if (!int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out var port))
-        {
-            ShowManualPortValidation("Port must use numbers only.", isError: true);
             return false;
         }
 
-        var message = PortSelector.GetManualPortValidationError(port);
-        if (message is not null)
-        {
-            ShowManualPortValidation(message, isError: true);
-            return false;
-        }
-
-        ShowManualPortValidation("Manual port looks valid.", isError: false);
+        _state = null;
+        _page = null;
         return true;
     }
 
-    private void ShowManualPortValidation(string message, bool isError)
+    public void DiscardPendingChanges()
     {
-        if (_page is not { } page)
+        if (_state is null)
         {
             return;
         }
 
-        page.PortValidationText.Text = message;
-        page.PortValidationText.Foreground = visuals.Brush(isError ? "DangerBrush" : "MutedTextBrush");
+        _state.DiscardPendingChanges();
+        Render();
     }
 
-    private static string GetProposedText(TextBox textBox, string replacement)
+    private void OpenAdapterChooser()
     {
-        return textBox.Text
-            .Remove(textBox.SelectionStart, textBox.SelectionLength)
-            .Insert(textBox.SelectionStart, replacement);
+        if (_state is null)
+        {
+            return;
+        }
+
+        _state.IsAdapterChooserOpen = true;
+        Render();
+        _page?.FocusAdapterChooser();
     }
+
+    private void CancelAdapterChooser()
+    {
+        if (_state is null)
+        {
+            return;
+        }
+
+        _state.IsAdapterChooserOpen = false;
+        Render();
+        _page?.FocusAdapterChooserButton();
+    }
+
+    private void RefreshAdapters()
+    {
+        if (_state is null)
+        {
+            return;
+        }
+
+        _state.SetCandidates(_loadCandidates());
+        Render();
+        _page?.FocusAdapterChooser();
+    }
+
+    internal void SelectAdapter(ConnectionCandidateItem item)
+    {
+        _state?.SelectAdapter(item.Candidate);
+        Render();
+        _page?.FocusAdapterChooserButton();
+    }
+
+    private void UseAutomaticAdapter()
+    {
+        _state?.UseAutomaticAdapter();
+        Render();
+    }
+
+    private void SetUseCustomPort(bool useCustomPort)
+    {
+        if (_state is null)
+        {
+            return;
+        }
+
+        _state.SetUseCustomPort(useCustomPort);
+        _portInput.ValidateAndStore();
+        Render();
+        if (useCustomPort)
+        {
+            _page?.FocusPortInput();
+        }
+    }
+
+    private void SetAdvancedExpanded(bool isExpanded)
+    {
+        if (_state is { } state)
+        {
+            state.IsAdvancedExpanded = isExpanded;
+        }
+    }
+
+    private void CancelPendingChanges()
+    {
+        _state?.DiscardPendingChanges();
+        Render();
+    }
+
+    private void SaveAndRestart()
+    {
+        if (_state is null || _state.IsRestartPending)
+        {
+            return;
+        }
+
+        if (_state.NeedsRestartRetry && !_state.HasPendingChanges)
+        {
+            RequestRestartAgain();
+            return;
+        }
+
+        var validation = _portInput.GetValidation();
+        if (!_state.HasPendingChanges || !_state.IsPendingAdapterAvailable || !validation.IsValid)
+        {
+            Render();
+            return;
+        }
+
+        if (_pairingManager.IsPaired && !_feedback.Confirm(ConnectionConfirmation.RestartWithPairedDevices))
+        {
+            return;
+        }
+
+        var pending = NormalizePendingConfiguration(_state.PendingConfiguration);
+        NetworkSettingsSnapshot? originalSnapshot = null;
+        try
+        {
+            originalSnapshot = _loadSettings();
+            _saveSettings(pending.ApplyTo(originalSnapshot));
+        }
+        catch (Exception exception)
+        {
+            _feedback.LogFailure("connection_settings_save", exception);
+            if (originalSnapshot is not null)
+            {
+                try
+                {
+                    _saveSettings(originalSnapshot);
+                }
+                catch (Exception rollbackException)
+                {
+                    _feedback.LogFailure("connection_settings_rollback", rollbackException);
+                }
+            }
+
+            try
+            {
+                _state.ReconcileSavedAfterFailure(ConnectionConfiguration.FromSnapshot(_loadSettings()));
+            }
+            catch (Exception reloadException)
+            {
+                _feedback.LogFailure("connection_settings_reload", reloadException);
+            }
+
+            _state.FeedbackMessage = "Voltura Air couldn't save the connection settings. Your changes are still here; try again.";
+            _state.FeedbackIsError = true;
+            Render();
+            return;
+        }
+
+        _state.MarkSaved(pending);
+        Render();
+        try
+        {
+            _requestRestart();
+        }
+        catch (Exception exception)
+        {
+            _feedback.LogFailure("connection_restart_request", exception);
+            _state.MarkRestartRequestFailed();
+            _state.FeedbackMessage = "The settings were saved, but Voltura Air couldn't restart. Restart it manually or try again.";
+            _state.FeedbackIsError = true;
+            Render();
+        }
+    }
+
+    private void RequestRestartAgain()
+    {
+        if (_state is null)
+        {
+            return;
+        }
+
+        _state.MarkRestartRetryPending();
+        Render();
+        try
+        {
+            _requestRestart();
+        }
+        catch (Exception exception)
+        {
+            _feedback.LogFailure("connection_restart_request", exception);
+            _state.MarkRestartRequestFailed();
+            _state.FeedbackMessage = "Voltura Air still couldn't restart. Restart it manually or try again.";
+            _state.FeedbackIsError = true;
+            Render();
+        }
+    }
+
+    private ConnectionConfiguration NormalizePendingConfiguration(ConnectionConfiguration pending)
+    {
+        if (pending.NetworkMode == NetworkSelectionMode.Manual && _state?.PendingAdapter is { } adapter)
+        {
+            pending = pending with
+            {
+                ManualHostAddress = adapter.Address.ToString(),
+                ManualAdapterId = adapter.AdapterId,
+                ManualAdapterName = LanAddressSelector.GetAdapterDisplayName(adapter)
+            };
+        }
+
+        return pending.PortMode == PortSelectionMode.Automatic
+            ? pending with { ManualPort = null }
+            : pending;
+    }
+
+    private void Render()
+    {
+        if (_state is null || _page is null)
+        {
+            return;
+        }
+
+        ConnectionPagePresenter.Apply(_page, _state, _webHost, _portInput.GetValidation());
+    }
+
 }

@@ -24,13 +24,13 @@ or damaged watchdog, then re-enable it in Preferences.
 
 For another startup error, choose **Copy details** before closing Voltura Air.
 
-## Phone or tablet cannot reach the PC
+## Device cannot reach the PC
 
 Check these first:
 
 1. Voltura Air is running on the Windows PC.
-2. The phone or tablet is on the same Wi-Fi/LAN as the PC.
-3. The phone is not using mobile data for the browser session.
+2. The device is on the same Wi-Fi/LAN as the PC.
+3. The device is not using mobile data for the browser session.
 4. Windows Firewall allows Voltura Air on private networks.
 5. The QR code was generated after the current network/IP/port was selected.
 
@@ -55,7 +55,11 @@ as failures.
 
 ## Wrong network adapter selected
 
-Open **Connection** in the Windows host and choose the adapter that is on the same Wi-Fi/LAN as the phone or tablet. Avoid VPN, tunnel, and virtual adapters unless that is intentionally the reachable network.
+Open **Connection** in the Windows host, select **Choose another adapter**, and
+choose the adapter on the same Wi-Fi/LAN as the device. Avoid VPN, tunnel, and
+virtual adapters unless that is intentionally the reachable network. Select
+**Save and restart** in the structured change summary to apply the change, or
+**Discard changes** to restore the saved selection.
 
 If DHCP changed the selected adapter's IP address, Voltura Air follows the saved
 adapter identity and advertises its new address. If the saved adapter is missing,
@@ -68,7 +72,9 @@ Without a usable saved port, it starts at `51395` and selects the next available
 port when needed. The host shows the actual port and warns when it selects a new
 non-preferred port; scan a fresh QR code after any port change.
 
-Manual port mode does not silently fall back. If the chosen manual port is occupied, choose another port or return to automatic mode.
+Custom port selection is under **Port settings** and does not
+silently fall back. If the chosen port is occupied, choose another port or
+return to automatic selection, then select **Save and restart**.
 
 ## Device was disconnected or revoked
 

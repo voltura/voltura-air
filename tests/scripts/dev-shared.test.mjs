@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { stopExistingHost, waitForWindowsProcessExit } from "../../scripts/dev-shared.mjs";
 
-test("stops only the host before waiting for cursor recovery", () => {
+test("stops and waits for the host before waiting for cursor recovery", () => {
   const operations = [];
   const run = (command, args) => {
     operations.push({ command, args });
@@ -22,16 +22,29 @@ test("stops only the host before waiting for cursor recovery", () => {
     command: "taskkill",
     args: ["/IM", "VolturaAir.Host.exe", "/F"]
   });
-  assert.equal(operations[1].waitFor, "VolturaAir.CursorWatchdog.exe");
+  assert.equal(operations[1].waitFor, "VolturaAir.Host.exe");
   assert.equal(operations[1].run, run);
+  assert.equal(operations[2].waitFor, "VolturaAir.CursorWatchdog.exe");
+  assert.equal(operations[2].run, run);
 });
 
-test("refuses to continue when cursor recovery does not finish", () => {
+test("refuses to continue when the existing host does not exit", () => {
   assert.throws(
     () => stopExistingHost({
       platform: "win32",
       run: () => ({ stdout: "" }),
-      waitForProcessExit: () => false
+      waitForProcessExit: (imageName) => imageName !== "VolturaAir.Host.exe"
+    }),
+    /existing Voltura Air host/i);
+});
+
+test("refuses to continue when cursor recovery does not finish", () => {
+  let waitCount = 0;
+  assert.throws(
+    () => stopExistingHost({
+      platform: "win32",
+      run: () => ({ stdout: "" }),
+      waitForProcessExit: () => ++waitCount === 1
     }),
     /cursor watchdog/i);
 });

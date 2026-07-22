@@ -1,11 +1,12 @@
+using System.Windows;
 using System.Windows.Controls;
 using VolturaAir.Host.Ui;
-using CheckBox = System.Windows.Controls.CheckBox;
 
 namespace VolturaAir.Host.Features.Preferences;
 
 internal sealed class GlobalPermissionsSettingsSection(
     ISystemPowerController powerController,
+    Window owner,
     HostVisualFactory visuals,
     PreferencesVisualFactory preferenceVisuals,
     Func<bool> isLoading)
@@ -13,11 +14,17 @@ internal sealed class GlobalPermissionsSettingsSection(
     public void AddTo(StackPanel parent)
     {
         var permissions = AppPermissionSettings.Load();
-        var allowClientControl = visuals.CreateCheckBox("Allow paired devices to control Voltura Air host", AppClientControlSettings.IsEnabled());
+        var toggles = preferenceVisuals.AddToggleGroup(parent);
+        var allowClientControl = visuals.CreateCheckBox(
+            "Allow paired devices to control Voltura Air host",
+            AppClientControlSettings.IsEnabled(),
+            showInformation: () => ThemedConfirmationDialog.ShowInformation(
+                owner,
+                "Control of the Voltura Air host",
+                "When this setting is off, paired devices cannot inject input into Voltura Air itself. They can still control Windows and other permitted applications."));
         allowClientControl.Checked += (_, _) => AppClientControlSettings.SetEnabled(true);
         allowClientControl.Unchecked += (_, _) => AppClientControlSettings.SetEnabled(false);
-        parent.Children.Add(allowClientControl);
-        parent.Children.Add(visuals.CreateMutedText("When off, paired devices cannot inject input into Voltura Air itself. They can still control Windows and other permitted apps."));
+        toggles.Children.Add(allowClientControl);
 
         var controls = new[]
         {
@@ -47,14 +54,21 @@ internal sealed class GlobalPermissionsSettingsSection(
             {
                 continue;
             }
-            parent.Children.Add(control);
+            if (key == "shutdown")
+            {
+                parent.Children.Add(control);
+            }
+            else
+            {
+                toggles.Children.Add(control);
+            }
         }
         parent.Children.Add(visuals.CreateMutedText("Display off and session-ending actions require hold-to-confirm on the mobile device."));
         var details = preferenceVisuals.AddNestedSection(parent, "More about global permissions");
         details.Children.Add(visuals.CreateMutedText("Pointer and keyboard control, lock, and blackout are enabled by default. The screen-saver permission appears when Windows has a screen saver configured. Opening web addresses, reading the PC clipboard, display off, sign out, restart, and shut down require explicit host approval."));
     }
 
-    private void Save((CheckBox Control, string Key)[] controls)
+    private void Save((SettingsCheckBox Control, string Key)[] controls)
     {
         if (isLoading())
         {

@@ -21,6 +21,7 @@
                            TextWrapping="Wrap"
                            Foreground="{DynamicResource MutedTextBrush}" />
                 <CheckBox x:Name="LoggingToggle"
+                          HorizontalAlignment="Left"
                           Content="Write application log" />
                 <ui:SpacingWrapPanel x:Name="FiltersPanel"
                                      HorizontalSpacing="{DynamicResource SpaceSm}"

@@ -107,6 +107,7 @@ public sealed partial class HostUiLayoutTests
                 window.UpdateLayout();
                 Assert.True(custom.IsChecked);
                 Assert.Equal("Use a custom port", custom.Content);
+                Assert.Equal(HorizontalAlignment.Left, custom.HorizontalAlignment);
                 Assert.True(port.IsVisible);
                 Assert.Equal(180, port.Width);
                 Assert.Equal("Port is available.", validation.Text);

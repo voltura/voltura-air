@@ -44,12 +44,12 @@ internal sealed class PreferencesPageController
         _toasts = toasts;
         _requestRefresh = requestRefresh;
         _titleChanged = titleChanged;
-        _awake = new AwakeSettingsSection(awakeService, visuals, toasts, () => _isLoading);
+        _awake = new AwakeSettingsSection(owner, awakeService, visuals, toasts, () => _isLoading);
         _appLaunch = new AppLaunchSettingsSection(owner, appLaunchService, visuals, _preferenceVisuals, toasts, () => _isLoading, RefreshPreservingState);
         _textDestination = new TextDestinationSettingsSection(owner, visuals, _preferenceVisuals, toasts, () => _isLoading);
         _customPointer = new CustomPointerSettingsSection(owner, customPointerService, appLog, visuals, toasts, () => _isLoading);
         _application = new ApplicationSettingsSection(appLog, visuals, _preferenceVisuals, () => _isLoading);
-        _permissions = new GlobalPermissionsSettingsSection(powerController, visuals, _preferenceVisuals, () => _isLoading);
+        _permissions = new GlobalPermissionsSettingsSection(powerController, owner, visuals, _preferenceVisuals, () => _isLoading);
         _developer = new DeveloperSettingsSection(owner, powerController, workstationLockPolicy, appLog, visuals, _preferenceVisuals, toasts, RefreshPreservingState);
     }
 

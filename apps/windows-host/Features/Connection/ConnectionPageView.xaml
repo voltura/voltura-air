@@ -169,6 +169,7 @@
                                    Text="Use a custom port only when required by your network, firewall policy, or another application."
                                    TextWrapping="Wrap" />
                         <CheckBox x:Name="UseSpecificPortCheckBox"
+                                  HorizontalAlignment="Left"
                                   Content="Use a custom port" />
                         <ui:SpacingStackPanel x:Name="ManualPortPanel"
                                               HorizontalAlignment="Left"

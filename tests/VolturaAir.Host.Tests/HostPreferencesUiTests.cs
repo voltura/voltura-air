@@ -230,56 +230,6 @@ public sealed partial class HostUiLayoutTests
     }
 
     [Fact]
-    public void DisabledCursorRecoveryWatchdogIsShownAsAWarning()
-    {
-        if (!OperatingSystem.IsWindows())
-        {
-            return;
-        }
-
-        AppPointerSettings.SetUseCursorRecoveryWatchdog(false);
-        RunOnStaThread(() =>
-        {
-            using var appScope = new WpfApplicationScope();
-            using var store = new TempPairingStore();
-            using var injector = new SendInputInjector();
-            var manager = new PairingManager(store.Store);
-            var webHost = new WebHostService(manager, new InputDispatcher(injector), isolatedTestMode: true);
-            var window = new MainWindow(manager, webHost, clientUrl: null);
-            try
-            {
-                window.Show();
-                window.ShowPage(HostPage.Preferences);
-                window.UpdateLayout();
-
-                var useWatchdog = Assert.Single(
-                    FindWpfDescendants<CheckBox>(window),
-                    checkbox => string.Equals(
-                        checkbox.Content as string,
-                        "Use cursor recovery watchdog",
-                        StringComparison.Ordinal));
-                var info = Assert.Single(
-                    FindWpfDescendants<Button>(window),
-                    button => string.Equals(
-                        System.Windows.Automation.AutomationProperties.GetName(button),
-                        "About cursor recovery watchdog",
-                        StringComparison.Ordinal));
-
-                Assert.False(useWatchdog.IsChecked);
-                Assert.Same(window.Resources["DangerBrush"], useWatchdog.Foreground);
-                Assert.Equal("ⓘ", info.Content);
-                Assert.Same(window.Resources["DangerBrush"], info.Foreground);
-                Assert.Same(window.Resources["DangerBrush"], info.BorderBrush);
-            }
-            finally
-            {
-                window.Close();
-                DisposeWebHost(webHost);
-            }
-        });
-    }
-
-    [Fact]
     public void ChangingKeepAwakeSettingKeepsItsSectionExpanded()
     {
         if (!OperatingSystem.IsWindows())

@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using VolturaAir.Host.Ui;
@@ -18,13 +19,17 @@ namespace VolturaAir.Host;
 
 public enum ConfirmationTone
 {
+    Information,
     Question,
     Warning
 }
 
 public sealed class ThemedConfirmationDialog : Window
 {
+    private const int WmMouseActivate = 0x0021;
+    private const int MaActivate = 1;
     private readonly ConfirmationTone _tone;
+    private HwndSource? _windowSource;
 
     public ThemedConfirmationDialog(
         string title,
@@ -50,6 +55,8 @@ public sealed class ThemedConfirmationDialog : Window
 
         Content = CreateContent(title, message, confirmText, cancelText);
         PreviewKeyDown += OnPreviewKeyDown;
+        SourceInitialized += OnSourceInitialized;
+        Closed += OnClosed;
     }
 
     public static bool Show(
@@ -72,9 +79,9 @@ public sealed class ThemedConfirmationDialog : Window
         Window owner,
         string title,
         string message,
-        ConfirmationTone tone = ConfirmationTone.Warning)
+        ConfirmationTone tone = ConfirmationTone.Information)
     {
-        var dialog = new ThemedConfirmationDialog(title, message, "Close", null, tone)
+        var dialog = new ThemedConfirmationDialog(title, message, "OK", null, tone)
         {
             Owner = owner
         };
@@ -154,7 +161,12 @@ public sealed class ThemedConfirmationDialog : Window
 
     private Border CreateToneBadge()
     {
-        var text = _tone == ConfirmationTone.Warning ? "!" : "?";
+        var text = _tone switch
+        {
+            ConfirmationTone.Information => "i",
+            ConfirmationTone.Warning => "!",
+            _ => "?"
+        };
         return new Border
         {
             Width = 42,
@@ -253,6 +265,34 @@ public sealed class ThemedConfirmationDialog : Window
 
         e.Handled = true;
         CloseWithResult(false);
+    }
+
+    private void OnSourceInitialized(object? sender, EventArgs eventArgs)
+    {
+        _windowSource = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle);
+        _windowSource?.AddHook(OnWindowMessage);
+    }
+
+    private void OnClosed(object? sender, EventArgs eventArgs)
+    {
+        _windowSource?.RemoveHook(OnWindowMessage);
+        _windowSource = null;
+    }
+
+    private static nint OnWindowMessage(
+        nint window,
+        int message,
+        nint wordParameter,
+        nint longParameter,
+        ref bool handled)
+    {
+        if (message != WmMouseActivate)
+        {
+            return nint.Zero;
+        }
+
+        handled = true;
+        return MaActivate;
     }
 
     private static void SetIcon(Window window)

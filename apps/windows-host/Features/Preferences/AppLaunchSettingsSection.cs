@@ -2,7 +2,6 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using VolturaAir.Host.Ui;
-using CheckBox = System.Windows.Controls.CheckBox;
 using TextBox = System.Windows.Controls.TextBox;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
 
@@ -89,7 +88,7 @@ internal sealed class AppLaunchSettingsSection(
     {
         var presetName = AppLaunchSettings.GetPresetName(preset.Kind);
         var row = CreatePresetGrid();
-        var checkBox = visuals.CreateCheckBox($"Show {presetName}", configured is not null);
+        var checkBox = visuals.CreateCheckBox($"Show {presetName}", configured is not null, minimumWidth: 180);
         checkBox.VerticalAlignment = VerticalAlignment.Center;
         checkBox.Checked += (_, _) => SetPreset(preset.Kind, true, checkBox);
         checkBox.Unchecked += (_, _) => SetPreset(preset.Kind, false, checkBox);
@@ -173,7 +172,7 @@ internal sealed class AppLaunchSettingsSection(
         };
     }
 
-    private void SetPreset(AppLaunchKind kind, bool enabled, CheckBox checkBox)
+    private void SetPreset(AppLaunchKind kind, bool enabled, SettingsCheckBox checkBox)
     {
         if (isLoading() || _synchronizing)
         {

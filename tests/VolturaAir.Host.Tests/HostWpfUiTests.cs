@@ -294,6 +294,7 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
                 var filters = FindWpfDescendants<ComboBox>(window).ToArray();
 
                 AssertControlReceivesPointerHit(window, loggingToggle);
+                Assert.Equal(HorizontalAlignment.Left, loggingToggle.HorizontalAlignment);
                 AssertControlReceivesPointerHit(window, automaticRefreshToggle);
                 AssertControlReceivesPointerHit(window, refreshButton);
                 AssertControlReceivesPointerHit(window, dateRangeButton);
@@ -1047,7 +1048,7 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
     }
 
     [Fact]
-    public void InformationDialogUsesASingleCloseAction()
+    public void InformationDialogUsesASingleOkAction()
     {
         if (ShouldSkipNativeUiLayoutTests())
         {
@@ -1060,18 +1061,19 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
             var dialog = new ThemedConfirmationDialog(
                 "Cursor recovery watchdog",
                 "Explains the recovery behavior.",
-                "Close",
+                "OK",
                 null,
-                ConfirmationTone.Warning);
+                ConfirmationTone.Information);
             try
             {
                 dialog.Show();
                 dialog.UpdateLayout();
 
                 var action = Assert.Single(FindWpfDescendants<Button>(dialog));
-                Assert.Equal("Close", action.Content);
+                Assert.Equal("OK", action.Content);
                 Assert.True(action.IsDefault);
                 Assert.DoesNotContain(FindWpfDescendants<Button>(dialog), button => button.IsCancel);
+                Assert.Contains(FindWpfDescendants<TextBlock>(dialog), text => text.Text == "i");
             }
             finally
             {

@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Windows;
-using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -76,32 +75,22 @@ internal sealed class CustomPointerSettingsSection(
 
         var useWatchdog = visuals.CreateCheckBox(
             "Use cursor recovery watchdog",
-            AppPointerSettings.UseCursorRecoveryWatchdog());
+            AppPointerSettings.UseCursorRecoveryWatchdog(),
+            showInformation: () => ThemedConfirmationDialog.ShowInformation(
+                owner,
+                "Cursor recovery watchdog",
+                "The recovery watchdog reloads your normal Windows cursor scheme if Voltura Air crashes or is forcibly closed while Custom pointer is active. With this option off, a normal shutdown still restores your cursors, but an unexpected termination can leave the custom cursor active until the Windows cursor scheme is reloaded."));
         useWatchdog.VerticalAlignment = VerticalAlignment.Center;
-        var watchdogInfo = visuals.CreateButton("ⓘ", (_, _) => ThemedConfirmationDialog.ShowInformation(
-            owner,
-            "Cursor recovery watchdog",
-            "The recovery watchdog reloads your normal Windows cursor scheme if Voltura Air crashes or is forcibly closed while Custom pointer is active. With this option off, a normal shutdown still restores your cursors, but an unexpected termination can leave the custom cursor active until the Windows cursor scheme is reloaded.",
-            ConfirmationTone.Warning));
-        watchdogInfo.Width = 34;
-        watchdogInfo.Height = 30;
-        watchdogInfo.MinWidth = 34;
-        watchdogInfo.Padding = new Thickness(0);
-        watchdogInfo.ToolTip = "Why the cursor recovery watchdog is recommended";
-        AutomationProperties.SetName(watchdogInfo, "About cursor recovery watchdog");
-        var watchdogRow = HostVisualFactory.CreateHorizontalStack(UiTokens.SpaceSm);
-        watchdogRow.Children.Add(useWatchdog);
-        watchdogRow.Children.Add(watchdogInfo);
-        parent.Children.Add(watchdogRow);
+        parent.Children.Add(useWatchdog);
+        parent.Children.Add(visuals.CreateNotice(
+            "Without the recovery watchdog, an unexpected shutdown can leave the custom cursor active until the Windows cursor scheme is reloaded.",
+            isError: true));
 
         var synchronizingWatchdog = false;
         void UpdateWatchdogVisual()
         {
             var enabled = useWatchdog.IsChecked == true;
-            var foreground = visuals.Brush(enabled ? "TextBrush" : "DangerBrush");
-            useWatchdog.Foreground = foreground;
-            watchdogInfo.Foreground = foreground;
-            watchdogInfo.BorderBrush = visuals.Brush(enabled ? "BorderBrush" : "DangerBrush");
+            useWatchdog.Opacity = enabled ? 1 : 0.92;
         }
 
         void SaveWatchdogSetting(bool enabled)

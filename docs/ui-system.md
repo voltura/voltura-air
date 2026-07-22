@@ -191,6 +191,36 @@ non-interactive live-region semantics.
 Primitives own their visual variants and interaction states. Features own labels,
 content, intent, domain state, and composition.
 
+On the Windows host, settings checkboxes use their intrinsic, single-line label
+width by default. A feature may request a minimum width or full available width
+when its composition requires alignment. Independent settings use the shared
+wrapping layout so wider windows can show several settings on one row without
+forcing labels to wrap.
+
+The complete framed settings-checkbox surface is the toggle hit target,
+including its padding and unused inline space. When contextual information is
+present, its information button remains a separate action and never changes the
+checkbox state.
+
+Wrapped peer settings use the contrasting settings-group canvas. A setting with
+persistent guidance starts on its own row and remains on the section canvas so
+the control and its following guidance read as one semantic block.
+
+Routine checkbox explanations use the settings checkbox's neutral information
+action and the shared information dialog. The action has a setting-specific
+accessible name, and the dialog uses a right-aligned **OK** action. Privacy,
+recovery, destructive-action, and other guidance that users must understand
+before changing a setting remains visible; importance is not communicated only
+through the information icon's color.
+
+Windows tooltips use the shared themed tooltip style and prefer placement above
+their owning control so the tooltip does not obscure the pointer or the control.
+Compact icon actions reuse the shared button hover, pressed, and focus language.
+When a modal Windows information or confirmation dialog loses activation, its
+native mouse-activation handling activates the window without discarding the
+mouse message. Hover remains passive, and the next intentional control click is
+delivered without requiring an activation-only click first.
+
 Every interactive primitive covers, as applicable:
 
 - default, hover, pressed, selected, focused, disabled, pending, success,

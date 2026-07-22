@@ -9,6 +9,7 @@ using HorizontalAlignment = System.Windows.HorizontalAlignment;
 namespace VolturaAir.Host.Features.Preferences;
 
 internal sealed class AwakeSettingsSection(
+    Window owner,
     IAwakeService awakeService,
     HostVisualFactory visuals,
     HostToastPresenter toasts,
@@ -61,11 +62,16 @@ internal sealed class AwakeSettingsSection(
         expirationPanel.Children.Add(expirationRow);
         parent.Children.Add(expirationPanel);
 
-        var keepScreenOn = visuals.CreateCheckBox("Keep screen on while Keep awake is active", state.KeepScreenOn);
+        var keepScreenOn = visuals.CreateCheckBox(
+            "Keep screen on while Keep awake is active",
+            state.KeepScreenOn,
+            showInformation: () => ThemedConfirmationDialog.ShowInformation(
+                owner,
+                "Keep the screen on",
+                "Keeping the screen on uses more power and can delay normal idle behavior. Paired devices cannot change this host setting."));
         keepScreenOn.Checked += async (_, _) => await ApplyAsync(() => awakeService.SetKeepScreenOnAsync(true));
         keepScreenOn.Unchecked += async (_, _) => await ApplyAsync(() => awakeService.SetKeepScreenOnAsync(false));
         parent.Children.Add(keepScreenOn);
-        parent.Children.Add(visuals.CreateMutedText("Keeping the screen on uses more power and can delay normal idle behavior; paired devices cannot change this host setting."));
 
         void UpdateModePanels()
         {

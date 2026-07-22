@@ -3,7 +3,6 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using Button = System.Windows.Controls.Button;
-using CheckBox = System.Windows.Controls.CheckBox;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
 using Orientation = System.Windows.Controls.Orientation;
 using Brush = System.Windows.Media.Brush;
@@ -31,14 +30,33 @@ internal sealed class HostVisualFactory(ResourceDictionary resources)
         };
     }
 
-    public CheckBox CreateCheckBox(string text, bool isChecked)
+    public SettingsCheckBox CreateCheckBox(
+        string text,
+        bool isChecked,
+        double? minimumWidth = null,
+        bool fillAvailableWidth = false,
+        Action? showInformation = null)
     {
-        return new CheckBox
+        var checkBox = new SettingsCheckBox
         {
-            Content = text,
+            Label = text,
             IsChecked = isChecked,
-            Foreground = Brush("TextBrush")
+            HasInformation = showInformation is not null,
+            Foreground = Brush("TextBrush"),
+            HorizontalAlignment = fillAvailableWidth ? HorizontalAlignment.Stretch : HorizontalAlignment.Left
         };
+
+        if (minimumWidth is { } width)
+        {
+            checkBox.MinWidth = width;
+        }
+
+        if (showInformation is not null)
+        {
+            checkBox.InformationRequested += (_, _) => showInformation();
+        }
+
+        return checkBox;
     }
 
     public ToggleButton CreateSegmentButton(string text, bool isChecked)

@@ -357,4 +357,29 @@ public sealed partial class HostUiLayoutTests
         });
     }
 
+    [Fact]
+    public void SettingsCheckBoxFactoryDefaultsToContentWidthAndSupportsSizingOverrides()
+    {
+        RunOnStaThread(() =>
+        {
+            var resources = new ResourceDictionary
+            {
+                Source = new Uri("/VolturaAir.Host;component/MainWindow.Styles.xaml", UriKind.Relative)
+            };
+            var visuals = new HostVisualFactory(resources);
+
+            var intrinsic = visuals.CreateCheckBox("Intrinsic", false);
+            var minimum = visuals.CreateCheckBox("Minimum", false, minimumWidth: 240);
+            var fill = visuals.CreateCheckBox("Fill", false, fillAvailableWidth: true);
+            var information = visuals.CreateCheckBox("Information", false, showInformation: static () => { });
+
+            Assert.Equal(HorizontalAlignment.Left, intrinsic.HorizontalAlignment);
+            Assert.Equal(0d, intrinsic.MinWidth);
+            Assert.Equal(240d, minimum.MinWidth);
+            Assert.Equal(HorizontalAlignment.Stretch, fill.HorizontalAlignment);
+            Assert.True(information.HasInformation);
+            Assert.Equal("More information about Information", information.InformationAccessibleName);
+        });
+    }
+
 }

@@ -37,6 +37,9 @@ relying on the user to name every document.
 ## Working agreements
 
 - Read this file and the closest scoped `AGENTS.md` before changing files.
+- Before reviewing code changes, read the root and closest scoped `AGENTS.md`
+  files and every authoritative instruction document they reference that
+  applies to the changed files.
 - Work from persisted repository evidence first: current files, committed
   documentation, tests, scripts, and explicit instructions in this thread. Do
   not design from memory of prior turns when the workspace can answer the
@@ -74,6 +77,20 @@ tested.
 
 ## AI execution and tools
 
+- Before starting work that materially affects UI presentation or interaction,
+  ask the user to choose between **autonomous completion** and **visual
+  checkpoints**, unless the user has already chosen a mode for the current task
+  or explicitly requested a specific workflow.
+  - In autonomous completion mode, implement and validate the UI change through
+    the normal task-appropriate gates before handoff.
+  - In visual-checkpoint mode, implement only until a representative result is
+    runnable, stop further coding and automated tests, launch the appropriate
+    development surface, and wait for the user's visual feedback. For the WPF
+    host, stop every running `VolturaAir.Host` process and run
+    `npm run dev:quick`. Resume refinement and validation only after the user
+    responds.
+  - Keep the selected mode for the rest of that UI task unless the user changes
+    it. Do not ask again for every visual revision.
 - Do not lower the quality of an implementation because a preferred local tool
   is missing. Install and use required validation, inspection, capture,
   automation, runtime, or toolchain support without asking first.

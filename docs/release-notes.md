@@ -10,6 +10,9 @@ exact target-version section and does not create one. Keep the shared notices in
 - Redesigned the Windows Connection screen to make network setup and recovery easier to understand.
 - Made it simpler to choose the Wi-Fi or LAN adapter your device can reach when pairing fails.
 - Moved custom port controls into its own section and clearly shows when connection changes need a restart.
+- Made Windows settings checkboxes compact and responsive so more preferences can share a row without wrapping their labels.
+- Added consistent themed information buttons, tooltips, and dialogs for optional setting guidance while keeping important privacy and recovery guidance visible.
+- Made the complete checkbox card clickable and ensured an information dialog accepts its first button click after regaining activation.
 
 ## v0.7.3
 

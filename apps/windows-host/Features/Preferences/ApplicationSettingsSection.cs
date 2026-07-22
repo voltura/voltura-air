@@ -14,25 +14,26 @@ internal sealed class ApplicationSettingsSection(
 {
     public void AddTo(StackPanel parent)
     {
+        var toggles = preferenceVisuals.AddToggleGroup(parent);
         var start = visuals.CreateCheckBox("Start Voltura Air when I sign in to Windows", AppStartupSettings.IsEnabled());
         start.Checked += (_, _) => AppStartupSettings.SetEnabled(true);
         start.Unchecked += (_, _) => AppStartupSettings.SetEnabled(false);
-        parent.Children.Add(start);
+        toggles.Children.Add(start);
 
         var startHidden = visuals.CreateCheckBox("Start Voltura Air hidden in the tray", AppWindowSettings.StartHiddenInTray());
         startHidden.Checked += (_, _) => AppWindowSettings.SetStartHiddenInTray(true);
         startHidden.Unchecked += (_, _) => AppWindowSettings.SetStartHiddenInTray(false);
-        parent.Children.Add(startHidden);
+        toggles.Children.Add(startHidden);
 
         var notify = visuals.CreateCheckBox("Show connection status notifications", AppNotificationSettings.ShowConnectionStatusNotifications());
         notify.Checked += (_, _) => AppNotificationSettings.SetShowConnectionStatusNotifications(true);
         notify.Unchecked += (_, _) => AppNotificationSettings.SetShowConnectionStatusNotifications(false);
-        parent.Children.Add(notify);
+        toggles.Children.Add(notify);
 
         var showOnDisconnect = visuals.CreateCheckBox("Show Voltura Air when the last device disconnects", AppNotificationSettings.ShowPairingWindowOnDisconnect());
         showOnDisconnect.Checked += (_, _) => AppNotificationSettings.SetShowPairingWindowOnDisconnect(true);
         showOnDisconnect.Unchecked += (_, _) => AppNotificationSettings.SetShowPairingWindowOnDisconnect(false);
-        parent.Children.Add(showOnDisconnect);
+        toggles.Children.Add(showOnDisconnect);
         AddLoggingSettings(parent);
     }
 

@@ -89,6 +89,18 @@ export function getRelease(tag, repository, lookup = checked) {
   ], { captureOutput: true }));
 }
 
+export function publishReleaseIfRequested({ publishLatest, targetTag, repository, expectedCommit }, execute = checked) {
+  if (!publishLatest) {
+    return;
+  }
+
+  execute("gh", ["release", "edit", targetTag, "--repo", repository, "--draft=false", "--latest"]);
+  const latestPublished = JSON.parse(execute("gh", ["api", `repos/${repository}/releases/latest`], { captureOutput: true }));
+  if (latestPublished.tag_name !== targetTag || latestPublished.draft !== false || latestPublished.target_commitish !== expectedCommit) {
+    throw new Error(`GitHub did not publish '${targetTag}' from the expected commit as the latest release.`);
+  }
+}
+
 function remoteTagExists(tag) {
   return checked("git", ["ls-remote", "--tags", "origin", `refs/tags/${tag}`], { captureOutput: true }).length > 0;
 }
@@ -172,7 +184,7 @@ export async function runLocalRelease(args = process.argv.slice(2)) {
   checked("git", ["remote", "get-url", "origin"], { captureOutput: true });
 
   const repository = checked("gh", ["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"], { captureOutput: true });
-  checked("git", ["fetch", "origin", "main", "--tags"]);
+  checked("git", ["fetch", "origin", "main"]);
   checked("git", ["merge-base", "--is-ancestor", "origin/main", "HEAD"]);
 
   const releasePages = JSON.parse(checked("gh", [
@@ -276,14 +288,7 @@ export async function runLocalRelease(args = process.argv.slice(2)) {
   auditDraft(auditedDraft, releaseCommit, assetNames);
   checked("npm", ["run", "publish:site"]);
 
-  if (publishLatest) {
-    checked("gh", ["release", "edit", targetTag, "--repo", repository, "--draft=false", "--latest"]);
-    const latestPublished = JSON.parse(checked("gh", ["api", `repos/${repository}/releases/latest`], { captureOutput: true }));
-    if (latestPublished.tag_name !== targetTag) {
-      throw new Error(`GitHub did not mark '${targetTag}' as the latest release.`);
-    }
-  }
-  checked("git", ["fetch", "origin", `refs/tags/${targetTag}:refs/tags/${targetTag}`]);
+  publishReleaseIfRequested({ publishLatest, targetTag, repository, expectedCommit: releaseCommit });
 
   console.log(`${publishLatest ? "Published" : "Created draft"} https://github.com/${repository}/releases/tag/${targetTag}`);
   for (const assetPath of assetPaths) {

@@ -35,6 +35,7 @@ public sealed partial class WorkstationLockPolicy : IWorkstationLockPolicy
     private readonly Action _writeEnabledValue;
     private readonly Action _broadcastPolicyChange;
     private readonly IAppLogWriter _appLog;
+    private readonly Action<Exception> _failureReporter;
 
     public WorkstationLockPolicy(IAppLogWriter? appLog = null)
         : this(ReadRegistryValue, WriteEnabledRegistryValue, BroadcastPolicyChange, appLog)
@@ -45,12 +46,14 @@ public sealed partial class WorkstationLockPolicy : IWorkstationLockPolicy
         Func<LockPolicyRegistryValue> readValue,
         Action writeEnabledValue,
         Action broadcastPolicyChange,
-        IAppLogWriter? appLog = null)
+        IAppLogWriter? appLog = null,
+        Action<Exception>? reportFailure = null)
     {
         _readValue = readValue;
         _writeEnabledValue = writeEnabledValue;
         _broadcastPolicyChange = broadcastPolicyChange;
         _appLog = appLog ?? NullAppLog.Instance;
+        _failureReporter = reportFailure ?? WriteFailureToStandardError;
     }
 
     public event EventHandler? Changed;
@@ -103,7 +106,7 @@ public sealed partial class WorkstationLockPolicy : IWorkstationLockPolicy
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or SecurityException)
         {
-            Console.Error.WriteLine("Voltura Air could not enable Windows locking: {0}", ex.Message);
+            _failureReporter(ex);
             WriteEnableLog("failed", "VAIR-LOCK-POLICY-ACCESS-DENIED", ex.Message);
             return new WorkstationLockEnableResult(
                 false,
@@ -111,13 +114,16 @@ public sealed partial class WorkstationLockPolicy : IWorkstationLockPolicy
         }
         catch (IOException ex)
         {
-            Console.Error.WriteLine("Voltura Air could not enable Windows locking: {0}", ex.Message);
+            _failureReporter(ex);
             WriteEnableLog("failed", "VAIR-LOCK-POLICY-WRITE-FAILED", ex.Message);
             return new WorkstationLockEnableResult(
                 false,
                 "Windows could not save the locking setting. Try again, or ask an administrator to check this PC's policy.");
         }
     }
+
+    private static void WriteFailureToStandardError(Exception exception) =>
+        Console.Error.WriteLine("Voltura Air could not enable Windows locking: {0}", exception.Message);
 
     private void WriteEnableLog(string outcome, string? code = null, string? detail = null)
     {

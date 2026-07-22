@@ -74,11 +74,13 @@ public sealed class WorkstationLockPolicyTests
     public void EnableHandlesRegistryWriteFailure()
     {
         var appLog = new RecordingAppLog();
+        var failures = new List<Exception>();
         var policy = new WorkstationLockPolicy(
             () => new LockPolicyRegistryValue(false, false, 0),
             () => throw new UnauthorizedAccessException("blocked"),
             () => throw new InvalidOperationException("must not broadcast"),
-            appLog);
+            appLog,
+            failures.Add);
 
         var result = policy.TryEnable();
 
@@ -86,6 +88,9 @@ public sealed class WorkstationLockPolicyTests
         Assert.Equal(
             "Windows or an administrator protects this setting. Voltura Air cannot change it for this user.",
             result.Message);
+        var failure = Assert.Single(failures);
+        Assert.IsType<UnauthorizedAccessException>(failure);
+        Assert.Equal("blocked", failure.Message);
         Assert.Contains(appLog.Entries, entry =>
             entry.Event == "host_action" &&
             entry.Action == "enable_windows_locking" &&

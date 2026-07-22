@@ -33,6 +33,10 @@ installers, commits and pushes the generated release changes, rebuilds from the
 final commit, creates or resumes a matching draft, audits its assets, and
 publishes `docs/site`. Only the `latest` mode makes the GitHub release public.
 Prerelease versions can be prepared as drafts but cannot be marked Latest.
+Draft completion does not depend on a Git tag. In `latest` mode, GitHub creates
+the release tag when it publishes the release; the local command verifies the
+public Latest release through the GitHub API and does not fetch or create a
+local tag.
 
 ## Local release prerequisites
 

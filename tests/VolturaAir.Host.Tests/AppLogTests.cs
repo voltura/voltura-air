@@ -126,16 +126,21 @@ public sealed class AppLogTests
     public async Task LoggingFailureNeverBreaksHostActions()
     {
         using var folder = new TemporaryFolder();
+        var failures = new List<Exception>();
         await using var log = new AppLog(
             () => throw new InvalidOperationException("settings unavailable"),
             () => 2,
             () => TestNow,
-            folder.Path);
+            folder.Path,
+            reportWriteFailure: failures.Add);
 
         var exception = Record.Exception(() => log.Write(new AppLogEntry("host_action", "windows_host", Action: "test")));
 
         Assert.Null(exception);
         Assert.Empty(Directory.EnumerateFiles(folder.Path));
+        var failure = Assert.Single(failures);
+        Assert.IsType<InvalidOperationException>(failure);
+        Assert.Equal("settings unavailable", failure.Message);
     }
 
     [Fact]

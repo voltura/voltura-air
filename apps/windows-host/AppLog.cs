@@ -8,6 +8,7 @@ public sealed class AppLog : IAppLog, IAsyncDisposable
     private readonly Func<bool> _isEnabled;
     private readonly Func<DateTimeOffset> _now;
     private readonly AppLogFileStore _store;
+    private readonly Action<Exception> _writeFailureReporter;
     private readonly Channel<LogWorkItem> _pendingWrites;
     private readonly Task _writerTask;
     private int _disposeState;
@@ -29,11 +30,13 @@ public sealed class AppLog : IAppLog, IAsyncDisposable
         Func<int> maxAgeDays,
         Func<DateTimeOffset> now,
         string logDirectory,
-        Action<string, string>? appendLine = null)
+        Action<string, string>? appendLine = null,
+        Action<Exception>? reportWriteFailure = null)
     {
         _isEnabled = isEnabled;
         _now = now;
         _store = new AppLogFileStore(logDirectory, maxAgeDays, now, appendLine);
+        _writeFailureReporter = reportWriteFailure ?? WriteFailureToStandardError;
         _pendingWrites = Channel.CreateBounded<LogWorkItem>(new BoundedChannelOptions(MaxPendingWrites)
         {
             FullMode = BoundedChannelFullMode.Wait,
@@ -251,9 +254,12 @@ public sealed class AppLog : IAppLog, IAsyncDisposable
     {
         if (Interlocked.Exchange(ref _reportedWriteFailure, 1) == 0)
         {
-            Console.Error.WriteLine("Voltura Air could not write the application log: {0}", exception.Message);
+            _writeFailureReporter(exception);
         }
     }
+
+    private static void WriteFailureToStandardError(Exception exception) =>
+        Console.Error.WriteLine("Voltura Air could not write the application log: {0}", exception.Message);
 
     private readonly record struct PendingLogEntry(DateTimeOffset Timestamp, AppLogEntry Entry);
 

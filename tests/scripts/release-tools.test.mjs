@@ -5,7 +5,7 @@ import path from "node:path";
 import test from "node:test";
 
 import { getNextReleaseVersion } from "../../scripts/bump-release.mjs";
-import { auditDraft, buildReleaseBody, getRelease } from "../../scripts/release-local.mjs";
+import { auditDraft, buildReleaseBody, getRelease, publishReleaseIfRequested } from "../../scripts/release-local.mjs";
 import {
   compareSemver,
   extractUserFacingReleaseNotes,
@@ -24,6 +24,7 @@ import {
 } from "../../scripts/release-tools.mjs";
 
 const requiredNotices = `${freewareNotice}\n\n${unsignedReleaseNotice}`;
+const localReleaseSource = await readFile(new URL("../../scripts/release-local.mjs", import.meta.url), "utf8");
 import { restoreGithubActions } from "../../scripts/restore-github-actions.mjs";
 import { resolveSynchronizedRelease } from "../../scripts/sync-release-notes.mjs";
 
@@ -33,6 +34,44 @@ test("local release arguments default to a draft and accept an explicit latest m
   assert.deepEqual(parseReleaseArguments(["0.8.0"]), { version: "0.8.0", publishLatest: false });
   assert.deepEqual(parseReleaseArguments(["0.8.0", "latest"]), { version: "0.8.0", publishLatest: true });
   assert.throws(() => parseReleaseArguments(["latest", "0.8.0"]), /Usage/u);
+});
+
+test("local draft completion does not run publication or tag commands", () => {
+  const commands = [];
+  publishReleaseIfRequested({
+    publishLatest: false,
+    targetTag: "v0.8.0",
+    repository: "voltura/voltura-air",
+    expectedCommit: "abc123"
+  }, (command, args) => commands.push([command, args]));
+
+  assert.deepEqual(commands, []);
+});
+
+test("local release does not fetch tags into the checkout", () => {
+  assert.doesNotMatch(localReleaseSource, /git[^\n]+fetch[^\n]+--tags/u);
+  assert.doesNotMatch(localReleaseSource, /refs\/tags\/\$\{targetTag\}:refs\/tags/u);
+});
+
+test("local latest completion publishes and verifies through GitHub without fetching a tag", () => {
+  const commands = [];
+  publishReleaseIfRequested({
+    publishLatest: true,
+    targetTag: "v0.8.0",
+    repository: "voltura/voltura-air",
+    expectedCommit: "abc123"
+  }, (command, args) => {
+    commands.push([command, args]);
+    return command === "gh" && args[0] === "api"
+      ? JSON.stringify({ tag_name: "v0.8.0", draft: false, target_commitish: "abc123" })
+      : "";
+  });
+
+  assert.deepEqual(commands, [
+    ["gh", ["release", "edit", "v0.8.0", "--repo", "voltura/voltura-air", "--draft=false", "--latest"]],
+    ["gh", ["api", "repos/voltura/voltura-air/releases/latest"]]
+  ]);
+  assert.equal(commands.some(([command]) => command === "git"), false);
 });
 
 test("semantic version ordering handles stable and prerelease versions", () => {

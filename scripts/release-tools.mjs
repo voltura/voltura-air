@@ -6,6 +6,9 @@ export const releaseNotesStartMarker = "<!-- voltura-air:release-notes:start -->
 export const releaseNotesEndMarker = "<!-- voltura-air:release-notes:end -->";
 
 const versionHeadingSource = "##[ \\t]+v(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?[ \\t]*";
+const sectionHeadingSource = "##[ \\t]+\\S.*?[ \\t]*";
+const generalNoticesHeading = "General notices";
+const releaseSectionEndHeadingSource = `(?:${versionHeadingSource}|##[ \\t]+${generalNoticesHeading}[ \\t]*)`;
 
 export function parseReleaseArguments(args) {
   if (!Array.isArray(args) || !args.every((arg) => typeof arg === "string")) {
@@ -171,6 +174,26 @@ export function validateReleaseNotesContent(content, { preserveComments = false 
   return preserveComments ? trimmedContent : releaseContent;
 }
 
+export function extractUserFacingReleaseNotes(content) {
+  const releaseContent = validateReleaseNotesContent(content, { preserveComments: true });
+  return releaseContent
+    .replace(freewareNotice, "")
+    .replace(unsignedReleaseNotice, "")
+    .trim();
+}
+
+function validateUserFacingReleaseNotes(content, { preserveComments = false } = {}) {
+  const trimmedContent = content.trim();
+  const releaseContent = trimmedContent.replace(/<!--[\s\S]*?-->/gu, "").trim();
+  if (releaseContent.includes(freewareNotice) || releaseContent.includes(unsignedReleaseNotice)) {
+    throw new Error("Version sections must not repeat the notices from '## General notices'.");
+  }
+  if (!releaseContent) {
+    throw new Error("Release notes contain no user-facing changes.");
+  }
+  return preserveComments ? trimmedContent : releaseContent;
+}
+
 export function extractMarkedReleaseNotes(body) {
   if (countOccurrences(body, releaseNotesStartMarker) !== 1 || countOccurrences(body, releaseNotesEndMarker) !== 1) {
     throw new Error("Published release notes must contain exactly one synchronization marker pair.");
@@ -195,7 +218,7 @@ function findVersionSection(text, version) {
     throw new Error(`Expected exactly one '## v${version}' heading in docs/release-notes.md; found ${matches.length}.`);
   }
   const contentStart = matches[0].index + matches[0][0].length;
-  const nextHeading = new RegExp(`^${versionHeadingSource}\\r?$`, "gmu");
+  const nextHeading = new RegExp(`^${releaseSectionEndHeadingSource}\\r?$`, "gmu");
   nextHeading.lastIndex = contentStart;
   const next = nextHeading.exec(text);
   return { heading: matches[0], contentStart, contentEnd: next?.index ?? text.length };
@@ -203,11 +226,37 @@ function findVersionSection(text, version) {
 
 export function getReleaseNotesSection(text, version) {
   const section = findVersionSection(text, version);
-  return validateReleaseNotesContent(text.slice(section.contentStart, section.contentEnd).trim());
+  return validateUserFacingReleaseNotes(text.slice(section.contentStart, section.contentEnd).trim());
+}
+
+export function getGeneralReleaseNotices(text) {
+  const heading = new RegExp(`^##[ \\t]+${escapeRegex(generalNoticesHeading)}[ \\t]*(?=\\r?$)`, "gmu");
+  const matches = [...text.matchAll(heading)];
+  if (matches.length !== 1) {
+    throw new Error(`Expected exactly one '## ${generalNoticesHeading}' heading in docs/release-notes.md; found ${matches.length}.`);
+  }
+  const contentStart = matches[0].index + matches[0][0].length;
+  const nextHeading = new RegExp(`^${sectionHeadingSource}\\r?$`, "gmu");
+  nextHeading.lastIndex = contentStart;
+  const next = nextHeading.exec(text);
+  const content = text.slice(contentStart, next?.index ?? text.length).trim();
+  const releaseContent = content.replace(/<!--[\s\S]*?-->/gu, "").trim();
+  if (countOccurrences(releaseContent, freewareNotice) !== 1
+    || countOccurrences(releaseContent, unsignedReleaseNotice) !== 1) {
+    throw new Error("General notices must contain exactly one copy of each canonical notice.");
+  }
+  const remainingContent = releaseContent
+    .replace(freewareNotice, "")
+    .replace(unsignedReleaseNotice, "")
+    .trim();
+  if (remainingContent) {
+    throw new Error("The General notices section must contain only the canonical notices.");
+  }
+  return releaseContent;
 }
 
 export function replaceReleaseNotesSection(text, version, content) {
-  const releaseContent = validateReleaseNotesContent(content, { preserveComments: true });
+  const releaseContent = validateUserFacingReleaseNotes(content, { preserveComments: true });
   const section = findVersionSection(text, version);
   const lineEnding = text.includes("\r\n") ? "\r\n" : "\n";
   const normalizedContent = releaseContent.replace(/\r?\n/gu, lineEnding);

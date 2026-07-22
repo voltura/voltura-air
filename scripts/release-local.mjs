@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { getNextReleaseVersion } from "./bump-release.mjs";
 import {
+  getGeneralReleaseNotices,
   getReleaseNotesSection,
   parseReleaseArguments,
   parseSemver,
@@ -106,11 +107,13 @@ async function assertReleaseAssets(paths) {
   }
 }
 
-export function buildReleaseBody({ notes, version, latestTag, repository }) {
+export function buildReleaseBody({ notes, notices, version, latestTag, repository }) {
   return `## What's new
 
 ${releaseNotesStartMarker}
 ${notes}
+
+${notices}
 ${releaseNotesEndMarker}
 
 ## Downloads
@@ -197,7 +200,9 @@ export async function runLocalRelease(args = process.argv.slice(2)) {
   }
 
   const notesPath = path.join(repositoryRoot, "docs", "release-notes.md");
-  const notes = getReleaseNotesSection(await readFile(notesPath, "utf8"), targetVersion);
+  const releaseNotes = await readFile(notesPath, "utf8");
+  const notes = getReleaseNotesSection(releaseNotes, targetVersion);
+  const notices = getGeneralReleaseNotices(releaseNotes);
   const targetTagExists = targetTag === currentTag ? currentTagExists : remoteTagExists(targetTag);
   const targetReleaseBeforeBuild = targetTagExists ? getRelease(targetTag, repository) : null;
   if (targetReleaseBeforeBuild && !targetReleaseBeforeBuild.isDraft) {
@@ -241,6 +246,7 @@ export async function runLocalRelease(args = process.argv.slice(2)) {
   const bodyPath = path.join(publishRoot, `release-notes-${targetTag}.md`);
   await writeFile(bodyPath, buildReleaseBody({
     notes,
+    notices,
     version: targetVersion,
     latestTag: latest.tag,
     repository

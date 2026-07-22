@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import {
+  extractUserFacingReleaseNotes,
   extractMarkedReleaseNotes,
   parseSemver,
   parseSyncReleaseArguments,
@@ -70,7 +71,7 @@ export async function syncReleaseNotes(args = process.argv.slice(2)) {
     : run("gh", ["api", `repos/${repository}/releases/latest`]);
   const release = resolveSynchronizedRelease(rawRelease, explicitVersion);
 
-  const synchronizedContent = extractMarkedReleaseNotes(release.body);
+  const synchronizedContent = extractUserFacingReleaseNotes(extractMarkedReleaseNotes(release.body));
   const currentNotes = await readFile(notesPath, "utf8");
   const updatedNotes = replaceReleaseNotesSection(currentNotes, release.version, synchronizedContent);
   if (updatedNotes === currentNotes) {

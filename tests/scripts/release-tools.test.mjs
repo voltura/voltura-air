@@ -8,9 +8,11 @@ import { getNextReleaseVersion } from "../../scripts/bump-release.mjs";
 import { auditDraft, buildReleaseBody, getRelease } from "../../scripts/release-local.mjs";
 import {
   compareSemver,
+  extractUserFacingReleaseNotes,
   extractMarkedReleaseNotes,
   freewareNotice,
   getReleaseNotesSection,
+  getGeneralReleaseNotices,
   parseReleaseArguments,
   parseSyncReleaseArguments,
   releaseNotesEndMarker,
@@ -148,14 +150,16 @@ test("release resolution bumps published versions and resumes pending drafts", (
   }), /must be newer/u);
 });
 
-test("release notes require one non-placeholder section for the target version", () => {
-  const notes = `## v0.7.4\n\n- New visible behavior.\n\n${requiredNotices}\n\n## v0.7.3\n\n- Previous release.\n\n${requiredNotices}\n`;
-  assert.equal(getReleaseNotesSection(notes, "0.7.4"), `- New visible behavior.\n\n${requiredNotices}`);
-  assert.throws(() => getReleaseNotesSection("## v0.7.4\n\n<!-- Add notes. -->\n", "0.7.4"), /freeware notice/u);
+test("release notes require one non-placeholder section and one shared notices section", () => {
+  const notes = `## v0.7.4\n\n- New visible behavior.\n\n## v0.7.3\n\n- Previous release.\n\n## General notices\n\n${requiredNotices}\n`;
+  assert.equal(getReleaseNotesSection(notes, "0.7.4"), "- New visible behavior.");
+  assert.equal(getGeneralReleaseNotices(notes), requiredNotices);
+  assert.throws(() => getReleaseNotesSection("## v0.7.4\n\n<!-- Add notes. -->\n", "0.7.4"), /user-facing changes/u);
   assert.throws(
-    () => getReleaseNotesSection(`## v0.7.4\n\n${freewareNotice}\n\n${unsignedReleaseNotice}\n`, "0.7.4"),
-    /user-facing changes/u
+    () => getReleaseNotesSection(`## v0.7.4\n\n- Changed.\n\n${requiredNotices}\n\n## General notices\n\n${requiredNotices}\n`, "0.7.4"),
+    /must not repeat/u
   );
+  assert.throws(() => getGeneralReleaseNotices("## v0.7.4\n\n- Changed.\n"), /General notices/u);
   assert.throws(() => getReleaseNotesSection("## v0.7.4\n- One\n## v0.7.4\n- Two\n", "0.7.4"), /exactly one/u);
 });
 
@@ -179,8 +183,8 @@ test("marked release-note extraction requires safe boundaries and canonical noti
 });
 
 test("release-note replacement changes only the matching section and is idempotent", () => {
-  const original = `# Release notes\r\n\r\n## v0.8.0\r\n\r\n- Old.\r\n\r\n${requiredNotices.replaceAll("\n", "\r\n")}\r\n\r\n## v0.7.3\r\n\r\n- Keep.\r\n\r\n${requiredNotices.replaceAll("\n", "\r\n")}\r\n`;
-  const replacement = `## Highlights\n\n- Edited on GitHub.\n\n${requiredNotices}`;
+  const original = `# Release notes\r\n\r\n## v0.8.0\r\n\r\n- Old.\r\n\r\n## v0.7.3\r\n\r\n- Keep.\r\n\r\n## General notices\r\n\r\n${requiredNotices.replaceAll("\n", "\r\n")}\r\n`;
+  const replacement = "## Highlights\n\n- Edited on GitHub.";
   const updated = replaceReleaseNotesSection(original, "0.8.0", replacement);
   assert.match(updated, /## v0\.8\.0\r\n\r\n## Highlights\r\n\r\n- Edited on GitHub\./u);
   assert.match(updated, /## v0\.7\.3\r\n\r\n- Keep\./u);
@@ -189,12 +193,13 @@ test("release-note replacement changes only the matching section and is idempote
   assert.throws(() => replaceReleaseNotesSection(original, "0.9.0", replacement), /found 0/u);
 });
 
-test("every maintained release-note section includes the required notices", async () => {
+test("release notes keep one shared canonical notices section", async () => {
   const notes = await readFile(new URL("../../docs/release-notes.md", import.meta.url), "utf8");
   const sectionCount = [...notes.matchAll(/^## v\S+$/gmu)].length;
   assert.ok(sectionCount > 0);
-  assert.equal(notes.split(freewareNotice).length - 1, sectionCount);
-  assert.equal(notes.split(unsignedReleaseNotice).length - 1, sectionCount);
+  assert.equal(notes.split(freewareNotice).length - 1, 1);
+  assert.equal(notes.split(unsignedReleaseNotice).length - 1, 1);
+  assert.equal(getGeneralReleaseNotices(notes), requiredNotices);
 });
 
 test("workflow restoration copies archived YAML without overwriting existing files", async () => {
@@ -215,7 +220,8 @@ test("workflow restoration copies archived YAML without overwriting existing fil
 
 test("release body and draft audit require the exact local artifact set", () => {
   const body = buildReleaseBody({
-    notes: `- A visible fix.\n\n${requiredNotices}`,
+    notes: "- A visible fix.",
+    notices: requiredNotices,
     version: "0.7.4",
     latestTag: "v0.7.3",
     repository: "voltura/voltura-air"
@@ -225,6 +231,7 @@ test("release body and draft audit require the exact local artifact set", () => 
   assert.equal(body.split(releaseNotesStartMarker).length - 1, 1);
   assert.equal(body.split(releaseNotesEndMarker).length - 1, 1);
   assert.ok(body.indexOf(releaseNotesStartMarker) < body.indexOf("- A visible fix."));
+  assert.equal(extractUserFacingReleaseNotes(extractMarkedReleaseNotes(body)), "- A visible fix.");
   assert.ok(body.indexOf(releaseNotesEndMarker) < body.indexOf("## Downloads"));
 
   const names = ["portable.zip", "small.exe", "full.exe"];

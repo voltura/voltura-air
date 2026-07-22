@@ -200,10 +200,10 @@ workflow setting; review triggers and remote state before committing them.
 
 ## Maintain release notes
 
-Maintain `docs/release-notes.md` newest first. Each release uses one heading such
-as `## v0.8.0`, followed by concise user-facing bullets. The local release
-command refuses to prepare a version when its section is missing, duplicated,
-empty, or contains only an editorial HTML comment.
+Maintain `docs/release-notes.md` newest first. Before starting a release, add
+one heading such as `## v0.8.0` at the top, followed by concise user-facing
+bullets. The local release command refuses to prepare a version when its section
+is missing, duplicated, empty, or contains only an editorial HTML comment.
 
 ```markdown
 ## v0.8.0
@@ -215,8 +215,8 @@ empty, or contains only an editorial HTML comment.
 
 Include only new user-facing features and fixes for defects that users could
 actually experience. Omit refactors, code organization, tests, CI, tooling,
-documentation, dependency maintenance, and other internal work. End every
-version section with these paragraphs:
+documentation, dependency maintenance, and other internal work. Keep the
+required notices once, unchanged, in the bottom `## General notices` section:
 
 ```markdown
 Voltura Air is free software from Voltura AB. If it helps you, optional support is available through [Ko-fi](https://ko-fi.com/voltura) or [PayPal](https://www.paypal.me/voltura).
@@ -224,9 +224,9 @@ Voltura Air is free software from Voltura AB. If it helps you, optional support 
 Release binaries are not code-signed. Windows may show an unknown-publisher or Microsoft Defender SmartScreen warning. Download release files only from the official Voltura Air website or GitHub release page.
 ```
 
-The local command requires at least one user-facing change in addition to these
-paragraphs, then adds download guidance and a changelog link to the GitHub body.
-The generated body places invisible synchronization markers around the editable
+The local command requires at least one user-facing change, then adds the shared
+notices, download guidance, and a changelog link to the GitHub body. The
+generated body places invisible synchronization markers around the editable
 notes and notices. Preserve those HTML comments when editing a draft in GitHub.
 
 After publishing the draft manually in GitHub, synchronize the published
@@ -245,10 +245,11 @@ npm run release:sync-release-notes -- 0.8.0
 
 Synchronization requires a clean worktree, exactly one marker pair, both exact
 notices, user-facing content, and one matching local version section. It updates
-only `docs/release-notes.md`, preserves its line endings, and does not edit
-GitHub, commit, push, bump a version, or publish anything. Review and commit the
-resulting documentation diff manually. Repeating the command when both copies
-already match succeeds without rewriting the file.
+only that version's user-facing notes in `docs/release-notes.md`; shared notices
+remain unchanged. It preserves line endings and does not edit GitHub, commit,
+push, bump a version, or publish anything. Review and commit the resulting
+documentation diff manually. Repeating the command when both copies already
+match succeeds without rewriting the file.
 
 When a release changes pairing, authentication, permissions, or network
 exposure, state the practical security impact without implying transport

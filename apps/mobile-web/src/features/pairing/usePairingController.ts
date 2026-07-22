@@ -5,6 +5,7 @@ import {
   type PairingLink
 } from "../../foundation/pairing/pairingLink";
 import { decodeQrImage } from "../../foundation/pairing/qrCode";
+import { getDefaultDeviceName } from "../../foundation/platform/clientEnvironment";
 
 interface PairingControllerOptions {
   beginNewPairing: () => void;
@@ -30,8 +31,10 @@ export function usePairingController(options: PairingControllerOptions) {
   const setPairingScanMessage = (scanMessage: string) => {
     setPairingFeedback({ sourceMessage: message, scanMessage });
   };
-  const [enteredPairingDeviceName, setPairingDeviceName] = useState(deviceName);
-  const pairingDeviceName = enteredPairingDeviceName || deviceName;
+  const pairingDeviceNamePlaceholder = getDefaultDeviceName();
+  const [pairingDeviceName, setPairingDeviceName] = useState(
+    deviceName === pairingDeviceNamePlaceholder ? "" : deviceName
+  );
   const pairingQrInputRef = useRef<HTMLInputElement | null>(null);
   const scanGenerationRef = useRef(0);
 
@@ -42,7 +45,7 @@ export function usePairingController(options: PairingControllerOptions) {
       return;
     }
 
-    const name = pairingDeviceName.trim() || deviceName;
+    const name = pairingDeviceName.trim() || pairingDeviceNamePlaceholder;
     setPairingScanMessage("Connecting...");
     setPendingPairing(null);
     setIsSettingsOpen(false);
@@ -53,7 +56,7 @@ export function usePairingController(options: PairingControllerOptions) {
     if (target.kind === "pairing") {
       beginNewPairing();
       setPendingPairing({ pairToken: target.pairToken, pcUrl: target.pcUrl });
-      setPairingDeviceName(deviceName);
+      setPairingDeviceName(deviceName === pairingDeviceNamePlaceholder ? "" : deviceName);
       setPairingScanMessage("Confirm the device name shown on the PC, or change it before pairing.");
       setIsSettingsOpen(false);
       return;
@@ -108,7 +111,7 @@ export function usePairingController(options: PairingControllerOptions) {
 
       beginNewPairing();
       setPendingPairing(pairingInfo);
-      setPairingDeviceName(deviceName);
+      setPairingDeviceName(deviceName === pairingDeviceNamePlaceholder ? "" : deviceName);
       setPairingScanMessage("Confirm the device name shown on the PC, or change it before pairing.");
       setIsSettingsOpen(false);
     } catch (error) {
@@ -125,6 +128,7 @@ export function usePairingController(options: PairingControllerOptions) {
     connectManualHost,
     onPairingQrSelected,
     pairingDeviceName,
+    pairingDeviceNamePlaceholder,
     pairingQrInputRef,
     pairingScanMessage,
     pairingStatusMessage,

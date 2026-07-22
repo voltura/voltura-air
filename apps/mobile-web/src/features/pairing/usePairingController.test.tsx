@@ -54,6 +54,68 @@ describe("usePairingController", () => {
 
   afterEach(() => { vi.restoreAllMocks(); });
 
+  it("uses the detected device default as an empty field placeholder", () => {
+    const options = { ...createOptions(), deviceName: "Mobile device" };
+    const { result } = renderHook(() => usePairingController(options));
+
+    expect(result.current.pairingDeviceName).toBe("");
+    expect(result.current.pairingDeviceNamePlaceholder).toBe("Mobile device");
+  });
+
+  it.each([
+    ["Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)", "iPhone"],
+    ["Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X)", "iPad"],
+    ["Mozilla/5.0 (Linux; Android 15; Pixel 9) Mobile", "Android phone"],
+    ["Mozilla/5.0 (Linux; Android 15; SM-T970)", "Android tablet"]
+  ])("uses the platform suggestion for %s", (userAgent, expectedName) => {
+    vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue(userAgent);
+    const options = { ...createOptions(), deviceName: expectedName };
+    const { result } = renderHook(() => usePairingController(options));
+
+    expect(result.current.pairingDeviceName).toBe("");
+    expect(result.current.pairingDeviceNamePlaceholder).toBe(expectedName);
+  });
+
+  it("keeps a previously customized device name as the editable value", () => {
+    const options = { ...createOptions(), deviceName: "Joakim's phone" };
+    const { result } = renderHook(() => usePairingController(options));
+
+    expect(result.current.pairingDeviceName).toBe("Joakim's phone");
+    expect(result.current.pairingDeviceNamePlaceholder).toBe("Mobile device");
+  });
+
+  it("keeps a cleared custom name empty and pairs with the detected default", () => {
+    const options = { ...createOptions(), deviceName: "Joakim's phone" };
+    const { result } = renderHook(() => usePairingController(options));
+
+    act(() => {
+      result.current.connectManualHost({ kind: "pairing", pairToken, pcUrl: "http://pc-two.local:51395" });
+      result.current.setPairingDeviceName("");
+    });
+
+    expect(result.current.pairingDeviceName).toBe("");
+
+    act(() => { result.current.confirmPendingPairing(); });
+
+    expect(options.pairWithToken).toHaveBeenCalledExactlyOnceWith(pairToken, "http://pc-two.local:51395", "Mobile device");
+  });
+
+  it.each([
+    ["  Replacement phone  ", "Replacement phone"],
+    ["   ", "Mobile device"]
+  ])("pairs with the entered name or default fallback for %j", (enteredName, expectedName) => {
+    const options = { ...createOptions(), deviceName: "Mobile device" };
+    const { result } = renderHook(() => usePairingController(options));
+
+    act(() => {
+      result.current.connectManualHost({ kind: "pairing", pairToken, pcUrl: "http://pc-two.local:51395" });
+      result.current.setPairingDeviceName(enteredName);
+    });
+    act(() => { result.current.confirmPendingPairing(); });
+
+    expect(options.pairWithToken).toHaveBeenCalledExactlyOnceWith(pairToken, "http://pc-two.local:51395", expectedName);
+  });
+
   it("keeps connection progress out of the QR scan guidance", () => {
     const options = {
       ...createOptions(),

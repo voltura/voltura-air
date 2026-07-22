@@ -14,6 +14,7 @@ interface PairingStatusProps {
   blocksAppInteraction?: boolean;
   connectionProgress?: "reconnecting" | "connected";
   deviceName?: string | undefined;
+  deviceNamePlaceholder?: string | undefined;
   diagnostics?: string;
   heading?: string | undefined;
   message: string;
@@ -34,6 +35,7 @@ export function PairingStatus({
   blocksAppInteraction = false,
   connectionProgress,
   deviceName,
+  deviceNamePlaceholder,
   diagnostics,
   heading,
   message,
@@ -202,6 +204,7 @@ export function PairingStatus({
               <input
                 className="text-input"
                 maxLength={80}
+                placeholder={deviceNamePlaceholder}
                 value={deviceName}
                 onChange={(event) => { onDeviceNameChange(event.target.value); }}
               />

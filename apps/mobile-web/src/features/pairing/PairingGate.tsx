@@ -14,6 +14,7 @@ interface PairingGateProps {
   manualReconnectProgress?: "reconnecting" | "connected" | undefined;
   message: string;
   pairingDeviceName: string;
+  pairingDeviceNamePlaceholder: string;
   pairingStatusMessage: string;
   pendingPairing: boolean;
   reconnectablePcs: PcProfile[];
@@ -33,6 +34,7 @@ export function PairingGate({
   manualReconnectProgress,
   message,
   pairingDeviceName,
+  pairingDeviceNamePlaceholder,
   pairingStatusMessage,
   pendingPairing,
   reconnectablePcs,
@@ -69,6 +71,7 @@ export function PairingGate({
         blocksAppInteraction
         diagnostics={diagnostics}
         deviceName={pendingPairing ? pairingDeviceName : undefined}
+        deviceNamePlaceholder={pendingPairing ? pairingDeviceNamePlaceholder : undefined}
         heading={state === "disconnected" ? "PC disconnected" : undefined}
         message={pendingPairing ? "Confirm the device name shown on the PC, or change it before pairing." : pairingStatusMessage}
         onDeviceNameChange={pendingPairing ? setPairingDeviceName : undefined}

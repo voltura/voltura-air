@@ -17,6 +17,26 @@ vi.mock("../../foundation/pairing/pairingFeedback", async (importOriginal) => {
 });
 
 describe("PairingStatus", () => {
+  it("shows the detected device name as a placeholder without blocking edits", () => {
+    const onDeviceNameChange = vi.fn();
+    render(
+      <PairingStatus
+        deviceName=""
+        deviceNamePlaceholder="Android phone"
+        message="Confirm the device name"
+        onDeviceNameChange={onDeviceNameChange}
+        onPrimaryAction={vi.fn()}
+      />
+    );
+
+    const input = screen.getByRole("textbox", { name: "Device name" });
+    expect(input.getAttribute("placeholder")).toBe("Android phone");
+    expect((input as HTMLInputElement).value).toBe("");
+
+    fireEvent.change(input, { target: { value: "Kitchen phone" } });
+    expect(onDeviceNameChange).toHaveBeenCalledExactlyOnceWith("Kitchen phone");
+  });
+
   it("keeps keyboard focus inside blocking connection feedback", () => {
     render(
       <PairingStatus

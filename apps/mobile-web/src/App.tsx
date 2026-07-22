@@ -179,6 +179,7 @@ export function App() {
     connectManualHost,
     onPairingQrSelected,
     pairingDeviceName,
+    pairingDeviceNamePlaceholder,
     pairingQrInputRef,
     pairingScanMessage,
     pairingStatusMessage,
@@ -273,6 +274,7 @@ export function App() {
           manualReconnectProgress={manualReconnectProgress}
           message={message}
           pairingDeviceName={pairingDeviceName}
+          pairingDeviceNamePlaceholder={pairingDeviceNamePlaceholder}
           pairingStatusMessage={pairingStatusMessage}
           pendingPairing={pendingPairing !== null}
           reconnectablePcs={reconnectablePcs}

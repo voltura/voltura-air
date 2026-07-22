@@ -7,7 +7,9 @@ v0.7.4.
 
 ## v0.7.4
 
-<!-- Add short user-visible features and fixes here. Omit tests, refactors, CI, release tooling, and documentation-only work. -->
+- Redesigned the Windows Connection screen to make network setup and recovery easier to understand.
+- Made it simpler to choose the Wi-Fi or LAN adapter your device can reach when pairing fails.
+- Moved custom port controls into an advanced section and clearly shows when connection changes need a restart.
 
 Voltura Air is free software from Voltura AB. If it helps you, optional support is available through [Ko-fi](https://ko-fi.com/voltura) or [PayPal](https://www.paypal.me/voltura).
 

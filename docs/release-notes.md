@@ -9,7 +9,7 @@ exact target-version section and does not create one. Keep the shared notices in
 
 - Redesigned the Windows Connection screen to make network setup and recovery easier to understand.
 - Made it simpler to choose the Wi-Fi or LAN adapter your device can reach when pairing fails.
-- Moved custom port controls into an advanced section and clearly shows when connection changes need a restart.
+- Moved custom port controls into its own section and clearly shows when connection changes need a restart.
 
 ## v0.7.3
 

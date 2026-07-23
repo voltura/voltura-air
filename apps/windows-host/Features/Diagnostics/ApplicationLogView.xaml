@@ -65,18 +65,30 @@
             </ui:SpacingStackPanel>
         </ScrollViewer>
 
-        <ui:SpacingWrapPanel Grid.Row="2"
-                             HorizontalSpacing="{DynamicResource SpaceSm}"
-                             VerticalSpacing="{DynamicResource SpaceSm}">
-            <Button x:Name="RefreshButton" Content="Refresh" />
-            <Button x:Name="CopyButton" Content="Copy filtered log" />
-            <Button x:Name="OpenFolderButton" Content="Open log folder" />
-            <Button x:Name="DeleteButton"
-                    Content="Delete logs"
-                    Style="{DynamicResource DangerButtonStyle}" />
-            <CheckBox x:Name="AutomaticRefreshToggle"
-                      VerticalAlignment="Center"
-                      Content="Automatic log refresh" />
-        </ui:SpacingWrapPanel>
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="{DynamicResource GridSpaceXl}" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Button x:Name="RefreshButton"
+                    Content="Refresh"
+                    VerticalAlignment="Top" />
+            <ui:SpacingWrapPanel Grid.Column="2"
+                                 HorizontalSpacing="{DynamicResource SpaceLg}"
+                                 VerticalSpacing="{DynamicResource SpaceSm}">
+                <ui:SpacingWrapPanel HorizontalSpacing="{DynamicResource SpaceSm}"
+                                     VerticalSpacing="{DynamicResource SpaceSm}">
+                    <Button x:Name="CopyButton" Content="Copy filtered log" />
+                    <Button x:Name="OpenFolderButton" Content="Open log folder" />
+                </ui:SpacingWrapPanel>
+                <Button x:Name="DeleteButton"
+                        Content="Delete logs"
+                        Style="{DynamicResource DangerButtonStyle}" />
+                <CheckBox x:Name="AutomaticRefreshToggle"
+                          VerticalAlignment="Center"
+                          Content="Automatic log refresh" />
+            </ui:SpacingWrapPanel>
+        </Grid>
     </Grid>
 </UserControl>

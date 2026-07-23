@@ -98,7 +98,11 @@ internal static class Program
             var screenshotPreferencesSection = args.Contains("--site-screenshot-mode", StringComparer.OrdinalIgnoreCase)
                 ? GetOption(args, "--site-screenshot-preferences-section")
                 : null;
-            if (!string.IsNullOrWhiteSpace(screenshotPreferencesSection))
+            if (args.Contains("--presentation-demo-data", StringComparer.OrdinalIgnoreCase))
+            {
+                s_runtime.MainWindow.ShowPage(HostPage.Presentations);
+            }
+            else if (!string.IsNullOrWhiteSpace(screenshotPreferencesSection))
             {
                 s_runtime.MainWindow.ShowPreferencesSectionForScreenshot(screenshotPreferencesSection);
             }

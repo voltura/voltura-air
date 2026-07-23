@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using VolturaAir.Host.Ui;
@@ -194,6 +195,7 @@ public sealed class ThemedConfirmationDialog : Window
             MinWidth = 96,
             Padding = new Thickness(14, 6, 14, 6),
             Cursor = WpfCursors.Hand,
+            FocusVisualStyle = null,
             BorderThickness = new Thickness(1),
             Background = isPrimary
                 ? _tone == ConfirmationTone.Warning ? Brush("DangerBrush") : Brush("AccentBrush")
@@ -238,6 +240,10 @@ public sealed class ThemedConfirmationDialog : Window
         var pressed = new Trigger { Property = Button.IsPressedProperty, Value = true };
         pressed.Setters.Add(new Setter(Border.OpacityProperty, 0.82, "Chrome"));
         template.Triggers.Add(pressed);
+
+        var focused = new Trigger { Property = Button.IsKeyboardFocusedProperty, Value = true };
+        focused.Setters.Add(new Setter(Border.BorderBrushProperty, new DynamicResourceExtension("FocusBrush"), "Chrome"));
+        template.Triggers.Add(focused);
 
         return template;
     }

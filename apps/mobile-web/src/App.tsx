@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getAvailableToolModeIds, toolModeDefinitions } from "./app/appModeTabs";
 import { createSettingsActions, SettingsDrawer } from "./features/settings";
 import { parsePairingLink } from "./foundation/pairing/pairingLink";
@@ -42,6 +42,7 @@ export function App() {
     activePc,
     pairedPcs,
     reconnectablePcs,
+    requestPresentationCommand,
     supportsGestureDebug,
     supportsRemoteLaunch,
     lastConnectionError,
@@ -94,6 +95,14 @@ export function App() {
   const headerCompactModeButtonRef = useRef<HTMLButtonElement | null>(null);
   const trackpadCompactModeButtonRef = useRef<HTMLButtonElement | null>(null);
   const previousTabRef = useRef<string | null>(null);
+  const pendingPresentationExitRef = useRef<(() => void) | null>(null);
+  const pendingPresentationConnectionRef = useRef<(() => void) | null>(null);
+  const [presentationSessionActive, setPresentationSessionActive] = useState(false);
+  const [isPresentationExitOpen, setIsPresentationExitOpen] = useState(false);
+  const [presentationConnectionIntent, setPresentationConnectionIntent] = useState<"connect" | "disconnect" | null>(null);
+  const handlePresentationSessionActiveChange = useCallback((active: boolean) => {
+    setPresentationSessionActive(active);
+  }, []);
 
   const launchRemoteAction = (action: RemoteLaunchAction) => {
     if (supportsRemoteLaunch && state === "paired") {
@@ -143,30 +152,91 @@ export function App() {
     isPaired: state === "paired",
     onActiveModeTabCollapse: showModeSwitchHintOnce,
     onEnterRemote: () => { requestRemoteModeLaunch(remoteSettings.mode, remoteSettings); },
-    presentationAvailable,
+    presentationAvailable: presentationAvailable || presentationSessionActive,
     supportsGestureDebug,
     trackpadSettings,
     showModeButtons
   });
+  useEffect(() => {
+    if (state === "paired" &&
+        tab !== "presentation" &&
+        presentationCapability?.laserPointerActive === true) {
+      requestPresentationCommand("powerpoint", "pointer", false);
+    }
+  }, [presentationCapability?.laserPointerActive, requestPresentationCommand, state, tab]);
+
+  const requestPresentationExit = (action: () => void) => {
+    if (tab === "presentation" && presentationSessionActive) {
+      pendingPresentationExitRef.current = action;
+      closeTransientSurfaces();
+      setIsPresentationExitOpen(true);
+      return;
+    }
+
+    action();
+  };
+  const selectModeTabWithPresentationGuard: typeof selectModeTab = (nextTab, source) => {
+    if (nextTab === tab) {
+      selectModeTab(nextTab, source);
+      return;
+    }
+
+    requestPresentationExit(() => { selectModeTab(nextTab, source); });
+  };
+  const openModeFromMenuWithPresentationGuard: typeof openModeFromMenu = (mode) => {
+    if (mode === tab) {
+      openModeFromMenu(mode);
+      return;
+    }
+
+    requestPresentationExit(() => { openModeFromMenu(mode); });
+  };
+  const openGestureDebugWithPresentationGuard = () => {
+    requestPresentationExit(openGestureDebug);
+  };
+  const requestPresentationConnectionChange = (
+    intent: "connect" | "disconnect",
+    action: () => void
+  ) => {
+    if (!presentationSessionActive) {
+      action();
+      return;
+    }
+
+    pendingPresentationConnectionRef.current = action;
+    closeTransientSurfaces();
+    setPresentationConnectionIntent(intent);
+  };
   const {
     forgetPcAndSettings,
     updateAppSetting,
     updateKeyboardSetting,
-    updateRemoteSetting,
+    updateRemoteSetting: persistRemoteSetting,
     updateTrackpadSetting
   } = createSettingsActions({
     clientId,
     effectiveTrackpadSettings,
     forgetPc,
-    onSelectRemoteMode: (mode, nextSettings) => {
-      selectModeTab("remote", "settings");
-      setIsSettingsOpen(false);
-      requestRemoteModeLaunch(mode, nextSettings);
-    },
-    remoteSettings,
     setHostPointerSpeed,
     settingsState: pcSettings
   });
+  const updateRemoteSetting = <Key extends keyof RemoteSettings>(
+    key: Key,
+    value: RemoteSettings[Key]
+  ) => {
+    const nextSettings = { ...remoteSettings, [key]: value };
+    if (key === "mode" &&
+        value !== remoteSettings.mode &&
+        (value === "youtube" || value === "kodi")) {
+      requestPresentationExit(() => {
+        selectModeTab("remote", "settings");
+        setIsSettingsOpen(false);
+        requestRemoteModeLaunch(value, nextSettings);
+      });
+    }
+
+    persistRemoteSetting(key, value);
+  };
   const { installApp, installPrompt, isInstalled, refreshInstalledApp, refreshMessage } = usePwaLifecycle({
     activePc,
     autoRefresh: appSettings.autoRefresh,
@@ -186,7 +256,21 @@ export function App() {
     pendingPairing,
     scanPairingQr,
     setPairingDeviceName
-  } = usePairingController({ beginNewPairing, connectManualPc, deviceName, initialPairing, message, pairWithToken, setIsSettingsOpen });
+  } = usePairingController({
+    beginNewPairing: () => { requestPresentationConnectionChange("connect", beginNewPairing); },
+    connectManualPc: (target) => {
+      requestPresentationConnectionChange("connect", () => { connectManualPc(target); });
+    },
+    deviceName,
+    initialPairing,
+    message,
+    pairWithToken: (token, pcUrl, requestedDeviceName) => {
+      requestPresentationConnectionChange("connect", () => {
+        pairWithToken(token, pcUrl, requestedDeviceName);
+      });
+    },
+    setIsSettingsOpen
+  });
 
   const mobileDiagnostics = useMemo(() => buildMobileDiagnostics({
     activePc,
@@ -218,6 +302,45 @@ export function App() {
     return () => { window.clearTimeout(timeout); };
   }, [transientFeedback]);
 
+  useEffect(() => {
+    if (!presentationSessionActive) {
+      return;
+    }
+
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => { window.removeEventListener("beforeunload", warnBeforeUnload); };
+  }, [presentationSessionActive]);
+
+  const stayInPresentation = () => {
+    pendingPresentationExitRef.current = null;
+    setPendingRemoteLaunch(null);
+    setIsPresentationExitOpen(false);
+    closeTransientSurfaces();
+  };
+
+  const leavePresentation = () => {
+    const pendingExit = pendingPresentationExitRef.current;
+    pendingPresentationExitRef.current = null;
+    setIsPresentationExitOpen(false);
+    pendingExit?.();
+  };
+
+  const keepPresentationConnection = () => {
+    pendingPresentationConnectionRef.current = null;
+    setPresentationConnectionIntent(null);
+    closeTransientSurfaces();
+  };
+
+  const confirmPresentationConnectionChange = () => {
+    const pendingChange = pendingPresentationConnectionRef.current;
+    pendingPresentationConnectionRef.current = null;
+    setPresentationConnectionIntent(null);
+    pendingChange?.();
+  };
+
   const showClipboardCopyFeedback = (feedback: AppToastMessage) => {
     setSuppressedClipboardResultId(clipboardReadResult?.operationId ?? null);
     setTransientFeedback(feedback);
@@ -226,7 +349,7 @@ export function App() {
   const tryReconnectPc = (pcId: string) => {
     dismissModeSwitchHint();
     closeTransientSurfaces();
-    reconnectPc(pcId);
+    requestPresentationConnectionChange("connect", () => { reconnectPc(pcId); });
   };
 
   const tryManualReconnect = () => {
@@ -254,7 +377,7 @@ export function App() {
           }}
           onSelectMode={(nextTab) => {
             dismissModeSwitchHint();
-            selectModeTab(nextTab, "selector");
+            selectModeTabWithPresentationGuard(nextTab, "selector");
           }}
           onToggleModeSelector={() => {
             dismissModeSwitchHint();
@@ -291,18 +414,22 @@ export function App() {
           customPointerEnabled={hostStatus?.customPointerEnabled}
           diagnostics={mobileDiagnostics}
           deviceName={deviceName}
-          disconnectActivePc={disconnectActivePc}
-          forgetPc={forgetPcAndSettings}
+          disconnectActivePc={() => {
+            requestPresentationConnectionChange("disconnect", disconnectActivePc);
+          }}
+          forgetPc={(pcId) => {
+            requestPresentationConnectionChange("disconnect", () => { forgetPcAndSettings(pcId); });
+          }}
           installApp={installApp}
           installPrompt={installPrompt}
           isInstalled={isInstalled}
           isOpen={isSettingsOpen}
           keyboardSettings={keyboardSettings}
           onClose={() => { setIsSettingsOpen(false); }}
-          onOpenGestureDebug={supportsGestureDebug ? openGestureDebug : undefined}
+          onOpenGestureDebug={supportsGestureDebug ? openGestureDebugWithPresentationGuard : undefined}
           onOpenMode={(mode) => {
             dismissModeSwitchHint();
-            openModeFromMenu(mode);
+            openModeFromMenuWithPresentationGuard(mode);
           }}
           onPairingQrSelected={onPairingQrSelected}
           onManualHostSubmit={connectManualHost}
@@ -316,7 +443,9 @@ export function App() {
           renamePc={renamePc}
           remoteSettings={remoteSettings}
           scanPairingQr={scanPairingQr}
-          selectPc={selectPc}
+          selectPc={(pcId) => {
+            requestPresentationConnectionChange("connect", () => { selectPc(pcId); });
+          }}
           setHostCustomPointer={setHostCustomPointer}
           setHostShowModeButtons={setHostShowModeButtons}
           setThemeMode={setThemeMode}
@@ -337,7 +466,7 @@ export function App() {
           updateTrackpadSetting={updateTrackpadSetting}
         />
 
-        {isModeButtonsVisible && <ModeNavigation className="tabs top-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTab} />}
+        {isModeButtonsVisible && <ModeNavigation className="tabs top-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTabWithPresentationGuard} />}
 
         <ModeWorkspace
           appSettings={appSettings}
@@ -345,6 +474,7 @@ export function App() {
           keyboardSettings={keyboardSettings}
           onClearAfterSendingChange={(value) => { updateAppSetting("clearTextAfterSending", value); }}
           onClipboardCopyFeedback={showClipboardCopyFeedback}
+          onPresentationSessionActiveChange={handlePresentationSessionActiveChange}
           onRemoteUtilityPanelOpenChange={setIsRemoteUtilityPanelOpen}
           remoteSettings={remoteSettings}
           shouldShowSplitMode={shouldShowSplitMode}
@@ -367,7 +497,7 @@ export function App() {
                   onClose={closeModeSelector}
                   onSelect={(nextTab) => {
                     dismissModeSwitchHint();
-                    selectModeTab(nextTab, "selector");
+                    selectModeTabWithPresentationGuard(nextTab, "selector");
                   }}
                 />
               )}
@@ -420,9 +550,33 @@ export function App() {
           }}
           title={`Open ${pendingRemoteLaunch === "openYoutube" ? "YouTube" : "Kodi"}?`}
         />
+        <ConfirmationDialog
+          cancelLabel="Stay in presentation"
+          confirmLabel="Leave and discard"
+          description="Presentation timing is active. Leaving will discard the timer, slide timings, sessions, and breaks."
+          isOpen={isPresentationExitOpen}
+          onCancel={stayInPresentation}
+          onConfirm={leavePresentation}
+          title="Leave presentation?"
+        />
+        <ConfirmationDialog
+          cancelLabel={presentationConnectionIntent === "disconnect" ? "Stay connected" : "Keep current connection"}
+          confirmLabel={presentationConnectionIntent === "disconnect" ? "Disconnect" : "Change PC"}
+          destructive={false}
+          description={presentationConnectionIntent === "disconnect"
+            ? "Presentation timing is active. Disconnecting will interrupt presentation controls and saving until this PC reconnects."
+            : "Presentation timing is active. Changing the PC will interrupt its controls and can prevent this session from being saved to the original PC."}
+          initialFocus="cancel"
+          isOpen={presentationConnectionIntent !== null}
+          onCancel={keepPresentationConnection}
+          onConfirm={confirmPresentationConnectionChange}
+          title={presentationConnectionIntent === "disconnect"
+            ? "Disconnect during presentation?"
+            : "Change PC during presentation?"}
+        />
       </main>
 
-      {isBottomModeNavigationVisible && <ModeNavigation className="tabs bottom-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTab} />}
+      {isBottomModeNavigationVisible && <ModeNavigation className="tabs bottom-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTabWithPresentationGuard} />}
     </div>
   );
 }

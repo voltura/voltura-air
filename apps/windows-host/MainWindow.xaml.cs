@@ -7,6 +7,7 @@ using VolturaAir.Host.Features.Connection;
 using VolturaAir.Host.Features.Devices;
 using VolturaAir.Host.Features.Diagnostics;
 using VolturaAir.Host.Features.Preferences;
+using VolturaAir.Host.Features.Presentations;
 using VolturaAir.Host.Ui;
 using Button = System.Windows.Controls.Button;
 
@@ -21,6 +22,7 @@ public partial class MainWindow : Window
     private readonly HostToastPresenter _toasts;
     private readonly ConnectPageController _connectPage;
     private readonly DevicesPageController _devicesPage;
+    private readonly PresentationsPageController _presentationsPage;
     private readonly ConnectionPageController _connectionPage;
     private readonly PreferencesPageController _preferencesPage;
     private readonly DiagnosticsPageController _diagnosticsPage;
@@ -78,6 +80,9 @@ public partial class MainWindow : Window
             pairingManager,
             effectivePowerController,
             () => SelectPage(HostPage.Devices));
+        _presentationsPage = new PresentationsPageController(
+            webHost.PresentationReportStore,
+            SetPresentationReportHeader);
         _connectionPage = new ConnectionPageController(
             this,
             pairingManager,
@@ -116,6 +121,7 @@ public partial class MainWindow : Window
         [
             ConnectNavButton,
             DevicesNavButton,
+            PresentationsNavButton,
             ConnectionNavButton,
             PreferencesNavButton,
             DiagnosticsNavButton
@@ -229,6 +235,8 @@ public partial class MainWindow : Window
         _pageNeedsRefresh = false;
         RefreshStatusText();
         RefreshNavigationTheme();
+        PageTypeBadge.Visibility = Visibility.Collapsed;
+        PageSubtitleText.Visibility = Visibility.Visible;
 
         switch (page)
         {
@@ -241,6 +249,11 @@ public partial class MainWindow : Window
                 PageTitleText.Text = "Devices";
                 PageSubtitleText.Text = "Manage trusted devices, active connections, and per-device permissions.";
                 PageContent.Content = _devicesPage.CreateView();
+                break;
+            case HostPage.Presentations:
+                PageTitleText.Text = "Presentations";
+                PageSubtitleText.Text = "Saved presentations";
+                PageContent.Content = _presentationsPage.CreateView();
                 break;
             case HostPage.Connection:
                 PageTitleText.Text = "Connection";
@@ -297,6 +310,7 @@ public partial class MainWindow : Window
     {
         HostPage.Connect => ConnectNavButton,
         HostPage.Devices => DevicesNavButton,
+        HostPage.Presentations => PresentationsNavButton,
         HostPage.Connection => ConnectionNavButton,
         HostPage.Preferences => PreferencesNavButton,
         HostPage.Diagnostics => DiagnosticsNavButton,
@@ -321,10 +335,41 @@ public partial class MainWindow : Window
         }
     }
 
+    private void SetPresentationReportHeader(PresentationReport? report)
+    {
+        if (_activePage != HostPage.Presentations)
+        {
+            return;
+        }
+
+        if (report is null)
+        {
+            PageTitleText.Text = "Presentations";
+            PageSubtitleText.Text = "Saved presentations";
+            PageSubtitleText.Visibility = Visibility.Visible;
+            PageTypeBadge.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var localStart = report.StartedAt.ToOffset(TimeSpan.FromMinutes(report.UtcOffsetMinutes));
+        PageTitleText.Text = $"Presentations > {PresentationReportNames.DisplayName(report)}";
+        PageSubtitleText.Text = $"{localStart:yyyy-MM-dd HH:mm} · {report.DeviceName}";
+        PageSubtitleText.Visibility = Visibility.Visible;
+        PageTypeBadge.Content = report.Target switch
+        {
+            "powerpoint" => "PowerPoint",
+            "google-slides" => "Google Slides",
+            "pdf" => "PDF / browser",
+            _ => "Presentation"
+        };
+        PageTypeBadge.Visibility = Visibility.Visible;
+    }
+
     private string GetToastTitle() => _activePage switch
     {
         HostPage.Connect => "Connect",
         HostPage.Devices => "Devices",
+        HostPage.Presentations => "Presentations",
         HostPage.Connection => "Connection",
         HostPage.Preferences => "Preferences",
         HostPage.Diagnostics => "Diagnostics",
@@ -428,6 +473,7 @@ public partial class MainWindow : Window
 
     private void OnConnectNavClicked(object sender, RoutedEventArgs e) => SelectPage(HostPage.Connect);
     private void OnDevicesNavClicked(object sender, RoutedEventArgs e) => SelectPage(HostPage.Devices);
+    private void OnPresentationsNavClicked(object sender, RoutedEventArgs e) => SelectPage(HostPage.Presentations);
     private void OnConnectionNavClicked(object sender, RoutedEventArgs e) => SelectPage(HostPage.Connection);
     private void OnPreferencesNavClicked(object sender, RoutedEventArgs e) => SelectPage(HostPage.Preferences);
     private void OnDiagnosticsNavClicked(object sender, RoutedEventArgs e) => SelectPage(HostPage.Diagnostics);
@@ -439,6 +485,7 @@ public enum HostPage
 {
     Connect,
     Devices,
+    Presentations,
     Connection,
     Preferences,
     Diagnostics

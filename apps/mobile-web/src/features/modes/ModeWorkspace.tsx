@@ -28,18 +28,21 @@ type ConnectionContract = Pick<
   | "pendingClipboardRead"
   | "pendingPowerAction"
   | "pendingPresentationCommand"
+  | "pendingPresentationReportSave"
   | "pendingTextTransfer"
   | "pendingUrlOpen"
   | "powerActionResult"
   | "powerCapabilities"
   | "presentationCapability"
   | "presentationResult"
+  | "presentationReportSaveResult"
   | "requestAppLaunch"
   | "requestAudioState"
   | "requestAwakeChange"
   | "requestClipboardRead"
   | "requestPowerAction"
   | "requestPresentationCommand"
+  | "requestPresentationReportSave"
   | "requestTextTransfer"
   | "requestUrlOpen"
   | "send"
@@ -60,6 +63,7 @@ interface ModeWorkspaceProps {
   keyboardSettings: KeyboardSettings;
   onClearAfterSendingChange: (value: boolean) => void;
   onClipboardCopyFeedback: (feedback: AppToastMessage) => void;
+  onPresentationSessionActiveChange: (active: boolean) => void;
   onRemoteUtilityPanelOpenChange: (isOpen: boolean) => void;
   remoteSettings: RemoteSettings;
   shouldShowSplitMode: boolean;
@@ -76,6 +80,7 @@ export function ModeWorkspace({
   keyboardSettings,
   onClearAfterSendingChange,
   onClipboardCopyFeedback,
+  onPresentationSessionActiveChange,
   onRemoteUtilityPanelOpenChange,
   remoteSettings,
   shouldShowSplitMode,
@@ -116,7 +121,7 @@ export function ModeWorkspace({
 
   useEffect(() => {
     const trackpadVolumeVisible = tab === "trackpad" && showVolumeControl && !isTrackpadExpanded;
-    if (connectionState === "paired" && supportsVolumeControl && (trackpadVolumeVisible || tab === "remote")) {
+    if (connectionState === "paired" && supportsVolumeControl && (trackpadVolumeVisible || tab === "remote" || tab === "presentation")) {
       requestAudioState();
     }
   }, [connectionState, isTrackpadExpanded, requestAudioState, showVolumeControl, supportsVolumeControl, tab]);
@@ -185,14 +190,23 @@ export function ModeWorkspace({
         toLiveKeyboardValue
       }}
       presentationMode={{
+        audioState: displayedAudioState,
         blackoutAvailable: connection.powerCapabilities?.blackoutDisplay === true,
         capability: connection.presentationCapability,
         connected: connection.state === "paired",
         pending: connection.pendingPresentationCommand,
         pendingPowerAction: connection.pendingPowerAction,
+        reportSavePending: connection.pendingPresentationReportSave !== null,
+        reportSaveResult: connection.presentationReportSaveResult,
+        reportSavingAvailable: connection.presentationCapability?.canSaveReports === true,
         result: connection.presentationResult,
         onCommand: connection.requestPresentationCommand,
-        onPowerAction: connection.requestPowerAction
+        onMute: () => { sendSpecial("VolumeMute"); },
+        onPowerAction: connection.requestPowerAction,
+        onSaveReport: connection.requestPresentationReportSave,
+        onSessionActiveChange: onPresentationSessionActiveChange,
+        onVolumeDown: () => { sendSpecial("VolumeDown"); },
+        onVolumeUp: () => { sendSpecial("VolumeUp"); }
       }}
       remoteMode={{
         appLaunchActions: connection.hostStatus?.appLaunchActions ?? [],

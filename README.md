@@ -6,13 +6,15 @@
 
 Turn a phone, tablet, or touch browser into a wireless remote for a Windows PC.
 
-Voltura Air provides a trackpad, keyboard, text tools, dictation, media controls,
-and practical PC actions over the local network. There is no mobile app-store
-install, account, subscription, or cloud relay.
+Voltura Air provides a trackpad, keyboard, presentation remote, text tools,
+dictation, media controls, and practical PC actions over the local network.
+There is no mobile app-store install, account, subscription, or cloud relay.
 
 ## Core uses
 
 - Move, click, scroll, and type from a phone or tablet.
+- Present PowerPoint, Google Slides, or PDF/browser content with slide controls,
+  a native laser pointer, timing, and optional local statistics.
 - Dictate on supported browsers or send longer text composed on the mobile device.
 - Control media, volume, YouTube, Kodi, and common browser or window actions.
 - Keep the PC awake while Voltura Air runs, with an optional setting to keep its screen on.

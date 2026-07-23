@@ -3,6 +3,8 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <Style TargetType="Border">
+        <Setter Property="ToolTipService.Placement" Value="Top" />
+        <Setter Property="ToolTipService.VerticalOffset" Value="-6" />
         <Style.Triggers>
             <MultiTrigger>
                 <MultiTrigger.Conditions>
@@ -26,6 +28,8 @@
     </Style>
 
     <Style TargetType="ToolTip">
+        <Setter Property="Placement" Value="Top" />
+        <Setter Property="VerticalOffset" Value="-6" />
         <Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />

@@ -37,6 +37,13 @@
                 <ui:SpacingStackPanel x:Name="RemoteContent"
                                       Spacing="{DynamicResource SpaceMd}" />
             </Expander>
+            <Expander x:Name="PresentationSection"
+                      Header="Presentation"
+                      IsExpanded="False"
+                      Style="{DynamicResource PreferencesAccordionStyle}">
+                <ui:SpacingStackPanel x:Name="PresentationContent"
+                                      Spacing="{DynamicResource SpaceMd}" />
+            </Expander>
             <Expander x:Name="AwakeSection"
                       Header="Keep awake"
                       IsExpanded="False"

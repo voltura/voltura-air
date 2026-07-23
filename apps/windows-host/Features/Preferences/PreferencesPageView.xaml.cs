@@ -16,6 +16,9 @@ public partial class PreferencesPageView : WpfUserControl
         Action<Expander, StackPanel> revealSection)
     {
         InitializeComponent();
+        PresentationSection.Visibility = AppDeveloperSettings.EnableAlphaFeatures()
+            ? System.Windows.Visibility.Visible
+            : System.Windows.Visibility.Collapsed;
         _titleChanged = titleChanged;
         _revealSection = revealSection;
         _sections =
@@ -24,6 +27,7 @@ public partial class PreferencesPageView : WpfUserControl
             AppearanceSection,
             TrackpadSection,
             RemoteSection,
+            PresentationSection,
             AwakeSection,
             PermissionsSection,
             TextDestinationSection,

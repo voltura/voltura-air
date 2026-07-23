@@ -62,6 +62,7 @@
                 <ui:SpacingStackPanel Grid.Row="2" Spacing="{DynamicResource SpaceSm}">
                     <Button x:Name="ConnectNavButton" Content="Connect" Style="{StaticResource MenuButtonStyle}" Click="OnConnectNavClicked" />
                     <Button x:Name="DevicesNavButton" Content="Devices" Style="{StaticResource MenuButtonStyle}" Click="OnDevicesNavClicked" />
+                    <Button x:Name="PresentationsNavButton" Content="Presentations" Style="{StaticResource MenuButtonStyle}" Click="OnPresentationsNavClicked" />
                     <Button x:Name="ConnectionNavButton" Content="Connection" Style="{StaticResource MenuButtonStyle}" Click="OnConnectionNavClicked" />
                     <Button x:Name="PreferencesNavButton" Content="Preferences" Style="{StaticResource MenuButtonStyle}" Click="OnPreferencesNavClicked" />
                     <Button x:Name="DiagnosticsNavButton" Content="Diagnostics" Style="{StaticResource MenuButtonStyle}" Click="OnDiagnosticsNavClicked" />
@@ -78,16 +79,35 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <ui:SpacingStackPanel Spacing="{DynamicResource SpaceSm}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="{DynamicResource GridSpaceMd}" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
                 <TextBlock x:Name="PageTitleText"
                            FontSize="28"
                            FontWeight="Bold"
-                           Foreground="{DynamicResource TextBrush}" />
+                           Foreground="{DynamicResource TextBrush}"
+                           TextWrapping="Wrap" />
+                <ui:PillBadge x:Name="PageTypeBadge"
+                              Grid.Column="2"
+                              HorizontalAlignment="Right"
+                              VerticalAlignment="Center"
+                              Tone="Accent"
+                              Visibility="Collapsed" />
                 <TextBlock x:Name="PageSubtitleText"
+                           Grid.Row="1"
+                           Grid.ColumnSpan="3"
+                           Margin="0,8,0,0"
                            FontSize="14"
                            TextWrapping="Wrap"
                            Foreground="{DynamicResource MutedTextBrush}" />
-            </ui:SpacingStackPanel>
+            </Grid>
 
             <ContentControl x:Name="PageContent"
                             Grid.Row="2"

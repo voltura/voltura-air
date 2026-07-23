@@ -20,8 +20,6 @@ internal static class PresentationCommands
             (_, "end") when IsTarget(target) => new("Escape", [], "End slideshow command sent."),
             ("powerpoint", "start") => new("F5", [], "Start slideshow command sent."),
             ("powerpoint" or "google-slides", "black") => new("B", [], "Black screen command sent."),
-            ("powerpoint", "pointer") => new("L", ["Control"], "PowerPoint laser pointer command sent."),
-            ("google-slides", "pointer") => new("L", [], "Google Slides laser pointer command sent."),
             _ => default
         };
 

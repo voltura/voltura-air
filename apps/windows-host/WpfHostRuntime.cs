@@ -7,6 +7,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
     private readonly CustomPointerService _customPointerService;
     private readonly PointerHighlightForegroundMonitor _pointerHighlightForegroundMonitor;
     private readonly IAsyncDisposable _textDestinationDraftCleanup;
+    private readonly IAsyncDisposable _presentationEmailDraftCleanup;
     private readonly WebHostService _webHost;
     private readonly WpfTrayApplicationContext _trayContext;
     private readonly IAppLog _appLog;
@@ -18,6 +19,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         CustomPointerService customPointerService,
         PointerHighlightForegroundMonitor pointerHighlightForegroundMonitor,
         IAsyncDisposable textDestinationDraftCleanup,
+        IAsyncDisposable presentationEmailDraftCleanup,
         WebHostService webHost,
         PairingManager pairingManager,
         MainWindow mainWindow,
@@ -29,6 +31,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         _customPointerService = customPointerService;
         _pointerHighlightForegroundMonitor = pointerHighlightForegroundMonitor;
         _textDestinationDraftCleanup = textDestinationDraftCleanup;
+        _presentationEmailDraftCleanup = presentationEmailDraftCleanup;
         _webHost = webHost;
         PairingManager = pairingManager;
         MainWindow = mainWindow;
@@ -57,6 +60,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         CursorWatchdogService? cursorWatchdogService = null;
         CustomPointerService? customPointerService = null;
         IAsyncDisposable? textDestinationDraftCleanup = null;
+        IAsyncDisposable? presentationEmailDraftCleanup = null;
         ISystemPowerController? powerController = null;
         IAwakeService? awakeService = null;
         WebHostService? webHost = null;
@@ -72,8 +76,12 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 AppPointerSettings.UseCursorRecoveryWatchdog,
                 cursorWatchdogService.EnsureMonitoring,
                 cursorWatchdogService.StopMonitoring);
+            customPointerService.ApplyPresentationLaserPointerSettings(
+                AppPointerSettings.GetPresentationLaserPointer());
             customPointerService.Apply(AppPointerSettings.GetCustomPointer());
             textDestinationDraftCleanup = TextDestinationDraftStore.CreateCleanupService(appLog);
+            presentationEmailDraftCleanup =
+                new Features.Presentations.PresentationEmailDraftCleanup(appLog);
             var inputDispatcher = new InputDispatcher(inputInjector);
             var workstationLockPolicy = new WorkstationLockPolicy(appLog);
             powerController = isolatedTestMode
@@ -91,6 +99,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 appLog: appLog,
                 textDestinationService: new TextDestinationService(inputDispatcher, inputInjector),
                 applyCustomPointer: customPointerService.Apply,
+                applyPresentationLaserPointer: customPointerService.SetPresentationLaserPointer,
                 isolatedTestMode: isolatedTestMode);
 
             pointerHighlightForegroundMonitor = new PointerHighlightForegroundMonitor(appLog);
@@ -99,6 +108,14 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
             inputDispatcher.TaskbarActivated += (_, _) => pointerHighlightForegroundMonitor.NotifyTaskbarActivation();
             webHost.SetInputBlockedByElevation(pointerHighlightForegroundMonitor.IsRemoteInputBlocked);
             await webHost.StartAsync();
+#if DEBUG
+            if (isolatedTestMode &&
+                HasOption(args, "--presentation-demo-data") &&
+                webHost.PresentationReportStore is InMemoryPresentationReportStore demoReportStore)
+            {
+                Features.Presentations.PresentationReportDemoData.AddTo(demoReportStore);
+            }
+#endif
 #if DEBUG
             if (HasOption(args, "--print-host-client-url"))
             {
@@ -126,6 +143,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 customPointerService,
                 pointerHighlightForegroundMonitor,
                 textDestinationDraftCleanup,
+                presentationEmailDraftCleanup,
                 webHost,
                 pairingManager,
                 mainWindow,
@@ -138,6 +156,10 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
             TryCloseWindow(mainWindow, appLog);
             TryDispose(pointerHighlightForegroundMonitor, appLog, "pointer_foreground_monitor");
             await TryDisposeAsync(textDestinationDraftCleanup, appLog, "text_destination_draft_cleanup");
+            await TryDisposeAsync(
+                presentationEmailDraftCleanup,
+                appLog,
+                "presentation_email_draft_cleanup");
             if (webHost is not null)
             {
                 await TryDisposeAsync(webHost, appLog, "web_host");
@@ -170,6 +192,10 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         await TryDisposeAsync(_webHost, appLog, "web_host");
         TryDispose(_pointerHighlightForegroundMonitor, appLog, "pointer_foreground_monitor");
         await TryDisposeAsync(_textDestinationDraftCleanup, appLog, "text_destination_draft_cleanup");
+        await TryDisposeAsync(
+            _presentationEmailDraftCleanup,
+            appLog,
+            "presentation_email_draft_cleanup");
         TryDispose(_customPointerService, appLog, "custom_pointer_service");
         TryDispose(_cursorWatchdogService, appLog, "cursor_watchdog_service");
         TryDispose(_inputInjector, appLog, "input_injector");

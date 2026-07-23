@@ -30,7 +30,8 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
         IWorkstationLockPolicy workstationLockPolicy,
         WebSocketTransport transport,
         HostStatusPayloadFactory statusFactory,
-        IAppLogWriter appLog)
+        IAppLogWriter appLog,
+        PresentationLaserPointerController presentationLaserPointer)
     {
         _pairingManager = pairingManager;
         _awakeService = awakeService;
@@ -52,8 +53,12 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
         AppAppearanceSettings.Changed += OnStatusChanged;
         _workstationLockPolicy.Changed += OnStatusChanged;
         _awakeService.StateChanged += OnStatusChanged;
+        presentationLaserPointer.StateChanged += OnStatusChanged;
+        _presentationLaserPointer = presentationLaserPointer;
         _worker = Task.Run(ProcessAsync);
     }
+
+    private readonly PresentationLaserPointerController _presentationLaserPointer;
 
     public void Queue()
     {
@@ -82,6 +87,7 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
         AppAppearanceSettings.Changed -= OnStatusChanged;
         _workstationLockPolicy.Changed -= OnStatusChanged;
         _awakeService.StateChanged -= OnStatusChanged;
+        _presentationLaserPointer.StateChanged -= OnStatusChanged;
 
         _requests.Writer.TryComplete();
         await _lifetimeCancellation.CancelAsync().ConfigureAwait(false);
@@ -139,7 +145,13 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
         }
     }
 
-    private void OnStatusChanged(object? sender, EventArgs e) => Queue();
+    private void OnStatusChanged(object? sender, EventArgs e)
+    {
+        _presentationLaserPointer.DisableIfOwnerCannotControl(clientId =>
+            AppDeveloperSettings.EnableAlphaFeatures() &&
+            _statusFactory.CanControlPresentations(clientId));
+        Queue();
+    }
 
     private async Task ProcessAsync()
     {

@@ -11,12 +11,10 @@ public sealed class PresentationCommandsTests
         { "powerpoint", "start", "F5", [] },
         { "powerpoint", "end", "Escape", [] },
         { "powerpoint", "black", "B", [] },
-        { "powerpoint", "pointer", "L", ["Control"] },
         { "google-slides", "next", "ArrowRight", [] },
         { "google-slides", "previous", "ArrowLeft", [] },
         { "google-slides", "end", "Escape", [] },
         { "google-slides", "black", "B", [] },
-        { "google-slides", "pointer", "L", [] },
         { "pdf", "next", "ArrowRight", [] },
         { "pdf", "previous", "ArrowLeft", [] },
         { "pdf", "end", "Escape", [] }
@@ -37,6 +35,8 @@ public sealed class PresentationCommandsTests
     [InlineData("google-slides", "start")]
     [InlineData("pdf", "start")]
     [InlineData("pdf", "black")]
+    [InlineData("powerpoint", "pointer")]
+    [InlineData("google-slides", "pointer")]
     [InlineData("pdf", "pointer")]
     public void HidesUncertainOrUnavailableTargetMappings(string target, string action)
     {

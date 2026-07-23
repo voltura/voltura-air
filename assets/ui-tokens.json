@@ -18,6 +18,8 @@
       "successStrong": "#087A60",
       "danger": "#FF745F",
       "dangerStrong": "#C0533A",
+      "presentationSegment": "#25D0A7",
+      "presentationBreak": "#E3A15A",
       "trackpadIcon": "#63717A",
       "scrim": "#73000000",
       "drawerShadow": "#5C000000",
@@ -47,6 +49,8 @@
       "successStrong": "#087A60",
       "danger": "#C0533A",
       "dangerStrong": "#C0533A",
+      "presentationSegment": "#0F7B6C",
+      "presentationBreak": "#A35B16",
       "trackpadIcon": "#6E7A83",
       "scrim": "#40101418",
       "drawerShadow": "#2E101418",
@@ -75,6 +79,9 @@
     "medium": 8,
     "large": 12,
     "pill": 999
+  },
+  "typography": {
+    "editableTextFontSize": 13
   },
   "size": {
     "controlCompactHeight": 36,

@@ -15,6 +15,7 @@ import { useTextTransfer } from "./useTextTransfer";
 import { useClipboardRead } from "./useClipboardRead";
 import { useUrlOpen } from "./useUrlOpen";
 import { usePresentationControl } from "./usePresentationControl";
+import { usePresentationReportSave } from "./usePresentationReportSave";
 import { useConnectionSocketLifecycle } from "./useConnectionSocketLifecycle";
 import { hasStoredReconnectKey } from "./pairingCredentials";
 
@@ -76,6 +77,12 @@ export function useVolturaAirConnection() {
   const { completePowerAction: completePowerActionState, pendingPowerAction, powerActionResult, requestPowerAction } = usePowerControl(state, send);
   const { appLaunchResult, completeAppLaunch: completeAppLaunchState, pendingAppLaunchId, requestAppLaunch } = useAppLaunch(state, send);
   const { completePresentationCommand: completePresentationCommandState, pendingPresentationCommand, presentationResult, requestPresentationCommand } = usePresentationControl(state, send);
+  const {
+    completePresentationReportSave: completePresentationReportSaveState,
+    pendingPresentationReportSave,
+    presentationReportSaveResult,
+    requestPresentationReportSave
+  } = usePresentationReportSave(state, send);
   const { completeUrlOpen: completeUrlOpenState, pendingUrlOpen, requestUrlOpen, urlOpenResult } = useUrlOpen(state, send);
   const { completeTextTransfer: completeTextTransferState, pendingTextTransfer, requestTextTransfer, textTransferResult } = useTextTransfer(state, send);
   const { clipboardReadResult, clipboardText, completeClipboardRead: completeClipboardReadState, pendingClipboardRead, requestClipboardRead, setClipboardText } = useClipboardRead(state, send);
@@ -105,6 +112,7 @@ export function useVolturaAirConnection() {
     completeClipboardRead: completeClipboardReadState,
     completePowerAction: completePowerActionState,
     completePresentationCommand: completePresentationCommandState,
+    completePresentationReportSave: completePresentationReportSaveState,
     completeTextTransfer: completeTextTransferState,
     completeUrlOpen: completeUrlOpenState,
     connectionPcId,
@@ -145,7 +153,7 @@ export function useVolturaAirConnection() {
     setPairingAttempt, setPendingManualPc, setState, socketRef, state
   });
 
-  return { state, message: displayMessage, send, requestAudioState, requestPowerAction, requestAwakeChange, requestAppLaunch, requestPresentationCommand, requestUrlOpen, requestTextTransfer, requestClipboardRead, pendingPresentationCommand, presentationResult, presentationCapability, pendingTextTransfer, pendingClipboardRead, textTransferResult, clipboardReadResult, clipboardText, setClipboardText, clipboardReadPermission, pendingAppLaunchId, appLaunchResult, pendingUrlOpen, urlOpenResult, urlOpenCapability, pendingPowerAction, powerActionResult, pendingAwakeChange, awakeResult, clientId, deviceName, activePc, pairedPcs, reconnectablePcs, audioState, awakeCapability, powerCapabilities, supportsGestureDebug, supportsSleep, supportsVolumeControl, supportsRemoteLaunch, supportsTextTransfer, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, beginNewPairing, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice, setHostCustomPointer, setHostShowModeButtons, setHostPointerSpeed };
+  return { state, message: displayMessage, send, requestAudioState, requestPowerAction, requestAwakeChange, requestAppLaunch, requestPresentationCommand, requestPresentationReportSave, requestUrlOpen, requestTextTransfer, requestClipboardRead, pendingPresentationCommand, pendingPresentationReportSave, presentationResult, presentationReportSaveResult, presentationCapability, pendingTextTransfer, pendingClipboardRead, textTransferResult, clipboardReadResult, clipboardText, setClipboardText, clipboardReadPermission, pendingAppLaunchId, appLaunchResult, pendingUrlOpen, urlOpenResult, urlOpenCapability, pendingPowerAction, powerActionResult, pendingAwakeChange, awakeResult, clientId, deviceName, activePc, pairedPcs, reconnectablePcs, audioState, awakeCapability, powerCapabilities, supportsGestureDebug, supportsSleep, supportsVolumeControl, supportsRemoteLaunch, supportsTextTransfer, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, beginNewPairing, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice, setHostCustomPointer, setHostShowModeButtons, setHostPointerSpeed };
 }
 
 

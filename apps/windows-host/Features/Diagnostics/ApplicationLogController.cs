@@ -257,6 +257,7 @@ internal sealed class ApplicationLogController(
 
     private SpacingStackPanel CreateLogFilterField(string label, Control control)
     {
+        control.SetResourceReference(FrameworkElement.HeightProperty, "ControlMinHeight");
         var field = HostVisualFactory.CreateVerticalStack(UiTokens.SpaceXs);
         field.Children.Add(new TextBlock
         {

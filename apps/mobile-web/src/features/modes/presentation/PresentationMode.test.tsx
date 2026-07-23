@@ -3,13 +3,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { PresentationMode } from "./PresentationMode";
 
 const defaultProps = {
+  audioState: null,
   blackoutAvailable: true,
-  capability: { canControl: true },
+  capability: { canControl: true, canSaveReports: true, laserPointerActive: false },
   connected: true,
   pending: null,
   pendingPowerAction: null,
   result: null,
-  onCommand: vi.fn()
+  onCommand: vi.fn(),
+  onMute: vi.fn(),
+  onVolumeDown: vi.fn(),
+  onVolumeUp: vi.fn(),
+  renderTrackpad: () => null
 } as const;
 
 describe("PresentationMode", () => {
@@ -30,13 +35,30 @@ describe("PresentationMode", () => {
     fireEvent.click(screen.getByRole("menuitemradio", { name: "Google Slides" }));
     expect(screen.queryByRole("button", { name: "Start slideshow" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Laser pointer" }));
-    expect(onCommand).toHaveBeenLastCalledWith("google-slides", "pointer");
+    expect(onCommand).toHaveBeenLastCalledWith("google-slides", "pointer", true);
 
     fireEvent.click(screen.getByRole("button", { name: "Change presentation mode (Google Slides)" }));
     fireEvent.click(screen.getByRole("menuitemradio", { name: "PDF / browser" }));
     expect(screen.queryByRole("button", { name: "Blackout" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Laser pointer" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Laser pointer" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "End slideshow" })).toBeTruthy();
+  });
+
+  it("reflects host laser state and disables an owned laser when Presentation unmounts", () => {
+    const onCommand = vi.fn();
+    const view = render(
+      <PresentationMode
+        {...defaultProps}
+        capability={{ ...defaultProps.capability, laserPointerActive: true }}
+        onCommand={onCommand}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Laser pointer" }).getAttribute("aria-pressed")).toBe("true");
+
+    view.unmount();
+
+    expect(onCommand).toHaveBeenLastCalledWith("powerpoint", "pointer", false);
   });
 
   it("uses the Remote Power blackout action", () => {
@@ -63,7 +85,7 @@ describe("PresentationMode", () => {
 
   it("blocks Blackout for presentation denial or any pending power action", () => {
     const onPowerAction = vi.fn();
-    const view = render(<PresentationMode {...defaultProps} capability={{ canControl: false }} onPowerAction={onPowerAction} />);
+    const view = render(<PresentationMode {...defaultProps} capability={{ ...defaultProps.capability, canControl: false }} onPowerAction={onPowerAction} />);
     expect(screen.getByRole<HTMLButtonElement>("button", { name: "Blackout" }).disabled).toBe(true);
 
     view.rerender(<PresentationMode {...defaultProps} pendingPowerAction="lock" onPowerAction={onPowerAction} />);
@@ -100,7 +122,7 @@ describe("PresentationMode", () => {
   });
 
   it("blocks controls for denied permission and while one command is pending", () => {
-    const view = render(<PresentationMode {...defaultProps} capability={{ canControl: false }} />);
+    const view = render(<PresentationMode {...defaultProps} capability={{ ...defaultProps.capability, canControl: false }} />);
     expect(screen.getByRole("alert").textContent).toContain("blocked by the host");
     expect(screen.getByRole<HTMLButtonElement>("button", { name: "Next" }).disabled).toBe(true);
 
@@ -123,11 +145,12 @@ describe("PresentationMode", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
     await act(() => vi.advanceTimersByTime(5_000));
-    expect(screen.getByLabelText("Presentation time during break").textContent).toBe("01:01");
     expect(screen.getByLabelText("Elapsed break time").textContent).toBe("00:05");
+    expect(screen.getByRole("button", { name: /Presentation session 1: 01:01, followed by break 1: 00:05/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Resume" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reset without saving" }));
     expect(screen.getByLabelText("Elapsed presentation time").textContent).toBe("00:00");
     expect(screen.getByRole("button", { name: "Start" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Pause" })).toBeNull();

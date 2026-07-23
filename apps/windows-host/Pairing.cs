@@ -286,6 +286,14 @@ public sealed class PairingManager(PairingStore store)
         }
     }
 
+    public string? GetDeviceName(string clientId)
+    {
+        lock (_gate)
+        {
+            return _devices.Find(clientId)?.DeviceName;
+        }
+    }
+
     public IReadOnlyList<PairedDeviceStatus> GetDuplicateCleanupCandidates()
     {
         lock (_gate)

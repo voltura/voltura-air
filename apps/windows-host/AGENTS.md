@@ -46,10 +46,12 @@ asks for one.
 - Serialize sends per registered WebSocket and bound them with cancellation and
   operation timeouts. Status changes use the single host-owned coalescing
   broadcaster; do not add parallel sends or another worker for the same state.
-- The **Enable alpha features** setting is the default-off umbrella gate. Each
-  alpha feature advertises capability only while enabled and enforces the gate
-  again at its production command boundary. Disabled features allocate no
-  feature-specific worker, timer, subscription, native resource, or network work.
+- The **Enable alpha features** setting defaults on for Presentation. An
+  explicit off choice omits its capability and blocks it again at every
+  production command boundary. Another incomplete feature must not inherit this
+  default-on activation without a separately reviewed decision. Disabled
+  features allocate no feature-specific worker, timer, subscription, native
+  resource, or network work.
 
 ## Native and persisted boundaries
 

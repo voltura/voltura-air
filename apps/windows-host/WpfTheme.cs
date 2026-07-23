@@ -40,6 +40,8 @@ internal static partial class WpfTheme
         resources["SuccessStrongBrush"] = ToBrush(theme.SuccessStrong);
         resources["DangerBrush"] = ToBrush(theme.Danger);
         resources["DangerStrongBrush"] = ToBrush(theme.DangerStrong);
+        resources["PresentationSegmentBrush"] = ToBrush(theme.PresentationSegment);
+        resources["PresentationBreakBrush"] = ToBrush(theme.PresentationBreak);
         resources["QrBackgroundBrush"] = ToBrush(theme.QrBackground);
 
         window.Background = (Brush)resources["WindowBrush"];
@@ -90,6 +92,8 @@ internal static partial class WpfTheme
         resources["SuccessStrongBrush"] = WpfSystemColors.HighlightBrush;
         resources["DangerBrush"] = WpfSystemColors.WindowTextBrush;
         resources["DangerStrongBrush"] = WpfSystemColors.HighlightBrush;
+        resources["PresentationSegmentBrush"] = WpfSystemColors.WindowTextBrush;
+        resources["PresentationBreakBrush"] = WpfSystemColors.HighlightBrush;
         resources["QrBackgroundBrush"] = WpfSystemColors.WindowBrush;
 
         window.Background = WpfSystemColors.WindowBrush;

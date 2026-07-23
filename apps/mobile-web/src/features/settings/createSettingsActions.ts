@@ -18,8 +18,6 @@ interface SettingsActionOptions {
   clientId: string;
   effectiveTrackpadSettings: TrackpadSettings;
   forgetPc: (pcId: string) => void;
-  onSelectRemoteMode: (mode: unknown, settings: RemoteSettings) => void;
-  remoteSettings: RemoteSettings;
   setHostPointerSpeed: (speed: number) => void;
   settingsState: SettingsState;
 }
@@ -28,8 +26,6 @@ export function createSettingsActions({
   clientId,
   effectiveTrackpadSettings,
   forgetPc,
-  onSelectRemoteMode,
-  remoteSettings,
   setHostPointerSpeed,
   settingsState
 }: SettingsActionOptions) {
@@ -53,13 +49,6 @@ export function createSettingsActions({
   };
 
   const updateRemoteSetting = <Key extends keyof RemoteSettings>(key: Key, value: RemoteSettings[Key]) => {
-    const nextSettings = { ...remoteSettings, [key]: value };
-    if (key === "mode" &&
-      value !== remoteSettings.mode &&
-      (value === "youtube" || value === "kodi")) {
-      onSelectRemoteMode(value, nextSettings);
-    }
-
     settingsState.setRemoteSettingsState((current) => ({
       ...current,
       isStored: true,

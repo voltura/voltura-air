@@ -18,21 +18,12 @@ outcome. Current behavior is defined in
 
 ## P1 - Presentation
 
-- [ ] **Graduate Presentation from alpha.** Complete the existing PowerPoint,
-  Google Slides, and PDF/browser workflow across mobile UI, host commands,
-  protocol, permissions, accessibility, lifecycle, documentation, and
-  validation:
-  - one owned path for each fixed target/action, capability, result, and state;
-  - one in-flight acknowledged command, host-focus protection, permission
-    enforcement, and honest delivery feedback;
-  - complete portrait/landscape, theme, input-method, screen-reader, reconnect,
-    denied, timeout, failure, and unavailable states under the
-    [surface input priorities](ui-system.md#surface-input-priorities);
-  - deterministic timer/vibration cleanup with no inactive background work;
-  - production-path success, failure, disconnect, and retry coverage plus stated
-    real-app, Windows, browser, and device validation boundaries;
-  - removal of the alpha gate from capability, permission, discovery, and command
-    paths while retaining Presentation's permission and safety boundaries.
+- [ ] **Graduate Presentation from alpha.** Complete the remaining integrated
+  and real-device validation in the
+  [Presentation alpha authority](presentation-feature-alpha.md#validation-contract),
+  review its graduation checklist, then remove the alpha gate through the
+  separately reviewed graduation change. That authority owns the detailed
+  approved outcome while Presentation remains alpha.
 
 ## Candidate promotion
 

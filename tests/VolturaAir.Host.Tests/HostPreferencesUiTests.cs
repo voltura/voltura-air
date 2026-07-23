@@ -126,17 +126,21 @@ public sealed partial class HostUiLayoutTests
 
                 var sections = FindWpfDescendants<Expander>(window).ToArray();
                 Assert.Equal(
-                    "Application|More about application logs|Appearance|Trackpad defaults|Remote defaults|Keep awake|Global permissions|More about global permissions|Text destination|More about text destinations|Application launch buttons|More about app-launch buttons|Custom pointer|Developer tools|Windows locking",
+                    "Application|More about application logs|Appearance|Trackpad defaults|Remote defaults|Presentation|Keep awake|Global permissions|More about global permissions|Text destination|More about text destinations|Application launch buttons|More about app-launch buttons|Custom pointer|Developer tools|Windows locking",
                     string.Join('|', sections.Select(section => section.Header)));
+                var presentation = Assert.Single(
+                    sections,
+                    section => string.Equals(section.Header as string, "Presentation", StringComparison.Ordinal));
+                Assert.Equal(Visibility.Visible, presentation.Visibility);
                 Assert.Single(FindWpfDescendants<ModernDatePicker>(window));
                 Assert.Empty(FindWpfDescendants<DatePicker>(window));
                 Assert.Contains(FindWpfDescendants<CheckBox>(window), checkbox =>
                     string.Equals(checkbox.Content?.ToString(), "Allow paired devices to open web addresses", StringComparison.Ordinal));
-                Assert.DoesNotContain(FindWpfDescendants<CheckBox>(window), checkbox =>
+                Assert.Contains(FindWpfDescendants<CheckBox>(window), checkbox =>
                     string.Equals(checkbox.Content?.ToString(), "Allow paired devices to control presentations", StringComparison.Ordinal));
                 var alphaFeatures = Assert.Single(FindWpfDescendants<CheckBox>(window), checkbox =>
                     string.Equals(checkbox.Content?.ToString(), "Enable alpha features", StringComparison.Ordinal));
-                Assert.False(alphaFeatures.IsChecked);
+                Assert.True(alphaFeatures.IsChecked);
             }
             finally
             {
@@ -176,6 +180,18 @@ public sealed partial class HostUiLayoutTests
                 Assert.True(AppDeveloperSettings.EnableAlphaFeatures());
                 Assert.Contains(FindWpfDescendants<CheckBox>(window), checkbox =>
                     string.Equals(checkbox.Content?.ToString(), "Allow paired devices to control presentations", StringComparison.Ordinal));
+                var presentation = Assert.Single(
+                    FindWpfDescendants<Expander>(window),
+                    section => string.Equals(section.Header as string, "Presentation", StringComparison.Ordinal));
+                Assert.Equal(Visibility.Visible, presentation.Visibility);
+                presentation.IsExpanded = true;
+                window.UpdateLayout();
+                Assert.Contains(
+                    FindWpfDescendants<TextBlock>(presentation),
+                    text => string.Equals(text.Text, "Laser pointer size", StringComparison.Ordinal));
+                Assert.Contains(
+                    FindWpfDescendants<ToggleButton>(presentation),
+                    button => string.Equals(button.Content?.ToString(), "Red", StringComparison.Ordinal));
 
                 var refreshedAlphaFeatures = Assert.Single(FindWpfDescendants<CheckBox>(window), checkbox =>
                     string.Equals(checkbox.Content?.ToString(), "Enable alpha features", StringComparison.Ordinal));

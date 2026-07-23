@@ -52,7 +52,7 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     }
 
     [Fact]
-    public async Task PresentationTapRunsReviewedShortcutAndReturnsItsMatchingResult()
+    public async Task PresentationLaserUsesHostOwnedStateAndReturnsItsMatchingResult()
     {
         AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
@@ -69,14 +69,16 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
                 type = "presentation.command",
                 operationId = "presentation-1",
                 target = "powerpoint",
-                action = "pointer"
+                action = "pointer",
+                enabled = true
             });
 
             Assert.True(paired.GetProperty("capabilities").GetProperty("presentation").GetProperty("canControl").GetBoolean());
             Assert.Equal("presentation.command.result", result.GetProperty("type").GetString());
             Assert.Equal("presentation-1", result.GetProperty("operationId").GetString());
             Assert.True(result.GetProperty("succeeded").GetBoolean());
-            Assert.Equal(new[] { "SpecialKey:L:Control" }, fixture.InputInjector.Events);
+            Assert.True(result.GetProperty("laserPointerActive").GetBoolean());
+            Assert.Empty(fixture.InputInjector.Events);
         }
         finally
         {
@@ -159,7 +161,7 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     }
 
     [Fact]
-    public async Task UnsupportedTargetActionReturnsFeedbackWithoutInjection()
+    public async Task LaserPointerIsAvailableForPdfAndCanBeExplicitlyDisabled()
     {
         AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
@@ -171,17 +173,90 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
             using var socket = await ConnectAsync(fixture.WebHost);
             _ = await PairAsync(socket, fixture, clientId);
 
-            var result = await SendAndReceiveAsync(socket, new
+            var enabled = await SendAndReceiveAsync(socket, new
             {
                 type = "presentation.command",
                 operationId = "presentation-5",
                 target = "pdf",
-                action = "pointer"
+                action = "pointer",
+                enabled = true
+            });
+            var disabled = await SendAndReceiveAsync(socket, new
+            {
+                type = "presentation.command",
+                operationId = "presentation-6",
+                target = "pdf",
+                action = "pointer",
+                enabled = false
             });
 
-            Assert.False(result.GetProperty("succeeded").GetBoolean());
-            Assert.Equal("unsupported-action", result.GetProperty("code").GetString());
+            Assert.True(enabled.GetProperty("succeeded").GetBoolean());
+            Assert.True(enabled.GetProperty("laserPointerActive").GetBoolean());
+            Assert.True(disabled.GetProperty("succeeded").GetBoolean());
+            Assert.False(disabled.GetProperty("laserPointerActive").GetBoolean());
             Assert.Empty(fixture.InputInjector.Events);
+        }
+        finally
+        {
+            AppPermissionSettings.Save(originalPermissions);
+        }
+    }
+
+    [Fact]
+    public async Task RevokingPermissionRestoresLaserAndCleanupRemainsAllowed()
+    {
+        AppDeveloperSettings.SetEnableAlphaFeatures(true);
+        var originalPermissions = AppPermissionSettings.Load();
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowPresentationControl = true });
+            await using var fixture = await WebHostFixture.StartAsync();
+            var clientId = $"client-{Guid.NewGuid():N}";
+            using var socket = await ConnectAsync(fixture.WebHost);
+            _ = await PairAsync(socket, fixture, clientId);
+            _ = await SendAndReceiveAsync(socket, new
+            {
+                type = "presentation.command",
+                operationId = "presentation-enable-before-revoke",
+                target = "powerpoint",
+                action = "pointer",
+                enabled = true
+            });
+
+            AppPermissionSettings.Save(originalPermissions with { AllowPresentationControl = false });
+            using var statusTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            JsonDocument? revokedStatus = null;
+            for (var attempt = 0; attempt < 3 && revokedStatus is null; attempt++)
+            {
+                var candidate = JsonDocument.Parse(await ReceiveTextAsync(socket, statusTimeout.Token));
+                var presentation = candidate.RootElement.GetProperty("capabilities").GetProperty("presentation");
+                if (!presentation.GetProperty("canControl").GetBoolean())
+                {
+                    revokedStatus = candidate;
+                }
+                else
+                {
+                    candidate.Dispose();
+                }
+            }
+
+            using (revokedStatus)
+            {
+                Assert.NotNull(revokedStatus);
+                Assert.False(revokedStatus.RootElement.GetProperty("capabilities").GetProperty("presentation").GetProperty("laserPointerActive").GetBoolean());
+            }
+
+            var cleanup = await SendAndReceiveAsync(socket, new
+            {
+                type = "presentation.command",
+                operationId = "presentation-cleanup-after-revoke",
+                target = "powerpoint",
+                action = "pointer",
+                enabled = false
+            });
+
+            Assert.True(cleanup.GetProperty("succeeded").GetBoolean());
+            Assert.False(cleanup.GetProperty("laserPointerActive").GetBoolean());
         }
         finally
         {

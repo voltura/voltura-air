@@ -1,6 +1,6 @@
 # Privacy policy
 
-Last updated: July 19, 2026
+Last updated: July 23, 2026
 
 Voltura Air is designed to operate between a Windows PC and paired devices on
 the same local network. Voltura AB does not provide an account system, cloud
@@ -26,7 +26,10 @@ application-data directory:
 - the public reconnect key registered by each paired browser;
 - device platform, browser, and display-mode descriptions;
 - pairing and connection timestamps; and
-- per-device permission and pointer settings.
+- per-device permission and pointer settings; and
+- presentation reports the user explicitly saves, including captured device
+  name, presentation type, dates, durations, sessions, breaks, slide timing, and
+  optional local presentation-file path or HTTP/HTTPS presentation link.
 
 This information remains on the user's devices. Voltura AB does not receive it.
 
@@ -87,9 +90,15 @@ from the mobile interface. Clearing the browser's site data removes all Voltura
 Air data stored in that browser. Application logs can be deleted from
 Diagnostics.
 
+Saved presentation reports can be renamed, exported, emailed, or deleted from
+the Windows **Presentations** page. Removing a paired device does not remove its
+saved reports. Presentation report titles, timing contents, linked file paths,
+and linked URLs are not written to application logs.
+
 Uninstalling the Windows application removes program files and shortcuts but
 retains settings and pairing data under `%APPDATA%\Voltura Air`. Delete that
-directory after uninstalling to remove the retained Windows-host data.
+directory and `%LOCALAPPDATA%\Voltura Air\Presentation statistics` after
+uninstalling to remove all retained Windows-host data.
 
 ## Contact
 

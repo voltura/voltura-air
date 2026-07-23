@@ -107,7 +107,10 @@ approved unfinished work.
 - Reports the host default Remote mode to the mobile client.
 - Supports host-enforced permission for PC sleep.
 - Supports host-enforced permission for volume control.
-- Supports the reusable, default-off **Enable alpha features** host gate. An alpha feature advertises its capability only while enabled and is also rejected at its production command boundary while disabled.
+- Supports the **Enable alpha features** host gate, which defaults on for the
+  current Presentation preview and remains user-disableable. Presentation
+  advertises its capability only while enabled and is also rejected at its
+  production command boundary while disabled.
 - Supports an effective global/per-device Presentation control permission while Presentation's alpha gate is enabled.
 - Supports host-enforced permission for fixed Remote launch actions and host-configured application buttons.
 - Supports a separate default-off host permission for opening reviewed HTTP and HTTPS web addresses, with per-device overrides.
@@ -380,22 +383,43 @@ approved unfinished work.
   - optional client-local launch toggles for Open YouTube and Start Kodi when the host allows paired devices to start applications.
   - selecting YouTube or Kodi from settings closes settings and opens the Remote screen for that mode.
 
-### Presentation mode (alpha, default off)
+### Presentation mode (alpha, enabled by default)
 
-- Appears only after **Preferences > Developer tools > Enable alpha features** is enabled on the host. While the setting is off, the host advertises no Presentation capability, rejects direct Presentation commands without injecting input, and the mobile app hides Presentation from Menu and fourth-mode choices.
-- Provides a dedicated high-contrast, large-target presenter surface that is then reachable from Menu and can occupy the configurable fourth mode button.
-- Uses a user-selected PowerPoint, Google Slides, or PDF/browser profile and fixed
-  shortcuts. It does not detect the focused application or current slide.
-- Sends one acknowledged command at a time and clears pending work on disconnect.
-- Uses Right/Left for Next/Previous and Escape for End. PowerPoint also offers F5
-  Start and Ctrl+L laser pointer; Google Slides offers L laser pointer.
-  **Blackout** uses the separate system-wide display curtain. Browser targets
-  hide Start, and PDF/browser targets hide Blackout and laser.
-- Reports host permission denial, unsupported target actions, host-focus protection, native input failure, response timeout, and success without disconnecting the client.
-- Includes a device-local elapsed timer with Start, Pause, and Reset. Reloading
-  resets it.
-- Lets the presenter choose a 10, 15, 30, 45, or 60 minute plan. Visible live-region text announces five minutes remaining and planned time elapsed; browsers that expose `navigator.vibrate` can optionally add vibration at those same milestones.
-- Uses a single-column portrait layout and a compact two-column landscape layout while retaining the normal mode navigation as an obvious exit.
+- Presentation is the default fourth mobile mode on a clean setup. It supports
+  user-selected PowerPoint, Google Slides, and PDF/browser controls without
+  trying to infer which presentation application has focus.
+- Provides acknowledged Next, Previous, and End controls, PowerPoint Start
+  slideshow, display blackout where permitted, compact volume controls, and an
+  integrated collapsible trackpad with its normal fullscreen experience.
+- Provides a native Voltura Air laser pointer for all three presentation types.
+  The Windows host reports its actual state, offers Red, Green, and Blue with an
+  adjustable size, restores the configured cursor on disable or normal exit,
+  and uses the cursor-recovery watchdog after an abnormal exit.
+- Tracks presentation sessions, breaks, slide visits, per-slide time, total
+  elapsed time, presenting time, and running elapsed totals. The responsive
+  live-statistics view and timer retain up to 100 breaks and warn before active
+  data is discarded.
+- Can save an explicitly ended or reset timer session through an authenticated,
+  idempotent host operation. Report identity and the captured device name come
+  from the authenticated connection.
+- The Windows **Presentations** page provides title, type, device, and date
+  filters; aggregate totals; a newest-first archive; intermittent
+  presentation/break timelines; chronological session/break tables; and
+  per-report detail.
+- Saved reports can be renamed, linked to a local or OneDrive-visible
+  presentation file and an HTTP/HTTPS URL, exported as HTML, XLSX, PDF,
+  formula-safe CSV, or text, and shared through an email draft. Filtered archive
+  export, email, and confirmed deletion are also available.
+- Saved report data stays in the current Windows user's local application-data
+  directory. Presentation content, filenames, URLs, window titles, and slide
+  text are not detected or sent by the mobile client.
+- The Developer tools alpha switch remains available. Turning it off hides and
+  blocks new Presentation controls and saves while keeping existing Windows
+  reports available.
+
+Its detailed contracts, limitations, unfinished validation, and V2 register are
+maintained in the
+[Presentation feature alpha authority](presentation-feature-alpha.md).
 
 ### Dictation mode
 
@@ -409,8 +433,9 @@ approved unfinished work.
 - The hamburger drawer is a **Menu** with separate **Tools** and **Settings** groups.
 - Trackpad, Keyboard, Remote, and the configured fourth mode appear first in Menu > Tools in mode-tab order. Dictation, **Send text to PC**, and **Get text from PC** can also be opened directly from Menu without changing the fourth-mode preference. Presentation is added only while the host advertises its enabled alpha capability.
 - Trackpad, Keyboard, and Remote remain fixed primary modes. The fourth mode can
-  be configured as Dictation, Send text to PC, or Get text from PC and defaults
-  to Dictation. Presentation is available while its alpha capability is enabled.
+  be configured as Presentation, Dictation, Send text to PC, or Get text from
+  PC and defaults to Presentation. If the host omits Presentation capability,
+  the client falls back to Dictation.
 - **Send text to PC** composes or pastes up to 4,096 characters. Focused application input remains the default; the host can instead use clipboard-only delivery, a configured fresh Notepad, Notepad++, Word, Visual Studio Code, Excel, or classic Outlook compose item, a new `.txt` draft in the Windows default text-file app, or a `mailto:` draft in the Windows default email client.
 - **Get text from PC** starts empty and fetches the current PC clipboard only after the user presses its button. It shows the returned maximum-4,096-character text in a selectable, read-only field, writes selected text to the phone/tablet clipboard only when the user chooses **Copy**, keeps prior fetched text after a failed request, and explains when the host has blocked the default-off **Read PC clipboard** permission. **Clear All** clears the field, **Select All** selects its contents, and **Cut** removes only the selected text. **Copy** is omitted when the browser cannot write to the clipboard; successful and failed copy attempts report their outcome in a toast, and a failed attempt remains available to retry. The permission can inherit the host global setting or be allowed/blocked per paired device. **Show snippets** reveals the existing local snippet controls for loading or saving text; they appear below the field in portrait and in a side panel in landscape.
 - The editor switches between Keyboard and Touchpad input. Touchpad mode uses

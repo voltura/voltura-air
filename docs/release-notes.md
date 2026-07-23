@@ -5,6 +5,23 @@ concise, observable user-facing changes. `npm run release:local` validates the
 exact target-version section and does not create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v0.7.5
+
+- Added Presentation as the default fourth mobile mode for PowerPoint, Google
+  Slides, and PDF/browser presentations.
+- Added an integrated presentation trackpad, volume and blackout controls, and
+  a native red, green, or blue laser pointer with adjustable size.
+- Added live timing for presentation sessions, breaks, slides, and per-slide
+  activity, with a save prompt when a presentation ends.
+- Added a Windows Presentations archive with search, filters, aggregate
+  statistics, detailed timelines, and session/break breakdowns.
+- Added report rename, presentation file and URL links, HTML, Excel, PDF, CSV,
+  and text export, plus email drafts with optional presentation attachments.
+- Improved responsive mobile Presentation layouts and the consistency of
+  Windows filters, dialogs, tooltips, keyboard focus, and report actions.
+- Improved recovery of the normal Windows cursor after an unexpected host exit.
+- Presentation remains optional and can be turned off under Developer tools.
+
 ## v0.7.4
 
 - Redesigned the Windows Connection screen to make network setup and recovery easier to understand.

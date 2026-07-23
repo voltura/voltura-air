@@ -70,6 +70,8 @@ export interface ServerCapabilities {
 
 export interface PresentationCapability {
   canControl: boolean;
+  canSaveReports: boolean;
+  laserPointerActive: boolean;
 }
 
 export interface UrlOpenCapability {
@@ -230,6 +232,7 @@ export interface PresentationCommandMessage {
   operationId: string;
   target: PresentationTarget;
   action: PresentationAction;
+  enabled?: boolean | undefined;
 }
 
 export interface PresentationCommandResultMessage {
@@ -240,6 +243,7 @@ export interface PresentationCommandResultMessage {
   succeeded: boolean;
   code?: string;
   message: string;
+  laserPointerActive: boolean;
 }
 
 export type AppLaunchActionKind = "browser" | "spotify" | "vlc" | "powerpoint" | "custom";
@@ -256,6 +260,50 @@ export interface SystemPowerMessage {
   type: "system.power";
   operationId: string;
   action: SystemPowerAction;
+}
+
+export interface PresentationReportBreak {
+  breakNumber: number;
+  presentationElapsedSeconds: number;
+  breakDurationSeconds: number;
+  startedAt: string;
+  endedAt: string;
+  sessionSlideMinimum?: number;
+  sessionSlideMaximum?: number;
+  slideNumberAtStart?: number;
+  slideNumberAtEnd?: number;
+}
+
+export interface PresentationReportSlide {
+  slideNumber: number;
+  durationSeconds?: number;
+}
+
+export interface PresentationReportSavePayload {
+  reportId: string;
+  target: PresentationTarget;
+  startedAt: string;
+  endedAt: string;
+  utcOffsetMinutes: number;
+  plannedDurationSeconds: number;
+  presentationDurationSeconds: number;
+  endedDuringBreak: boolean;
+  breaks: PresentationReportBreak[];
+  slides: PresentationReportSlide[];
+}
+
+export interface PresentationReportSaveMessage extends PresentationReportSavePayload {
+  type: "presentation.report.save";
+  operationId: string;
+}
+
+export interface PresentationReportSaveResultMessage {
+  type: "presentation.report.save.result";
+  operationId: string;
+  reportId: string;
+  succeeded: boolean;
+  code?: string;
+  message: string;
 }
 
 export interface SystemPowerResultMessage {
@@ -382,6 +430,7 @@ export type ClientMessage =
   | KeyboardTextMessage
   | KeyboardSpecialMessage
   | PresentationCommandMessage
+  | PresentationReportSaveMessage
   | SystemSleepMessage
   | SystemPowerMessage
   | AwakeSetMessage
@@ -393,4 +442,4 @@ export type ClientMessage =
   | AudioMuteToggleMessage
   | AudioVolumeSetMessage;
 
-export type ServerMessage = PairAcceptedMessage | PairChallengeMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | PresentationCommandResultMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | UrlOpenResultMessage | TextSendResultMessage | ClipboardGetResultMessage | AudioStateMessage;
+export type ServerMessage = PairAcceptedMessage | PairChallengeMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | PresentationCommandResultMessage | PresentationReportSaveResultMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | UrlOpenResultMessage | TextSendResultMessage | ClipboardGetResultMessage | AudioStateMessage;

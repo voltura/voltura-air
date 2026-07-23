@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 
 namespace VolturaAir.Host;
@@ -23,6 +24,14 @@ public sealed partial class CustomPointerService : IDisposable
     private readonly Action _ensureRecoveryMonitoring;
     private readonly Action _stopRecoveryMonitoring;
     private bool _mayHaveApplied;
+    private bool _presentationLaserPointerEnabled;
+    private CustomPointerSettings _settings = new(
+        false,
+        AppPointerSettings.DefaultCustomPointerSize,
+        AppPointerSettings.DefaultCustomPointerColor);
+    private PresentationLaserPointerSettings _presentationLaserPointerSettings = new(
+        AppPointerSettings.DefaultPresentationLaserSize,
+        PresentationLaserColor.Red);
     private bool _disposed;
 
     public CustomPointerService()
@@ -46,46 +55,174 @@ public sealed partial class CustomPointerService : IDisposable
         lock (_gate)
         {
             ThrowIfDisposed();
-            if (!settings.Enabled)
+            _settings = settings;
+            if (_presentationLaserPointerEnabled)
             {
-                Restore();
-                _stopRecoveryMonitoring();
                 return;
             }
 
-            try
+            ApplyCore(settings);
+        }
+    }
+
+    public void SetPresentationLaserPointer(bool enabled)
+    {
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            if (_presentationLaserPointerEnabled == enabled)
             {
-                // Readiness means the watchdog holds a synchronized host handle before any cursor is replaced.
-                RefreshRecoveryMonitoringCore(customPointerActive: true);
-                _mayHaveApplied = true;
-                foreach (var role in Roles)
+                return;
+            }
+
+            if (enabled)
+            {
+                try
                 {
-                    SafeCursorHandle? cursor = null;
-                    try
-                    {
-                        cursor = CreateCursor(role, settings);
-                        var cursorHandle = cursor.Detach();
-                        cursor.Dispose();
-                        cursor = null;
-                        if (!SetSystemCursor(cursorHandle, role.SystemCursorId))
-                        {
-                            _ = DestroyCursor(cursorHandle);
-                            throw new InvalidOperationException($"Windows did not apply the {role.TemplateName} custom pointer.");
-                        }
-                    }
-                    finally
-                    {
-                        cursor?.Dispose();
-                    }
+                    ApplyLaserPointerCore();
+                    _presentationLaserPointerEnabled = true;
+                }
+                catch
+                {
+                    _presentationLaserPointerEnabled = false;
+                    ApplyCore(_settings);
+                    throw;
                 }
 
+                return;
+            }
+
+            _presentationLaserPointerEnabled = false;
+            try
+            {
+                ApplyCore(_settings);
             }
             catch
             {
+                // Turning the presentation laser off is the safety-critical outcome.
+                // If the configured custom scheme cannot be restored, leave Windows'
+                // default scheme active rather than reporting the laser as still on.
                 Restore();
-                _stopRecoveryMonitoring();
+            }
+        }
+    }
+
+    public void ApplyPresentationLaserPointerSettings(PresentationLaserPointerSettings settings)
+    {
+        var normalized = settings with
+        {
+            Size = AppPointerSettings.NormalizeCustomPointerSize(settings.Size),
+            Color = Enum.IsDefined(settings.Color) ? settings.Color : PresentationLaserColor.Red
+        };
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            if (!_presentationLaserPointerEnabled)
+            {
+                _presentationLaserPointerSettings = normalized;
+                return;
+            }
+
+            var previous = _presentationLaserPointerSettings;
+            _presentationLaserPointerSettings = normalized;
+            try
+            {
+                ApplyLaserPointerCore();
+            }
+            catch
+            {
+                _presentationLaserPointerSettings = previous;
+                try
+                {
+                    ApplyLaserPointerCore();
+                }
+                catch
+                {
+                    _presentationLaserPointerEnabled = false;
+                    ApplyCore(_settings);
+                }
+
                 throw;
             }
+        }
+    }
+
+    private void ApplyCore(CustomPointerSettings settings)
+    {
+        if (!settings.Enabled)
+        {
+            Restore();
+            _stopRecoveryMonitoring();
+            return;
+        }
+
+        try
+        {
+            // Readiness means the watchdog holds a synchronized host handle before any cursor is replaced.
+            RefreshRecoveryMonitoringCore(customPointerActive: true);
+            _mayHaveApplied = true;
+            foreach (var role in Roles)
+            {
+                SafeCursorHandle? cursor = null;
+                try
+                {
+                    cursor = CreateCursor(role, settings);
+                    var cursorHandle = cursor.Detach();
+                    cursor.Dispose();
+                    cursor = null;
+                    if (!SetSystemCursor(cursorHandle, role.SystemCursorId))
+                    {
+                        _ = DestroyCursor(cursorHandle);
+                        throw new InvalidOperationException($"Windows did not apply the {role.TemplateName} custom pointer.");
+                    }
+                }
+                finally
+                {
+                    cursor?.Dispose();
+                }
+            }
+        }
+        catch
+        {
+            Restore();
+            _stopRecoveryMonitoring();
+            throw;
+        }
+    }
+
+    private void ApplyLaserPointerCore()
+    {
+        try
+        {
+            RefreshRecoveryMonitoringCore(customPointerActive: true);
+            _mayHaveApplied = true;
+            using var bitmap = CreateLaserPointerBitmap(_presentationLaserPointerSettings);
+            foreach (var role in Roles)
+            {
+                SafeCursorHandle? cursor = null;
+                try
+                {
+                    cursor = CreateCursor(bitmap, (uint)(bitmap.Width / 2), (uint)(bitmap.Height / 2));
+                    var cursorHandle = cursor.Detach();
+                    cursor.Dispose();
+                    cursor = null;
+                    if (!SetSystemCursor(cursorHandle, role.SystemCursorId))
+                    {
+                        _ = DestroyCursor(cursorHandle);
+                        throw new InvalidOperationException($"Windows did not apply the presentation laser pointer to the {role.TemplateName} role.");
+                    }
+                }
+                finally
+                {
+                    cursor?.Dispose();
+                }
+            }
+        }
+        catch
+        {
+            Restore();
+            _stopRecoveryMonitoring();
+            throw;
         }
     }
 
@@ -148,8 +285,14 @@ public sealed partial class CustomPointerService : IDisposable
             graphics.DrawImage(source, new Rectangle(0, 0, canvasSize, canvasSize));
         }
         Recolor(bitmap, settings.Color);
+        var (hotspotX, hotspotY) = ReadHotspot(path, (uint)source.Width, canvasSize);
+        return CreateCursor(bitmap, hotspotX, hotspotY);
+    }
+
+    private static SafeCursorHandle CreateCursor(Bitmap bitmap, uint hotspotX, uint hotspotY)
+    {
         var colorBitmap = CreateAlphaBitmap(bitmap);
-        var maskBitmap = CreateBitmap(canvasSize, canvasSize, 1, 1, nint.Zero);
+        var maskBitmap = CreateBitmap(bitmap.Width, bitmap.Height, 1, 1, nint.Zero);
         if (maskBitmap == nint.Zero)
         {
             _ = DeleteObject(colorBitmap);
@@ -158,7 +301,6 @@ public sealed partial class CustomPointerService : IDisposable
 
         try
         {
-            var (hotspotX, hotspotY) = ReadHotspot(path, (uint)source.Width, canvasSize);
             var iconInfo = new IconInfo
             {
                 IsIcon = 0,
@@ -181,6 +323,71 @@ public sealed partial class CustomPointerService : IDisposable
             _ = DeleteObject(maskBitmap);
         }
     }
+
+    internal static Bitmap CreateLaserPointerBitmap() =>
+        CreateLaserPointerBitmap(new(
+            AppPointerSettings.DefaultPresentationLaserSize,
+            PresentationLaserColor.Red));
+
+    internal static Bitmap CreateLaserPointerBitmap(PresentationLaserPointerSettings settings)
+    {
+        // Share the regular custom pointer's size scale while keeping the
+        // visible core compact and the surrounding light diffuse.
+        var size = GetCanvasSize(settings.Size);
+        var center = size / 2f;
+        var glowRadius = size * 0.4464f;
+        var (glowRed, glowGreen, glowBlue) = GetLaserGlowColor(settings.Color);
+        var (ringRed, ringGreen, ringBlue) = GetLaserRingColor(settings.Color);
+        var (centerRed, centerGreen, centerBlue) = GetLaserCenterColor(settings.Color);
+        var bitmap = new Bitmap(size, size, PixelFormat.Format32bppArgb);
+        for (var y = 0; y < size; y++)
+        {
+            for (var x = 0; x < size; x++)
+            {
+                var distance = MathF.Sqrt(MathF.Pow(x + 0.5f - center, 2) + MathF.Pow(y + 0.5f - center, 2));
+                if (distance >= glowRadius)
+                {
+                    continue;
+                }
+
+                var strength = 1 - distance / glowRadius;
+                var alpha = (int)MathF.Round(210 * MathF.Pow(strength, 1.2f));
+                bitmap.SetPixel(x, y, Color.FromArgb(alpha, glowRed, glowGreen, glowBlue));
+            }
+        }
+
+        using var graphics = Graphics.FromImage(bitmap);
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+        using var ringBrush = new SolidBrush(Color.FromArgb(255, ringRed, ringGreen, ringBlue));
+        using var centerBrush = new SolidBrush(Color.FromArgb(255, centerRed, centerGreen, centerBlue));
+        var ringSize = size * 0.2679f;
+        var centerSize = size * 0.0893f;
+        graphics.FillEllipse(ringBrush, center - ringSize / 2, center - ringSize / 2, ringSize, ringSize);
+        graphics.FillEllipse(centerBrush, center - centerSize / 2, center - centerSize / 2, centerSize, centerSize);
+        return bitmap;
+    }
+
+    private static (int Red, int Green, int Blue) GetLaserGlowColor(PresentationLaserColor color) => color switch
+    {
+        PresentationLaserColor.Green => (30, 210, 120),
+        PresentationLaserColor.Blue => (35, 150, 255),
+        _ => (255, 30, 38)
+    };
+
+    private static (int Red, int Green, int Blue) GetLaserRingColor(PresentationLaserColor color) => color switch
+    {
+        PresentationLaserColor.Green => (18, 196, 106),
+        PresentationLaserColor.Blue => (25, 140, 255),
+        _ => (255, 18, 28)
+    };
+
+    private static (int Red, int Green, int Blue) GetLaserCenterColor(PresentationLaserColor color) => color switch
+    {
+        PresentationLaserColor.Green => (8, 158, 82),
+        PresentationLaserColor.Blue => (8, 118, 220),
+        _ => (168, 0, 8)
+    };
 
     internal static Bitmap LoadTemplateBitmap(string path, string name)
     {

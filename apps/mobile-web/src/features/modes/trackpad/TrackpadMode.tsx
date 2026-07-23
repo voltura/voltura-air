@@ -9,6 +9,7 @@ interface TrackpadModeProps {
   audioState: AudioStateMessage | null;
   compactModeSelector?: ReactNode | undefined;
   isExpanded: boolean;
+  showRestoredMouseButtons?: boolean;
   supportsVolumeControl: boolean;
   trackpadSettings: TrackpadSettings;
   onSetVolume: (volume: number) => void;
@@ -26,6 +27,7 @@ export function TrackpadMode({
   audioState,
   compactModeSelector,
   isExpanded,
+  showRestoredMouseButtons = true,
   supportsVolumeControl,
   trackpadSettings,
   onSetVolume,
@@ -191,7 +193,7 @@ export function TrackpadMode({
           </div>
         )}
       </div>
-      {!isExpanded && (
+      {!isExpanded && showRestoredMouseButtons && (
         <div className="mouse-buttons">
           {clickButtons.map((button) => (
             <button

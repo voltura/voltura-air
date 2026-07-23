@@ -920,7 +920,7 @@ describe("useVolturaAirConnection", () => {
             restart: true,
             shutdown: true,
           },
-          presentation: { canControl: true },
+          presentation: { canControl: true, canSaveReports: true, laserPointerActive: false },
           remoteLaunch: true,
           textTransfer: true,
           urlOpen: { canOpen: true },

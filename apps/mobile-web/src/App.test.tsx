@@ -74,10 +74,13 @@ function mockConnection(overrides: Partial<ReturnType<typeof useVolturaAirConnec
     appLaunchResult: null,
     pendingAppLaunchId: null,
     requestAppLaunch: vi.fn(),
-    presentationCapability: { canControl: true },
+    presentationCapability: { canControl: true, canSaveReports: true, laserPointerActive: false },
     pendingPresentationCommand: null,
     presentationResult: null,
     requestPresentationCommand: vi.fn(() => "presentation-operation-a"),
+    pendingPresentationReportSave: null,
+    presentationReportSaveResult: null,
+    requestPresentationReportSave: vi.fn(() => "presentation-report-operation-a"),
     pendingUrlOpen: false,
     urlOpenResult: null,
     urlOpenCapability: { canOpen: true },
@@ -137,6 +140,20 @@ beforeEach(() => {
 });
 
 describe("App header and mode navigation", () => {
+  it("clears stale owned laser state when the app starts outside Presentation", async () => {
+    const requestPresentationCommand = vi.fn(() => "laser-cleanup");
+    mockConnection({
+      presentationCapability: { canControl: true, canSaveReports: true, laserPointerActive: true },
+      requestPresentationCommand
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(requestPresentationCommand).toHaveBeenCalledWith("powerpoint", "pointer", false);
+    });
+  });
+
   it("refreshes after a developer-mode long press on the Voltura Air brand", async () => {
     vi.useFakeTimers();
     const refreshInstalledApp = vi.fn();
@@ -166,7 +183,8 @@ describe("App header and mode navigation", () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
-    fireEvent.click(screen.getByRole("button", { name: "Presentation" }));
+    const menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog");
+    fireEvent.click(within(menu!).getByRole("button", { name: "Presentation" }));
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
     expect(screen.getByRole("heading", { name: "Presentation" })).toBeTruthy();
@@ -188,7 +206,8 @@ describe("App header and mode navigation", () => {
   it("leaves Presentation immediately when the host disables alpha features", async () => {
     const { rerender } = render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
-    fireEvent.click(screen.getByRole("button", { name: "Presentation" }));
+    const menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog");
+    fireEvent.click(within(menu!).getByRole("button", { name: "Presentation" }));
     expect(screen.getByRole("heading", { name: "Presentation" })).toBeTruthy();
 
     mockConnection({ presentationCapability: undefined });
@@ -243,7 +262,7 @@ describe("App header and mode navigation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send text to PC" }));
 
     expect(screen.getByRole("heading", { name: "Send text to PC" })).toBeTruthy();
-    expect(screen.getAllByRole("button", { name: "Dictation" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "Presentation" })).toHaveLength(2);
     expect(screen.queryByRole("button", { name: "Back to previous mode" })).toBeNull();
     fireEvent.click(screen.getAllByRole("button", { name: "Trackpad" }).at(-1)!);
     expect(screen.getAllByRole("button", { name: "Trackpad" }).some((button) => button.getAttribute("aria-current") === "page")).toBe(true);
@@ -280,7 +299,7 @@ describe("App header and mode navigation", () => {
     expect(bottomModeNavigation?.parentElement).toBe(appShell?.parentElement);
     expect(bottomModeNavigation?.parentElement?.classList).toContain("app-frame");
 
-    for (const modeName of ["Keyboard", "Remote", "Dictation"]) {
+    for (const modeName of ["Keyboard", "Remote", "Presentation"]) {
       fireEvent.click(within(bottomModeNavigation!).getByRole("button", { name: modeName }));
 
       expect(document.querySelector(".bottom-mode-tabs")).toBe(bottomModeNavigation);
@@ -288,7 +307,7 @@ describe("App header and mode navigation", () => {
       expect(within(bottomModeNavigation!).getByRole("button", { name: modeName }).getAttribute("aria-current")).toBe("page");
     }
 
-    fireEvent.click(within(bottomModeNavigation!).getByRole("button", { name: "Dictation" }));
+    fireEvent.click(within(bottomModeNavigation!).getByRole("button", { name: "Presentation" }));
 
     expect(appShell?.classList.contains("mode-tabs-collapsed")).toBe(true);
     expect(document.querySelector(".bottom-mode-tabs")).toBeNull();

@@ -8,7 +8,8 @@ internal sealed class HostStatusPayloadFactory(
     IAppLaunchService appLaunchService,
     ITextDestinationService textDestinationService,
     Func<HostNetworkSnapshot> getNetwork,
-    Func<bool> isInputBlockedByElevation)
+    Func<bool> isInputBlockedByElevation,
+    Func<bool> isPresentationLaserPointerEnabled)
 {
     private static readonly string DeveloperSessionId = Guid.NewGuid().ToString("N");
 
@@ -73,7 +74,12 @@ internal sealed class HostStatusPayloadFactory(
         awake = CreateAwakeCapability(permissions),
         volume = permissions.AllowVolumeControl,
         presentation = AppDeveloperSettings.EnableAlphaFeatures()
-            ? new { canControl = permissions.AllowPresentationControl }
+            ? new
+            {
+                canControl = permissions.AllowPresentationControl,
+                canSaveReports = permissions.AllowPresentationControl,
+                laserPointerActive = isPresentationLaserPointerEnabled()
+            }
             : null,
         remoteLaunch = permissions.AllowRemoteAppLaunch,
         urlOpen = new { canOpen = permissions.AllowUrlOpen },

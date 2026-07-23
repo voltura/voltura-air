@@ -29,7 +29,8 @@ describe("usePresentationControl", () => {
       target: "powerpoint",
       action: "next",
       succeeded: false,
-      message: "Unrelated"
+      message: "Unrelated",
+      laserPointerActive: false
     }); });
     expect(result.current.pendingPresentationCommand).not.toBeNull();
 
@@ -39,7 +40,8 @@ describe("usePresentationControl", () => {
       target: "powerpoint",
       action: "next",
       succeeded: true,
-      message: "Next slide command sent."
+      message: "Next slide command sent.",
+      laserPointerActive: false
     }); });
     expect(result.current.pendingPresentationCommand).toBeNull();
     expect(result.current.presentationResult?.succeeded).toBe(true);
@@ -60,5 +62,24 @@ describe("usePresentationControl", () => {
     rerender({ state: "unavailable" });
     expect(result.current.pendingPresentationCommand).toBeNull();
     expect(result.current.presentationResult).toBeNull();
+  });
+
+  it("sends idempotent laser cleanup while another presenter command is pending", () => {
+    const send = vi.fn();
+    const { result } = renderHook(() => usePresentationControl("paired", send));
+
+    act(() => {
+      result.current.requestPresentationCommand("powerpoint", "next");
+      result.current.requestPresentationCommand("pdf", "pointer", false);
+    });
+
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send.mock.calls[1]?.[0]).toMatchObject({
+      type: "presentation.command",
+      target: "pdf",
+      action: "pointer",
+      enabled: false
+    });
+    expect(result.current.pendingPresentationCommand?.action).toBe("next");
   });
 });

@@ -6,6 +6,15 @@ namespace VolturaAir.Host.Tests;
 public sealed class HostSettingsRegistryTests : IsolatedHostSettingsTest
 {
     [Fact]
+    public void AlphaFeaturesAreEnabledByDefaultAndCanBeExplicitlyDisabled()
+    {
+        Assert.True(AppDeveloperSettings.EnableAlphaFeatures());
+
+        AppDeveloperSettings.SetEnableAlphaFeatures(false);
+        Assert.False(AppDeveloperSettings.EnableAlphaFeatures());
+    }
+
+    [Fact]
     public void ActiveIsolatedScopeRefreshesCachedHotPathSettings()
     {
         AppClientControlSettings.SetEnabled(false);
@@ -48,6 +57,26 @@ public sealed class HostSettingsRegistryTests : IsolatedHostSettingsTest
 
         AppPointerSettings.SetUseCursorRecoveryWatchdog(true);
         Assert.True(AppPointerSettings.UseCursorRecoveryWatchdog());
+    }
+
+    [Fact]
+    public void PointerCommunicationSettingsUseAWriteThroughCache()
+    {
+        var expectedLaser = new PresentationLaserPointerSettings(9, PresentationLaserColor.Blue);
+        AppPointerSettings.SetPresentationLaserPointer(expectedLaser);
+
+        using (var key = Registry.CurrentUser.OpenSubKey(HostSettingsRegistry.SettingsKeyPath, writable: true))
+        {
+            Assert.NotNull(key);
+            key.SetValue("PresentationLaserSize", 1, RegistryValueKind.DWord);
+            key.SetValue("PresentationLaserColor", (int)PresentationLaserColor.Red, RegistryValueKind.DWord);
+        }
+
+        Assert.Equal(expectedLaser, AppPointerSettings.GetPresentationLaserPointer());
+
+        var updatedLaser = new PresentationLaserPointerSettings(5, PresentationLaserColor.Green);
+        AppPointerSettings.SetPresentationLaserPointer(updatedLaser);
+        Assert.Equal(updatedLaser, AppPointerSettings.GetPresentationLaserPointer());
     }
 
     [Fact]

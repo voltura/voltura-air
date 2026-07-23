@@ -8,6 +8,7 @@ import type {
   ClipboardGetResultMessage,
   HostStatusMetadata,
   PresentationCommandResultMessage,
+  PresentationReportSaveResultMessage,
   ServerCapabilities,
   SystemPowerResultMessage,
   TextSendResultMessage,
@@ -51,6 +52,7 @@ interface ConnectionSocketLifecycleOptions {
   completeClipboardRead: (result: ClipboardGetResultMessage) => boolean;
   completePowerAction: (result: SystemPowerResultMessage) => boolean;
   completePresentationCommand: (result: PresentationCommandResultMessage) => boolean;
+  completePresentationReportSave: (result: PresentationReportSaveResultMessage) => boolean;
   completeTextTransfer: (result: TextSendResultMessage) => boolean;
   completeUrlOpen: (result: UrlOpenResultMessage) => boolean;
   connectionPcId: string | null;
@@ -91,6 +93,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     completeClipboardRead: completeClipboardReadState,
     completePowerAction: completePowerActionState,
     completePresentationCommand: completePresentationCommandState,
+    completePresentationReportSave: completePresentationReportSaveState,
     completeTextTransfer: completeTextTransferState,
     completeUrlOpen: completeUrlOpenState,
     connectionPcId,
@@ -128,6 +131,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
   const completeClipboardRead = useEffectEvent(completeClipboardReadState);
   const completePowerAction = useEffectEvent(completePowerActionState);
   const completePresentationCommand = useEffectEvent(completePresentationCommandState);
+  const completePresentationReportSave = useEffectEvent(completePresentationReportSaveState);
   const completeTextTransfer = useEffectEvent(completeTextTransferState);
   const completeUrlOpen = useEffectEvent(completeUrlOpenState);
   const getLatestConnectionPc = useEffectEvent(getLatestConnectionPcState);
@@ -606,6 +610,18 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
             setLastConnectionError(response.succeeded
               ? null
               : { code: response.code ?? "VAIR-CLIPBOARD-READ-FAILED", message: response.message });
+          }
+          scheduleHealthCheck(ws);
+          return;
+        }
+
+        if (response.type === "presentation.report.save.result") {
+          touchHealthy();
+          if (completePresentationReportSave(response)) {
+            setMessage(response.message);
+            setLastConnectionError(response.succeeded
+              ? null
+              : { code: response.code ?? "VAIR-PRESENTATION-SAVE-FAILED", message: response.message });
           }
           scheduleHealthCheck(ws);
           return;

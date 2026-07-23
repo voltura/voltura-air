@@ -5,6 +5,17 @@ namespace VolturaAir.Host.Tests;
 
 public sealed class ClientMessageValidatorTests
 {
+    [Theory]
+    [InlineData("""{ "type": "presentation.command", "operationId": "laser-1", "target": "powerpoint", "action": "pointer", "enabled": true }""", true)]
+    [InlineData("""{ "type": "presentation.command", "operationId": "laser-1", "target": "pdf", "action": "pointer" }""", false)]
+    [InlineData("""{ "type": "presentation.command", "operationId": "next-1", "target": "powerpoint", "action": "next", "enabled": false }""", false)]
+    public void RequiresDesiredStateOnlyForLaserPointerCommands(string json, bool expected)
+    {
+        using var document = JsonDocument.Parse(json);
+
+        Assert.Equal(expected, ClientMessageValidator.IsValidAuthenticatedMessage(document.RootElement, "presentation.command"));
+    }
+
     [Fact]
     public void DecodesAndNormalizesPointerInputOnce()
     {

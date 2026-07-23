@@ -45,7 +45,7 @@ describe("appStorage", () => {
     expect(loadAppSettings("client-a", "pc-a")).toEqual({
       autoRefresh: false,
       clearTextAfterSending: true,
-      fourthMode: "dictation"
+      fourthMode: "presentation"
     });
 
     localStorage.setItem(appSettingsKey("client-a", "pc-a"), "{not-json");

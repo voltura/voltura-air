@@ -177,6 +177,11 @@ function isServerMessage(value: unknown): value is ServerMessage {
       return isOperationId(value.operationId) &&
         isOneOf(value.target, ["powerpoint", "google-slides", "pdf"]) &&
         isOneOf(value.action, ["next", "previous", "start", "end", "black", "pointer"]) &&
+        typeof value.laserPointerActive === "boolean" &&
+        isResultBase(value);
+    case "presentation.report.save.result":
+      return isOperationId(value.operationId) &&
+        isOperationId(value.reportId) &&
         isResultBase(value);
     case "system.power.result":
       return isOperationId(value.operationId) && isBoundedString(value.action, 80, false) && isResultBase(value);
@@ -211,7 +216,7 @@ function isServerCapabilities(value: unknown): boolean {
     isOptional(value, "inputAck", isBoolean) &&
     isOptional(value, "remoteInput", isBoolean) &&
     isOptional(value, "clipboardRead", isBoolean) &&
-    isOptional(value, "presentation", (candidate) => isBooleanCapability(candidate, "canControl")) &&
+    isOptional(value, "presentation", isPresentationCapability) &&
     isOptional(value, "power", isPowerCapabilities) &&
     isOptional(value, "remoteLaunch", isBoolean) &&
     isOptional(value, "urlOpen", (candidate) => isBooleanCapability(candidate, "canOpen")) &&
@@ -281,6 +286,13 @@ function isResultBase(value: Record<string, unknown>): boolean {
 
 function isBooleanCapability(value: unknown, field: string): boolean {
   return isRecord(value) && typeof value[field] === "boolean";
+}
+
+function isPresentationCapability(value: unknown): boolean {
+  return isRecord(value) &&
+    typeof value.canControl === "boolean" &&
+    typeof value.canSaveReports === "boolean" &&
+    typeof value.laserPointerActive === "boolean";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -374,8 +386,14 @@ export const getPowerCapabilities = (capabilities: ServerCapabilities | undefine
 export const hasVolumeCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.volume === true;
 export const hasInputAckCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.inputAck === true;
 export const getPresentationCapability = (capabilities: ServerCapabilities | undefined): PresentationCapability | undefined =>
-  typeof capabilities?.presentation?.canControl === "boolean"
-    ? { canControl: capabilities.presentation.canControl }
+  typeof capabilities?.presentation?.canControl === "boolean" &&
+  typeof capabilities.presentation.canSaveReports === "boolean" &&
+  typeof capabilities.presentation.laserPointerActive === "boolean"
+    ? {
+        canControl: capabilities.presentation.canControl,
+        canSaveReports: capabilities.presentation.canSaveReports,
+        laserPointerActive: capabilities.presentation.laserPointerActive
+      }
     : undefined;
 export const hasRemoteLaunchCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.remoteLaunch === true;
 export const hasTextTransferCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.textTransfer === true;

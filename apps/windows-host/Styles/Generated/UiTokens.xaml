@@ -12,6 +12,7 @@
     <system:Double x:Key="SpaceXl">24</system:Double>
     <system:Double x:Key="Space2xl">32</system:Double>
     <system:Double x:Key="Space3xl">40</system:Double>
+    <system:Double x:Key="EditableTextFontSize">13</system:Double>
     <system:Double x:Key="ControlCompactHeight">36</system:Double>
     <system:Double x:Key="ControlMinHeight">44</system:Double>
     <system:Double x:Key="ControlProminentHeight">48</system:Double>

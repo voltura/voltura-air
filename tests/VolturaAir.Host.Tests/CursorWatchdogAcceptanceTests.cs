@@ -144,11 +144,16 @@ public sealed class CursorWatchdogAcceptanceTests : IsolatedHostSettingsTest
             var monitorProcessId = int.Parse(File.ReadAllText(readyFile), CultureInfo.InvariantCulture);
             pointer.Apply(new CustomPointerSettings(true, 6, AppPointerSettings.DefaultCustomPointerColor));
 
+            var recoveryStopwatch = Stopwatch.StartNew();
             ForceTerminateProcessTree(dummyHost);
 
             Assert.True(
                 restoreCompletedEvent.WaitOne(ProcessTimeout),
                 "The watchdog did not survive the forced host tree termination and restore the cursor scheme.");
+            recoveryStopwatch.Stop();
+            Assert.True(
+                recoveryStopwatch.Elapsed < TimeSpan.FromSeconds(2),
+                $"Cursor recovery took {recoveryStopwatch.Elapsed.TotalMilliseconds:F0} ms after forced host termination.");
             Assert.True(
                 WaitForProcessExit(monitorProcessId, ProcessTimeout),
                 "The cursor watchdog did not exit after recovery.");

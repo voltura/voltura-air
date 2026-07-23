@@ -13,6 +13,7 @@ document's role, subject, and update trigger.
 | Derived public | Selects current facts for users or prospective users. |
 | Approved TODO | Orders approved unfinished outcomes. |
 | Approved design | Records a decision-complete design without assigning implementation order. |
+| Alpha feature authority | Defines current behavior, approved unfinished work, and candidates for one alpha feature until graduation. |
 | Candidate register | Records directions that require a product decision. |
 
 ## Writing rules
@@ -48,6 +49,7 @@ document's role, subject, and update trigger.
 | --- | --- | --- |
 | [Architecture](architecture.md) | Target authority | Subsystem ownership, dependency direction, resource inventory, invariants, bundle budget, and source-size review. |
 | [Feature inventory](features.md) | Current authority | Implemented product capabilities and guarantees. Update with user-visible behavior. |
+| [Presentation feature alpha](presentation-feature-alpha.md) | Alpha feature authority | Complete current behavior, approved work, limitations, validation, V2 candidates, and graduation procedure for Presentation while alpha. |
 | [One-page marketing site](site/index.php) | Derived public | Core use cases, capability summary, trust, screenshots, and downloads. |
 | [Machine-readable product summary](site/llms.txt) | Derived public | Compact product facts and authority links for AI systems. |
 | [Windows host quality](host-quality.md) | Engineering authority | Analyzer policy, runtime ownership, resource expectations, and host quality gate. |
@@ -60,7 +62,7 @@ document's role, subject, and update trigger.
 | [Screenshot capture](screenshots.md) | Operational | Isolated screenshot and installer-artwork capture. |
 | [Setup](setup.md) | Operational | Installation, development startup, host options, and first connection. |
 | [Site deployment](site-deployment.md) | Operational | Marketing-site deployment and hosting behavior. |
-| [Project TODO](todo.md) | Approved TODO | P1 Presentation graduation. |
+| [Project TODO](todo.md) | Approved TODO | Ordered work, with P1 Presentation graduation linked to its alpha authority. |
 | [PC-assisted Dictate plan](dictate-pc-assist-plan.md) | Approved design | Alpha-gated PC microphone and Windows Voice Typing assistance within Dictate; implementation order is unassigned. |
 | [Candidate directions](ideas.md) | Candidate register | Product, platform, distribution, and project directions awaiting decisions. |
 | [Troubleshooting](troubleshooting.md) | Operational | Pairing, network, input, pointer, text, logging, and host recovery. |

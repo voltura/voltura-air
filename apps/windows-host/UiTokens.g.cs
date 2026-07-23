@@ -13,6 +13,7 @@ internal static class UiTokens
     public const double SpaceXl = 24d;
     public const double Space2xl = 32d;
     public const double Space3xl = 40d;
+    public const double EditableTextFontSize = 13d;
 
     public static ThemePalette DarkPalette { get; } = new(
         true,
@@ -29,6 +30,8 @@ internal static class UiTokens
         System.Drawing.Color.FromArgb(8, 122, 96),
         System.Drawing.Color.FromArgb(255, 116, 95),
         System.Drawing.Color.FromArgb(192, 83, 58),
+        System.Drawing.Color.FromArgb(37, 208, 167),
+        System.Drawing.Color.FromArgb(227, 161, 90),
         System.Drawing.Color.FromArgb(255, 255, 255));
 
     public static ThemePalette LightPalette { get; } = new(
@@ -46,5 +49,7 @@ internal static class UiTokens
         System.Drawing.Color.FromArgb(8, 122, 96),
         System.Drawing.Color.FromArgb(192, 83, 58),
         System.Drawing.Color.FromArgb(192, 83, 58),
+        System.Drawing.Color.FromArgb(15, 123, 108),
+        System.Drawing.Color.FromArgb(163, 91, 22),
         System.Drawing.Color.FromArgb(255, 255, 255));
 }

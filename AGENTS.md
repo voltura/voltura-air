@@ -151,9 +151,11 @@ need to occupy the context of unrelated work.
   reconnect keys, signatures, proofs, device metadata, or other large credential
   material in the pairing URL; exchange that material after the browser opens
   the normal short pairing link.
-- Incomplete experimental host features use the default-off **Enable alpha
-  features** umbrella gate and enforce it at the production command boundary.
-  Hidden UI is not enforcement.
+- Presentation uses the default-on **Enable alpha features** gate and enforces
+  it at every production command boundary; an explicit off choice omits the
+  capability and blocks new Presentation work. Do not place another incomplete
+  feature behind this default-on gate without a separately reviewed activation
+  decision. Hidden UI is not enforcement.
 
 ## Documentation
 

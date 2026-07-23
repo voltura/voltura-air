@@ -18,6 +18,7 @@ internal sealed class PreferencesPageController
     private readonly AppLaunchSettingsSection _appLaunch;
     private readonly TextDestinationSettingsSection _textDestination;
     private readonly CustomPointerSettingsSection _customPointer;
+    private readonly PresentationSettingsSection _presentation;
     private readonly ApplicationSettingsSection _application;
     private readonly GlobalPermissionsSettingsSection _permissions;
     private readonly DeveloperSettingsSection _developer;
@@ -48,6 +49,7 @@ internal sealed class PreferencesPageController
         _appLaunch = new AppLaunchSettingsSection(owner, appLaunchService, visuals, _preferenceVisuals, toasts, () => _isLoading, RefreshPreservingState);
         _textDestination = new TextDestinationSettingsSection(owner, visuals, _preferenceVisuals, toasts, () => _isLoading);
         _customPointer = new CustomPointerSettingsSection(owner, customPointerService, appLog, visuals, toasts, () => _isLoading);
+        _presentation = new PresentationSettingsSection(customPointerService, appLog, visuals, toasts, () => _isLoading);
         _application = new ApplicationSettingsSection(appLog, visuals, _preferenceVisuals, () => _isLoading);
         _permissions = new GlobalPermissionsSettingsSection(powerController, owner, visuals, _preferenceVisuals, () => _isLoading);
         _developer = new DeveloperSettingsSection(owner, powerController, workstationLockPolicy, appLog, visuals, _preferenceVisuals, toasts, RefreshPreservingState);
@@ -65,6 +67,7 @@ internal sealed class PreferencesPageController
         AddAppearanceSettings(root.AppearanceContent);
         AddTrackpadSettings(root.TrackpadContent);
         AddRemoteSettings(root.RemoteContent);
+        _presentation.AddTo(root.PresentationContent);
         _awake.AddTo(root.AwakeContent);
         _permissions.AddTo(root.PermissionsContent);
         _textDestination.AddTo(root.TextDestinationContent);

@@ -70,7 +70,7 @@ public static class AppDeveloperSettings
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: false);
-            return key?.GetValue(EnableAlphaFeaturesValueName) is int value && value != 0;
+            return key?.GetValue(EnableAlphaFeaturesValueName) is not int value || value != 0;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {

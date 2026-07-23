@@ -24,6 +24,7 @@ public sealed class WebHostService : IAsyncDisposable
     private readonly SemaphoreSlim _webSocketSessionSlots = new(MaxConcurrentWebSocketSessions, MaxConcurrentWebSocketSessions);
     private readonly HostStatusBroadcaster _statusBroadcaster;
     private readonly WebSocketSessionHandler _sessionHandler;
+    private readonly PresentationLaserPointerController _presentationLaserPointer;
     private readonly Action<IWebHostBuilder>? _configureWebHost;
     private readonly string _listenAddress;
     private int _inputBlockedByElevation;
@@ -44,6 +45,7 @@ public sealed class WebHostService : IAsyncDisposable
         ITextDestinationService? textDestinationService = null,
         IClipboardTextReader? clipboardTextReader = null,
         Action<CustomPointerSettings>? applyCustomPointer = null,
+        Action<bool>? applyPresentationLaserPointer = null,
         bool isolatedTestMode = false,
         Action<IWebHostBuilder>? configureWebHost = null)
     {
@@ -105,6 +107,8 @@ public sealed class WebHostService : IAsyncDisposable
             ? new NoOpAwakeService()
             : throw new ArgumentNullException(nameof(awakeService), "Production host composition must provide the Awake service."));
         _workstationLockPolicy = workstationLockPolicy ?? new WorkstationLockPolicy(_appLog);
+        _presentationLaserPointer = new PresentationLaserPointerController(
+            isolatedTestMode ? null : applyPresentationLaserPointer);
 
         var statusFactory = new HostStatusPayloadFactory(
             pairingManager,
@@ -114,7 +118,8 @@ public sealed class WebHostService : IAsyncDisposable
             resolvedAppLaunchService,
             resolvedTextDestinationService,
             GetNetworkSnapshot,
-            () => IsInputBlockedByElevation);
+            () => IsInputBlockedByElevation,
+            () => _presentationLaserPointer.IsEnabled);
         var commandLog = new HostCommandLog(_appLog);
         var powerCommands = new PowerCommandHandler(
             _powerController,
@@ -123,7 +128,21 @@ public sealed class WebHostService : IAsyncDisposable
             _transport,
             _appLog);
         var awakeCommands = new AwakeCommandHandler(_awakeService, statusFactory, _transport, _appLog);
-        var presentationCommands = new PresentationCommandHandler(inputDispatcher, statusFactory, _transport, _appLog);
+        var presentationCommands = new PresentationCommandHandler(
+            inputDispatcher,
+            statusFactory,
+            _presentationLaserPointer,
+            _transport,
+            _appLog);
+        PresentationReportStore = isolatedTestMode
+            ? new InMemoryPresentationReportStore()
+            : new PresentationReportStore();
+        var presentationReports = new PresentationReportCommandHandler(
+            pairingManager,
+            statusFactory,
+            PresentationReportStore,
+            _transport,
+            _appLog);
         var externalActionCommands = new ExternalActionCommandHandler(
             resolvedRemoteActionExecutor,
             resolvedAppLaunchService,
@@ -157,6 +176,7 @@ public sealed class WebHostService : IAsyncDisposable
             powerCommands,
             awakeCommands,
             presentationCommands,
+            presentationReports,
             externalActionCommands,
             textTransferCommands,
             clipboardCommands,
@@ -169,10 +189,12 @@ public sealed class WebHostService : IAsyncDisposable
             _workstationLockPolicy,
             _transport,
             statusFactory,
-            _appLog);
+            _appLog,
+            _presentationLaserPointer);
     }
 
     public int Port { get; }
+    internal IPresentationReportStore PresentationReportStore { get; }
     public string ServerUrl { get; private set; }
     public string WebSocketUrl => BuildWebSocketUrl(AdvertisedHostAddress, Port);
     public string AdvertisedHostAddress { get; private set; }
@@ -296,6 +318,7 @@ public sealed class WebHostService : IAsyncDisposable
         }
 
         await _statusBroadcaster.DisposeAsync();
+        _presentationLaserPointer.Dispose();
         _transport.AbortAll();
         try
         {

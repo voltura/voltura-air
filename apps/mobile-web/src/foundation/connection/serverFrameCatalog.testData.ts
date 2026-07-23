@@ -16,7 +16,7 @@ export const serverFrameCatalog = {
       capabilities: {
         awake: { canControl: true, active: false, mode: "off" },
         gestureDebug: false, inputAck: true, clipboardRead: true,
-        presentation: { canControl: true },
+        presentation: { canControl: true, canSaveReports: true, laserPointerActive: false },
         power: { lock: true, lockAvailability: "notExplicitlyDisabled", blackoutDisplay: true, displayOff: true, screenSaver: true, screenSaverAvailable: true, signOut: true, restart: true, shutdown: true },
         remoteLaunch: true, urlOpen: { canOpen: true }, sleep: true, textTransfer: true, volume: true
       },
@@ -50,10 +50,17 @@ export const serverFrameCatalog = {
     ]
   },
   "presentation.command.result": {
-    required: ["operationId", "target", "action", "succeeded", "message"],
+    required: ["operationId", "target", "action", "succeeded", "message", "laserPointerActive"],
     frames: [
-      { type: "presentation.command.result", operationId: "op-presentation", target: "powerpoint", action: "next", succeeded: true, message: "Done" },
-      { type: "presentation.command.result", operationId: "op-presentation", target: "powerpoint", action: "next", succeeded: false, code: "permission-denied", message: "Blocked" }
+      { type: "presentation.command.result", operationId: "op-presentation", target: "powerpoint", action: "next", succeeded: true, message: "Done", laserPointerActive: false },
+      { type: "presentation.command.result", operationId: "op-presentation", target: "powerpoint", action: "next", succeeded: false, code: "permission-denied", message: "Blocked", laserPointerActive: true }
+    ]
+  },
+  "presentation.report.save.result": {
+    required: ["operationId", "reportId", "succeeded", "message"],
+    frames: [
+      { type: "presentation.report.save.result", operationId: "op-report", reportId: "report-1", succeeded: true, message: "Saved" },
+      { type: "presentation.report.save.result", operationId: "op-report", reportId: "report-1", succeeded: false, code: "invalid-report", message: "Invalid" }
     ]
   },
   "system.power.result": {

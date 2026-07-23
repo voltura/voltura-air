@@ -236,6 +236,7 @@ internal sealed class CustomPointerSettingsSection(
             Style = visuals.Style("ModernSliderStyle"),
             Minimum = 0,
             Maximum = 360,
+            IsMoveToPointEnabled = true,
             Width = 184,
             Value = hue
         };

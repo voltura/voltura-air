@@ -83,4 +83,47 @@ public sealed class CustomPointerServiceTests : IsolatedHostSettingsTest
 
         Assert.Equal(0, template.GetPixel(template.Width - 1, template.Height - 1).A);
     }
+
+    [Fact]
+    public void LaserPointerHasTransparentCornersGlowRingAndDarkCenter()
+    {
+        using var laser = CustomPointerService.CreateLaserPointerBitmap();
+
+        Assert.Equal(0, laser.GetPixel(0, 0).A);
+        Assert.InRange(laser.GetPixel(20, laser.Height / 2).A, 1, 254);
+        Assert.Equal(Color.FromArgb(255, 255, 18, 28), laser.GetPixel(43, laser.Height / 2));
+        Assert.Equal(Color.FromArgb(255, 168, 0, 8), laser.GetPixel(laser.Width / 2, laser.Height / 2));
+    }
+
+    [Theory]
+    [InlineData(1, 32)]
+    [InlineData(6, 112)]
+    [InlineData(15, 256)]
+    public void LaserPointerUsesTheSharedPointerSizeScale(int size, int expectedPixels)
+    {
+        using var laser = CustomPointerService.CreateLaserPointerBitmap(
+            new PresentationLaserPointerSettings(size, PresentationLaserColor.Red));
+
+        Assert.Equal(expectedPixels, laser.Width);
+        Assert.Equal(expectedPixels, laser.Height);
+        Assert.Equal(0, laser.GetPixel(0, 0).A);
+    }
+
+    [Theory]
+    [InlineData(PresentationLaserColor.Red, 168, 0, 8)]
+    [InlineData(PresentationLaserColor.Green, 8, 158, 82)]
+    [InlineData(PresentationLaserColor.Blue, 8, 118, 220)]
+    public void LaserPointerAppliesTheSelectedSemanticColor(
+        PresentationLaserColor color,
+        int expectedRed,
+        int expectedGreen,
+        int expectedBlue)
+    {
+        using var laser = CustomPointerService.CreateLaserPointerBitmap(
+            new PresentationLaserPointerSettings(6, color));
+
+        Assert.Equal(
+            Color.FromArgb(255, expectedRed, expectedGreen, expectedBlue),
+            laser.GetPixel(laser.Width / 2, laser.Height / 2));
+    }
 }

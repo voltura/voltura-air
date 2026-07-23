@@ -615,9 +615,17 @@ keep the authenticated socket open.
 
 When permission is blocked, no clipboard read occurs and the host returns `VAIR-CLIPBOARD-PERMISSION-DENIED`. Other expected failures are `VAIR-CLIPBOARD-NO-TEXT`, `VAIR-CLIPBOARD-TEXT-TOO-LONG`, and `VAIR-CLIPBOARD-UNAVAILABLE`.
 
-## Presentation commands
+## Presentation commands and reports
 
-Presentation mode is a default-off alpha feature. The host advertises it only while **Preferences > Developer tools > Enable alpha features** is enabled and enforces the same gate before any command reaches input injection. It uses a separate acknowledged command set rather than sending arbitrary `keyboard.special` messages. The client supplies one bounded operation ID, a reviewed target profile, and one fixed action. The official client permits only one in-flight presentation command, disables every presenter control until its matching result arrives, and clears pending state on disconnect instead of replaying a slide change later.
+Presentation mode remains capability-gated while alpha. On a clean host,
+**Preferences > Developer tools > Enable alpha features** defaults on; an
+explicit off choice omits the capability and blocks commands and report saves
+at their production boundaries. Commands use a separate acknowledged set rather than arbitrary
+`keyboard.special` messages. The client supplies one bounded operation ID, a
+reviewed target profile, and one fixed action. The official client permits only
+one ordinary presenter command in flight and clears pending work on disconnect.
+An idempotent `pointer` disable may bypass an unrelated pending acknowledgement
+only for deterministic cleanup.
 
 ```json
 {
@@ -628,17 +636,23 @@ Presentation mode is a default-off alpha feature. The host advertises it only wh
 }
 ```
 
-Targets are `powerpoint`, `google-slides`, and `pdf`. Actions are `next`, `previous`, `start`, `end`, `black`, and `pointer`; a recognized action can still be unavailable for a target and then returns `unsupported-action` without injecting input. Mappings are:
+Targets are `powerpoint`, `google-slides`, and `pdf`. Actions are `next`,
+`previous`, `start`, `end`, `black`, and `pointer`; a recognized shortcut can
+still be unavailable for a target and then returns `unsupported-action` without
+injecting input. `pointer` is available for every target and requires an
+`enabled` Boolean expressing desired native laser state. `enabled` is forbidden
+for every other action, so retrying the same desired state cannot invert it.
+Shortcut mappings are:
 
-| Target | Next | Previous | Start | End | Black | Pointer |
-| --- | --- | --- | --- | --- | --- | --- |
-| PowerPoint | Right | Left | F5 | Esc | B | Ctrl+L |
-| Google Slides | Right | Left | unavailable | Esc | B | L |
-| PDF/browser | Right | Left | unavailable | Esc | unavailable | unavailable |
+| Target | Next | Previous | Start | End | Black |
+| --- | --- | --- | --- | --- | --- |
+| PowerPoint | Right | Left | F5 | Esc | B |
+| Google Slides | Right | Left | unavailable | Esc | B |
+| PDF/browser | Right | Left | unavailable | Esc | unavailable |
 
 These low-level mappings are intentionally user-selected. The host does not
-inspect the focused process, presentation file, slide number, or application
-state. Clients must not send an unavailable target/action combination. The
+inspect the focused process or application state. Clients must not send an
+unavailable shortcut combination. The
 separately permissioned `system.power` `blackoutDisplay` action is distinct from
 the presentation `black` shortcut. The target scope follows the current
 [PowerPoint presentation shortcuts](https://support.microsoft.com/en-us/office/use-keyboard-shortcuts-to-deliver-powerpoint-presentations-1524ffce-bd2a-45f4-9a7f-f18b992b93a0)
@@ -649,8 +663,24 @@ With the alpha gate off, the `presentation` capability is omitted.
 With the gate on, the host advertises the paired device's effective global/per-device permission:
 
 ```json
-{ "presentation": { "canControl": true } }
+{
+  "presentation": {
+    "canControl": true,
+    "canSaveReports": true,
+    "laserPointerActive": false
+  }
+}
 ```
+
+`laserPointerActive` is host-authoritative in pair/status frames. The host keeps
+laser state and owner identity in memory, applies one generated laser cursor to
+all Windows cursor roles through the existing custom-pointer service, and does
+not read or write the Registry for a laser transition. A non-owner cannot
+disable another paired device's active laser. Owner disconnect, End slideshow,
+client departure from Presentation, permission or alpha-gate revocation, and
+normal host shutdown request disable. An idempotent owner cleanup disable is
+accepted even after availability is revoked. The cursor-recovery watchdog
+restores the Windows scheme after abnormal host termination.
 
 After validation and permission enforcement, the host performs one shortcut injection and returns the matching operation, target, and action:
 
@@ -661,11 +691,94 @@ After validation and permission enforcement, the host performs one shortcut inje
   "target": "powerpoint",
   "action": "next",
   "succeeded": true,
-  "message": "Next slide command sent."
+  "message": "Next slide command sent.",
+  "laserPointerActive": false
 }
 ```
 
-Failure codes are `feature-disabled`, `permission-denied`, `unsupported-action`, `host-ui-blocked`, and `input-failed`. `feature-disabled` is returned before input work when the alpha gate is off. The client can additionally report `VAIR-PRESENTATION-RESPONSE-TIMEOUT` if no matching result arrives. Expected denial and native input failures keep the authenticated socket open. Success confirms that Windows accepted the shortcut sequence; it does not claim that an application changed slides.
+Failure codes are `feature-disabled`, `permission-denied`,
+`unsupported-action`, `host-ui-blocked`, `input-failed`, and `pointer-failed`.
+`feature-disabled` is returned before native work when the alpha gate is off.
+The client can additionally report `VAIR-PRESENTATION-RESPONSE-TIMEOUT` if no
+matching result arrives. Expected denial and native failures keep the
+authenticated socket open. Shortcut success confirms only that Windows accepted
+the sequence; it does not claim that an application changed slides.
+
+### Saving a presentation report
+
+The `canSaveReports` capability is the effective Presentation permission. The
+official client freezes the local session before sending and retains it until a
+matching successful acknowledgement. The authenticated host derives device key
+and captured device name from the connection; neither is accepted from the
+payload.
+
+```json
+{
+  "type": "presentation.report.save",
+  "operationId": "save-820c1314-d8a1-499d-a969",
+  "reportId": "report-820c1314-d8a1-499d-a969",
+  "target": "powerpoint",
+  "startedAt": "2026-07-23T08:00:00.000+02:00",
+  "endedAt": "2026-07-23T09:07:07.000+02:00",
+  "utcOffsetMinutes": 120,
+  "plannedDurationSeconds": 3600,
+  "presentationDurationSeconds": 3422,
+  "endedDuringBreak": false,
+  "breaks": [
+    {
+      "breakNumber": 1,
+      "presentationElapsedSeconds": 1140,
+      "breakDurationSeconds": 420,
+      "startedAt": "2026-07-23T08:19:00.000+02:00",
+      "endedAt": "2026-07-23T08:26:00.000+02:00",
+      "sessionSlideMinimum": 1,
+      "sessionSlideMaximum": 9,
+      "slideNumberAtStart": 9,
+      "slideNumberAtEnd": 9
+    }
+  ],
+  "slides": [
+    { "slideNumber": 1, "durationSeconds": 130 },
+    { "slideNumber": 2, "durationSeconds": 92 }
+  ]
+}
+```
+
+Operation and report IDs contain 1–64 ASCII letters, digits, or hyphens.
+Targets use the Presentation target allowlist. Dates must parse as offsets;
+report and break chronology must be monotonic and contained by report bounds.
+UTC offset is -840 through +840 minutes. The report's wall-clock span and every
+duration are finite, non-negative, and at most seven days. Breaks are
+consecutively numbered from 1, contain
+nondecreasing presenting checkpoints, and are limited to 100. Optional slide
+numbers/ranges and slide entries are 1–1,000; slide entries are unique and
+limited to 1,000. Optional nested fields are omitted when unknown; explicit
+`null`, duplicate properties, and undeclared break/slide properties are
+invalid. `endedDuringBreak` is required; when true, the final break must end at
+the report end and its presentation checkpoint must equal the final presenting
+duration. The shared WebSocket transport-size limit still applies.
+
+The same operation/report pair is idempotent and returns the existing report.
+Reusing a report ID with different operation identity returns
+`report-conflict`. Reports are atomically normalized and stored below the
+current user's local application-data directory; the archive limit is 1,000.
+
+```json
+{
+  "type": "presentation.report.save.result",
+  "operationId": "save-820c1314-d8a1-499d-a969",
+  "reportId": "report-820c1314-d8a1-499d-a969",
+  "succeeded": true,
+  "message": "Presentation data saved on the PC."
+}
+```
+
+Failure codes are `feature-disabled`, `permission-denied`, `invalid-report`,
+`device-revoked`, `report-conflict`, `archive-full`, and `storage-failed`.
+A bounded authenticated report envelope with invalid report semantics receives
+`invalid-report` without closing the socket. An invalid message type, duplicate
+or extra field, or invalid correlation identifier remains a protocol violation.
+Failures and client timeout retain the frozen client snapshot for retry.
 
 Input delivery acknowledgement:
 
@@ -716,11 +829,13 @@ The host reports optional PC features in `capabilities`. Capability values
 reflect host-enforced permissions and host settings for the active device.
 `capabilities.gestureDebug` defaults to `false`; `capabilities.inputAck` is
 `true` when the host confirms input delivery with `input.ack` / `input.error`.
-`capabilities.presentation` is omitted while the reusable, default-off alpha gate
-is disabled. While the gate is enabled, it is an object whose `canControl` value
-is the active device's effective Presentation control permission. Clients must
-not expose or send capability-gated operations while their corresponding
-capability is absent or false.
+`capabilities.presentation` is omitted while the alpha gate is disabled. The
+gate defaults on when the host has no stored choice. While it is enabled, the
+capability's `canControl` and `canSaveReports`
+values reflect the active device's effective Presentation permission, and
+`laserPointerActive` reports host-owned transient state. Clients must not expose
+or send capability-gated operations while their corresponding capability is
+absent or false.
 
 Put the PC to sleep:
 

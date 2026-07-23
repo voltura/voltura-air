@@ -102,8 +102,10 @@ describe("connection protocol policy", () => {
   });
 
   it("accepts presentation support only with an explicit effective permission", () => {
-    expect(getPresentationCapability({ presentation: { canControl: true } })).toEqual({ canControl: true });
-    expect(getPresentationCapability({ presentation: { canControl: false } })).toEqual({ canControl: false });
+    expect(getPresentationCapability({ presentation: { canControl: true, canSaveReports: true, laserPointerActive: false } }))
+      .toEqual({ canControl: true, canSaveReports: true, laserPointerActive: false });
+    expect(getPresentationCapability({ presentation: { canControl: false, canSaveReports: false, laserPointerActive: true } }))
+      .toEqual({ canControl: false, canSaveReports: false, laserPointerActive: true });
     expect(getPresentationCapability({})).toBeUndefined();
     expect(getPresentationCapability({ presentation: {} as never })).toBeUndefined();
   });

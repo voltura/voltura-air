@@ -3,6 +3,15 @@
 These directions await a product decision. Each entry records the intended
 value and the decision required before it can move into [todo.md](todo.md).
 
+## Presentation alpha candidates
+
+Presentation-specific candidates—including recent-presentation launch from the
+device, canonical presentation identity, cross-session analytics, multi-select
+bulk management, and deeper mail-provider integration—are maintained with their
+platform, privacy, dependency, and decision context in the
+[Presentation feature alpha authority](presentation-feature-alpha.md#candidate--v2-register).
+They move into this general register when Presentation graduates.
+
 ## Control and personalization
 
 ### Custom shortcut panels

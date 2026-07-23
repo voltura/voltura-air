@@ -19,6 +19,8 @@ public sealed record ThemePalette(
     Color SuccessStrong,
     Color Danger,
     Color DangerStrong,
+    Color PresentationSegment,
+    Color PresentationBreak,
     Color QrBackground);
 
 public static partial class WindowsTheme

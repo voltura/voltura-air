@@ -14,7 +14,7 @@ separate product feature.
 Device/browser dictation keeps its current functionality. Its layout may change
 so the device and PC paths form one coherent Dictate experience.
 
-The PC path is protected by the default-off **Enable alpha features** umbrella
+The PC path is protected by the **Enable alpha features** umbrella
 gate. Within that gate, PC-assisted Dictate support is allowed by default and
 can be disabled globally or for an individual paired device.
 

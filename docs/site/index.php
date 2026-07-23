@@ -106,6 +106,10 @@
           <p>Move, click, scroll, zoom, type, and use common shortcuts from your mobile device.</p>
         </article>
         <article>
+          <h2>Presentation remote</h2>
+          <p>Control PowerPoint, Google Slides, or PDF/browser presentations with a trackpad, native laser pointer, timer, and optional reports saved on the PC.</p>
+        </article>
+        <article>
           <h2>Send text to PC</h2>
           <p>Compose, paste, or use supported browser dictation for longer text, then send it to the PC.</p>
         </article>

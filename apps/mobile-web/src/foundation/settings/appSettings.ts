@@ -9,7 +9,7 @@ export interface AppSettings {
 export const defaultAppSettings: AppSettings = {
   autoRefresh: true,
   clearTextAfterSending: true,
-  fourthMode: "dictation"
+  fourthMode: "presentation"
 };
 
 export function getEffectiveFourthMode(fourthMode: FourthMode, presentationAvailable: boolean): FourthMode {
@@ -23,6 +23,8 @@ export function normalizeAppSettings(value: unknown): AppSettings {
   return {
     autoRefresh: typeof candidate.autoRefresh === "boolean" ? candidate.autoRefresh : defaultAppSettings.autoRefresh,
     clearTextAfterSending: typeof candidate.clearTextAfterSending === "boolean" ? candidate.clearTextAfterSending : defaultAppSettings.clearTextAfterSending,
-    fourthMode: candidate.fourthMode === "presentation" || candidate.fourthMode === "text-transfer" || candidate.fourthMode === "clipboard-read" ? candidate.fourthMode : "dictation"
+    fourthMode: candidate.fourthMode === "presentation" || candidate.fourthMode === "dictation" || candidate.fourthMode === "text-transfer" || candidate.fourthMode === "clipboard-read"
+      ? candidate.fourthMode
+      : defaultAppSettings.fourthMode
   };
 }

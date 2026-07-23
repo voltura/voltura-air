@@ -48,7 +48,8 @@ Before editing public copy:
 - lead with the primary job: controlling the Windows PC from a mobile device;
 - present only a small set of recognizable core capabilities and use cases;
 - omit secondary controls and implementation details;
-- do not promote default-off alpha work as a normal product capability;
+- identify capability-gated alpha work accurately and state whether it is
+  enabled by default;
 - avoid absolute or performance claims unless the applicable authority and
   production behavior support them; and
 - verify that every factual statement can be traced to `features.md`,
@@ -62,5 +63,5 @@ Run `npm run docs:check` after adding, removing, or renaming a public page or
 
 Before deployment, compare the public copy, package labels, links, and
 screenshots with the current release. Do not imply remote wake from Windows
-sleep, an internet relay, signed binaries, or availability of default-off alpha
-features.
+sleep, an internet relay, signed binaries, or availability of disabled
+capabilities.

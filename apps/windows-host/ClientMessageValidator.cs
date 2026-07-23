@@ -40,7 +40,20 @@ internal static class ClientMessageValidator
             ["system.sleep"] = Fields("type"),
             ["system.power"] = Fields("type", "operationId", "action"),
             ["awake.set"] = Fields("type", "operationId", "enabled"),
-            ["presentation.command"] = Fields("type", "operationId", "target", "action"),
+            ["presentation.command"] = Fields("type", "operationId", "target", "action", "enabled"),
+            ["presentation.report.save"] = Fields(
+                "type",
+                "operationId",
+                "reportId",
+                "target",
+                "startedAt",
+                "endedAt",
+                "utcOffsetMinutes",
+                "plannedDurationSeconds",
+                "presentationDurationSeconds",
+                "endedDuringBreak",
+                "breaks",
+                "slides"),
             ["remote.launch"] = Fields("type", "action"),
             ["app.launch"] = Fields("type", "operationId", "actionId"),
             ["url.open"] = Fields("type", "operationId", "url"),
@@ -158,7 +171,9 @@ internal static class ClientMessageValidator
                 TryGetRequiredString(root, "target", MaxMetadataLength, allowEmpty: false, out var presentationTarget) &&
                 PresentationCommands.IsTarget(presentationTarget) &&
                 TryGetRequiredString(root, "action", MaxRemoteActionLength, allowEmpty: false, out var presentationAction) &&
-                PresentationCommands.IsAction(presentationAction),
+                PresentationCommands.IsAction(presentationAction) &&
+                IsValidPresentationEnabled(root, presentationAction),
+            "presentation.report.save" => IsValidPresentationReportEnvelope(root),
             "remote.launch" => TryGetRequiredString(root, "action", MaxRemoteActionLength, allowEmpty: false, out var action) &&
                 RemoteLaunchActions.IsSupported(action),
             "app.launch" => TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var appLaunchOperationId) &&
@@ -260,6 +275,20 @@ internal static class ClientMessageValidator
     private static bool IsValidOperationId(string operationId)
     {
         return operationId.All(character => char.IsAsciiLetterOrDigit(character) || character is '-');
+    }
+
+    private static bool IsValidPresentationReportEnvelope(JsonElement root) =>
+        TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var operationId) &&
+        IsValidOperationId(operationId) &&
+        TryGetRequiredString(root, "reportId", MaxOperationIdLength, allowEmpty: false, out var reportId) &&
+        IsValidOperationId(reportId);
+
+    private static bool IsValidPresentationEnabled(JsonElement root, string action)
+    {
+        var hasEnabled = root.TryGetProperty("enabled", out var enabled);
+        return action == "pointer"
+            ? hasEnabled && enabled.ValueKind is JsonValueKind.True or JsonValueKind.False
+            : !hasEnabled;
     }
 
     private static FrozenSet<string> Fields(params string[] names) => names.ToFrozenSet(StringComparer.Ordinal);

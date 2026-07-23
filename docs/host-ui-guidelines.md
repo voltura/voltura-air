@@ -8,7 +8,7 @@ adaptive states, AI-assisted UI work, and the UI definition of done.
 
 - The Windows host UI is WPF-first. WinForms is allowed only for tray interop.
 - Use one primary `Voltura Air` window with page navigation for Connect,
-  Devices, Connection, Preferences, and Diagnostics.
+  Devices, Presentations, Connection, Preferences, and Diagnostics.
 - Use a real startup window for host initialization. It should appear
   immediately, stay visible for at least the configured minimum duration, and
   transition to an error state if startup fails.
@@ -42,6 +42,11 @@ adaptive states, AI-assisted UI work, and the UI definition of done.
   last children must not compensate for the accordion boundary. Order sections
   from broad application and appearance settings through control defaults and
   host behavior, then permissions, platform policy, and advanced tools.
+- While Presentation is alpha, its gate defaults on and remains user-disableable
+  under Developer tools. Show host-only laser appearance controls in a
+  **Presentation** Preferences section only while the gate is enabled. Laser
+  size uses the shared custom-pointer scale, and color choices use labeled
+  segmented controls so meaning does not depend on color alone.
 - Nested Preferences disclosures use the shared nested-accordion variant, while
   the enclosing settings stack owns the standard gap from the preceding visible
   group. Neither the accordion nor the preceding button, checkbox, or hint owns
@@ -95,13 +100,39 @@ adaptive states, AI-assisted UI work, and the UI definition of done.
   filter follow-up, keeps at most one dispatcher callback pending, presents read
   failures as recoverable content, and releases log, window, and dispatcher work
   when the view unloads. Manual refresh and logging remain usable after a failure.
+- Presentations uses a newest-first virtualized archive. Its labeled title,
+  type, device, and date-range filters share one control height and apply as
+  they change. Aggregate cards wrap at their natural compact width instead of
+  stretching to fill a row. A row exposes Open and also opens on pointer
+  double-click; hover uses the shared interactive-card background and focus
+  border without making informational children tab stops. Date filtering,
+  archive labels, and detail timestamps use the UTC offset captured with each
+  report rather than reinterpreting history in the PC's current timezone.
+- Presentation detail replaces the archive in the same page. Its header is
+  **Presentations > presentation name**, followed by start date/time and
+  captured device, with the type pill aligned at the far edge. Keep statistics
+  compact, show breaks in their real chronological positions on the timeline,
+  and list session/break rows oldest first with duration and running elapsed
+  time. The fixed footer groups Back separately, then edit/link actions,
+  sharing actions, and the destructive Delete action.
+- Presentation report dialogs use the shared themed text field, button, dialog,
+  tooltip, and focus primitives. File and URL buttons keep stable labels and
+  use a semantic status dot plus an above-control tooltip for linked details.
+  Export and Email expose compact format menus. Successful file export opens
+  through the Windows shell; email attachment requests attach every requested
+  available file independently of linked URLs, fail clearly if one disappears
+  during draft creation, and do not open Explorer as a substitute.
+- Keep the Presentations archive available when stored reports exist after its
+  alpha gate is disabled; only new controls and report saves are blocked.
 - The startup window retains its compact size during normal startup and expands
   only for an error. Error actions stay outside the fallback content scroller.
   A watchdog startup failure offers **Disable watchdog and restart** in addition
   to copying details or closing the host.
 - Use the shared themed combo-box, text-field, and date-range styles for filters
-  and retention controls. New controls must support light, dark, system, hover,
-  focus, selected, disabled, warning, and error states as applicable.
+  and retention controls. Every control in one filter row, including compact
+  icon actions such as **Clear filters**, uses the shared control height and
+  bottom-aligns with its peers. New controls must support light, dark, system,
+  hover, focus, selected, disabled, warning, and error states as applicable.
 - Do not expose the default dashed or dotted WPF focus adorner. Bordered controls
   show keyboard and controller focus by recoloring their existing one-DIP border
   with the theme focus color; focus must not add a second outline or increase

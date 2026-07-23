@@ -83,8 +83,6 @@
                     Content="ⓘ"
                     Style="{DynamicResource SettingsInformationButtonStyle}"
                     ToolTip="{Binding InformationAccessibleName, ElementName=Root}"
-                    ToolTipService.Placement="Top"
-                    ToolTipService.VerticalOffset="-6"
                     ToolTipService.InitialShowDelay="350"
                     AutomationProperties.Name="{Binding InformationAccessibleName, ElementName=Root}"
                     Click="OnInformationClick" />

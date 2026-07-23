@@ -173,9 +173,10 @@ The mobile Fn panel reports launch failures without disconnecting. Enable
 
 ## Presentation controls are disabled or affect the wrong app
 
-Enable **Preferences > Developer tools > Enable alpha features**, then enable
-**Allow paired devices to control presentations** globally or for the selected
-device. **Blackout** also requires its separate permission.
+Presentation is enabled by default. If its controls are missing, open
+**Preferences > Developer tools** and make sure **Enable alpha features** is on,
+then enable **Allow paired devices to control presentations** globally or for
+the selected device. **Blackout** also requires its separate permission.
 
 Keep the intended slideshow or viewer focused and choose its matching target on
 the phone. Google Slides must already be presenting. After a disconnect, wait

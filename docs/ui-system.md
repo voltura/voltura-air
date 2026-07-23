@@ -136,8 +136,9 @@ visible and conceptual complexity proportionate.
 ## Design tokens
 
 `assets/ui-tokens.json` is the single source for shared colors, spacing, radii,
-control sizes, and motion durations. `npm run ui:tokens:generate` produces the
-React CSS variables and WPF resources. Generated files are not edited directly.
+control sizes, editable-text typography, and motion durations.
+`npm run ui:tokens:generate` produces the React CSS variables and WPF resources.
+Generated files are not edited directly.
 
 Tokens represent intentional choices, not every number that can appear in UI
 code. Repeated or visually meaningful values must be tokens. A local value is
@@ -191,6 +192,10 @@ non-interactive live-region semantics.
 Primitives own their visual variants and interaction states. Features own labels,
 content, intent, domain state, and composition.
 
+Editable-field placeholders are rendered by the shared input primitive at the
+platform text insertion origin. Feature views supply placeholder copy but do not
+position a separate overlay or compensate for a particular DPI scale.
+
 On the Windows host, settings checkboxes use their intrinsic, single-line label
 width by default. A feature may request a minimum width or full available width
 when its composition requires alignment. Independent settings use the shared
@@ -213,8 +218,11 @@ recovery, destructive-action, and other guidance that users must understand
 before changing a setting remains visible; importance is not communicated only
 through the information icon's color.
 
-Windows tooltips use the shared themed tooltip style and prefer placement above
-their owning control so the tooltip does not obscure the pointer or the control.
+Windows tooltips use the shared themed tooltip style and its default placement
+above their owning control so the tooltip does not obscure the pointer or the
+control. Feature views provide tooltip content but do not restyle or reposition
+individual tooltips. A documented viewport constraint is the only reason to
+override the shared placement.
 Compact icon actions reuse the shared button hover, pressed, and focus language.
 When a modal Windows information or confirmation dialog loses activation, its
 native mouse-activation handling activates the window without discarding the

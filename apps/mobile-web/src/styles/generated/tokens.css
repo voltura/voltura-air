@@ -18,6 +18,8 @@
   --success-strong: #087A60;
   --danger: #FF745F;
   --danger-strong: #C0533A;
+  --presentation-segment: #25D0A7;
+  --presentation-break: #E3A15A;
   --trackpad-icon: #63717A;
   --scrim: rgb(0 0 0 / 45%);
   --drawer-shadow: rgb(0 0 0 / 36%);
@@ -41,6 +43,7 @@
   --radius-medium: 8px;
   --radius-large: 12px;
   --radius-pill: 999px;
+  --editable-text-font-size: 13px;
   --control-compact-height: 36px;
   --control-min-height: 44px;
   --control-prominent-height: 48px;
@@ -76,6 +79,8 @@
   --success-strong: #087A60;
   --danger: #C0533A;
   --danger-strong: #C0533A;
+  --presentation-segment: #0F7B6C;
+  --presentation-break: #A35B16;
   --trackpad-icon: #6E7A83;
   --scrim: rgb(16 20 24 / 25%);
   --drawer-shadow: rgb(16 20 24 / 18%);
@@ -108,6 +113,8 @@
   --success-strong: #087A60;
   --danger: #C0533A;
   --danger-strong: #C0533A;
+  --presentation-segment: #0F7B6C;
+  --presentation-break: #A35B16;
   --trackpad-icon: #6E7A83;
   --scrim: rgb(16 20 24 / 25%);
   --drawer-shadow: rgb(16 20 24 / 18%);

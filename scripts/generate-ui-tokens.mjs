@@ -43,6 +43,7 @@ const css = `/* Generated from assets/ui-tokens.json. Do not edit directly. */
 ${renderCssTheme(source.color.dark)}
 ${renderCssDimensions(source.space, "px", "space")}
 ${renderCssDimensions(source.radius, "px", "radius")}
+${renderCssDimensions(source.typography, "px", "")}
 ${renderCssDimensions(source.size, "px", "")}
 ${renderCssDimensions(source.duration, "ms", "motion")}
 }
@@ -69,6 +70,7 @@ export const uiThemeColors = {
 
 const xamlNumbers = [
   ...Object.entries(source.space).map(([name, value]) => `    <system:Double x:Key="Space${toPascalCase(name)}">${value}</system:Double>`),
+  ...Object.entries(source.typography).map(([name, value]) => `    <system:Double x:Key="${toPascalCase(name)}">${value}</system:Double>`),
   ...Object.entries(source.size).map(([name, value]) => `    <system:Double x:Key="${toPascalCase(name)}">${value}</system:Double>`)
 ].join("\n");
 const xamlInsets = Object.entries(source.space)
@@ -122,6 +124,8 @@ function renderPalette(name, theme) {
         ${renderColor(theme.successStrong)},
         ${renderColor(theme.danger)},
         ${renderColor(theme.dangerStrong)},
+        ${renderColor(theme.presentationSegment)},
+        ${renderColor(theme.presentationBreak)},
         ${renderColor(theme.qrBackground)});`;
 }
 
@@ -133,6 +137,9 @@ internal static class UiTokens
 {
 ${Object.entries(source.space)
   .map(([name, value]) => `    public const double Space${toPascalCase(name)} = ${value}d;`)
+  .join("\n")}
+${Object.entries(source.typography)
+  .map(([name, value]) => `    public const double ${toPascalCase(name)} = ${value}d;`)
   .join("\n")}
 
 ${renderPalette("DarkPalette", source.color.dark)}

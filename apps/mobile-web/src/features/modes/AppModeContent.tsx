@@ -15,7 +15,7 @@ interface AppModeContentProps {
   supportsGestureDebug: boolean;
   trackpadMode: ComponentProps<typeof TrackpadMode>;
   keyboardMode: ComponentProps<typeof KeyboardMode>;
-  presentationMode: ComponentProps<typeof PresentationMode>;
+  presentationMode: Omit<ComponentProps<typeof PresentationMode>, "renderTrackpad">;
   remoteMode: ComponentProps<typeof RemoteMode>;
   dictationMode: ComponentProps<typeof DictationMode>;
   textTransferMode: ComponentProps<typeof TextTransferMode>;
@@ -69,7 +69,22 @@ export function AppModeContent({
   }
 
   if (tab === "presentation") {
-    return <PresentationMode {...presentationMode} />;
+    return (
+      <PresentationMode
+        {...presentationMode}
+        renderTrackpad={({ isFullscreen, onToggleFullscreen }) => (
+          <TrackpadMode
+            {...trackpadMode}
+            audioState={null}
+            compactModeSelector={undefined}
+              isExpanded={isFullscreen}
+            onToggleExpanded={onToggleFullscreen}
+            showRestoredMouseButtons={false}
+            supportsVolumeControl={false}
+          />
+        )}
+      />
+    );
   }
 
   if (tab === "dictation") {

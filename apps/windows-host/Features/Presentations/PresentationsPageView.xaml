@@ -1,0 +1,427 @@
+<UserControl x:Class="VolturaAir.Host.Features.Presentations.PresentationsPageView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="clr-namespace:VolturaAir.Host.Ui">
+    <Grid>
+        <Grid x:Name="ArchiveView">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="{DynamicResource GridSpaceMd}" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="{DynamicResource GridSpaceMd}" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="{DynamicResource GridSpaceMd}" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <ui:SpacingWrapPanel x:Name="FiltersPanel"
+                                 HorizontalSpacing="{DynamicResource SpaceSm}"
+                                 VerticalSpacing="{DynamicResource SpaceSm}">
+                <ui:SpacingStackPanel Spacing="{DynamicResource SpaceXs}">
+                    <TextBlock Text="Title"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource MutedTextBrush}" />
+                    <ui:WatermarkedTextBox x:Name="SearchBox"
+                                           Width="220"
+                                           Height="{DynamicResource ControlMinHeight}"
+                                           Style="{DynamicResource FilterTextBoxStyle}"
+                                           Placeholder="Search presentation titles"
+                                           PlaceholderForeground="{DynamicResource MutedTextBrush}"
+                                           AutomationProperties.Name="Search presentation titles"
+                                           ToolTip="Search titles" />
+                </ui:SpacingStackPanel>
+                <ui:SpacingStackPanel Spacing="{DynamicResource SpaceXs}">
+                    <TextBlock Text="Type"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource MutedTextBrush}" />
+                    <ComboBox x:Name="TypeFilter"
+                              Width="160"
+                              Height="{DynamicResource ControlMinHeight}"
+                              Style="{DynamicResource ModernComboBoxStyle}"
+                              AutomationProperties.Name="Presentation type filter"
+                              SelectionChanged="OnFilterChanged">
+                        <ComboBoxItem Content="All types" Tag="" IsSelected="True" />
+                        <ComboBoxItem Content="PowerPoint" Tag="powerpoint" />
+                        <ComboBoxItem Content="Google Slides" Tag="google-slides" />
+                        <ComboBoxItem Content="PDF / browser" Tag="pdf" />
+                    </ComboBox>
+                </ui:SpacingStackPanel>
+                <ui:SpacingStackPanel Spacing="{DynamicResource SpaceXs}">
+                    <TextBlock Text="Device"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource MutedTextBrush}" />
+                    <ComboBox x:Name="DeviceFilter"
+                              Width="170"
+                              Height="{DynamicResource ControlMinHeight}"
+                              Style="{DynamicResource ModernComboBoxStyle}"
+                              AutomationProperties.Name="Captured device filter"
+                              SelectionChanged="OnFilterChanged" />
+                </ui:SpacingStackPanel>
+                <ui:SpacingStackPanel Spacing="{DynamicResource SpaceXs}">
+                    <TextBlock Text="Date range"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource MutedTextBrush}" />
+                    <ContentControl x:Name="DateRangeHost"
+                                    Focusable="False"
+                                    IsTabStop="False" />
+                </ui:SpacingStackPanel>
+                <Button x:Name="ClearFiltersButton"
+                        VerticalAlignment="Bottom"
+                        AutomationProperties.Name="Clear filters"
+                        Style="{DynamicResource CompactIconButtonStyle}"
+                        ToolTip="Clear filters"
+                        Click="OnClearFilters">
+                    <Grid Width="16" Height="16">
+                        <Path Data="M 3,3 L 13,13"
+                              Stroke="{DynamicResource TextBrush}"
+                              StrokeThickness="1.8"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round" />
+                        <Path Data="M 13,3 L 3,13"
+                              Stroke="{DynamicResource TextBrush}"
+                              StrokeThickness="1.8"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round" />
+                    </Grid>
+                </Button>
+            </ui:SpacingWrapPanel>
+
+            <ItemsControl x:Name="SummaryCards"
+                          Grid.Row="2"
+                          Focusable="False"
+                          IsTabStop="False"
+                          AutomationProperties.Name="Presentation archive statistics"
+                          KeyboardNavigation.TabNavigation="None">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <ui:SpacingWrapPanel HorizontalSpacing="{DynamicResource SpaceSm}"
+                                             VerticalSpacing="{DynamicResource SpaceSm}" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Width="128"
+                                MinHeight="58"
+                                Padding="9,7"
+                                Background="{DynamicResource SurfaceBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="{DynamicResource RadiusMedium}">
+                            <ui:SpacingStackPanel Spacing="{DynamicResource SpaceXs}">
+                                <TextBlock Text="{Binding Label}"
+                                           Foreground="{DynamicResource MutedTextBrush}"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding Value}"
+                                           FontSize="16"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextBrush}"
+                                           TextWrapping="Wrap" />
+                            </ui:SpacingStackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <Grid Grid.Row="4">
+                <ListBox x:Name="ReportList"
+                         Style="{DynamicResource ModernListBoxStyle}"
+                         ItemContainerStyle="{DynamicResource ModernListBoxItemStyle}"
+                         VirtualizingPanel.ScrollUnit="Pixel"
+                         AutomationProperties.Name="Saved presentations">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border Padding="14"
+                                    Style="{DynamicResource SelectableListCardStyle}"
+                                    MouseLeftButtonDown="OnReportRowMouseDown">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="2.2*" MinWidth="180" />
+                                        <ColumnDefinition Width="1.1*" MinWidth="105" />
+                                        <ColumnDefinition Width="1.2*" MinWidth="120" />
+                                        <ColumnDefinition Width="1.3*" MinWidth="125" />
+                                        <ColumnDefinition Width="1*" MinWidth="92" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ui:SpacingStackPanel Spacing="{DynamicResource SpaceXs}">
+                                        <TextBlock Text="{Binding Title}"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextBrush}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding SlideSummary}"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource MutedTextBrush}" />
+                                    </ui:SpacingStackPanel>
+                                    <ui:PillBadge Grid.Column="1"
+                                                  Content="{Binding TypeLabel}"
+                                                  Tone="AccentOutline"
+                                                  VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2"
+                                               Text="{Binding DeviceName}"
+                                               Margin="8,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextBrush}"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Grid.Column="3"
+                                               Text="{Binding DateLabel}"
+                                               Margin="8,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource MutedTextBrush}"
+                                               TextWrapping="Wrap" />
+                                    <ui:SpacingStackPanel Grid.Column="4"
+                                                          Spacing="{DynamicResource SpaceXs}"
+                                                          VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding PresentationLabel}"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource PresentationSegmentBrush}" />
+                                        <TextBlock Text="{Binding BreakLabel}"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource PresentationBreakBrush}" />
+                                    </ui:SpacingStackPanel>
+                                    <Button Grid.Column="5"
+                                            Content="Open"
+                                            Tag="{Binding ReportId}"
+                                            Margin="10,0,0,0"
+                                            VerticalAlignment="Center"
+                                            Click="OnOpenReport" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <TextBlock x:Name="EmptyState"
+                           Text="No saved presentations match these filters."
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource MutedTextBrush}"
+                           Visibility="Collapsed" />
+            </Grid>
+
+            <Grid Grid.Row="6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="{DynamicResource GridSpaceXl}" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Button Content="Refresh"
+                        VerticalAlignment="Top"
+                        Click="OnRefresh" />
+                <ui:SpacingWrapPanel Grid.Column="2"
+                                     HorizontalSpacing="{DynamicResource SpaceLg}"
+                                     VerticalSpacing="{DynamicResource SpaceSm}">
+                    <ui:SpacingWrapPanel HorizontalSpacing="{DynamicResource SpaceSm}"
+                                         VerticalSpacing="{DynamicResource SpaceSm}">
+                        <Button x:Name="ArchiveExportButton"
+                                Content="Export"
+                                Click="OnArchiveExport" />
+                        <Button x:Name="ArchiveEmailButton"
+                                Content="Email"
+                                Click="OnArchiveEmail" />
+                    </ui:SpacingWrapPanel>
+                    <Button x:Name="ArchiveDeleteButton"
+                            Content="Delete all"
+                            Style="{DynamicResource DangerButtonStyle}"
+                            Click="OnDeleteAll" />
+                </ui:SpacingWrapPanel>
+            </Grid>
+        </Grid>
+
+        <Grid x:Name="DetailView" Visibility="Collapsed">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="{DynamicResource GridSpaceMd}" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <ScrollViewer Focusable="False"
+                          IsTabStop="False"
+                          AutomationProperties.Name="Presentation details"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <ui:SpacingStackPanel Spacing="{DynamicResource SpaceLg}">
+                    <ItemsControl x:Name="DetailSummaryCards"
+                                  Focusable="False"
+                                  IsTabStop="False"
+                                  AutomationProperties.Name="Presentation statistics"
+                                  KeyboardNavigation.TabNavigation="None">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <ui:SpacingWrapPanel HorizontalSpacing="{DynamicResource SpaceSm}"
+                                                     VerticalSpacing="{DynamicResource SpaceSm}" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Width="124"
+                                        MinHeight="56"
+                                        Padding="9,7"
+                                        Background="{DynamicResource SurfaceBrush}"
+                                        BorderBrush="{DynamicResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="{DynamicResource RadiusMedium}">
+                                    <ui:SpacingStackPanel Spacing="{DynamicResource SpaceXs}">
+                                        <TextBlock Text="{Binding Label}"
+                                                   Foreground="{DynamicResource MutedTextBrush}"
+                                                   TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding Value}"
+                                                   FontSize="16"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextBrush}"
+                                                   TextWrapping="Wrap" />
+                                    </ui:SpacingStackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <ui:SpacingStackPanel Spacing="{DynamicResource SpaceSm}">
+                        <TextBlock Text="Presentation timeline"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextBrush}" />
+                        <Grid x:Name="TimelineSegments"
+                              Height="24"
+                              ClipToBounds="True"
+                              AutomationProperties.Name="Presentation timeline with intermittent breaks" />
+                        <ui:SpacingWrapPanel HorizontalSpacing="{DynamicResource SpaceLg}"
+                                             VerticalSpacing="{DynamicResource SpaceXs}">
+                            <TextBlock x:Name="PresentationLegend"
+                                       Foreground="{DynamicResource PresentationSegmentBrush}" />
+                            <TextBlock x:Name="BreakLegend"
+                                       Foreground="{DynamicResource PresentationBreakBrush}" />
+                        </ui:SpacingWrapPanel>
+                    </ui:SpacingStackPanel>
+
+                    <ui:SpacingStackPanel Spacing="{DynamicResource SpaceSm}">
+                        <TextBlock Text="Session and break breakdown"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextBrush}" />
+                        <Grid Margin="12,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.1*" MinWidth="110" />
+                                <ColumnDefinition Width="1.7*" MinWidth="170" />
+                                <ColumnDefinition Width="Auto" MinWidth="90" />
+                                <ColumnDefinition Width="Auto" MinWidth="150" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Part"
+                                       Foreground="{DynamicResource MutedTextBrush}" />
+                            <TextBlock Grid.Column="1"
+                                       Text="Slides / time"
+                                       Margin="12,0"
+                                       Foreground="{DynamicResource MutedTextBrush}" />
+                            <TextBlock Grid.Column="2"
+                                       Text="Duration"
+                                       HorizontalAlignment="Right"
+                                       Foreground="{DynamicResource MutedTextBrush}" />
+                            <TextBlock Grid.Column="3"
+                                       Text="Elapsed"
+                                       Margin="20,0,0,0"
+                                       HorizontalAlignment="Right"
+                                       Foreground="{DynamicResource MutedTextBrush}" />
+                        </Grid>
+                        <ItemsControl x:Name="DetailRows"
+                                      Focusable="False"
+                                      IsTabStop="False"
+                                      AutomationProperties.Name="Session and break breakdown"
+                                      KeyboardNavigation.TabNavigation="None">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,0,0,8"
+                                            Padding="12"
+                                            Background="{DynamicResource SurfaceBrush}"
+                                            BorderBrush="{DynamicResource BorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="{DynamicResource RadiusMedium}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="1.1*" MinWidth="110" />
+                                                <ColumnDefinition Width="1.7*" MinWidth="170" />
+                                                <ColumnDefinition Width="Auto" MinWidth="90" />
+                                                <ColumnDefinition Width="Auto" MinWidth="150" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding Label}"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{Binding ValueBrush}" />
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding Detail}"
+                                                       Margin="12,0"
+                                                       Foreground="{DynamicResource MutedTextBrush}"
+                                                       TextWrapping="Wrap" />
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding Duration}"
+                                                       HorizontalAlignment="Right"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{Binding ValueBrush}" />
+                                            <TextBlock Grid.Column="3"
+                                                       Text="{Binding Elapsed}"
+                                                       Margin="20,0,0,0"
+                                                       HorizontalAlignment="Right"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextBrush}" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ui:SpacingStackPanel>
+                </ui:SpacingStackPanel>
+            </ScrollViewer>
+
+            <Grid Grid.Row="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="{DynamicResource GridSpaceXl}" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Button Content="Back"
+                        VerticalAlignment="Top"
+                        Style="{DynamicResource PrimaryButtonStyle}"
+                        Click="OnBack" />
+                <ui:SpacingWrapPanel Grid.Column="2"
+                                     HorizontalSpacing="{DynamicResource SpaceLg}"
+                                     VerticalSpacing="{DynamicResource SpaceSm}">
+                    <ui:SpacingWrapPanel HorizontalSpacing="{DynamicResource SpaceSm}"
+                                         VerticalSpacing="{DynamicResource SpaceSm}">
+                        <Button Content="Rename" Click="OnRename" />
+                        <Button x:Name="PresentationFileButton"
+                                Click="OnPresentationFile"
+                                ToolTipService.InitialShowDelay="350">
+                            <ui:SpacingStackPanel Orientation="Horizontal" Spacing="{DynamicResource SpaceXs}">
+                                <Ellipse x:Name="PresentationFileStatus"
+                                         Width="9"
+                                         Height="9"
+                                         VerticalAlignment="Center"
+                                         Fill="{DynamicResource DangerBrush}" />
+                                <TextBlock Text="Presentation file" />
+                            </ui:SpacingStackPanel>
+                        </Button>
+                        <Button x:Name="PresentationUrlButton"
+                                Click="OnPresentationUrl"
+                                ToolTipService.InitialShowDelay="350">
+                            <ui:SpacingStackPanel Orientation="Horizontal" Spacing="{DynamicResource SpaceXs}">
+                                <Ellipse x:Name="PresentationUrlStatus"
+                                         Width="9"
+                                         Height="9"
+                                         VerticalAlignment="Center"
+                                         Fill="{DynamicResource DangerBrush}" />
+                                <TextBlock Text="Presentation URL" />
+                            </ui:SpacingStackPanel>
+                        </Button>
+                    </ui:SpacingWrapPanel>
+                    <ui:SpacingWrapPanel HorizontalSpacing="{DynamicResource SpaceSm}"
+                                         VerticalSpacing="{DynamicResource SpaceSm}">
+                        <Button x:Name="DetailExportButton" Content="Export" Click="OnDetailExport" />
+                        <Button x:Name="DetailEmailButton" Content="Email" Click="OnDetailEmail" />
+                    </ui:SpacingWrapPanel>
+                    <Button Content="Delete"
+                            Style="{DynamicResource DangerButtonStyle}"
+                            Click="OnDelete" />
+                </ui:SpacingWrapPanel>
+            </Grid>
+        </Grid>
+    </Grid>
+</UserControl>

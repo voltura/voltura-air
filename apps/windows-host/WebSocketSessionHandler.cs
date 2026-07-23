@@ -13,6 +13,7 @@ internal sealed class WebSocketSessionHandler(
     PowerCommandHandler powerCommands,
     AwakeCommandHandler awakeCommands,
     PresentationCommandHandler presentationCommands,
+    PresentationReportCommandHandler presentationReports,
     ExternalActionCommandHandler externalActionCommands,
     TextTransferCommandHandler textTransferCommands,
     ClipboardCommandHandler clipboardCommands,
@@ -148,6 +149,7 @@ internal sealed class WebSocketSessionHandler(
             if (!string.IsNullOrEmpty(authenticatedClientId))
             {
                 transport.Unregister(authenticatedClientId, socket);
+                presentationCommands.DisableLaserForClient(authenticatedClientId);
             }
 
             activeConnection?.Dispose();
@@ -312,6 +314,9 @@ internal sealed class WebSocketSessionHandler(
                 return true;
             case "presentation.command":
                 await presentationCommands.HandleAsync(socket, clientId, root, cancellationToken);
+                return true;
+            case "presentation.report.save":
+                await presentationReports.HandleAsync(socket, clientId, root, cancellationToken);
                 return true;
             case "remote.launch":
                 await externalActionCommands.HandleRemoteLaunchAsync(clientId, ProtocolMessageFields.GetString(root, "action"), cancellationToken);

@@ -383,6 +383,11 @@ function createHtmlReport({ codeReports, grandTotal, assets, tests, scripts, npm
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Voltura Air code statistics</title>
+  <link rel="icon" href="./assets/voltura-air-icon.svg" type="image/svg+xml">
+  <link rel="icon" href="./favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="icon" href="./favicon-16.png" sizes="16x16" type="image/png">
+  <link rel="icon" href="./favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png">
   <style>
     :root { color-scheme: dark; --page: #10151d; --surface: #18212d; --surface-alt: #202c3a; --text: #f3f6fa; --muted: #9eadbd; --line: #334256; --accent: #65d7ba; --accent-soft: #243e42; --chart-1: #65d7ba; --chart-2: #84b4f7; --chart-3: #e8b96c; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     * { box-sizing: border-box; }

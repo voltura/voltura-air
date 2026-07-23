@@ -44,9 +44,9 @@ export const commandDescriptions = {
   "publish:site:password": "Store the public-site deployment password securely for this user.",
   "publish:site:password:clear": "Remove the stored public-site deployment password.",
   release: "Prepare a versioned release and update its authoritative version values.",
-  "release:bump": "Advance the release version through the project's one-digit patch and minor sequence.",
-  "release:full": "Bump a release, generate branding, and publish the site; auto mode also commits and pushes a clean branch.",
-  "release:local": "Build, test, package, push, and create a GitHub draft locally; append latest to publish it.",
+  "release:bump": "Advance version values only through the project's one-digit patch and minor sequence.",
+  "release:draft": "Build, test, package, push, deploy the site, and create an audited GitHub draft; accepts an optional version.",
+  "release:full": "Run the complete stable release: build, test, package, push, deploy the site, and publish GitHub Latest; accepts an optional version.",
   "release:sync-release-notes": "Synchronize a published GitHub release's marked editorial notes into the matching local section.",
   "screenshots:site": "Capture screenshots for the public documentation site.",
   "size:check": "Fail if strong source-size warnings lack current review rationales.",
@@ -68,7 +68,8 @@ export function findStaleDescriptions(scripts) {
   return Object.keys(commandDescriptions).filter((name) => !(name in scripts));
 }
 
-export function formatCommandHelp(scripts, filterText = "") {
+export function formatCommandHelp(scripts, filterText = "", { useColor = false } = {}) {
+  const paint = (code, text) => useColor ? `\u001b[${code}m${text}\u001b[0m` : text;
   const normalizedFilter = filterText.toLocaleLowerCase();
   const commands = Object.keys(scripts)
     .filter((name) => name.toLocaleLowerCase().includes(normalizedFilter))
@@ -83,14 +84,15 @@ export function formatCommandHelp(scripts, filterText = "") {
   }
 
   return [
-    heading,
+    paint("1;36", heading),
     "",
     ...commands.flatMap((name) => [
-      `  ${name.padEnd(widestName)}  ${commandDescriptions[name]}`,
-      `  ${"".padEnd(widestName)}  Runs: ${scripts[name]}`
+      paint("1;33", `npm run ${name}`),
+      `  ${paint("36", "Purpose:")} ${commandDescriptions[name]}`,
+      `  ${paint("2", "Runs:")}    ${scripts[name]}`,
+      ""
     ]),
-    "",
-    "Run a command with: npm run <name>"
+    paint("2", "Filter this list with: npm run help -- <name-fragment>")
   ].join("\n");
 }
 
@@ -108,7 +110,11 @@ async function main() {
     throw new Error(`Command help is out of date. ${issues.join(". ")}`);
   }
 
-  console.log(formatCommandHelp(packageJson.scripts, process.argv.slice(2).join(" ")));
+  console.log(formatCommandHelp(
+    packageJson.scripts,
+    process.argv.slice(2).join(" "),
+    { useColor: Boolean(process.stdout.isTTY && !process.env.NO_COLOR) }
+  ));
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

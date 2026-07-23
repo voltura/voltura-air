@@ -15,18 +15,16 @@ export function parseReleaseArguments(args) {
     throw new TypeError("Release arguments must be strings.");
   }
 
-  const publishLatest = args.at(-1) === "latest";
-  const versionArgs = publishLatest ? args.slice(0, -1) : args;
-  if (versionArgs.length > 1 || (versionArgs.length === 1 && versionArgs[0] === "latest")) {
-    throw new Error("Usage: npm run release:local -- [version] [latest]");
+  if (args.length > 1) {
+    throw new Error("Usage: npm run release:draft -- [version] or npm run release:full -- [version]");
   }
 
-  const version = versionArgs[0] ?? null;
+  const version = args[0] ?? null;
   if (version !== null) {
     parseSemver(version);
   }
 
-  return { version, publishLatest };
+  return { version };
 }
 
 export function parseSyncReleaseArguments(args) {

@@ -1,8 +1,9 @@
 # Release notes
 
 Before starting a release, add a new `## v<version>` section at the top with
-concise, observable user-facing changes. `npm run release:local` validates the
-exact target-version section and does not create one. Keep the shared notices in
+concise, observable user-facing changes. `npm run release:full` and
+`npm run release:draft` validate the exact target-version section and do not
+create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
 ## v0.7.5

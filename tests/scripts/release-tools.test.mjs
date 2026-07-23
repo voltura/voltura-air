@@ -5,7 +5,7 @@ import path from "node:path";
 import test from "node:test";
 
 import { getNextReleaseVersion } from "../../scripts/bump-release.mjs";
-import { auditDraft, buildReleaseBody, getRelease, publishReleaseIfRequested } from "../../scripts/release-local.mjs";
+import { auditDraft, buildReleaseBody, getRelease, publishReleaseIfRequested } from "../../scripts/release-publish.mjs";
 import {
   compareSemver,
   extractUserFacingReleaseNotes,
@@ -24,16 +24,15 @@ import {
 } from "../../scripts/release-tools.mjs";
 
 const requiredNotices = `${freewareNotice}\n\n${unsignedReleaseNotice}`;
-const localReleaseSource = await readFile(new URL("../../scripts/release-local.mjs", import.meta.url), "utf8");
+const localReleaseSource = await readFile(new URL("../../scripts/release-publish.mjs", import.meta.url), "utf8");
 import { restoreGithubActions } from "../../scripts/restore-github-actions.mjs";
 import { resolveSynchronizedRelease } from "../../scripts/sync-release-notes.mjs";
 
-test("local release arguments default to a draft and accept an explicit latest mode", () => {
-  assert.deepEqual(parseReleaseArguments([]), { version: null, publishLatest: false });
-  assert.deepEqual(parseReleaseArguments(["latest"]), { version: null, publishLatest: true });
-  assert.deepEqual(parseReleaseArguments(["0.8.0"]), { version: "0.8.0", publishLatest: false });
-  assert.deepEqual(parseReleaseArguments(["0.8.0", "latest"]), { version: "0.8.0", publishLatest: true });
-  assert.throws(() => parseReleaseArguments(["latest", "0.8.0"]), /Usage/u);
+test("release commands accept at most one explicit version", () => {
+  assert.deepEqual(parseReleaseArguments([]), { version: null });
+  assert.deepEqual(parseReleaseArguments(["0.8.0"]), { version: "0.8.0" });
+  assert.throws(() => parseReleaseArguments(["0.8.0", "extra"]), /Usage/u);
+  assert.throws(() => parseReleaseArguments(["latest"]), /semantic versioning/u);
 });
 
 test("local draft completion does not run publication or tag commands", () => {

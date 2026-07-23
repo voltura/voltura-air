@@ -6,39 +6,47 @@ Windows release assets, and publish a GitHub release.
 ## Quick release
 
 Prepare `docs/release-notes.md` for the next version, commit that notes change,
-and start from a clean `main` branch. Create an audited GitHub draft with:
+and start from a clean `main` branch. Run the complete stable release and
+publish it as GitHub's Latest release with:
 
 ```powershell
-npm run release:local
+npm run release:full
 ```
 
-The default advances the existing stable odometer version. Supply an explicit
-version when needed:
+When the prepared version has no tag, the command finishes that version. When
+the current version is already published, the default advances the stable
+odometer version. Supply an explicit version when needed:
 
 ```powershell
-npm run release:local -- 0.8.0
+npm run release:full -- 0.8.0
 ```
 
-The command leaves the audited release as a draft. Append `latest` to publish a
-stable version immediately as GitHub's Latest release:
+To run the same audited build and deployment while leaving the GitHub release
+as a draft, use:
 
 ```powershell
-npm run release:local -- latest
-npm run release:local -- 0.8.0 latest
+npm run release:draft
+npm run release:draft -- 0.8.0
 ```
 
-The local release validates its environment, prepares the version, regenerates
-branding and screenshots, runs all tests, builds and validates the ZIP and both
+Both commands validate the environment, prepare the version, regenerate
+branding and screenshots, run all tests, build and validate the ZIP and both
 installers, commits and pushes the generated release changes, rebuilds from the
 final commit, creates or resumes a matching draft, audits its assets, and
-publishes `docs/site`. Only the `latest` mode makes the GitHub release public.
+publishes `docs/site`. `release:full` then publishes the stable release as
+GitHub Latest; `release:draft` leaves it as a draft.
 Prerelease versions can be prepared as drafts but cannot be marked Latest.
-Draft completion does not depend on a Git tag. In `latest` mode, GitHub creates
+Draft completion does not depend on a Git tag. For `release:full`, GitHub creates
 the release tag when it publishes the release; the local command verifies the
 public Latest release through the GitHub API and does not fetch or create a
 local tag.
 
-## Local release prerequisites
+During execution, colored section headers identify each major boundary. Every
+section reports its duration and the running total, and the command ends with a
+green success summary or a red issue summary. Set the standard `NO_COLOR`
+environment variable to disable ANSI colors.
+
+## Release prerequisites
 
 - Windows with Node.js/npm, the .NET 10 SDK, Git, and NSIS available;
 - an authenticated GitHub CLI with write access to `voltura/voltura-air`;
@@ -69,28 +77,6 @@ It advances the current stable version as an odometer: `0.6.7` becomes `0.6.8`,
 `0.6.9` becomes `0.7.0`, and `0.9.9` becomes `1.0.0`. It supports one-digit
 minor and patch components only; use `npm run release -- <version>` when choosing
 another semantic version explicitly.
-
-Run the complete local release preparation, branding generation, and site
-publication sequence with:
-
-```powershell
-npm run release:full
-```
-
-To commit and push those generated release changes after the sequence completes,
-run:
-
-```powershell
-npm run release:full -- auto
-```
-
-Both full-release modes require a clean working tree before they change files or
-publish the site. Automatic mode also requires a configured Git author and
-tracking branch. It commits `Release version <version>` and runs a normal `git
-push`; it never force-pushes or includes pre-existing local changes.
-Before changing the version or publishing anything, both modes run
-`npm run size:check` and stop if a refactor introduced an unresolved strong
-source-size warning.
 
 The command accepts semantic versions such as `0.6.0` and `0.6.0-beta.1`.
 Numeric components must fit a Windows version resource.

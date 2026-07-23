@@ -200,6 +200,7 @@
           </p>
           <div class="actions">
             <a class="button primary" href="https://github.com/voltura/voltura-air">View source</a>
+            <a class="button secondary" href="./stats.html">Code statistics</a>
             <a class="button secondary" href="https://github.com/voltura/voltura-air/blob/main/CONTRIBUTING.md">Contribute</a>
             <a class="button secondary" href="https://github.com/voltura/voltura-air/blob/main/SECURITY.md">Security</a>
           </div>
@@ -240,6 +241,7 @@
     <footer>
       <a href="https://voltura.se/" aria-label="Voltura AB home">Voltura AB</a>
       <a href="https://github.com/voltura/voltura-air">GitHub</a>
+      <a href="./stats.html">Code statistics</a>
       <a href="https://github.com/voltura/voltura-air/blob/main/PRIVACY.md">Privacy</a>
       <a href="https://github.com/voltura/voltura-air/blob/main/LICENSE">MIT License</a>
       <a href="https://www.linkedin.com/in/joakim-voltura/">LinkedIn</a>

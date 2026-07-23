@@ -30,7 +30,8 @@ npm run release:draft -- 0.8.0
 ```
 
 Both commands validate the environment, prepare the version, regenerate
-branding and screenshots, run all tests, build and validate the ZIP and both
+branding, screenshots, and the tracked public code-statistics report, run all
+tests, build and validate the ZIP and both
 installers, commits and pushes the generated release changes, rebuilds from the
 final commit, creates or resumes a matching draft, audits its assets, and
 publishes `docs/site`. `release:full` then publishes the stable release as
@@ -268,6 +269,9 @@ Add `--prerelease` when the semantic version contains a prerelease suffix.
 
 ## Installer behavior
 
+- The installer restores and visibly activates its setup window after launch,
+  including when Windows SmartScreen delayed startup, without remaining
+  always-on-top.
 - Both installers install Voltura Air per user under `%LOCALAPPDATA%\Programs\Voltura Air`.
 - `VolturaAir-Setup-<version>-win-x64.exe` downloads the .NET 10 Windows Desktop and ASP.NET Core runtimes when they are missing. This requires an internet connection in that case and can require Windows administrator approval because the .NET runtimes are installed for the PC.
 - `VolturaAir-Setup-<version>-win-x64-full.exe` includes all required components, works without an internet connection, and does not require administrator rights.

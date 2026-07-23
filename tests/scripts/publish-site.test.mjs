@@ -3,12 +3,39 @@ import test from "node:test";
 import {
   clearStoredPassword,
   formatRemoteListing,
+  generateStatisticsReport,
   listSite,
   loadPassword,
   publishSite,
+  runSitePublication,
   storePassword,
   trimClipboardPassword
 } from "../../scripts/publish-site.mjs";
+
+test("site publication refreshes statistics before uploading", async () => {
+  const operations = [];
+  await runSitePublication({
+    generate: () => operations.push("generate"),
+    publish: async () => operations.push("publish")
+  });
+  assert.deepEqual(operations, ["generate", "publish"]);
+});
+
+test("statistics generation is quiet and does not open a browser during publication", () => {
+  const calls = [];
+  generateStatisticsReport({
+    npmCliPath: "C:\\npm\\npm-cli.js",
+    run: (...args) => {
+      calls.push(args);
+      return { status: 0 };
+    }
+  });
+
+  assert.deepEqual(calls[0][1].slice(-6), [
+    "run", "code:statistics", "--", "--report", "--no-open", "--quiet"
+  ]);
+  assert.deepEqual(calls[0][2].stdio, ["ignore", "ignore", "inherit"]);
+});
 
 test("removes only the trailing clipboard newline added by PowerShell", () => {
   assert.equal(trimClipboardPassword("long-password\r\n"), "long-password");

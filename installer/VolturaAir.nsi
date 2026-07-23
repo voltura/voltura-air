@@ -94,6 +94,7 @@ VIAddVersionKey "Comments" "Developer: ${DEVELOPER}; Website: ${PRODUCT_URL}; Em
 !define MUI_FINISHPAGE_RUN_TEXT "Start ${APP_NAME}"
 !define MUI_CUSTOMFUNCTION_GUIINIT RestoreInstallerWindow
 
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW FinishInstallerWindowActivation
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
@@ -104,7 +105,16 @@ VIAddVersionKey "Comments" "Developer: ${DEVELOPER}; Website: ${PRODUCT_URL}; Em
 
 Function RestoreInstallerWindow
   ShowWindow $HWNDPARENT ${SW_RESTORE}
-  BringToFront
+  ; SmartScreen can leave the new installer process behind the launching window.
+  ; A normal foreground request is then reduced to a flashing taskbar button.
+  ; Enter the topmost z-order band now, then finish activation when MUI shows the
+  ; interactive welcome page.
+  System::Call 'user32::SetWindowPos(p $HWNDPARENT, p -1, i 0, i 0, i 0, i 0, i 0x43) i .r0'
+FunctionEnd
+
+Function FinishInstallerWindowActivation
+  System::Call 'user32::SetForegroundWindow(p $HWNDPARENT) i .r0'
+  System::Call 'user32::SetWindowPos(p $HWNDPARENT, p -2, i 0, i 0, i 0, i 0, i 0x43) i .r0'
 FunctionEnd
 
 Section "Install"

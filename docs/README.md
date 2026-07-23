@@ -51,6 +51,7 @@ document's role, subject, and update trigger.
 | [Feature inventory](features.md) | Current authority | Implemented product capabilities and guarantees. Update with user-visible behavior. |
 | [Presentation feature alpha](presentation-feature-alpha.md) | Alpha feature authority | Complete current behavior, approved work, limitations, validation, V2 candidates, and graduation procedure for Presentation while alpha. |
 | [One-page marketing site](site/index.php) | Derived public | Core use cases, capability summary, trust, screenshots, and downloads. |
+| [Code statistics report](site/stats.html) | Derived public | Generated repository composition, source, test, asset, script, and file-size statistics. Regenerate with `npm run code:statistics -- --report`. |
 | [Machine-readable product summary](site/llms.txt) | Derived public | Compact product facts and authority links for AI systems. |
 | [Windows host quality](host-quality.md) | Engineering authority | Analyzer policy, runtime ownership, resource expectations, and host quality gate. |
 | [Network and host selection](network-and-host-selection.md) | Current authority | Adapter/port selection, host hints, saved-PC behavior, validation, and recovery. |

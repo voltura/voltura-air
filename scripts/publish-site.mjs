@@ -191,6 +191,39 @@ export function formatRemoteListing(entries) {
     .map((entry) => `${entry.type === "d" ? "[directory]" : "[file]"} ${entry.name}`);
 }
 
+export function generateStatisticsReport({
+  run = spawnSync,
+  npmCliPath = process.env.npm_execpath
+} = {}) {
+  if (!npmCliPath) {
+    throw new Error("Site publishing must be run through npm: npm run publish:site");
+  }
+  const result = run(process.execPath, [
+    npmCliPath,
+    "run", "code:statistics", "--",
+    "--report", "--no-open", "--quiet"
+  ], {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+    stdio: ["ignore", "ignore", "inherit"],
+    windowsHide: true
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    throw new Error(`Code statistics generation failed with exit code ${result.status ?? "unknown"}.`);
+  }
+}
+
+export async function runSitePublication({
+  generate = generateStatisticsReport,
+  publish = publishSite
+} = {}) {
+  generate();
+  return publish();
+}
+
 export async function publishSite({
   paths = getSitePublishPaths(),
   password = loadPassword({ paths }),
@@ -244,7 +277,7 @@ async function main() {
   } else if (process.argv[2] === "--list") {
     await listSite();
   } else {
-    await publishSite();
+    await runSitePublication();
   }
 }
 

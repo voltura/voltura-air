@@ -1,16 +1,19 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, readdir, stat, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile, readdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const root = process.cwd();
 const arguments_ = process.argv.slice(2);
 const reportMode = arguments_.includes("--report") || process.env.npm_config_report === "true";
-const unsupportedArguments = arguments_.filter((argument) => argument !== "--report");
+const quietMode = arguments_.includes("--quiet");
+const openReport = reportMode && !arguments_.includes("--no-open");
+const supportedArguments = new Set(["--no-open", "--quiet", "--report"]);
+const unsupportedArguments = arguments_.filter((argument) => !supportedArguments.has(argument));
+const reportPath = path.join(root, "docs", "site", "stats.html");
 
 if (unsupportedArguments.length > 0) {
-  throw new Error(`Unsupported option: ${unsupportedArguments.join(", ")}. Use --report to open an HTML report.`);
+  throw new Error(`Unsupported option: ${unsupportedArguments.join(", ")}. Use --report [--no-open] [--quiet].`);
 }
 
 const reportLines = [];
@@ -90,7 +93,7 @@ async function collectFiles(directory, extensions) {
       continue;
     }
 
-    if (entry.isFile() && (!extensions || extensions.has(path.extname(entry.name).toLowerCase()))) {
+    if (entry.isFile() && absolutePath !== reportPath && (!extensions || extensions.has(path.extname(entry.name).toLowerCase()))) {
       files.push(absolutePath);
     }
   }
@@ -372,7 +375,7 @@ function createHtmlReport({ codeReports, grandTotal, assets, tests, scripts, npm
   const largestRows = fileDetails.largest.map(({ file, size }) => `<li><div><code>${escapeHtml(relativePath(file))}</code><strong>${formatSize(size)}</strong></div><span style="--size: ${Math.max(2, size / largestSize * 100).toFixed(2)}%"></span></li>`).join("");
   const largestCodeSize = largestCodeFiles[0]?.size ?? 1;
   const largestCodeRows = largestCodeFiles.map(({ file, size }) => `<li><div><code>${escapeHtml(relativePath(file))}</code><strong>${formatSize(size)}</strong></div><span style="--size: ${Math.max(2, size / largestCodeSize * 100).toFixed(2)}%"></span></li>`).join("");
-  const generatedAt = new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+  const generatedAt = fileDetails.newest.modified.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
 
   return `<!doctype html>
 <html lang="en">
@@ -386,6 +389,8 @@ function createHtmlReport({ codeReports, grandTotal, assets, tests, scripts, npm
     body { margin: 0; background: radial-gradient(circle at top right, #1e3a47 0, transparent 32rem), var(--page); color: var(--text); }
     main { width: min(1100px, calc(100% - 32px)); margin: 0 auto; padding: 56px 0 72px; }
     header { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
+    .back { display: inline-block; margin-bottom: 12px; color: var(--accent); font-weight: 700; text-decoration: none; }
+    .back:hover { text-decoration: underline; }
     h1, h2, p { margin: 0; }
     h1 { font-size: clamp(2rem, 5vw, 3.6rem); letter-spacing: -0.055em; }
     h2 { font-size: 1.25rem; letter-spacing: -0.02em; }
@@ -446,7 +451,7 @@ function createHtmlReport({ codeReports, grandTotal, assets, tests, scripts, npm
 </head>
 <body>
   <main>
-    <header><div><h1>Code statistics</h1><p>Voltura Air repository overview</p></div><div class="meta">Generated ${escapeHtml(generatedAt)}<br>Physical lines include blank lines</div></header>
+    <header><div><a class="back" href="./">← Voltura Air home</a><h1>Code statistics</h1><p>Voltura Air repository overview</p></div><div class="meta">Source snapshot ${escapeHtml(generatedAt)}<br>Physical lines include blank lines</div></header>
     <section class="summary" aria-label="Repository summary">
       <dl class="metric"><dt>Source files</dt><dd>${formatNumber(grandTotal.files)}<span>${formatNumber(grandTotal.lines)} total lines</span></dd></dl>
       <dl class="metric"><dt>Test cases</dt><dd>${formatNumber(totalTestCases)}<span>${formatNumber(tests.reduce((total, { files }) => total + files, 0))} test files</span></dd></dl>
@@ -491,30 +496,34 @@ const scripts = createScriptsReport(repositoryFiles);
 const npmCommands = await createNpmCommandsReport(repositoryFiles);
 const fileDetails = await createFileDetailsReport(repositoryFiles);
 
-writeLine("Voltura Air code statistics (physical lines, including blank lines)");
-for (const report of codeReports) {
-  printSourceReport(report);
+if (!quietMode) {
+  writeLine("Voltura Air code statistics (physical lines, including blank lines)");
+  for (const report of codeReports) {
+    printSourceReport(report);
+    writeLine();
+  }
+  writeLine("Grand total source code");
+  writeLine(`  Total: ${formatNumber(grandTotal.files)} files, ${formatNumber(grandTotal.lines)} lines`);
   writeLine();
+  printAssetsReport(assets);
+  writeLine();
+  printTestsReport(tests);
+  writeLine();
+  printScriptsReport(scripts);
+  writeLine();
+  printNpmCommandsReport(npmCommands);
+  writeLine();
+  printLargestCodeFiles(largestCodeFiles);
+  writeLine();
+  printFileDetailsReport(fileDetails);
 }
-writeLine("Grand total source code");
-writeLine(`  Total: ${formatNumber(grandTotal.files)} files, ${formatNumber(grandTotal.lines)} lines`);
-writeLine();
-printAssetsReport(assets);
-writeLine();
-printTestsReport(tests);
-writeLine();
-printScriptsReport(scripts);
-writeLine();
-printNpmCommandsReport(npmCommands);
-writeLine();
-printLargestCodeFiles(largestCodeFiles);
-writeLine();
-printFileDetailsReport(fileDetails);
 
 if (reportMode) {
-  const directory = await mkdtemp(path.join(tmpdir(), "voltura-air-code-statistics-"));
-  const reportPath = path.join(directory, "index.html");
   await writeFile(reportPath, createHtmlReport({ codeReports, grandTotal, assets, tests, scripts, npmCommands, fileDetails, largestCodeFiles }), "utf8");
-  openInDefaultBrowser(reportPath);
-  console.log(`Opened HTML report: ${reportPath}`);
+  if (openReport) {
+    openInDefaultBrowser(reportPath);
+  }
+  if (!quietMode) {
+    console.log(`${openReport ? "Opened" : "Generated"} HTML report: ${reportPath}`);
+  }
 }

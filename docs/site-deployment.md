@@ -30,7 +30,8 @@ stored outside the repository in `%LOCALAPPDATA%\Voltura Air`; do not add the
 password to a file, `package.json`, Git, or a CI log. Remove it with
 `npm run publish:site:password:clear`.
 
-Publishing uploads the contents of `docs/site` over SFTP to `ssh.voltura.se:22`
+Publishing first refreshes `docs/site/stats.html` without opening it locally or
+printing the statistics table. It then uploads the contents of `docs/site` over SFTP to `ssh.voltura.se:22`
 as `voltura.se`, targeting the `air` folder relative to the one.com SFTP login
 directory. The first successful connection records the server identity locally;
 later publishes stop if it changes. The command overwrites matching remote files

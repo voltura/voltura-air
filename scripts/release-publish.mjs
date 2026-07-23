@@ -252,6 +252,7 @@ export async function runLocalRelease(args = process.argv.slice(2), { progress, 
     checked("npm", ["run", "size:check"]);
     checked("npm", ["run", "release", "--", releaseContext.targetVersion]);
     checked("npm", ["run", "branding:generate"]);
+    checked("npm", ["run", "code:statistics", "--", "--report", "--no-open", "--quiet"]);
   });
 
   await performStep(releaseProgress, "Testing and creating installation packages", "Running the complete test suite, portable ZIP build, and both Windows installer builds.", () => {

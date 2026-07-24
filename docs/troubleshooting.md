@@ -1,222 +1,139 @@
 # Troubleshooting
 
-This page covers common connection, pairing, input, Windows-action, and recovery
-problems.
-
 ## Copy diagnostics first
 
-Use **Copy diagnostics** before changing many settings. Host diagnostics include
-the host version, selected adapter/IP/port, pairing state, last error, and paired
-and connected device counts. Mobile diagnostics include the web-client version,
-active host, connection state, last error, browser, display mode, and timestamp.
-
-Diagnostics omit credentials and client identifiers but can contain device
-names, local addresses and paths, adapter details, and browser information.
-Review them before posting publicly.
+Copy host and mobile diagnostics before changing several settings. They omit
+credentials/client IDs but may contain device names, local addresses/paths,
+adapter details, and browser information; review before sharing publicly.
 
 ## Voltura Air could not start
 
-The startup window grows only when it needs to show an error and keeps its
-actions visible below the error content. If cursor recovery is enabled but its
-native watchdog cannot start, choose **Disable watchdog and restart** to turn off
-that user setting and retry startup. Reinstall Voltura Air to restore a missing
-or damaged watchdog, then re-enable it in Preferences.
-
-For another startup error, choose **Copy details** before closing Voltura Air.
+For a cursor-watchdog error, choose **Disable watchdog and restart**. Reinstall
+to restore a missing/damaged watchdog before re-enabling it. For other startup
+errors, choose **Copy details** before closing.
 
 ## Device cannot reach the PC
 
-Check these first:
+Confirm:
 
-1. Voltura Air is running on the Windows PC.
-2. The device is on the same Wi-Fi/LAN as the PC.
-3. The device is not using mobile data for the browser session.
-4. Windows Firewall allows Voltura Air on private networks.
-5. The QR code was generated after the current network/IP/port was selected.
+1. The Windows host is running.
+2. Both devices use the same Wi-Fi/LAN; mobile data is not carrying the browser.
+3. Windows Firewall allows Voltura Air on private networks.
+4. The QR code matches the active adapter/IP/port.
 
-If the PC changed IP address or automatic port, click **New code** on the PC and scan again. You can also use **Enter host manually** on the mobile pairing screen or in mobile Menu > Settings > Connection.
+After an address/port change, click **New code** and rescan or use
+**Enter host manually**. If a valid scan returns to unavailable, refresh the
+mobile app from the PC and scan the latest code.
 
-A valid new QR photo opens **Confirm this device**. If the unavailable screen
-returns instead, refresh the mobile app from the PC and scan the latest code.
+## QR code expired, used, or invalid
 
-## QR code expired, already used, or invalid
-
-Pairing QR codes are short-lived and single-use. Click **New code** on the PC and scan the latest QR code. Avoid using a QR page that was left open before the PC changed network or port.
-The PC Connect screen shows when its code will refresh and replaces it
-automatically before expiry; a scan already in progress has a brief overlap in
-which the immediately previous code remains valid.
+Click **New code** and scan it. Codes are short-lived/single-use; avoid QR pages
+opened before a network or port change.
 
 ## Too many pairing attempts
 
-The Windows host temporarily rate-limits repeated failed unauthenticated pairing
-attempts from the same remote address. Wait a moment, click **New code**, and
-scan again. Successful fresh pairing and valid signed reconnects are not counted
-as failures.
+Wait briefly, click **New code**, and scan again. The host temporarily limits
+repeated failed unauthenticated attempts from one address.
 
-## Wrong network adapter selected
+## Wrong adapter or port
 
-Open **Connection** in the Windows host, select **Choose another adapter**, and
-choose the adapter on the same Wi-Fi/LAN as the device. Avoid VPN, tunnel, and
-virtual adapters unless that is intentionally the reachable network. Select
-**Save and restart** in the structured change summary to apply the change, or
-**Discard changes** to restore the saved selection.
+In Windows **Connection**, choose an adapter on the device's Wi-Fi/LAN; avoid
+VPN/tunnel/virtual adapters unless intentionally reachable. Apply with
+**Save and restart** or cancel with **Discard changes**.
 
-If DHCP changed the selected adapter's IP address, Voltura Air follows the saved
-adapter identity and advertises its new address. If the saved adapter is missing,
-it falls back to the recommended adapter and shows a warning.
+After any automatic port change, scan a fresh QR code. For an occupied custom
+port, choose another or return to automatic, then **Save and restart**.
 
-## Automatic port changed
+## Device revoked
 
-Automatic mode keeps its last successful port when that port remains available.
-Without a usable saved port, it starts at `51395` and selects the next available
-port when needed. The host shows the actual port and warns when it selects a new
-non-preferred port; scan a fresh QR code after any port change.
-
-Custom port selection is under **Port settings** and does not
-silently fall back. If the chosen port is occupied, choose another port or
-return to automatic selection, then select **Save and restart**.
-
-## Device was disconnected or revoked
-
-If the PC says the device was disconnected, its registered reconnect public key
-was removed. Scan a fresh QR code to create and register a new key pair.
+Removal deletes its registered reconnect public key. Scan a fresh QR code to
+pair again.
 
 ## Pairing request invalid
 
-If the PC reports an invalid pairing request, refresh the mobile app from the PC
-and scan a fresh QR code.
+Refresh the mobile app from the PC and scan a fresh QR code.
 
-## What to include in a bug report
+## Bug report contents
 
-Include:
-
-- copied diagnostics from the Windows host;
-- copied diagnostics from the mobile app;
-- whether both devices are on the same Wi-Fi/LAN;
-- whether a VPN, guest Wi-Fi, or mobile data is involved;
-- what changed recently: network, firewall, IP address, port, browser, or app version.
-
-Do not include screenshots or text containing live pairing tokens, private
-reconnect keys, reconnect challenges, or reconnect proofs.
+Include host/mobile diagnostics, LAN/VPN/guest-network/mobile-data context, and
+relevant network, firewall, address, port, browser, or version changes. Never
+include live pairing links/tokens, private reconnect keys, challenges, or
+proofs.
 
 ## Connected but input does nothing
 
-If input acknowledgements stop, the mobile app shows unavailable/retrying and
-reconnects. A rejected Windows input action reports a failure without closing
-the authenticated connection.
+Check that:
 
-Check these items first:
+- the host still runs;
+- Windows is not showing UAC, secure desktop, lock screen, or another
+  higher-integrity surface;
+- the phone retained LAN reachability and foreground browser state;
+- browser storage still contains its key; otherwise pair again.
 
-- Voltura Air is still running on the PC.
-- The PC is not on a secure desktop, UAC prompt, lock screen, or other Windows
-  surface that rejects normal input injection.
-- The phone did not switch network, sleep the browser, or lose LAN reachability.
-- If browser storage was cleaned, scan a fresh QR code; refreshing cannot restore
-  a removed private reconnect key.
+**PC input paused** / **Administrator app active** means a higher-integrity app
+blocks injection. Use **Show desktop** or focus a normal app. Input rejection
+does not close the connection; lost acknowledgements enter
+unavailable/retrying.
 
-When a higher-integrity application blocks input, the host shows **PC input
-paused** and the phone shows **Administrator app active**. Use **Show desktop**
-or return to a normal application. Voltura Air cannot control UAC prompts, the
-lock screen, or another secure desktop.
+## Custom pointer remains
 
-## Custom pointer remains after Voltura Air closes
+Keep **Preferences > Custom pointer > Use cursor recovery watchdog** enabled.
+Reopen Voltura Air and disable **Custom pointer**, or reload the chosen scheme
+in Windows Mouse settings.
 
-Keep **Preferences > Custom pointer > Use cursor recovery watchdog** selected.
-Reopen Voltura Air and switch **Custom pointer** off to recover, or reload the
-selected pointer scheme from Windows Mouse settings.
+## Pointer is delayed or continues after release
 
-## Pointer movement feels delayed or continues after touch ends
+Restart the host, refresh the mobile page from that host, and check Wi-Fi,
+guest-network isolation, VPNs, and PC load. Application logging never records
+pointer movement.
 
-The client drops movement that would arrive late. Continued movement after
-release can indicate an outdated or stalled host, heavy PC load, or an
-interrupted LAN connection.
+## Send text fails or targets the wrong place
 
-Confirm that the phone loaded the web client served by the currently running
-host, then restart the host and refresh the mobile page. Check Wi-Fi signal,
-guest-network isolation, VPNs, and PC load. Application logging is off by
-default and does not record pointer movement.
+Check **Preferences > Text destination** and focus the intended Windows field
+immediately before sending. Clipboard mode only copies. If the result says
+copied, paste manually and inspect it before retrying.
 
-## Send text to PC fails or goes to the wrong place
+Host-UI focus, lock/secure desktop, or a higher-integrity target blocks text
+delivery. The mobile draft survives failure; check for partial text before
+retry.
 
-Check **Preferences > Text destination** on the PC. The default is the Windows
-application that owns keyboard focus when delivery begins; click the intended
-field, cell, document, or insertion point immediately before sending. Clipboard
-mode intentionally copies only. Managed destinations create a new item or draft;
-paste-driven destinations paste only after Voltura Air confirms that exact
-window is foreground and not elevated. If the mobile result says the text was
-copied, open the destination and paste manually; do not resend until you have
-checked the clipboard result.
+## Application button missing or failing
 
-Text transfer is blocked while the Voltura Air host window, Windows lock screen,
-a secure desktop, or a higher-integrity application has focus. The mobile draft
-remains after failure. Check for partial text before retrying.
+Check **Preferences > Application launch buttons**, global launch permission,
+and the device override. Disabled permission advertises no buttons.
 
-## An application button is missing or fails
+Presets require a discoverable installed app. Custom buttons require an existing
+absolute `.exe`; edit/reapprove moved files. Shells, scripts, relative paths,
+and phone-supplied paths are unsupported. The mobile Fn panel reports failure;
+optional Application log records action ID/outcome.
 
-Open **Preferences > Application launch buttons** on the Windows host. Only
-enabled presets and locally approved custom buttons are sent to the phone. Also
-check **Preferences > Global permissions** and the paired device's permission
-override for **Allow paired devices to start applications**. When that effective
-permission is off, the host does not advertise any application buttons.
+## Presentation disabled or controls wrong app
 
-Spotify, VLC, and PowerPoint presets require the corresponding application to
-be installed where Voltura Air can discover it through Windows registration or
-a supported install location. A custom button must point to an existing absolute
-`.exe` path. If that file is moved or removed after approval, the host rejects
-the launch until the entry is edited and approved again.
-Arguments are passed directly to the selected executable; command shells,
-scripts, relative paths, and paths received from phones are not supported.
+Enable **Preferences > Developer tools > Enable alpha features** and the global/
+device Presentation permission. Blackout has a separate permission. Focus the
+intended viewer, select its matching target, and start Google Slides presenting
+before sending controls.
 
-The mobile Fn panel reports launch failures without disconnecting. Enable
-**Write application log** in **Preferences > Application** or
-**Diagnostics > Application log** for the action ID and outcome.
+## Lock PC disabled or failing
 
-## Presentation controls are disabled or affect the wrong app
-
-Presentation is enabled by default. If its controls are missing, open
-**Preferences > Developer tools** and make sure **Enable alpha features** is on,
-then enable **Allow paired devices to control presentations** globally or for
-the selected device. **Blackout** also requires its separate permission.
-
-Keep the intended slideshow or viewer focused and choose its matching target on
-the phone. Google Slides must already be presenting. After a disconnect, wait
-for reconnection and press the intended control again.
-
-## Lock PC is disabled or fails
-
-Open **Preferences > Developer tools > Windows locking**. Use **Test Lock PC**
-when available. If Windows explicitly disables locking, use **Enable Windows
-locking** and confirm the local change. A protected policy reports an error.
-
-Also check the global and per-device **Lock PC** permission. A lock failure
-leaves the connection active.
-
-For details, enable **Write application log** in
-**Preferences > Application** or **Diagnostics > Application log** before
-testing. The Application log records the policy check and action result.
+In **Developer tools > Windows locking**, use **Test Lock PC**. If permitted,
+**Enable Windows locking** can clear an explicit current-user block. Also check
+global/device Lock permission. A protected policy reports failure without
+closing the connection.
 
 ## Turn off display looks disconnected
 
-**Turn off display** cuts all display output, including HDMI. Some PCs enter
-sleep or Modern Standby, making Voltura Air unavailable. Use a physical keyboard
-or mouse to wake the PC. If logging was enabled, the Application log records the
-request result.
+Display off includes HDMI and may enter sleep/Modern Standby. Wake with physical
+keyboard/mouse. A PIN/fingerprint screen reflects Windows sign-in policy;
+Voltura Air did not sign out.
 
-If the display wakes to fingerprint or PIN, Windows locked the existing session
-according to its sign-in policy; Voltura Air did not sign the user out. Running
-apps should still be present after authentication.
+## Keep awake ends
 
-## Keep awake does not stay active
+Check **Preferences > Keep awake** mode/deadline. Timed modes return to Off;
+exiting releases the request. It prevents idle sleep only while the signed-in
+host runs and cannot override manual Sleep, lid close, power button, or
+lock-screen policy.
 
-Open **Preferences > Keep awake** and confirm the current mode and status. Off
-uses the selected Windows power plan; interval and expiration modes return to
-Off when their deadline passes. Exiting Voltura Air also releases the request.
-
-Keep awake prevents idle sleep only while Voltura Air runs in the signed-in
-user session. It does not override choosing Sleep, closing a laptop lid, a
-power-button action, or Windows lock-screen behavior. **Keep screen on** adds a
-display requirement and uses more power, but it remains a host-only setting.
-If the mobile Keep awake row is disabled, enable **Allow paired devices to
-control Keep awake** globally or for that device. Enable the application log
-and inspect Diagnostics for `keep_awake`, `awake.set`, or a
-`VAIR-AWAKE-EXECUTION-FAILED` result when Windows rejects a request.
+**Keep screen on** is host-only and uses more power. For disabled mobile control,
+enable global/device Keep awake permission. Optional Diagnostics records
+`keep_awake`, `awake.set`, and `VAIR-AWAKE-EXECUTION-FAILED`.

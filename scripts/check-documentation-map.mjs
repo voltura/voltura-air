@@ -21,6 +21,11 @@ export async function checkDocumentationMap({
   const markdownFiles = await collectMarkdownFiles(root, root);
   const resolvedPublicSurfaces = publicSurfaces ?? await collectPublicDocumentationSurfaces(root);
   const publicIntakeSurfaces = await collectPublicIntakeSurfaces(root);
+  const documentationFiles = [...new Set([
+    ...markdownFiles,
+    ...resolvedPublicSurfaces,
+    ...publicIntakeSurfaces
+  ])].sort();
   const requiredFiles = [...new Set(
     markdownFiles
       .filter((file) => file !== catalogRelativePath)
@@ -63,17 +68,34 @@ export async function checkDocumentationMap({
   }
 
   let checkedLinks = 0;
-  for (const sourceFile of markdownFiles) {
+  const npmScriptReferences = [];
+  const markdownFileSet = new Set(markdownFiles);
+  for (const sourceFile of documentationFiles) {
     const contents = await readFile(path.join(root, sourceFile), "utf8");
-    for (const target of extractLocalLinkTargets(contents)) {
-      const resolved = resolveTarget(root, sourceFile, target);
-      if (!resolved) {
-        continue;
-      }
+    if (markdownFileSet.has(sourceFile)) {
+      for (const target of extractLocalLinkTargets(contents)) {
+        const resolved = resolveTarget(root, sourceFile, target);
+        if (!resolved) {
+          continue;
+        }
 
-      checkedLinks += 1;
-      if (!await exists(path.join(root, resolved))) {
-        errors.push(`${sourceFile} links to missing local target: ${target}`);
+        checkedLinks += 1;
+        if (!await exists(path.join(root, resolved))) {
+          errors.push(`${sourceFile} links to missing local target: ${target}`);
+        }
+      }
+    }
+
+    for (const scriptName of extractNpmScriptReferences(contents)) {
+      npmScriptReferences.push({ sourceFile, scriptName });
+    }
+  }
+
+  if (npmScriptReferences.length > 0) {
+    const availableScripts = await collectNpmScriptNames(root);
+    for (const { sourceFile, scriptName } of npmScriptReferences) {
+      if (!availableScripts.has(scriptName)) {
+        errors.push(`${sourceFile} references missing npm script: ${scriptName}`);
       }
     }
   }
@@ -160,6 +182,29 @@ function extractLocalLinkTargets(contents) {
   }
 
   return targets;
+}
+
+function extractNpmScriptReferences(contents) {
+  return [...contents.matchAll(/\bnpm\s+run\s+(?<script>[a-z0-9][a-z0-9:_-]*)/giu)]
+    .map((match) => match.groups?.script)
+    .filter(Boolean);
+}
+
+async function collectNpmScriptNames(root) {
+  const names = new Set();
+  const rootPackageJson = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
+  const workspaces = Array.isArray(rootPackageJson.workspaces)
+    ? rootPackageJson.workspaces
+    : rootPackageJson.workspaces?.packages ?? [];
+  const packageFiles = ["package.json", ...workspaces.map((workspace) => path.join(workspace, "package.json"))];
+
+  for (const packageFile of packageFiles) {
+    const packageJson = JSON.parse(await readFile(path.join(root, packageFile), "utf8"));
+    for (const name of Object.keys(packageJson.scripts ?? {})) {
+      names.add(name);
+    }
+  }
+  return names;
 }
 
 function normalizeRawTarget(rawTarget) {

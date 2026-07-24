@@ -96,3 +96,52 @@ test("discovers structured public issue forms and requires them in the catalog",
     }
   );
 });
+
+test("accepts documented root and workspace npm scripts with arguments", async () => {
+  await withFixture(
+    {
+      "package.json": JSON.stringify({
+        scripts: { "docs:check": "node check.mjs" },
+        workspaces: ["apps/mobile-web"]
+      }),
+      "apps/mobile-web/package.json": JSON.stringify({
+        scripts: { lint: "eslint ." }
+      }),
+      "README.md": "Run `npm run docs:check` and `npm run lint --workspace apps/mobile-web`.\n",
+      "docs/README.md": "[Root](../README.md)\n"
+    },
+    async (root) => {
+      const result = await checkDocumentationMap({ root, publicSurfaces: [] });
+      assert.deepEqual(result.errors, []);
+    }
+  );
+});
+
+test("reports a documented npm script that no package exposes", async () => {
+  await withFixture(
+    {
+      "package.json": JSON.stringify({ scripts: { test: "node --test" } }),
+      "README.md": "Run `npm run missing:check`.\n",
+      "docs/README.md": "[Root](../README.md)\n"
+    },
+    async (root) => {
+      const result = await checkDocumentationMap({ root, publicSurfaces: [] });
+      assert.ok(result.errors.includes("README.md references missing npm script: missing:check"));
+    }
+  );
+});
+
+test("ignores scripts from packages outside the declared workspaces", async () => {
+  await withFixture(
+    {
+      "package.json": JSON.stringify({ scripts: {} }),
+      "tools/unrelated/package.json": JSON.stringify({ scripts: { hidden: "node hidden.mjs" } }),
+      "README.md": "Run `npm run hidden`.\n",
+      "docs/README.md": "[Root](../README.md)\n"
+    },
+    async (root) => {
+      const result = await checkDocumentationMap({ root, publicSurfaces: [] });
+      assert.ok(result.errors.includes("README.md references missing npm script: hidden"));
+    }
+  );
+});

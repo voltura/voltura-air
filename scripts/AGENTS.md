@@ -1,68 +1,30 @@
-# Automation instructions
+# Automation
 
-These instructions apply to development, validation, capture, cleanup, packaging,
-and release automation under `scripts`.
+Inherits root.
 
-## Process and host safety
+## Safety
 
-- Before any command that uses the Windows host, run
-  `./scripts/host-preflight.ps1`.
-- Never run multiple Voltura Air host instances. A temporary-host launcher
-  leaves no competing host process behind.
-- A temporary host with temporary or empty pairing data or settings must pass
-  `--isolated-test-mode`. It uses the normal single-instance scope, binds and
-  advertises only loopback, isolates settings, and does not persist automatic
-  network choices. Never expose a temporary pairing store on the LAN.
-- Automated protocol tests use in-memory `TestServer` and do not inspect,
-  reserve, or open the configured port or create firewall permissions.
-- Reuse the required port or stop the relevant process instead of silently
-  selecting another port. The ordinary VS Code development path is
-  `npm run dev`; `npm run dev:quick` is the no-validation host-served build path
-  for rapid current-source testing on a phone.
+- Launchers own preflight/cleanup; no competing hosts.
+- UI/capture/temp hosts: `--isolated-test-mode`, loopback, isolated
+  settings/pairing, no persisted auto network choice. Human
+  `dev`/`dev:quick`: normal settings.
+- Protocol automation: in-memory `TestServer`; never configured port/firewall.
+- Reuse required ports or stop owners; never silently switch.
+- `npm run dev`: checked development; `npm run dev:quick`: unchecked
+  current-source validation.
 
-## Destructive and maintenance commands
+## Destructive
 
-- Keep destructive targets explicit and validated. Provide a preview for broad
-  ignored-file cleanup and preserve the local `.vs` directory and
+- Validate explicit targets. Preview broad ignored cleanup; preserve `.vs` and
   `.vscode/settings.json`.
-- `npm run clean:temp:preview` previews ignored build/cache removal;
-  `npm run clean:temp` performs it.
-- `npm run cache:purge` stops the host, purges the current user's Windows icon
-  cache, and restarts Explorer. Use it only for stale Windows application or
-  notification icons.
-- `npm run clean:git` compacts the local Git object database and prunes
-  unreachable objects. Do not run it during another Git operation.
-- `npm run deps:update` intentionally updates dependencies within declared
-  ranges. It is dependency maintenance, not build-output cleanup.
-- `npm run maintenance:full` deliberately performs the cache purge, ignored-file
-  cleanup, Git maintenance, and dependency update together. Run it only when all
-  four operations are intended.
+- `cache:purge`: stale icons only; stops host, resets current-user icon cache,
+  restarts Explorer.
+- Never `clean:git` during another Git operation.
+- `maintenance:full` only when all intended: cache purge, ignored cleanup, Git
+  maintenance, dependency updates.
 
-## Tooling and packaging
+## Verify
 
-- Install required SDKs, browsers, compilers, CLIs, and validation tools when
-  missing instead of silently substituting weaker validation. Report material
-  installs in the handoff.
-- Maintained browser automation and icon generation use `@playwright/test` from
-  the mobile workspace. Install its missing browser engines with
-  `npx playwright install <engine>` from `apps/mobile-web`. The `dev:ui`,
-  `test:ui`, and `screenshots:site` launchers intentionally install their
-  capture-only `playwright` package in a temporary workspace.
-- The native cursor watchdog uses the Visual Studio x64 C++ toolset discovered
-  through `vswhere`; install the Desktop development with C++ workload if needed.
-- Test-only uncompressed installers under `artifacts/test` are never release
-  inputs. Follow `../docs/release.md` for packaging and publication.
-
-## Script validation
-
-- Keep launch, cleanup, release preparation, and package-script behavior covered
-  by focused tests under `tests/scripts`.
-- `scripts/check-documentation-map.mjs` enforces the canonical catalog, required
-  public documentation surfaces, and local document-link integrity. Update its
-  focused tests when the coverage contract changes.
-- `npm run size:check` requires every strong source-size warning to have a
-  current, specific rationale in `source-size-reviews.json`. Split mixed
-  ownership before recording a cohesive exception.
-- Run `npm run test:scripts` after changing JavaScript automation or root package
-  script composition. Run packaging only when the changed behavior reaches that
-  boundary.
+- `artifacts/test` installers are not release inputs; follow `docs/release.md`.
+- Run relevant `tests/scripts/<file>` test. Full `npm run test:scripts` only for
+  shared orchestration/root package-script composition.

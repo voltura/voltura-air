@@ -1,57 +1,47 @@
-# Windows host quality standard
-
-Voltura Air's Windows host is a long-running Windows 11 WPF tray application.
-Its quality gate covers correctness, lifetime ownership, bounded resource use,
-protocol safety, and maintainable modern C#.
+# Windows host quality
 
 ## Enforced baseline
 
-- The host and host tests use nullable reference types, the current recommended .NET analyzer baseline, and warnings as errors.
-- `apps/windows-host/.editorconfig` promotes reviewed disposal, cancellation, async, native interop, security, ASP.NET Core, performance, and behavior-neutral modern C# rules to errors.
-- Rules designed for reusable public libraries or context-free libraries remain disabled when their assumptions conflict with a WPF executable. Every production suppression must be narrow and include its reason beside the affected code.
-- Native calls use source-generated `LibraryImport` where supported, exact Unicode entry points for text-sensitive Windows APIs, explicit native boolean marshalling, and a process-wide System32 DLL search policy.
-- A maintained host type is declared in one source file. XAML and interop types may remain partial for framework or source-generation requirements; `npm run host:ownership:check` rejects multi-file partial type families.
+- Host and host tests use nullable reference types, configured .NET analyzers,
+  and warnings as errors.
+- `.editorconfig` promotes reviewed disposal, cancellation, async, interop,
+  security, ASP.NET Core, performance, and behavior-neutral rules. Production
+  suppressions are narrow and explain their reason beside the code.
+- Native calls prefer source-generated `LibraryImport`, exact Unicode APIs,
+  explicit native Boolean marshalling, `SafeHandle`, and System32-only DLL
+  search.
+- One maintained file declares each host type. XAML/generated interop may use
+  required partials; `npm run host:ownership:check` enforces the boundary.
+## Runtime contract
 
-The checked-in analyzer and ownership gates are:
+- UI-affine work stays on the dispatcher; network, filesystem, and blocking
+  native work do not.
+- One owner controls every timer, subscription, socket, cancellation source,
+  stream, native handle, tray object, worker, and recurring dispatcher action.
+  Inputs and queues are bounded; cleanup is deterministic and awaited.
+- Non-cancellable native calls have bounded callers. Late completion reconciles
+  native state to the last committed state before more work.
+- Authentication, origin validation, throttling, message bounds, and permission
+  checks precede privileged actions. Input is normalized and decoded once;
+  socket sends are serialized and status updates coalesced.
+- Settings used on hot paths are cached. Pairing and other persisted data are
+  bounded, validated, and atomically replaced.
+- External failures stop at their owning boundary and are logged without
+  secrets, payload contents, typed text, pointer coordinates, or credentials.
+- Prefer event-driven work. Polling or lifetime allocations require measured
+  justification.
 
-```powershell
-dotnet build VolturaAir.slnx
-npm run host:ownership:check
-```
+## Validation by risk
 
-## Runtime expectations
+| Change | Default check |
+| --- | --- |
+| Ordinary host code | Warning-free `dotnet build VolturaAir.slnx`; focused `dotnet test --filter` only when behavior changes. |
+| Host source ownership | Add `npm run host:ownership:check`. |
+| Native/resource, filesystem, registry/persistence, process, network, protocol, or shared lifecycle boundary | Focused production-path tests for success, expected failure, and cleanup/restoration. |
+| Broad/shared host work | Full `npm run test:host`. |
+| WPF-only presentation | Warning-free build, useful focused state tests, and the root visual-checkpoint policy. |
+| Release or repository-wide shared contract | Sequential root `npm run build` and `npm test`. |
 
-- UI-affine work stays on the WPF dispatcher; network, filesystem, and long-running native work must not block it.
-- Long-lived non-UI workers composed from WPF code start with explicit scheduler ownership and use context-free continuations; construction on the dispatcher must not make their progress depend on it.
-- Recurring latest-state notifications use one owner and bounded, coalesced dispatcher work. Preserve separate dispatcher operations only when each event carries distinct information or validates a specific transition.
-- Potentially blocking services expose cancellation-aware awaitable operations instead of synchronously waiting from WPF or tray handlers.
-- A non-cancellable native call has a bounded caller deadline. If it completes after timeout or cancellation, its owning worker reconciles the native state to the last committed state before accepting more work.
-- Timers, event subscriptions, sockets, cancellation sources, streams, native handles, tray resources, and background services have one owner and deterministic disposal.
-- WebSocket concurrency and message sizes remain bounded. Authentication, origin validation, rate limiting, and permission checks precede privileged actions; sends are serialized and timed per connection, and status updates are coalesced through one host-owned worker.
-- Authenticated pointer and keyboard JSON is validated, normalized, and decoded once before dispatch. Hot input paths use cached settings state rather than per-event Registry reads, and native batching must retain ordering plus cleanup after partial sends.
-- Optional application logging uses one bounded non-blocking producer queue. Its owner flushes accepted entries during shutdown, and filesystem writes never run on a WebSocket input loop.
-- Persisted pairing data is bounded and validated before use and replaced atomically in its own directory, so a partial write cannot replace the last complete store.
-- External failures are caught at their owning boundary, logged without secrets or payload contents, and must not terminate the tray host.
-- Prefer event-driven behavior and avoid polling or allocations that repeat for the lifetime of the process without a measured reason.
-
-## Modern C# policy
-
-Use stable C# 14 and current .NET APIs when they make code clearer or reduce work: collection expressions, primary constructors, pattern matching, `Lock`, spans, cached serializer options, async disposal, and source-generated interop. Do not introduce a new abstraction or rewrite clear code solely to use newer syntax; the result must simplify ownership, improve correctness, or reduce meaningful allocation or CPU cost.
-
-## Change gate
-
-For a changed native, filesystem, registry, process, network, persistence, or
-resource-owning production boundary, start with focused success, expected-failure,
-and cleanup or restoration coverage through the production path. For a
-presentation-only host change, use focused UI/state tests where meaningful, the
-warning-free host build, and a quick human visual check at the affected layouts,
-themes, focus, and scrolling states.
-
-Run the broader relevant build and test gate once at the integration boundary;
-run root `npm run build` and `npm test` sequentially when the change crosses both
-runtime halves or prepares a release. `npm run package:win:test` may be used
-during installer iteration to skip NSIS compression while retaining
-installer-content and metadata checks; its outputs under `artifacts/test` are not
-releasable. Release verification additionally runs `npm run package:win`, which
-owns the compressed production publishes, installer creation, and Windows
-metadata validation.
+`npm run package:win:test` is an installer-iteration check whose
+`artifacts/test` output is not releasable. Production packaging and release
+verification belong to [release.md](release.md).

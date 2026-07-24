@@ -8,9 +8,9 @@ for a Windows 11 PC.
 
 - Touch trackpad, keyboard, browser-supported dictation, media remote, and
   landscape split mode.
-- PowerPoint, Google Slides, and PDF/browser presentation control with an
-  integrated trackpad, native laser pointer, timer, slide/break statistics, and
-  optional reports stored on the Windows PC.
+- Default-on alpha Presentation mode for PowerPoint, Google Slides, and
+  PDF/browser control, with trackpad, native laser pointer, timer, statistics,
+  and optional reports stored on the PC.
 - YouTube, Kodi, browser, media, volume, window, and approved application
   controls.
 - Acknowledged text transfer to reviewed PC destinations and an explicit,
@@ -25,7 +25,7 @@ for a Windows 11 PC.
 - No account, subscription, cloud relay, or internet input forwarding.
 - Not a remote-desktop, file-sync, or public-internet remote-control service.
 - A sleeping or shut-down PC cannot receive a Voltura Air wake command.
-- Release binaries are currently not code-signed, so Windows may show an
+- Release binaries are not code-signed, so Windows may show an
   unknown-publisher or SmartScreen warning.
 
 ## Distribution

@@ -1,17 +1,7 @@
 # Security architecture diagrams
 
-These diagrams summarize the security-sensitive runtime, pairing, authorization,
-and local release flows. The SVG files in `docs/diagrams/` are the
-viewable graphics; the Mermaid blocks below keep the same flows easy to review
-in text. `docs/architecture.md` remains the subsystem authority and
-`docs/protocol.md` remains the wire-contract authority.
-
-## Viewable graphics
-
-- [Runtime data flow](diagrams/security-runtime-flow.svg)
-- [Pairing and reconnect flow](diagrams/security-pairing-reconnect.svg)
-- [Authorization decision path](diagrams/security-authorization-path.svg)
-- [Local release and artifact-production flow](diagrams/security-release-flow.svg)
+Mermaid diagrams of security-sensitive flows. `docs/architecture.md` owns
+subsystem boundaries; `docs/protocol.md` owns the wire contract.
 
 ## Runtime data flow
 
@@ -86,15 +76,16 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-  Source["Clean main checkout\nrelease notes prepared"] --> Local["Local release command\nmaintainer Windows PC"]
+  Source["Clean main checkout\nrelease notes prepared"] --> Local["npm run release:draft\nor npm run release:full\nmaintainer Windows PC"]
   Local --> Guard["Resolve new version\nor matching resumable draft"]
   Guard --> Test["npm test\nhost tests\nscript/doc checks"]
   Test --> Package["package-win.ps1\nmobile build\n.NET publish\ncursor watchdog\nNSIS installers"]
   Package --> Artifacts["ZIP + installers\nartifacts/publish"]
-  Artifacts --> Draft["Audited GitHub draft\ndefault result"]
-  Draft -->|"latest argument"| Public["Published Latest release"]
+  Artifacts --> Mode{"Release command"}
+  Mode -->|"release:draft"| Draft["Audited GitHub draft"]
+  Mode -->|"release:full"| Public["Published GitHub Latest release"]
 
-  GitHub["GitHub CLI and release API"] -. "publication trust" .-> Draft
+  GitHub["GitHub CLI and release API"] -. "publication trust" .-> Mode
   Tooling["NSIS / build tooling"] -. "release-time tool trust" .-> Package
   Maintainer["Maintainer"] --> Local
 ```

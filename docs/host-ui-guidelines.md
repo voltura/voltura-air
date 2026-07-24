@@ -1,189 +1,154 @@
-# Windows host UI guidelines
+# Windows host UI
 
-These notes capture host-specific UI decisions. `docs/ui-system.md` is the
-product-wide authority for design tokens, primitives, layout ownership,
-adaptive states, AI-assisted UI work, and the UI definition of done.
+WPF-only composition; shared tokens, states, accessibility, and layout remain in
+[the UI system](ui-system.md).
 
-## WPF Host UI
+## WPF foundation
 
-- The Windows host UI is WPF-first. WinForms is allowed only for tray interop.
-- Use one primary `Voltura Air` window with page navigation for Connect,
-  Devices, Presentations, Connection, Preferences, and Diagnostics.
-- Use a real startup window for host initialization. It should appear
-  immediately, stay visible for at least the configured minimum duration, and
-  transition to an error state if startup fails.
-- Prefer WPF device-independent layout over manual pixel work. Use `Grid`
-  with `Auto` rows for headers/actions and `*` rows for growing content.
-- Use `SpacingStackPanel` and `SpacingWrapPanel` for tokenized gaps between WPF
-  siblings. Leaf controls and reusable content components have zero external
-  adjacency margin; the composition container inserts one gap and ignores
-  collapsed children. Margins remain valid for page insets, overlay placement,
-  control-template geometry, and documented optical corrections.
-- Put `ScrollViewer` only around content that can grow. Action rows and primary
-  navigation must remain outside scrollable regions.
-- Closing the host window hides it to the notification area rather than exiting
-  the host. On the first such close, show a tray notification that paired
-  devices remain able to control the PC and directs the user to the
-  notification-area icon to reopen or exit.
-- On Connect, keep the QR code and its immediate pairing actions visible. Put
-  network-adapter information, including its selection warning, and technical
-  pairing details in the collapsed Details accordion; the Details viewer owns
-  their scrolling.
-- Connection uses one constrained information column. Show the active adapter,
-  endpoint, and compact automatic/custom status once; keep adapter recovery in
-  **Choose another adapter** and custom-port controls in a collapsed disclosure
-  whose header exposes the active or pending port state. A fixed, structured
-  change summary lists only changed settings and provides **Discard changes**
-  and **Save and restart** without presenting pending values as active.
-- Preferences uses themed accordion sections. Start them collapsed, allow only
-  one section to be expanded, and keep each header a full-width keyboard and
-  pointer target while individual actions remain content-sized. Expanded
-  content uses the shared balanced inset on every side; individual first or
-  last children must not compensate for the accordion boundary. Order sections
-  from broad application and appearance settings through control defaults and
-  host behavior, then permissions, platform policy, and advanced tools.
-- While Presentation is alpha, its gate defaults on and remains user-disableable
-  under Developer tools. Show host-only laser appearance controls in a
-  **Presentation** Preferences section only while the gate is enabled. Laser
-  size uses the shared custom-pointer scale, and color choices use labeled
-  segmented controls so meaning does not depend on color alone.
-- Nested Preferences disclosures use the shared nested-accordion variant, while
-  the enclosing settings stack owns the standard gap from the preceding visible
-  group. Neither the accordion nor the preceding button, checkbox, or hint owns
-  that external separation.
-- Devices is a full-width virtualized accordion list. Every collapsed device
-  header keeps its name, connection-status pill, and recent activity visible;
-  opening one device closes the others. Its metadata appears directly below the
-  header, while Appearance, Trackpad profile, and Permissions use the shared nested accordion
-  treatment and start collapsed. Permission choices use wrapping compact cards
-  so each permission label and its choices stay together without creating a
-  separate narrow detail column. The page list owns scrolling and its bottom
-  action row remains visible. Keep list virtualization enabled and use pixel
-  scrolling so content inside a device taller than the viewport remains
-  reachable without jumping to the next device.
-- Each device permission is a three-state choice. An inherited value fills
-  **Use global** with the accent colour and outlines the currently effective
-  **Allow** or **Block** choice with that colour. An explicit **Allow** or
-  **Block** choice is accent-filled. Apply a choice in place so its card updates
-  immediately without collapsing the device or Permissions accordion. All three
-  buttons use the same fixed width, including room for the checkmark, and never
-  stretch with the permission card or host window.
-- Applying **Save speed** or **Use global** in a device's Trackpad profile keeps
-  both the device and Trackpad profile accordions expanded so the result remains
-  in context.
-- Device disclosure state is local to the current Devices-page visit. Keep it
-  while editing on that page, but collapse every device after navigating away
-  and returning so the overview is restored.
-- Appearance, Trackpad profile, and Permissions form a single-open nested disclosure group
-  within each device. Opening any child accordion collapses the other two.
-  Appearance offers the three-state **Use global**, **Show**, and **Hide** mode-button
-  preference. Collapsing the parent device also collapses all children, so reopening a
-  device always starts with its nested sections folded.
-- In the Devices list, Up and Down select a device, Enter or Space expands or
-  collapses it, and Tab moves through the expanded device controls. Accessibility
-  help text states those exact keys.
-- Removing a device revokes its pairing record and requires it to pair again.
-  Use **Remove** and **Remove all**, never **Disconnect**, for those actions;
-  both require a confirmation that states the re-pairing consequence.
-- After an accordion expands and layout settles, scroll the Preferences viewer
-  only when its first usable control is clipped. Reveal that control with the
-  minimum offset that keeps the focused header visible; do not move focus or
-  animate the adjustment. Rebuilding Preferences after an in-section setting
-  change must keep that section expanded at the same scroll position.
-- Diagnostics uses a top-level view switch. In the Application log view, the
-  content above the bottom action row owns vertical scrolling so filters,
-  status, and records remain reachable while Refresh, Copy, Open folder, and
-  Delete actions stay visible. Log filters apply as they change, and Event
-  supports selecting multiple values.
-- Diagnostics automatic refresh runs only while its view is visible and the host
-  is not minimized. Its per-view refresh session permits one read and one latest-
-  filter follow-up, keeps at most one dispatcher callback pending, presents read
-  failures as recoverable content, and releases log, window, and dispatcher work
-  when the view unloads. Manual refresh and logging remain usable after a failure.
-- Presentations uses a newest-first virtualized archive. Its labeled title,
-  type, device, and date-range filters share one control height and apply as
-  they change. Aggregate cards wrap at their natural compact width instead of
-  stretching to fill a row. A row exposes Open and also opens on pointer
-  double-click; hover uses the shared interactive-card background and focus
-  border without making informational children tab stops. Date filtering,
-  archive labels, and detail timestamps use the UTC offset captured with each
-  report rather than reinterpreting history in the PC's current timezone.
-- Presentation detail replaces the archive in the same page. Its header is
-  **Presentations > presentation name**, followed by start date/time and
-  captured device, with the type pill aligned at the far edge. Keep statistics
-  compact, show breaks in their real chronological positions on the timeline,
-  and list session/break rows oldest first with duration and running elapsed
-  time. The fixed footer groups Back separately, then edit/link actions,
-  sharing actions, and the destructive Delete action.
-- Presentation report dialogs use the shared themed text field, button, dialog,
-  tooltip, and focus primitives. File and URL buttons keep stable labels and
-  use a semantic status dot plus an above-control tooltip for linked details.
-  Export and Email expose compact format menus. Successful file export opens
-  through the Windows shell; email attachment requests attach every requested
-  available file independently of linked URLs, fail clearly if one disappears
-  during draft creation, and do not open Explorer as a substitute.
-- Keep the Presentations archive available when stored reports exist after its
-  alpha gate is disabled; only new controls and report saves are blocked.
-- The startup window retains its compact size during normal startup and expands
-  only for an error. Error actions stay outside the fallback content scroller.
-  A watchdog startup failure offers **Disable watchdog and restart** in addition
-  to copying details or closing the host.
-- Use the shared themed combo-box, text-field, and date-range styles for filters
-  and retention controls. Every control in one filter row, including compact
-  icon actions such as **Clear filters**, uses the shared control height and
-  bottom-aligns with its peers. New controls must support light, dark, system,
-  hover, focus, selected, disabled, warning, and error states as applicable.
-- Do not expose the default dashed or dotted WPF focus adorner. Bordered controls
-  show keyboard and controller focus by recoloring their existing one-DIP border
-  with the theme focus color; focus must not add a second outline or increase
-  the border thickness.
-- Lists should use WPF list controls with recycling virtualization. Keep the
-  virtualizing items host responsible for scrolling; when rows need separation,
-  reserve the tokenized gap inside the collection-owned item template instead
-  of replacing the items host or adding a feature-control margin.
-- Use the shared `PillBadge` primitive for compact status and metadata labels.
-  Filled accent, success, and danger tones communicate current state; outlined
-  neutral, accent, and danger tones identify log metadata without overstating it.
-  Features provide the label and semantic tone rather than recreating badge
-  geometry, typography, or theme brushes.
-- Do not use custom scrollbars or runtime layout shims to move controls after
-  layout. Fix the layout contract instead.
-- Keep the native Windows title bar unless there is a focused reason to revisit
-  window chrome.
-- Verify light, dark, system, and Windows High Contrast modes when adding
-  selected, inherited, disabled, warning, or destructive states. In High
-  Contrast, preserve readable semantic state and keyboard-focus feedback using
-  system-visible colors rather than relying on custom theme colors alone.
-- Add or update host UI tests for navigation, startup behavior, settings save
-  behavior, device actions, and permission state. Manual DPI checks should cover
-  100%, 125%, 150%, and 200% display scaling on Windows.
+- WPF owns windows and pages; WinForms is limited to tray interop.
+- Declarative XAML, binding, data templates, Grid/DockPanel, and WPF list
+  controls express ordinary UI. Programmatic visuals are for dynamic drawing,
+  native output, or child structure that is itself an algorithm.
+- `SpacingStackPanel` and `SpacingWrapPanel` insert tokenized gaps between
+  visible siblings. Leaf controls are marginless; page insets, overlays,
+  template geometry, and documented optical corrections remain local.
+- Growing content alone owns a `ScrollViewer`; navigation and action rows stay
+  fixed. Use recycling virtualization and pixel scrolling for long lists.
+- Use the current WPF Fluent foundation and shared dynamic-resource styles.
+  Complete control templates require a primitive that property styling cannot
+  express.
+- Keep the native title bar. Do not use custom scrollbars or runtime
+  post-layout shims.
 
+## Shell, startup, and tray
 
-## Connection feedback
+One `Voltura Air` window navigates Connect, Devices, Presentations, Connection,
+Preferences, and Diagnostics. Closing hides it to the notification area. The
+first close explains that paired devices remain active and that the tray icon
+reopens or exits.
 
-Connection errors are first-class UI states. Do not leave the user on an active
-trackpad or keyboard surface when the host reports disconnected status, health checks
-fail, input acknowledgement times out, or input dispatch fails. Show a clear
-unavailable/retrying panel with recovery actions and keep it scrollable on small
-phones and short landscape screens.
+The startup window appears immediately and remains for its configured minimum.
+It keeps compact dimensions unless startup fails; error actions remain outside
+the fallback scroller. Watchdog startup failure offers **Disable watchdog and
+restart**, copy details, and close.
 
-## Remote action surfaces
+Tray menus provide quick access and common presets; Preferences owns complete
+configuration. Both operate on service-owned state. Submenu arrows and checked
+indicators use theme text color, with a DPI-scaled indicator gutter that also
+aligns separators.
 
-- Keep the mobile surface focused on current state and the smallest useful
-  action set. Detailed policy and platform-specific configuration belong to the
-  Windows host; do not duplicate them in the mobile client.
-- Place related actions in one responsive sheet when permanent buttons would
-  crowd the primary control surface. Preserve the user's context when the sheet
-  opens and return focus predictably when it closes.
-- Show supported but host-disabled actions with a permission explanation. Omit
-  actions for capabilities the host or Windows does not expose at all.
-- Keep reversible, low-risk actions direct. Use a dedicated warning state and an
-  explicit confirmation gesture for disruptive or session-ending actions.
-- Show pending, success, and failure state where the action was initiated. Keep
-  the surface open while acknowledgement is useful; close it when leaving it
-  open would obscure the action's result, while preserving feedback for later.
-- Use tray menus for quick access and common presets. Put complete configuration
-  in Preferences, and have both surfaces operate on the same service-owned state.
-- Tray submenu arrows and selected-state checkmarks use the active theme text
-  color. Checked menus reserve a DPI-scaled indicator gutter so the glyph never
-  overlaps labels; separators align with that gutter.
+## Connect and Connection
+
+Connect keeps the QR code and immediate pairing actions visible. Its collapsed
+Details section owns adapter information, selection warnings, technical pairing
+details, and their scrolling.
+
+Connection uses one constrained information column. Show active adapter,
+endpoint, and automatic/custom state once. **Choose another adapter** owns
+adapter recovery. A collapsed custom-port disclosure exposes active or pending
+port state in its header. Pending settings are not presented as active: a fixed
+change summary lists only changed values and provides **Discard changes** and
+**Save and restart**.
+
+## Preferences
+
+Themed sections start collapsed and allow one open section. Headers are
+full-width keyboard/pointer targets; their actions remain content-sized.
+Expanded content has balanced inset on every side. Order moves from application
+and appearance through control defaults and host behavior, permissions,
+platform policy, and advanced tools.
+
+Nested settings use the shared nested disclosure. The enclosing stack owns its
+external gap. After expansion settles, minimally scroll the Preferences viewer
+only when the first usable control is clipped, keeping the focused header
+visible without moving focus or animating. Rebuilding after an in-section change
+preserves expansion and scroll position.
+
+Presentation laser size/color controls appear only while alpha features are
+enabled. Size uses the custom-pointer scale; Red, Green, and Blue are labeled
+segmented choices so color is not the sole meaning.
+
+## Devices
+
+Devices is a full-width virtualized accordion list with one open device.
+Collapsed headers retain name, connection status, and recent activity. Metadata
+follows the header; Appearance, Trackpad profile, and Permissions form a
+single-open nested group and start collapsed. Collapsing a device collapses its
+children. Disclosure state lasts only for the current page visit.
+
+The page list owns scrolling and its action row remains visible. Pixel scrolling
+keeps content taller than the viewport reachable. Up/Down selects a device,
+Enter/Space toggles it, and Tab enters its controls; accessibility help states
+those keys.
+
+Permissions use wrapping compact cards. Each is a three-state choice:
+**Use global** fills with accent and outlines the effective **Allow** or
+**Block**; an explicit choice is accent-filled. Equal-width buttons reserve
+checkmark space and do not stretch. Applying a choice updates in place without
+collapsing the permission/device disclosures.
+
+Trackpad **Save speed** and **Use global** preserve both open disclosures.
+Appearance offers **Use global**, **Show**, and **Hide** for the mobile mode
+button.
+
+Removal revokes pairing and requires setup again. Use **Remove** and
+**Remove all**, with confirmation stating the re-pairing consequence.
+
+## Diagnostics
+
+Diagnostics uses a top-level view switch. In Application log, the content above
+the fixed action row owns scrolling; Refresh, Copy, Open folder, and Delete
+remain visible. Filters apply as they change and Event supports multiple values.
+
+Automatic refresh runs only while the view is visible and the host is not
+minimized. One per-view session permits one read and one latest-filter
+follow-up, keeps at most one dispatcher callback pending, shows recoverable read
+failure, and releases log/window/dispatcher work on unload. Manual refresh and
+logging remain usable after failure.
+
+## Presentations
+
+The archive is newest-first and virtualized. Title, type, device, and date
+filters share one control height and apply as they change. Aggregate cards wrap
+at compact width. A row exposes Open and responds to double-click; hover and
+focus use shared interactive-card states without adding tab stops to
+informational children.
+
+Detail replaces the archive in the same page. Its header is
+**Presentations > presentation name**, followed by start date/time and captured
+device, with the type pill at the far edge. Statistics stay compact; the
+timeline preserves chronological break positions; session/break rows are oldest
+first with duration and running elapsed time. The footer separates Back,
+edit/link, sharing, and destructive Delete actions.
+
+Report dialogs use shared fields, buttons, tooltips, focus, and menus. File/URL
+buttons keep stable labels and show a semantic status dot plus above-control
+tooltip. Export opens the resulting file through Windows shell association.
+Email attaches every requested available file independently of linked URLs and
+fails clearly if one disappears; it never opens Explorer as a substitute.
+
+Stored reports remain available when alpha is disabled; new Presentation
+controls and saves do not.
+
+## Shared control behavior
+
+- Filters and retention controls use shared combo, field, and date-range styles.
+  Peers share height and bottom alignment.
+- Keyboard/controller focus recolors the existing one-DIP border; never add the
+  default dotted adorner, a second outline, or extra thickness.
+- `PillBadge` owns compact status/metadata geometry, typography, and theme.
+  Features supply label and semantic tone.
+- Tooltips use the shared themed style and default above-control placement.
+- Information actions remain separate from checkbox hit targets. Required
+  privacy, recovery, or destructive guidance stays visible.
+- Modal windows activate without consuming the intended control click; hover
+  alone does not activate.
+- Selected, inherited, disabled, warning, destructive, and focus states remain
+  readable in light, dark, system, and Windows High Contrast themes.
+
+## Validation
+
+Use a warning-free host build and focused tests only for changed behavior.
+Significant WPF work follows the root visual checkpoint. Visual verification
+covers affected compact/regular layouts, scrolling, focus, theme, and relevant
+DPI scaling; use `test:ui` only when its pairing/smoke workflow changed.

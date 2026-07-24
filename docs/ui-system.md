@@ -1,502 +1,185 @@
-# Voltura Air UI System
-
-This document is the product-wide authority for user experience, visual design,
-layout, and AI-assisted UI development. It applies to the React mobile client,
-the WPF Windows host, documentation screenshots, and any future Voltura Air
-surface.
-
-Implementation work preserves intentional behavior while conforming presentation
-structure to this system.
+# Voltura Air UI system
 
 ## Product character
 
-Voltura Air is quiet, immediate, dependable, and native to its context.
+Voltura Air is quiet, immediate, dependable, and native to its context. Mobile
+is a touch-first control surface; Windows is a compact system utility. Familiar
+behavior, useful control space, status, and recovery outrank decoration. Accent
+communicates selection or activation; the focus color communicates keyboard or
+controller focus.
 
-- The mobile client is a couch-friendly control surface. Its primary modes give
-  as much space as practical to direct manipulation and frequently used actions.
-- The Windows host is a compact system utility. It explains system state and
-  centralizes detailed policy without behaving like a promotional dashboard.
-- Familiar platform behavior wins over novelty. A user should not have to learn
-  a visual trick before they can complete a primary action.
-- Decoration never competes with control space, status, or recovery guidance.
-- The accent color communicates selection, activation, or important progress.
-  Keyboard and controller focus uses the dedicated focus color. Neither is
-  general decoration.
+## Experience contract
 
-## Experience principles
+1. Give each surface one clear job and one dominant next action when needed.
+2. Show pending, success, and failure feedback where an action begins.
+3. Explain denial, disconnection, unsupported capability, invalid input, and
+   failure with the safest useful recovery.
+4. Keep frequent controls visible; disclose policy, diagnostics, and uncommon
+   settings progressively.
+5. Keep primary controls spatially stable and assign content growth to one
+   explicit scroll owner.
+6. Omit unsupported capability; explain supported but disabled capability.
+7. Keep reversible low-risk actions direct. Separate and confirm destructive or
+   session-ending actions in proportion to their consequence.
 
-1. **One clear job per surface.** A page or sheet has one primary user goal and
-   one visually dominant next action where an action is required.
-2. **Direct feedback.** Pending, success, and failure feedback appears where the
-   action began. Do not make the user infer whether a command was received.
-3. **Recoverable failure.** Disconnection, denial, unsupported capabilities,
-   invalid input, and system failures explain what happened and offer the safest
-   useful next step.
-4. **Progressive disclosure.** Frequent controls stay visible. Detailed policy,
-   diagnostics, and uncommon configuration remain in focused settings sections,
-   sheets, or dialogs.
-5. **Stable spatial behavior.** State changes do not unexpectedly move primary
-   controls. Content growth is handled by an explicitly owned scroll region.
-6. **Surface input.** Follow the
-   [surface input priorities](#surface-input-priorities).
-7. **No silent degradation.** If a capability is unavailable, either omit it
-   because the platform cannot support it or explain why it is disabled.
+## Tokens and primitives
 
-## Design authority
+`assets/ui-tokens.json` owns shared colors, spacing, radii, control sizes,
+editable-text typography, and motion. `npm run ui:tokens:generate` produces
+React and WPF outputs; generated files are not edited.
 
-UI decisions have the following order of authority:
+Use a token for repeated or meaningful visual choices. Local values are for
+intrinsic artwork, one-pixel optical corrections, data-derived geometry, or
+platform constraints whose reason is clear. Platform-specific semantic tokens
+are allowed when mobile and desktop have different purposes.
 
-1. User goal and safety.
-2. This document and the generated design tokens.
-3. An existing approved UI primitive or layout pattern.
-4. Feature-specific presentation.
+The shared primitive set covers:
 
-Feature code composes the system. It must not create a parallel button, card,
-field, dialog, accordion, toast, spacing scale, or responsive convention.
+- buttons, icon buttons, segmented choices, fields, selects, ranges, switches,
+  labels, hints, validation, and settings rows;
+- surfaces, cards, notices, headings, stacks, clusters, grids, and page frames;
+- disclosures, tabs, mode selection, drawers, sheets, dialogs, scrims, toasts,
+  local feedback, and canonical unavailable/error states.
 
-Composition primitives own spacing between adjacent UI elements. Do not add a
-margin to a feature control because of whichever sibling happens to follow it.
-When a relationship recurs, such as a nested disclosure following a settings
-group, express that relationship as a named layout or component variant.
+Primitives own visual variants, interaction states, geometry, and accessible
+semantics. Features own labels, content, intent, domain state, and composition.
+Extend the system explicitly when a needed concept is absent; do not hide a new
+primitive in a feature helper.
 
-In WPF, `SpacingStackPanel` and `SpacingWrapPanel` are the standard implementations
-of this rule. They consume generated spacing tokens, insert a single gap only
-between visible children, and leave leaf controls marginless. Page insets,
-overlay offsets, template-internal geometry, and explicit optical corrections
-are not sibling gaps and may still use `Padding`, grid tracks, or a documented
-local margin as appropriate.
+Composition owns gaps between adjacent elements. Leaf controls do not acquire
+margins based on their current siblings. Page insets, overlay offsets,
+template-internal geometry, and documented optical corrections are not sibling
+gaps.
 
-When the system lacks a needed concept, extend the system explicitly and use the
-new concept in at least the requesting feature. Do not disguise a new primitive
-as a one-off feature class or helper.
+### Anchored guidance
 
-## Maintainable vertical slices
+Anchored guidance is brief education attached to a visible control after a
+user-triggered state change—not operation feedback, requested explanation, or
+durable recovery.
 
-The target ownership model is defined in [architecture.md](architecture.md):
+The shared primitive owns placement, pointer geometry, viewport tracking, and a
+non-interactive live region. It follows the visual viewport, observes viewport,
+anchor, and hint size changes, chooses the first fitting placement, and clamps
+inside safe visible bounds. The feature owns copy and show/dismiss policy.
 
-```text
-app/                    composition, shell state, global overlays
-features/<capability>/  capability UI, state, copy, styles, and tests
-ui/                     domain-neutral controls and layout primitives
-foundation/             connection, protocol, persistence, and platform adapters
-```
+### Dialogs
 
-Dependency direction is strict:
+Shared dialog owns modal semantics, scrim, focus, dismissal, safe-area/visual
+viewport bounds. Feature owns title, body, actions, validation, and presence.
 
-```text
-app -> features -> ui
-       features -> foundation
-app ------------> foundation
-```
+Dialogs use intrinsic height up to the visible maximum; only the body scrolls.
+Title, relevant input/validation, and actions remain available when a software
+keyboard reduces the viewport. Wide landscape may place content and actions
+side by side, but stacks before either becomes unusable. Use a wide variant only
+when content needs working width. Provide visible touch dismissal; Escape is a
+secondary keyboard path.
 
-- `ui` does not import a feature, application state, protocol type, or storage
-  model.
-- `foundation` does not import React components or a feature.
-- A feature does not reach into another feature's private files. Cross-feature
-  behavior moves through an explicit typed contract or is promoted to a real
-  shared foundation.
-- `app` selects and composes features. It does not implement settings forms,
-  mode controls, pairing flows, remote controls, or feature-specific feedback.
-- A feature folder exposes a small public entry point and keeps its components,
-  hooks, models, copy, styles, and tests together.
-- Avoid catch-all `components`, `helpers`, `common`, and `utils` buckets. A file
-  that cannot be given a clear owner is an architecture question, not a filing
-  problem.
+## Layout contract
 
-Composition roots stay readable at a glance. Source-size review thresholds and
-the ownership report are defined in [architecture.md](architecture.md).
+Express relationships, not coordinates:
 
-Communication foundations expose typed commands, state, and events. They own
-transport, retries, validation, capability negotiation, and persistence. UI
-slices translate user intent into those contracts and never operate sockets,
-registries, native handles, or storage formats directly.
-
-### Web quality gate
-
-The compiler, lint configuration, commands, and TypeScript version boundary are
-owned by [the mobile instructions](../apps/mobile-web/AGENTS.md) and checked-in
-tool configuration. UI work passes that gate with zero warnings.
-
-The enforced outcomes are typed boundary data, correct hook/effect ownership,
-accessible JSX, architecture-compliant imports, explicit promise handling,
-deterministic cleanup, and token-based authored CSS.
-
-Effects synchronize React with an external system or own a subscription,
-timer, animation frame, observer, socket, or similar resource. Every acquired
-resource has a cleanup path. Derived presentation state is computed during
-render; it is not copied into another state variable by an effect. Async work is
-awaited, explicitly discarded with `void`, or cancelled/ignored when its owner
-ends. JSON, storage, socket messages, browser events, and other boundary data
-enter as `unknown` and are narrowed before use.
-
-Static rules complement focused lifecycle tests for sockets, listeners, timers,
-animation frames, observers, and abortable requests. Refactors keep ownership
-visible and conceptual complexity proportionate.
-
-## Design tokens
-
-`assets/ui-tokens.json` is the single source for shared colors, spacing, radii,
-control sizes, editable-text typography, and motion durations.
-`npm run ui:tokens:generate` produces the React CSS variables and WPF resources.
-Generated files are not edited directly.
-
-Tokens represent intentional choices, not every number that can appear in UI
-code. Repeated or visually meaningful values must be tokens. A local value is
-acceptable for intrinsic artwork geometry, a one-pixel rendering correction, a
-data-derived size, or a platform constraint when its reason is clear beside the
-code.
-
-Prefer semantic usage such as `--control-min-height`, `--page-gutter`, and
-`--color-danger`. The raw spacing scale is available for composition when a
-semantic token would add no information.
-
-Desktop and mobile share the same visual language, but they need not force the
-same layout density. A platform-specific semantic token is allowed when the
-different purpose is explicit.
-
-## Core primitives
-
-The maintained primitive set is deliberately small:
-
-- button and icon button;
-- segmented choice;
-- text field, select, range, switch, label, hint, and validation message;
-- surface/card and notice;
-- stack, cluster, responsive grid, and page frame;
-- section heading and settings row/group;
-- disclosure/accordion;
-- tabs and mode selection;
-- drawer, sheet, dialog, and scrim;
-- toast and local status feedback;
-- loading, empty, unavailable, denied, disconnected, and error states.
-
-Anchored guidance is the shared primitive for brief contextual education. It is
-used when the product needs to point to a visible control after the user has
-triggered a state change that reveals or relocates that control. Anchored
-guidance is not a toast, because it does not report operation progress or
-success; it is not an information dialog, because the user did not request a
-detailed explanation; and it is not a notice, because it should not occupy
-durable layout space for an unavailable or recovery state.
-
-Anchored guidance stays attached to its anchor through the visible viewport. It
-uses the visual viewport when a software keyboard, browser magnification, or
-browser chrome changes the visible area, and falls back to the layout viewport
-when the visual viewport API is unavailable. It must recalculate on viewport
-resize/scroll, orientation changes, and anchor or hint size changes; preserve
-the hint while those changes settle; choose the first placement that fits the
-current visible space; and clamp within safe visible bounds when no placement
-fully fits. Feature code supplies the copy and show/dismiss policy while the
-shared primitive owns placement, pointer geometry, viewport tracking, and
-non-interactive live-region semantics.
-
-Primitives own their visual variants and interaction states. Features own labels,
-content, intent, domain state, and composition.
-
-Editable-field placeholders are rendered by the shared input primitive at the
-platform text insertion origin. Feature views supply placeholder copy but do not
-position a separate overlay or compensate for a particular DPI scale.
-
-On the Windows host, settings checkboxes use their intrinsic, single-line label
-width by default. A feature may request a minimum width or full available width
-when its composition requires alignment. Independent settings use the shared
-wrapping layout so wider windows can show several settings on one row without
-forcing labels to wrap.
-
-The complete framed settings-checkbox surface is the toggle hit target,
-including its padding and unused inline space. When contextual information is
-present, its information button remains a separate action and never changes the
-checkbox state.
-
-Wrapped peer settings use the contrasting settings-group canvas. A setting with
-persistent guidance starts on its own row and remains on the section canvas so
-the control and its following guidance read as one semantic block.
-
-Routine checkbox explanations use the settings checkbox's neutral information
-action and the shared information dialog. The action has a setting-specific
-accessible name, and the dialog uses a right-aligned **OK** action. Privacy,
-recovery, destructive-action, and other guidance that users must understand
-before changing a setting remains visible; importance is not communicated only
-through the information icon's color.
-
-Windows tooltips use the shared themed tooltip style and its default placement
-above their owning control so the tooltip does not obscure the pointer or the
-control. Feature views provide tooltip content but do not restyle or reposition
-individual tooltips. A documented viewport constraint is the only reason to
-override the shared placement.
-Compact icon actions reuse the shared button hover, pressed, and focus language.
-When a modal Windows information or confirmation dialog loses activation, its
-native mouse-activation handling activates the window without discarding the
-mouse message. Hover remains passive, and the next intentional control click is
-delivered without requiring an activation-only click first.
-
-Every interactive primitive covers, as applicable:
-
-- default, hover, pressed, selected, focused, disabled, pending, success,
-  warning, and error states;
-- light, dark, and system themes;
-- the input methods defined by the surface input priorities;
-- accessible name, role, value, and state;
-- reduced motion and high-contrast behavior.
-
-## Layout grammar
-
-Layout is expressed through relationships rather than coordinates.
-
-- `auto` content keeps its intrinsic size.
-- the primary working region grows into remaining space;
-- only the region expected to grow owns scrolling;
-- action rows, navigation, and current status stay outside content scrollers
+- intrinsic content stays `auto`; the working region grows;
+- only expected growing content scrolls;
+- navigation, current status, and action rows stay outside content scrollers
   unless the whole surface is intentionally a document;
-- flex/grid tracks use `minmax(0, 1fr)` or the WPF equivalent when content must
-  be allowed to shrink;
-- structural layout does not use absolute positioning or runtime measurement
-  when Grid, Flexbox, WPF layout, or containment can express the relationship;
-- overlays may use fixed/absolute positioning because their relationship is to
-  the viewport or an anchor, not document flow.
+- shrinkable grid/flex tracks use `minmax(0, 1fr)` or the platform equivalent;
+- normal structure uses Grid, Flexbox, WPF layout, containment, and intrinsic
+  sizing; viewport- or anchor-related overlays may position absolutely.
 
-Every non-trivial surface records its layout contract in code structure, a
-focused test, or a short comment:
+A non-trivial composition must make clear what stays fixed, grows, scrolls,
+collapses, or moves into disclosure; its minimum usable size; and long-text or
+software-keyboard behavior.
 
-- what remains fixed;
-- what grows;
-- what scrolls;
-- what may collapse or move into disclosure;
-- minimum usable inline and block size;
-- long-text and software-keyboard behavior.
+### Mobile viewport and safe area
 
-### Viewport and safe-area contract
+The shell uses one stable application frame: `svh` in a normal browser, `lvh`
+when installed borderless, and `vh` only as fallback. The layout viewport owns
+the shell. The visual viewport is reserved for overlays affected by keyboards,
+magnification, or transient browser chrome; opening a keyboard does not resize
+the whole shell.
 
-The mobile shell has one stable application frame:
+Normalize safe-area insets at the shell and consume each edge once. Edge
+surfaces may reach the display edge while interactive content receives the
+inset internally. Rotation is a size change, not device identity; do not retain
+orientation geometry.
 
-- in a normal browser, use the small viewport height (`svh`) so browser chrome
-  does not cover controls or continuously resize the shell;
-- in an installed borderless app, use the large viewport height (`lvh`) so the
-  application occupies the available display height;
-- retain `vh` only as the fallback when the newer viewport units are not
-  supported.
+### Adaptive composition
 
-The stable shell uses the layout viewport. The
-[visual viewport](https://www.w3.org/TR/cssom-view/#visual-viewport) is a
-separate, transient boundary used by overlays that must remain visible while a
-software keyboard or browser magnification reduces the visible area. Opening a
-keyboard must not resize the whole application shell.
+Switch from stacked to side-by-side only when every region meets its declared
+minimum width. Peers use equal tracks unless the owner states a content
+priority. Stack before clipping or overlap. Dynamic collections use intrinsic
+or repeating tracks and never assume an item count.
 
-The shell normalizes the safe-area insets and each edge consumes its inset
-exactly once. An edge surface may extend to the display edge; its interactive
-content receives the inset as internal space. Do not apply the same inset in
-both the shell and a feature, and do not translate an entire control away from
-an edge to create safe-area space. These rules follow CSS
-[viewport units](https://www.w3.org/TR/css-values-4/#viewport-relative-lengths)
-and [environment variables](https://www.w3.org/TR/css-env-1/).
+Canonical checks are 360×640 and 390×844 portrait, 640×360 and 844×390
+landscape, 1024×768 wide touch, and Windows 920×620 and 1160×760
+device-independent pixels. Add boundary sizes only for a real content
+constraint; never add device-specific breakpoints.
 
-Rotation is a size change, not a device-specific state. Layout is recomputed
-from the current available size and must not retain cached orientation geometry.
+### Mobile ownership
 
-### Adaptive composition contract
+The app shell owns the frame, normalized safe areas, navigation, global
+overlays, and primary content slot. A mode root owns its responsive composition.
+Prefer container queries for component composition and viewport queries only
+for viewport facts.
 
-- A composition changes from stacked to side by side only when every region
-  meets its declared minimum usable inline size.
-- Peer regions use equal tracks. An unequal ratio requires an explicit content
-  priority in the owning composition. Stack before labels overlap, controls are
-  clipped, or a region becomes unusable.
-- Dynamic collections use intrinsic or repeating tracks. Their layout must not
-  depend on a fixed item count.
-- When navigation or another shell region is hidden, the primary content slot
-  consumes all released inline and block space, including the correctly owned
-  edge inset.
+Global CSS is limited to tokens, base behavior, shell layout, and shared
+primitives. Feature layout stays with its component. Feature details do not
+become shell modifiers.
 
-### Dialog contract
+Mode changes keep navigation stable. Activating the selected mode may toggle
+mode navigation but keeps the quick selector. The mode collection is dynamic.
+Settings disclosures start collapsed, allow one open section, and minimally
+scroll their own region only when the first usable control would be clipped;
+keep the focused summary visible and respect reduced motion.
 
-Web dialogs use the shared dialog primitive based on the native
-[`dialog`](https://html.spec.whatwg.org/multipage/interactive-elements.html#the-dialog-element)
-element and the
-[WAI modal dialog pattern](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/).
-The primitive owns the scrim, focus, dismissal, safe-area bounds, and visual
-viewport adaptation. A feature owns only the title, body, actions, validation,
-and domain state.
-
-The dialog uses its intrinsic content height up to the visible maximum; it does
-not expand to fill the viewport. The title and action row remain visible. The
-body is the dialog's only scroll owner. A software keyboard may reduce the body
-but must not compress away the title, input, validation, or actions. Rotation,
-keyboard show/hide, and repeated open/close must recalculate the visible bounds
-without retaining stale geometry.
-On a wide landscape viewport, the dialog uses a horizontal composition with its
-content on the left and actions on the right. It returns to the stacked
-composition before either region becomes too narrow.
-Dialog width remains content-sized by default. The shared wide variant is used
-only when the content benefits from additional working width, such as a text
-entry form; short informational content does not expand across the viewport.
-When a software keyboard constrains a short landscape viewport, the dialog
-aligns with the visible keyboard boundary instead of preserving a decorative
-gap below it.
-Touch dismissal uses a visible close control, an explicit cancel or completion
-action, and light dismissal when the action is safe to abandon. Escape remains
-a secondary hardware-keyboard path.
-
-### Canonical adaptive states
-
-Design and verify behavior, not device brands:
-
-- **compact portrait:** 360 x 640 CSS pixels;
-- **regular portrait:** 390 x 844 CSS pixels;
-- **short landscape:** 640 x 360 CSS pixels;
-- **regular landscape:** 844 x 390 CSS pixels;
-- **wide touch:** 1024 x 768 CSS pixels;
-- **Windows compact:** 920 x 620 device-independent pixels;
-- **Windows regular:** 1160 x 760 device-independent pixels.
-
-Additional boundary sizes are tested when a feature introduces a real content
-constraint. Do not introduce a device-specific breakpoint.
-
-### React layout ownership
-
-- The application shell owns the stable application frame, normalized safe
-  areas, top-level navigation, global overlay state, and the one primary content
-  slot. It does not use the visual viewport as the shell height.
-- Shared overlay primitives own portal placement, dialog mechanics, focus,
-  dismissal, and visual viewport adaptation. Features own overlay content and
-  domain state.
-- A mode root is a named containment context and owns its internal responsive
-  behavior.
-- Prefer container queries for component and mode composition. Use viewport
-  media queries only for viewport-level facts such as safe areas, orientation,
-  display mode, or the software keyboard boundary.
-- Keep global CSS limited to generated tokens, reset/base behavior, shell layout,
-  and truly shared primitive styles. Feature layout is colocated with its React
-  component in a CSS module or a narrowly named feature stylesheet.
-- A new shell state class requires a shell-level behavior. Feature details must
-  not accumulate as application-shell modifiers.
-- Switching modes keeps the navigation shell stable and changes only selection
-  and mode content. Activating the selected mode toggles mode navigation without
-  removing the quick selector. The mode collection is dynamic; no layout may
-  assume a particular fourth mode or fixed mode count.
-- Settings disclosures start collapsed and allow only one section to be open at
-  a time. When an opened section's first usable control would otherwise be
-  clipped, scroll only the owning settings region by the minimum amount needed
-  to reveal it while keeping the focused summary visible. Do not scroll a
-  section that is already usable, move focus into its content, or animate the
-  assisted scroll when reduced motion is requested.
-
-### WPF layout ownership
-
-- Pages and reusable sections are declarative XAML `UserControl`s or data
-  templates. C# builds data and handles behavior; it does not manually assemble
-  ordinary visual trees.
-- Use `Grid` with `Auto` and `*`, `DockPanel`, `StackPanel`, `ItemsControl`,
-  `ListView`, `ScrollViewer`, shared-size groups, binding, and data templates.
-- Programmatic visuals are reserved for genuinely dynamic drawing, native
-  interop output, or a control whose child structure is itself the algorithm.
-- Prefer built-in control behavior and the current WPF Fluent foundation. A
-  complete `ControlTemplate` is justified only when property styling cannot
-  express an approved primitive.
-- Page code does not set theme brushes directly. Dynamic resources and primitive
-  styles own theme application.
-
-## Interaction state contract
-
-Before implementation, enumerate every applicable state:
+## Interaction states
 
 | State | Required outcome |
 | --- | --- |
-| Ready | The primary action and current status are unambiguous. |
-| Pending | Repeat activation is bounded and progress is visible locally. |
-| Success | Confirmation appears near the initiating control and does not block continued use. |
-| Empty | The absence of content is explained and a useful next action is offered when one exists. |
-| Disconnected | Input surfaces stop implying control and offer reconnect or pairing guidance. |
-| Denied | The responsible permission or policy is named with a recovery path. |
-| Unsupported | The control is omitted or explicitly unavailable according to capability semantics. |
-| Invalid | The field retains the user's value, identifies the problem, and describes valid input. |
-| Failed | Expected boundary failures are caught, partial state is restored, and retry or diagnostics are available. |
+| Ready | Primary action and current status are unambiguous. |
+| Pending | Repeat activation is bounded and local progress is visible. |
+| Success | Local confirmation does not block continued use. |
+| Empty | Explain absence and offer a useful next action if one exists. |
+| Disconnected | Control surfaces stop implying control and offer reconnect/pairing recovery. |
+| Denied | Name the responsible permission or policy and recovery path. |
+| Unsupported | Omit or mark unavailable according to capability semantics. |
+| Invalid | Preserve the value and explain the valid input. |
+| Failed | Restore partial state and offer retry or diagnostics. |
 
-State is modeled before layout so error and recovery UI is not bolted onto space
-that only fits the happy path.
+Model applicable states before layout so recovery is not fitted into a
+happy-path-only surface.
 
-## Content and accessibility
+## Input, content, and accessibility
 
-### Surface input priorities
+Mobile prioritizes touch on phones/tablets; mouse, trackpad, hardware navigation,
+and keyboard are compatibility paths. Windows prioritizes keyboard and mouse and
+also supports touch. Preserve semantic controls and assistive access.
 
-- The mobile client is a touch-first control surface for phones and tablets that
-  replaces the PC keyboard and mouse. Mouse, trackpad, hardware navigation, and
-  keyboard input are secondary compatibility paths and do not drive its design.
-- The WPF host is keyboard-and-mouse-first and also supports touch monitors.
-- Preserve semantic controls and assistive-technology access. Touch interaction
-  must not leave visible focus artifacts or stacked focus boundaries.
+- Use specific labels and outcome verbs. Revoking remembered pairing is
+  **Remove**, not **Disconnect**, and its confirmation states re-pairing impact.
+- Buttons use verbs; headings name places or objects; status describes the
+  condition without blame.
+- Pair color with text, icon, shape, or accessible state. Focus order follows
+  visual and task order.
+- Static mobile chrome is not selectable; editable and explicitly copyable text
+  remains selectable. Editable values use body-sized text of at least `1rem`;
+  never disable zoom to avoid browser magnification.
+- A blocking dialog with a clear primary action focuses that action, not a
+  static heading.
+- Touch targets meet the tokenized minimum. Critical instructions/errors wrap;
+  compact status may truncate only when the full value remains available.
+- Gesture ownership is declared before contact. Tap, scroll, long-press, drag,
+  cancellation, and release remain distinct and accessible.
 
-- Use direct, specific labels. Prefer **Copy pairing link** to **Copy** when
-  context is not persistent.
-- Name actions for their durable outcome. When an action revokes a remembered
-  relationship and requires setup again, use **Remove** rather than the
-  temporary-session term **Disconnect**, and state the recovery consequence in
-  its confirmation.
-- Buttons use verbs. Headings name places or objects. Status text describes the
-  current condition rather than blaming the user.
-- Do not encode meaning by color alone. Pair color with text, iconography, shape,
-  or accessible state.
-- Preserve visible focus where keyboard operation is an intended input path.
-  Focus order follows visual and task order.
-- Mobile app chrome and static labels are not user-selectable; text entry,
-  editable content, and explicitly copyable surfaces retain normal selection.
-- Text-entry controls use normal body-sized text, at least `1rem` at the default
-  scale. Do not use compact label typography for editable values or disable user
-  zoom to avoid browser focus magnification.
-- When a blocking dialog has a clear primary action, focus that control instead
-  of making a static heading focusable.
-- Touch targets are at least the tokenized minimum control size unless the
-  platform supplies a larger accessible hit target.
-- Text must wrap or truncate intentionally. Critical instructions and errors
-  wrap; compact status labels may truncate when the full value remains available.
-- Destructive or session-ending actions are visually and spatially distinct and
-  require confirmation proportionate to their consequence.
+## UI completion by risk
 
-## AI-assisted UI workflow
+Routine copy, token, and contained fixes proceed with the scoped static/build
+gate and focused visual verification. Significant UI—new or substantially
+reworked surfaces, layout direction, navigation, or multi-state
+interaction—defaults to the root visual checkpoint.
 
-For every non-trivial UI change, establish:
-
-1. the user's goal and primary action;
-2. existing primitives and layout patterns to reuse;
-3. the component/layout hierarchy;
-4. adaptive behavior at relevant canonical states;
-5. applicable interaction states from the state contract;
-6. applicable input methods, focus, scrolling, accessibility, and validation;
-7. the system-level purpose of each new token, primitive, shell modifier, or
-   breakpoint.
-
-Implementation rules:
-
-- Identify the violated layout contract before changing offsets.
-- Put the fix in the owning primitive or composition and remove superseded
-  workarounds.
-- Replace weak presentation abstractions while preserving intentional behavior,
-  tests, and domain/service ownership.
-- Give each breakpoint, global selector, complete WPF template, and visual
-  primitive a system-level purpose.
-- Leave one maintained presentation path.
-
-## Definition of done
-
-A user-visible UI change is complete only when the items applicable to its risk
-and behavior are satisfied:
-
-- a new or changed primary action works through its production boundary;
-- applicable ready, pending, empty, disconnected, denied, invalid, success, and
-  failure states are handled;
-- it composes approved primitives or explicitly extends the system;
-- relevant canonical layouts have been checked in portrait and landscape or at
-  Windows compact and regular sizes;
-- viewport-sensitive mobile changes have been checked in both a normal browser
-  and an installed app, including mode navigation visible and hidden;
-- affected long-content, scrolling, focus, input-method, accessibility, and theme
-  behavior is verified;
-- dialogs and text entry have been checked through keyboard show/hide and
-  rotation while open;
-- sizing, scrolling, focus, and gesture behavior each have one clear owner;
-- repeated visual decisions can be changed centrally;
-- stateful behavior, persistence, regressions, and resource ownership have
-  focused tests where they can be represented reliably;
-- presentation-only changes receive a quick human visual check instead of a
-  disposable pixel-test harness when the user is available;
-- browser-engine or WPF behavior is checked on the real engine where DOM/unit
-  tests cannot faithfully represent it, with any remaining boundary stated;
-- superseded presentation code has been removed;
-- the mobile production build or warning-free host build succeeds as applicable.
+Check only affected states, canonical sizes, themes, focus/input methods,
+scrolling, accessibility, and resource ownership. Use focused behavior tests
+for changed state or persistence. Use the real browser/WPF engine when unit/DOM
+tests cannot represent the boundary. Run `npm run test:ui` only when its real
+pairing/smoke workflow is affected. Leave one maintained presentation path.

@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 export const commandDescriptions = {
-  "actions:restore": "Restore the archived GitHub Actions workflow files for deliberate future re-enabling.",
+  "actions:restore": "Install the checked-in GitHub Actions workflow files.",
   "ai:init": "Install the newest ChatGPT/Codex package if needed, then configure the daily task and desktop shortcut.",
   "ai:schedule:create": "Create or refresh the hidden daily ChatGPT/Codex update task; accepts --time HH:mm:ss.",
   "ai:schedule:remove": "Remove every ChatGPT/Codex updater scheduled task created by this repository.",
@@ -13,7 +13,7 @@ export const commandDescriptions = {
   "ai:shortcut:remove": "Remove the ChatGPT/Codex updater desktop shortcut created by this repository.",
   "ai:update": "Check the official ChatGPT/Codex package version and silently install it when newer.",
   "branch:sync": "Synchronize the current branch with its configured upstream.",
-  build: "Validate UI tokens, then build the mobile app and Windows host.",
+  build: "Run the full cross-runtime production build gate for broad/shared or release work.",
   "branding:generate": "Generate application icons, NSIS installer artwork, and public-site screenshots.",
   "cache:purge": "Clear stale Windows icon cache entries and restart Explorer.",
   "clean:git": "Compact the local Git object database and prune unreachable objects.",
@@ -24,9 +24,9 @@ export const commandDescriptions = {
   "dev": "Start the normal checked development loop for the host and mobile client.",
   "dev:bare-source": "Create a source archive without repository metadata or development files.",
   "dev:host": "Start only the Windows host development server.",
-  "dev:quick": "Start the host quickly while rebuilding the host-served client without validation or watchdog compilation.",
+  "dev:quick": "Rebuild current sources quickly and start the host with normal production settings for human device validation.",
   "dev:source": "Create a clean source archive for development handoff.",
-  "dev:ui": "Open an interactive Chrome device-mode session against the real pairing flow.",
+  "dev:ui": "Open an isolated Chrome device-mode session against the real pairing flow.",
   "dev:web": "Start only the mobile web development server.",
   "docs:check": "Verify the documentation catalog and internal document links.",
   help: "List every root npm command with its purpose and implementation.",
@@ -51,10 +51,10 @@ export const commandDescriptions = {
   "screenshots:site": "Capture screenshots for the public documentation site.",
   "size:check": "Fail if strong source-size warnings lack current review rationales.",
   "size:report": "Report source-file size and ownership signals.",
-  test: "Run documentation, UI, source-size, host-ownership, web, script, and host tests.",
+  test: "Run the full repository test gate for release or repository-wide shared-contract work.",
   "test:host": "Run the Windows host test suite.",
   "test:scripts": "Run tests for repository automation scripts.",
-  "test:ui": "Run the browser device-mode smoke test through the real pairing flow.",
+  "test:ui": "Run the isolated browser device-mode smoke test through the real pairing flow.",
   "test:web": "Run the mobile web test suite.",
   "ui:tokens:check": "Verify generated UI tokens are current.",
   "ui:tokens:generate": "Regenerate UI tokens from their source definitions."

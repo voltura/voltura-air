@@ -1,16 +1,13 @@
 # Privacy policy
 
-Last updated: July 23, 2026
-
-Voltura Air is designed to operate between a Windows PC and paired devices on
-the same local network. Voltura AB does not provide an account system, cloud
+Voltura Air operates between a Windows PC and paired devices on the same local
+network. Voltura AB does not provide an account system, cloud
 relay, advertising service, analytics service, or remote telemetry service for
 Voltura Air.
 
 ## Data handled by Voltura Air
 
-The mobile browser stores the following data in that browser's local site
-storage:
+The mobile browser stores in local site storage:
 
 - a random client identifier and the device name chosen by the user;
 - saved PC addresses and names;
@@ -18,14 +15,14 @@ storage:
 - app, keyboard, remote, and trackpad settings; and
 - text snippets the user explicitly saves.
 
-The Windows host stores the following data under the current Windows user's
-application-data directory:
+The Windows host stores under the current Windows user's application-data
+directory:
 
 - host settings and permissions;
 - paired-device identifiers and names;
 - the public reconnect key registered by each paired browser;
 - device platform, browser, and display-mode descriptions;
-- pairing and connection timestamps; and
+- pairing and connection timestamps;
 - per-device permission and pointer settings; and
 - presentation reports the user explicitly saves, including captured device
   name, presentation type, dates, durations, sessions, breaks, slide timing, and

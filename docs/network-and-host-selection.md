@@ -1,78 +1,48 @@
 # Network and host selection
 
-This document defines network-adapter selection, port selection, host hints,
-saved PC profiles, and manual connection recovery. Wire shapes are in
-`protocol.md`; connection failure presentation is in `pairing-feedback.md`.
+Authority for adapter/port selection, saved PCs, host hints, and manual recovery.
+Wire shape: [protocol](protocol.md). Failure UX:
+[pairing feedback](pairing-feedback.md).
 
-Voltura Air is local-first. The Windows host advertises a LAN origin to phones,
-tablets, and browsers through the QR pairing link. The mobile app connects to
-that origin over WebSocket `/ws`.
+## Adapter
 
-## Windows host behavior
+- Default: rank active private IPv4 LAN adapters above VPN/tunnel/virtual
+  adapters.
+- **Choose another adapter** saves adapter identity plus current IP, so DHCP
+  address changes keep the selection.
+- Missing saved adapter: use the recommended adapter and warn.
+- Multiple adapters: neutral summary; chooser explains same-LAN requirement.
+- VPN/virtual selection: reachability warning.
+- Returning to automatic adapter selection does not change the port setting.
 
-- Voltura Air normally selects the network adapter automatically. The Connection
-  page presents choosing another adapter as the primary troubleshooting override;
-  selecting one saves its identity and current IP address without a separate mode
-  step. This lets the same adapter be reselected if DHCP later gives it a
-  different address.
-- Automatic selection inspects active private IPv4 adapters and ranks likely real
-  LAN adapters above VPN, tunnel, and virtual adapters. A manual override can be
-  returned to automatic selection independently of the port setting.
-- If the saved adapter is unavailable, the host falls back to the recommended adapter and shows a warning instead of advertising a stale address.
-- With multiple adapters, the default Connection summary remains neutral. The
-  adapter chooser explains that the device and selected adapter must use the
-  same Wi-Fi/LAN.
-- VPN and virtual adapters show a reachability warning.
+## Port
 
-## Port behavior
+- Automatic mode reuses its available last-successful port; otherwise tries
+  `51395`, then following ports.
+- A non-preferred automatic port is shown with a warning; scan a new QR code
+  after any port change.
+- Manual mode requires a valid free port and never falls back.
+- The collapsed header distinguishes active, unsaved, and
+  saved-pending-restart ports without predicting automatic selection.
+- Saving adapter/port persists all pending connection settings and restarts the
+  host. Pending values never appear active.
 
-- Port selection is an advanced override. Automatic mode reuses the last successful automatic port when it remains
-  available. Without a usable saved port, selection starts at the preferred
-  Voltura Air port `51395` and tries the next ports.
-- The host exposes the actual selected port. It warns when automatic selection
-  has to choose a new non-preferred port; after any port change, scan a fresh QR
-  code.
-- Manual port mode does not fall back. An invalid or occupied manual port shows
-  a validation error.
-- The collapsed Port settings header distinguishes the active port from an
-  unsaved or saved-pending-restart override without predicting a future
-  automatically selected port.
-- Saving an adapter or port change persists all pending connection settings and
-  requires Voltura Air to restart. Pending settings are not presented as active
-  before that restart.
+## Manual mobile host
 
-## Mobile manual host behavior
-
-Manual host entry recovers from changed IPs or ports and stale QR pages.
-
-The mobile app accepts:
+Accepted:
 
 - `192.168.1.50:51395`
 - `http://192.168.1.50:51395`
-- a full Voltura Air pairing link
-- a port number that resolves against the current host
+- full Voltura Air pairing link
+- port resolved against the current page host
 
-Host entries require HTTP or HTTPS, a valid explicit port, and no credentials,
-path, query, or fragment. Pairing links must satisfy the generated-link contract
-in [protocol.md](protocol.md). Invalid input remains in the field with a specific
-validation message and does not change the active or saved PC profile.
+Host entries require HTTP/HTTPS, explicit valid port, and no credentials, path,
+query, or fragment. Pairing links follow [protocol](protocol.md). Invalid input
+stays editable and changes no active/saved profile.
 
-A valid host entry starts connection recovery and is saved only after the host
-accepts it. A valid pairing link opens the existing device-name confirmation and
-uses its pairing token; it is not reduced to a host-only connection. **Forget**
-removes a saved profile.
+A valid host is saved only after acceptance. A pairing link opens device-name
+confirmation and keeps its token semantics. **Forget** removes a saved profile.
+Missing input acknowledgements or health failure enters unavailable/retrying.
 
-Missing advertised input acknowledgements move the app to
-unavailable/retrying, as do health-check failures.
-
-## Testing focus
-
-- Adapter identity survives DHCP IP change.
-- Missing saved adapter falls back with a warning.
-- Multiple adapters produce user guidance.
-- VPN or virtual adapter selection produces a warning.
-- With no usable saved automatic port, an occupied preferred port selects the
-  next automatic port and exposes a warning.
-- Manual port occupied remains a validation error.
-- Manual host entry creates/selects a saved PC profile.
-- PC host closed after QR page loaded becomes `host-unreachable` with retry and recovery actions.
+Changed selection, fallback, validation, persistence, and recovery use the
+[network/boundary validation route](setup.md#validation-by-change).

@@ -4,21 +4,20 @@
   <img src="apps/windows-host/Assets/VolturaAir-256.png" alt="Voltura Air application icon" width="128">
 </p>
 
-Turn a phone, tablet, or touch browser into a wireless remote for a Windows PC.
+Turn a phone, tablet, or touch browser into a wireless remote for a Windows 11
+PC. No app-store install, account, subscription, or cloud relay is required.
 
-Voltura Air provides a trackpad, keyboard, presentation remote, text tools,
-dictation, media controls, and practical PC actions over the local network.
-There is no mobile app-store install, account, subscription, or cloud relay.
+## What you can do
 
-## Core uses
-
-- Move, click, scroll, and type from a phone or tablet.
-- Present PowerPoint, Google Slides, or PDF/browser content with slide controls,
-  a native laser pointer, timing, and optional local statistics.
-- Dictate on supported browsers or send longer text composed on the mobile device.
-- Control media, volume, YouTube, Kodi, and common browser or window actions.
-- Keep the PC awake while Voltura Air runs, with an optional setting to keep its screen on.
-- Use a landscape tablet as a combined keyboard and trackpad.
+- Use a phone or tablet as a wireless trackpad and keyboard.
+- Control presentations, use a laser pointer, track time, and review saved
+  reports on the PC.
+- Dictate, reuse snippets, and send text to a PC app, document, email draft, or
+  clipboard.
+- Control media, volume, browser tabs, windows, and applications selected on
+  the PC.
+- Keep the PC awake, lock it, blank its displays, restart it, or shut it down.
+- Combine a keyboard and trackpad on a landscape tablet.
 
 See the [complete implemented feature list](docs/features.md).
 
@@ -51,40 +50,41 @@ See the [complete implemented feature list](docs/features.md).
   </tr>
 </table>
 
-## How it works
+## Download and install
 
-Install the Windows host on the PC, open Voltura Air from the tray, and scan its
-QR code from a browser-capable device on the same Wi-Fi or LAN. The host serves
-the mobile web app and stores pairing, permissions, and host configuration on
-the PC. A paired browser can reconnect while its saved credential remains valid.
+Voltura Air requires Windows 11. Choose one package from the
+[latest GitHub release](https://github.com/voltura/voltura-air/releases/latest):
+
+- **Standard installer:** `VolturaAir-Setup-<version>-win-x64.exe` downloads
+  missing .NET 10 Windows Desktop/ASP.NET Core runtimes and may need internet or
+  administrator approval.
+- **Full installer:** `VolturaAir-Setup-<version>-win-x64-full.exe` includes
+  those runtimes.
+- **Portable:** `VolturaAir-<version>-win-x64.zip`.
+
+Installers are per-user under `%LOCALAPPDATA%\Programs\Voltura Air`, create
+Start Menu shortcuts, and retain pairing/settings under `%APPDATA%\Voltura Air`
+on uninstall. Start-at-sign-in is an in-app setting.
+
+## Connect
+
+1. Install or extract Voltura Air and start it on the PC.
+2. Open **Connect**.
+3. Scan the QR code from a phone or tablet on the same Wi-Fi or LAN.
+
+Paired devices are remembered until removed or their browser data is cleared.
+
+## Trust, privacy, and distribution
 
 Voltura Air is intended for trusted devices on a local network. It is not a
 remote-desktop service, public-internet relay, file-sync product, or remote wake
 solution for a sleeping or shut-down PC.
 
-## Install
-
-Voltura Air requires Windows 11 on the host PC. Choose one download from the
-[latest GitHub release](https://github.com/voltura/voltura-air/releases/latest):
-
-- `VolturaAir-Setup-<version>-win-x64.exe` downloads required .NET 10 Desktop
-  and ASP.NET Core runtimes when they are missing. That runtime installation may
-  require internet access and administrator approval.
-- `VolturaAir-Setup-<version>-win-x64-full.exe` includes the required runtimes
-  and installs per user without a runtime download.
-- `VolturaAir-<version>-win-x64.zip` is the portable package.
-
-Both installers keep pairing and settings data when the app is uninstalled.
-See [docs/setup.md](docs/setup.md) for installation, development startup, command
-line options, and first-connection guidance.
-
-## Trust, security, and distribution
-
 Voltura Air is freeware from Voltura AB and is open source under the
 [MIT License](LICENSE). It can be used without payment, registration, trial
 limits, or feature locks.
 
-Release binaries are currently not code-signed. Windows can therefore show an
+Release binaries are not code-signed. Windows can therefore show an
 unknown-publisher or Microsoft Defender SmartScreen warning. Download only from
 the [official product page](https://voltura.se/air/) or the
 [official GitHub releases](https://github.com/voltura/voltura-air/releases/latest).
@@ -93,35 +93,28 @@ the [official product page](https://voltura.se/air/) or the
 
 Do not publish vulnerability details or pairing credentials in a public issue.
 
-Optional support links:
+## Support
+
+Support is optional:
 
 - [Ko-fi](https://ko-fi.com/voltura)
 - [PayPal](https://www.paypal.me/voltura)
 
-## Development and contributing
+## Develop from source
 
-Development requires Node.js/npm, the .NET 10 SDK, and Visual Studio Build Tools
-with the Desktop development with C++ workload.
+Requirements: Node.js/npm, .NET 10 SDK, and Visual Studio Build Tools with the
+**Desktop development with C++** workload.
 
 ```powershell
+git clone https://github.com/voltura/voltura-air.git
+cd voltura-air
 npm ci
-npm run build
-npm test
+npm run dev
 ```
 
-Use `npm install` instead when intentionally changing dependency manifests.
-Start the checked development loop with `npm run dev`. The faster
-`npm run dev:quick` phone-validation path and the distinction between the two
-commands are documented in [Setup and development](docs/setup.md#development-loop).
-
-- [Documentation map](docs/README.md)
-- [Setup and development](docs/setup.md)
-- [Architecture](docs/architecture.md)
-- [UI system](docs/ui-system.md)
-- [Protocol](docs/protocol.md)
 - [Contributing](CONTRIBUTING.md)
-- [Code of conduct](CODE_OF_CONDUCT.md)
-- [Project TODO](docs/todo.md)
+- [Development workflows and validation](docs/setup.md#development-workflows)
+- [Documentation map](docs/README.md)
 
 ## Statistics
 

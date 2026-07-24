@@ -59,6 +59,7 @@
         <a href="#screens">Screenshots</a>
         <a href="#setup">Setup</a>
         <a href="#trust">Privacy</a>
+        <a href="#source">Develop</a>
         <a href="#download">Download</a>
       </nav>
     </header>
@@ -74,8 +75,9 @@
           <h1>Voltura Air</h1>
           <p class="tagline">Turn your phone into the remote your PC is missing.</p>
           <p class="lede">
-            Use it as a trackpad, keyboard, text sender, media remote, and more.
-            Pair with a QR code - no account, cloud relay, or app-store download.
+            Control your PC with a trackpad, keyboard, presentation and media
+            remotes, text tools, and practical PC actions. Pair with a QR code -
+            no account, cloud relay, or phone app to install.
           </p>
           <div class="actions">
             <a class="button primary" href="https://github.com/voltura/voltura-air/releases/latest">Download for Windows</a>
@@ -87,12 +89,12 @@
 
       <section id="promise" class="feature-band" aria-label="Product promise">
         <article>
-          <h2>No app-store download</h2>
+          <h2>No phone app to install</h2>
           <p>Open Voltura Air in your mobile browser or add it to your home screen for an app-like experience.</p>
         </article>
         <article>
           <h2>Built for Windows 11</h2>
-          <p>The Windows host handles pairing, permissions, trusted devices, and diagnostics.</p>
+          <p>Pair trusted devices by QR code and choose what each device is allowed to do.</p>
         </article>
         <article>
           <h2>Completely free</h2>
@@ -107,19 +109,19 @@
         </article>
         <article>
           <h2>Presentation remote</h2>
-          <p>Control PowerPoint, Google Slides, or PDF/browser presentations with a trackpad, native laser pointer, timer, and optional reports saved on the PC.</p>
+          <p>Control PowerPoint, Google Slides, or PDF/browser presentations, use a laser pointer, track time, and review saved reports on the PC.</p>
         </article>
         <article>
-          <h2>Send text to PC</h2>
-          <p>Compose, paste, or use supported browser dictation for longer text, then send it to the PC.</p>
+          <h2>Text and dictation</h2>
+          <p>Dictate, reuse snippets, or compose longer text, then send it to a PC app, document, email draft, or clipboard.</p>
         </article>
         <article>
           <h2>Couch remote</h2>
-          <p>Control media, volume, YouTube, Kodi, and common browser or window actions.</p>
+          <p>Control media, volume, YouTube, Kodi, browser tabs, windows, and applications selected on the PC.</p>
         </article>
         <article>
-          <h2>Keep awake</h2>
-          <p>Prevent idle sleep while Voltura Air runs, with an optional setting to keep the PC screen on.</p>
+          <h2>PC actions</h2>
+          <p>Keep the PC awake, lock it, blank its displays, restart it, or shut it down when allowed.</p>
         </article>
         <article>
           <h2>Tablet split mode</h2>
@@ -178,12 +180,13 @@
         </div>
         <div>
           <p>
-            Voltura Air connects directly to your PC over your local network. There is no account and no internet relay for normal use.
+            Voltura Air connects directly to your PC over your local network.
+            There is no account or cloud relay.
           </p>
           <ul>
             <li>Review paired devices and remove access at any time.</li>
             <li>Choose what paired devices are allowed to do.</li>
-            <li>Keep sensitive PC actions disabled until you explicitly enable them.</li>
+            <li>Keep pairing, permissions, settings, and saved reports on your devices.</li>
           </ul>
           <p><a href="https://github.com/voltura/voltura-air/blob/main/PRIVACY.md">Read the privacy policy</a></p>
         </div>
@@ -192,17 +195,18 @@
       <section id="source" class="content-section split">
         <div>
           <p class="eyebrow">Source</p>
-          <h2>Open source and inspectable</h2>
+          <h2>Build, learn, or contribute</h2>
         </div>
         <div>
           <p>
-            Voltura Air is released under the MIT License. Inspect the code, build it yourself, report issues, or contribute improvements.
+            Voltura Air is MIT-licensed. Follow the source quick start, inspect
+            or adapt the code, report issues, or contribute improvements.
           </p>
           <div class="actions">
-            <a class="button primary" href="https://github.com/voltura/voltura-air">View source</a>
+            <a class="button primary" href="https://github.com/voltura/voltura-air#develop-from-source">Start developing</a>
+            <a class="button secondary" href="https://github.com/voltura/voltura-air">View source</a>
             <a class="button secondary" href="./stats.html">Code statistics</a>
             <a class="button secondary" href="https://github.com/voltura/voltura-air/blob/main/CONTRIBUTING.md">Contribute</a>
-            <a class="button secondary" href="https://github.com/voltura/voltura-air/blob/main/SECURITY.md">Security</a>
           </div>
         </div>
       </section>
@@ -228,7 +232,9 @@
           <p class="eyebrow">Download</p>
           <h2>Get Voltura Air for Windows 11</h2>
           <p>
-            Choose an installer or portable build from the official GitHub release. If required .NET components are missing, setup downloads and installs them automatically and may request administrator approval. The full installer includes all required components.
+            Choose the standard installer, full installer, or portable ZIP. The
+            standard installer downloads missing .NET components and may need
+            internet or administrator approval; the full installer includes them.
           </p>
           <p>
             Releases are not code-signed, so Windows may show an unknown publisher or SmartScreen warning. Download only from this page or the official GitHub repository.

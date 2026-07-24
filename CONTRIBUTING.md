@@ -17,16 +17,11 @@ Voltura Air is a small freeware project from Voltura AB. Contributions should ke
 1. Open an issue first for larger feature changes.
 2. Keep pull requests focused on one change.
 3. Update documentation when behavior changes.
-4. Run the relevant checks before submitting.
+4. Run the smallest checks for the changed risk boundary; use the
+   [validation matrix](docs/setup.md#validation-by-change).
 
-```powershell
-npm ci
-npm run build
-npm test
-```
-
-Use `npm install` instead when the contribution intentionally changes dependency
-manifests.
+Install exact dependencies with `npm ci`; use `npm install` only when changing
+dependency manifests.
 
 ## Release model
 

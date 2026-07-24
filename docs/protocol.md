@@ -1,118 +1,57 @@
 # Protocol
 
-This document defines the WebSocket wire contract: message shapes, semantics,
-authentication, capability negotiation, bounds, acknowledgements, and errors.
-See [features.md](features.md) for product behavior,
-[network-and-host-selection.md](network-and-host-selection.md) for host
-selection, and [pairing-feedback.md](pairing-feedback.md) for connection UX.
+JSON WebSocket contract at `/ws`. Product behavior belongs in
+[features](features.md); routing in
+[network selection](network-and-host-selection.md); connection UX in
+[pairing feedback](pairing-feedback.md).
 
-Voltura Air uses JSON messages over a WebSocket connection at `/ws`. The host
-accepts missing WebSocket `Origin` headers, same-origin requests, configured
-development client origins, and loopback/private LAN origins. Clearly unrelated
-public origins are rejected before the WebSocket is accepted.
+## Transport and JSON
 
-Protocol fields with no value are omitted. Required fields are always present;
-an optional field is absent rather than sent as `null` or an empty placeholder.
-Empty strings remain valid only where the individual message explicitly assigns
-them meaning. For example, a successful `clipboard.get.result` may carry an
-empty `text` value; an empty `appLaunchActions` array means no launch buttons
-are available. They are not placeholders for missing scalar values.
+- Allowed origins: missing, same-origin, configured development, loopback, and
+  private LAN. Unrelated public origins are rejected before upgrade.
+- Maximum 64 sessions; `pair.hello` deadline 10 seconds; authenticated receive
+  idle timeout 2 minutes.
+- Maximum text message 64 KiB across fragments. Oversize closes with 1009;
+  binary is rejected.
+- Per-socket sends are serialized with a 5-second deadline; close has 1 second.
+  Status updates are coalesced.
+- Required fields are present. Optional fields are omitted, not `null` or empty
+  placeholders. Empty values are valid only where stated (`clipboard` text and
+  `appLaunchActions` may be empty).
+- After authentication, unknown message types, malformed JSON shapes, duplicate
+  or undeclared fields close with policy violation.
 
-When a wire message changes, update the test-only server-frame catalog and run
-both the host WebSocket integration suite and the mobile protocol parser suite.
-Those checks are build-time only and add no client or host runtime work.
+Wire changes update the test server-frame catalog and follow
+[risk-based validation](setup.md#validation-by-change).
 
-The host accepts at most 64 concurrent WebSocket sessions. Every session must
-send `pair.hello` within 10 seconds, and an authenticated session is closed
-after 2 minutes without a client message. Text messages are limited to 64 KiB
-across all WebSocket fragments; oversized messages close with status 1009 and
-binary messages are rejected. These are resource and stale-connection bounds,
-not authentication mechanisms.
+## Pairing link
 
-Host sends are serialized per authenticated socket and have a 5-second operation
-deadline; close handshakes have a 1-second deadline. Repeated local status changes
-are coalesced by one host-owned broadcaster so settings activity cannot create an
-unbounded queue of send tasks. A stalled or removed socket cannot bypass the send
-gate or hold host shutdown indefinitely.
+The host creates an absolute HTTP/HTTPS `/pair` URL with no credentials or
+fragment; `/` imports no pairing credential.
 
-The Windows host generates an absolute HTTP or HTTPS pairing link on the exact
-`/pair` app route, without URL credentials or a fragment. A generated link
-contains exactly one `t` and one `v`, and at most one `h`. The mobile parser
-requires that route and parameter cardinality. The ordinary `/` app route does
-not import pairing credentials.
+| Parameter | Contract |
+| --- | --- |
+| `t` | Required 32-character URL-safe Base64 short-lived token. |
+| `v` | Required semver metadata; validated, but never authentication, compatibility enforcement, or cache busting. |
+| `h` | Optional WebSocket host origin or port; a port resolves against the page host. Routing only, never authentication. |
+| `d` | Optional non-secret client ID added by mobile. |
+| `n` | Optional non-secret device name added by mobile. |
 
-Host-generated pairing links use these query parameters:
+Mobile removes `t` from the current URL before name confirmation/authentication.
+`/pair`, `v`, hints, and saved profiles never bypass token pairing or reconnect
+proof. Manual host forms belong in
+[network selection](network-and-host-selection.md).
 
-- `t`: required 32-character URL-safe Base64 short-lived pairing token.
-- `v`: required semantic host application-version metadata. The mobile parser
-  validates its shape but does not use it as authentication, compatibility
-  enforcement, or a cache buster.
-- `h`: optional PC host hint for `/ws` traffic when the web app is served from
-  a different origin than the Windows host. `h` can be a full origin such as
-  `http://192.168.1.20:51395` or a port such as `51395`, which resolves against
-  the current page host.
+Tokens last five minutes. Connect rotates 15 seconds before expiry and retains
+only the prior token for up to that 15-second overlap. Successful pairing
+consumes both slots and creates a new visible token.
 
-The mobile app can add these non-secret identity parameters to its current
-address:
+## Authentication
 
-- `d`: non-secret client identifier used by browser and Home Screen launches.
-- `n`: non-secret mobile device display name.
-
-After importing a valid link into its pending pairing state, the mobile app
-removes `t` from the current history entry before device-name confirmation and
-network authentication. The route and non-secret parameters can remain.
-
-`/pair` is an application route, not a caching mechanism. App-shell navigation
-is network-first in the service worker, and the host serves the HTML entry point
-with `Cache-Control: no-store, no-cache, must-revalidate`. The cached `/` shell
-is used only when a navigation network request fails. Token uniqueness and
-expiry protect pairing; neither the `/pair` path nor `v` makes a stale token
-valid.
-
-## Host hints
-
-The `h` host hint is connection routing metadata only. It is not a secret and
-must not be treated as proof that a device is paired. A WebSocket session still
-has to authenticate through fresh token pairing or prove possession of the
-private reconnect key registered for its `clientId`.
-
-The reference client accepts these host forms:
-
-- an origin such as `http://192.168.1.50:51395`;
-- an address and port such as `192.168.1.50:51395`;
-- a full Voltura Air pairing link;
-- a port number, which resolves against the current page host.
-
-The manual-entry validation and state-preservation behavior for these forms is
-defined in [network-and-host-selection.md](network-and-host-selection.md).
-
-If the host value has no pairing token, authentication can complete only through
-the reconnect challenge/proof exchange. Host hints and saved profiles never
-bypass pairing. Profile creation, selection, and recovery behavior are defined
-in [network-and-host-selection.md](network-and-host-selection.md).
-
-## Pairing
-
-The client must start every WebSocket session with `pair.hello`. `deviceName`
-is the current display name for the mobile device. During QR pairing, the client
-generates a P-256 key pair and sends the short-lived single-use `pairToken` with
-the Base64url-encoded uncompressed public key in `reconnectPublicKey`. The
-private key remains in browser storage and never crosses the protocol. The host
-stores the public key with the paired-device record and never stores a reconnect
-secret.
-
-The mobile app stores a generated `clientId` in browser storage and also keeps
-that same non-secret value in the page URL as `d`. This lets a browser-created
-Home Screen bookmark reopen with the same logical client identity even if the
-standalone web app starts with separate storage. The value is not treated as an
-authentication secret; reconnect still requires a signature from the stored
-private key, and a fresh storage container must pair once with a valid
-`pairToken` before it has that key.
-
-Accepting a valid `pairToken` and reconnect public key consumes both the current
-and overlap token slots. For an already-known `clientId`, the host replaces the
-registered public key and revokes existing active sockets while retaining one
-paired-device record.
+Every session starts with `pair.hello`. Fresh pairing generates P-256 keys:
+mobile retains the private key; the host receives a Base64url uncompressed
+public key. `clientId` is non-secret. A client without the registered private
+key must pair again.
 
 ```json
 {
@@ -124,7 +63,11 @@ paired-device record.
 }
 ```
 
-Reconnect begins without a token or public key:
+A valid token/public key consumes both token slots. For an existing `clientId`,
+it replaces the public key and revokes active sockets without adding another
+device record.
+
+Reconnect omits token/key:
 
 ```json
 {
@@ -134,9 +77,7 @@ Reconnect begins without a token or public key:
 }
 ```
 
-For a known `clientId`, the host returns a cryptographically random challenge
-owned by that WebSocket session. The session accepts at most one proof for that
-challenge and consumes the challenge before verification.
+Known clients receive one random session-owned challenge:
 
 ```json
 {
@@ -146,9 +87,8 @@ challenge and consumes the challenge before verification.
 }
 ```
 
-The client signs the UTF-8 bytes of
-`VolturaAir reconnect:v1:<clientId>:<challenge>` using ECDSA P-256 with SHA-256
-and the IEEE P1363 fixed-field signature format.
+Sign UTF-8 `VolturaAir reconnect:v1:<clientId>:<challenge>` using ECDSA P-256,
+SHA-256, IEEE P1363 fixed-field format:
 
 ```json
 {
@@ -158,12 +98,10 @@ and the IEEE P1363 fixed-field signature format.
 }
 ```
 
-A proof is valid only on the session that issued its challenge. Reusing a proof
-on another session, against another challenge, or after host restart fails
-before authenticated command dispatch. Reconnect proof verification performs no
-registry, disk, QR, or pairing-token work on the command path.
+The host consumes the challenge before verification. A session accepts one
+proof; cross-session, different-challenge, reused, and post-restart proofs fail.
 
-Successful response:
+Success:
 
 ```json
 {
@@ -200,10 +138,10 @@ Successful response:
   },
   "host": {
     "hostVersion": "1.2.3",
-    "webClientBuildId": "0f7c918ea4b24dd687ed15c30745d8cf",
+    "webClientBuildId": "opaque-build-id",
     "pcName": "WINDOWS-PC",
     "defaultRemoteMode": "standard",
-    "selectedAdapterName": "Wi-Fi - Intel(R) Wi-Fi 6 AX200",
+    "selectedAdapterName": "Wi-Fi",
     "selectedIp": "192.168.1.50",
     "selectedPort": 51395,
     "webSocketUrl": "ws://192.168.1.50:51395/ws",
@@ -219,265 +157,131 @@ Successful response:
 }
 ```
 
-Fresh pairing and reconnect return the same `pair.accepted` shape. It contains no
-private key, reconnect credential, challenge, proof, or pairing token.
-
-Request current connection status after pairing has been accepted:
+Fresh/reconnect acceptance has the same shape and never includes private keys,
+reconnect credentials, challenges, proofs, or tokens.
 
 ```json
 { "type": "status.get" }
 ```
 
-Host response:
+`status` contains `type`, `connected`, `message`, `pcName`, and the same
+`capabilities`/`host` objects. Status may be pushed when host state changes.
+
+Authenticated metadata is not authentication state:
+
+- `defaultRemoteMode`: `standard`, `youtube`, or `kodi`; advisory when mobile
+  has no saved PC-specific override.
+- `appLaunchActions`: `{ id, label, kind }[]`; empty when launch permission is
+  off. ID is opaque; label is 1–10 characters; kind is `browser`, `spotify`,
+  `vlc`, `powerpoint`, or `custom`. Paths, URLs, and arguments are excluded.
+- `urlOpen.canOpen`, `remoteInput`, `textTransfer`, `clipboardRead`: effective
+  device permissions.
+- `textTransferTarget`: exactly `{ mode, displayName, available }`; mode is
+  `focused`, `clipboard`, or `configured`. It excludes paths, process/window
+  IDs, matching rules, and clipboard content.
+- `pointerSpeed`: effective device speed. `customPointerEnabled`: host-wide.
+  `inputBlockedByElevation`: higher-integrity foreground block.
+- `webClientBuildId`: served client bundle, independent of `hostVersion`.
+- Developer mode adds `developerMode: true` and `developerSessionId`.
+
+Adapter metadata may reveal local hardware and appears only in explicit redacted
+diagnostics.
+
+Rejection:
 
 ```json
-{
-  "type": "status",
-  "connected": true,
-  "message": "Connected",
-  "pcName": "WINDOWS-PC",
-  "capabilities": {
-    "remoteInput": true,
-    "gestureDebug": false,
-    "inputAck": true,
-    "power": {
-      "lock": true,
-      "lockAvailability": "notExplicitlyDisabled",
-      "blackoutDisplay": true,
-      "displayOff": false,
-      "screenSaver": true,
-      "screenSaverAvailable": false,
-      "signOut": false,
-      "restart": false,
-      "shutdown": false
-    },
-    "awake": {
-      "canControl": false,
-      "active": false,
-      "mode": "off"
-    },
-    "sleep": true,
-    "volume": true,
-    "remoteLaunch": true,
-    "urlOpen": { "canOpen": false },
-    "textTransfer": true,
-    "clipboardRead": false
-  },
-  "host": {
-    "hostVersion": "1.2.3",
-    "webClientBuildId": "0f7c918ea4b24dd687ed15c30745d8cf",
-    "pcName": "WINDOWS-PC",
-    "defaultRemoteMode": "standard",
-    "selectedAdapterName": "Wi-Fi - Intel(R) Wi-Fi 6 AX200",
-    "selectedIp": "192.168.1.50",
-    "selectedPort": 51395,
-    "webSocketUrl": "ws://192.168.1.50:51395/ws",
-    "textTransferTarget": {
-      "mode": "focused",
-      "displayName": "Currently focused application",
-      "available": true
-    },
-    "pointerSpeed": 100,
-    "customPointerEnabled": false,
-    "inputBlockedByElevation": false
-  }
-}
+{ "type": "pair.rejected", "reason": "invalid-token" }
 ```
 
-Host metadata is included after authentication in `pair.accepted` and `status`.
-It is not a secret and must not be used as authentication state. Most fields are diagnostics metadata; `defaultRemoteMode` and `pointerSpeed` are authenticated host profile hints used by the mobile app.
-The adapter name can reveal local hardware/vendor details, so it should only be copied when the user explicitly chooses **Copy diagnostics**.
-`defaultRemoteMode` is the host's advisory initial Remote mode for that PC (`standard`, `youtube`, or `kodi`). The mobile app uses it only when the current phone/browser has no saved Remote mode override for that PC.
-`remoteLaunch` is an authenticated capability. When `true`, the host allows this paired device to trigger the fixed host-defined launch actions documented below and exposes its approved configurable buttons through `host.appLaunchActions`. The host does not expose the configured YouTube URL, executable paths, or arguments through this metadata.
-`appLaunchActions` is an authenticated array of `{ id, label, kind }` summaries. It is empty when the effective **Allow paired devices to start applications** permission is disabled. `id` is an opaque host-owned identifier; clients must not derive a path or command from it. `label` is the host-managed 1–10 character button label. `kind` is one of `browser`, `spotify`, `vlc`, `powerpoint`, or `custom` and is presentation metadata only.
-`urlOpen` is an authenticated capability object emitted by hosts that support reviewed URL opening. `canOpen` is the effective **Open web addresses** permission for the paired device. The permission defaults off and is independent from application launch and text transfer.
-`remoteInput` is an authenticated capability. When `true`, the effective **Allow paired devices to control pointer and keyboard** permission allows this paired device to send pointer and keyboard input. The permission defaults on and can be disabled globally or for an individual paired device.
-`textTransfer` is an authenticated capability. When `true`, the same effective remote-input permission allows the client to use the host-acknowledged `text.send` operation described below. `host.textTransferTarget` contains only `{ mode, displayName, available }`, where `mode` is `focused`, `clipboard`, or `configured`. Executable paths, process identifiers, window handles, matching rules, and clipboard contents are never included.
-`clipboardRead` is an authenticated capability. `true` means the effective **Read PC clipboard** permission allows this paired device; `false` means the host blocks the operation.
-`pointerSpeed` is the effective pointer speed for the authenticated paired device: the host default unless that device has an override. It is included only on authenticated `pair.accepted` and `status` messages. When the Windows host profile changes, the host may push the same lightweight `status` message to active sockets; the mobile app does not add a polling loop, timer, or extra battery cost for pointer-speed sync.
-`customPointerEnabled` is the host-wide Custom pointer state. It is not a paired-device preference: changing it affects the whole Windows desktop.
-`inputBlockedByElevation` is `true` only while Windows reports that a
-higher-integrity foreground application blocks normal injected input. The host
-pushes authenticated `status` when this state changes.
-`webClientBuildId` identifies the exact compiled mobile web bundle currently served by the host. Vite generates a new opaque ID for every build, and the same ID is embedded in the JavaScript bundle and written to `web-build-id.txt`. When auto-refresh is enabled, the client clears its service worker and caches and reloads only when the host build ID differs from the ID embedded in the running client. This build ID is separate from `hostVersion` and does not affect installer or release versioning.
-When host developer mode is enabled in **Preferences** -> **Developer tools**, host metadata also includes `developerMode: true` and a `developerSessionId` for the current host run.
-
-QR pairing tokens are valid for five minutes. The Connect screen rotates the
-visible token 15 seconds before expiry and keeps only the immediately previous
-token valid for at most that 15-second overlap. Successful pairing consumes both
-available token slots, and the Connect screen generates the next visible code.
-
-Rejected response:
-
-```json
-{
-  "type": "pair.rejected",
-  "reason": "invalid-token"
-}
-```
-
-The mobile client derives the user-visible `VAIR-PAIR-*` diagnostic code from
-`reason`; the host does not send a diagnostic-code field.
-
-Known pairing rejection reasons:
-
-| Reason | Meaning |
+| `reason` | Meaning |
 | --- | --- |
-| `pair-first` | The client sent a non-pairing message before authentication. |
-| `invalid-token` | The supplied token does not match the retained current or overlap code. |
-| `expired-token` | The supplied token matches a retained code whose validity ended. |
-| `stale-token` | No active pairing-code state is available. |
-| `device-revoked` | The `clientId` has no paired-device record on this host. |
-| `invalid-proof` | The reconnect signature does not verify for the session challenge and registered public key. |
-| `rate-limited` | Too many failed unauthenticated pairing attempts were made from the same remote address. |
-| `invalid-message` | The pairing request was not valid JSON protocol shape. |
+| `pair-first` | Non-pairing message before authentication. |
+| `invalid-token` | No match with current/overlap token. |
+| `expired-token` | Matching retained token expired. |
+| `stale-token` | No active token state. |
+| `device-revoked` | No device record for `clientId`. |
+| `invalid-proof` | Signature failed for the session challenge/public key. |
+| `rate-limited` | Too many failed unauthenticated attempts from the address. |
+| `invalid-message` | Invalid pairing JSON shape. |
 
-The mobile client must treat unknown reasons as diagnosable pairing failures and
-show a diagnostic code instead of raw protocol text.
+Mobile derives `VAIR-PAIR-*`; no diagnostic-code field is sent. Unknown reasons
+remain diagnosable instead of exposing raw protocol text.
 
-After authentication, the host accepts only known message types with the exact
-documented JSON shape. Duplicate or undeclared fields, unknown message types,
-and malformed messages are closed with a WebSocket policy violation and are not
-dispatched as input.
-
-Forget this device on the PC after pairing has been accepted:
+Authenticated utility messages:
 
 ```json
 { "type": "pair.disconnect" }
-```
-
-Rename this device on the PC after pairing has been accepted. The host updates
-the paired device record, stores the rename timestamp, refreshes connected UI
-such as the tray and Settings Devices page, and uses that timestamp for
-latest-activity ordering.
-
-```json
 { "type": "device.rename", "deviceName": "Joakim iPhone" }
-```
-
-`deviceName` must contain non-whitespace text. The client supplies its default
-device name before sending the message when a user leaves the rename field blank.
-
-Set this device's pointer speed override on the PC after pairing has been accepted. This is sent only from a user action such as changing the mobile pointer speed slider:
-
-```json
 { "type": "pointer.speed.set", "pointerSpeed": 65 }
-```
-
-Turn the host-wide Custom pointer on or off from a paired device:
-
-```json
 { "type": "custom.pointer.set", "enabled": true }
-```
-
-Lightweight connection health check after pairing has been accepted:
-
-```json
 { "type": "health.ping" }
-```
-
-Host response:
-
-```json
 { "type": "health.pong" }
 ```
 
-`health.pong` is only a liveness signal. It does not carry host metadata,
-capabilities, or audio state. The mobile app keeps faster checks while input is
-active, without resetting a timer for every movement frame, slows checks after
-the foreground app is idle, and closes the WebSocket while the browser page or
-installed app is backgrounded.
-The host's 2-minute receive deadline is reset by any valid client message, so
-the passive 60-second foreground health check keeps an otherwise idle session
-open without adding server-side polling.
+`deviceName` must contain non-whitespace text; mobile substitutes its default
+before sending a blank edit. Pointer speed is sent only from user action.
+`health.pong` is liveness only; it contains no metadata/capability/audio state.
+Any valid client message resets the receive timeout.
 
-## Input Events
-
-Pointer movement:
+## Input
 
 ```json
 { "type": "pointer.move", "seq": 123, "dx": 12, "dy": -4 }
-```
-
-Mouse button. `action: "click"` sends a complete press/release click. `down`
-and `up` are used when the mobile app needs to hold a button while pointer
-movement continues, such as dragging or resizing a window.
-
-```json
 { "type": "pointer.button", "seq": 124, "button": "left", "action": "click" }
-```
-
-```json
 { "type": "pointer.button", "button": "left", "action": "down" }
-```
-
-```json
 { "type": "pointer.button", "button": "left", "action": "up" }
-```
-
-Wheel scroll:
-
-```json
 { "type": "pointer.wheel", "seq": 125, "dx": 0, "dy": -18 }
-```
-
-Zoom gesture. `direction: "in"` is a two-finger spread/pinch-out and zooms in. `direction: "out"` is a two-finger pinch-in and zooms out.
-
-```json
 { "type": "pointer.zoom", "seq": 126, "direction": "in" }
-```
-
-Text input:
-
-```json
 { "type": "keyboard.text", "seq": 127, "text": "Hello" }
-```
-
-`keyboard.text.text` must not be empty. Whitespace itself is valid text and is
-sent as such when the user types it.
-
-Special key:
-
-```json
 { "type": "keyboard.special", "seq": 128, "key": "Enter", "modifiers": ["Control"] }
 ```
 
-Single-letter shortcuts can be sent as special keys when an app needs a real
-virtual-key press instead of Unicode text input. For example, the mobile live
-keyboard maps a one-character `f` insertion to:
+Button actions are `click`, `down`, `up`; `click` sends press/release.
+Zoom `in` means spread/pinch-out; `out` means pinch-in. Keyboard text cannot be
+empty, but whitespace is valid. Single-letter virtual keys use
+`keyboard.special`. `Undo` and `Redo` map to Ctrl+Z/Ctrl+Y.
+
+### Input acknowledgements
+
+When `inputAck` is true, discrete input and sampled movement carry positive
+`seq`. Successful Windows dispatch returns:
 
 ```json
-{ "type": "keyboard.special", "key": "F" }
+{ "type": "input.ack", "seq": 123 }
 ```
 
-Undo and redo shortcut aliases:
+Dispatch failure keeps the socket open:
 
 ```json
-{ "type": "keyboard.special", "key": "Undo" }
+{
+  "type": "input.error",
+  "seq": 123,
+  "code": "VAIR-INPUT-NATIVE-SEND-FAILED",
+  "message": "Windows did not accept this input action. Try again."
+}
 ```
 
-```json
-{ "type": "keyboard.special", "key": "Redo" }
-```
+Mobile drops the failed action, continues later input, and treats missing recent
+acks as unhealthy even if heartbeat succeeds. Movement behind an outstanding
+sampled ack or growing WebSocket buffer is bounded and dropped, never replayed.
+Discrete button/keyboard input is not dropped by that movement limit. Connection
+close never replays physical input.
 
-The Windows host translates `Undo` to `Ctrl+Z` and `Redo` to `Ctrl+Y`.
+## Application launch
 
-Remote launch actions are fixed host-defined actions. They are only accepted after authentication, only when `capabilities.remoteLaunch` is `true`, and only for supported action names. The client must not send executable paths, process names, shell commands, or URLs.
+Fixed launch requires authentication, `remoteLaunch: true`, effective launch
+permission, and one supported action:
 
 ```json
 { "type": "remote.launch", "action": "openYoutube" }
-```
-
-```json
 { "type": "remote.launch", "action": "startOrActivateKodi" }
 ```
 
-`openYoutube` opens Chrome with the host-configured YouTube URL. `startOrActivateKodi` focuses Kodi when it is already running or starts Kodi when it is not. Unsupported action names are rejected as invalid protocol shape. The host ignores valid launch actions when the effective **Allow paired devices to start applications** permission is disabled.
+`openYoutube` opens Chrome at the host-configured URL.
+`startOrActivateKodi` activates/runs Kodi. Unknown actions violate protocol.
+Clients never send paths, process names, commands, or URLs.
 
-Configurable application buttons use a separate message. The client sends only
-an `actionId` that was advertised in authenticated host metadata and a unique
-`operationId` used to correlate the response. It must never
-send a path, URL, process name, arguments, or shell command.
+Configurable buttons use advertised opaque IDs:
 
 ```json
 {
@@ -494,10 +298,6 @@ send a path, URL, process name, arguments, or shell command.
 { "type": "app.launch", "operationId": "550e8400-e29b-41d4-a716-446655440000", "actionId": "custom.1234" }
 ```
 
-The host authenticates the socket, applies the effective launch permission,
-resolves the opaque ID against its current settings, revalidates custom paths,
-and returns a result without closing the connection for an execution failure.
-
 ```json
 {
   "type": "app.launch.result",
@@ -509,17 +309,11 @@ and returns a result without closing the connection for an execution failure.
 }
 ```
 
-Failure codes include `permission-denied`, `not-configured`,
-`invalid-target`, `not-found`, and `start-failed`. A malformed ID is a protocol
-shape violation and closes the authenticated socket. Custom `.exe` paths and
-arguments are approved, stored, validated, and executed only by the Windows
-host; they are excluded from protocol metadata and application logs.
+Expected codes: `permission-denied`, `not-configured`, `invalid-target`,
+`not-found`, `start-failed`. Execution failure keeps the socket open; malformed
+ID closes it. Paths/arguments stay host-only and are excluded from logs.
 
-## Open URL on the PC
-
-URL opening is a separate acknowledged operation. The client generates an
-`operationId` and sends the reviewed draft; it does not send a browser path,
-command, or fallback choice.
+## URL opening
 
 ```json
 {
@@ -529,17 +323,11 @@ command, or fallback choice.
 }
 ```
 
-The host trims the value and adds `https://` only when it has no explicit
-scheme. It then requires an absolute HTTP or HTTPS URI with a non-empty host,
-no control characters, and at most 2,048 UTF-16 code units. Explicit HTTP is
-preserved. File paths, commands, malformed URLs, and schemes such as
-`javascript:`, `data:`, `mailto:`, and `file:` are rejected rather than
-modified or executed.
-
-After permission and validation succeed, the host calls `Process.Start` once
-with the normalized absolute URI and `UseShellExecute = true`. Windows therefore
-uses the signed-in user's registered default handler for HTTP or HTTPS. The host
-does not locate or fall back to Chrome, Edge, Brave, Opera, or another browser.
+Trim input; add `https://` only when no scheme exists. Require absolute HTTP or
+HTTPS, non-empty host, no control characters, maximum 2,048 UTF-16 code units.
+Preserve explicit HTTP. Reject file paths, commands, malformed URLs, and other
+schemes. Windows opens the normalized URL once with the default handler; no
+browser fallback.
 
 ```json
 {
@@ -552,19 +340,14 @@ does not locate or fall back to Chrome, Edge, Brave, Opera, or another browser.
 }
 ```
 
-Result codes are `accepted`, `permission-denied`, `invalid-url`,
-`unsupported-scheme`, and `launch-failed`. Native process errors are mapped to
-friendly text and never returned raw. Validation and launch failures keep the
-authenticated socket open. A successful result says **Open request sent**
-because the host knows
-only that Windows accepted the shell-launch request, not whether a page loaded.
-When application logging is enabled, the host writes a sanitized `url.open`
-command receipt with action `open_url` and a matching command outcome. Neither
-entry contains the submitted or normalized URL.
+Codes: `accepted`, `permission-denied`, `invalid-url`, `unsupported-scheme`,
+`launch-failed`. Failures keep the socket open and never return raw native
+errors. Success means Windows accepted the request, not that the page loaded.
 
 ## Text transfer
 
-Text transfer uses a separate acknowledged operation so the client can distinguish complete delivery from ordinary input-health acknowledgements. `operationId` is a client-generated UUID, `text` must contain 1–4,096 UTF-16 code units, and `sendEnter` is required. The default focused destination sends to the application that owns keyboard focus and does not change the Windows clipboard. Clipboard mode copies only. A host-configured managed destination either creates a fresh self-identifying draft or stages text on the Windows clipboard. Paste-driven destinations paste only after the exact intended window is foreground and not elevated above the host; otherwise they report clipboard-only success. The host never synchronizes either device clipboard.
+`operationId` is a client UUID; `text` is 1–4,096 UTF-16 code units;
+`sendEnter` is required.
 
 ```json
 {
@@ -575,7 +358,12 @@ Text transfer uses a separate acknowledged operation so the client can distingui
 }
 ```
 
-The host preserves multiline text by translating LF, CRLF, and CR line breaks into physical Enter key events for paste-driven destinations; CRLF produces one Enter. Generated text, Word, and Excel drafts preserve line breaks in their file formats. Windows Notepad and Notepad++ open a generated text draft by file path instead of receiving new-item or paste shortcuts, so an existing tab is never changed. **Send text + Enter** adds a final Enter or trailing blank draft line. The host refuses focused delivery while the protected Voltura Air host UI has focus. A native partial-input failure is reported as failure and requires an explicit retry; clients keep the draft and warn users to inspect the destination before retrying.
+Focused delivery does not change the clipboard. Clipboard mode only copies.
+Managed destinations create a fresh draft or stage clipboard text. Paste occurs
+only when the intended window is foreground and not elevated; otherwise success
+is clipboard-only. No clipboard synchronization. LF, CRLF, and CR each become
+one line break; `sendEnter` adds the final Enter/blank draft line. Host-UI focus
+is refused. Partial native delivery fails and requires explicit retry.
 
 ```json
 {
@@ -587,17 +375,17 @@ The host preserves multiline text by translating LF, CRLF, and CR line breaks in
 }
 ```
 
-`deliveryKind` is `typed`, `pasted`, or `clipboard`. Failure codes are
+`deliveryKind`: `typed`, `pasted`, `clipboard`. Codes:
 `VAIR-TEXT-DENIED`, `VAIR-TEXT-HOST-FOCUSED`,
-`VAIR-TEXT-NATIVE-SEND-FAILED`, `VAIR-TEXT-CLIPBOARD-FAILED`, and
-`VAIR-TEXT-DELIVERY-FAILED`. `VAIR-TEXT-DENIED` means the active device's
-effective remote-input permission is off. The mobile client can also produce
-`VAIR-TEXT-RESPONSE-TIMEOUT` when no matching result arrives. Delivery failures
-keep the authenticated socket open.
+`VAIR-TEXT-NATIVE-SEND-FAILED`, `VAIR-TEXT-CLIPBOARD-FAILED`,
+`VAIR-TEXT-DELIVERY-FAILED`; mobile may add
+`VAIR-TEXT-RESPONSE-TIMEOUT`. Delivery failures keep the socket open.
 
-## Explicit PC clipboard read
+## Clipboard read
 
-`clipboard.get` is the only protocol operation that reads PC clipboard text. The client must generate `operationId`; the host reads only after the paired device's effective **Read PC clipboard** permission allows it. It returns at most 4,096 UTF-16 code units, does not alter the PC clipboard, and does not write to the device/browser clipboard. The web app displays the result for manual selection and copying.
+Only `clipboard.get` reads PC clipboard text. It requires effective **Read PC
+clipboard** permission, returns at most 4,096 UTF-16 code units, and alters
+neither clipboard.
 
 ```json
 { "type": "clipboard.get", "operationId": "820c1314-d8a1-499d-a969-6520f681baea" }
@@ -613,19 +401,16 @@ keep the authenticated socket open.
 }
 ```
 
-When permission is blocked, no clipboard read occurs and the host returns `VAIR-CLIPBOARD-PERMISSION-DENIED`. Other expected failures are `VAIR-CLIPBOARD-NO-TEXT`, `VAIR-CLIPBOARD-TEXT-TOO-LONG`, and `VAIR-CLIPBOARD-UNAVAILABLE`.
+Codes: `VAIR-CLIPBOARD-PERMISSION-DENIED`, `VAIR-CLIPBOARD-NO-TEXT`,
+`VAIR-CLIPBOARD-TEXT-TOO-LONG`, `VAIR-CLIPBOARD-UNAVAILABLE`. Permission
+denial performs no read.
 
-## Presentation commands and reports
+## Presentation
 
-Presentation mode remains capability-gated while alpha. On a clean host,
-**Preferences > Developer tools > Enable alpha features** defaults on; an
-explicit off choice omits the capability and blocks commands and report saves
-at their production boundaries. Commands use a separate acknowledged set rather than arbitrary
-`keyboard.special` messages. The client supplies one bounded operation ID, a
-reviewed target profile, and one fixed action. The official client permits only
-one ordinary presenter command in flight and clears pending work on disconnect.
-An idempotent `pointer` disable may bypass an unrelated pending acknowledgement
-only for deterministic cleanup.
+The default-on alpha gate omits `presentation` and blocks commands/report saves
+when explicitly off. Commands are acknowledged; mobile allows one ordinary
+command in flight and clears it on disconnect. Idempotent pointer cleanup may
+bypass unrelated pending work.
 
 ```json
 {
@@ -636,13 +421,9 @@ only for deterministic cleanup.
 }
 ```
 
-Targets are `powerpoint`, `google-slides`, and `pdf`. Actions are `next`,
-`previous`, `start`, `end`, `black`, and `pointer`; a recognized shortcut can
-still be unavailable for a target and then returns `unsupported-action` without
-injecting input. `pointer` is available for every target and requires an
-`enabled` Boolean expressing desired native laser state. `enabled` is forbidden
-for every other action, so retrying the same desired state cannot invert it.
-Shortcut mappings are:
+Targets: `powerpoint`, `google-slides`, `pdf`. Actions: `next`, `previous`,
+`start`, `end`, `black`, `pointer`. `pointer` requires Boolean `enabled`; other
+actions forbid it.
 
 | Target | Next | Previous | Start | End | Black |
 | --- | --- | --- | --- | --- | --- |
@@ -650,17 +431,11 @@ Shortcut mappings are:
 | Google Slides | Right | Left | unavailable | Esc | B |
 | PDF/browser | Right | Left | unavailable | Esc | unavailable |
 
-These low-level mappings are intentionally user-selected. The host does not
-inspect the focused process or application state. Clients must not send an
-unavailable shortcut combination. The
-separately permissioned `system.power` `blackoutDisplay` action is distinct from
-the presentation `black` shortcut. The target scope follows the current
-[PowerPoint presentation shortcuts](https://support.microsoft.com/en-us/office/use-keyboard-shortcuts-to-deliver-powerpoint-presentations-1524ffce-bd2a-45f4-9a7f-f18b992b93a0)
-and [Google Slides shortcuts](https://support.google.com/docs/answer/1696717).
+Unavailable combinations return `unsupported-action` without input. The host
+does not infer focused-app state. Presentation `black` is distinct from
+`system.power` `blackoutDisplay`.
 
-With the alpha gate off, the `presentation` capability is omitted.
-
-With the gate on, the host advertises the paired device's effective global/per-device permission:
+Enabled capability:
 
 ```json
 {
@@ -672,17 +447,10 @@ With the gate on, the host advertises the paired device's effective global/per-d
 }
 ```
 
-`laserPointerActive` is host-authoritative in pair/status frames. The host keeps
-laser state and owner identity in memory, applies one generated laser cursor to
-all Windows cursor roles through the existing custom-pointer service, and does
-not read or write the Registry for a laser transition. A non-owner cannot
-disable another paired device's active laser. Owner disconnect, End slideshow,
-client departure from Presentation, permission or alpha-gate revocation, and
-normal host shutdown request disable. An idempotent owner cleanup disable is
-accepted even after availability is revoked. The cursor-recovery watchdog
-restores the Windows scheme after abnormal host termination.
-
-After validation and permission enforcement, the host performs one shortcut injection and returns the matching operation, target, and action:
+Values reflect effective device permission; laser state is host-authoritative.
+A non-owner cannot disable another owner's laser. Owner departure/disconnect,
+End, permission/gate revocation, and shutdown disable it; owner cleanup remains
+accepted after availability revocation.
 
 ```json
 {
@@ -696,21 +464,16 @@ After validation and permission enforcement, the host performs one shortcut inje
 }
 ```
 
-Failure codes are `feature-disabled`, `permission-denied`,
-`unsupported-action`, `host-ui-blocked`, `input-failed`, and `pointer-failed`.
-`feature-disabled` is returned before native work when the alpha gate is off.
-The client can additionally report `VAIR-PRESENTATION-RESPONSE-TIMEOUT` if no
-matching result arrives. Expected denial and native failures keep the
-authenticated socket open. Shortcut success confirms only that Windows accepted
-the sequence; it does not claim that an application changed slides.
+Codes: `feature-disabled`, `permission-denied`, `unsupported-action`,
+`host-ui-blocked`, `input-failed`, `pointer-failed`; mobile may add
+`VAIR-PRESENTATION-RESPONSE-TIMEOUT`. Expected failures keep the socket open.
+Success means Windows accepted input, not that slides changed.
 
-### Saving a presentation report
+### Report save
 
-The `canSaveReports` capability is the effective Presentation permission. The
-official client freezes the local session before sending and retains it until a
-matching successful acknowledgement. The authenticated host derives device key
-and captured device name from the connection; neither is accepted from the
-payload.
+`canSaveReports` is effective Presentation permission. Mobile freezes the local
+snapshot until matching success. Host derives device key/name from the
+authenticated connection; payload cannot supply them.
 
 ```json
 {
@@ -744,24 +507,23 @@ payload.
 }
 ```
 
-Operation and report IDs contain 1–64 ASCII letters, digits, or hyphens.
-Targets use the Presentation target allowlist. Dates must parse as offsets;
-report and break chronology must be monotonic and contained by report bounds.
-UTC offset is -840 through +840 minutes. The report's wall-clock span and every
-duration are finite, non-negative, and at most seven days. Breaks are
-consecutively numbered from 1, contain
-nondecreasing presenting checkpoints, and are limited to 100. Optional slide
-numbers/ranges and slide entries are 1–1,000; slide entries are unique and
-limited to 1,000. Optional nested fields are omitted when unknown; explicit
-`null`, duplicate properties, and undeclared break/slide properties are
-invalid. `endedDuringBreak` is required; when true, the final break must end at
-the report end and its presentation checkpoint must equal the final presenting
-duration. The shared WebSocket transport-size limit still applies.
+- Operation/report IDs: 1–64 ASCII letters, digits, hyphens.
+- Target: Presentation allowlist. Dates: valid offsets.
+- `utcOffsetMinutes`: −840 through +840.
+- Chronology: monotonic; breaks inside report bounds.
+- Wall-clock span/durations: finite, non-negative, maximum seven days.
+- Breaks: consecutive from 1, nondecreasing presentation checkpoints, maximum
+  100.
+- Optional slide numbers/ranges and unique slide entries: 1–1,000; maximum
+  1,000 entries.
+- Unknown optionals are omitted. `null`, duplicate, or undeclared nested fields
+  are invalid.
+- `endedDuringBreak` is required. If true, final break ends at report end and
+  its checkpoint equals final presentation duration.
+- The 64 KiB transport limit applies.
 
-The same operation/report pair is idempotent and returns the existing report.
-Reusing a report ID with different operation identity returns
-`report-conflict`. Reports are atomically normalized and stored below the
-current user's local application-data directory; the archive limit is 1,000.
+The same operation/report pair is idempotent. Reusing a report ID with another
+operation returns `report-conflict`. Archive maximum: 1,000.
 
 ```json
 {
@@ -773,81 +535,22 @@ current user's local application-data directory; the archive limit is 1,000.
 }
 ```
 
-Failure codes are `feature-disabled`, `permission-denied`, `invalid-report`,
-`device-revoked`, `report-conflict`, `archive-full`, and `storage-failed`.
-A bounded authenticated report envelope with invalid report semantics receives
-`invalid-report` without closing the socket. An invalid message type, duplicate
-or extra field, or invalid correlation identifier remains a protocol violation.
-Failures and client timeout retain the frozen client snapshot for retry.
+Codes: `feature-disabled`, `permission-denied`, `invalid-report`,
+`device-revoked`, `report-conflict`, `archive-full`, `storage-failed`. Invalid
+bounded report semantics return `invalid-report` without closing. Invalid
+envelope/correlation is a protocol violation. Failure/timeout retains the
+snapshot.
 
-Input delivery acknowledgement:
+## Power and session
 
-When `capabilities.inputAck` is `true`, the mobile client adds a positive `seq`
-number to every discrete pointer/keyboard input and to periodic movement
-messages. After the host dispatches that input to Windows, it sends `input.ack`
-for the same sequence. Movement acknowledgements are deliberately sampled at a
-low rate rather than added to every animation frame.
-
-```json
-{ "type": "input.ack", "seq": 123 }
-```
-
-If the host accepts the WebSocket message but cannot dispatch the input to
-Windows, it sends `input.error` for that action and keeps the authenticated
-socket open. The mobile client shows the failed action, drops that action, and
-continues with later pointer or keyboard input. The host reserves socket closure
-for malformed protocol, authentication failure, revoked pairing, shutdown, or
-other connection-level failures.
-
-```json
-{
-  "type": "input.error",
-  "seq": 123,
-  "code": "VAIR-INPUT-NATIVE-SEND-FAILED",
-  "message": "Windows did not accept this input action. Try again."
-}
-```
-
-When the host closes an authenticated socket for invalid protocol, the client
-must treat it as a connection failure and must not replay dropped physical-input
-commands after reconnecting.
-
-The mobile client treats missing acknowledgements for recent input as an
-unhealthy connection and reconnects. Heartbeat success alone is not enough to
-keep the UI in the paired state when input delivery is not being confirmed.
-While a sampled movement acknowledgement is outstanding, the official client
-allows only a small bounded number of later movement frames. It also stops
-adding movement when the browser reports a growing WebSocket send buffer.
-Congested movement is dropped, not replayed after the finger is lifted. This
-keeps pointer latency bounded without per-move acknowledgements, extra polling,
-or idle battery cost; discrete button and keyboard input is not discarded by
-the movement limit.
-
-## System
-
-The host reports optional PC features in `capabilities`. Capability values
-reflect host-enforced permissions and host settings for the active device.
-`capabilities.gestureDebug` defaults to `false`; `capabilities.inputAck` is
-`true` when the host confirms input delivery with `input.ack` / `input.error`.
-`capabilities.presentation` is omitted while the alpha gate is disabled. The
-gate defaults on when the host has no stored choice. While it is enabled, the
-capability's `canControl` and `canSaveReports`
-values reflect the active device's effective Presentation permission, and
-`laserPointerActive` reports host-owned transient state. Clients must not expose
-or send capability-gated operations while their corresponding capability is
-absent or false.
-
-Put the PC to sleep:
+`gestureDebug` defaults false. `inputAck` signals ack/error support. Clients
+must not expose/send operations whose capability is absent or false.
 
 ```json
 { "type": "system.sleep" }
 ```
 
-The host ignores `system.sleep` when the effective **Allow PC sleep**
-permission is disabled.
-
-The host reports each Power & session permission separately in
-`capabilities.power`. The object remains present when every action is disabled.
+Ignored when **Allow PC sleep** is off.
 
 ```json
 {
@@ -865,55 +568,24 @@ The host reports each Power & session permission separately in
 }
 ```
 
-The `lock` Boolean reports the effective host permission. `lockAvailability`
-reports the explicit current-user Windows policy state as
-`notExplicitlyDisabled`, `disabledByPolicy`, or `unavailable`. A missing value
-is `notExplicitlyDisabled`; that means no explicit user block was found, not
-that locking is proven to work. This keeps permission denial distinct from a
-Windows policy that prevents workstation locking. `screenSaverAvailable` is
-true only when Windows reports screen saving enabled and an actual `.scr`
-program is configured. The separate `screenSaver` Boolean remains the effective
-host permission.
-
-Request a fixed Windows power or session action:
+`power` remains present when all actions are false. Booleans are effective
+permissions. `lockAvailability`: `notExplicitlyDisabled`, `disabledByPolicy`,
+or `unavailable`; missing means `notExplicitlyDisabled`, not proven available.
+`screenSaverAvailable` requires Windows screen saving and a configured `.scr`.
 
 ```json
 { "type": "system.power", "operationId": "power-lock-7f31", "action": "lock" }
 ```
 
-Supported action values are `lock`, `blackoutDisplay`, `displayOff`,
-`screenSaver`, `signOut`, `restart`, and `shutdown`. The host validates the fixed
-action name, checks platform availability, and checks its effective
-global/per-device permission before execution. Lock, blackout, and an available
-screen saver are allowed by default; display off and the three session-ending
-actions are blocked by default.
+Actions: `lock`, `blackoutDisplay`, `displayOff`, `screenSaver`, `signOut`,
+`restart`, `shutdown`. Lock, Blackout, and available screen saver default
+allowed; display off and session-ending actions default blocked.
 
-`blackoutDisplay` creates a borderless, topmost black WPF window for every
-connected monitor. It does not change display power state, so Windows, the host,
-and networking remain active. Local mouse, keyboard, touch, or pen input closes
-the blackout windows. The host also closes them before dispatching any later
-remote pointer or keyboard message, so the client reliably restores the view.
-
-`screenSaver` sends Windows' native screen-saver system command. It returns
-`VAIR-POWER-UNAVAILABLE` without execution when no enabled and configured screen
-saver is exposed by Windows.
-
-`displayOff` sends the Windows `SC_MONITORPOWER` command, including to
-HDMI-connected TVs and receivers. Some PCs treat that explicit monitor-off
-request as sleep or Modern Standby, suspending the host and network connection.
-The protocol cannot reliably wake such a PC because no client message can reach
-the suspended host; physical keyboard or mouse input may be required. The
-client must use normal connection-health handling rather than treating the
-accepted command as proof that the host remains reachable. Windows may present
-its sign-in UI after
-resuming; `displayOff` does not sign out the session and the protocol does not
-carry Windows credentials. Sign out, restart, and shut down use the fixed Windows
-`shutdown.exe` executable with fixed arguments; client-provided paths,
-arguments, and shell commands are never accepted.
-
-Every well-formed `system.power` request receives a result. Success means that
-Windows accepted or started the request; it is not an assertion that a later
-restart or shutdown completed.
+Blackout covers all monitors without powering them off and closes on local or
+later remote input. Screen saver returns `VAIR-POWER-UNAVAILABLE` when not
+configured. Display off may suspend the host/network; acceptance does not imply
+reachability, remote wake, or sign-out. Session-ending actions accept no client
+path/arguments/command.
 
 ```json
 {
@@ -926,26 +598,19 @@ restart or shutdown completed.
 }
 ```
 
-When the active device's effective remote-input permission is off, the host
-returns the same recoverable shape with `code: "VAIR-INPUT-DENIED"` and does not
-invoke the input handler or Windows injection boundary.
+Success means Windows accepted/started the action, not that it completed.
+Remote-input denial returns this shape with `VAIR-INPUT-DENIED`.
+`operationId`: client-generated 1–64 ASCII alphanumeric/hyphen, echoed exactly;
+missing/malformed violates policy.
 
-`operationId` is a client-generated 1–64 character ASCII alphanumeric/hyphen
-identifier. The host echoes it unchanged in every power result so the client
-completes only the matching request; a missing or malformed identifier violates
-protocol policy.
-
-Failure codes distinguish `VAIR-POWER-DENIED`,
-`VAIR-POWER-UNSUPPORTED`, `VAIR-POWER-UNAVAILABLE`, `VAIR-POWER-LOCK-DISABLED`,
-`VAIR-POWER-LOCK-UNAVAILABLE`, and `VAIR-POWER-EXECUTION-FAILED`.
-These action-level failures are recoverable and do not close the authenticated
-WebSocket. A malformed message still violates protocol policy.
+Codes: `VAIR-POWER-DENIED`, `VAIR-POWER-UNSUPPORTED`,
+`VAIR-POWER-UNAVAILABLE`, `VAIR-POWER-LOCK-DISABLED`,
+`VAIR-POWER-LOCK-UNAVAILABLE`, `VAIR-POWER-EXECUTION-FAILED`. Action failures
+keep the socket open.
 
 ## Keep awake
 
-The host reports the shared Awake state and the active device's effective
-permission in `capabilities.awake`. State is reported even when control is
-blocked.
+State is reported even when control is blocked:
 
 ```json
 {
@@ -958,25 +623,16 @@ blocked.
 }
 ```
 
-`mode` is `off`, `indefinite`, `timed`, or `expiration`. `expiresAt` is a UTC
-ISO-8601 timestamp for timed and expiration modes and omitted otherwise. Tray,
-Preferences, timer expiry, and remote changes all update the same host-owned
-state. The host broadcasts a fresh `status` message to connected clients when
-that state changes.
-
-The mobile protocol intentionally exposes only a basic on/off action:
+`mode`: `off`, `indefinite`, `timed`, `expiration`. `expiresAt`: UTC ISO-8601,
+required for timed/expiration and omitted otherwise. State changes push
+`status`.
 
 ```json
 { "type": "awake.set", "operationId": "awake-enable-83c2", "enabled": true }
 ```
 
-`enabled: true` selects indefinite mode and `enabled: false` selects Off. The
-request never carries display behavior; the existing **Keep screen on** choice
-from the Windows host remains authoritative. The host rejects the request when
-the effective global/per-device **Allow paired devices to control Keep awake**
-permission is off.
-
-Every valid request receives a result and keeps the authenticated socket open:
+True selects indefinite; false selects Off. The message cannot change
+**Keep screen on**. Effective Awake permission is required.
 
 ```json
 {
@@ -989,43 +645,21 @@ Every valid request receives a result and keeps the authenticated socket open:
 }
 ```
 
-Awake uses the same operation-ID grammar and exact echo contract as power.
-Missing or malformed identifiers violate protocol policy, and a client ignores
-a valid result for completion when its ID does not match the current request.
-
-Failure codes are `VAIR-AWAKE-DENIED` and
-`VAIR-AWAKE-EXECUTION-FAILED`. A malformed `enabled` value violates normal
-protocol validation. Keep awake uses the signed-in user's Windows execution
-state, does not edit the selected power plan, does not require elevation, and
-does not override manual sleep, lid close, or lock-screen behavior.
+Power operation-ID grammar/echo rules apply. Codes: `VAIR-AWAKE-DENIED`,
+`VAIR-AWAKE-EXECUTION-FAILED`. Action failures keep the socket open; malformed
+`enabled` violates protocol. Awake does not edit power plans, require elevation,
+or override manual sleep, lid close, or lock-screen behavior.
 
 ## Audio
 
-The host ignores audio mute and volume commands when the effective **Allow
-volume control** permission is disabled.
-
-Request the default Windows output device state:
+Effective volume permission is required.
 
 ```json
 { "type": "audio.get" }
-```
-
-The host reports the default Windows output device state after `audio.get` and
-after accepted audio commands:
-
-```json
 { "type": "audio.state", "volume": 72, "muted": false }
-```
-
-Toggle the default output device mute state:
-
-```json
 { "type": "audio.mute.toggle" }
-```
-
-Set the default output device master volume. The host clamps `volume` to
-`0-100` and unmutes the device when applying the value.
-
-```json
 { "type": "audio.volume.set", "volume": 45 }
 ```
+
+`audio.state` follows `audio.get` and accepted audio commands.
+`audio.volume.set` clamps to 0–100 and unmutes.

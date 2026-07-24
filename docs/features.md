@@ -1,473 +1,179 @@
-# Implemented product capabilities
+# Product capabilities
 
-This document defines observable product capabilities and guarantees. See
-[protocol.md](protocol.md) for wire schemas, [setup.md](setup.md) for procedures,
-[architecture.md](architecture.md) for structure, and [todo.md](todo.md) for
-approved unfinished work.
+Current user-visible capabilities, permissions, limits, states, and guarantees.
+Installation and connection: [README](../README.md#download-and-install).
+Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 
-## Product scope and guarantees
+## Scope and guarantees
 
-- The host runs on Windows 11 and is controlled from a phone, tablet, or other
-  browser-capable device on the same Wi-Fi or LAN.
-- The mobile client is served as a web app by the host; normal use does not
-  require a mobile app-store installation.
-- Voltura Air has no user account, subscription, trial limit, feature lock,
+- A Windows 11 host serves a phone/tablet PWA on the same Wi-Fi or LAN.
+- Normal use needs no mobile app-store install, account, subscription, trial,
   cloud relay, or internet input-forwarding service.
-- It is a local PC control surface, not a remote-desktop, file-sync, backup,
-  phone-notification-sync, or cloud-clipboard product.
-- A client cannot control or wake the PC while the Windows host is sleeping,
-  shut down, or otherwise unreachable.
+- Voltura Air is not remote desktop, file sync, backup, notification sync, or a
+  cloud clipboard.
+- The client cannot control or wake a sleeping, shut-down, or unreachable PC.
+- One host runs per signed-in Windows user. A second launch focuses it.
 
 ## Windows host
 
-### App shell
+### Shell, connection, and pairing
 
-- Runs as a Windows tray application.
-- Closing its window keeps the host running; the first close shows a
-  notification that paired devices can still control the PC and points to the
-  notification-area icon for reopening or exit.
-- Allows one host process per signed-in Windows user; another launch focuses the existing host window.
-- Uses a WPF host UI.
-- Provides pages for:
-  - Connect.
-  - Devices.
-  - Connection.
-  - Preferences.
-  - Diagnostics.
-- Provides tray actions for opening the app, controlling Keep awake, opening the product page, and exit.
-- Starts with a neutral tray badge while paired devices reconnect, and holds the connected badge through the short automatic-reconnect grace period; it shows the disconnected badge only when a device remains offline.
-- Keeps the host window hidden when the last paired device disconnects by default; reopening it on disconnect is an opt-in preference.
-- Supports light, dark, and system theme modes.
-- Follows Windows High Contrast settings with readable semantic state and keyboard-focus feedback.
-- Supports per-user installation without administrator rights.
-- Supports portable zip packaging.
-- Supports NSIS installer packaging.
+- The Windows tray app provides Connect, Devices, Presentations, Connection,
+  Preferences, and Diagnostics. Closing the window leaves the host running.
+- Light, dark, system, Windows High Contrast, per-user installation, portable
+  ZIP, and installer packages are supported.
+- Connect shows a short-lived QR code, refresh countdown, **New code**, and
+  **Copy link**. Mobile can reconnect to saved PCs or enter a host manually.
+- Adapter and port selection are automatic by default. Connection allows a
+  saved adapter and validated custom port; pending changes require **Save and
+  restart** and remain visually distinct from active settings.
+- Pairing creates one remembered relationship per client ID. Removing a device
+  revokes it immediately and requires fresh pairing.
+- Reconnect uses proof of possession; the private reconnect key remains on the
+  client. Pairing, reconnect, and commands are authenticated, bounded, and
+  validated.
 
-### Local hosting and connection
+### Devices, permissions, and settings
 
-- Hosts the mobile web app on the local network.
-- Accepts WebSocket connections on `/ws`.
-- Bounds WebSocket resource use with a 64-session limit, a 10-second initial
-  pairing deadline, a 2-minute authenticated inactivity deadline, and a 64 KiB
-  text-message limit across fragments.
-- Serializes sends per authenticated socket, bounds send and close operations,
-  and coalesces repeated host-status updates through one owned worker.
-- Uses QR pairing links for first-time setup.
-- Shows the pairing-code refresh countdown with **New code** and **Copy link**
-  in the QR status card, and keeps technical connection details in a bounded,
-  internally scrollable accordion.
-- Supports saved reconnects after pairing.
-- Supports manual host entry on mobile for recovery.
-- Supports automatic network adapter selection.
-- Selects a suitable network adapter automatically and lets users choose another
-  adapter directly when a device cannot connect.
-- Selects an available port automatically from the preferred Voltura Air port;
-  advanced settings support a validated custom port.
-- Saves adapter and port overrides together and restarts Voltura Air before they
-  become active.
-- Shows relevant network/port warnings when choices may be stale or unreachable;
-  neutral multiple-adapter guidance appears only in the adapter chooser.
-- Summarizes active connection modes and pending adapter/port changes compactly,
-  with one combined save and restart action.
+- Devices shows name, platform/browser metadata, connection/activity state, and
+  per-device settings. Users can rename/remove one device or remove all.
+- Global defaults combine with per-device overrides for pointer speed,
+  permissions, and mode-button visibility.
+- Host permissions cover sleep, volume, Presentation, application launch, web
+  addresses, PC clipboard reads, Lock, Blackout, display off, screen saver,
+  sign out, restart, shutdown, Keep awake, and interaction with the host UI.
+- Unsupported actions are omitted; host-disabled actions explain the relevant
+  permission. Manually sent unauthorized commands are rejected.
+- **Enable alpha features** defaults on. Explicit off removes Presentation
+  capability and blocks commands/saves while keeping existing reports readable.
+- Browser, Spotify, VLC, PowerPoint, and custom executable buttons are
+  configured and tested locally. Mobile receives only an opaque action ID and a
+  1–10-character label; paths and arguments stay on the PC.
+- Custom executable add/edit requires a local warning confirmation and each
+  launch revalidates its target.
+- Custom pointer is host-wide, off by default, and configurable by size/color.
+  Paired devices may toggle it. The default-on recovery watchdog restores the
+  configured Windows cursor scheme after host exit or failure.
 
-### Pairing and trust
+### Input and Windows actions
 
-- Requires every WebSocket session to start with `pair.hello`.
-- Uses short-lived QR pairing tokens.
-- Uses P-256 proof-of-possession reconnects after first pairing without sending the private reconnect key.
-- Stores only the reconnect public key on the host.
-- Replaces the registered public key when a valid token is accepted for an already-known client.
-- Keeps one paired-device record for each client ID.
-- Tracks active connected devices.
-- Supports removing paired devices; removal revokes the pairing and requires a
-  fresh pairing before the device can reconnect.
-- Closes active sockets when a device is revoked.
-- Applies pairing attempt rate limiting with bounded, expiring per-address state.
-- Rejects unrelated public WebSocket origins before accepting the socket.
-- Validates protocol messages before dispatching input.
+- Pointer movement, tap/click, held-button drag, right click, vertical/horizontal
+  wheel, pinch zoom, Unicode text, special keys, function keys, browser/media/
+  volume keys, and common modifier shortcuts are supported.
+- Dispatch failures are reported; stale pointer movement stops after touch ends.
+- Unicode text is sent in bounded batches without splitting surrogate pairs.
+- The host reads/sets default output volume and mute.
+- Allowed actions include sleep, Lock, Blackout, screen saver, display off, sign
+  out, restart, and shutdown. Display off can suspend some PCs and requires
+  physical input to wake them; it does not sign out the user.
+- Blackout covers connected monitors without changing power state and ends on
+  local or remote input.
+- Keep awake offers Off, timed, date/time, or indefinite modes plus optional
+  **Keep screen on**, without changing the selected Windows power plan.
+- Optional JSON Lines application logging is off by default, retained 1–30 days
+  (2 days by default), and omits typed text, URLs, pointer coordinates, and
+  pairing credentials. Diagnostics provides filters, copy, folder, delete, and
+  session-only automatic refresh.
 
-### Device management
+## Mobile PWA
 
-- Shows paired devices.
-- Shows active connection count/state.
-- Stores device name.
-- Stores platform/browser/display-mode metadata.
-- Stores added/last connected/last disconnected/last renamed timestamps.
-- Supports device rename.
-- Supports removing one paired device or all paired devices, with fresh pairing
-  required after removal.
-- Supports duplicate cleanup.
-- Supports per-device permission overrides.
-- Supports a host default pointer speed with per-device overrides.
-- Supports a default-off host-wide Custom pointer with a colour and size selected in Windows Preferences and on/off control from paired devices. Its separate cursor recovery watchdog is on by default and can be disabled only with a visible warning.
+The mobile web app runs in modern browsers and can be installed where
+supported. Its browser profile stores device identity/name, saved PCs, local UI
+preferences, text snippets, and theme. It provides a cache-reset flow and can
+refresh its installed shell once after reconnect.
 
-### Permissions and capabilities
+### Pairing and connection states
 
-- Reports host capabilities to the mobile client.
-- Reports the host default Remote mode to the mobile client.
-- Supports host-enforced permission for PC sleep.
-- Supports host-enforced permission for volume control.
-- Supports the **Enable alpha features** host gate, which defaults on for the
-  current Presentation preview and remains user-disableable. Presentation
-  advertises its capability only while enabled and is also rejected at its
-  production command boundary while disabled.
-- Supports an effective global/per-device Presentation control permission while Presentation's alpha gate is enabled.
-- Supports host-enforced permission for fixed Remote launch actions and host-configured application buttons.
-- Supports a separate default-off host permission for opening reviewed HTTP and HTTPS web addresses, with per-device overrides.
-- Configures optional Browser, Spotify, VLC, and PowerPoint launch presets in Windows Preferences, where each enabled preset can be tested locally and reports its launch result.
-- Lets the host choose a 1–10 character mobile button label for every enabled preset and custom application command; preset label edits save automatically and inputs stop accepting text at 10 characters.
-- Configures custom `.exe` launch buttons with optional arguments after a local host warning confirmation on every add or edit.
-- Keeps custom paths and arguments on the PC; paired devices receive and send only opaque action IDs and display labels.
-- Revalidates custom paths before every launch and reports start, permission, stale-button, invalid-target, not-found, and launch failures to mobile.
-- Supports separate host-enforced permissions for Lock PC, Blackout display, Turn off display, Screen saver, Sign out, Restart PC, and Shut down PC.
-- Supports a default-off global Keep awake control permission with per-device overrides.
-- Detects an explicit current-user Windows workstation-lock block and reports it separately from the Lock PC permission; a missing value is not treated as proof that locking works.
-- Lets the signed-in user explicitly enable and test Windows locking locally without elevation or UAC, then broadcasts a Windows policy refresh.
-- Supports a global permission for client-injected input to interact with the Voltura Air host UI and tray menu; when disabled, clients can still control the PC while host minimize, maximize, and close controls remain available. The Remote mode **Minimize** button may also minimize the focused Voltura Air window without granting broader host-UI control.
-- Combines global defaults with per-device overrides.
-- Hides or disables unsupported actions on mobile through capability reporting.
-- Ignores unauthorized sleep, volume, launch, and power/session commands even if a client sends them manually.
+QR open/photo scanning, device-name confirmation, saved-PC reconnect, and manual
+origin/address/port/link entry are supported. The UI distinguishes needs
+pairing, connecting, paired, rejected, unavailable/retrying, and disconnected.
+It explains unreadable/non-Voltura QR codes, expired codes, revoked devices,
+invalid reconnect proof, unreachable hosts, and input acknowledgement failures.
+Diagnostics copies redact tokens, private keys, challenges, and proofs.
 
-### Input injection
+### Trackpad
 
-- Acknowledges dispatched input events when the host advertises input acknowledgement support.
-- Coalesces active movement to animation frames and uses low-rate acknowledgement barriers plus WebSocket-buffer limits to prevent delayed pointer queues without adding per-move replies or idle polling.
-- Sends Unicode text to Windows in bounded batches of up to 64 code units without splitting surrogate pairs. Partial native batches report failure, and an unmatched accepted Unicode key-down is released before the failure reaches the client.
-- Reports input dispatch failures to the mobile client.
-- Moves the Windows pointer.
-- Applies the optional host-wide Custom pointer across Windows. Its size and color are chosen in host Preferences, and paired devices can turn it on or off. The default-on cursor recovery watchdog restores the configured Windows cursor scheme after unexpected host termination, including forced development-host process-tree shutdown; normal shutdown performs the same restoration in the host.
-- Sends left/right mouse button down/up/click.
-- Sends vertical and horizontal wheel scroll.
-- Sends pinch zoom as Ctrl + mouse wheel.
-- Sends Unicode text input.
-- Sends special keys and modifier shortcuts.
-- Supports common virtual keys:
-  - Backspace.
-  - Tab.
-  - Enter.
-  - Escape.
-  - Arrow keys.
-  - Delete.
-  - Home.
-  - End.
-  - Page Up.
-  - Page Down.
-  - Space.
-  - Win/Windows.
-  - Single-letter shortcuts such as F.
-  - F1-F12.
-  - Browser Back.
-  - Media previous/play-pause/next/stop.
-  - Volume mute/down/up.
-- Translates shortcut aliases:
-  - Undo -> Ctrl+Z.
-  - Redo -> Ctrl+Y.
+- One-finger movement; tap, long-press, and two-finger right click; physical
+  left/right buttons; held-button drag; two-axis scroll; optional pinch zoom.
+- Pointer speed, smoothing, acceleration, scroll acceleration/direction,
+  haptics, handedness, large buttons, and volume controls.
+- Full-screen trackpad and an optional host-enabled gesture debug surface.
+- Touch ownership suppresses page scrolling, callouts, and accidental selection
+  on the control surface.
 
-### Audio and system actions
+### Keyboard
 
-- Reads default Windows output device volume/mute state.
-- Sends current audio state after explicit audio requests and accepted audio commands.
-- Sets default output device volume.
-- Toggles mute.
-- Supports PC sleep when allowed by host permissions.
-- Locks the current Windows session with `LockWorkStation` when permission and the current-user policy allow it.
-- Reports accepted, denied, unsupported, policy-disabled, policy-unavailable, and failed power/session requests without disconnecting the client.
-- Offers opt-in daily JSON Lines application logging for troubleshooting. Logging
-  is off by default and records sanitized remote-command and local-host outcomes
-  without typed text, opened web addresses, pointer coordinates, or pairing
-  credentials. Retention is configurable from 1 to 30 days with a 2-day default.
-- Opens Diagnostics directly on an Application log view, with System details
-  available from a top-level switch. The log view distinguishes disabled logging
-  from an empty result and provides date, event, source, action, and client
-  filters plus copy, open-folder, confirmed delete, and optional session-only
-  automatic refresh.
-- Blacks out every connected monitor with a topmost black WPF curtain without
-  changing display power state. Windows, networking, and remote control remain
-  active; local or remote mouse/keyboard input removes the curtain, as does local
-  touch or pen input.
-- Starts the native Windows screen saver only when Windows reports screen saving enabled and a configured `.scr` program exists. The action is omitted from host and mobile UI when unavailable.
-- Turns off connected displays through the Windows monitor-power command when allowed, including HDMI output to TVs and receivers. The mobile client requires confirmation and explains that some PCs treat this command as sleep or Modern Standby. On those systems the host and network connection can suspend, Voltura Air cannot wake the PC remotely, and physical keyboard or mouse input is required. Windows may then require PIN, fingerprint, or another configured sign-in method; the action does not sign out the user.
-- Signs out, restarts, or shuts down through fixed Windows system commands when explicitly allowed.
-- Keeps Windows awake without changing the selected power plan, with Off, timed, date/time expiration, and indefinite modes plus an optional host-owned Keep screen on setting. Timed deadlines survive host restarts, expired modes return to Off, and exit releases the Windows request.
+- Live typing or buffered multiline send, mobile text/numeric keyboard choice,
+  IME composition, and repeatable editing/navigation keys.
+- Optional F1–F12, arrow, control/shortcut, and sleep rows. Sleep requires host
+  permission, a local setting, and confirmation.
+- Visible shortcuts include select/cut/copy/paste, undo/redo, and forward/reverse
+  app switching.
 
-## Mobile web client
+### Remote
 
-### App model
+- Standard, YouTube, and Kodi mappings cover media, seek, navigation, volume,
+  mute, fullscreen, app switching, task view, desktop/window, browser-tab/page,
+  and mode-specific actions.
+- The default navigation ring includes repeatable directions and a center
+  mini-trackpad; an alternative D-pad with OK is available.
+- **Power & session** provides Keep awake, Lock, Blackout, screen saver, display
+  off, sign out, restart, and shutdown according to host capability/permission.
+  Disruptive actions require a 1.6-second confirmation hold.
+- An Fn panel opens validated HTTP/HTTPS addresses and host-approved application
+  buttons. Pending/result feedback stays with the action; URL drafts survive
+  failure.
+- Compact layouts move secondary Windows/browser actions behind Fn. Remote
+  settings control mappings, helper visibility, and allowed application
+  shortcuts.
 
-- Runs as a React/TypeScript PWA.
-- Works in modern mobile and desktop browsers.
-- Can be installed to a phone/tablet home screen where the browser supports it.
-- Stores local device identity.
-- Stores local device name.
-- Stores saved PC profiles.
-- Stores per-saved-PC/client trackpad preferences.
-- Stores keyboard preferences.
-- Stores per-saved-PC/client remote preferences.
-- Stores per-saved-PC/client app preferences.
-- Stores the configurable fourth mode and clear-after-send preference locally.
-- Stores saved text snippets locally on the current browser profile.
-- Stores theme preference.
-- Supports light, dark, and system theme modes.
-- Prevents accidental selection and touch callouts on static app text and
-  control chrome while preserving normal selection in inputs, textareas,
-  selects, content-editable fields, and explicitly copyable text surfaces.
-- Provides app refresh/cache reset flow for installed PWA cases.
-- Uses versioned QR links and service-worker caches so fresh host QR codes
-  refresh stale mobile app shells.
-- Can automatically refresh the installed web app once after reconnecting to a PC.
+### Presentation (alpha, enabled by default)
 
-### Pairing and reconnect UX
+- The fourth mode controls user-selected PowerPoint, Google Slides, or
+  PDF/browser presentations. It does not infer the focused application.
+- Next, Previous, End, PowerPoint Start, permitted Blackout, volume, integrated
+  trackpad, and a laser pointer are available.
+- The timer records presenting sessions, breaks, slide visits, per-slide time,
+  and total/presenting/break durations. It retains up to 100 breaks and does not
+  survive reload, app restart, or leaving Presentation.
+- End/reset can save a report to the PC. Presentation content,
+  slide text, filenames, URLs, and window titles are not detected automatically.
+- The Windows archive filters by title, type, device, and date; shows totals,
+  timelines, and detail; and supports rename, file/URL links, deletion, HTML,
+  XLSX, PDF, formula-safe CSV, text export, and email drafts.
+- Saved reports stay in the signed-in user's local application data. Alpha off
+  hides/blocks new controls and saves but preserves archive access.
 
-- Detects stale health checks or missing input acknowledgements and moves to unavailable/retrying.
-- Uses faster health checks during active input, slower checks while idle, and closes the mobile WebSocket while backgrounded.
-- Treats host `connected: false` status as a real unavailable state.
-- Opens from a QR pairing link.
-- Can take a photo of a QR code for pairing/re-pairing.
-- Can confirm/change device name before pairing.
-- Can reconnect to saved PCs.
-- Can manually enter:
-  - full origin,
-  - address plus port,
-  - full Voltura Air pairing link,
-  - port number resolved against the current host.
-- Shows explicit pairing states:
-  - needs pairing,
-  - connecting,
-  - paired,
-  - rejected,
-  - unavailable,
-  - disconnected.
-- Maps pairing failures to user-friendly recovery messages.
-- Handles unreadable QR codes.
-- Handles non-Voltura QR codes.
-- Handles expired/stale/invalid tokens.
-- Handles removed registrations and invalid reconnect proofs.
-- Handles host unavailable/network failures.
-- Provides recovery actions:
-  - take photo of new QR code,
-  - reconnect,
-  - enter host manually,
-  - copy diagnostics.
-- Copies redacted diagnostics without full pairing tokens, private reconnect keys, challenges, or proofs.
+### Dictation and text transfer
 
-### Trackpad mode
+- Dictation uses browser speech recognition when available, lets users
+  edit final text, and sends it through the normal Windows text path.
+- **Send text to PC** handles up to 4,096 characters. Destinations include the
+  focused app, clipboard only, configured fresh document/app targets, a new
+  text draft, or an email draft. Windows focus determines the target; delivery
+  to the protected host UI is refused.
+- Multiline input preserves line breaks. **Send text + Enter** adds Enter only
+  after complete delivery. Sending 2,000+ characters requires confirmation.
+- Pending, success, timeout, and delivery failure are explicit. Drafts remain
+  after failure or when clear-after-send is off.
+- Up to 20 browser-local snippets of 4,096 characters have unique
+  case-insensitive names and can be loaded, reordered, renamed, updated, or
+  deleted. Loading never sends automatically.
+- **Get text from PC** requests at most 4,096 clipboard characters only after
+  explicit activation and requires the default-off host permission. Copy,
+  select, cut, clear, and local snippets operate on the returned field; failed
+  fetch/copy keeps retryable text.
+- Managed destinations never expose executable paths, process/window IDs,
+  matching rules, or clipboard content to mobile. Generated drafts expire after
+  24 hours unless **Keep generated draft files** is enabled.
 
-- One-finger pointer movement.
-- Tap-to-click.
-- Long press/right click.
-- Two-finger tap/right click.
-- Physical left/right click buttons.
-- Hold left/right button while moving pointer for drag/resize.
-- Two-finger vertical scroll.
-- Two-finger horizontal scroll.
-- Optional pinch zoom.
-- Pointer speed setting.
-- Pointer speed uses the Windows host default unless the paired device has an override; changing it on the phone updates that device override on the host.
-- Optional pointer smoothing.
-- Optional pointer acceleration.
-- Optional scroll acceleration.
-- Natural/traditional scroll direction setting.
-- Optional haptic feedback on trackpad taps and click-button presses, with an immediate preview when enabled and a clear unsupported state when the browser cannot vibrate.
-- Optional left-handed button layout.
-- Optional large click buttons.
-- Optional volume/mute control.
-- Expanded full-screen trackpad mode.
-- Browser page scrolling is suppressed on the trackpad surface.
-- Accidental text/image selection is suppressed on the trackpad surface.
-- Optional gesture debug screen when the host enables it.
+### Navigation and split layout
 
-### Keyboard mode
+Trackpad, Keyboard, and Remote are fixed primary modes. The configurable fourth
+mode is Presentation, Dictation, Send text, or Get text and defaults to
+Presentation; Dictation is the fallback when Presentation capability is absent.
+All tools remain directly available from Menu.
 
-- Live typing mode.
-- Uses the shorter `Back` label for the Backspace key in split or width-constrained layouts while preserving the Backspace action.
-- Buffered send mode preserves multiline line breaks through the same newline-aware host input path.
-- Send button is hidden when Live typing is enabled.
-- Text/numeric mobile keyboard toggle.
-- Composition/IME handling foundation.
-- Single-key app shortcuts such as `F` are sent as virtual key presses in live typing.
-- Repeatable Backspace.
-- Repeatable Delete.
-- Repeatable Enter.
-- Repeatable Tab.
-- Repeatable Home and End.
-- Repeatable Page Up and Page Down.
-- Repeatable arrow keys.
-- Esc.
-- Win.
-- Sleep button when host capability and local setting allow it.
-- Space button.
-- Optional F1-F12 row.
-- Optional arrow pad.
-- Optional control/shortcut row.
-- Current visible shortcuts:
-  - Ctrl+A.
-  - Ctrl+X.
-  - Ctrl+C.
-  - Ctrl+V.
-  - Ctrl+Z.
-  - Ctrl+Y.
-  - Alt+Tab.
-  - Shift+Alt+Tab.
-- Keyboard settings:
-  - show function keys,
-  - show control keys,
-  - show arrow keys,
-  - show sleep button, with mandatory confirmation before the command is sent.
-
-### Remote mode
-
-- A compact Power entry opens the responsive Power & session sheet.
-- The Power & session sheet shows one basic Keep awake toggle when the host reports Awake state. It uses the host's Keep screen on setting and cannot alter it.
-- Lock PC, Blackout display, and an available Screen saver are direct actions.
-  Turn off display, Sign out, Restart PC, and Shut down PC require a 1.6-second
-  confirmation hold.
-- Host-disabled actions remain visible with a host-disabled explanation, except Screen saver, which is omitted when Windows does not expose an enabled, configured saver.
-- Media previous/play-pause/next.
-- Repeatable seek backward/forward through arrow-key shortcuts.
-- Space.
-- Esc/Back.
-- Video/app fullscreen through `F`.
-- Browser fullscreen through `F11`.
-- Repeatable Windows volume down/up keys and mute key.
-- Standard mode uses Windows media, volume, fullscreen, and navigation keys.
-- YouTube mode maps remote controls to browser player shortcuts:
-  - previous/next video through Shift+P/Shift+N,
-  - play/pause through `K`,
-  - seek through `J`/`L`,
-  - volume through Arrow Down/Arrow Up,
-  - mute through `M`.
-- Kodi mode maps remote controls to common Kodi keyboard shortcuts:
-  - previous/next item or chapter through Windows previous/next media keys,
-  - play/pause through `Space`,
-  - seek/navigation through arrow keys,
-  - stop playback through `X`,
-  - info through `I`,
-  - subtitles through `T`,
-  - power menu through `S`,
-  - back through `Backspace`,
-  - toggle between the Kodi UI over the playing video and video-only playback through `Tab`,
-  - toggle Kodi between fullscreen and windowed mode through `\`,
-  - volume through `-`/`+`,
-  - mute through `F8`.
-- Default navigation ring:
-  - repeatable up/left/right/down ring zones,
-  - center mini-trackpad for pointer movement,
-  - center single tap for left click in Standard and YouTube modes,
-  - center single tap for Enter in Kodi mode,
-  - center double tap for right click in Standard and YouTube modes,
-  - Kodi Subtitles, Fullscreen/Windowed, and Info icon buttons around the navigation panel,
-  - navigation panel background drag for pointer movement,
-  - navigation panel background single tap for left click,
-  - navigation panel background double tap for right click.
-- Optional legacy D-pad with OK.
-- Start.
-- Switch app: tap for an ordinary Alt+Tab, or hold, slide left/right through the visual Windows switcher, and release to open the selected app.
-- Task view through Win+Tab.
-- Show desktop, close the focused window, and minimize the focused top-level window directly, including when it is maximized.
-- Browser Back, new tab, close tab, reopen closed tab, next/previous tab, and reload.
-- The Fn panel includes an **Open URL** dialog. Bare addresses default to HTTPS;
-  explicit HTTP remains HTTP. The host accepts absolute HTTP/HTTPS URLs and opens
-  them through the signed-in user's default browser.
-- Invalid input and launch failures preserve the draft and offer Retry. Success
-  confirms that Windows accepted the open request. Application logging records
-  the outcome without the address.
-- Host-approved application buttons in a responsive Fn grid, with complete non-ellipsized labels, pending feedback, and PC result feedback that clears after four seconds.
-- Application launch can inherit the global host permission or be explicitly allowed/blocked per paired device.
-- Compact phone layouts move Windows and browser helpers behind an Fn switch and
-  keep the primary remote controls within the viewport.
-- Tapping the active mode collapses the mode row into the header selector.
-- Remote settings:
-  - navigation ring.
-  - Remote mode: Standard, YouTube, or Kodi.
-  - grouped visibility toggles for extra window actions and extra browser tab/page actions; Start, Switch app, Task view, and Browser Back remain available as essential helpers.
-  - optional client-local launch toggles for Open YouTube and Start Kodi when the host allows paired devices to start applications.
-  - selecting YouTube or Kodi from settings closes settings and opens the Remote screen for that mode.
-
-### Presentation mode (alpha, enabled by default)
-
-- Presentation is the default fourth mobile mode on a clean setup. It supports
-  user-selected PowerPoint, Google Slides, and PDF/browser controls without
-  trying to infer which presentation application has focus.
-- Provides acknowledged Next, Previous, and End controls, PowerPoint Start
-  slideshow, display blackout where permitted, compact volume controls, and an
-  integrated collapsible trackpad with its normal fullscreen experience.
-- Provides a native Voltura Air laser pointer for all three presentation types.
-  The Windows host reports its actual state, offers Red, Green, and Blue with an
-  adjustable size, restores the configured cursor on disable or normal exit,
-  and uses the cursor-recovery watchdog after an abnormal exit.
-- Tracks presentation sessions, breaks, slide visits, per-slide time, total
-  elapsed time, presenting time, and running elapsed totals. The responsive
-  live-statistics view and timer retain up to 100 breaks and warn before active
-  data is discarded.
-- Can save an explicitly ended or reset timer session through an authenticated,
-  idempotent host operation. Report identity and the captured device name come
-  from the authenticated connection.
-- The Windows **Presentations** page provides title, type, device, and date
-  filters; aggregate totals; a newest-first archive; intermittent
-  presentation/break timelines; chronological session/break tables; and
-  per-report detail.
-- Saved reports can be renamed, linked to a local or OneDrive-visible
-  presentation file and an HTTP/HTTPS URL, exported as HTML, XLSX, PDF,
-  formula-safe CSV, or text, and shared through an email draft. Filtered archive
-  export, email, and confirmed deletion are also available.
-- Saved report data stays in the current Windows user's local application-data
-  directory. Presentation content, filenames, URLs, window titles, and slide
-  text are not detected or sent by the mobile client.
-- The Developer tools alpha switch remains available. Turning it off hides and
-  blocks new Presentation controls and saves while keeping existing Windows
-  reports available.
-
-Its detailed contracts, limitations, unfinished validation, and V2 register are
-maintained in the
-[Presentation feature alpha authority](presentation-feature-alpha.md).
-
-### Dictation mode
-
-- Uses browser speech recognition API when supported by the browser and origin.
-- Captures final speech recognition text.
-- Sends dictated text to Windows through the same text input path.
-- Allows dictation text to be edited/cleared on mobile.
-
-### Menu and text transfer
-
-- The hamburger drawer is a **Menu** with separate **Tools** and **Settings** groups.
-- Trackpad, Keyboard, Remote, and the configured fourth mode appear first in Menu > Tools in mode-tab order. Dictation, **Send text to PC**, and **Get text from PC** can also be opened directly from Menu without changing the fourth-mode preference. Presentation is added only while the host advertises its enabled alpha capability.
-- Trackpad, Keyboard, and Remote remain fixed primary modes. The fourth mode can
-  be configured as Presentation, Dictation, Send text to PC, or Get text from
-  PC and defaults to Presentation. If the host omits Presentation capability,
-  the client falls back to Dictation.
-- **Send text to PC** composes or pastes up to 4,096 characters. Focused application input remains the default; the host can instead use clipboard-only delivery, a configured fresh Notepad, Notepad++, Word, Visual Studio Code, Excel, or classic Outlook compose item, a new `.txt` draft in the Windows default text-file app, or a `mailto:` draft in the Windows default email client.
-- **Get text from PC** starts empty and fetches the current PC clipboard only after the user presses its button. It shows the returned maximum-4,096-character text in a selectable, read-only field, writes selected text to the phone/tablet clipboard only when the user chooses **Copy**, keeps prior fetched text after a failed request, and explains when the host has blocked the default-off **Read PC clipboard** permission. **Clear All** clears the field, **Select All** selects its contents, and **Cut** removes only the selected text. **Copy** is omitted when the browser cannot write to the clipboard; successful and failed copy attempts report their outcome in a toast, and a failed attempt remains available to retry. The permission can inherit the host global setting or be allowed/blocked per paired device. **Show snippets** reveals the existing local snippet controls for loading or saving text; they appear below the field in portrait and in a side panel in landscape.
-- The editor switches between Keyboard and Touchpad input. Touchpad mode uses
-  the trackpad grid and Left/Right buttons, including the saved left-handed
-  layout.
-- The destination warning is shown before delivery. Changing Windows focus changes the destination; the host refuses delivery while its own protected UI has focus.
-- Preserves multiline text by delivering each LF, CRLF, or CR line break as one Enter key event.
-- Offers **Send text** and **Send text + Enter**. The final Enter is sent only
-  after Windows accepts the complete text.
-- Confirms before sending 2,000 or more characters.
-- Shows pending, success, timeout, and native-delivery failure feedback from a host-acknowledged operation.
-- Supports an optional clear-after-send preference. The draft remains available after failure or when clearing is disabled.
-- Stores up to 20 local snippets of up to 4,096 characters with unique,
-  case-insensitive names. Snippets can be loaded, renamed, updated, deleted, and
-  reordered with a 450 ms hold gesture. Loading never sends text automatically.
-- The authenticated host status advertises only the safe destination mode, display name, and current availability. Executable paths, process IDs, window handles, matching rules, and clipboard contents are not exposed.
-- Managed text transfer creates a local draft or stages text on the Windows
-  clipboard. Paste-driven destinations paste only after the intended window is
-  foreground and not elevated; otherwise the user receives a clipboard result
-  for manual paste. Generated drafts are removed after 24 hours by default.
-  **Keep generated draft files** retains them.
-
-### Split mode
-
-- Enables a side-by-side keyboard + trackpad layout.
-- Intended for tablet/landscape use.
-- Activates in landscape at wider viewport sizes.
-- Has a dedicated Split mode settings category for enabling and configuring the layout.
-- Lets the user place the trackpad on the left or right.
-- Shows the complete header (menu, Voltura Air branding, and connection status) by default. The saved per-device **Show header in split mode** choice controls that complete row.
-- Uses the host Appearance **Show mode buttons** preference in every orientation. It is enabled globally by default and each paired device can inherit it or explicitly show or hide mode buttons.
-- A user can still tap the currently active mode button to temporarily collapse the mode buttons to the quick selector for the current session.
-- When both the split header and mode buttons are hidden, the compact mode selector stays at the trackpad pane's upper-left corner.
-- Hides volume control in split mode.
-- Keeps the keyboard pane scrollable while keeping the trackpad pane fixed.
+Wide landscape can show keyboard and trackpad side by side with selectable pane
+order, a scrollable keyboard, fixed trackpad, optional header, and
+host/per-device mode-button visibility. Volume is hidden in split mode.

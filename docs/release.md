@@ -1,117 +1,75 @@
 # Release
 
-This document describes how to prepare a Voltura Air version, verify it, build
-Windows release assets, and publish a GitHub release.
+Every published build uses a new semantic version. This procedure prepares,
+verifies, packages, and publishes the Windows release and public site.
 
-## Quick release
+## Complete release
 
-Prepare `docs/release-notes.md` for the next version, commit that notes change,
-and start from a clean `main` branch. Run the complete stable release and
-publish it as GitHub's Latest release with:
+Prepare and commit the target section in
+[release notes](release-notes.md), then start from a clean, synchronized `main`.
+
+Publish a stable release as GitHub Latest:
 
 ```powershell
 npm run release:full
-```
-
-When the prepared version has no tag, the command finishes that version. When
-the current version is already published, the default advances the stable
-odometer version. Supply an explicit version when needed:
-
-```powershell
 npm run release:full -- 0.8.0
 ```
 
-To run the same audited build and deployment while leaving the GitHub release
-as a draft, use:
+Run the same release gate but leave GitHub in draft:
 
 ```powershell
 npm run release:draft
 npm run release:draft -- 0.8.0
 ```
 
-Both commands validate the environment, prepare the version, regenerate
-branding, screenshots, and the tracked public code-statistics report, run all
-tests, build and validate the ZIP and both
-installers, commits and pushes the generated release changes, rebuilds from the
-final commit, creates or resumes a matching draft, audits its assets, and
-publishes `docs/site`. `release:full` then publishes the stable release as
-GitHub Latest; `release:draft` leaves it as a draft.
-Prerelease versions can be prepared as drafts but cannot be marked Latest.
-Draft completion does not depend on a Git tag. For `release:full`, GitHub creates
-the release tag when it publishes the release; the local command verifies the
-public Latest release through the GitHub API and does not fetch or create a
-local tag.
+The command validates prerequisites and repository state, prepares the version,
+regenerates public assets/statistics, runs full build/tests, packages/audits all
+artifacts, commits and pushes generated changes, rebuilds the final commit,
+creates/resumes the matching release, and deploys `docs/site`. Prerelease
+versions remain drafts. Set `NO_COLOR` to disable colored output.
 
-During execution, colored section headers identify each major boundary. Every
-section reports its duration and the running total, and the command ends with a
-green success summary or a red issue summary. Set the standard `NO_COLOR`
-environment variable to disable ANSI colors.
+## Prerequisites
 
-## Release prerequisites
+- Windows, Node.js/npm, .NET 10 SDK, Git, and NSIS.
+- Authenticated GitHub CLI with write access to `voltura/voltura-air`.
+- Site SFTP password stored by `npm run publish:site:password`.
+- Clean `main`, no merge/rebase, and no divergence from `origin/main`.
+- No workflow YAML under `.github/workflows`.
+- One committed non-empty target section in `docs/release-notes.md`.
 
-- Windows with Node.js/npm, the .NET 10 SDK, Git, and NSIS available;
-- an authenticated GitHub CLI with write access to `voltura/voltura-air`;
-- the one.com SFTP password stored with `npm run publish:site:password`;
-- a clean `main` worktree with no merge or rebase in progress and no divergence
-  from `origin/main`;
-- no workflow YAML under `.github/workflows`;
-- one committed, publishable target section in `docs/release-notes.md`.
+Outputs are under `artifacts/publish`; the command prints SHA-256 hashes for the
+ZIP and both installers.
 
-Generated binaries remain under `artifacts/publish`. The command prints SHA-256
-hashes for the ZIP and both installers after the draft or release is complete.
+## Version preparation
 
-## Prepare the release version
-
-From the repository root, pass one semantic version to the release command:
+Prepare an explicit semantic version:
 
 ```powershell
-npm run release -- 0.6.0
+npm run release -- 0.8.0
 ```
 
-For the usual release sequence, use:
+Advance the stable one-digit minor/patch odometer:
 
 ```powershell
 npm run release:bump
 ```
 
-It advances the current stable version as an odometer: `0.6.7` becomes `0.6.8`,
-`0.6.9` becomes `0.7.0`, and `0.9.9` becomes `1.0.0`. It supports one-digit
-minor and patch components only; use `npm run release -- <version>` when choosing
-another semantic version explicitly.
+For example, `0.8.9` advances to `0.9.0`. Use an explicit version for other
+semver forms, including prereleases. Numeric components must fit Windows version
+resources.
 
-The command accepts semantic versions such as `0.6.0` and `0.6.0-beta.1`.
-Numeric components must fit a Windows version resource.
+Preparation synchronizes:
 
-The command updates these authoritative release values together:
+- root/mobile `package.json` and `package-lock.json`;
+- host `Version`, `AssemblyVersion`, `FileVersion`, and
+  `InformationalVersion`.
 
-- root `package.json` `version`;
-- `apps/mobile-web/package.json` `version`;
-- the root and mobile workspace versions in `package-lock.json`;
-- `apps/windows-host/VolturaAir.Host.csproj` `<Version>` and explicit
-  `AssemblyVersion`, `FileVersion`, and `InformationalVersion` values;
+Vite, host assemblies, packaging, NSIS, filenames, and displayed versions read
+those values. Review the diff; preparation does not commit or publish.
 
-The script validates every target before writing and stops if the expected file
-structure has changed.
+## Standalone package checks
 
-Build and packaging consumers read those prepared values:
-
-- Vite reads the mobile package version and defines `__APP_VERSION__`;
-- the host project writes the numeric release core as `AssemblyVersion` and
-  `FileVersion` (`0.6.0.0`) and the full semantic version as
-  `InformationalVersion` (`0.6.0` or `0.6.0-beta.1`);
-- Windows File Explorer displays the prepared file and product versions for
-  `VolturaAir.Host.exe` and `VolturaAir.Host.dll`;
-- `AppVersion` reads the assembly informational version at runtime;
-- `scripts/package-win.ps1` reads the root package version by default;
-- the NSIS script receives `APP_VERSION` and `APP_VERSION_QUAD` from the packaging script.
-
-Review the resulting diff before committing. The command only updates files.
-
-## Optional standalone preflight
-
-The local release command performs the required checks. To run the same major
-boundaries independently, use these commands sequentially from the repository
-root:
+The complete release already runs these gates. For independent verification:
 
 ```powershell
 npm run build
@@ -119,38 +77,16 @@ npm test
 npm run package:win
 ```
 
-`npm run package:win` reads the root package version, builds the mobile client,
-publishes both host variants, compiles the cursor watchdog, creates the portable
-ZIP and both NSIS installers, and validates their Windows metadata.
-
-Build only the framework-dependent installer with:
+Installer iteration:
 
 ```powershell
 npm run package:win:small
-```
-
-Validate both installer definitions without compression with:
-
-```powershell
 npm run package:win:test
-```
-
-This writes test installers under `artifacts/test`:
-
-```text
-artifacts/test/VolturaAir-Setup-<version>-win-x64-test-uncompressed.exe
-artifacts/test/VolturaAir-Setup-<version>-win-x64-full-test-uncompressed.exe
-```
-
-Never publish files from `artifacts/test`.
-
-Reuse existing publish directories for an NSIS-only check with:
-
-```powershell
 npm run package:win:test -- -SkipBuild
 ```
 
-For a prepared version and the default `win-x64` runtime, output files are named:
+`package:win:test` writes uncompressed test installers under `artifacts/test`;
+never publish them. Releasable names are:
 
 ```text
 artifacts/publish/VolturaAir-<version>-win-x64.zip
@@ -158,100 +94,22 @@ artifacts/publish/VolturaAir-Setup-<version>-win-x64.exe
 artifacts/publish/VolturaAir-Setup-<version>-win-x64-full.exe
 ```
 
-To override the prepared version or runtime explicitly:
+For explicit script options:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/package-win.ps1 -Version <version> -Runtime win-x64
-```
-
-To rebuild the zip and installer from an existing publish directory:
-
-```powershell
 powershell -ExecutionPolicy Bypass -File scripts/package-win.ps1 -Version <version> -Runtime win-x64 -SkipBuild
 ```
 
-## GitHub Actions state
+## Publication boundary
 
-The Release and Quality workflow sources are stored under `scripts/legacy/`. No
-workflow YAML exists under `.github/workflows`, so GitHub cannot discover or run
-repository workflows. GitHub also records both workflows as manually disabled.
-The local release command refuses to run if workflow YAML has been restored,
-preventing local and hosted publication paths from competing.
+Releases run locally. `.github/workflows` must be empty; the release command
+refuses competing workflow files. `npm run actions:restore` copies the
+checked-in workflow definitions for deliberate review and refuses overwrite;
+review triggers and GitHub state before committing them.
 
-To deliberately copy both workflows back to `.github/workflows` for review and
-possible future re-enabling, run:
-
-```powershell
-npm run actions:restore
-```
-
-The restore command refuses to overwrite existing workflow files. Restoring the
-files changes repository state but does not inspect or change GitHub's remote
-workflow setting; review triggers and remote state before committing them.
-
-## Maintain release notes
-
-Maintain `docs/release-notes.md` newest first. Before starting a release, add
-one heading such as `## v0.8.0` at the top, followed by concise user-facing
-bullets. The local release command refuses to prepare a version when its section
-is missing, duplicated, empty, or contains only an editorial HTML comment.
-
-```markdown
-## v0.8.0
-
-- <New capability or important user-visible improvement.>
-- <Important defect, recovery, pairing, or compatibility improvement.>
-- <Any setup, compatibility, alpha-feature, or known-limitation note.>
-```
-
-Include only new user-facing features and fixes for defects that users could
-actually experience. Omit refactors, code organization, tests, CI, tooling,
-documentation, dependency maintenance, and other internal work. Keep the
-required notices once, unchanged, in the bottom `## General notices` section:
-
-```markdown
-Voltura Air is free software from Voltura AB. If it helps you, optional support is available through [Ko-fi](https://ko-fi.com/voltura) or [PayPal](https://www.paypal.me/voltura).
-
-Release binaries are not code-signed. Windows may show an unknown-publisher or Microsoft Defender SmartScreen warning. Download release files only from the official Voltura Air website or GitHub release page.
-```
-
-The local command requires at least one user-facing change, then adds the shared
-notices, download guidance, and a changelog link to the GitHub body. The
-generated body places invisible synchronization markers around the editable
-notes and notices. Preserve those HTML comments when editing a draft in GitHub.
-
-After publishing the draft manually in GitHub, synchronize the published
-editorial block back into its matching local section:
-
-```powershell
-npm run release:sync-release-notes
-```
-
-With no argument, the command selects GitHub's Latest published release. Select
-another published stable or prerelease version explicitly with:
-
-```powershell
-npm run release:sync-release-notes -- 0.8.0
-```
-
-Synchronization requires a clean worktree, exactly one marker pair, both exact
-notices, user-facing content, and one matching local version section. It updates
-only that version's user-facing notes in `docs/release-notes.md`; shared notices
-remain unchanged. It preserves line endings and does not edit GitHub, commit,
-push, bump a version, or publish anything. Review and commit the resulting
-documentation diff manually. Repeating the command when both copies already
-match succeeds without rewriting the file.
-
-When a release changes pairing, authentication, permissions, or network
-exposure, state the practical security impact without implying transport
-protection. Voltura Air remains an HTTP/WebSocket application for trusted local
-networks; link to [SECURITY.md](../SECURITY.md) for the LAN and same-user trust
-boundary.
-
-## Create GitHub release assets manually
-
-First confirm that the tag and release do not already exist. If either exists,
-prepare a new version rather than deleting or replacing it. Create a new release:
+Never delete, replace, or overwrite an existing release/tag asset. Prepare a new
+version. Manual publication, when required:
 
 ```powershell
 $version = "<version>"
@@ -259,55 +117,48 @@ gh release create "v$version" `
   --repo voltura/voltura-air `
   --target main `
   --title "Voltura Air v$version" `
-  --notes "Windows release assets for Voltura Air v$version." `
+  --notes-file "<prepared-notes-file>" `
   "artifacts/publish/VolturaAir-$version-win-x64.zip" `
   "artifacts/publish/VolturaAir-Setup-$version-win-x64.exe" `
   "artifacts/publish/VolturaAir-Setup-$version-win-x64-full.exe"
 ```
 
-Add `--prerelease` when the semantic version contains a prerelease suffix.
+Add `--prerelease` for a prerelease version.
 
-## Installer behavior
+## Release notes
 
-- The installer restores and visibly activates its setup window after launch,
-  including when Windows SmartScreen delayed startup, without remaining
-  always-on-top.
-- Both installers install Voltura Air per user under `%LOCALAPPDATA%\Programs\Voltura Air`.
-- `VolturaAir-Setup-<version>-win-x64.exe` downloads the .NET 10 Windows Desktop and ASP.NET Core runtimes when they are missing. This requires an internet connection in that case and can require Windows administrator approval because the .NET runtimes are installed for the PC.
-- `VolturaAir-Setup-<version>-win-x64-full.exe` includes all required components, works without an internet connection, and does not require administrator rights.
-- Creates Start Menu shortcuts and an Apps & Features uninstall entry.
-- Leaves Windows startup behavior to the in-app setting.
-- Removes installed program files and shortcuts on uninstall.
-- Keeps pairing and settings data under `%APPDATA%\Voltura Air`.
+Maintain `docs/release-notes.md` newest first with one `## v<version>` section
+of concise user-visible capabilities, fixes, setup/compatibility notes, or known
+limitations. Omit refactors, tests, tooling, dependency maintenance, and other
+internal work. Keep its General notices unchanged.
 
-## Connection reliability release checks
+The release command validates the section and builds the GitHub body. After a
+manual GitHub edit/publish, import the marked editorial block with:
 
-For releases that touch pairing, WebSocket handling, protocol, or input dispatch,
-verify these cases manually in addition to automated tests:
+```powershell
+npm run release:sync-release-notes
+npm run release:sync-release-notes -- 0.8.0
+```
 
-- normal QR pairing and saved-device reconnect;
-- expired, stale, invalid, and missing pairing token feedback;
-- host closed while the mobile app is connected;
-- phone browser or installed PWA backgrounded and resumed;
-- network interruption or IP/port change;
-- input dispatch failure shows unavailable or retrying state instead of dead controls;
-- Lock PC shows an accepted result or a specific permission, policy, unsupported, or Windows failure without closing the WebSocket;
-- Blackout display covers all monitors without suspending the host and closes on local or remote input;
-- Screen saver is visible only with an enabled, configured Windows screen saver and invokes the native Windows command;
-- Turn off display warns that HDMI output will stop and that some PCs enter sleep or Modern Standby, requires confirmation, and reports the PC unavailable normally when Windows suspends the host; physical input may be required to wake;
-- browser storage cleanup requires re-pairing or reconnects visibly.
+The sync requires a clean worktree and updates only the matching local notes
+section; review and commit its diff. Security-sensitive notes state practical
+impact without implying encrypted internet transport.
 
-## Final release sanity checks
+## Release-specific verification
 
-Before announcing the release:
+The full release gate is mandatory. Add focused manual checks when the release
+touches pairing, WebSockets, protocol, input, power/session actions, installer
+runtime acquisition, or recovery. Validate actual affected production paths,
+including failure and reconnect/cleanup.
 
-- confirm the preparation diff contains the intended version only;
-- confirm build, tests, and packaging completed successfully;
-- confirm all three GitHub release assets exist with the expected names;
-- install both downloaded installers on clean or disposable Windows profiles; verify the default installer obtains missing runtimes and the full installer works without a runtime download;
-- inspect the downloaded installers, installed `VolturaAir.Host.exe`, and
-  `VolturaAir.Host.dll` in File Explorer Properties > Details and confirm the
-  expected file and product versions;
-- confirm the host and mobile UI display the expected version;
-- confirm a phone can pair from a fresh QR code and reconnect after host restart;
-- update public release/download text when product-facing behavior changed.
+Before announcement, confirm:
+
+- expected version diff and all automated gates;
+- ZIP plus both installers and their SHA-256 hashes;
+- clean-profile install of the runtime-downloading and full installers;
+- Windows file/product and host/mobile displayed versions;
+- fresh QR pairing and reconnect;
+- public copy, links, package labels, and screenshots.
+
+Installer choices and requirements are owned by the
+[README](../README.md#download-and-install).

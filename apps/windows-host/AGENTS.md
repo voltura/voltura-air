@@ -54,9 +54,10 @@ Before a Windows-host command, run:
 - UI-only changes need focused UI/state tests where useful, a warning-free host
   build, and quick checks at relevant size, DPI, theme, focus, and scroll states.
 - Use normal project tests, not ad-hoc reflection or UI scripting.
-- Run host build and tests sequentially:
+- Run the host build, ownership gate, and tests sequentially:
 
 ```powershell
 dotnet build VolturaAir.slnx
+npm run host:ownership:check
 dotnet test VolturaAir.slnx --no-build
 ```

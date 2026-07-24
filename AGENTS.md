@@ -7,11 +7,11 @@ map; `docs/ui-system.md` and `docs/architecture.md` define the target design.
 
 Use this order:
 
-1. Current user request.
-2. Safety, data integrity, product invariants, and intentional behavior.
+1. Safety, data integrity, and explicit product invariants.
+2. Current user request, including explicitly requested behavior changes.
 3. Closest `AGENTS.md`.
 4. Applicable authority documents.
-5. Existing code and tests.
+5. Intentional behavior evidenced by existing code and tests.
 
 If sources materially conflict, show the evidence and ask. Correct obvious
 stale references within the task.
@@ -25,18 +25,27 @@ stale references within the task.
   test-harness behavior.
 - Keep changes focused. Prefer explicit ownership and event-driven work.
 - Review a production dependency before adding it.
-- Use the current design; remove replaced internal formats and structures.
-  Stored data remains untrusted and bounded.
+- Use the current design; remove replaced internal formats and structures only
+  after affected persistence and wire compatibility is handled explicitly.
+  Before changing or removing a persisted or wire format, define its support
+  window, migration or rejection behavior, and current authority and test
+  updates. Stored data remains untrusted and bounded.
 - Protocol and security tests state the current contract directly; helpers must
   not repair or enrich tested messages.
 
 ## UI work
 
-- Before material UI work, ask for autonomous completion or visual checkpoints.
+- Material UI work changes layout, visual styling, content hierarchy,
+  interaction, navigation, or visible state behavior beyond an isolated copy or
+  generated-token correction.
+- Use a visual checkpoint by default. Use autonomous completion only when the
+  user explicitly requests it; if the requested mode is unclear, keep the
+  visual-checkpoint default.
 - Autonomous: implement and validate normally.
-- Visual checkpoint: make a runnable representative result, stop coding and
-  tests, launch it, and wait for feedback. For WPF run
-  `./scripts/host-preflight.ps1`, then `npm run dev:quick`.
+- Visual checkpoint: make a runnable representative result, stop further coding
+  and validation, launch it, and wait for feedback. For WPF run
+  `./scripts/host-preflight.ps1`, then `npm run dev:quick`. After approval,
+  finish the implementation and validation normally.
 - Keep the chosen mode for the task.
 - Install needed validation or inspection tooling. Do not report incomplete work
   as complete.
@@ -48,6 +57,25 @@ stale references within the task.
   `docs/host-ui-guidelines.md`.
 - `scripts`: read `scripts/AGENTS.md`.
 - Generate icons with `npm run icons:generate`; do not edit generated copies.
+
+## Authority routing
+
+- User-visible capability or guarantee: `docs/features.md` and any feature
+  authority named there.
+- UI, layout, interaction, or accessibility: `docs/ui-system.md`; for WPF also
+  `docs/host-ui-guidelines.md`; for pairing states also
+  `docs/pairing-feedback.md`.
+- Wire messages, authentication, capabilities, acknowledgements, or bounds:
+  `docs/protocol.md` and `docs/architecture.md`.
+- Network, adapter, port, host-hint, or saved-PC behavior:
+  `docs/network-and-host-selection.md`.
+- Persistence, diagnostics, logging, credentials, or trust boundaries:
+  `docs/architecture.md`, `PRIVACY.md`, and the relevant protocol or feature
+  authority.
+- Installation, development commands, packaging, or publication:
+  `docs/setup.md`, `docs/release.md`, and `scripts/AGENTS.md` as applicable.
+- Documentation or public-copy changes: use `docs/README.md` to identify the
+  owning authority and every derived surface that must stay synchronized.
 
 ## Invariants
 

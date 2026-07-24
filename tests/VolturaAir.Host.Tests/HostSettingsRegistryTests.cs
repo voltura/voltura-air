@@ -48,15 +48,19 @@ public sealed class HostSettingsRegistryTests : IsolatedHostSettingsTest
     }
 
     [Fact]
-    public void CursorRecoveryWatchdogIsEnabledByDefaultAndCanBeDisabled()
+    public void LegacyCursorRecoverySettingIsRemoved()
     {
-        Assert.True(AppPointerSettings.UseCursorRecoveryWatchdog());
+        using (var key = Registry.CurrentUser.OpenSubKey(HostSettingsRegistry.SettingsKeyPath, writable: true))
+        {
+            Assert.NotNull(key);
+            key.SetValue("UseCursorRecoveryWatchdog", 0, RegistryValueKind.DWord);
+        }
 
-        AppPointerSettings.SetUseCursorRecoveryWatchdog(false);
-        Assert.False(AppPointerSettings.UseCursorRecoveryWatchdog());
+        AppPointerSettings.RemoveLegacyCursorRecoverySetting();
 
-        AppPointerSettings.SetUseCursorRecoveryWatchdog(true);
-        Assert.True(AppPointerSettings.UseCursorRecoveryWatchdog());
+        using var refreshed = Registry.CurrentUser.OpenSubKey(HostSettingsRegistry.SettingsKeyPath, writable: false);
+        Assert.NotNull(refreshed);
+        Assert.Null(refreshed.GetValue("UseCursorRecoveryWatchdog"));
     }
 
     [Fact]

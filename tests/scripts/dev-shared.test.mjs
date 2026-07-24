@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { stopExistingHost, waitForWindowsProcessExit } from "../../scripts/dev-shared.mjs";
 
-test("stops and waits for the host before waiting for cursor recovery", () => {
+const devSharedSource = readFileSync(new URL("../../scripts/dev-shared.mjs", import.meta.url), "utf8");
+
+test("stops and waits only for the host", () => {
   const operations = [];
   const run = (command, args) => {
     operations.push({ command, args });
@@ -24,8 +27,8 @@ test("stops and waits for the host before waiting for cursor recovery", () => {
   });
   assert.equal(operations[1].waitFor, "VolturaAir.Host.exe");
   assert.equal(operations[1].run, run);
-  assert.equal(operations[2].waitFor, "VolturaAir.CursorWatchdog.exe");
-  assert.equal(operations[2].run, run);
+  assert.equal(operations.length, 2);
+  assert.doesNotMatch(devSharedSource, /watchdog|cursor recovery/iu);
 });
 
 test("refuses to continue when the existing host does not exit", () => {
@@ -38,24 +41,13 @@ test("refuses to continue when the existing host does not exit", () => {
     /existing Voltura Air host/i);
 });
 
-test("refuses to continue when cursor recovery does not finish", () => {
-  let waitCount = 0;
-  assert.throws(
-    () => stopExistingHost({
-      platform: "win32",
-      run: () => ({ stdout: "" }),
-      waitForProcessExit: () => ++waitCount === 1
-    }),
-    /cursor watchdog/i);
-});
-
 test("waits until the named Windows process exits", () => {
   let checks = 0;
   const sleeps = [];
-  const exited = waitForWindowsProcessExit("VolturaAir.CursorWatchdog.exe", {
+  const exited = waitForWindowsProcessExit("VolturaAir.Host.exe", {
     run: () => ({
       stdout: checks++ < 2
-        ? '"VolturaAir.CursorWatchdog.exe","123","Console","1","1,000 K"'
+        ? '"VolturaAir.Host.exe","123","Console","1","1,000 K"'
         : "INFO: No tasks are running which match the specified criteria."
     }),
     now: () => 0,
@@ -68,14 +60,14 @@ test("waits until the named Windows process exits", () => {
   assert.deepEqual(sleeps, [10, 10]);
 });
 
-test("treats an absent optional cursor watchdog as already stopped", () => {
+test("treats an absent process as already stopped", () => {
   let checks = 0;
-  const exited = waitForWindowsProcessExit("VolturaAir.CursorWatchdog.exe", {
+  const exited = waitForWindowsProcessExit("VolturaAir.Host.exe", {
     run: () => {
       checks += 1;
       return { stdout: "INFO: No tasks are running which match the specified criteria." };
     },
-    sleep: () => assert.fail("An absent watchdog must not be waited on")
+    sleep: () => assert.fail("An absent process must not be waited on")
   });
 
   assert.equal(exited, true);

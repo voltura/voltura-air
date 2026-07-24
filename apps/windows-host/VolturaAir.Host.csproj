@@ -73,7 +73,7 @@
     <Delete Files="@(StaleWpfMarkupCache)" />
   </Target>
 
-  <Target Name="BuildCursorWatchdog" AfterTargets="Build" Condition="'$(DesignTimeBuild)' != 'true' AND '$(PublishSingleFile)' == '' AND ('$(SkipCursorWatchdogBuild)' != 'true' OR !Exists('$(OutDir)VolturaAir.CursorWatchdog.exe'))">
+  <Target Name="BuildCursorWatchdog" AfterTargets="Build" Condition="'$(DesignTimeBuild)' != 'true' AND '$(PublishSingleFile)' == ''">
     <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\..\scripts\build-cursor-watchdog.ps1&quot; -OutputPath &quot;$(OutDir)VolturaAir.CursorWatchdog.exe&quot;" />
   </Target>
 

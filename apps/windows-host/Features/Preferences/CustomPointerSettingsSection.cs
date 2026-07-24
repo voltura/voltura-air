@@ -17,15 +17,13 @@ using Point = System.Windows.Point;
 namespace VolturaAir.Host.Features.Preferences;
 
 internal sealed class CustomPointerSettingsSection(
-    Window owner,
-    CustomPointerService customPointerService,
+    ICursorOverrideController cursorOverrides,
     IAppLogWriter appLog,
     HostVisualFactory visuals,
     HostToastPresenter toasts,
     Func<bool> isLoading)
 {
-    internal const string WatchdogStartFailureMessage =
-        "Cursor recovery watchdog could not be started. Reinstall Voltura Air to restore it.";
+    internal const string TemporarilyUnavailableMessage = "Custom pointer is temporarily unavailable.";
 
     public void AddTo(StackPanel parent)
     {
@@ -73,69 +71,6 @@ internal sealed class CustomPointerSettingsSection(
         controls.Children.Add(colorRow);
         parent.Children.Add(controls);
 
-        var useWatchdog = visuals.CreateCheckBox(
-            "Cursor recovery watchdog",
-            AppPointerSettings.UseCursorRecoveryWatchdog(),
-            showInformation: () => ThemedConfirmationDialog.ShowInformation(
-                owner,
-                "Cursor recovery watchdog",
-                "Required for Custom pointer. Restores normal Windows cursors if Voltura Air stops unexpectedly."));
-        useWatchdog.VerticalAlignment = VerticalAlignment.Center;
-        parent.Children.Add(useWatchdog);
-
-        var synchronizingWatchdog = false;
-        void UpdateWatchdogVisual()
-        {
-            var enabled = useWatchdog.IsChecked == true;
-            useWatchdog.Opacity = enabled ? 1 : 0.92;
-        }
-
-        void SaveWatchdogSetting(bool enabled)
-        {
-            if (synchronizingWatchdog)
-            {
-                return;
-            }
-
-            if (!enabled && customPointer.IsChecked == true)
-            {
-                Save(false, (int)Math.Round(size.Value), GetColor(colorButton));
-                customPointer.IsChecked = false;
-                controls.IsEnabled = false;
-            }
-
-            AppPointerSettings.SetUseCursorRecoveryWatchdog(enabled);
-            try
-            {
-                customPointerService.RefreshRecoveryMonitoring();
-                appLog.Write(new AppLogEntry(
-                    Event: "host_action",
-                    Source: "windows_host",
-                    Action: "cursor_recovery_watchdog",
-                    Outcome: enabled ? "enabled" : "disabled"));
-            }
-            catch (Exception exception)
-            {
-                AppPointerSettings.SetUseCursorRecoveryWatchdog(false);
-                synchronizingWatchdog = true;
-                useWatchdog.IsChecked = false;
-                synchronizingWatchdog = false;
-                appLog.Write(new AppLogEntry(
-                    Event: "host_action",
-                    Source: "windows_host",
-                    Action: "cursor_recovery_watchdog",
-                    Outcome: "failed",
-                    Detail: exception.Message));
-                toasts.Show(WatchdogStartFailureMessage);
-            }
-
-            UpdateWatchdogVisual();
-        }
-
-        useWatchdog.Checked += (_, _) => SaveWatchdogSetting(true);
-        useWatchdog.Unchecked += (_, _) => SaveWatchdogSetting(false);
-        UpdateWatchdogVisual();
-
         var sizePreviewTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
         EventHandler previewTick = (_, _) =>
         {
@@ -148,26 +83,22 @@ internal sealed class CustomPointerSettingsSection(
             sizePreviewTimer.Stop();
             sizePreviewTimer.Tick -= previewTick;
             colorPopup.IsOpen = false;
+            AppPointerSettings.Changed -= OnPointerSettingsChanged;
         };
 
         customPointer.Checked += (_, _) =>
         {
-            if (!AppPointerSettings.UseCursorRecoveryWatchdog())
+            controls.IsEnabled = true;
+            if (!Save(true, (int)Math.Round(size.Value), GetColor(colorButton)))
             {
                 customPointer.IsChecked = false;
-                toasts.Show("Enable Cursor recovery watchdog before turning on Custom pointer.");
-                return;
+                controls.IsEnabled = false;
             }
-
-            controls.IsEnabled = true;
-            Save(true, (int)Math.Round(size.Value), GetColor(colorButton));
-            UpdateWatchdogVisual();
         };
         customPointer.Unchecked += (_, _) =>
         {
             controls.IsEnabled = false;
             Save(false, (int)Math.Round(size.Value), GetColor(colorButton));
-            UpdateWatchdogVisual();
         };
         size.ValueChanged += (_, _) =>
         {
@@ -179,14 +110,30 @@ internal sealed class CustomPointerSettingsSection(
                 sizePreviewTimer.Start();
             }
         };
+
+        AppPointerSettings.Changed += OnPointerSettingsChanged;
+
+        void OnPointerSettingsChanged(object? sender, EventArgs eventArgs)
+        {
+            if (AppPointerSettings.GetCustomPointer().Enabled || customPointer.IsChecked != true)
+            {
+                return;
+            }
+
+            _ = customPointer.Dispatcher.BeginInvoke(() =>
+            {
+                customPointer.IsChecked = false;
+                controls.IsEnabled = false;
+            });
+        }
     }
 
-    private void Save(bool enabled, int size, uint color)
+    private bool Save(bool enabled, int size, uint color)
     {
         var settings = new CustomPointerSettings(enabled, size, color);
         try
         {
-            customPointerService.Apply(settings);
+            cursorOverrides.ApplyCustomPointer(settings);
             AppPointerSettings.SetCustomPointer(settings);
             appLog.Write(new AppLogEntry(
                 Event: "host_action",
@@ -194,6 +141,7 @@ internal sealed class CustomPointerSettingsSection(
                 Action: "custom_pointer",
                 Outcome: enabled ? "enabled" : "disabled",
                 Detail: $"size={settings.Size};color=#{settings.Color:X6}"));
+            return true;
         }
         catch (Exception exception)
         {
@@ -203,7 +151,10 @@ internal sealed class CustomPointerSettingsSection(
                 Action: "custom_pointer",
                 Outcome: "failed",
                 Detail: exception.Message));
-            toasts.Show("Custom pointer could not be applied. Your Windows cursor scheme was restored.");
+            toasts.Show(exception is CursorRecoveryUnavailableException
+                ? TemporarilyUnavailableMessage
+                : "Custom pointer could not be applied. Your Windows cursor scheme was restored.");
+            return false;
         }
     }
 

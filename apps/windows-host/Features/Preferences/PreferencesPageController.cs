@@ -32,7 +32,7 @@ internal sealed class PreferencesPageController
         ISystemPowerController powerController,
         IWorkstationLockPolicy workstationLockPolicy,
         IAwakeService awakeService,
-        CustomPointerService customPointerService,
+        ICursorOverrideController cursorOverrides,
         IAppLog appLog,
         IAppLaunchService appLaunchService,
         HostVisualFactory visuals,
@@ -48,8 +48,8 @@ internal sealed class PreferencesPageController
         _awake = new AwakeSettingsSection(owner, awakeService, visuals, toasts, () => _isLoading);
         _appLaunch = new AppLaunchSettingsSection(owner, appLaunchService, visuals, _preferenceVisuals, toasts, () => _isLoading, RefreshPreservingState);
         _textDestination = new TextDestinationSettingsSection(owner, visuals, _preferenceVisuals, toasts, () => _isLoading);
-        _customPointer = new CustomPointerSettingsSection(owner, customPointerService, appLog, visuals, toasts, () => _isLoading);
-        _presentation = new PresentationSettingsSection(customPointerService, appLog, visuals, toasts, () => _isLoading);
+        _customPointer = new CustomPointerSettingsSection(cursorOverrides, appLog, visuals, toasts, () => _isLoading);
+        _presentation = new PresentationSettingsSection(cursorOverrides, appLog, visuals, toasts, () => _isLoading);
         _application = new ApplicationSettingsSection(appLog, visuals, _preferenceVisuals, () => _isLoading);
         _permissions = new GlobalPermissionsSettingsSection(powerController, owner, visuals, _preferenceVisuals, () => _isLoading);
         _developer = new DeveloperSettingsSection(owner, powerController, workstationLockPolicy, appLog, visuals, _preferenceVisuals, toasts, RefreshPreservingState);

@@ -5,6 +5,22 @@ namespace VolturaAir.Host.Tests;
 public sealed class PresentationLaserPointerControllerTests
 {
     [Fact]
+    public void RecoveryRevocationClearsStateWithoutApplyingAnotherCursor()
+    {
+        var applied = new List<bool>();
+        using var controller = new PresentationLaserPointerController(applied.Add);
+        var changes = 0;
+        controller.StateChanged += (_, _) => changes += 1;
+        controller.SetEnabled("client-a", enabled: true);
+
+        controller.Revoke();
+
+        Assert.False(controller.IsEnabled);
+        Assert.Equal([true], applied);
+        Assert.Equal(2, changes);
+    }
+
+    [Fact]
     public void DesiredStateIsIdempotentAndOnlyTheOwnerCanDisable()
     {
         var applied = new List<bool>();

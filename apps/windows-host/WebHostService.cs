@@ -31,6 +31,8 @@ public sealed class WebHostService : IAsyncDisposable
     private int _disposeState;
     private WebApplication? _app;
 
+    internal void RevokeCursorOverrides() => _presentationLaserPointer.Revoke();
+
     public WebHostService(
         PairingManager pairingManager,
         InputDispatcher inputDispatcher,
@@ -191,6 +193,7 @@ public sealed class WebHostService : IAsyncDisposable
             statusFactory,
             _appLog,
             _presentationLaserPointer);
+        _sessionHandler.StatusRefreshRequested += (_, _) => _statusBroadcaster.Queue();
     }
 
     public int Port { get; }

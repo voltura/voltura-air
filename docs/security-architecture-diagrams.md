@@ -79,7 +79,7 @@ flowchart LR
   Source["Clean main checkout\nrelease notes prepared"] --> Local["npm run release:draft\nor npm run release:full\nmaintainer Windows PC"]
   Local --> Guard["Resolve new version\nor matching resumable draft"]
   Guard --> Test["npm test\nhost tests\nscript/doc checks"]
-  Test --> Package["package-win.ps1\nmobile build\n.NET publish\ncursor watchdog\nNSIS installers"]
+  Test --> Package["package-win.ps1\nmobile build\n.NET publish\nNSIS installers"]
   Package --> Artifacts["ZIP + installers\nartifacts/publish"]
   Artifacts --> Mode{"Release command"}
   Mode -->|"release:draft"| Draft["Audited GitHub draft"]

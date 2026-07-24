@@ -2,24 +2,20 @@
 #include <errno.h>
 #include <limits.h>
 #include <shellapi.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <wchar.h>
 
-#define MONITOR_READY_TIMEOUT_MS 5000
-#define MONITOR_ARGUMENT L"--monitor"
 #define RESTORE_COMPLETED_EVENT_ARGUMENT L"--restore-completed-event"
 #define NO_RESTORE_COMPLETED_EVENT L"-"
+#define INITIAL_RESTORE_RETRY_MS 25
+#define MAX_RESTORE_RETRY_MS 1000
 
 typedef enum WatchdogResult
 {
     WATCHDOG_SUCCESS = 0,
     WATCHDOG_INVALID_ARGUMENTS = 1,
-    WATCHDOG_RESTORE_FAILED = 2,
-    WATCHDOG_ALREADY_RUNNING = 3,
-    WATCHDOG_STARTUP_FAILED = 4,
-    WATCHDOG_WAIT_FAILED = 5,
-    WATCHDOG_LAUNCH_FAILED = -WATCHDOG_STARTUP_FAILED
+    WATCHDOG_STARTUP_FAILED = 2,
+    WATCHDOG_WAIT_FAILED = 3
 } WatchdogResult;
 
 static DWORD ParseProcessId(const wchar_t* value)
@@ -61,48 +57,77 @@ static BOOL SignalNamedEvent(const wchar_t* eventName)
     return signaled;
 }
 
+static void RestoreWindowsCursorScheme(const wchar_t* restoreCompletedEventName)
+{
+    DWORD retryDelay = INITIAL_RESTORE_RETRY_MS;
+    while (!SystemParametersInfoW(SPI_SETCURSORS, 0, NULL, 0))
+    {
+        Sleep(retryDelay);
+        retryDelay = min(retryDelay * 2, MAX_RESTORE_RETRY_MS);
+    }
+
+    if (wcscmp(restoreCompletedEventName, NO_RESTORE_COMPLETED_EVENT) != 0)
+    {
+        (void)SignalNamedEvent(restoreCompletedEventName);
+    }
+}
+
 static WatchdogResult RunMonitor(
     DWORD hostProcessId,
     const wchar_t* readyEventName,
     const wchar_t* restoreCompletedEventName)
 {
+    DWORD sessionId = 0;
+    if (!ProcessIdToSessionId(hostProcessId, &sessionId))
+    {
+        return WATCHDOG_STARTUP_FAILED;
+    }
+
     wchar_t mutexName[128];
     if (swprintf_s(
             mutexName,
             ARRAYSIZE(mutexName),
-            L"Local\\VolturaAir.CursorWatchdog.%lu",
-            hostProcessId) < 0)
+            L"Local\\VolturaAir.CursorRecovery.%lu",
+            sessionId) < 0)
     {
         return WATCHDOG_STARTUP_FAILED;
     }
 
-    /* One monitor may own a given host PID; a previous host may finish independently. */
-    HANDLE singleInstance = CreateMutexW(NULL, FALSE, mutexName);
-    if (singleInstance == NULL)
+    HANDLE sessionMutex = CreateMutexW(NULL, FALSE, mutexName);
+    if (sessionMutex == NULL)
     {
         return WATCHDOG_STARTUP_FAILED;
-    }
-
-    const DWORD mutexResult = WaitForSingleObject(singleInstance, 0);
-    if (mutexResult != WAIT_OBJECT_0 && mutexResult != WAIT_ABANDONED)
-    {
-        CloseHandle(singleInstance);
-        return mutexResult == WAIT_TIMEOUT ? WATCHDOG_ALREADY_RUNNING : WATCHDOG_STARTUP_FAILED;
     }
 
     HANDLE hostProcess = OpenProcess(SYNCHRONIZE, FALSE, hostProcessId);
     if (hostProcess == NULL)
     {
-        ReleaseMutex(singleInstance);
-        CloseHandle(singleInstance);
+        CloseHandle(sessionMutex);
         return WATCHDOG_STARTUP_FAILED;
+    }
+
+    const DWORD mutexResult = WaitForSingleObject(sessionMutex, INFINITE);
+    if (mutexResult != WAIT_OBJECT_0 && mutexResult != WAIT_ABANDONED)
+    {
+        CloseHandle(hostProcess);
+        CloseHandle(sessionMutex);
+        return WATCHDOG_WAIT_FAILED;
+    }
+
+    if (WaitForSingleObject(hostProcess, 0) == WAIT_OBJECT_0)
+    {
+        CloseHandle(hostProcess);
+        RestoreWindowsCursorScheme(restoreCompletedEventName);
+        ReleaseMutex(sessionMutex);
+        CloseHandle(sessionMutex);
+        return WATCHDOG_SUCCESS;
     }
 
     if (!SignalNamedEvent(readyEventName))
     {
         CloseHandle(hostProcess);
-        ReleaseMutex(singleInstance);
-        CloseHandle(singleInstance);
+        ReleaseMutex(sessionMutex);
+        CloseHandle(sessionMutex);
         return WATCHDOG_STARTUP_FAILED;
     }
 
@@ -110,133 +135,15 @@ static WatchdogResult RunMonitor(
     CloseHandle(hostProcess);
     if (hostWaitResult != WAIT_OBJECT_0)
     {
-        ReleaseMutex(singleInstance);
-        CloseHandle(singleInstance);
+        ReleaseMutex(sessionMutex);
+        CloseHandle(sessionMutex);
         return WATCHDOG_WAIT_FAILED;
     }
 
-    /*
-     * Restore after every confirmed host exit. A second restore is harmless,
-     * while host-provided clean-exit state would add recovery failure paths.
-     */
-    const BOOL restored = SystemParametersInfoW(SPI_SETCURSORS, 0, NULL, 0);
-    if (restored && wcscmp(restoreCompletedEventName, NO_RESTORE_COMPLETED_EVENT) != 0)
-    {
-        (void)SignalNamedEvent(restoreCompletedEventName);
-    }
-
-    ReleaseMutex(singleInstance);
-    CloseHandle(singleInstance);
-    return restored ? WATCHDOG_SUCCESS : WATCHDOG_RESTORE_FAILED;
-}
-
-/*
- * Returns a positive monitor PID after readiness, or WATCHDOG_LAUNCH_FAILED.
- * The caller must receive a positive PID before replacing any system cursor.
- */
-static int LaunchMonitor(DWORD hostProcessId, const wchar_t* restoreCompletedEventName)
-{
-    wchar_t executablePath[MAX_PATH];
-    const DWORD pathLength = GetModuleFileNameW(NULL, executablePath, ARRAYSIZE(executablePath));
-    if (pathLength == 0 || pathLength >= ARRAYSIZE(executablePath))
-    {
-        return WATCHDOG_LAUNCH_FAILED;
-    }
-
-    wchar_t readyEventName[128];
-    if (swprintf_s(
-            readyEventName,
-            ARRAYSIZE(readyEventName),
-            L"Local\\VolturaAir.CursorWatchdog.Ready.%lu.%lu",
-            hostProcessId,
-            GetCurrentProcessId()) < 0)
-    {
-        return WATCHDOG_LAUNCH_FAILED;
-    }
-
-    HANDLE readyEvent = CreateEventW(NULL, TRUE, FALSE, readyEventName);
-    if (readyEvent == NULL)
-    {
-        return WATCHDOG_LAUNCH_FAILED;
-    }
-
-    wchar_t commandLine[MAX_PATH + 512];
-    if (swprintf_s(
-            commandLine,
-            ARRAYSIZE(commandLine),
-            L"\"%ls\" %ls %lu \"%ls\" \"%ls\"",
-            executablePath,
-            MONITOR_ARGUMENT,
-            hostProcessId,
-            readyEventName,
-            restoreCompletedEventName) < 0)
-    {
-        CloseHandle(readyEvent);
-        return WATCHDOG_LAUNCH_FAILED;
-    }
-
-    STARTUPINFOW startupInfo = {0};
-    startupInfo.cb = sizeof(startupInfo);
-    PROCESS_INFORMATION processInformation = {0};
-    const BOOL started = CreateProcessW(
-        executablePath,
-        commandLine,
-        NULL,
-        NULL,
-        FALSE,
-        CREATE_NO_WINDOW | CREATE_BREAKAWAY_FROM_JOB,
-        NULL,
-        NULL,
-        &startupInfo,
-        &processInformation);
-    if (!started)
-    {
-        CloseHandle(readyEvent);
-        return WATCHDOG_LAUNCH_FAILED;
-    }
-
-    CloseHandle(processInformation.hThread);
-    const HANDLE startupWaitHandles[] =
-    {
-        readyEvent,
-        processInformation.hProcess
-    };
-    const DWORD startupResult = WaitForMultipleObjects(
-        ARRAYSIZE(startupWaitHandles),
-        startupWaitHandles,
-        FALSE,
-        MONITOR_READY_TIMEOUT_MS);
-    CloseHandle(readyEvent);
-
-    if (startupResult == WAIT_OBJECT_0)
-    {
-        const DWORD monitorProcessId = processInformation.dwProcessId;
-        if (monitorProcessId <= INT_MAX)
-        {
-            CloseHandle(processInformation.hProcess);
-            return (int)monitorProcessId;
-        }
-    }
-    else if (startupResult == WAIT_OBJECT_0 + 1)
-    {
-        CloseHandle(processInformation.hProcess);
-        return WATCHDOG_LAUNCH_FAILED;
-    }
-
-    if (TerminateProcess(processInformation.hProcess, WATCHDOG_STARTUP_FAILED))
-    {
-        const DWORD terminationResult = WaitForSingleObject(
-            processInformation.hProcess,
-            MONITOR_READY_TIMEOUT_MS);
-        if (terminationResult == WAIT_FAILED)
-        {
-            CloseHandle(processInformation.hProcess);
-            return WATCHDOG_LAUNCH_FAILED;
-        }
-    }
-
-    CloseHandle(processInformation.hProcess);
-    return WATCHDOG_LAUNCH_FAILED;
+    RestoreWindowsCursorScheme(restoreCompletedEventName);
+    ReleaseMutex(sessionMutex);
+    CloseHandle(sessionMutex);
+    return WATCHDOG_SUCCESS;
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previousInstance, PWSTR commandLine, int showCommand)
@@ -254,28 +161,20 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previousInstance, PWSTR comman
     }
 
     int result = WATCHDOG_INVALID_ARGUMENTS;
-    if (argumentCount == 2)
+    if (argumentCount == 3)
     {
         const DWORD hostProcessId = ParseProcessId(arguments[1]);
-        if (hostProcessId != 0)
+        if (hostProcessId != 0 && arguments[2][0] != L'\0')
         {
-            result = LaunchMonitor(hostProcessId, NO_RESTORE_COMPLETED_EVENT);
+            result = RunMonitor(hostProcessId, arguments[2], NO_RESTORE_COMPLETED_EVENT);
         }
     }
-    else if (argumentCount == 4 && wcscmp(arguments[2], RESTORE_COMPLETED_EVENT_ARGUMENT) == 0)
+    else if (argumentCount == 5 && wcscmp(arguments[3], RESTORE_COMPLETED_EVENT_ARGUMENT) == 0)
     {
         const DWORD hostProcessId = ParseProcessId(arguments[1]);
-        if (hostProcessId != 0 && arguments[3][0] != L'\0')
+        if (hostProcessId != 0 && arguments[2][0] != L'\0' && arguments[4][0] != L'\0')
         {
-            result = LaunchMonitor(hostProcessId, arguments[3]);
-        }
-    }
-    else if (argumentCount == 5 && wcscmp(arguments[1], MONITOR_ARGUMENT) == 0)
-    {
-        const DWORD hostProcessId = ParseProcessId(arguments[2]);
-        if (hostProcessId != 0 && arguments[3][0] != L'\0' && arguments[4][0] != L'\0')
-        {
-            result = RunMonitor(hostProcessId, arguments[3], arguments[4]);
+            result = RunMonitor(hostProcessId, arguments[2], arguments[4]);
         }
     }
 

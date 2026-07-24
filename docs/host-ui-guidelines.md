@@ -29,8 +29,7 @@ reopens or exits.
 
 The startup window appears immediately and remains for its configured minimum.
 It keeps compact dimensions unless startup fails; error actions remain outside
-the fallback scroller. Watchdog startup failure offers **Disable watchdog and
-restart**, copy details, and close.
+the fallback scroller.
 
 Tray menus provide quick access and common presets; Preferences owns complete
 configuration. Both operate on service-owned state. Submenu arrows and checked

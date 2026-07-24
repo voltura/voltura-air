@@ -11,7 +11,6 @@ const childEnv = {
 };
 if (quickStart) {
   childEnv.VOLTURA_AIR_USE_VITE_CLIENT = "0";
-  childEnv.VOLTURA_AIR_SKIP_CURSOR_WATCHDOG_BUILD = "1";
   delete childEnv.VOLTURA_AIR_CLIENT_URL;
 }
 const children = [];

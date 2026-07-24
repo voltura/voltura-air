@@ -26,7 +26,6 @@ public partial class MainWindow : Window
     private readonly ConnectionPageController _connectionPage;
     private readonly PreferencesPageController _preferencesPage;
     private readonly DiagnosticsPageController _diagnosticsPage;
-    private readonly CustomPointerService? _ownedCustomPointerService;
     private readonly List<Button> _navigationButtons;
     private readonly OwnedDispatcherAction _connectionChangedAction;
     private readonly OwnedDispatcherAction _pairingCodeInvalidatedAction;
@@ -37,7 +36,7 @@ public partial class MainWindow : Window
     private bool _pageNeedsRefresh = true;
     private bool _allowClose;
 
-    public MainWindow(
+    internal MainWindow(
         PairingManager pairingManager,
         WebHostService webHost,
         string? clientUrl,
@@ -45,7 +44,7 @@ public partial class MainWindow : Window
         IWorkstationLockPolicy? workstationLockPolicy = null,
         IAwakeService? awakeService = null,
         ISystemPowerController? powerController = null,
-        CustomPointerService? customPointerService = null,
+        ICursorOverrideController? cursorOverrides = null,
         IAppLog? appLog = null,
         IClipboardTextWriter? clipboardTextWriter = null,
         Action? requestRestart = null)
@@ -54,8 +53,7 @@ public partial class MainWindow : Window
         _awakeService = awakeService ?? webHost.AwakeService;
         var effectiveLockPolicy = workstationLockPolicy ?? webHost.WorkstationLockPolicy;
         var effectivePowerController = powerController ?? webHost.PowerController;
-        _ownedCustomPointerService = null;
-        var effectiveCustomPointerService = customPointerService ?? (_ownedCustomPointerService = new CustomPointerService());
+        var effectiveCursorOverrides = cursorOverrides ?? InertCursorOverrideController.Instance;
         var effectiveAppLog = appLog ?? webHost.AppLog;
 
         InitializeComponent();
@@ -94,7 +92,7 @@ public partial class MainWindow : Window
             effectivePowerController,
             effectiveLockPolicy,
             _awakeService,
-            effectiveCustomPointerService,
+            effectiveCursorOverrides,
             effectiveAppLog,
             webHost.AppLaunchService,
             _visuals,
@@ -205,7 +203,6 @@ public partial class MainWindow : Window
         _themeChangedAction.Dispose();
         _awakeStateChangedAction.Dispose();
         _toasts.Dispose();
-        _ownedCustomPointerService?.Dispose();
         base.OnClosed(e);
     }
 

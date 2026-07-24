@@ -81,15 +81,14 @@ test("quick development rebuilds the host-served client without validation", () 
   assert.equal(mobilePackageJson.scripts["build:quick"], "vite build");
   assert.match(devScript, /process\.argv\.includes\("--quick"\)/u);
   assert.match(devScript, /childEnv\.VOLTURA_AIR_USE_VITE_CLIENT = "0"/u);
-  assert.match(devScript, /childEnv\.VOLTURA_AIR_SKIP_CURSOR_WATCHDOG_BUILD = "1"/u);
+  assert.doesNotMatch(devScript, /SKIP_CURSOR_WATCHDOG/u);
   assert.match(devScript, /delete childEnv\.VOLTURA_AIR_CLIENT_URL/u);
   assert.match(devScript, /if \(quickStart\)[\s\S]*spawnCommand\("npm", \["run", "build:quick"/u);
   assert.doesNotMatch(devScript, /if \(quickStart\)[\s\S]*runCommand\("npm", \["run", "build:quick"/u);
   assert.match(devScript, /persistentChildren\.push\(spawnCommand\("npm", \["run", "dev:host"\]/u);
   assert.match(devScript, /if \(!quickStart\)[\s\S]*vite\.js/u);
   assert.match(devHostScript, /if \(useViteClient\)[\s\S]*else \{\s*await waitForClientFiles\(\)/u);
-  assert.match(devHostScript, /VOLTURA_AIR_SKIP_CURSOR_WATCHDOG_BUILD/u);
-  assert.match(devHostScript, /args\.push\("-p:SkipCursorWatchdogBuild=true"\)/u);
+  assert.doesNotMatch(devHostScript, /SKIP_CURSOR_WATCHDOG|SkipCursorWatchdogBuild/u);
   assert.match(devHostScript, /stopExistingHost\(\)[\s\S]*startHost\(\)/u);
   assert.doesNotMatch(devHostScript, /"--no-build"/u);
   assert.doesNotMatch(devHostScript, /--isolated-test-mode/u);
@@ -100,7 +99,7 @@ test("quick development rebuilds the host-served client without validation", () 
   assert.match(directoryBuildProps, /<IntermediateOutputPath>obj\\cli\\\$\(Configuration\)\\<\/IntermediateOutputPath>/u);
   assert.match(releaseWorkflow, /npm run package:win -- -Version \$env:RELEASE_VERSION -Runtime \$env:RUNTIME/u);
   assert.match(hostProject, /!\$\(MSBuildProjectFile\.EndsWith\('_wpftmp\.csproj'\)\)/u);
-  assert.match(hostProject, /'\$\(SkipCursorWatchdogBuild\)' != 'true' OR !Exists\('\$\(OutDir\)VolturaAir\.CursorWatchdog\.exe'\)/u);
+  assert.doesNotMatch(hostProject, /SkipCursorWatchdogBuild/u);
 });
 
 test("full maintenance stops the host before deleting locked build outputs", () => {

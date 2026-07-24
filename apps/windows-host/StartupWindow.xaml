@@ -84,12 +84,6 @@
                                       Orientation="Horizontal"
                                       HorizontalAlignment="Center"
                                       Spacing="{DynamicResource SpaceSm}">
-                    <Button x:Name="DisableWatchdogButton"
-                            Content="Disable watchdog and restart"
-                            MinWidth="176"
-                            Height="38"
-                            Visibility="Collapsed"
-                            Click="OnDisableWatchdogClicked" />
                     <Button x:Name="CopyDetailsButton"
                             Content="Copy details"
                             MinWidth="120"

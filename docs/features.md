@@ -52,10 +52,8 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 - Custom executable add/edit requires a local warning confirmation and each
   launch revalidates its target.
 - Custom pointer is host-wide, off by default, and configurable by size/color.
-  Paired devices may toggle it. The host reloads the configured Windows cursor
-  scheme before it reapplies Custom pointer at startup. Custom pointer requires
-  the recovery watchdog, which restores that scheme after host exit or failure;
-  disabling the watchdog restores the normal cursor and turns Custom pointer off.
+  Paired devices may toggle it. Cursor overrides return to the configured
+  Windows scheme when Voltura Air exits.
 
 ### Input and Windows actions
 

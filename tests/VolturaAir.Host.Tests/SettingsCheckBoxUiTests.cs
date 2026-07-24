@@ -1,6 +1,5 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using VolturaAir.Host.Features.Preferences;
 using VolturaAir.Host.Ui;
@@ -50,14 +49,13 @@ public sealed partial class HostUiLayoutTests
     }
 
     [Fact]
-    public void CursorRecoveryUsesSharedInformationAndVisibleWarning()
+    public void PreferencesDoNotExposeCursorRecoveryControls()
     {
         if (!OperatingSystem.IsWindows())
         {
             return;
         }
 
-        AppPointerSettings.SetUseCursorRecoveryWatchdog(false);
         RunOnStaThread(() =>
         {
             using var appScope = new WpfApplicationScope();
@@ -72,25 +70,19 @@ public sealed partial class HostUiLayoutTests
                 window.ShowPage(HostPage.Preferences);
                 window.UpdateLayout();
 
-                var useWatchdog = Assert.Single(
+                Assert.Single(
                     FindWpfDescendants<SettingsCheckBox>(window),
-                    checkbox => checkbox.Label == "Use cursor recovery watchdog");
-                var info = Assert.Single(
-                    FindWpfDescendants<Button>(window),
-                    button => string.Equals(
-                        System.Windows.Automation.AutomationProperties.GetName(button),
-                        "More information about Use cursor recovery watchdog",
-                        StringComparison.Ordinal));
-
-                Assert.False(useWatchdog.IsChecked);
-                Assert.Equal("ⓘ", info.Content);
-                Assert.Same(window.Resources["TextBrush"], info.Foreground);
-                Assert.Same(window.Resources["SettingsInformationButtonStyle"], info.Style);
-                Assert.Equal(20d, info.FontSize);
-                Assert.Equal(PlacementMode.Top, ToolTipService.GetPlacement(info));
-                Assert.Contains(
+                    checkbox => checkbox.Label == "Custom pointer");
+                Assert.DoesNotContain(
+                    FindWpfDescendants<SettingsCheckBox>(window),
+                    checkbox =>
+                        checkbox.Label.Contains("recovery", StringComparison.OrdinalIgnoreCase) ||
+                        checkbox.Label.Contains("watchdog", StringComparison.OrdinalIgnoreCase));
+                Assert.DoesNotContain(
                     FindWpfDescendants<TextBlock>(window),
-                    text => text.Text.StartsWith("Without the recovery watchdog", StringComparison.Ordinal));
+                    text =>
+                        text.Text.Contains("recovery", StringComparison.OrdinalIgnoreCase) ||
+                        text.Text.Contains("watchdog", StringComparison.OrdinalIgnoreCase));
             }
             finally
             {

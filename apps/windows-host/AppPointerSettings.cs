@@ -76,26 +76,6 @@ public static class AppPointerSettings
         }
     }
 
-    public static bool UseCursorRecoveryWatchdog() => Volatile.Read(ref _cachedSettings).UseCursorRecoveryWatchdog;
-
-    public static void SetUseCursorRecoveryWatchdog(bool enabled)
-    {
-        PointerSettingsSnapshot current;
-        lock (Gate)
-        {
-            current = Volatile.Read(ref _cachedSettings);
-            using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: true) ??
-                Registry.CurrentUser.CreateSubKey(SettingsKeyPath, writable: true);
-            key.SetValue(UseCursorRecoveryWatchdogValueName, enabled ? 1 : 0, RegistryValueKind.DWord);
-            Volatile.Write(ref _cachedSettings, current with { UseCursorRecoveryWatchdog = enabled });
-        }
-
-        if (current.UseCursorRecoveryWatchdog != enabled)
-        {
-            Changed?.Invoke(null, EventArgs.Empty);
-        }
-    }
-
     public static int NormalizeCustomPointerSize(int size) => Math.Clamp(size, MinCustomPointerSize, MaxCustomPointerSize);
 
     public static uint NormalizeCustomPointerColor(int color) => unchecked((uint)color) & 0x00FFFFFF;
@@ -131,7 +111,20 @@ public static class AppPointerSettings
     {
         lock (Gate)
         {
+            RemoveLegacyCursorRecoverySetting();
             Volatile.Write(ref _cachedSettings, ReadSettings());
+        }
+    }
+
+    internal static void RemoveLegacyCursorRecoverySetting()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: true);
+            key?.DeleteValue(UseCursorRecoveryWatchdogValueName, throwOnMissingValue: false);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
         }
     }
 
@@ -153,8 +146,7 @@ public static class AppPointerSettings
                     key?.GetValue(PresentationLaserColorValueName) is int laserColor &&
                         Enum.IsDefined((PresentationLaserColor)laserColor)
                             ? (PresentationLaserColor)laserColor
-                            : PresentationLaserColor.Red),
-                key?.GetValue(UseCursorRecoveryWatchdogValueName) is not int watchdogEnabled || watchdogEnabled != 0);
+                            : PresentationLaserColor.Red));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {
@@ -165,14 +157,12 @@ public static class AppPointerSettings
     private sealed record PointerSettingsSnapshot(
         int DefaultPointerSpeed,
         CustomPointerSettings CustomPointer,
-        PresentationLaserPointerSettings PresentationLaserPointer,
-        bool UseCursorRecoveryWatchdog)
+        PresentationLaserPointerSettings PresentationLaserPointer)
     {
         public static PointerSettingsSnapshot Default { get; } = new(
             DevicePointerProfile.DefaultPointerSpeed,
             new CustomPointerSettings(false, DefaultCustomPointerSize, DefaultCustomPointerColor),
-            new PresentationLaserPointerSettings(DefaultPresentationLaserSize, PresentationLaserColor.Red),
-            true);
+            new PresentationLaserPointerSettings(DefaultPresentationLaserSize, PresentationLaserColor.Red));
     }
 }
 

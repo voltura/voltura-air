@@ -10,10 +10,8 @@ create one. Keep the shared notices in
 
 - Automatically minimizes the Windows host to the tray after a device connects
   from the Connection screen.
-- Made Custom pointer require its recovery watchdog; disabling the watchdog now
-  restores normal Windows cursors and turns Custom pointer off.
-- Improved Custom pointer recovery when restarting the Windows host, including
-  waiting for a previous recovery monitor to finish restoring Windows cursors.
+- Cursor overrides now return to the Windows cursor scheme when Voltura Air
+  exits unexpectedly.
 - Added a reminder to email drafts that they may contain sensitive information.
 - Improved foreground activation for the Windows host after startup and for the
   installer when it opens from SmartScreen.

@@ -9,7 +9,6 @@ public partial class StartupWindow : Window
     private const double ErrorWindowWidth = 620;
     private const double ErrorWindowHeight = 440;
     private string _errorDetails = string.Empty;
-    private Action? _disableWatchdogAndRestart;
 
     public StartupWindow()
     {
@@ -19,16 +18,14 @@ public partial class StartupWindow : Window
         SetStartupAppImage();
     }
 
-    public void ShowError(string message, string details, Action? disableWatchdogAndRestart = null)
+    public void ShowError(string message, string details)
     {
         ResizeForError();
         _errorDetails = details;
-        _disableWatchdogAndRestart = disableWatchdogAndRestart;
         StatusText.Text = "Voltura Air could not start.";
         StartupProgress.Visibility = Visibility.Collapsed;
         ErrorText.Text = message;
         ErrorText.Visibility = Visibility.Visible;
-        DisableWatchdogButton.Visibility = disableWatchdogAndRestart is null ? Visibility.Collapsed : Visibility.Visible;
         ErrorActions.Visibility = Visibility.Visible;
     }
 
@@ -46,27 +43,6 @@ public partial class StartupWindow : Window
         var workArea = SystemParameters.WorkArea;
         Left = Math.Clamp(Left - (widthIncrease / 2), workArea.Left, Math.Max(workArea.Left, workArea.Right - Width));
         Top = Math.Clamp(Top - (heightIncrease / 2), workArea.Top, Math.Max(workArea.Top, workArea.Bottom - Height));
-    }
-
-    private void OnDisableWatchdogClicked(object sender, RoutedEventArgs e)
-    {
-        var disableWatchdogAndRestart = _disableWatchdogAndRestart;
-        if (disableWatchdogAndRestart is null)
-        {
-            return;
-        }
-
-        DisableWatchdogButton.IsEnabled = false;
-        try
-        {
-            disableWatchdogAndRestart();
-        }
-        catch (Exception ex) when (ex is not OutOfMemoryException)
-        {
-            _errorDetails = $"{_errorDetails}{Environment.NewLine}{Environment.NewLine}Recovery action failed:{Environment.NewLine}{ex}";
-            ErrorText.Text = "The watchdog setting could not be changed. Copy the error details and close Voltura Air.";
-            DisableWatchdogButton.IsEnabled = true;
-        }
     }
 
     private void OnCopyDetailsClicked(object sender, RoutedEventArgs e)

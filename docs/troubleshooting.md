@@ -8,9 +8,7 @@ adapter details, and browser information; review before sharing publicly.
 
 ## Voltura Air could not start
 
-For a cursor-watchdog error, choose **Disable watchdog and restart**. Reinstall
-to restore a missing/damaged watchdog before re-enabling it. For other startup
-errors, choose **Copy details** before closing.
+Choose **Copy details** before closing.
 
 ## Device cannot reach the PC
 

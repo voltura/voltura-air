@@ -3,9 +3,8 @@ namespace VolturaAir.Host;
 internal sealed class WpfHostRuntime : IAsyncDisposable
 {
     private readonly SendInputInjector _inputInjector;
-    private readonly CursorWatchdogService _cursorWatchdogService;
-    private readonly EventHandler _cursorWatchdogMonitoringLost;
-    private readonly CustomPointerService _customPointerService;
+    private readonly CursorOverrideCoordinator _cursorOverrides;
+    private readonly EventHandler _cursorOverridesRevoked;
     private readonly PointerHighlightForegroundMonitor _pointerHighlightForegroundMonitor;
     private readonly IAsyncDisposable _textDestinationDraftCleanup;
     private readonly IAsyncDisposable _presentationEmailDraftCleanup;
@@ -16,9 +15,8 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
 
     private WpfHostRuntime(
         SendInputInjector inputInjector,
-        CursorWatchdogService cursorWatchdogService,
-        EventHandler cursorWatchdogMonitoringLost,
-        CustomPointerService customPointerService,
+        CursorOverrideCoordinator cursorOverrides,
+        EventHandler cursorOverridesRevoked,
         PointerHighlightForegroundMonitor pointerHighlightForegroundMonitor,
         IAsyncDisposable textDestinationDraftCleanup,
         IAsyncDisposable presentationEmailDraftCleanup,
@@ -29,9 +27,8 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         IAppLog appLog)
     {
         _inputInjector = inputInjector;
-        _cursorWatchdogService = cursorWatchdogService;
-        _cursorWatchdogMonitoringLost = cursorWatchdogMonitoringLost;
-        _customPointerService = customPointerService;
+        _cursorOverrides = cursorOverrides;
+        _cursorOverridesRevoked = cursorOverridesRevoked;
         _pointerHighlightForegroundMonitor = pointerHighlightForegroundMonitor;
         _textDestinationDraftCleanup = textDestinationDraftCleanup;
         _presentationEmailDraftCleanup = presentationEmailDraftCleanup;
@@ -62,6 +59,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         SendInputInjector? inputInjector = null;
         CursorWatchdogService? cursorWatchdogService = null;
         CustomPointerService? customPointerService = null;
+        CursorOverrideCoordinator? cursorOverrides = null;
         IAsyncDisposable? textDestinationDraftCleanup = null;
         IAsyncDisposable? presentationEmailDraftCleanup = null;
         ISystemPowerController? powerController = null;
@@ -75,34 +73,12 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
             var pairingManager = new PairingManager(new PairingStore(string.IsNullOrWhiteSpace(pairingStoreRoot) ? null : pairingStoreRoot));
             inputInjector = new SendInputInjector();
             cursorWatchdogService = new CursorWatchdogService();
-            customPointerService = new CustomPointerService(
-                AppPointerSettings.UseCursorRecoveryWatchdog,
-                cursorWatchdogService.EnsureMonitoring,
-                cursorWatchdogService.StopMonitoring);
-            // A prior forced exit may have left the Windows cursor scheme behind.
-            // Normalize it before this host decides whether to apply Custom pointer again.
-            CustomPointerService.RestoreWindowsCursorScheme();
-            var customPointerSettings = AppPointerSettings.GetCustomPointer();
-            if (customPointerSettings.Enabled && !AppPointerSettings.UseCursorRecoveryWatchdog())
-            {
-                customPointerSettings = customPointerSettings with { Enabled = false };
-                AppPointerSettings.SetCustomPointer(customPointerSettings);
-            }
-            customPointerService.ApplyPresentationLaserPointerSettings(
-                AppPointerSettings.GetPresentationLaserPointer());
-            customPointerService.Apply(customPointerSettings);
-            EventHandler cursorWatchdogMonitoringLost = (_, _) =>
-            {
-                var disabledPointer = AppPointerSettings.GetCustomPointer() with { Enabled = false };
-                customPointerService.Apply(disabledPointer);
-                AppPointerSettings.SetCustomPointer(disabledPointer);
-                appLog.Write(new AppLogEntry(
-                    Event: "host_action",
-                    Source: "windows_host",
-                    Action: "cursor_recovery_watchdog",
-                    Outcome: "lost"));
-            };
-            cursorWatchdogService.MonitoringLost += cursorWatchdogMonitoringLost;
+            customPointerService = new CustomPointerService();
+            cursorOverrides = new CursorOverrideCoordinator(
+                cursorWatchdogService,
+                customPointerService,
+                appLog);
+            await cursorOverrides.StartAsync();
             textDestinationDraftCleanup = TextDestinationDraftStore.CreateCleanupService(appLog);
             presentationEmailDraftCleanup =
                 new Features.Presentations.PresentationEmailDraftCleanup(appLog);
@@ -122,9 +98,11 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 workstationLockPolicy: workstationLockPolicy,
                 appLog: appLog,
                 textDestinationService: new TextDestinationService(inputDispatcher, inputInjector),
-                applyCustomPointer: customPointerService.Apply,
-                applyPresentationLaserPointer: customPointerService.SetPresentationLaserPointer,
+                applyCustomPointer: cursorOverrides.ApplyCustomPointer,
+                applyPresentationLaserPointer: cursorOverrides.SetPresentationLaserPointer,
                 isolatedTestMode: isolatedTestMode);
+            EventHandler cursorOverridesRevoked = (_, _) => webHost.RevokeCursorOverrides();
+            cursorOverrides.OverridesRevoked += cursorOverridesRevoked;
 
             pointerHighlightForegroundMonitor = new PointerHighlightForegroundMonitor(appLog);
             pointerHighlightForegroundMonitor.RemoteInputBlockedChanged += (_, eventArgs) =>
@@ -154,7 +132,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 usePublicScreenshotPairingUrl,
                 workstationLockPolicy,
                 awakeService,
-                customPointerService: customPointerService,
+                cursorOverrides: cursorOverrides,
                 appLog: appLog,
                 requestRestart: requestRestart);
 #if DEBUG
@@ -163,9 +141,8 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
             trayContext = new WpfTrayApplicationContext(mainWindow, webHost, pairingManager, awakeService, requestShutdown);
             return new WpfHostRuntime(
                 inputInjector,
-                cursorWatchdogService,
-                cursorWatchdogMonitoringLost,
-                customPointerService,
+                cursorOverrides,
+                cursorOverridesRevoked,
                 pointerHighlightForegroundMonitor,
                 textDestinationDraftCleanup,
                 presentationEmailDraftCleanup,
@@ -195,8 +172,15 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 await TryDisposeAsync(awakeService, appLog, "awake_service");
             }
 
-            TryDispose(customPointerService, appLog, "custom_pointer_service");
-            TryDispose(cursorWatchdogService, appLog, "cursor_watchdog_service");
+            if (cursorOverrides is not null)
+            {
+                TryDispose(cursorOverrides, appLog, "cursor_overrides");
+            }
+            else
+            {
+                TryDispose(customPointerService, appLog, "custom_pointer_service");
+                TryDispose(cursorWatchdogService, appLog, "cursor_recovery_service");
+            }
             TryDispose(inputInjector, appLog, "input_injector");
             await TryDisposeAsync(appLog as IAsyncDisposable, appLog, "application_log");
             throw;
@@ -221,9 +205,8 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
             _presentationEmailDraftCleanup,
             appLog,
             "presentation_email_draft_cleanup");
-        TryDispose(_customPointerService, appLog, "custom_pointer_service");
-        _cursorWatchdogService.MonitoringLost -= _cursorWatchdogMonitoringLost;
-        TryDispose(_cursorWatchdogService, appLog, "cursor_watchdog_service");
+        _cursorOverrides.OverridesRevoked -= _cursorOverridesRevoked;
+        TryDispose(_cursorOverrides, appLog, "cursor_overrides");
         TryDispose(_inputInjector, appLog, "input_injector");
         await TryDisposeAsync(appLog as IAsyncDisposable, appLog, "application_log");
     }

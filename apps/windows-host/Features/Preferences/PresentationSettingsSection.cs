@@ -8,7 +8,7 @@ using VolturaAir.Host.Ui;
 namespace VolturaAir.Host.Features.Preferences;
 
 internal sealed class PresentationSettingsSection(
-    CustomPointerService customPointerService,
+    ICursorOverrideController cursorOverrides,
     IAppLogWriter appLog,
     HostVisualFactory visuals,
     HostToastPresenter toasts,
@@ -104,7 +104,7 @@ internal sealed class PresentationSettingsSection(
         var settings = new PresentationLaserPointerSettings(size, color);
         try
         {
-            customPointerService.ApplyPresentationLaserPointerSettings(settings);
+            cursorOverrides.ApplyPresentationLaserPointerSettings(settings);
             AppPointerSettings.SetPresentationLaserPointer(settings);
             appLog.Write(new AppLogEntry(
                 Event: "host_action",

@@ -9,11 +9,11 @@ namespace VolturaAir.Host.Tests;
 public sealed partial class HostUiLayoutTests
 {
     [Fact]
-    public void WatchdogStartFailureDirectsTheUserToReinstall()
+    public void CustomPointerUnavailableMessageIsShort()
     {
         Assert.Equal(
-            "Cursor recovery watchdog could not be started. Reinstall Voltura Air to restore it.",
-            CustomPointerSettingsSection.WatchdogStartFailureMessage);
+            "Custom pointer is temporarily unavailable.",
+            CustomPointerSettingsSection.TemporarilyUnavailableMessage);
     }
 
     [Fact]

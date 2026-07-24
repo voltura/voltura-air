@@ -25,6 +25,8 @@ internal sealed class WebSocketSessionHandler(
     public static readonly TimeSpan AuthenticatedInactivityTimeout = TimeSpan.FromMinutes(2);
     private readonly PairingAttemptRateLimiter _pairingAttemptRateLimiter = new();
 
+    internal event EventHandler? StatusRefreshRequested;
+
     public async Task HandleAsync(WebSocket socket, string rateLimitKey, CancellationToken cancellationToken)
     {
         var authenticated = false;
@@ -387,6 +389,7 @@ internal sealed class WebSocketSessionHandler(
                 Action: "custom_pointer",
                 Outcome: "failed",
                 Detail: exception.Message));
+            StatusRefreshRequested?.Invoke(this, EventArgs.Empty);
         }
     }
 

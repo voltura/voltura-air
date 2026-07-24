@@ -22,7 +22,7 @@ internal sealed class PresentationLaserPointerController(Action<bool>? apply) : 
 
     public void SetEnabled(string clientId, bool enabled)
     {
-        var changed = false;
+        bool changed;
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -97,6 +97,22 @@ internal sealed class PresentationLaserPointerController(Action<bool>? apply) : 
                 StateChanged?.Invoke(this, EventArgs.Empty);
             }
         }
+    }
+
+    public void Revoke()
+    {
+        lock (_gate)
+        {
+            if (_disposed || !_enabled)
+            {
+                return;
+            }
+
+            _enabled = false;
+            _ownerClientId = null;
+        }
+
+        StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public void Dispose()

@@ -2,7 +2,6 @@ import { spawnSync } from "node:child_process";
 import { networkInterfaces } from "node:os";
 
 const windowsHostImage = "VolturaAir.Host.exe";
-const cursorWatchdogImage = "VolturaAir.CursorWatchdog.exe";
 const synchronousWaitBuffer = new Int32Array(new SharedArrayBuffer(4));
 
 export function getLanAddress() {
@@ -54,10 +53,6 @@ export function stopExistingHost(options = {}) {
   run("taskkill", ["/IM", windowsHostImage, "/F"], { stdio: "ignore" });
   if (!waitForProcessExit(windowsHostImage, { run })) {
     throw new Error("Timed out waiting for the existing Voltura Air host to exit.");
-  }
-
-  if (!waitForProcessExit(cursorWatchdogImage, { run })) {
-    throw new Error("Timed out waiting for the cursor watchdog to restore the Windows cursor scheme.");
   }
 }
 

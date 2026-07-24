@@ -20,9 +20,6 @@ public sealed partial class CustomPointerService : IDisposable
 
     private readonly Lock _gate = new();
     private readonly string _templateDirectory;
-    private readonly Func<bool> _useRecoveryMonitoring;
-    private readonly Action _ensureRecoveryMonitoring;
-    private readonly Action _stopRecoveryMonitoring;
     private bool _mayHaveApplied;
     private bool _presentationLaserPointerEnabled;
     private CustomPointerSettings _settings = new(
@@ -35,19 +32,8 @@ public sealed partial class CustomPointerService : IDisposable
     private bool _disposed;
 
     public CustomPointerService()
-        : this(static () => false, static () => { }, static () => { })
-    {
-    }
-
-    internal CustomPointerService(
-        Func<bool> useRecoveryMonitoring,
-        Action ensureRecoveryMonitoring,
-        Action stopRecoveryMonitoring)
     {
         _templateDirectory = Path.Combine(AppContext.BaseDirectory, "Assets", "CustomPointerTemplates");
-        _useRecoveryMonitoring = useRecoveryMonitoring;
-        _ensureRecoveryMonitoring = ensureRecoveryMonitoring;
-        _stopRecoveryMonitoring = stopRecoveryMonitoring;
     }
 
     public void Apply(CustomPointerSettings settings)
@@ -152,19 +138,11 @@ public sealed partial class CustomPointerService : IDisposable
         if (!settings.Enabled)
         {
             Restore();
-            _stopRecoveryMonitoring();
             return;
-        }
-
-        if (!_useRecoveryMonitoring())
-        {
-            throw new CursorWatchdogUnavailableException("Custom pointer requires the cursor recovery watchdog.");
         }
 
         try
         {
-            // Readiness means the watchdog holds a synchronized host handle before any cursor is replaced.
-            RefreshRecoveryMonitoringCore(customPointerActive: true);
             _mayHaveApplied = true;
             foreach (var role in Roles)
             {
@@ -189,8 +167,7 @@ public sealed partial class CustomPointerService : IDisposable
         }
         catch
         {
-            Restore();
-            _stopRecoveryMonitoring();
+            TryRestore();
             throw;
         }
     }
@@ -199,7 +176,6 @@ public sealed partial class CustomPointerService : IDisposable
     {
         try
         {
-            RefreshRecoveryMonitoringCore(customPointerActive: true);
             _mayHaveApplied = true;
             using var bitmap = CreateLaserPointerBitmap(_presentationLaserPointerSettings);
             foreach (var role in Roles)
@@ -225,8 +201,7 @@ public sealed partial class CustomPointerService : IDisposable
         }
         catch
         {
-            Restore();
-            _stopRecoveryMonitoring();
+            TryRestore();
             throw;
         }
     }
@@ -238,40 +213,41 @@ public sealed partial class CustomPointerService : IDisposable
             return;
         }
 
-        RestoreWindowsCursorScheme();
-        _mayHaveApplied = false;
+        if (!TryRestore())
+        {
+            throw new InvalidOperationException("Windows did not restore the configured cursor scheme.");
+        }
     }
 
-    internal static void RestoreWindowsCursorScheme() =>
-        _ = SystemParametersInfo(SpiSetCursors, 0, nint.Zero, 0);
-
-    internal void RefreshRecoveryMonitoring()
+    internal bool RevokeOverrides()
     {
         lock (_gate)
         {
             ThrowIfDisposed();
-            if (_mayHaveApplied && !_useRecoveryMonitoring())
-            {
-                Restore();
-                _stopRecoveryMonitoring();
-                return;
-            }
-
-            RefreshRecoveryMonitoringCore(_mayHaveApplied);
+            _settings = _settings with { Enabled = false };
+            _presentationLaserPointerEnabled = false;
+            return TryRestore(force: true);
         }
     }
 
-    private void RefreshRecoveryMonitoringCore(bool customPointerActive)
+    private bool TryRestore(bool force = false)
     {
-        if (customPointerActive && _useRecoveryMonitoring())
+        if (!force && !_mayHaveApplied)
         {
-            _ensureRecoveryMonitoring();
+            return true;
         }
-        else
+
+        if (!RestoreWindowsCursorScheme())
         {
-            _stopRecoveryMonitoring();
+            return false;
         }
+
+        _mayHaveApplied = false;
+        return true;
     }
+
+    internal static bool RestoreWindowsCursorScheme() =>
+        SystemParametersInfo(SpiSetCursors, 0, nint.Zero, 0);
 
     public void Dispose()
     {
@@ -282,9 +258,7 @@ public sealed partial class CustomPointerService : IDisposable
                 return;
             }
 
-            Restore();
-            // Final shutdown leaves a ready watchdog alive until this host exits,
-            // so it can perform the harmless fallback restoration after host cleanup.
+            _ = TryRestore(force: true);
             _disposed = true;
         }
     }

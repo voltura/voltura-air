@@ -41,58 +41,19 @@ public sealed class CustomPointerServiceTests : IsolatedHostSettingsTest
     [Fact]
     public void AppliesAndRestoresTheNativeCursorScheme()
     {
-        using var service = new CustomPointerService(
-            static () => true,
-            static () => { },
-            static () => { });
+        using var service = new CustomPointerService();
 
         service.Apply(new CustomPointerSettings(true, 6, AppPointerSettings.DefaultCustomPointerColor));
         service.Restore();
     }
 
     [Fact]
-    public void RefusesToApplyCustomPointerWithoutRecoveryMonitoring()
+    public void ForceRevocationRestoresTheNativeCursorScheme()
     {
-        using var service = new CustomPointerService(
-            static () => false,
-            static () => Assert.Fail("Custom pointer must not start monitoring when recovery is disabled."),
-            static () => { });
-
-        var exception = Assert.Throws<CursorWatchdogUnavailableException>(() => service.Apply(
-            new CustomPointerSettings(true, 6, AppPointerSettings.DefaultCustomPointerColor)));
-
-        Assert.Contains("requires", exception.Message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void RecoveryMonitoringTracksTheActivePointerAndPreference()
-    {
-        var useRecoveryMonitoring = true;
-        var starts = 0;
-        var stops = 0;
-        using var service = new CustomPointerService(
-            () => useRecoveryMonitoring,
-            () => starts += 1,
-            () => stops += 1);
-
+        using var service = new CustomPointerService();
         service.Apply(new CustomPointerSettings(true, 6, AppPointerSettings.DefaultCustomPointerColor));
-        Assert.Equal(1, starts);
-        Assert.Equal(0, stops);
 
-        useRecoveryMonitoring = false;
-        service.RefreshRecoveryMonitoring();
-        Assert.Equal(1, starts);
-        Assert.Equal(1, stops);
-
-        useRecoveryMonitoring = true;
-        service.RefreshRecoveryMonitoring();
-        Assert.Equal(1, starts);
-
-        service.Apply(new CustomPointerSettings(true, 6, AppPointerSettings.DefaultCustomPointerColor));
-        Assert.Equal(2, starts);
-
-        service.Apply(new CustomPointerSettings(false, 6, AppPointerSettings.DefaultCustomPointerColor));
-        Assert.Equal(3, stops);
+        Assert.True(service.RevokeOverrides());
     }
 
     [Fact]

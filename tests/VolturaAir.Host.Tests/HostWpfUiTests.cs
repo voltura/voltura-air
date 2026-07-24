@@ -28,12 +28,6 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
             var window = new StartupWindow();
             try
             {
-                AppPointerSettings.SetUseCursorRecoveryWatchdog(true);
-                AppPointerSettings.SetCustomPointer(new CustomPointerSettings(
-                    true,
-                    AppPointerSettings.DefaultCustomPointerSize,
-                    AppPointerSettings.DefaultCustomPointerColor));
-                var restartRequested = false;
                 Assert.Equal(520, window.Width);
                 Assert.Equal(360, window.Height);
                 window.Show();
@@ -43,33 +37,23 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
                 Assert.Contains(
                     progressGroup.Children.OfType<TextBlock>(),
                     text => string.Equals(text.Text, "Starting connection services.", StringComparison.Ordinal));
-                window.ShowError(
-                    "Cursor recovery could not start.",
-                    "details",
-                    () => Program.DisableCursorWatchdogAndRestart(() => restartRequested = true));
+                window.ShowError("An unexpected startup error occurred.", "details");
                 window.UpdateLayout();
 
                 Assert.Equal(620, window.Width);
                 Assert.Equal(440, window.Height);
                 Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "Voltura Air could not start.");
-                Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "Cursor recovery could not start.");
+                Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "An unexpected startup error occurred.");
                 var scroller = Assert.Single(FindWpfDescendants<ScrollViewer>(window));
                 Assert.Equal(0, scroller.ScrollableHeight);
-                var disableWatchdogButton = FindWpfDescendants<Button>(window).Single(button => button.Content?.ToString() == "Disable watchdog and restart");
                 var copyDetailsButton = FindWpfDescendants<Button>(window).Single(button => button.Content?.ToString() == "Copy details");
                 var closeButton = FindWpfDescendants<Button>(window).Single(button => button.Content?.ToString() == "Close");
-                Assert.False(IsDescendantOf(disableWatchdogButton, scroller));
-                AssertControlReceivesPointerHit(window, disableWatchdogButton);
-                AssertControlIsFullyWithinWindow(window, disableWatchdogButton);
+                Assert.Equal(2, FindWpfDescendants<Button>(window).Count());
                 Assert.False(IsDescendantOf(copyDetailsButton, scroller));
                 AssertControlReceivesPointerHit(window, copyDetailsButton);
                 AssertControlIsFullyWithinWindow(window, copyDetailsButton);
                 AssertControlReceivesPointerHit(window, closeButton);
                 AssertControlIsFullyWithinWindow(window, closeButton);
-                disableWatchdogButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                Assert.False(AppPointerSettings.UseCursorRecoveryWatchdog());
-                Assert.False(AppPointerSettings.GetCustomPointer().Enabled);
-                Assert.True(restartRequested);
             }
             finally
             {
@@ -1064,8 +1048,8 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
         {
             using var appScope = new WpfApplicationScope();
             var dialog = new ThemedConfirmationDialog(
-                "Cursor recovery watchdog",
-                "Explains the recovery behavior.",
+                "Setting information",
+                "Explains the setting.",
                 "OK",
                 null,
                 ConfirmationTone.Information);

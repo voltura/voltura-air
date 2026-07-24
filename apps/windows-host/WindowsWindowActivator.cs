@@ -98,8 +98,8 @@ internal sealed class WindowsWindowActivator : IWindowsWindowActivator
 
         WindowNativeMethods.BringWindowToTop(windowHandle);
         WindowNativeMethods.SetWindowPos(windowHandle, TopMostWindow, 0, 0, 0, 0, SetWindowPosNoMove | SetWindowPosNoSize);
-        WindowNativeMethods.SetWindowPos(windowHandle, NoTopMostWindow, 0, 0, 0, 0, SetWindowPosNoMove | SetWindowPosNoSize);
         WindowNativeMethods.SetForegroundWindow(windowHandle);
+        WindowNativeMethods.SetWindowPos(windowHandle, NoTopMostWindow, 0, 0, 0, 0, SetWindowPosNoMove | SetWindowPosNoSize);
         return true;
     }
 

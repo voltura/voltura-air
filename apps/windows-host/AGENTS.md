@@ -4,18 +4,15 @@ These instructions apply to the .NET Windows host. Follow
 `../../docs/host-quality.md`, `../../docs/architecture.md`,
 `../../docs/ui-system.md`, and `../../docs/host-ui-guidelines.md`.
 
-## Mandatory host-process preflight
+## Required preflight
 
-Before any command that builds, tests, runs, packages, captures, or otherwise
-uses the Windows host:
+Before any command that uses the Windows host, run:
 
-1. Find every running `VolturaAir.Host` process.
-2. Force-stop each exact process with `Stop-Process -Force`.
-3. Continue.
+```powershell
+./scripts/host-preflight.ps1
+```
 
-This is standing authorization. Do not ask the user, use a workaround such as
-`UseAppHost=false`, or substitute a graceful tray exit unless the user explicitly
-asks for one.
+It must be run.
 
 ## Runtime and language
 

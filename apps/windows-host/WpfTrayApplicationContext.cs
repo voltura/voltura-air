@@ -23,7 +23,9 @@ internal sealed class WpfTrayApplicationContext : IDisposable
     private readonly Dictionary<TrayConnectionState, Icon> _trayIcons;
     private readonly TrayAwakeMenuController _awakeMenuController;
     private readonly TrayConnectionFeedbackController _connectionFeedbackController;
+    private readonly OwnedDispatcherAction _connectionChangedAction;
     private readonly Action<string, string, Forms.ToolTipIcon>? _notificationSink;
+    private bool _hadActiveController;
     private bool _disposed;
 
     public WpfTrayApplicationContext(
@@ -39,6 +41,8 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _pairingManager = pairingManager;
         _requestShutdown = requestShutdown;
         _notificationSink = notificationSink;
+        _hadActiveController = pairingManager.HasActiveController;
+        _connectionChangedAction = new OwnedDispatcherAction(_dispatcher, HandleConnectionChanged);
         _awakeMenuController = new TrayAwakeMenuController(
             _dispatcher,
             awakeService,
@@ -63,6 +67,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         };
         _trayIcon.DoubleClick += (_, _) => _mainWindow.ShowPage(HostPage.Connect);
         _mainWindow.HiddenToTray += OnMainWindowHiddenToTray;
+        _pairingManager.ConnectionChanged += OnConnectionChanged;
         TrayIconVisibilityPromoter.PromoteWhenReady(_components, _trayIcon);
 
         ApplyMenuTheme();
@@ -92,7 +97,9 @@ internal sealed class WpfTrayApplicationContext : IDisposable
 
         _disposed = true;
         AppThemeSettings.Changed -= OnAppThemeChanged;
+        _pairingManager.ConnectionChanged -= OnConnectionChanged;
         _mainWindow.HiddenToTray -= OnMainWindowHiddenToTray;
+        _connectionChangedAction.Dispose();
         _connectionFeedbackController.Dispose();
         _awakeMenuController.Dispose();
         _trayIcon.Visible = false;
@@ -173,6 +180,24 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         {
             ShowNotification(CloseToTrayNotification.Title, CloseToTrayNotification.Message, Forms.ToolTipIcon.Info);
         }
+    }
+
+    private void OnConnectionChanged(object? sender, EventArgs e) => _connectionChangedAction.Queue();
+
+    private void HandleConnectionChanged()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        var hasActiveController = _pairingManager.HasActiveController;
+        if (!_hadActiveController && hasActiveController && _mainWindow.ShouldCloseAfterDeviceConnected())
+        {
+            _mainWindow.Close();
+        }
+
+        _hadActiveController = hasActiveController;
     }
 
     private void ShowNotification(string title, string message, Forms.ToolTipIcon icon)

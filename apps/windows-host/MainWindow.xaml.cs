@@ -155,6 +155,7 @@ public partial class MainWindow : Window
         Show();
         WindowState = WindowState.Normal;
         Activate();
+        WindowFocusReset.AfterShow(this);
     }
 
     public void ShowPreferencesSectionForScreenshot(string sectionTitle)
@@ -181,6 +182,9 @@ public partial class MainWindow : Window
     {
         _allowClose = true;
     }
+
+    internal bool ShouldCloseAfterDeviceConnected() =>
+        IsVisible && (_activePage == HostPage.Connect || WindowState == WindowState.Minimized);
 
     public void UpdateServerUrl(string serverUrl)
     {

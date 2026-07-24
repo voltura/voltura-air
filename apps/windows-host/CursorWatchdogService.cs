@@ -9,6 +9,8 @@ internal sealed class CursorWatchdogUnavailableException(string message, Excepti
 internal sealed class CursorWatchdogService : IDisposable
 {
     internal static readonly TimeSpan BootstrapExitTimeout = TimeSpan.FromSeconds(7);
+    internal static readonly TimeSpan PreviousMonitorExitTimeout = TimeSpan.FromSeconds(5);
+    private const string WatchdogProcessName = "VolturaAir.CursorWatchdog";
     private readonly Lock _gate = new();
     private readonly string _watchdogPath;
     private readonly int _hostProcessId;
@@ -51,6 +53,7 @@ internal sealed class CursorWatchdogService : IDisposable
 
             _monitor?.Dispose();
             _monitor = null;
+            WaitForPreviousMonitors();
             if (!File.Exists(_watchdogPath))
             {
                 throw new CursorWatchdogUnavailableException("The cursor recovery watchdog is missing.");
@@ -110,6 +113,53 @@ internal sealed class CursorWatchdogService : IDisposable
         }
     }
 
+    internal static void WaitForPreviousMonitors(TimeSpan? timeout = null)
+    {
+        var effectiveTimeout = timeout ?? PreviousMonitorExitTimeout;
+        ArgumentOutOfRangeException.ThrowIfLessThan(effectiveTimeout, TimeSpan.Zero);
+
+        using var currentProcess = Process.GetCurrentProcess();
+        var currentSessionId = currentProcess.SessionId;
+        var deadline = Stopwatch.GetTimestamp() + (long)(effectiveTimeout.TotalSeconds * Stopwatch.Frequency);
+
+        while (true)
+        {
+            var monitors = Process.GetProcessesByName(WatchdogProcessName);
+            try
+            {
+                var foundSameSessionMonitor = false;
+                foreach (var monitor in monitors)
+                {
+                    if (!IsInSession(monitor, currentSessionId))
+                    {
+                        continue;
+                    }
+
+                    foundSameSessionMonitor = true;
+                    var remaining = TimeSpan.FromSeconds(
+                        Math.Max(0, deadline - Stopwatch.GetTimestamp()) / (double)Stopwatch.Frequency);
+                    if (remaining == TimeSpan.Zero || !WaitForExit(monitor, remaining))
+                    {
+                        throw new CursorWatchdogUnavailableException(
+                            "A previous cursor recovery watchdog did not finish restoring the Windows cursor scheme.");
+                    }
+                }
+
+                if (!foundSameSessionMonitor)
+                {
+                    return;
+                }
+            }
+            finally
+            {
+                foreach (var monitor in monitors)
+                {
+                    monitor.Dispose();
+                }
+            }
+        }
+    }
+
     private void StopMonitoringCore()
     {
         var monitor = _monitor;
@@ -134,6 +184,30 @@ internal sealed class CursorWatchdogService : IDisposable
         finally
         {
             monitor.Dispose();
+        }
+    }
+
+    private static bool IsInSession(Process process, int sessionId)
+    {
+        try
+        {
+            return !process.HasExited && process.SessionId == sessionId;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    private static bool WaitForExit(Process process, TimeSpan timeout)
+    {
+        try
+        {
+            return process.HasExited || process.WaitForExit(timeout);
+        }
+        catch (InvalidOperationException)
+        {
+            return true;
         }
     }
 

@@ -5,12 +5,10 @@ and release automation under `scripts`.
 
 ## Process and host safety
 
-- Never run multiple Voltura Air host instances. A launcher stops the existing
-  host before starting a temporary one and leaves no competing process behind.
-- Stop the host without recursively terminating
-  `VolturaAir.CursorWatchdog.exe`, then wait for an existing watchdog to restore
-  the Windows cursor scheme and exit. The watchdog is user-disableable, so its
-  absence is normal and is not proof that restoration ran.
+- Before any command that uses the Windows host, run
+  `./scripts/host-preflight.ps1`.
+- Never run multiple Voltura Air host instances. A temporary-host launcher
+  leaves no competing host process behind.
 - A temporary host with temporary or empty pairing data or settings must pass
   `--isolated-test-mode`. It uses the normal single-instance scope, binds and
   advertises only loopback, isolates settings, and does not persist automatic

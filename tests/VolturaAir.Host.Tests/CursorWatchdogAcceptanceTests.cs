@@ -99,6 +99,68 @@ public sealed class CursorWatchdogAcceptanceTests : IsolatedHostSettingsTest
     }
 
     [Fact]
+    public async Task NewMonitorWaitsForPreviousSameSessionMonitorToRestoreAndExit()
+    {
+        using var previousHost = StartSleepingHost();
+        var previousService = new CursorWatchdogService(GetWatchdogPath(), previousHost.Id);
+        try
+        {
+            previousService.EnsureMonitoring();
+            var previousMonitorProcessId = Assert.IsType<int>(previousService.MonitorProcessId);
+            previousService.Dispose();
+
+            var stopPreviousHost = Task.Run(async () =>
+            {
+                await Task.Delay(100);
+                previousHost.Kill();
+                Assert.True(previousHost.WaitForExit(ProcessTimeout), "The previous watchdog test host did not exit.");
+            });
+
+            CursorWatchdogService.WaitForPreviousMonitors(ProcessTimeout);
+
+            await stopPreviousHost;
+            Assert.True(
+                WaitForProcessExit(previousMonitorProcessId, ProcessTimeout),
+                "The previous cursor watchdog did not finish before startup continued.");
+        }
+        finally
+        {
+            previousService.Dispose();
+            StopProcess(previousHost);
+        }
+    }
+
+    [Fact]
+    public void NewMonitorRejectsAStuckPreviousSameSessionMonitorAfterBoundedWait()
+    {
+        using var previousHost = StartSleepingHost();
+        var previousService = new CursorWatchdogService(GetWatchdogPath(), previousHost.Id);
+        int? previousMonitorProcessId = null;
+        try
+        {
+            previousService.EnsureMonitoring();
+            previousMonitorProcessId = previousService.MonitorProcessId;
+            previousService.Dispose();
+
+            var exception = Assert.Throws<CursorWatchdogUnavailableException>(
+                () => CursorWatchdogService.WaitForPreviousMonitors(TimeSpan.FromMilliseconds(100)));
+
+            Assert.Contains("previous", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            StopProcess(previousHost);
+            previousService.Dispose();
+            if (previousMonitorProcessId is { } monitorProcessId)
+            {
+                Assert.True(
+                    WaitForProcessExit(monitorProcessId, ProcessTimeout),
+                    "The previous cursor watchdog did not exit during test cleanup.");
+            }
+        }
+    }
+
+    [Fact]
     public void FinalServiceDisposalLeavesTheMonitorUntilTheHostExits()
     {
         using var dummyHost = StartSleepingHost();

@@ -19,7 +19,7 @@ const persistentChildren = [];
 let shuttingDown = false;
 
 if (quickStart) {
-  console.log("Quick phone development: starting the host and rebuilding current mobile sources in parallel, without validation.");
+  console.log("Quick development: starting the host and rebuilding current mobile sources in parallel, without validation.");
   const mobileBuild = spawnCommand("npm", ["run", "build:quick", "--workspace", "apps/mobile-web"], childEnv);
   children.push(mobileBuild);
   mobileBuild.on("error", (error) => {

@@ -76,7 +76,7 @@ test("the production mobile build enforces its measured JavaScript budget", () =
   assert.equal(mobilePackageJson.scripts["bundle:check"], "node ../../scripts/check-mobile-bundle-size.mjs");
 });
 
-test("quick phone development rebuilds the host-served client without validation", () => {
+test("quick development rebuilds the host-served client without validation", () => {
   assert.equal(packageJson.scripts["dev:quick"], "node scripts/dev.mjs --quick");
   assert.equal(mobilePackageJson.scripts["build:quick"], "vite build");
   assert.match(devScript, /process\.argv\.includes\("--quick"\)/u);

@@ -7,7 +7,7 @@ public sealed class DefaultMailComposeTests
     {
         var uri = DefaultMailCompose.BuildMailtoUri("First line\r\nsecond & third", sendEnter: false);
 
-        Assert.Equal("mailto:?body=First%20line%0D%0Asecond%20%26%20third", uri);
+        Assert.Equal("mailto:?body=First%20line%0D%0Asecond%20%26%20third%0D%0A%0D%0AThis%20email%20may%20contain%20sensitive%20information.%20Please%20handle%20it%20accordingly.", uri);
     }
 
     [Fact]
@@ -15,6 +15,6 @@ public sealed class DefaultMailComposeTests
     {
         var uri = DefaultMailCompose.BuildMailtoUri("Body", sendEnter: true);
 
-        Assert.Equal("mailto:?body=Body%0D%0A", uri);
+        Assert.Equal("mailto:?body=Body%0D%0A%0D%0AThis%20email%20may%20contain%20sensitive%20information.%20Please%20handle%20it%20accordingly.%0D%0A", uri);
     }
 }

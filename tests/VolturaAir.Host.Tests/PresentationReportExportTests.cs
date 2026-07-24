@@ -34,6 +34,7 @@ public sealed class PresentationReportExportTests
         Assert.Contains("&lt;script&gt;", html, StringComparison.Ordinal);
         Assert.DoesNotContain("<script>", emailHtml, StringComparison.Ordinal);
         Assert.Contains("&lt;script&gt;", emailHtml, StringComparison.Ordinal);
+        Assert.Contains("This email may contain sensitive information. Please handle it accordingly.", emailHtml, StringComparison.Ordinal);
         Assert.Contains("class=\"session\"", html, StringComparison.Ordinal);
         Assert.Contains("class=\"break\"", html, StringComparison.Ordinal);
     }

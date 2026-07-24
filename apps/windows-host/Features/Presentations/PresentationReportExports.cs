@@ -15,6 +15,8 @@ internal enum PresentationExportFormat
 
 internal static class PresentationReportExports
 {
+    private const string SensitiveInformationDisclaimer = "This email may contain sensitive information. Please handle it accordingly.";
+
     public static string Extension(PresentationExportFormat format) => format switch
     {
         PresentationExportFormat.Html => ".html",
@@ -101,7 +103,7 @@ internal static class PresentationReportExports
             body.Append("</table></td></tr><tr><td style=\"height:14px\"></td></tr>");
         }
 
-        body.Append("</table></body></html>");
+        body.Append(CultureInfo.InvariantCulture, $"<tr><td style=\"padding-top:6px;color:#5f6368;font-size:12px\"><p style=\"margin:0\">{SensitiveInformationDisclaimer}</p></td></tr></table></body></html>");
         return body.ToString();
     }
 

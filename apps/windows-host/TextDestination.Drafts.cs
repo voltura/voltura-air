@@ -161,6 +161,7 @@ internal static class WordDraftDocument
 internal static class OutlookCompose
 {
     private const int MailItem = 0;
+    private const string SensitiveInformationDisclaimer = "This email may contain sensitive information. Please handle it accordingly.";
 
     public static bool TryCreate(string text, bool sendEnter)
     {
@@ -175,7 +176,7 @@ internal static class OutlookCompose
             if (application is null) return false;
             mail = applicationType.InvokeMember("CreateItem", BindingFlags.InvokeMethod, null, application, [MailItem], CultureInfo.InvariantCulture);
             if (mail is null) return false;
-            var body = sendEnter ? text + Environment.NewLine : text;
+            var body = BuildBody(text, sendEnter);
             mail.GetType().InvokeMember("Body", BindingFlags.SetProperty, null, mail, [body], CultureInfo.InvariantCulture);
             mail.GetType().InvokeMember("Display", BindingFlags.InvokeMethod, null, mail, [false], CultureInfo.InvariantCulture);
             inspector = mail.GetType().InvokeMember("GetInspector", BindingFlags.GetProperty, null, mail, null, CultureInfo.InvariantCulture);
@@ -194,6 +195,10 @@ internal static class OutlookCompose
         }
     }
 
+    private static string BuildBody(string text, bool sendEnter) =>
+        string.Join(Environment.NewLine, text, string.Empty, SensitiveInformationDisclaimer) +
+        (sendEnter ? Environment.NewLine : string.Empty);
+
     private static void ReleaseComObject(object? value)
     {
         if (value is not null && Marshal.IsComObject(value))
@@ -206,6 +211,7 @@ internal static class OutlookCompose
 internal static class DefaultMailCompose
 {
     private const int MaximumMailtoUriLength = 8_000;
+    private const string SensitiveInformationDisclaimer = "This email may contain sensitive information. Please handle it accordingly.";
 
     public static bool TryCreate(string text, bool sendEnter)
     {
@@ -237,7 +243,8 @@ internal static class DefaultMailCompose
 
     internal static string BuildMailtoUri(string text, bool sendEnter)
     {
-        var body = sendEnter ? text + Environment.NewLine : text;
+        var body = string.Join(Environment.NewLine, text, string.Empty, SensitiveInformationDisclaimer) +
+            (sendEnter ? Environment.NewLine : string.Empty);
         return $"mailto:?body={Uri.EscapeDataString(body)}";
     }
 }

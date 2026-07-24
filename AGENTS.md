@@ -1,225 +1,94 @@
-# AGENTS.md
+# Voltura Air
 
-## Project and development stage
+React PWA plus a .NET Windows tray host. `docs/README.md` is the documentation
+map; `docs/ui-system.md` and `docs/architecture.md` define the target design.
 
-Voltura Air is a mobile control surface with a React PWA and a lightweight .NET
-Windows tray host. The product is in pre-release development.
+## Decide
 
-`docs/README.md` is the canonical documentation map. `docs/ui-system.md` and
-`docs/architecture.md` describe the target design. Existing code and tests are
-evidence of current behavior; new and refactored code follows the target design.
+Use this order:
 
-## Decision authority
+1. Current user request.
+2. Safety, data integrity, product invariants, and intentional behavior.
+3. Closest `AGENTS.md`.
+4. Applicable authority documents.
+5. Existing code and tests.
 
-Use this order when deciding how to proceed:
+If sources materially conflict, show the evidence and ask. Correct obvious
+stale references within the task.
 
-1. The explicit user goal and decisions for the current task.
-2. Security, data integrity, product invariants, and intentional user-visible
-   behavior.
-3. The closest applicable `AGENTS.md` instructions.
-4. The authoritative target documents referenced by those instructions.
-5. Current implementation, tests, and established patterns.
+## Work
 
-Preserve intentional behavior, safety, and ownership while implementing the
-documented target.
+- Read this file, the closest scoped `AGENTS.md`, and applicable authority docs
+  before changing or reviewing code.
+- Use repository evidence. Preserve unrelated user changes.
+- Reuse an existing owner before adding helpers, storage, protocol fields, or
+  test-harness behavior.
+- Keep changes focused. Prefer explicit ownership and event-driven work.
+- Review a production dependency before adding it.
+- Use the current design; remove replaced internal formats and structures.
+  Stored data remains untrusted and bounded.
+- Protocol and security tests state the current contract directly; helpers must
+  not repair or enrich tested messages.
 
-When sources disagree in a way that materially changes behavior, data,
-architecture, security, performance, or task scope, stop that part of the work,
-show the exact evidence, and resolve it with the user. Correct an obvious stale
-reference within the task without creating an unnecessary decision point.
+## UI work
 
-Provide constructive technical pushback when repository evidence, platform
-standards, safety, maintainability, performance, or a simpler design supports a
-different approach. Distinguish evidence from judgment, explain the tradeoff,
-and recommend an alternative. Find relevant rules and contradictions without
-relying on the user to name every document.
+- Before material UI work, ask for autonomous completion or visual checkpoints.
+- Autonomous: implement and validate normally.
+- Visual checkpoint: make a runnable representative result, stop coding and
+  tests, launch it, and wait for feedback. For WPF run
+  `./scripts/host-preflight.ps1`, then `npm run dev:quick`.
+- Keep the chosen mode for the task.
+- Install needed validation or inspection tooling. Do not report incomplete work
+  as complete.
 
-## Working agreements
+## Scope
 
-- Read this file and the closest scoped `AGENTS.md` before changing files.
-- Before reviewing code changes, read the root and closest scoped `AGENTS.md`
-  files and every authoritative instruction document they reference that
-  applies to the changed files.
-- Work from persisted repository evidence first: current files, committed
-  documentation, tests, scripts, and explicit instructions in this thread. Do
-  not design from memory of prior turns when the workspace can answer the
-  question.
-- Before introducing a new helper, abstraction, storage location, protocol
-  field, or test harness behavior, search for the existing owner and use or
-  extend it when it fits.
-- Keep each change coherent and focused on the requested outcome. Do not reduce
-  necessary scope merely to avoid a justified rewrite.
-- Preserve user work and unrelated changes in the tree.
-- Prefer simple, explicit ownership over generic abstraction. Apply KISS without
-  weakening correctness, accessibility, resource ownership, or the documented
-  UI and architecture contracts.
-- Do not add a production dependency without a clear task need and a review of
-  its runtime, bundle, maintenance, and security cost. Tooling dependencies do
-  not become production dependencies merely for convenience.
-- Keep the continuously running host and mobile client proportionate in CPU,
-  memory, allocation, disk, network, thread, handle, and battery use. Prefer
-  event-driven work and measured optimization.
-
-### Current design policy
-
-Build the clearest current design from a clean state. Development-era source
-layouts, settings shapes, persisted formats, internal APIs, and protocol shapes
-have no compatibility guarantee. Remove replaced structures and formats. Keep
-persisted-data readers bounded and defensive because stored data remains
-untrusted. Define an external compatibility policy before promising upgrade
-compatibility.
-
-Protocol and security tests must express the current protocol directly. Do not
-hide required fields, authentication steps, default settings, or permission
-state inside generic send helpers. Helpers may reduce repeated transport code,
-but they must not silently repair, enrich, or reinterpret the message being
-tested.
-
-## AI execution and tools
-
-- Before starting work that materially affects UI presentation or interaction,
-  ask the user to choose between **autonomous completion** and **visual
-  checkpoints**, unless the user has already chosen a mode for the current task
-  or explicitly requested a specific workflow.
-  - In autonomous completion mode, implement and validate the UI change through
-    the normal task-appropriate gates before handoff.
-  - In visual-checkpoint mode, implement only until a representative result is
-    runnable, stop further coding and automated tests, launch the appropriate
-    development surface, and wait for the user's visual feedback. For the WPF
-    host, stop every running `VolturaAir.Host` process and run
-    `npm run dev:quick`. Resume refinement and validation only after the user
-    responds.
-  - Keep the selected mode for the rest of that UI task unless the user changes
-    it. Do not ask again for every visual revision.
-- Do not lower the quality of an implementation because a preferred local tool
-  is missing. Install and use required validation, inspection, capture,
-  automation, runtime, or toolchain support without asking first.
-- Tool installation may be temporary, user-scoped, project-local, or system-wide
-  as appropriate. Prefer the least intrusive option when capabilities are equal,
-  do not change declared product/runtime versions unless they are in scope, and
-  report material installations in the handoff.
-- When the user can verify a transient visual result in seconds, use that quick
-  human check instead of building disposable capture infrastructure. Still run
-  the normal automated gate appropriate to the changed behavior.
-- If GitHub connector editing cannot safely apply a large or multi-file change,
-  request the exact branch files as a zip, edit them locally, and return complete
-  repo-relative replacements. Do not keep retrying fragile partial patches.
-- Do not mark incomplete connector or PR work as complete. Code, documentation,
-  and validation instructions must match the actual branch state.
-
-## Repository map and scoped instructions
-
-- `apps/mobile-web` contains the React/TypeScript PWA. Follow
-  `apps/mobile-web/AGENTS.md` and `docs/ui-system.md`.
-- `apps/windows-host` contains the .NET 10 WPF tray host. Follow
-  `apps/windows-host/AGENTS.md`, `docs/host-quality.md`, and
+- `apps/mobile-web`: read its `AGENTS.md` and `docs/ui-system.md`.
+- `apps/windows-host`: read its `AGENTS.md`, `docs/host-quality.md`, and
   `docs/host-ui-guidelines.md`.
-- `apps/cursor-watchdog` contains the native Windows cursor-recovery watchdog.
-- `tests` contains automated host and script tests.
-- `scripts` contains development, validation, capture, cleanup, and packaging
-  automation. Follow `scripts/AGENTS.md`.
-- `assets/branding/voltura-air-master.png` is the authoritative product artwork.
-  Run `npm run icons:generate`; do not edit generated icon copies directly.
-- `docs/architecture.md` owns subsystem boundaries, dependency direction,
-  migration state, compatibility invariants, and the source-size review policy.
-- `docs/README.md` catalogs every maintained document and public descriptive
-  surface with its authority, state, and update trigger.
-- `docs/ui-system.md` is the product-wide UI authority.
-  `docs/host-ui-guidelines.md` adds host-specific behavior, and
-  `docs/pairing-feedback.md` owns pairing
-  failure and recovery guidance.
-- `docs/release.md` is the release and packaging runbook.
+- `scripts`: read `scripts/AGENTS.md`.
+- Generate icons with `npm run icons:generate`; do not edit generated copies.
 
-Add or refine a scoped `AGENTS.md` when a directory develops rules that do not
-need to occupy the context of unrelated work.
+## Invariants
 
-## Cross-project invariants
-
-- Never run multiple Voltura Air host instances. Temporary UI hosts use the same
-  single-instance scope, must stop the normal host first, and must use
-  `--isolated-test-mode` when settings or pairing data are temporary.
-- Automated host protocol tests use ASP.NET Core `TestServer`; they do not open a
-  configured TCP port or create Windows Firewall permissions.
-- Tests, screenshot runs, smoke tests, and development UI runs must never read or
-  write the production settings registry key. Use the existing
-  `HostSettingsRegistry.BeginIsolatedScope()` abstraction, or a production path
-  that enters it such as `--isolated-test-mode`; do not create a second registry
-  isolation mechanism.
-- Never log typed text, pointer coordinates, pairing tokens, private reconnect
-  keys, reconnect proofs, or other credential material.
-- Pairing URLs and QR codes must stay short and human-scannable. Do not place
-  reconnect keys, signatures, proofs, device metadata, or other large credential
-  material in the pairing URL; exchange that material after the browser opens
-  the normal short pairing link.
-- Presentation uses the default-on **Enable alpha features** gate and enforces
-  it at every production command boundary; an explicit off choice omits the
-  capability and blocks new Presentation work. Do not place another incomplete
-  feature behind this default-on gate without a separately reviewed activation
-  decision. Hidden UI is not enforcement.
+- Only one host runs. Temporary UI hosts use `--isolated-test-mode`.
+- Protocol tests use ASP.NET Core `TestServer`, never a configured TCP port or
+  firewall rule.
+- Tests and development runs use `HostSettingsRegistry.BeginIsolatedScope()` or
+  `--isolated-test-mode`; never the production settings registry key.
+- Never log typed text, pointer coordinates, pairing tokens, reconnect keys, or
+  reconnect proofs.
+- Pairing links and QR codes remain short; exchange credentials after opening
+  the normal pairing link.
+- Presentation is behind the default-on **Enable alpha features** gate. Enforce
+  it at production command boundaries; explicit off removes the capability.
 
 ## Documentation
 
-- Before a project-wide documentation or policy review, read `docs/README.md`,
-  inventory the maintained surfaces, and inspect every catalog entry.
-- State current behavior, target design, procedure, approved work, or candidate
-  direction directly. Each rule or fact has one owner; other documents link to
-  it. Keep conversational history and revision narratives in Git history.
-- Treat `README.md`, `docs/site/index.php`, and `docs/site/llms.txt` as derived
-  communication. They select and simplify facts owned by current product,
-  setup, release, security, and troubleshooting documents.
-- `docs/todo.md` orders approved work; P1 Presentation is the current approved
-  outcome. `docs/ideas.md` records candidate directions; explicit product
-  approval moves a candidate into the TODO.
-- When externally documented behavior changes, update the affected documentation,
-  static site, and README. Update `AGENTS.md` only when working policy changes.
-- Add, remove, or rename maintained documentation only together with the
-  `docs/README.md` catalog entry, then run `npm run docs:check`.
+- `docs/README.md` catalogs maintained docs. Read it before a project-wide doc
+  review.
+- Each rule has one owner. README and site copy are derived from authorities.
+- Update affected docs, site copy, and README when documented behavior changes.
+- Add, remove, or rename docs with a `docs/README.md` entry, then run
+  `npm run docs:check`.
 
-## Verification
+## Verify
 
-Use the smallest validation that provides reasonable confidence in the change.
-
-Validation commands listed in this repository are options, not a checklist.
-Run broad or release-level gates only when the scope or risk warrants them, or
-when the user explicitly requests them.
-
-Do not repeat a successful check unless later changes could affect its result.
-
-Choose validation by behavior and risk:
-
-- New or changed native, filesystem, registry, network, process, persistence, or
-  resource-owning boundaries require focused success, failure, and cleanup or
-  recovery coverage through the production path.
-- Stateful interactions and regressions require focused behavioral tests where
-  the behavior can be represented reliably.
-- Presentation-only changes require the relevant build or static gate plus a
-  focused visual check at the affected layouts, themes, and interaction states.
-- Documentation-only changes require reference, command, and factual checks.
-
-When root build and test commands are warranted, run them sequentially because
-host projects share .NET outputs:
+- Run the smallest relevant check. Cover changed native, filesystem, registry,
+  network, process, persistence, and resource boundaries through production
+  paths, including failure and cleanup.
+- UI-only work needs the relevant build/static check and a focused visual check.
+- When root build and test are needed, run them sequentially:
 
 ```powershell
 npm run build
 npm test
 ```
 
-Run `npm run package:win` only for release verification or changes that affect
-packaging. Run `npm run size:report` to review ownership and separation concerns;
-size is a review signal, not a mechanical failure.
-
-After every refactor or structural pass, run `npm run size:check` before handoff,
-commit, or release. Resolve each new strong warning in that same pass: split mixed
-ownership first, or record a current, specific cohesive-ownership rationale in
-`scripts/source-size-reviews.json` when separation would make ownership less
-clear. Do not defer this gate to the GitHub release workflow.
+- After a refactor or structural pass, run `npm run size:check` and resolve new
+  strong warnings.
 
 ## Release and Git
 
-- Use a new semantic version for every published build. Do not replace release
-  assets or move an existing tag. Follow `docs/release.md`.
-- Use descriptive commits and preserve a focused diff.
-- Keep build artifacts, local secrets, and machine-specific configuration out of
-  version control. Check in generated sources or assets only when the documented
-  project workflow treats them as repository outputs, and never edit those
-  generated copies directly.
+- Published builds require a new semantic version; follow `docs/release.md`.
+- Keep commits focused. Do not commit artifacts, secrets, or machine settings.

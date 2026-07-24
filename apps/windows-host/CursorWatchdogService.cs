@@ -17,6 +17,8 @@ internal sealed class CursorWatchdogService : IDisposable
     private Process? _monitor;
     private bool _disposed;
 
+    internal event EventHandler? MonitoringLost;
+
     internal int? MonitorProcessId
     {
         get
@@ -83,6 +85,9 @@ internal sealed class CursorWatchdogService : IDisposable
                     _monitor = null;
                     throw new CursorWatchdogUnavailableException("The cursor recovery watchdog exited during startup.");
                 }
+
+                _monitor.EnableRaisingEvents = true;
+                _monitor.Exited += OnMonitorExited;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or ArgumentException)
             {
@@ -171,6 +176,7 @@ internal sealed class CursorWatchdogService : IDisposable
 
         try
         {
+            monitor.Exited -= OnMonitorExited;
             if (!monitor.HasExited)
             {
                 monitor.Kill();
@@ -215,7 +221,30 @@ internal sealed class CursorWatchdogService : IDisposable
     {
         var monitor = _monitor;
         _monitor = null;
+        monitor?.Exited -= OnMonitorExited;
         monitor?.Dispose();
+    }
+
+    private void OnMonitorExited(object? sender, EventArgs eventArgs)
+    {
+        var shouldNotify = false;
+        lock (_gate)
+        {
+            if (_disposed || sender is not Process monitor || !ReferenceEquals(monitor, _monitor))
+            {
+                return;
+            }
+
+            _monitor = null;
+            monitor.Exited -= OnMonitorExited;
+            monitor.Dispose();
+            shouldNotify = true;
+        }
+
+        if (shouldNotify)
+        {
+            MonitoringLost?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     internal static ProcessStartInfo CreateStartInfo(string watchdogPath, int hostProcessId)

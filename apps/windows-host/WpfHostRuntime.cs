@@ -4,6 +4,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
 {
     private readonly SendInputInjector _inputInjector;
     private readonly CursorWatchdogService _cursorWatchdogService;
+    private readonly EventHandler _cursorWatchdogMonitoringLost;
     private readonly CustomPointerService _customPointerService;
     private readonly PointerHighlightForegroundMonitor _pointerHighlightForegroundMonitor;
     private readonly IAsyncDisposable _textDestinationDraftCleanup;
@@ -16,6 +17,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
     private WpfHostRuntime(
         SendInputInjector inputInjector,
         CursorWatchdogService cursorWatchdogService,
+        EventHandler cursorWatchdogMonitoringLost,
         CustomPointerService customPointerService,
         PointerHighlightForegroundMonitor pointerHighlightForegroundMonitor,
         IAsyncDisposable textDestinationDraftCleanup,
@@ -28,6 +30,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
     {
         _inputInjector = inputInjector;
         _cursorWatchdogService = cursorWatchdogService;
+        _cursorWatchdogMonitoringLost = cursorWatchdogMonitoringLost;
         _customPointerService = customPointerService;
         _pointerHighlightForegroundMonitor = pointerHighlightForegroundMonitor;
         _textDestinationDraftCleanup = textDestinationDraftCleanup;
@@ -76,9 +79,30 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 AppPointerSettings.UseCursorRecoveryWatchdog,
                 cursorWatchdogService.EnsureMonitoring,
                 cursorWatchdogService.StopMonitoring);
+            // A prior forced exit may have left the Windows cursor scheme behind.
+            // Normalize it before this host decides whether to apply Custom pointer again.
+            CustomPointerService.RestoreWindowsCursorScheme();
+            var customPointerSettings = AppPointerSettings.GetCustomPointer();
+            if (customPointerSettings.Enabled && !AppPointerSettings.UseCursorRecoveryWatchdog())
+            {
+                customPointerSettings = customPointerSettings with { Enabled = false };
+                AppPointerSettings.SetCustomPointer(customPointerSettings);
+            }
             customPointerService.ApplyPresentationLaserPointerSettings(
                 AppPointerSettings.GetPresentationLaserPointer());
-            customPointerService.Apply(AppPointerSettings.GetCustomPointer());
+            customPointerService.Apply(customPointerSettings);
+            EventHandler cursorWatchdogMonitoringLost = (_, _) =>
+            {
+                var disabledPointer = AppPointerSettings.GetCustomPointer() with { Enabled = false };
+                customPointerService.Apply(disabledPointer);
+                AppPointerSettings.SetCustomPointer(disabledPointer);
+                appLog.Write(new AppLogEntry(
+                    Event: "host_action",
+                    Source: "windows_host",
+                    Action: "cursor_recovery_watchdog",
+                    Outcome: "lost"));
+            };
+            cursorWatchdogService.MonitoringLost += cursorWatchdogMonitoringLost;
             textDestinationDraftCleanup = TextDestinationDraftStore.CreateCleanupService(appLog);
             presentationEmailDraftCleanup =
                 new Features.Presentations.PresentationEmailDraftCleanup(appLog);
@@ -140,6 +164,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
             return new WpfHostRuntime(
                 inputInjector,
                 cursorWatchdogService,
+                cursorWatchdogMonitoringLost,
                 customPointerService,
                 pointerHighlightForegroundMonitor,
                 textDestinationDraftCleanup,
@@ -197,6 +222,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
             appLog,
             "presentation_email_draft_cleanup");
         TryDispose(_customPointerService, appLog, "custom_pointer_service");
+        _cursorWatchdogService.MonitoringLost -= _cursorWatchdogMonitoringLost;
         TryDispose(_cursorWatchdogService, appLog, "cursor_watchdog_service");
         TryDispose(_inputInjector, appLog, "input_injector");
         await TryDisposeAsync(appLog as IAsyncDisposable, appLog, "application_log");

@@ -74,17 +74,14 @@ internal sealed class CustomPointerSettingsSection(
         parent.Children.Add(controls);
 
         var useWatchdog = visuals.CreateCheckBox(
-            "Use cursor recovery watchdog",
+            "Cursor recovery watchdog",
             AppPointerSettings.UseCursorRecoveryWatchdog(),
             showInformation: () => ThemedConfirmationDialog.ShowInformation(
                 owner,
                 "Cursor recovery watchdog",
-                "The recovery watchdog reloads your normal Windows cursor scheme if Voltura Air crashes or is forcibly closed while Custom pointer is active. With this option off, a normal shutdown still restores your cursors, but an unexpected termination can leave the custom cursor active until the Windows cursor scheme is reloaded."));
+                "Required for Custom pointer. Restores normal Windows cursors if Voltura Air stops unexpectedly."));
         useWatchdog.VerticalAlignment = VerticalAlignment.Center;
         parent.Children.Add(useWatchdog);
-        parent.Children.Add(visuals.CreateNotice(
-            "Without the recovery watchdog, an unexpected shutdown can leave the custom cursor active until the Windows cursor scheme is reloaded.",
-            isError: true));
 
         var synchronizingWatchdog = false;
         void UpdateWatchdogVisual()
@@ -98,6 +95,13 @@ internal sealed class CustomPointerSettingsSection(
             if (synchronizingWatchdog)
             {
                 return;
+            }
+
+            if (!enabled && customPointer.IsChecked == true)
+            {
+                Save(false, (int)Math.Round(size.Value), GetColor(colorButton));
+                customPointer.IsChecked = false;
+                controls.IsEnabled = false;
             }
 
             AppPointerSettings.SetUseCursorRecoveryWatchdog(enabled);
@@ -148,13 +152,22 @@ internal sealed class CustomPointerSettingsSection(
 
         customPointer.Checked += (_, _) =>
         {
+            if (!AppPointerSettings.UseCursorRecoveryWatchdog())
+            {
+                customPointer.IsChecked = false;
+                toasts.Show("Enable Cursor recovery watchdog before turning on Custom pointer.");
+                return;
+            }
+
             controls.IsEnabled = true;
             Save(true, (int)Math.Round(size.Value), GetColor(colorButton));
+            UpdateWatchdogVisual();
         };
         customPointer.Unchecked += (_, _) =>
         {
             controls.IsEnabled = false;
             Save(false, (int)Math.Round(size.Value), GetColor(colorButton));
+            UpdateWatchdogVisual();
         };
         size.ValueChanged += (_, _) =>
         {

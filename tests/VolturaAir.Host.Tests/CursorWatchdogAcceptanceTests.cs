@@ -99,6 +99,30 @@ public sealed class CursorWatchdogAcceptanceTests : IsolatedHostSettingsTest
     }
 
     [Fact]
+    public async Task MonitorLossIsReportedWhenTheWatchdogIsKilled()
+    {
+        using var dummyHost = StartSleepingHost();
+        using var service = new CursorWatchdogService(GetWatchdogPath(), dummyHost.Id);
+        var monitorLost = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        service.MonitoringLost += (_, _) => monitorLost.TrySetResult();
+        try
+        {
+            service.EnsureMonitoring();
+            var monitorProcessId = Assert.IsType<int>(service.MonitorProcessId);
+            using var monitor = Process.GetProcessById(monitorProcessId);
+
+            monitor.Kill();
+
+            await monitorLost.Task.WaitAsync(ProcessTimeout);
+            Assert.Null(service.MonitorProcessId);
+        }
+        finally
+        {
+            StopProcess(dummyHost);
+        }
+    }
+
+    [Fact]
     public async Task NewMonitorWaitsForPreviousSameSessionMonitorToRestoreAndExit()
     {
         using var previousHost = StartSleepingHost();
@@ -198,7 +222,10 @@ public sealed class CursorWatchdogAcceptanceTests : IsolatedHostSettingsTest
         Directory.CreateDirectory(Path.GetDirectoryName(readyFile)!);
         var restoreCompletedEventName = $"Local\\VolturaAir.CursorWatchdog.Test.{Guid.NewGuid():N}";
         using var restoreCompletedEvent = new EventWaitHandle(false, EventResetMode.ManualReset, restoreCompletedEventName);
-        using var pointer = new CustomPointerService();
+        using var pointer = new CustomPointerService(
+            static () => true,
+            static () => { },
+            static () => { });
         using var dummyHost = StartDummyHost(watchdogPath, restoreCompletedEventName, readyFile);
         try
         {

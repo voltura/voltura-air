@@ -41,10 +41,27 @@ public sealed class CustomPointerServiceTests : IsolatedHostSettingsTest
     [Fact]
     public void AppliesAndRestoresTheNativeCursorScheme()
     {
-        using var service = new CustomPointerService();
+        using var service = new CustomPointerService(
+            static () => true,
+            static () => { },
+            static () => { });
 
         service.Apply(new CustomPointerSettings(true, 6, AppPointerSettings.DefaultCustomPointerColor));
         service.Restore();
+    }
+
+    [Fact]
+    public void RefusesToApplyCustomPointerWithoutRecoveryMonitoring()
+    {
+        using var service = new CustomPointerService(
+            static () => false,
+            static () => Assert.Fail("Custom pointer must not start monitoring when recovery is disabled."),
+            static () => { });
+
+        var exception = Assert.Throws<CursorWatchdogUnavailableException>(() => service.Apply(
+            new CustomPointerSettings(true, 6, AppPointerSettings.DefaultCustomPointerColor)));
+
+        Assert.Contains("requires", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -69,10 +86,13 @@ public sealed class CustomPointerServiceTests : IsolatedHostSettingsTest
 
         useRecoveryMonitoring = true;
         service.RefreshRecoveryMonitoring();
+        Assert.Equal(1, starts);
+
+        service.Apply(new CustomPointerSettings(true, 6, AppPointerSettings.DefaultCustomPointerColor));
         Assert.Equal(2, starts);
 
         service.Apply(new CustomPointerSettings(false, 6, AppPointerSettings.DefaultCustomPointerColor));
-        Assert.Equal(2, stops);
+        Assert.Equal(3, stops);
     }
 
     [Fact]

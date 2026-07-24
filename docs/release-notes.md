@@ -6,6 +6,18 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v0.7.6
+
+- Automatically minimizes the Windows host to the tray after a device connects
+  from the Connection screen.
+- Made Custom pointer require its recovery watchdog; disabling the watchdog now
+  restores normal Windows cursors and turns Custom pointer off.
+- Improved Custom pointer recovery when restarting the Windows host, including
+  waiting for a previous recovery monitor to finish restoring Windows cursors.
+- Added a reminder to email drafts that they may contain sensitive information.
+- Improved foreground activation for the Windows host after startup and for the
+  installer when it opens from SmartScreen.
+
 ## v0.7.5
 
 - Added Presentation as the default fourth mobile mode for PowerPoint, Google

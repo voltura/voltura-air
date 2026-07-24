@@ -77,9 +77,9 @@ unavailable/retrying.
 
 ## Custom pointer remains
 
-Keep **Preferences > Custom pointer > Use cursor recovery watchdog** enabled.
-Reopen Voltura Air and disable **Custom pointer**, or reload the chosen scheme
-in Windows Mouse settings.
+Reopen Voltura Air, which reloads the configured Windows cursor scheme, then
+disable **Custom pointer**. You can also reload the chosen scheme in Windows
+Mouse settings.
 
 ## Pointer is delayed or continues after release
 

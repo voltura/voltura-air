@@ -184,7 +184,7 @@ static int LaunchMonitor(DWORD hostProcessId, const wchar_t* restoreCompletedEve
         NULL,
         NULL,
         FALSE,
-        CREATE_NO_WINDOW,
+        CREATE_NO_WINDOW | CREATE_BREAKAWAY_FROM_JOB,
         NULL,
         NULL,
         &startupInfo,

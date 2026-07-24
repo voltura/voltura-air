@@ -130,6 +130,12 @@ internal static class Program
 
     internal static void DisableCursorWatchdogAndRestart(Action requestRestart)
     {
+        var customPointer = AppPointerSettings.GetCustomPointer();
+        if (customPointer.Enabled)
+        {
+            AppPointerSettings.SetCustomPointer(customPointer with { Enabled = false });
+        }
+
         AppPointerSettings.SetUseCursorRecoveryWatchdog(false);
         requestRestart();
     }

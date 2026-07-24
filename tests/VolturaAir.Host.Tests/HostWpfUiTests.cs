@@ -29,6 +29,10 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
             try
             {
                 AppPointerSettings.SetUseCursorRecoveryWatchdog(true);
+                AppPointerSettings.SetCustomPointer(new CustomPointerSettings(
+                    true,
+                    AppPointerSettings.DefaultCustomPointerSize,
+                    AppPointerSettings.DefaultCustomPointerColor));
                 var restartRequested = false;
                 Assert.Equal(520, window.Width);
                 Assert.Equal(360, window.Height);
@@ -64,6 +68,7 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
                 AssertControlIsFullyWithinWindow(window, closeButton);
                 disableWatchdogButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 Assert.False(AppPointerSettings.UseCursorRecoveryWatchdog());
+                Assert.False(AppPointerSettings.GetCustomPointer().Enabled);
                 Assert.True(restartRequested);
             }
             finally

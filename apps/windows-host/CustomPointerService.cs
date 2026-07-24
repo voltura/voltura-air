@@ -156,6 +156,11 @@ public sealed partial class CustomPointerService : IDisposable
             return;
         }
 
+        if (!_useRecoveryMonitoring())
+        {
+            throw new CursorWatchdogUnavailableException("Custom pointer requires the cursor recovery watchdog.");
+        }
+
         try
         {
             // Readiness means the watchdog holds a synchronized host handle before any cursor is replaced.
@@ -233,15 +238,25 @@ public sealed partial class CustomPointerService : IDisposable
             return;
         }
 
-        _ = SystemParametersInfo(SpiSetCursors, 0, nint.Zero, 0);
+        RestoreWindowsCursorScheme();
         _mayHaveApplied = false;
     }
+
+    internal static void RestoreWindowsCursorScheme() =>
+        _ = SystemParametersInfo(SpiSetCursors, 0, nint.Zero, 0);
 
     internal void RefreshRecoveryMonitoring()
     {
         lock (_gate)
         {
             ThrowIfDisposed();
+            if (_mayHaveApplied && !_useRecoveryMonitoring())
+            {
+                Restore();
+                _stopRecoveryMonitoring();
+                return;
+            }
+
             RefreshRecoveryMonitoringCore(_mayHaveApplied);
         }
     }

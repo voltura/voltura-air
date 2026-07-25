@@ -27,22 +27,56 @@ const reports = [
     directories: ["apps/mobile-web"],
     extensions: new Set([
       ".css", ".html", ".js", ".json", ".jsx", ".mjs", ".ts", ".tsx", ".webmanifest"
-    ])
+    ]),
+    excludePattern: /\.(?:test|spec)\.(?:js|jsx|mjs|ts|tsx)$/i
   },
   {
     title: "Windows host",
-    locations: ["apps/windows-host", "apps/cursor-watchdog", "VolturaAir.slnx"],
+    locations: ["apps/windows-host", "apps/cursor-watchdog", "VolturaAir.slnx", "Directory.Build.props"],
     directories: ["apps/windows-host", "apps/cursor-watchdog"],
-    additionalFiles: ["VolturaAir.slnx"],
+    additionalFiles: ["VolturaAir.slnx", "Directory.Build.props"],
     extensions: new Set([
       ".c", ".config", ".cs", ".csproj", ".json", ".props", ".resx", ".slnx", ".targets", ".xaml", ".xml"
     ])
   },
   {
-    title: "NSIS installers",
+    title: "Mobile client tests",
+    locations: ["apps/mobile-web"],
+    directories: ["apps/mobile-web"],
+    extensions: new Set([".js", ".jsx", ".mjs", ".ts", ".tsx"]),
+    includePattern: /\.(?:test|spec)\.(?:js|jsx|mjs|ts|tsx)$/i
+  },
+  {
+    title: "Windows host tests",
+    locations: ["tests/VolturaAir.Host.Tests"],
+    directories: ["tests/VolturaAir.Host.Tests"],
+    extensions: new Set([".cs", ".csproj"]),
+    includePattern: /(?:Tests?\.cs|\.csproj)$/i
+  },
+  {
+    title: "Repository automation",
+    locations: ["scripts"],
+    directories: ["scripts"],
+    extensions: new Set([".cjs", ".js", ".mjs", ".ps1", ".sh", ".vbs", ".yml"])
+  },
+  {
+    title: "GitHub automation",
+    locations: [".github"],
+    directories: [".github"],
+    extensions: new Set([".yml", ".yaml"])
+  },
+  {
+    title: "Repository automation tests",
+    locations: ["tests/scripts"],
+    directories: ["tests/scripts"],
+    extensions: new Set([".mjs"]),
+    includePattern: /\.test\.mjs$/i
+  },
+  {
+    title: "Installers",
     locations: ["installer"],
     directories: ["installer"],
-    extensions: new Set([".nsi"])
+    extensions: new Set([".nsi", ".ps1"])
   }
 ];
 const assetCategories = [
@@ -51,13 +85,13 @@ const assetCategories = [
   { title: "Cursors", extensions: [".cur"] }
 ];
 const assetExtensions = new Set(assetCategories.flatMap(({ extensions }) => extensions));
-const scriptExtensions = [".bat", ".cjs", ".cmd", ".js", ".mjs", ".nsi", ".ps1", ".sh"];
+const scriptExtensions = [".bat", ".cjs", ".cmd", ".js", ".mjs", ".nsi", ".ps1", ".sh", ".vbs", ".yml"];
 const testReports = [
   {
     title: "Mobile client",
     directories: ["apps/mobile-web"],
-    extensions: new Set([".js", ".jsx", ".ts", ".tsx"]),
-    filePattern: /\.(?:test|spec)\.(?:js|jsx|ts|tsx)$/i,
+    extensions: new Set([".js", ".jsx", ".mjs", ".ts", ".tsx"]),
+    filePattern: /\.(?:test|spec)\.(?:js|jsx|mjs|ts|tsx)$/i,
     testPattern: /\b(?:it|test)(?:\.(?:each|only|skip|todo))*\s*\(/g
   },
   {
@@ -66,6 +100,13 @@ const testReports = [
     extensions: new Set([".cs"]),
     filePattern: /Tests?\.cs$/i,
     testPattern: /\[(?:Fact|Theory)\]/g
+  },
+  {
+    title: "Repository automation",
+    directories: ["tests/scripts"],
+    extensions: new Set([".mjs"]),
+    filePattern: /\.test\.mjs$/i,
+    testPattern: /\btest(?:\.(?:each|only|skip|todo))*\s*\(/g
   }
 ];
 
@@ -101,10 +142,15 @@ async function collectFiles(directory, extensions) {
   return files;
 }
 
-async function createSourceReport({ title, locations, directories, additionalFiles = [], extensions }) {
-  const files = (await Promise.all(directories.map((directory) => collectFiles(path.join(root, directory), extensions)))).flat();
+async function createSourceReport({ title, locations, directories, additionalFiles = [], extensions, includePattern, excludePattern }) {
+  const files = (await Promise.all(directories.map((directory) => collectFiles(path.join(root, directory), extensions))))
+    .flat()
+    .filter((file) => !includePattern || includePattern.test(path.basename(file)))
+    .filter((file) => !excludePattern || !excludePattern.test(path.basename(file)));
   files.push(...additionalFiles
     .map((file) => path.join(root, file))
+    .filter((file) => !includePattern || includePattern.test(path.basename(file)))
+    .filter((file) => !excludePattern || !excludePattern.test(path.basename(file)))
     .filter((file) => extensions.has(path.extname(file).toLowerCase())));
   const byExtension = new Map();
 
@@ -312,7 +358,7 @@ function renderSourceReport({ title, locations, totals, byExtension }) {
 
   return `<section class="source-section">
   <div class="section-heading">
-    <div><h2>${escapeHtml(title)}</h2><p>${escapeHtml(locations.join(" · "))}</p></div>
+    <div><h2>${escapeHtml(title)}</h2><p>${escapeHtml(locations.join(" / "))}</p></div>
     <dl><div><dt>Files</dt><dd>${formatNumber(totals.files)}</dd></div><div><dt>Lines</dt><dd>${formatNumber(totals.lines)}</dd></div></dl>
   </div>
   <table><thead><tr><th>Type</th><th>Files</th><th>Lines</th></tr></thead><tbody>${rows}</tbody></table>
@@ -324,15 +370,18 @@ function formatPercentage(value, total) {
 }
 
 function createDonut(segments, total, unit) {
-  const colors = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)"];
+  const colors = [
+    "var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)",
+    "var(--chart-5)", "var(--chart-6)", "var(--chart-7)", "var(--chart-8)"
+  ];
   let position = 0;
   const gradient = segments.map(({ value }, index) => {
     const end = position + value / total * 100;
-    const value_ = `${colors[index]} ${position.toFixed(2)}% ${end.toFixed(2)}%`;
+    const value_ = `${colors[index % colors.length]} ${position.toFixed(2)}% ${end.toFixed(2)}%`;
     position = end;
     return value_;
   }).join(", ");
-  const legend = segments.map(({ title, value }, index) => `<li><span class="legend-swatch legend-${index + 1}"></span><span>${escapeHtml(title)}</span><strong>${formatPercentage(value, total)}</strong></li>`).join("");
+  const legend = segments.map(({ title, value }, index) => `<li><span class="legend-swatch" style="--swatch: ${colors[index % colors.length]}"></span><span>${escapeHtml(title)}</span><strong>${formatPercentage(value, total)}</strong></li>`).join("");
 
   return `<div class="donut-layout">
   <div class="donut" style="--chart: conic-gradient(${gradient})"><div><strong>${formatNumber(total)}</strong><span>${escapeHtml(unit)}</span></div></div>
@@ -389,7 +438,7 @@ function createHtmlReport({ codeReports, grandTotal, assets, tests, scripts, npm
   <link rel="icon" href="./favicon.ico" sizes="any">
   <link rel="apple-touch-icon" href="./apple-touch-icon.png">
   <style>
-    :root { color-scheme: dark; --page: #10151d; --surface: #18212d; --surface-alt: #202c3a; --text: #f3f6fa; --muted: #9eadbd; --line: #334256; --accent: #65d7ba; --accent-soft: #243e42; --chart-1: #65d7ba; --chart-2: #84b4f7; --chart-3: #e8b96c; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    :root { color-scheme: dark; --page: #10151d; --surface: #18212d; --surface-alt: #202c3a; --text: #f3f6fa; --muted: #9eadbd; --line: #334256; --accent: #65d7ba; --accent-soft: #243e42; --chart-1: #65d7ba; --chart-2: #84b4f7; --chart-3: #e8b96c; --chart-4: #f07f7f; --chart-5: #b9a1ff; --chart-6: #a8ce71; --chart-7: #f49ac2; --chart-8: #8bd3dd; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     * { box-sizing: border-box; }
     body { margin: 0; background: radial-gradient(circle at top right, #1e3a47 0, transparent 32rem), var(--page); color: var(--text); }
     main { width: min(1100px, calc(100% - 32px)); margin: 0 auto; padding: 56px 0 72px; }
@@ -397,15 +446,15 @@ function createHtmlReport({ codeReports, grandTotal, assets, tests, scripts, npm
     .back { display: inline-block; margin-bottom: 12px; color: var(--accent); font-weight: 700; text-decoration: none; }
     .back:hover { text-decoration: underline; }
     h1, h2, p { margin: 0; }
-    h1 { font-size: clamp(2rem, 5vw, 3.6rem); letter-spacing: -0.055em; }
-    h2 { font-size: 1.25rem; letter-spacing: -0.02em; }
+    h1 { font-size: clamp(2rem, 3.6rem, 3.6rem); letter-spacing: 0; }
+    h2 { font-size: 1.25rem; letter-spacing: 0; }
     p, dt, .meta { color: var(--muted); }
     header p { margin-top: 10px; }
     .meta { text-align: right; font-size: 0.9rem; }
     .summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 42px; }
     .metric { min-height: 132px; padding: 20px; border: 1px solid var(--line); border-radius: 16px; background: linear-gradient(145deg, var(--surface), var(--surface-alt)); }
     .metric dt { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; }
-    .metric dd { margin: 14px 0 0; font-size: clamp(1.7rem, 4vw, 2.5rem); font-weight: 700; letter-spacing: -0.04em; }
+    .metric dd { margin: 14px 0 0; font-size: clamp(1.7rem, 2.5rem, 2.5rem); font-weight: 700; letter-spacing: 0; }
     .metric dd span { display: block; margin-top: 4px; color: var(--muted); font-size: 0.82rem; font-weight: 400; letter-spacing: 0; }
     .visual-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; margin-bottom: 42px; }
     .visual-panel { min-width: 0; }
@@ -413,14 +462,12 @@ function createHtmlReport({ codeReports, grandTotal, assets, tests, scripts, npm
     .donut-layout { display: flex; align-items: center; gap: 24px; }
     .donut { display: grid; flex: 0 0 148px; width: 148px; aspect-ratio: 1; place-items: center; border-radius: 50%; background: var(--chart); }
     .donut > div { display: grid; width: 98px; aspect-ratio: 1; place-items: center; align-content: center; border-radius: 50%; background: var(--page); text-align: center; }
-    .donut strong { font-size: 1.35rem; letter-spacing: -0.04em; }
+    .donut strong { font-size: 1.35rem; letter-spacing: 0; }
     .donut span { color: var(--muted); font-size: 0.75rem; }
     .legend, .source-bars ul { display: grid; flex: 1; gap: 8px; padding: 0; margin: 0; list-style: none; }
     .legend li { display: grid; grid-template-columns: 10px 1fr auto; align-items: center; gap: 8px; color: var(--muted); font-size: 0.88rem; }
     .legend strong { color: var(--text); font-variant-numeric: tabular-nums; }
-    .legend-swatch { width: 10px; height: 10px; border-radius: 50%; background: var(--chart-1); }
-    .legend-2 { background: var(--chart-2); }
-    .legend-3 { background: var(--chart-3); }
+    .legend-swatch { width: 10px; height: 10px; border-radius: 50%; background: var(--swatch); }
     .source-bars { grid-column: span 2; }
     .source-bars li { display: grid; gap: 7px; }
     .source-bars li > div { display: flex; justify-content: space-between; gap: 16px; font-size: 0.9rem; }
@@ -456,7 +503,7 @@ function createHtmlReport({ codeReports, grandTotal, assets, tests, scripts, npm
 </head>
 <body>
   <main>
-    <header><div><a class="back" href="./">← Voltura Air home</a><h1>Code statistics</h1><p>Voltura Air repository overview</p></div><div class="meta">Source snapshot ${escapeHtml(generatedAt)}<br>Physical lines include blank lines</div></header>
+    <header><div><a class="back" href="./">&lt;- Voltura Air home</a><h1>Code statistics</h1><p>Voltura Air repository overview</p></div><div class="meta">Source snapshot ${escapeHtml(generatedAt)}<br>Physical lines include blank lines; declared parameterized tests count once</div></header>
     <section class="summary" aria-label="Repository summary">
       <dl class="metric"><dt>Source files</dt><dd>${formatNumber(grandTotal.files)}<span>${formatNumber(grandTotal.lines)} total lines</span></dd></dl>
       <dl class="metric"><dt>Test cases</dt><dd>${formatNumber(totalTestCases)}<span>${formatNumber(tests.reduce((total, { files }) => total + files, 0))} test files</span></dd></dl>
@@ -477,7 +524,7 @@ function createHtmlReport({ codeReports, grandTotal, assets, tests, scripts, npm
     </section>
     <section class="largest"><h2>Top 10 largest source code files</h2><ol>${largestCodeRows}</ol></section>
     <section class="largest"><h2>Top 10 largest maintained files</h2><ol>${largestRows}</ol></section>
-    <footer>Build output, dependencies, and other generated directories are excluded.</footer>
+    <footer>Build output, dependencies, coverage output, and other generated directories are excluded. Source totals include production, test, installer, and repository automation code.</footer>
   </main>
 </body>
 </html>`;

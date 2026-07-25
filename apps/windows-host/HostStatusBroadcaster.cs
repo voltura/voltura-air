@@ -31,7 +31,9 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
         WebSocketTransport transport,
         HostStatusPayloadFactory statusFactory,
         IAppLogWriter appLog,
-        PresentationLaserPointerController presentationLaserPointer)
+        PresentationLaserPointerController presentationLaserPointer,
+        IPowerPointAutomationService powerPoint,
+        IPresentationBlankOverlay presentationBlankOverlay)
     {
         _pairingManager = pairingManager;
         _awakeService = awakeService;
@@ -55,10 +57,16 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
         _awakeService.StateChanged += OnStatusChanged;
         presentationLaserPointer.StateChanged += OnStatusChanged;
         _presentationLaserPointer = presentationLaserPointer;
+        powerPoint.SnapshotChanged += OnStatusChanged;
+        _powerPoint = powerPoint;
+        presentationBlankOverlay.StateChanged += OnStatusChanged;
+        _presentationBlankOverlay = presentationBlankOverlay;
         _worker = Task.Run(ProcessAsync);
     }
 
     private readonly PresentationLaserPointerController _presentationLaserPointer;
+    private readonly IPowerPointAutomationService _powerPoint;
+    private readonly IPresentationBlankOverlay _presentationBlankOverlay;
 
     public void Queue()
     {
@@ -88,6 +96,8 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
         _workstationLockPolicy.Changed -= OnStatusChanged;
         _awakeService.StateChanged -= OnStatusChanged;
         _presentationLaserPointer.StateChanged -= OnStatusChanged;
+        _powerPoint.SnapshotChanged -= OnStatusChanged;
+        _presentationBlankOverlay.StateChanged -= OnStatusChanged;
 
         _requests.Writer.TryComplete();
         await _lifetimeCancellation.CancelAsync().ConfigureAwait(false);

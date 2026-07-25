@@ -129,20 +129,67 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
 
 ### Presentation (alpha, enabled by default)
 
-- The fourth mode controls user-selected PowerPoint, Google Slides, or
-  PDF/browser presentations. It does not infer the focused application.
-- Next, Previous, End, PowerPoint Start, permitted Blackout, volume, integrated
-  trackpad, and a laser pointer are available.
-- The timer records presenting sessions, breaks, slide visits, per-slide time,
-  and total/presenting/break durations. It retains up to 100 breaks and does not
-  survive reload, app restart, or leaving Presentation.
-- End/reset can save a report to the PC. Presentation content,
-  slide text, filenames, URLs, and window titles are not detected automatically.
+- The fourth mode controls PowerPoint, Google Slides, or PDF/browser
+  presentations. PowerPoint control attaches to an existing signed-in user's
+  PowerPoint process and enumerates its open presentations. Ordinary discovery
+  and commands never launch a file or fall back to global input. The sole
+  exception is explicit break recovery, which may reopen only the exact
+  canonical file already stored in the host-owned session draft.
+- A sole open PowerPoint presentation is selected automatically. Multiple open
+  presentations require an opaque runtime selection. Direct automation supports
+  Start from beginning/current, Next, Previous, First, Last, numbered slide,
+  End, black/white screen, and explicit automatic-playback pause/resume. While
+  already presenting, Start from beginning returns to slide 1 and Start from
+  current foregrounds the existing slideshow.
+  the selected presentation is Ready, Voltura Air reports the current editor
+  slide when PowerPoint exposes it. Start and numbered navigation start its
+  slideshow; Previous and Next start from that known editor slide and then
+  navigate once. They remain unavailable rather than guessing when the editor
+  slide cannot be read. The same black/white controls use Voltura Air's
+  full-display overlay. While Presenting, black/white use PowerPoint's native
+  slideshow states. Each slideshow command resolves and brings the selected
+  slideshow window to the foreground before it operates.
+  Explicitly entering PowerPoint Presentation mode also foregrounds the selected
+  open presentation or running show; reconnects, app refreshes, and pointer
+  cleanup do not.
+- Google Slides and PDF/browser retain their reviewed shortcut controls and
+  local timer/report path.
+- The laser is Voltura Air's custom cursor, not PowerPoint's native laser.
+  PowerPoint's arrow visibility is adjusted on a best-effort basis and restored
+  to automatic on disable or mandatory cleanup; a native pointer-option failure
+  does not disable Voltura Air's cursor. An active laser prevents presentation
+  switching.
+- A PowerPoint session starts when mobile starts the slideshow or explicitly
+  chooses **Start tracking**. The host owns monotonic timing, manual breaks,
+  current/total slide state, and a bounded ordered visit timeline. Black, white,
+  and paused slideshow states do not create breaks.
+- The starting device owns mobile breaks and Save/Discard. Slideshow exit pauses
+  tracking and offers Continue presentation as the primary action, with
+  Save/Discard secondary, without blocking the same presentation from
+  restarting. When PowerPoint is in edit mode, the paused session reconciles
+  its current position to PowerPoint's current editor slide while preserving
+  the completed visit history. Continue starts from that slide and resumes the
+  existing report, visits, ownership, and elapsed time; time with the slideshow
+  closed is excluded. A different presentation never inherits the paused
+  session. The trusted local Presentations page may also save or discard it,
+  and the atomic local draft survives disconnect or host restart. Existing
+  per-slide totals are derived from the visit timeline.
+- Starting a manual break shows a Voltura Air blackout on every display with a
+  live break duration and resume guidance. Any local or remote input may dismiss
+  the blackout for safety; the host then reminds the presenter that timing
+  remains on break until **Resume presentation** is pressed. Resume removes any
+  remaining overlay, returns the slideshow to focus, and, if necessary, reopens
+  the exact tracked file and restores the last slide before reporting failure.
 - The Windows archive filters by title, type, device, and date; shows totals,
   timelines, and detail; and supports rename, file/URL links, deletion, HTML,
-  XLSX, PDF, formula-safe CSV, text export, and email drafts.
-- Saved reports stay in the signed-in user's local application data. Alpha off
-  hides/blocks new controls and saves but preserves archive access.
+  XLSX, PDF, formula-safe CSV, text export, and email drafts. Reports saved
+  from authoritative PowerPoint sessions use the selected presentation's
+  PowerPoint name and retain its host-only canonical file link.
+- Saved reports stay in the signed-in user's local application data. Starting
+  the host with alpha features off does not create the PowerPoint automation
+  worker. Alpha-setting changes require a host restart to apply automation
+  resource changes; disabling immediately hides/blocks new controls and saves
+  while preserving archive access.
 
 ### Dictation and text transfer
 

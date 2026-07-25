@@ -14,6 +14,18 @@ internal static class UiTokens
     public const double Space2xl = 32d;
     public const double Space3xl = 40d;
     public const double EditableTextFontSize = 13d;
+    public const double ControlCompactHeight = 36d;
+    public const double ControlMinHeight = 44d;
+    public const double ControlProminentHeight = 48d;
+    public const double PresentationNavigationHeight = 62d;
+    public const double IconSmall = 16d;
+    public const double IconMedium = 20d;
+    public const double IconLarge = 24d;
+    public const double TrackpadCenterIconSize = 42d;
+    public const double BottomModeNavHeight = 63d;
+    public const double PresentationSummaryCardWidth = 112d;
+    public const double PageGutter = 16d;
+    public const double DesktopPageGutter = 28d;
 
     public static ThemePalette DarkPalette { get; } = new(
         true,

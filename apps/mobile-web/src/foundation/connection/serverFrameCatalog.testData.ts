@@ -56,6 +56,56 @@ export const serverFrameCatalog = {
       { type: "presentation.command.result", operationId: "op-presentation", target: "powerpoint", action: "next", succeeded: false, code: "permission-denied", message: "Blocked", laserPointerActive: true }
     ]
   },
+  "presentation.powerpoint.refresh.result": {
+    required: ["operationId", "succeeded", "message", "state", "presentations"],
+    frames: [
+      {
+        type: "presentation.powerpoint.refresh.result",
+        operationId: "op-refresh",
+        succeeded: true,
+        message: "Refreshed",
+        state: "ready",
+        presentations: [{
+          runtimePresentationId: "presentation-1",
+          name: "Quarterly update.pptx",
+          state: "presenting",
+          slideCount: 24,
+          currentSlideIndex: 7,
+          currentShowPosition: 7,
+          slideShowState: "running"
+        }]
+      },
+      {
+        type: "presentation.powerpoint.refresh.result",
+        operationId: "op-refresh-failed",
+        succeeded: false,
+        code: "powerpoint-busy",
+        message: "Busy",
+        state: "busy",
+        presentations: []
+      }
+    ]
+  },
+  "presentation.session.result": {
+    required: ["operationId", "action", "succeeded", "message"],
+    frames: [
+      {
+        type: "presentation.session.result",
+        operationId: "op-session",
+        action: "save",
+        succeeded: true,
+        message: "Presentation saved"
+      },
+      {
+        type: "presentation.session.result",
+        operationId: "op-session-failed",
+        action: "save",
+        succeeded: false,
+        code: "session-not-owner",
+        message: "Not owner"
+      }
+    ]
+  },
   "presentation.report.save.result": {
     required: ["operationId", "reportId", "succeeded", "message"],
     frames: [

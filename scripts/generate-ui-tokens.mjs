@@ -66,6 +66,10 @@ export const uiThemeColors = {
   dark: { background: "${source.color.dark.bg}" },
   light: { background: "${source.color.light.bg}" }
 } as const;
+
+export const uiDurations = {
+${Object.entries(source.duration).map(([name, value]) => `  ${name}: ${value}`).join(",\n")}
+} as const;
 `;
 
 const xamlNumbers = [
@@ -139,6 +143,9 @@ ${Object.entries(source.space)
   .map(([name, value]) => `    public const double Space${toPascalCase(name)} = ${value}d;`)
   .join("\n")}
 ${Object.entries(source.typography)
+  .map(([name, value]) => `    public const double ${toPascalCase(name)} = ${value}d;`)
+  .join("\n")}
+${Object.entries(source.size)
   .map(([name, value]) => `    public const double ${toPascalCase(name)} = ${value}d;`)
   .join("\n")}
 

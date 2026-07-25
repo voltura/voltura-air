@@ -87,11 +87,13 @@
     "controlCompactHeight": 36,
     "controlMinHeight": 44,
     "controlProminentHeight": 48,
+    "presentationNavigationHeight": 62,
     "iconSmall": 16,
     "iconMedium": 20,
     "iconLarge": 24,
     "trackpadCenterIconSize": 42,
     "bottomModeNavHeight": 63,
+    "presentationSummaryCardWidth": 112,
     "pageGutter": 16,
     "desktopPageGutter": 28
   },

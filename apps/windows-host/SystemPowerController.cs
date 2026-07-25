@@ -29,13 +29,78 @@ public interface ISystemPowerController
     bool DismissBlackoutIfActive();
 }
 
+internal interface IPresentationBreakOverlay
+{
+    SystemPowerExecutionResult TryShowPresentationBreak(Func<TimeSpan> getElapsed);
+
+    bool DismissPresentationBreakIfActive();
+}
+
+internal interface IPresentationBlankOverlay
+{
+    event EventHandler? StateChanged;
+
+    PresentationBlankOverlaySnapshot? Snapshot { get; }
+
+    SystemPowerExecutionResult TryShowPresentationBlank(
+        string runtimePresentationId,
+        bool white);
+
+    bool DismissPresentationBlankIfActive();
+}
+
+internal sealed record PresentationBlankOverlaySnapshot(
+    string RuntimePresentationId,
+    string SlideShowState);
+
+internal sealed class NoOpPresentationBlankOverlay : IPresentationBlankOverlay
+{
+    internal static NoOpPresentationBlankOverlay Instance { get; } = new();
+
+    public event EventHandler? StateChanged
+    {
+        add { }
+        remove { }
+    }
+
+    public PresentationBlankOverlaySnapshot? Snapshot => null;
+
+    public SystemPowerExecutionResult TryShowPresentationBlank(
+        string runtimePresentationId,
+        bool white) =>
+        SystemPowerExecutionResult.Success;
+
+    public bool DismissPresentationBlankIfActive() => false;
+}
+
+internal sealed class NoOpPresentationBreakOverlay : IPresentationBreakOverlay
+{
+    internal static NoOpPresentationBreakOverlay Instance { get; } = new();
+
+    public SystemPowerExecutionResult TryShowPresentationBreak(Func<TimeSpan> getElapsed) =>
+        SystemPowerExecutionResult.Success;
+
+    public bool DismissPresentationBreakIfActive() => false;
+}
+
 public sealed record SystemPowerExecutionResult(bool Succeeded, int? Win32Error = null)
 {
     public static SystemPowerExecutionResult Success { get; } = new(true);
 }
 
-public sealed class NoOpSystemPowerController : ISystemPowerController
+public sealed class NoOpSystemPowerController :
+    ISystemPowerController,
+    IPresentationBreakOverlay,
+    IPresentationBlankOverlay
 {
+    event EventHandler? IPresentationBlankOverlay.StateChanged
+    {
+        add { }
+        remove { }
+    }
+
+    PresentationBlankOverlaySnapshot? IPresentationBlankOverlay.Snapshot => null;
+
     public SystemPowerExecutionResult TryExecute(string action)
     {
         return SystemPowerActions.IsSupported(action) ? SystemPowerExecutionResult.Success : new(false);
@@ -44,9 +109,25 @@ public sealed class NoOpSystemPowerController : ISystemPowerController
     public bool IsActionAvailable(string action) => SystemPowerActions.IsSupported(action);
 
     public bool DismissBlackoutIfActive() => false;
+
+    SystemPowerExecutionResult IPresentationBreakOverlay.TryShowPresentationBreak(
+        Func<TimeSpan> getElapsed) => SystemPowerExecutionResult.Success;
+
+    bool IPresentationBreakOverlay.DismissPresentationBreakIfActive() => false;
+
+    SystemPowerExecutionResult IPresentationBlankOverlay.TryShowPresentationBlank(
+        string runtimePresentationId,
+        bool white) =>
+        SystemPowerExecutionResult.Success;
+
+    bool IPresentationBlankOverlay.DismissPresentationBlankIfActive() => false;
 }
 
-public sealed partial class SystemPowerController : ISystemPowerController, IDisposable
+public sealed partial class SystemPowerController :
+    ISystemPowerController,
+    IPresentationBreakOverlay,
+    IPresentationBlankOverlay,
+    IDisposable
 {
     private const uint WmSysCommand = 0x0112;
     private const int ScMonitorPower = 0xF170;
@@ -56,6 +137,10 @@ public sealed partial class SystemPowerController : ISystemPowerController, IDis
     private readonly Func<bool> _turnOffDisplay;
     private readonly Func<int> _getLastWin32Error;
     private readonly IWindowsDisplayActionController _displayActions;
+    private readonly Lock _presentationBlankGate = new();
+    private PresentationBlankOverlaySnapshot? _presentationBlank;
+    private long _presentationBlankGeneration;
+    private event EventHandler? PresentationBlankStateChanged;
 
     public SystemPowerController()
         : this(
@@ -89,6 +174,7 @@ public sealed partial class SystemPowerController : ISystemPowerController, IDis
         _turnOffDisplay = turnOffDisplay;
         _getLastWin32Error = getLastWin32Error;
         _displayActions = displayActions;
+        _displayActions.BlankOverlayChanged += OnBlankOverlayChanged;
     }
 
     public SystemPowerExecutionResult TryExecute(string action)
@@ -125,9 +211,95 @@ public sealed partial class SystemPowerController : ISystemPowerController, IDis
         return _displayActions.DismissBlackoutIfActive();
     }
 
+    SystemPowerExecutionResult IPresentationBreakOverlay.TryShowPresentationBreak(
+        Func<TimeSpan> getElapsed)
+    {
+        return _displayActions.TryShowPresentationBreak(getElapsed);
+    }
+
+    bool IPresentationBreakOverlay.DismissPresentationBreakIfActive()
+    {
+        return _displayActions.DismissPresentationBreakIfActive();
+    }
+
+    event EventHandler? IPresentationBlankOverlay.StateChanged
+    {
+        add => PresentationBlankStateChanged += value;
+        remove => PresentationBlankStateChanged -= value;
+    }
+
+    PresentationBlankOverlaySnapshot? IPresentationBlankOverlay.Snapshot
+    {
+        get
+        {
+            lock (_presentationBlankGate)
+            {
+                return _presentationBlank;
+            }
+        }
+    }
+
+    SystemPowerExecutionResult IPresentationBlankOverlay.TryShowPresentationBlank(
+        string runtimePresentationId,
+        bool white)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(runtimePresentationId);
+        var requested = new PresentationBlankOverlaySnapshot(
+            runtimePresentationId,
+            white ? "white" : "black");
+        var result = white
+            ? _displayActions.TryShowWhiteout()
+            : _displayActions.TryShowBlackout();
+        var generation = Volatile.Read(ref _presentationBlankGeneration);
+        SetPresentationBlank(
+            result.Succeeded && _displayActions.IsBlankOverlayActive
+                ? requested
+                : null,
+            generation);
+        return result;
+    }
+
+    bool IPresentationBlankOverlay.DismissPresentationBlankIfActive()
+    {
+        return _displayActions.DismissBlackoutIfActive();
+    }
+
     public void Dispose()
     {
+        _displayActions.BlankOverlayChanged -= OnBlankOverlayChanged;
         _displayActions.Dispose();
+    }
+
+    private void OnBlankOverlayChanged(object? sender, EventArgs eventArgs)
+    {
+        _ = Interlocked.Increment(ref _presentationBlankGeneration);
+        if (!_displayActions.IsBlankOverlayActive)
+        {
+            SetPresentationBlank(null);
+        }
+    }
+
+    private void SetPresentationBlank(
+        PresentationBlankOverlaySnapshot? value,
+        long? expectedGeneration = null)
+    {
+        lock (_presentationBlankGate)
+        {
+            if (expectedGeneration is { } expected &&
+                Volatile.Read(ref _presentationBlankGeneration) != expected)
+            {
+                return;
+            }
+
+            if (_presentationBlank == value)
+            {
+                return;
+            }
+
+            _presentationBlank = value;
+        }
+
+        PresentationBlankStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private SystemPowerExecutionResult GetNativeResult(bool succeeded)

@@ -176,8 +176,21 @@ function isServerMessage(value: unknown): value is ServerMessage {
     case "presentation.command.result":
       return isOperationId(value.operationId) &&
         isOneOf(value.target, ["powerpoint", "google-slides", "pdf"]) &&
-        isOneOf(value.action, ["next", "previous", "start", "end", "black", "pointer"]) &&
+        isOneOf(value.action, ["next", "previous", "start", "start-current", "first", "last", "goto", "end", "black", "white", "pause", "pointer", "activate"]) &&
         typeof value.laserPointerActive === "boolean" &&
+        isOptional(value, "runtimePresentationId", (candidate) =>
+          candidate === null || isOperationId(candidate)) &&
+        isOptional(value, "presentation", (candidate) =>
+          candidate === null || isPowerPointPresentation(candidate)) &&
+        isResultBase(value);
+    case "presentation.powerpoint.refresh.result":
+      return isOperationId(value.operationId) &&
+        isResultBase(value) &&
+        isOneOf(value.state, ["ready", "busy", "unavailable"]) &&
+        isPowerPointPresentations(value.presentations);
+    case "presentation.session.result":
+      return isOperationId(value.operationId) &&
+        isOneOf(value.action, ["start", "break", "save", "discard"]) &&
         isResultBase(value);
     case "presentation.report.save.result":
       return isOperationId(value.operationId) &&
@@ -292,7 +305,72 @@ function isPresentationCapability(value: unknown): boolean {
   return isRecord(value) &&
     typeof value.canControl === "boolean" &&
     typeof value.canSaveReports === "boolean" &&
-    typeof value.laserPointerActive === "boolean";
+    typeof value.laserPointerActive === "boolean" &&
+    isOptional(value, "powerPoint", (candidate) =>
+      candidate === null || isPowerPointCapability(candidate));
+}
+
+function isPowerPointCapability(value: unknown): boolean {
+  return isRecord(value) &&
+    isOneOf(value.state, ["ready", "busy", "unavailable"]) &&
+    isOptional(value, "foregroundActivationSupported", (candidate) =>
+      typeof candidate === "boolean") &&
+    isPowerPointPresentations(value.presentations) &&
+    isOptional(value, "session", isPowerPointSession);
+}
+
+function isPowerPointSession(value: unknown): boolean {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return isOneOf(value.state, ["inactive", "tracking", "pending-review"]) &&
+    isOptional(value, "runtimePresentationId", (candidate) =>
+      candidate === null || isOperationId(candidate)) &&
+    isOptional(value, "presentationName", (candidate) =>
+      candidate === null || isBoundedString(candidate, 120, false)) &&
+    isOptional(value, "ownerDeviceName", (candidate) =>
+      candidate === null || isBoundedString(candidate, 120, false)) &&
+    typeof value.isOwner === "boolean" &&
+    isOptional(value, "startedAt", (candidate) => candidate === null || isString(candidate)) &&
+    isNonNegativeNumber(value.elapsedSeconds) &&
+    typeof value.breakActive === "boolean" &&
+    isNonNegativeNumber(value.breakElapsedSeconds) &&
+    isOptional(value, "currentSlideIndex", isNullableSlideNumber) &&
+    typeof value.slideCount === "number" &&
+    Number.isInteger(value.slideCount) &&
+    value.slideCount >= 0 &&
+    value.slideCount <= 10000 &&
+    isOneOf(value.slideShowState, ["ready", "running", "paused", "black", "white"]);
+}
+
+function isPowerPointPresentations(value: unknown): boolean {
+  return Array.isArray(value) &&
+    value.length <= 32 &&
+    value.every(isPowerPointPresentation);
+}
+
+function isPowerPointPresentation(value: unknown): boolean {
+  return isRecord(value) &&
+    isOperationId(value.runtimePresentationId) &&
+    isBoundedString(value.name, 120, false) &&
+    isOneOf(value.state, ["ready", "presenting"]) &&
+    typeof value.slideCount === "number" &&
+    Number.isInteger(value.slideCount) &&
+    value.slideCount >= 0 &&
+    value.slideCount <= 10000 &&
+    isOptional(value, "currentSlideIndex", isNullableSlideNumber) &&
+    isOptional(value, "currentShowPosition", isNullableSlideNumber) &&
+    isOneOf(value.slideShowState, ["ready", "running", "paused", "black", "white"]);
+}
+
+function isNullableSlideNumber(value: unknown): boolean {
+  return value === null ||
+    (typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 10000);
+}
+
+function isNonNegativeNumber(value: unknown): boolean {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -392,7 +470,10 @@ export const getPresentationCapability = (capabilities: ServerCapabilities | und
     ? {
         canControl: capabilities.presentation.canControl,
         canSaveReports: capabilities.presentation.canSaveReports,
-        laserPointerActive: capabilities.presentation.laserPointerActive
+        laserPointerActive: capabilities.presentation.laserPointerActive,
+        ...(capabilities.presentation.powerPoint === undefined
+          ? {}
+          : { powerPoint: capabilities.presentation.powerPoint })
       }
     : undefined;
 export const hasRemoteLaunchCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.remoteLaunch === true;

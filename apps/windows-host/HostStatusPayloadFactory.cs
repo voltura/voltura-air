@@ -9,7 +9,10 @@ internal sealed class HostStatusPayloadFactory(
     ITextDestinationService textDestinationService,
     Func<HostNetworkSnapshot> getNetwork,
     Func<bool> isInputBlockedByElevation,
-    Func<bool> isPresentationLaserPointerEnabled)
+    Func<bool> isPresentationLaserPointerEnabled,
+    Func<PresentationBlankOverlaySnapshot?> getPresentationBlank,
+    Func<PowerPointAutomationSnapshot> getPowerPointSnapshot,
+    Func<PowerPointSessionSnapshot> getPowerPointSession)
 {
     private static readonly string DeveloperSessionId = Guid.NewGuid().ToString("N");
 
@@ -22,7 +25,7 @@ internal sealed class HostStatusPayloadFactory(
             connected = true,
             message = "Connected",
             pcName = Environment.MachineName,
-            capabilities = CreateCapabilities(permissions),
+            capabilities = CreateCapabilities(clientId, permissions),
             host = CreateHostStatus(clientId, permissions)
         };
     }
@@ -36,7 +39,7 @@ internal sealed class HostStatusPayloadFactory(
             clientId,
             pcName = Environment.MachineName,
             paired = true,
-            capabilities = CreateCapabilities(permissions),
+            capabilities = CreateCapabilities(clientId, permissions),
             host = CreateHostStatus(clientId, permissions)
         };
     }
@@ -50,7 +53,7 @@ internal sealed class HostStatusPayloadFactory(
             connected = false,
             message,
             pcName = Environment.MachineName,
-            capabilities = CreateCapabilities(permissions),
+            capabilities = CreateCapabilities(clientId, permissions),
             host = CreateHostStatus(clientId, permissions)
         };
     }
@@ -59,6 +62,7 @@ internal sealed class HostStatusPayloadFactory(
     public bool CanUseRemoteInput(string clientId) => GetEffectivePermissions(clientId).AllowRemoteInput;
     public bool CanControlVolume(string clientId) => GetEffectivePermissions(clientId).AllowVolumeControl;
     public bool CanControlPresentations(string clientId) => GetEffectivePermissions(clientId).AllowPresentationControl;
+    internal PowerPointAutomationSnapshot GetPowerPointSnapshot() => getPowerPointSnapshot();
     public bool CanLaunchRemoteApps(string clientId) => GetEffectivePermissions(clientId).AllowRemoteAppLaunch;
     public bool CanOpenUrls(string clientId) => GetEffectivePermissions(clientId).AllowUrlOpen;
     public bool CanReadClipboard(string clientId) => GetEffectivePermissions(clientId).AllowClipboardRead;
@@ -66,7 +70,7 @@ internal sealed class HostStatusPayloadFactory(
     public HostPermissionSet GetEffectivePermissions(string clientId) =>
         pairingManager.GetEffectivePermissions(clientId, AppPermissionSettings.Load());
 
-    private object CreateCapabilities(HostPermissionSet permissions) => new
+    private object CreateCapabilities(string clientId, HostPermissionSet permissions) => new
     {
         sleep = permissions.AllowPcSleep,
         remoteInput = permissions.AllowRemoteInput,
@@ -78,7 +82,10 @@ internal sealed class HostStatusPayloadFactory(
             {
                 canControl = permissions.AllowPresentationControl,
                 canSaveReports = permissions.AllowPresentationControl,
-                laserPointerActive = isPresentationLaserPointerEnabled()
+                laserPointerActive = isPresentationLaserPointerEnabled(),
+                powerPoint = permissions.AllowPresentationControl
+                    ? CreatePowerPointCapability(clientId)
+                    : null
             }
             : null,
         remoteLaunch = permissions.AllowRemoteAppLaunch,
@@ -88,6 +95,39 @@ internal sealed class HostStatusPayloadFactory(
         gestureDebug = AppDeveloperSettings.EnableGestureDebug(),
         inputAck = true
     };
+
+    private object CreatePowerPointCapability(string clientId)
+    {
+        var snapshot = getPowerPointSnapshot();
+        var session = getPowerPointSession();
+        return new
+        {
+            state = PresentationCommandHandler.ToProtocolState(snapshot.State),
+            foregroundActivationSupported = true,
+            presentations = snapshot.Presentations.Select(
+                presentation => PresentationCommandHandler.ToProtocolPresentation(
+                    presentation,
+                    getPresentationBlank())),
+            session = new
+            {
+                state = session.State,
+                runtimePresentationId = session.RuntimePresentationId,
+                presentationName = session.PresentationName,
+                ownerDeviceName = session.OwnerDeviceName,
+                isOwner = string.Equals(
+                    session.OwnerClientId,
+                    clientId,
+                    StringComparison.Ordinal),
+                startedAt = session.StartedAt?.ToString("O"),
+                elapsedSeconds = session.ElapsedSeconds,
+                breakActive = session.BreakActive,
+                breakElapsedSeconds = session.BreakElapsedSeconds,
+                currentSlideIndex = session.CurrentSlideIndex,
+                slideCount = session.SlideCount,
+                slideShowState = session.SlideShowState
+            }
+        };
+    }
 
     private object CreatePowerCapabilities(HostPermissionSet permissions)
     {

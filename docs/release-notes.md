@@ -6,6 +6,35 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v0.7.7
+
+- Rebuilt PowerPoint Presentation mode around direct PowerPoint automation for
+  open presentations, including start from beginning/current slide, next,
+  previous, first, last, numbered slide navigation, end slideshow, black screen,
+  white screen, and pause/resume.
+- Added open PowerPoint discovery, refresh, single-presentation auto-selection,
+  multi-presentation selection, and a Focus PPT action so the selected
+  presentation can be brought back to the foreground from mobile.
+- Replaced the native PowerPoint laser with Voltura Air's custom laser pointer
+  while keeping PowerPoint's pointer visible when possible and cleaning up the
+  cursor after disconnects, slideshow closure, permission changes, or shutdown.
+- Made PowerPoint timing host-authoritative, with recoverable session drafts,
+  Continue presentation after interrupted slideshows, manual break ownership,
+  and saved reports that keep the selected presentation name and local file link
+  on the PC.
+- Added break blackout and whiteout overlays that show break status, can be
+  dismissed safely by local input, and resume the selected presentation from the
+  current slide.
+- Improved the mobile Presentation layout for portrait and landscape phones,
+  including the compact trackpad states, responsive command panels, Go to slide
+  dialog, consistent controls, and non-selectable app chrome.
+- Improved PowerPoint error handling and logging so unavailable, busy, stale,
+  invalid-slide, pointer, and automation failures are reported without falling
+  back to blind keyboard input.
+- Improved the Windows Presentations archive so PowerPoint reports use the
+  actual presentation title when available and summary cards fit ordinary window
+  sizes without clipping.
+
 ## v0.7.6
 
 - Automatically minimizes the Windows host to the tray after a device connects

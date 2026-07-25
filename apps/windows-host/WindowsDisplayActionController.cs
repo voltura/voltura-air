@@ -1,7 +1,9 @@
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using WpfBrushes = System.Windows.Media.Brushes;
@@ -11,31 +13,60 @@ namespace VolturaAir.Host;
 
 internal interface IWindowsDisplayActionController : IDisposable
 {
+    event EventHandler? BlankOverlayChanged;
+
     bool IsScreenSaverAvailable { get; }
 
+    bool IsBlankOverlayActive { get; }
+
     SystemPowerExecutionResult TryShowBlackout();
+
+    SystemPowerExecutionResult TryShowWhiteout();
 
     SystemPowerExecutionResult TryStartScreenSaver();
 
     bool DismissBlackoutIfActive();
+
+    SystemPowerExecutionResult TryShowPresentationBreak(Func<TimeSpan> getElapsed);
+
+    bool DismissPresentationBreakIfActive();
 }
 
 internal sealed class NoOpWindowsDisplayActionController : IWindowsDisplayActionController
 {
+    public event EventHandler? BlankOverlayChanged
+    {
+        add { }
+        remove { }
+    }
+
     public bool IsScreenSaverAvailable => false;
 
+    public bool IsBlankOverlayActive => false;
+
     public SystemPowerExecutionResult TryShowBlackout() => SystemPowerExecutionResult.Success;
+
+    public SystemPowerExecutionResult TryShowWhiteout() => SystemPowerExecutionResult.Success;
 
     public SystemPowerExecutionResult TryStartScreenSaver() => new(false);
 
     public bool DismissBlackoutIfActive() => false;
+
+    public SystemPowerExecutionResult TryShowPresentationBreak(Func<TimeSpan> getElapsed) =>
+        SystemPowerExecutionResult.Success;
+
+    public bool DismissPresentationBreakIfActive() => false;
 
     public void Dispose()
     {
     }
 }
 
-internal sealed partial class WindowsDisplayActionController(Dispatcher dispatcher, IAppLogWriter appLog) : IWindowsDisplayActionController
+internal sealed partial class WindowsDisplayActionController(
+    Dispatcher dispatcher,
+    IAppLogWriter appLog,
+    Action? presentationBreakDismissed = null,
+    Func<(int X, int Y)?>? getCursorPosition = null) : IWindowsDisplayActionController
 {
     private const uint SpiGetScreenSaveActive = 0x0010;
     private const uint WmSysCommand = 0x0112;
@@ -46,9 +77,23 @@ internal sealed partial class WindowsDisplayActionController(Dispatcher dispatch
     private static readonly nint HwndTopmost = new(-1);
     private readonly Dispatcher _dispatcher = dispatcher;
     private readonly IAppLogWriter _appLog = appLog;
+    private readonly Action? _presentationBreakDismissed = presentationBreakDismissed;
+    private readonly Func<(int X, int Y)?> _getCursorPosition =
+        getCursorPosition ?? ReadCursorPosition;
     private readonly List<Window> _blackoutWindows = [];
+    private readonly List<TextBlock> _breakMessages = [];
+    private DispatcherTimer? _breakTimer;
+    private Func<TimeSpan>? _getBreakElapsed;
+    private System.Windows.Media.Brush _blankBackground = WpfBrushes.Black;
+    private string _blankAction = "blackout_display";
     private int _blackoutActive;
+    private bool _presentationBreakActive;
     private DateTimeOffset _inputArmedAt;
+    private (int X, int Y)? _pointerPositionAtShow;
+
+    public event EventHandler? BlankOverlayChanged;
+
+    public bool IsBlankOverlayActive => Volatile.Read(ref _blackoutActive) != 0;
 
     public bool IsScreenSaverAvailable
     {
@@ -79,18 +124,31 @@ internal sealed partial class WindowsDisplayActionController(Dispatcher dispatch
 
     public SystemPowerExecutionResult TryShowBlackout()
     {
+        return TryShowBlankOverlay(WpfBrushes.Black, "blackout_display");
+    }
+
+    public SystemPowerExecutionResult TryShowWhiteout()
+    {
+        return TryShowBlankOverlay(WpfBrushes.White, "whiteout_display");
+    }
+
+    private SystemPowerExecutionResult TryShowBlankOverlay(
+        System.Windows.Media.Brush background,
+        string action)
+    {
         try
         {
             return _dispatcher.CheckAccess()
-                ? ShowBlackoutCore()
-                : _dispatcher.Invoke(ShowBlackoutCore);
+                ? ShowBlankOverlayCore(background, action)
+                : _dispatcher.Invoke<SystemPowerExecutionResult>(
+                    () => ShowBlankOverlayCore(background, action));
         }
         catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
         {
             _appLog.Write(new AppLogEntry(
                 Event: "host_action",
                 Source: "windows_host",
-                Action: "blackout_display",
+                Action: action,
                 Outcome: "failed",
                 Detail: ex.Message));
             return new SystemPowerExecutionResult(false, (ex as System.ComponentModel.Win32Exception)?.NativeErrorCode);
@@ -127,6 +185,46 @@ internal sealed partial class WindowsDisplayActionController(Dispatcher dispatch
         return _dispatcher.Invoke(() => DismissBlackoutCore("remote_input"));
     }
 
+    public SystemPowerExecutionResult TryShowPresentationBreak(Func<TimeSpan> getElapsed)
+    {
+        ArgumentNullException.ThrowIfNull(getElapsed);
+        try
+        {
+            return _dispatcher.CheckAccess()
+                ? ShowBlankOverlayCore(
+                    WpfBrushes.Black,
+                    "presentation_break_overlay",
+                    getElapsed)
+                : _dispatcher.Invoke<SystemPowerExecutionResult>(
+                    () => ShowBlankOverlayCore(
+                        WpfBrushes.Black,
+                        "presentation_break_overlay",
+                        getElapsed));
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            _appLog.Write(new AppLogEntry(
+                Event: "host_action",
+                Source: "windows_host",
+                Action: "presentation_break_overlay",
+                Outcome: "failed",
+                Detail: ex.Message));
+            return new(false, (ex as System.ComponentModel.Win32Exception)?.NativeErrorCode);
+        }
+    }
+
+    public bool DismissPresentationBreakIfActive()
+    {
+        if (!_presentationBreakActive || Volatile.Read(ref _blackoutActive) == 0)
+        {
+            return false;
+        }
+
+        return _dispatcher.CheckAccess()
+            ? DismissBlackoutCore("presentation_resumed")
+            : _dispatcher.Invoke(() => DismissBlackoutCore("presentation_resumed"));
+    }
+
     public void Dispose()
     {
         if (_dispatcher.HasShutdownStarted || _dispatcher.HasShutdownFinished)
@@ -144,13 +242,33 @@ internal sealed partial class WindowsDisplayActionController(Dispatcher dispatch
         }
     }
 
-    private SystemPowerExecutionResult ShowBlackoutCore()
+    private SystemPowerExecutionResult ShowBlankOverlayCore(
+        System.Windows.Media.Brush background,
+        string action,
+        Func<TimeSpan>? getBreakElapsed = null)
     {
         if (_blackoutWindows.Count > 0)
         {
-            return DismissBlackoutCore("toggle")
-                ? SystemPowerExecutionResult.Success
-                : new SystemPowerExecutionResult(false);
+            if (getBreakElapsed is not null && _presentationBreakActive)
+            {
+                _getBreakElapsed = getBreakElapsed;
+                UpdateBreakMessages();
+                return SystemPowerExecutionResult.Success;
+            }
+
+            if (getBreakElapsed is null &&
+                !_presentationBreakActive &&
+                ReferenceEquals(_blankBackground, background))
+            {
+                return DismissBlackoutCore("toggle")
+                    ? SystemPowerExecutionResult.Success
+                    : new SystemPowerExecutionResult(false);
+            }
+
+            _ = DismissBlackoutCore(
+                getBreakElapsed is null
+                    ? "blank_color_changed"
+                    : "presentation_break_replaced_blackout");
         }
 
         var monitors = GetMonitorRects();
@@ -160,10 +278,15 @@ internal sealed partial class WindowsDisplayActionController(Dispatcher dispatch
         }
 
         _inputArmedAt = DateTimeOffset.UtcNow.AddMilliseconds(350);
+        _pointerPositionAtShow = _getCursorPosition();
+        _presentationBreakActive = getBreakElapsed is not null;
+        _getBreakElapsed = getBreakElapsed;
+        _blankBackground = background;
+        _blankAction = action;
         Volatile.Write(ref _blackoutActive, 1);
         foreach (var monitor in monitors)
         {
-            var window = CreateBlackoutWindow();
+            var window = CreateBlackoutWindow(_presentationBreakActive, background);
             _blackoutWindows.Add(window);
             window.Show();
             var handle = new WindowInteropHelper(window).Handle;
@@ -184,21 +307,35 @@ internal sealed partial class WindowsDisplayActionController(Dispatcher dispatch
 
         _blackoutWindows[0].Activate();
         _blackoutWindows[0].Focus();
+        if (_presentationBreakActive)
+        {
+            UpdateBreakMessages();
+            _breakTimer = new DispatcherTimer(
+                TimeSpan.FromSeconds(1),
+                DispatcherPriority.Background,
+                (_, _) => UpdateBreakMessages(),
+                _dispatcher);
+            _breakTimer.Start();
+        }
+
         _appLog.Write(new AppLogEntry(
             Event: "host_action",
             Source: "windows_host",
-            Action: "blackout_display",
+            Action: action,
             Outcome: "shown",
             Detail: $"monitors={_blackoutWindows.Count}"));
+        BlankOverlayChanged?.Invoke(this, EventArgs.Empty);
         return SystemPowerExecutionResult.Success;
     }
 
-    private Window CreateBlackoutWindow()
+    private Window CreateBlackoutWindow(
+        bool presentationBreak,
+        System.Windows.Media.Brush background)
     {
         var window = new Window
         {
             AllowsTransparency = false,
-            Background = WpfBrushes.Black,
+            Background = background,
             Cursor = WpfCursors.None,
             Left = 0,
             Top = 0,
@@ -211,12 +348,28 @@ internal sealed partial class WindowsDisplayActionController(Dispatcher dispatch
             WindowStartupLocation = WindowStartupLocation.Manual,
             WindowStyle = WindowStyle.None
         };
+        if (presentationBreak)
+        {
+            var message = new TextBlock
+            {
+                Foreground = WpfBrushes.White,
+                FontFamily = new System.Windows.Media.FontFamily("Segoe UI"),
+                FontSize = 32,
+                FontWeight = FontWeights.SemiBold,
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+                TextAlignment = TextAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            _breakMessages.Add(message);
+            window.Content = message;
+        }
+
         window.PreviewKeyDown += (_, _) => DismissFromLocalInput("keyboard");
         window.PreviewMouseDown += (_, _) => DismissFromLocalInput("pointer");
         window.PreviewMouseWheel += (_, _) => DismissFromLocalInput("pointer");
         window.PreviewStylusDown += (_, _) => DismissFromLocalInput("stylus");
         window.PreviewTouchDown += (_, _) => DismissFromLocalInput("touch");
-        window.PreviewMouseMove += (_, _) => DismissFromLocalInput("pointer");
+        window.PreviewMouseMove += (_, _) => DismissFromPointerMovement();
         return window;
     }
 
@@ -230,6 +383,24 @@ internal sealed partial class WindowsDisplayActionController(Dispatcher dispatch
         _ = DismissBlackoutCore(source);
     }
 
+    private void DismissFromPointerMovement()
+    {
+        if (DateTimeOffset.UtcNow < _inputArmedAt ||
+            !HasPointerMoved(_pointerPositionAtShow, _getCursorPosition()))
+        {
+            return;
+        }
+
+        _ = DismissBlackoutCore("pointer");
+    }
+
+    internal static bool HasPointerMoved(
+        (int X, int Y)? initial,
+        (int X, int Y)? current) =>
+        initial is not null &&
+        current is not null &&
+        initial.Value != current.Value;
+
     private bool DismissBlackoutCore(string source)
     {
         if (_blackoutWindows.Count == 0)
@@ -237,25 +408,58 @@ internal sealed partial class WindowsDisplayActionController(Dispatcher dispatch
             return false;
         }
 
+        var remindAboutActiveBreak = _presentationBreakActive &&
+            !string.Equals(source, "presentation_resumed", StringComparison.Ordinal) &&
+            !string.Equals(source, "host_shutdown", StringComparison.Ordinal);
         CloseBlackoutWindows();
+        if (remindAboutActiveBreak)
+        {
+            _presentationBreakDismissed?.Invoke();
+        }
 
         _appLog.Write(new AppLogEntry(
             Event: "host_action",
             Source: "windows_host",
-            Action: "blackout_display",
+            Action: _blankAction,
             Outcome: "dismissed",
             Detail: source));
+        BlankOverlayChanged?.Invoke(this, EventArgs.Empty);
         return true;
     }
 
     private void CloseBlackoutWindows()
     {
+        _breakTimer?.Stop();
+        _breakTimer = null;
+        _getBreakElapsed = null;
+        _breakMessages.Clear();
+        _presentationBreakActive = false;
+        _pointerPositionAtShow = null;
         var windows = _blackoutWindows.ToArray();
         _blackoutWindows.Clear();
         Volatile.Write(ref _blackoutActive, 0);
         foreach (var window in windows)
         {
             window.Close();
+        }
+    }
+
+    private void UpdateBreakMessages()
+    {
+        var elapsed = _getBreakElapsed?.Invoke() ?? TimeSpan.Zero;
+        var wholeSeconds = Math.Max(0, (long)elapsed.TotalSeconds);
+        var hours = wholeSeconds / 3600;
+        var minutes = wholeSeconds % 3600 / 60;
+        var seconds = wholeSeconds % 60;
+        var duration = hours > 0
+            ? $"{hours:00}:{minutes:00}:{seconds:00}"
+            : $"{minutes:00}:{seconds:00}";
+        var text =
+            $"Break in session {duration}{Environment.NewLine}{Environment.NewLine}" +
+            "Press [Resume presentation] to continue";
+        foreach (var message in _breakMessages)
+        {
+            message.Text = text;
         }
     }
 
@@ -297,6 +501,20 @@ internal sealed partial class WindowsDisplayActionController(Dispatcher dispatch
 
     private readonly record struct MonitorRect(int Left, int Top, int Width, int Height);
 
+    private static (int X, int Y)? ReadCursorPosition()
+    {
+        return GetCursorPos(out var point)
+            ? (point.X, point.Y)
+            : null;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativePoint
+    {
+        public int X;
+        public int Y;
+    }
+
     [StructLayout(LayoutKind.Sequential)]
     private struct NativeRect
     {
@@ -327,6 +545,10 @@ internal sealed partial class WindowsDisplayActionController(Dispatcher dispatch
     [LibraryImport("user32.dll", EntryPoint = "GetMonitorInfoW")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool GetMonitorInfo(nint monitor, ref MonitorInfo info);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetCursorPos(out NativePoint point);
 
     [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

@@ -9,12 +9,45 @@
                 <RowDefinition Height="{DynamicResource GridSpaceMd}" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="{DynamicResource GridSpaceMd}" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="{DynamicResource GridSpaceMd}" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="{DynamicResource GridSpaceMd}" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
+            <Border x:Name="PendingReviewPanel"
+                    Grid.Row="0"
+                    Visibility="Collapsed"
+                    Padding="{DynamicResource SpaceMd}"
+                    CornerRadius="10"
+                    BorderBrush="{DynamicResource AccentBrush}"
+                    BorderThickness="1"
+                    Background="{DynamicResource SurfaceRaisedBrush}">
+                <DockPanel LastChildFill="True">
+                    <ui:SpacingWrapPanel DockPanel.Dock="Right"
+                                         HorizontalSpacing="{DynamicResource SpaceSm}">
+                        <Button x:Name="SavePendingReviewButton"
+                                Content="Save"
+                                Style="{DynamicResource PrimaryButtonStyle}"
+                                Click="OnSavePendingReview" />
+                        <Button x:Name="DiscardPendingReviewButton"
+                                Content="Discard"
+                                Click="OnDiscardPendingReview" />
+                    </ui:SpacingWrapPanel>
+                    <StackPanel>
+                        <TextBlock Text="Presentation ready to review"
+                                   FontWeight="SemiBold" />
+                        <TextBlock x:Name="PendingReviewSummary"
+                                   Margin="0,4,12,0"
+                                   Foreground="{DynamicResource MutedTextBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
             <ui:SpacingWrapPanel x:Name="FiltersPanel"
+                                 Grid.Row="2"
                                  HorizontalSpacing="{DynamicResource SpaceSm}"
                                  VerticalSpacing="{DynamicResource SpaceSm}">
                 <ui:SpacingStackPanel Spacing="{DynamicResource SpaceXs}">
@@ -91,9 +124,10 @@
             </ui:SpacingWrapPanel>
 
             <ItemsControl x:Name="SummaryCards"
-                          Grid.Row="2"
+                          Grid.Row="4"
                           Focusable="False"
                           IsTabStop="False"
+                          SizeChanged="OnSummaryCardsSizeChanged"
                           AutomationProperties.Name="Presentation archive statistics"
                           KeyboardNavigation.TabNavigation="None">
                 <ItemsControl.ItemsPanel>
@@ -104,7 +138,7 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border Width="128"
+                        <Border Width="{DynamicResource PresentationSummaryCardWidth}"
                                 MinHeight="58"
                                 Padding="9,7"
                                 Background="{DynamicResource SurfaceBrush}"
@@ -126,7 +160,7 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
 
-            <Grid Grid.Row="4">
+            <Grid Grid.Row="6">
                 <ListBox x:Name="ReportList"
                          Style="{DynamicResource ModernListBoxStyle}"
                          ItemContainerStyle="{DynamicResource ModernListBoxItemStyle}"
@@ -200,7 +234,7 @@
                            Visibility="Collapsed" />
             </Grid>
 
-            <Grid Grid.Row="6">
+            <Grid Grid.Row="8">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="{DynamicResource GridSpaceXl}" />
@@ -255,7 +289,7 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Width="124"
+                                <Border Width="{DynamicResource PresentationSummaryCardWidth}"
                                         MinHeight="56"
                                         Padding="9,7"
                                         Background="{DynamicResource SurfaceBrush}"

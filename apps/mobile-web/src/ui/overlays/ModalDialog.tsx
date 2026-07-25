@@ -82,7 +82,7 @@ export function ModalDialog({
     } else {
       dialog.setAttribute("open", "");
     }
-    (initialFocusRef?.current ?? (focusDismissAction ? dismissButtonRef.current : null) ?? closeButtonRef.current)?.focus();
+    (initialFocusRef?.current ?? (focusDismissAction ? dismissButtonRef.current : null) ?? dialog)?.focus();
   }, [focusDismissAction, initialFocusRef, isOpen]);
 
   useEffect(() => {
@@ -190,6 +190,7 @@ export function ModalDialog({
       aria-describedby={ariaDescribedBy}
       aria-labelledby={titleId}
       aria-modal="true"
+      tabIndex={-1}
       onCancel={(event) => {
         event.preventDefault();
         closeDialog();
@@ -205,7 +206,7 @@ export function ModalDialog({
         {titleAccessory}
         <button
           ref={closeButtonRef}
-          className="modal-dialog-close"
+          className="icon-button modal-dialog-close"
           type="button"
           aria-label={`Close ${title}`}
           onClick={closeDialog}

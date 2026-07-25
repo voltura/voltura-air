@@ -14,8 +14,23 @@ Remove completed items after updating their current authority.
 
 ## Presentation graduation
 
+- [ ] Add reusable host presentations to the existing Presentations page:
+  request a name and PowerPoint file; store an opaque ID; show a persistent
+  `Host` row without statistics; treat statistics records with valid PowerPoint
+  paths as launch candidates; canonicalize duplicate files while preferring a
+  Host-added item, otherwise the most recently edited report.
+- [ ] For an opaque saved launch, revalidate the stored path, open exactly that
+  file, wait for PowerPoint automation to identify it, then start its slideshow
+  and authoritative session. Never delete the PowerPoint file when deleting a
+  reusable item or a run; retain the Host row and save each run as an ordinary
+  device-attributed report linked to it.
+- [ ] Inspect modern Open XML presentations without launching PowerPoint:
+  bounded total/visible/hidden slide counts, dimensions/aspect ratio, format,
+  modified time, and inspection status. Refresh on add, manual refresh, and
+  immediately before launch. Inspect legacy `.ppt` only after PowerPoint opens
+  it. Cover malformed/locked files and cleanup.
 - [ ] Complete integrated and real-device checks for PowerPoint, Google Slides,
-  and PDF/browser presentation control, timing, report saving, native laser
+  and PDF/browser presentation control, timing, report saving, custom laser
   restoration, adaptive layouts, and accessibility.
 - [ ] Review implemented Presentation behavior against `features.md`, protocol,
   privacy, UI, and host authorities.

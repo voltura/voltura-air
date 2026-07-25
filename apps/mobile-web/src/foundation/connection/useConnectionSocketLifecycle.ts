@@ -7,8 +7,10 @@ import type {
   ClientMessage,
   ClipboardGetResultMessage,
   HostStatusMetadata,
+  PowerPointRefreshResultMessage,
   PresentationCommandResultMessage,
   PresentationReportSaveResultMessage,
+  PresentationSessionResultMessage,
   ServerCapabilities,
   SystemPowerResultMessage,
   TextSendResultMessage,
@@ -51,7 +53,9 @@ interface ConnectionSocketLifecycleOptions {
   completeAwakeChange: (result: AwakeResultMessage) => boolean;
   completeClipboardRead: (result: ClipboardGetResultMessage) => boolean;
   completePowerAction: (result: SystemPowerResultMessage) => boolean;
+  completePowerPointRefresh: (result: PowerPointRefreshResultMessage) => boolean;
   completePresentationCommand: (result: PresentationCommandResultMessage) => boolean;
+  completePresentationSession: (result: PresentationSessionResultMessage) => boolean;
   completePresentationReportSave: (result: PresentationReportSaveResultMessage) => boolean;
   completeTextTransfer: (result: TextSendResultMessage) => boolean;
   completeUrlOpen: (result: UrlOpenResultMessage) => boolean;
@@ -71,6 +75,7 @@ interface ConnectionSocketLifecycleOptions {
   screenshotMode: boolean;
   setActivePcId: Dispatch<SetStateAction<string | null>>;
   setAudioStateFromSocket: (state: AudioStateMessage) => void;
+  setConnectionEpoch: Dispatch<SetStateAction<number>>;
   setLastConnectionError: Dispatch<SetStateAction<ConnectionError | null>>;
   setMessage: Dispatch<SetStateAction<string>>;
   setPairedPcs: Dispatch<SetStateAction<PcProfile[]>>;
@@ -92,7 +97,9 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     completeAwakeChange: completeAwakeChangeState,
     completeClipboardRead: completeClipboardReadState,
     completePowerAction: completePowerActionState,
+    completePowerPointRefresh: completePowerPointRefreshState,
     completePresentationCommand: completePresentationCommandState,
+    completePresentationSession: completePresentationSessionState,
     completePresentationReportSave: completePresentationReportSaveState,
     completeTextTransfer: completeTextTransferState,
     completeUrlOpen: completeUrlOpenState,
@@ -112,6 +119,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     screenshotMode,
     setActivePcId,
     setAudioStateFromSocket: setAudioState,
+    setConnectionEpoch,
     setLastConnectionError,
     setMessage,
     setPairedPcs,
@@ -130,7 +138,9 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
   const completeAwakeChange = useEffectEvent(completeAwakeChangeState);
   const completeClipboardRead = useEffectEvent(completeClipboardReadState);
   const completePowerAction = useEffectEvent(completePowerActionState);
+  const completePowerPointRefresh = useEffectEvent(completePowerPointRefreshState);
   const completePresentationCommand = useEffectEvent(completePresentationCommandState);
+  const completePresentationSession = useEffectEvent(completePresentationSessionState);
   const completePresentationReportSave = useEffectEvent(completePresentationReportSaveState);
   const completeTextTransfer = useEffectEvent(completeTextTransferState);
   const completeUrlOpen = useEffectEvent(completeUrlOpenState);
@@ -399,6 +409,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
 
         if (response.type === "pair.accepted") {
           touchHealthy();
+          setConnectionEpoch((current) => current + 1);
           if (commitManualPcOnAcceptance) {
             commitManualPcOnAcceptance = false;
             const acceptedPc = currentPc();
@@ -468,6 +479,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
   
         if (response.type === "status") {
           touchHealthy();
+          const healthProbePending = healthDeadlineTimer !== undefined;
           window.clearTimeout(healthDeadlineTimer);
           healthDeadlineTimer = undefined;
           if (response.pcName && !screenshotMode) {
@@ -486,7 +498,9 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
           setLastConnectionError(null);
           setState("paired");
           setMessage(`Connected to ${getDisplayPcName(currentPc(), response.pcName ?? "", screenshotMode)}`);
-          scheduleHealthCheck(ws);
+          if (healthProbePending) {
+            scheduleHealthCheck(ws);
+          }
           return;
         }
   
@@ -610,6 +624,30 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
             setLastConnectionError(response.succeeded
               ? null
               : { code: response.code ?? "VAIR-CLIPBOARD-READ-FAILED", message: response.message });
+          }
+          scheduleHealthCheck(ws);
+          return;
+        }
+
+        if (response.type === "presentation.session.result") {
+          touchHealthy();
+          if (completePresentationSession(response)) {
+            setMessage(response.message);
+            setLastConnectionError(response.succeeded
+              ? null
+              : { code: response.code ?? "VAIR-PRESENTATION-SESSION-FAILED", message: response.message });
+          }
+          scheduleHealthCheck(ws);
+          return;
+        }
+
+        if (response.type === "presentation.powerpoint.refresh.result") {
+          touchHealthy();
+          if (completePowerPointRefresh(response)) {
+            setMessage(response.message);
+            setLastConnectionError(response.succeeded
+              ? null
+              : { code: response.code ?? "VAIR-POWERPOINT-REFRESH-FAILED", message: response.message });
           }
           scheduleHealthCheck(ws);
           return;
@@ -744,6 +782,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     rescheduleHealthCheckRef,
     screenshotMode,
     setActivePcId,
+    setConnectionEpoch,
     setLastConnectionError,
     setMessage,
     setPairedPcs,

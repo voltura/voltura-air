@@ -40,7 +40,21 @@ internal static class ClientMessageValidator
             ["system.sleep"] = Fields("type"),
             ["system.power"] = Fields("type", "operationId", "action"),
             ["awake.set"] = Fields("type", "operationId", "enabled"),
-            ["presentation.command"] = Fields("type", "operationId", "target", "action", "enabled"),
+            ["presentation.command"] = Fields(
+                "type",
+                "operationId",
+                "target",
+                "action",
+                "enabled",
+                "runtimePresentationId",
+                "slideNumber"),
+            ["presentation.powerpoint.refresh"] = Fields("type", "operationId"),
+            ["presentation.session"] = Fields(
+                "type",
+                "operationId",
+                "action",
+                "enabled",
+                "runtimePresentationId"),
             ["presentation.report.save"] = Fields(
                 "type",
                 "operationId",
@@ -172,7 +186,19 @@ internal static class ClientMessageValidator
                 PresentationCommands.IsTarget(presentationTarget) &&
                 TryGetRequiredString(root, "action", MaxRemoteActionLength, allowEmpty: false, out var presentationAction) &&
                 PresentationCommands.IsAction(presentationAction) &&
-                IsValidPresentationEnabled(root, presentationAction),
+                IsValidPresentationCommandFields(
+                    root,
+                    presentationTarget,
+                    presentationAction),
+            "presentation.powerpoint.refresh" =>
+                TryGetRequiredString(
+                    root,
+                    "operationId",
+                    MaxOperationIdLength,
+                    allowEmpty: false,
+                    out var refreshOperationId) &&
+                IsValidOperationId(refreshOperationId),
+            "presentation.session" => IsValidPresentationSessionMessage(root),
             "presentation.report.save" => IsValidPresentationReportEnvelope(root),
             "remote.launch" => TryGetRequiredString(root, "action", MaxRemoteActionLength, allowEmpty: false, out var action) &&
                 RemoteLaunchActions.IsSupported(action),
@@ -283,12 +309,100 @@ internal static class ClientMessageValidator
         TryGetRequiredString(root, "reportId", MaxOperationIdLength, allowEmpty: false, out var reportId) &&
         IsValidOperationId(reportId);
 
-    private static bool IsValidPresentationEnabled(JsonElement root, string action)
+    private static bool IsValidPresentationCommandFields(
+        JsonElement root,
+        string target,
+        string action)
     {
         var hasEnabled = root.TryGetProperty("enabled", out var enabled);
-        return action == "pointer"
-            ? hasEnabled && enabled.ValueKind is JsonValueKind.True or JsonValueKind.False
-            : !hasEnabled;
+        if (action is "pointer" or "pause")
+        {
+            if (!hasEnabled || enabled.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+            {
+                return false;
+            }
+        }
+        else if (hasEnabled)
+        {
+            return false;
+        }
+
+        var hasSlideNumber = root.TryGetProperty("slideNumber", out var slideNumber);
+        if (action == "goto")
+        {
+            if (!hasSlideNumber ||
+                slideNumber.ValueKind != JsonValueKind.Number ||
+                !slideNumber.TryGetInt32(out var parsedSlideNumber) ||
+                parsedSlideNumber is < 1 or > PresentationReportProtocol.MaxSlideCount)
+            {
+                return false;
+            }
+        }
+        else if (hasSlideNumber)
+        {
+            return false;
+        }
+
+        if (!TryGetOptionalString(
+                root,
+                "runtimePresentationId",
+                MaxOperationIdLength,
+                out var runtimePresentationId) ||
+            runtimePresentationId is not null && !IsValidOperationId(runtimePresentationId))
+        {
+            return false;
+        }
+
+        if (target != "powerpoint")
+        {
+            return runtimePresentationId is null &&
+                action is "next" or "previous" or "end" or "black" or "pointer";
+        }
+
+        return true;
+    }
+
+    private static bool IsValidPresentationSessionMessage(JsonElement root)
+    {
+        if (!TryGetRequiredString(
+                root,
+                "operationId",
+                MaxOperationIdLength,
+                allowEmpty: false,
+                out var operationId) ||
+            !IsValidOperationId(operationId) ||
+            !TryGetRequiredString(
+                root,
+                "action",
+                MaxRemoteActionLength,
+                allowEmpty: false,
+                out var action) ||
+            action is not ("start" or "break" or "save" or "discard"))
+        {
+            return false;
+        }
+
+        var hasEnabled = root.TryGetProperty("enabled", out var enabled);
+        if (action == "break")
+        {
+            if (!hasEnabled || enabled.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+            {
+                return false;
+            }
+        }
+        else if (hasEnabled)
+        {
+            return false;
+        }
+
+        var hasRuntimeId = root.TryGetProperty("runtimePresentationId", out var runtimeId);
+        return action == "start"
+            ? !hasRuntimeId ||
+                runtimeId.ValueKind == JsonValueKind.String &&
+                runtimeId.GetString() is { } value &&
+                value.Length <= MaxOperationIdLength &&
+                IsValidOperationId(value)
+            : !hasRuntimeId;
     }
 
     private static FrozenSet<string> Fields(params string[] names) => names.ToFrozenSet(StringComparer.Ordinal);

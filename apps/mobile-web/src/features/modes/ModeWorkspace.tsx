@@ -28,6 +28,7 @@ type ConnectionContract = Pick<
   | "pendingClipboardRead"
   | "pendingPowerAction"
   | "pendingPresentationCommand"
+  | "pendingPresentationSession"
   | "pendingPresentationReportSave"
   | "pendingTextTransfer"
   | "pendingUrlOpen"
@@ -41,7 +42,9 @@ type ConnectionContract = Pick<
   | "requestAwakeChange"
   | "requestClipboardRead"
   | "requestPowerAction"
+  | "requestPowerPointRefresh"
   | "requestPresentationCommand"
+  | "requestPresentationSession"
   | "requestPresentationReportSave"
   | "requestTextTransfer"
   | "requestUrlOpen"
@@ -64,6 +67,8 @@ interface ModeWorkspaceProps {
   onClearAfterSendingChange: (value: boolean) => void;
   onClipboardCopyFeedback: (feedback: AppToastMessage) => void;
   onPresentationSessionActiveChange: (active: boolean) => void;
+  onPresentationActivationRequestHandled: () => void;
+  presentationActivationRequestId: number;
   onRemoteUtilityPanelOpenChange: (isOpen: boolean) => void;
   remoteSettings: RemoteSettings;
   shouldShowSplitMode: boolean;
@@ -81,6 +86,8 @@ export function ModeWorkspace({
   onClearAfterSendingChange,
   onClipboardCopyFeedback,
   onPresentationSessionActiveChange,
+  onPresentationActivationRequestHandled,
+  presentationActivationRequestId,
   onRemoteUtilityPanelOpenChange,
   remoteSettings,
   shouldShowSplitMode,
@@ -190,19 +197,24 @@ export function ModeWorkspace({
         toLiveKeyboardValue
       }}
       presentationMode={{
+        activationRequestId: presentationActivationRequestId,
         audioState: displayedAudioState,
         blackoutAvailable: connection.powerCapabilities?.blackoutDisplay === true,
         capability: connection.presentationCapability,
         connected: connection.state === "paired",
         pending: connection.pendingPresentationCommand,
+        sessionPending: connection.pendingPresentationSession !== null,
         pendingPowerAction: connection.pendingPowerAction,
         reportSavePending: connection.pendingPresentationReportSave !== null,
         reportSaveResult: connection.presentationReportSaveResult,
         reportSavingAvailable: connection.presentationCapability?.canSaveReports === true,
         result: connection.presentationResult,
+        onActivationRequestHandled: onPresentationActivationRequestHandled,
         onCommand: connection.requestPresentationCommand,
+        onSessionCommand: connection.requestPresentationSession,
         onMute: () => { sendSpecial("VolumeMute"); },
         onPowerAction: connection.requestPowerAction,
+        onPowerPointRefresh: connection.requestPowerPointRefresh,
         onSaveReport: connection.requestPresentationReportSave,
         onSessionActiveChange: onPresentationSessionActiveChange,
         onVolumeDown: () => { sendSpecial("VolumeDown"); },

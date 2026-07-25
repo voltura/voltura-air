@@ -5,7 +5,22 @@ internal readonly record struct PresentationShortcut(string Key, IReadOnlyList<s
 internal static class PresentationCommands
 {
     private static readonly string[] Targets = ["powerpoint", "google-slides", "pdf"];
-    private static readonly string[] Actions = ["next", "previous", "start", "end", "black", "pointer"];
+    private static readonly string[] Actions =
+    [
+        "next",
+        "previous",
+        "start",
+        "start-current",
+        "first",
+        "last",
+        "goto",
+        "end",
+        "black",
+        "white",
+        "pause",
+        "pointer",
+        "activate"
+    ];
 
     public static bool IsTarget(string target) => Targets.Contains(target, StringComparer.Ordinal);
 
@@ -15,11 +30,10 @@ internal static class PresentationCommands
     {
         shortcut = (target, action) switch
         {
-            (_, "next") when IsTarget(target) => new("ArrowRight", [], "Next slide command sent."),
-            (_, "previous") when IsTarget(target) => new("ArrowLeft", [], "Previous slide command sent."),
-            (_, "end") when IsTarget(target) => new("Escape", [], "End slideshow command sent."),
-            ("powerpoint", "start") => new("F5", [], "Start slideshow command sent."),
-            ("powerpoint" or "google-slides", "black") => new("B", [], "Black screen command sent."),
+            ("google-slides" or "pdf", "next") => new("ArrowRight", [], "Next slide command sent."),
+            ("google-slides" or "pdf", "previous") => new("ArrowLeft", [], "Previous slide command sent."),
+            ("google-slides" or "pdf", "end") => new("Escape", [], "End slideshow command sent."),
+            ("google-slides", "black") => new("B", [], "Black screen command sent."),
             _ => default
         };
 

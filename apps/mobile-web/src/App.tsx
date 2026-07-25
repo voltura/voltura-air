@@ -28,6 +28,7 @@ export function App() {
   const connection = useVolturaAirConnection();
   const {
     state,
+    connectionEpoch,
     message,
     send,
     pendingTextTransfer,
@@ -98,11 +99,24 @@ export function App() {
   const pendingPresentationExitRef = useRef<(() => void) | null>(null);
   const pendingPresentationConnectionRef = useRef<(() => void) | null>(null);
   const [presentationSessionActive, setPresentationSessionActive] = useState(false);
+  const [presentationActivationRequest, setPresentationActivationRequest] = useState({
+    connectionEpoch,
+    id: 0
+  });
   const [isPresentationExitOpen, setIsPresentationExitOpen] = useState(false);
   const [presentationConnectionIntent, setPresentationConnectionIntent] = useState<"connect" | "disconnect" | null>(null);
   const handlePresentationSessionActiveChange = useCallback((active: boolean) => {
     setPresentationSessionActive(active);
   }, []);
+  const handlePresentationActivationRequestHandled = useCallback(() => {
+    setPresentationActivationRequest({ connectionEpoch, id: 0 });
+  }, [connectionEpoch]);
+  const requestPresentationActivation = () => {
+    setPresentationActivationRequest((current) => ({
+      connectionEpoch,
+      id: current.connectionEpoch === connectionEpoch ? current.id + 1 : 1
+    }));
+  };
 
   const launchRemoteAction = (action: RemoteLaunchAction) => {
     if (supportsRemoteLaunch && state === "paired") {
@@ -164,7 +178,6 @@ export function App() {
       requestPresentationCommand("powerpoint", "pointer", false);
     }
   }, [presentationCapability?.laserPointerActive, requestPresentationCommand, state, tab]);
-
   const requestPresentationExit = (action: () => void) => {
     if (tab === "presentation" && presentationSessionActive) {
       pendingPresentationExitRef.current = action;
@@ -181,7 +194,12 @@ export function App() {
       return;
     }
 
-    requestPresentationExit(() => { selectModeTab(nextTab, source); });
+    requestPresentationExit(() => {
+      if (nextTab === "presentation") {
+        requestPresentationActivation();
+      }
+      selectModeTab(nextTab, source);
+    });
   };
   const openModeFromMenuWithPresentationGuard: typeof openModeFromMenu = (mode) => {
     if (mode === tab) {
@@ -189,7 +207,12 @@ export function App() {
       return;
     }
 
-    requestPresentationExit(() => { openModeFromMenu(mode); });
+    requestPresentationExit(() => {
+      if (mode === "presentation") {
+        requestPresentationActivation();
+      }
+      openModeFromMenu(mode);
+    });
   };
   const openGestureDebugWithPresentationGuard = () => {
     requestPresentationExit(openGestureDebug);
@@ -475,6 +498,14 @@ export function App() {
           onClearAfterSendingChange={(value) => { updateAppSetting("clearTextAfterSending", value); }}
           onClipboardCopyFeedback={showClipboardCopyFeedback}
           onPresentationSessionActiveChange={handlePresentationSessionActiveChange}
+          onPresentationActivationRequestHandled={handlePresentationActivationRequestHandled}
+          presentationActivationRequestId={
+            state === "paired" &&
+            tab === "presentation" &&
+            presentationActivationRequest.connectionEpoch === connectionEpoch
+              ? presentationActivationRequest.id
+              : 0
+          }
           onRemoteUtilityPanelOpenChange={setIsRemoteUtilityPanelOpen}
           remoteSettings={remoteSettings}
           shouldShowSplitMode={shouldShowSplitMode}
@@ -531,6 +562,9 @@ export function App() {
           pendingAppLaunchId={pendingAppLaunchId}
           pendingClipboardRead={pendingClipboardRead}
           pendingTextTransfer={pendingTextTransfer}
+          powerPointRefreshResult={connection.powerPointRefreshResult}
+          presentationResult={connection.presentationResult}
+          presentationSessionResult={connection.presentationSessionResult}
           tab={tab}
           textTransferResult={textTransferResult}
           transientFeedback={transientFeedback}

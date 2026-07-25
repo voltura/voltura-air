@@ -16,6 +16,31 @@ public sealed class ClientMessageValidatorTests
         Assert.Equal(expected, ClientMessageValidator.IsValidAuthenticatedMessage(document.RootElement, "presentation.command"));
     }
 
+    [Theory]
+    [InlineData("""{ "type": "presentation.command", "operationId": "go-1", "target": "powerpoint", "action": "goto", "runtimePresentationId": "runtime-1", "slideNumber": 8 }""", "presentation.command", true)]
+    [InlineData("""{ "type": "presentation.command", "operationId": "go-1", "target": "powerpoint", "action": "goto", "slideNumber": 0 }""", "presentation.command", false)]
+    [InlineData("""{ "type": "presentation.command", "operationId": "pause-1", "target": "powerpoint", "action": "pause" }""", "presentation.command", false)]
+    [InlineData("""{ "type": "presentation.command", "operationId": "focus-1", "target": "powerpoint", "action": "activate", "runtimePresentationId": "runtime-1" }""", "presentation.command", true)]
+    [InlineData("""{ "type": "presentation.command", "operationId": "focus-1", "target": "pdf", "action": "activate" }""", "presentation.command", false)]
+    [InlineData("""{ "type": "presentation.command", "operationId": "first-1", "target": "pdf", "action": "first" }""", "presentation.command", false)]
+    [InlineData("""{ "type": "presentation.powerpoint.refresh", "operationId": "refresh-1" }""", "presentation.powerpoint.refresh", true)]
+    [InlineData("""{ "type": "presentation.session", "operationId": "session-1", "action": "start", "runtimePresentationId": "runtime-1" }""", "presentation.session", true)]
+    [InlineData("""{ "type": "presentation.session", "operationId": "break-1", "action": "break", "enabled": true }""", "presentation.session", true)]
+    [InlineData("""{ "type": "presentation.session", "operationId": "save-1", "action": "save", "enabled": false }""", "presentation.session", false)]
+    public void ValidatesExpandedPresentationMessages(
+        string json,
+        string type,
+        bool expected)
+    {
+        using var document = JsonDocument.Parse(json);
+
+        Assert.Equal(
+            expected,
+            ClientMessageValidator.IsValidAuthenticatedMessage(
+                document.RootElement,
+                type));
+    }
+
     [Fact]
     public void DecodesAndNormalizesPointerInputOnce()
     {

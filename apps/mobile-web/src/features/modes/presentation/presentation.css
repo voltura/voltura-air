@@ -30,6 +30,43 @@
   padding-left: max(clamp(14px, 2.5vw, 24px), var(--mode-inline-safe-start, 0px));
 }
 
+.presentation-trackpad-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-sm);
+}
+
+.presentation-trackpad-summary-details {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2xs);
+}
+
+.presentation-trackpad-summary strong {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.presentation-trackpad-summary span {
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.presentation-trackpad-summary-navigation {
+  width: 100%;
+}
+
+.presentation-navigation.presentation-trackpad-summary-navigation button {
+  height: var(--presentation-navigation-height);
+  min-height: var(--presentation-navigation-height);
+}
+
 .presentation-side-stack {
   grid-column: 2;
   min-height: 0;
@@ -130,19 +167,12 @@
   background: var(--action);
 }
 
-.presentation-permission-message,
-.presentation-result {
+.presentation-permission-message {
   margin: 0;
   padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  border: 1px solid color-mix(in srgb, var(--danger) 55%, var(--border));
   border-radius: 10px;
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
-}
-
-.presentation-permission-message,
-.presentation-result.error {
   color: var(--danger);
-  border-color: color-mix(in srgb, var(--danger) 55%, var(--border));
   background: color-mix(in srgb, var(--danger) 8%, var(--surface));
 }
 
@@ -158,6 +188,12 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.presentation-control-columns,
+.presentation-control-primary,
+.presentation-control-secondary {
+  display: contents;
+}
+
 .presentation-navigation button {
   min-width: 0;
   min-height: clamp(76px, 13vh, 112px);
@@ -171,8 +207,104 @@
   height: 32px;
 }
 
+.presentation-mode button[data-pending-visual="deferred"]:disabled {
+  color: var(--text);
+  background: var(--surface-raised);
+}
+
+.presentation-mode button.active[data-pending-visual="deferred"]:disabled {
+  color: var(--on-action);
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
 .presentation-actions {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.presentation-powerpoint-source {
+  display: grid;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-large);
+  background: color-mix(in srgb, var(--surface) 92%, var(--accent));
+}
+
+.presentation-powerpoint-source label {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.presentation-powerpoint-source label > span {
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.presentation-powerpoint-source select {
+  width: 100%;
+  min-height: var(--control-prominent-height);
+  padding: var(--space-none) var(--space-md);
+  color: var(--text);
+  font: inherit;
+  font-size: clamp(1.05rem, 4vw, 1.2rem);
+  font-weight: 650;
+  background: var(--surface);
+}
+
+.presentation-powerpoint-source select:disabled {
+  opacity: 1;
+  color: var(--muted);
+  -webkit-text-fill-color: var(--muted);
+}
+
+.presentation-powerpoint-refresh {
+  justify-self: start;
+  min-height: var(--control-min-height);
+  padding-inline: var(--space-md);
+  font-size: 0.86rem;
+}
+
+.presentation-powerpoint-source p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.presentation-authoritative-session {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--space-xs) var(--space-md);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--border);
+}
+
+.presentation-authoritative-session > span {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.presentation-authoritative-session > div {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.presentation-authoritative-session > .presentation-session-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr));
+}
+
+.presentation-authoritative-session > .presentation-tracking-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+}
+
+.presentation-tracking-actions button {
+  min-width: 0;
 }
 
 .presentation-volume-actions {
@@ -189,6 +321,54 @@
   color: var(--on-action);
   border-color: var(--accent);
   background: var(--accent);
+}
+
+.presentation-actions .presentation-return-slides {
+  grid-column: 1 / -1;
+}
+
+.presentation-slide-range {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.presentation-navigation-dialog .modal-dialog-body {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.presentation-slide-range output {
+  text-align: center;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.presentation-slide-range output strong {
+  font-size: 1.35rem;
+}
+
+.presentation-slide-range input {
+  min-height: var(--control-min-height);
+}
+
+.presentation-slide-range-limits {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.presentation-navigation-dialog-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-sm);
+  width: 100%;
+}
+
+.presentation-navigation-dialog-actions button {
+  min-width: 0;
+  min-height: var(--control-prominent-height);
 }
 
 .presentation-volume-actions button {
@@ -215,10 +395,6 @@
   width: 20px;
   height: 20px;
   flex: 0 0 auto;
-}
-
-.presentation-result {
-  min-height: 42px;
 }
 
 .presentation-trackpad,
@@ -303,7 +479,30 @@
 }
 
 .presentation-mode.trackpad-open .presentation-timer {
-  flex: 0 0 auto;
+  display: none;
+}
+
+.presentation-mode.trackpad-open {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.presentation-mode.trackpad-open .presentation-controls-panel {
+  grid-column: 1;
+  grid-row: 1;
+  width: 100%;
+  gap: var(--space-sm);
+  padding-block: var(--space-md);
+  border-radius: var(--radius-large) var(--radius-large) 0 0;
+}
+
+.presentation-mode.trackpad-open .presentation-controls-panel > :not(.presentation-header, .presentation-trackpad-summary) {
+  display: none;
+}
+
+.presentation-mode.trackpad-open .presentation-side-stack {
+  grid-column: 1;
+  grid-row: 2;
 }
 
 .presentation-mode.timer-open .presentation-trackpad {
@@ -940,29 +1139,156 @@
 }
 
 @media (height <= 520px) and (orientation: landscape) {
-  .app-shell.presentation-active {
-    grid-template-rows: auto minmax(0, 1fr);
-  }
-
-  .app-shell.presentation-active .top-mode-tabs {
-    display: none;
-  }
-
-  .app-shell.presentation-active .compact-mode-button {
-    display: inline-flex;
-  }
-
   .presentation-mode {
     grid-row: 2;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    align-content: stretch;
+    overflow: hidden;
   }
 
   .presentation-controls-panel {
-    gap: 7px;
-    padding: 10px;
-    padding-bottom: max(10px, var(--mode-bottom-safe-area, 0px));
-    padding-right: max(10px, var(--mode-inline-safe-end, 0px));
-    padding-left: max(10px, var(--mode-inline-safe-start, 0px));
+    display: contents;
+  }
+
+  .presentation-controls-panel > .presentation-permission-message {
+    grid-column: 1 / -1;
+  }
+
+  .presentation-header {
+    grid-column: 2;
+    grid-row: 1;
+    display: none;
+  }
+
+  .presentation-title-row {
+    display: none;
+  }
+
+  .presentation-control-columns {
+    display: contents;
+  }
+
+  .presentation-control-primary,
+  .presentation-control-secondary {
+    min-width: 0;
+    display: grid;
+    grid-row: 2;
+    height: 100%;
+    gap: var(--space-sm);
+    align-self: stretch;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    padding: var(--space-sm);
+    overflow: hidden;
+  }
+
+  .presentation-control-primary {
+    grid-column: 1;
+    grid-row: 1 / 4;
+    grid-template-rows: minmax(0, 1fr) auto;
+    border-radius: var(--radius-large) 0 0 var(--radius-large);
+    padding-left: max(var(--space-sm), var(--mode-inline-safe-start, 0px));
+  }
+
+  .presentation-control-primary .presentation-powerpoint-source {
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    overflow-y: auto;
+  }
+
+  .presentation-control-primary .presentation-powerpoint-source > label,
+  .presentation-control-primary .presentation-permission-message,
+  .presentation-control-primary .presentation-authoritative-session {
+    grid-column: 1 / -1;
+  }
+
+  .presentation-control-primary .presentation-powerpoint-refresh {
+    grid-column: 1;
+  }
+
+  .presentation-control-primary .presentation-powerpoint-state {
+    grid-column: 2;
+    text-align: right;
+  }
+
+  .presentation-control-primary .presentation-authoritative-session {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: var(--space-sm);
+  }
+
+  .presentation-control-primary .presentation-authoritative-session > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .presentation-control-primary .presentation-authoritative-session > div {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .presentation-control-primary .presentation-navigation {
+    grid-row: 2;
+  }
+
+  .presentation-control-secondary {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    align-content: start;
+    border-left: 0;
+    border-radius: 0 var(--radius-large) var(--radius-large) 0;
+    padding-right: max(var(--space-sm), var(--mode-inline-safe-end, 0px));
+    overflow-y: auto;
+  }
+
+  .presentation-side-stack {
+    grid-column: 2;
+    grid-row: 3;
+    align-self: end;
+    margin-top: 0;
+  }
+
+  .presentation-mode.trackpad-open {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .presentation-mode.trackpad-open .presentation-controls-panel {
+    display: grid;
+    grid-column: 1;
+    grid-row: 1;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    height: 100%;
+    padding: var(--space-sm);
+    padding-left: max(var(--space-sm), var(--mode-inline-safe-start, 0px));
+    border-radius: var(--radius-large) 0 0 var(--radius-large);
+  }
+
+  .presentation-mode.trackpad-open .presentation-side-stack {
+    grid-column: 2;
+    grid-row: 1;
+    margin-top: 0;
+  }
+
+  .presentation-mode.trackpad-open .presentation-trackpad {
+    border-radius: 0 var(--radius-large) var(--radius-large) 0;
+  }
+
+  .presentation-mode.trackpad-open .presentation-trackpad-summary {
+    grid-row: 1;
+    align-items: stretch;
+  }
+
+  .presentation-mode.trackpad-open .presentation-trackpad-summary-details {
+    align-content: center;
+  }
+
+  .presentation-mode.trackpad-open .presentation-trackpad-heading {
+    border-radius: 0 var(--radius-large) 0 0;
   }
 
   .presentation-trackpad-heading,

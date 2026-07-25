@@ -72,6 +72,39 @@ export interface PresentationCapability {
   canControl: boolean;
   canSaveReports: boolean;
   laserPointerActive: boolean;
+  powerPoint?: PowerPointCapability | null;
+}
+
+export interface PowerPointPresentation {
+  runtimePresentationId: string;
+  name: string;
+  state: "ready" | "presenting";
+  slideCount: number;
+  currentSlideIndex?: number | null;
+  currentShowPosition?: number | null;
+  slideShowState: "ready" | "running" | "paused" | "black" | "white";
+}
+
+export interface PowerPointCapability {
+  state: "ready" | "busy" | "unavailable";
+  foregroundActivationSupported?: boolean | undefined;
+  presentations: PowerPointPresentation[];
+  session?: PowerPointSession | undefined;
+}
+
+export interface PowerPointSession {
+  state: "inactive" | "tracking" | "pending-review";
+  runtimePresentationId?: string | null;
+  presentationName?: string | null;
+  ownerDeviceName?: string | null;
+  isOwner: boolean;
+  startedAt?: string | null;
+  elapsedSeconds: number;
+  breakActive: boolean;
+  breakElapsedSeconds: number;
+  currentSlideIndex?: number | null;
+  slideCount: number;
+  slideShowState: PowerPointPresentation["slideShowState"];
 }
 
 export interface UrlOpenCapability {
@@ -225,7 +258,26 @@ export interface SystemSleepMessage {
 
 export type PresentationTarget = "powerpoint" | "google-slides" | "pdf";
 
-export type PresentationAction = "next" | "previous" | "start" | "end" | "black" | "pointer";
+export type PresentationAction =
+  | "next"
+  | "previous"
+  | "start"
+  | "start-current"
+  | "first"
+  | "last"
+  | "goto"
+  | "end"
+  | "black"
+  | "white"
+  | "pause"
+  | "pointer"
+  | "activate";
+
+export interface PresentationCommandOptions {
+  enabled?: boolean | undefined;
+  runtimePresentationId?: string | undefined;
+  slideNumber?: number | undefined;
+}
 
 export interface PresentationCommandMessage {
   type: "presentation.command";
@@ -233,6 +285,8 @@ export interface PresentationCommandMessage {
   target: PresentationTarget;
   action: PresentationAction;
   enabled?: boolean | undefined;
+  runtimePresentationId?: string | undefined;
+  slideNumber?: number | undefined;
 }
 
 export interface PresentationCommandResultMessage {
@@ -244,6 +298,42 @@ export interface PresentationCommandResultMessage {
   code?: string;
   message: string;
   laserPointerActive: boolean;
+  runtimePresentationId?: string | null | undefined;
+  presentation?: PowerPointPresentation | null | undefined;
+}
+
+export interface PowerPointRefreshMessage {
+  type: "presentation.powerpoint.refresh";
+  operationId: string;
+}
+
+export interface PowerPointRefreshResultMessage {
+  type: "presentation.powerpoint.refresh.result";
+  operationId: string;
+  succeeded: boolean;
+  code?: string;
+  message: string;
+  state: PowerPointCapability["state"];
+  presentations: PowerPointPresentation[];
+}
+
+export type PresentationSessionAction = "start" | "break" | "save" | "discard";
+
+export interface PresentationSessionMessage {
+  type: "presentation.session";
+  operationId: string;
+  action: PresentationSessionAction;
+  enabled?: boolean | undefined;
+  runtimePresentationId?: string | undefined;
+}
+
+export interface PresentationSessionResultMessage {
+  type: "presentation.session.result";
+  operationId: string;
+  action: PresentationSessionAction;
+  succeeded: boolean;
+  code?: string;
+  message: string;
 }
 
 export type AppLaunchActionKind = "browser" | "spotify" | "vlc" | "powerpoint" | "custom";
@@ -430,6 +520,8 @@ export type ClientMessage =
   | KeyboardTextMessage
   | KeyboardSpecialMessage
   | PresentationCommandMessage
+  | PowerPointRefreshMessage
+  | PresentationSessionMessage
   | PresentationReportSaveMessage
   | SystemSleepMessage
   | SystemPowerMessage
@@ -442,4 +534,4 @@ export type ClientMessage =
   | AudioMuteToggleMessage
   | AudioVolumeSetMessage;
 
-export type ServerMessage = PairAcceptedMessage | PairChallengeMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | PresentationCommandResultMessage | PresentationReportSaveResultMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | UrlOpenResultMessage | TextSendResultMessage | ClipboardGetResultMessage | AudioStateMessage;
+export type ServerMessage = PairAcceptedMessage | PairChallengeMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | PresentationCommandResultMessage | PowerPointRefreshResultMessage | PresentationSessionResultMessage | PresentationReportSaveResultMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | UrlOpenResultMessage | TextSendResultMessage | ClipboardGetResultMessage | AudioStateMessage;

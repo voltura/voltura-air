@@ -1,10 +1,15 @@
 using System.Runtime.InteropServices;
+using System.Diagnostics;
 
 namespace VolturaAir.Host;
 
 internal interface IWindowsWindowActivator
 {
     bool TryActivateWindow(IntPtr windowHandle, bool maximize = false);
+
+    bool TryActivatePowerPointSlideShow(string presentationName);
+
+    bool TryBringPowerPointDocumentWindowForward(string windowCaption);
 
     bool TryBringWindowForwardPreservingState(IntPtr windowHandle);
 
@@ -77,6 +82,12 @@ internal sealed class WindowsWindowActivator : IWindowsWindowActivator
             return false;
         }
 
+        var rootWindow = WindowNativeMethods.GetAncestor(windowHandle, GetAncestorRoot);
+        if (rootWindow != IntPtr.Zero)
+        {
+            windowHandle = rootWindow;
+        }
+
         if (maximize)
         {
             WindowNativeMethods.ShowWindow(windowHandle, ShowWindowMaximize);
@@ -89,6 +100,101 @@ internal sealed class WindowsWindowActivator : IWindowsWindowActivator
         return TryFocusWindowForKeyboardInput(windowHandle);
     }
 
+    public bool TryActivatePowerPointSlideShow(string presentationName)
+    {
+        var candidates = new List<(IntPtr Handle, string Title)>();
+        _ = WindowNativeMethods.EnumWindows((windowHandle, state) =>
+        {
+            if (!WindowNativeMethods.IsWindowVisible(windowHandle) ||
+                !string.Equals(
+                    ReadWindowClass(windowHandle),
+                    "screenClass",
+                    StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            _ = WindowNativeMethods.GetWindowThreadProcessId(windowHandle, out var processId);
+            try
+            {
+                using var process = Process.GetProcessById(checked((int)processId));
+                if (string.Equals(process.ProcessName, "POWERPNT", StringComparison.OrdinalIgnoreCase))
+                {
+                    candidates.Add((windowHandle, ReadWindowTitle(windowHandle)));
+                }
+            }
+            catch (Exception exception) when (
+                exception is ArgumentException or InvalidOperationException or
+                    System.ComponentModel.Win32Exception or OverflowException)
+            {
+            }
+
+            return true;
+        }, IntPtr.Zero);
+
+        var expectedTitlePart = $"[{presentationName}]";
+        var matching = candidates
+            .Where(candidate => candidate.Title.Contains(
+                expectedTitlePart,
+                StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        var selected = matching.Length == 1
+            ? matching[0].Handle
+            : candidates.Count == 1
+                ? candidates[0].Handle
+                : IntPtr.Zero;
+        return selected != IntPtr.Zero && TryActivateWindow(selected);
+    }
+
+    public bool TryBringPowerPointDocumentWindowForward(string windowCaption)
+    {
+        var candidates = new List<(IntPtr Handle, string Title)>();
+        _ = WindowNativeMethods.EnumWindows((windowHandle, state) =>
+        {
+            if (!WindowNativeMethods.IsWindowVisible(windowHandle) ||
+                string.Equals(
+                    ReadWindowClass(windowHandle),
+                    "screenClass",
+                    StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            _ = WindowNativeMethods.GetWindowThreadProcessId(windowHandle, out var processId);
+            try
+            {
+                using var process = Process.GetProcessById(checked((int)processId));
+                if (string.Equals(process.ProcessName, "POWERPNT", StringComparison.OrdinalIgnoreCase))
+                {
+                    candidates.Add((windowHandle, ReadWindowTitle(windowHandle)));
+                }
+            }
+            catch (Exception exception) when (
+                exception is ArgumentException or InvalidOperationException or
+                    System.ComponentModel.Win32Exception or OverflowException)
+            {
+            }
+
+            return true;
+        }, IntPtr.Zero);
+
+        var matching = candidates
+            .Where(candidate =>
+                string.Equals(
+                    candidate.Title,
+                    windowCaption,
+                    StringComparison.OrdinalIgnoreCase) ||
+                candidate.Title.StartsWith(
+                    $"{windowCaption} - ",
+                    StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        var selected = matching.Length == 1
+            ? matching[0].Handle
+            : IntPtr.Zero;
+        return selected != IntPtr.Zero &&
+            TryBringWindowForwardPreservingState(selected);
+    }
+
     public bool TryBringWindowForwardPreservingState(IntPtr windowHandle)
     {
         if (windowHandle == IntPtr.Zero)
@@ -96,11 +202,37 @@ internal sealed class WindowsWindowActivator : IWindowsWindowActivator
             return false;
         }
 
+        var rootWindow = WindowNativeMethods.GetAncestor(windowHandle, GetAncestorRoot);
+        if (rootWindow != IntPtr.Zero)
+        {
+            windowHandle = rootWindow;
+        }
+
         WindowNativeMethods.BringWindowToTop(windowHandle);
         WindowNativeMethods.SetWindowPos(windowHandle, TopMostWindow, 0, 0, 0, 0, SetWindowPosNoMove | SetWindowPosNoSize);
+        WindowNativeMethods.SwitchToThisWindow(windowHandle, false);
         WindowNativeMethods.SetForegroundWindow(windowHandle);
         WindowNativeMethods.SetWindowPos(windowHandle, NoTopMostWindow, 0, 0, 0, 0, SetWindowPosNoMove | SetWindowPosNoSize);
-        return true;
+        var foregroundWindow = WindowNativeMethods.GetForegroundWindow();
+        if (IsRequestedForegroundWindow(windowHandle, foregroundWindow))
+        {
+            return true;
+        }
+
+        return TryFocusWindowForKeyboardInput(windowHandle);
+    }
+
+    internal static bool IsRequestedForegroundWindow(
+        IntPtr requestedRootWindow,
+        IntPtr foregroundWindow)
+    {
+        if (requestedRootWindow == IntPtr.Zero || foregroundWindow == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        return foregroundWindow == requestedRootWindow ||
+            WindowNativeMethods.GetAncestor(foregroundWindow, GetAncestorRoot) == requestedRootWindow;
     }
 
     private static bool IsWindowCoveringMonitor(IntPtr windowHandle)
@@ -171,9 +303,35 @@ internal sealed class WindowsWindowActivator : IWindowsWindowActivator
             }
         }
 
-        var currentForeground = WindowNativeMethods.GetForegroundWindow();
-        return currentForeground == windowHandle ||
-            WindowNativeMethods.GetAncestor(currentForeground, GetAncestorRoot) == windowHandle;
+        return IsRequestedForegroundWindow(
+            windowHandle,
+            WindowNativeMethods.GetForegroundWindow());
+    }
+
+    private static unsafe string ReadWindowClass(IntPtr windowHandle)
+    {
+        Span<char> value = stackalloc char[128];
+        fixed (char* pointer = value)
+        {
+            var length = WindowNativeMethods.GetClassName(
+                windowHandle,
+                pointer,
+                value.Length);
+            return length <= 0 ? string.Empty : new string(pointer, 0, length);
+        }
+    }
+
+    private static unsafe string ReadWindowTitle(IntPtr windowHandle)
+    {
+        Span<char> value = stackalloc char[256];
+        fixed (char* pointer = value)
+        {
+            var length = WindowNativeMethods.GetWindowText(
+                windowHandle,
+                pointer,
+                value.Length);
+            return length <= 0 ? string.Empty : new string(pointer, 0, length);
+        }
     }
 
     private static void SendBrowserFullscreenShortcut()
@@ -209,9 +367,27 @@ internal sealed class WindowsWindowActivator : IWindowsWindowActivator
 
 internal static partial class WindowNativeMethods
 {
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal delegate bool EnumWindowsCallback(nint windowHandle, nint state);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool EnumWindows(EnumWindowsCallback callback, nint state);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetClassNameW")]
+    internal static unsafe partial int GetClassName(nint windowHandle, char* className, int maxCount);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetWindowTextW")]
+    internal static unsafe partial int GetWindowText(nint windowHandle, char* text, int maxCount);
+
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool SetForegroundWindow(nint windowHandle);
+
+    [LibraryImport("user32.dll")]
+    internal static partial void SwitchToThisWindow(
+        nint windowHandle,
+        [MarshalAs(UnmanagedType.Bool)] bool altTab);
 
     [LibraryImport("user32.dll")]
     internal static partial nint GetForegroundWindow();
@@ -227,6 +403,10 @@ internal static partial class WindowNativeMethods
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool IsWindow(nint windowHandle);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool IsWindowVisible(nint windowHandle);
 
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

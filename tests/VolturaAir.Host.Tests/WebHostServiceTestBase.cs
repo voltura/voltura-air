@@ -129,7 +129,9 @@ public abstract class WebHostServiceTestBase : IsolatedHostSettingsTest
             IUrlOpenService? urlOpenService = null,
             IAppLog? appLog = null,
             ITextDestinationService? textDestinationService = null,
-            IClipboardTextReader? clipboardTextReader = null)
+            IClipboardTextReader? clipboardTextReader = null,
+            IPowerPointAutomationService? powerPointAutomation = null,
+            ISystemPowerController? powerController = null)
         {
             var store = new TempPairingStore();
             var inputInjector = new FakeInputInjector();
@@ -140,11 +142,13 @@ public abstract class WebHostServiceTestBase : IsolatedHostSettingsTest
                 new InputDispatcher(inputInjector),
                 audioController,
                 remoteActionExecutor,
+                powerController,
                 appLog: appLog,
                 appLaunchService: appLaunchService,
                 urlOpenService: urlOpenService,
                 textDestinationService: textDestinationService,
                 clipboardTextReader: clipboardTextReader,
+                powerPointAutomation: powerPointAutomation,
                 isolatedTestMode: true,
                 configureWebHost: builder => builder.UseTestServer());
             await webHost.StartAsync();
@@ -158,6 +162,77 @@ public abstract class WebHostServiceTestBase : IsolatedHostSettingsTest
             Store.Dispose();
             InputInjector.Dispose();
         }
+    }
+
+    protected sealed class FakePowerPointAutomationService(
+        PowerPointAutomationSnapshot snapshot) : IPowerPointAutomationService
+    {
+        public List<PowerPointCommand> Commands { get; } = [];
+        public Func<PowerPointCommand, PowerPointAutomationResult>? ExecuteHandler { get; set; }
+        public Func<PowerPointCommand, CancellationToken, Task<PowerPointAutomationResult>>? ExecuteAsyncHandler { get; set; }
+        public PowerPointAutomationSnapshot Snapshot { get; private set; } = snapshot;
+        private event EventHandler? SnapshotChangedCore;
+        public int SnapshotSubscriberCount { get; private set; }
+        public event EventHandler? SnapshotChanged
+        {
+            add
+            {
+                SnapshotChangedCore += value;
+                SnapshotSubscriberCount++;
+            }
+            remove
+            {
+                SnapshotChangedCore -= value;
+                SnapshotSubscriberCount--;
+            }
+        }
+
+        public Task<PowerPointAutomationResult> RefreshAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(new PowerPointAutomationResult(
+                true,
+                null,
+                "Refreshed.",
+                Snapshot));
+
+        public Task<PowerPointAutomationResult> ExecuteAsync(
+            PowerPointCommand command,
+            CancellationToken cancellationToken)
+        {
+            Commands.Add(command);
+            if (ExecuteAsyncHandler is not null)
+            {
+                return ExecuteAsyncHandler(command, cancellationToken);
+            }
+
+            if (ExecuteHandler is not null)
+            {
+                return Task.FromResult(ExecuteHandler(command));
+            }
+
+            var presentation = Snapshot.Presentations.FirstOrDefault(item =>
+                command.RuntimePresentationId is null ||
+                item.RuntimePresentationId == command.RuntimePresentationId);
+            return Task.FromResult(presentation is null
+                ? new PowerPointAutomationResult(
+                    false,
+                    "powerpoint-target-stale",
+                    "Stale.",
+                    Snapshot)
+                : new PowerPointAutomationResult(
+                    true,
+                    null,
+                    "Done.",
+                    Snapshot,
+                    presentation));
+        }
+
+        public void Publish(PowerPointAutomationSnapshot next)
+        {
+            Snapshot = next;
+            SnapshotChangedCore?.Invoke(this, EventArgs.Empty);
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     protected sealed class FakeTextDestinationService(TextDestinationMetadata metadata, TextDeliveryResult result) : ITextDestinationService

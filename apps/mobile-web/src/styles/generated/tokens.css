@@ -47,11 +47,13 @@
   --control-compact-height: 36px;
   --control-min-height: 44px;
   --control-prominent-height: 48px;
+  --presentation-navigation-height: 62px;
   --icon-small: 16px;
   --icon-medium: 20px;
   --icon-large: 24px;
   --trackpad-center-icon-size: 42px;
   --bottom-mode-nav-height: 63px;
+  --presentation-summary-card-width: 112px;
   --page-gutter: 16px;
   --desktop-page-gutter: 28px;
   --motion-fast: 120ms;

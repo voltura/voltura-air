@@ -16,11 +16,13 @@
     <system:Double x:Key="ControlCompactHeight">36</system:Double>
     <system:Double x:Key="ControlMinHeight">44</system:Double>
     <system:Double x:Key="ControlProminentHeight">48</system:Double>
+    <system:Double x:Key="PresentationNavigationHeight">62</system:Double>
     <system:Double x:Key="IconSmall">16</system:Double>
     <system:Double x:Key="IconMedium">20</system:Double>
     <system:Double x:Key="IconLarge">24</system:Double>
     <system:Double x:Key="TrackpadCenterIconSize">42</system:Double>
     <system:Double x:Key="BottomModeNavHeight">63</system:Double>
+    <system:Double x:Key="PresentationSummaryCardWidth">112</system:Double>
     <system:Double x:Key="PageGutter">16</system:Double>
     <system:Double x:Key="DesktopPageGutter">28</system:Double>
     <Thickness x:Key="InsetNone">0</Thickness>
@@ -35,11 +37,13 @@
     <Thickness x:Key="ControlCompactHeightInset">36</Thickness>
     <Thickness x:Key="ControlMinHeightInset">44</Thickness>
     <Thickness x:Key="ControlProminentHeightInset">48</Thickness>
+    <Thickness x:Key="PresentationNavigationHeightInset">62</Thickness>
     <Thickness x:Key="IconSmallInset">16</Thickness>
     <Thickness x:Key="IconMediumInset">20</Thickness>
     <Thickness x:Key="IconLargeInset">24</Thickness>
     <Thickness x:Key="TrackpadCenterIconSizeInset">42</Thickness>
     <Thickness x:Key="BottomModeNavHeightInset">63</Thickness>
+    <Thickness x:Key="PresentationSummaryCardWidthInset">112</Thickness>
     <Thickness x:Key="PageGutterInset">16</Thickness>
     <Thickness x:Key="DesktopPageGutterInset">28</Thickness>
     <GridLength x:Key="GridSpaceNone">0</GridLength>

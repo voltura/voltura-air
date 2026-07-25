@@ -46,7 +46,10 @@ internal sealed class InMemoryPresentationReportStore : IPresentationReportStore
             _reports.Add(new(
                 request.ReportId,
                 request.OperationId,
-                Features.Presentations.PresentationReportNames.CreateDefaultName(_reports, deviceKey),
+                Features.Presentations.PresentationReportNames.CreateInitialName(
+                    _reports,
+                    deviceKey,
+                    request.SuggestedTitle),
                 request.Target,
                 deviceKey,
                 deviceName,
@@ -58,8 +61,9 @@ internal sealed class InMemoryPresentationReportStore : IPresentationReportStore
                 request.EndedDuringBreak,
                 request.Breaks,
                 request.Slides,
-                PresentationFilePath: null,
-                PresentationUrl: null));
+                request.PresentationFilePath,
+                PresentationUrl: null,
+                request.SlideVisits));
         }
 
         ReportsChanged?.Invoke(this, EventArgs.Empty);

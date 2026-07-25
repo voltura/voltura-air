@@ -19,18 +19,28 @@ namespace VolturaAir.Host.Features.Presentations;
 public partial class PresentationsPageView : WpfUserControl
 {
     private readonly IPresentationReportStore _store;
+    private readonly WebHostService _webHost;
     private readonly ModernDateRangePicker _dateRange;
     private IReadOnlyList<PresentationReport> _reports = [];
     private List<PresentationReport> _filteredReports = [];
     private PresentationReport? _currentReport;
     private bool _updatingFilters;
+    private bool _sessionEventsSubscribed;
+    private int _visibleArchiveSummaryCardCount = -1;
 
     internal event Action<PresentationReport?>? DetailChanged;
 
-    internal PresentationsPageView(IPresentationReportStore store)
+    internal bool IsSessionEventsSubscribed => _sessionEventsSubscribed;
+
+    internal PresentationsPageView(
+        IPresentationReportStore store,
+        WebHostService webHost)
     {
         _store = store;
+        _webHost = webHost;
         InitializeComponent();
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
         var result = _store.ReadAll();
         _reports = result.Succeeded ? result.Reports : [];
         var earliestDate = _reports.Count == 0
@@ -47,6 +57,87 @@ public partial class PresentationsPageView : WpfUserControl
         SearchBox.TextChanged += OnFilterChanged;
         RebuildDeviceFilter();
         ApplyFilters();
+        RefreshPendingReview();
+    }
+
+    private void OnLoaded(object sender, RoutedEventArgs eventArgs)
+    {
+        if (_sessionEventsSubscribed)
+        {
+            return;
+        }
+
+        _webHost.PresentationSessionChanged += OnPresentationSessionChanged;
+        _sessionEventsSubscribed = true;
+        RefreshPendingReview();
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs eventArgs)
+    {
+        if (!_sessionEventsSubscribed)
+        {
+            return;
+        }
+
+        _webHost.PresentationSessionChanged -= OnPresentationSessionChanged;
+        _sessionEventsSubscribed = false;
+    }
+
+    private void OnPresentationSessionChanged(object? sender, EventArgs eventArgs)
+    {
+        _ = Dispatcher.BeginInvoke(RefreshPendingReview);
+    }
+
+    private void RefreshPendingReview()
+    {
+        var session = _webHost.PresentationSessionSnapshot;
+        var pending = session.State == "pending-review";
+        PendingReviewPanel.Visibility = pending
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        if (!pending)
+        {
+            return;
+        }
+
+        PendingReviewSummary.Text = string.Create(
+            CultureInfo.CurrentCulture,
+            $"{session.PresentationName ?? "PowerPoint"} · {TimeSpan.FromSeconds(session.ElapsedSeconds):h\\:mm\\:ss} · {session.OwnerDeviceName ?? "Unknown device"}");
+    }
+
+    private async void OnSavePendingReview(object sender, RoutedEventArgs eventArgs)
+    {
+        await CompletePendingReviewAsync(save: true);
+    }
+
+    private async void OnDiscardPendingReview(object sender, RoutedEventArgs eventArgs)
+    {
+        await CompletePendingReviewAsync(save: false);
+    }
+
+    private async Task CompletePendingReviewAsync(bool save)
+    {
+        SavePendingReviewButton.IsEnabled = false;
+        DiscardPendingReviewButton.IsEnabled = false;
+        try
+        {
+            var result = await _webHost.CompletePresentationSessionFromHostAsync(
+                save,
+                CancellationToken.None);
+            if (!result.Succeeded)
+            {
+                PendingReviewSummary.Text = result.Message;
+                return;
+            }
+
+            Refresh();
+            RefreshPendingReview();
+        }
+        finally
+        {
+            SavePendingReviewButton.IsEnabled = true;
+            DiscardPendingReviewButton.IsEnabled = true;
+        }
     }
 
     private void Refresh()
@@ -100,7 +191,7 @@ public partial class PresentationsPageView : WpfUserControl
         ReportList.ItemsSource = _filteredReports.Select(ToArchiveItem).ToList();
         ReportList.Visibility = _filteredReports.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
         EmptyState.Visibility = _filteredReports.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        SummaryCards.ItemsSource = CreateArchiveSummary(_filteredReports);
+        UpdateArchiveSummaryCards(force: true);
         ArchiveExportButton.IsEnabled = _filteredReports.Count > 0;
         ArchiveEmailButton.IsEnabled = _filteredReports.Count > 0;
         var filtersActive = HasActiveFilters();
@@ -108,6 +199,35 @@ public partial class PresentationsPageView : WpfUserControl
         ArchiveDeleteButton.IsEnabled = filtersActive
             ? _filteredReports.Count > 0
             : _reports.Count > 0;
+    }
+
+    private void OnSummaryCardsSizeChanged(object sender, SizeChangedEventArgs eventArgs)
+    {
+        UpdateArchiveSummaryCards();
+    }
+
+    private void UpdateArchiveSummaryCards(bool force = false)
+    {
+        var summary = CreateArchiveSummary(_filteredReports);
+        var availableWidth = SummaryCards.ActualWidth;
+        var cardWidth = UiTokens.PresentationSummaryCardWidth;
+        var visibleCount = availableWidth <= 0
+            ? summary.Count
+            : Math.Clamp(
+                (int)Math.Floor(
+                    (availableWidth + UiTokens.SpaceSm) /
+                    (cardWidth + UiTokens.SpaceSm)),
+                1,
+                summary.Count);
+        if (!force &&
+            visibleCount == _visibleArchiveSummaryCardCount &&
+            SummaryCards.ItemsSource is not null)
+        {
+            return;
+        }
+
+        _visibleArchiveSummaryCardCount = visibleCount;
+        SummaryCards.ItemsSource = summary.Take(visibleCount).ToArray();
     }
 
     internal void ShowReport(PresentationReport report)

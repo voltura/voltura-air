@@ -120,22 +120,6 @@ dialog::backdrop {
   gap: var(--space-md);
 }
 
-.modal-dialog-close {
-  width: var(--control-min-height);
-  min-width: var(--control-min-height);
-  height: var(--control-min-height);
-  min-height: var(--control-min-height);
-  justify-content: flex-end;
-  border-color: transparent;
-  background: transparent;
-  padding: 0;
-}
-
-.modal-dialog-close svg {
-  width: var(--icon-small);
-  height: var(--icon-small);
-}
-
 .modal-dialog-body {
   flex: 0 1 auto;
   min-height: 0;

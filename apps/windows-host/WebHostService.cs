@@ -25,6 +25,9 @@ public sealed class WebHostService : IAsyncDisposable
     private readonly HostStatusBroadcaster _statusBroadcaster;
     private readonly WebSocketSessionHandler _sessionHandler;
     private readonly PresentationLaserPointerController _presentationLaserPointer;
+    private readonly IPowerPointAutomationService _powerPoint;
+    private readonly PowerPointPresentationSessionService _presentationSession;
+    private readonly bool _ownsPowerPoint;
     private readonly Action<IWebHostBuilder>? _configureWebHost;
     private readonly string _listenAddress;
     private int _inputBlockedByElevation;
@@ -48,6 +51,7 @@ public sealed class WebHostService : IAsyncDisposable
         IClipboardTextReader? clipboardTextReader = null,
         Action<CustomPointerSettings>? applyCustomPointer = null,
         Action<bool>? applyPresentationLaserPointer = null,
+        IPowerPointAutomationService? powerPointAutomation = null,
         bool isolatedTestMode = false,
         Action<IWebHostBuilder>? configureWebHost = null)
     {
@@ -109,8 +113,26 @@ public sealed class WebHostService : IAsyncDisposable
             ? new NoOpAwakeService()
             : throw new ArgumentNullException(nameof(awakeService), "Production host composition must provide the Awake service."));
         _workstationLockPolicy = workstationLockPolicy ?? new WorkstationLockPolicy(_appLog);
+        _powerPoint = ResolvePowerPointAutomation(
+            powerPointAutomation,
+            isolatedTestMode,
+            AppDeveloperSettings.EnableAlphaFeatures(),
+            () => new PowerPointAutomationService(_appLog),
+            out _ownsPowerPoint);
         _presentationLaserPointer = new PresentationLaserPointerController(
-            isolatedTestMode ? null : applyPresentationLaserPointer);
+            isolatedTestMode ? null : applyPresentationLaserPointer,
+            RestorePowerPointPointer);
+        _powerPoint.SnapshotChanged += OnPowerPointSnapshotChanged;
+        PresentationReportStore = isolatedTestMode
+            ? new InMemoryPresentationReportStore()
+            : new PresentationReportStore();
+        _presentationSession = new(
+            _powerPoint,
+            PresentationReportStore,
+            breakOverlay: _powerController as IPresentationBreakOverlay);
+        var presentationBlankOverlay =
+            _powerController as IPresentationBlankOverlay ??
+            NoOpPresentationBlankOverlay.Instance;
 
         var statusFactory = new HostStatusPayloadFactory(
             pairingManager,
@@ -121,7 +143,10 @@ public sealed class WebHostService : IAsyncDisposable
             resolvedTextDestinationService,
             GetNetworkSnapshot,
             () => IsInputBlockedByElevation,
-            () => _presentationLaserPointer.IsEnabled);
+            () => _presentationLaserPointer.IsEnabled,
+            () => presentationBlankOverlay.Snapshot,
+            () => _powerPoint.Snapshot,
+            () => _presentationSession.Snapshot);
         var commandLog = new HostCommandLog(_appLog);
         var powerCommands = new PowerCommandHandler(
             _powerController,
@@ -134,15 +159,22 @@ public sealed class WebHostService : IAsyncDisposable
             inputDispatcher,
             statusFactory,
             _presentationLaserPointer,
+            _powerPoint,
+            _presentationSession,
+            presentationBlankOverlay,
+            pairingManager,
             _transport,
             _appLog);
-        PresentationReportStore = isolatedTestMode
-            ? new InMemoryPresentationReportStore()
-            : new PresentationReportStore();
         var presentationReports = new PresentationReportCommandHandler(
             pairingManager,
             statusFactory,
             PresentationReportStore,
+            _transport,
+            _appLog);
+        var presentationSessions = new PresentationSessionCommandHandler(
+            pairingManager,
+            statusFactory,
+            _presentationSession,
             _transport,
             _appLog);
         var externalActionCommands = new ExternalActionCommandHandler(
@@ -179,6 +211,7 @@ public sealed class WebHostService : IAsyncDisposable
             awakeCommands,
             presentationCommands,
             presentationReports,
+            presentationSessions,
             externalActionCommands,
             textTransferCommands,
             clipboardCommands,
@@ -192,12 +225,17 @@ public sealed class WebHostService : IAsyncDisposable
             _transport,
             statusFactory,
             _appLog,
-            _presentationLaserPointer);
+            _presentationLaserPointer,
+            _powerPoint,
+            presentationBlankOverlay);
         _sessionHandler.StatusRefreshRequested += (_, _) => _statusBroadcaster.Queue();
+        _presentationSession.StateChanged += OnPresentationSessionChanged;
     }
 
     public int Port { get; }
     internal IPresentationReportStore PresentationReportStore { get; }
+    internal PowerPointSessionSnapshot PresentationSessionSnapshot =>
+        _presentationSession.Snapshot;
     public string ServerUrl { get; private set; }
     public string WebSocketUrl => BuildWebSocketUrl(AdvertisedHostAddress, Port);
     public string AdvertisedHostAddress { get; private set; }
@@ -219,6 +257,20 @@ public sealed class WebHostService : IAsyncDisposable
 
     public event EventHandler<ControllerSocketClosedEventArgs>? ControllerSocketClosed;
     internal event EventHandler<RemoteInputBlockedChangedEventArgs>? RemoteInputBlockedChanged;
+    internal event EventHandler? PresentationSessionChanged;
+
+    internal Task<SessionOperationResult> CompletePresentationSessionFromHostAsync(
+        bool save,
+        CancellationToken cancellationToken)
+    {
+        var owner = _presentationSession.Snapshot.OwnerClientId;
+        return owner is null
+            ? Task.FromResult(new SessionOperationResult(
+                false,
+                "session-unavailable",
+                "There is no presentation draft to finish."))
+            : _presentationSession.CompleteAsync(owner, save, cancellationToken);
+    }
 
     internal static bool IsPortAvailable(int port) => WebHostNetwork.IsPortAvailable(port);
     internal static int FindFreePort() => WebHostNetwork.FindFreePort();
@@ -321,7 +373,36 @@ public sealed class WebHostService : IAsyncDisposable
         }
 
         await _statusBroadcaster.DisposeAsync();
+        _presentationSession.StateChanged -= OnPresentationSessionChanged;
+        _presentationSession.Dispose();
+        _powerPoint.SnapshotChanged -= OnPowerPointSnapshotChanged;
+        if (_presentationLaserPointer.RuntimePresentationId is { Length: > 0 } runtimeId)
+        {
+            try
+            {
+                _ = await _powerPoint.ExecuteAsync(
+                    new("pointer", runtimeId, Enabled: false),
+                    CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                _appLog.Write(new AppLogEntry(
+                    Event: "host_action",
+                    Source: "windows_host",
+                    Action: "powerpoint_pointer_shutdown_restore",
+                    Outcome: "failed",
+                    Detail: exception.Message));
+            }
+
+            _presentationLaserPointer.Revoke(restorePowerPoint: false);
+        }
+
         _presentationLaserPointer.Dispose();
+        if (_ownsPowerPoint)
+        {
+            await _powerPoint.DisposeAsync();
+        }
+
         _transport.AbortAll();
         try
         {
@@ -369,6 +450,86 @@ public sealed class WebHostService : IAsyncDisposable
         AdvertisedHostAddress,
         Port,
         WebSocketUrl);
+
+    internal static IPowerPointAutomationService ResolvePowerPointAutomation(
+        IPowerPointAutomationService? supplied,
+        bool isolatedTestMode,
+        bool alphaFeaturesEnabled,
+        Func<IPowerPointAutomationService> createActive,
+        out bool ownsPowerPoint)
+    {
+        if (supplied is not null)
+        {
+            ownsPowerPoint = false;
+            return supplied;
+        }
+
+        if (isolatedTestMode || !alphaFeaturesEnabled)
+        {
+            ownsPowerPoint = false;
+            return InertPowerPointAutomationService.Instance;
+        }
+
+        ownsPowerPoint = true;
+        return createActive();
+    }
+
+    private void OnPowerPointSnapshotChanged(object? sender, EventArgs eventArgs)
+    {
+        if (_presentationLaserPointer.RuntimePresentationId is not { Length: > 0 } runtimeId)
+        {
+            return;
+        }
+
+        var presentation = _powerPoint.Snapshot.Presentations.FirstOrDefault(
+            item => string.Equals(
+                item.RuntimePresentationId,
+                runtimeId,
+                StringComparison.Ordinal));
+        if (presentation is null || !presentation.IsPresenting)
+        {
+            _presentationLaserPointer.DisableForPresentation(runtimeId);
+        }
+    }
+
+    private void OnPresentationSessionChanged(object? sender, EventArgs eventArgs)
+    {
+        _statusBroadcaster.Queue();
+        PresentationSessionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void RestorePowerPointPointer(string runtimePresentationId)
+    {
+        _ = RestorePowerPointPointerAsync(runtimePresentationId);
+    }
+
+    private async Task RestorePowerPointPointerAsync(string runtimePresentationId)
+    {
+        try
+        {
+            var result = await _powerPoint.ExecuteAsync(
+                new("pointer", runtimePresentationId, Enabled: false),
+                CancellationToken.None).ConfigureAwait(false);
+            if (!result.Succeeded)
+            {
+                _appLog.Write(new AppLogEntry(
+                    Event: "host_action",
+                    Source: "windows_host",
+                    Action: "powerpoint_pointer_restore",
+                    Outcome: "degraded",
+                    Detail: result.Code));
+            }
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            _appLog.Write(new AppLogEntry(
+                Event: "host_action",
+                Source: "windows_host",
+                Action: "powerpoint_pointer_restore",
+                Outcome: "failed",
+                Detail: exception.Message));
+        }
+    }
 
     private static void MapStaticFiles(WebApplication app)
     {
@@ -433,6 +594,5 @@ internal sealed record HostStatusMetadata(
     bool InputBlockedByElevation);
 
 internal sealed record TextTransferTargetMetadata(string Mode, string DisplayName, bool Available);
-internal sealed record PresentationCommandResult(bool Succeeded, string? Code, string Message);
 
 public sealed class HostPortUnavailableException(string message) : Exception(message);

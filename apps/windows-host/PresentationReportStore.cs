@@ -256,7 +256,10 @@ internal sealed class PresentationReportStore(string? reportDirectory = null) : 
                 var report = new PresentationReport(
                     request.ReportId,
                     request.OperationId,
-                    Features.Presentations.PresentationReportNames.CreateDefaultName(existing, deviceKey),
+                    Features.Presentations.PresentationReportNames.CreateInitialName(
+                        existing,
+                        deviceKey,
+                        request.SuggestedTitle),
                     request.Target,
                     deviceKey,
                     normalizedDeviceName,
@@ -268,8 +271,9 @@ internal sealed class PresentationReportStore(string? reportDirectory = null) : 
                     request.EndedDuringBreak,
                     request.Breaks,
                     request.Slides,
-                    PresentationFilePath: null,
-                    PresentationUrl: null);
+                    request.PresentationFilePath,
+                    PresentationUrl: null,
+                    request.SlideVisits);
                 var deviceDirectory = Path.Combine(ReportDirectory, deviceKey);
                 Directory.CreateDirectory(deviceDirectory);
                 var finalPath = Path.Combine(deviceDirectory, $"{request.ReportId}.json");

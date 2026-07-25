@@ -17,13 +17,20 @@ peaks, text, or audio in logs. Browser dictation must remain independent.
 
 ## Presentation
 
-- Launch a recent linked presentation from mobile using a bounded opaque ID;
-  never expose local paths or private URLs.
 - Define canonical presentation identity before cross-session analytics.
 - Add bounded multi-select report actions with clear filtered-selection and
   partial-failure behavior.
 - Evaluate deeper mail-provider integration only with explicit consent, token
   ownership, provider limits, and final user review.
+- Research slideshow zoom through a supported automation mechanism; do not
+  inject `+` or `-` because PowerPoint's slideshow Zoom property is read-only.
+- Validate reliable automation before adding All Slides or Presenter View
+  interactions.
+- Consider presentation previews only after deciding rendering, privacy, cache
+  limits, invalidation, and deletion behavior.
+- Consider ink/read-only controls, hyperlinks, hidden-slide/help controls,
+  media transport, and temporary-pointer behavior only with explicit state,
+  availability, and cleanup contracts.
 
 ## Control and personalization
 

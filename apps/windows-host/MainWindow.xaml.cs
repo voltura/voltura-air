@@ -80,6 +80,7 @@ public partial class MainWindow : Window
             () => SelectPage(HostPage.Devices));
         _presentationsPage = new PresentationsPageController(
             webHost.PresentationReportStore,
+            webHost,
             SetPresentationReportHeader);
         _connectionPage = new ConnectionPageController(
             this,

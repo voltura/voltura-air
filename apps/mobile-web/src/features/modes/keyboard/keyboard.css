@@ -246,24 +246,6 @@
 }
 
 @media (height <= 430px) and (orientation: landscape) {
-  .app-shell {
-    grid-template-rows: auto minmax(0, 1fr);
-    gap: 8px;
-  }
-
-  .top-mode-tabs {
-    display: none;
-  }
-
-  .compact-mode-button {
-    display: inline-flex;
-  }
-
-  .mode-selector-popover {
-    top: max(58px, calc(env(safe-area-inset-top) + 48px));
-    left: max(12px, env(safe-area-inset-left));
-  }
-
   .keyboard-mode {
     gap: 8px;
   }

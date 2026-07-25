@@ -86,7 +86,10 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
             var workstationLockPolicy = new WorkstationLockPolicy(appLog);
             powerController = isolatedTestMode
                 ? new NoOpSystemPowerController()
-                : new SystemPowerController(new WindowsDisplayActionController(System.Windows.Application.Current.Dispatcher, appLog));
+                : new SystemPowerController(new WindowsDisplayActionController(
+                    System.Windows.Application.Current.Dispatcher,
+                    appLog,
+                    () => trayContext?.ShowPresentationBreakReminder()));
             awakeService = isolatedTestMode
                 ? new NoOpAwakeService()
                 : await AwakeService.CreateWindowsAsync(appLog);

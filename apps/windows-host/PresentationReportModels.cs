@@ -15,6 +15,12 @@ internal sealed record PresentationReportSlide(
     int SlideNumber,
     double? DurationSeconds);
 
+internal sealed record PresentationReportSlideVisit(
+    int SlideNumber,
+    DateTimeOffset EnteredAt,
+    double DurationSeconds,
+    string Origin);
+
 internal sealed record PresentationReport(
     string ReportId,
     string OperationId,
@@ -31,7 +37,8 @@ internal sealed record PresentationReport(
     IReadOnlyList<PresentationReportBreak> Breaks,
     IReadOnlyList<PresentationReportSlide> Slides,
     string? PresentationFilePath,
-    string? PresentationUrl)
+    string? PresentationUrl,
+    IReadOnlyList<PresentationReportSlideVisit>? SlideVisits = null)
 {
     public double BreakDurationSeconds => Breaks.Sum(entry => entry.BreakDurationSeconds);
     public int SessionCount => Breaks.Count + (EndedDuringBreak ? 0 : 1);
@@ -48,7 +55,10 @@ internal sealed record PresentationReportSaveRequest(
     double PresentationDurationSeconds,
     bool EndedDuringBreak,
     IReadOnlyList<PresentationReportBreak> Breaks,
-    IReadOnlyList<PresentationReportSlide> Slides);
+    IReadOnlyList<PresentationReportSlide> Slides,
+    IReadOnlyList<PresentationReportSlideVisit>? SlideVisits = null,
+    string? SuggestedTitle = null,
+    string? PresentationFilePath = null);
 
 internal sealed record PresentationReportSaveResult(
     bool Succeeded,

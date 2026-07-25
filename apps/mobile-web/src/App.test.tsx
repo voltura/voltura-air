@@ -49,6 +49,7 @@ function readStoredStringProperty(key: string, property: string): string[] {
 function mockConnection(overrides: Partial<ReturnType<typeof useVolturaAirConnection>> = {}) {
   vi.mocked(useVolturaAirConnection).mockReturnValue({
     state: "paired",
+    connectionEpoch: 1,
     message: "Connected to Very Long Living Room Editing Workstation",
     send: vi.fn(),
     requestAudioState: vi.fn(),
@@ -76,8 +77,14 @@ function mockConnection(overrides: Partial<ReturnType<typeof useVolturaAirConnec
     requestAppLaunch: vi.fn(),
     presentationCapability: { canControl: true, canSaveReports: true, laserPointerActive: false },
     pendingPresentationCommand: null,
+    pendingPresentationSession: null,
+    pendingPowerPointRefresh: null,
     presentationResult: null,
+    presentationSessionResult: null,
+    powerPointRefreshResult: null,
     requestPresentationCommand: vi.fn(() => "presentation-operation-a"),
+    requestPowerPointRefresh: vi.fn(() => "presentation-refresh-a"),
+    requestPresentationSession: vi.fn(() => "presentation-session-a"),
     pendingPresentationReportSave: null,
     presentationReportSaveResult: null,
     requestPresentationReportSave: vi.fn(() => "presentation-report-operation-a"),
@@ -152,6 +159,67 @@ describe("App header and mode navigation", () => {
     await waitFor(() => {
       expect(requestPresentationCommand).toHaveBeenCalledWith("powerpoint", "pointer", false);
     });
+  });
+
+  it("never activates PowerPoint when Trackpad reconnects after an earlier Presentation visit", async () => {
+    const requestPresentationCommand = vi.fn(() => "presentation-operation-a");
+    const readyPowerPointCapability = {
+      canControl: true,
+      canSaveReports: true,
+      laserPointerActive: false,
+      powerPoint: {
+        state: "ready" as const,
+        foregroundActivationSupported: true,
+        presentations: [{
+          runtimePresentationId: "presentation-1",
+          name: "Quarterly update.pptx",
+          state: "ready" as const,
+          slideCount: 24,
+          currentSlideIndex: null,
+          currentShowPosition: null,
+          slideShowState: "ready" as const
+        }]
+      }
+    };
+    mockConnection({
+      presentationCapability: readyPowerPointCapability,
+      requestPresentationCommand
+    });
+    const view = render(<App />);
+
+    expect(document.querySelector(".app-shell")?.classList).toContain("trackpad-active");
+    expect(requestPresentationCommand).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Presentation" }).at(-1)!);
+    await waitFor(() => {
+      expect(requestPresentationCommand).toHaveBeenCalledExactlyOnceWith(
+        "powerpoint",
+        "activate",
+        { runtimePresentationId: "presentation-1" });
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Trackpad" }).at(-1)!);
+    expect(document.querySelector(".app-shell")?.classList).toContain("trackpad-active");
+
+    mockConnection({
+      state: "unavailable",
+      connectionEpoch: 1,
+      message: "PC is currently not available. Retrying...",
+      presentationCapability: undefined,
+      requestPresentationCommand
+    });
+    view.rerender(<App />);
+    mockConnection({
+      connectionEpoch: 2,
+      presentationCapability: readyPowerPointCapability,
+      requestPresentationCommand
+    });
+    view.rerender(<App />);
+
+    await waitFor(() => {
+      expect(document.querySelector(".app-shell")?.classList).toContain("trackpad-active");
+    });
+    expect(requestPresentationCommand).toHaveBeenCalledTimes(1);
   });
 
   it("refreshes after a developer-mode long press on the Voltura Air brand", async () => {

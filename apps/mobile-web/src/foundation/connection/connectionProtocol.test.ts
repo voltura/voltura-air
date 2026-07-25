@@ -106,6 +106,27 @@ describe("connection protocol policy", () => {
       .toEqual({ canControl: true, canSaveReports: true, laserPointerActive: false });
     expect(getPresentationCapability({ presentation: { canControl: false, canSaveReports: false, laserPointerActive: true } }))
       .toEqual({ canControl: false, canSaveReports: false, laserPointerActive: true });
+    expect(getPresentationCapability({
+      presentation: {
+        canControl: true,
+        canSaveReports: true,
+        laserPointerActive: false,
+        powerPoint: {
+          state: "ready",
+          foregroundActivationSupported: true,
+          presentations: []
+        }
+      }
+    })).toEqual({
+      canControl: true,
+      canSaveReports: true,
+      laserPointerActive: false,
+      powerPoint: {
+        state: "ready",
+        foregroundActivationSupported: true,
+        presentations: []
+      }
+    });
     expect(getPresentationCapability({})).toBeUndefined();
     expect(getPresentationCapability({ presentation: {} as never })).toBeUndefined();
   });

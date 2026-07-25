@@ -6,11 +6,6 @@ public sealed class PresentationCommandsTests
 {
     public static TheoryData<string, string, string, string[]> SupportedCommands => new()
     {
-        { "powerpoint", "next", "ArrowRight", [] },
-        { "powerpoint", "previous", "ArrowLeft", [] },
-        { "powerpoint", "start", "F5", [] },
-        { "powerpoint", "end", "Escape", [] },
-        { "powerpoint", "black", "B", [] },
         { "google-slides", "next", "ArrowRight", [] },
         { "google-slides", "previous", "ArrowLeft", [] },
         { "google-slides", "end", "Escape", [] },
@@ -35,6 +30,11 @@ public sealed class PresentationCommandsTests
     [InlineData("google-slides", "start")]
     [InlineData("pdf", "start")]
     [InlineData("pdf", "black")]
+    [InlineData("powerpoint", "next")]
+    [InlineData("powerpoint", "previous")]
+    [InlineData("powerpoint", "start")]
+    [InlineData("powerpoint", "end")]
+    [InlineData("powerpoint", "black")]
     [InlineData("powerpoint", "pointer")]
     [InlineData("google-slides", "pointer")]
     [InlineData("pdf", "pointer")]

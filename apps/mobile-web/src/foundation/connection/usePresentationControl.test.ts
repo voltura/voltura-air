@@ -1,7 +1,12 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ConnectionState } from "./connectionTypes";
-import { usePresentationControl } from "./usePresentationControl";
+import {
+  powerPointRefreshResponseTimeoutMs,
+  presentationCommandResponseTimeoutMs,
+  presentationSessionResponseTimeoutMs,
+  usePresentationControl
+} from "./usePresentationControl";
 
 describe("usePresentationControl", () => {
   afterEach(() => vi.useRealTimers());
@@ -47,6 +52,46 @@ describe("usePresentationControl", () => {
     expect(result.current.presentationResult?.succeeded).toBe(true);
   });
 
+  it("keeps command failures visible while successful confirmations expire", async () => {
+    vi.useFakeTimers();
+    const send = vi.fn();
+    const { result } = renderHook(() => usePresentationControl("paired", send));
+
+    let operationId: string | null = null;
+    act(() => {
+      operationId = result.current.requestPresentationCommand("powerpoint", "activate");
+    });
+    act(() => { result.current.completePresentationCommand({
+      type: "presentation.command.result",
+      operationId: operationId!,
+      target: "powerpoint",
+      action: "activate",
+      succeeded: false,
+      code: "powerpoint-focus-failed",
+      message: "Windows could not bring PowerPoint to the foreground.",
+      laserPointerActive: false
+    }); });
+
+    await act(() => vi.advanceTimersByTime(6000));
+    expect(result.current.presentationResult?.succeeded).toBe(false);
+
+    act(() => {
+      operationId = result.current.requestPresentationCommand("powerpoint", "activate");
+    });
+    act(() => { result.current.completePresentationCommand({
+      type: "presentation.command.result",
+      operationId: operationId!,
+      target: "powerpoint",
+      action: "activate",
+      succeeded: true,
+      message: "PowerPoint activated.",
+      laserPointerActive: false
+    }); });
+
+    await act(() => vi.advanceTimersByTime(5000));
+    expect(result.current.presentationResult).toBeNull();
+  });
+
   it("reports an acknowledgement timeout and stops pending work on disconnect", async () => {
     vi.useFakeTimers();
     const send = vi.fn();
@@ -55,7 +100,11 @@ describe("usePresentationControl", () => {
     });
 
     await act(() => result.current.requestPresentationCommand("google-slides", "black"));
-    await act(() => vi.advanceTimersByTime(5000));
+    await act(() => vi.advanceTimersByTime(presentationCommandResponseTimeoutMs - 1));
+    expect(result.current.presentationResult).toBeNull();
+    expect(result.current.pendingPresentationCommand).not.toBeNull();
+
+    await act(() => vi.advanceTimersByTime(1));
     expect(result.current.presentationResult?.code).toBe("VAIR-PRESENTATION-RESPONSE-TIMEOUT");
 
     await act(() => result.current.requestPresentationCommand("google-slides", "next"));
@@ -81,5 +130,113 @@ describe("usePresentationControl", () => {
       enabled: false
     });
     expect(result.current.pendingPresentationCommand?.action).toBe("next");
+  });
+
+  it("correlates one pending authoritative session command", () => {
+    const send = vi.fn();
+    const { result } = renderHook(() => usePresentationControl("paired", send));
+    let operationId: string | null = null;
+
+    act(() => {
+      operationId = result.current.requestPresentationSession("break", { enabled: true });
+      result.current.requestPresentationSession("break", { enabled: false });
+    });
+
+    expect(send).toHaveBeenCalledExactlyOnceWith({
+      type: "presentation.session",
+      operationId,
+      action: "break",
+      enabled: true
+    });
+    expect(result.current.pendingPresentationSession?.action).toBe("break");
+
+    act(() => { result.current.completePresentationSession({
+      type: "presentation.session.result",
+      operationId: operationId!,
+      action: "break",
+      succeeded: true,
+      message: "Break started."
+    }); });
+
+    expect(result.current.pendingPresentationSession).toBeNull();
+    expect(result.current.presentationSessionResult?.succeeded).toBe(true);
+  });
+
+  it("reports authoritative session acknowledgement failures and timeouts", async () => {
+    vi.useFakeTimers();
+    const send = vi.fn();
+    const { result } = renderHook(() => usePresentationControl("paired", send));
+
+    let operationId: string | null = null;
+    act(() => {
+      operationId = result.current.requestPresentationSession("save");
+    });
+    act(() => { result.current.completePresentationSession({
+      type: "presentation.session.result",
+      operationId: operationId!,
+      action: "save",
+      succeeded: false,
+      code: "session-persistence-failed",
+      message: "The session could not be saved."
+    }); });
+
+    expect(result.current.presentationSessionResult?.code).toBe("session-persistence-failed");
+
+    act(() => {
+      result.current.requestPresentationSession("break", { enabled: true });
+    });
+    await act(() => vi.advanceTimersByTime(presentationSessionResponseTimeoutMs));
+
+    expect(result.current.pendingPresentationSession).toBeNull();
+    expect(result.current.presentationSessionResult?.code)
+      .toBe("VAIR-PRESENTATION-SESSION-RESPONSE-TIMEOUT");
+  });
+
+  it("tracks and correlates PowerPoint refresh acknowledgements", async () => {
+    vi.useFakeTimers();
+    const send = vi.fn();
+    const { result } = renderHook(() => usePresentationControl("paired", send));
+
+    let operationId: string | null = null;
+    act(() => {
+      operationId = result.current.requestPowerPointRefresh();
+      result.current.requestPowerPointRefresh();
+    });
+
+    expect(send).toHaveBeenCalledExactlyOnceWith({
+      type: "presentation.powerpoint.refresh",
+      operationId
+    });
+    expect(result.current.pendingPowerPointRefresh?.operationId).toBe(operationId);
+
+    act(() => { result.current.completePowerPointRefresh({
+      type: "presentation.powerpoint.refresh.result",
+      operationId: "unrelated",
+      succeeded: true,
+      message: "Ignored.",
+      state: "ready",
+      presentations: []
+    }); });
+    expect(result.current.pendingPowerPointRefresh).not.toBeNull();
+
+    act(() => { result.current.completePowerPointRefresh({
+      type: "presentation.powerpoint.refresh.result",
+      operationId: operationId!,
+      succeeded: false,
+      code: "powerpoint-busy",
+      message: "PowerPoint is busy.",
+      state: "busy",
+      presentations: []
+    }); });
+    expect(result.current.pendingPowerPointRefresh).toBeNull();
+    expect(result.current.powerPointRefreshResult?.code).toBe("powerpoint-busy");
+
+    act(() => {
+      result.current.requestPowerPointRefresh();
+    });
+    await act(() => vi.advanceTimersByTime(powerPointRefreshResponseTimeoutMs));
+    expect(result.current.pendingPowerPointRefresh).toBeNull();
+    expect(result.current.powerPointRefreshResult?.code)
+      .toBe("VAIR-POWERPOINT-REFRESH-RESPONSE-TIMEOUT");
   });
 });

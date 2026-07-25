@@ -6,6 +6,7 @@ internal static class PresentationReportProtocol
 {
     public const int MaxBreakCount = 100;
     public const int MaxSlideCount = 1000;
+    public const int MaxSlideVisitCount = 1000;
     internal const double MaxDurationSeconds = 7 * 24 * 60 * 60;
     private const int MaxIdentifierLength = 64;
     private const int MinUtcOffsetMinutes = -14 * 60;

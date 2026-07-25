@@ -92,6 +92,17 @@ the Windows **Presentations** page. Removing a paired device does not remove its
 saved reports. Presentation report titles, timing contents, linked file paths,
 and linked URLs are not written to application logs.
 
+When Presentation control is enabled, the Windows host may read bounded
+PowerPoint presentation names, canonical local file paths, and slideshow state
+from the signed-in user's already-running PowerPoint process. It does not read
+slide text or send presentation paths to mobile. The path remains host-only and
+may be stored in a tracking draft so **Resume presentation** can reopen that
+exact file after a break. When that tracked session is saved, its PowerPoint
+name and host-only file path are retained in the local report. PowerPoint
+tracking drafts and ordered slide-visit timing are stored locally with
+presentation reports so an interrupted session can resume for the same exact
+presentation or be saved/discarded after reconnect or host restart.
+
 Uninstalling the Windows application removes program files and shortcuts but
 retains settings and pairing data under `%APPDATA%\Voltura Air`. Delete that
 directory and `%LOCALAPPDATA%\Voltura Air\Presentation statistics` after

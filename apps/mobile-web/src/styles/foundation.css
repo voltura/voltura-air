@@ -145,23 +145,21 @@ svg {
   overscroll-behavior: contain;
 }
 
-.app-shell,
-.app-shell *,
-.bottom-mode-tabs,
-.bottom-mode-tabs * {
+:where(#root),
+:where(#root) * {
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
 }
 
-.app-shell input,
-.app-shell textarea,
-.app-shell select,
-.app-shell [contenteditable="true"],
-.app-shell [contenteditable="true"] *,
-.app-shell .selectable-text,
-.app-shell .selectable-text *,
-.app-shell select * {
+:where(#root) input,
+:where(#root) textarea,
+:where(#root) select,
+:where(#root) select *,
+:where(#root) [contenteditable="true"],
+:where(#root) [contenteditable="true"] *,
+:where(#root) .selectable-text,
+:where(#root) .selectable-text * {
   -webkit-touch-callout: default;
   -webkit-user-select: text;
   user-select: text;
@@ -475,6 +473,27 @@ button span {
   /* Span the hidden mode-navigation row so CSS Grid does not auto-place Remote into it. */
   .app-shell.remote-active.remote-utility-open > .remote-mode {
     grid-row: 2 / -1;
+  }
+}
+
+@media (height <= 520px) and (orientation: landscape) {
+  .app-shell,
+  .app-shell.remote-active {
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: var(--space-sm);
+  }
+
+  .top-mode-tabs {
+    display: none;
+  }
+
+  .compact-mode-button {
+    display: inline-flex;
+  }
+
+  .mode-selector-popover {
+    top: max(58px, calc(env(safe-area-inset-top) + 48px));
+    left: max(12px, env(safe-area-inset-left));
   }
 }
 

@@ -830,6 +830,52 @@ describe("useVolturaAirConnection", () => {
     }
   });
 
+  it("keeps sending health pings while presentation status is pushed repeatedly", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const pcUrl = "http://pc.local:51395";
+      const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };
+      localStorage.setItem("voltura-air.clientId", "client-a");
+      localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
+      localStorage.setItem("voltura-air.activePcId", pc.id);
+      storeReconnectKey("client-a", pc.id);
+
+      const { result } = renderHook(() => useVolturaAirConnection());
+      await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
+      const socket = getSocket(0);
+      socket.readyState = MockWebSocket.OPEN;
+      dispatchSocketEvent(socket, "open");
+      dispatchSocketEvent(socket, "message", {
+        data: JSON.stringify({
+          type: "pair.accepted",
+          clientId: "client-a",
+          pcName: "PC",
+          paired: true,
+        }),
+      });
+
+      for (let second = 0; second < 125; second += 1) {
+        await act(() => vi.advanceTimersByTime(1000));
+        dispatchSocketEvent(socket, "message", {
+          data: JSON.stringify({
+            type: "status",
+            connected: true,
+            pcName: "PC",
+          }),
+        });
+      }
+
+      const healthPings = socket.send.mock.calls
+        .map(([payload]) => JSON.parse(payload as string) as { type?: string })
+        .filter((payload) => payload.type === "health.ping");
+      expect(healthPings.length).toBeGreaterThanOrEqual(2);
+      expect(result.current.state).toBe("paired");
+      expect(socket.close).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("keeps stopped hosts on the stable unavailable screen after a socket close", async () => {
     const pcUrl = "http://pc.local:51395";
     const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };

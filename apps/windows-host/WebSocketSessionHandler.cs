@@ -14,6 +14,7 @@ internal sealed class WebSocketSessionHandler(
     AwakeCommandHandler awakeCommands,
     PresentationCommandHandler presentationCommands,
     PresentationReportCommandHandler presentationReports,
+    PresentationSessionCommandHandler presentationSessions,
     ExternalActionCommandHandler externalActionCommands,
     TextTransferCommandHandler textTransferCommands,
     ClipboardCommandHandler clipboardCommands,
@@ -317,8 +318,18 @@ internal sealed class WebSocketSessionHandler(
             case "presentation.command":
                 await presentationCommands.HandleAsync(socket, clientId, root, cancellationToken);
                 return true;
+            case "presentation.powerpoint.refresh":
+                await presentationCommands.HandlePowerPointRefreshAsync(
+                    socket,
+                    clientId,
+                    ProtocolMessageFields.GetString(root, "operationId"),
+                    cancellationToken);
+                return true;
             case "presentation.report.save":
                 await presentationReports.HandleAsync(socket, clientId, root, cancellationToken);
+                return true;
+            case "presentation.session":
+                await presentationSessions.HandleAsync(socket, clientId, root, cancellationToken);
                 return true;
             case "remote.launch":
                 await externalActionCommands.HandleRemoteLaunchAsync(clientId, ProtocolMessageFields.GetString(root, "action"), cancellationToken);

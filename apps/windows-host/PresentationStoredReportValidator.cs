@@ -19,6 +19,7 @@ internal static class PresentationStoredReportValidator
         report.PlannedDurationSeconds is >= 0 and <= PresentationReportProtocol.MaxDurationSeconds &&
         report.PresentationDurationSeconds is >= 0 and <= PresentationReportProtocol.MaxDurationSeconds &&
         IsSafeTimeline(report) &&
+        IsSafeSlideVisits(report) &&
         (report.PresentationFilePath is null ||
             report.PresentationFilePath is { Length: > 0 and <= 1024 } &&
             Path.IsPathFullyQualified(report.PresentationFilePath)) &&
@@ -85,6 +86,39 @@ internal static class PresentationStoredReportValidator
 
     private static bool IsSafeDuration(double value) =>
         double.IsFinite(value) && value is >= 0 and <= PresentationReportProtocol.MaxDurationSeconds;
+
+    private static bool IsSafeSlideVisits(PresentationReport report)
+    {
+        if (report.SlideVisits is null)
+        {
+            return true;
+        }
+
+        if (report.SlideVisits.Count > PresentationReportProtocol.MaxSlideVisitCount)
+        {
+            return false;
+        }
+
+        DateTimeOffset? previousEnteredAt = null;
+        foreach (var visit in report.SlideVisits)
+        {
+            if (visit is null ||
+                visit.SlideNumber is < 1 or > PresentationReportProtocol.MaxSlideCount ||
+                visit.EnteredAt < report.StartedAt ||
+                visit.EnteredAt > report.EndedAt ||
+                previousEnteredAt is { } previous && visit.EnteredAt < previous ||
+                !IsSafeDuration(visit.DurationSeconds) ||
+                visit.DurationSeconds > report.PresentationDurationSeconds ||
+                visit.Origin is not ("voltura-air" or "powerpoint" or "keyboard" or "mouse" or "clicker"))
+            {
+                return false;
+            }
+
+            previousEnteredAt = visit.EnteredAt;
+        }
+
+        return true;
+    }
 
     private static bool IsSafeSlideRange(int? minimum, int? maximum) =>
         minimum is null && maximum is null ||

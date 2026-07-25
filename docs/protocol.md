@@ -417,23 +417,50 @@ bypass unrelated pending work.
   "type": "presentation.command",
   "operationId": "2fd6j9q-01az82x-18c8qtm-0kj3y5s",
   "target": "powerpoint",
-  "action": "next"
+  "action": "goto",
+  "runtimePresentationId": "76ef027fb28347f785537769592f2976",
+  "slideNumber": 12
 }
 ```
 
 Targets: `powerpoint`, `google-slides`, `pdf`. Actions: `next`, `previous`,
-`start`, `end`, `black`, `pointer`. `pointer` requires Boolean `enabled`; other
-actions forbid it.
+`start`, `start-current`, `first`, `last`, `goto`, `end`, `black`, `white`,
+`pause`, `pointer`, `activate`. `pause` and `pointer` require Boolean `enabled`; `goto`
+requires `slideNumber` from 1 through 1,000. PowerPoint accepts an optional
+opaque `runtimePresentationId`; other targets reject it and all PowerPoint-only
+actions/fields.
 
-| Target | Next | Previous | Start | End | Black |
-| --- | --- | --- | --- | --- | --- |
-| PowerPoint | Right | Left | F5 | Esc | B |
-| Google Slides | Right | Left | unavailable | Esc | B |
-| PDF/browser | Right | Left | unavailable | Esc | unavailable |
+PowerPoint actions are admitted through a bounded, serialized STA automation
+owner that attaches only to an existing PowerPoint process. Once a COM mutation
+has started, the host waits up to five seconds for its authoritative result.
+After that response bound it reports `powerpoint-busy`, keeps the automation
+gate owned until COM actually returns, and rejects later automation commands as
+busy. This frees socket health and cleanup traffic without permitting duplicate
+late side effects. Pointer-off cleanup is coalesced and queued behind any
+in-flight mutation, so a late Arrow change is followed by AutoArrow restoration.
+A sole open presentation is selected automatically;
+multiple presentations require a runtime ID.
+PowerPoint never uses global input. Ordinary discovery and commands never
+launch a file as fallback. Explicit break recovery may reopen only the exact
+canonical file already stored in the host-owned session draft; that path never
+appears on the wire. Google Slides and PDF/browser retain reviewed
+Right/Left/Escape shortcuts; Google Slides also retains `B`.
 
 Unavailable combinations return `unsupported-action` without input. The host
-does not infer focused-app state. Presentation `black` is distinct from
-`system.power` `blackoutDisplay`.
+does not infer focused-app state for Google Slides or PDF/browser. While
+PowerPoint reports `presenting`, `black` and `white` toggle writable PowerPoint
+slideshow state and restore its captured prior state. While the selected
+presentation reports `ready`, `currentSlideIndex` is the current editor slide
+when PowerPoint exposes one. `next` and `previous` then start from that editor
+slide before navigating once; they fail without starting when the editor slide
+is unavailable. The same black/white actions toggle Voltura Air's black or
+white full-display overlay; keyboard, pointer, touch, stylus, or remote input
+may dismiss that overlay. Starting the slideshow or navigating directly to a
+numbered slide dismisses it first. Presentation `black` remains distinct from
+`system.power` `blackoutDisplay` on the wire.
+While that Ready-state overlay is active, the selected presentation's
+`slideShowState` is `black` or `white` in command results and status updates;
+after any dismissal it returns to PowerPoint's authoritative editor state.
 
 Enabled capability:
 
@@ -442,15 +469,52 @@ Enabled capability:
   "presentation": {
     "canControl": true,
     "canSaveReports": true,
-    "laserPointerActive": false
+    "laserPointerActive": false,
+    "powerPoint": {
+      "state": "ready",
+      "foregroundActivationSupported": true,
+      "presentations": [
+        {
+          "runtimePresentationId": "76ef027fb28347f785537769592f2976",
+          "name": "Quarterly update.pptx",
+          "state": "presenting",
+          "slideCount": 24,
+          "currentSlideIndex": 12,
+          "currentShowPosition": 12,
+          "slideShowState": "running"
+        }
+      ],
+      "session": {
+        "state": "tracking",
+        "runtimePresentationId": "76ef027fb28347f785537769592f2976",
+        "presentationName": "Quarterly update.pptx",
+        "ownerDeviceName": "Presenter phone",
+        "isOwner": true,
+        "startedAt": "2026-07-24T09:00:00.000+02:00",
+        "elapsedSeconds": 752,
+        "breakActive": false,
+        "breakElapsedSeconds": 0,
+        "currentSlideIndex": 12,
+        "slideCount": 24,
+        "slideShowState": "running"
+      }
+    }
   }
 }
 ```
 
 Values reflect effective device permission; laser state is host-authoritative.
-A non-owner cannot disable another owner's laser. Owner departure/disconnect,
-End, permission/gate revocation, and shutdown disable it; owner cleanup remains
-accepted after availability revocation.
+Mobile sends `activate` when entering PowerPoint mode only when
+`foregroundActivationSupported` is true. Older hosts omit the field, so newer
+clients retain their previous no-request behavior against them.
+PowerPoint laser activation first verifies the running runtime presentation,
+applies Voltura Air's custom cursor, and attempts to set PowerPoint's pointer to
+visible Arrow. The native adjustment and AutoArrow restoration are best-effort
+and do not turn a successful custom-laser command into a failure. A non-owner
+cannot disable or steal another owner's laser, and presentation switching is
+blocked while it is active. Owner
+departure/disconnect, slideshow closure, permission/gate revocation, and
+shutdown perform mandatory cleanup.
 
 ```json
 {
@@ -459,21 +523,102 @@ accepted after availability revocation.
   "target": "powerpoint",
   "action": "next",
   "succeeded": true,
-  "message": "Next slide command sent.",
-  "laserPointerActive": false
+  "message": "Next slide shown.",
+  "laserPointerActive": false,
+  "runtimePresentationId": "76ef027fb28347f785537769592f2976",
+  "presentation": {
+    "runtimePresentationId": "76ef027fb28347f785537769592f2976",
+    "name": "Quarterly update.pptx",
+    "state": "presenting",
+    "slideCount": 24,
+    "currentSlideIndex": 13,
+    "currentShowPosition": 13,
+    "slideShowState": "running"
+  }
 }
 ```
 
 Codes: `feature-disabled`, `permission-denied`, `unsupported-action`,
-`host-ui-blocked`, `input-failed`, `pointer-failed`; mobile may add
-`VAIR-PRESENTATION-RESPONSE-TIMEOUT`. Expected failures keep the socket open.
-Success means Windows accepted input, not that slides changed.
+`host-ui-blocked`, `input-failed`, `pointer-failed`, `pointer-owner-active`,
+`powerpoint-unavailable`, `powerpoint-busy`, `powerpoint-selection-required`,
+`powerpoint-target-stale`, `powerpoint-not-presenting`,
+`powerpoint-current-slide-unavailable`, `powerpoint-invalid-slide`,
+`powerpoint-invalid-state`, and
+`powerpoint-automation-failed`, plus `presentation-blank-failed` when the
+Ready-state Voltura overlay cannot be shown; mobile may add
+`VAIR-PRESENTATION-RESPONSE-TIMEOUT`. Because started Office automation must
+finish before the host can report its authoritative state, mobile allows a
+longer acknowledgement window for presentation commands than for ordinary
+control messages. Expected failures keep the socket open.
+PowerPoint success includes a post-command snapshot; shortcut-target success
+means Windows accepted input, not that slides changed.
+
+Authenticated clients may request event-independent discovery with
+`presentation.powerpoint.refresh` plus an operation ID. Its result contains
+`succeeded`, optional `code`, `message`, discovery `state`, and bounded
+`presentations`. Mobile correlates the operation ID and may report
+`VAIR-POWERPOINT-REFRESH-RESPONSE-TIMEOUT` locally when no matching result
+arrives; late and unrelated results do not complete another refresh.
+
+### Host-owned PowerPoint session
+
+Starting a slideshow through `presentation.command` starts tracking
+automatically. An already-running show uses:
+
+```json
+{
+  "type": "presentation.session",
+  "operationId": "session-start-1",
+  "action": "start",
+  "runtimePresentationId": "76ef027fb28347f785537769592f2976"
+}
+```
+
+`break` requires Boolean `enabled`. `save` and `discard` accept no optional
+fields. Only the starting device owns these mobile actions; other authorized
+devices may still navigate. The trusted local Presentations page can also
+complete a pending review. Results use
+`presentation.session.result` with operation ID, action, succeeded, optional
+code, and message. Mobile correlates one session mutation at a time and may
+report `VAIR-PRESENTATION-SESSION-RESPONSE-TIMEOUT` locally when no matching
+result arrives; late and unrelated results do not complete another mutation.
+While completion is in flight, competing session mutations return
+`session-saving` or `session-busy`; break mutations during resume return
+`session-resuming`. A session that has reached the bounded break count returns
+`session-break-limit`. Unexpected report-store failures return
+`session-save-failed`. Draft write/delete failures return
+`session-persistence-failed`; the socket remains connected and the in-memory
+session is retained or rolled back to its last consistent state.
+
+The host uses its monotonic clock for live durations, records bounded ordered
+slide visits, and derives per-slide totals. PowerPoint lifecycle/navigation
+events update the session; identical automation events and post-command
+snapshots do not create duplicate visits. Manual breaks are independent of
+black, white, and paused slideshow states. The draft is replaced atomically at
+session start and meaningful transitions. Slideshow exit or host restart leaves
+the wire-compatible `pending-review` state, presented to the user as a paused
+session. When the same presentation is Ready, its known editor slide updates
+the paused session's current position without rewriting completed visits.
+Continue presentation is the primary mobile action and starts from that editor
+slide; Save/Discard remain available as secondary actions. Starting the same
+runtime presentation or exact canonical host file resumes that session
+automatically with the same report, visit timeline, and owner. Time while the
+slideshow is closed is excluded. A different presentation returns
+`session-active` and cannot inherit the paused session.
+
+During a manual break, the host may show a local blackout with the authoritative
+break duration. Input may dismiss that overlay without ending the break. Resume
+removes it, restores the tracked slideshow to focus, and may reopen the exact
+host-side file and restore the last slide before returning a failure. Local file
+paths never appear in protocol messages.
 
 ### Report save
 
-`canSaveReports` is effective Presentation permission. Mobile freezes the local
-snapshot until matching success. Host derives device key/name from the
-authenticated connection; payload cannot supply them.
+`canSaveReports` is effective Presentation permission. The legacy mobile-owned
+save path remains for Google Slides, PDF/browser, and older clients. Host
+derives device key/name from the authenticated connection; payload cannot
+supply them. Host-owned PowerPoint saves additionally persist an ordered visit
+timeline; older report JSON without visits remains readable.
 
 ```json
 {

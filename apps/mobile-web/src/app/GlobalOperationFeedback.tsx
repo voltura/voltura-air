@@ -1,5 +1,5 @@
 import type { AppTab } from "./appModeTabs";
-import type { AppLaunchResultMessage, ClipboardGetResultMessage, TextSendResultMessage } from "../foundation/protocol/messages";
+import type { AppLaunchResultMessage, ClipboardGetResultMessage, PowerPointRefreshResultMessage, PresentationCommandResultMessage, PresentationSessionResultMessage, TextSendResultMessage } from "../foundation/protocol/messages";
 import { AppToast } from "../ui/feedback/AppToast";
 import type { AppToastMessage } from "../ui/feedback/AppToast";
 
@@ -9,6 +9,9 @@ interface GlobalOperationFeedbackProps {
   pendingAppLaunchId: string | null;
   pendingClipboardRead: boolean;
   pendingTextTransfer: boolean;
+  powerPointRefreshResult: PowerPointRefreshResultMessage | null;
+  presentationResult: PresentationCommandResultMessage | null;
+  presentationSessionResult: PresentationSessionResultMessage | null;
   tab: AppTab;
   textTransferResult: TextSendResultMessage | null;
   transientFeedback: AppToastMessage | null;
@@ -20,6 +23,9 @@ export function GlobalOperationFeedback({
   pendingAppLaunchId,
   pendingClipboardRead,
   pendingTextTransfer,
+  powerPointRefreshResult,
+  presentationResult,
+  presentationSessionResult,
   tab,
   textTransferResult,
   transientFeedback
@@ -38,7 +44,49 @@ export function GlobalOperationFeedback({
     feedback = { message: "Waiting for the PC to respond…", tone: "pending" };
   } else if (!feedback && appLaunchResult) {
     feedback = { message: appLaunchResult.message, tone: appLaunchResult.succeeded ? "success" : "error" };
+  } else if (!feedback && presentationResult?.succeeded === false) {
+    feedback = {
+      message: `${presentationActionLabel(presentationResult.action)} failed. ${presentationResult.message}`,
+      tone: "error"
+    };
+  } else if (!feedback && presentationSessionResult?.succeeded === false) {
+    feedback = {
+      message: `${presentationSessionActionLabel(presentationSessionResult)} failed. ${presentationSessionResult.message}`,
+      tone: "error"
+    };
+  } else if (!feedback && powerPointRefreshResult?.succeeded === false) {
+    feedback = {
+      message: `Refresh PowerPoint failed. ${powerPointRefreshResult.message}`,
+      tone: "error"
+    };
   }
 
   return feedback ? <AppToast tone={feedback.tone}>{feedback.message}</AppToast> : null;
+}
+
+function presentationSessionActionLabel(result: PresentationSessionResultMessage): string {
+  switch (result.action) {
+    case "start": return "Start tracking";
+    case "break": return "Change break";
+    case "save": return "Save session";
+    case "discard": return "Discard session";
+  }
+}
+
+function presentationActionLabel(action: PresentationCommandResultMessage["action"]): string {
+  switch (action) {
+    case "activate": return "Bring PowerPoint forward";
+    case "start": return "Start from beginning";
+    case "start-current": return "Start from current";
+    case "next": return "Next";
+    case "previous": return "Previous";
+    case "first": return "First";
+    case "last": return "Last";
+    case "goto": return "Go to slide";
+    case "black": return "Black screen";
+    case "white": return "White screen";
+    case "pause": return "Pause auto-play";
+    case "pointer": return "Laser pointer";
+    case "end": return "End slideshow";
+  }
 }

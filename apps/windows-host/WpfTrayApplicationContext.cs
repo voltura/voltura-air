@@ -211,6 +211,14 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _trayIcon.ShowBalloonTip(3000, title, message, icon);
     }
 
+    internal void ShowPresentationBreakReminder()
+    {
+        ShowNotification(
+            "Presentation break",
+            "Break still active. Press Resume presentation to end it.",
+            Forms.ToolTipIcon.Info);
+    }
+
     private Icon GetTrayIcon(TrayConnectionState state) => _trayIcons.TryGetValue(state, out var icon)
         ? icon
         : _trayIcons[TrayConnectionState.NoDevicesRegistered];

@@ -1,24 +1,30 @@
-import { ChevronDown, ChevronLeft, ChevronRight, CircleStop, Eclipse, MousePointer2, Pause, Play, RotateCcw, Timer, Vibrate, Volume2, VolumeX } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, CircleStop, Eclipse, ListOrdered, MousePointer2, Pause, Play, RefreshCw, RotateCcw, Timer, Vibrate, Volume2, VolumeX } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import "./presentation.css";
 import type { PendingPresentationCommand } from "../../../foundation/connection/usePresentationControl";
-import type { AudioStateMessage, PresentationAction, PresentationCapability, PresentationCommandResultMessage, PresentationReportSavePayload, PresentationReportSaveResultMessage, PresentationTarget, SystemPowerAction } from "../../../foundation/protocol/messages";
+import type { AudioStateMessage, PresentationAction, PresentationCapability, PresentationCommandOptions, PresentationCommandResultMessage, PresentationReportSavePayload, PresentationReportSaveResultMessage, PresentationSessionAction, PresentationTarget, SystemPowerAction } from "../../../foundation/protocol/messages";
 import { formatPresentationTime, maximumPresentationBreaks, usePresentationTimer } from "./presentationTimer";
 import { InfoButton } from "../../../ui/overlays/InfoButton";
 import { ModalDialog } from "../../../ui/overlays/ModalDialog";
+import { uiDurations } from "../../../ui/tokens.g";
 import { PresentationStatistics } from "./PresentationStatistics";
 
 interface PresentationModeProps {
+  activationRequestId?: number | undefined;
   audioState: AudioStateMessage | null;
   blackoutAvailable: boolean;
   capability: PresentationCapability | undefined;
   connected: boolean;
   pending: PendingPresentationCommand | null;
+  sessionPending?: boolean | undefined;
   pendingPowerAction: SystemPowerAction | null;
   result: PresentationCommandResultMessage | null;
-  onCommand: (target: PresentationTarget, action: PresentationAction, enabled?: boolean) => void;
+  onActivationRequestHandled?: (() => void) | undefined;
+  onCommand: (target: PresentationTarget, action: PresentationAction, options?: boolean | PresentationCommandOptions) => void;
+  onSessionCommand?: (action: PresentationSessionAction, options?: { enabled?: boolean; runtimePresentationId?: string }) => void;
   onMute: () => void;
   onPowerAction?: (action: SystemPowerAction) => void;
+  onPowerPointRefresh?: () => void;
   onSessionActiveChange?: ((active: boolean) => void) | undefined;
   onSaveReport?: ((report: PresentationReportSavePayload) => void) | undefined;
   reportSaveResult?: PresentationReportSaveResultMessage | null | undefined;
@@ -37,24 +43,30 @@ const targetOptions = [
   { id: "google-slides", label: "Google Slides" },
   { id: "pdf", label: "PDF / browser" }
 ] satisfies { id: PresentationTarget; label: string }[];
+const maximumDirectSlideNumber = 1000;
 
 export function PresentationMode({
+  activationRequestId = 0,
   audioState,
   blackoutAvailable,
   capability,
   connected,
   pending,
   pendingPowerAction,
+  sessionPending = false,
   reportSavePending = false,
   reportSaveResult = null,
   reportSavingAvailable = false,
   renderTrackpad,
   result,
+  onActivationRequestHandled,
   onCommand,
   onMute,
   onPowerAction,
+  onPowerPointRefresh,
   onSessionActiveChange,
   onSaveReport,
+  onSessionCommand,
   onVolumeDown,
   onVolumeUp
 }: PresentationModeProps) {
@@ -64,11 +76,16 @@ export function PresentationMode({
   const [isTrackpadExpanded, setIsTrackpadExpanded] = useState(false);
   const [isTrackpadFullscreen, setIsTrackpadFullscreen] = useState(false);
   const [isStatisticsExpanded, setIsStatisticsExpanded] = useState(false);
+  const [isNavigationOpen, setIsNavigationOpen] = useState(false);
+  const [gotoSlideNumber, setGotoSlideNumber] = useState("");
+  const [runtimePresentationId, setRuntimePresentationId] = useState<string | null>(null);
+  const [visiblyPendingOperationId, setVisiblyPendingOperationId] = useState<string | null>(null);
   const laserPointerActive = capability?.laserPointerActive === true;
   const savePresentationRef = useRef<HTMLButtonElement | null>(null);
   const safeCompletionActionRef = useRef<HTMLButtonElement | null>(null);
   const laserPointerActiveRef = useRef(capability?.laserPointerActive === true);
   const laserPointerRequestedRef = useRef(false);
+  const foregroundedPresentationRequestRef = useRef(0);
   const targetRef = useRef(target);
   const onCommandRef = useRef(onCommand);
   const timer = usePresentationTimer();
@@ -79,17 +96,123 @@ export function PresentationMode({
   } = timer;
   const supported = capability !== undefined;
   const canControl = connected && capability?.canControl === true;
-  const controlsDisabled = !canControl || pending !== null;
+  const controlsDisabled = !canControl;
+  const commandPending = pending !== null;
+  const commandControlsDisabled = controlsDisabled || commandPending;
+  const showPendingCommandDisabled = pending !== null &&
+    visiblyPendingOperationId === pending.operationId;
   const blackoutDisabled = controlsDisabled || !blackoutAvailable || pendingPowerAction !== null || !onPowerAction;
   const targetLabel = targetOptions.find((option) => option.id === target)?.label ?? target;
   const sessionTargetLabel = targetOptions.find((option) => option.id === timer.sessionTarget)?.label ?? targetLabel;
   const canSaveReport = connected && reportSavingAvailable && onSaveReport !== undefined;
   const sessionActive = timer.sessionStartedAt !== null;
   const presentationEnded = timer.completionIntent === "end";
+  const powerPointPresentations = capability?.powerPoint?.presentations;
+  const effectiveRuntimePresentationId =
+    powerPointPresentations?.some(
+      (presentation) => presentation.runtimePresentationId === runtimePresentationId) === true
+      ? runtimePresentationId
+      : powerPointPresentations?.length === 1
+        ? powerPointPresentations[0]?.runtimePresentationId ?? null
+        : null;
+  const selectedPowerPoint = powerPointPresentations?.find(
+    (presentation) => presentation.runtimePresentationId === effectiveRuntimePresentationId) ?? null;
+  const directSlideMaximum = Math.max(
+    1,
+    Math.min(
+      selectedPowerPoint?.slideCount ?? maximumDirectSlideNumber,
+      maximumDirectSlideNumber));
+  const directSlideValue = Math.min(
+    directSlideMaximum,
+    Math.max(1, Number(gotoSlideNumber) || 1));
+  const powerPointOptions = effectiveRuntimePresentationId === null
+    ? undefined
+    : { runtimePresentationId: effectiveRuntimePresentationId };
+  const powerPointRunning = selectedPowerPoint?.state === "presenting";
+  const powerPointSession = capability?.powerPoint?.session;
+  const hasPowerPointAutomation = capability?.powerPoint !== undefined &&
+    capability.powerPoint !== null;
+  const verifiedPowerPoint = capability?.powerPoint?.state === "ready";
+  const powerPointBlank = selectedPowerPoint?.slideShowState === "black" ||
+    selectedPowerPoint?.slideShowState === "white";
+  const powerPointRunningControlDisabled = controlsDisabled ||
+    (hasPowerPointAutomation && (!verifiedPowerPoint || !powerPointRunning));
+  const powerPointStartControlDisabled = controlsDisabled ||
+    !verifiedPowerPoint ||
+    selectedPowerPoint === null;
+  const powerPointReadyControlDisabled = controlsDisabled ||
+    !verifiedPowerPoint ||
+    selectedPowerPoint === null;
+  const powerPointNavigationDisabled = controlsDisabled ||
+    (hasPowerPointAutomation &&
+      (!verifiedPowerPoint ||
+       selectedPowerPoint === null ||
+       (!powerPointRunning && selectedPowerPoint.currentSlideIndex === null)));
+  const navigationControlDisabled = target === "powerpoint"
+    ? powerPointNavigationDisabled
+    : controlsDisabled;
+  const endControlDisabled = target === "powerpoint"
+    ? powerPointRunningControlDisabled
+    : controlsDisabled;
+  const laserControlDisabled = target === "powerpoint"
+    ? powerPointRunningControlDisabled
+    : controlsDisabled;
+  const usesAuthoritativePowerPointSession = target === "powerpoint" &&
+    verifiedPowerPoint;
+  const reportedSessionActive = sessionActive ||
+    powerPointSession?.state === "tracking";
 
   useEffect(() => {
-    onSessionActiveChange?.(sessionActive);
-  }, [onSessionActiveChange, sessionActive]);
+    if (pending === null) {
+      return;
+    }
+
+    const operationId = pending.operationId;
+    const timeout = window.setTimeout(() => {
+      setVisiblyPendingOperationId(operationId);
+    }, uiDurations.slow);
+    return () => { window.clearTimeout(timeout); };
+  }, [pending]);
+
+  const pendingVisualState = (baseDisabled = controlsDisabled) =>
+    commandPending && !baseDisabled && !showPendingCommandDisabled
+      ? "deferred"
+      : undefined;
+
+  useEffect(() => {
+    if (target !== "powerpoint" || activationRequestId === 0) {
+      return;
+    }
+
+    if (!verifiedPowerPoint ||
+        capability?.powerPoint?.foregroundActivationSupported !== true ||
+        selectedPowerPoint === null) {
+      return;
+    }
+
+    if (foregroundedPresentationRequestRef.current === activationRequestId) {
+      return;
+    }
+
+    foregroundedPresentationRequestRef.current = activationRequestId;
+    onCommand("powerpoint", "activate", {
+      runtimePresentationId: selectedPowerPoint.runtimePresentationId
+    });
+    onActivationRequestHandled?.();
+  }, [
+    activationRequestId,
+    capability?.powerPoint?.foregroundActivationSupported,
+    onActivationRequestHandled,
+    onCommand,
+    selectedPowerPoint,
+    selectedPowerPoint?.runtimePresentationId,
+    target,
+    verifiedPowerPoint
+  ]);
+
+  useEffect(() => {
+    onSessionActiveChange?.(reportedSessionActive);
+  }, [onSessionActiveChange, reportedSessionActive]);
 
   useEffect(() => () => {
     onSessionActiveChange?.(false);
@@ -129,24 +252,40 @@ export function PresentationMode({
     }
   }, []);
 
-  const request = (action: PresentationAction, enabled?: boolean) => {
-    if (enabled === undefined) {
+  const request = (action: PresentationAction, options?: boolean | PresentationCommandOptions) => {
+    const runtimeOptions = target === "powerpoint" &&
+      (powerPointOptions !== undefined || options !== undefined)
+      ? {
+          ...powerPointOptions,
+          ...(typeof options === "boolean" ? { enabled: options } : options)
+        }
+      : options;
+    if (runtimeOptions === undefined) {
       onCommand(target, action);
     } else {
-      onCommand(target, action, enabled);
+      onCommand(target, action, runtimeOptions);
     }
   };
   const previousSlide = () => {
     request("previous");
-    timer.changeSlide("previous", target);
+    if (!usesAuthoritativePowerPointSession) {
+      timer.changeSlide("previous", target);
+    }
   };
   const nextSlide = () => {
     request("next");
-    timer.changeSlide("next", target);
+    if (!usesAuthoritativePowerPointSession) {
+      timer.changeSlide("next", target);
+    }
   };
   const startSlideshow = () => {
     request("start");
-    timer.startSlideshow(target);
+    if (!usesAuthoritativePowerPointSession) {
+      timer.startSlideshow(target);
+    }
+  };
+  const startSlideshowFromCurrent = () => {
+    request("start-current");
   };
   const toggleTrackpad = () => {
     setIsTrackpadExpanded((current) => {
@@ -179,9 +318,30 @@ export function PresentationMode({
   };
   const endSlideshow = () => {
     request("end");
-    if (timer.sessionStartedAt !== null) {
+    if (!usesAuthoritativePowerPointSession && timer.sessionStartedAt !== null) {
       timer.requestEnd();
     }
+  };
+  const goToSlide = (requestedSlideNumber?: number) => {
+    const slideNumber = requestedSlideNumber ?? Number(gotoSlideNumber);
+    if (!Number.isInteger(slideNumber) ||
+        slideNumber < 1 ||
+        slideNumber > maximumDirectSlideNumber ||
+        (selectedPowerPoint !== null && slideNumber > selectedPowerPoint.slideCount)) {
+      return;
+    }
+
+    request("goto", { slideNumber });
+    setIsNavigationOpen(false);
+  };
+  const toggleNavigation = () => {
+    setIsNavigationOpen((current) => {
+      const next = !current;
+      if (next) {
+        setGotoSlideNumber(String(selectedPowerPoint?.currentSlideIndex ?? 1));
+      }
+      return next;
+    });
   };
   const resetWithoutSaving = () => {
     setIsStatisticsExpanded(false);
@@ -236,13 +396,15 @@ export function PresentationMode({
       className={`presentation-mode${isTrackpadExpanded ? " trackpad-open" : ""}${isTimerExpanded ? " timer-open" : ""}${isTrackpadFullscreen ? " trackpad-fullscreen" : ""}`}
       aria-labelledby="presentation-title"
     >
-      <div className="presentation-controls-panel">
+      <div className="presentation-controls-panel" aria-busy={pending !== null}>
         <header className="presentation-header">
           <div>
             <div className="presentation-title-row">
               <h1 id="presentation-title">Presentation</h1>
               <InfoButton
-                description="Choose the active presentation app, then keep that app focused on the PC."
+                description={verifiedPowerPoint
+                  ? "Choose an open PowerPoint presentation. Voltura Air verifies and controls that slideshow directly."
+                  : "Choose the active presentation app, then keep that app focused on the PC."}
                 size="detailed"
                 title="Presentation guidance"
               />
@@ -281,35 +443,266 @@ export function PresentationMode({
             )}
           </div>
         </header>
+        {isTrackpadExpanded && (
+          <div className="presentation-trackpad-summary" aria-label="Current presentation">
+            <div className="presentation-trackpad-summary-details">
+              <strong title={selectedPowerPoint?.name ?? targetLabel}>
+                {selectedPowerPoint?.name ?? targetLabel}
+              </strong>
+              <span>
+                {selectedPowerPoint?.state === "presenting"
+                  ? `Slide ${selectedPowerPoint.currentSlideIndex ?? "–"} of ${selectedPowerPoint.slideCount}`
+                  : powerPointSession?.state === "tracking"
+                    ? formatPresentationTime(powerPointSession.elapsedSeconds)
+                  : "Trackpad active"}
+              </span>
+            </div>
+            <div className="presentation-navigation presentation-trackpad-summary-navigation">
+              <button type="button" aria-label="Previous slide" data-pending-visual={pendingVisualState(navigationControlDisabled)} disabled={commandPending || navigationControlDisabled} onClick={previousSlide}>
+                <ChevronLeft aria-hidden="true" /><span>Previous</span>
+              </button>
+              <button type="button" className="primary" aria-label="Next slide" data-pending-visual={pendingVisualState(navigationControlDisabled)} disabled={commandPending || navigationControlDisabled} onClick={nextSlide}>
+                <span>Next</span><ChevronRight aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+        )}
         {!supported && <p className="presentation-permission-message" role="alert">Update the Windows host to use Presentation mode.</p>}
         {supported && !capability.canControl && <p className="presentation-permission-message" role="alert">Presentation control is blocked by the host. Enable its global or per-device permission.</p>}
         {supported && capability.canControl && !blackoutAvailable && <p id="presentation-blackout-disabled" className="presentation-permission-message" role="alert">Blackout is disabled by the host. Enable its power permission for this device.</p>}
+        <div className="presentation-control-columns">
+          <div className="presentation-control-primary">
+        {target === "powerpoint" && hasPowerPointAutomation && capability?.powerPoint && (
+          <div className="presentation-powerpoint-source">
+            <label>
+              <span>Open presentation</span>
+              <select
+                value={effectiveRuntimePresentationId ?? ""}
+                disabled={(powerPointPresentations?.length ?? 0) === 0 ||
+                  (laserPointerActive && (powerPointPresentations?.length ?? 0) > 1)}
+                onChange={(event) => { setRuntimePresentationId(event.target.value || null); }}
+              >
+                {(powerPointPresentations?.length ?? 0) === 0 && (
+                  <option value="">
+                    {verifiedPowerPoint ? "No open presentations" : "PowerPoint unavailable"}
+                  </option>
+                )}
+                {(powerPointPresentations?.length ?? 0) > 1 && <option value="">Choose a presentation</option>}
+                {powerPointPresentations?.map((presentation) => (
+                  <option key={presentation.runtimePresentationId} value={presentation.runtimePresentationId}>
+                    {presentation.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className="presentation-powerpoint-refresh"
+              disabled={!connected}
+              onClick={onPowerPointRefresh}
+            >
+              <RefreshCw aria-hidden="true" /><span>Refresh open presentations</span>
+            </button>
+            {!verifiedPowerPoint && (
+              <p className="presentation-permission-message" role="alert">
+                Voltura Air could not read PowerPoint. Keep PowerPoint open, then refresh.
+                The presentation timer remains available below.
+              </p>
+            )}
+            {verifiedPowerPoint && (powerPointPresentations?.length ?? 0) === 0 && (
+              <p className="presentation-permission-message" role="status">
+                PowerPoint is connected, but no open presentations were found.
+              </p>
+            )}
+            {selectedPowerPoint && (
+              <p className="presentation-powerpoint-state" aria-live="polite">
+                {selectedPowerPoint.state === "presenting"
+                  ? `Slide ${selectedPowerPoint.currentSlideIndex ?? "–"} of ${selectedPowerPoint.slideCount}`
+                  : selectedPowerPoint.currentSlideIndex
+                    ? `Slide ${selectedPowerPoint.currentSlideIndex} of ${selectedPowerPoint.slideCount} · Ready`
+                    : `${selectedPowerPoint.slideCount} slides · Ready`}
+              </p>
+            )}
+            {powerPointSession && powerPointSession.state !== "inactive" && (
+              <div className="presentation-authoritative-session" role="status">
+                <strong>
+                  {powerPointSession.state === "pending-review"
+                    ? "Session paused"
+                    : powerPointSession.breakActive ? "Break" : "Tracking"}
+                </strong>
+                <span>
+                  {formatPresentationTime(
+                    powerPointSession.breakActive
+                      ? powerPointSession.breakElapsedSeconds
+                      : powerPointSession.elapsedSeconds)}
+                  {powerPointSession.currentSlideIndex
+                    ? ` · Slide ${powerPointSession.currentSlideIndex} of ${powerPointSession.slideCount}`
+                    : ""}
+                </span>
+                {powerPointSession.state === "tracking" && powerPointSession.isOwner && (
+                  <div className="presentation-tracking-actions">
+                    <button
+                      type="button"
+                      className="primary"
+                      disabled={!connected || sessionPending || onSessionCommand === undefined}
+                      onClick={() => {
+                        onSessionCommand?.("break", {
+                          enabled: !powerPointSession.breakActive
+                        });
+                      }}
+                    >
+                      {powerPointSession.breakActive ? "Resume presentation" : "Start break"}
+                    </button>
+                    {capability?.powerPoint?.foregroundActivationSupported === true &&
+                      selectedPowerPoint && (
+                        <button
+                          type="button"
+                          disabled={!connected || commandPending}
+                          title="Bring PowerPoint to the front"
+                          onClick={() => { request("activate"); }}
+                        >
+                          Focus PPT
+                        </button>
+                      )}
+                  </div>
+                )}
+                {powerPointSession.state === "pending-review" && powerPointSession.isOwner && (
+                  <div className="presentation-session-actions">
+                    <button
+                      type="button"
+                      className="primary"
+                      disabled={
+                        !connected ||
+                        commandPending ||
+                        (selectedPowerPoint?.currentSlideIndex === null ||
+                         selectedPowerPoint?.currentSlideIndex === undefined) ||
+                        selectedPowerPoint.runtimePresentationId !==
+                          powerPointSession.runtimePresentationId
+                      }
+                      onClick={startSlideshowFromCurrent}
+                    >
+                      Continue presentation
+                    </button>
+                    <button type="button" disabled={!connected || sessionPending || onSessionCommand === undefined} onClick={() => { onSessionCommand?.("save"); }}>Save</button>
+                    <button type="button" disabled={!connected || sessionPending || onSessionCommand === undefined} onClick={() => { onSessionCommand?.("discard"); }}>Discard</button>
+                  </div>
+                )}
+              </div>
+            )}
+            {selectedPowerPoint?.state === "presenting" &&
+              powerPointSession?.state === "inactive" && (
+                <button
+                  type="button"
+                  disabled={controlsDisabled}
+                  onClick={() => {
+                    onSessionCommand?.("start", {
+                      runtimePresentationId: selectedPowerPoint.runtimePresentationId
+                    });
+                  }}
+                >
+                  <Timer aria-hidden="true" /><span>Start tracking</span>
+                </button>
+              )}
+          </div>
+        )}
 
         <div className="presentation-navigation">
-          <button type="button" disabled={controlsDisabled} onClick={previousSlide}>
+          <button type="button" data-pending-visual={pendingVisualState(navigationControlDisabled)} disabled={commandPending || navigationControlDisabled} onClick={previousSlide}>
             <ChevronLeft aria-hidden="true" />
             <span>Previous</span>
           </button>
-          <button type="button" className="primary" disabled={controlsDisabled} onClick={nextSlide}>
+          <button type="button" className="primary" data-pending-visual={pendingVisualState(navigationControlDisabled)} disabled={commandPending || navigationControlDisabled} onClick={nextSlide}>
             <span>Next</span>
             <ChevronRight aria-hidden="true" />
           </button>
         </div>
+          </div>
 
+          <div className="presentation-control-secondary">
         <div className="presentation-actions">
           {target === "powerpoint" && (
-            <button
-              type="button"
-              disabled={controlsDisabled}
-              onClick={startSlideshow}
-            >
-              <Play aria-hidden="true" /><span>Start slideshow</span>
-            </button>
+            verifiedPowerPoint ? <>
+              <button
+                type="button"
+                data-pending-visual={pendingVisualState(powerPointStartControlDisabled)}
+                disabled={commandPending || powerPointStartControlDisabled}
+                onClick={startSlideshow}
+              >
+                <Play aria-hidden="true" /><span>Start from beginning</span>
+              </button>
+              <button
+                type="button"
+                data-pending-visual={pendingVisualState(powerPointStartControlDisabled)}
+                disabled={commandPending || powerPointStartControlDisabled}
+                onClick={startSlideshowFromCurrent}
+              >
+                <Play aria-hidden="true" /><span>Start from current</span>
+              </button>
+              <button
+                type="button"
+                aria-expanded={isNavigationOpen}
+                data-pending-visual={pendingVisualState(powerPointReadyControlDisabled)}
+                disabled={commandPending || powerPointReadyControlDisabled}
+                onClick={toggleNavigation}
+              >
+                <ListOrdered aria-hidden="true" /><span>Go to slide</span>
+              </button>
+              <button
+                type="button"
+                title="Pause or resume PowerPoint's automatic slide advancement."
+                data-pending-visual={pendingVisualState(controlsDisabled || !powerPointRunning)}
+                disabled={commandControlsDisabled || !powerPointRunning}
+                onClick={() => { request("pause", { enabled: selectedPowerPoint?.slideShowState !== "paused" }); }}
+              >
+                {selectedPowerPoint?.slideShowState === "paused"
+                  ? <Play aria-hidden="true" />
+                  : <Pause aria-hidden="true" />}
+                <span>{selectedPowerPoint?.slideShowState === "paused" ? "Resume auto-play" : "Pause auto-play"}</span>
+              </button>
+            </> : (
+              <button type="button" data-pending-visual={pendingVisualState()} disabled={commandControlsDisabled} onClick={startSlideshow}>
+                <Play aria-hidden="true" /><span>Start slideshow</span>
+              </button>
+            )
           )}
-          <button type="button" disabled={controlsDisabled} onClick={endSlideshow}>
+          <button type="button" data-pending-visual={pendingVisualState(endControlDisabled)} disabled={commandPending || endControlDisabled} onClick={endSlideshow}>
             <CircleStop aria-hidden="true" /><span>End slideshow</span>
           </button>
-          {target !== "pdf" && (
+          {target === "powerpoint" && verifiedPowerPoint ? (
+            <>
+              <button
+                type="button"
+                className={selectedPowerPoint?.slideShowState === "black" ? "active" : undefined}
+                data-pending-visual={pendingVisualState(powerPointReadyControlDisabled)}
+                disabled={commandPending || powerPointReadyControlDisabled}
+                onClick={() => { request("black"); }}
+              >
+                <Eclipse aria-hidden="true" /><span>Black screen</span>
+              </button>
+              <button
+                type="button"
+                className={selectedPowerPoint?.slideShowState === "white" ? "active" : undefined}
+                data-pending-visual={pendingVisualState(powerPointReadyControlDisabled)}
+                disabled={commandPending || powerPointReadyControlDisabled}
+                onClick={() => { request("white"); }}
+              >
+                <Eclipse aria-hidden="true" /><span>White screen</span>
+              </button>
+              {powerPointBlank && (
+                <button
+                  type="button"
+                  className="presentation-return-slides"
+                  data-pending-visual={pendingVisualState()}
+                  disabled={commandControlsDisabled}
+                  onClick={() => {
+                    request(selectedPowerPoint?.slideShowState === "black" ? "black" : "white");
+                  }}
+                >
+                  <Play aria-hidden="true" /><span>Return to slides</span>
+                </button>
+              )}
+            </>
+          ) : target !== "pdf" && (
             <button
               type="button"
               aria-describedby={!blackoutAvailable ? "presentation-blackout-disabled" : undefined}
@@ -327,7 +720,8 @@ export function PresentationMode({
             type="button"
             className={laserPointerActive ? "active" : undefined}
             aria-pressed={laserPointerActive}
-            disabled={controlsDisabled}
+            data-pending-visual={pendingVisualState(laserControlDisabled)}
+            disabled={(commandPending && !laserPointerActive) || laserControlDisabled}
             onClick={activateLaserPointer}
           >
             <MousePointer2 aria-hidden="true" /><span>Laser pointer</span>
@@ -346,12 +740,9 @@ export function PresentationMode({
             <Volume2 aria-hidden="true" /><span>Vol +</span>
           </button>
         </div>
-
-        {result && !result.succeeded && (
-          <div className="presentation-result error" role="alert" aria-live="polite">
-            {result.message}
           </div>
-        )}
+        </div>
+
       </div>
 
       <div className="presentation-side-stack">
@@ -371,12 +762,21 @@ export function PresentationMode({
             <div className="presentation-trackpad-content" id="presentation-trackpad-content">
               {renderTrackpad({
                 isFullscreen: isTrackpadFullscreen,
-                onToggleFullscreen: () => { setIsTrackpadFullscreen((current) => !current); }
+                onToggleFullscreen: () => {
+                  if (isTrackpadFullscreen) {
+                    setIsTrackpadFullscreen(false);
+                    setIsTrackpadExpanded(false);
+                    return;
+                  }
+
+                  setIsTrackpadFullscreen(true);
+                }
               })}
             </div>
           )}
         </aside>
 
+        {!usesAuthoritativePowerPointSession && (
         <aside className="presentation-timer" aria-labelledby="presentation-timer-title">
         <button
           className="presentation-timer-heading"
@@ -426,8 +826,18 @@ export function PresentationMode({
                 isRunning={timer.isRunning}
                 onExpandedChange={setIsStatisticsExpanded}
                 onEndPresentation={timer.requestEnd}
-                onPause={timer.pause}
-                onResume={() => { timer.start(target); }}
+                onPause={() => {
+                  timer.pause();
+                  if (target === "powerpoint" && powerPointSession?.state === "tracking") {
+                    onSessionCommand?.("break", { enabled: true });
+                  }
+                }}
+                onResume={() => {
+                  timer.start(target);
+                  if (target === "powerpoint" && powerPointSession?.state === "tracking") {
+                    onSessionCommand?.("break", { enabled: false });
+                  }
+                }}
                 presentationSessionCount={timer.presentationSessionCount}
                 sessionStartedAt={timer.sessionStartedAt}
                 sessionTarget={timer.sessionTarget}
@@ -437,14 +847,24 @@ export function PresentationMode({
             </div>
             {timer.milestoneMessage && <p className="presentation-milestone" role="status" aria-live="polite">{timer.milestoneMessage}</p>}
             <div className="presentation-timer-actions">
-              {!timer.isRunning && !timer.isResetPending && <button type="button" className="primary" onClick={() => { timer.start(target); }}><Play aria-hidden="true" /><span>{timer.elapsedSeconds > 0 ? "Resume" : "Start"}</span></button>}
+              {!timer.isRunning && !timer.isResetPending && <button type="button" className="primary" onClick={() => {
+                timer.start(target);
+                if (target === "powerpoint" && powerPointSession?.state === "tracking") {
+                  onSessionCommand?.("break", { enabled: false });
+                }
+              }}><Play aria-hidden="true" /><span>{timer.elapsedSeconds > 0 ? "Resume" : "Start"}</span></button>}
               {timer.isRunning && (
                 <button
                   type="button"
                   className="primary"
                   disabled={!timer.canPause}
                   aria-describedby={!timer.canPause ? "presentation-break-limit" : undefined}
-                  onClick={timer.pause}
+                  onClick={() => {
+                    timer.pause();
+                    if (target === "powerpoint" && powerPointSession?.state === "tracking") {
+                      onSessionCommand?.("break", { enabled: true });
+                    }
+                  }}
                 >
                   <Pause aria-hidden="true" /><span>Pause</span>
                 </button>
@@ -471,7 +891,59 @@ export function PresentationMode({
           </div>
         )}
         </aside>
+        )}
       </div>
+
+      <ModalDialog
+        actions={(
+          <>
+            <button type="button" data-pending-visual={pendingVisualState()} disabled={commandControlsDisabled} onClick={() => { goToSlide(1); }}>
+              First
+            </button>
+            <button type="button" className="primary" data-pending-visual={pendingVisualState()} disabled={commandControlsDisabled} onClick={() => { goToSlide(directSlideValue); }}>
+              Go to {directSlideValue}
+            </button>
+            <button type="button" data-pending-visual={pendingVisualState()} disabled={commandControlsDisabled} onClick={() => { goToSlide(directSlideMaximum); }}>
+              Last
+            </button>
+          </>
+        )}
+        actionsClassName="presentation-navigation-dialog-actions"
+        className="presentation-navigation-dialog"
+        dismissLabel="Close"
+        isOpen={target === "powerpoint" && isNavigationOpen}
+        onClose={() => { setIsNavigationOpen(false); }}
+        title="Go to slide"
+      >
+        <p>Drag and release to navigate.</p>
+        <label className="presentation-slide-range">
+          <output htmlFor="presentation-slide-range">
+            Slide <strong>{directSlideValue}</strong> of {directSlideMaximum}
+          </output>
+          <div className="range-row">
+            <input
+              id="presentation-slide-range"
+              type="range"
+              aria-label="Slide number"
+              min="1"
+              max={directSlideMaximum}
+              step="1"
+              value={directSlideValue}
+              onChange={(event) => { setGotoSlideNumber(event.target.value); }}
+              onPointerUp={(event) => { goToSlide(Number(event.currentTarget.value)); }}
+              onKeyUp={(event) => {
+                if (event.key === "Enter") {
+                  goToSlide(Number(event.currentTarget.value));
+                }
+              }}
+            />
+            <output htmlFor="presentation-slide-range">{directSlideValue}</output>
+          </div>
+          <span className="presentation-slide-range-limits">
+            <span>1</span><span>{directSlideMaximum}</span>
+          </span>
+        </label>
+      </ModalDialog>
 
       <ModalDialog
         actions={(

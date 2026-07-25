@@ -48,6 +48,7 @@ export function useVolturaAirConnection() {
     ? "Connecting to PC..."
     : hasStoredPcWithoutConnection ? "Choose a PC or scan a pairing QR." : "Scan the PC pairing QR to pair this app.");
   const [lastConnectionError, setLastConnectionError] = useState<ConnectionError | null>(null);
+  const [connectionEpoch, setConnectionEpoch] = useState(0);
   const [pairingAttempt, setPairingAttempt] = useState<PairingAttempt>(() => ({ token: undefined, id: 0 }));
   const socketRef = useRef<WebSocket | null>(null);
   const deviceNameRef = useRef(deviceName);
@@ -76,7 +77,20 @@ export function useVolturaAirConnection() {
   const { awakeResult, completeAwakeChange: completeAwakeChangeState, pendingAwakeChange, requestAwakeChange } = useAwakeControl(state, send);
   const { completePowerAction: completePowerActionState, pendingPowerAction, powerActionResult, requestPowerAction } = usePowerControl(state, send);
   const { appLaunchResult, completeAppLaunch: completeAppLaunchState, pendingAppLaunchId, requestAppLaunch } = useAppLaunch(state, send);
-  const { completePresentationCommand: completePresentationCommandState, pendingPresentationCommand, presentationResult, requestPresentationCommand } = usePresentationControl(state, send);
+  const {
+    completePowerPointRefresh: completePowerPointRefreshState,
+    completePresentationCommand: completePresentationCommandState,
+    completePresentationSession: completePresentationSessionState,
+    pendingPowerPointRefresh,
+    pendingPresentationCommand,
+    pendingPresentationSession,
+    powerPointRefreshResult,
+    presentationResult,
+    presentationSessionResult,
+    requestPowerPointRefresh,
+    requestPresentationCommand,
+    requestPresentationSession
+  } = usePresentationControl(state, send);
   const {
     completePresentationReportSave: completePresentationReportSaveState,
     pendingPresentationReportSave,
@@ -111,7 +125,9 @@ export function useVolturaAirConnection() {
     completeAwakeChange: completeAwakeChangeState,
     completeClipboardRead: completeClipboardReadState,
     completePowerAction: completePowerActionState,
+    completePowerPointRefresh: completePowerPointRefreshState,
     completePresentationCommand: completePresentationCommandState,
+    completePresentationSession: completePresentationSessionState,
     completePresentationReportSave: completePresentationReportSaveState,
     completeTextTransfer: completeTextTransferState,
     completeUrlOpen: completeUrlOpenState,
@@ -131,6 +147,7 @@ export function useVolturaAirConnection() {
     screenshotMode,
     setActivePcId,
     setAudioStateFromSocket: setAudioState,
+    setConnectionEpoch,
     setLastConnectionError,
     setMessage,
     setPairedPcs,
@@ -153,7 +170,7 @@ export function useVolturaAirConnection() {
     setPairingAttempt, setPendingManualPc, setState, socketRef, state
   });
 
-  return { state, message: displayMessage, send, requestAudioState, requestPowerAction, requestAwakeChange, requestAppLaunch, requestPresentationCommand, requestPresentationReportSave, requestUrlOpen, requestTextTransfer, requestClipboardRead, pendingPresentationCommand, pendingPresentationReportSave, presentationResult, presentationReportSaveResult, presentationCapability, pendingTextTransfer, pendingClipboardRead, textTransferResult, clipboardReadResult, clipboardText, setClipboardText, clipboardReadPermission, pendingAppLaunchId, appLaunchResult, pendingUrlOpen, urlOpenResult, urlOpenCapability, pendingPowerAction, powerActionResult, pendingAwakeChange, awakeResult, clientId, deviceName, activePc, pairedPcs, reconnectablePcs, audioState, awakeCapability, powerCapabilities, supportsGestureDebug, supportsSleep, supportsVolumeControl, supportsRemoteLaunch, supportsTextTransfer, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, beginNewPairing, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice, setHostCustomPointer, setHostShowModeButtons, setHostPointerSpeed };
+  return { state, connectionEpoch, message: displayMessage, send, requestAudioState, requestPowerAction, requestAwakeChange, requestAppLaunch, requestPowerPointRefresh, requestPresentationCommand, requestPresentationSession, requestPresentationReportSave, requestUrlOpen, requestTextTransfer, requestClipboardRead, pendingPowerPointRefresh, pendingPresentationCommand, pendingPresentationSession, pendingPresentationReportSave, powerPointRefreshResult, presentationResult, presentationSessionResult, presentationReportSaveResult, presentationCapability, pendingTextTransfer, pendingClipboardRead, textTransferResult, clipboardReadResult, clipboardText, setClipboardText, clipboardReadPermission, pendingAppLaunchId, appLaunchResult, pendingUrlOpen, urlOpenResult, urlOpenCapability, pendingPowerAction, powerActionResult, pendingAwakeChange, awakeResult, clientId, deviceName, activePc, pairedPcs, reconnectablePcs, audioState, awakeCapability, powerCapabilities, supportsGestureDebug, supportsSleep, supportsVolumeControl, supportsRemoteLaunch, supportsTextTransfer, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, beginNewPairing, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice, setHostCustomPointer, setHostShowModeButtons, setHostPointerSpeed };
 }
 
 

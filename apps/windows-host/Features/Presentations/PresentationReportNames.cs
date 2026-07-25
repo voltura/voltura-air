@@ -24,6 +24,17 @@ internal static class PresentationReportNames
         throw new InvalidOperationException("No presentation name is available within the archive limit.");
     }
 
+    public static string CreateInitialName(
+        IReadOnlyList<PresentationReport> existingReports,
+        string deviceKey,
+        string? suggestedTitle)
+    {
+        var normalized = suggestedTitle?.Trim();
+        return normalized is { Length: > 0 and <= 300 }
+            ? normalized
+            : CreateDefaultName(existingReports, deviceKey);
+    }
+
     public static string DisplayName(PresentationReport report)
     {
         var localStart = report.StartedAt.ToOffset(TimeSpan.FromMinutes(report.UtcOffsetMinutes));

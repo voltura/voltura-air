@@ -190,6 +190,43 @@ public sealed class PresentationReportProtocolTests
     }
 
     [Fact]
+    public async Task PersistentStoreRejectsUnsafeStoredSlideVisits()
+    {
+        using var directory = new TemporaryReportDirectory();
+        var store = new PresentationReportStore(directory.Path);
+        Assert.True((await store.SaveAsync(
+            CreateRequest("operation-1", "report-1"),
+            "device-a",
+            "Device A",
+            CancellationToken.None)).Succeeded);
+        var savedPath = Assert.Single(
+            Directory.EnumerateFiles(directory.Path, "*.json", SearchOption.AllDirectories));
+        var invalidPath = System.IO.Path.Combine(directory.Path, "invalid-visits.json");
+        var invalid = File.ReadAllText(savedPath, Encoding.UTF8)
+            .Replace("\"reportId\": \"report-1\"", "\"reportId\": \"report-invalid\"", StringComparison.Ordinal)
+            .Replace("\"operationId\": \"operation-1\"", "\"operationId\": \"operation-invalid\"", StringComparison.Ordinal)
+            .Replace(
+                "\"slideVisits\": null",
+                """
+                "slideVisits": [
+                  {
+                    "slideNumber": 1,
+                    "enteredAt": "2026-07-23T08:00:00+02:00",
+                    "durationSeconds": -1,
+                    "origin": "untrusted"
+                  }
+                ]
+                """,
+                StringComparison.Ordinal);
+        File.WriteAllText(invalidPath, invalid, Encoding.UTF8);
+
+        var reports = store.ReadAll().Reports;
+
+        var report = Assert.Single(reports);
+        Assert.Equal("report-1", report.ReportId);
+    }
+
+    [Fact]
     public async Task PersistentStoreIsIdempotentAndRejectsIdentifierConflicts()
     {
         using var directory = new TemporaryReportDirectory();

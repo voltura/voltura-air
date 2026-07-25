@@ -39,6 +39,22 @@ function ManualEntryDialog() {
 }
 
 describe("ModalDialog", () => {
+  it("focuses the dialog surface by default without visually focusing its close control", () => {
+    render(
+      <ModalDialog
+        dismissLabel="Done"
+        isOpen
+        onClose={() => undefined}
+        title="Information"
+      >
+        <p>Details</p>
+      </ModalDialog>
+    );
+
+    expect(document.activeElement).toBe(screen.getByRole("dialog", { name: "Information" }));
+    expect(screen.getByRole("button", { name: "Close Information" })).not.toBe(document.activeElement);
+  });
+
   it("keeps the focused control reachable when the visual viewport shrinks", async () => {
     const visualViewport = Object.assign(new EventTarget(), {
       height: 500,

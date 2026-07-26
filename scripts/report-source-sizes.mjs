@@ -27,6 +27,9 @@ const excludedPathPrefixes = [
   "docs/site/assets/",
   "installer/assets/"
 ];
+const excludedPaths = new Set([
+  "docs/site/stats.html"
+]);
 
 async function collect(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -45,6 +48,7 @@ async function collect(directory) {
 
     const relativePath = path.relative(root, absolutePath).split(path.sep).join("/");
     if (!sourceExtensions.has(path.extname(entry.name).toLowerCase()) ||
+        excludedPaths.has(relativePath) ||
         excludedPathPrefixes.some((prefix) => relativePath.startsWith(prefix)) ||
         /(?:^|\/)(?:[^/]+\.g\.cs|[^/]+\.generated\.[^/]+)$/.test(relativePath)) {
       continue;

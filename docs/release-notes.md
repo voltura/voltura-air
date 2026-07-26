@@ -6,10 +6,6 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
-## v0.7.8
-
-- Kodi open / activate now stable
-
 ## v0.7.7
 
 - Rebuilt PowerPoint Presentation mode around direct PowerPoint automation for
@@ -38,6 +34,7 @@ create one. Keep the shared notices in
 - Improved the Windows Presentations archive so PowerPoint reports use the
   actual presentation title when available and summary cards fit ordinary window
   sizes without clipping.
+- Kodi open / activate now stable
 
 ## v0.7.6
 

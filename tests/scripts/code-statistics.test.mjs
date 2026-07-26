@@ -33,7 +33,6 @@ async function createStatisticsFixture() {
     writeFixtureFile(root, ".github/workflows/quality.yml", "name: quality\n"),
     writeFixtureFile(root, "tests/scripts/publish-site.test.mjs", "test('publishes', () => {});\ntest('lists', () => {});\n"),
     writeFixtureFile(root, "installer/VolturaAir.nsi", "Name VolturaAir\n"),
-    writeFixtureFile(root, "installer/Install-FrameworkRuntime.ps1", "Write-Host 'install'\n"),
     writeFixtureFile(root, "docs/site/index.php", "<?php echo 'Voltura Air';\n")
   ]);
   return root;
@@ -50,7 +49,7 @@ test("code statistics covers production, test, automation, and script test cases
   assert.match(output, /Repository automation\s+\(scripts\)\r?\n  Total: 3 files, 3 lines/u);
   assert.match(output, /GitHub automation\s+\(\.github\)\r?\n  Total: 1 files, 1 lines/u);
   assert.match(output, /Repository automation tests\s+\(tests\/scripts\)\r?\n  Total: 1 files, 2 lines/u);
-  assert.match(output, /Installers\s+\(installer\)\r?\n  Total: 2 files, 2 lines/u);
+  assert.match(output, /Installers\s+\(installer\)\r?\n  Total: 1 files, 1 lines/u);
   assert.match(output, /Repository automation\s+1 files  2 cases/u);
 });
 

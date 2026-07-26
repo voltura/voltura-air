@@ -121,13 +121,29 @@ Section "Install"
   Call PromptCloseRunningApp
 
   !ifdef FRAMEWORK_DEPENDENT
-  InitPluginsDir
-  File /oname=$PLUGINSDIR\Install-FrameworkRuntime.ps1 "${__FILEDIR__}\Install-FrameworkRuntime.ps1"
-  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\Install-FrameworkRuntime.ps1"'
+  Call TestWindowsDesktopRuntime
   Pop $0
-  Pop $1
   ${If} $0 != 0
-    MessageBox MB_ICONSTOP "Voltura Air could not install the required .NET 10 runtimes. Check your internet connection and approve the Windows administrator prompt.$\r$\n$\r$\nDetails:$\r$\n$1"
+    Call InstallWindowsDesktopRuntime
+  ${EndIf}
+
+  Call TestAspNetCoreRuntime
+  Pop $0
+  ${If} $0 != 0
+    Call InstallAspNetCoreRuntime
+  ${EndIf}
+
+  Call TestWindowsDesktopRuntime
+  Pop $0
+  ${If} $0 != 0
+    MessageBox MB_ICONSTOP "The required .NET 10 Windows Desktop runtime was not available after installation."
+    Abort "The required .NET 10 runtimes were not installed."
+  ${EndIf}
+
+  Call TestAspNetCoreRuntime
+  Pop $0
+  ${If} $0 != 0
+    MessageBox MB_ICONSTOP "The required .NET 10 ASP.NET Core runtime was not available after installation."
     Abort "The required .NET 10 runtimes were not installed."
   ${EndIf}
   !endif
@@ -170,6 +186,40 @@ Section "Uninstall"
 
   RMDir /r "$INSTDIR"
 SectionEnd
+
+Function TestWindowsDesktopRuntime
+  nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "$$d=$\'$PROGRAMFILES64\dotnet\dotnet.exe$\';if(-not(Test-Path -LiteralPath $$d -PathType Leaf)){exit 1};$$r=& $$d --list-runtimes;if($$LASTEXITCODE-ne 0){exit 1};if($$r-match $\'^Microsoft\.WindowsDesktop\.App 10\.0\.$\'){exit 0};exit 1"'
+  Pop $0
+  Pop $1
+  Push $0
+FunctionEnd
+
+Function TestAspNetCoreRuntime
+  nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "$$d=$\'$PROGRAMFILES64\dotnet\dotnet.exe$\';if(-not(Test-Path -LiteralPath $$d -PathType Leaf)){exit 1};$$r=& $$d --list-runtimes;if($$LASTEXITCODE-ne 0){exit 1};if($$r-match $\'^Microsoft\.AspNetCore\.App 10\.0\.$\'){exit 0};exit 1"'
+  Pop $0
+  Pop $1
+  Push $0
+FunctionEnd
+
+Function InstallWindowsDesktopRuntime
+  nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "$$ErrorActionPreference=$\'Stop$\';$$p=Join-Path $$env:TEMP $\'VolturaAir-WindowsDesktop-10.0-win-x64.exe$\';try{Invoke-WebRequest -Uri $\'https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-x64.exe$\' -OutFile $$p;$$s=Get-AuthenticodeSignature -FilePath $$p;if($$s.Status-ne [System.Management.Automation.SignatureStatus]::Valid){throw $\'The downloaded .NET Windows Desktop runtime did not have a valid Authenticode signature.$\'};$$x=Start-Process -FilePath $$p -ArgumentList $\'/install$\',$\'/quiet$\',$\'/norestart$\' -Verb RunAs -Wait -PassThru;if($$x.ExitCode-notin 0,3010){throw($\'.NET Windows Desktop runtime installer failed with exit code $\'+$$x.ExitCode)}}finally{Remove-Item -LiteralPath $$p -Force -ErrorAction SilentlyContinue}"'
+  Pop $0
+  Pop $1
+  ${If} $0 != 0
+    MessageBox MB_ICONSTOP "Voltura Air could not install the required .NET 10 Windows Desktop runtime. Check your internet connection and approve the Windows administrator prompt.$\r$\n$\r$\nDetails:$\r$\n$1"
+    Abort "The required .NET 10 runtimes were not installed."
+  ${EndIf}
+FunctionEnd
+
+Function InstallAspNetCoreRuntime
+  nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "$$ErrorActionPreference=$\'Stop$\';$$p=Join-Path $$env:TEMP $\'VolturaAir-AspNetCore-10.0-win-x64.exe$\';try{Invoke-WebRequest -Uri $\'https://aka.ms/dotnet/10.0/aspnetcore-runtime-win-x64.exe$\' -OutFile $$p;$$s=Get-AuthenticodeSignature -FilePath $$p;if($$s.Status-ne [System.Management.Automation.SignatureStatus]::Valid){throw $\'The downloaded .NET ASP.NET Core runtime did not have a valid Authenticode signature.$\'};$$x=Start-Process -FilePath $$p -ArgumentList $\'/install$\',$\'/quiet$\',$\'/norestart$\' -Verb RunAs -Wait -PassThru;if($$x.ExitCode-notin 0,3010){throw($\'.NET ASP.NET Core runtime installer failed with exit code $\'+$$x.ExitCode)}}finally{Remove-Item -LiteralPath $$p -Force -ErrorAction SilentlyContinue}"'
+  Pop $0
+  Pop $1
+  ${If} $0 != 0
+    MessageBox MB_ICONSTOP "Voltura Air could not install the required .NET 10 ASP.NET Core runtime. Check your internet connection and approve the Windows administrator prompt.$\r$\n$\r$\nDetails:$\r$\n$1"
+    Abort "The required .NET 10 runtimes were not installed."
+  ${EndIf}
+FunctionEnd
 
 Function PromptCloseRunningApp
   nsExec::ExecToStack 'powershell -NoProfile -ExecutionPolicy Bypass -Command "if (Get-Process -Name VolturaAir.Host -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }"'

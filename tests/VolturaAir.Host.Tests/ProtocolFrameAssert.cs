@@ -13,6 +13,7 @@ internal static class ProtocolFrameAssert
         ["input.error"] = ["message"],
         ["presentation.command.result"] = ["operationId", "target", "action", "succeeded", "message", "laserPointerActive"],
         ["presentation.powerpoint.refresh.result"] = ["operationId", "succeeded", "message", "state", "presentations"],
+        ["presentation.powerpoint.launch.result"] = ["operationId", "presentationId", "succeeded", "message"],
         ["presentation.session.result"] = ["operationId", "action", "succeeded", "message"],
         ["presentation.report.save.result"] = ["operationId", "reportId", "succeeded", "message"],
         ["system.power.result"] = ["operationId", "action", "succeeded", "message"],

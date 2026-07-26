@@ -12,7 +12,8 @@ internal sealed class HostStatusPayloadFactory(
     Func<bool> isPresentationLaserPointerEnabled,
     Func<PresentationBlankOverlaySnapshot?> getPresentationBlank,
     Func<PowerPointAutomationSnapshot> getPowerPointSnapshot,
-    Func<PowerPointSessionSnapshot> getPowerPointSession)
+    Func<PowerPointSessionSnapshot> getPowerPointSession,
+    PowerPointPresentationCatalog presentationCatalog)
 {
     private static readonly string DeveloperSessionId = Guid.NewGuid().ToString("N");
 
@@ -108,6 +109,12 @@ internal sealed class HostStatusPayloadFactory(
                 presentation => PresentationCommandHandler.ToProtocolPresentation(
                     presentation,
                     getPresentationBlank())),
+            availablePresentations = presentationCatalog.GetAvailable(snapshot).Select(candidate => new
+            {
+                presentationId = candidate.PresentationId,
+                title = candidate.Title,
+                fileName = candidate.FileName
+            }),
             session = new
             {
                 state = session.State,

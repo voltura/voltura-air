@@ -79,15 +79,19 @@ export function useVolturaAirConnection() {
   const { appLaunchResult, completeAppLaunch: completeAppLaunchState, pendingAppLaunchId, requestAppLaunch } = useAppLaunch(state, send);
   const {
     completePowerPointRefresh: completePowerPointRefreshState,
+    completePowerPointLaunch: completePowerPointLaunchState,
     completePresentationCommand: completePresentationCommandState,
     completePresentationSession: completePresentationSessionState,
     pendingPowerPointRefresh,
+    pendingPowerPointLaunch,
     pendingPresentationCommand,
     pendingPresentationSession,
     powerPointRefreshResult,
+    powerPointLaunchResult,
     presentationResult,
     presentationSessionResult,
     requestPowerPointRefresh,
+    requestPowerPointLaunch,
     requestPresentationCommand,
     requestPresentationSession
   } = usePresentationControl(state, send);
@@ -126,6 +130,7 @@ export function useVolturaAirConnection() {
     completeClipboardRead: completeClipboardReadState,
     completePowerAction: completePowerActionState,
     completePowerPointRefresh: completePowerPointRefreshState,
+    completePowerPointLaunch: completePowerPointLaunchState,
     completePresentationCommand: completePresentationCommandState,
     completePresentationSession: completePresentationSessionState,
     completePresentationReportSave: completePresentationReportSaveState,
@@ -170,7 +175,7 @@ export function useVolturaAirConnection() {
     setPairingAttempt, setPendingManualPc, setState, socketRef, state
   });
 
-  return { state, connectionEpoch, message: displayMessage, send, requestAudioState, requestPowerAction, requestAwakeChange, requestAppLaunch, requestPowerPointRefresh, requestPresentationCommand, requestPresentationSession, requestPresentationReportSave, requestUrlOpen, requestTextTransfer, requestClipboardRead, pendingPowerPointRefresh, pendingPresentationCommand, pendingPresentationSession, pendingPresentationReportSave, powerPointRefreshResult, presentationResult, presentationSessionResult, presentationReportSaveResult, presentationCapability, pendingTextTransfer, pendingClipboardRead, textTransferResult, clipboardReadResult, clipboardText, setClipboardText, clipboardReadPermission, pendingAppLaunchId, appLaunchResult, pendingUrlOpen, urlOpenResult, urlOpenCapability, pendingPowerAction, powerActionResult, pendingAwakeChange, awakeResult, clientId, deviceName, activePc, pairedPcs, reconnectablePcs, audioState, awakeCapability, powerCapabilities, supportsGestureDebug, supportsSleep, supportsVolumeControl, supportsRemoteLaunch, supportsTextTransfer, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, beginNewPairing, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice, setHostCustomPointer, setHostShowModeButtons, setHostPointerSpeed };
+  return { state, connectionEpoch, message: displayMessage, send, requestAudioState, requestPowerAction, requestAwakeChange, requestAppLaunch, requestPowerPointRefresh, requestPowerPointLaunch, requestPresentationCommand, requestPresentationSession, requestPresentationReportSave, requestUrlOpen, requestTextTransfer, requestClipboardRead, pendingPowerPointRefresh, pendingPowerPointLaunch, pendingPresentationCommand, pendingPresentationSession, pendingPresentationReportSave, powerPointRefreshResult, powerPointLaunchResult, presentationResult, presentationSessionResult, presentationReportSaveResult, presentationCapability, pendingTextTransfer, pendingClipboardRead, textTransferResult, clipboardReadResult, clipboardText, setClipboardText, clipboardReadPermission, pendingAppLaunchId, appLaunchResult, pendingUrlOpen, urlOpenResult, urlOpenCapability, pendingPowerAction, powerActionResult, pendingAwakeChange, awakeResult, clientId, deviceName, activePc, pairedPcs, reconnectablePcs, audioState, awakeCapability, powerCapabilities, supportsGestureDebug, supportsSleep, supportsVolumeControl, supportsRemoteLaunch, supportsTextTransfer, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, beginNewPairing, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice, setHostCustomPointer, setHostShowModeButtons, setHostPointerSpeed };
 }
 
 

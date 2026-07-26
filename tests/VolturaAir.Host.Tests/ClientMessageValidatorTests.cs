@@ -24,6 +24,8 @@ public sealed class ClientMessageValidatorTests
     [InlineData("""{ "type": "presentation.command", "operationId": "focus-1", "target": "pdf", "action": "activate" }""", "presentation.command", false)]
     [InlineData("""{ "type": "presentation.command", "operationId": "first-1", "target": "pdf", "action": "first" }""", "presentation.command", false)]
     [InlineData("""{ "type": "presentation.powerpoint.refresh", "operationId": "refresh-1" }""", "presentation.powerpoint.refresh", true)]
+    [InlineData("""{ "type": "presentation.powerpoint.launch", "operationId": "launch-1", "presentationId": "report-1" }""", "presentation.powerpoint.launch", true)]
+    [InlineData("""{ "type": "presentation.powerpoint.launch", "operationId": "launch-1", "presentationId": "../bad" }""", "presentation.powerpoint.launch", false)]
     [InlineData("""{ "type": "presentation.session", "operationId": "session-1", "action": "start", "runtimePresentationId": "runtime-1" }""", "presentation.session", true)]
     [InlineData("""{ "type": "presentation.session", "operationId": "break-1", "action": "break", "enabled": true }""", "presentation.session", true)]
     [InlineData("""{ "type": "presentation.session", "operationId": "save-1", "action": "save", "enabled": false }""", "presentation.session", false)]

@@ -8,6 +8,7 @@ internal sealed class PresentationCommandHandler(
     HostStatusPayloadFactory statusFactory,
     PresentationLaserPointerController laserPointer,
     IPowerPointAutomationService powerPoint,
+    PowerPointPresentationCatalog presentationCatalog,
     PowerPointPresentationSessionService presentationSession,
     IPresentationBlankOverlay blankOverlay,
     PairingManager pairingManager,
@@ -64,6 +65,7 @@ internal sealed class PresentationCommandHandler(
         string operationId,
         CancellationToken cancellationToken)
     {
+        presentationCatalog.Refresh();
         if (!AppDeveloperSettings.EnableAlphaFeatures())
         {
             await SendRefreshResultAsync(

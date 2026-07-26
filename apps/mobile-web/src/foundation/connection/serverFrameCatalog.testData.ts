@@ -86,6 +86,36 @@ export const serverFrameCatalog = {
       }
     ]
   },
+  "presentation.powerpoint.launch.result": {
+    required: ["operationId", "presentationId", "succeeded", "message"],
+    frames: [
+      {
+        type: "presentation.powerpoint.launch.result",
+        operationId: "op-launch",
+        presentationId: "report-1",
+        succeeded: true,
+        message: "Presentation opened and started.",
+        runtimePresentationId: "presentation-1",
+        presentation: {
+          runtimePresentationId: "presentation-1",
+          name: "Quarterly update.pptx",
+          state: "presenting",
+          slideCount: 24,
+          currentSlideIndex: 1,
+          currentShowPosition: 1,
+          slideShowState: "running"
+        }
+      },
+      {
+        type: "presentation.powerpoint.launch.result",
+        operationId: "op-launch-failed",
+        presentationId: "report-missing",
+        succeeded: false,
+        code: "powerpoint-source-missing",
+        message: "The file is unavailable."
+      }
+    ]
+  },
   "presentation.session.result": {
     required: ["operationId", "action", "succeeded", "message"],
     frames: [

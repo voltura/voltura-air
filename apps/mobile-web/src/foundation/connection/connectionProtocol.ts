@@ -188,6 +188,14 @@ function isServerMessage(value: unknown): value is ServerMessage {
         isResultBase(value) &&
         isOneOf(value.state, ["ready", "busy", "unavailable"]) &&
         isPowerPointPresentations(value.presentations);
+    case "presentation.powerpoint.launch.result":
+      return isOperationId(value.operationId) &&
+        isOperationId(value.presentationId) &&
+        isOptional(value, "runtimePresentationId", (candidate) =>
+          candidate === null || isOperationId(candidate)) &&
+        isOptional(value, "presentation", (candidate) =>
+          candidate === null || isPowerPointPresentation(candidate)) &&
+        isResultBase(value);
     case "presentation.session.result":
       return isOperationId(value.operationId) &&
         isOneOf(value.action, ["start", "break", "save", "discard"]) &&
@@ -316,7 +324,18 @@ function isPowerPointCapability(value: unknown): boolean {
     isOptional(value, "foregroundActivationSupported", (candidate) =>
       typeof candidate === "boolean") &&
     isPowerPointPresentations(value.presentations) &&
+    isOptional(value, "availablePresentations", isAvailablePowerPointPresentations) &&
     isOptional(value, "session", isPowerPointSession);
+}
+
+function isAvailablePowerPointPresentations(value: unknown): boolean {
+  return Array.isArray(value) &&
+    value.length <= 100 &&
+    value.every((candidate) =>
+      isRecord(candidate) &&
+      isOperationId(candidate.presentationId) &&
+      isBoundedString(candidate.title, 300, false) &&
+      isBoundedString(candidate.fileName, 260, false));
 }
 
 function isPowerPointSession(value: unknown): boolean {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createLocalId } from "../identity/localId";
-import type { ClientMessage, PowerPointRefreshResultMessage, PresentationAction, PresentationCommandOptions, PresentationCommandResultMessage, PresentationSessionAction, PresentationSessionResultMessage, PresentationTarget } from "../protocol/messages";
+import type { ClientMessage, PowerPointLaunchResultMessage, PowerPointRefreshResultMessage, PresentationAction, PresentationCommandOptions, PresentationCommandResultMessage, PresentationSessionAction, PresentationSessionResultMessage, PresentationTarget } from "../protocol/messages";
 import type { ConnectionState } from "./connectionTypes";
 
 // A started PowerPoint COM mutation cannot be cancelled safely. The host keeps
@@ -28,16 +28,24 @@ export interface PendingPowerPointRefresh {
   operationId: string;
 }
 
+export interface PendingPowerPointLaunch {
+  operationId: string;
+  presentationId: string;
+}
+
 export function usePresentationControl(state: ConnectionState, send: (payload: ClientMessage) => void) {
   const [pendingPresentationCommand, setPendingPresentationCommand] = useState<PendingPresentationCommand | null>(null);
   const [pendingPresentationSession, setPendingPresentationSession] = useState<PendingPresentationSession | null>(null);
   const [pendingPowerPointRefresh, setPendingPowerPointRefresh] = useState<PendingPowerPointRefresh | null>(null);
+  const [pendingPowerPointLaunch, setPendingPowerPointLaunch] = useState<PendingPowerPointLaunch | null>(null);
   const [presentationResult, setPresentationResult] = useState<PresentationCommandResultMessage | null>(null);
   const [presentationSessionResult, setPresentationSessionResult] = useState<PresentationSessionResultMessage | null>(null);
   const [powerPointRefreshResult, setPowerPointRefreshResult] = useState<PowerPointRefreshResultMessage | null>(null);
+  const [powerPointLaunchResult, setPowerPointLaunchResult] = useState<PowerPointLaunchResultMessage | null>(null);
   const pendingRef = useRef<PendingPresentationCommand | null>(null);
   const pendingSessionRef = useRef<PendingPresentationSession | null>(null);
   const pendingRefreshRef = useRef<PendingPowerPointRefresh | null>(null);
+  const pendingLaunchRef = useRef<PendingPowerPointLaunch | null>(null);
 
   useEffect(() => {
     const pending = pendingPresentationCommand;
@@ -64,6 +72,31 @@ export function usePresentationControl(state: ConnectionState, send: (payload: C
 
     return () => { window.clearTimeout(timeout); };
   }, [pendingPresentationCommand]);
+
+  useEffect(() => {
+    const pending = pendingPowerPointLaunch;
+    if (pending === null) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      if (pendingLaunchRef.current?.operationId !== pending.operationId) {
+        return;
+      }
+
+      pendingLaunchRef.current = null;
+      setPendingPowerPointLaunch(null);
+      setPowerPointLaunchResult({
+        type: "presentation.powerpoint.launch.result",
+        ...pending,
+        succeeded: false,
+        code: "VAIR-POWERPOINT-LAUNCH-RESPONSE-TIMEOUT",
+        message: "The PC did not confirm the presentation launch. Check PowerPoint before retrying."
+      });
+    }, presentationCommandResponseTimeoutMs);
+
+    return () => { window.clearTimeout(timeout); };
+  }, [pendingPowerPointLaunch]);
 
   useEffect(() => {
     const pending = pendingPresentationSession;
@@ -126,12 +159,15 @@ export function usePresentationControl(state: ConnectionState, send: (payload: C
     pendingRef.current = null;
     pendingSessionRef.current = null;
     pendingRefreshRef.current = null;
+    pendingLaunchRef.current = null;
     setPendingPresentationCommand(null);
     setPendingPresentationSession(null);
     setPendingPowerPointRefresh(null);
+    setPendingPowerPointLaunch(null);
     setPresentationResult(null);
     setPresentationSessionResult(null);
     setPowerPointRefreshResult(null);
+    setPowerPointLaunchResult(null);
   }, [state]);
 
   useEffect(() => {
@@ -252,17 +288,45 @@ export function usePresentationControl(state: ConnectionState, send: (payload: C
     return true;
   };
 
+  const requestPowerPointLaunch = useCallback((presentationId: string): string | null => {
+    if (state !== "paired" || pendingLaunchRef.current !== null) {
+      return null;
+    }
+
+    const pending = { operationId: createLocalId(), presentationId } satisfies PendingPowerPointLaunch;
+    pendingLaunchRef.current = pending;
+    setPendingPowerPointLaunch(pending);
+    setPowerPointLaunchResult(null);
+    send({ type: "presentation.powerpoint.launch", ...pending });
+    return pending.operationId;
+  }, [send, state]);
+
+  const completePowerPointLaunch = (result: PowerPointLaunchResultMessage) => {
+    if (pendingLaunchRef.current?.operationId !== result.operationId) {
+      return false;
+    }
+
+    pendingLaunchRef.current = null;
+    setPendingPowerPointLaunch(null);
+    setPowerPointLaunchResult(result);
+    return true;
+  };
+
   return {
     completePowerPointRefresh,
+    completePowerPointLaunch,
     completePresentationCommand,
     completePresentationSession,
     pendingPowerPointRefresh,
+    pendingPowerPointLaunch,
     pendingPresentationCommand,
     pendingPresentationSession,
     powerPointRefreshResult,
+    powerPointLaunchResult,
     presentationResult,
     presentationSessionResult,
     requestPowerPointRefresh,
+    requestPowerPointLaunch,
     requestPresentationCommand,
     requestPresentationSession
   };

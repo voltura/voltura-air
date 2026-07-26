@@ -16,6 +16,7 @@ import { AppModeContent } from "./AppModeContent";
 type ConnectionContract = Pick<
   ReturnType<typeof useVolturaAirConnection>,
   | "audioState"
+  | "appLaunchResult"
   | "awakeCapability"
   | "awakeResult"
   | "clipboardReadPermission"
@@ -27,6 +28,8 @@ type ConnectionContract = Pick<
   | "pendingAwakeChange"
   | "pendingClipboardRead"
   | "pendingPowerAction"
+  | "pendingPowerPointLaunch"
+  | "pendingPowerPointRefresh"
   | "pendingPresentationCommand"
   | "pendingPresentationSession"
   | "pendingPresentationReportSave"
@@ -36,6 +39,7 @@ type ConnectionContract = Pick<
   | "powerCapabilities"
   | "presentationCapability"
   | "presentationResult"
+  | "powerPointLaunchResult"
   | "presentationReportSaveResult"
   | "requestAppLaunch"
   | "requestAudioState"
@@ -43,6 +47,7 @@ type ConnectionContract = Pick<
   | "requestClipboardRead"
   | "requestPowerAction"
   | "requestPowerPointRefresh"
+  | "requestPowerPointLaunch"
   | "requestPresentationCommand"
   | "requestPresentationSession"
   | "requestPresentationReportSave"
@@ -203,18 +208,28 @@ export function ModeWorkspace({
         capability: connection.presentationCapability,
         connected: connection.state === "paired",
         pending: connection.pendingPresentationCommand,
+        pendingPowerPointLaunch: connection.pendingPowerPointLaunch,
+        powerPointRefreshPending: connection.pendingPowerPointRefresh !== null,
         sessionPending: connection.pendingPresentationSession !== null,
         pendingPowerAction: connection.pendingPowerAction,
         reportSavePending: connection.pendingPresentationReportSave !== null,
         reportSaveResult: connection.presentationReportSaveResult,
         reportSavingAvailable: connection.presentationCapability?.canSaveReports === true,
         result: connection.presentationResult,
+        powerPointLaunchResult: connection.powerPointLaunchResult,
+        powerPointAppLaunchAction: connection.hostStatus?.appLaunchActions?.find(
+          (action) => action.kind === "powerpoint"),
+        powerPointAppLaunchResult: connection.appLaunchResult,
+        pendingPowerPointAppLaunch: connection.pendingAppLaunchId ===
+          connection.hostStatus?.appLaunchActions?.find((action) => action.kind === "powerpoint")?.id,
         onActivationRequestHandled: onPresentationActivationRequestHandled,
         onCommand: connection.requestPresentationCommand,
         onSessionCommand: connection.requestPresentationSession,
         onMute: () => { sendSpecial("VolumeMute"); },
         onPowerAction: connection.requestPowerAction,
         onPowerPointRefresh: connection.requestPowerPointRefresh,
+        onPowerPointLaunch: connection.requestPowerPointLaunch,
+        onPowerPointAppLaunch: connection.requestAppLaunch,
         onSaveReport: connection.requestPresentationReportSave,
         onSessionActiveChange: onPresentationSessionActiveChange,
         onVolumeDown: () => { sendSpecial("VolumeDown"); },

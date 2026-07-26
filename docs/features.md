@@ -130,11 +130,13 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
 ### Presentation (alpha, enabled by default)
 
 - The fourth mode controls PowerPoint, Google Slides, or PDF/browser
-  presentations. PowerPoint control attaches to an existing signed-in user's
-  PowerPoint process and enumerates its open presentations. Ordinary discovery
-  and commands never launch a file or fall back to global input. The sole
-  exception is explicit break recovery, which may reopen only the exact
-  canonical file already stored in the host-owned session draft.
+  presentations. PowerPoint control enumerates open presentations and a
+  host-derived, deduplicated list of still-existing PowerPoint files linked by
+  saved reports. The mobile chooser receives opaque IDs, titles, and filenames,
+  never local paths. Choosing a saved file explicitly starts PowerPoint when
+  necessary, opens that exact host-validated path, starts its slideshow, and
+  begins the authoritative session. Ordinary discovery and control commands
+  never launch a file or fall back to global input.
 - A sole open PowerPoint presentation is selected automatically. Multiple open
   presentations require an opaque runtime selection. Direct automation supports
   Start from beginning/current, Next, Previous, First, Last, numbered slide,
@@ -152,6 +154,10 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   Explicitly entering PowerPoint Presentation mode also foregrounds the selected
   open presentation or running show; reconnects, app refreshes, and pointer
   cleanup do not.
+- Presentation discovery and saved-file launch live in a dedicated chooser.
+  The controller retains only the selected name, slide/state summary, and
+  Change action. Active sessions and laser ownership allow browsing but block
+  switching until the current ownership is completed.
 - Google Slides and PDF/browser retain their reviewed shortcut controls and
   local timer/report path.
 - The laser is Voltura Air's custom cursor, not PowerPoint's native laser.

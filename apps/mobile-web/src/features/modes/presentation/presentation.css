@@ -273,6 +273,226 @@
   line-height: 1.45;
 }
 
+.presentation-powerpoint-summary {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.presentation-powerpoint-summary > div {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2xs);
+}
+
+.presentation-powerpoint-summary strong,
+.presentation-powerpoint-summary span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presentation-powerpoint-summary span {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.presentation-powerpoint-summary button {
+  min-height: var(--control-min-height);
+  padding-inline: var(--space-md);
+}
+
+.presentation-chooser {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-large);
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--drawer-shadow) 55%, transparent);
+}
+
+.presentation-chooser-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-md);
+  border-bottom: 1px solid var(--border);
+  padding:
+    max(var(--space-md), var(--mode-top-safe-area, 0px))
+    max(var(--space-md), var(--mode-inline-safe-end, 0px))
+    var(--space-md)
+    max(var(--space-md), var(--mode-inline-safe-start, 0px));
+}
+
+.presentation-chooser-header h1,
+.presentation-chooser-header p,
+.presentation-chooser-group h2,
+.presentation-chooser-feedback p {
+  margin: 0;
+}
+
+.presentation-chooser-header h1 {
+  font-size: clamp(1.2rem, 4vw, 1.6rem);
+}
+
+.presentation-chooser-header p,
+.presentation-chooser-feedback {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.presentation-chooser-back,
+.presentation-chooser-refresh {
+  min-width: 0;
+  min-height: var(--control-min-height);
+  padding-inline: var(--space-sm);
+}
+
+.presentation-chooser-lists {
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: var(--space-lg);
+  padding: var(--space-lg);
+}
+
+.presentation-chooser-group {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: var(--space-sm);
+}
+
+.presentation-chooser-group h2 {
+  font-size: 1rem;
+}
+
+.presentation-chooser-options {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.presentation-chooser-row {
+  min-width: 0;
+  min-height: 64px;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-medium);
+  background: var(--surface-raised);
+  padding: var(--space-sm) var(--space-md);
+  cursor: pointer;
+}
+
+.presentation-chooser-row.selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--surface) 86%, var(--accent));
+}
+
+.presentation-chooser-row input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent);
+}
+
+.presentation-chooser-row > svg {
+  color: var(--accent);
+}
+
+.presentation-chooser-row > span {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2xs);
+}
+
+.presentation-chooser-row strong,
+.presentation-chooser-row small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presentation-chooser-row small,
+.presentation-chooser-empty {
+  color: var(--muted);
+}
+
+.presentation-chooser-empty {
+  margin: 0;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-medium);
+  padding: var(--space-lg);
+}
+
+.presentation-chooser-footer {
+  display: grid;
+  gap: var(--space-sm);
+  border-top: 1px solid var(--border);
+  padding:
+    var(--space-md)
+    max(var(--space-md), var(--mode-inline-safe-end, 0px))
+    max(var(--space-md), var(--mode-bottom-safe-area, 0px))
+    max(var(--space-md), var(--mode-inline-safe-start, 0px));
+}
+
+.presentation-chooser-feedback {
+  min-height: 1.3em;
+}
+
+.presentation-chooser-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+}
+
+.presentation-chooser-actions button {
+  min-height: var(--control-min-height);
+}
+
+@media (orientation: landscape) and (width >= 640px) {
+  .presentation-chooser-lists {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .presentation-chooser-footer {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+}
+
+@media (height <= 520px) and (orientation: landscape) {
+  .presentation-chooser-header {
+    padding-block: var(--space-sm);
+  }
+
+  .presentation-chooser-header p {
+    display: none;
+  }
+
+  .presentation-chooser-lists {
+    gap: var(--space-md);
+    padding: var(--space-sm) var(--space-md);
+  }
+
+  .presentation-chooser-footer {
+    padding-block: var(--space-sm);
+  }
+
+  .presentation-chooser-row {
+    min-height: 54px;
+  }
+}
+
 .presentation-authoritative-session {
   display: grid;
   grid-template-columns: 1fr auto;

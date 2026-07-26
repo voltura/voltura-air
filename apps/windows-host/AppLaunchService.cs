@@ -10,6 +10,8 @@ public interface IAppLaunchService
     IReadOnlyList<AppLaunchActionSummary> GetActions();
 
     AppLaunchExecutionResult Execute(string actionId);
+
+    AppLaunchExecutionResult ExecutePowerPointFile(string path);
 }
 
 public sealed class AppLaunchService : IAppLaunchService
@@ -56,6 +58,37 @@ public sealed class AppLaunchService : IAppLaunchService
         }
     }
 
+    public AppLaunchExecutionResult ExecutePowerPointFile(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !Path.IsPathFullyQualified(path) || !File.Exists(path))
+        {
+            return new(false, "invalid-target", "The selected PowerPoint file is no longer available.");
+        }
+
+        try
+        {
+            var executable = FindRegisteredApplication("powerpnt.exe", GetKnownPowerPointPaths());
+            if (executable is null)
+            {
+                return new(false, "not-found", "PowerPoint is not installed or could not be found.");
+            }
+
+            using var process = Process.Start(new ProcessStartInfo
+            {
+                FileName = executable,
+                UseShellExecute = false,
+                ArgumentList = { path }
+            });
+            return process is null
+                ? new(false, "start-failed", "Windows could not start PowerPoint.")
+                : new(true, "started", "PowerPoint is opening the selected presentation.");
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or FileNotFoundException)
+        {
+            return new(false, "start-failed", "Windows could not start PowerPoint.");
+        }
+    }
+
     private static bool StartCustom(AppLaunchAction action)
     {
         using var process = Process.Start(new ProcessStartInfo
@@ -81,21 +114,19 @@ public sealed class AppLaunchService : IAppLaunchService
 
     private static bool TryStartRegisteredApplication(string executableName, IEnumerable<string> fallbackPaths)
     {
+        var executable = FindRegisteredApplication(executableName, fallbackPaths);
+        return executable is not null && StartExecutable(executable);
+    }
+
+    private static string? FindRegisteredApplication(string executableName, IEnumerable<string> fallbackPaths)
+    {
         var registered = GetAppPath(executableName);
         if (!string.IsNullOrWhiteSpace(registered) && File.Exists(registered))
         {
-            return StartExecutable(registered);
+            return registered;
         }
 
-        foreach (var path in fallbackPaths.Where(File.Exists))
-        {
-            if (StartExecutable(path))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return fallbackPaths.FirstOrDefault(File.Exists);
     }
 
     private static string? GetAppPath(string executableName)

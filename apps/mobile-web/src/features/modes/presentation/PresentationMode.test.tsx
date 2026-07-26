@@ -87,7 +87,7 @@ describe("PresentationMode", () => {
       />
     );
 
-    expect(screen.getByText("Slide 7 of 24")).toBeTruthy();
+    expect(screen.getByText("Slide 7 of 24 · Presenting")).toBeTruthy();
     expect(onCommand).toHaveBeenCalledWith(
       "powerpoint",
       "activate",
@@ -97,7 +97,7 @@ describe("PresentationMode", () => {
       "powerpoint",
       "activate",
       { runtimePresentationId: "presentation-1" });
-    expect(screen.getByRole("combobox", { name: "Open presentation" }))
+    expect(screen.getByRole("button", { name: "Change" }))
       .toHaveProperty("disabled", false);
     expect(screen.getByText("01:15 · Slide 7 of 24")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Timer" })).toBeNull();
@@ -140,7 +140,8 @@ describe("PresentationMode", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close Go to slide" }));
     expect(screen.queryByRole("dialog", { name: "Go to slide" })).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Refresh open presentations" }));
+    fireEvent.click(screen.getByRole("button", { name: "Change" }));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
     expect(onPowerPointRefresh).toHaveBeenCalledOnce();
   });
 
@@ -252,7 +253,7 @@ describe("PresentationMode", () => {
     );
 
     expect(screen.getByText("Session paused")).toBeTruthy();
-    expect(screen.getByText("Slide 3 of 24 · Ready")).toBeTruthy();
+    expect(screen.getByText("24 slides · Ready")).toBeTruthy();
     for (const name of [
       "Pause auto-play",
       "End slideshow",
@@ -436,11 +437,39 @@ describe("PresentationMode", () => {
       />
     );
 
-    expect(screen.getByRole("alert").textContent).toContain(
-      "Voltura Air could not read PowerPoint");
+    expect(screen.getByText("PowerPoint unavailable")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Timer" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Refresh open presentations" }));
+    fireEvent.click(screen.getByRole("button", { name: "Choose" }));
+    expect(screen.getByText(/PowerPoint is not running/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
     expect(onPowerPointRefresh).toHaveBeenCalledOnce();
+  });
+
+  it("opens and presents a saved host file from the chooser", () => {
+    const onPowerPointLaunch = vi.fn();
+    render(
+      <PresentationMode
+        {...defaultProps}
+        capability={{
+          ...defaultProps.capability,
+          powerPoint: {
+            state: "unavailable",
+            presentations: [],
+            availablePresentations: [{
+              presentationId: "report-1",
+              title: "Quarterly update",
+              fileName: "quarterly-update.pptx"
+            }]
+          }
+        }}
+        onPowerPointLaunch={onPowerPointLaunch}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose" }));
+    fireEvent.click(screen.getByRole("radio", { name: /Quarterly update/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Open and present" }));
+    expect(onPowerPointLaunch).toHaveBeenCalledExactlyOnceWith("report-1");
   });
 
   it("reflects host laser state and disables an owned laser when Presentation unmounts", () => {

@@ -27,6 +27,7 @@ public sealed class WebHostService : IAsyncDisposable
     private readonly PresentationLaserPointerController _presentationLaserPointer;
     private readonly IPowerPointAutomationService _powerPoint;
     private readonly PowerPointPresentationSessionService _presentationSession;
+    private readonly PowerPointPresentationCatalog _presentationCatalog;
     private readonly bool _ownsPowerPoint;
     private readonly Action<IWebHostBuilder>? _configureWebHost;
     private readonly string _listenAddress;
@@ -126,6 +127,7 @@ public sealed class WebHostService : IAsyncDisposable
         PresentationReportStore = isolatedTestMode
             ? new InMemoryPresentationReportStore()
             : new PresentationReportStore();
+        _presentationCatalog = new(PresentationReportStore);
         _presentationSession = new(
             _powerPoint,
             PresentationReportStore,
@@ -146,7 +148,8 @@ public sealed class WebHostService : IAsyncDisposable
             () => _presentationLaserPointer.IsEnabled,
             () => presentationBlankOverlay.Snapshot,
             () => _powerPoint.Snapshot,
-            () => _presentationSession.Snapshot);
+            () => _presentationSession.Snapshot,
+            _presentationCatalog);
         var commandLog = new HostCommandLog(_appLog);
         var powerCommands = new PowerCommandHandler(
             _powerController,
@@ -160,9 +163,20 @@ public sealed class WebHostService : IAsyncDisposable
             statusFactory,
             _presentationLaserPointer,
             _powerPoint,
+            _presentationCatalog,
             _presentationSession,
             presentationBlankOverlay,
             pairingManager,
+            _transport,
+            _appLog);
+        var presentationLauncher = new PowerPointPresentationLaunchHandler(
+            pairingManager,
+            statusFactory,
+            _presentationCatalog,
+            resolvedAppLaunchService,
+            _powerPoint,
+            _presentationSession,
+            _presentationLaserPointer,
             _transport,
             _appLog);
         var presentationReports = new PresentationReportCommandHandler(
@@ -210,6 +224,7 @@ public sealed class WebHostService : IAsyncDisposable
             powerCommands,
             awakeCommands,
             presentationCommands,
+            presentationLauncher,
             presentationReports,
             presentationSessions,
             externalActionCommands,
@@ -230,6 +245,7 @@ public sealed class WebHostService : IAsyncDisposable
             presentationBlankOverlay);
         _sessionHandler.StatusRefreshRequested += (_, _) => _statusBroadcaster.Queue();
         _presentationSession.StateChanged += OnPresentationSessionChanged;
+        _presentationCatalog.Changed += OnPresentationCatalogChanged;
     }
 
     public int Port { get; }
@@ -373,6 +389,8 @@ public sealed class WebHostService : IAsyncDisposable
         }
 
         await _statusBroadcaster.DisposeAsync();
+        _presentationCatalog.Changed -= OnPresentationCatalogChanged;
+        _presentationCatalog.Dispose();
         _presentationSession.StateChanged -= OnPresentationSessionChanged;
         _presentationSession.Dispose();
         _powerPoint.SnapshotChanged -= OnPowerPointSnapshotChanged;
@@ -497,6 +515,9 @@ public sealed class WebHostService : IAsyncDisposable
         _statusBroadcaster.Queue();
         PresentationSessionChanged?.Invoke(this, EventArgs.Empty);
     }
+
+    private void OnPresentationCatalogChanged(object? sender, EventArgs eventArgs) =>
+        _statusBroadcaster.Queue();
 
     private void RestorePowerPointPointer(string runtimePresentationId)
     {

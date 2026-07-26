@@ -89,7 +89,14 @@ export interface PowerPointCapability {
   state: "ready" | "busy" | "unavailable";
   foregroundActivationSupported?: boolean | undefined;
   presentations: PowerPointPresentation[];
+  availablePresentations?: AvailablePowerPointPresentation[] | undefined;
   session?: PowerPointSession | undefined;
+}
+
+export interface AvailablePowerPointPresentation {
+  presentationId: string;
+  title: string;
+  fileName: string;
 }
 
 export interface PowerPointSession {
@@ -317,6 +324,23 @@ export interface PowerPointRefreshResultMessage {
   presentations: PowerPointPresentation[];
 }
 
+export interface PowerPointLaunchMessage {
+  type: "presentation.powerpoint.launch";
+  operationId: string;
+  presentationId: string;
+}
+
+export interface PowerPointLaunchResultMessage {
+  type: "presentation.powerpoint.launch.result";
+  operationId: string;
+  presentationId: string;
+  succeeded: boolean;
+  code?: string;
+  message: string;
+  runtimePresentationId?: string | null | undefined;
+  presentation?: PowerPointPresentation | null | undefined;
+}
+
 export type PresentationSessionAction = "start" | "break" | "save" | "discard";
 
 export interface PresentationSessionMessage {
@@ -521,6 +545,7 @@ export type ClientMessage =
   | KeyboardSpecialMessage
   | PresentationCommandMessage
   | PowerPointRefreshMessage
+  | PowerPointLaunchMessage
   | PresentationSessionMessage
   | PresentationReportSaveMessage
   | SystemSleepMessage
@@ -534,4 +559,4 @@ export type ClientMessage =
   | AudioMuteToggleMessage
   | AudioVolumeSetMessage;
 
-export type ServerMessage = PairAcceptedMessage | PairChallengeMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | PresentationCommandResultMessage | PowerPointRefreshResultMessage | PresentationSessionResultMessage | PresentationReportSaveResultMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | UrlOpenResultMessage | TextSendResultMessage | ClipboardGetResultMessage | AudioStateMessage;
+export type ServerMessage = PairAcceptedMessage | PairChallengeMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | PresentationCommandResultMessage | PowerPointRefreshResultMessage | PowerPointLaunchResultMessage | PresentationSessionResultMessage | PresentationReportSaveResultMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | UrlOpenResultMessage | TextSendResultMessage | ClipboardGetResultMessage | AudioStateMessage;

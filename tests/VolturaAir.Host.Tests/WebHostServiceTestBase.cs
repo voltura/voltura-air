@@ -281,6 +281,8 @@ public abstract class WebHostServiceTestBase : IsolatedHostSettingsTest
             ActionIds.Add(actionId);
             return result;
         }
+
+        public AppLaunchExecutionResult ExecutePowerPointFile(string path) => result;
     }
 
     protected sealed class FakeAudioController : ISystemAudioController

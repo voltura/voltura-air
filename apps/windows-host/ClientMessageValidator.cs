@@ -49,6 +49,7 @@ internal static class ClientMessageValidator
                 "runtimePresentationId",
                 "slideNumber"),
             ["presentation.powerpoint.refresh"] = Fields("type", "operationId"),
+            ["presentation.powerpoint.launch"] = Fields("type", "operationId", "presentationId"),
             ["presentation.session"] = Fields(
                 "type",
                 "operationId",
@@ -198,6 +199,11 @@ internal static class ClientMessageValidator
                     allowEmpty: false,
                     out var refreshOperationId) &&
                 IsValidOperationId(refreshOperationId),
+            "presentation.powerpoint.launch" =>
+                TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var launchOperationId) &&
+                IsValidOperationId(launchOperationId) &&
+                TryGetRequiredString(root, "presentationId", MaxOperationIdLength, allowEmpty: false, out var presentationId) &&
+                IsValidOperationId(presentationId),
             "presentation.session" => IsValidPresentationSessionMessage(root),
             "presentation.report.save" => IsValidPresentationReportEnvelope(root),
             "remote.launch" => TryGetRequiredString(root, "action", MaxRemoteActionLength, allowEmpty: false, out var action) &&

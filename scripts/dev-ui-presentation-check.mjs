@@ -179,6 +179,46 @@ export async function verifyResponsivePresentationLayout(page) {
   await page.locator(".presentation-trackpad-heading").click();
 
   await selectPresentationTarget(page, "PowerPoint");
+  const choosePresentation = page.getByRole("button", { name: "Choose", exact: true });
+  if (await choosePresentation.count() === 1) {
+    await choosePresentation.click();
+    for (const viewport of [
+      { name: "chooser portrait", width: 393, height: 852, columns: 1 },
+      { name: "chooser landscape", width: 852, height: 393, columns: 2 }
+    ]) {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      const chooserLayout = await page.evaluate(() => {
+        const chooser = document.querySelector(".presentation-chooser");
+        const lists = document.querySelector(".presentation-chooser-lists");
+        const header = document.querySelector(".presentation-chooser-header");
+        const footer = document.querySelector(".presentation-chooser-footer");
+        if (!(chooser instanceof HTMLElement) || !(lists instanceof HTMLElement) ||
+            !(header instanceof HTMLElement) || !(footer instanceof HTMLElement)) {
+          return { error: "PowerPoint chooser was not visible." };
+        }
+
+        const chooserBounds = chooser.getBoundingClientRect();
+        const headerBounds = header.getBoundingClientRect();
+        const footerBounds = footer.getBoundingClientRect();
+        return {
+          columns: getComputedStyle(lists).gridTemplateColumns.split(" ").filter(Boolean).length,
+          horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+          outsideViewport:
+            chooserBounds.left < -1 || chooserBounds.right > window.innerWidth + 1 ||
+            chooserBounds.top < -1 || chooserBounds.bottom > window.innerHeight + 1,
+          regionsOverlap: headerBounds.bottom > footerBounds.top,
+          scrollable: lists.scrollHeight >= lists.clientHeight
+        };
+      });
+      if ("error" in chooserLayout || chooserLayout.columns !== viewport.columns ||
+          chooserLayout.horizontalOverflow || chooserLayout.outsideViewport ||
+          chooserLayout.regionsOverlap || !chooserLayout.scrollable) {
+        throw new Error(`PowerPoint chooser layout failed for ${viewport.name}: ${JSON.stringify(chooserLayout)}`);
+      }
+    }
+    await page.getByRole("button", { name: "Back", exact: true }).click();
+  }
+  await page.setViewportSize({ width: 393, height: 852 });
   await page.getByRole("button", { name: "Open menu", exact: true }).click();
   const settingsCloseAppearance = await page.getByRole("button", { name: "Close menu", exact: true })
     .evaluate(readCloseControlAppearance);

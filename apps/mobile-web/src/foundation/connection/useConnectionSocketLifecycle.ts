@@ -8,6 +8,7 @@ import type {
   ClipboardGetResultMessage,
   HostStatusMetadata,
   PowerPointRefreshResultMessage,
+  PowerPointLaunchResultMessage,
   PresentationCommandResultMessage,
   PresentationReportSaveResultMessage,
   PresentationSessionResultMessage,
@@ -54,6 +55,7 @@ interface ConnectionSocketLifecycleOptions {
   completeClipboardRead: (result: ClipboardGetResultMessage) => boolean;
   completePowerAction: (result: SystemPowerResultMessage) => boolean;
   completePowerPointRefresh: (result: PowerPointRefreshResultMessage) => boolean;
+  completePowerPointLaunch: (result: PowerPointLaunchResultMessage) => boolean;
   completePresentationCommand: (result: PresentationCommandResultMessage) => boolean;
   completePresentationSession: (result: PresentationSessionResultMessage) => boolean;
   completePresentationReportSave: (result: PresentationReportSaveResultMessage) => boolean;
@@ -98,6 +100,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     completeClipboardRead: completeClipboardReadState,
     completePowerAction: completePowerActionState,
     completePowerPointRefresh: completePowerPointRefreshState,
+    completePowerPointLaunch: completePowerPointLaunchState,
     completePresentationCommand: completePresentationCommandState,
     completePresentationSession: completePresentationSessionState,
     completePresentationReportSave: completePresentationReportSaveState,
@@ -139,6 +142,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
   const completeClipboardRead = useEffectEvent(completeClipboardReadState);
   const completePowerAction = useEffectEvent(completePowerActionState);
   const completePowerPointRefresh = useEffectEvent(completePowerPointRefreshState);
+  const completePowerPointLaunch = useEffectEvent(completePowerPointLaunchState);
   const completePresentationCommand = useEffectEvent(completePresentationCommandState);
   const completePresentationSession = useEffectEvent(completePresentationSessionState);
   const completePresentationReportSave = useEffectEvent(completePresentationReportSaveState);
@@ -648,6 +652,18 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
             setLastConnectionError(response.succeeded
               ? null
               : { code: response.code ?? "VAIR-POWERPOINT-REFRESH-FAILED", message: response.message });
+          }
+          scheduleHealthCheck(ws);
+          return;
+        }
+
+        if (response.type === "presentation.powerpoint.launch.result") {
+          touchHealthy();
+          if (completePowerPointLaunch(response)) {
+            setMessage(response.message);
+            setLastConnectionError(response.succeeded
+              ? null
+              : { code: response.code ?? "VAIR-POWERPOINT-LAUNCH-FAILED", message: response.message });
           }
           scheduleHealthCheck(ws);
           return;

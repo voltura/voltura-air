@@ -13,6 +13,7 @@ internal sealed class WebSocketSessionHandler(
     PowerCommandHandler powerCommands,
     AwakeCommandHandler awakeCommands,
     PresentationCommandHandler presentationCommands,
+    PowerPointPresentationLaunchHandler presentationLauncher,
     PresentationReportCommandHandler presentationReports,
     PresentationSessionCommandHandler presentationSessions,
     ExternalActionCommandHandler externalActionCommands,
@@ -323,6 +324,14 @@ internal sealed class WebSocketSessionHandler(
                     socket,
                     clientId,
                     ProtocolMessageFields.GetString(root, "operationId"),
+                    cancellationToken);
+                return true;
+            case "presentation.powerpoint.launch":
+                await presentationLauncher.HandleAsync(
+                    socket,
+                    clientId,
+                    ProtocolMessageFields.GetString(root, "operationId"),
+                    ProtocolMessageFields.GetString(root, "presentationId"),
                     cancellationToken);
                 return true;
             case "presentation.report.save":

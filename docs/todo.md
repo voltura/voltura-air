@@ -16,12 +16,8 @@ Remove completed items after updating their current authority.
 
 - [ ] Add reusable host presentations to the existing Presentations page:
   request a name and PowerPoint file; store an opaque ID; show a persistent
-  `Host` row without statistics; treat statistics records with valid PowerPoint
-  paths as launch candidates; canonicalize duplicate files while preferring a
-  Host-added item, otherwise the most recently edited report.
-- [ ] For an opaque saved launch, revalidate the stored path, open exactly that
-  file, wait for PowerPoint automation to identify it, then start its slideshow
-  and authoritative session. Never delete the PowerPoint file when deleting a
+  `Host` row without statistics and prefer it over report-derived candidates
+  for the same canonical file. Never delete the PowerPoint file when deleting a
   reusable item or a run; retain the Host row and save each run as an ordinary
   device-attributed report linked to it.
 - [ ] Inspect modern Open XML presentations without launching PowerPoint:

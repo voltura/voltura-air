@@ -1,13 +1,14 @@
-import { ChevronDown, ChevronLeft, ChevronRight, CircleStop, Eclipse, ListOrdered, MousePointer2, Pause, Play, RefreshCw, RotateCcw, Timer, Vibrate, Volume2, VolumeX } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, CircleStop, Eclipse, ListOrdered, MousePointer2, Pause, Play, RotateCcw, Timer, Vibrate, Volume2, VolumeX } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import "./presentation.css";
 import type { PendingPresentationCommand } from "../../../foundation/connection/usePresentationControl";
-import type { AudioStateMessage, PresentationAction, PresentationCapability, PresentationCommandOptions, PresentationCommandResultMessage, PresentationReportSavePayload, PresentationReportSaveResultMessage, PresentationSessionAction, PresentationTarget, SystemPowerAction } from "../../../foundation/protocol/messages";
+import type { AppLaunchActionSummary, AppLaunchResultMessage, AudioStateMessage, PowerPointLaunchResultMessage, PresentationAction, PresentationCapability, PresentationCommandOptions, PresentationCommandResultMessage, PresentationReportSavePayload, PresentationReportSaveResultMessage, PresentationSessionAction, PresentationTarget, SystemPowerAction } from "../../../foundation/protocol/messages";
 import { formatPresentationTime, maximumPresentationBreaks, usePresentationTimer } from "./presentationTimer";
 import { InfoButton } from "../../../ui/overlays/InfoButton";
 import { ModalDialog } from "../../../ui/overlays/ModalDialog";
 import { uiDurations } from "../../../ui/tokens.g";
 import { PresentationStatistics } from "./PresentationStatistics";
+import { PowerPointPresentationChooser, type PowerPointChooserSelection } from "./PowerPointPresentationChooser";
 
 interface PresentationModeProps {
   activationRequestId?: number | undefined;
@@ -16,6 +17,12 @@ interface PresentationModeProps {
   capability: PresentationCapability | undefined;
   connected: boolean;
   pending: PendingPresentationCommand | null;
+  pendingPowerPointLaunch?: { operationId: string; presentationId: string } | null | undefined;
+  powerPointLaunchResult?: PowerPointLaunchResultMessage | null | undefined;
+  powerPointAppLaunchAction?: AppLaunchActionSummary | undefined;
+  powerPointAppLaunchResult?: AppLaunchResultMessage | null | undefined;
+  pendingPowerPointAppLaunch?: boolean | undefined;
+  powerPointRefreshPending?: boolean | undefined;
   sessionPending?: boolean | undefined;
   pendingPowerAction: SystemPowerAction | null;
   result: PresentationCommandResultMessage | null;
@@ -25,6 +32,8 @@ interface PresentationModeProps {
   onMute: () => void;
   onPowerAction?: (action: SystemPowerAction) => void;
   onPowerPointRefresh?: () => void;
+  onPowerPointLaunch?: (presentationId: string) => void;
+  onPowerPointAppLaunch?: (actionId: string) => void;
   onSessionActiveChange?: ((active: boolean) => void) | undefined;
   onSaveReport?: ((report: PresentationReportSavePayload) => void) | undefined;
   reportSaveResult?: PresentationReportSaveResultMessage | null | undefined;
@@ -52,6 +61,12 @@ export function PresentationMode({
   capability,
   connected,
   pending,
+  pendingPowerPointLaunch = null,
+  powerPointLaunchResult = null,
+  powerPointAppLaunchAction,
+  powerPointAppLaunchResult = null,
+  pendingPowerPointAppLaunch = false,
+  powerPointRefreshPending = false,
   pendingPowerAction,
   sessionPending = false,
   reportSavePending = false,
@@ -64,6 +79,8 @@ export function PresentationMode({
   onMute,
   onPowerAction,
   onPowerPointRefresh,
+  onPowerPointLaunch,
+  onPowerPointAppLaunch,
   onSessionActiveChange,
   onSaveReport,
   onSessionCommand,
@@ -79,6 +96,8 @@ export function PresentationMode({
   const [isNavigationOpen, setIsNavigationOpen] = useState(false);
   const [gotoSlideNumber, setGotoSlideNumber] = useState("");
   const [runtimePresentationId, setRuntimePresentationId] = useState<string | null>(null);
+  const [isPowerPointChooserOpen, setIsPowerPointChooserOpen] = useState(false);
+  const [powerPointChooserSelection, setPowerPointChooserSelection] = useState<PowerPointChooserSelection>(null);
   const [visiblyPendingOperationId, setVisiblyPendingOperationId] = useState<string | null>(null);
   const laserPointerActive = capability?.laserPointerActive === true;
   const savePresentationRef = useRef<HTMLButtonElement | null>(null);
@@ -161,6 +180,27 @@ export function PresentationMode({
     verifiedPowerPoint;
   const reportedSessionActive = sessionActive ||
     powerPointSession?.state === "tracking";
+  const presentationChangeLockedMessage = powerPointSession?.state !== undefined &&
+    powerPointSession.state !== "inactive"
+      ? "Save or discard the current presentation before changing decks."
+      : laserPointerActive
+        ? "Turn off the laser pointer before changing decks."
+        : null;
+
+  useEffect(() => {
+    if (powerPointLaunchResult?.succeeded !== true ||
+        !powerPointLaunchResult.runtimePresentationId) {
+      return;
+    }
+
+    const runtimeId = powerPointLaunchResult.runtimePresentationId;
+    const completion = window.setTimeout(() => {
+      setRuntimePresentationId(runtimeId);
+      setPowerPointChooserSelection(null);
+      setIsPowerPointChooserOpen(false);
+    }, 0);
+    return () => { window.clearTimeout(completion); };
+  }, [powerPointLaunchResult]);
 
   useEffect(() => {
     if (pending === null) {
@@ -391,6 +431,34 @@ export function PresentationMode({
     setIsTargetSelectorOpen(false);
   };
 
+  if (target === "powerpoint" &&
+      isPowerPointChooserOpen &&
+      capability?.powerPoint) {
+    return (
+      <PowerPointPresentationChooser
+        appLaunchAction={powerPointAppLaunchAction}
+        appLaunchResult={powerPointAppLaunchResult}
+        appLaunchPending={pendingPowerPointAppLaunch}
+        capability={capability.powerPoint}
+        launchPending={pendingPowerPointLaunch !== null}
+        launchResult={powerPointLaunchResult}
+        lockedMessage={presentationChangeLockedMessage}
+        onBack={() => { setIsPowerPointChooserOpen(false); }}
+        onLaunchApp={onPowerPointAppLaunch}
+        onLaunchSaved={(presentationId) => { onPowerPointLaunch?.(presentationId); }}
+        onRefresh={onPowerPointRefresh}
+        onSelectOpen={(runtimeId) => {
+          setRuntimePresentationId(runtimeId);
+          setPowerPointChooserSelection(null);
+          setIsPowerPointChooserOpen(false);
+        }}
+        onSelectionChange={setPowerPointChooserSelection}
+        refreshPending={powerPointRefreshPending}
+        selection={powerPointChooserSelection}
+      />
+    );
+  }
+
   return (
     <section
       className={`presentation-mode${isTrackpadExpanded ? " trackpad-open" : ""}${isTimerExpanded ? " timer-open" : ""}${isTrackpadFullscreen ? " trackpad-fullscreen" : ""}`}
@@ -474,55 +542,36 @@ export function PresentationMode({
           <div className="presentation-control-primary">
         {target === "powerpoint" && hasPowerPointAutomation && capability?.powerPoint && (
           <div className="presentation-powerpoint-source">
-            <label>
-              <span>Open presentation</span>
-              <select
-                value={effectiveRuntimePresentationId ?? ""}
-                disabled={(powerPointPresentations?.length ?? 0) === 0 ||
-                  (laserPointerActive && (powerPointPresentations?.length ?? 0) > 1)}
-                onChange={(event) => { setRuntimePresentationId(event.target.value || null); }}
+            <div className="presentation-powerpoint-summary">
+              <div>
+                <strong title={selectedPowerPoint?.name}>
+                  {selectedPowerPoint?.name ?? "No presentation selected"}
+                </strong>
+                <span aria-live="polite">
+                  {pendingPowerPointLaunch
+                    ? "Opening saved presentation…"
+                    : selectedPowerPoint?.state === "presenting"
+                      ? `Slide ${selectedPowerPoint.currentSlideIndex ?? "–"} of ${selectedPowerPoint.slideCount} · Presenting`
+                      : selectedPowerPoint
+                        ? `${selectedPowerPoint.slideCount} slides · Ready`
+                        : verifiedPowerPoint
+                          ? "Choose an open or saved deck"
+                          : "PowerPoint unavailable"}
+                </span>
+              </div>
+              <button
+                type="button"
+                disabled={!connected}
+                onClick={() => {
+                  setPowerPointChooserSelection(selectedPowerPoint
+                    ? { kind: "open", id: selectedPowerPoint.runtimePresentationId }
+                    : null);
+                  setIsPowerPointChooserOpen(true);
+                }}
               >
-                {(powerPointPresentations?.length ?? 0) === 0 && (
-                  <option value="">
-                    {verifiedPowerPoint ? "No open presentations" : "PowerPoint unavailable"}
-                  </option>
-                )}
-                {(powerPointPresentations?.length ?? 0) > 1 && <option value="">Choose a presentation</option>}
-                {powerPointPresentations?.map((presentation) => (
-                  <option key={presentation.runtimePresentationId} value={presentation.runtimePresentationId}>
-                    {presentation.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="button"
-              className="presentation-powerpoint-refresh"
-              disabled={!connected}
-              onClick={onPowerPointRefresh}
-            >
-              <RefreshCw aria-hidden="true" /><span>Refresh open presentations</span>
-            </button>
-            {!verifiedPowerPoint && (
-              <p className="presentation-permission-message" role="alert">
-                Voltura Air could not read PowerPoint. Keep PowerPoint open, then refresh.
-                The presentation timer remains available below.
-              </p>
-            )}
-            {verifiedPowerPoint && (powerPointPresentations?.length ?? 0) === 0 && (
-              <p className="presentation-permission-message" role="status">
-                PowerPoint is connected, but no open presentations were found.
-              </p>
-            )}
-            {selectedPowerPoint && (
-              <p className="presentation-powerpoint-state" aria-live="polite">
-                {selectedPowerPoint.state === "presenting"
-                  ? `Slide ${selectedPowerPoint.currentSlideIndex ?? "–"} of ${selectedPowerPoint.slideCount}`
-                  : selectedPowerPoint.currentSlideIndex
-                    ? `Slide ${selectedPowerPoint.currentSlideIndex} of ${selectedPowerPoint.slideCount} · Ready`
-                    : `${selectedPowerPoint.slideCount} slides · Ready`}
-              </p>
-            )}
+                {selectedPowerPoint ? "Change" : "Choose"}
+              </button>
+            </div>
             {powerPointSession && powerPointSession.state !== "inactive" && (
               <div className="presentation-authoritative-session" role="status">
                 <strong>

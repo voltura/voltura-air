@@ -239,4 +239,33 @@ describe("usePresentationControl", () => {
     expect(result.current.powerPointRefreshResult?.code)
       .toBe("VAIR-POWERPOINT-REFRESH-RESPONSE-TIMEOUT");
   });
+
+  it("tracks and correlates a saved PowerPoint launch", () => {
+    const send = vi.fn();
+    const { result } = renderHook(() => usePresentationControl("paired", send));
+    let operationId: string | null = null;
+
+    act(() => {
+      operationId = result.current.requestPowerPointLaunch("report-1");
+      result.current.requestPowerPointLaunch("report-2");
+    });
+
+    expect(send).toHaveBeenCalledExactlyOnceWith({
+      type: "presentation.powerpoint.launch",
+      operationId,
+      presentationId: "report-1"
+    });
+    expect(result.current.pendingPowerPointLaunch?.presentationId).toBe("report-1");
+
+    act(() => { result.current.completePowerPointLaunch({
+      type: "presentation.powerpoint.launch.result",
+      operationId: operationId!,
+      presentationId: "report-1",
+      succeeded: true,
+      message: "Presentation opened and started.",
+      runtimePresentationId: "runtime-1"
+    }); });
+    expect(result.current.pendingPowerPointLaunch).toBeNull();
+    expect(result.current.powerPointLaunchResult?.runtimePresentationId).toBe("runtime-1");
+  });
 });

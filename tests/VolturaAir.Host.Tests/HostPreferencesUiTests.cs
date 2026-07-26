@@ -377,5 +377,8 @@ public sealed partial class HostUiLayoutTests
             ActionIds.Add(actionId);
             return new AppLaunchExecutionResult(true, "started", "Started WWW.");
         }
+
+        public AppLaunchExecutionResult ExecutePowerPointFile(string path) =>
+            new(true, "started", "Started PowerPoint.");
     }
 }

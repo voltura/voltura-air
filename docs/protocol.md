@@ -560,6 +560,35 @@ Authenticated clients may request event-independent discovery with
 `VAIR-POWERPOINT-REFRESH-RESPONSE-TIMEOUT` locally when no matching result
 arrives; late and unrelated results do not complete another refresh.
 
+When available, `powerPoint.availablePresentations` contains at most 100
+host-derived saved-file candidates with opaque `presentationId`, bounded
+display `title`, and `fileName`; canonical paths never cross the wire. The host
+filters missing files, deduplicates Windows paths case-insensitively, prefers
+the most recently modified report, and omits a saved candidate when that path
+is already open.
+
+An authorized explicit saved launch uses:
+
+```json
+{
+  "type": "presentation.powerpoint.launch",
+  "operationId": "launch-1",
+  "presentationId": "report-opaque-1"
+}
+```
+
+The host re-resolves the opaque ID, revalidates the file, rejects active
+session or laser ownership, opens the exact path in PowerPoint, waits for
+automation discovery, then starts the slideshow and host-owned session.
+Results use `presentation.powerpoint.launch.result` with the correlated IDs,
+`succeeded`, optional `code`, `message`, and on success the authoritative
+`runtimePresentationId` and `presentation`. Launch authorization uses effective
+Presentation control permission; the separate generic PowerPoint start button
+continues to use application-launch permission. Expected codes include
+`powerpoint-source-missing`, `powerpoint-open-failed`,
+`powerpoint-open-timeout`, `powerpoint-busy`, `session-active`, and
+`pointer-owner-active`.
+
 ### Host-owned PowerPoint session
 
 Starting a slideshow through `presentation.command` starts tracking

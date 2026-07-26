@@ -10,18 +10,15 @@ internal sealed partial class KodiRemoteAction(
     IRemoteProcessLauncher processLauncher) : IRemoteLaunchAction, IDisposable
 {
     private const string KodiProcessName = "kodi";
-
     private const string KodiUninstallRegistryPath =
         @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Kodi";
-
     private const string KodiStoreAppUserModelId =
         @"XBMCFoundation.Kodi_4n2hpmxwrvr6p!Kodi";
 
     private static readonly Guid ApplicationActivationManagerClassId =
         new("45BA127D-10A8-46EA-8AB7-56EA9078943C");
-
-    private static readonly TimeSpan WindowWaitTimeout =
-        TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan WindowWaitTimeout = TimeSpan.FromSeconds(10);
+    private static readonly uint? HostIntegrityLevel = GetHostIntegrityLevel();
 
     private readonly SemaphoreSlim executionGate = new(1, 1);
 
@@ -31,41 +28,45 @@ internal sealed partial class KodiRemoteAction(
     public async Task<bool> ExecuteAsync(CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-
         await executionGate.WaitAsync(cancellationToken);
 
         try
         {
             ObjectDisposedException.ThrowIf(disposed, this);
 
-            var existingWindow = FindKodiWindow();
-
+            var existingWindow = FindControllableKodiWindow();
             if (existingWindow != IntPtr.Zero)
             {
-                return windows.TryActivateWindow(
-                    existingWindow,
-                    maximize: true);
+                return windows.TryActivateWindow(existingWindow, maximize: true);
             }
 
             var cachedTarget = GetValidCachedTarget();
-
             if (cachedTarget is not null)
             {
                 var cachedResult = await TryLaunchAndActivateAsync(
                     cachedTarget,
                     cancellationToken);
 
-                if (cachedResult == LaunchAttemptResult.Activated)
+                switch (cachedResult)
                 {
-                    return true;
-                }
+                    case LaunchAttemptResult.Activated:
+                        return true;
 
-                if (cachedResult != LaunchAttemptResult.LaunchFailed)
-                {
-                    return false;
-                }
+                    case LaunchAttemptResult.ActivationFailed:
+                        return false;
 
-                cachedLaunchTarget = null;
+                    case LaunchAttemptResult.WindowMonitoringFailed:
+                        return false;
+
+                    case LaunchAttemptResult.LaunchFailed:
+                    case LaunchAttemptResult.WindowNotFound:
+                        cachedLaunchTarget = null;
+                        break;
+
+                    default:
+                        throw new InvalidOperationException(
+                            $"Unsupported Kodi launch result: {cachedResult}");
+                }
             }
 
             foreach (var target in DiscoverLaunchTargets())
@@ -81,14 +82,27 @@ internal sealed partial class KodiRemoteAction(
                     target,
                     cancellationToken);
 
-                if (result == LaunchAttemptResult.LaunchFailed)
+                switch (result)
                 {
-                    continue;
+                    case LaunchAttemptResult.Activated:
+                        cachedLaunchTarget = target;
+                        return true;
+
+                    case LaunchAttemptResult.ActivationFailed:
+                        cachedLaunchTarget = target;
+                        return false;
+
+                    case LaunchAttemptResult.WindowMonitoringFailed:
+                        return false;
+
+                    case LaunchAttemptResult.LaunchFailed:
+                    case LaunchAttemptResult.WindowNotFound:
+                        continue;
+
+                    default:
+                        throw new InvalidOperationException(
+                            $"Unsupported Kodi launch result: {result}");
                 }
-
-                cachedLaunchTarget = target;
-
-                return result == LaunchAttemptResult.Activated;
             }
 
             return false;
@@ -108,7 +122,6 @@ internal sealed partial class KodiRemoteAction(
 
         disposed = true;
         executionGate.Dispose();
-
         GC.SuppressFinalize(this);
     }
 
@@ -122,14 +135,12 @@ internal sealed partial class KodiRemoteAction(
         }
 
         using var windowWaiter = KodiWindowWaiter.TryCreate();
-
         if (windowWaiter is null)
         {
             return LaunchAttemptResult.WindowMonitoringFailed;
         }
 
         var launchResult = TryLaunch(target);
-
         if (!launchResult.Started)
         {
             return LaunchAttemptResult.LaunchFailed;
@@ -155,17 +166,12 @@ internal sealed partial class KodiRemoteAction(
         return target.Kind switch
         {
             LaunchKind.Desktop => new LaunchResult(
-                processLauncher.TryStart(
-                    target.Value,
-                    arguments: null),
+                processLauncher.TryStart(target.Value, arguments: null),
                 ProcessId: null),
 
-            LaunchKind.Store => TryActivateStoreApplication(
-                target.Value),
+            LaunchKind.Store => TryActivateStoreApplication(target.Value),
 
-            _ => new LaunchResult(
-                Started: false,
-                ProcessId: null)
+            _ => new LaunchResult(Started: false, ProcessId: null)
         };
     }
 
@@ -183,7 +189,6 @@ internal sealed partial class KodiRemoteAction(
     private static IEnumerable<LaunchTarget> DiscoverLaunchTargets()
     {
         var desktopPath = GetNsisKodiExecutablePath();
-
         if (desktopPath is not null)
         {
             yield return LaunchTarget.Desktop(desktopPath);
@@ -199,17 +204,13 @@ internal sealed partial class KodiRemoteAction(
             writable: false);
 
         var displayIcon = key?.GetValue("DisplayIcon") as string;
-
         if (string.IsNullOrEmpty(displayIcon))
         {
             return null;
         }
 
         var executablePath = displayIcon.Split(',')[0];
-
-        return File.Exists(executablePath)
-            ? executablePath
-            : null;
+        return File.Exists(executablePath) ? executablePath : null;
     }
 
     private static LaunchResult TryActivateStoreApplication(
@@ -225,18 +226,13 @@ internal sealed partial class KodiRemoteAction(
 
             if (activationType is null)
             {
-                return new LaunchResult(
-                    Started: false,
-                    ProcessId: null);
+                return new LaunchResult(Started: false, ProcessId: null);
             }
 
             activationObject = Activator.CreateInstance(activationType);
-
             if (activationObject is not IApplicationActivationManager manager)
             {
-                return new LaunchResult(
-                    Started: false,
-                    ProcessId: null);
+                return new LaunchResult(Started: false, ProcessId: null);
             }
 
             var hresult = manager.ActivateApplication(
@@ -246,90 +242,95 @@ internal sealed partial class KodiRemoteAction(
                 out var processId);
 
             return hresult >= 0
-                ? new LaunchResult(
-                    Started: true,
-                    ProcessId: processId)
-                : new LaunchResult(
-                    Started: false,
-                    ProcessId: null);
+                ? new LaunchResult(Started: true, ProcessId: processId)
+                : new LaunchResult(Started: false, ProcessId: null);
         }
         catch (COMException)
         {
-            return new LaunchResult(
-                Started: false,
-                ProcessId: null);
+            return new LaunchResult(Started: false, ProcessId: null);
         }
         catch (TypeLoadException)
         {
-            return new LaunchResult(
-                Started: false,
-                ProcessId: null);
+            return new LaunchResult(Started: false, ProcessId: null);
         }
         finally
         {
             if (activationObject is not null &&
                 Marshal.IsComObject(activationObject))
             {
-                Marshal.FinalReleaseComObject(activationObject);
+                _ = Marshal.FinalReleaseComObject(activationObject);
             }
         }
     }
 
-    private static IntPtr FindKodiWindow(
+    private static uint? GetHostIntegrityLevel()
+    {
+        return WindowsProcessIntegrity.TryGetCurrentProcessIntegrityLevel(
+            out var integrityLevel)
+            ? integrityLevel
+            : null;
+    }
+
+    private static IntPtr FindControllableKodiWindow(
         uint? expectedProcessId = null)
     {
-        var result = IntPtr.Zero;
+        var visibleWindow = IntPtr.Zero;
+        var hiddenWindow = IntPtr.Zero;
 
-        NativeMethods.EnumWindowsCallback callback =
+        _ = WindowNativeMethods.EnumWindows(
             (windowHandle, _) =>
             {
-                if (!IsKodiWindow(
+                if (!IsControllableKodiWindow(
                         windowHandle,
                         expectedProcessId))
                 {
-                    return 1;
+                    return true;
                 }
 
-                result = windowHandle;
-                return 0;
-            };
+                if (WindowNativeMethods.IsWindowVisible(windowHandle))
+                {
+                    visibleWindow = windowHandle;
+                    return false;
+                }
 
-        var callbackPointer =
-            Marshal.GetFunctionPointerForDelegate(callback);
-
-        _ = NativeMethods.EnumWindows(
-            callbackPointer,
+                hiddenWindow = windowHandle;
+                return true;
+            },
             IntPtr.Zero);
 
-        GC.KeepAlive(callback);
-
-        return result;
+        return visibleWindow != IntPtr.Zero
+            ? visibleWindow
+            : hiddenWindow;
     }
 
-    private static bool IsKodiWindow(
+    private static bool IsControllableKodiWindow(
         IntPtr windowHandle,
         uint? expectedProcessId)
     {
         if (windowHandle == IntPtr.Zero ||
-            NativeMethods.IsWindowVisible(windowHandle) == 0 ||
-            NativeMethods.GetWindow(
-                windowHandle,
-                NativeMethods.GwOwner) != IntPtr.Zero)
+            HostIntegrityLevel is not uint hostIntegrityLevel)
         {
             return false;
         }
 
-        var threadId = NativeMethods.GetWindowThreadProcessId(
+        var threadId = WindowNativeMethods.GetWindowThreadProcessId(
             windowHandle,
             out var processId);
 
-        if (threadId == 0 || processId == 0)
+        if (threadId == 0 ||
+            processId == 0 ||
+            expectedProcessId.HasValue &&
+            processId != expectedProcessId.Value)
         {
             return false;
         }
 
-        if (expectedProcessId.HasValue &&
-            processId != expectedProcessId.Value)
+        if (!WindowsProcessIntegrity.TryGetWindowIntegrityLevel(
+                windowHandle,
+                out var windowIntegrityLevel) ||
+            WindowsProcessIntegrity.IsHigherIntegrity(
+                hostIntegrityLevel,
+                windowIntegrityLevel))
         {
             return false;
         }
@@ -344,15 +345,11 @@ internal sealed partial class KodiRemoteAction(
                 KodiProcessName,
                 StringComparison.OrdinalIgnoreCase);
         }
-        catch (ArgumentException)
-        {
-            return false;
-        }
-        catch (InvalidOperationException)
-        {
-            return false;
-        }
-        catch (Win32Exception)
+        catch (Exception exception) when (
+            exception is ArgumentException or
+            InvalidOperationException or
+            Win32Exception or
+            OverflowException)
         {
             return false;
         }
@@ -362,7 +359,6 @@ internal sealed partial class KodiRemoteAction(
     {
         private readonly TaskCompletionSource<IntPtr> windowFound =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
-
         private readonly NativeMethods.WinEventCallback callback;
 
         private IntPtr hookHandle;
@@ -372,7 +368,6 @@ internal sealed partial class KodiRemoteAction(
         private KodiWindowWaiter()
         {
             callback = OnWindowEvent;
-
             var callbackPointer =
                 Marshal.GetFunctionPointerForDelegate(callback);
 
@@ -391,7 +386,6 @@ internal sealed partial class KodiRemoteAction(
         public static KodiWindowWaiter? TryCreate()
         {
             var waiter = new KodiWindowWaiter();
-
             if (waiter.hookHandle != IntPtr.Zero)
             {
                 return waiter;
@@ -407,11 +401,10 @@ internal sealed partial class KodiRemoteAction(
             CancellationToken cancellationToken)
         {
             ObjectDisposedException.ThrowIf(disposed, this);
-
             expectedProcessId = processId;
 
-            var existingWindow = FindKodiWindow(expectedProcessId);
-
+            var existingWindow =
+                FindControllableKodiWindow(expectedProcessId);
             if (existingWindow != IntPtr.Zero)
             {
                 return existingWindow;
@@ -436,7 +429,6 @@ internal sealed partial class KodiRemoteAction(
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-
             return IntPtr.Zero;
         }
 
@@ -470,14 +462,14 @@ internal sealed partial class KodiRemoteAction(
                     NativeMethods.EventObjectShow) ||
                 objectId != NativeMethods.ObjIdWindow ||
                 childId != NativeMethods.ChildIdSelf ||
-                !IsKodiWindow(
+                !IsControllableKodiWindow(
                     windowHandle,
                     expectedProcessId))
             {
                 return;
             }
 
-            windowFound.TrySetResult(windowHandle);
+            _ = windowFound.TrySetResult(windowHandle);
         }
     }
 
@@ -485,21 +477,11 @@ internal sealed partial class KodiRemoteAction(
         LaunchKind Kind,
         string Value)
     {
-        public static LaunchTarget Desktop(
-            string executablePath)
-        {
-            return new LaunchTarget(
-                LaunchKind.Desktop,
-                executablePath);
-        }
+        public static LaunchTarget Desktop(string executablePath) =>
+            new(LaunchKind.Desktop, executablePath);
 
-        public static LaunchTarget Store(
-            string appUserModelId)
-        {
-            return new LaunchTarget(
-                LaunchKind.Store,
-                appUserModelId);
-        }
+        public static LaunchTarget Store(string appUserModelId) =>
+            new(LaunchKind.Store, appUserModelId);
 
         public bool IsValid()
         {
@@ -572,19 +554,10 @@ internal sealed partial class KodiRemoteAction(
     {
         internal const uint EventObjectCreate = 0x8000;
         internal const uint EventObjectShow = 0x8002;
-
         internal const uint WinEventOutOfContext = 0x0000;
         internal const uint WinEventSkipOwnProcess = 0x0002;
-
         internal const int ObjIdWindow = 0;
         internal const int ChildIdSelf = 0;
-
-        internal const uint GwOwner = 4;
-
-        [UnmanagedFunctionPointer(CallingConvention.Winapi)]
-        internal delegate int EnumWindowsCallback(
-            IntPtr windowHandle,
-            IntPtr parameter);
 
         [UnmanagedFunctionPointer(CallingConvention.Winapi)]
         internal delegate void WinEventCallback(
@@ -595,29 +568,6 @@ internal sealed partial class KodiRemoteAction(
             int childId,
             uint eventThread,
             uint eventTime);
-
-        [LibraryImport(
-            "user32.dll",
-            SetLastError = true)]
-        internal static partial int EnumWindows(
-            IntPtr callback,
-            IntPtr parameter);
-
-        [LibraryImport("user32.dll")]
-        internal static partial int IsWindowVisible(
-            IntPtr windowHandle);
-
-        [LibraryImport("user32.dll")]
-        internal static partial IntPtr GetWindow(
-            IntPtr windowHandle,
-            uint command);
-
-        [LibraryImport(
-            "user32.dll",
-            SetLastError = true)]
-        internal static partial uint GetWindowThreadProcessId(
-            IntPtr windowHandle,
-            out uint processId);
 
         [LibraryImport(
             "user32.dll",

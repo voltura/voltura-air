@@ -1,244 +1,640 @@
+using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Microsoft.Win32;
 
 namespace VolturaAir.Host;
 
-internal sealed class KodiRemoteAction(
+internal sealed partial class KodiRemoteAction(
     IWindowsWindowActivator windows,
-    IRemoteProcessLauncher processLauncher) : IRemoteLaunchAction
+    IRemoteProcessLauncher processLauncher) : IRemoteLaunchAction, IDisposable
 {
-    private const string KodiStoreAppShellId = @"shell:AppsFolder\XBMCFoundation.Kodi_4n2hpmxwrvr6p!Kodi";
-    private static readonly TimeSpan StartWait = TimeSpan.FromSeconds(5);
+    private const string KodiProcessName = "kodi";
+
+    private const string KodiUninstallRegistryPath =
+        @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Kodi";
+
+    private const string KodiStoreAppUserModelId =
+        @"XBMCFoundation.Kodi_4n2hpmxwrvr6p!Kodi";
+
+    private static readonly Guid ApplicationActivationManagerClassId =
+        new("45BA127D-10A8-46EA-8AB7-56EA9078943C");
+
+    private static readonly TimeSpan WindowWaitTimeout =
+        TimeSpan.FromSeconds(10);
+
+    private readonly SemaphoreSlim executionGate = new(1, 1);
+
+    private LaunchTarget? cachedLaunchTarget;
+    private bool disposed;
 
     public async Task<bool> ExecuteAsync(CancellationToken cancellationToken)
     {
-        if (await TryActivateRunningAsync(cancellationToken))
-        {
-            return true;
-        }
+        ObjectDisposedException.ThrowIf(disposed, this);
 
-        foreach (var candidate in GetLaunchCandidates())
-        {
-            if (processLauncher.TryStart(candidate.FileName, candidate.Arguments) &&
-                await TryActivateWhenReadyAsync(StartWait, cancellationToken))
-            {
-                return true;
-            }
-        }
+        await executionGate.WaitAsync(cancellationToken);
 
-        return false;
-    }
-
-    private async Task<bool> TryActivateRunningAsync(CancellationToken cancellationToken)
-    {
-        var processes = Process.GetProcessesByName("kodi");
         try
         {
-            var existing = processes
-                .OrderByDescending(process => GetMainWindowHandleSafe(process) != IntPtr.Zero)
-                .FirstOrDefault();
-            if (existing is null)
+            ObjectDisposedException.ThrowIf(disposed, this);
+
+            var existingWindow = FindKodiWindow();
+
+            if (existingWindow != IntPtr.Zero)
             {
-                return false;
+                return windows.TryActivateWindow(
+                    existingWindow,
+                    maximize: true);
             }
 
-            var windowHandle = GetMainWindowHandleSafe(existing);
-            return windowHandle == IntPtr.Zero
-                ? await TryActivateWhenReadyAsync(TimeSpan.FromSeconds(2), cancellationToken)
-                : windows.TryActivateWindow(windowHandle, maximize: true);
+            var cachedTarget = GetValidCachedTarget();
+
+            if (cachedTarget is not null)
+            {
+                var cachedResult = await TryLaunchAndActivateAsync(
+                    cachedTarget,
+                    cancellationToken);
+
+                if (cachedResult == LaunchAttemptResult.Activated)
+                {
+                    return true;
+                }
+
+                if (cachedResult != LaunchAttemptResult.LaunchFailed)
+                {
+                    return false;
+                }
+
+                cachedLaunchTarget = null;
+            }
+
+            foreach (var target in DiscoverLaunchTargets())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (target == cachedTarget)
+                {
+                    continue;
+                }
+
+                var result = await TryLaunchAndActivateAsync(
+                    target,
+                    cancellationToken);
+
+                if (result == LaunchAttemptResult.LaunchFailed)
+                {
+                    continue;
+                }
+
+                cachedLaunchTarget = target;
+
+                return result == LaunchAttemptResult.Activated;
+            }
+
+            return false;
         }
         finally
         {
-            DisposeProcesses(processes);
+            executionGate.Release();
         }
     }
 
-    private async Task<bool> TryActivateWhenReadyAsync(TimeSpan timeout, CancellationToken cancellationToken)
+    public void Dispose()
     {
-        var deadline = DateTimeOffset.UtcNow.Add(timeout);
-        do
+        if (disposed)
         {
-            var processes = Process.GetProcessesByName("kodi");
-            try
-            {
-                var existing = processes
-                    .OrderByDescending(process => GetMainWindowHandleSafe(process) != IntPtr.Zero)
-                    .FirstOrDefault();
-                if (existing is not null)
-                {
-                    existing.Refresh();
-                    if (GetMainWindowHandleSafe(existing) == IntPtr.Zero)
-                    {
-                        try
-                        {
-                            existing.WaitForInputIdle(milliseconds: 250);
-                        }
-                        catch (InvalidOperationException)
-                        {
-                        }
-                    }
-
-                    existing.Refresh();
-                    var windowHandle = GetMainWindowHandleSafe(existing);
-                    return windowHandle != IntPtr.Zero && windows.TryActivateWindow(windowHandle, maximize: true);
-                }
-            }
-            finally
-            {
-                DisposeProcesses(processes);
-            }
-
-            await Task.Delay(150, cancellationToken);
+            return;
         }
-        while (DateTimeOffset.UtcNow < deadline);
 
-        return false;
+        disposed = true;
+        executionGate.Dispose();
+
+        GC.SuppressFinalize(this);
     }
 
-    private static IEnumerable<LaunchCandidate> GetLaunchCandidates()
+    private async Task<LaunchAttemptResult> TryLaunchAndActivateAsync(
+        LaunchTarget target,
+        CancellationToken cancellationToken)
     {
-        var yielded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var path in GetExecutableCandidates())
+        if (!target.IsValid())
         {
-            if (yielded.Add(path))
-            {
-                yield return new LaunchCandidate(path, null);
-            }
+            return LaunchAttemptResult.LaunchFailed;
         }
 
-        foreach (var shortcut in GetStartMenuShortcutCandidates())
+        using var windowWaiter = KodiWindowWaiter.TryCreate();
+
+        if (windowWaiter is null)
         {
-            if (yielded.Add(shortcut))
-            {
-                yield return new LaunchCandidate(shortcut, null);
-            }
+            return LaunchAttemptResult.WindowMonitoringFailed;
         }
 
-        if (yielded.Add(KodiStoreAppShellId))
+        var launchResult = TryLaunch(target);
+
+        if (!launchResult.Started)
         {
-            yield return new LaunchCandidate("explorer.exe", KodiStoreAppShellId);
+            return LaunchAttemptResult.LaunchFailed;
         }
 
-        if (yielded.Add("kodi.exe"))
+        var windowHandle = await windowWaiter.WaitAsync(
+            launchResult.ProcessId,
+            WindowWaitTimeout,
+            cancellationToken);
+
+        if (windowHandle == IntPtr.Zero)
         {
-            yield return new LaunchCandidate("kodi.exe", null);
+            return LaunchAttemptResult.WindowNotFound;
         }
+
+        return windows.TryActivateWindow(windowHandle, maximize: true)
+            ? LaunchAttemptResult.Activated
+            : LaunchAttemptResult.ActivationFailed;
     }
 
-    private static IEnumerable<string> GetExecutableCandidates()
+    private LaunchResult TryLaunch(LaunchTarget target)
     {
-        foreach (var path in GetAppPathRegistryCandidates())
+        return target.Kind switch
         {
-            if (File.Exists(path))
-            {
-                yield return path;
-            }
-        }
+            LaunchKind.Desktop => new LaunchResult(
+                processLauncher.TryStart(
+                    target.Value,
+                    arguments: null),
+                ProcessId: null),
 
-        foreach (var folder in GetDistinctExistingFolders(
-            Environment.GetEnvironmentVariable("ProgramW6432"),
-            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
-            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86)))
-        {
-            var path = Path.Combine(folder, "Kodi", "kodi.exe");
-            if (File.Exists(path))
-            {
-                yield return path;
-            }
-        }
+            LaunchKind.Store => TryActivateStoreApplication(
+                target.Value),
 
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        if (!string.IsNullOrWhiteSpace(localAppData))
-        {
-            var alias = Path.Combine(localAppData, "Microsoft", "WindowsApps", "kodi.exe");
-            if (File.Exists(alias))
-            {
-                yield return alias;
-            }
-        }
+            _ => new LaunchResult(
+                Started: false,
+                ProcessId: null)
+        };
     }
 
-    private static IEnumerable<string> GetAppPathRegistryCandidates()
+    private LaunchTarget? GetValidCachedTarget()
     {
-        const string appPathSubKey = @"Software\Microsoft\Windows\CurrentVersion\App Paths\kodi.exe";
-        foreach (var root in new[] { Registry.CurrentUser, Registry.LocalMachine })
+        if (cachedLaunchTarget?.IsValid() == true)
         {
-            using var key = root.OpenSubKey(appPathSubKey);
-            foreach (var path in GetPathsFromRegistryKey(key))
-            {
-                yield return path;
-            }
+            return cachedLaunchTarget;
         }
 
-        using var wow6432Key = Registry.LocalMachine.OpenSubKey(@"Software\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\kodi.exe");
-        foreach (var path in GetPathsFromRegistryKey(wow6432Key))
-        {
-            yield return path;
-        }
+        cachedLaunchTarget = null;
+        return null;
     }
 
-    private static IEnumerable<string> GetPathsFromRegistryKey(RegistryKey? key)
+    private static IEnumerable<LaunchTarget> DiscoverLaunchTargets()
     {
-        if (key is null)
+        var desktopPath = GetNsisKodiExecutablePath();
+
+        if (desktopPath is not null)
         {
-            yield break;
+            yield return LaunchTarget.Desktop(desktopPath);
         }
 
-        if (key.GetValue(null) is string defaultValue && !string.IsNullOrWhiteSpace(defaultValue))
-        {
-            yield return Environment.ExpandEnvironmentVariables(defaultValue);
-        }
-
-        if (key.GetValue("Path") is string pathValue && !string.IsNullOrWhiteSpace(pathValue))
-        {
-            yield return Path.Combine(Environment.ExpandEnvironmentVariables(pathValue), "kodi.exe");
-        }
+        yield return LaunchTarget.Store(KodiStoreAppUserModelId);
     }
 
-    private static IEnumerable<string> GetStartMenuShortcutCandidates()
+    private static string? GetNsisKodiExecutablePath()
     {
-        foreach (var folder in GetDistinctExistingFolders(
-            Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu),
-            Environment.GetFolderPath(Environment.SpecialFolder.StartMenu)))
+        using var key = Registry.CurrentUser.OpenSubKey(
+            KodiUninstallRegistryPath,
+            writable: false);
+
+        var displayIcon = key?.GetValue("DisplayIcon") as string;
+
+        if (string.IsNullOrEmpty(displayIcon))
         {
-            foreach (var shortcut in Directory.EnumerateFiles(folder, "Kodi*.lnk", SearchOption.AllDirectories))
-            {
-                yield return shortcut;
-            }
+            return null;
         }
+
+        var executablePath = displayIcon.Split(',')[0];
+
+        return File.Exists(executablePath)
+            ? executablePath
+            : null;
     }
 
-    private static IEnumerable<string> GetDistinctExistingFolders(params string?[] folders)
+    private static LaunchResult TryActivateStoreApplication(
+        string appUserModelId)
     {
-        var yielded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var folder in folders)
-        {
-            if (!string.IsNullOrWhiteSpace(folder) && Directory.Exists(folder) && yielded.Add(folder))
-            {
-                yield return folder;
-            }
-        }
-    }
+        object? activationObject = null;
 
-    private static IntPtr GetMainWindowHandleSafe(Process process)
-    {
         try
         {
-            return process.MainWindowHandle;
+            var activationType = Type.GetTypeFromCLSID(
+                ApplicationActivationManagerClassId,
+                throwOnError: false);
+
+            if (activationType is null)
+            {
+                return new LaunchResult(
+                    Started: false,
+                    ProcessId: null);
+            }
+
+            activationObject = Activator.CreateInstance(activationType);
+
+            if (activationObject is not IApplicationActivationManager manager)
+            {
+                return new LaunchResult(
+                    Started: false,
+                    ProcessId: null);
+            }
+
+            var hresult = manager.ActivateApplication(
+                appUserModelId,
+                arguments: null,
+                ActivateOptions.None,
+                out var processId);
+
+            return hresult >= 0
+                ? new LaunchResult(
+                    Started: true,
+                    ProcessId: processId)
+                : new LaunchResult(
+                    Started: false,
+                    ProcessId: null);
         }
-        catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception)
+        catch (COMException)
         {
+            return new LaunchResult(
+                Started: false,
+                ProcessId: null);
+        }
+        catch (TypeLoadException)
+        {
+            return new LaunchResult(
+                Started: false,
+                ProcessId: null);
+        }
+        finally
+        {
+            if (activationObject is not null &&
+                Marshal.IsComObject(activationObject))
+            {
+                Marshal.FinalReleaseComObject(activationObject);
+            }
+        }
+    }
+
+    private static IntPtr FindKodiWindow(
+        uint? expectedProcessId = null)
+    {
+        var result = IntPtr.Zero;
+
+        NativeMethods.EnumWindowsCallback callback =
+            (windowHandle, _) =>
+            {
+                if (!IsKodiWindow(
+                        windowHandle,
+                        expectedProcessId))
+                {
+                    return 1;
+                }
+
+                result = windowHandle;
+                return 0;
+            };
+
+        var callbackPointer =
+            Marshal.GetFunctionPointerForDelegate(callback);
+
+        _ = NativeMethods.EnumWindows(
+            callbackPointer,
+            IntPtr.Zero);
+
+        GC.KeepAlive(callback);
+
+        return result;
+    }
+
+    private static bool IsKodiWindow(
+        IntPtr windowHandle,
+        uint? expectedProcessId)
+    {
+        if (windowHandle == IntPtr.Zero ||
+            NativeMethods.IsWindowVisible(windowHandle) == 0 ||
+            NativeMethods.GetWindow(
+                windowHandle,
+                NativeMethods.GwOwner) != IntPtr.Zero)
+        {
+            return false;
+        }
+
+        var threadId = NativeMethods.GetWindowThreadProcessId(
+            windowHandle,
+            out var processId);
+
+        if (threadId == 0 || processId == 0)
+        {
+            return false;
+        }
+
+        if (expectedProcessId.HasValue &&
+            processId != expectedProcessId.Value)
+        {
+            return false;
+        }
+
+        try
+        {
+            using var process = Process.GetProcessById(
+                checked((int)processId));
+
+            return string.Equals(
+                process.ProcessName,
+                KodiProcessName,
+                StringComparison.OrdinalIgnoreCase);
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+        catch (Win32Exception)
+        {
+            return false;
+        }
+    }
+
+    private sealed class KodiWindowWaiter : IDisposable
+    {
+        private readonly TaskCompletionSource<IntPtr> windowFound =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        private readonly NativeMethods.WinEventCallback callback;
+
+        private IntPtr hookHandle;
+        private uint? expectedProcessId;
+        private bool disposed;
+
+        private KodiWindowWaiter()
+        {
+            callback = OnWindowEvent;
+
+            var callbackPointer =
+                Marshal.GetFunctionPointerForDelegate(callback);
+
+            hookHandle = NativeMethods.SetWinEventHook(
+                NativeMethods.EventObjectCreate,
+                NativeMethods.EventObjectShow,
+                IntPtr.Zero,
+                callbackPointer,
+                processId: 0,
+                threadId: 0,
+                flags:
+                    NativeMethods.WinEventOutOfContext |
+                    NativeMethods.WinEventSkipOwnProcess);
+        }
+
+        public static KodiWindowWaiter? TryCreate()
+        {
+            var waiter = new KodiWindowWaiter();
+
+            if (waiter.hookHandle != IntPtr.Zero)
+            {
+                return waiter;
+            }
+
+            waiter.Dispose();
+            return null;
+        }
+
+        public async Task<IntPtr> WaitAsync(
+            uint? processId,
+            TimeSpan timeout,
+            CancellationToken cancellationToken)
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+
+            expectedProcessId = processId;
+
+            var existingWindow = FindKodiWindow(expectedProcessId);
+
+            if (existingWindow != IntPtr.Zero)
+            {
+                return existingWindow;
+            }
+
+            using var timeoutCancellation =
+                CancellationTokenSource.CreateLinkedTokenSource(
+                    cancellationToken);
+
+            var timeoutTask = Task.Delay(
+                timeout,
+                timeoutCancellation.Token);
+
+            var completedTask = await Task.WhenAny(
+                windowFound.Task,
+                timeoutTask);
+
+            if (completedTask == windowFound.Task)
+            {
+                await timeoutCancellation.CancelAsync();
+                return await windowFound.Task;
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+
             return IntPtr.Zero;
         }
-    }
 
-    private static void DisposeProcesses(IEnumerable<Process> processes)
-    {
-        foreach (var process in processes)
+        public void Dispose()
         {
-            process.Dispose();
+            if (disposed)
+            {
+                return;
+            }
+
+            disposed = true;
+
+            if (hookHandle != IntPtr.Zero)
+            {
+                _ = NativeMethods.UnhookWinEvent(hookHandle);
+                hookHandle = IntPtr.Zero;
+            }
+        }
+
+        private void OnWindowEvent(
+            IntPtr hook,
+            uint eventType,
+            IntPtr windowHandle,
+            int objectId,
+            int childId,
+            uint eventThread,
+            uint eventTime)
+        {
+            if (eventType is not (
+                    NativeMethods.EventObjectCreate or
+                    NativeMethods.EventObjectShow) ||
+                objectId != NativeMethods.ObjIdWindow ||
+                childId != NativeMethods.ChildIdSelf ||
+                !IsKodiWindow(
+                    windowHandle,
+                    expectedProcessId))
+            {
+                return;
+            }
+
+            windowFound.TrySetResult(windowHandle);
         }
     }
 
-    private sealed record LaunchCandidate(string FileName, string? Arguments);
+    private sealed record LaunchTarget(
+        LaunchKind Kind,
+        string Value)
+    {
+        public static LaunchTarget Desktop(
+            string executablePath)
+        {
+            return new LaunchTarget(
+                LaunchKind.Desktop,
+                executablePath);
+        }
+
+        public static LaunchTarget Store(
+            string appUserModelId)
+        {
+            return new LaunchTarget(
+                LaunchKind.Store,
+                appUserModelId);
+        }
+
+        public bool IsValid()
+        {
+            return Kind switch
+            {
+                LaunchKind.Desktop => File.Exists(Value),
+                LaunchKind.Store => !string.IsNullOrEmpty(Value),
+                _ => false
+            };
+        }
+    }
+
+    private sealed record LaunchResult(
+        bool Started,
+        uint? ProcessId);
+
+    private enum LaunchKind
+    {
+        Desktop,
+        Store
+    }
+
+    private enum LaunchAttemptResult
+    {
+        Activated,
+        ActivationFailed,
+        LaunchFailed,
+        WindowNotFound,
+        WindowMonitoringFailed
+    }
+
+    [Flags]
+    private enum ActivateOptions
+    {
+        None = 0
+    }
+
+    [ComImport]
+    [Guid("2E941141-7F97-4756-BA1D-9DECDE894A3D")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IApplicationActivationManager
+    {
+        [PreserveSig]
+        int ActivateApplication(
+            [MarshalAs(UnmanagedType.LPWStr)]
+            string appUserModelId,
+            [MarshalAs(UnmanagedType.LPWStr)]
+            string? arguments,
+            ActivateOptions options,
+            out uint processId);
+
+        [PreserveSig]
+        int ActivateForFile(
+            [MarshalAs(UnmanagedType.LPWStr)]
+            string appUserModelId,
+            IntPtr itemArray,
+            [MarshalAs(UnmanagedType.LPWStr)]
+            string verb,
+            out uint processId);
+
+        [PreserveSig]
+        int ActivateForProtocol(
+            [MarshalAs(UnmanagedType.LPWStr)]
+            string appUserModelId,
+            IntPtr itemArray,
+            out uint processId);
+    }
+
+    private static partial class NativeMethods
+    {
+        internal const uint EventObjectCreate = 0x8000;
+        internal const uint EventObjectShow = 0x8002;
+
+        internal const uint WinEventOutOfContext = 0x0000;
+        internal const uint WinEventSkipOwnProcess = 0x0002;
+
+        internal const int ObjIdWindow = 0;
+        internal const int ChildIdSelf = 0;
+
+        internal const uint GwOwner = 4;
+
+        [UnmanagedFunctionPointer(CallingConvention.Winapi)]
+        internal delegate int EnumWindowsCallback(
+            IntPtr windowHandle,
+            IntPtr parameter);
+
+        [UnmanagedFunctionPointer(CallingConvention.Winapi)]
+        internal delegate void WinEventCallback(
+            IntPtr hook,
+            uint eventType,
+            IntPtr windowHandle,
+            int objectId,
+            int childId,
+            uint eventThread,
+            uint eventTime);
+
+        [LibraryImport(
+            "user32.dll",
+            SetLastError = true)]
+        internal static partial int EnumWindows(
+            IntPtr callback,
+            IntPtr parameter);
+
+        [LibraryImport("user32.dll")]
+        internal static partial int IsWindowVisible(
+            IntPtr windowHandle);
+
+        [LibraryImport("user32.dll")]
+        internal static partial IntPtr GetWindow(
+            IntPtr windowHandle,
+            uint command);
+
+        [LibraryImport(
+            "user32.dll",
+            SetLastError = true)]
+        internal static partial uint GetWindowThreadProcessId(
+            IntPtr windowHandle,
+            out uint processId);
+
+        [LibraryImport(
+            "user32.dll",
+            SetLastError = true)]
+        internal static partial IntPtr SetWinEventHook(
+            uint eventMinimum,
+            uint eventMaximum,
+            IntPtr eventHookModule,
+            IntPtr callback,
+            uint processId,
+            uint threadId,
+            uint flags);
+
+        [LibraryImport(
+            "user32.dll",
+            SetLastError = true)]
+        internal static partial int UnhookWinEvent(
+            IntPtr hook);
+    }
 }

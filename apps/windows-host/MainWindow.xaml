@@ -8,8 +8,7 @@
         MinWidth="480"
         MinHeight="360"
         WindowStartupLocation="CenterScreen"
-        Background="{DynamicResource WindowBrush}"
-        Loaded="OnMainWindowLoaded">
+        Background="{DynamicResource WindowBrush}">
     <Window.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>

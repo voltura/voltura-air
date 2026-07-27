@@ -57,6 +57,7 @@ public partial class MainWindow : Window
         var effectiveAppLog = appLog ?? webHost.AppLog;
 
         InitializeComponent();
+        WindowWorkAreaPlacement.ConstrainAndCenterOnFirstLoad(this);
         WpfTheme.Apply(this);
         WindowArtwork.Apply(this, SidebarAppIcon);
         _visuals = new HostVisualFactory(Resources);
@@ -185,17 +186,6 @@ public partial class MainWindow : Window
 
     internal bool ShouldCloseAfterDeviceConnected() =>
         IsVisible && (_activePage == HostPage.Connect || WindowState == WindowState.Minimized);
-
-    private void OnMainWindowLoaded(object sender, RoutedEventArgs eventArgs)
-    {
-        Loaded -= OnMainWindowLoaded;
-
-        var workArea = SystemParameters.WorkArea;
-        Width = Math.Min(Width, workArea.Width);
-        Height = Math.Min(Height, workArea.Height);
-        Left = workArea.Left + Math.Max(0, (workArea.Width - Width) / 2);
-        Top = workArea.Top + Math.Max(0, (workArea.Height - Height) / 2);
-    }
 
     public void UpdateServerUrl(string serverUrl)
     {

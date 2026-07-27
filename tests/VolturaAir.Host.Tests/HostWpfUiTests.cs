@@ -63,6 +63,57 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
     }
 
     [Fact]
+    public void MainWindowKeepsItsTitleBarOnScreenAndScrollsTheDesignSurfaceAtLowResolution()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            using var store = new TempPairingStore();
+            using var inputInjector = new SendInputInjector();
+            var manager = new PairingManager(store.Store);
+            var webHost = new WebHostService(manager, new InputDispatcher(inputInjector), isolatedTestMode: true);
+            var window = new MainWindow(manager, webHost, clientUrl: null)
+            {
+                Width = 640,
+                Height = 480
+            };
+            try
+            {
+                window.Show();
+                window.ShowPage(HostPage.Connect);
+                window.UpdateLayout();
+
+                Assert.Equal(480, window.MinWidth);
+                Assert.Equal(360, window.MinHeight);
+                Assert.Equal(920, window.WindowDesignSurface.MinWidth);
+                Assert.Equal(620, window.WindowDesignSurface.MinHeight);
+                Assert.Equal(ScrollBarVisibility.Auto, window.WindowScrollViewer.HorizontalScrollBarVisibility);
+                Assert.Equal(ScrollBarVisibility.Auto, window.WindowScrollViewer.VerticalScrollBarVisibility);
+                Assert.Equal(Visibility.Visible, window.WindowScrollViewer.ComputedHorizontalScrollBarVisibility);
+                Assert.Equal(Visibility.Visible, window.WindowScrollViewer.ComputedVerticalScrollBarVisibility);
+                Assert.True(window.WindowScrollViewer.ScrollableWidth > 0);
+                Assert.True(window.WindowScrollViewer.ScrollableHeight > 0);
+                Assert.Equal(920, window.WindowDesignSurface.ActualWidth);
+                Assert.Equal(620, window.WindowDesignSurface.ActualHeight);
+                Assert.True(window.WindowScrollViewer.ViewportWidth < window.WindowDesignSurface.ActualWidth);
+                Assert.True(window.WindowScrollViewer.ViewportHeight < window.WindowDesignSurface.ActualHeight);
+                Assert.InRange(window.Left, SystemParameters.WorkArea.Left, SystemParameters.WorkArea.Right - window.Width);
+                Assert.InRange(window.Top, SystemParameters.WorkArea.Top, SystemParameters.WorkArea.Bottom - window.Height);
+            }
+            finally
+            {
+                window.Close();
+                DisposeWebHost(webHost);
+            }
+        });
+    }
+
+    [Fact]
     public void MainWindowNavigatesToPrimaryPages()
     {
         if (ShouldSkipNativeUiLayoutTests())
@@ -110,7 +161,8 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
                 window.UpdateLayout();
                 var sections = FindWpfDescendants<Expander>(window).ToArray();
                 Assert.Equal(16, sections.Length);
-                var scroller = Assert.Single(FindWpfDescendants<ScrollViewer>(window));
+                var scroller = FindWpfDescendants<ScrollViewer>(window)
+                    .Single(viewer => viewer.Name == "PreferencesScroller");
                 Assert.False(scroller.CanContentScroll);
                 Assert.Equal(ScrollBarVisibility.Visible, scroller.VerticalScrollBarVisibility);
                 Assert.Equal(ScrollBarVisibility.Disabled, scroller.HorizontalScrollBarVisibility);
@@ -365,7 +417,8 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
                     "initial compact application log render");
                 window.UpdateLayout();
 
-                var logScroller = Assert.Single(FindWpfDescendants<ScrollViewer>(window));
+                var logScroller = FindWpfDescendants<ScrollViewer>(window)
+                    .Single(viewer => viewer.Name == "LogScroller");
                 Assert.Equal(ScrollBarVisibility.Auto, logScroller.VerticalScrollBarVisibility);
                 Assert.Equal(ScrollBarVisibility.Disabled, logScroller.HorizontalScrollBarVisibility);
                 Assert.True(logScroller.ScrollableHeight > 0, $"Scrollable height was {logScroller.ScrollableHeight}; viewport {logScroller.ViewportHeight}; extent {logScroller.ExtentHeight}; actual {logScroller.ActualHeight}.");

@@ -6,6 +6,21 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v0.7.9
+
+- Improved the standard Windows installer so it verifies downloaded .NET 10
+  runtime installers are valid Microsoft-signed files before requesting
+  administrator approval.
+- Added explicit restart-required handling for .NET runtime installation,
+  including a restart-later default and no immediate Voltura Air launch when a
+  restart is pending.
+- Improved prerequisite failure handling and cleanup so setup finishes runtime
+  checks before replacing an existing Voltura Air installation.
+- Added early rejection of unsupported Windows architectures, NSIS-capacity
+  checks for prerequisite commands, and warning-free installer compilation.
+- Improved the Windows host on low-resolution displays so its title bar remains
+  reachable and the full interface can be accessed with fallback scrollbars.
+
 ## v0.7.8
 
 - Added an optional 3D effect for buttons, checkboxes, sliders, selected

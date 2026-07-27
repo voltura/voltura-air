@@ -267,7 +267,8 @@ public sealed partial class HostUiLayoutTests
                 window.Show();
                 window.ShowAwakePreferences();
                 window.UpdateLayout();
-                var scroller = Assert.Single(FindWpfDescendants<ScrollViewer>(window));
+                var scroller = FindWpfDescendants<ScrollViewer>(window)
+                    .Single(viewer => viewer.Name == "PreferencesScroller");
                 scroller.ScrollToVerticalOffset(Math.Min(240, scroller.ScrollableHeight));
                 scroller.UpdateLayout();
                 var offsetBeforeChange = scroller.VerticalOffset;
@@ -285,7 +286,8 @@ public sealed partial class HostUiLayoutTests
                     FindWpfDescendants<Expander>(window),
                     section => string.Equals(section.Header as string, "Keep awake", StringComparison.Ordinal));
                 Assert.True(keepAwake.IsExpanded);
-                var refreshedScroller = Assert.Single(FindWpfDescendants<ScrollViewer>(window));
+                var refreshedScroller = FindWpfDescendants<ScrollViewer>(window)
+                    .Single(viewer => viewer.Name == "PreferencesScroller");
                 Assert.InRange(refreshedScroller.VerticalOffset, offsetBeforeChange - 0.5, offsetBeforeChange + 0.5);
             }
             finally

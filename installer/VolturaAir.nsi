@@ -92,6 +92,7 @@ VIAddVersionKey "Comments" "Developer: ${DEVELOPER}; Website: ${PRODUCT_URL}; Em
 !define MUI_FINISHPAGE_TEXT "Start ${APP_NAME}, scan the pairing code from your phone or tablet, and control your PC from the sofa."
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${EXE_NAME}"
 !define MUI_FINISHPAGE_RUN_TEXT "Start ${APP_NAME}"
+!define MUI_FINISHPAGE_REBOOTLATER_DEFAULT
 !define MUI_CUSTOMFUNCTION_GUIINIT RestoreInstallerWindow
 
 !define MUI_PAGE_CUSTOMFUNCTION_SHOW FinishInstallerWindowActivation
@@ -102,6 +103,52 @@ VIAddVersionKey "Comments" "Developer: ${DEVELOPER}; Website: ${PRODUCT_URL}; Em
 !insertmacro MUI_UNPAGE_INSTFILES
 
 !insertmacro MUI_LANGUAGE "English"
+
+!ifdef FRAMEWORK_DEPENDENT
+Var PrerequisiteRebootRequired
+!endif
+
+!macro ExecCheckedToStack COMMAND_VAR TOO_LONG_LABEL
+  StrLen $3 ${COMMAND_VAR}
+  IntCmp $3 ${NSIS_MAX_STRLEN} ${TOO_LONG_LABEL} 0 ${TOO_LONG_LABEL}
+  nsExec::ExecToStack '${COMMAND_VAR}'
+!macroend
+
+!if ${NSIS_PTR_SIZE} > 4
+  !define /math VOLTURA_SHELLEXECUTEINFO_SIZE 14 * ${NSIS_PTR_SIZE}
+!else
+  !define VOLTURA_SHELLEXECUTEINFO_SIZE 60
+!endif
+
+!macro ExecElevatedAndWait FILE_PATH PARAMETERS RESULT_VAR
+  System::Store S
+  System::Call '*(&i${VOLTURA_SHELLEXECUTEINFO_SIZE})p.r0'
+  System::Call '*$0(i ${VOLTURA_SHELLEXECUTEINFO_SIZE}, i 0x40, p $HWNDPARENT, t "runas", t "${FILE_PATH}", t "${PARAMETERS}", t "$PLUGINSDIR", i ${SW_HIDE})p.r0'
+  System::Call 'shell32::ShellExecuteEx(t)(p r0)i.r1 ?e'
+  Pop $2
+  ${If} $1 != 0
+    System::Call '*$0(is, i, p, p, p, p, p, p, p, p, p, p, p, p, p.r1)'
+    System::Call 'kernel32::WaitForSingleObject(p r1, i -1)i.r2'
+    ${If} $2 == 0
+      System::Call 'kernel32::GetExitCodeProcess(p r1, *i.r2)i.r3'
+      ${If} $3 != 0
+        Push $2
+      ${Else}
+        Push 51002
+      ${EndIf}
+    ${Else}
+      Push 51002
+    ${EndIf}
+    System::Call 'kernel32::CloseHandle(p r1)'
+  ${ElseIf} $2 == 1223
+    Push 51001
+  ${Else}
+    Push 51002
+  ${EndIf}
+  System::Free $0
+  System::Store L
+  Pop ${RESULT_VAR}
+!macroend
 
 Function RestoreInstallerWindow
   ShowWindow $HWNDPARENT ${SW_RESTORE}
@@ -118,35 +165,31 @@ Function FinishInstallerWindowActivation
 FunctionEnd
 
 Section "Install"
-  Call PromptCloseRunningApp
-
   !ifdef FRAMEWORK_DEPENDENT
+  StrCpy $PrerequisiteRebootRequired 0
+
   Call TestWindowsDesktopRuntime
   Pop $0
-  ${If} $0 != 0
+  ${If} $0 == 0
+    DetailPrint ".NET 10 Windows Desktop runtime is already present."
+  ${Else}
     Call InstallWindowsDesktopRuntime
   ${EndIf}
 
   Call TestAspNetCoreRuntime
   Pop $0
-  ${If} $0 != 0
+  ${If} $0 == 0
+    DetailPrint ".NET 10 ASP.NET Core runtime is already present."
+  ${Else}
     Call InstallAspNetCoreRuntime
   ${EndIf}
 
-  Call TestWindowsDesktopRuntime
-  Pop $0
-  ${If} $0 != 0
-    MessageBox MB_ICONSTOP "The required .NET 10 Windows Desktop runtime was not available after installation."
-    Abort "The required .NET 10 runtimes were not installed."
-  ${EndIf}
-
-  Call TestAspNetCoreRuntime
-  Pop $0
-  ${If} $0 != 0
-    MessageBox MB_ICONSTOP "The required .NET 10 ASP.NET Core runtime was not available after installation."
-    Abort "The required .NET 10 runtimes were not installed."
+  ${If} $PrerequisiteRebootRequired == 1
+    SetRebootFlag true
   ${EndIf}
   !endif
+
+  Call PromptCloseRunningApp
 
   RMDir /r "$INSTDIR"
   SetOutPath "$INSTDIR"
@@ -174,6 +217,15 @@ Section "Install"
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoRepair" 1
 SectionEnd
 
+Function .onInstSuccess
+  IfRebootFlag 0 success_without_reboot
+  SetErrorLevel 3010
+  Return
+
+success_without_reboot:
+  SetErrorLevel 0
+FunctionEnd
+
 Section "Uninstall"
   Call un.PromptCloseRunningApp
 
@@ -187,39 +239,225 @@ Section "Uninstall"
   RMDir /r "$INSTDIR"
 SectionEnd
 
+!ifdef FRAMEWORK_DEPENDENT
 Function TestWindowsDesktopRuntime
-  nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "$$d=$\'$PROGRAMFILES64\dotnet\dotnet.exe$\';if(-not(Test-Path -LiteralPath $$d -PathType Leaf)){exit 1};$$r=& $$d --list-runtimes;if($$LASTEXITCODE-ne 0){exit 1};if($$r-match $\'^Microsoft\.WindowsDesktop\.App 10\.0\.$\'){exit 0};exit 1"'
+  DetailPrint "Checking for the .NET 10 Windows Desktop runtime..."
+  StrCpy $2 '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "$$d=$\'$PROGRAMFILES64\dotnet\dotnet.exe$\';if(-not(Test-Path -LiteralPath $$d -PathType Leaf)){exit 1};$$r=& $$d --list-runtimes;if($$LASTEXITCODE-ne 0){exit 1};if($$r-match $\'^Microsoft\.WindowsDesktop\.App 10\.0\.$\'){exit 0};exit 1"'
+  !insertmacro ExecCheckedToStack $2 windows_desktop_detection_too_long
   Pop $0
   Pop $1
   Push $0
+  Return
+
+windows_desktop_detection_too_long:
+  DetailPrint "Controlled failure: the Windows Desktop detection command exceeded the NSIS command capacity."
+  MessageBox MB_ICONSTOP "Voltura Air setup encountered an internal error while checking the .NET 10 Windows Desktop runtime."
+  Abort "The Windows Desktop runtime command was too long."
 FunctionEnd
 
 Function TestAspNetCoreRuntime
-  nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "$$d=$\'$PROGRAMFILES64\dotnet\dotnet.exe$\';if(-not(Test-Path -LiteralPath $$d -PathType Leaf)){exit 1};$$r=& $$d --list-runtimes;if($$LASTEXITCODE-ne 0){exit 1};if($$r-match $\'^Microsoft\.AspNetCore\.App 10\.0\.$\'){exit 0};exit 1"'
+  DetailPrint "Checking for the .NET 10 ASP.NET Core runtime..."
+  StrCpy $2 '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "$$d=$\'$PROGRAMFILES64\dotnet\dotnet.exe$\';if(-not(Test-Path -LiteralPath $$d -PathType Leaf)){exit 1};$$r=& $$d --list-runtimes;if($$LASTEXITCODE-ne 0){exit 1};if($$r-match $\'^Microsoft\.AspNetCore\.App 10\.0\.$\'){exit 0};exit 1"'
+  !insertmacro ExecCheckedToStack $2 aspnet_core_detection_too_long
   Pop $0
   Pop $1
   Push $0
+  Return
+
+aspnet_core_detection_too_long:
+  DetailPrint "Controlled failure: the ASP.NET Core detection command exceeded the NSIS command capacity."
+  MessageBox MB_ICONSTOP "Voltura Air setup encountered an internal error while checking the .NET 10 ASP.NET Core runtime."
+  Abort "The ASP.NET Core runtime command was too long."
 FunctionEnd
 
 Function InstallWindowsDesktopRuntime
-  nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "$$ErrorActionPreference=$\'Stop$\';$$p=Join-Path $$env:TEMP $\'VolturaAir-WindowsDesktop-10.0-win-x64.exe$\';try{Invoke-WebRequest -Uri $\'https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-x64.exe$\' -OutFile $$p;$$s=Get-AuthenticodeSignature -FilePath $$p;if($$s.Status-ne [System.Management.Automation.SignatureStatus]::Valid){throw $\'The downloaded .NET Windows Desktop runtime did not have a valid Authenticode signature.$\'};$$x=Start-Process -FilePath $$p -ArgumentList $\'/install$\',$\'/quiet$\',$\'/norestart$\' -Verb RunAs -Wait -PassThru;if($$x.ExitCode-notin 0,3010){throw($\'.NET Windows Desktop runtime installer failed with exit code $\'+$$x.ExitCode)}}finally{Remove-Item -LiteralPath $$p -Force -ErrorAction SilentlyContinue}"'
+  DetailPrint "Downloading the .NET 10 Windows Desktop runtime..."
+  StrCpy $2 '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "$$ErrorActionPreference=$\'Stop$\';$$ProgressPreference=$\'SilentlyContinue$\';$$p=$\'$PLUGINSDIR\VolturaAir-WindowsDesktop.exe$\';try{Invoke-WebRequest -UseBasicParsing -TimeoutSec 300 -Uri $\'https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-x64.exe$\' -OutFile $$p;if((Get-Item -LiteralPath $$p).Length-le 0){exit 12};exit 0}catch{exit 11}"'
+  !insertmacro ExecCheckedToStack $2 windows_desktop_internal_failure
   Pop $0
   Pop $1
   ${If} $0 != 0
-    MessageBox MB_ICONSTOP "Voltura Air could not install the required .NET 10 Windows Desktop runtime. Check your internet connection and approve the Windows administrator prompt.$\r$\n$\r$\nDetails:$\r$\n$1"
-    Abort "The required .NET 10 runtimes were not installed."
+    Call CleanupWindowsDesktopRuntime
+    DetailPrint "Controlled failure: the .NET 10 Windows Desktop runtime download failed or was empty."
+    MessageBox MB_ICONSTOP "Voltura Air could not download the required .NET 10 Windows Desktop runtime. Check the internet connection and try again."
+    Abort "The Windows Desktop runtime download failed."
   ${EndIf}
+
+  DetailPrint "Verifying the .NET 10 Windows Desktop runtime signature and Microsoft signer..."
+  StrCpy $2 '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "$$s=Get-AuthenticodeSignature -LiteralPath $\'$PLUGINSDIR\VolturaAir-WindowsDesktop.exe$\';if($$s.Status-ne [System.Management.Automation.SignatureStatus]::Valid){exit 21};if($$null-eq $$s.SignerCertificate){exit 22};$$n=$$s.SignerCertificate.SubjectName.Name;if($$n-notmatch $\'(?:^|,\s*)O=Microsoft Corporation(?:,|$$)$\'){exit 23};exit 0"'
+  !insertmacro ExecCheckedToStack $2 windows_desktop_internal_failure
+  Pop $0
+  Pop $1
+  ${If} $0 != 0
+    StrCpy $4 $0
+    Call CleanupWindowsDesktopRuntime
+    ${If} $4 == 21
+      DetailPrint "Controlled failure: the .NET 10 Windows Desktop runtime signature was not valid."
+      MessageBox MB_ICONSTOP "Voltura Air rejected the downloaded .NET 10 Windows Desktop runtime because its digital signature was not valid."
+    ${ElseIf} $4 == 22
+      DetailPrint "Controlled failure: the .NET 10 Windows Desktop runtime had no signer certificate."
+      MessageBox MB_ICONSTOP "Voltura Air rejected the downloaded .NET 10 Windows Desktop runtime because it had no signer certificate."
+    ${Else}
+      DetailPrint "Controlled failure: the .NET 10 Windows Desktop runtime signer was not Microsoft Corporation."
+      MessageBox MB_ICONSTOP "Voltura Air rejected the downloaded .NET 10 Windows Desktop runtime because the authenticated publisher was not Microsoft Corporation."
+    ${EndIf}
+    Abort "The Windows Desktop runtime verification failed."
+  ${EndIf}
+
+  DetailPrint "Requesting elevation for the .NET 10 Windows Desktop runtime..."
+  DetailPrint "Installing the .NET 10 Windows Desktop runtime..."
+  SetDetailsPrint listonly
+  DetailPrint "The Microsoft runtime installer can take several minutes."
+  DetailPrint "Voltura Air setup continues automatically when it finishes."
+  SetDetailsPrint both
+  !insertmacro ExecElevatedAndWait "$PLUGINSDIR\VolturaAir-WindowsDesktop.exe" "/install /quiet /norestart" $0
+  StrCpy $4 $0
+  Call CleanupWindowsDesktopRuntime
+  StrCpy $0 $4
+
+  ${If} $0 == 0
+    DetailPrint "Validating the .NET 10 Windows Desktop runtime..."
+    Call TestWindowsDesktopRuntime
+    Pop $0
+    ${If} $0 != 0
+      DetailPrint "Controlled failure: the .NET 10 Windows Desktop runtime was absent after a successful child installer result."
+      MessageBox MB_ICONSTOP "The .NET 10 Windows Desktop runtime was not available after its installer reported success."
+      Abort "The Windows Desktop runtime validation failed."
+    ${EndIf}
+    Return
+  ${EndIf}
+
+  ${If} $0 == 3010
+    DetailPrint "The .NET 10 Windows Desktop runtime requires a restart."
+    StrCpy $PrerequisiteRebootRequired 1
+    SetRebootFlag true
+    DetailPrint "Validating the .NET 10 Windows Desktop runtime..."
+    Call TestWindowsDesktopRuntime
+    Pop $0
+    ${If} $0 != 0
+      DetailPrint "The .NET 10 Windows Desktop runtime is provisionally complete pending restart."
+    ${EndIf}
+    Return
+  ${EndIf}
+
+  ${If} $0 == 51001
+    DetailPrint "Controlled failure: elevation was denied for the .NET 10 Windows Desktop runtime."
+    MessageBox MB_ICONSTOP "Voltura Air could not install the .NET 10 Windows Desktop runtime because administrator approval was denied."
+  ${ElseIf} $0 == 51002
+    DetailPrint "Controlled failure: the .NET 10 Windows Desktop runtime process could not be started."
+    MessageBox MB_ICONSTOP "Voltura Air could not start the .NET 10 Windows Desktop runtime installer."
+  ${Else}
+    DetailPrint "Controlled failure: the .NET 10 Windows Desktop runtime installer returned exit code $0."
+    MessageBox MB_ICONSTOP "The .NET 10 Windows Desktop runtime installer failed with exit code $0."
+  ${EndIf}
+  Abort "The Windows Desktop runtime installation failed."
+
+windows_desktop_internal_failure:
+  Call CleanupWindowsDesktopRuntime
+  DetailPrint "Controlled failure: a Windows Desktop prerequisite command exceeded the NSIS command capacity."
+  MessageBox MB_ICONSTOP "Voltura Air setup encountered an internal error while preparing the .NET 10 Windows Desktop runtime."
+  Abort "The Windows Desktop runtime command was too long."
 FunctionEnd
 
 Function InstallAspNetCoreRuntime
-  nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "$$ErrorActionPreference=$\'Stop$\';$$p=Join-Path $$env:TEMP $\'VolturaAir-AspNetCore-10.0-win-x64.exe$\';try{Invoke-WebRequest -Uri $\'https://aka.ms/dotnet/10.0/aspnetcore-runtime-win-x64.exe$\' -OutFile $$p;$$s=Get-AuthenticodeSignature -FilePath $$p;if($$s.Status-ne [System.Management.Automation.SignatureStatus]::Valid){throw $\'The downloaded .NET ASP.NET Core runtime did not have a valid Authenticode signature.$\'};$$x=Start-Process -FilePath $$p -ArgumentList $\'/install$\',$\'/quiet$\',$\'/norestart$\' -Verb RunAs -Wait -PassThru;if($$x.ExitCode-notin 0,3010){throw($\'.NET ASP.NET Core runtime installer failed with exit code $\'+$$x.ExitCode)}}finally{Remove-Item -LiteralPath $$p -Force -ErrorAction SilentlyContinue}"'
+  DetailPrint "Downloading the .NET 10 ASP.NET Core runtime..."
+  StrCpy $2 '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "$$ErrorActionPreference=$\'Stop$\';$$ProgressPreference=$\'SilentlyContinue$\';$$p=$\'$PLUGINSDIR\VolturaAir-AspNetCore.exe$\';try{Invoke-WebRequest -UseBasicParsing -TimeoutSec 300 -Uri $\'https://aka.ms/dotnet/10.0/aspnetcore-runtime-win-x64.exe$\' -OutFile $$p;if((Get-Item -LiteralPath $$p).Length-le 0){exit 12};exit 0}catch{exit 11}"'
+  !insertmacro ExecCheckedToStack $2 aspnet_core_internal_failure
   Pop $0
   Pop $1
   ${If} $0 != 0
-    MessageBox MB_ICONSTOP "Voltura Air could not install the required .NET 10 ASP.NET Core runtime. Check your internet connection and approve the Windows administrator prompt.$\r$\n$\r$\nDetails:$\r$\n$1"
-    Abort "The required .NET 10 runtimes were not installed."
+    Call CleanupAspNetCoreRuntime
+    DetailPrint "Controlled failure: the .NET 10 ASP.NET Core runtime download failed or was empty."
+    MessageBox MB_ICONSTOP "Voltura Air could not download the required .NET 10 ASP.NET Core runtime. Check the internet connection and try again."
+    Abort "The ASP.NET Core runtime download failed."
   ${EndIf}
+
+  DetailPrint "Verifying the .NET 10 ASP.NET Core runtime signature and Microsoft signer..."
+  StrCpy $2 '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "$$s=Get-AuthenticodeSignature -LiteralPath $\'$PLUGINSDIR\VolturaAir-AspNetCore.exe$\';if($$s.Status-ne [System.Management.Automation.SignatureStatus]::Valid){exit 21};if($$null-eq $$s.SignerCertificate){exit 22};$$n=$$s.SignerCertificate.SubjectName.Name;if($$n-notmatch $\'(?:^|,\s*)O=Microsoft Corporation(?:,|$$)$\'){exit 23};exit 0"'
+  !insertmacro ExecCheckedToStack $2 aspnet_core_internal_failure
+  Pop $0
+  Pop $1
+  ${If} $0 != 0
+    StrCpy $4 $0
+    Call CleanupAspNetCoreRuntime
+    ${If} $4 == 21
+      DetailPrint "Controlled failure: the .NET 10 ASP.NET Core runtime signature was not valid."
+      MessageBox MB_ICONSTOP "Voltura Air rejected the downloaded .NET 10 ASP.NET Core runtime because its digital signature was not valid."
+    ${ElseIf} $4 == 22
+      DetailPrint "Controlled failure: the .NET 10 ASP.NET Core runtime had no signer certificate."
+      MessageBox MB_ICONSTOP "Voltura Air rejected the downloaded .NET 10 ASP.NET Core runtime because it had no signer certificate."
+    ${Else}
+      DetailPrint "Controlled failure: the .NET 10 ASP.NET Core runtime signer was not Microsoft Corporation."
+      MessageBox MB_ICONSTOP "Voltura Air rejected the downloaded .NET 10 ASP.NET Core runtime because the authenticated publisher was not Microsoft Corporation."
+    ${EndIf}
+    Abort "The ASP.NET Core runtime verification failed."
+  ${EndIf}
+
+  DetailPrint "Requesting elevation for the .NET 10 ASP.NET Core runtime..."
+  DetailPrint "Installing the .NET 10 ASP.NET Core runtime..."
+  SetDetailsPrint listonly
+  DetailPrint "The Microsoft runtime installer can take several minutes."
+  DetailPrint "Voltura Air setup continues automatically when it finishes."
+  SetDetailsPrint both
+  !insertmacro ExecElevatedAndWait "$PLUGINSDIR\VolturaAir-AspNetCore.exe" "/install /quiet /norestart" $0
+  StrCpy $4 $0
+  Call CleanupAspNetCoreRuntime
+  StrCpy $0 $4
+
+  ${If} $0 == 0
+    DetailPrint "Validating the .NET 10 ASP.NET Core runtime..."
+    Call TestAspNetCoreRuntime
+    Pop $0
+    ${If} $0 != 0
+      DetailPrint "Controlled failure: the .NET 10 ASP.NET Core runtime was absent after a successful child installer result."
+      MessageBox MB_ICONSTOP "The .NET 10 ASP.NET Core runtime was not available after its installer reported success."
+      Abort "The ASP.NET Core runtime validation failed."
+    ${EndIf}
+    Return
+  ${EndIf}
+
+  ${If} $0 == 3010
+    DetailPrint "The .NET 10 ASP.NET Core runtime requires a restart."
+    StrCpy $PrerequisiteRebootRequired 1
+    SetRebootFlag true
+    DetailPrint "Validating the .NET 10 ASP.NET Core runtime..."
+    Call TestAspNetCoreRuntime
+    Pop $0
+    ${If} $0 != 0
+      DetailPrint "The .NET 10 ASP.NET Core runtime is provisionally complete pending restart."
+    ${EndIf}
+    Return
+  ${EndIf}
+
+  ${If} $0 == 51001
+    DetailPrint "Controlled failure: elevation was denied for the .NET 10 ASP.NET Core runtime."
+    MessageBox MB_ICONSTOP "Voltura Air could not install the .NET 10 ASP.NET Core runtime because administrator approval was denied."
+  ${ElseIf} $0 == 51002
+    DetailPrint "Controlled failure: the .NET 10 ASP.NET Core runtime process could not be started."
+    MessageBox MB_ICONSTOP "Voltura Air could not start the .NET 10 ASP.NET Core runtime installer."
+  ${Else}
+    DetailPrint "Controlled failure: the .NET 10 ASP.NET Core runtime installer returned exit code $0."
+    MessageBox MB_ICONSTOP "The .NET 10 ASP.NET Core runtime installer failed with exit code $0."
+  ${EndIf}
+  Abort "The ASP.NET Core runtime installation failed."
+
+aspnet_core_internal_failure:
+  Call CleanupAspNetCoreRuntime
+  DetailPrint "Controlled failure: an ASP.NET Core prerequisite command exceeded the NSIS command capacity."
+  MessageBox MB_ICONSTOP "Voltura Air setup encountered an internal error while preparing the .NET 10 ASP.NET Core runtime."
+  Abort "The ASP.NET Core runtime command was too long."
 FunctionEnd
+
+Function CleanupWindowsDesktopRuntime
+  DetailPrint "Cleaning up the .NET 10 Windows Desktop runtime installer."
+  Delete "$PLUGINSDIR\VolturaAir-WindowsDesktop.exe"
+FunctionEnd
+
+Function CleanupAspNetCoreRuntime
+  DetailPrint "Cleaning up the .NET 10 ASP.NET Core runtime installer."
+  Delete "$PLUGINSDIR\VolturaAir-AspNetCore.exe"
+FunctionEnd
+!endif
 
 Function PromptCloseRunningApp
   nsExec::ExecToStack 'powershell -NoProfile -ExecutionPolicy Bypass -Command "if (Get-Process -Name VolturaAir.Host -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }"'

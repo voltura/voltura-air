@@ -8,6 +8,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+if ($Runtime -cne "win-x64") {
+    throw "Runtime '$Runtime' is not supported. Use win-x64."
+}
+
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $packageJsonPath = Join-Path $repoRoot "package.json"
 $publishRoot = Join-Path $repoRoot "artifacts\publish"
@@ -170,6 +174,7 @@ if (-not $FrameworkDependentOnly) {
     }
 
     & $makensisPath `
+        "/WX" `
         "/DAPP_VERSION=$Version" `
         "/DAPP_VERSION_QUAD=$appVersionQuad" `
         "/DAPP_ESTIMATED_SIZE_KB=$installedSizeKb" `
@@ -189,6 +194,7 @@ if (-not $FrameworkDependentOnly) {
 }
 
 & $makensisPath `
+    "/WX" `
     "/DAPP_VERSION=$Version" `
     "/DAPP_VERSION_QUAD=$appVersionQuad" `
     "/DAPP_ESTIMATED_SIZE_KB=$frameworkDependentInstalledSizeKb" `

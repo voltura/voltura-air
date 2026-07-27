@@ -5,10 +5,11 @@
         Title="Voltura Air"
         Width="1160"
         Height="760"
-        MinWidth="920"
-        MinHeight="620"
+        MinWidth="480"
+        MinHeight="360"
         WindowStartupLocation="CenterScreen"
-        Background="{DynamicResource WindowBrush}">
+        Background="{DynamicResource WindowBrush}"
+        Loaded="OnMainWindowLoaded">
     <Window.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -18,7 +19,16 @@
         </ResourceDictionary>
     </Window.Resources>
 
-    <Grid>
+    <ScrollViewer x:Name="WindowScrollViewer"
+                  HorizontalScrollBarVisibility="Auto"
+                  VerticalScrollBarVisibility="Auto"
+                  CanContentScroll="False"
+                  Focusable="False">
+    <Grid x:Name="WindowDesignSurface"
+          Width="{Binding ViewportWidth, ElementName=WindowScrollViewer}"
+          Height="{Binding ViewportHeight, ElementName=WindowScrollViewer}"
+          MinWidth="920"
+          MinHeight="620">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="220" />
             <ColumnDefinition Width="*" />
@@ -116,4 +126,5 @@
                             IsTabStop="False" />
         </Grid>
     </Grid>
+    </ScrollViewer>
 </Window>

@@ -374,7 +374,7 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
     }
 
     [Fact]
-    public void ApplicationLogKeepsActionsVisibleAndScrollsContentAtCompactHeight()
+    public void ApplicationLogKeepsActionsReachableAndScrollsContentAtCompactHeight()
     {
         if (ShouldSkipNativeUiLayoutTests())
         {
@@ -431,6 +431,8 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
                 var actionRowBottom = actionRow.TranslatePoint(new Point(0, actionRow.ActualHeight), applicationLogView).Y;
                 Assert.InRange(actionRowBottom, applicationLogView.ActualHeight - 0.5, applicationLogView.ActualHeight + 0.5);
 
+                window.WindowScrollViewer.ScrollToBottom();
+                window.UpdateLayout();
                 AssertControlReceivesPointerHit(
                     window,
                     refreshButton);

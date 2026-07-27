@@ -30,6 +30,8 @@ public sealed partial class HostUiLayoutTests
                 {
                     ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown
                 };
+                SynchronizationContext.SetSynchronizationContext(
+                    new System.Windows.Threading.DispatcherSynchronizationContext());
             }
             catch (Exception ex)
             {

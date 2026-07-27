@@ -334,11 +334,8 @@ public sealed partial class HostUiLayoutTests
             try
             {
                 window.ShowPage(HostPage.Connect);
-                var windowContent = Assert.IsType<Grid>(window.Content);
-                var compactClientSize = new Size(920, 580);
-                windowContent.Measure(compactClientSize);
-                windowContent.Arrange(new Rect(compactClientSize));
-                windowContent.UpdateLayout();
+                var designSurface = window.WindowDesignSurface;
+                designSurface.UpdateLayout();
 
                 Assert.Contains(
                     FindWpfDescendants<TextBlock>(window),
@@ -360,9 +357,7 @@ public sealed partial class HostUiLayoutTests
                 Assert.Contains(FindWpfDescendants<InfoCard>(details), card => card.Title == "Network adapter");
                 var scroller = Assert.Single(FindWpfDescendants<ScrollViewer>(details));
                 details.IsExpanded = true;
-                windowContent.Measure(compactClientSize);
-                windowContent.Arrange(new Rect(compactClientSize));
-                windowContent.UpdateLayout();
+                designSurface.UpdateLayout();
 
                 Assert.Equal(ScrollBarVisibility.Auto, scroller.VerticalScrollBarVisibility);
                 Assert.Equal(ScrollBarVisibility.Disabled, scroller.HorizontalScrollBarVisibility);

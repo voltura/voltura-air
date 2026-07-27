@@ -248,9 +248,7 @@ export function App() {
     value: RemoteSettings[Key]
   ) => {
     const nextSettings = { ...remoteSettings, [key]: value };
-    if (key === "mode" &&
-        value !== remoteSettings.mode &&
-        (value === "youtube" || value === "kodi")) {
+    if (key === "mode") {
       requestPresentationExit(() => {
         selectModeTab("remote", "settings");
         setIsSettingsOpen(false);

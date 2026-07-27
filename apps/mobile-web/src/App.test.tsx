@@ -443,6 +443,19 @@ describe("App header and mode navigation", () => {
     expect(send).toHaveBeenCalledExactlyOnceWith({ type: "remote.launch", action: "openYoutube" });
   });
 
+  it("opens Remote when the active Standard mode is pressed in settings", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    const remoteSettingsSummary = document.querySelector<HTMLElement>("[data-settings-section=\"remote\"] > summary");
+    expect(remoteSettingsSummary).not.toBeNull();
+    fireEvent.click(remoteSettingsSummary!);
+    fireEvent.click(screen.getByRole("button", { name: "Standard" }));
+
+    expect(document.querySelector(".app-shell")?.classList.contains("remote-active")).toBe(true);
+    expect(screen.queryByRole("dialog", { name: "Menu" })).toBeNull();
+  });
+
   it.each([
     { ariaLabel: "Dictation", fourthMode: "dictation" },
     { ariaLabel: "Send text to PC", fourthMode: "text-transfer" },

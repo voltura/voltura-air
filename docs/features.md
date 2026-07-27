@@ -38,7 +38,10 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 - Devices shows name, platform/browser metadata, connection/activity state, and
   per-device settings. Users can rename/remove one device or remove all.
 - Global defaults combine with per-device overrides for pointer speed,
-  permissions, and mode-button visibility.
+  permissions, mode-button visibility, and the optional 3D control effect.
+- The Windows host's 3D control effect is a separate appearance preference and
+  defaults off. The mobile/device default is on; each paired device can inherit,
+  enable, or disable it.
 - Host permissions cover sleep, volume, Presentation, application launch, web
   addresses, PC clipboard reads, Lock, Blackout, display off, screen saver,
   sign out, restart, shutdown, Keep awake, and interaction with the host UI.

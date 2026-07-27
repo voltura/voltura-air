@@ -6,6 +6,18 @@ namespace VolturaAir.Host.Tests;
 public sealed class ClientMessageValidatorTests
 {
     [Theory]
+    [InlineData("""{ "type": "appearance.control-depth.set", "controlDepth": true }""", true)]
+    [InlineData("""{ "type": "appearance.control-depth.set", "controlDepth": false }""", true)]
+    [InlineData("""{ "type": "appearance.control-depth.set", "controlDepth": 1 }""", false)]
+    [InlineData("""{ "type": "appearance.control-depth.set", "controlDepth": true, "extra": true }""", false)]
+    public void ValidatesControlDepthAppearanceMessages(string json, bool expected)
+    {
+        using var document = JsonDocument.Parse(json);
+
+        Assert.Equal(expected, ClientMessageValidator.IsValidAuthenticatedMessage(document.RootElement, "appearance.control-depth.set"));
+    }
+
+    [Theory]
     [InlineData("""{ "type": "presentation.command", "operationId": "laser-1", "target": "powerpoint", "action": "pointer", "enabled": true }""", true)]
     [InlineData("""{ "type": "presentation.command", "operationId": "laser-1", "target": "pdf", "action": "pointer" }""", false)]
     [InlineData("""{ "type": "presentation.command", "operationId": "next-1", "target": "powerpoint", "action": "next", "enabled": false }""", false)]

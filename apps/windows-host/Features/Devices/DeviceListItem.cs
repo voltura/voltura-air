@@ -15,6 +15,8 @@ internal sealed class DeviceListItem(
     bool hasPointerSpeedOverride,
     bool? showModeButtonsOverride,
     bool showModeButtons,
+    bool? controlDepthOverride,
+    bool controlDepth,
     IReadOnlyList<DevicePermissionItem> permissions,
     bool isExpanded) : INotifyPropertyChanged
 {
@@ -22,6 +24,8 @@ internal sealed class DeviceListItem(
     private bool _hasPointerSpeedOverride = hasPointerSpeedOverride;
     private bool? _showModeButtonsOverride = showModeButtonsOverride;
     private bool _showModeButtons = showModeButtons;
+    private bool? _controlDepthOverride = controlDepthOverride;
+    private bool _controlDepth = controlDepth;
     private bool _isExpanded = isExpanded;
     private bool _isAppearanceExpanded;
     private bool _isTrackpadExpanded;
@@ -70,6 +74,20 @@ internal sealed class DeviceListItem(
     public string UseGlobalModeButtonsLabel => IsModeButtonsInherited ? "\u2713 Use global" : "Use global";
     public string ShowModeButtonsLabel => IsModeButtonsExplicitlyShown || (IsModeButtonsInherited && ShowModeButtons) ? "\u2713 Show" : "Show";
     public string HideModeButtonsLabel => IsModeButtonsExplicitlyHidden || (IsModeButtonsInherited && !ShowModeButtons) ? "\u2713 Hide" : "Hide";
+    public bool? ControlDepthOverride => _controlDepthOverride;
+    public bool ControlDepth => _controlDepth;
+    public bool IsControlDepthInherited => ControlDepthOverride is null;
+    public bool IsControlDepthExplicitlyEnabled => ControlDepthOverride == true;
+    public bool IsControlDepthExplicitlyDisabled => ControlDepthOverride == false;
+    public string ControlDepthHint => IsControlDepthInherited
+        ? $"Using global default: {(ControlDepth ? "enabled" : "disabled")}."
+        : $"Override active: {(ControlDepth ? "enabled" : "disabled")}.";
+    public string UseGlobalControlDepthVisualState => IsControlDepthInherited ? "Selected" : "Default";
+    public string EnableControlDepthVisualState => IsControlDepthExplicitlyEnabled || (IsControlDepthInherited && ControlDepth) ? "Selected" : "Default";
+    public string DisableControlDepthVisualState => IsControlDepthExplicitlyDisabled || (IsControlDepthInherited && !ControlDepth) ? "Selected" : "Default";
+    public string UseGlobalControlDepthLabel => IsControlDepthInherited ? "\u2713 Use global" : "Use global";
+    public string EnableControlDepthLabel => IsControlDepthExplicitlyEnabled || (IsControlDepthInherited && ControlDepth) ? "\u2713 Enable" : "Enable";
+    public string DisableControlDepthLabel => IsControlDepthExplicitlyDisabled || (IsControlDepthInherited && !ControlDepth) ? "\u2713 Disable" : "Disable";
     public bool IsExpanded
     {
         get => _isExpanded;
@@ -166,6 +184,29 @@ internal sealed class DeviceListItem(
         OnPropertyChanged(nameof(UseGlobalModeButtonsLabel));
         OnPropertyChanged(nameof(ShowModeButtonsLabel));
         OnPropertyChanged(nameof(HideModeButtonsLabel));
+    }
+
+    public void ApplyControlDepth(bool? overrideValue, bool effectiveValue)
+    {
+        if (_controlDepthOverride == overrideValue && _controlDepth == effectiveValue)
+        {
+            return;
+        }
+
+        _controlDepthOverride = overrideValue;
+        _controlDepth = effectiveValue;
+        OnPropertyChanged(nameof(ControlDepthOverride));
+        OnPropertyChanged(nameof(ControlDepth));
+        OnPropertyChanged(nameof(IsControlDepthInherited));
+        OnPropertyChanged(nameof(IsControlDepthExplicitlyEnabled));
+        OnPropertyChanged(nameof(IsControlDepthExplicitlyDisabled));
+        OnPropertyChanged(nameof(ControlDepthHint));
+        OnPropertyChanged(nameof(UseGlobalControlDepthVisualState));
+        OnPropertyChanged(nameof(EnableControlDepthVisualState));
+        OnPropertyChanged(nameof(DisableControlDepthVisualState));
+        OnPropertyChanged(nameof(UseGlobalControlDepthLabel));
+        OnPropertyChanged(nameof(EnableControlDepthLabel));
+        OnPropertyChanged(nameof(DisableControlDepthLabel));
     }
 
     public void OpenAppearance()

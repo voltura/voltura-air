@@ -184,6 +184,13 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
     }
   }, [send, setHostStatus, state]);
 
+  const setHostControlDepth = useCallback((controlDepth: boolean) => {
+    setHostStatus((current) => (current ? { ...current, controlDepth } : current));
+    if (state === "paired") {
+      send({ type: "appearance.control-depth.set", controlDepth });
+    }
+  }, [send, setHostStatus, state]);
+
   const setHostCustomPointer = useCallback((enabled: boolean) => {
     setHostStatus((current) => (current ? { ...current, customPointerEnabled: enabled } : current));
     if (state === "paired") {
@@ -202,6 +209,7 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
     renamePc,
     selectPc,
     setHostCustomPointer,
+    setHostControlDepth,
     setHostShowModeButtons,
     setHostPointerSpeed
   };

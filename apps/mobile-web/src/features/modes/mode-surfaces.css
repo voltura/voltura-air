@@ -33,15 +33,9 @@
 }
 
 .volume-control.muted input {
+  --range-thumb-fill: var(--disabled);
+
   accent-color: var(--disabled);
-}
-
-.volume-control.muted input::-webkit-slider-thumb {
-  background: var(--disabled);
-}
-
-.volume-control.muted input::-moz-range-thumb {
-  background: var(--disabled);
 }
 
 .volume-control.muted input::-webkit-slider-runnable-track {
@@ -387,8 +381,9 @@
 }
 
 .dictation-mode.is-listening .dictation-listen-button {
+  --control-background: var(--action);
+
   color: var(--on-action);
-  background: var(--action);
   border-color: var(--accent);
 }
 

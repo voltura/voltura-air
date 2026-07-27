@@ -6,6 +6,18 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v0.7.8
+
+- Added an optional 3D effect for buttons, checkboxes, sliders, selected
+  controls, and expandable sections across the Windows host and mobile app.
+- Added separate appearance preferences for the Windows host and mobile
+  controls. Mobile controls default to the 3D effect, and each paired device can
+  inherit the global preference or override it from the Windows Devices page.
+- Improved pressed, selected, disabled, and expanded control states across light
+  and dark themes, while Windows High Contrast keeps the flat system treatment.
+- Fixed the mobile Remote layout so it uses the available space when mode
+  buttons are hidden.
+
 ## v0.7.7
 
 - Rebuilt PowerPoint Presentation mode around direct PowerPoint automation for

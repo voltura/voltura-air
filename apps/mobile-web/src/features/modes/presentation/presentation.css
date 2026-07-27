@@ -162,9 +162,10 @@
 }
 
 .presentation-target-selector-menu button.active {
+  --control-background: var(--action);
+
   color: var(--on-action);
   border-color: var(--accent);
-  background: var(--action);
 }
 
 .presentation-permission-message {
@@ -213,9 +214,10 @@
 }
 
 .presentation-mode button.active[data-pending-visual="deferred"]:disabled {
+  --control-background: var(--accent);
+
   color: var(--on-action);
   border-color: var(--accent);
-  background: var(--accent);
 }
 
 .presentation-actions {
@@ -538,9 +540,10 @@
 }
 
 .presentation-actions button.active {
+  --control-background: var(--accent);
+
   color: var(--on-action);
   border-color: var(--accent);
-  background: var(--accent);
 }
 
 .presentation-actions .presentation-return-slides {
@@ -663,6 +666,21 @@
 .presentation-trackpad-heading[aria-expanded="false"] svg:last-child,
 .presentation-timer-heading[aria-expanded="false"] svg:last-child {
   transform: rotate(-90deg);
+}
+
+.control-depth .presentation-trackpad-heading[aria-expanded="true"],
+.control-depth .presentation-timer-heading[aria-expanded="true"] {
+  background:
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--control-shadow) 64%, transparent),
+      transparent 72%
+    ),
+    var(--surface-raised);
+  box-shadow:
+    inset 0 3px 6px color-mix(in srgb, var(--control-shadow) 88%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--control-highlight) 55%, transparent);
+  transform: none;
 }
 
 .presentation-trackpad-content {

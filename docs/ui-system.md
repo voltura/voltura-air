@@ -41,6 +41,13 @@ The shared primitive set covers:
 - disclosures, tabs, mode selection, drawers, sheets, dialogs, scrims, toasts,
   local feedback, and canonical unavailable/error states.
 
+Buttons, segmented choices, checkboxes, range thumbs, and disclosures support
+an optional token-driven control-depth treatment. Windows host controls default
+to the flat treatment; mobile controls use the effective device setting, whose
+global default is enabled and which may be overridden per paired device.
+Expanded disclosures invert the depth cue without making dark-theme surfaces
+materially darker.
+
 Primitives own visual variants, interaction states, geometry, and accessible
 semantics. Features own labels, content, intent, domain state, and composition.
 Extend the system explicitly when a needed concept is absent; do not hide a new

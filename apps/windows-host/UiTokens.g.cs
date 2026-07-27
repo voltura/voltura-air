@@ -44,6 +44,8 @@ internal static class UiTokens
         System.Drawing.Color.FromArgb(192, 83, 58),
         System.Drawing.Color.FromArgb(37, 208, 167),
         System.Drawing.Color.FromArgb(227, 161, 90),
+        System.Drawing.Color.FromArgb(38, 255, 255, 255),
+        System.Drawing.Color.FromArgb(82, 0, 0, 0),
         System.Drawing.Color.FromArgb(255, 255, 255));
 
     public static ThemePalette LightPalette { get; } = new(
@@ -63,5 +65,7 @@ internal static class UiTokens
         System.Drawing.Color.FromArgb(192, 83, 58),
         System.Drawing.Color.FromArgb(15, 123, 108),
         System.Drawing.Color.FromArgb(163, 91, 22),
+        System.Drawing.Color.FromArgb(46, 255, 255, 255),
+        System.Drawing.Color.FromArgb(38, 16, 20, 24),
         System.Drawing.Color.FromArgb(255, 255, 255));
 }

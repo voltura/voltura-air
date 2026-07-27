@@ -380,6 +380,35 @@ public sealed class WebHostConnectionTests : WebHostServiceTestBase
     }
 
     [Fact]
+    public async Task WebSocketStoresClientControlDepthAsDeviceOverrideAndBroadcastsIt()
+    {
+        await using var fixture = await WebHostFixture.StartAsync();
+        using var key = new PairingTestKey();
+        var clientId = $"client-{Guid.NewGuid():N}";
+        using var socket = await ConnectAsync(fixture.WebHost);
+
+        var paired = await SendAndReceiveAsync(socket, new
+        {
+            type = "pair.hello",
+            clientId,
+            deviceName = "Phone",
+            pairToken = fixture.Manager.CreatePairingToken(),
+            reconnectPublicKey = key.PublicKey
+        });
+        Assert.True(paired.GetProperty("host").GetProperty("controlDepth").GetBoolean());
+
+        await SendAsync(socket, new { type = "appearance.control-depth.set", controlDepth = false });
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var pushedStatusText = await ReceiveTextAsync(socket, timeout.Token);
+        using var pushedStatus = JsonDocument.Parse(pushedStatusText);
+
+        Assert.False(fixture.Manager.GetDeviceControlDepth(clientId));
+        Assert.False(Assert.Single(fixture.Manager.GetDevices()).ControlDepthOverride);
+        Assert.Equal("status", pushedStatus.RootElement.GetProperty("type").GetString());
+        Assert.False(pushedStatus.RootElement.GetProperty("host").GetProperty("controlDepth").GetBoolean());
+    }
+
+    [Fact]
     public async Task WebSocketBroadcastsGlobalModeButtonVisibilityChanges()
     {
         await using var fixture = await WebHostFixture.StartAsync();

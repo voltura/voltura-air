@@ -44,6 +44,11 @@ export interface AppearanceModeButtonsSetMessage {
   showModeButtons: boolean;
 }
 
+export interface AppearanceControlDepthSetMessage {
+  type: "appearance.control-depth.set";
+  controlDepth: boolean;
+}
+
 export interface CustomPointerSetMessage {
   type: "custom.pointer.set";
   enabled: boolean;
@@ -153,6 +158,7 @@ export interface HostStatusMetadata {
   pcName?: string | undefined;
   pointerSpeed?: number | undefined;
   showModeButtons?: boolean | undefined;
+  controlDepth?: boolean | undefined;
   customPointerEnabled?: boolean | undefined;
   inputBlockedByElevation?: boolean | undefined;
   selectedAdapterName?: string | undefined;
@@ -535,6 +541,7 @@ export type ClientMessage =
   | StatusGetMessage
   | PointerSpeedSetMessage
   | AppearanceModeButtonsSetMessage
+  | AppearanceControlDepthSetMessage
   | CustomPointerSetMessage
   | AudioGetMessage
   | PointerMoveMessage

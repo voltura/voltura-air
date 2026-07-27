@@ -46,11 +46,13 @@ export interface SettingsDrawerProps {
   scanPairingQr: () => void;
   selectPc: (pcId: string) => void;
   setHostCustomPointer?: ((enabled: boolean) => void) | undefined;
+  setHostControlDepth?: ((controlDepth: boolean) => void) | undefined;
   setHostShowModeButtons?: ((showModeButtons: boolean) => void) | undefined;
   setThemeMode: Dispatch<SetStateAction<ThemeMode>>;
   showGestureDebug: boolean;
   supportsRemoteLaunch: boolean;
   themeMode: ThemeMode;
+  controlDepth?: boolean | undefined;
   showModeButtons?: boolean | undefined;
   toolOptions: readonly SettingsToolOption[];
   trackpadSettings: TrackpadSettings;

@@ -109,6 +109,19 @@ public sealed class HostSettingsRegistryTests : IsolatedHostSettingsTest
     }
 
     [Fact]
+    public void ControlDepthUsesSeparateHostAndDeviceDefaults()
+    {
+        Assert.False(AppAppearanceSettings.HostControlDepth());
+        Assert.True(AppAppearanceSettings.DeviceControlDepth());
+
+        AppAppearanceSettings.SetHostControlDepth(true);
+        AppAppearanceSettings.SetDeviceControlDepth(false);
+
+        Assert.True(AppAppearanceSettings.HostControlDepth());
+        Assert.False(AppAppearanceSettings.DeviceControlDepth());
+    }
+
+    [Fact]
     public void CloseToTrayNotificationIsOnlyMarkedOnce()
     {
         Assert.True(AppWindowSettings.TryMarkCloseToTrayNotificationShown());

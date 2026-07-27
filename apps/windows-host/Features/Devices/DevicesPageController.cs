@@ -19,6 +19,7 @@ internal sealed class DevicesPageController(
             ExpandDevice,
             CollapseDevice,
             SetDeviceShowModeButtonsOverride,
+            SetDeviceControlDepthOverride,
             SetDevicePointerSpeedOverride,
             UseGlobalPointerSpeed,
             SetDevicePermission,
@@ -42,6 +43,7 @@ internal sealed class DevicesPageController(
             {
                 item.ApplyPointerSpeed(profile.PointerSpeed, profile.PointerSpeedOverride is not null);
                 item.ApplyShowModeButtons(profile.ShowModeButtonsOverride, profile.ShowModeButtons);
+                item.ApplyControlDepth(profile.ControlDepthOverride, profile.ControlDepth);
             }
         }
     }
@@ -75,6 +77,13 @@ internal sealed class DevicesPageController(
         pairingManager.SetDeviceShowModeButtonsOverride(clientId, showModeButtons);
         var device = pairingManager.GetDevices().FirstOrDefault(item => item.ClientId == clientId);
         return device is null ? null : (device.ShowModeButtonsOverride, device.ShowModeButtons);
+    }
+
+    private (bool? Override, bool Effective)? SetDeviceControlDepthOverride(string clientId, bool? controlDepth)
+    {
+        pairingManager.SetDeviceControlDepthOverride(clientId, controlDepth);
+        var device = pairingManager.GetDevices().FirstOrDefault(item => item.ClientId == clientId);
+        return device is null ? null : (device.ControlDepthOverride, device.ControlDepth);
     }
 
     private int? UseGlobalPointerSpeed(string clientId)
@@ -195,6 +204,8 @@ internal sealed class DevicesPageController(
                 device.PointerSpeedOverride is not null,
                 device.ShowModeButtonsOverride,
                 device.ShowModeButtons,
+                device.ControlDepthOverride,
+                device.ControlDepth,
                 GetPermissionItems(device, globalPermissions),
                 device.ClientId == _expandedClientId))];
     }

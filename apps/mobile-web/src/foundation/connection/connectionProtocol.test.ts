@@ -39,6 +39,7 @@ describe("connection protocol policy", () => {
     expect(normalizeHostStatus({
       defaultRemoteMode: "unknown" as never,
       developerMode: false,
+      controlDepth: false,
       hostVersion: " 0.2.0 ",
       inputBlockedByElevation: true,
       webClientBuildId: " build-a ",
@@ -46,6 +47,7 @@ describe("connection protocol policy", () => {
       selectedPort: Number.NaN
     })).toEqual({
       defaultRemoteMode: "standard",
+      controlDepth: false,
       hostVersion: "0.2.0",
       inputBlockedByElevation: true,
       webClientBuildId: "build-a",

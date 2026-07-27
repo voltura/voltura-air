@@ -152,6 +152,8 @@ Success:
     },
     "pointerSpeed": 100,
     "customPointerEnabled": false,
+    "showModeButtons": true,
+    "controlDepth": true,
     "inputBlockedByElevation": false
   }
 }
@@ -180,6 +182,7 @@ Authenticated metadata is not authentication state:
   `focused`, `clipboard`, or `configured`. It excludes paths, process/window
   IDs, matching rules, and clipboard content.
 - `pointerSpeed`: effective device speed. `customPointerEnabled`: host-wide.
+  `showModeButtons` and `controlDepth`: effective per-device appearance values.
   `inputBlockedByElevation`: higher-integrity foreground block.
 - `webClientBuildId`: served client bundle, independent of `hostVersion`.
 - Developer mode adds `developerMode: true` and `developerSessionId`.
@@ -213,13 +216,17 @@ Authenticated utility messages:
 { "type": "pair.disconnect" }
 { "type": "device.rename", "deviceName": "Joakim iPhone" }
 { "type": "pointer.speed.set", "pointerSpeed": 65 }
+{ "type": "appearance.mode-buttons.set", "showModeButtons": false }
+{ "type": "appearance.control-depth.set", "controlDepth": false }
 { "type": "custom.pointer.set", "enabled": true }
 { "type": "health.ping" }
 { "type": "health.pong" }
 ```
 
 `deviceName` must contain non-whitespace text; mobile substitutes its default
-before sending a blank edit. Pointer speed is sent only from user action.
+before sending a blank edit. Pointer speed and appearance changes are sent only
+from user action. Appearance changes set an override for the authenticated
+device; the host Devices page can restore inheritance from the global default.
 `health.pong` is liveness only; it contains no metadata/capability/audio state.
 Any valid client message resets the receive timeout.
 

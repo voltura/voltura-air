@@ -186,22 +186,43 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Thumb">
-                    <Ellipse x:Name="ThumbChrome"
-                             Margin="2"
-                             Fill="{DynamicResource AccentBrush}"
-                             Stroke="{DynamicResource TextBrush}"
-                             StrokeThickness="2" />
+                    <Grid x:Name="ThumbVisual" Margin="2">
+                        <Ellipse x:Name="ThumbChrome"
+                                 Fill="{DynamicResource AccentBrush}"
+                                 Stroke="{DynamicResource TextBrush}"
+                                 StrokeThickness="2">
+                            <Ellipse.Effect>
+                                <DropShadowEffect BlurRadius="4"
+                                                  Direction="270"
+                                                  ShadowDepth="2"
+                                                  Opacity="{DynamicResource ControlDepthShadowOpacity}"
+                                                  Color="{DynamicResource ControlElevationShadowColor}" />
+                            </Ellipse.Effect>
+                        </Ellipse>
+                        <Ellipse IsHitTestVisible="False">
+                            <Ellipse.Fill>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                    <GradientStop Offset="0"
+                                                  Color="{DynamicResource ControlHighlightColor}" />
+                                    <GradientStop Offset="0.46"
+                                                  Color="Transparent" />
+                                    <GradientStop Offset="1"
+                                                  Color="{DynamicResource ControlShadowColor}" />
+                                </LinearGradientBrush>
+                            </Ellipse.Fill>
+                        </Ellipse>
+                    </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="ThumbChrome" Property="Margin" Value="1" />
+                            <Setter TargetName="ThumbVisual" Property="Margin" Value="1" />
                             <Setter TargetName="ThumbChrome" Property="StrokeThickness" Value="2.5" />
                         </Trigger>
                         <Trigger Property="IsDragging" Value="True">
-                            <Setter TargetName="ThumbChrome" Property="Margin" Value="0" />
+                            <Setter TargetName="ThumbVisual" Property="Margin" Value="0" />
                             <Setter TargetName="ThumbChrome" Property="StrokeThickness" Value="3" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="ThumbChrome" Property="Opacity" Value="0.55" />
+                            <Setter TargetName="ThumbVisual" Property="Opacity" Value="0.55" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -281,13 +302,35 @@
                                 <ColumnDefinition Width="12" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <Border x:Name="Box"
-                                    Width="22"
-                                    Height="22"
-                                    CornerRadius="6"
-                                    BorderThickness="1"
-                                    BorderBrush="{DynamicResource BorderBrush}"
-                                    Background="{DynamicResource SurfaceRaisedBrush}" />
+                            <Grid Width="22" Height="22">
+                                <Border x:Name="Box"
+                                        CornerRadius="6"
+                                        BorderThickness="1"
+                                        BorderBrush="{DynamicResource BorderBrush}"
+                                        Background="{DynamicResource SurfaceRaisedBrush}">
+                                    <Border.Effect>
+                                        <DropShadowEffect BlurRadius="3"
+                                                          Direction="270"
+                                                          ShadowDepth="1"
+                                                          Opacity="{DynamicResource ControlDepthSubtleShadowOpacity}"
+                                                          Color="{DynamicResource ControlElevationShadowColor}" />
+                                    </Border.Effect>
+                                </Border>
+                                <Border CornerRadius="5"
+                                        Margin="1"
+                                        IsHitTestVisible="False">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                            <GradientStop Offset="0"
+                                                          Color="{DynamicResource ControlHighlightColor}" />
+                                            <GradientStop Offset="0.55"
+                                                          Color="Transparent" />
+                                            <GradientStop Offset="1"
+                                                          Color="{DynamicResource ControlShadowColor}" />
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                </Border>
+                            </Grid>
                             <Path x:Name="Check"
                                   Data="M 5 11 L 9 15 L 17 7"
                                   Stroke="{DynamicResource AccentTextBrush}"

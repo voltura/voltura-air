@@ -610,6 +610,7 @@ internal sealed record HostStatusMetadata(
     int PointerSpeed,
     bool CustomPointerEnabled,
     bool ShowModeButtons,
+    bool ControlDepth,
     bool DeveloperMode,
     string? DeveloperSessionId,
     bool InputBlockedByElevation);

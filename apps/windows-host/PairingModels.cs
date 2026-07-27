@@ -15,7 +15,8 @@ public sealed record PairingRecord(
     string DisplayMode = "",
     DevicePermissionOverrides? PermissionOverrides = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? PointerSpeedOverride = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? ShowModeButtonsOverride = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? ShowModeButtonsOverride = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? ControlDepthOverride = null);
 
 public sealed record PairedDeviceStatus(
     string ClientId,
@@ -33,7 +34,9 @@ public sealed record PairedDeviceStatus(
     int? PointerSpeedOverride,
     int PointerSpeed,
     bool? ShowModeButtonsOverride,
-    bool ShowModeButtons)
+    bool ShowModeButtons,
+    bool? ControlDepthOverride,
+    bool ControlDepth)
 {
     public DateTimeOffset LatestActivityAt => new[] { AddedAt, LastConnectedAt, LastDisconnectedAt, LastRenamedAt }
         .Where(value => value.HasValue)

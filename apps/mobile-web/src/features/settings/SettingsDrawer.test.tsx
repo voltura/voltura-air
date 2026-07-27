@@ -352,6 +352,16 @@ describe("SettingsDrawer", () => {
     expect(setHostShowModeButtons).toHaveBeenCalledExactlyOnceWith(false);
   });
 
+  it("sets the current device control-depth preference from Appearance", () => {
+    const setHostControlDepth = vi.fn();
+    render(<SettingsDrawer {...baseProps} controlDepth setHostControlDepth={setHostControlDepth} />);
+
+    fireEvent.click(screen.getByText("Appearance"));
+    fireEvent.click(screen.getByRole("checkbox", { name: "3D effect on controls" }));
+
+    expect(setHostControlDepth).toHaveBeenCalledExactlyOnceWith(false);
+  });
+
   it("updates haptic feedback when browser vibration is available", () => {
     const updateTrackpadSetting = vi.fn();
     render(<SettingsDrawer {...baseProps} updateTrackpadSetting={updateTrackpadSetting} />);

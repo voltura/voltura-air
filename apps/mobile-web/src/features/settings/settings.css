@@ -111,10 +111,11 @@
 }
 
 .drawer-tool-list button {
+  --control-background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+
   min-height: var(--control-prominent-height);
   justify-content: flex-start;
   border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
 }
 
 .drawer-tool-list button svg {
@@ -162,6 +163,39 @@
 
 .settings-section[open] summary::after {
   transform: translateY(3px) rotate(225deg);
+}
+
+.control-depth .settings-section summary {
+  background:
+    linear-gradient(
+      to bottom,
+      var(--control-highlight),
+      transparent 42%,
+      color-mix(in srgb, var(--control-shadow) 40%, transparent)
+    ),
+    var(--surface-raised);
+  box-shadow:
+    inset 0 1px 0 var(--control-highlight),
+    inset 0 -1px 0 color-mix(in srgb, var(--control-shadow) 48%, transparent),
+    0 2px 4px color-mix(in srgb, var(--control-shadow) 72%, transparent);
+  transition:
+    background var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease;
+}
+
+.control-depth .settings-section[open] summary {
+  border-color: color-mix(in srgb, var(--accent) 64%, var(--border));
+  background:
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--control-shadow) 30%, transparent),
+      transparent 62%
+    ),
+    var(--surface-raised);
+  box-shadow:
+    inset 0 3px 6px color-mix(in srgb, var(--control-shadow) 58%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--control-highlight) 62%, transparent);
 }
 
 .settings-section summary span {

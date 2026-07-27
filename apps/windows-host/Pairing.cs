@@ -322,11 +322,16 @@ public sealed class PairingManager(PairingStore store)
 
     public bool GetDeviceShowModeButtons(string clientId) { lock (_gate) return _devices.GetDeviceShowModeButtons(clientId); }
 
+    public bool GetDeviceControlDepth(string clientId) { lock (_gate) return _devices.GetDeviceControlDepth(clientId); }
+
     public bool SetDevicePointerSpeedOverride(string clientId, int? pointerSpeed) =>
         UpdateDeviceProfile(() => _devices.SetPointerSpeedOverride(clientId, pointerSpeed));
 
     public bool SetDeviceShowModeButtonsOverride(string clientId, bool? showModeButtons) =>
         UpdateDeviceProfile(() => _devices.SetShowModeButtonsOverride(clientId, showModeButtons));
+
+    public bool SetDeviceControlDepthOverride(string clientId, bool? controlDepth) =>
+        UpdateDeviceProfile(() => _devices.SetControlDepthOverride(clientId, controlDepth));
 
     private bool UpdateDeviceProfile(Func<bool> update)
     {

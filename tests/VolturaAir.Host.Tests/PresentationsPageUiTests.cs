@@ -10,6 +10,40 @@ namespace VolturaAir.Host.Tests;
 public sealed partial class HostUiLayoutTests
 {
     [Fact]
+    public void PresentationPendingReviewPanelUsesThicknessPadding()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            using var store = new TempPairingStore();
+            using var injector = new SendInputInjector();
+            var manager = new PairingManager(store.Store);
+            var webHost = new WebHostService(manager, new InputDispatcher(injector), isolatedTestMode: true);
+            var window = new MainWindow(manager, webHost, clientUrl: null);
+            try
+            {
+                window.Show();
+                window.ShowPage(HostPage.Presentations);
+                window.UpdateLayout();
+
+                var view = Assert.Single(FindWpfDescendants<PresentationsPageView>(window));
+                var pendingReviewPanel = Assert.IsType<Border>(view.FindName("PendingReviewPanel"));
+                Assert.Equal(new Thickness(UiTokens.SpaceMd), pendingReviewPanel.Padding);
+            }
+            finally
+            {
+                window.Close();
+                DisposeWebHost(webHost);
+            }
+        });
+    }
+
+    [Fact]
     public void PresentationArchiveStatisticsStayOnOneRowAtTheDefaultWindowSize()
     {
         if (!OperatingSystem.IsWindows())

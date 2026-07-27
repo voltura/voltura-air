@@ -190,7 +190,7 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
         </SettingsSectionDetails>
 
         <SettingsSectionDetails section="appearance" label="Appearance" isOpen={openSection === "appearance"} onToggle={toggleSection}>
-          <AppearanceSettingsSection setHostShowModeButtons={props.setHostShowModeButtons} setThemeMode={props.setThemeMode} showModeButtons={props.showModeButtons} themeMode={props.themeMode} />
+          <AppearanceSettingsSection controlDepth={props.controlDepth} setHostControlDepth={props.setHostControlDepth} setHostShowModeButtons={props.setHostShowModeButtons} setThemeMode={props.setThemeMode} showModeButtons={props.showModeButtons} themeMode={props.themeMode} />
         </SettingsSectionDetails>
 
         <SettingsSectionDetails section="split" label="Split mode" isOpen={openSection === "split"} onToggle={toggleSection}>

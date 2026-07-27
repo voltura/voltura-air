@@ -80,6 +80,30 @@
                                                 Style="{DynamicResource ChoiceStateButtonStyle}"
                                                 Click="OnHideModeButtons" />
                                     </ui:SpacingWrapPanel>
+                                    <TextBlock Text="3D effect on controls"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextBrush}" />
+                                    <TextBlock Text="{Binding ControlDepthHint}"
+                                               Foreground="{DynamicResource MutedTextBrush}"
+                                               TextWrapping="Wrap" />
+                                    <ui:SpacingWrapPanel HorizontalSpacing="{DynamicResource SpaceXs}"
+                                                         VerticalSpacing="{DynamicResource SpaceXs}">
+                                        <Button Content="{Binding UseGlobalControlDepthLabel}"
+                                                Width="{StaticResource PermissionChoiceButtonWidth}"
+                                                Tag="{Binding UseGlobalControlDepthVisualState}"
+                                                Style="{DynamicResource ChoiceStateButtonStyle}"
+                                                Click="OnUseGlobalControlDepth" />
+                                        <Button Content="{Binding EnableControlDepthLabel}"
+                                                Width="{StaticResource PermissionChoiceButtonWidth}"
+                                                Tag="{Binding EnableControlDepthVisualState}"
+                                                Style="{DynamicResource ChoiceStateButtonStyle}"
+                                                Click="OnEnableControlDepth" />
+                                        <Button Content="{Binding DisableControlDepthLabel}"
+                                                Width="{StaticResource PermissionChoiceButtonWidth}"
+                                                Tag="{Binding DisableControlDepthVisualState}"
+                                                Style="{DynamicResource ChoiceStateButtonStyle}"
+                                                Click="OnDisableControlDepth" />
+                                    </ui:SpacingWrapPanel>
                                 </ui:SpacingStackPanel>
                             </Expander>
                             <Expander Header="Trackpad profile"

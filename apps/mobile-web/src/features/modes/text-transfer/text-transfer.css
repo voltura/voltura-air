@@ -158,13 +158,22 @@
 }
 
 .text-transfer-editor-mode button.active {
+  --control-background: var(--action);
+
   flex: 0 0 42px;
   width: 42px;
   border-color: var(--accent);
-  background: var(--action);
   color: var(--on-action);
   box-shadow: 0 2px 8px var(--drawer-shadow);
   padding-inline: 0;
+}
+
+.control-depth .text-transfer-editor-mode button.active {
+  box-shadow:
+    inset 0 0 0 2px var(--text),
+    inset 0 2px 0 color-mix(in srgb, var(--on-action) 58%, transparent),
+    inset 0 -3px 0 color-mix(in srgb, var(--control-shadow) 78%, transparent),
+    0 3px 7px color-mix(in srgb, var(--control-shadow) 88%, transparent);
 }
 
 .text-transfer-editor-mode svg {
@@ -482,14 +491,16 @@
 }
 
 .snippet-dialog-primary {
+  --control-background: var(--action);
+
   border-color: var(--accent);
-  background: var(--action);
   color: var(--on-action);
 }
 
 .snippet-dialog-danger {
+  --control-background: color-mix(in srgb, var(--danger) 14%, var(--surface-raised));
+
   border-color: color-mix(in srgb, var(--danger) 58%, var(--border));
-  background: color-mix(in srgb, var(--danger) 14%, var(--surface-raised));
   color: var(--danger);
 }
 

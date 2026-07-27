@@ -27,7 +27,7 @@
                             </Grid.RowDefinitions>
                             <ToggleButton x:Name="HeaderButton"
                                           MinHeight="{DynamicResource ControlMinHeight}"
-                                          Background="Transparent"
+                                          Background="{DynamicResource ControlDepthRaisedBrush}"
                                           Foreground="{DynamicResource TextBrush}"
                                           BorderThickness="0"
                                           HorizontalContentAlignment="Stretch"
@@ -37,11 +37,35 @@
                                           IsChecked="{Binding IsExpanded, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
                                 <ToggleButton.Template>
                                     <ControlTemplate TargetType="ToggleButton">
-                                        <Border x:Name="HeaderChrome"
-                                                Background="{TemplateBinding Background}"
-                                                CornerRadius="9"
-                                                Padding="14,6">
-                                            <Grid>
+                                        <Grid>
+                                            <Border x:Name="HeaderChrome"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="9">
+                                                <Border.Effect>
+                                                    <DropShadowEffect BlurRadius="4"
+                                                                      Direction="270"
+                                                                      ShadowDepth="2"
+                                                                      Opacity="{DynamicResource ControlDepthShadowOpacity}"
+                                                                      Color="{DynamicResource ControlElevationShadowColor}" />
+                                                </Border.Effect>
+                                            </Border>
+                                            <Border x:Name="HeaderDepth"
+                                                    Margin="1"
+                                                    CornerRadius="8"
+                                                    RenderTransformOrigin="0.5,0.5"
+                                                    IsHitTestVisible="False">
+                                                <Border.Background>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                        <GradientStop Offset="0"
+                                                                      Color="{DynamicResource ControlHighlightColor}" />
+                                                        <GradientStop Offset="0.46"
+                                                                      Color="Transparent" />
+                                                        <GradientStop Offset="1"
+                                                                      Color="{DynamicResource ControlShadowColor}" />
+                                                    </LinearGradientBrush>
+                                                </Border.Background>
+                                            </Border>
+                                            <Grid Margin="14,6">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
@@ -67,7 +91,7 @@
                                                       Stretch="None"
                                                       IsHitTestVisible="False" />
                                             </Grid>
-                                        </Border>
+                                        </Grid>
                                         <ControlTemplate.Triggers>
                                             <Trigger Property="IsMouseOver" Value="True">
                                                 <Setter TargetName="HeaderChrome" Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
@@ -78,6 +102,20 @@
                                             </Trigger>
                                             <Trigger Property="IsChecked" Value="True">
                                                 <Setter TargetName="HeaderChrome" Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
+                                                <Setter TargetName="HeaderChrome" Property="Effect">
+                                                    <Setter.Value>
+                                                        <DropShadowEffect BlurRadius="3"
+                                                                          Direction="270"
+                                                                          ShadowDepth="0"
+                                                                          Opacity="{DynamicResource ControlDepthInsetShadowOpacity}"
+                                                                          Color="{DynamicResource ControlElevationShadowColor}" />
+                                                    </Setter.Value>
+                                                </Setter>
+                                                <Setter TargetName="HeaderDepth" Property="RenderTransform">
+                                                    <Setter.Value>
+                                                        <ScaleTransform ScaleY="-1" />
+                                                    </Setter.Value>
+                                                </Setter>
                                                 <Setter TargetName="Chevron" Property="Data" Value="M 1,5 L 5,1 L 9,5" />
                                                 <Setter TargetName="Chevron" Property="Stroke" Value="{DynamicResource AccentBrush}" />
                                             </Trigger>

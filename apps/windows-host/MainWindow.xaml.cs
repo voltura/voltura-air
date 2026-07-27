@@ -136,6 +136,7 @@ public partial class MainWindow : Window
         _pairingManager.DeviceProfileChanged += OnDeviceProfileChanged;
         _pairingManager.PairingCodeInvalidated += OnPairingCodeInvalidated;
         AppThemeSettings.Changed += OnThemeChanged;
+        AppAppearanceSettings.HostControlDepthChanged += OnThemeChanged;
         _awakeService.StateChanged += OnAwakeStateChanged;
         IsVisibleChanged += OnWindowIsVisibleChanged;
         RefreshStatusText();
@@ -196,6 +197,7 @@ public partial class MainWindow : Window
         _pairingManager.DeviceProfileChanged -= OnDeviceProfileChanged;
         _pairingManager.PairingCodeInvalidated -= OnPairingCodeInvalidated;
         AppThemeSettings.Changed -= OnThemeChanged;
+        AppAppearanceSettings.HostControlDepthChanged -= OnThemeChanged;
         _awakeService.StateChanged -= OnAwakeStateChanged;
         IsVisibleChanged -= OnWindowIsVisibleChanged;
         _connectionChangedAction.Dispose();
@@ -302,6 +304,7 @@ public partial class MainWindow : Window
         foreach (var button in _navigationButtons)
         {
             var isActive = button == GetButtonForPage(_activePage);
+            button.Tag = isActive ? "Selected" : null;
             button.Background = _visuals.Brush(isActive ? "AccentBrush" : "SurfaceRaisedBrush");
             button.Foreground = _visuals.Brush(isActive ? "AccentTextBrush" : "TextBrush");
             button.BorderBrush = _visuals.Brush(isActive ? "AccentBrush" : "BorderBrush");

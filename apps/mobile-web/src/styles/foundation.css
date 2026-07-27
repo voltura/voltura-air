@@ -48,11 +48,13 @@ input {
 }
 
 button {
+  --control-background: var(--surface-raised);
+
   min-height: var(--control-min-height);
   border: 1px solid var(--border);
   border-radius: var(--radius-medium);
   color: var(--text);
-  background: var(--surface-raised);
+  background: var(--control-background);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -72,30 +74,94 @@ summary:focus-visible {
   outline: none;
 }
 
-button:not([aria-disabled="true"]):active {
+button:not(:disabled, [aria-disabled="true"]):active {
   color: var(--text);
   background: var(--surface-raised);
   border-color: var(--accent);
 }
 
-button.active {
-  color: var(--on-action);
-  background: var(--action);
-  border-color: var(--accent);
-}
+button:is(.active, [aria-current="page"], [aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]) {
+  --control-background: var(--action);
 
-button.active,
-button[aria-selected="true"],
-button[aria-pressed="true"],
-button[aria-checked="true"] {
+  color: var(--on-action);
+  background: var(--control-background);
+  border-color: var(--accent);
   box-shadow: inset 0 0 0 2px var(--text);
   font-weight: 800;
 }
 
 button:disabled,
 button[aria-disabled="true"] {
+  --control-background: var(--surface);
+
   color: var(--disabled);
-  background: var(--surface);
+}
+
+.control-depth button {
+  background:
+    linear-gradient(
+      to bottom,
+      var(--control-highlight),
+      transparent 42%,
+      color-mix(in srgb, var(--control-shadow) 40%, transparent)
+    ),
+    var(--control-background);
+  box-shadow:
+    inset 0 1px 0 var(--control-highlight),
+    inset 0 -1px 0 color-mix(in srgb, var(--control-shadow) 48%, transparent),
+    0 2px 4px color-mix(in srgb, var(--control-shadow) 72%, transparent);
+  transition:
+    background var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease,
+    transform var(--motion-fast) ease;
+}
+
+.control-depth button:not(:disabled, [aria-disabled="true"]):active {
+  background:
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--control-shadow) 42%, transparent),
+      transparent
+    ),
+    var(--control-background);
+  box-shadow:
+    inset 0 2px 4px color-mix(in srgb, var(--control-shadow) 88%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--control-highlight) 50%, transparent);
+  transform: translateY(1px);
+}
+
+.control-depth button:is(.active, [aria-current="page"], [aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]) {
+  background:
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--on-action) 42%, transparent),
+      transparent 44%,
+      color-mix(in srgb, var(--control-shadow) 92%, transparent)
+    ),
+    var(--control-background);
+  box-shadow:
+    inset 0 0 0 2px var(--text),
+    inset 0 2px 0 color-mix(in srgb, var(--on-action) 52%, transparent),
+    inset 0 -3px 0 color-mix(in srgb, var(--control-shadow) 78%, transparent),
+    0 3px 7px color-mix(in srgb, var(--control-shadow) 88%, transparent);
+}
+
+.control-depth button:disabled,
+.control-depth button[aria-disabled="true"] {
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--control-highlight) 55%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--control-shadow) 28%, transparent);
+}
+
+@media (hover: hover) {
+  .control-depth button:not(:disabled, [aria-disabled="true"]):hover {
+    border-color: color-mix(in srgb, var(--border) 65%, var(--text));
+    box-shadow:
+      inset 0 1px 0 var(--control-highlight),
+      inset 0 -1px 0 color-mix(in srgb, var(--control-shadow) 40%, transparent),
+      0 3px 6px color-mix(in srgb, var(--control-shadow) 82%, transparent);
+  }
 }
 
 svg {
@@ -437,6 +503,11 @@ button span {
     grid-template-rows: auto auto minmax(0, 1fr);
   }
 
+  /* Fill the mode-navigation row when Remote's mode buttons are hidden. */
+  .app-shell.remote-active:not(.has-mode-navigation) > .remote-mode {
+    grid-row: 2 / -1;
+  }
+
   .bottom-mode-tabs {
     display: none;
   }
@@ -470,10 +541,6 @@ button span {
     display: inline-flex;
   }
 
-  /* Span the hidden mode-navigation row so CSS Grid does not auto-place Remote into it. */
-  .app-shell.remote-active.remote-utility-open > .remote-mode {
-    grid-row: 2 / -1;
-  }
 }
 
 @media (height <= 520px) and (orientation: landscape) {

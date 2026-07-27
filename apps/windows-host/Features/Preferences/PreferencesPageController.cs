@@ -129,11 +129,19 @@ internal sealed class PreferencesPageController
         lightTheme.Click += (_, _) => SetThemeMode(AppThemeMode.Light);
         darkTheme.Click += (_, _) => SetThemeMode(AppThemeMode.Dark);
         parent.Children.Add(HostVisualFactory.CreateSegmentRow(systemTheme, lightTheme, darkTheme));
+        var hostControlDepth = _visuals.CreateCheckBox("3D effect on controls", AppAppearanceSettings.HostControlDepth());
+        hostControlDepth.Checked += (_, _) => AppAppearanceSettings.SetHostControlDepth(true);
+        hostControlDepth.Unchecked += (_, _) => AppAppearanceSettings.SetHostControlDepth(false);
+        parent.Children.Add(hostControlDepth);
         parent.Children.Add(_visuals.CreateLabel("Device"));
         var showModeButtons = _visuals.CreateCheckBox("Show mode buttons", AppAppearanceSettings.ShowModeButtons());
         showModeButtons.Checked += (_, _) => AppAppearanceSettings.SetShowModeButtons(true);
         showModeButtons.Unchecked += (_, _) => AppAppearanceSettings.SetShowModeButtons(false);
         parent.Children.Add(showModeButtons);
+        var deviceControlDepth = _visuals.CreateCheckBox("3D effect on controls", AppAppearanceSettings.DeviceControlDepth());
+        deviceControlDepth.Checked += (_, _) => AppAppearanceSettings.SetDeviceControlDepth(true);
+        deviceControlDepth.Unchecked += (_, _) => AppAppearanceSettings.SetDeviceControlDepth(false);
+        parent.Children.Add(deviceControlDepth);
     }
 
     private void AddTrackpadSettings(StackPanel parent)

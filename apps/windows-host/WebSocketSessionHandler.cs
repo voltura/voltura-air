@@ -297,6 +297,9 @@ internal sealed class WebSocketSessionHandler(
             case "appearance.mode-buttons.set":
                 pairingManager.SetDeviceShowModeButtonsOverride(clientId, root.GetProperty("showModeButtons").GetBoolean());
                 return true;
+            case "appearance.control-depth.set":
+                pairingManager.SetDeviceControlDepthOverride(clientId, root.GetProperty("controlDepth").GetBoolean());
+                return true;
             case "custom.pointer.set":
                 ApplyCustomPointer(clientId, root.GetProperty("enabled").GetBoolean());
                 return true;

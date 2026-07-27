@@ -2,7 +2,7 @@ import { Download, RefreshCw } from "lucide-react";
 import { getEffectiveFourthMode } from "../../foundation/settings/appSettings";
 import type { SettingsDrawerProps } from "./SettingsDrawerTypes";
 
-export function AppearanceSettingsSection({ setHostShowModeButtons, setThemeMode, showModeButtons = true, themeMode }: Pick<SettingsDrawerProps, "setHostShowModeButtons" | "setThemeMode" | "showModeButtons" | "themeMode">) {
+export function AppearanceSettingsSection({ controlDepth = true, setHostControlDepth, setHostShowModeButtons, setThemeMode, showModeButtons = true, themeMode }: Pick<SettingsDrawerProps, "controlDepth" | "setHostControlDepth" | "setHostShowModeButtons" | "setThemeMode" | "showModeButtons" | "themeMode">) {
   return (
     <div className="setting-group">
       <span>Theme</span>
@@ -12,6 +12,7 @@ export function AppearanceSettingsSection({ setHostShowModeButtons, setThemeMode
         <button type="button" className={themeMode === "dark" ? "active" : ""} onClick={() => { setThemeMode("dark"); }}>Dark</button>
       </div>
       <label className="toggle-row"><span>Show mode buttons</span><input type="checkbox" checked={showModeButtons} onChange={(event) => { setHostShowModeButtons?.(event.target.checked); }} /></label>
+      <label className="toggle-row"><span>3D effect on controls</span><input type="checkbox" checked={controlDepth} onChange={(event) => { setHostControlDepth?.(event.target.checked); }} /></label>
     </div>
   );
 }

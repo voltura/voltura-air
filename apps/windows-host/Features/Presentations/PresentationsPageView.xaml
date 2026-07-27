@@ -19,7 +19,7 @@
             <Border x:Name="PendingReviewPanel"
                     Grid.Row="0"
                     Visibility="Collapsed"
-                    Padding="{DynamicResource SpaceMd}"
+                    Padding="{DynamicResource InsetMd}"
                     CornerRadius="10"
                     BorderBrush="{DynamicResource AccentBrush}"
                     BorderThickness="1"

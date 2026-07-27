@@ -104,8 +104,9 @@
 }
 
 .remote-utility-grid button.remote-switch-app.active {
+  --control-background: var(--action);
+
   color: var(--on-action);
-  background: var(--action);
   border-color: var(--accent);
 }
 
@@ -297,8 +298,9 @@
 }
 
 .remote-url-dialog-primary {
+  --control-background: var(--action);
+
   border-color: var(--accent);
-  background: var(--action);
   color: var(--on-action);
 }
 
@@ -540,9 +542,10 @@
 }
 
 .remote-dpad-ok {
+  --control-background: var(--action);
+
   grid-area: ok;
   color: var(--on-action);
-  background: var(--action);
   border-color: var(--accent);
 }
 
@@ -677,8 +680,6 @@
     top: 8px;
   }
 }
-
-/* Remote navigation trackpad */
 
 .remote-navigation-section:has(.remote-navigation-ring) {
   background:

@@ -191,6 +191,7 @@ internal sealed class HostStatusPayloadFactory(
             pairingManager.GetDevicePointerSpeed(clientId),
             AppPointerSettings.GetCustomPointer().Enabled,
             pairingManager.GetDeviceShowModeButtons(clientId),
+            pairingManager.GetDeviceControlDepth(clientId),
             developerMode,
             developerMode ? DeveloperSessionId : null,
             isInputBlockedByElevation());

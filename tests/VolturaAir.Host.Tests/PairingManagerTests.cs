@@ -262,6 +262,28 @@ public sealed class PairingManagerTests
     }
 
     [Fact]
+    public void DeviceControlDepthOverrideWinsOverTheEnabledGlobalDefaultAndPersists()
+    {
+        using var store = new TempPairingStore();
+        using var key = new PairingTestKey();
+        var manager = new PairingManager(store.Store);
+        manager.AcceptPairing("client-a", "Phone", manager.CreatePairingToken(), reconnectPublicKey: key.PublicKey);
+
+        Assert.True(manager.GetDeviceControlDepth("client-a"));
+        Assert.True(manager.SetDeviceControlDepthOverride("client-a", false));
+
+        var device = Assert.Single(manager.GetDevices());
+        Assert.False(manager.GetDeviceControlDepth("client-a"));
+        Assert.False(device.ControlDepth);
+        Assert.False(device.ControlDepthOverride);
+        Assert.False(Assert.Single(store.Store.Load()).ControlDepthOverride);
+
+        Assert.True(manager.SetDeviceControlDepthOverride("client-a", null));
+        Assert.True(manager.GetDeviceControlDepth("client-a"));
+        Assert.Null(Assert.Single(store.Store.Load()).ControlDepthOverride);
+    }
+
+    [Fact]
     public void DisconnectDeviceRemovesOnlySelectedDevice()
     {
         using var store = new TempPairingStore();

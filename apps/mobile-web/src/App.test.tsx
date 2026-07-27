@@ -121,6 +121,7 @@ function mockConnection(overrides: Partial<ReturnType<typeof useVolturaAirConnec
     renamePc: vi.fn(),
     renameDevice: vi.fn(),
     setHostCustomPointer: vi.fn(),
+    setHostControlDepth: vi.fn(),
     setHostShowModeButtons: vi.fn(),
     setHostPointerSpeed: vi.fn(),
     ...overrides
@@ -150,6 +151,18 @@ beforeEach(() => {
 });
 
 describe("App header and mode navigation", () => {
+  it("uses the effective device control-depth preference on the app shell and bottom navigation frame", () => {
+    mockConnection({ hostStatus: { controlDepth: false } });
+    const view = render(<App />);
+    expect(document.querySelector(".app-shell")?.classList).not.toContain("control-depth");
+    expect(document.querySelector(".app-frame")?.classList).not.toContain("control-depth");
+
+    mockConnection({ hostStatus: { controlDepth: true } });
+    view.rerender(<App />);
+    expect(document.querySelector(".app-shell")?.classList).toContain("control-depth");
+    expect(document.querySelector(".app-frame")?.classList).toContain("control-depth");
+  });
+
   it("clears stale owned laser state when the app starts outside Presentation", async () => {
     const requestPresentationCommand = vi.fn(() => "laser-cleanup");
     mockConnection({

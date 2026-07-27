@@ -17,22 +17,103 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="Chrome"
-                            Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="8">
-                        <ContentPresenter Margin="{TemplateBinding Padding}"
-                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
-                                          RecognizesAccessKey="True" />
+                    <Border x:Name="Elevation" CornerRadius="8">
+                        <Grid>
+                            <Border x:Name="Chrome"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="8">
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="4"
+                                                      Direction="270"
+                                                      ShadowDepth="2"
+                                                      Opacity="{DynamicResource ControlDepthShadowOpacity}"
+                                                      Color="{DynamicResource ControlElevationShadowColor}" />
+                                </Border.Effect>
+                            </Border>
+                            <Border x:Name="Highlight"
+                                    Margin="1"
+                                    BorderBrush="{DynamicResource ControlHighlightBrush}"
+                                    BorderThickness="0,1,0,0"
+                                    CornerRadius="7"
+                                    IsHitTestVisible="False">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Offset="0"
+                                                      Color="{DynamicResource ControlHighlightColor}" />
+                                        <GradientStop Offset="0.42"
+                                                      Color="Transparent" />
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                            </Border>
+                            <Border x:Name="Shade"
+                                    Margin="1"
+                                    CornerRadius="7"
+                                    IsHitTestVisible="False"
+                                    Opacity="0.28">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Offset="0.52"
+                                                      Color="Transparent" />
+                                        <GradientStop Offset="1"
+                                                      Color="{DynamicResource ControlElevationShadowColor}" />
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                            </Border>
+                            <Border x:Name="Emphasis"
+                                    Margin="1"
+                                    CornerRadius="7"
+                                    IsHitTestVisible="False"
+                                    Opacity="0">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Offset="0"
+                                                      Color="{DynamicResource ControlHighlightColor}" />
+                                        <GradientStop Offset="0.44"
+                                                      Color="Transparent" />
+                                        <GradientStop Offset="0.58"
+                                                      Color="Transparent" />
+                                        <GradientStop Offset="1"
+                                                      Color="{DynamicResource ControlElevationShadowColor}" />
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                            </Border>
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                              RecognizesAccessKey="True" />
+                        </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Chrome" Property="Opacity" Value="0.82" />
+                            <Setter TargetName="Elevation" Property="RenderTransform">
+                                <Setter.Value>
+                                    <TranslateTransform Y="1" />
+                                </Setter.Value>
+                            </Setter>
+                            <Setter TargetName="Chrome" Property="Effect">
+                                <Setter.Value>
+                                    <DropShadowEffect BlurRadius="2"
+                                                      Direction="270"
+                                                      ShadowDepth="0"
+                                                      Opacity="{DynamicResource ControlDepthPressedShadowOpacity}"
+                                                      Color="{DynamicResource ControlElevationShadowColor}" />
+                                </Setter.Value>
+                            </Setter>
+                            <Setter TargetName="Highlight" Property="Opacity" Value="0.45" />
+                            <Setter TargetName="Shade" Property="Opacity" Value="0.5" />
+                        </Trigger>
+                        <Trigger Property="Tag" Value="Selected">
+                            <Setter TargetName="Emphasis" Property="Opacity" Value="0.7" />
+                            <Setter TargetName="Shade" Property="Opacity" Value="0.5" />
+                        </Trigger>
+                        <Trigger Property="Tag" Value="Emphasized">
+                            <Setter TargetName="Emphasis" Property="Opacity" Value="0.7" />
+                            <Setter TargetName="Shade" Property="Opacity" Value="0.5" />
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource FocusBrush}" />
@@ -64,6 +145,7 @@
         </Style.Triggers>
     </Style>
     <Style x:Key="PrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+        <Setter Property="Tag" Value="Emphasized" />
         <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
         <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
@@ -146,14 +228,103 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToggleButton">
-                    <Border Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="8">
-                        <ContentPresenter HorizontalAlignment="Center"
-                                          VerticalAlignment="Center"
-                                          Margin="{TemplateBinding Padding}" />
+                    <Border x:Name="Elevation" CornerRadius="8">
+                        <Grid>
+                            <Border x:Name="Chrome"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="8">
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="4"
+                                                      Direction="270"
+                                                      ShadowDepth="2"
+                                                      Opacity="{DynamicResource ControlDepthShadowOpacity}"
+                                                      Color="{DynamicResource ControlShadowColor}" />
+                                </Border.Effect>
+                            </Border>
+                            <Border x:Name="Highlight"
+                                    Margin="1"
+                                    BorderBrush="{DynamicResource ControlHighlightBrush}"
+                                    BorderThickness="0,1,0,0"
+                                    CornerRadius="7"
+                                    IsHitTestVisible="False">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Offset="0"
+                                                      Color="{DynamicResource ControlHighlightColor}" />
+                                        <GradientStop Offset="0.42"
+                                                      Color="Transparent" />
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                            </Border>
+                            <Border x:Name="Shade"
+                                    Margin="1"
+                                    CornerRadius="7"
+                                    IsHitTestVisible="False"
+                                    Opacity="0.28">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Offset="0.52"
+                                                      Color="Transparent" />
+                                        <GradientStop Offset="1"
+                                                      Color="{DynamicResource ControlShadowColor}" />
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                            </Border>
+                            <Border x:Name="Emphasis"
+                                    Margin="1"
+                                    CornerRadius="7"
+                                    IsHitTestVisible="False"
+                                    Opacity="0">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Offset="0"
+                                                      Color="{DynamicResource ControlHighlightColor}" />
+                                        <GradientStop Offset="0.44"
+                                                      Color="Transparent" />
+                                        <GradientStop Offset="0.58"
+                                                      Color="Transparent" />
+                                        <GradientStop Offset="1"
+                                                      Color="{DynamicResource ControlShadowColor}" />
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                            </Border>
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}" />
+                        </Grid>
                     </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Elevation" Property="RenderTransform">
+                                <Setter.Value>
+                                    <TranslateTransform Y="1" />
+                                </Setter.Value>
+                            </Setter>
+                            <Setter TargetName="Chrome" Property="Effect">
+                                <Setter.Value>
+                                    <DropShadowEffect BlurRadius="2"
+                                                      Direction="270"
+                                                      ShadowDepth="0"
+                                                      Opacity="{DynamicResource ControlDepthPressedShadowOpacity}"
+                                                      Color="{DynamicResource ControlShadowColor}" />
+                                </Setter.Value>
+                            </Setter>
+                            <Setter TargetName="Highlight" Property="Opacity" Value="0.45" />
+                            <Setter TargetName="Shade" Property="Opacity" Value="0.5" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Emphasis" Property="Opacity" Value="0.7" />
+                            <Setter TargetName="Shade" Property="Opacity" Value="0.5" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource FocusBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

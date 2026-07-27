@@ -35,6 +35,8 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
 
     public bool GetDeviceShowModeButtons(string clientId) => GetEffectiveShowModeButtons(Find(clientId));
 
+    public bool GetDeviceControlDepth(string clientId) => GetEffectiveControlDepth(Find(clientId));
+
     public void UpsertAndSave(PairingRecord record)
     {
         Upsert(record);
@@ -143,6 +145,25 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
         return true;
     }
 
+    public bool SetControlDepthOverride(string clientId, bool? controlDepth)
+    {
+        var index = FindIndex(clientId);
+        if (index < 0)
+        {
+            return false;
+        }
+
+        var existing = _records[index];
+        if (existing.ControlDepthOverride == controlDepth)
+        {
+            return false;
+        }
+
+        _records[index] = existing with { ControlDepthOverride = controlDepth };
+        _store.Save(_records);
+        return true;
+    }
+
     public bool SetPermissionOverrides(string clientId, DevicePermissionOverrides permissionOverrides)
     {
         var index = FindIndex(clientId);
@@ -237,7 +258,9 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
             record.PointerSpeedOverride,
             GetEffectivePointerSpeed(record),
             record.ShowModeButtonsOverride,
-            GetEffectiveShowModeButtons(record));
+            GetEffectiveShowModeButtons(record),
+            record.ControlDepthOverride,
+            GetEffectiveControlDepth(record));
     })];
 
     private PairedDeviceStatus[] GetDuplicateCleanupCandidatesCore() => [.. BuildDeviceStatuses()
@@ -277,7 +300,8 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
             DisplayMode = string.IsNullOrWhiteSpace(record.DisplayMode) ? existing.DisplayMode : record.DisplayMode,
             PermissionOverrides = existing.PermissionOverrides,
             PointerSpeedOverride = existing.PointerSpeedOverride,
-            ShowModeButtonsOverride = existing.ShowModeButtonsOverride
+            ShowModeButtonsOverride = existing.ShowModeButtonsOverride,
+            ControlDepthOverride = existing.ControlDepthOverride
         };
     }
 
@@ -346,6 +370,9 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
 
     private static bool GetEffectiveShowModeButtons(PairingRecord? record) =>
         record?.ShowModeButtonsOverride ?? AppAppearanceSettings.ShowModeButtons();
+
+    private static bool GetEffectiveControlDepth(PairingRecord? record) =>
+        record?.ControlDepthOverride ?? AppAppearanceSettings.DeviceControlDepth();
 
     private static string SummarizeDevices(IEnumerable<string> deviceNames)
     {

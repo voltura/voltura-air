@@ -6,6 +6,8 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using Brush = System.Windows.Media.Brush;
 using Color = System.Windows.Media.Color;
+using WpfBrushes = System.Windows.Media.Brushes;
+using WpfColors = System.Windows.Media.Colors;
 using WpfSystemColors = System.Windows.SystemColors;
 
 namespace VolturaAir.Host;
@@ -42,6 +44,18 @@ internal static partial class WpfTheme
         resources["DangerStrongBrush"] = ToBrush(theme.DangerStrong);
         resources["PresentationSegmentBrush"] = ToBrush(theme.PresentationSegment);
         resources["PresentationBreakBrush"] = ToBrush(theme.PresentationBreak);
+        var controlDepth = AppAppearanceSettings.HostControlDepth();
+        var controlHighlight = controlDepth ? theme.ControlHighlight : System.Drawing.Color.Transparent;
+        var controlShadow = controlDepth ? theme.ControlShadow : System.Drawing.Color.Transparent;
+        resources["ControlHighlightBrush"] = ToBrush(controlHighlight);
+        resources["ControlHighlightColor"] = ToMediaColor(controlHighlight);
+        resources["ControlShadowColor"] = ToMediaColor(controlShadow);
+        resources["ControlElevationShadowColor"] = ToMediaColor(controlShadow);
+        resources["ControlDepthShadowOpacity"] = controlDepth ? 0.7d : 0d;
+        resources["ControlDepthSubtleShadowOpacity"] = controlDepth ? 0.65d : 0d;
+        resources["ControlDepthPressedShadowOpacity"] = controlDepth ? 0.55d : 0d;
+        resources["ControlDepthInsetShadowOpacity"] = controlDepth ? 0.72d : 0d;
+        resources["ControlDepthRaisedBrush"] = controlDepth ? ToBrush(theme.SurfaceRaised) : WpfBrushes.Transparent;
         resources["QrBackgroundBrush"] = ToBrush(theme.QrBackground);
 
         window.Background = (Brush)resources["WindowBrush"];
@@ -94,6 +108,15 @@ internal static partial class WpfTheme
         resources["DangerStrongBrush"] = WpfSystemColors.HighlightBrush;
         resources["PresentationSegmentBrush"] = WpfSystemColors.WindowTextBrush;
         resources["PresentationBreakBrush"] = WpfSystemColors.HighlightBrush;
+        resources["ControlHighlightBrush"] = WpfBrushes.Transparent;
+        resources["ControlHighlightColor"] = WpfColors.Transparent;
+        resources["ControlShadowColor"] = WpfColors.Transparent;
+        resources["ControlElevationShadowColor"] = WpfColors.Transparent;
+        resources["ControlDepthShadowOpacity"] = 0d;
+        resources["ControlDepthSubtleShadowOpacity"] = 0d;
+        resources["ControlDepthPressedShadowOpacity"] = 0d;
+        resources["ControlDepthInsetShadowOpacity"] = 0d;
+        resources["ControlDepthRaisedBrush"] = WpfBrushes.Transparent;
         resources["QrBackgroundBrush"] = WpfSystemColors.WindowBrush;
 
         window.Background = WpfSystemColors.WindowBrush;
@@ -103,10 +126,13 @@ internal static partial class WpfTheme
 
     public static SolidColorBrush ToBrush(System.Drawing.Color color)
     {
-        var brush = new SolidColorBrush(Color.FromArgb(color.A, color.R, color.G, color.B));
+        var brush = new SolidColorBrush(ToMediaColor(color));
         brush.Freeze();
         return brush;
     }
+
+    private static Color ToMediaColor(System.Drawing.Color color) =>
+        Color.FromArgb(color.A, color.R, color.G, color.B);
 
     private static void ApplyImmersiveDarkMode(Window window, bool isDark)
     {

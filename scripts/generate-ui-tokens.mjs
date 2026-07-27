@@ -105,11 +105,14 @@ ${xamlRadii}
 
 function renderColor(value) {
   const normalized = value.slice(1);
+  const alpha = normalized.length === 8 ? Number.parseInt(normalized.slice(0, 2), 16) : 255;
   const rgb = normalized.length === 8 ? normalized.slice(2) : normalized;
   const red = Number.parseInt(rgb.slice(0, 2), 16);
   const green = Number.parseInt(rgb.slice(2, 4), 16);
   const blue = Number.parseInt(rgb.slice(4, 6), 16);
-  return `System.Drawing.Color.FromArgb(${red}, ${green}, ${blue})`;
+  return alpha === 255
+    ? `System.Drawing.Color.FromArgb(${red}, ${green}, ${blue})`
+    : `System.Drawing.Color.FromArgb(${alpha}, ${red}, ${green}, ${blue})`;
 }
 
 function renderPalette(name, theme) {
@@ -130,6 +133,8 @@ function renderPalette(name, theme) {
         ${renderColor(theme.dangerStrong)},
         ${renderColor(theme.presentationSegment)},
         ${renderColor(theme.presentationBreak)},
+        ${renderColor(theme.controlHighlight)},
+        ${renderColor(theme.controlShadow)},
         ${renderColor(theme.qrBackground)});`;
 }
 

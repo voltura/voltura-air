@@ -57,6 +57,7 @@ export function App() {
     renamePc,
     renameDevice,
     setHostCustomPointer,
+    setHostControlDepth,
     setHostShowModeButtons,
     setHostPointerSpeed
   } = connection;
@@ -79,6 +80,7 @@ export function App() {
   const hostPointerSpeed = hostStatus?.pointerSpeed;
   const hostDefaultRemoteMode = hostStatus?.defaultRemoteMode;
   const showModeButtons = hostStatus?.showModeButtons ?? true;
+  const controlDepth = hostStatus?.controlDepth ?? true;
   const pcSettings = usePcSettings(clientId, activePc?.id ?? null, hostDefaultRemoteMode, hostPointerSpeed);
   const {
     appSettings,
@@ -380,8 +382,8 @@ export function App() {
   };
 
   return (
-    <div className="app-frame">
-      <main className={shellClassName}>
+    <div className={`app-frame${controlDepth ? " control-depth" : ""}`}>
+      <main className={`${shellClassName}${controlDepth ? " control-depth" : ""}`}>
         <AppHeader
           activeMode={activeModeTab}
           canShowModeNavigation={canShowModeNavigation}
@@ -468,11 +470,13 @@ export function App() {
             requestPresentationConnectionChange("connect", () => { selectPc(pcId); });
           }}
           setHostCustomPointer={setHostCustomPointer}
+          setHostControlDepth={setHostControlDepth}
           setHostShowModeButtons={setHostShowModeButtons}
           setThemeMode={setThemeMode}
           showGestureDebug={supportsGestureDebug}
           supportsRemoteLaunch={supportsRemoteLaunch}
           themeMode={themeMode}
+          controlDepth={controlDepth}
           showModeButtons={showModeButtons}
           toolOptions={[
             ...modeTabs,

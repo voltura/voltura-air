@@ -211,6 +211,18 @@ function isServerMessage(value: unknown): value is ServerMessage {
       return isOperationId(value.operationId) && typeof value.enabled === "boolean" && isResultBase(value);
     case "app.launch.result":
       return isOperationId(value.operationId) && isAppLaunchActionId(value.actionId) && isResultBase(value);
+    case "custom.screen.get.result":
+      return isOperationId(value.operationId) &&
+        typeof value.succeeded === "boolean" &&
+        isOptional(value, "screen", isCustomScreenDefinition) &&
+        isOptional(value, "code", isString) &&
+        isOptional(value, "message", isString) &&
+        (value.succeeded ? isCustomScreenDefinition(value.screen) : isString(value.message));
+    case "custom.screen.invoke.result":
+      return isOperationId(value.operationId) &&
+        isCustomScreenId(value.screenId) &&
+        isCustomScreenId(value.buttonId) &&
+        isResultBase(value);
     case "url.open.result":
       return isOperationId(value.operationId) && isResultBase(value) &&
         isOptional(value, "normalizedUrl", isString);
@@ -241,10 +253,115 @@ function isServerCapabilities(value: unknown): boolean {
     isOptional(value, "presentation", isPresentationCapability) &&
     isOptional(value, "power", isPowerCapabilities) &&
     isOptional(value, "remoteLaunch", isBoolean) &&
+    isOptional(value, "customScreens", (candidate) =>
+      candidate === null || isCustomScreensCapability(candidate)) &&
     isOptional(value, "urlOpen", (candidate) => isBooleanCapability(candidate, "canOpen")) &&
     isOptional(value, "sleep", isBoolean) &&
     isOptional(value, "textTransfer", isBoolean) &&
     isOptional(value, "volume", isBoolean);
+}
+
+function isCustomScreensCapability(value: unknown): boolean {
+  return isRecord(value) &&
+    isCustomScreenId(value.catalogRevision) &&
+    Array.isArray(value.screens) &&
+    value.screens.length <= 128 &&
+    value.screens.every((candidate) =>
+      isRecord(candidate) &&
+      isCustomScreenId(candidate.id) &&
+      isBoundedString(candidate.name, 24, false) &&
+      isCustomScreenId(candidate.revision));
+}
+
+function isCustomScreenDefinition(value: unknown): boolean {
+  return isRecord(value) &&
+    isCustomScreenId(value.id) &&
+    isBoundedString(value.name, 24, false) &&
+    isCustomScreenId(value.revision) &&
+    typeof value.orientationLayoutsEnabled === "boolean" &&
+    typeof value.showNavigationHeader === "boolean" &&
+    Array.isArray(value.sections) &&
+    value.sections.length <= 64 &&
+    value.sections.every(isCustomScreenSection);
+}
+
+function isCustomScreenSection(value: unknown): boolean {
+  return isRecord(value) &&
+    isCustomScreenId(value.id) &&
+    isBoundedString(value.name, 20, false) &&
+    typeof value.showHeader === "boolean" &&
+    isOneOf(value.widthColumns, [3, 4, 6, 8, 9, 12]) &&
+    isOneOf(value.heightMode, ["content", "fill"]) &&
+    typeof value.fillWeight === "number" &&
+    Number.isInteger(value.fillWeight) &&
+    value.fillWeight >= 1 &&
+    value.fillWeight <= 4 &&
+    typeof value.rowLimit === "number" &&
+    Number.isInteger(value.rowLimit) &&
+    value.rowLimit >= 0 &&
+    value.rowLimit <= 3 &&
+    isOneOf(value.buttonAlignment, [
+      "start",
+      "center",
+      "end",
+      "space-between",
+      "space-around",
+      "space-evenly"
+    ]) &&
+    isOneOf(value.kind, ["buttons", "trackpad", "volume"]) &&
+    typeof value.collapsible === "boolean" &&
+    typeof value.initiallyExpanded === "boolean" &&
+    typeof value.trackpadLeftClick === "boolean" &&
+    typeof value.trackpadRightClick === "boolean" &&
+    isOneOf(value.trackpadButtonSide, ["left", "right"]) &&
+    typeof value.trackpadFullscreenControl === "boolean" &&
+    typeof value.trackpadEnabled === "boolean" &&
+    isOptional(value, "trackpadUnavailableReason", (candidate) =>
+      candidate === null || isBoundedString(candidate, 300, false)) &&
+    typeof value.volumeEnabled === "boolean" &&
+    isOptional(value, "volumeUnavailableReason", (candidate) =>
+      candidate === null || isBoundedString(candidate, 300, false)) &&
+    isOptional(value, "portrait", isNullableCustomScreenOverride) &&
+    isOptional(value, "landscape", isNullableCustomScreenOverride) &&
+    Array.isArray(value.buttons) &&
+    value.buttons.length <= 256 &&
+    value.buttons.every(isCustomScreenButton) &&
+    (value.kind === "buttons" || value.buttons.length === 0) &&
+    (value.kind !== "volume" || isOneOf(value.widthColumns, [3, 6, 9, 12]));
+}
+
+function isCustomScreenButton(value: unknown): boolean {
+  return isRecord(value) &&
+    isCustomScreenId(value.id) &&
+    isBoundedString(value.name, 24, false) &&
+    isBoundedString(value.label, 16, true) &&
+    isBoundedString(value.icon, 40, false) &&
+    isOneOf(value.presentation, ["iconLabel", "icon", "label"]) &&
+    isOneOf(value.size, ["compact", "standard", "wide", "fill"]) &&
+    typeof value.repeat === "boolean" &&
+    isOptional(value, "row", (candidate) =>
+      typeof candidate === "number" &&
+      Number.isInteger(candidate) &&
+      candidate >= 0 &&
+      candidate <= 3) &&
+    typeof value.enabled === "boolean" &&
+    isOptional(value, "portrait", isNullableCustomScreenOverride) &&
+    isOptional(value, "landscape", isNullableCustomScreenOverride) &&
+    isOptional(value, "unavailableReason", (candidate) => candidate === null || isBoundedString(candidate, 300, false));
+}
+
+function isNullableCustomScreenOverride(value: unknown): boolean {
+  return value === null || (
+    isRecord(value) &&
+    typeof value.order === "number" &&
+    Number.isInteger(value.order) &&
+    value.order >= 0 &&
+    typeof value.visible === "boolean" &&
+    isOptional(value, "widthColumns", (candidate) =>
+      candidate === null || isOneOf(candidate, [3, 4, 6, 8, 9, 12])) &&
+    isOptional(value, "size", (candidate) =>
+      candidate === null || isOneOf(candidate, ["compact", "standard", "wide", "fill"]))
+  );
 }
 
 function isAwakeCapability(value: unknown): boolean {
@@ -425,12 +542,16 @@ function isAppLaunchActionId(value: unknown): value is string {
   return isBoundedString(value, 64, false) && /^[A-Za-z0-9._-]+$/.test(value);
 }
 
+function isCustomScreenId(value: unknown): value is string {
+  return isBoundedString(value, 64, false) && /^[A-Za-z0-9._-]+$/.test(value);
+}
+
 function isInputSequence(value: unknown): boolean {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
-function isOneOf(value: unknown, allowed: readonly string[]): value is string {
-  return typeof value === "string" && allowed.includes(value);
+function isOneOf<const Value>(value: unknown, allowed: readonly Value[]): value is Value {
+  return allowed.includes(value as Value);
 }
 
 export function normalizeAudioState(message: { muted?: unknown; volume?: unknown }): AudioStateMessage {
@@ -497,6 +618,10 @@ export const getPresentationCapability = (capabilities: ServerCapabilities | und
       }
     : undefined;
 export const hasRemoteLaunchCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.remoteLaunch === true;
+export const getCustomScreensCapability = (capabilities: ServerCapabilities | undefined) =>
+  capabilities?.customScreens && Array.isArray(capabilities.customScreens.screens)
+    ? capabilities.customScreens
+    : undefined;
 export const hasTextTransferCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.textTransfer === true;
 export const getClipboardReadPermission = (capabilities: ServerCapabilities | undefined): boolean | undefined =>
   typeof capabilities?.clipboardRead === "boolean" ? capabilities.clipboardRead : undefined;

@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.WebSockets;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -47,6 +48,7 @@ public sealed class WebHostService : IAsyncDisposable
         IWorkstationLockPolicy? workstationLockPolicy = null,
         IAppLog? appLog = null,
         IAppLaunchService? appLaunchService = null,
+        CustomScreenService? customScreenService = null,
         IUrlOpenService? urlOpenService = null,
         ITextDestinationService? textDestinationService = null,
         IClipboardTextReader? clipboardTextReader = null,
@@ -104,6 +106,9 @@ public sealed class WebHostService : IAsyncDisposable
         var resolvedRemoteActionExecutor = remoteActionExecutor ?? new RemoteActionExecutor();
         var resolvedAppLaunchService = appLaunchService ?? new AppLaunchService();
         AppLaunchService = resolvedAppLaunchService;
+        CustomScreenService = customScreenService ?? new CustomScreenService(
+            isolatedTestMode ? new InMemoryCustomScreenStore() : new CustomScreenStore(),
+            resolvedAppLaunchService);
         var resolvedUrlOpenService = urlOpenService ?? new UrlOpenService();
         var resolvedTextDestinationService = textDestinationService ?? new FocusedTextDestinationService(inputDispatcher);
         var resolvedClipboardTextReader = clipboardTextReader ?? new WindowsClipboardTextReader();
@@ -117,7 +122,6 @@ public sealed class WebHostService : IAsyncDisposable
         _powerPoint = ResolvePowerPointAutomation(
             powerPointAutomation,
             isolatedTestMode,
-            AppDeveloperSettings.EnableAlphaFeatures(),
             () => new PowerPointAutomationService(_appLog),
             out _ownsPowerPoint);
         _presentationLaserPointer = new PresentationLaserPointerController(
@@ -142,6 +146,7 @@ public sealed class WebHostService : IAsyncDisposable
             _awakeService,
             _workstationLockPolicy,
             resolvedAppLaunchService,
+            CustomScreenService,
             resolvedTextDestinationService,
             GetNetworkSnapshot,
             () => IsInputBlockedByElevation,
@@ -211,6 +216,14 @@ public sealed class WebHostService : IAsyncDisposable
             commandLog,
             _transport);
         var inputCommands = new InputCommandHandler(inputDispatcher, _powerController, commandLog, _transport);
+        var customScreenCommands = new CustomScreenCommandHandler(
+            CustomScreenService,
+            statusFactory,
+            inputDispatcher,
+            _powerController,
+            resolvedAppLaunchService,
+            _transport,
+            _appLog);
         // An isolated browser may exercise the protocol, but it must never call
         // the native cursor API on the developer's Windows session.
         var resolvedApplyCustomPointer = isolatedTestMode ? null : applyCustomPointer;
@@ -231,6 +244,7 @@ public sealed class WebHostService : IAsyncDisposable
             textTransferCommands,
             clipboardCommands,
             inputCommands,
+            customScreenCommands,
             _appLog,
             args => ControllerSocketClosed?.Invoke(this, args));
         _statusBroadcaster = new HostStatusBroadcaster(
@@ -239,6 +253,7 @@ public sealed class WebHostService : IAsyncDisposable
             _workstationLockPolicy,
             _transport,
             statusFactory,
+            CustomScreenService,
             _appLog,
             _presentationLaserPointer,
             _powerPoint,
@@ -266,6 +281,7 @@ public sealed class WebHostService : IAsyncDisposable
     internal ISystemPowerController PowerController => _powerController;
     internal IAwakeService AwakeService => _awakeService;
     internal IAppLaunchService AppLaunchService { get; }
+    internal CustomScreenService CustomScreenService { get; }
     internal IAppLog AppLog => _appLog;
     internal int ActiveSocketCount => _transport.ActiveSocketCount;
     internal int SendGateCount => _transport.SendGateCount;
@@ -358,6 +374,7 @@ public sealed class WebHostService : IAsyncDisposable
             }
         });
 
+        MapCustomScreenPreview(app);
         MapStaticFiles(app);
         _app = app;
         await app.StartAsync();
@@ -472,7 +489,6 @@ public sealed class WebHostService : IAsyncDisposable
     internal static IPowerPointAutomationService ResolvePowerPointAutomation(
         IPowerPointAutomationService? supplied,
         bool isolatedTestMode,
-        bool alphaFeaturesEnabled,
         Func<IPowerPointAutomationService> createActive,
         out bool ownsPowerPoint)
     {
@@ -482,7 +498,7 @@ public sealed class WebHostService : IAsyncDisposable
             return supplied;
         }
 
-        if (isolatedTestMode || !alphaFeaturesEnabled)
+        if (isolatedTestMode)
         {
             ownsPowerPoint = false;
             return InertPowerPointAutomationService.Instance;
@@ -584,6 +600,41 @@ public sealed class WebHostService : IAsyncDisposable
             await context.Response.SendFileAsync(Path.Combine(staticRoot, "index.html"));
         });
     }
+
+    private void MapCustomScreenPreview(WebApplication app)
+    {
+        app.MapGet("/api/custom-screens/preview/{screenId}", (
+            HttpContext context,
+            string screenId) =>
+        {
+            if (!AppDeveloperSettings.EnableAlphaFeatures() ||
+                !IsLoopbackAddress(context.Connection.RemoteIpAddress))
+            {
+                return Results.NotFound();
+            }
+
+            var definition = CustomScreenService.GetPreviewDefinition(screenId);
+            if (definition is null)
+            {
+                return Results.NotFound();
+            }
+
+            context.Response.Headers.CacheControl = "no-store";
+            return Results.Json(new
+            {
+                type = "custom.screen.get.result",
+                operationId = "preview",
+                succeeded = true,
+                screen = definition
+            }, JsonOptions.Default);
+        });
+    }
+
+    internal static bool IsLoopbackAddress(IPAddress? address) =>
+        address is not null &&
+        (IPAddress.IsLoopback(address) ||
+         address.IsIPv4MappedToIPv6 &&
+         IPAddress.IsLoopback(address.MapToIPv4()));
 }
 
 public sealed class ControllerSocketClosedEventArgs(

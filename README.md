@@ -16,6 +16,10 @@ PC. No app-store install, account, subscription, or cloud relay is required.
   clipboard.
 - Control media, volume, browser tabs, windows, and applications selected on
   the PC.
+- Design reusable Custom screens on the PC with responsive buttons, shortcuts,
+  approved app actions, collapsible panels, and regular or collapsible
+  trackpad panels, preview the saved result in a native Windows preview, then
+  assign them to paired devices (alpha).
 - Keep the PC awake, lock it, blank its displays, restart it, or shut it down.
 - Combine a keyboard and trackpad on a landscape tablet.
 
@@ -30,6 +34,15 @@ See the [complete implemented feature list](docs/features.md).
   </picture>
   <br>
   <sub>Windows host pairing screen</sub>
+</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/site/assets/voltura-air-host-custom-screens-dark.png">
+    <img src="docs/site/assets/voltura-air-host-custom-screens.png" alt="Voltura Air Custom screens editor" width="900">
+  </picture>
+  <br>
+  <sub>Responsive Custom screens editor</sub>
 </p>
 
 <table>

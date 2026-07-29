@@ -15,6 +15,48 @@ public sealed class HostSettingsRegistryTests : IsolatedHostSettingsTest
     }
 
     [Fact]
+    public void CustomScreenDeleteConfirmationsDefaultOnAndCanBeDisabled()
+    {
+        Assert.True(CustomScreenEditorSettings.ConfirmDeletes());
+        Assert.True(CustomScreenEditorSettings.ConfirmHides());
+
+        CustomScreenEditorSettings.SetConfirmDeletes(false);
+        Assert.False(CustomScreenEditorSettings.ConfirmDeletes());
+        Assert.True(CustomScreenEditorSettings.ConfirmHides());
+
+        CustomScreenEditorSettings.SetConfirmHides(false);
+        Assert.False(CustomScreenEditorSettings.ConfirmHides());
+        Assert.False(CustomScreenEditorSettings.ConfirmDeletes());
+
+        CustomScreenEditorSettings.SetConfirmDeletes(true);
+        CustomScreenEditorSettings.SetConfirmHides(true);
+        Assert.True(CustomScreenEditorSettings.ConfirmDeletes());
+        Assert.True(CustomScreenEditorSettings.ConfirmHides());
+    }
+
+    [Fact]
+    public void CustomScreenEditorPanelWidthsDefaultClampAndPersist()
+    {
+        Assert.Equal(
+            (
+                (double)CustomScreenEditorSettings.DefaultComponentPaletteWidth,
+                (double)CustomScreenEditorSettings.DefaultPropertiesPanelWidth
+            ),
+            CustomScreenEditorSettings.PanelWidths());
+
+        CustomScreenEditorSettings.SetPanelWidths(287.6, 401.2);
+        Assert.Equal((288d, 401d), CustomScreenEditorSettings.PanelWidths());
+
+        CustomScreenEditorSettings.SetPanelWidths(1, double.NaN);
+        Assert.Equal(
+            (
+                (double)CustomScreenEditorSettings.DefaultComponentPaletteWidth,
+                (double)CustomScreenEditorSettings.DefaultPropertiesPanelWidth
+            ),
+            CustomScreenEditorSettings.PanelWidths());
+    }
+
+    [Fact]
     public void ActiveIsolatedScopeRefreshesCachedHotPathSettings()
     {
         AppClientControlSettings.SetEnabled(false);

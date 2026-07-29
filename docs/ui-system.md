@@ -117,6 +117,46 @@ minimum width. Peers use equal tracks unless the owner states a content
 priority. Stack before clipping or overlap. Dynamic collections use intrinsic
 or repeating tracks and never assume an item count.
 
+Custom screens use a 12-column responsive outer grid. User-facing panels are
+stored as sections; they flow in saved order and wrap. Width choices map to 3,
+4, 6, 8, 9, or 12 columns. Two
+consecutive 6-column panels share one row at every preview width. Regular and
+collapsible button panels use automatic placement or one-to-three visible row
+targets. Button rows use intrinsic control widths and a saved Start, Center,
+End, Space between, Space around, or Space evenly distribution; Start is the
+default. A collapsible panel has a required full-width toggle header and,
+when expanded, follows the same content/fill sizing and weight rules as a
+regular panel. Folding it in the preview changes the persisted default state;
+mobile starts there and permits a local fold or unfold. The Windows editor and
+mobile renderer apply the same rules to regular and collapsible trackpad
+panels. A standalone volume-slider component uses 3, 6, 9, or 12 columns and
+the established volume-control surface. Content rows reserve their measured
+height; rows containing expanded
+fill panels divide the remaining viewport by the row's fill weight. An optional
+trackpad fullscreen control overlays the mobile workspace and restores into the
+same responsive slot. The editor and mobile renderer share this semantic model
+rather than persisting preview
+coordinates. Enabling orientation layouts copies the shared geometry, after
+which portrait and landscape are peer compositions that independently control
+visibility, order, section width, button size, and button row for the same
+identified components. Later additions are initially visible only in the active
+orientation. The active canvas exposes hidden components through its
+**Hidden controls** list. The component palette scrolls independently when
+height is constrained, while its Layout and Editing groups reuse the collapsed
+compact inspector disclosures.
+
+Editor drag feedback uses a scaled translucent snapshot of the moved component
+that preserves the pointer's grab point, alongside a before/after or row drop target. It is
+rendered by the application and does not depend on Windows window-drag content
+preferences. Selection and the active Add-button row use an accent indication.
+All drag operations retain properties-panel Move actions. Component context
+menus are content-sized. Orientation-local Hide and shared Delete everywhere
+are distinct operations with independent confirmation settings. Destructive
+confirmations, selects, and success toasts use shared themed primitives. The
+right inspector uses slim `+`/`−` disclosure rows, provides header-level
+expand-all and collapse-all actions, opens generated Name and Label values, and
+frames action-dependent fields on one subtle surface.
+
 Canonical checks are 360×640 and 390×844 portrait, 640×360 and 844×390
 landscape, 1024×768 wide touch, and Windows 920×620 and 1160×760
 device-independent pixels. Add boundary sizes only for a real content

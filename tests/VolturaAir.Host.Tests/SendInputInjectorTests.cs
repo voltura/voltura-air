@@ -20,6 +20,39 @@ public sealed class SendInputInjectorTests
     }
 
     [Fact]
+    public void SpecialKeyMapsInsertToTheWindowsVirtualKey()
+    {
+        var native = new RecordingSendInputNative();
+        using var injector = new SendInputInjector(native);
+
+        injector.SpecialKey("Insert", []);
+
+        var batch = Assert.Single(native.Batches);
+        Assert.Equal(
+            ["2D:down", "2D:up"],
+            batch.Select(DescribeKeyboardInput));
+    }
+
+    [Theory]
+    [InlineData(".", "BE")]
+    [InlineData(",", "BC")]
+    [InlineData(";", "BA")]
+    public void SpecialKeyMapsCommonPunctuation(
+        string key,
+        string expectedVirtualKey)
+    {
+        var native = new RecordingSendInputNative();
+        using var injector = new SendInputInjector(native);
+
+        injector.SpecialKey(key, []);
+
+        var batch = Assert.Single(native.Batches);
+        Assert.Equal(
+            [$"{expectedVirtualKey}:down", $"{expectedVirtualKey}:up"],
+            batch.Select(DescribeKeyboardInput));
+    }
+
+    [Fact]
     public void PartialSpecialKeySendReleasesChordKeysAndPreservesOriginalFailure()
     {
         var native = new RecordingSendInputNative { AcceptedCounts = new Queue<uint>(new[] { 2u, 5u }) };

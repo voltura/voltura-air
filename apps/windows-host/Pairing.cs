@@ -324,6 +324,11 @@ public sealed class PairingManager(PairingStore store)
 
     public bool GetDeviceControlDepth(string clientId) { lock (_gate) return _devices.GetDeviceControlDepth(clientId); }
 
+    public CustomScreenViewport? GetCustomScreenViewport(string clientId)
+    {
+        lock (_gate) return _devices.GetCustomScreenViewport(clientId);
+    }
+
     public bool SetDevicePointerSpeedOverride(string clientId, int? pointerSpeed) =>
         UpdateDeviceProfile(() => _devices.SetPointerSpeedOverride(clientId, pointerSpeed));
 
@@ -332,6 +337,9 @@ public sealed class PairingManager(PairingStore store)
 
     public bool SetDeviceControlDepthOverride(string clientId, bool? controlDepth) =>
         UpdateDeviceProfile(() => _devices.SetControlDepthOverride(clientId, controlDepth));
+
+    public bool SetCustomScreenViewport(string clientId, CustomScreenViewport viewport) =>
+        UpdateDeviceProfile(() => _devices.SetCustomScreenViewport(clientId, viewport));
 
     private bool UpdateDeviceProfile(Func<bool> update)
     {

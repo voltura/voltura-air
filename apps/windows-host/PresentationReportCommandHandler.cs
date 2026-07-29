@@ -19,11 +19,7 @@ internal sealed class PresentationReportCommandHandler(
         var operationId = ProtocolMessageFields.GetString(message, "operationId");
         var reportId = ProtocolMessageFields.GetString(message, "reportId");
         PresentationReportSaveResult result;
-        if (!AppDeveloperSettings.EnableAlphaFeatures())
-        {
-            result = new(false, "feature-disabled", "Presentation reporting is disabled on the PC.", reportId);
-        }
-        else if (!statusFactory.CanControlPresentations(clientId))
+        if (!statusFactory.CanControlPresentations(clientId))
         {
             result = new(false, "permission-denied", "Saving presentation data is disabled for this device on the PC.", reportId);
         }

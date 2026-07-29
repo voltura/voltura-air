@@ -38,6 +38,7 @@ performs startup, rollback, and shutdown.
 | Framing, socket registration, serialized sends | `WebSocketTransport` |
 | Coalesced capability/status delivery | `HostStatusBroadcaster` and payload factory |
 | Validated input and focused Windows actions | Command handlers and platform adapters |
+| Custom-screen definitions, editing, assignment, and invocation | `CustomScreenStore`, `CustomScreenService`, `Features/CustomScreens`, and `CustomScreenCommandHandler` |
 | Settings and persisted data | Their focused settings/store types |
 | Logs and Diagnostics reads | `AppLog`, file store, and per-view refresh session |
 | Tray, main window, and WPF pages | Tray context, `MainWindow`, and `Features/<feature>` |
@@ -66,6 +67,29 @@ rollback and shutdown release composition-owned resources in reverse order.
 Optional features allocate no feature-specific worker, timer, subscription,
 native resource, or network activity while disabled. Hot input/render paths use
 cached settings and event-driven updates, not registry reads or polling.
+
+Custom screens cross the trust boundary as visual definitions and opaque IDs
+only. The host-owned store retains actions and assignments, the status
+broadcaster publishes assigned summaries, and the command handler rechecks
+alpha state, assignment, revision, effective permission, and current approved
+application ownership before dispatching through existing input/application
+owners. Screen components and actions remain shared identities; optional
+portrait and landscape records are peer layout overrides for visibility, order,
+width/size, and button row rather than duplicated action definitions.
+Button and trackpad panels share the same row composer: content rows reserve
+their measured height, and fill rows divide the remaining viewport by weight.
+Collapsible trackpads are the existing trackpad wire kind plus collapsible
+presentation state; fullscreen is local mobile state and never mutates the
+stored layout.
+The saved-screen preview reuses that visual projection through an alpha-gated
+loopback-only HTTP read. A themed WPF window owns the fixed device,
+orientation, and Rotate controls and embeds the saved mobile surface in
+WebView2 below them. The HTML contains no preview toolbar or window-resize
+logic. The embedded surface has no WebSocket command channel and therefore
+cannot invoke actions. The Custom screens page owns every preview window and
+closes them together after navigation away succeeds. Editor lifecycle outcomes
+enter the existing non-blocking `AppLog`; no custom-screen names, labels,
+action payloads, or drag events are recorded.
 
 ## Source limits
 

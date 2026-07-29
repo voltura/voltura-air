@@ -34,22 +34,11 @@ peaks, text, or audio in logs. Browser dictation must remain independent.
 
 ## Control and personalization
 
-### Custom shortcut panels
-
-Candidate: host-owned bounded panels of labeled, opaque action IDs for
-allowlisted shortcuts, text, URLs, and approved application launches. Mobile
-selects and displays them; Windows edits and resets them. Imported definitions
-must exclude executable paths, arguments, permissions, pairing data, and
-secrets.
-
-Decision: shared panels or per-device assignment. Shared is the smaller model.
-
 ### Additional device preferences
 
-Candidates include restoring the last supported mode per PC/client and assigning
-a default Remote mode or shortcut panel. Keep theme, keyboard rows, split
-placement, and panel layout browser-local unless a cross-device workflow
-justifies host ownership.
+Candidates include restoring the last supported mode per PC/client and
+assigning a default Remote mode. Keep theme, keyboard rows, and split placement
+browser-local unless a cross-device workflow justifies host ownership.
 
 ## Public project and release
 

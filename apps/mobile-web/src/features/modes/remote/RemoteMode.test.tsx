@@ -215,6 +215,36 @@ describe("RemoteMode", () => {
     expect(remoteMode.classList.contains("remote-utility-open")).toBe(false);
   });
 
+  it("keeps the D-pad and corner controls available while Fn is open without the navigation ring", () => {
+    renderRemote({
+      remoteSettings: {
+        ...defaultRemoteSettings,
+        navigationRing: false
+      },
+      powerCapabilities: {
+        lock: true,
+        blackoutDisplay: true,
+        displayOff: true,
+        screenSaver: true,
+        screenSaverAvailable: true,
+        signOut: true,
+        restart: true,
+        shutdown: true
+      }
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
+
+    expect(screen.getByLabelText("Directional pad")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "D-pad up" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "D-pad left" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "OK" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "D-pad right" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "D-pad down" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Power" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Main" })).toBeTruthy();
+  });
+
   it("keeps essential helpers while hiding optional helper groups", () => {
     renderRemote({
       remoteSettings: { ...defaultRemoteSettings, showBrowserHelpers: false, showWindowHelpers: false }

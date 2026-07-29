@@ -8,11 +8,14 @@ for a Windows 11 PC.
 
 - Touch trackpad, keyboard, browser-supported dictation, media remote, and
   landscape split mode.
-- Default-on alpha Presentation mode for PowerPoint, Google Slides, and
+- Presentation mode for PowerPoint, Google Slides, and
   PDF/browser control, with trackpad, native laser pointer, timer, statistics,
   and optional reports stored on the PC.
 - YouTube, Kodi, browser, media, volume, window, and approved application
   controls.
+- Default-on alpha Custom screens designed on the PC with responsive buttons,
+  collapsible panels, safe shortcuts/actions, optional regular or collapsible
+  trackpads, read-only Windows preview, and per-device assignment.
 - Acknowledged text transfer to reviewed PC destinations and an explicit,
   host-permitted PC clipboard text read.
 - Keep Windows awake while Voltura Air runs, with an optional Keep screen on

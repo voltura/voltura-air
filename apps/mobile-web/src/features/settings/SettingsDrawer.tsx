@@ -134,6 +134,20 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
           </div>
         </section>
 
+        {(props.customScreens?.length ?? 0) > 0 && (
+          <section className="drawer-group" aria-labelledby="drawer-custom-screens-title">
+            <h3 id="drawer-custom-screens-title">Custom screens</h3>
+            <div className="drawer-tool-list">
+              {props.customScreens?.map((screen) => (
+                <button key={screen.id} type="button" onClick={() => { props.onOpenCustomScreen?.(screen.id); }}>
+                  <span aria-hidden="true">▦</span>
+                  <span>{screen.name}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
         <h3 className="drawer-settings-title">Settings</h3>
 
         <SettingsSectionDetails section="connection" label="Connection" isOpen={openSection === "connection"} onToggle={toggleSection}>

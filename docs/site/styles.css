@@ -198,6 +198,14 @@ h2 {
   margin-top: 28px;
 }
 
+.product-hunt-badge {
+  margin-top: 20px;
+}
+
+.product-hunt-badge img {
+  display: block;
+}
+
 .button {
   --button-background: rgba(247, 242, 233, 0.08);
 

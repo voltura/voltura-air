@@ -66,20 +66,6 @@ internal sealed class PresentationCommandHandler(
         CancellationToken cancellationToken)
     {
         presentationCatalog.Refresh();
-        if (!AppDeveloperSettings.EnableAlphaFeatures())
-        {
-            await SendRefreshResultAsync(
-                socket,
-                operationId,
-                new(
-                    false,
-                    "feature-disabled",
-                    "Presentation is an alpha feature and is disabled on the PC.",
-                    powerPoint.Snapshot),
-                cancellationToken).ConfigureAwait(false);
-            return;
-        }
-
         if (!statusFactory.CanControlPresentations(clientId))
         {
             await SendRefreshResultAsync(
@@ -116,14 +102,6 @@ internal sealed class PresentationCommandHandler(
             return await DisablePointerAsync(
                 clientId,
                 target).ConfigureAwait(false);
-        }
-
-        if (!AppDeveloperSettings.EnableAlphaFeatures())
-        {
-            return new(
-                false,
-                "feature-disabled",
-                "Presentation is an alpha feature and is disabled on the PC.");
         }
 
         if (!statusFactory.CanControlPresentations(clientId))

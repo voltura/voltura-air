@@ -216,13 +216,9 @@ internal sealed class DevicesPageController(
         {
             CreatePermission(device.ClientId, DevicePermissionKind.RemoteInput, "Pointer and keyboard", device.PermissionOverrides.AllowRemoteInput, global.AllowRemoteInput),
             CreatePermission(device.ClientId, DevicePermissionKind.PcSleep, "PC sleep", device.PermissionOverrides.AllowPcSleep, global.AllowPcSleep),
-            CreatePermission(device.ClientId, DevicePermissionKind.VolumeControl, "Volume control", device.PermissionOverrides.AllowVolumeControl, global.AllowVolumeControl)
+            CreatePermission(device.ClientId, DevicePermissionKind.VolumeControl, "Volume control", device.PermissionOverrides.AllowVolumeControl, global.AllowVolumeControl),
+            CreatePermission(device.ClientId, DevicePermissionKind.PresentationControl, "Presentation control", device.PermissionOverrides.AllowPresentationControl, global.AllowPresentationControl)
         };
-        if (AppDeveloperSettings.EnableAlphaFeatures())
-        {
-            permissions.Add(CreatePermission(device.ClientId, DevicePermissionKind.PresentationControl, "Presentation control", device.PermissionOverrides.AllowPresentationControl, global.AllowPresentationControl));
-        }
-
         permissions.AddRange([
             CreatePermission(device.ClientId, DevicePermissionKind.RemoteAppLaunch, "Application launch", device.PermissionOverrides.AllowRemoteAppLaunch, global.AllowRemoteAppLaunch),
             CreatePermission(device.ClientId, DevicePermissionKind.UrlOpen, "Open web addresses", device.PermissionOverrides.AllowUrlOpen, global.AllowUrlOpen),

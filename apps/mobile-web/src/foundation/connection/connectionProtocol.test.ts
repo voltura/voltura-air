@@ -161,6 +161,56 @@ describe("parseServerMessage", () => {
     }))).toBeNull();
   });
 
+  it("accepts current custom-trackpad fields and enforces compact names", () => {
+    const frame = {
+      type: "custom.screen.get.result",
+      operationId: "op-custom",
+      succeeded: true,
+      screen: {
+        id: "screen.pointer",
+        name: "Pointer workspace",
+        revision: "revision.pointer",
+        orientationLayoutsEnabled: true,
+        showNavigationHeader: true,
+        sections: [{
+          id: "section.pointer",
+          name: "Collapsible pointer",
+          showHeader: true,
+          widthColumns: 6,
+          heightMode: "fill",
+          fillWeight: 2,
+          rowLimit: 0,
+          buttonAlignment: "start",
+          kind: "trackpad",
+          collapsible: true,
+          initiallyExpanded: true,
+          trackpadLeftClick: true,
+          trackpadRightClick: true,
+          trackpadButtonSide: "right",
+          trackpadFullscreenControl: true,
+          trackpadEnabled: true,
+          volumeEnabled: true,
+          portrait: { order: 1, visible: true, widthColumns: 12 },
+          landscape: { order: 0, visible: true, widthColumns: 6 },
+          buttons: []
+        }]
+      }
+    };
+
+    expect(parseServerMessage(JSON.stringify(frame))).toEqual(frame);
+    expect(parseServerMessage(JSON.stringify({
+      ...frame,
+      screen: { ...frame.screen, name: "S".repeat(25) }
+    }))).toBeNull();
+    expect(parseServerMessage(JSON.stringify({
+      ...frame,
+      screen: {
+        ...frame.screen,
+        sections: [{ ...frame.screen.sections[0], name: "P".repeat(21) }]
+      }
+    }))).toBeNull();
+  });
+
   it.each([
     { type: "url.open.result", operationId: "op-url", succeeded: false, code: "invalid-url", message: "Invalid URL", normalizedUrl: null },
     { type: "clipboard.get.result", operationId: "op-clipboard", succeeded: false, code: "unavailable", message: "Unavailable", text: null },

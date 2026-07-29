@@ -107,10 +107,9 @@ optional Application log records action ID/outcome.
 
 ## Presentation disabled or controls wrong app
 
-Enable **Preferences > Developer tools > Enable alpha features** and the global/
-device Presentation permission. Blackout has a separate permission. Focus the
-intended viewer, select its matching target, and start Google Slides presenting
-before sending controls.
+Check the global and device Presentation permission. Blackout has a separate
+permission. Focus the intended viewer, select its matching target, and start
+Google Slides presenting before sending controls.
 
 ## Lock PC disabled or failing
 

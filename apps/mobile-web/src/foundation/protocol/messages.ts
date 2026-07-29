@@ -71,6 +71,121 @@ export interface ServerCapabilities {
   sleep?: boolean;
   textTransfer?: boolean;
   volume?: boolean;
+  customScreens?: CustomScreensCapability | null;
+}
+
+export interface CustomScreenSummary {
+  id: string;
+  name: string;
+  revision: string;
+}
+
+export interface CustomScreensCapability {
+  catalogRevision: string;
+  screens: CustomScreenSummary[];
+}
+
+export interface CustomScreenLayoutOverride {
+  order: number;
+  visible: boolean;
+  widthColumns?: number | null;
+  size?: "compact" | "standard" | "wide" | "fill" | null;
+  row?: number | null;
+}
+
+export interface CustomScreenButtonDefinition {
+  id: string;
+  name: string;
+  label: string;
+  icon: string;
+  presentation: "iconLabel" | "icon" | "label";
+  size: "compact" | "standard" | "wide" | "fill";
+  repeat: boolean;
+  row?: number;
+  portrait?: CustomScreenLayoutOverride | null;
+  landscape?: CustomScreenLayoutOverride | null;
+  enabled: boolean;
+  unavailableReason?: string | null;
+}
+
+export interface CustomScreenSectionDefinition {
+  id: string;
+  name: string;
+  showHeader: boolean;
+  widthColumns: number;
+  heightMode: "content" | "fill";
+  fillWeight: number;
+  rowLimit: number;
+  buttonAlignment:
+    | "start"
+    | "center"
+    | "end"
+    | "space-between"
+    | "space-around"
+    | "space-evenly";
+  kind: "buttons" | "trackpad" | "volume";
+  collapsible: boolean;
+  initiallyExpanded: boolean;
+  trackpadLeftClick: boolean;
+  trackpadRightClick: boolean;
+  trackpadButtonSide: "left" | "right";
+  trackpadFullscreenControl: boolean;
+  trackpadEnabled: boolean;
+  trackpadUnavailableReason?: string | null;
+  volumeEnabled: boolean;
+  volumeUnavailableReason?: string | null;
+  portrait?: CustomScreenLayoutOverride | null;
+  landscape?: CustomScreenLayoutOverride | null;
+  buttons: CustomScreenButtonDefinition[];
+}
+
+export interface CustomScreenDefinition {
+  id: string;
+  name: string;
+  revision: string;
+  orientationLayoutsEnabled: boolean;
+  showNavigationHeader: boolean;
+  sections: CustomScreenSectionDefinition[];
+}
+
+export interface DeviceViewportSetMessage {
+  type: "device.viewport.set";
+  width: number;
+  height: number;
+  orientation: "portrait" | "landscape";
+}
+
+export interface CustomScreenGetMessage {
+  type: "custom.screen.get";
+  operationId: string;
+  screenId: string;
+}
+
+export interface CustomScreenGetResultMessage {
+  type: "custom.screen.get.result";
+  operationId: string;
+  succeeded: boolean;
+  screen?: CustomScreenDefinition;
+  code?: string;
+  message?: string;
+}
+
+export interface CustomScreenInvokeMessage {
+  type: "custom.screen.invoke";
+  operationId: string;
+  screenId: string;
+  screenRevision: string;
+  buttonId: string;
+}
+
+export interface CustomScreenInvokeResultMessage {
+  type: "custom.screen.invoke.result";
+  operationId: string;
+  screenId: string;
+  buttonId: string;
+  succeeded: boolean;
+  code?: string;
+  message: string;
 }
 
 export interface PresentationCapability {
@@ -543,6 +658,9 @@ export type ClientMessage =
   | AppearanceModeButtonsSetMessage
   | AppearanceControlDepthSetMessage
   | CustomPointerSetMessage
+  | DeviceViewportSetMessage
+  | CustomScreenGetMessage
+  | CustomScreenInvokeMessage
   | AudioGetMessage
   | PointerMoveMessage
   | PointerButtonMessage
@@ -566,4 +684,4 @@ export type ClientMessage =
   | AudioMuteToggleMessage
   | AudioVolumeSetMessage;
 
-export type ServerMessage = PairAcceptedMessage | PairChallengeMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | PresentationCommandResultMessage | PowerPointRefreshResultMessage | PowerPointLaunchResultMessage | PresentationSessionResultMessage | PresentationReportSaveResultMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | UrlOpenResultMessage | TextSendResultMessage | ClipboardGetResultMessage | AudioStateMessage;
+export type ServerMessage = PairAcceptedMessage | PairChallengeMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | PresentationCommandResultMessage | PowerPointRefreshResultMessage | PowerPointLaunchResultMessage | PresentationSessionResultMessage | PresentationReportSaveResultMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | UrlOpenResultMessage | TextSendResultMessage | ClipboardGetResultMessage | AudioStateMessage | CustomScreenGetResultMessage | CustomScreenInvokeResultMessage;

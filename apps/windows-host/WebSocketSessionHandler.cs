@@ -20,6 +20,7 @@ internal sealed class WebSocketSessionHandler(
     TextTransferCommandHandler textTransferCommands,
     ClipboardCommandHandler clipboardCommands,
     InputCommandHandler inputCommands,
+    CustomScreenCommandHandler customScreenCommands,
     IAppLogWriter appLog,
     Action<ControllerSocketClosedEventArgs> reportSocketClosed)
 {
@@ -302,6 +303,32 @@ internal sealed class WebSocketSessionHandler(
                 return true;
             case "custom.pointer.set":
                 ApplyCustomPointer(clientId, root.GetProperty("enabled").GetBoolean());
+                return true;
+            case "device.viewport.set":
+                pairingManager.SetCustomScreenViewport(
+                    clientId,
+                    new CustomScreenViewport(
+                        ProtocolMessageFields.GetInt(root, "width"),
+                        ProtocolMessageFields.GetInt(root, "height"),
+                        ProtocolMessageFields.GetString(root, "orientation")));
+                return true;
+            case "custom.screen.get":
+                await customScreenCommands.GetAsync(
+                    socket,
+                    clientId,
+                    ProtocolMessageFields.GetString(root, "operationId"),
+                    ProtocolMessageFields.GetString(root, "screenId"),
+                    cancellationToken);
+                return true;
+            case "custom.screen.invoke":
+                await customScreenCommands.InvokeAsync(
+                    socket,
+                    clientId,
+                    ProtocolMessageFields.GetString(root, "operationId"),
+                    ProtocolMessageFields.GetString(root, "screenId"),
+                    ProtocolMessageFields.GetString(root, "screenRevision"),
+                    ProtocolMessageFields.GetString(root, "buttonId"),
+                    cancellationToken);
                 return true;
             case "audio.get":
                 await SendAudioStateAsync(socket, clientId, cancellationToken);

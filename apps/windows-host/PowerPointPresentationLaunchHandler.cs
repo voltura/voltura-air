@@ -52,11 +52,6 @@ internal sealed class PowerPointPresentationLaunchHandler(
         string presentationId,
         CancellationToken cancellationToken)
     {
-        if (!AppDeveloperSettings.EnableAlphaFeatures())
-        {
-            return Failure("feature-disabled", "Presentation is disabled on the PC.");
-        }
-
         if (!statusFactory.CanControlPresentations(clientId))
         {
             return Failure("permission-denied", "Presentation control is disabled for this device.");

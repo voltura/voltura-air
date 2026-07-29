@@ -150,7 +150,7 @@ describe("SettingsDrawer", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it("hides Presentation entry points and falls back from a stale fourth-mode choice when alpha is unavailable", () => {
+  it("hides Presentation entry points and falls back from a stale fourth-mode choice when its capability is unavailable", () => {
     render(
       <SettingsDrawer
         {...baseProps}

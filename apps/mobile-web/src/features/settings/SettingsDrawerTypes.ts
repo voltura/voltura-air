@@ -5,6 +5,7 @@ import type { KeyboardSettings } from "../../foundation/settings/keyboardSetting
 import type { PcProfile } from "../../foundation/connection/pcProfiles";
 import type { ManualConnectionTarget } from "../../foundation/pairing/pairingLink";
 import type { RemoteSettings } from "../../foundation/settings/remoteSettings";
+import type { CustomScreenSummary } from "../../foundation/protocol/messages";
 
 export type ThemeMode = "system" | "light" | "dark";
 export type SettingsSection = "connection" | "custom-pointer" | "trackpad" | "keyboard" | "split" | "remote" | "appearance" | "app";
@@ -22,6 +23,7 @@ export interface SettingsDrawerProps {
   diagnostics: string;
   deviceName: string;
   customPointerEnabled?: boolean | undefined;
+  customScreens?: CustomScreenSummary[] | undefined;
   disconnectActivePc: () => void;
   forgetPc: (pcId: string) => void;
   installApp: () => Promise<void>;
@@ -34,6 +36,7 @@ export interface SettingsDrawerProps {
   onManualHostSubmit: (target: ManualConnectionTarget) => void;
   onOpenGestureDebug?: (() => void) | undefined;
   onOpenMode?: (mode: SettingsModeId) => void;
+  onOpenCustomScreen?: ((screenId: string) => void) | undefined;
   pairedPcs: PcProfile[];
   pairingQrInputRef: RefObject<HTMLInputElement | null>;
   pairingScanMessage: string;

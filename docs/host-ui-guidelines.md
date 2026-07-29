@@ -22,10 +22,11 @@ WPF-only composition; shared tokens, states, accessibility, and layout remain in
 
 ## Shell, startup, and tray
 
-One `Voltura Air` window navigates Connect, Devices, Presentations, Connection,
-Preferences, and Diagnostics. Closing hides it to the notification area. The
-first close explains that paired devices remain active and that the tray icon
-reopens or exits.
+One `Voltura Air` window navigates Connect, Devices, Custom screens,
+Presentations, Connection, Preferences, and Diagnostics. Custom screens is
+hidden when alpha features are off. Closing hides the window to the notification
+area. The first close explains that paired devices remain active and that the
+tray icon reopens or exits.
 
 The startup window appears immediately and remains for its configured minimum.
 It keeps compact dimensions unless startup fails; error actions remain outside
@@ -63,9 +64,9 @@ only when the first usable control is clipped, keeping the focused header
 visible without moving focus or animating. Rebuilding after an in-section change
 preserves expansion and scroll position.
 
-Presentation laser size/color controls appear only while alpha features are
-enabled. Size uses the custom-pointer scale; Red, Green, and Blue are labeled
-segmented choices so color is not the sole meaning.
+Presentation laser size/color controls are always available. Size uses the
+custom-pointer scale; Red, Green, and Blue are labeled segmented choices so
+color is not the sole meaning.
 
 ## Devices
 
@@ -92,6 +93,109 @@ button.
 
 Removal revokes pairing and requires setup again. Use **Remove** and
 **Remove all**, with confirmation stating the re-pairing consequence.
+
+## Custom screens
+
+The library keeps New plus independent delete- and hide-confirmation settings
+outside its scroller.
+Each saved-screen card gives Edit, Preview, Duplicate, and Delete equal-width
+actions, with a compact right-edge grip for drag ordering. Preview opens a
+read-only WPF window whose fixed themed controls select device and orientation
+or rotate the embedded mobile rendering. Only the rendering is HTML, loaded
+through loopback. The device selector names Generic phone/tablet, the selected
+paired Mobile device dimensions when applicable, and the maintained phone and
+tablet UI-validation sizes; it never labels a choice only as “Selected.”
+Successful navigation away from Custom screens closes all of its preview
+windows.
+Dragging moves the actual card live through the list without a detached card
+preview. Assignment changes, duplicate, reorder, delete, Preview, and Save use
+the shared host toast and write sanitized operation outcomes to the optional
+Application log.
+
+The editor keeps screen name, Back, Undo, Redo, Preview, and Save above a
+three-column workspace: component palette, scalable device preview, and context
+properties. Preview opens the saved revision and stays disabled for a new or
+dirty draft until Save succeeds. Its initial native-window device and
+orientation match the editor selectors.
+The themed dividers on either side of the preview resize the palette and
+properties columns from their default minimum widths. Their widths persist per
+signed-in Windows user, while the preview keeps the remaining space and scales
+the virtual device uniformly. Palette action labels wrap at words instead of
+clipping when their available width is narrow.
+The component palette and properties column scroll independently when their
+content does not fit. Layout, Hidden controls, and Editing are collapsed by
+default and reuse the inspector's compact `+`/`−` disclosure treatment.
+Available components uses the same treatment and starts expanded. Hidden
+controls is a separate row shown when orientation layouts are enabled. Compact
+header actions expand or collapse all four left-column sections. Layout places
+**Show Back and screen title** immediately below orientation layouts. The device
+preview owns scrolling. Device and
+orientation selectors share their row proportionally at narrow widths; their
+themed borders must not clip. Property choices use shared themed selects.
+Orientation and delete-confirmation labels wrap instead of clipping, and the
+checkbox glyph stays vertically centered beside wrapped text. Context
+properties use compact `+`/`−` disclosure rows rather than full accordion
+chrome. Action starts expanded; generated Name and Label values also start open.
+Compact header actions expand or collapse every property group. The active
+action type's dependent fields share one subtle surface and border.
+
+Regular, collapsible, trackpad, collapsible-trackpad, and volume-slider
+components, rows, and buttons use accent selection. A collapsible panel retains
+regular panel properties but
+requires its name as the header. Its accessible preview header folds or unfolds
+the draft, and that state is the saved device default; **Expanded by default**
+provides the keyboard-accessible property equivalent. Clicking anywhere in an
+explicit row outside a control selects it as the target for **+ Button**.
+Palette components are named Panel, Collapsible panel, Button, Volume slider,
+Trackpad, and Collapsible trackpad and use a normal click-to-add body plus a compact six-dot
+drag grip. Trackpad variants use the standard panel width, wrapping,
+content/fill, fill-weight, and orientation controls; their Trackpad group owns
+click-button order and the optional fullscreen control. Volume slider is a
+standalone responsive component with 25%, 50%, 75%, and 100% widths and reuses
+the standard mobile volume surface. A button panel's Buttons group selects
+Start, Center, End, Space between, Space around, or Space evenly placement;
+Start keeps compact buttons grouped by default. Editor dragging
+uses a live component snapshot that preserves the pointer's grab point plus
+strong before/after or row targets; properties retain keyboard-accessible Move
+and destination controls. A nested control exclusively owns a drag that starts
+on it; a panel drag starts only from non-interactive panel space.
+The full device workspace remains a drop target when no panels exist. Dropping
+a palette button on open workspace creates a regular panel and its button;
+dropping an existing button there creates a regular panel and moves that button
+into it.
+The snapshot is custom WPF feedback and does not depend on the Windows
+show-window-content setting. Buttons and panel cards use a compact themed
+context menu. In orientation mode it offers a local Hide action and explicit
+Delete everywhere; otherwise it offers Delete. Delete and orientation-local
+Hide have independent confirmation settings and use the shared themed dialog.
+A draft deletion or hide remains undoable until explicit Save.
+
+Enabling orientation layouts copies the current responsive composition into
+peer Portrait and Landscape layouts. Existing components initially appear in
+both; later additions appear only in the active layout. Component identity and
+behavior remain shared, while visibility, order, width/size, and button row are
+orientation-owned. The component palette provides a separate **Hidden controls**
+section for the active canvas, and each selected component's Visibility group
+exposes both orientation states.
+Showing a hidden panel in the active orientation also shows every control it
+contains there, so its contents and ownership are immediately understandable.
+Hidden button rows identify their containing panel beside the Show action.
+
+The key-or-shortcut action editor is a staged composer. Each selected modifier
+is removed from the available modifier buttons and appended to the Command
+preview. F1-F12 have a dedicated Function key selector. Backspace, Delete,
+Enter, Insert, Page up/down, Home, End, and arrows have a dedicated Special key
+selector. A-Z and 0-9 share the Letter or number selector and retain their
+visible selection. The editor prevents selecting AltGr together with Ctrl or
+Alt; the host still reads existing stored combinations. Reset clears the staged
+sequence. Common punctuation uses the Symbol key selector. **Save
+command** remains disabled until the sequence contains any valid non-modifier
+final key. A letter, digit, function, special, or symbol key qualifies; a
+modifier-only sequence does not. Saving it updates the button action and
+participates in normal draft Undo/Redo.
+Literal-text and key/shortcut action types force the button Visual choice to
+Label; icon and icon-plus-label choices remain available for built-ins and
+approved applications.
 
 ## Diagnostics
 
@@ -126,8 +230,8 @@ tooltip. Export opens the resulting file through Windows shell association.
 Email attaches every requested available file independently of linked URLs and
 fails clearly if one disappears; it never opens Explorer as a substitute.
 
-Stored reports remain available when alpha is disabled; new Presentation
-controls and saves do not.
+The Presentations page, controls, reports, and permission settings remain
+available when alpha is disabled.
 
 ## Shared control behavior
 

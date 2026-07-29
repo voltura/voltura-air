@@ -41,8 +41,9 @@ only. Skip preflight for inspection, static/ownership checks, or `TestServer`.
 - Never log typed text, pointer coordinates, pairing tokens, reconnect keys, or
   proofs.
 - Pairing links stay short; exchange credentials after opening.
-- Presentation defaults on behind **Enable alpha features**; explicit off removes
-  capability and blocks production commands.
+- Presentation is a supported capability independent of **Enable alpha
+  features**. Explicit alpha off removes Custom screens and blocks its
+  production commands.
 
 ## Verify and release
 

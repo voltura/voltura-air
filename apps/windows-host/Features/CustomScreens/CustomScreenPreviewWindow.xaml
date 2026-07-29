@@ -1,0 +1,106 @@
+<Window x:Class="VolturaAir.Host.Features.CustomScreens.CustomScreenPreviewWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="Voltura Air · Custom screen preview"
+        SizeToContent="WidthAndHeight"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        Background="{DynamicResource WindowBrush}">
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/VolturaAir.Host;component/MainWindow.Styles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Border x:Name="PreviewWindowRoot"
+            MinWidth="360"
+            Background="{DynamicResource WindowBrush}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Border x:Name="PreviewToolbar"
+                    Padding="12,10"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,0,0,1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="44" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="4" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="Device"
+                               Foreground="{DynamicResource MutedTextBrush}" />
+                    <ComboBox x:Name="DeviceCombo"
+                              Grid.Row="2"
+                              Style="{DynamicResource ModernComboBoxStyle}"
+                              automation:AutomationProperties.Name="Preview device" />
+
+                    <TextBlock Grid.Column="2"
+                               Text="Orientation"
+                               Foreground="{DynamicResource MutedTextBrush}" />
+                    <ComboBox x:Name="OrientationCombo"
+                              Grid.Row="2"
+                              Grid.Column="2"
+                              Style="{DynamicResource ModernComboBoxStyle}"
+                              automation:AutomationProperties.Name="Preview orientation">
+                        <ComboBoxItem Content="Portrait" Tag="portrait" />
+                        <ComboBoxItem Content="Landscape" Tag="landscape" />
+                    </ComboBox>
+
+                    <Button x:Name="RotateButton"
+                            Grid.Row="2"
+                            Grid.Column="4"
+                            Style="{DynamicResource CompactIconButtonStyle}"
+                            automation:AutomationProperties.Name="Rotate preview"
+                            ToolTip="Rotate preview"
+                            Click="OnRotateClicked">
+                        <Viewbox Width="20" Height="20">
+                            <Path Data="M17.5,6.5 A7,7 0 1 0 18.5,12 M17.5,2.5 V6.5 H13.5"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                  StrokeThickness="1.8"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  StrokeLineJoin="Round"
+                                  Fill="Transparent" />
+                        </Viewbox>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <Grid x:Name="PreviewViewportHost"
+                  Grid.Row="1"
+                  Background="{DynamicResource WindowBrush}">
+                <wv2:WebView2 x:Name="PreviewBrowser"
+                              HorizontalAlignment="Stretch"
+                              VerticalAlignment="Stretch" />
+                <TextBlock x:Name="PreviewErrorText"
+                           MaxWidth="360"
+                           Margin="24"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource MutedTextBrush}"
+                           Visibility="Collapsed" />
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

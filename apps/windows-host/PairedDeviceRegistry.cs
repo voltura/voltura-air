@@ -37,6 +37,8 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
 
     public bool GetDeviceControlDepth(string clientId) => GetEffectiveControlDepth(Find(clientId));
 
+    public CustomScreenViewport? GetCustomScreenViewport(string clientId) => Find(clientId)?.CustomScreenViewport;
+
     public void UpsertAndSave(PairingRecord record)
     {
         Upsert(record);
@@ -164,6 +166,25 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
         return true;
     }
 
+    public bool SetCustomScreenViewport(string clientId, CustomScreenViewport viewport)
+    {
+        var index = FindIndex(clientId);
+        if (index < 0)
+        {
+            return false;
+        }
+
+        var existing = _records[index];
+        if (existing.CustomScreenViewport == viewport)
+        {
+            return false;
+        }
+
+        _records[index] = existing with { CustomScreenViewport = viewport };
+        _store.Save(_records);
+        return true;
+    }
+
     public bool SetPermissionOverrides(string clientId, DevicePermissionOverrides permissionOverrides)
     {
         var index = FindIndex(clientId);
@@ -236,8 +257,19 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
             Browser = NormalizeMetadata(record.Browser),
             DisplayMode = NormalizeMetadata(record.DisplayMode),
             PermissionOverrides = NormalizePermissionOverrides(record.PermissionOverrides),
-            PointerSpeedOverride = NormalizePointerSpeedOverride(record.PointerSpeedOverride)
+            PointerSpeedOverride = NormalizePointerSpeedOverride(record.PointerSpeedOverride),
+            CustomScreenViewport = NormalizeCustomScreenViewport(record.CustomScreenViewport)
         };
+
+    private static CustomScreenViewport? NormalizeCustomScreenViewport(CustomScreenViewport? viewport)
+    {
+        return viewport is not null &&
+            viewport.Width is >= CustomScreenLimits.MinViewportWidth and <= CustomScreenLimits.MaxViewportWidth &&
+            viewport.Height is >= CustomScreenLimits.MinViewportHeight and <= CustomScreenLimits.MaxViewportHeight &&
+            viewport.Orientation is "portrait" or "landscape"
+                ? viewport
+                : null;
+    }
 
     private PairedDeviceStatus[] BuildDeviceStatuses() => [.. _records.Select(record =>
     {
@@ -260,7 +292,8 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
             record.ShowModeButtonsOverride,
             GetEffectiveShowModeButtons(record),
             record.ControlDepthOverride,
-            GetEffectiveControlDepth(record));
+            GetEffectiveControlDepth(record),
+            record.CustomScreenViewport);
     })];
 
     private PairedDeviceStatus[] GetDuplicateCleanupCandidatesCore() => [.. BuildDeviceStatuses()
@@ -301,7 +334,8 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
             PermissionOverrides = existing.PermissionOverrides,
             PointerSpeedOverride = existing.PointerSpeedOverride,
             ShowModeButtonsOverride = existing.ShowModeButtonsOverride,
-            ControlDepthOverride = existing.ControlDepthOverride
+            ControlDepthOverride = existing.ControlDepthOverride,
+            CustomScreenViewport = existing.CustomScreenViewport
         };
     }
 

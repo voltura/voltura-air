@@ -54,4 +54,41 @@ public sealed class PairingStoreTests
             root.Delete(recursive: true);
         }
     }
+
+    [Fact]
+    public void OptionalCustomScreenViewportIsBackwardCompatibleAndBounded()
+    {
+        var root = Directory.CreateTempSubdirectory("VolturaAir-PairingStore-");
+        try
+        {
+            var store = new PairingStore(root.FullName);
+            using var key = new PairingTestKey();
+            store.Save(
+            [
+                new PairingRecord("legacy", key.PublicKey, "Legacy phone"),
+                new PairingRecord(
+                    "valid",
+                    key.PublicKey,
+                    "Tablet",
+                    CustomScreenViewport: new CustomScreenViewport(800, 1180, "portrait")),
+                new PairingRecord(
+                    "invalid",
+                    key.PublicKey,
+                    "Invalid metadata",
+                    CustomScreenViewport: new CustomScreenViewport(1, 9000, "diagonal"))
+            ]);
+
+            var manager = new PairingManager(store);
+
+            Assert.Null(manager.GetCustomScreenViewport("legacy"));
+            Assert.Equal(
+                new CustomScreenViewport(800, 1180, "portrait"),
+                manager.GetCustomScreenViewport("valid"));
+            Assert.Null(manager.GetCustomScreenViewport("invalid"));
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
 }

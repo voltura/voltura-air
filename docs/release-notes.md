@@ -6,6 +6,36 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v0.8.0
+
+- Graduated Presentation from alpha. PowerPoint, Google Slides, and PDF/browser
+  control, session tracking, breaks, laser settings, saved-file launch, and
+  reports now remain available when alpha features are disabled.
+- Added Custom screens (alpha), a Windows editor for building reusable,
+  responsive control surfaces and assigning them to paired phones and tablets.
+- Added panels, collapsible panels, buttons, trackpads, collapsible trackpads,
+  and standalone volume sliders with responsive widths, fill/content height,
+  button rows and placement, optional click controls, and full-screen trackpad
+  expansion.
+- Added separate portrait and landscape arrangements, per-orientation
+  visibility, drag-and-drop placement and reordering, adjustable editor columns,
+  undo/redo, configurable delete/hide confirmations, and themed quick actions.
+- Added button actions for literal text, single keys, keyboard shortcuts,
+  approved applications, and curated media, navigation, browser, and Windows
+  controls. Custom text and shortcut buttons use clear text labels while
+  host permissions continue to govern every action.
+- Added a Custom screens workspace to the mobile Menu with responsive wrapping,
+  collapsible content, unavailable-action feedback, and press-and-hold repeat
+  for supported controls.
+- Added a read-only Custom screens Preview with fixed themed Windows controls
+  for device, orientation, and rotation above a clean embedded mobile surface.
+  Its device choices include the maintained phone/tablet validation sizes, and
+  leaving Custom screens closes its preview windows. Previewed controls never
+  invoke screen actions.
+- Added privacy-safe Custom screens activity to the Application Log without
+  recording typed text, shortcut payloads, executable details, or pointer
+  coordinates.
+
 ## v0.7.9
 
 - Improved the standard Windows installer so it verifies downloaded .NET 10

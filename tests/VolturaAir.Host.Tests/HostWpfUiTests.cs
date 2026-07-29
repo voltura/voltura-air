@@ -762,15 +762,13 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
                 Assert.True(FindVisualDescendants<Expander>(window)
                     .First(expander => string.Equals(expander.Header as string, "Permissions", StringComparison.Ordinal))
                     .IsExpanded);
-                Assert.DoesNotContain(FindWpfDescendants<TextBlock>(window), text => text.Text == "Presentation control");
-
-                AppDeveloperSettings.SetEnableAlphaFeatures(true);
+                AppDeveloperSettings.SetEnableAlphaFeatures(false);
                 window.ShowPage(HostPage.Devices);
                 window.UpdateLayout();
                 ExpandDevicePermissions(window);
                 WaitForWpf(
                     () => FindVisualDescendants<TextBlock>(window).Any(text => text.Text == "Presentation control"),
-                    "alpha Presentation permission");
+                    "graduated Presentation permission");
             }
             finally
             {

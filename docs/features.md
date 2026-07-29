@@ -18,8 +18,9 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 
 ### Shell, connection, and pairing
 
-- The Windows tray app provides Connect, Devices, Presentations, Connection,
-  Preferences, and Diagnostics. Closing the window leaves the host running.
+- The Windows tray app provides Connect, Devices, Custom screens,
+  Presentations, Connection, Preferences, and Diagnostics. Custom screens is an
+  alpha surface. Closing the window leaves the host running.
 - Light, dark, system, Windows High Contrast, per-user installation, portable
   ZIP, and installer packages are supported.
 - Connect shows a short-lived QR code, refresh countdown, **New code**, and
@@ -47,8 +48,9 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   sign out, restart, shutdown, Keep awake, and interaction with the host UI.
 - Unsupported actions are omitted; host-disabled actions explain the relevant
   permission. Manually sent unauthorized commands are rejected.
-- **Enable alpha features** defaults on. Explicit off removes Presentation
-  capability and blocks commands/saves while keeping existing reports readable.
+- **Enable alpha features** defaults on. Explicit off removes the Custom screens
+  capability and blocks its production commands while preserving saved
+  definitions. Presentation remains available and permission-gated.
 - Browser, Spotify, VLC, PowerPoint, and custom executable buttons are
   configured and tested locally. Mobile receives only an opaque action ID and a
   1–10-character label; paths and arguments stay on the PC.
@@ -77,6 +79,101 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   (2 days by default), and omits typed text, URLs, pointer coordinates, and
   pairing credentials. Diagnostics provides filters, copy, folder, delete, and
   session-only automatic refresh.
+
+### Custom screens (alpha)
+
+- The Windows editor creates reusable, explicitly saved control screens and
+  assigns each screen to any number of paired devices. The library supports
+  native-window Preview, duplicate, delete, assignment, and drag-handle ordering;
+  screen order is the order shown on mobile. Preview is read-only and uses the
+  saved mobile rendering through the host's loopback address beneath fixed
+  themed WPF device, orientation, and Rotate controls. The editor also provides
+  Preview beside Save; it becomes available after Save and disables again when
+  the draft has unpublished changes. Preview device choices include Generic
+  phone/tablet, the selected paired Mobile device dimensions when applicable,
+  and the maintained phone/tablet sizes used by UI validation. Leaving Custom
+  screens closes every open preview window.
+- The editor calls its responsive containers panels and uses them rather than
+  free coordinates. Regular and collapsible button panels use a 12-column outer
+  grid, six snapped widths, content or weighted fill height, and automatic or
+  one-to-three explicit button rows. Each button panel places its intrinsic
+  button widths using Start, Center, End, Space between, Space around, or Space
+  evenly; Start is the default. A collapsible panel requires its name as a
+  toggle header while retaining the regular panel properties. Its folded state
+  in the preview is saved as the device default. Regular and collapsible
+  trackpad panels use those same snapped widths, wrapping, content/fill height,
+  fill-weight, and orientation rules. They offer optional Left/Right buttons
+  beneath the surface in either order and an optional fullscreen/restore
+  control.
+- A standalone Volume slider component reuses the normal mobile volume control
+  and existing device volume permission. It occupies 25%, 50%, 75%, or 100% of
+  the custom-screen row and may use independent orientation width, order, and
+  visibility.
+- Buttons have separate editor names and visible labels, bundled icons,
+  icon/label presentation, compact/standard/wide/fill sizing, and optional
+  repeat for actions explicitly marked repeatable. Actions are short literal
+  text, a single key or modifier shortcut, an approved application action, or
+  a curated media/navigation/browser/Windows action. Literal text and custom
+  key/shortcut actions are label-only; built-ins and approved applications may
+  use bundled icons. Screen and button editor
+  names are limited to 24 characters, panel and trackpad names to 20, and
+  visible button labels to 16.
+- The shortcut builder stages a command before applying it. Selected modifiers
+  leave the available choices and appear in the command preview in selection
+  order. A selected letter or number remains visibly selected. The editor does
+  not offer AltGr together with Ctrl or Alt because those choices overlap on
+  Windows keyboard layouts. The Letter
+  or number selector provides A-Z and 0-9. Dedicated Function
+  and Special key selectors provide F1-F12,
+  Backspace, Delete, Enter, Insert, Page up/down, Home, End, and the four arrow
+  keys. A Symbol key selector provides common punctuation including period,
+  comma, and semicolon. Reset clears the staged command, and **Save command** is
+  available once any non-modifier final key completes it; for example,
+  `CTRL + ALT + Escape` and `CTRL + SHIFT + Escape` are valid while
+  `CTRL + ALT` is not.
+- Optional portrait and landscape layouts begin as peer copies of the
+  responsive layout; neither orientation becomes the master. Component
+  identity, names, labels, and actions remain shared, while each orientation
+  independently controls visibility, order, section width, button size, and
+  button row. Components added after orientation layouts are enabled start
+  visible only in the active orientation. **Hidden controls** lists components
+  hidden from the active canvas and can show and select them there.
+  Showing a hidden panel also restores all of its contained controls in that
+  orientation. Hidden button entries identify their containing panel.
+- Drag/drop and the properties panel move components and explicit button rows.
+  The selected row is the Add-button target. Dragging follows the pointer with
+  a scaled, translucent snapshot that preserves the original grab point while retaining the
+  destination marker. Dropping a new or existing button on open workspace
+  creates a regular panel and places the button in it. Panels and buttons use a
+  compact themed context menu. Dragging a nested button moves only that button;
+  panel dragging begins from panel space outside nested interactive controls.
+  With orientation layouts enabled, **Hide in Portrait/Landscape** affects only
+  that layout and **Delete everywhere** removes the shared component. Delete
+  and Hide confirmations are independently configurable; both operations
+  remain undoable until Save.
+- The component palette scrolls when its available height is constrained.
+  Palette labels wrap instead of clipping. The themed dividers around the
+  preview resize the component and properties columns from their default
+  minimum widths, persist both widths for the signed-in user, and leave the
+  remaining space to the uniformly scaled device preview.
+  Available components starts expanded, while Layout, Hidden controls, and
+  Editing start collapsed; all use the same compact `+`/`−` disclosure rows as
+  the properties inspector and support header-level expand-all and collapse-all.
+  Hidden controls is a separate row shown when orientation layouts are enabled.
+  Layout also controls whether the mobile workspace shows its Back/title row.
+  The Action group starts open, and controls
+  belonging to the selected action type share a subtle framed background.
+  Generated Name and Label groups start open, and the inspector header can
+  expand or collapse every property group.
+- Definitions and assignments are stored atomically under the signed-in
+  user's application-data folder. Invalid current-format files are preserved
+  and reported instead of replaced. During alpha development, unsupported
+  pre-release formats are removed completely and the library restarts empty;
+  no migration is attempted.
+- Successful and rejected Save, assignment, duplicate, reorder, delete, and
+  preview operations use the optional Application log. Entries contain
+  the operation and outcome only, never screen names, labels, literal text,
+  shortcuts, executable details, or drag activity.
 
 ## Mobile PWA
 
@@ -130,7 +227,31 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   settings control mappings, helper visibility, and allowed application
   shortcuts.
 
-### Presentation (alpha, enabled by default)
+### Custom screens (alpha)
+
+- Assigned screens appear in a **Custom screens** Menu group. Opening one uses
+  the full workspace and hides the bottom mode buttons. The saved layout may
+  show or omit its Back/title row; the main app header remains available.
+- Mobile renders the responsive or active orientation layout against its real
+  viewport, retains minimum touch targets, and scrolls when the content cannot
+  fit. Optional regular-panel headers, required collapsible-panel headers,
+  bundled icons, labels, button rows, and regular/collapsible trackpad panels
+  inherit the normal theme and control-depth treatment. Button placement
+  preserves intrinsic compact/standard/wide widths and applies the saved flex
+  distribution. Standalone volume sliders reuse the normal mute, slider,
+  current-value, and permission behavior. Content rows take their
+  required height; fill rows divide the remaining workspace by fill weight.
+  A collapsible panel starts in its host-saved default state and can then be
+  folded or unfolded locally. A trackpad's optional fullscreen control overlays
+  the workspace and Restore returns it to the same responsive row and size.
+- The PC resolves every opaque button ID at invocation time. Missing approved
+  applications and denied permissions leave the control in place but disabled
+  with a reason. A stale revision cannot execute; mobile refetches the screen.
+- Repeatable arrows, seek, and volume controls use the standard 400 ms initial
+  delay and 55 ms cadence and stop on release, cancellation, lost capture,
+  visibility loss, unmount, or disconnect.
+
+### Presentation
 
 - The fourth mode controls PowerPoint, Google Slides, or PDF/browser
   presentations. PowerPoint control enumerates open presentations and a
@@ -194,11 +315,10 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   XLSX, PDF, formula-safe CSV, text export, and email drafts. Reports saved
   from authoritative PowerPoint sessions use the selected presentation's
   PowerPoint name and retain its host-only canonical file link.
-- Saved reports stay in the signed-in user's local application data. Starting
-  the host with alpha features off does not create the PowerPoint automation
-  worker. Alpha-setting changes require a host restart to apply automation
-  resource changes; disabling immediately hides/blocks new controls and saves
-  while preserving archive access.
+- Saved reports stay in the signed-in user's local application data.
+  Presentation is composed and advertised independently of the alpha setting;
+  effective global and per-device Presentation permission still gates control,
+  session tracking, saved-file launch, and report saves.
 
 ### Dictation and text transfer
 

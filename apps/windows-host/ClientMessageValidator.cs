@@ -37,6 +37,14 @@ internal static class ClientMessageValidator
             ["appearance.mode-buttons.set"] = Fields("type", "showModeButtons"),
             ["appearance.control-depth.set"] = Fields("type", "controlDepth"),
             ["custom.pointer.set"] = Fields("type", "enabled"),
+            ["device.viewport.set"] = Fields("type", "width", "height", "orientation"),
+            ["custom.screen.get"] = Fields("type", "operationId", "screenId"),
+            ["custom.screen.invoke"] = Fields(
+                "type",
+                "operationId",
+                "screenId",
+                "screenRevision",
+                "buttonId"),
             ["audio.get"] = Fields("type"),
             ["system.sleep"] = Fields("type"),
             ["system.power"] = Fields("type", "operationId", "action"),
@@ -174,6 +182,25 @@ internal static class ClientMessageValidator
             "appearance.mode-buttons.set" => root.TryGetProperty("showModeButtons", out var showModeButtons) && showModeButtons.ValueKind is JsonValueKind.True or JsonValueKind.False,
             "appearance.control-depth.set" => root.TryGetProperty("controlDepth", out var controlDepth) && controlDepth.ValueKind is JsonValueKind.True or JsonValueKind.False,
             "custom.pointer.set" => root.TryGetProperty("enabled", out var customPointerEnabled) && customPointerEnabled.ValueKind is JsonValueKind.True or JsonValueKind.False,
+            "device.viewport.set" =>
+                TryGetNumber(root, "width", CustomScreenLimits.MinViewportWidth, CustomScreenLimits.MaxViewportWidth, out _) &&
+                TryGetNumber(root, "height", CustomScreenLimits.MinViewportHeight, CustomScreenLimits.MaxViewportHeight, out _) &&
+                TryGetRequiredString(root, "orientation", 16, allowEmpty: false, out var orientation) &&
+                orientation is "portrait" or "landscape",
+            "custom.screen.get" =>
+                TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var screenGetOperationId) &&
+                IsValidOperationId(screenGetOperationId) &&
+                TryGetRequiredString(root, "screenId", CustomScreenLimits.MaxIdLength, allowEmpty: false, out var getScreenId) &&
+                IsValidCustomScreenId(getScreenId),
+            "custom.screen.invoke" =>
+                TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var screenInvokeOperationId) &&
+                IsValidOperationId(screenInvokeOperationId) &&
+                TryGetRequiredString(root, "screenId", CustomScreenLimits.MaxIdLength, allowEmpty: false, out var invokeScreenId) &&
+                IsValidCustomScreenId(invokeScreenId) &&
+                TryGetRequiredString(root, "screenRevision", CustomScreenLimits.MaxIdLength, allowEmpty: false, out var screenRevision) &&
+                IsValidCustomScreenId(screenRevision) &&
+                TryGetRequiredString(root, "buttonId", CustomScreenLimits.MaxIdLength, allowEmpty: false, out var buttonId) &&
+                IsValidCustomScreenId(buttonId),
             "audio.get" => true,
             "system.sleep" => true,
             "system.power" => TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var powerOperationId) &&
@@ -309,6 +336,11 @@ internal static class ClientMessageValidator
     private static bool IsValidOperationId(string operationId)
     {
         return operationId.All(character => char.IsAsciiLetterOrDigit(character) || character is '-');
+    }
+
+    private static bool IsValidCustomScreenId(string value)
+    {
+        return value.All(character => char.IsAsciiLetterOrDigit(character) || character is '.' or '-' or '_');
     }
 
     private static bool IsValidPresentationReportEnvelope(JsonElement root) =>

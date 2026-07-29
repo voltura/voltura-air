@@ -120,6 +120,11 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
             {
                 Features.Presentations.PresentationReportDemoData.AddTo(demoReportStore);
             }
+            if (isolatedTestMode && HasOption(args, "--site-screenshot-custom-screens"))
+            {
+                Features.CustomScreens.CustomScreenDemoData.AddTo(
+                    webHost.CustomScreenService);
+            }
 #endif
 #if DEBUG
             if (HasOption(args, "--print-host-client-url"))

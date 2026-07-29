@@ -186,6 +186,72 @@ export const serverFrameCatalog = {
       { type: "clipboard.get.result", operationId: "op-clipboard", succeeded: false, code: "VAIR-CLIPBOARD-UNAVAILABLE", message: "Unavailable" }
     ]
   },
+  "custom.screen.get.result": {
+    required: ["operationId", "succeeded"],
+    frames: [
+      {
+        type: "custom.screen.get.result",
+        operationId: "op-screen-get",
+        succeeded: true,
+        screen: {
+          id: "screen.one",
+          name: "Media",
+          revision: "rev.one",
+          orientationLayoutsEnabled: false,
+          showNavigationHeader: true,
+          sections: [{
+            id: "section.more",
+            name: "More",
+            showHeader: true,
+            widthColumns: 12,
+            heightMode: "fill",
+            fillWeight: 1,
+            rowLimit: 0,
+            buttonAlignment: "start",
+            kind: "buttons",
+            collapsible: true,
+            initiallyExpanded: false,
+            trackpadLeftClick: true,
+            trackpadRightClick: true,
+            trackpadButtonSide: "right",
+            trackpadFullscreenControl: false,
+            trackpadEnabled: true,
+            volumeEnabled: true,
+            buttons: []
+          }]
+        }
+      },
+      {
+        type: "custom.screen.get.result",
+        operationId: "op-screen-get-failed",
+        succeeded: false,
+        code: "not-assigned",
+        message: "Unavailable"
+      }
+    ]
+  },
+  "custom.screen.invoke.result": {
+    required: ["operationId", "screenId", "buttonId", "succeeded", "message"],
+    frames: [
+      {
+        type: "custom.screen.invoke.result",
+        operationId: "op-screen-invoke",
+        screenId: "screen.one",
+        buttonId: "button.one",
+        succeeded: true,
+        message: "Action completed."
+      },
+      {
+        type: "custom.screen.invoke.result",
+        operationId: "op-screen-invoke-failed",
+        screenId: "screen.one",
+        buttonId: "button.one",
+        succeeded: false,
+        code: "permission-denied",
+        message: "Blocked"
+      }
+    ]
+  },
   "audio.state": { required: ["volume", "muted"], frames: [{ type: "audio.state", volume: 72, muted: false }] }
 } satisfies { [T in ServerMessageType]: ServerFrameContract<T> };
 

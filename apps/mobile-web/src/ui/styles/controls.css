@@ -266,6 +266,8 @@ input:where(
 }
 
 .range-row input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
   width: 32px;
   height: 32px;
   margin-top: -10px;
@@ -286,8 +288,6 @@ input:where(
   box-shadow:
     inset 0 1px 0 var(--control-highlight),
     0 2px 4px color-mix(in srgb, var(--control-shadow) 78%, transparent);
-  -webkit-appearance: none;
-  appearance: none;
 }
 
 .range-row input::-moz-range-track {

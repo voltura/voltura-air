@@ -120,6 +120,10 @@
           <p>Control media, volume, YouTube, Kodi, browser tabs, windows, and applications selected on the PC.</p>
         </article>
         <article>
+          <h2>Custom screens</h2>
+          <p>Build responsive button, collapsible-panel, and regular or collapsible trackpad layouts on the PC, preview the saved result in a native Windows preview, assign it to paired devices, and keep actions under host permissions.</p>
+        </article>
+        <article>
           <h2>PC actions</h2>
           <p>Keep the PC awake, lock it, blank its displays, restart it, or shut it down when allowed.</p>
         </article>
@@ -141,6 +145,13 @@
               <img src="./assets/voltura-air-host.png" alt="Voltura Air Windows host Connect screen">
             </picture>
             <figcaption>Windows host</figcaption>
+          </figure>
+          <figure class="screen-card wide">
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="./assets/voltura-air-host-custom-screens-dark.png">
+              <img src="./assets/voltura-air-host-custom-screens.png" alt="Voltura Air responsive Custom screens editor">
+            </picture>
+            <figcaption>Responsive Custom screens editor</figcaption>
           </figure>
           <figure class="screen-card phone">
             <picture>

@@ -6,6 +6,7 @@ internal sealed class HostStatusPayloadFactory(
     IAwakeService awakeService,
     IWorkstationLockPolicy workstationLockPolicy,
     IAppLaunchService appLaunchService,
+    CustomScreenService customScreenService,
     ITextDestinationService textDestinationService,
     Func<HostNetworkSnapshot> getNetwork,
     Func<bool> isInputBlockedByElevation,
@@ -78,18 +79,23 @@ internal sealed class HostStatusPayloadFactory(
         power = CreatePowerCapabilities(permissions),
         awake = CreateAwakeCapability(permissions),
         volume = permissions.AllowVolumeControl,
-        presentation = AppDeveloperSettings.EnableAlphaFeatures()
+        presentation = new
+        {
+            canControl = permissions.AllowPresentationControl,
+            canSaveReports = permissions.AllowPresentationControl,
+            laserPointerActive = isPresentationLaserPointerEnabled(),
+            powerPoint = permissions.AllowPresentationControl
+                ? CreatePowerPointCapability(clientId)
+                : null
+        },
+        remoteLaunch = permissions.AllowRemoteAppLaunch,
+        customScreens = AppDeveloperSettings.EnableAlphaFeatures()
             ? new
             {
-                canControl = permissions.AllowPresentationControl,
-                canSaveReports = permissions.AllowPresentationControl,
-                laserPointerActive = isPresentationLaserPointerEnabled(),
-                powerPoint = permissions.AllowPresentationControl
-                    ? CreatePowerPointCapability(clientId)
-                    : null
+                catalogRevision = customScreenService.CatalogRevision,
+                screens = customScreenService.GetAssignedSummaries(clientId)
             }
             : null,
-        remoteLaunch = permissions.AllowRemoteAppLaunch,
         urlOpen = new { canOpen = permissions.AllowUrlOpen },
         textTransfer = permissions.AllowRemoteInput,
         clipboardRead = permissions.AllowClipboardRead,

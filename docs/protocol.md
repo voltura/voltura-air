@@ -230,6 +230,160 @@ device; the host Devices page can restore inheritance from the global default.
 `health.pong` is liveness only; it contains no metadata/capability/audio state.
 Any valid client message resets the receive timeout.
 
+## Custom screens (alpha)
+
+When alpha features are enabled, `capabilities.customScreens` contains the
+current catalog revision and assigned screen summaries in mobile Menu order:
+
+```json
+{
+  "customScreens": {
+    "catalogRevision": "opaque-revision",
+    "screens": [
+      {
+        "id": "screen.opaque-id",
+        "name": "Media desk",
+        "revision": "opaque-screen-revision"
+      }
+    ]
+  }
+}
+```
+
+The capability is absent when alpha features are off. Clients that do not know
+the optional capability ignore it. A client must not send custom-screen
+messages when it is absent. Assignment grants catalog visibility only; action
+permission is evaluated separately.
+
+After authentication, mobile reports a bounded CSS viewport after connection
+and on a debounced size/orientation change:
+
+```json
+{
+  "type": "device.viewport.set",
+  "width": 390,
+  "height": 844,
+  "orientation": "portrait"
+}
+```
+
+`width` and `height` are whole values from 240 through 4096. `orientation` is
+`portrait` or `landscape`. The host stores only the last value as optional
+paired-device preview metadata. Older pairing records omit it.
+
+Fetch one assigned visual definition:
+
+```json
+{
+  "type": "custom.screen.get",
+  "operationId": "local-operation-id",
+  "screenId": "screen.opaque-id"
+}
+```
+
+Success is:
+
+```json
+{
+  "type": "custom.screen.get.result",
+  "operationId": "local-operation-id",
+  "succeeded": true,
+  "screen": {
+    "id": "screen.opaque-id",
+    "name": "Media desk",
+    "revision": "opaque-screen-revision",
+    "orientationLayoutsEnabled": false,
+    "showNavigationHeader": true,
+    "sections": []
+  }
+}
+```
+
+The complete result is bounded by the transport's 64 KiB message limit before
+the host accepts a Save. Sections contain ID, name, optional-header state,
+12-column width, `content`/`fill` height and weight, zero-to-three button rows,
+`buttonAlignment` (`start`, `center`, `end`, `space-between`, `space-around`, or
+`space-evenly`), optional portrait/landscape overrides, and a `buttons`,
+`trackpad`, or `volume` kind.
+Overrides contain order and visibility plus the applicable section width or
+button size/row. Missing override fields retain the shared responsive value.
+Collapsible panels use `kind: "buttons"` plus the optional
+`collapsible: true`, retain the button-section layout fields, use their required
+name as the mobile toggle header, and may include `initiallyExpanded` for the
+host-saved default state. Collapsible trackpads use `kind: "trackpad"` with the
+same collapsible fields. Trackpad sections may include
+`trackpadFullscreenControl`; maximizing is local UI state and Restore returns
+the section to its saved responsive position. Buttons contain only
+visual/accessibility fields, row, repeat state, and resolved
+availability/reason. Literal text, shortcut payloads, executable details, and
+host action mappings are never sent.
+
+Volume sections contain no buttons, use only 3, 6, 9, or 12 columns
+(25/50/75/100%), and publish resolved `volumeEnabled` and
+`volumeUnavailableReason` state. The control itself uses the established
+`audio.get`, `audio.mute.toggle`, and `audio.volume.set` messages and existing
+volume permission.
+
+`showNavigationHeader` controls the mobile Back/title row for that screen.
+Literal-text and custom key/shortcut buttons use label-only presentation;
+built-in and approved-application buttons may also use bundled icons.
+
+The host library's **Preview** action opens
+`/?customScreenPreview=<screenId>` against the host loopback address. That
+entry point reads `GET /api/custom-screens/preview/<screenId>`, which accepts
+loopback requests only while alpha features are enabled and returns the same
+bounded visual result envelope without assignment or action payloads. Preview
+does not establish a command channel, so its controls cannot invoke host
+actions.
+
+The current store format is version 3. It is the only accepted Custom screens
+format. While Custom screens remains alpha, the host removes other pre-release
+versions completely and starts an empty library.
+Screen names are at most 24 characters, panel/trackpad names 20, button editor
+names 24, and visible button labels 16.
+
+Failure sets `succeeded: false` with `code` and `message`.
+`feature-disabled` and `not-assigned` are recoverable catalog/state failures.
+
+Invoke an available button:
+
+```json
+{
+  "type": "custom.screen.invoke",
+  "operationId": "local-operation-id",
+  "screenId": "screen.opaque-id",
+  "screenRevision": "opaque-screen-revision",
+  "buttonId": "button.opaque-id"
+}
+```
+
+Result:
+
+```json
+{
+  "type": "custom.screen.invoke.result",
+  "operationId": "local-operation-id",
+  "screenId": "screen.opaque-id",
+  "buttonId": "button.opaque-id",
+  "succeeded": false,
+  "code": "stale-screen",
+  "message": "This custom screen changed on the PC. Refresh it and try again."
+}
+```
+
+The host revalidates alpha state, assignment, exact screen revision, button ID,
+effective permission, and current approved-application existence for every
+invocation. `stale-screen` executes nothing; mobile fetches the current screen
+before another invocation. Other recoverable codes include `feature-disabled`,
+`not-assigned`, `button-not-found`, `permission-denied`,
+`action-unavailable`, `input-blocked`, and `dispatch-failed`.
+
+Text, key/shortcut, curated built-in, and trackpad input reuse the protected
+remote-input path. Approved application actions reuse the application-launch
+permission and service. Only catalog-marked arrows, seek, and volume actions
+may repeat. Logs may identify the opaque screen/button and outcome, but never
+literal text, shortcut payloads, executable details, or viewport history.
+
 ## Input
 
 ```json
@@ -414,10 +568,13 @@ denial performs no read.
 
 ## Presentation
 
-The default-on alpha gate omits `presentation` and blocks commands/report saves
-when explicitly off. Commands are acknowledged; mobile allows one ordinary
-command in flight and clears it on disconnect. Idempotent pointer cleanup may
-bypass unrelated pending work.
+Authenticated status advertises `presentation` independently of the alpha
+setting. Effective global and per-device Presentation permission controls
+`canControl`, PowerPoint detail, commands, saved-file launch, session tracking,
+and report saves. Older hosts may omit the optional capability; mobile then
+hides Presentation entry points. Commands are acknowledged; mobile allows one
+ordinary command in flight and clears it on disconnect. Idempotent pointer
+cleanup may bypass unrelated pending work.
 
 ```json
 {

@@ -22,6 +22,7 @@ import type { AppToastMessage } from "./ui/feedback/AppToast";
 import { AnchoredHint } from "./ui/guidance/AnchoredHint";
 import { useOneShotHint } from "./ui/guidance/useOneShotHint";
 import { ConfirmationDialog } from "./ui/overlays/ConfirmationDialog";
+import { CustomScreenWorkspace } from "./features/custom-screens";
 
 export function App() {
   const initialPairing = useMemo(() => parsePairingLink(window.location.href), []);
@@ -38,6 +39,13 @@ export function App() {
     clipboardReadResult,
     pendingAppLaunchId,
     appLaunchResult,
+    customScreenDefinition,
+    customScreenGetResult,
+    customScreenInvokeResult,
+    customScreensCapability,
+    invokeCustomScreenButton,
+    pendingCustomScreenButtonIds,
+    requestCustomScreen,
     clientId,
     deviceName,
     activePc,
@@ -65,6 +73,7 @@ export function App() {
   const [transientFeedback, setTransientFeedback] = useState<AppToastMessage | null>(null);
   const [pendingRemoteLaunch, setPendingRemoteLaunch] = useState<RemoteLaunchAction | null>(null);
   const [suppressedClipboardResultId, setSuppressedClipboardResultId] = useState<string | null>(null);
+  const [activeCustomScreenId, setActiveCustomScreenId] = useState<string | null>(null);
   const inputBlockedByElevation = hostStatus?.inputBlockedByElevation === true;
   const [inputRecoveryDialog, setInputRecoveryDialog] = useState({
     blocked: inputBlockedByElevation,
@@ -204,20 +213,25 @@ export function App() {
     });
   };
   const openModeFromMenuWithPresentationGuard: typeof openModeFromMenu = (mode) => {
-    if (mode === tab) {
-      openModeFromMenu(mode);
-      return;
-    }
-
-    requestPresentationExit(() => {
+    const openMode = () => {
+      setActiveCustomScreenId(null);
       if (mode === "presentation") {
         requestPresentationActivation();
       }
       openModeFromMenu(mode);
-    });
+    };
+    if (mode === tab) {
+      openMode();
+      return;
+    }
+
+    requestPresentationExit(openMode);
   };
   const openGestureDebugWithPresentationGuard = () => {
-    requestPresentationExit(openGestureDebug);
+    requestPresentationExit(() => {
+      setActiveCustomScreenId(null);
+      openGestureDebug();
+    });
   };
   const requestPresentationConnectionChange = (
     intent: "connect" | "disconnect",
@@ -252,6 +266,7 @@ export function App() {
     const nextSettings = { ...remoteSettings, [key]: value };
     if (key === "mode") {
       requestPresentationExit(() => {
+        setActiveCustomScreenId(null);
         selectModeTab("remote", "settings");
         setIsSettingsOpen(false);
         requestRemoteModeLaunch(value, nextSettings);
@@ -307,6 +322,29 @@ export function App() {
 
   const connectionPcName = state === "paired" && activePc ? getPcDisplayName(activePc) : message;
   const modeSwitchHintAnchorRef = showTrackpadCompactModeSelector ? trackpadCompactModeButtonRef : headerCompactModeButtonRef;
+
+  const activeCustomScreenSummary = customScreensCapability?.screens.find(
+    (screen) => screen.id === activeCustomScreenId) ?? null;
+  const activeCustomScreenRevision = activeCustomScreenSummary?.revision;
+  const customScreensCatalogRevision = customScreensCapability?.catalogRevision;
+  const staleCustomScreenOperationId = customScreenInvokeResult?.code === "stale-screen"
+    ? customScreenInvokeResult.operationId
+    : null;
+
+  useEffect(() => {
+    if (activeCustomScreenId === null || activeCustomScreenRevision === undefined || state !== "paired") {
+      return;
+    }
+
+    requestCustomScreen(activeCustomScreenId);
+  }, [
+    activeCustomScreenId,
+    activeCustomScreenRevision,
+    customScreensCatalogRevision,
+    requestCustomScreen,
+    staleCustomScreenOperationId,
+    state
+  ]);
 
   useEffect(() => {
     const tabChanged = previousTabRef.current !== null && previousTabRef.current !== tab;
@@ -435,6 +473,7 @@ export function App() {
           activePc={activePc}
           appSettings={appSettings}
           customPointerEnabled={hostStatus?.customPointerEnabled}
+          customScreens={customScreensCapability?.screens ?? []}
           diagnostics={mobileDiagnostics}
           deviceName={deviceName}
           disconnectActivePc={() => {
@@ -450,6 +489,12 @@ export function App() {
           keyboardSettings={keyboardSettings}
           onClose={() => { setIsSettingsOpen(false); }}
           onOpenGestureDebug={supportsGestureDebug ? openGestureDebugWithPresentationGuard : undefined}
+          onOpenCustomScreen={(screenId) => {
+            requestPresentationExit(() => {
+              setActiveCustomScreenId(screenId);
+              setIsSettingsOpen(false);
+            });
+          }}
           onOpenMode={(mode) => {
             dismissModeSwitchHint();
             openModeFromMenuWithPresentationGuard(mode);
@@ -491,9 +536,22 @@ export function App() {
           updateTrackpadSetting={updateTrackpadSetting}
         />
 
-        {isModeButtonsVisible && <ModeNavigation className="tabs top-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTabWithPresentationGuard} />}
+        {activeCustomScreenId === null && isModeButtonsVisible && <ModeNavigation className="tabs top-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTabWithPresentationGuard} />}
 
-        <ModeWorkspace
+        {activeCustomScreenId !== null ? (
+          <CustomScreenWorkspace
+            audioState={connection.audioState}
+            definition={customScreenDefinition?.id === activeCustomScreenId ? customScreenDefinition : null}
+            error={customScreenGetResult?.succeeded === false ? customScreenGetResult.message ?? "The custom screen could not be loaded." : null}
+            invoke={invokeCustomScreenButton}
+            onBack={() => { setActiveCustomScreenId(null); }}
+            pendingButtonIds={pendingCustomScreenButtonIds}
+            requestedName={activeCustomScreenSummary?.name ?? "Custom screen"}
+            send={send}
+            state={state}
+            trackpadSettings={effectiveTrackpadSettings}
+          />
+        ) : <ModeWorkspace
           appSettings={appSettings}
           connection={connection}
           keyboardSettings={keyboardSettings}
@@ -539,7 +597,7 @@ export function App() {
           showVolumeControl={trackpadSettings.showVolumeControl}
           tab={tab}
           trackpadSettings={effectiveTrackpadSettings}
-        />
+        />}
 
         <AnchoredHint
           anchorRef={modeSwitchHintAnchorRef}

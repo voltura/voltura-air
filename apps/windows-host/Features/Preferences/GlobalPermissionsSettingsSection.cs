@@ -49,8 +49,8 @@ internal sealed class GlobalPermissionsSettingsSection(
         {
             control.Checked += (_, _) => SavePermissions();
             control.Unchecked += (_, _) => SavePermissions();
-            if (key == "presentation" && !AppDeveloperSettings.EnableAlphaFeatures() ||
-                key == "screen-saver" && !powerController.IsActionAvailable(SystemPowerActions.ScreenSaver))
+            if (key == "screen-saver" &&
+                !powerController.IsActionAvailable(SystemPowerActions.ScreenSaver))
             {
                 continue;
             }

@@ -6,9 +6,10 @@ namespace VolturaAir.Host.Tests;
 public sealed class WebHostPresentationReportTests : WebHostServiceTestBase
 {
     [Fact]
-    public async Task AuthenticatedSaveCapturesDeviceAndIsIdempotent()
+    public async Task AuthenticatedSaveRemainsAvailableWithAlphaOffAndIsIdempotent()
     {
-        AppDeveloperSettings.SetEnableAlphaFeatures(true);
+        var originalAlpha = AppDeveloperSettings.EnableAlphaFeatures();
+        AppDeveloperSettings.SetEnableAlphaFeatures(false);
         var originalPermissions = AppPermissionSettings.Load();
         try
         {
@@ -35,6 +36,7 @@ public sealed class WebHostPresentationReportTests : WebHostServiceTestBase
         finally
         {
             AppPermissionSettings.Save(originalPermissions);
+            AppDeveloperSettings.SetEnableAlphaFeatures(originalAlpha);
         }
     }
 

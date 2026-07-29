@@ -13,6 +13,11 @@ flowchart LR
   Pairing --> Store[("pairing.json\nreconnect public keys\npermission overrides")]
   Session --> Policy["HostStatusPayloadFactory\nhost + per-device permissions"]
   Session --> Handlers["Focused command handlers\ninput, text, clipboard,\nlaunch, URL, power, awake"]
+  Session --> CustomHandler["CustomScreenCommandHandler\nassignment + revision + permission"]
+  CustomHandler --> CustomStore[("custom-screens.json\nhost-only actions + assignments")]
+  CustomHandler --> Handlers
+  LocalBrowser["Default browser on this PC"] -->|"loopback-only saved preview GET"| Preview["Alpha preview endpoint\nvisual definition only"]
+  Preview --> CustomStore
   Handlers --> Windows["Windows user session\nSendInput, clipboard,\nprocess launch, power APIs"]
 
   Internet["Internet-origin website"] -. "browser WebSocket attempt\nOrigin is untrusted input" .-> Session
@@ -65,6 +70,11 @@ flowchart TD
   Text --> TextPerm{"AllowRemoteInput"}
   TextPerm -- "false" --> TextDenied["text.send.result\nVAIR-TEXT-DENIED"]
   TextPerm -- "true" --> TextSink["TextDestinationService"]
+
+  Dispatch --> Custom["custom.screen.get / invoke"]
+  Custom --> CustomGate{"Alpha + assignment +\nexact revision + action permission"}
+  CustomGate -- "false" --> CustomDenied["Recoverable custom-screen result\nno action executed"]
+  CustomGate -- "true" --> OpaqueAction["Resolve opaque button host-side\nprotected input or approved app service"]
 
   Dispatch --> Privileged["launch / URL / clipboard / power / awake / presentation / audio"]
   Privileged --> SpecificPerm{"Specific host + per-device permission"}

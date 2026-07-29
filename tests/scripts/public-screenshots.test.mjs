@@ -3,6 +3,8 @@ import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
 const expectedScreenshots = [
+  "voltura-air-host-custom-screens-dark.png",
+  "voltura-air-host-custom-screens.png",
   "voltura-air-host-dark.png",
   "voltura-air-host.png",
   "voltura-air-iphone-dark.png",
@@ -45,7 +47,7 @@ test("public screenshot inventory stays curated and aligned", async () => {
   assert.match(captureScript, /DwmGetWindowAttributeUInt\(\$hwnd, 37,/u);
   assert.match(captureScript, /\$rect\.Left \+= \$borderInset/u);
   assert.match(captureScript, /\$rect\.Bottom -= \$borderInset/u);
-  assert.equal(marketingPage.match(/<figure class="screen-card/gu)?.length, 4);
-  assert.equal(marketingPage.match(/<picture>/gu)?.length, 2);
-  assert.equal(readme.match(/<picture>/gu)?.length, 2);
+  assert.equal(marketingPage.match(/<figure class="screen-card/gu)?.length, 5);
+  assert.equal(marketingPage.match(/<picture>/gu)?.length, 3);
+  assert.equal(readme.match(/<picture>/gu)?.length, 3);
 });

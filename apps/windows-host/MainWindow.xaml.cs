@@ -4,12 +4,12 @@ using System.Windows;
 using System.Windows.Controls;
 using VolturaAir.Host.Features.Connect;
 using VolturaAir.Host.Features.Connection;
+using VolturaAir.Host.Features.CustomScreens;
 using VolturaAir.Host.Features.Devices;
 using VolturaAir.Host.Features.Diagnostics;
 using VolturaAir.Host.Features.Preferences;
 using VolturaAir.Host.Features.Presentations;
 using VolturaAir.Host.Ui;
-using Button = System.Windows.Controls.Button;
 
 namespace VolturaAir.Host;
 
@@ -22,17 +22,17 @@ public partial class MainWindow : Window
     private readonly HostToastPresenter _toasts;
     private readonly ConnectPageController _connectPage;
     private readonly DevicesPageController _devicesPage;
+    private readonly CustomScreensPageController _customScreensPage;
     private readonly PresentationsPageController _presentationsPage;
     private readonly ConnectionPageController _connectionPage;
     private readonly PreferencesPageController _preferencesPage;
     private readonly DiagnosticsPageController _diagnosticsPage;
-    private readonly List<Button> _navigationButtons;
+    private readonly MainWindowNavigationController _navigation;
     private readonly OwnedDispatcherAction _connectionChangedAction;
     private readonly OwnedDispatcherAction _pairingCodeInvalidatedAction;
     private readonly OwnedDispatcherAction _deviceProfileChangedAction;
     private readonly OwnedDispatcherAction _themeChangedAction;
     private readonly OwnedDispatcherAction _awakeStateChangedAction;
-    private HostPage _activePage;
     private bool _pageNeedsRefresh = true;
     private bool _allowClose;
 
@@ -79,6 +79,20 @@ public partial class MainWindow : Window
             pairingManager,
             effectivePowerController,
             () => SelectPage(HostPage.Devices));
+        var customScreenActivityLog =
+            new CustomScreenEditorActivityLog(effectiveAppLog);
+        var customScreenPreview =
+            new CustomScreenBrowserPreviewLauncher(
+                webHost.Port,
+                pairingManager: pairingManager);
+        _customScreensPage = new CustomScreensPageController(
+            this,
+            webHost.CustomScreenService,
+            pairingManager,
+            customScreenPreview.Open,
+            customScreenPreview.CloseAll,
+            customScreenActivityLog,
+            message => _toasts.Show(message));
         _presentationsPage = new PresentationsPageController(
             webHost.PresentationReportStore,
             webHost,
@@ -117,15 +131,30 @@ public partial class MainWindow : Window
             clipboard,
             SetDiagnosticsTitle);
 
-        _navigationButtons =
-        [
-            ConnectNavButton,
-            DevicesNavButton,
-            PresentationsNavButton,
-            ConnectionNavButton,
-            PreferencesNavButton,
-            DiagnosticsNavButton
-        ];
+        _navigation = new MainWindowNavigationController(
+            _visuals,
+            new Dictionary<HostPage, System.Windows.Controls.Button>
+            {
+                [HostPage.Connect] = ConnectNavButton,
+                [HostPage.Devices] = DevicesNavButton,
+                [HostPage.CustomScreens] = CustomScreensNavButton,
+                [HostPage.Presentations] = PresentationsNavButton,
+                [HostPage.Connection] = ConnectionNavButton,
+                [HostPage.Preferences] = PreferencesNavButton,
+                [HostPage.Diagnostics] = DiagnosticsNavButton
+            },
+            PageTitleText,
+            PageSubtitleText,
+            PageTypeBadge,
+            PageContent,
+            _connectPage,
+            _devicesPage,
+            _customScreensPage,
+            _presentationsPage,
+            _connectionPage,
+            _preferencesPage,
+            _diagnosticsPage,
+            RefreshStatusText);
         _connectionChangedAction = new OwnedDispatcherAction(Dispatcher, HandleConnectionChanged);
         _pairingCodeInvalidatedAction = new OwnedDispatcherAction(Dispatcher, _connectPage.CreateNewCode);
         _deviceProfileChangedAction = new OwnedDispatcherAction(Dispatcher, HandleDeviceProfileChanged);
@@ -138,10 +167,14 @@ public partial class MainWindow : Window
         _pairingManager.PairingCodeInvalidated += OnPairingCodeInvalidated;
         AppThemeSettings.Changed += OnThemeChanged;
         AppAppearanceSettings.HostControlDepthChanged += OnThemeChanged;
+        AppDeveloperSettings.Changed += OnThemeChanged;
         _awakeService.StateChanged += OnAwakeStateChanged;
         IsVisibleChanged += OnWindowIsVisibleChanged;
         RefreshStatusText();
-        RefreshNavigationTheme();
+        CustomScreensNavButton.Visibility = AppDeveloperSettings.EnableAlphaFeatures()
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        _navigation.RefreshTheme();
     }
 
     public string PairingUrl => _connectPage.PairingUrl;
@@ -168,6 +201,12 @@ public partial class MainWindow : Window
         }
     }
 
+    public void ShowCustomScreenEditorForScreenshot()
+    {
+        ShowPage(HostPage.CustomScreens);
+        _customScreensPage.OpenFirstForScreenshot();
+    }
+
     public void ShowPairedStatus()
     {
         ShowPage(HostPage.Connect);
@@ -185,7 +224,8 @@ public partial class MainWindow : Window
     }
 
     internal bool ShouldCloseAfterDeviceConnected() =>
-        IsVisible && (_activePage == HostPage.Connect || WindowState == WindowState.Minimized);
+        IsVisible &&
+        (_navigation.ActivePage == HostPage.Connect || WindowState == WindowState.Minimized);
 
     public void UpdateServerUrl(string serverUrl)
     {
@@ -194,11 +234,13 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        _customScreensPage.ClosePreviews();
         _pairingManager.ConnectionChanged -= OnConnectionChanged;
         _pairingManager.DeviceProfileChanged -= OnDeviceProfileChanged;
         _pairingManager.PairingCodeInvalidated -= OnPairingCodeInvalidated;
         AppThemeSettings.Changed -= OnThemeChanged;
         AppAppearanceSettings.HostControlDepthChanged -= OnThemeChanged;
+        AppDeveloperSettings.Changed -= OnThemeChanged;
         _awakeService.StateChanged -= OnAwakeStateChanged;
         IsVisibleChanged -= OnWindowIsVisibleChanged;
         _connectionChangedAction.Dispose();
@@ -223,69 +265,13 @@ public partial class MainWindow : Window
         base.OnClosing(e);
     }
 
-    private void SelectPage(HostPage page)
-    {
-        var previousPage = _activePage;
-        if (previousPage == HostPage.Connection && page != HostPage.Connection && !_connectionPage.TryLeavePage())
-        {
-            return;
-        }
-
-        if (_activePage == HostPage.Devices && page != HostPage.Devices)
-        {
-            _devicesPage.ResetDisclosureState();
-        }
-
-        _activePage = page;
-        _pageNeedsRefresh = false;
-        RefreshStatusText();
-        RefreshNavigationTheme();
-        PageTypeBadge.Visibility = Visibility.Collapsed;
-        PageSubtitleText.Visibility = Visibility.Visible;
-
-        switch (page)
-        {
-            case HostPage.Connect:
-                PageTitleText.Text = "Connect";
-                PageSubtitleText.Text = "Pair a phone, tablet, or browser on the same network.";
-                PageContent.Content = _connectPage.CreateView();
-                break;
-            case HostPage.Devices:
-                PageTitleText.Text = "Devices";
-                PageSubtitleText.Text = "Manage trusted devices, active connections, and per-device permissions.";
-                PageContent.Content = _devicesPage.CreateView();
-                break;
-            case HostPage.Presentations:
-                PageTitleText.Text = "Presentations";
-                PageSubtitleText.Text = "Saved presentations";
-                PageContent.Content = _presentationsPage.CreateView();
-                break;
-            case HostPage.Connection:
-                PageTitleText.Text = "Connection";
-                PageSubtitleText.Text = "Voltura Air selects connection settings automatically. Change them only if a device cannot connect.";
-                PageContent.Content = _connectionPage.CreateView(preserveState: previousPage == HostPage.Connection);
-                break;
-            case HostPage.Preferences:
-                PageTitleText.Text = "Preferences";
-                PageSubtitleText.Text = "Startup, alerts, permissions, device defaults, and theme.";
-                PageContent.Content = _preferencesPage.CreateView();
-                _preferencesPage.RestoreScrollPosition();
-                break;
-            case HostPage.Diagnostics:
-                PageTitleText.Text = "Diagnostics";
-                PageSubtitleText.Text = "Review application activity or inspect system details for troubleshooting.";
-                PageContent.Content = _diagnosticsPage.CreateView();
-                break;
-        }
-    }
-
     private void RefreshConnectPagePresentation()
     {
-        if (_activePage == HostPage.Connect && IsVisible)
+        if (_navigation.ActivePage == HostPage.Connect && IsVisible)
         {
             SelectPage(HostPage.Connect);
         }
-        else if (_activePage == HostPage.Connect)
+        else if (_navigation.ActivePage == HostPage.Connect)
         {
             _pageNeedsRefresh = true;
         }
@@ -300,32 +286,9 @@ public partial class MainWindow : Window
                 : "Ready to pair";
     }
 
-    private void RefreshNavigationTheme()
-    {
-        foreach (var button in _navigationButtons)
-        {
-            var isActive = button == GetButtonForPage(_activePage);
-            button.Tag = isActive ? "Selected" : null;
-            button.Background = _visuals.Brush(isActive ? "AccentBrush" : "SurfaceRaisedBrush");
-            button.Foreground = _visuals.Brush(isActive ? "AccentTextBrush" : "TextBrush");
-            button.BorderBrush = _visuals.Brush(isActive ? "AccentBrush" : "BorderBrush");
-        }
-    }
-
-    private Button GetButtonForPage(HostPage page) => page switch
-    {
-        HostPage.Connect => ConnectNavButton,
-        HostPage.Devices => DevicesNavButton,
-        HostPage.Presentations => PresentationsNavButton,
-        HostPage.Connection => ConnectionNavButton,
-        HostPage.Preferences => PreferencesNavButton,
-        HostPage.Diagnostics => DiagnosticsNavButton,
-        _ => ConnectNavButton
-    };
-
     private void SetPreferencesTitle(string? sectionTitle)
     {
-        if (_activePage == HostPage.Preferences)
+        if (_navigation.ActivePage == HostPage.Preferences)
         {
             PageTitleText.Text = string.IsNullOrWhiteSpace(sectionTitle)
                 ? "Preferences"
@@ -335,7 +298,7 @@ public partial class MainWindow : Window
 
     private void SetDiagnosticsTitle(string viewTitle)
     {
-        if (_activePage == HostPage.Diagnostics)
+        if (_navigation.ActivePage == HostPage.Diagnostics)
         {
             PageTitleText.Text = $"Diagnostics > {viewTitle}";
         }
@@ -343,7 +306,7 @@ public partial class MainWindow : Window
 
     private void SetPresentationReportHeader(PresentationReport? report)
     {
-        if (_activePage != HostPage.Presentations)
+        if (_navigation.ActivePage != HostPage.Presentations)
         {
             return;
         }
@@ -371,22 +334,13 @@ public partial class MainWindow : Window
         PageTypeBadge.Visibility = Visibility.Visible;
     }
 
-    private string GetToastTitle() => _activePage switch
-    {
-        HostPage.Connect => "Connect",
-        HostPage.Devices => "Devices",
-        HostPage.Presentations => "Presentations",
-        HostPage.Connection => "Connection",
-        HostPage.Preferences => "Preferences",
-        HostPage.Diagnostics => "Diagnostics",
-        _ => "Voltura Air"
-    };
+    private string GetToastTitle() => _navigation.GetToastTitle();
 
     private void OnWindowIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         if (IsVisible && _pageNeedsRefresh)
         {
-            SelectPage(_activePage);
+            SelectPage(_navigation.ActivePage);
         }
     }
 
@@ -401,9 +355,11 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (_activePage is HostPage.Connect or HostPage.Devices or HostPage.Diagnostics || _pageNeedsRefresh)
+        if (_navigation.ActivePage is
+            HostPage.Connect or HostPage.Devices or HostPage.Diagnostics ||
+            _pageNeedsRefresh)
         {
-            SelectPage(_activePage);
+            SelectPage(_navigation.ActivePage);
         }
     }
 
@@ -413,7 +369,7 @@ public partial class MainWindow : Window
 
     private void HandleDeviceProfileChanged()
     {
-        if (_activePage == HostPage.Devices && IsVisible)
+        if (_navigation.ActivePage == HostPage.Devices && IsVisible)
         {
             _devicesPage.RefreshDeviceProfiles();
         }
@@ -424,21 +380,24 @@ public partial class MainWindow : Window
     private void HandleThemeChanged()
     {
         WpfTheme.Apply(this);
+        CustomScreensNavButton.Visibility = AppDeveloperSettings.EnableAlphaFeatures()
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         if (IsVisible)
         {
-            if (_activePage == HostPage.Preferences)
+            if (_navigation.ActivePage == HostPage.Preferences)
             {
                 _preferencesPage.RefreshPreservingState();
             }
             else
             {
-                SelectPage(_activePage);
+                SelectPage(_navigation.ActivePage);
             }
         }
         else
         {
             _pageNeedsRefresh = true;
-            RefreshNavigationTheme();
+            _navigation.RefreshTheme();
         }
     }
 
@@ -446,19 +405,19 @@ public partial class MainWindow : Window
     {
         if (IsVisible)
         {
-            if (_activePage == HostPage.Preferences)
+            if (_navigation.ActivePage == HostPage.Preferences)
             {
                 _preferencesPage.RefreshPreservingState();
             }
             else
             {
-                SelectPage(_activePage);
+                SelectPage(_navigation.ActivePage);
             }
         }
         else
         {
             _pageNeedsRefresh = true;
-            RefreshNavigationTheme();
+            _navigation.RefreshTheme();
         }
     }
 
@@ -466,33 +425,45 @@ public partial class MainWindow : Window
 
     private void HandleAwakeStateChanged()
     {
-        if (_activePage == HostPage.Preferences && IsVisible)
+        if (_navigation.ActivePage == HostPage.Preferences && IsVisible)
         {
             _preferencesPage.RefreshPreservingState();
         }
-        else if (_activePage == HostPage.Preferences)
+        else if (_navigation.ActivePage == HostPage.Preferences)
         {
             _preferencesPage.RememberViewState();
             _pageNeedsRefresh = true;
         }
     }
 
-    private void OnConnectNavClicked(object sender, RoutedEventArgs e) => SelectPage(HostPage.Connect);
-    private void OnDevicesNavClicked(object sender, RoutedEventArgs e) => SelectPage(HostPage.Devices);
-    private void OnPresentationsNavClicked(object sender, RoutedEventArgs e) => SelectPage(HostPage.Presentations);
-    private void OnConnectionNavClicked(object sender, RoutedEventArgs e) => SelectPage(HostPage.Connection);
-    private void OnPreferencesNavClicked(object sender, RoutedEventArgs e) => SelectPage(HostPage.Preferences);
-    private void OnDiagnosticsNavClicked(object sender, RoutedEventArgs e) => SelectPage(HostPage.Diagnostics);
+    private void SelectPage(HostPage page)
+    {
+        if (_navigation.TrySelect(page))
+        {
+            _pageNeedsRefresh = false;
+        }
+    }
+
+    private void OnConnectNavClicked(object sender, RoutedEventArgs e) =>
+        SelectPage(HostPage.Connect);
+
+    private void OnDevicesNavClicked(object sender, RoutedEventArgs e) =>
+        SelectPage(HostPage.Devices);
+
+    private void OnCustomScreensNavClicked(object sender, RoutedEventArgs e) =>
+        SelectPage(HostPage.CustomScreens);
+
+    private void OnPresentationsNavClicked(object sender, RoutedEventArgs e) =>
+        SelectPage(HostPage.Presentations);
+
+    private void OnConnectionNavClicked(object sender, RoutedEventArgs e) =>
+        SelectPage(HostPage.Connection);
+
+    private void OnPreferencesNavClicked(object sender, RoutedEventArgs e) =>
+        SelectPage(HostPage.Preferences);
+
+    private void OnDiagnosticsNavClicked(object sender, RoutedEventArgs e) =>
+        SelectPage(HostPage.Diagnostics);
 
     private static string Plural(int count) => count == 1 ? string.Empty : "s";
-}
-
-public enum HostPage
-{
-    Connect,
-    Devices,
-    Presentations,
-    Connection,
-    Preferences,
-    Diagnostics
 }

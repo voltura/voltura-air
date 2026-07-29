@@ -98,7 +98,11 @@ internal static class Program
             var screenshotPreferencesSection = args.Contains("--site-screenshot-mode", StringComparer.OrdinalIgnoreCase)
                 ? GetOption(args, "--site-screenshot-preferences-section")
                 : null;
-            if (args.Contains("--presentation-demo-data", StringComparer.OrdinalIgnoreCase))
+            if (args.Contains("--site-screenshot-custom-screens", StringComparer.OrdinalIgnoreCase))
+            {
+                s_runtime.MainWindow.ShowCustomScreenEditorForScreenshot();
+            }
+            else if (args.Contains("--presentation-demo-data", StringComparer.OrdinalIgnoreCase))
             {
                 s_runtime.MainWindow.ShowPage(HostPage.Presentations);
             }
@@ -212,10 +216,12 @@ internal static class Program
         }
 
         AppThemeSettings.SetMode(theme);
-        AppDeveloperSettings.SetEnableAlphaFeatures(false);
+        AppDeveloperSettings.SetEnableAlphaFeatures(
+            args.Contains("--site-screenshot-custom-screens", StringComparer.OrdinalIgnoreCase));
         AppDeveloperSettings.SetEnableGestureDebug(false);
         AppNotificationSettings.SetShowConnectionStatusNotifications(false);
         AppNotificationSettings.SetShowPairingWindowOnDisconnect(false);
+        AppWindowSettings.TryMarkCloseToTrayNotificationShown();
         AppPermissionSettings.Save(HostPermissions.DefaultGlobal with
         {
             AllowRemoteAppLaunch = false,

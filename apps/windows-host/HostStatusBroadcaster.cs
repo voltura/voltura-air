@@ -10,6 +10,7 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
     private readonly IWorkstationLockPolicy _workstationLockPolicy;
     private readonly WebSocketTransport _transport;
     private readonly HostStatusPayloadFactory _statusFactory;
+    private readonly CustomScreenService _customScreens;
     private readonly IAppLogWriter _appLog;
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly CancellationToken _lifetimeToken;
@@ -30,6 +31,7 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
         IWorkstationLockPolicy workstationLockPolicy,
         WebSocketTransport transport,
         HostStatusPayloadFactory statusFactory,
+        CustomScreenService customScreens,
         IAppLogWriter appLog,
         PresentationLaserPointerController presentationLaserPointer,
         IPowerPointAutomationService powerPoint,
@@ -40,6 +42,7 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
         _workstationLockPolicy = workstationLockPolicy;
         _transport = transport;
         _statusFactory = statusFactory;
+        _customScreens = customScreens;
         _appLog = appLog;
         _lifetimeToken = _lifetimeCancellation.Token;
 
@@ -50,6 +53,7 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
         AppDeveloperSettings.Changed += OnStatusChanged;
         AppRemoteSettings.Changed += OnStatusChanged;
         AppLaunchSettings.Changed += OnStatusChanged;
+        _customScreens.Changed += OnStatusChanged;
         AppTextDestinationSettings.Changed += OnStatusChanged;
         AppPointerSettings.Changed += OnStatusChanged;
         AppAppearanceSettings.Changed += OnStatusChanged;
@@ -90,6 +94,7 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
         AppDeveloperSettings.Changed -= OnStatusChanged;
         AppRemoteSettings.Changed -= OnStatusChanged;
         AppLaunchSettings.Changed -= OnStatusChanged;
+        _customScreens.Changed -= OnStatusChanged;
         AppTextDestinationSettings.Changed -= OnStatusChanged;
         AppPointerSettings.Changed -= OnStatusChanged;
         AppAppearanceSettings.Changed -= OnStatusChanged;
@@ -125,6 +130,16 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
             return;
         }
 
+        if (e.ClientId is { } clientId)
+        {
+            _customScreens.RemoveDeviceAssignments(clientId);
+        }
+        else
+        {
+            _customScreens.RemoveAssignmentsExcept(
+                [.. _pairingManager.GetDevices().Select(device => device.ClientId)]);
+        }
+
         var sockets = _transport.TakeRevoked(e.ClientId);
         if (sockets.Length == 0)
         {
@@ -157,9 +172,8 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
 
     private void OnStatusChanged(object? sender, EventArgs e)
     {
-        _presentationLaserPointer.DisableIfOwnerCannotControl(clientId =>
-            AppDeveloperSettings.EnableAlphaFeatures() &&
-            _statusFactory.CanControlPresentations(clientId));
+        _presentationLaserPointer.DisableIfOwnerCannotControl(
+            _statusFactory.CanControlPresentations);
         Queue();
     }
 

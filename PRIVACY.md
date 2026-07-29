@@ -23,7 +23,14 @@ directory:
 - the public reconnect key registered by each paired browser;
 - device platform, browser, and display-mode descriptions;
 - pairing and connection timestamps;
-- per-device permission and pointer settings; and
+- per-device permission and pointer settings;
+- the last reported CSS viewport size/orientation for each paired device, used
+  only for the Custom screens editor preview;
+- custom-screen names, responsive layouts, device assignments, button labels,
+  literal text/shortcuts, and opaque references to approved application
+  actions;
+- local Microsoft Edge WebView2 runtime data used by the read-only Custom
+  screens preview window; and
 - presentation reports the user explicitly saves, including captured device
   name, presentation type, dates, durations, sessions, breaks, slide timing, and
   optional local presentation-file path or HTTP/HTTPS presentation link.
@@ -36,6 +43,16 @@ Pointer, keyboard, text, and control commands travel directly from the paired
 browser to the Windows host over the local network. Text, pointer coordinates,
 opened web addresses, pairing tokens, private reconnect keys, and reconnect
 proofs are not included in Voltura Air application logs.
+
+Assigned Custom screens sent to mobile contain visual definitions, opaque
+screen/button IDs, and resolved availability only. Literal text, keyboard
+shortcut payloads, executable details, and host action mappings remain on the
+Windows PC. Application logs do not record those payloads or viewport history.
+The saved-screen Preview is rendered in a WPF WebView2 window from the PC
+loopback interface, contains the same visual-only definition, and cannot invoke
+actions.
+Application-log entries for editor operations contain only the operation,
+outcome, and a bounded failure code.
 
 Because Voltura Air is a local HTTP/WebSocket app, local-network observers or
 interfering devices on an untrusted network may be able to observe connection
@@ -91,6 +108,14 @@ Saved presentation reports can be renamed, exported, emailed, or deleted from
 the Windows **Presentations** page. Removing a paired device does not remove its
 saved reports. Presentation report titles, timing contents, linked file paths,
 and linked URLs are not written to application logs.
+
+Custom screens can be edited, duplicated, assigned, reordered, or deleted from
+the Windows **Custom screens** page. Removing a paired device removes its
+assignments and last viewport metadata but does not delete reusable screens.
+While Custom screens is an alpha feature, starting a host that encounters an
+unsupported pre-release Custom screens store version deletes that store and
+starts an empty library. Invalid data in the current format is left in place
+and reported instead.
 
 When Presentation control is enabled, the Windows host may read bounded
 PowerPoint presentation names, canonical local file paths, and slideshow state

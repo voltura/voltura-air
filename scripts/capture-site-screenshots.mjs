@@ -19,6 +19,8 @@ const hostExe = path.join(repoRoot, "apps", "windows-host", "bin", "cli", "Debug
 const outputs = {
   hostLight: path.join(assetsDir, "voltura-air-host.png"),
   hostDark: path.join(assetsDir, "voltura-air-host-dark.png"),
+  hostCustomScreensLight: path.join(assetsDir, "voltura-air-host-custom-screens.png"),
+  hostCustomScreensDark: path.join(assetsDir, "voltura-air-host-custom-screens-dark.png"),
   iphoneLight: path.join(assetsDir, "voltura-air-iphone.png"),
   iphoneDark: path.join(assetsDir, "voltura-air-iphone-dark.png"),
   iphoneKodiDark: path.join(assetsDir, "voltura-air-iphone-kodi-dark.png"),
@@ -57,6 +59,13 @@ async function main() {
       await stopProcess(darkHost.process);
     }
 
+    const darkCustomScreensHost = await launchHost("Dark", true);
+    try {
+      await captureHostWindow(outputs.hostCustomScreensDark);
+    } finally {
+      await stopProcess(darkCustomScreensHost.process);
+    }
+
     const lightHost = await launchHost("Light");
     try {
       await captureHostWindow(outputs.hostLight);
@@ -67,6 +76,13 @@ async function main() {
         .toFile(outputs.iphoneKodiDarkForum);
     } finally {
       await stopProcess(lightHost.process);
+    }
+
+    const lightCustomScreensHost = await launchHost("Light", true);
+    try {
+      await captureHostWindow(outputs.hostCustomScreensLight);
+    } finally {
+      await stopProcess(lightCustomScreensHost.process);
     }
 
     console.log(`Site screenshots written to ${assetsDir}`);
@@ -205,7 +221,7 @@ async function captureHostWindow(outputPath) {
   await fs.copyFile(rawPath, outputPath);
 }
 
-async function launchHost(theme) {
+async function launchHost(theme, customScreens = false) {
   await fs.rm(pairingUrlFile, { force: true });
   await fs.rm(path.join(tempAppDataDir, "Voltura Air"), { recursive: true, force: true });
   const hostArgs = [
@@ -218,6 +234,9 @@ async function launchHost(theme) {
     "--pairing-url-file",
     pairingUrlFile
   ];
+  if (customScreens) {
+    hostArgs.push("--site-screenshot-custom-screens");
+  }
   const child = spawn(hostExe, hostArgs, {
     cwd: path.dirname(hostExe),
     env: {

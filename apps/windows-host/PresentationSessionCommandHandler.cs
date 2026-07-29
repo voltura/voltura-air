@@ -19,11 +19,7 @@ internal sealed class PresentationSessionCommandHandler(
         var operationId = ProtocolMessageFields.GetString(message, "operationId");
         var action = ProtocolMessageFields.GetString(message, "action");
         SessionOperationResult result;
-        if (!AppDeveloperSettings.EnableAlphaFeatures())
-        {
-            result = new(false, "feature-disabled", "Presentation tracking is disabled on the PC.");
-        }
-        else if (!statusFactory.CanControlPresentations(clientId))
+        if (!statusFactory.CanControlPresentations(clientId))
         {
             result = new(false, "permission-denied", "Presentation tracking is disabled for this device.");
         }

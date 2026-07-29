@@ -98,6 +98,13 @@ function mockConnection(overrides: Partial<ReturnType<typeof useVolturaAirConnec
     pendingTextTransfer: false,
     requestTextTransfer: vi.fn(() => "operation-a"),
     requestClipboardRead: vi.fn(() => "clipboard-operation-a"),
+    customScreensCapability: undefined,
+    customScreenDefinition: null,
+    customScreenGetResult: null,
+    customScreenInvokeResult: null,
+    pendingCustomScreenButtonIds: new Set<string>(),
+    requestCustomScreen: vi.fn(),
+    invokeCustomScreenButton: vi.fn(),
     textTransferResult: null,
     clipboardReadResult: null,
     clipboardText: "",
@@ -276,7 +283,7 @@ describe("App header and mode navigation", () => {
     expect(screen.getAllByRole("button", { name: "Trackpad" })).not.toHaveLength(0);
   });
 
-  it("hides Presentation entry points when the host does not advertise the alpha feature", () => {
+  it("hides Presentation entry points when the host does not advertise the capability", () => {
     mockConnection({ presentationCapability: undefined });
     render(<App />);
 
@@ -287,7 +294,7 @@ describe("App header and mode navigation", () => {
     expect(screen.queryByRole("option", { name: "Presentation" })).toBeNull();
   });
 
-  it("leaves Presentation immediately when the host disables alpha features", async () => {
+  it("leaves Presentation immediately when the host removes the capability", async () => {
     const { rerender } = render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
     const menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog");
@@ -357,6 +364,40 @@ describe("App header and mode navigation", () => {
     fireEvent.click(within(menu!).getByRole("button", { name: "Dictation" }));
     expect(screen.getByLabelText("Dictation text")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Back to previous mode" })).toBeNull();
+  });
+
+  it("leaves a custom screen when a standard mode is selected from Menu", () => {
+    mockConnection({
+      customScreensCapability: {
+        catalogRevision: "catalog.one",
+        screens: [{
+          id: "screen.media",
+          name: "Media controls",
+          revision: "revision.one"
+        }]
+      },
+      customScreenDefinition: {
+        id: "screen.media",
+        name: "Media controls",
+        revision: "revision.one",
+        orientationLayoutsEnabled: false,
+        showNavigationHeader: true,
+        sections: []
+      }
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    let menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog");
+    fireEvent.click(within(menu!).getByRole("button", { name: "Media controls" }));
+    expect(screen.getByRole("heading", { name: "Media controls" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog");
+    fireEvent.click(within(menu!).getByRole("button", { name: "Dictation" }));
+
+    expect(screen.queryByRole("heading", { name: "Media controls" })).toBeNull();
+    expect(screen.getByLabelText("Dictation text")).toBeTruthy();
   });
 
   it("opens compact mode navigation as an overlay without moving the keyboard controls", () => {

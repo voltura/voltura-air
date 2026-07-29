@@ -1,0 +1,421 @@
+.custom-screen-workspace {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  padding: var(--space-md);
+  background:
+    radial-gradient(circle at 15% 0%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 42%),
+    var(--bg);
+}
+
+.custom-screen-workspace.header-hidden {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.app-frame.custom-screen-browser-preview {
+  position: relative;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  height: var(--app-viewport-height);
+  max-height: var(--app-viewport-height);
+}
+
+.custom-screen-browser-preview > .custom-screen-workspace {
+  grid-row: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+.custom-screen-preview-notice {
+  position: fixed;
+  z-index: 30;
+  right: max(var(--space-md), env(safe-area-inset-right));
+  bottom: max(var(--space-md), env(safe-area-inset-bottom));
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  box-shadow: 0 8px 20px var(--floating-shadow);
+  font-size: 0.75rem;
+  pointer-events: none;
+}
+
+.custom-screen-header {
+  position: sticky;
+  z-index: 3;
+  top: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-sm);
+  align-items: center;
+  padding-block: 0 var(--space-sm);
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.custom-screen-header h1 {
+  overflow: hidden;
+  margin: 0;
+  font-size: 1.1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.custom-screen-back {
+  min-height: 42px;
+  padding-inline: var(--space-md);
+}
+
+.custom-screen-grid {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: var(--space-sm);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.custom-screen-row {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  flex: 0 0 auto;
+  gap: var(--space-sm);
+}
+
+.custom-screen-row.height-fill {
+  min-height: 10rem;
+}
+
+.custom-screen-section {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  padding: var(--space-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-large);
+  background: var(--surface);
+  box-shadow: 0 8px 20px var(--floating-shadow);
+}
+
+.custom-screen-section.height-fill {
+  height: 100%;
+  min-height: 10rem;
+}
+
+.custom-screen-section.kind-volume {
+  container-type: inline-size;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.custom-screen-volume {
+  width: 100%;
+}
+
+@container (max-width: 180px) {
+  .custom-screen-volume {
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: var(--space-xs);
+    padding-inline: var(--space-xs);
+  }
+
+  .custom-screen-volume .range-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .custom-screen-volume .range-row output {
+    display: none;
+  }
+}
+
+.custom-screen-section h2 {
+  margin: 0 0 var(--space-sm);
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.custom-screen-section.kind-collapsible {
+  overflow: hidden;
+  padding: 0;
+}
+
+.custom-screen-section.kind-collapsible.is-collapsed {
+  height: auto;
+  min-height: 0;
+}
+
+.custom-screen-collapsible-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  min-height: 54px;
+  justify-content: flex-start;
+  padding: var(--space-sm) var(--space-md);
+  border: 0;
+  border-radius: 0;
+  text-align: left;
+}
+
+.custom-screen-collapsible-toggle h2 {
+  flex: 1;
+  margin: 0;
+  color: var(--text);
+}
+
+.custom-screen-collapsible-toggle svg {
+  transition: transform 160ms ease;
+}
+
+.custom-screen-collapsible-toggle[aria-expanded="false"] svg {
+  transform: rotate(-90deg);
+}
+
+.control-depth .custom-screen-collapsible-toggle[aria-expanded="true"] {
+  background:
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--control-shadow) 64%, transparent),
+      transparent 72%
+    ),
+    var(--surface-raised);
+  box-shadow:
+    inset 0 3px 6px color-mix(in srgb, var(--control-shadow) 88%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--control-highlight) 55%, transparent);
+  transform: none;
+}
+
+.custom-screen-collapsible-content {
+  flex: 1;
+  padding: var(--space-sm);
+}
+
+.custom-screen-buttons {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.custom-screen-button-row {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  justify-content: flex-start;
+}
+
+.custom-screen-button-row[data-button-alignment="center"] {
+  justify-content: center;
+}
+
+.custom-screen-button-row[data-button-alignment="end"] {
+  justify-content: flex-end;
+}
+
+.custom-screen-button-row[data-button-alignment="space-between"] {
+  justify-content: space-between;
+}
+
+.custom-screen-button-row[data-button-alignment="space-around"] {
+  justify-content: space-around;
+}
+
+.custom-screen-button-row[data-button-alignment="space-evenly"] {
+  justify-content: space-evenly;
+}
+
+.custom-screen-buttons:not([data-row-limit="0"]) .custom-screen-button-row {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.custom-screen-button {
+  position: relative;
+  display: flex;
+  width: 7rem;
+  min-width: 0;
+  min-height: 52px;
+  flex: 0 0 7rem;
+  flex-direction: column;
+  gap: 0.25rem;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-sm);
+  touch-action: none;
+}
+
+.custom-screen-button svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.custom-screen-button span {
+  overflow: hidden;
+  max-width: 100%;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.custom-screen-button.size-compact {
+  width: max-content;
+  min-width: 4.75rem;
+  max-width: 100%;
+  min-height: 44px;
+  flex: 0 0 auto;
+}
+
+.custom-screen-button.size-wide {
+  width: 10rem;
+  flex-basis: 10rem;
+}
+
+.custom-screen-button.size-fill {
+  width: auto;
+  flex: 1 1 7rem;
+}
+
+.custom-screen-button:disabled {
+  opacity: 0.48;
+}
+
+.custom-screen-trackpad-layout {
+  display: grid;
+  grid-template-rows: minmax(10rem, 1fr) auto;
+  min-height: 10rem;
+  flex: 1;
+  gap: var(--space-xs);
+}
+
+.custom-screen-trackpad {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 10rem;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-large);
+  background:
+    radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 52%),
+    var(--bg);
+  color: var(--muted);
+  touch-action: none;
+  user-select: none;
+}
+
+.custom-screen-trackpad-expand {
+  position: absolute;
+  z-index: 1;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  place-items: center;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface-raised) 88%, transparent);
+  touch-action: manipulation;
+}
+
+.custom-screen-trackpad-expand svg {
+  width: 20px;
+  height: 20px;
+}
+
+.custom-screen-trackpad-layout.is-fullscreen .custom-screen-trackpad {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  width: 100vw;
+  height: var(--app-viewport-height);
+  min-height: var(--app-viewport-height);
+  border: 0;
+  border-radius: 0;
+  background: var(--bg);
+}
+
+.custom-screen-trackpad-layout.is-fullscreen .custom-screen-trackpad-expand {
+  top: max(10px, env(safe-area-inset-top));
+  right: max(10px, env(safe-area-inset-right));
+}
+
+.custom-screen-trackpad-fullscreen-buttons {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(5rem, 1fr));
+  border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+}
+
+.custom-screen-trackpad-fullscreen-buttons .custom-screen-trackpad-button {
+  min-height: calc(68px + env(safe-area-inset-bottom));
+  border: 0;
+  border-radius: 0;
+  color: var(--muted);
+  background: transparent;
+}
+
+.custom-screen-trackpad-fullscreen-buttons
+  .custom-screen-trackpad-button
+  + .custom-screen-trackpad-button {
+  border-left: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+}
+
+.custom-screen-trackpad-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(5rem, 1fr));
+  gap: var(--space-xs);
+  width: 100%;
+}
+
+.custom-screen-trackpad-button {
+  min-height: 52px;
+  padding: var(--space-sm);
+  touch-action: none;
+}
+
+.custom-screen-trackpad-layout[aria-disabled="true"] {
+  opacity: 0.48;
+}
+
+.custom-screen-pending {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.custom-screen-state {
+  margin-top: var(--space-lg);
+  padding: var(--space-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-large);
+  background: var(--surface);
+  text-align: center;
+}
+
+.custom-screen-error {
+  border-color: var(--danger);
+}
+
+@media (width <= 430px) {
+  .custom-screen-workspace {
+    padding: var(--space-sm);
+  }
+}

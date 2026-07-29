@@ -151,7 +151,7 @@ public sealed partial class HostUiLayoutTests
     }
 
     [Fact]
-    public void AlphaFeatureSettingRefreshesPresentationPermissionVisibility()
+    public void PresentationSettingsRemainVisibleWhenAlphaFeaturesAreDisabled()
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -199,8 +199,12 @@ public sealed partial class HostUiLayoutTests
                 window.UpdateLayout();
 
                 Assert.False(AppDeveloperSettings.EnableAlphaFeatures());
-                Assert.DoesNotContain(FindWpfDescendants<CheckBox>(window), checkbox =>
+                Assert.Contains(FindWpfDescendants<CheckBox>(window), checkbox =>
                     string.Equals(checkbox.Content?.ToString(), "Allow paired devices to control presentations", StringComparison.Ordinal));
+                var refreshedPresentation = Assert.Single(
+                    FindWpfDescendants<Expander>(window),
+                    section => string.Equals(section.Header as string, "Presentation", StringComparison.Ordinal));
+                Assert.Equal(Visibility.Visible, refreshedPresentation.Visibility);
             }
             finally
             {

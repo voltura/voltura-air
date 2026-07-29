@@ -67,6 +67,14 @@
                             <Setter TargetName="Root" Property="Height" Value="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=Height}" />
                             <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False" />
                         </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Background" Value="Transparent" />
+                            <Setter TargetName="PART_Track" Property="Opacity" Value="0" />
+                        </Trigger>
+                        <Trigger Property="Maximum" Value="0">
+                            <Setter TargetName="Root" Property="Background" Value="Transparent" />
+                            <Setter TargetName="PART_Track" Property="Opacity" Value="0" />
+                        </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>

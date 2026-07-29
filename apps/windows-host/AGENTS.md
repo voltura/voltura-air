@@ -9,7 +9,8 @@ Inherits root; read relevant architecture/host-quality and WPF UI guidance.
 - Pairing store: bound/validate reads; replace atomically; never persist/log
   reconnect keys/proofs.
 - Authenticate/authorize/normalize/decode bounded input once.
-- Alpha off removes Presentation capability/commands/resources.
+- Alpha off removes Custom screens capability and commands; Presentation
+  remains composed, advertised, permission-gated, and executable.
 - Prefer generated interop/exact Unicode APIs/explicit marshalling/System32
   search/`SafeHandle`.
 - Use `IAwakeService`; never edit power plans or require elevation.

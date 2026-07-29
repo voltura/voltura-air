@@ -6,24 +6,24 @@ namespace VolturaAir.Host.Tests;
 public sealed class WebHostPresentationTests : WebHostServiceTestBase
 {
     [Fact]
-    public void AlphaOffCompositionDoesNotCreatePowerPointAutomation()
+    public void ProductionCompositionCreatesPowerPointAutomation()
     {
         var factoryCalled = false;
+        var expected = CreatePresentingPowerPoint();
 
         var automation = WebHostService.ResolvePowerPointAutomation(
             supplied: null,
             isolatedTestMode: false,
-            alphaFeaturesEnabled: false,
             createActive: () =>
             {
                 factoryCalled = true;
-                return CreatePresentingPowerPoint();
+                return expected;
             },
             out var ownsPowerPoint);
 
-        Assert.Same(InertPowerPointAutomationService.Instance, automation);
-        Assert.False(factoryCalled);
-        Assert.False(ownsPowerPoint);
+        Assert.Same(expected, automation);
+        Assert.True(factoryCalled);
+        Assert.True(ownsPowerPoint);
     }
 
     [Theory]
@@ -593,49 +593,76 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     }
 
     [Fact]
-    public async Task PresentationIsNotAdvertisedOrExecutableWhileAlphaFeaturesAreDisabled()
+    public async Task PresentationRemainsAdvertisedAndExecutableWhileAlphaFeaturesAreDisabled()
     {
-        AppDeveloperSettings.SetEnableAlphaFeatures(false);
-        await using var fixture = await WebHostFixture.StartAsync();
-        var clientId = $"client-{Guid.NewGuid():N}";
-        using var socket = await ConnectAsync(fixture.WebHost);
-        var paired = await PairAsync(socket, fixture, clientId);
-
-        var result = await SendAndReceiveAsync(socket, new
+        var originalPermissions = AppPermissionSettings.Load();
+        try
         {
-            type = "presentation.command",
-            operationId = "presentation-disabled",
-            target = "powerpoint",
-            action = "next"
-        });
+            AppDeveloperSettings.SetEnableAlphaFeatures(false);
+            AppPermissionSettings.Save(originalPermissions with { AllowPresentationControl = true });
+            var automation = CreatePresentingPowerPoint();
+            await using var fixture = await WebHostFixture.StartAsync(
+                powerPointAutomation: automation);
+            var clientId = $"client-{Guid.NewGuid():N}";
+            using var socket = await ConnectAsync(fixture.WebHost);
+            var paired = await PairAsync(socket, fixture, clientId);
 
-        Assert.False(AppDeveloperSettings.EnableAlphaFeatures());
-        Assert.False(paired.GetProperty("capabilities").TryGetProperty("presentation", out _));
-        Assert.False(result.GetProperty("succeeded").GetBoolean());
-        Assert.Equal("feature-disabled", result.GetProperty("code").GetString());
-        Assert.Empty(fixture.InputInjector.Events);
-        Assert.Equal(WebSocketState.Open, socket.State);
+            var result = await SendPresentationResultAsync(socket, new
+            {
+                type = "presentation.command",
+                operationId = "presentation-graduated",
+                target = "powerpoint",
+                action = "next",
+                runtimePresentationId = "presentation-a"
+            });
+            var sessionResult = await SendPresentationFrameAsync(
+                socket,
+                "presentation.session.result",
+                new
+                {
+                    type = "presentation.session",
+                    operationId = "presentation-session-graduated",
+                    action = "start",
+                    runtimePresentationId = "presentation-a"
+                });
+
+            Assert.False(AppDeveloperSettings.EnableAlphaFeatures());
+            Assert.True(paired.GetProperty("capabilities").GetProperty("presentation").GetProperty("canControl").GetBoolean());
+            Assert.False(paired.GetProperty("capabilities").TryGetProperty("customScreens", out _));
+            Assert.True(result.GetProperty("succeeded").GetBoolean());
+            Assert.True(sessionResult.GetProperty("succeeded").GetBoolean());
+            Assert.Contains(automation.Commands, command => command.Action == "next");
+            Assert.Empty(fixture.InputInjector.Events);
+            Assert.Equal(WebSocketState.Open, socket.State);
+        }
+        finally
+        {
+            AppPermissionSettings.Save(originalPermissions);
+        }
     }
 
     [Fact]
-    public async Task AlphaSettingBroadcastsPresentationAvailabilityChanges()
+    public async Task AlphaSettingOnlyChangesAlphaCapabilities()
     {
         AppDeveloperSettings.SetEnableAlphaFeatures(false);
         await using var fixture = await WebHostFixture.StartAsync();
         var clientId = $"client-{Guid.NewGuid():N}";
         using var socket = await ConnectAsync(fixture.WebHost);
         var paired = await PairAsync(socket, fixture, clientId);
-        Assert.False(paired.GetProperty("capabilities").TryGetProperty("presentation", out _));
+        Assert.True(paired.GetProperty("capabilities").TryGetProperty("presentation", out _));
+        Assert.False(paired.GetProperty("capabilities").TryGetProperty("customScreens", out _));
 
         AppDeveloperSettings.SetEnableAlphaFeatures(true);
         using var enabledTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         using var enabledStatus = JsonDocument.Parse(await ReceiveTextAsync(socket, enabledTimeout.Token));
         Assert.True(enabledStatus.RootElement.GetProperty("capabilities").GetProperty("presentation").GetProperty("canControl").GetBoolean());
+        Assert.True(enabledStatus.RootElement.GetProperty("capabilities").TryGetProperty("customScreens", out _));
 
         AppDeveloperSettings.SetEnableAlphaFeatures(false);
         using var disabledTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         using var disabledStatus = JsonDocument.Parse(await ReceiveTextAsync(socket, disabledTimeout.Token));
-        Assert.False(disabledStatus.RootElement.GetProperty("capabilities").TryGetProperty("presentation", out _));
+        Assert.True(disabledStatus.RootElement.GetProperty("capabilities").TryGetProperty("presentation", out _));
+        Assert.False(disabledStatus.RootElement.GetProperty("capabilities").TryGetProperty("customScreens", out _));
     }
 
     [Fact]
@@ -978,6 +1005,15 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
 
     private static async Task<JsonElement> SendPresentationResultAsync(
         WebSocket socket,
+        object message) =>
+        await SendPresentationFrameAsync(
+            socket,
+            "presentation.command.result",
+            message);
+
+    private static async Task<JsonElement> SendPresentationFrameAsync(
+        WebSocket socket,
+        string expectedType,
         object message)
     {
         await SendAsync(socket, message);
@@ -985,7 +1021,7 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
         while (true)
         {
             using var document = JsonDocument.Parse(await ReceiveTextAsync(socket, timeout.Token));
-            if (document.RootElement.GetProperty("type").GetString() == "presentation.command.result")
+            if (document.RootElement.GetProperty("type").GetString() == expectedType)
             {
                 return document.RootElement.Clone();
             }

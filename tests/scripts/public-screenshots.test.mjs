@@ -44,6 +44,7 @@ test("public screenshot inventory stays curated and aligned", async () => {
   assert.match(captureScript, /"--site-screenshot-mode"[\s\S]*"--isolated-test-mode"/u);
   assert.match(hostProgram, /BeginIsolatedScope\(\)[\s\S]*SetHighDpiMode/u);
   assert.match(captureScript, /getByRole\("button", \{ name: "Remote", exact: true \}\)/u);
+  assert.match(captureScript, /getByText\("Switch modes from here\.", \{ exact: true \}\)[\s\S]*state: "visible"[\s\S]*state: "hidden"[\s\S]*page\.screenshot\(\{ path: outputs\.iphoneKodiDark \}\)/u);
   assert.match(captureScript, /DwmGetWindowAttributeUInt\(\$hwnd, 37,/u);
   assert.match(captureScript, /\$rect\.Left \+= \$borderInset/u);
   assert.match(captureScript, /\$rect\.Bottom -= \$borderInset/u);

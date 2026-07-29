@@ -63,6 +63,12 @@ See the [complete implemented feature list](docs/features.md).
   </tr>
 </table>
 
+<p align="center">
+  <img src="docs/site/assets/voltura-air-iphone-kodi-dark.png" alt="Voltura Air Kodi remote on a phone" width="320">
+  <br>
+  <sub>Phone Kodi remote</sub>
+</p>
+
 ## Download and install
 
 Voltura Air requires Windows 11. Choose one package from the
@@ -130,8 +136,6 @@ npm run dev
 - [Documentation map](docs/README.md)
 
 ## Statistics
-
-<a href="https://www.producthunt.com/products/voltura-air?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-voltura-air" target="_blank" rel="noopener noreferrer"><img alt="Voltura Air - Control Windows 11 from any phone — no app or account | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1208722&amp;theme=dark&amp;t=1785325785979"></a>
 
 [![Visitors](https://hits.sh/github.com/voltura/voltura-air.svg?style=flat&label=visitors&labelColor=555&color=5690f2&extraCount=19)](https://hits.sh/github.com/voltura/voltura-air/)
 [![Code size](https://img.shields.io/github/languages/code-size/voltura/voltura-air)](https://github.com/voltura/voltura-air)

@@ -177,6 +177,12 @@ async function captureKodiRemote(page) {
   await page.locator(".remote-navigation-ring").waitFor({ timeout: 5000 });
   await remoteTab.click();
   await page.locator(".app-shell.mode-tabs-collapsed.remote-active").waitFor({ timeout: 5000 });
+  const modeSwitchHint = page.getByText("Switch modes from here.", { exact: true });
+  await modeSwitchHint.waitFor({ state: "visible", timeout: 5000 });
+  await modeSwitchHint.waitFor({
+    state: "hidden",
+    timeout: 7000
+  });
   await page.screenshot({ path: outputs.iphoneKodiDark });
 }
 

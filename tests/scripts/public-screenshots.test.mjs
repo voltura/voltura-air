@@ -11,6 +11,11 @@ const expectedScreenshots = [
   "voltura-air-split.png"
 ];
 
+const expectedSiteAssets = [
+  ...expectedScreenshots,
+  "voltura-air-iphone-kodi-dark-forum.png"
+].sort();
+
 const screenshotPattern = /voltura-air-(?:host|iphone|split)[a-z-]*\.png/gu;
 
 function extractScreenshots(contents) {
@@ -27,11 +32,12 @@ test("public screenshot inventory stays curated and aligned", async () => {
     readdir(new URL("../../docs/site/assets/", import.meta.url))
   ]);
 
-  assert.deepEqual(extractScreenshots(captureScript), expectedScreenshots);
-  assert.deepEqual(extractScreenshots(runbook), expectedScreenshots);
-  assert.deepEqual(extractScreenshots(assetFiles.join("\n")), expectedScreenshots);
+  assert.deepEqual(extractScreenshots(captureScript), expectedSiteAssets);
+  assert.deepEqual(extractScreenshots(runbook), expectedSiteAssets);
+  assert.deepEqual(extractScreenshots(assetFiles.join("\n")), expectedSiteAssets);
 
   assert.deepEqual(extractScreenshots(`${readme}\n${marketingPage}`), expectedScreenshots);
+  assert.match(captureScript, /\.resize\(\{ width: 350 \}\)[\s\S]*outputs\.iphoneKodiDarkForum/u);
   assert.match(captureScript, /"bin", "cli", "Debug", "net10\.0-windows"/u);
   assert.match(captureScript, /"--site-screenshot-mode"[\s\S]*"--isolated-test-mode"/u);
   assert.match(hostProgram, /BeginIsolatedScope\(\)[\s\S]*SetHighDpiMode/u);

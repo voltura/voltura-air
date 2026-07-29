@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import sharp from "sharp";
 import { spawn } from "node:child_process";
 import { stopExistingHost } from "./dev-shared.mjs";
 
@@ -21,6 +22,7 @@ const outputs = {
   iphoneLight: path.join(assetsDir, "voltura-air-iphone.png"),
   iphoneDark: path.join(assetsDir, "voltura-air-iphone-dark.png"),
   iphoneKodiDark: path.join(assetsDir, "voltura-air-iphone-kodi-dark.png"),
+  iphoneKodiDarkForum: path.join(assetsDir, "voltura-air-iphone-kodi-dark-forum.png"),
   split: path.join(assetsDir, "voltura-air-split.png")
 };
 
@@ -59,6 +61,10 @@ async function main() {
     try {
       await captureHostWindow(outputs.hostLight);
       await captureMobileScreens(chromium, lightHost.pairingUrl);
+      await sharp(outputs.iphoneKodiDark)
+        .resize({ width: 350 })
+        .png()
+        .toFile(outputs.iphoneKodiDarkForum);
     } finally {
       await stopProcess(lightHost.process);
     }

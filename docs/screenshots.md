@@ -38,12 +38,14 @@ docs/site/assets/voltura-air-host-dark.png
 docs/site/assets/voltura-air-iphone.png
 docs/site/assets/voltura-air-iphone-dark.png
 docs/site/assets/voltura-air-iphone-kodi-dark.png
+docs/site/assets/voltura-air-iphone-kodi-dark-forum.png
 docs/site/assets/voltura-air-split.png
 ```
 
 The set covers host pairing, phone trackpad, couch remote, and tablet split
-mode. README and the website reuse it. Add an image only for a distinct core use
-case.
+mode. The 350-pixel-wide `-forum` image is derived from the Kodi screenshot for
+forum posts. README and the website reuse the full-size images. Add an image
+only for a distinct core use case.
 
 Mobile public captures use the real isolated pairing flow at 393×852 phone
 portrait and 1180×820 tablet landscape. Capture light and dark themes from the

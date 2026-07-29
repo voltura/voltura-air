@@ -3,14 +3,7 @@
   left: 10px;
   bottom: 10px;
   z-index: 3;
-  width: var(--remote-corner-action-width);
-  min-width: var(--remote-corner-action-width);
-  min-height: calc(42px + var(--mode-bottom-safe-area, 0px));
-  justify-content: center;
   gap: 6px;
-  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
-  background: color-mix(in srgb, var(--surface-raised) 90%, var(--accent));
-  color: var(--text);
 }
 
 .remote-power-button svg {

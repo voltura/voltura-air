@@ -28,7 +28,7 @@ export function PowerControlEntry({ awake = null, awakeResult = null, capabiliti
     <>
       <button
         type="button"
-        className="remote-power-button"
+        className="remote-corner-action remote-power-button"
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         onClick={() => {

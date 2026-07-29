@@ -201,21 +201,36 @@ describe("RemoteMode", () => {
     expect(screen.getByRole<HTMLButtonElement>("button", { name: "Volume up" }).disabled).toBe(false);
   });
 
-  it("toggles the compact Windows helper panel with the Fn button", () => {
-    renderRemote();
+  it("toggles the compact Windows helper panel with the Functions button", () => {
+    renderRemote({
+      powerCapabilities: {
+        lock: true,
+        blackoutDisplay: true,
+        displayOff: true,
+        screenSaver: true,
+        screenSaverAvailable: true,
+        signOut: true,
+        restart: true,
+        shutdown: true
+      }
+    });
 
     const remoteMode = screen.getByLabelText("Couch remote");
-    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
+    const functionsButton = screen.getByRole("button", { name: "Functions" });
+    expect(functionsButton.classList).toContain("remote-corner-action");
+    expect(screen.getByRole("button", { name: "Power" }).classList).toContain("remote-corner-action");
+    fireEvent.click(functionsButton);
 
     expect(remoteMode.classList.contains("remote-utility-open")).toBe(true);
     expect(screen.getByRole("button", { name: "Main" }).classList).toContain("remote-navigation-main");
+    expect(screen.getByRole("button", { name: "Main" }).classList).toContain("remote-corner-action");
 
     fireEvent.click(screen.getByRole("button", { name: "Main" }));
 
     expect(remoteMode.classList.contains("remote-utility-open")).toBe(false);
   });
 
-  it("keeps the D-pad and corner controls available while Fn is open without the navigation ring", () => {
+  it("keeps the D-pad and corner controls available while Functions is open without the navigation ring", () => {
     renderRemote({
       remoteSettings: {
         ...defaultRemoteSettings,
@@ -233,7 +248,7 @@ describe("RemoteMode", () => {
       }
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
+    fireEvent.click(screen.getByRole("button", { name: "Functions" }));
 
     expect(screen.getByLabelText("Directional pad")).toBeTruthy();
     expect(screen.getByRole("button", { name: "D-pad up" })).toBeTruthy();
@@ -269,7 +284,7 @@ describe("RemoteMode", () => {
       onAppLaunch
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
+    fireEvent.click(screen.getByRole("button", { name: "Functions" }));
     fireEvent.click(screen.getByRole("button", { name: "Start Media Room" }));
 
     expect(screen.getByRole("button", { name: "Start WWW" }).textContent).toContain("WWW");
@@ -282,7 +297,7 @@ describe("RemoteMode", () => {
     const action = { id: "preset.browser", label: "Browser", kind: "browser" } as const;
     renderRemote({ appLaunchActions: [action], pendingAppLaunchId: action.id });
 
-    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
+    fireEvent.click(screen.getByRole("button", { name: "Functions" }));
     const button = screen.getByRole<HTMLButtonElement>("button", { name: "Start Browser" });
 
     expect(button.disabled).toBe(true);
@@ -292,7 +307,7 @@ describe("RemoteMode", () => {
   it("opens URL entry in a dialog, preserves its draft after failure, and offers retry", () => {
     const onUrlOpen = vi.fn(() => "url-operation-a");
     const view = renderRemote({ onUrlOpen });
-    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
+    fireEvent.click(screen.getByRole("button", { name: "Functions" }));
     fireEvent.click(screen.getByRole("button", { name: "Open URL" }));
 
     const dialog = screen.getByRole("dialog", { name: "Open URL on PC" });
@@ -327,7 +342,7 @@ describe("RemoteMode", () => {
   it("keeps the URL dialog open to show a successful response until Close is pressed", () => {
     const onUrlOpen = vi.fn(() => "url-operation-a");
     const view = renderRemote({ onUrlOpen });
-    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
+    fireEvent.click(screen.getByRole("button", { name: "Functions" }));
     fireEvent.click(screen.getByRole("button", { name: "Open URL" }));
 
     const input = screen.getByLabelText("Web address");
@@ -366,7 +381,7 @@ describe("RemoteMode", () => {
 
   it("closes the URL dialog when the PC connection becomes unavailable", () => {
     const view = renderRemote();
-    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
+    fireEvent.click(screen.getByRole("button", { name: "Functions" }));
     fireEvent.click(screen.getByRole("button", { name: "Open URL" }));
     expect(screen.getByRole("dialog", { name: "Open URL on PC" })).toBeTruthy();
 
@@ -378,7 +393,7 @@ describe("RemoteMode", () => {
 
   it("shows the URL permission requirement in the dialog", () => {
     renderRemote({ urlOpenCapability: { canOpen: false } });
-    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
+    fireEvent.click(screen.getByRole("button", { name: "Functions" }));
     fireEvent.click(screen.getByRole("button", { name: "Open URL" }));
 
     expect(screen.getByRole("alert").textContent).toContain("Allow URL opening");
@@ -389,7 +404,7 @@ describe("RemoteMode", () => {
   it("validates URL drafts before enabling Open", () => {
     const onUrlOpen = vi.fn(() => "url-operation-a");
     renderRemote({ onUrlOpen });
-    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
+    fireEvent.click(screen.getByRole("button", { name: "Functions" }));
     fireEvent.click(screen.getByRole("button", { name: "Open URL" }));
 
     const input = screen.getByLabelText<HTMLInputElement>("Web address");
@@ -414,7 +429,7 @@ describe("RemoteMode", () => {
 
   it("opens URL guidance in the detailed information dialog", () => {
     renderRemote();
-    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
+    fireEvent.click(screen.getByRole("button", { name: "Functions" }));
     fireEvent.click(screen.getByRole("button", { name: "Open URL" }));
     fireEvent.click(screen.getByRole("button", { name: "About Opening URLs on PC" }));
 

@@ -190,12 +190,14 @@
   z-index: 4;
 }
 
-.remote-fn-button {
-  flex: 0 0 auto;
-  min-height: 30px;
-  padding: 4px 10px;
-  font-size: 0.8rem;
-  font-weight: 800;
+.remote-corner-action {
+  width: var(--remote-corner-action-width);
+  min-width: var(--remote-corner-action-width);
+  min-height: calc(42px + var(--mode-bottom-safe-area, 0px));
+  justify-content: center;
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  background: color-mix(in srgb, var(--surface-raised) 90%, var(--accent));
+  color: var(--text);
 }
 
 .remote-floating-fn {
@@ -203,10 +205,6 @@
   right: max(10px, var(--mode-inline-safe-end, 0px));
   bottom: 10px;
   z-index: 3;
-  width: var(--remote-corner-action-width);
-  min-width: var(--remote-corner-action-width);
-  min-height: calc(40px + var(--mode-bottom-safe-area, 0px));
-  justify-content: center;
   box-shadow: 0 8px 24px color-mix(in srgb, var(--drawer-shadow) 42%, transparent);
 }
 

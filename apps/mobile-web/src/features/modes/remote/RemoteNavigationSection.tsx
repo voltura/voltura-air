@@ -87,12 +87,12 @@ export function RemoteNavigationSection({
       />
       <button
         type="button"
-        className="remote-fn-button remote-floating-fn remote-navigation-main"
+        className="remote-corner-action remote-floating-fn remote-navigation-main"
         aria-controls={utilityPanelId}
         aria-expanded={showUtilityPanel}
         onClick={onToggleUtilityPanel}
       >
-        {showUtilityPanel ? "Main" : "Fn"}
+        {showUtilityPanel ? "Main" : "Functions"}
       </button>
     </div>
   );

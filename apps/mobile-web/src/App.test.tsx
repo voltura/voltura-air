@@ -549,13 +549,13 @@ describe("App header and mode navigation", () => {
     expect(screen.getByRole("button", { name: "Change mode" })).toBeTruthy();
   });
 
-  it("hides the bottom mode row and keeps the header selector available while remote Fn is open", () => {
+  it("hides the bottom mode row and keeps the header selector available while remote Functions is open", () => {
     render(<App />);
 
     fireEvent.click(screen.getAllByRole("button", { name: "Remote" }).at(-1)!);
     expect(document.querySelector(".bottom-mode-tabs")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Fn" }));
+    fireEvent.click(screen.getByRole("button", { name: "Functions" }));
 
     const appShell = document.querySelector(".app-shell");
     expect(appShell?.classList.contains("remote-utility-open")).toBe(true);

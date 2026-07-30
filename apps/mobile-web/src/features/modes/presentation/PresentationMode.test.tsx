@@ -472,6 +472,246 @@ describe("PresentationMode", () => {
     expect(onPowerPointLaunch).toHaveBeenCalledExactlyOnceWith("report-1");
   });
 
+  it("retains a saved chooser selection on Back and launches it from the main controls", () => {
+    vi.useFakeTimers();
+    const onPowerPointLaunch = vi.fn();
+    const savedPresentation = {
+      presentationId: "report-1",
+      title: "Quarterly update",
+      fileName: "quarterly-update.pptx"
+    };
+    const capability = {
+      ...defaultProps.capability,
+      powerPoint: {
+        state: "unavailable" as const,
+        presentations: [],
+        availablePresentations: [savedPresentation]
+      }
+    };
+    const view = render(
+      <PresentationMode
+        {...defaultProps}
+        capability={capability}
+        onPowerPointLaunch={onPowerPointLaunch}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose" }));
+    fireEvent.click(screen.getByRole("radio", { name: /Quarterly update/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+
+    expect(screen.getByText("Quarterly update")).toBeTruthy();
+    expect(screen.getByText("Ready to start")).toBeTruthy();
+    expect(onPowerPointLaunch).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Start slideshow" }));
+    expect(onPowerPointLaunch).toHaveBeenCalledExactlyOnceWith("report-1");
+
+    view.rerender(
+      <PresentationMode
+        {...defaultProps}
+        capability={capability}
+        onPowerPointLaunch={onPowerPointLaunch}
+        pendingPowerPointLaunch={{
+          operationId: "launch-1",
+          presentationId: "report-1"
+        }}
+      />
+    );
+    const pendingStart = screen.getByRole<HTMLButtonElement>(
+      "button",
+      { name: "Start slideshow" });
+    expect(pendingStart.disabled).toBe(true);
+    fireEvent.click(pendingStart);
+    expect(onPowerPointLaunch).toHaveBeenCalledOnce();
+
+    view.rerender(
+      <PresentationMode
+        {...defaultProps}
+        capability={capability}
+        onPowerPointLaunch={onPowerPointLaunch}
+        powerPointLaunchResult={{
+          type: "presentation.powerpoint.launch.result",
+          operationId: "launch-1",
+          presentationId: "report-1",
+          succeeded: false,
+          code: "powerpoint-open-failed",
+          message: "PowerPoint could not open this presentation."
+        }}
+      />
+    );
+    expect(screen.getByText("Quarterly update")).toBeTruthy();
+    expect(screen.getByRole("alert").textContent)
+      .toContain("PowerPoint could not open this presentation.");
+
+    const launchedPresentation = {
+      runtimePresentationId: "runtime-1",
+      name: "Quarterly update.pptx",
+      state: "presenting" as const,
+      slideCount: 24,
+      currentSlideIndex: 1,
+      currentShowPosition: 1,
+      slideShowState: "running" as const
+    };
+    view.rerender(
+      <PresentationMode
+        {...defaultProps}
+        capability={{
+          ...defaultProps.capability,
+          powerPoint: {
+            state: "ready",
+            presentations: [launchedPresentation],
+            availablePresentations: []
+          }
+        }}
+        onPowerPointLaunch={onPowerPointLaunch}
+        powerPointLaunchResult={{
+          type: "presentation.powerpoint.launch.result",
+          operationId: "launch-2",
+          presentationId: "report-1",
+          succeeded: true,
+          message: "Presentation started.",
+          runtimePresentationId: "runtime-1",
+          presentation: launchedPresentation
+        }}
+      />
+    );
+    act(() => { vi.runAllTimers(); });
+    expect(screen.getByText("Quarterly update.pptx")).toBeTruthy();
+    expect(screen.getByText("Slide 1 of 24 · Presenting")).toBeTruthy();
+  });
+
+  it("retains an open presentation selected with Back", () => {
+    const onCommand = vi.fn();
+    render(
+      <PresentationMode
+        {...defaultProps}
+        capability={{
+          ...defaultProps.capability,
+          powerPoint: {
+            state: "ready",
+            presentations: [{
+              runtimePresentationId: "runtime-1",
+              name: "First deck.pptx",
+              state: "ready",
+              slideCount: 10,
+              currentSlideIndex: 1,
+              currentShowPosition: 1,
+              slideShowState: "ready"
+            }, {
+              runtimePresentationId: "runtime-2",
+              name: "Second deck.pptx",
+              state: "ready",
+              slideCount: 12,
+              currentSlideIndex: 2,
+              currentShowPosition: 2,
+              slideShowState: "ready"
+            }]
+          }
+        }}
+        onCommand={onCommand}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose" }));
+    fireEvent.click(screen.getByRole("radio", { name: /Second deck/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+
+    expect(screen.getByText("Second deck.pptx")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Start from beginning" }));
+    expect(onCommand).toHaveBeenLastCalledWith(
+      "powerpoint",
+      "start",
+      { runtimePresentationId: "runtime-2" });
+  });
+
+  it("disables alternative decks while a session is unresolved and permits them after resolution", () => {
+    const openPresentation = {
+      runtimePresentationId: "runtime-current",
+      name: "WeatherZilla_Documentation.pptx",
+      state: "ready" as const,
+      slideCount: 14,
+      currentSlideIndex: 1,
+      currentShowPosition: 1,
+      slideShowState: "ready" as const
+    };
+    const savedPresentation = {
+      presentationId: "report-1",
+      title: "California redwoods",
+      fileName: "california-redwoods.pptx"
+    };
+    const session = {
+      state: "pending-review" as const,
+      runtimePresentationId: "runtime-current",
+      presentationName: openPresentation.name,
+      ownerDeviceName: "Presenter phone",
+      isOwner: true,
+      startedAt: "2026-07-30T09:20:00.000+02:00",
+      elapsedSeconds: 4,
+      breakActive: false,
+      breakElapsedSeconds: 0,
+      currentSlideIndex: 1,
+      slideCount: 14,
+      slideShowState: "ready" as const
+    };
+    const capability = {
+      ...defaultProps.capability,
+      powerPoint: {
+        state: "ready" as const,
+        presentations: [openPresentation],
+        availablePresentations: [savedPresentation],
+        session
+      }
+    };
+    const view = render(
+      <PresentationMode
+        {...defaultProps}
+        capability={capability}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Change" }));
+    const currentRadio = screen.getByRole<HTMLInputElement>(
+      "radio",
+      { name: /WeatherZilla_Documentation/ });
+    const alternativeRadio = screen.getByRole<HTMLInputElement>(
+      "radio",
+      { name: /California redwoods/ });
+    expect(currentRadio.checked).toBe(true);
+    expect(alternativeRadio.disabled).toBe(true);
+    expect(screen.getByText(/Save or discard the current presentation/)).toBeTruthy();
+    fireEvent.click(alternativeRadio);
+    expect(currentRadio.checked).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByText("WeatherZilla_Documentation.pptx")).toBeTruthy();
+
+    view.rerender(
+      <PresentationMode
+        {...defaultProps}
+        capability={{
+          ...capability,
+          powerPoint: {
+            ...capability.powerPoint,
+            session: {
+              ...session,
+              state: "inactive",
+              runtimePresentationId: null
+            }
+          }
+        }}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Change" }));
+    const unlockedAlternative = screen.getByRole<HTMLInputElement>(
+      "radio",
+      { name: /California redwoods/ });
+    expect(unlockedAlternative.disabled).toBe(false);
+    fireEvent.click(unlockedAlternative);
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByText("California redwoods")).toBeTruthy();
+    expect(screen.getByText("Ready to start")).toBeTruthy();
+  });
+
   it("reflects host laser state and disables an owned laser when Presentation unmounts", () => {
     const onCommand = vi.fn();
     const view = render(

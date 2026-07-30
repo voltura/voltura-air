@@ -96,6 +96,7 @@ export function PresentationMode({
   const [isNavigationOpen, setIsNavigationOpen] = useState(false);
   const [gotoSlideNumber, setGotoSlideNumber] = useState("");
   const [runtimePresentationId, setRuntimePresentationId] = useState<string | null>(null);
+  const [savedPresentationId, setSavedPresentationId] = useState<string | null>(null);
   const [isPowerPointChooserOpen, setIsPowerPointChooserOpen] = useState(false);
   const [powerPointChooserSelection, setPowerPointChooserSelection] = useState<PowerPointChooserSelection>(null);
   const [visiblyPendingOperationId, setVisiblyPendingOperationId] = useState<string | null>(null);
@@ -127,11 +128,14 @@ export function PresentationMode({
   const sessionActive = timer.sessionStartedAt !== null;
   const presentationEnded = timer.completionIntent === "end";
   const powerPointPresentations = capability?.powerPoint?.presentations;
+  const availablePowerPointPresentations = capability?.powerPoint?.availablePresentations ?? [];
+  const selectedSavedPowerPoint = availablePowerPointPresentations.find(
+    (presentation) => presentation.presentationId === savedPresentationId) ?? null;
   const effectiveRuntimePresentationId =
     powerPointPresentations?.some(
       (presentation) => presentation.runtimePresentationId === runtimePresentationId) === true
       ? runtimePresentationId
-      : powerPointPresentations?.length === 1
+      : selectedSavedPowerPoint === null && powerPointPresentations?.length === 1
         ? powerPointPresentations[0]?.runtimePresentationId ?? null
         : null;
   const selectedPowerPoint = powerPointPresentations?.find(
@@ -186,6 +190,11 @@ export function PresentationMode({
       : laserPointerActive
         ? "Turn off the laser pointer before changing decks."
         : null;
+  const savedPowerPointStartDisabled = controlsDisabled ||
+    selectedSavedPowerPoint === null ||
+    pendingPowerPointLaunch !== null ||
+    presentationChangeLockedMessage !== null ||
+    onPowerPointLaunch === undefined;
 
   useEffect(() => {
     if (powerPointLaunchResult?.succeeded !== true ||
@@ -196,6 +205,7 @@ export function PresentationMode({
     const runtimeId = powerPointLaunchResult.runtimePresentationId;
     const completion = window.setTimeout(() => {
       setRuntimePresentationId(runtimeId);
+      setSavedPresentationId(null);
       setPowerPointChooserSelection(null);
       setIsPowerPointChooserOpen(false);
     }, 0);
@@ -319,6 +329,10 @@ export function PresentationMode({
     }
   };
   const startSlideshow = () => {
+    if (target === "powerpoint" && selectedSavedPowerPoint !== null) {
+      onPowerPointLaunch?.(selectedSavedPowerPoint.presentationId);
+      return;
+    }
     request("start");
     if (!usesAuthoritativePowerPointSession) {
       timer.startSlideshow(target);
@@ -430,6 +444,15 @@ export function PresentationMode({
     setTarget(nextTarget);
     setIsTargetSelectorOpen(false);
   };
+  const commitPowerPointSelection = (selection: PowerPointChooserSelection) => {
+    if (selection?.kind === "open") {
+      setRuntimePresentationId(selection.id);
+      setSavedPresentationId(null);
+    } else if (selection?.kind === "saved") {
+      setSavedPresentationId(selection.id);
+      setRuntimePresentationId(null);
+    }
+  };
 
   if (target === "powerpoint" &&
       isPowerPointChooserOpen &&
@@ -443,12 +466,20 @@ export function PresentationMode({
         launchPending={pendingPowerPointLaunch !== null}
         launchResult={powerPointLaunchResult}
         lockedMessage={presentationChangeLockedMessage}
-        onBack={() => { setIsPowerPointChooserOpen(false); }}
+        onBack={() => {
+          if (presentationChangeLockedMessage === null) {
+            commitPowerPointSelection(powerPointChooserSelection);
+          }
+          setIsPowerPointChooserOpen(false);
+        }}
         onLaunchApp={onPowerPointAppLaunch}
-        onLaunchSaved={(presentationId) => { onPowerPointLaunch?.(presentationId); }}
+        onLaunchSaved={(presentationId) => {
+          commitPowerPointSelection({ kind: "saved", id: presentationId });
+          onPowerPointLaunch?.(presentationId);
+        }}
         onRefresh={onPowerPointRefresh}
         onSelectOpen={(runtimeId) => {
-          setRuntimePresentationId(runtimeId);
+          commitPowerPointSelection({ kind: "open", id: runtimeId });
           setPowerPointChooserSelection(null);
           setIsPowerPointChooserOpen(false);
         }}
@@ -544,8 +575,10 @@ export function PresentationMode({
           <div className="presentation-powerpoint-source">
             <div className="presentation-powerpoint-summary">
               <div>
-                <strong title={selectedPowerPoint?.name}>
-                  {selectedPowerPoint?.name ?? "No presentation selected"}
+                <strong title={selectedPowerPoint?.name ?? selectedSavedPowerPoint?.title}>
+                  {selectedPowerPoint?.name ??
+                    selectedSavedPowerPoint?.title ??
+                    "No presentation selected"}
                 </strong>
                 <span aria-live="polite">
                   {pendingPowerPointLaunch
@@ -554,6 +587,8 @@ export function PresentationMode({
                       ? `Slide ${selectedPowerPoint.currentSlideIndex ?? "–"} of ${selectedPowerPoint.slideCount} · Presenting`
                       : selectedPowerPoint
                         ? `${selectedPowerPoint.slideCount} slides · Ready`
+                        : selectedSavedPowerPoint
+                          ? "Ready to start"
                         : verifiedPowerPoint
                           ? "Choose an open or saved deck"
                           : "PowerPoint unavailable"}
@@ -561,17 +596,25 @@ export function PresentationMode({
               </div>
               <button
                 type="button"
-                disabled={!connected}
+                disabled={!connected || pendingPowerPointLaunch !== null}
                 onClick={() => {
                   setPowerPointChooserSelection(selectedPowerPoint
                     ? { kind: "open", id: selectedPowerPoint.runtimePresentationId }
-                    : null);
+                    : selectedSavedPowerPoint
+                      ? { kind: "saved", id: selectedSavedPowerPoint.presentationId }
+                      : null);
                   setIsPowerPointChooserOpen(true);
                 }}
               >
-                {selectedPowerPoint ? "Change" : "Choose"}
+                {selectedPowerPoint || selectedSavedPowerPoint ? "Change" : "Choose"}
               </button>
             </div>
+            {powerPointLaunchResult?.succeeded === false &&
+              powerPointLaunchResult.presentationId === savedPresentationId && (
+                <p className="presentation-permission-message" role="alert">
+                  {powerPointLaunchResult.message}
+                </p>
+              )}
             {powerPointSession && powerPointSession.state !== "inactive" && (
               <div className="presentation-authoritative-session" role="status">
                 <strong>
@@ -670,7 +713,16 @@ export function PresentationMode({
           <div className="presentation-control-secondary">
         <div className="presentation-actions">
           {target === "powerpoint" && (
-            verifiedPowerPoint ? <>
+            selectedSavedPowerPoint ? (
+              <button
+                type="button"
+                data-pending-visual={pendingPowerPointLaunch !== null ? "deferred" : undefined}
+                disabled={savedPowerPointStartDisabled}
+                onClick={startSlideshow}
+              >
+                <Play aria-hidden="true" /><span>Start slideshow</span>
+              </button>
+            ) : verifiedPowerPoint ? <>
               <button
                 type="button"
                 data-pending-visual={pendingVisualState(powerPointStartControlDisabled)}
@@ -709,7 +761,12 @@ export function PresentationMode({
                 <span>{selectedPowerPoint?.slideShowState === "paused" ? "Resume auto-play" : "Pause auto-play"}</span>
               </button>
             </> : (
-              <button type="button" data-pending-visual={pendingVisualState()} disabled={commandControlsDisabled} onClick={startSlideshow}>
+              <button
+                type="button"
+                data-pending-visual={pendingVisualState()}
+                disabled={hasPowerPointAutomation || commandControlsDisabled}
+                onClick={startSlideshow}
+              >
                 <Play aria-hidden="true" /><span>Start slideshow</span>
               </button>
             )

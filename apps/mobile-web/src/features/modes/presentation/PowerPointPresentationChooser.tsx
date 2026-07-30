@@ -87,6 +87,9 @@ export function PowerPointPresentationChooser({
               detail={presentation.state === "presenting"
                 ? `Slide ${presentation.currentSlideIndex ?? "–"} of ${presentation.slideCount} · Presenting`
                 : `${presentation.slideCount} slides · Ready`}
+              disabled={launchPending ||
+                lockedMessage !== null && lockedMessage !== undefined &&
+                !(selection?.kind === "open" && selection.id === presentation.runtimePresentationId)}
               id={`open-${presentation.runtimePresentationId}`}
               key={presentation.runtimePresentationId}
               name={presentation.name}
@@ -102,6 +105,9 @@ export function PowerPointPresentationChooser({
               detail={presentation.fileName === presentation.title
                 ? "Saved presentation"
                 : presentation.fileName}
+              disabled={launchPending ||
+                lockedMessage !== null && lockedMessage !== undefined &&
+                !(selection?.kind === "saved" && selection.id === presentation.presentationId)}
               id={`saved-${presentation.presentationId}`}
               key={presentation.presentationId}
               name={presentation.title}
@@ -183,19 +189,35 @@ function ChooserGroup({
 function ChooserRow({
   checked,
   detail,
+  disabled,
   id,
   name,
   onSelect
 }: {
   checked: boolean;
   detail: string;
+  disabled: boolean;
   id: string;
   name: string;
   onSelect: () => void;
 }) {
   return (
-    <label className={`presentation-chooser-row${checked ? " selected" : ""}`} htmlFor={id}>
-      <input id={id} type="radio" name="powerpoint-presentation" checked={checked} onChange={onSelect} />
+    <label
+      className={`presentation-chooser-row${checked ? " selected" : ""}${disabled ? " disabled" : ""}`}
+      htmlFor={id}
+    >
+      <input
+        id={id}
+        type="radio"
+        name="powerpoint-presentation"
+        checked={checked}
+        disabled={disabled}
+        onChange={() => {
+          if (!disabled) {
+            onSelect();
+          }
+        }}
+      />
       <Presentation aria-hidden="true" />
       <span>
         <strong title={name}>{name}</strong>

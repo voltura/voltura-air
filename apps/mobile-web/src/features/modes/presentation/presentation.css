@@ -401,6 +401,11 @@
   background: color-mix(in srgb, var(--surface) 86%, var(--accent));
 }
 
+.presentation-chooser-row.disabled {
+  cursor: default;
+  opacity: 0.48;
+}
+
 .presentation-chooser-row input {
   width: 20px;
   height: 20px;

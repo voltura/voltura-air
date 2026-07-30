@@ -257,9 +257,13 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   presentations. PowerPoint control enumerates open presentations and a
   host-derived, deduplicated list of still-existing PowerPoint files linked by
   saved reports. The mobile chooser receives opaque IDs, titles, and filenames,
-  never local paths. Choosing a saved file explicitly starts PowerPoint when
-  necessary, opens that exact host-validated path, starts its slideshow, and
-  begins the authoritative session. Ordinary discovery and control commands
+  never local paths. Back retains an allowed open or saved selection without
+  starting it. A retained saved file can be started from the main controls, and
+  **Open and present** remains the chooser shortcut; either explicit start
+  starts PowerPoint when necessary, opens that exact host-validated path,
+  starts its slideshow, and begins the authoritative session. Active sessions
+  and laser ownership keep the current deck selected and disable alternatives
+  until the ownership is resolved. Ordinary discovery and control commands
   never launch a file or fall back to global input.
 - A sole open PowerPoint presentation is selected automatically. Multiple open
   presentations require an opaque runtime selection. Direct automation supports

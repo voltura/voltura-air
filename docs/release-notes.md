@@ -6,6 +6,8 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v0.8.2
+
 ## v0.8.1
 
 - Renamed Fn button to Functions in remote screens. Also adjusted font to match Power button, both Functions and Main button.

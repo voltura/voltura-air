@@ -204,6 +204,7 @@ public partial class MainWindow : Window
     public void ShowCustomScreenEditorForScreenshot()
     {
         ShowPage(HostPage.CustomScreens);
+        WindowState = WindowState.Maximized;
         _customScreensPage.OpenFirstForScreenshot();
     }
 

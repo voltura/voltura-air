@@ -18,10 +18,10 @@ installer artwork from `assets/branding/voltura-air-master.png`.
 ## Isolation and privacy
 
 Capture uses a temporary host with `--isolated-test-mode`, loopback, disposable
-settings/pairing data, and no-op power actions. The launcher stops the normal
-host and waits for cursor restoration. Pairing URL files are temporary secrets:
-never publish live tokens, LAN addresses, machine names, or machine-specific QR
-codes.
+settings/pairing data, alpha features enabled, and no-op power actions. The
+launcher stops the normal host and waits for cursor restoration. Pairing URL
+files are temporary secrets: never publish live tokens, LAN addresses, machine
+names, or machine-specific QR codes.
 
 `--site-screenshot-mode` shows the public product URL and replaces the connected
 PC name with `PC`. The Debug capture options are listed in
@@ -44,11 +44,11 @@ docs/site/assets/voltura-air-iphone-kodi-dark-forum.png
 docs/site/assets/voltura-air-split.png
 ```
 
-The set covers host pairing, the responsive Custom screens editor, phone
-trackpad, couch remote, and tablet split mode. The 350-pixel-wide `-forum`
-image is derived from the Kodi screenshot for forum posts. README and the
-website reuse the full-size images. Add an image only for a distinct core use
-case.
+The set covers host pairing, the maximized responsive Custom screens editor,
+phone trackpad, couch remote, and tablet split mode. The 350-pixel-wide
+`-forum` image is derived from the Kodi screenshot for forum posts. README and
+the website reuse the full-size images. Add an image only for a distinct core
+use case.
 
 Mobile public captures use the real isolated pairing flow at 393×852 phone
 portrait and 1180×820 tablet landscape. Capture light and dark themes from the

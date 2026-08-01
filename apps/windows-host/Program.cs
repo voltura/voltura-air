@@ -216,8 +216,6 @@ internal static class Program
         }
 
         AppThemeSettings.SetMode(theme);
-        AppDeveloperSettings.SetEnableAlphaFeatures(
-            args.Contains("--site-screenshot-custom-screens", StringComparer.OrdinalIgnoreCase));
         AppDeveloperSettings.SetEnableGestureDebug(false);
         AppNotificationSettings.SetShowConnectionStatusNotifications(false);
         AppNotificationSettings.SetShowPairingWindowOnDisconnect(false);

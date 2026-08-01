@@ -235,6 +235,7 @@ async function launchHost(theme, customScreens = false) {
     "--site-screenshot-theme",
     theme,
     "--isolated-test-mode",
+    "--enable-alpha-features",
     "--pairing-store-root",
     tempAppDataDir,
     "--pairing-url-file",
@@ -303,6 +304,7 @@ using System.Runtime.InteropServices;
 public static class NativeWindowCapture {
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+  [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
   [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out RECT pvAttribute, int cbAttribute);
   [DllImport("dwmapi.dll", EntryPoint = "DwmGetWindowAttribute")] public static extern int DwmGetWindowAttributeUInt(IntPtr hwnd, int dwAttribute, out uint pvAttribute, int cbAttribute);
@@ -316,7 +318,9 @@ if (-not $process) {
 }
 
 $hwnd = $process.MainWindowHandle
-[NativeWindowCapture]::ShowWindow($hwnd, 9) | Out-Null
+if ([NativeWindowCapture]::IsIconic($hwnd)) {
+  [NativeWindowCapture]::ShowWindow($hwnd, 9) | Out-Null
+}
 [NativeWindowCapture]::SetForegroundWindow($hwnd) | Out-Null
 Start-Sleep -Milliseconds 450
 

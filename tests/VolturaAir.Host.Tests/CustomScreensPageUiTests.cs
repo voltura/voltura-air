@@ -54,6 +54,42 @@ public sealed partial class HostUiLayoutTests
     }
 
     [Fact]
+    public void CustomScreenScreenshotEditorIsMaximized()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            using var store = new TempPairingStore();
+            using var inputInjector = new SendInputInjector();
+            AppDeveloperSettings.SetEnableAlphaFeatures(true);
+            var manager = new PairingManager(store.Store);
+            var webHost = new WebHostService(
+                manager,
+                new InputDispatcher(inputInjector),
+                isolatedTestMode: true);
+            var window = new MainWindow(manager, webHost, clientUrl: null);
+
+            try
+            {
+                window.ShowCustomScreenEditorForScreenshot();
+
+                Assert.Equal(WindowState.Maximized, window.WindowState);
+                Assert.IsType<CustomScreensPageView>(window.PageContent.Content);
+            }
+            finally
+            {
+                window.Close();
+                DisposeWebHost(webHost);
+            }
+        });
+    }
+
+    [Fact]
     public void CustomScreenRowsShowAndRetainTheActiveAddTarget()
     {
         if (ShouldSkipNativeUiLayoutTests())

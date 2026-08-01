@@ -8,6 +8,19 @@ create one. Keep the shared notices in
 
 ## v0.8.2
 
+- Added versioned `.volturascreen` export and reviewed import so Custom screens
+  can be backed up, shared, and added with fresh local IDs and no device
+  assignments.
+- Added the Custom screens community library with search, mobile-accurate
+  previews, downloads, ratings, reports, moderated submissions, administrator
+  deletion, reviewer feedback, and approval or rejection email.
+- Added direct **Install in Voltura Air** links with a file-download fallback;
+  every catalog package still opens a local review and is validated by the
+  Windows host before it is saved.
+- Added responsive navigation-ring and D-pad panels with repeatable directions
+  and a central mini-trackpad.
+- Added a tray-menu shortcut to the Custom screens community library.
+
 ## v0.8.1
 
 - Renamed Fn button to Functions in remote screens. Also adjusted font to match Power button, both Functions and Main button.

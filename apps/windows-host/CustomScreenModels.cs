@@ -30,7 +30,7 @@ public static class CustomScreenSectionKinds
 
     public static bool IsVolume(string kind) => kind == "volume";
 
-    public static bool IsNavigationRing(string kind) => kind == "navigationRing";
+    public static bool IsNavigationRing(string kind) => kind is "navigationRing" or "dpad";
 
     public static bool AllowsButtons(string kind) =>
         kind is "buttons" or "collapsible";

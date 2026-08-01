@@ -135,7 +135,7 @@ internal static class CustomScreenValidator
     private static readonly HashSet<int> NavigationRingWidths = [6, 8, 9, 12];
     private static readonly HashSet<string> Heights = ["content", "fill"];
     private static readonly HashSet<string> SectionKinds =
-        ["buttons", "collapsible", "trackpad", "collapsibleTrackpad", "volume", "navigationRing"];
+        ["buttons", "collapsible", "trackpad", "collapsibleTrackpad", "volume", "navigationRing", "dpad"];
     private static readonly HashSet<string> TrackpadButtonSides = ["left", "right"];
     private static readonly HashSet<string> ButtonAlignments =
         ["start", "center", "end", "space-between", "space-around", "space-evenly"];

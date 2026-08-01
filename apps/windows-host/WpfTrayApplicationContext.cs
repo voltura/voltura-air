@@ -124,6 +124,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _trayMenu.Items.Add("Preferences", null, (_, _) => RunProtected(() => _mainWindow.ShowPage(HostPage.Preferences)));
         _trayMenu.Items.Add(_awakeMenuController.MenuItem);
         _trayMenu.Items.Add("Open product page", null, (_, _) => RunProtected(ProductWebsite.Open));
+        _trayMenu.Items.Add("Browse custom screens", null, (_, _) => RunProtected(ProductWebsite.OpenCustomScreenLibrary));
         _trayMenu.Items.Add(new Forms.ToolStripSeparator());
         _trayMenu.Items.Add("Exit", null, (_, _) => RunProtected(RequestExit));
     }

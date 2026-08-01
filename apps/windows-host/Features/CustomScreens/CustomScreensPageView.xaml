@@ -38,6 +38,8 @@
                               Content="Confirm on hide"
                               Checked="OnConfirmHidesChanged"
                               Unchecked="OnConfirmHidesChanged" />
+                    <Button Content="Import screen"
+                            Click="OnImportScreen" />
                     <Button Content="New screen"
                             Style="{DynamicResource PrimaryButtonStyle}"
                             Click="OnNewScreen" />
@@ -404,6 +406,42 @@
                                         Style="{DynamicResource CompactIconButtonStyle}"
                                         ToolTip="Drag navigation ring onto the layout"
                                         AutomationProperties.Name="Drag Navigation ring onto layout" />
+                              </Grid>
+                            </Border>
+                            <Border x:Name="DPadPaletteItem"
+                                    Background="{DynamicResource SurfaceRaisedBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8">
+                              <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="44" />
+                                </Grid.ColumnDefinitions>
+                                <Button x:Name="DPadPaletteButton"
+                                        Grid.Column="0"
+                                        Content="+ D-pad"
+                                        ContentTemplate="{StaticResource CustomScreenPaletteButtonLabelTemplate}"
+                                        Margin="0"
+                                        Padding="12,8"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        HorizontalContentAlignment="Left"
+                                        ToolTip="Click to add a D-pad"
+                                        Click="OnAddDPad" />
+                                <Button x:Name="DPadPaletteDragHandle"
+                                        Grid.Column="1"
+                                        Width="38"
+                                        Height="38"
+                                        Margin="0"
+                                        Padding="0"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Content="&#x283F;"
+                                        Cursor="SizeAll"
+                                        Style="{DynamicResource CompactIconButtonStyle}"
+                                        ToolTip="Drag D-pad onto the layout"
+                                        AutomationProperties.Name="Drag D-pad onto layout" />
                               </Grid>
                             </Border>
                               </ui:SpacingStackPanel>

@@ -352,6 +352,34 @@ leaves it unchanged; reopening the library with a supporting build recovers it.
 Screen names are at most 24 characters, panel/trackpad/navigation-ring names 20, button editor
 names 24, and visible button labels 16.
 
+### Portable Custom screen packages
+
+The portable package format is JSON in a `.volturascreen` file:
+
+```json
+{
+  "packageVersion": 1,
+  "format": "voltura-air.custom-screen",
+  "screen": {}
+}
+```
+
+Package version 1 contains one current-format screen definition. Export removes
+all device assignments. Import rejects unsupported, incomplete, oversized, or
+invalid packages, shows the screen and action summary before saving, generates
+new screen/section/button IDs, and leaves the imported screen unassigned.
+Application actions remain opaque host-local references and may be unavailable
+on another PC. A matching portable definition requires explicit duplicate
+confirmation.
+
+The `voltura-air://import?id=<uuid>` launch contract requests an approved
+package from `https://voltura.se/air/screens`. An optional `source` is accepted
+only for that exact HTTPS catalog origin; debug builds additionally accept the
+loopback `/screens` development catalog. The host downloads a bounded package,
+then applies the same validation and local review as file import. The normal
+`.volturascreen` download remains the compatibility fallback when protocol
+launch is unavailable.
+
 Failure sets `succeeded: false` with `code` and `message`.
 `feature-disabled` and `not-assigned` are recoverable catalog/state failures.
 

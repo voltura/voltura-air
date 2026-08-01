@@ -23,5 +23,11 @@ Thumbs.db
 ## Packaged host web root is generated from apps/mobile-web/dist
 /apps/windows-host/wwwroot/
 
+# Hosting-only database credentials
+/docs/site/config.php
+
+# Local PHP/MariaDB site development state
+/.site-dev/
+
 ## Keep artifacts out of git
 /artifacts/*

@@ -60,18 +60,20 @@ public sealed partial class HostUiLayoutTests
                     AutomationProperties.GetName(orientation));
                 Assert.Equal("Rotate preview", AutomationProperties.GetName(rotate));
                 Assert.Equal(11, device.Items.Count);
-                Assert.Equal("Generic phone", device.SelectedItem?.ToString());
+                Assert.Equal(
+                    "Generic phone (360 × 640)",
+                    device.SelectedItem?.ToString());
                 Assert.Contains(
                     device.Items.Cast<object>(),
                     item => item.ToString() == "Mobile device");
                 Assert.Contains(
                     device.Items.Cast<object>(),
                     item => item.ToString() ==
-                        "Voltura 393x852 - iPhone Pro");
+                        "iPhone Pro (393 × 852)");
                 Assert.Contains(
                     device.Items.Cast<object>(),
                     item => item.ToString() ==
-                        "Voltura 820x1180 - iPad Air");
+                        "iPad Air (820 × 1180)");
                 Assert.Equal(
                     new CustomScreenViewport(360, 640, "portrait"),
                     window.Viewport);

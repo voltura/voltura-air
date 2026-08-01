@@ -45,9 +45,19 @@ reconnect key locally; the Windows host stores only its public key. These
 controls do not make it a sandbox against malware already running as the same
 Windows user; same-user software can generally act with that user's privileges.
 
+The public Custom screens community library is a separate internet-facing
+service. Its account does not authorize access to a Windows host. Treat every
+downloaded `.volturascreen` package as untrusted: Voltura Air accepts catalog
+imports only from the official HTTPS origin, bounds and validates the package,
+shows a local review, removes device assignments, and generates new local IDs
+before saving. Imported application actions may refer to approved applications
+that exist only on the author's PC and remain subject to local host permissions.
+
 When testing or deploying:
 
 - Download only from the official product page or official GitHub releases.
 - Pair only devices you trust.
 - Remove stale paired devices from the Windows host Settings Devices page.
 - Do not forward the Voltura Air host port from your router to the internet.
+- Review a Custom screen's panels and action summary before importing it, even
+  when it came from the moderated community library.

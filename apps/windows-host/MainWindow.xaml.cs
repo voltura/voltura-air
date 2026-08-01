@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
+using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
 using VolturaAir.Host.Features.Connect;
@@ -206,6 +207,44 @@ public partial class MainWindow : Window
         ShowPage(HostPage.CustomScreens);
         WindowState = WindowState.Maximized;
         _customScreensPage.OpenFirstForScreenshot();
+    }
+
+    internal async Task OpenCatalogImportAsync(CatalogImportRequest request)
+    {
+        await Dispatcher.InvokeAsync(ShowCatalogImportPage);
+        try
+        {
+            var bytes = await CatalogImportDownloader.DownloadAsync(request);
+            await Dispatcher.InvokeAsync(() =>
+            {
+                ShowCatalogImportPage();
+                _customScreensPage.ImportBytes(bytes);
+            });
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidOperationException)
+        {
+            await Dispatcher.InvokeAsync(() =>
+            {
+                ShowCatalogImportPage();
+                ThemedConfirmationDialog.ShowInformation(
+                    this,
+                    "Custom screen catalog",
+                    ex.Message,
+                    ConfirmationTone.Warning);
+            });
+        }
+    }
+
+    private void ShowCatalogImportPage()
+    {
+        SelectPage(HostPage.CustomScreens);
+        Show();
+        if (WindowState == WindowState.Minimized)
+        {
+            WindowState = WindowState.Normal;
+        }
+        Activate();
+        WindowFocusReset.AfterShow(this);
     }
 
     public void ShowPairedStatus()

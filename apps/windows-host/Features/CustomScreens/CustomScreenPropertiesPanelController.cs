@@ -376,5 +376,5 @@ internal sealed class CustomScreenPropertiesPanelController(
 
     private static bool IsGeneratedSectionName(string name) =>
         name is "New panel" or "Collapsible panel" or "Trackpad" or
-            "Collapsible trackpad" or "Volume slider";
+            "Collapsible trackpad" or "Volume slider" or "D-pad";
 }

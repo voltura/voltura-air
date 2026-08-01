@@ -127,13 +127,13 @@ public partial class CustomScreenPreviewWindow : Window
         var presets = new List<PreviewDeviceOption>
         {
             new(
-                "Generic phone",
+                "Generic phone (360 × 640)",
                 360,
                 640,
                 _request.DefaultControlDepth,
                 null),
             new(
-                "Generic tablet",
+                "Generic tablet (800 × 1180)",
                 800,
                 1180,
                 _request.DefaultControlDepth,
@@ -170,14 +170,14 @@ public partial class CustomScreenPreviewWindow : Window
         }
         presets.AddRange(
         [
-            new("Voltura 360x780 - Compact Android", 360, 780, _request.DefaultControlDepth, null),
-            new("Voltura 375x667 - iPhone SE Small", 375, 667, _request.DefaultControlDepth, null),
-            new("Voltura 390x844 - Common iPhone", 390, 844, _request.DefaultControlDepth, null),
-            new("Voltura 393x852 - iPhone Pro", 393, 852, _request.DefaultControlDepth, null),
-            new("Voltura 412x915 - Large Android", 412, 915, _request.DefaultControlDepth, null),
-            new("Voltura 430x932 - iPhone Pro Max", 430, 932, _request.DefaultControlDepth, null),
-            new("Voltura 768x1024 - Small Tablet", 768, 1024, _request.DefaultControlDepth, null),
-            new("Voltura 820x1180 - iPad Air", 820, 1180, _request.DefaultControlDepth, null)
+            new("Compact Android (360 × 780)", 360, 780, _request.DefaultControlDepth, null),
+            new("iPhone SE Small (375 × 667)", 375, 667, _request.DefaultControlDepth, null),
+            new("Common iPhone (390 × 844)", 390, 844, _request.DefaultControlDepth, null),
+            new("iPhone Pro (393 × 852)", 393, 852, _request.DefaultControlDepth, null),
+            new("Large Android (412 × 915)", 412, 915, _request.DefaultControlDepth, null),
+            new("iPhone Pro Max (430 × 932)", 430, 932, _request.DefaultControlDepth, null),
+            new("Small Tablet (768 × 1024)", 768, 1024, _request.DefaultControlDepth, null),
+            new("iPad Air (820 × 1180)", 820, 1180, _request.DefaultControlDepth, null)
         ]);
         foreach (var preset in presets)
         {

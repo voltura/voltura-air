@@ -3,12 +3,20 @@ namespace VolturaAir.Host;
 internal static class ProductWebsite
 {
     public const string Url = "https://voltura.se/air/";
+    public const string CustomScreenLibraryUrl = "https://voltura.se/air/screens/";
+    public const string CustomScreenUploadUrl = "https://voltura.se/air/screens/upload.php";
 
-    public static void Open()
+    public static void Open() => OpenUrl(Url);
+
+    public static void OpenCustomScreenLibrary() => OpenUrl(CustomScreenLibraryUrl);
+
+    public static void OpenCustomScreenUpload() => OpenUrl(CustomScreenUploadUrl);
+
+    private static void OpenUrl(string url)
     {
         using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
         {
-            FileName = Url,
+            FileName = url,
             UseShellExecute = true
         });
     }

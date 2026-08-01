@@ -18,8 +18,9 @@ PC. No app-store install, account, subscription, or cloud relay is required.
   the PC.
 - Design reusable Custom screens on the PC with responsive buttons, shortcuts,
   approved app actions, collapsible panels, and regular or collapsible
-  trackpad panels, preview the saved result in a native Windows preview, then
-  assign them to paired devices (alpha).
+  trackpads, navigation rings, and D-pads; preview and assign them, export or
+  import `.volturascreen` packages, or browse the
+  [community library](https://voltura.se/air/screens/) (alpha).
 - Keep the PC awake, lock it, blank its displays, restart it, or shut it down.
 - Combine a keyboard and trackpad on a landscape tablet.
 

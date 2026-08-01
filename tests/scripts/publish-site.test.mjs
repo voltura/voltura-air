@@ -153,6 +153,42 @@ test("records the first server identity and rejects a changed identity", async (
   assert.equal(verifier("changed-server"), false);
 });
 
+test("publishes access rules before the site directory", async () => {
+  const operations = [];
+  await publishSite({
+    paths: { hostFingerprintPath: "C:\\Local\\site-host.sha256" },
+    password: "secret",
+    createSftp: () => ({
+      async connect(options) {
+        assert.equal(options.hostVerifier("known-server"), true);
+      },
+      async mkdir() {
+        operations.push("mkdir");
+      },
+      async put(_source, destination) {
+        operations.push(`put:${destination}`);
+      },
+      async uploadDir() {
+        operations.push("uploadDir");
+      },
+      async end() {
+        operations.push("end");
+      }
+    }),
+    read: async () => "known-server\n",
+    exists: () => true,
+    source: process.cwd(),
+    log: () => {}
+  });
+
+  assert.deepEqual(operations, [
+    "mkdir",
+    "put:air/.htaccess",
+    "uploadDir",
+    "end"
+  ]);
+});
+
 test("lists the remote site without creating, uploading, or removing files", async () => {
   const operations = [];
   const output = [];

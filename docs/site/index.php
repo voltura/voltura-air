@@ -57,6 +57,7 @@
       <nav aria-label="Page sections">
         <a href="#features">Features</a>
         <a href="#screens">Screenshots</a>
+        <a href="./screens/">Custom screens</a>
         <a href="#setup">Setup</a>
         <a href="#trust">Privacy</a>
         <a href="#source">Develop</a>
@@ -83,6 +84,7 @@
             <a class="button primary" href="https://github.com/voltura/voltura-air/releases/latest">Download for Windows</a>
             <a class="button secondary" href="#features">Explore features</a>
             <a class="button secondary" href="#screens">See screenshots</a>
+            <a class="button secondary" href="./screens/">Browse custom screens</a>
           </div>
         </div>
       </section>
@@ -121,7 +123,7 @@
         </article>
         <article>
           <h2>Custom screens</h2>
-          <p>Build responsive button, collapsible-panel, and regular or collapsible trackpad layouts on the PC, preview the saved result in a native Windows preview, assign it to paired devices, and keep actions under host permissions.</p>
+          <p>Build responsive buttons, collapsible panels, trackpads, navigation rings, and D-pads on the PC. Preview and assign them, share reviewed <code>.volturascreen</code> packages, or browse the community library while actions remain under host permissions.</p>
         </article>
         <article>
           <h2>PC actions</h2>

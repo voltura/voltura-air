@@ -111,6 +111,9 @@ async function collectPublicDocumentationSurfaces(root) {
 
   return (await collectFiles(siteRoot, root))
     .filter((file) => {
+      if (file === "docs/site/config.php") {
+        return false;
+      }
       const extension = path.extname(file).toLowerCase();
       return extension === ".html" || extension === ".php" || path.basename(file).toLowerCase() === "llms.txt";
     })

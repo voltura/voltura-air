@@ -131,7 +131,9 @@ public partial class CustomScreensPageView : UserControl
             CollapsibleTrackpadPaletteDragHandle,
             CollapsibleTrackpadPaletteItem,
             NavigationRingPaletteDragHandle,
-            NavigationRingPaletteItem);
+            NavigationRingPaletteItem,
+            DPadPaletteDragHandle,
+            DPadPaletteItem);
         _previewDevices = new CustomScreenPreviewDeviceController(
             PreviewDeviceCombo,
             PreviewOrientationCombo,
@@ -174,6 +176,8 @@ public partial class CustomScreensPageView : UserControl
         _deleteConfirmations.Synchronize();
         _libraryController.Refresh();
     }
+
+    internal void ImportBytes(byte[] bytes) => _libraryController.ImportBytes(bytes);
     internal void OpenEditor(CustomScreenDefinition screen)
     {
         _draft = screen;
@@ -396,6 +400,8 @@ public partial class CustomScreensPageView : UserControl
 
     private void OnNewScreen(object sender, RoutedEventArgs e) => OpenEditor(CustomScreenService.CreateDraft());
 
+    private void OnImportScreen(object sender, RoutedEventArgs e) => _libraryController.Import();
+
     private void OnBack(object sender, RoutedEventArgs e)
     {
         if (!TryLeave())
@@ -454,6 +460,8 @@ public partial class CustomScreensPageView : UserControl
     private void OnAddCollapsibleTrackpad(object sender, RoutedEventArgs e) => _componentCreation.AddSection("collapsibleTrackpad");
 
     private void OnAddNavigationRing(object sender, RoutedEventArgs e) => _componentCreation.AddSection("navigationRing");
+
+    private void OnAddDPad(object sender, RoutedEventArgs e) => _componentCreation.AddSection("dpad");
 
     private void OnConfirmDeletesChanged(object sender, RoutedEventArgs e)
         => _deleteConfirmations?.HandleDeleteChanged(sender);

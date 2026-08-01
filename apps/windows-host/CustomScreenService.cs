@@ -94,6 +94,10 @@ public sealed class CustomScreenService
         CustomScreenDefinition screen) =>
         CustomScreenDraftFactory.CreateNavigationRing(screen);
 
+    public static CustomScreenDefinition CreateDPad(
+        CustomScreenDefinition screen) =>
+        CustomScreenDraftFactory.CreateDPad(screen);
+
     public bool TrySave(CustomScreenDefinition draft, out CustomScreenDefinition saved, out string error)
     {
         var candidate = draft with { Revision = NewRevision() };
@@ -176,6 +180,92 @@ public sealed class CustomScreenService
             AssignedClientIds = []
         };
         return TrySave(duplicate, out duplicate, out error);
+    }
+
+    public bool TryImport(
+        CustomScreenPackageInspection inspection,
+        out CustomScreenDefinition? imported,
+        out string error) =>
+        TryImport(
+            inspection,
+            allowPortableDuplicate: false,
+            out imported,
+            out error);
+
+    public bool TryImport(
+        CustomScreenPackageInspection inspection,
+        bool allowPortableDuplicate,
+        out CustomScreenDefinition? imported,
+        out string error)
+    {
+        ArgumentNullException.ThrowIfNull(inspection);
+        imported = inspection.ImportedScreen;
+        if (!CustomScreenValidator.TryValidate(imported, out error) ||
+            !FitsProtocolEnvelope(imported, out error))
+        {
+            return false;
+        }
+
+        lock (_gate)
+        {
+            if (_loadError is not null)
+            {
+                error = _loadError;
+                return false;
+            }
+
+            if (_screens.Count >= CustomScreenLimits.MaxScreens)
+            {
+                error = $"At most {CustomScreenLimits.MaxScreens} screens can be stored.";
+                return false;
+            }
+
+            if (!allowPortableDuplicate &&
+                _screens.Any(screen =>
+                    CustomScreenPackages.HasSamePortableContent(
+                        screen,
+                        inspection.Package.Screen)))
+            {
+                error = "A matching custom screen is already in the library.";
+                return false;
+            }
+
+            var candidate = imported;
+            while (_screens.Any(screen => string.Equals(screen.Id, candidate.Id, StringComparison.Ordinal)))
+            {
+                candidate = CustomScreenDraftFactory.CloneWithNewIds(candidate) with
+                {
+                    AssignedClientIds = []
+                };
+            }
+
+            imported = candidate;
+            var next = _screens.Append(candidate).ToList();
+            if (!_store.TrySave(next, out error))
+            {
+                return false;
+            }
+
+            _screens = next;
+            _catalogRevision = NewRevision();
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+        error = string.Empty;
+        return true;
+    }
+
+    public CustomScreenDefinition? FindPortableDuplicate(
+        CustomScreenPackageInspection inspection)
+    {
+        ArgumentNullException.ThrowIfNull(inspection);
+        lock (_gate)
+        {
+            return _screens.FirstOrDefault(screen =>
+                CustomScreenPackages.HasSamePortableContent(
+                    screen,
+                    inspection.Package.Screen));
+        }
     }
 
     public bool TryMove(string screenId, int direction, out string error)

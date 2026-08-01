@@ -1,9 +1,10 @@
 # Privacy policy
 
 Voltura Air operates between a Windows PC and paired devices on the same local
-network. Voltura AB does not provide an account system, cloud
-relay, advertising service, analytics service, or remote telemetry service for
-Voltura Air.
+network without requiring an account or cloud relay. Voltura AB does not
+provide advertising, analytics, or remote telemetry services for Voltura Air.
+The separate Custom screens community library has an optional account system
+for people who choose to submit, rate, or manage shared screens.
 
 ## Data handled by Voltura Air
 
@@ -112,10 +113,24 @@ and linked URLs are not written to application logs.
 Custom screens can be edited, duplicated, assigned, reordered, or deleted from
 the Windows **Custom screens** page. Removing a paired device removes its
 assignments and last viewport metadata but does not delete reusable screens.
+Screens can also be exported to local `.volturascreen` files and imported after
+review. Imported screens do not retain device assignments. Catalog installation
+downloads a package over HTTPS and opens the same local review before saving.
 While Custom screens is an alpha feature, starting a host that encounters an
 unsupported pre-release Custom screens store version deletes that store and
 starts an empty library. Invalid data in the current format is left in place
 and reported instead.
+
+The optional custom-screen catalog at `voltura.se/air/screens` stores the email
+address, display name, and password hash supplied when an account is created.
+It also stores submitted packages, author notes, tags, moderation status and
+feedback, ratings, download counts, and reports submitted with a reporter email
+address. Submitted packages are held for moderation; approved package contents,
+author identity, notes, tags, ratings, and download counts are public.
+Withdrawing a submission removes it from the public catalog but does not delete
+its stored record. A catalog administrator can permanently delete an approved
+submission and its package, ratings, and reports. Catalog accounts and data do
+not grant access to a Windows host or its paired devices.
 
 When Presentation control is enabled, the Windows host may read bounded
 PowerPoint presentation names, canonical local file paths, and slideshow state

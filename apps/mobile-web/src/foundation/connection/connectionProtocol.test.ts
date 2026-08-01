@@ -214,6 +214,18 @@ describe("parseServerMessage", () => {
     };
     expect(parseServerMessage(JSON.stringify(navigationRingFrame)))
       .toEqual(navigationRingFrame);
+    const dPadFrame = {
+      ...navigationRingFrame,
+      screen: {
+        ...navigationRingFrame.screen,
+        sections: [{
+          ...navigationRingFrame.screen.sections[0],
+          name: "D-pad",
+          kind: "dpad"
+        }]
+      }
+    };
+    expect(parseServerMessage(JSON.stringify(dPadFrame))).toEqual(dPadFrame);
     expect(parseServerMessage(JSON.stringify({
       ...navigationRingFrame,
       screen: {

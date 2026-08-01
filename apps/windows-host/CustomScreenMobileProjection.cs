@@ -63,7 +63,7 @@ internal sealed class CustomScreenMobileProjection(
                 : CustomScreenSectionKinds.IsVolume(section.Kind)
                     ? "volume"
                     : CustomScreenSectionKinds.IsNavigationRing(section.Kind)
-                        ? "navigationRing"
+                        ? section.Kind == "dpad" ? "dpad" : "navigationRing"
                     : "buttons",
             CustomScreenSectionKinds.IsCollapsible(section.Kind),
             section.InitiallyExpanded,

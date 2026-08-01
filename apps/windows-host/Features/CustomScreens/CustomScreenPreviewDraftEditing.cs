@@ -158,6 +158,7 @@ internal static class CustomScreenPreviewDraftEditing
             "collapsibleTrackpad" => CustomScreenService.CreateCollapsibleTrackpad(draft),
             "volume" => CustomScreenService.CreateVolumeSlider(draft),
             "navigationRing" => CustomScreenService.CreateNavigationRing(draft),
+            "dpad" => CustomScreenService.CreateDPad(draft),
             _ => CustomScreenService.CreateSection(draft)
         };
         var created = next.Sections[^1];

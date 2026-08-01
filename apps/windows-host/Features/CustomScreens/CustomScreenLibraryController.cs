@@ -1,10 +1,13 @@
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using Microsoft.Win32;
 using Button = System.Windows.Controls.Button;
 using Brush = System.Windows.Media.Brush;
 using CheckBox = System.Windows.Controls.CheckBox;
+using ContextMenu = System.Windows.Controls.ContextMenu;
 using Cursors = System.Windows.Input.Cursors;
 using DataObject = System.Windows.DataObject;
 using DragDrop = System.Windows.DragDrop;
@@ -12,9 +15,12 @@ using DragDropEffects = System.Windows.DragDropEffects;
 using DragEventArgs = System.Windows.DragEventArgs;
 using IDataObject = System.Windows.IDataObject;
 using MessageBox = System.Windows.MessageBox;
+using MenuItem = System.Windows.Controls.MenuItem;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using Orientation = System.Windows.Controls.Orientation;
 using Point = System.Windows.Point;
+using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
+using SaveFileDialog = Microsoft.Win32.SaveFileDialog;
 
 namespace VolturaAir.Host.Features.CustomScreens;
 
@@ -96,6 +102,7 @@ internal sealed class CustomScreenLibraryController(
         };
         actions.Children.Add(ActionButton("Edit", () => openEditor(screen)));
         actions.Children.Add(ActionButton("Preview", () => Preview(screen.Id)));
+        actions.Children.Add(CreateExportButton(screen));
         actions.Children.Add(ActionButton("Duplicate", () => Duplicate(screen.Id)));
         var deleteButton = ActionButton(
             "Delete",
@@ -132,6 +139,204 @@ internal sealed class CustomScreenLibraryController(
         };
         AttachOrderDrag(card, dragHandle, screen.Id);
         return card;
+    }
+
+    private Button CreateExportButton(CustomScreenDefinition screen)
+    {
+        var button = ActionButton("Export", () => { });
+        var menu = new ContextMenu
+        {
+            Placement = PlacementMode.Bottom,
+            PlacementTarget = button
+        };
+        var saveItem = CreateExportMenuItem(
+            "Save to file",
+            () => ExportToFile(screen));
+        var communityItem = CreateExportMenuItem(
+            "Share in community library",
+            () => ShareInCommunityLibrary(screen));
+        menu.Items.Add(saveItem);
+        menu.Items.Add(communityItem);
+        menu.Opened += (_, _) =>
+        {
+            menu.Style = (Style)button.FindResource("EventMultiSelectContextMenuStyle");
+            var itemStyle = (Style)button.FindResource("EventMultiSelectMenuItemStyle");
+            saveItem.Style = itemStyle;
+            communityItem.Style = itemStyle;
+        };
+        button.ContextMenu = menu;
+        button.Click += (_, _) => menu.IsOpen = true;
+        return button;
+    }
+
+    private static MenuItem CreateExportMenuItem(string label, Action action)
+    {
+        var item = new MenuItem { Header = label };
+        AutomationProperties.SetName(item, label);
+        item.Click += (_, _) => action();
+        return item;
+    }
+
+    private void ExportToFile(CustomScreenDefinition screen)
+    {
+        var dialog = new SaveFileDialog
+        {
+            AddExtension = true,
+            DefaultExt = CustomScreenPackages.FileExtension,
+            FileName = SafeExportFileName(screen.Name),
+            Filter = $"Voltura Air custom screen (*{CustomScreenPackages.FileExtension})|*{CustomScreenPackages.FileExtension}|JSON files (*.json)|*.json"
+        };
+        if (dialog.ShowDialog(owner) != true)
+        {
+            return;
+        }
+
+        try
+        {
+            File.WriteAllBytes(dialog.FileName, CustomScreenPackages.Serialize(screen));
+            activityLog.Write("export", succeeded: true);
+            showToast("Custom screen exported");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            activityLog.Write("export", succeeded: false);
+            MessageBox.Show(owner, $"The custom screen could not be exported: {ex.Message}",
+                "Custom screens", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void ShareInCommunityLibrary(CustomScreenDefinition screen)
+    {
+        try
+        {
+            var directory = Path.Combine(
+                Path.GetTempPath(),
+                "Voltura Air",
+                "Community uploads");
+            Directory.CreateDirectory(directory);
+            var fileName = SafeExportFileName(screen.Name);
+            var path = Path.Combine(
+                directory,
+                fileName + CustomScreenPackages.FileExtension);
+            File.WriteAllBytes(path, CustomScreenPackages.Serialize(screen));
+
+            ProductWebsite.OpenCustomScreenUpload();
+            using var explorer = System.Diagnostics.Process.Start(
+                new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = $"/select,\"{path}\"",
+                    UseShellExecute = true
+                });
+            activityLog.Write("export", succeeded: true, code: "community");
+            showToast("Package ready to upload");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                                   System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            activityLog.Write("export", succeeded: false, code: "community");
+            ThemedConfirmationDialog.ShowInformation(
+                owner,
+                "Custom screens",
+                $"The community upload could not be opened: {ex.Message}",
+                ConfirmationTone.Warning);
+        }
+    }
+
+    private static string SafeExportFileName(string screenName)
+    {
+        var name = string.Concat(screenName.Select(character =>
+            Path.GetInvalidFileNameChars().Contains(character) ? '_' : character));
+        return string.IsNullOrWhiteSpace(name) ? "custom-screen" : name;
+    }
+
+    public void Import()
+    {
+        var dialog = new OpenFileDialog
+        {
+            CheckFileExists = true,
+            DefaultExt = CustomScreenPackages.FileExtension,
+            Filter = $"Voltura Air custom screen (*{CustomScreenPackages.FileExtension})|*{CustomScreenPackages.FileExtension}|JSON files (*.json)|*.json"
+        };
+        if (dialog.ShowDialog(owner) != true)
+        {
+            return;
+        }
+
+        if (!CustomScreenPackages.TryRead(dialog.FileName, out var inspection, out var readError) ||
+            inspection is null)
+        {
+            activityLog.Write("import", succeeded: false);
+            ThemedConfirmationDialog.ShowInformation(
+                owner,
+                "Custom screens",
+                readError,
+                ConfirmationTone.Warning);
+            return;
+        }
+
+        ImportInspection(inspection);
+    }
+
+    public void ImportBytes(byte[] bytes)
+    {
+        if (!CustomScreenPackages.TryRead(bytes, out var inspection, out var readError) ||
+            inspection is null)
+        {
+            activityLog.Write("import", succeeded: false);
+            ThemedConfirmationDialog.ShowInformation(
+                owner,
+                "Custom screens",
+                readError,
+                ConfirmationTone.Warning);
+            return;
+        }
+
+        ImportInspection(inspection);
+    }
+
+    private void ImportInspection(CustomScreenPackageInspection inspection)
+    {
+        var existing = service.FindPortableDuplicate(inspection);
+        var approved = existing is null
+            ? ThemedConfirmationDialog.Show(
+                owner,
+                "Review custom screen import",
+                CustomScreenPackages.ReviewText(inspection),
+                "Import",
+                "Cancel",
+                ConfirmationTone.Information)
+            : ThemedConfirmationDialog.Show(
+                owner,
+                "Screen already in library",
+                CustomScreenPackages.DuplicateReviewText(inspection, existing),
+                "Import another copy",
+                "Cancel",
+                ConfirmationTone.Warning);
+        if (!approved)
+        {
+            activityLog.Write("import", succeeded: false, code: "cancelled");
+            return;
+        }
+
+        if (!service.TryImport(
+                inspection,
+                allowPortableDuplicate: existing is not null,
+                out _,
+                out var importError))
+        {
+            activityLog.Write("import", succeeded: false);
+            ThemedConfirmationDialog.ShowInformation(
+                owner,
+                "Custom screens",
+                importError,
+                ConfirmationTone.Warning);
+            return;
+        }
+
+        activityLog.Write("import", succeeded: true);
+        showToast("Custom screen imported");
+        Refresh();
     }
 
     private WrapPanel CreateAssignmentPanel(CustomScreenDefinition screen)

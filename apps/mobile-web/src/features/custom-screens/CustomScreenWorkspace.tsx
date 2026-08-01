@@ -271,7 +271,7 @@ export function CustomScreenWorkspace({
             const contentId = `custom-screen-section-content-${section.id}`;
             const kindClass = collapsible
               ? "collapsible"
-              : section.kind === "navigationRing"
+              : section.kind === "navigationRing" || section.kind === "dpad"
                 ? "navigation-ring"
                 : section.kind;
             return (
@@ -364,7 +364,7 @@ export function CustomScreenWorkspace({
                       </div>
                     )}
                   </div>
-                ) : section.kind === "navigationRing" ? (
+                ) : section.kind === "navigationRing" || section.kind === "dpad" ? (
                   <CustomScreenNavigationRing
                     enabled={trackpadEnabled && state === "paired"}
                     name={section.name}

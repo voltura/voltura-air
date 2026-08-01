@@ -1,7 +1,7 @@
 {
   "name": "voltura-air",
   "private": true,
-  "version": "0.8.1",
+  "version": "0.8.2",
   "license": "MIT",
   "workspaces": [
     "apps/mobile-web"
@@ -47,7 +47,11 @@
     "release:full": "node scripts/release-publish.mjs --publish-latest",
     "release:sync-release-notes": "node scripts/sync-release-notes.mjs",
     "screenshots:site": "node scripts/capture-site-screenshots.mjs",
-    "publish:site": "node scripts/publish-site.mjs",
+    "site:dev:init": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/site-dev-init.ps1",
+    "site:dev:admin": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/site-dev-admin.ps1",
+    "site:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/site-dev.ps1",
+    "site:preview:build": "npm run build:catalog-preview --workspace apps/mobile-web",
+    "publish:site": "npm run site:preview:build && node scripts/publish-site.mjs",
     "publish:site:list": "node scripts/publish-site.mjs --list",
     "publish:site:password": "node scripts/publish-site.mjs --store-password",
     "publish:site:password:clear": "node scripts/publish-site.mjs --clear-password",

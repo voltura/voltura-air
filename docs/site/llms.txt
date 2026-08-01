@@ -22,10 +22,14 @@ for a Windows 11 PC.
   setting.
 - Host-controlled permissions for paired devices and disruptive PC actions.
 - QR pairing with saved reconnect on the same Wi-Fi or LAN.
+- Reviewed custom screens can be browsed at https://voltura.se/air/screens/ and
+  imported into Voltura Air after local review.
 
 ## Product boundaries
 
-- No account, subscription, cloud relay, or internet input forwarding.
+- No account is required for the app, and there is no subscription, cloud
+  relay, or internet input forwarding. The separate community library uses an
+  optional account for submissions, ratings, and submission management.
 - Not a remote-desktop, file-sync, or public-internet remote-control service.
 - A sleeping or shut-down PC cannot receive a Voltura Air wake command.
 - Release binaries are not code-signed, so Windows may show an

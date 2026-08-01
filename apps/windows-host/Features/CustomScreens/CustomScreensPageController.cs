@@ -48,4 +48,10 @@ internal sealed class CustomScreensPageController(
             _view.OpenEditor(screens[0]);
         }
     }
+
+    public void ImportBytes(byte[] bytes)
+    {
+        _view ??= CreateView();
+        _view.ImportBytes(bytes);
+    }
 }

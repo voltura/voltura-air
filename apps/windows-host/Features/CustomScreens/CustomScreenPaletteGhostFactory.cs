@@ -27,6 +27,7 @@ internal static class CustomScreenPaletteGhostFactory
             "new-trackpad" => CreateTrackpad(resourceSource, width),
             "new-collapsible-trackpad" => CreateCollapsibleTrackpad(resourceSource, width),
             "new-navigation-ring" => CreateNavigationRing(resourceSource, width),
+            "new-dpad" => CreateNavigationRing(resourceSource, width),
             "new-collapsible" => CreateCollapsible(resourceSource, width),
             _ => CreatePanel(resourceSource, width)
         };

@@ -10,6 +10,55 @@ namespace VolturaAir.Host.Tests;
 public sealed partial class HostUiLayoutTests
 {
     [Fact]
+    public void ExportOffersFileAndCommunityDestinations()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            using var pairingStore = new TempPairingStore();
+            var owner = new Window { Width = 1000, Height = 720 };
+            WpfTheme.Apply(owner);
+            var service = new CustomScreenService(
+                new InMemoryCustomScreenStore(),
+                new FakeAppLaunchService());
+            Assert.True(
+                service.TrySave(
+                    CustomScreenService.CreateDraft(),
+                    out _,
+                    out var error),
+                error);
+            var page = new CustomScreensPageView(
+                owner,
+                service,
+                new PairingManager(pairingStore.Store));
+            owner.Content = page;
+
+            try
+            {
+                owner.Show();
+                owner.UpdateLayout();
+
+                var export = FindVisualDescendants<Button>(page)
+                    .Single(button => Equals(button.Content, "Export"));
+                var menu = Assert.IsType<ContextMenu>(export.ContextMenu);
+                Assert.Collection(
+                    menu.Items.Cast<MenuItem>(),
+                    item => Assert.Equal("Save to file", item.Header),
+                    item => Assert.Equal("Share in community library", item.Header));
+            }
+            finally
+            {
+                owner.Close();
+            }
+        });
+    }
+
+    [Fact]
     public void EmptyPreviewExposesAFullWorkspaceDropTarget()
     {
         if (ShouldSkipNativeUiLayoutTests())
@@ -266,8 +315,7 @@ public sealed partial class HostUiLayoutTests
                 (Kind: "new-section", Text: "New panel", Width: 320d),
                 (Kind: "new-collapsible", Text: "Collapsible panel", Width: 320d),
                 (Kind: "new-button", Text: "[play]  New button", Width: 104d),
-                (Kind: "new-trackpad", Text: "Trackpad", Width: 320d),
-                (Kind: "new-navigation-ring", Text: "↑", Width: 320d)
+                (Kind: "new-trackpad", Text: "Trackpad", Width: 320d)
             };
 
             foreach (var expected in cases)
@@ -284,6 +332,22 @@ public sealed partial class HostUiLayoutTests
                 Assert.Contains(
                     FindVisualDescendants<TextBlock>(visual),
                     text => Equals(text.Text, expected.Text));
+            }
+
+            foreach (var kind in new[] { "new-navigation-ring", "new-dpad" })
+            {
+                var visual = CustomScreenPaletteGhostFactory.Create(
+                    kind,
+                    resources,
+                    320);
+                visual.Measure(new Size(640, 640));
+                visual.Arrange(new Rect(visual.DesiredSize));
+                visual.UpdateLayout();
+
+                Assert.Equal(320d, visual.ActualWidth, precision: 3);
+                Assert.Contains(
+                    FindVisualDescendants<System.Windows.Shapes.Path>(visual),
+                    path => AutomationProperties.GetName(path) == "D-pad up preview");
             }
         });
     }

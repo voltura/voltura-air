@@ -1,0 +1,116 @@
+using System.Text.Json;
+using VolturaAir.Host;
+
+namespace VolturaAir.Host.Tests;
+
+public sealed class CustomScreenPackageTests
+{
+    [Fact]
+    public void SerializeAndReadStripsAssignmentsAndRegeneratesIds()
+    {
+        var source = CustomScreenService.CreateDraft() with { AssignedClientIds = ["phone-a"] };
+
+        Assert.True(
+            CustomScreenPackages.TryRead(
+                CustomScreenPackages.Serialize(source),
+                out var inspection,
+                out var error),
+            error);
+
+        Assert.NotNull(inspection);
+        Assert.Empty(inspection.ImportedScreen.AssignedClientIds);
+        Assert.NotEqual(source.Id, inspection.ImportedScreen.Id);
+        Assert.Equal(source.Name, inspection.ImportedScreen.Name);
+    }
+
+    [Fact]
+    public void ReadReportsHostLocalApplicationActions()
+    {
+        var source = CustomScreenService.CreateDraft();
+        var button = source.Sections[0].Buttons[0] with
+        {
+            Action = new CustomScreenAction("appLaunch", ActionId: "preset.browser")
+        };
+        source = source with
+        {
+            Sections = [source.Sections[0] with { Buttons = [button] }]
+        };
+
+        Assert.True(CustomScreenPackages.TryRead(
+            CustomScreenPackages.Serialize(source),
+            out var inspection,
+            out var error), error);
+        Assert.Equal(1, inspection!.HostLocalActionCount);
+        Assert.Contains("appLaunch", inspection.ActionKinds);
+        Assert.Contains("may be unavailable", CustomScreenPackages.ReviewText(inspection));
+        Assert.DoesNotContain("action(s)", CustomScreenPackages.ReviewText(inspection));
+    }
+
+    [Fact]
+    public void ReadRejectsUnsupportedVersionInvalidJsonAndOversizedInput()
+    {
+        var source = CustomScreenService.CreateDraft();
+        var unsupported = JsonSerializer.SerializeToUtf8Bytes(
+            new CustomScreenPackage(99, CustomScreenPackages.Format, source),
+            JsonOptions.Default);
+        Assert.False(CustomScreenPackages.TryRead(unsupported, out _, out var versionError));
+        Assert.Contains("unsupported", versionError, StringComparison.OrdinalIgnoreCase);
+
+        Assert.False(CustomScreenPackages.TryRead("not json"u8, out _, out var jsonError));
+        Assert.Contains("valid JSON", jsonError, StringComparison.OrdinalIgnoreCase);
+
+        Assert.False(CustomScreenPackages.TryRead(
+            new byte[CustomScreenLimits.MaxStoreBytes + 1],
+            out _,
+            out var sizeError));
+        Assert.Contains("too large", sizeError, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ImportDetectsMatchingPortableContentDespiteRegeneratedIds()
+    {
+        var store = new InMemoryCustomScreenStore();
+        var service = new CustomScreenService(store, new FakeAppLaunchService());
+        var existing = CustomScreenService.CreateDraft();
+        Assert.True(service.TrySave(existing, out _, out var saveError), saveError);
+        Assert.True(CustomScreenPackages.TryRead(
+            CustomScreenPackages.Serialize(existing),
+            out var inspection,
+            out var readError), readError);
+
+        Assert.NotNull(service.FindPortableDuplicate(inspection!));
+        Assert.False(service.TryImport(inspection!, out _, out var importError));
+        Assert.Contains("already", importError, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(service.GetAll());
+
+        Assert.True(service.TryImport(
+            inspection!,
+            allowPortableDuplicate: true,
+            out var imported,
+            out importError), importError);
+        Assert.Equal(2, service.GetAll().Count);
+        Assert.NotEqual(existing.Id, imported!.Id);
+        Assert.Empty(imported.AssignedClientIds);
+    }
+
+    [Fact]
+    public void ReviewUsesPlainAssignmentGuidanceAndDuplicateWarning()
+    {
+        var source = CustomScreenService.CreateDraft();
+        Assert.True(CustomScreenPackages.TryRead(
+            CustomScreenPackages.Serialize(source),
+            out var inspection,
+            out var error), error);
+
+        var review = CustomScreenPackages.ReviewText(inspection!);
+        Assert.Contains("Device assignments: none\n", review);
+        Assert.Contains("Assign this screen to a device after import.", review);
+        Assert.DoesNotContain("(this screen", review);
+
+        var duplicateReview = CustomScreenPackages.DuplicateReviewText(
+            inspection!,
+            source);
+        Assert.Contains("already in your library", duplicateReview);
+        Assert.Contains("Import another copy?", duplicateReview);
+    }
+}

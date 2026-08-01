@@ -503,7 +503,7 @@ function createHtmlReport({ codeReports, grandTotal, assets, tests, scripts, npm
 </head>
 <body>
   <main>
-    <header><div><a class="back" href="./">&lt;- Voltura Air home</a><h1>Code statistics</h1><p>Voltura Air repository overview</p></div><div class="meta">Source snapshot ${escapeHtml(generatedAt)}<br>Physical lines include blank lines; declared parameterized tests count once</div></header>
+    <header><div><a class="back" href="./">&larr; Voltura Air home</a><h1>Code statistics</h1><p>Voltura Air repository overview</p></div><div class="meta">Source snapshot ${escapeHtml(generatedAt)}<br>Physical lines include blank lines; declared parameterized tests count once</div></header>
     <section class="summary" aria-label="Repository summary">
       <dl class="metric"><dt>Source files</dt><dd>${formatNumber(grandTotal.files)}<span>${formatNumber(grandTotal.lines)} total lines</span></dd></dl>
       <dl class="metric"><dt>Test cases</dt><dd>${formatNumber(totalTestCases)}<span>${formatNumber(tests.reduce((total, { files }) => total + files, 0))} test files</span></dd></dl>

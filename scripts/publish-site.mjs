@@ -231,6 +231,7 @@ export async function publishSite({
   read = readFile,
   write = writeFile,
   makeDirectory = mkdir,
+  exists = existsSync,
   source = sourceDirectory,
   log = console.log
 } = {}) {
@@ -238,6 +239,10 @@ export async function publishSite({
   const sftp = await connectSftp({ paths, password, createSftp, read, write, makeDirectory });
   try {
     await sftp.mkdir(remoteDirectory, true);
+    const accessRules = path.join(source, ".htaccess");
+    if (exists(accessRules)) {
+      await sftp.put(accessRules, `${remoteDirectory}/.htaccess`);
+    }
     await sftp.uploadDir(source, remoteDirectory);
     log(`Published ${path.relative(repositoryRoot, source)} to ${host}:${remoteDirectory}`);
   } finally {

@@ -215,6 +215,10 @@ Section "Install"
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "EstimatedSize" ${APP_ESTIMATED_SIZE_KB}
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoModify" 1
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoRepair" 1
+  WriteRegStr HKCU "Software\Classes\voltura-air" "" "URL:Voltura Air custom screen"
+  WriteRegStr HKCU "Software\Classes\voltura-air" "URL Protocol" ""
+  WriteRegStr HKCU "Software\Classes\voltura-air\DefaultIcon" "" "$INSTDIR\${EXE_NAME},0"
+  WriteRegStr HKCU "Software\Classes\voltura-air\shell\open\command" "" "$\"$INSTDIR\${EXE_NAME}$\" $\"%1$\""
 SectionEnd
 
 Function .onInstSuccess
@@ -234,6 +238,7 @@ Section "Uninstall"
   RMDir "$SMPROGRAMS\${APP_NAME}"
 
   DeleteRegKey HKCU "${UNINSTALL_KEY}"
+  DeleteRegKey HKCU "Software\Classes\voltura-air"
   DeleteRegValue HKCU "${RUN_KEY}" "${APP_NAME}"
 
   RMDir /r "$INSTDIR"

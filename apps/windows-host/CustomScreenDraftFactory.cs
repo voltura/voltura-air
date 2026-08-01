@@ -165,6 +165,23 @@ internal static class CustomScreenDraftFactory
         return screen with { Sections = sections };
     }
 
+    public static CustomScreenDefinition CreateDPad(CustomScreenDefinition screen)
+    {
+        var sections = screen.Sections.Append(new CustomScreenSection(
+            $"section.{Guid.NewGuid():N}",
+            "D-pad",
+            false,
+            12,
+            "content",
+            1,
+            0,
+            null,
+            null,
+            [],
+            Kind: "dpad")).ToArray();
+        return screen with { Sections = sections };
+    }
+
     public static CustomScreenDefinition CloneWithNewIds(CustomScreenDefinition source) =>
         source with
         {

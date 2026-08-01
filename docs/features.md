@@ -180,6 +180,20 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   preview operations use the optional Application log. Entries contain
   the operation and outcome only, never screen names, labels, literal text,
   shortcuts, executable details, or drag activity.
+- Each saved screen can be exported as a versioned `.volturascreen` package to
+  a local file or prepared for submission through the authenticated community
+  library upload page. Imports show panels, buttons, action types, and host-local
+  application-action warnings; they never retain device assignments and
+  generate new local IDs.
+- Reviewed community packages are available from
+  `https://voltura.se/air/screens/`. Catalog installation opens the same import
+  review and never executes actions automatically. The library supports search,
+  previews, downloads, account-based ratings, and reports. Authors can open
+  their submission history directly, receive approval or rejection email, read
+  optional approval or required rejection feedback, and resubmit edited
+  metadata for review. Administrators can permanently delete an approved entry
+  from the library after confirmation.
+- The Windows tray menu links directly to the community library.
 
 ## Mobile PWA
 

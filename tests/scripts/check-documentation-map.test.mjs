@@ -81,6 +81,21 @@ test("discovers public documentation surfaces and requires them in the catalog",
   );
 });
 
+test("does not treat the ignored hosting config as a public documentation surface", async () => {
+  await withFixture(
+    {
+      "README.md": "Root\n",
+      "docs/README.md": "[Root](../README.md)\n",
+      "docs/site/config.php": "<?php return [];\n"
+    },
+    async (root) => {
+      const result = await checkDocumentationMap({ root });
+      assert.deepEqual(result.errors, []);
+      assert.ok(!result.requiredFiles.includes("docs/site/config.php"));
+    }
+  );
+});
+
 test("discovers structured public issue forms and requires them in the catalog", async () => {
   await withFixture(
     {

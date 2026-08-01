@@ -133,7 +133,7 @@ public sealed partial class HostUiLayoutTests
                     Visibility.Collapsed,
                     hiddenControlsExpander.Visibility);
                 Assert.Equal(
-                    7,
+                    8,
                     FindVisualDescendants<Button>(page).Count(button =>
                         AutomationProperties.GetName(button)
                             .StartsWith("Drag ", StringComparison.Ordinal) &&

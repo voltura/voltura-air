@@ -52,6 +52,20 @@ test("ignores the generated code statistics report", async () => {
     });
 });
 
+test("ignores generated catalog preview assets", async () => {
+  await withFixture(
+    { "src/large.cs": "This fixture is intentionally cohesive so the strong-warning review has a sufficiently specific rationale." },
+    async (root) => {
+      const assets = path.join(root, "docs/site/screens/assets");
+      await mkdir(assets, { recursive: true });
+      await writeFile(path.join(assets, "catalog-preview.js"), "generated();\n".repeat(501), "utf8");
+
+      const result = await check(root);
+      assert.doesNotMatch(result.stdout, /catalog-preview\.js/u);
+      assert.match(result.stdout, /Every strong source-size warning has a current cohesive-ownership review/u);
+    });
+});
+
 test("rejects an unreviewed strong source-size warning", async () => {
   await withFixture({}, async (root) => {
     await assert.rejects(check(root), (error) => {

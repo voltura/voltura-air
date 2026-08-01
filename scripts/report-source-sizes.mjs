@@ -25,6 +25,7 @@ const excludedDirectories = new Set([
 const excludedPathPrefixes = [
   "apps/mobile-web/public/",
   "docs/site/assets/",
+  "docs/site/screens/assets/",
   "installer/assets/"
 ];
 const excludedPaths = new Set([

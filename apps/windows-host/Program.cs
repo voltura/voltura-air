@@ -16,6 +16,7 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        CatalogImportRequestStore.EnqueueIfPresent(args);
         SingleInstanceCoordinator? singleInstance = null;
         try
         {
@@ -27,6 +28,10 @@ internal static class Program
 
             var isolatedTestMode = args.Contains("--isolated-test-mode", StringComparer.OrdinalIgnoreCase);
             s_isolatedSettingsScope = isolatedTestMode ? HostSettingsRegistry.BeginIsolatedScope() : null;
+            if (!isolatedTestMode)
+            {
+                CatalogProtocolRegistration.TryRegisterCurrentApplication();
+            }
 
             Forms.Application.SetHighDpiMode(Forms.HighDpiMode.PerMonitorV2);
             Forms.Application.EnableVisualStyles();
@@ -94,6 +99,12 @@ internal static class Program
             }
 
             startupWindow.Close();
+            var catalogImportRequest = CatalogImportRequestStore.TryTake();
+            if (catalogImportRequest is not null)
+            {
+                _ = s_runtime.MainWindow.OpenCatalogImportAsync(catalogImportRequest);
+                return;
+            }
 #if DEBUG
             var screenshotPreferencesSection = args.Contains("--site-screenshot-mode", StringComparer.OrdinalIgnoreCase)
                 ? GetOption(args, "--site-screenshot-preferences-section")
@@ -152,7 +163,15 @@ internal static class Program
                 return;
             }
 
-            s_runtime.MainWindow.ShowPage(HostPage.Connect);
+            var catalogImportRequest = CatalogImportRequestStore.TryTake();
+            if (catalogImportRequest is not null)
+            {
+                _ = s_runtime.MainWindow.OpenCatalogImportAsync(catalogImportRequest);
+            }
+            else
+            {
+                s_runtime.MainWindow.ShowPage(HostPage.Connect);
+            }
         }
         finally
         {

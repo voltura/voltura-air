@@ -26,6 +26,7 @@ internal static class CustomScreenPaletteGhostFactory
             "new-volume" => CreateVolume(resourceSource, width),
             "new-trackpad" => CreateTrackpad(resourceSource, width),
             "new-collapsible-trackpad" => CreateCollapsibleTrackpad(resourceSource, width),
+            "new-navigation-ring" => CreateNavigationRing(resourceSource, width),
             "new-collapsible" => CreateCollapsible(resourceSource, width),
             _ => CreatePanel(resourceSource, width)
         };
@@ -184,6 +185,16 @@ internal static class CustomScreenPaletteGhostFactory
         });
         return Card(resourceSource, width, 160, root);
     }
+
+    private static Border CreateNavigationRing(
+        FrameworkElement resourceSource,
+        double width) =>
+        Card(
+            resourceSource,
+            width,
+            200,
+            CustomScreenNavigationRingPreviewFactory.Create(
+                key => Brush(resourceSource, key)));
 
     private static Button ClickButton(string label) => new()
     {

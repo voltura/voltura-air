@@ -184,10 +184,12 @@ internal sealed class CustomScreenPreviewController(
                         ? new GridLength(1, GridUnitType.Star)
                         : GridLength.Auto
                 });
-                var content = CustomScreenSectionKinds.IsTrackpad(section.Kind)
+                FrameworkElement content = CustomScreenSectionKinds.IsTrackpad(section.Kind)
                     ? CustomScreenTrackpadPreviewFactory.Create(section, brush)
                     : CustomScreenSectionKinds.IsVolume(section.Kind)
                         ? CustomScreenVolumePreviewFactory.Create(brush)
+                    : CustomScreenSectionKinds.IsNavigationRing(section.Kind)
+                        ? CustomScreenNavigationRingPreviewFactory.Create(brush)
                     : CreateButtonPanel(section, orientation);
                 Grid.SetRow(content, contentRow);
                 sectionPanel.Children.Add(content);

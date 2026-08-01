@@ -266,7 +266,8 @@ public sealed partial class HostUiLayoutTests
                 (Kind: "new-section", Text: "New panel", Width: 320d),
                 (Kind: "new-collapsible", Text: "Collapsible panel", Width: 320d),
                 (Kind: "new-button", Text: "[play]  New button", Width: 104d),
-                (Kind: "new-trackpad", Text: "Trackpad", Width: 320d)
+                (Kind: "new-trackpad", Text: "Trackpad", Width: 320d),
+                (Kind: "new-navigation-ring", Text: "↑", Width: 320d)
             };
 
             foreach (var expected in cases)

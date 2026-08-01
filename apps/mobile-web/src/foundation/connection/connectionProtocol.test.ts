@@ -198,6 +198,42 @@ describe("parseServerMessage", () => {
     };
 
     expect(parseServerMessage(JSON.stringify(frame))).toEqual(frame);
+    const navigationRingFrame = {
+      ...frame,
+      screen: {
+        ...frame.screen,
+        sections: [{
+          ...frame.screen.sections[0],
+          name: "Navigation ring",
+          widthColumns: 8,
+          kind: "navigationRing",
+          collapsible: false,
+          trackpadFullscreenControl: false
+        }]
+      }
+    };
+    expect(parseServerMessage(JSON.stringify(navigationRingFrame)))
+      .toEqual(navigationRingFrame);
+    expect(parseServerMessage(JSON.stringify({
+      ...navigationRingFrame,
+      screen: {
+        ...navigationRingFrame.screen,
+        sections: [{
+          ...navigationRingFrame.screen.sections[0],
+          widthColumns: 4
+        }]
+      }
+    }))).toBeNull();
+    expect(parseServerMessage(JSON.stringify({
+      ...navigationRingFrame,
+      screen: {
+        ...navigationRingFrame.screen,
+        sections: [{
+          ...navigationRingFrame.screen.sections[0],
+          portrait: { order: 0, visible: true, widthColumns: 4 }
+        }]
+      }
+    }))).toBeNull();
     expect(parseServerMessage(JSON.stringify({
       ...frame,
       screen: { ...frame.screen, name: "S".repeat(25) }

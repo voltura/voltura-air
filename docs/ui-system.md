@@ -130,7 +130,10 @@ regular panel. Folding it in the preview changes the persisted default state;
 mobile starts there and permits a local fold or unfold. The Windows editor and
 mobile renderer apply the same rules to regular and collapsible trackpad
 panels. A standalone volume-slider component uses 3, 6, 9, or 12 columns and
-the established volume-control surface. Content rows reserve their measured
+the established volume-control surface. A navigation-ring component uses 6,
+8, 9, or 12 columns to retain usable directional and center touch targets and
+centers the ring on the established gridded trackpad surface. The center and surrounding
+surface accept pointer gestures. Content rows reserve their measured
 height; rows containing expanded
 fill panels divide the remaining viewport by the row's fill weight. An optional
 trackpad fullscreen control overlays the mobile workspace and restores into the
@@ -174,7 +177,9 @@ primitives. Feature layout stays with its component. Feature details do not
 become shell modifiers.
 
 Mode changes keep navigation stable. Activating the selected mode may toggle
-mode navigation but keeps the quick selector. The mode collection is dynamic.
+mode navigation but keeps the quick selector. Custom screens hide the top and
+bottom mode-button rows while retaining the quick selector; selecting a mode
+there exits the custom screen. The mode collection is dynamic.
 Settings disclosures start collapsed, allow one open section, and minimally
 scroll their own region only when the first usable control would be clipped;
 keep the focused summary visible and respect reduced motion.

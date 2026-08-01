@@ -304,7 +304,7 @@ the host accepts a Save. Sections contain ID, name, optional-header state,
 12-column width, `content`/`fill` height and weight, zero-to-three button rows,
 `buttonAlignment` (`start`, `center`, `end`, `space-between`, `space-around`, or
 `space-evenly`), optional portrait/landscape overrides, and a `buttons`,
-`trackpad`, or `volume` kind.
+`trackpad`, `volume`, or `navigationRing` kind.
 Overrides contain order and visibility plus the applicable section width or
 button size/row. Missing override fields retain the shared responsive value.
 Collapsible panels use `kind: "buttons"` plus the optional
@@ -324,6 +324,13 @@ Volume sections contain no buttons, use only 3, 6, 9, or 12 columns
 `audio.get`, `audio.mute.toggle`, and `audio.volume.set` messages and existing
 volume permission.
 
+Navigation-ring sections contain no buttons, use only 6, 8, 9, or 12 columns
+(50/67/75/100%), and publish remote-input availability through the existing
+`trackpadEnabled` and `trackpadUnavailableReason` fields. Directions use
+`keyboard.special`; the center and surrounding trackpad surface use the
+established pointer messages. No shortcut or action payload is added to the
+visual definition.
+
 `showNavigationHeader` controls the mobile Back/title row for that screen.
 Literal-text and custom key/shortcut buttons use label-only presentation;
 built-in and approved-application buttons may also use bundled icons.
@@ -339,7 +346,10 @@ actions.
 The current store format is version 3. It is the only accepted Custom screens
 format. While Custom screens remains alpha, the host removes other pre-release
 versions completely and starts an empty library.
-Screen names are at most 24 characters, panel/trackpad names 20, button editor
+`navigationRing` is a version-3 section-kind extension. An older version-3 host
+that does not recognize it reports the current-format file as invalid and
+leaves it unchanged; reopening the library with a supporting build recovers it.
+Screen names are at most 24 characters, panel/trackpad/navigation-ring names 20, button editor
 names 24, and visible button labels 16.
 
 Failure sets `succeeded: false` with `code` and `message`.

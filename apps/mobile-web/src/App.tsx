@@ -200,17 +200,19 @@ export function App() {
     action();
   };
   const selectModeTabWithPresentationGuard: typeof selectModeTab = (nextTab, source) => {
-    if (nextTab === tab) {
-      selectModeTab(nextTab, source);
-      return;
-    }
-
-    requestPresentationExit(() => {
+    const selectMode = () => {
+      setActiveCustomScreenId(null);
       if (nextTab === "presentation") {
         requestPresentationActivation();
       }
       selectModeTab(nextTab, source);
-    });
+    };
+    if (nextTab === tab) {
+      selectMode();
+      return;
+    }
+
+    requestPresentationExit(selectMode);
   };
   const openModeFromMenuWithPresentationGuard: typeof openModeFromMenu = (mode) => {
     const openMode = () => {
@@ -670,7 +672,7 @@ export function App() {
         />
       </main>
 
-      {isBottomModeNavigationVisible && <ModeNavigation className="tabs bottom-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTabWithPresentationGuard} />}
+      {activeCustomScreenId === null && isBottomModeNavigationVisible && <ModeNavigation className="tabs bottom-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTabWithPresentationGuard} />}
     </div>
   );
 }

@@ -147,6 +147,24 @@ internal static class CustomScreenDraftFactory
         return screen with { Sections = sections };
     }
 
+    public static CustomScreenDefinition CreateNavigationRing(
+        CustomScreenDefinition screen)
+    {
+        var sections = screen.Sections.Append(new CustomScreenSection(
+            $"section.{Guid.NewGuid():N}",
+            "Navigation ring",
+            false,
+            12,
+            "content",
+            1,
+            0,
+            null,
+            null,
+            [],
+            Kind: "navigationRing")).ToArray();
+        return screen with { Sections = sections };
+    }
+
     public static CustomScreenDefinition CloneWithNewIds(CustomScreenDefinition source) =>
         source with
         {

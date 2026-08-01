@@ -123,7 +123,7 @@ export interface CustomScreenSectionDefinition {
     | "space-between"
     | "space-around"
     | "space-evenly";
-  kind: "buttons" | "trackpad" | "volume";
+  kind: "buttons" | "trackpad" | "volume" | "navigationRing";
   collapsible: boolean;
   initiallyExpanded: boolean;
   trackpadLeftClick: boolean;

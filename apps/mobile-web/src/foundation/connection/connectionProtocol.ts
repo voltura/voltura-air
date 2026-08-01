@@ -308,7 +308,7 @@ function isCustomScreenSection(value: unknown): boolean {
       "space-around",
       "space-evenly"
     ]) &&
-    isOneOf(value.kind, ["buttons", "trackpad", "volume"]) &&
+    isOneOf(value.kind, ["buttons", "trackpad", "volume", "navigationRing"]) &&
     typeof value.collapsible === "boolean" &&
     typeof value.initiallyExpanded === "boolean" &&
     typeof value.trackpadLeftClick === "boolean" &&
@@ -327,7 +327,23 @@ function isCustomScreenSection(value: unknown): boolean {
     value.buttons.length <= 256 &&
     value.buttons.every(isCustomScreenButton) &&
     (value.kind === "buttons" || value.buttons.length === 0) &&
-    (value.kind !== "volume" || isOneOf(value.widthColumns, [3, 6, 9, 12]));
+    (value.kind !== "volume" || isOneOf(value.widthColumns, [3, 6, 9, 12])) &&
+    (value.kind !== "navigationRing" || (
+      isOneOf(value.widthColumns, [6, 8, 9, 12]) &&
+      hasAllowedCustomScreenOverrideWidth(value.portrait, [6, 8, 9, 12]) &&
+      hasAllowedCustomScreenOverrideWidth(value.landscape, [6, 8, 9, 12])));
+}
+
+function hasAllowedCustomScreenOverrideWidth(
+  value: unknown,
+  widths: readonly number[]
+): boolean {
+  return value === undefined || value === null || (
+    isRecord(value) &&
+    (value.widthColumns === undefined ||
+      value.widthColumns === null ||
+      widths.includes(value.widthColumns as number))
+  );
 }
 
 function isCustomScreenButton(value: unknown): boolean {

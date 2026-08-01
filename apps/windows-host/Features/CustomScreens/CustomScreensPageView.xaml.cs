@@ -129,7 +129,9 @@ public partial class CustomScreensPageView : UserControl
             TrackpadPaletteDragHandle,
             TrackpadPaletteItem,
             CollapsibleTrackpadPaletteDragHandle,
-            CollapsibleTrackpadPaletteItem);
+            CollapsibleTrackpadPaletteItem,
+            NavigationRingPaletteDragHandle,
+            NavigationRingPaletteItem);
         _previewDevices = new CustomScreenPreviewDeviceController(
             PreviewDeviceCombo,
             PreviewOrientationCombo,
@@ -450,6 +452,8 @@ public partial class CustomScreensPageView : UserControl
     private void OnAddTrackpad(object sender, RoutedEventArgs e) => _componentCreation.AddSection("trackpad");
 
     private void OnAddCollapsibleTrackpad(object sender, RoutedEventArgs e) => _componentCreation.AddSection("collapsibleTrackpad");
+
+    private void OnAddNavigationRing(object sender, RoutedEventArgs e) => _componentCreation.AddSection("navigationRing");
 
     private void OnConfirmDeletesChanged(object sender, RoutedEventArgs e)
         => _deleteConfirmations?.HandleDeleteChanged(sender);

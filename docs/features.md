@@ -109,6 +109,12 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   and existing device volume permission. It occupies 25%, 50%, 75%, or 100% of
   the custom-screen row and may use independent orientation width, order, and
   visibility.
+- A Navigation ring component reuses the Remote ring's repeatable directions
+  and places it on the regular gridded trackpad surface under the existing remote-input
+  permission. The center and surrounding surface both accept pointer gestures.
+  It uses 50%, 67%, 75%, or 100% width so every ring zone remains usable, and
+  supports content/fill height plus independent orientation width, order, and
+  visibility.
 - Buttons have separate editor names and visible labels, bundled icons,
   icon/label presentation, compact/standard/wide/fill sizing, and optional
   repeat for actions explicitly marked repeatable. Actions are short literal
@@ -116,7 +122,7 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   a curated media/navigation/browser/Windows action. Literal text and custom
   key/shortcut actions are label-only; built-ins and approved applications may
   use bundled icons. Screen and button editor
-  names are limited to 24 characters, panel and trackpad names to 20, and
+  names are limited to 24 characters, panel, trackpad, and navigation-ring names to 20, and
   visible button labels to 16.
 - The shortcut builder stages a command before applying it. Selected modifiers
   leave the available choices and appear in the command preview in selection
@@ -230,15 +236,20 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
 ### Custom screens (alpha)
 
 - Assigned screens appear in a **Custom screens** Menu group. Opening one uses
-  the full workspace and hides the bottom mode buttons. The saved layout may
-  show or omit its Back/title row; the main app header remains available.
+  the main workspace and hides the top and bottom mode-button rows. The quick
+  mode selector remains available and selecting a standard mode exits the
+  custom screen. The saved layout may show or omit its Back/title row; the main
+  app header remains available.
 - Mobile renders the responsive or active orientation layout against its real
   viewport, retains minimum touch targets, and scrolls when the content cannot
   fit. Optional regular-panel headers, required collapsible-panel headers,
-  bundled icons, labels, button rows, and regular/collapsible trackpad panels
+  bundled icons, labels, button rows, regular/collapsible trackpad panels, and
+  navigation rings
   inherit the normal theme and control-depth treatment. Button placement
   preserves intrinsic compact/standard/wide widths and applies the saved flex
-  distribution. Standalone volume sliders reuse the normal mute, slider,
+  distribution. Navigation rings provide repeatable directions on the regular gridded
+  trackpad surface under the existing remote-input availability state. Standalone
+  volume sliders reuse the normal mute, slider,
   current-value, and permission behavior. Content rows take their
   required height; fill rows divide the remaining workspace by fill weight.
   A collapsible panel starts in its host-saved default state and can then be

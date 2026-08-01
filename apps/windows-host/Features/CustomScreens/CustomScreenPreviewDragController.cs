@@ -220,14 +220,14 @@ internal sealed class CustomScreenPreviewDragController(
     {
         var item = GetDragItem(eventArgs);
         if (sender is not Border card ||
-            item?.Kind is not ("section" or "new-section" or "new-collapsible" or "new-volume" or "new-trackpad" or "new-collapsible-trackpad" or "button" or "new-button"))
+            item?.Kind is not ("section" or "new-section" or "new-collapsible" or "new-volume" or "new-trackpad" or "new-collapsible-trackpad" or "new-navigation-ring" or "button" or "new-button"))
         {
             eventArgs.Effects = DragDropEffects.None;
             eventArgs.Handled = true;
             return;
         }
 
-        var edge = item.Kind is "section" or "new-section" or "new-collapsible" or "new-volume" or "new-trackpad" or "new-collapsible-trackpad"
+        var edge = item.Kind is "section" or "new-section" or "new-collapsible" or "new-volume" or "new-trackpad" or "new-collapsible-trackpad" or "new-navigation-ring"
             ? eventArgs.GetPosition(card).X >= card.ActualWidth / 2
                 ? CustomScreenDropEdge.Right
                 : CustomScreenDropEdge.Left
@@ -274,7 +274,7 @@ internal sealed class CustomScreenPreviewDragController(
                 _orientation,
                 insertAfter));
         }
-        else if (item.Kind is "new-section" or "new-collapsible" or "new-volume" or "new-trackpad" or "new-collapsible-trackpad")
+        else if (item.Kind is "new-section" or "new-collapsible" or "new-volume" or "new-trackpad" or "new-collapsible-trackpad" or "new-navigation-ring")
         {
             Apply(CustomScreenPreviewDraftEditing.CreateSection(
                 _draft!,
@@ -284,6 +284,7 @@ internal sealed class CustomScreenPreviewDragController(
                     "new-volume" => "volume",
                     "new-trackpad" => "trackpad",
                     "new-collapsible-trackpad" => "collapsibleTrackpad",
+                    "new-navigation-ring" => "navigationRing",
                     _ => "buttons"
                 },
                 targetSectionId,
@@ -364,7 +365,7 @@ internal sealed class CustomScreenPreviewDragController(
             return;
         }
 
-        if (item.Kind is "section" or "new-section" or "new-collapsible" or "new-volume" or "new-trackpad" or "new-collapsible-trackpad")
+        if (item.Kind is "section" or "new-section" or "new-collapsible" or "new-volume" or "new-trackpad" or "new-collapsible-trackpad" or "new-navigation-ring")
         {
             eventArgs.Handled = false;
             return;
@@ -411,7 +412,7 @@ internal sealed class CustomScreenPreviewDragController(
     private void OnSurfaceDragOver(object sender, DragEventArgs eventArgs)
     {
         var item = GetDragItem(eventArgs);
-        if (item?.Kind is not ("new-section" or "new-collapsible" or "new-volume" or "new-trackpad" or "new-collapsible-trackpad") &&
+        if (item?.Kind is not ("new-section" or "new-collapsible" or "new-volume" or "new-trackpad" or "new-collapsible-trackpad" or "new-navigation-ring") &&
             item?.Kind is not ("new-button" or "button"))
         {
             eventArgs.Effects = DragDropEffects.None;
@@ -447,7 +448,7 @@ internal sealed class CustomScreenPreviewDragController(
             return;
         }
 
-        if (item.Kind is "new-section" or "new-collapsible" or "new-volume" or "new-trackpad" or "new-collapsible-trackpad")
+        if (item.Kind is "new-section" or "new-collapsible" or "new-volume" or "new-trackpad" or "new-collapsible-trackpad" or "new-navigation-ring")
         {
             Apply(CustomScreenPreviewDraftEditing.CreateSection(
                 _draft,
@@ -457,6 +458,7 @@ internal sealed class CustomScreenPreviewDragController(
                     "new-volume" => "volume",
                     "new-trackpad" => "trackpad",
                     "new-collapsible-trackpad" => "collapsibleTrackpad",
+                    "new-navigation-ring" => "navigationRing",
                     _ => "buttons"
                 },
                 null,

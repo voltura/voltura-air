@@ -133,7 +133,7 @@ public sealed partial class HostUiLayoutTests
                     Visibility.Collapsed,
                     hiddenControlsExpander.Visibility);
                 Assert.Equal(
-                    6,
+                    7,
                     FindVisualDescendants<Button>(page).Count(button =>
                         AutomationProperties.GetName(button)
                             .StartsWith("Drag ", StringComparison.Ordinal) &&
@@ -154,7 +154,10 @@ public sealed partial class HostUiLayoutTests
                         "TrackpadPaletteDragHandle"),
                     ("CollapsibleTrackpadPaletteItem",
                         "CollapsibleTrackpadPaletteButton",
-                        "CollapsibleTrackpadPaletteDragHandle")
+                        "CollapsibleTrackpadPaletteDragHandle"),
+                    ("NavigationRingPaletteItem",
+                        "NavigationRingPaletteButton",
+                        "NavigationRingPaletteDragHandle")
                 };
                 foreach (var names in paletteRows)
                 {

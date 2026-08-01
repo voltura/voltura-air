@@ -139,7 +139,7 @@ chrome. Action starts expanded; generated Name and Label values also start open.
 Compact header actions expand or collapse every property group. The active
 action type's dependent fields share one subtle surface and border.
 
-Regular, collapsible, trackpad, collapsible-trackpad, and volume-slider
+Regular, collapsible, trackpad, collapsible-trackpad, volume-slider, and navigation-ring
 components, rows, and buttons use accent selection. A collapsible panel retains
 regular panel properties but
 requires its name as the header. Its accessible preview header folds or unfolds
@@ -147,12 +147,15 @@ the draft, and that state is the saved device default; **Expanded by default**
 provides the keyboard-accessible property equivalent. Clicking anywhere in an
 explicit row outside a control selects it as the target for **+ Button**.
 Palette components are named Panel, Collapsible panel, Button, Volume slider,
-Trackpad, and Collapsible trackpad and use a normal click-to-add body plus a compact six-dot
+Trackpad, Collapsible trackpad, and Navigation ring and use a normal click-to-add body plus a compact six-dot
 drag grip. Trackpad variants use the standard panel width, wrapping,
 content/fill, fill-weight, and orientation controls; their Trackpad group owns
 click-button order and the optional fullscreen control. Volume slider is a
 standalone responsive component with 25%, 50%, 75%, and 100% widths and reuses
-the standard mobile volume surface. A button panel's Buttons group selects
+the standard mobile volume surface. Navigation ring is a standalone component
+with 50%, 67%, 75%, and 100% widths, content/fill height, repeatable directions,
+and a compact ring representation in the editor; mobile Preview places the ring
+on the regular gridded trackpad surface. A button panel's Buttons group selects
 Start, Center, End, Space between, Space around, or Space evenly placement;
 Start keeps compact buttons grouped by default. Editor dragging
 uses a live component snapshot that preserves the pointer's grab point plus

@@ -132,9 +132,10 @@ internal static class CustomScreenValidator
 {
     private static readonly HashSet<int> Widths = [3, 4, 6, 8, 9, 12];
     private static readonly HashSet<int> VolumeWidths = [3, 6, 9, 12];
+    private static readonly HashSet<int> NavigationRingWidths = [6, 8, 9, 12];
     private static readonly HashSet<string> Heights = ["content", "fill"];
     private static readonly HashSet<string> SectionKinds =
-        ["buttons", "collapsible", "trackpad", "collapsibleTrackpad", "volume"];
+        ["buttons", "collapsible", "trackpad", "collapsibleTrackpad", "volume", "navigationRing"];
     private static readonly HashSet<string> TrackpadButtonSides = ["left", "right"];
     private static readonly HashSet<string> ButtonAlignments =
         ["start", "center", "end", "space-between", "space-around", "space-evenly"];
@@ -209,6 +210,10 @@ internal static class CustomScreenValidator
                     (!VolumeWidths.Contains(section.WidthColumns) ||
                         !ValidVolumeOverride(section.Portrait) ||
                         !ValidVolumeOverride(section.Landscape))) ||
+                (CustomScreenSectionKinds.IsNavigationRing(section.Kind) &&
+                    (!NavigationRingWidths.Contains(section.WidthColumns) ||
+                        !ValidNavigationRingOverride(section.Portrait) ||
+                        !ValidNavigationRingOverride(section.Landscape))) ||
                 !Heights.Contains(section.HeightMode) ||
                 section.FillWeight is < 1 or > 4 ||
                 section.RowLimit is < 0 or > 3 ||
@@ -261,6 +266,11 @@ internal static class CustomScreenValidator
         CustomScreenLayoutOverride? layout) =>
         layout?.WidthColumns is null ||
         VolumeWidths.Contains(layout.WidthColumns.Value);
+
+    private static bool ValidNavigationRingOverride(
+        CustomScreenLayoutOverride? layout) =>
+        layout?.WidthColumns is null ||
+        NavigationRingWidths.Contains(layout.WidthColumns.Value);
 
     private static bool TryValidateButton(
         CustomScreenButton button,

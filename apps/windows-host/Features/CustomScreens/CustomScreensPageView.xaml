@@ -370,6 +370,42 @@
                                         AutomationProperties.Name="Drag Collapsible trackpad onto layout" />
                               </Grid>
                             </Border>
+                            <Border x:Name="NavigationRingPaletteItem"
+                                    Background="{DynamicResource SurfaceRaisedBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8">
+                              <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="44" />
+                                </Grid.ColumnDefinitions>
+                                <Button x:Name="NavigationRingPaletteButton"
+                                        Grid.Column="0"
+                                        Content="+ Navigation ring"
+                                        ContentTemplate="{StaticResource CustomScreenPaletteButtonLabelTemplate}"
+                                        Margin="0"
+                                        Padding="12,8"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        HorizontalContentAlignment="Left"
+                                        ToolTip="Click to add a navigation ring"
+                                        Click="OnAddNavigationRing" />
+                                <Button x:Name="NavigationRingPaletteDragHandle"
+                                        Grid.Column="1"
+                                        Width="38"
+                                        Height="38"
+                                        Margin="0"
+                                        Padding="0"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Content="&#x283F;"
+                                        Cursor="SizeAll"
+                                        Style="{DynamicResource CompactIconButtonStyle}"
+                                        ToolTip="Drag navigation ring onto the layout"
+                                        AutomationProperties.Name="Drag Navigation ring onto layout" />
+                              </Grid>
+                            </Border>
                               </ui:SpacingStackPanel>
                             </Expander>
                             <Expander x:Name="LayoutOptionsExpander"

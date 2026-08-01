@@ -35,7 +35,9 @@ internal sealed class CustomScreenPaletteDragController
         Button trackpadHandle,
         FrameworkElement trackpadAnchor,
         Button collapsibleTrackpadHandle,
-        FrameworkElement collapsibleTrackpadAnchor)
+        FrameworkElement collapsibleTrackpadAnchor,
+        Button navigationRingHandle,
+        FrameworkElement navigationRingAnchor)
     {
         _surface = surface;
         _previewWorkspace = previewWorkspace;
@@ -51,6 +53,10 @@ internal sealed class CustomScreenPaletteDragController
             collapsibleTrackpadHandle,
             collapsibleTrackpadAnchor,
             "new-collapsible-trackpad");
+        Attach(
+            navigationRingHandle,
+            navigationRingAnchor,
+            "new-navigation-ring");
     }
 
     private void Attach(

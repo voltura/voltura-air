@@ -162,23 +162,7 @@ internal sealed class CustomScreenPropertiesPanelController(
             initiallyExpanded: true,
             target =>
             {
-                var widthChoices = CustomScreenSectionKinds.IsVolume(section.Kind)
-                    ? new (string, string)[]
-                    {
-                        ("25%", "3"),
-                        ("50%", "6"),
-                        ("75%", "9"),
-                        ("100%", "12")
-                    }
-                    :
-                    [
-                        ("25%", "3"),
-                        ("33%", "4"),
-                        ("50%", "6"),
-                        ("67%", "8"),
-                        ("75%", "9"),
-                        ("100%", "12")
-                    ];
+                var widthChoices = SectionWidthChoices(section.Kind);
                 AddTaggedChoiceProperty(
                     target,
                     "Width",
@@ -301,23 +285,7 @@ internal sealed class CustomScreenPropertiesPanelController(
     {
         var title = char.ToUpperInvariant(orientation[0]) + orientation[1..];
         var layout = CustomScreenOrientationEditing.SectionOverride(section, orientation);
-        var widthChoices = CustomScreenSectionKinds.IsVolume(section.Kind)
-            ? new (string, string)[]
-            {
-                ("25%", "3"),
-                ("50%", "6"),
-                ("75%", "9"),
-                ("100%", "12")
-            }
-            :
-            [
-                ("25%", "3"),
-                ("33%", "4"),
-                ("50%", "6"),
-                ("67%", "8"),
-                ("75%", "9"),
-                ("100%", "12")
-            ];
+        var widthChoices = SectionWidthChoices(section.Kind);
         AddTaggedChoiceProperty(
             target,
             $"{title} width",
@@ -332,6 +300,22 @@ internal sealed class CustomScreenPropertiesPanelController(
                     WidthColumns = int.Parse(value, CultureInfo.InvariantCulture)
                 })));
     }
+
+    private static (string Label, string Value)[] SectionWidthChoices(
+        string kind) =>
+        CustomScreenSectionKinds.IsVolume(kind)
+            ? [("25%", "3"), ("50%", "6"), ("75%", "9"), ("100%", "12")]
+            : CustomScreenSectionKinds.IsNavigationRing(kind)
+                ? [("50%", "6"), ("67%", "8"), ("75%", "9"), ("100%", "12")]
+                :
+                [
+                    ("25%", "3"),
+                    ("33%", "4"),
+                    ("50%", "6"),
+                    ("67%", "8"),
+                    ("75%", "9"),
+                    ("100%", "12")
+                ];
 
     private void AddSectionVisibilityGroup(CustomScreenSection section)
     {

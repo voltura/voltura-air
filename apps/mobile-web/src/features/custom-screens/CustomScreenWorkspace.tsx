@@ -19,6 +19,7 @@ import type { ConnectionState } from "../../foundation/connection/connectionType
 import type { TrackpadSettings } from "../../foundation/input/gestures";
 import { usePointerInput } from "../../foundation/input/usePointerInput";
 import { CustomScreenButtonGrid } from "./CustomScreenButtonGrid";
+import { CustomScreenNavigationRing } from "./CustomScreenNavigationRing";
 import { CustomScreenVolumeSlider } from "./CustomScreenVolumeSlider";
 import "./custom-screens.css";
 
@@ -268,9 +269,14 @@ export function CustomScreenWorkspace({
             const fullscreen =
               state === "paired" && fullscreenTrackpadId === section.id;
             const contentId = `custom-screen-section-content-${section.id}`;
+            const kindClass = collapsible
+              ? "collapsible"
+              : section.kind === "navigationRing"
+                ? "navigation-ring"
+                : section.kind;
             return (
               <section
-                className={`custom-screen-section height-${section.heightMode} kind-${collapsible ? "collapsible" : section.kind}${collapsible ? expanded ? " is-expanded" : " is-collapsed" : ""}`}
+                className={`custom-screen-section height-${section.heightMode} kind-${kindClass}${collapsible ? expanded ? " is-expanded" : " is-collapsed" : ""}`}
                 key={section.id}
                 style={{
                   gridColumn: `span ${widthColumns}`
@@ -358,6 +364,22 @@ export function CustomScreenWorkspace({
                       </div>
                     )}
                   </div>
+                ) : section.kind === "navigationRing" ? (
+                  <CustomScreenNavigationRing
+                    enabled={trackpadEnabled && state === "paired"}
+                    name={section.name}
+                    reason={section.trackpadUnavailableReason}
+                    onCenterKey={() => {
+                      emit({ type: "pointer.button", button: "left", action: "click" });
+                    }}
+                    onTouchCancel={onTouchCancel}
+                    onTouchEnd={onTouchEnd}
+                    onTouchMove={onTouchMove}
+                    onTouchStart={onTouchStart}
+                    sendSpecial={(key) => {
+                      emit({ type: "keyboard.special", key });
+                    }}
+                  />
                 ) : section.kind === "volume" ? (
                   <CustomScreenVolumeSlider
                     audioState={audioState}

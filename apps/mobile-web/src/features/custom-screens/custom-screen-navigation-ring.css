@@ -1,0 +1,186 @@
+.custom-screen-section.kind-navigation-ring {
+  align-items: stretch;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.custom-screen-navigation-surface {
+  width: 100%;
+  min-height: 10rem;
+  flex: 1;
+}
+
+.custom-screen-navigation-ring {
+  position: relative;
+  width: min(100%, 216px);
+  min-width: 0;
+  aspect-ratio: 1;
+  margin: auto;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at center, transparent 0 33%, color-mix(in srgb, var(--surface-raised) 88%, transparent) 34% 100%),
+    var(--surface);
+  box-shadow: inset 0 0 0 8px color-mix(in srgb, var(--surface) 82%, transparent);
+}
+
+.custom-screen-ring-zone,
+.custom-screen-mini-trackpad {
+  position: absolute;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  touch-action: none;
+}
+
+.custom-screen-ring-zone {
+  border: 0;
+  color: var(--muted);
+  background: transparent;
+}
+
+.custom-screen-ring-zone:active {
+  color: var(--on-action);
+  background: color-mix(in srgb, var(--action) 68%, transparent);
+}
+
+.custom-screen-ring-zone svg {
+  width: 28px;
+  height: 28px;
+}
+
+.custom-screen-ring-up {
+  top: 8px;
+  left: 34%;
+  width: 32%;
+  height: 30%;
+  border-radius: 999px 999px 22px 22px;
+}
+
+.custom-screen-ring-left {
+  top: 34%;
+  left: 8px;
+  width: 30%;
+  height: 32%;
+  border-radius: 999px 22px 22px 999px;
+}
+
+.custom-screen-ring-right {
+  top: 34%;
+  right: 8px;
+  width: 30%;
+  height: 32%;
+  border-radius: 22px 999px 999px 22px;
+}
+
+.custom-screen-ring-down {
+  bottom: 8px;
+  left: 34%;
+  width: 32%;
+  height: 30%;
+  border-radius: 22px 22px 999px 999px;
+}
+
+.custom-screen-mini-trackpad {
+  display: grid;
+  inset: 27%;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 38% 32%, color-mix(in srgb, var(--text) 10%, transparent), transparent 34%),
+    var(--surface);
+  box-shadow:
+    0 10px 28px color-mix(in srgb, var(--drawer-shadow) 62%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--text) 7%, transparent);
+}
+
+.custom-screen-mini-trackpad span {
+  width: 28%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--muted) 45%, transparent);
+}
+
+.custom-screen-mini-trackpad:active span {
+  background: var(--accent);
+}
+
+.custom-screen-navigation-surface[aria-disabled="true"] {
+  opacity: 0.48;
+}
+
+.control-depth .custom-screen-navigation-ring {
+  border-color: color-mix(in srgb, var(--border) 72%, var(--text));
+  background:
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--control-highlight) 20%, transparent),
+      transparent 44%,
+      color-mix(in srgb, var(--control-shadow) 20%, transparent)
+    ),
+    radial-gradient(
+      circle closest-side at center,
+      transparent 0 45%,
+      color-mix(in srgb, var(--control-shadow) 60%, var(--surface)) 48%,
+      color-mix(in srgb, var(--surface-raised) 88%, var(--text) 12%) 60%,
+      color-mix(in srgb, var(--control-highlight) 40%, var(--surface-raised)) 73%,
+      color-mix(in srgb, var(--surface-raised) 93%, var(--text) 7%) 84%,
+      color-mix(in srgb, var(--control-shadow) 52%, var(--surface)) 98%,
+      color-mix(in srgb, var(--control-shadow) 68%, var(--surface)) 100%
+    ),
+    var(--surface);
+  box-shadow:
+    inset 0 2px 2px color-mix(in srgb, var(--control-highlight) 40%, transparent),
+    inset 0 -3px 5px color-mix(in srgb, var(--control-shadow) 52%, transparent),
+    0 7px 14px color-mix(in srgb, var(--control-shadow) 64%, transparent);
+}
+
+.control-depth .custom-screen-ring-zone {
+  --control-background: transparent;
+
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+.control-depth .custom-screen-ring-up svg {
+  transform: translateY(-8px);
+}
+
+.control-depth .custom-screen-ring-left svg {
+  transform: translateX(-8px);
+}
+
+.control-depth .custom-screen-ring-right svg {
+  transform: translateX(8px);
+}
+
+.control-depth .custom-screen-ring-down svg {
+  transform: translateY(8px);
+}
+
+.control-depth .custom-screen-ring-zone:not(:disabled):active {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--action) 24%, transparent);
+  box-shadow: none;
+  transform: none;
+}
+
+.control-depth .custom-screen-mini-trackpad {
+  background:
+    radial-gradient(
+      circle at 36% 28%,
+      color-mix(in srgb, var(--control-highlight) 18%, transparent),
+      transparent 40%
+    ),
+    var(--surface);
+  box-shadow:
+    inset 0 2px 2px color-mix(in srgb, var(--control-highlight) 58%, transparent),
+    inset 0 -3px 5px color-mix(in srgb, var(--control-shadow) 66%, transparent),
+    0 4px 10px color-mix(in srgb, var(--control-shadow) 68%, transparent);
+}

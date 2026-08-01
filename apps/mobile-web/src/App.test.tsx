@@ -400,6 +400,45 @@ describe("App header and mode navigation", () => {
     expect(screen.getByLabelText("Dictation text")).toBeTruthy();
   });
 
+  it("hides mode-button rows on a custom screen and leaves through the compact selector", () => {
+    mockConnection({
+      customScreensCapability: {
+        catalogRevision: "catalog.one",
+        screens: [{
+          id: "screen.media",
+          name: "Media controls",
+          revision: "revision.one"
+        }]
+      },
+      customScreenDefinition: {
+        id: "screen.media",
+        name: "Media controls",
+        revision: "revision.one",
+        orientationLayoutsEnabled: false,
+        showNavigationHeader: true,
+        sections: []
+      }
+    });
+    render(<App />);
+
+    const openCustomScreen = () => {
+      fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+      const menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog");
+      fireEvent.click(within(menu!).getByRole("button", { name: "Media controls" }));
+      expect(screen.getByRole("heading", { name: "Media controls" })).toBeTruthy();
+    };
+
+    openCustomScreen();
+    expect(document.querySelector(".top-mode-tabs")).toBeNull();
+    expect(document.querySelector(".bottom-mode-tabs")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Change mode" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Trackpad" }));
+    expect(screen.queryByRole("heading", { name: "Media controls" })).toBeNull();
+    expect(document.querySelector(".trackpad-mode")).not.toBeNull();
+    expect(document.querySelector(".top-mode-tabs")).not.toBeNull();
+    expect(document.querySelector(".bottom-mode-tabs")).not.toBeNull();
+  });
+
   it("opens compact mode navigation as an overlay without moving the keyboard controls", () => {
     render(<App />);
 

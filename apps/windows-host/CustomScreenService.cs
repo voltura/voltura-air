@@ -90,6 +90,10 @@ public sealed class CustomScreenService
         CustomScreenDefinition screen) =>
         CustomScreenDraftFactory.CreateVolumeSlider(screen);
 
+    public static CustomScreenDefinition CreateNavigationRing(
+        CustomScreenDefinition screen) =>
+        CustomScreenDraftFactory.CreateNavigationRing(screen);
+
     public bool TrySave(CustomScreenDefinition draft, out CustomScreenDefinition saved, out string error)
     {
         var candidate = draft with { Revision = NewRevision() };

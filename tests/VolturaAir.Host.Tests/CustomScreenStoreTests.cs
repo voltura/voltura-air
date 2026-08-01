@@ -98,6 +98,22 @@ public sealed class CustomScreenStoreTests
         Assert.True(loaded.TrackpadFullscreenControl);
     }
 
+    [Fact]
+    public void NavigationRingRoundTripsInCurrentFormat()
+    {
+        using var folder = new TemporaryFolder();
+        var store = new CustomScreenStore(folder.Path);
+        var draft = CustomScreenService.CreateNavigationRing(
+            CustomScreenService.CreateDraft());
+        draft = draft with { Sections = [draft.Sections[^1]] };
+
+        Assert.True(store.TrySave([draft], out var error), error);
+        var loaded = Assert.Single(store.Load().Screens).Sections[0];
+        Assert.Equal("navigationRing", loaded.Kind);
+        Assert.Equal(12, loaded.WidthColumns);
+        Assert.Empty(loaded.Buttons);
+    }
+
     private sealed class TemporaryFolder : IDisposable
     {
         public TemporaryFolder()

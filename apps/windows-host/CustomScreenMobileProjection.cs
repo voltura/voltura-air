@@ -62,6 +62,8 @@ internal sealed class CustomScreenMobileProjection(
                 ? "trackpad"
                 : CustomScreenSectionKinds.IsVolume(section.Kind)
                     ? "volume"
+                    : CustomScreenSectionKinds.IsNavigationRing(section.Kind)
+                        ? "navigationRing"
                     : "buttons",
             CustomScreenSectionKinds.IsCollapsible(section.Kind),
             section.InitiallyExpanded,

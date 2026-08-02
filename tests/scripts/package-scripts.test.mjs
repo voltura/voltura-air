@@ -141,6 +141,13 @@ test("release packaging retains the standard Release build outputs", () => {
   assert.match(directoryBuildProps, /'\$\(Configuration\)' != 'Release'/u);
 });
 
+test("release packaging stops immediately when a build command fails", () => {
+  assert.match(packageWindowsScript, /function Assert-LastExitCode/u);
+  assert.match(packageWindowsScript, /npm run build --workspace apps\/mobile-web\s+Assert-LastExitCode "Mobile web build"/u);
+  assert.match(packageWindowsScript, /-o \$publishDir\s+Assert-LastExitCode "Self-contained host publish"/u);
+  assert.match(packageWindowsScript, /-o \$frameworkDependentPublishDir\s+Assert-LastExitCode "Framework-dependent host publish"/u);
+});
+
 test("release preparation synchronizes version-bearing files without editing the workflow", () => {
   assert.match(prepareReleaseScript, /\$rootPackagePath = 'package\.json'/u);
   assert.match(prepareReleaseScript, /\$mobilePackagePath = 'apps\\mobile-web\\package\.json'/u);

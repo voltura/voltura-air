@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Security;
 using Microsoft.Win32;
 
@@ -13,11 +12,19 @@ internal static class CatalogProtocolRegistration
         try
         {
             var processPath = Environment.ProcessPath;
-            var entryAssemblyPath = Assembly.GetEntryAssembly()?.Location;
             if (string.IsNullOrWhiteSpace(processPath))
             {
                 return;
             }
+
+            var entryAssemblyPath = string.Equals(
+                    Path.GetFileNameWithoutExtension(processPath),
+                    "dotnet",
+                    StringComparison.OrdinalIgnoreCase)
+                ? Path.Combine(
+                    AppContext.BaseDirectory,
+                    $"{typeof(CatalogProtocolRegistration).Assembly.GetName().Name}.dll")
+                : null;
 
             using var classes = Registry.CurrentUser.CreateSubKey(
                 @"Software\Classes",

@@ -8,6 +8,17 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Assert-LastExitCode {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Description
+    )
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "$Description failed with exit code $LASTEXITCODE."
+    }
+}
+
 if ($Runtime -cne "win-x64") {
     throw "Runtime '$Runtime' is not supported. Use win-x64."
 }
@@ -73,6 +84,7 @@ if (-not $SkipBuild) {
     Push-Location $repoRoot
     try {
         npm run build --workspace apps/mobile-web
+        Assert-LastExitCode "Mobile web build"
 
         if (-not $FrameworkDependentOnly) {
             dotnet publish apps/windows-host/VolturaAir.Host.csproj `
@@ -82,9 +94,11 @@ if (-not $SkipBuild) {
                 -p:PublishSingleFile=true `
                 -p:IncludeNativeLibrariesForSelfExtract=true `
                 -o $publishDir
+            Assert-LastExitCode "Self-contained host publish"
 
             powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-cursor-watchdog.ps1 `
                 -OutputPath (Join-Path $publishDir "VolturaAir.CursorWatchdog.exe")
+            Assert-LastExitCode "Self-contained cursor watchdog build"
         }
 
         dotnet publish apps/windows-host/VolturaAir.Host.csproj `
@@ -93,11 +107,13 @@ if (-not $SkipBuild) {
             --self-contained false `
             -p:PublishSingleFile=false `
             -o $frameworkDependentPublishDir
+        Assert-LastExitCode "Framework-dependent host publish"
 
         $frameworkDependentWatchdogPath = Join-Path $frameworkDependentPublishDir "VolturaAir.CursorWatchdog.exe"
         if ($FrameworkDependentOnly) {
             powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-cursor-watchdog.ps1 `
                 -OutputPath $frameworkDependentWatchdogPath
+            Assert-LastExitCode "Framework-dependent cursor watchdog build"
         }
         else {
             Copy-Item `

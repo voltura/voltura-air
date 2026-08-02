@@ -125,7 +125,8 @@ The optional custom-screen catalog at `voltura.se/air/screens` stores the email
 address, display name, and password hash supplied when an account is created.
 It also stores submitted packages, author notes, tags, moderation status and
 feedback, ratings, download counts, and reports submitted with a reporter email
-address. Submitted packages are held for moderation; approved package contents,
+address. Each submitted report is also emailed to `air@voltura.se` for review.
+Submitted packages are held for moderation; approved package contents,
 author identity, notes, tags, ratings, and download counts are public.
 Withdrawing a submission removes it from the public catalog but does not delete
 its stored record. A catalog administrator can permanently delete an approved

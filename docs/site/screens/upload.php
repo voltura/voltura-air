@@ -49,11 +49,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 $message = isset($_GET['submitted'])
     ? air_screen_toast('Screen submitted for moderation')
-    : '';
-$mine = air_screen_db()->prepare('SELECT id, name, status, rejection_feedback FROM air_screen_packages WHERE owner_id = :owner ORDER BY created_at DESC LIMIT 20');
+    : (isset($_GET['rejectedRemoved'])
+        ? air_screen_toast('Removed ' . max(0, (int)$_GET['rejectedRemoved']) . ' rejected submission' . ((int)$_GET['rejectedRemoved'] === 1 ? '' : 's'))
+        : '');
+$mine = air_screen_db()->prepare("SELECT id, name, status, rejection_feedback FROM air_screen_packages WHERE owner_id = :owner AND status <> 'removed' ORDER BY created_at DESC LIMIT 20");
 $mine->execute(['owner' => $user['id']]);
 $submissions = $mine->fetchAll();
-$owned = '<section class="catalog-submissions" id="submissions" aria-labelledby="catalog-submissions-heading"><header><h2 id="catalog-submissions-heading">Your submissions</h2></header>';
+$rejectedCount = count(array_filter($submissions, static fn(array $item): bool => strtolower((string)$item['status']) === 'rejected'));
+$removeRejected = $rejectedCount > 0
+    ? '<button class="catalog-remove-rejected-open" type="button" data-remove-rejected-dialog-open>Remove rejected (' . $rejectedCount . ')</button><dialog class="catalog-remove-rejected-dialog"><form method="post" action="remove-rejected.php"><input type="hidden" name="csrf" value="' . air_screen_h(air_screen_csrf()) . '"><span class="catalog-remove-rejected-icon" aria-hidden="true"></span><h2>Remove ' . $rejectedCount . ' rejected submission' . ($rejectedCount === 1 ? '' : 's') . '?</h2><p>They will no longer appear in your submissions. Their stored records will not be permanently deleted.</p><div class="catalog-remove-rejected-dialog-actions"><button class="catalog-remove-rejected-cancel" type="button" data-remove-rejected-dialog-close>Cancel</button><button class="catalog-remove-rejected-button" type="submit">Remove rejected</button></div></form></dialog>'
+    : '';
+$owned = '<section class="catalog-submissions" id="submissions" aria-labelledby="catalog-submissions-heading"><header><h2 id="catalog-submissions-heading">Your submissions</h2>' . $removeRejected . '</header>';
 if (!$submissions) {
     $owned .= '<p class="catalog-submissions-empty">No submissions yet.</p>';
 } else {

@@ -5,6 +5,88 @@ document.addEventListener("change", (event) => {
   updatePreviewSize(preview);
 });
 
+for (const query of document.querySelectorAll("[data-catalog-query]")) {
+  const input = query.querySelector("input");
+  const clear = query.querySelector(".catalog-query-clear");
+  if (!input || !clear) continue;
+  const update = () => {
+    clear.hidden = input.value.length === 0;
+  };
+  update();
+  input.addEventListener("input", update);
+  clear.addEventListener("click", () => {
+    input.value = "";
+    update();
+    input.focus();
+  });
+}
+
+for (const sort of document.querySelectorAll("[data-catalog-sort]")) {
+  const select = sort.querySelector("select");
+  const trigger = sort.querySelector(".catalog-sort-trigger");
+  const options = sort.querySelector(".catalog-sort-options");
+  if (!select || !trigger || !options) continue;
+  sort.classList.add("is-enhanced");
+
+  const close = (restoreFocus = false) => {
+    trigger.setAttribute("aria-expanded", "false");
+    options.hidden = true;
+    if (restoreFocus) trigger.focus();
+  };
+
+  const open = () => {
+    options.hidden = false;
+    trigger.setAttribute("aria-expanded", "true");
+    options.querySelector(`[data-sort-value="${CSS.escape(select.value)}"]`)?.focus();
+  };
+
+  const choose = (option) => {
+    select.value = option.dataset.sortValue;
+    trigger.querySelector("span").textContent = option.textContent;
+    for (const item of options.querySelectorAll("[role=option]")) {
+      item.setAttribute("aria-selected", item === option ? "true" : "false");
+    }
+    close(true);
+  };
+
+  trigger.addEventListener("click", () => {
+    if (options.hidden) open();
+    else close(true);
+  });
+  trigger.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      open();
+    }
+  });
+  options.addEventListener("click", (event) => {
+    const option = event.target.closest?.("[role=option]");
+    if (option) choose(option);
+  });
+  options.addEventListener("keydown", (event) => {
+    const option = event.target.closest?.("[role=option]");
+    if (!option) return;
+    const items = [...options.querySelectorAll("[role=option]")];
+    const index = items.indexOf(option);
+    if (event.key === "Escape") {
+      event.preventDefault();
+      close(true);
+    } else if (event.key === "ArrowDown" && items[index + 1]) {
+      event.preventDefault();
+      items[index + 1].focus();
+    } else if (event.key === "ArrowUp" && items[index - 1]) {
+      event.preventDefault();
+      items[index - 1].focus();
+    } else if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      choose(option);
+    }
+  });
+  document.addEventListener("click", (event) => {
+    if (!sort.contains(event.target)) close();
+  });
+}
+
 document.addEventListener("click", (event) => {
   const ratingOpen = event.target.closest?.("[data-rating-dialog-open]");
   if (ratingOpen) {
@@ -13,12 +95,24 @@ document.addEventListener("click", (event) => {
   }
   const deleteOpen = event.target.closest?.("[data-delete-dialog-open]");
   if (deleteOpen) {
-    deleteOpen.closest("article")?.querySelector(".catalog-delete-dialog")?.showModal();
+    const deleteDialog = deleteOpen.closest("article")?.querySelector(".catalog-delete-dialog")
+      ?? document.querySelector(".catalog-delete-dialog");
+    deleteDialog?.showModal();
     return;
   }
   const deleteClose = event.target.closest?.("[data-delete-dialog-close]");
   if (deleteClose) {
     deleteClose.closest("dialog")?.close();
+    return;
+  }
+  const removeRejectedOpen = event.target.closest?.("[data-remove-rejected-dialog-open]");
+  if (removeRejectedOpen) {
+    document.querySelector(".catalog-remove-rejected-dialog")?.showModal();
+    return;
+  }
+  const removeRejectedClose = event.target.closest?.("[data-remove-rejected-dialog-close]");
+  if (removeRejectedClose) {
+    removeRejectedClose.closest("dialog")?.close();
     return;
   }
   const rotate = event.target.closest?.(".screen-preview-rotate");
@@ -45,7 +139,7 @@ function restoreRatingHero() {
 }
 
 document.addEventListener("click", (event) => {
-  const dialog = event.target.closest?.(".catalog-rating-dialog, .catalog-delete-dialog");
+  const dialog = event.target.closest?.(".catalog-rating-dialog, .catalog-delete-dialog, .catalog-remove-rejected-dialog");
   if (dialog && event.target === dialog) dialog.close();
 });
 
@@ -90,6 +184,7 @@ if (toast) {
   url.searchParams.delete("rated");
   url.searchParams.delete("ratingRemoved");
   url.searchParams.delete("deleted");
+  url.searchParams.delete("reported");
   history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
   setTimeout(() => {
     toast.classList.add("dismissed");

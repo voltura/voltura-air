@@ -235,6 +235,45 @@ function air_screen_notify_moderators(
     }
 }
 
+function air_screen_notify_screen_report(
+    string $packageId,
+    string $screenName,
+    string $reporterEmail,
+    string $reason): void
+{
+    if (getenv('VOLTURA_AIR_SITE_DEV') === '1') {
+        return;
+    }
+    if ($packageId === '' || !filter_var($reporterEmail, FILTER_VALIDATE_EMAIL) || $reason === '') {
+        error_log('Voltura Air screen report notification has invalid input.');
+        return;
+    }
+
+    try {
+        $content = '
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="width:100%;border-collapse:collapse;background-color:#ffffff;border:1px solid #ded7cc;">
+                <tr><td style="padding:18px 20px;font-size:19px;line-height:26px;font-weight:bold;color:#172027;">' . air_screen_h($screenName) . '</td></tr>
+            </table>
+            <div style="padding-top:24px;font-size:15px;line-height:23px;color:#172027;">
+                <div style="padding-bottom:7px;font-weight:bold;">Reporter email</div>
+                <div>' . air_screen_h($reporterEmail) . '</div>
+                <div style="padding-top:18px;padding-bottom:7px;font-weight:bold;">Reason for review</div>
+                <div>' . nl2br(air_screen_h($reason)) . '</div>
+            </div>';
+        $body = air_screen_notification_email(
+            'Custom screen report received',
+            $content,
+            'View reported screen',
+            AIR_SCREEN_ORIGIN . '/screens/view.php?id=' . rawurlencode($packageId)
+        );
+        if (!@mail('air@voltura.se', air_screen_notification_subject('Screen reported', $screenName), $body, air_screen_html_mail_headers())) {
+            error_log('Voltura Air screen report notification failed for package ' . $packageId . '.');
+        }
+    } catch (Throwable $exception) {
+        error_log('Voltura Air screen report notification failed for package ' . $packageId . '.');
+    }
+}
+
 function air_screen_notify_submitter_status(
     string $packageId,
     string $screenName,

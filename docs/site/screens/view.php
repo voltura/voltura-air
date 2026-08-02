@@ -19,6 +19,7 @@ $actionSummary = [];
 foreach ($actions as $kind => $count) { $actionSummary[] = $kind . ': ' . $count; }
 $date = date('F j, Y', strtotime((string)$item['published_at']));
 $user = air_screen_user();
+$isAdmin = ($user['role'] ?? '') === 'admin';
 $userRating = null;
 if ($user) {
     $ratingStatement = air_screen_db()->prepare('SELECT rating FROM air_screen_ratings WHERE package_id = :package AND user_id = :user');
@@ -35,7 +36,11 @@ $localCatalogSource = air_screen_local_catalog_source();
 $catalogSourceQuery = $localCatalogSource === null
     ? ''
     : '&amp;source=' . rawurlencode($localCatalogSource);
-$body .= '<div class="actions"><a class="button primary" href="voltura-air://import?id=' . rawurlencode((string)$item['id']) . $catalogSourceQuery . '">Install in Voltura Air</a><a class="button secondary" href="download.php?id=' . $id . '">Download file</a></div>';
+$adminDelete = $isAdmin
+    ? '<button class="catalog-delete-button catalog-delete-open" type="button" data-delete-dialog-open>Delete</button><dialog class="catalog-delete-dialog"><form method="post" action="delete.php"><input type="hidden" name="csrf" value="' . air_screen_h(air_screen_csrf()) . '"><input type="hidden" name="id" value="' . $id . '"><span class="catalog-delete-icon" aria-hidden="true">!</span><h2>Delete ' . air_screen_h($item['name']) . '?</h2><p>This permanently removes the screen, ratings, reports, and downloadable package.</p><div class="catalog-delete-dialog-actions"><button class="catalog-delete-cancel" type="button" data-delete-dialog-close>Cancel</button><button class="catalog-delete-button" type="submit">Delete screen</button></div></form></dialog>'
+    : '';
+$body .= '<div class="actions"><a class="button primary" href="voltura-air://import?id=' . rawurlencode((string)$item['id']) . $catalogSourceQuery . '">Install in Voltura Air</a><a class="button secondary" href="download.php?id=' . $id . '">Download file</a>' . $adminDelete . '</div>';
+$reportMessage = isset($_GET['reported']) ? air_screen_toast('Screen has been reported') : '';
 if ($user) {
     $ratedMessage = isset($_GET['rated']) ? air_screen_toast('Rating saved') : (isset($_GET['ratingRemoved']) ? air_screen_toast('Rating removed') : '');
     $body .= $ratedMessage . '<dialog class="catalog-rating-dialog"><div class="catalog-rating-hero" data-current-rating="' . ($userRating ?? '') . '" aria-hidden="true"><span>&#9733;</span><strong>' . ($userRating ?? '?') . '</strong></div><form method="dialog" class="catalog-rating-close"><button aria-label="Close rating dialog">&times;</button></form><p class="eyebrow">Rate this</p><h2>' . air_screen_h($item['name']) . '</h2><form class="catalog-rating-form" method="post" action="rate.php"><input type="hidden" name="id" value="' . $id . '"><input type="hidden" name="csrf" value="' . air_screen_h(air_screen_csrf()) . '"><fieldset><legend>Choose from 1 to 5 stars</legend><div class="star-picker">';
@@ -48,5 +53,5 @@ if ($user) {
     }
     $body .= '</dialog>';
 }
-$body .= '<details class="catalog-report"><summary>Report this screen</summary><form method="post" action="report.php"><input type="hidden" name="id" value="' . $id . '"><input type="hidden" name="csrf" value="' . air_screen_h(air_screen_csrf()) . '"><input name="email" type="email" required placeholder="Your email"><textarea name="reason" required maxlength="1000" placeholder="Why should this screen be reviewed?"></textarea><button>Send report</button></form></details>';
+$body .= $reportMessage . '<details class="catalog-report"><summary>Report this screen</summary><form method="post" action="report.php"><input type="hidden" name="id" value="' . $id . '"><input type="hidden" name="csrf" value="' . air_screen_h(air_screen_csrf()) . '"><input name="email" type="email" required placeholder="Your email"><textarea name="reason" required maxlength="1000" placeholder="Why should this screen be reviewed?"></textarea><button>Send report</button></form></details>';
 air_screen_layout($item['name'], $body);

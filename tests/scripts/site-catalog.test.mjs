@@ -114,14 +114,43 @@ test("catalog navigation uses specific labels and detail pages link back to brow
   assert.match(index, /air_screen_layout\('Custom screens', \$body, false\)/u);
 });
 
+test("catalog sort options use the site color treatment when opened", () => {
+  const index = read("docs/site/screens/index.php");
+  const styles = read("docs/site/styles.css");
+  const script = read("docs/site/screens/preview.js");
+  assert.match(index, /data-catalog-sort/u);
+  assert.match(index, /role="listbox"/u);
+  assert.match(styles, /\.catalog-page \.catalog-sort-option:hover,[\s\S]*background: var\(--accent-strong\);/u);
+  assert.match(script, /sort\.classList\.add\("is-enhanced"\)/u);
+  assert.match(script, /select\.value = option\.dataset\.sortValue/u);
+});
+
+test("catalog search reveals a tag-style clear control only for entered text", () => {
+  const index = read("docs/site/screens/index.php");
+  const script = read("docs/site/screens/preview.js");
+  const styles = read("docs/site/styles.css");
+  assert.match(index, /data-catalog-query/u);
+  assert.match(index, /class="catalog-tag-remove catalog-query-clear"/u);
+  assert.match(index, /aria-label="Clear search" hidden/u);
+  assert.match(script, /clear\.hidden = input\.value\.length === 0/u);
+  assert.match(script, /input\.value = ""/u);
+  assert.match(styles, /\.catalog-page \.catalog-query \.catalog-query-clear[\s\S]*transform: translateY\(-50%\)/u);
+  assert.match(styles, /\.catalog-page \.catalog-query-clear\[hidden\][\s\S]*display: none;/u);
+});
+
 test("administrators can permanently delete a listed screen after confirmation", () => {
   const index = read("docs/site/screens/index.php");
+  const view = read("docs/site/screens/view.php");
   const endpoint = read("docs/site/screens/delete.php");
   const script = read("docs/site/screens/preview.js");
   const styles = read("docs/site/styles.css");
   assert.match(index, /\$isAdmin = \(\$user\['role'\] \?\? ''\) === 'admin'/u);
   assert.match(index, /data-delete-dialog-open/u);
   assert.match(index, /class="catalog-delete-dialog"/u);
+  assert.match(view, /\$isAdmin = \(\$user\['role'\] \?\? ''\) === 'admin'/u);
+  assert.match(view, /<a class="button secondary" href="download\.php\?id=/u);
+  assert.match(view, /catalog-delete-button catalog-delete-open/u);
+  assert.match(view, /class="catalog-delete-dialog"/u);
   assert.match(index, /This permanently removes the screen, ratings, reports, and downloadable package\./u);
   assert.match(endpoint, /air_screen_require_admin\(\)/u);
   assert.match(endpoint, /air_screen_require_csrf\(\)/u);
@@ -139,13 +168,32 @@ test("administrators can permanently delete a listed screen after confirmation",
 
 test("submission history uses linked rows, status pills, and an empty state", () => {
   const upload = read("docs/site/screens/upload.php");
+  const endpoint = read("docs/site/screens/remove-rejected.php");
+  const script = read("docs/site/screens/preview.js");
   const styles = read("docs/site/styles.css");
   assert.match(upload, /class="catalog-submissions"/u);
   assert.match(upload, /id="submissions"/u);
   assert.match(upload, /class="catalog-submission-list"/u);
   assert.match(upload, /class="catalog-submission-status ' \. \$statusClass/u);
   assert.match(upload, /No submissions yet\./u);
+  assert.match(upload, /status <> 'removed'/u);
+  assert.match(upload, /Remove rejected \(' \. \$rejectedCount/u);
+  assert.match(upload, /class="catalog-remove-rejected-dialog"/u);
+  assert.match(upload, /Their stored records will not be permanently deleted\./u);
+  assert.match(upload, /rejectedRemoved/u);
+  assert.match(endpoint, /air_screen_require_user\(\)/u);
+  assert.match(endpoint, /air_screen_require_csrf\(\)/u);
+  assert.match(endpoint, /owner_id = :owner AND status = 'rejected'/u);
+  assert.match(endpoint, /status = 'removed'/u);
+  assert.match(endpoint, /rejectedRemoved=' \. \$statement->rowCount\(\)/u);
+  assert.match(script, /data-remove-rejected-dialog-open/u);
+  assert.match(script, /data-remove-rejected-dialog-close/u);
   assert.match(styles, /\.catalog-submissions h2[\s\S]*font-size: 1\.3rem/u);
+  assert.match(styles, /button\.catalog-remove-rejected-open/u);
+  assert.match(styles, /\.catalog-remove-rejected-dialog::backdrop/u);
+  assert.match(styles, /\.catalog-remove-rejected-icon::before/u);
+  assert.match(styles, /\.catalog-remove-rejected-icon::after/u);
+  assert.match(styles, /\.catalog-remove-rejected-icon::before[\s\S]*translate\(-50%, -50%\) rotate\(45deg\)/u);
   assert.match(styles, /\.catalog-submission-status\.is-pending/u);
   assert.match(styles, /\.catalog-submission-status\.is-approved/u);
   assert.match(styles, /\.catalog-submission-status\.is-rejected/u);
@@ -204,6 +252,15 @@ test("published screen details render tags as safe static pills", () => {
   assert.doesNotMatch(staticTagRenderer, /catalog-tag-remove|Remove tag/u);
 });
 
+test("catalog cards render their tags with the same safe static pills", () => {
+  const index = read("docs/site/screens/index.php");
+  const styles = read("docs/site/styles.css");
+  assert.match(index, /class="catalog-card-tags"/u);
+  assert.match(index, /air_screen_tag_pills\(\(string\)\$item\['tags'\]\)/u);
+  assert.match(styles, /\.catalog-card-tags \{[\s\S]*display: flex;/u);
+  assert.match(styles, /\.catalog-card-tags \.catalog-tag-list \{[\s\S]*min-width: 0;/u);
+});
+
 test("rejection requires feedback that the author can read and clear by resubmitting", () => {
   const moderation = read("docs/site/screens/admin.php");
   const upload = read("docs/site/screens/upload.php");
@@ -245,6 +302,27 @@ test("production uploads notify catalog administrators after persistence", () =>
   assert.match(library, /Review submission/u);
   assert.match(library, /\/screens\/admin\.php/u);
   assert.match(library, /@mail\(/u);
+});
+
+test("screen reports are emailed to Voltura Air after persistence", () => {
+  const endpoint = read("docs/site/screens/report.php");
+  const library = read("docs/site/screens/lib.php");
+  const view = read("docs/site/screens/view.php");
+  const previewScript = read("docs/site/screens/preview.js");
+  assert.match(endpoint, /INSERT INTO air_screen_reports/u);
+  assert.match(endpoint, /air_screen_notify_screen_report/u);
+  assert.ok(
+    endpoint.indexOf("$stmt->execute") <
+      endpoint.indexOf("air_screen_notify_screen_report"),
+  );
+  assert.match(library, /function air_screen_notify_screen_report/u);
+  assert.match(library, /@mail\('air@voltura\.se'/u);
+  assert.match(library, /Reporter email/u);
+  assert.match(library, /Reason for review/u);
+  assert.match(library, /VOLTURA_AIR_SITE_DEV/u);
+  assert.match(endpoint, /&reported=1/u);
+  assert.match(view, /air_screen_toast\('Screen has been reported'\)/u);
+  assert.match(previewScript, /url\.searchParams\.delete\("reported"\)/u);
 });
 
 test("moderation emails approval or rejection status to the submitter", () => {

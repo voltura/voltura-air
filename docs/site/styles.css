@@ -449,6 +449,27 @@ footer a:hover {
   margin-bottom: 24px;
 }
 
+.catalog-query {
+  min-width: 0;
+  position: relative;
+}
+
+.catalog-query > input {
+  width: 100%;
+  padding-right: 3.25rem;
+}
+
+.catalog-page .catalog-query .catalog-query-clear {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  transform: translateY(-50%);
+}
+
+.catalog-page .catalog-query-clear[hidden] {
+  display: none;
+}
+
 .catalog-page form:not(.catalog-search) {
   max-width: 680px;
   display: grid;
@@ -486,6 +507,96 @@ footer a:hover {
   color: var(--text);
   background: var(--surface-raised);
   font: inherit;
+}
+
+.catalog-page select option {
+  color: var(--text);
+  background: var(--surface-raised);
+}
+
+.catalog-page select option:checked,
+.catalog-page select option:hover {
+  color: #fff;
+  background: var(--accent-strong);
+}
+
+.catalog-sort {
+  min-width: 0;
+  position: relative;
+}
+
+.catalog-sort.is-enhanced > select {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.catalog-page .catalog-sort-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  text-align: left;
+  border-color: var(--accent);
+  background: var(--surface-raised);
+  color: var(--text);
+  font-weight: 400;
+}
+
+.catalog-page .catalog-sort-trigger:hover {
+  background: color-mix(in srgb, var(--surface-raised) 84%, var(--accent));
+}
+
+.catalog-page .catalog-sort-trigger[aria-expanded="true"] {
+  outline: 3px solid rgba(18, 168, 148, 0.18);
+}
+
+.catalog-sort-chevron {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg) translateY(-3px);
+}
+
+.catalog-sort-trigger[aria-expanded="true"] .catalog-sort-chevron {
+  transform: rotate(225deg) translate(-2px, -2px);
+}
+
+.catalog-sort-options {
+  z-index: 20;
+  position: absolute;
+  top: calc(100% + 2px);
+  right: 0;
+  left: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  box-shadow: 0 18px 36px var(--shadow);
+}
+
+.catalog-page .catalog-sort-option {
+  width: 100%;
+  display: block;
+  border: 0;
+  border-radius: 0;
+  padding: 12px 14px;
+  text-align: left;
+  background: transparent;
+  color: var(--text);
+  font-weight: 400;
+  box-shadow: none;
+}
+
+.catalog-page .catalog-sort-option:hover,
+.catalog-page .catalog-sort-option:focus-visible,
+.catalog-page .catalog-sort-option[aria-selected="true"] {
+  background: var(--accent-strong);
+  color: #fff;
 }
 
 .catalog-page textarea {
@@ -761,6 +872,10 @@ footer a:hover {
 }
 
 .catalog-submissions > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
   padding: 18px 20px;
   border-bottom: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface-raised) 92%, var(--accent) 8%);
@@ -771,6 +886,22 @@ footer a:hover {
   font-size: 1.3rem;
   line-height: 1.2;
   letter-spacing: -0.02em;
+}
+
+.catalog-page button.catalog-remove-rejected-open {
+  min-height: 36px;
+  flex: none;
+  border-color: color-mix(in srgb, var(--coral) 58%, var(--border));
+  padding: 6px 11px;
+  background: color-mix(in srgb, var(--coral) 8%, var(--surface-raised));
+  color: #f08c8c;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.catalog-page button.catalog-remove-rejected-open:hover {
+  border-color: color-mix(in srgb, var(--coral) 78%, white);
+  background: color-mix(in srgb, var(--coral) 16%, var(--surface-raised));
 }
 
 .catalog-submission-list {
@@ -934,6 +1065,17 @@ footer a:hover {
   line-height: 1.55;
 }
 
+.catalog-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+
+.catalog-card-tags .catalog-tag-list {
+  min-width: 0;
+}
+
 .catalog-empty {
   grid-column: 1 / -1;
   color: var(--muted);
@@ -975,12 +1117,37 @@ footer a:hover {
   text-align: center;
 }
 
+.catalog-remove-rejected-dialog {
+  width: min(520px, calc(100vw - 32px));
+  border: 1px solid color-mix(in srgb, var(--coral) 58%, var(--border));
+  border-radius: 14px;
+  padding: clamp(28px, 6vw, 44px);
+  color: var(--text);
+  background: #171d21;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.65);
+  text-align: center;
+}
+
 .catalog-delete-dialog::backdrop {
   background: rgba(5, 8, 10, 0.78);
   backdrop-filter: blur(3px);
 }
 
+.catalog-remove-rejected-dialog::backdrop {
+  background: rgba(5, 8, 10, 0.78);
+  backdrop-filter: blur(3px);
+}
+
 .catalog-page .catalog-delete-dialog form {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.catalog-page .catalog-remove-rejected-dialog form {
   max-width: none;
   margin: 0;
   padding: 0;
@@ -1002,12 +1169,56 @@ footer a:hover {
   font-weight: 900;
 }
 
+.catalog-remove-rejected-icon {
+  width: 58px;
+  height: 58px;
+  position: relative;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 18px;
+  border: 2px solid color-mix(in srgb, var(--coral) 74%, white);
+  border-radius: 50%;
+  color: color-mix(in srgb, var(--coral) 78%, white);
+}
+
+.catalog-remove-rejected-icon::before,
+.catalog-remove-rejected-icon::after {
+  content: "";
+  position: absolute;
+  top: 48%;
+  left: 50%;
+  width: 1.9rem;
+  height: 0.35rem;
+  border-radius: 999px;
+  background: currentColor;
+  transform-origin: center;
+}
+
+.catalog-remove-rejected-icon::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.catalog-remove-rejected-icon::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
 .catalog-delete-dialog h2 {
   margin: 0 0 12px;
   font-size: clamp(1.55rem, 5vw, 2.2rem);
 }
 
+.catalog-remove-rejected-dialog h2 {
+  margin: 0 0 12px;
+  font-size: clamp(1.55rem, 5vw, 2.2rem);
+}
+
 .catalog-delete-dialog p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.catalog-remove-rejected-dialog p {
   margin: 0;
   color: var(--muted);
   line-height: 1.55;
@@ -1020,12 +1231,39 @@ footer a:hover {
   margin-top: 28px;
 }
 
+.catalog-remove-rejected-dialog-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 28px;
+}
+
 .catalog-page button.catalog-delete-cancel {
   min-height: 48px;
   border-color: var(--border);
   padding: 8px 16px;
   background: var(--surface-raised);
   color: var(--text);
+}
+
+.catalog-page button.catalog-remove-rejected-cancel {
+  min-height: 48px;
+  border-color: var(--border);
+  padding: 8px 16px;
+  background: var(--surface-raised);
+  color: var(--text);
+}
+
+.catalog-page button.catalog-remove-rejected-button {
+  min-height: 48px;
+  border-color: color-mix(in srgb, var(--coral) 78%, white);
+  padding: 8px 16px;
+  background: color-mix(in srgb, var(--coral) 72%, #641f19);
+  color: #fff;
+}
+
+.catalog-page button.catalog-remove-rejected-button:hover {
+  background: color-mix(in srgb, var(--coral) 88%, white);
 }
 
 .screen-preview {
@@ -1979,6 +2217,15 @@ footer a:hover {
     flex-direction: column;
     gap: 8px;
     padding: 14px 16px;
+  }
+
+  .catalog-submissions > header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .catalog-page button.catalog-remove-rejected-open {
+    width: 100%;
   }
 
   .catalog-submission-status {

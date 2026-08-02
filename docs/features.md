@@ -188,11 +188,13 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 - Reviewed community packages are available from
   `https://voltura.se/air/screens/`. Catalog installation opens the same import
   review and never executes actions automatically. The library supports search,
-  previews, downloads, account-based ratings, and reports. Authors can open
-  their submission history directly, receive approval or rejection email, read
-  optional approval or required rejection feedback, and resubmit edited
-  metadata for review. Administrators can permanently delete an approved entry
-  from the library after confirmation.
+  previews, downloads, account-based ratings, and reports emailed to Voltura Air
+  for review. Authors can open
+  their submission history directly, remove rejected entries from that history
+  without permanently deleting their records, receive approval or rejection
+  email, read optional approval or required rejection feedback, and resubmit
+  edited metadata for review. Administrators can permanently delete an
+  approved entry from the library after confirmation.
 - The Windows tray menu links directly to the community library.
 
 ## Mobile PWA

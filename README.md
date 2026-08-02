@@ -96,8 +96,8 @@ on uninstall. Start-at-sign-in is an in-app setting.
 3. Scan the QR code from a phone or tablet on the same Wi-Fi or LAN.
 
 Paired devices are remembered until removed or their browser data is cleared.
-The optional **View PC screen** tool is off by default; enable its Developer
-tools switch and Screen viewing permission on the PC before using it.
+The optional **View PC screen** tool requires Screen viewing permission on the
+PC before a paired phone or tablet can use it.
 
 ## Trust, privacy, and distribution
 

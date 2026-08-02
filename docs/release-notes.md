@@ -6,6 +6,15 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v0.8.5
+
+- Removed the Developer tools checkbox for PC screen mirroring. **View PC
+  screen** now depends only on the denied-by-default global or per-device Screen
+  viewing permission and a current identity-pinning pairing.
+- Simplified `release:full` to package the portable ZIP and both installers once
+  from the final local release commit, validate them before pushing, and recover
+  automatically from an old zero-byte Git index lock.
+
 ## v0.8.4
 
 - Added **View PC screen**, an optional encrypted live mirror for viewing and
@@ -20,8 +29,8 @@ create one. Keep the shared notices in
   regular Trackpad, eliminating accidental zoom while scrolling. Switching the
   live mirror mode preserves its current view, and the Trackpad switch appears
   when **Pinch zoom** is enabled.
-- Added clear privacy controls: Screen viewing is off by default, requires its
-  Developer tools toggle and device permission, allows only one viewer, shows a
+- Added clear privacy controls: Screen viewing requires device permission,
+  allows only one viewer, shows a
   persistent Windows viewing indicator, and stops immediately when access or
   the session ends.
 

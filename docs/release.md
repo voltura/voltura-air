@@ -23,10 +23,10 @@ npm run release:draft -- 0.8.0
 ```
 
 The command validates prerequisites and repository state, prepares the version,
-regenerates public assets/statistics, runs full build/tests, packages/audits all
-artifacts, commits and pushes generated changes, rebuilds the final commit,
-creates/resumes the matching release, and deploys `docs/site`. Prerelease
-versions remain drafts. Set `NO_COLOR` to disable colored output.
+regenerates public assets/statistics, runs full build/tests, commits the prepared
+sources locally, packages and audits all artifacts once from that exact commit,
+then pushes, creates/resumes the matching release, and deploys `docs/site`.
+Prerelease versions remain drafts. Set `NO_COLOR` to disable colored output.
 
 The catalog preview and statistics page are generated before the release commit;
 deployment uploads that prepared snapshot without regenerating tracked files.

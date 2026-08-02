@@ -12,16 +12,19 @@ public sealed class WebHostScreenViewTests : WebHostServiceTestBase
     public async Task TestServerBindsOfferAndAnswerToThePairedClientAndReleasesCaptureOnStop()
     {
         HostPermissionSet originalPermissions = AppPermissionSettings.Load();
-        bool originalDeveloperSetting = AppDeveloperSettings.EnableScreenViewing();
         try
         {
             AppPermissionSettings.Save(originalPermissions with { AllowScreenViewing = true });
-            AppDeveloperSettings.SetEnableScreenViewing(true);
             var capture = new FakeScreenViewCaptureSource();
             await using var fixture = await WebHostFixture.StartAsync(screenViewCapture: capture);
             using var reconnectKey = new PairingTestKey();
             using WebSocket control = await ConnectAsync(fixture.WebHost);
             await PairAsync(control, fixture.Manager, reconnectKey);
+            JsonElement status = await SendUntilTypeAsync(control, new { type = "status.get" }, "status");
+            JsonElement capability = status.GetProperty("capabilities").GetProperty("screenView");
+            Assert.True(capability.GetProperty("enabled").GetBoolean());
+            Assert.True(capability.GetProperty("permissionGranted").GetBoolean());
+            Assert.True(capability.GetProperty("canView").GetBoolean());
 
             const string operationId = "screen-start-1";
             const string displayId = "display-1";
@@ -68,7 +71,6 @@ public sealed class WebHostScreenViewTests : WebHostServiceTestBase
         }
         finally
         {
-            AppDeveloperSettings.SetEnableScreenViewing(originalDeveloperSetting);
             AppPermissionSettings.Save(originalPermissions);
         }
     }
@@ -77,11 +79,9 @@ public sealed class WebHostScreenViewTests : WebHostServiceTestBase
     public async Task PendingOfferKeepsTheSingleViewerSlotBusyAndInvalidAnswerReleasesIt()
     {
         HostPermissionSet originalPermissions = AppPermissionSettings.Load();
-        bool originalDeveloperSetting = AppDeveloperSettings.EnableScreenViewing();
         try
         {
             AppPermissionSettings.Save(originalPermissions with { AllowScreenViewing = true });
-            AppDeveloperSettings.SetEnableScreenViewing(true);
             await using var fixture = await WebHostFixture.StartAsync(screenViewCapture: new FakeScreenViewCaptureSource());
             using var reconnectKey = new PairingTestKey();
             using WebSocket control = await ConnectAsync(fixture.WebHost);
@@ -108,7 +108,6 @@ public sealed class WebHostScreenViewTests : WebHostServiceTestBase
         }
         finally
         {
-            AppDeveloperSettings.SetEnableScreenViewing(originalDeveloperSetting);
             AppPermissionSettings.Save(originalPermissions);
         }
     }
@@ -117,11 +116,9 @@ public sealed class WebHostScreenViewTests : WebHostServiceTestBase
     public async Task DisplayDiscoveryResultsKeepTheControlSocketOpenAcrossEmptyAndFailedDiscovery()
     {
         HostPermissionSet originalPermissions = AppPermissionSettings.Load();
-        bool originalDeveloperSetting = AppDeveloperSettings.EnableScreenViewing();
         try
         {
             AppPermissionSettings.Save(originalPermissions with { AllowScreenViewing = true });
-            AppDeveloperSettings.SetEnableScreenViewing(true);
             var capture = new FakeScreenViewCaptureSource { Sources = [] };
             await using var fixture = await WebHostFixture.StartAsync(screenViewCapture: capture);
             using var reconnectKey = new PairingTestKey();
@@ -195,7 +192,6 @@ public sealed class WebHostScreenViewTests : WebHostServiceTestBase
         }
         finally
         {
-            AppDeveloperSettings.SetEnableScreenViewing(originalDeveloperSetting);
             AppPermissionSettings.Save(originalPermissions);
         }
     }

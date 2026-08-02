@@ -65,12 +65,10 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 ### Live screen mirror
 
 - **View PC screen** is a lazy-loaded mobile tool. It remains visible on hosts
-  that support it and explains whether the PC Developer tools toggle, effective
-  Screen viewing permission, or a fresh identity-pinning pairing is required.
-- Screen viewing is off by default. It has a feature-owned **Enable encrypted
-  Screen viewing** toggle under Developer tools, a denied-by-default global
-  permission, and an inheritable per-device override. Enabling a permission
-  does not silently enable the developer feature.
+  that support it and explains whether the effective Screen viewing permission
+  or a fresh identity-pinning pairing is required.
+- Screen viewing is denied by default through its global permission and has an
+  inheritable per-device override.
 - One authorized device can view one selected display at a time. Multiple
   displays are selectable before or during viewing; another device receives a
   busy result. Leaving the workspace stops viewing.

@@ -7,7 +7,6 @@ public static class AppDeveloperSettings
     private static string SettingsKeyPath => HostSettingsRegistry.SettingsKeyPath;
     private const string DeveloperModeValueName = "DeveloperMode";
     private const string EnableGestureDebugValueName = "EnableGestureDebug";
-    private const string EnableScreenViewingValueName = "EnableScreenViewing";
 
     public static event EventHandler? Changed;
 
@@ -21,12 +20,6 @@ public static class AppDeveloperSettings
     {
         using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: false);
         return key?.GetValue(DeveloperModeValueName) is int value && value != 0;
-    }
-
-    public static bool EnableScreenViewing()
-    {
-        using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: false);
-        return key?.GetValue(EnableScreenViewingValueName) is int value && value != 0;
     }
 
     public static void SetEnableGestureDebug(bool enabled)
@@ -53,14 +46,4 @@ public static class AppDeveloperSettings
         }
     }
 
-    public static void SetEnableScreenViewing(bool enabled)
-    {
-        var current = EnableScreenViewing();
-        using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: true) ?? Registry.CurrentUser.CreateSubKey(SettingsKeyPath, writable: true);
-        key.SetValue(EnableScreenViewingValueName, enabled ? 1 : 0, RegistryValueKind.DWord);
-        if (current != enabled)
-        {
-            Changed?.Invoke(null, EventArgs.Empty);
-        }
-    }
 }

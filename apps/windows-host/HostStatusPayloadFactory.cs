@@ -70,7 +70,6 @@ internal sealed class HostStatusPayloadFactory(
     public bool CanOpenUrls(string clientId) => GetEffectivePermissions(clientId).AllowUrlOpen;
     public bool CanReadClipboard(string clientId) => GetEffectivePermissions(clientId).AllowClipboardRead;
     public bool CanViewScreen(string clientId) =>
-        AppDeveloperSettings.EnableScreenViewing() &&
         pairingManager.HasCurrentHostIdentity(clientId) &&
         GetEffectivePermissions(clientId).AllowScreenViewing;
     public bool CanControlAwake(string clientId) => GetEffectivePermissions(clientId).AllowAwakeControl;
@@ -106,9 +105,9 @@ internal sealed class HostStatusPayloadFactory(
         inputAck = true,
         screenView = new
         {
-            enabled = AppDeveloperSettings.EnableScreenViewing(),
+            enabled = true,
             permissionGranted = permissions.AllowScreenViewing,
-            canView = AppDeveloperSettings.EnableScreenViewing() && permissions.AllowScreenViewing && pairingManager.HasCurrentHostIdentity(clientId),
+            canView = permissions.AllowScreenViewing && pairingManager.HasCurrentHostIdentity(clientId),
             requiresRepair = !pairingManager.HasCurrentHostIdentity(clientId),
             encrypted = true,
             maxWidth = 1920,

@@ -38,7 +38,7 @@ test("release commands accept at most one explicit version", () => {
 test("release publication prepares the tracked site snapshot before staging and deploys it unchanged", () => {
   const previewBuild = localReleaseSource.indexOf('"site:preview:build"');
   const generation = localReleaseSource.indexOf('"code:statistics"');
-  const staging = localReleaseSource.indexOf('"git", ["add", "--all"]');
+  const staging = localReleaseSource.indexOf("await stageReleaseChanges()");
   const deployment = localReleaseSource.indexOf('"publish:site:prepared"');
   assert.ok(previewBuild > 0);
   assert.ok(generation > previewBuild);
@@ -47,6 +47,29 @@ test("release publication prepares the tracked site snapshot before staging and 
   assert.ok(deployment > staging);
   assert.match(localReleaseSource, /"code:statistics", "--", "--report", "--no-open", "--quiet"/u);
   assert.match(localReleaseSource, /"publish:site:prepared"/u);
+});
+
+test("release packaging runs once from the final local commit before push", () => {
+  const testing = localReleaseSource.indexOf('checked("npm", ["test"])');
+  const staging = localReleaseSource.indexOf("await stageReleaseChanges()");
+  const commit = localReleaseSource.indexOf('checked("git", ["commit"');
+  const packaging = localReleaseSource.indexOf('checked("npm", ["run", "package:win"');
+  const push = localReleaseSource.indexOf('checked("git", ["push", "origin", "main"])');
+  const packageCommands = localReleaseSource.match(/checked\("npm", \["run", "package:win"/gu) ?? [];
+
+  assert.ok(testing > 0);
+  assert.ok(staging > testing);
+  assert.ok(commit > staging);
+  assert.ok(packaging > commit);
+  assert.ok(push > packaging);
+  assert.equal(packageCommands.length, 1);
+});
+
+test("release staging only removes an old zero-byte Git index lock before one retry", () => {
+  assert.match(localReleaseSource, /lock\.size !== 0/u);
+  assert.match(localReleaseSource, /minimumStaleAgeMs = 30_000/u);
+  assert.match(localReleaseSource, /Removed a stale zero-byte Git index lock/u);
+  assert.match(localReleaseSource, /failed after stale-lock recovery/u);
 });
 
 test("local draft completion does not run publication or tag commands", () => {

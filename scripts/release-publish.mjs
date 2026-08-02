@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -52,6 +52,34 @@ function runCommand(command, args = [], { captureOutput = false, allowFailure = 
 
 function checked(command, args = [], options = {}) {
   return runCommand(command, args, options).stdout;
+}
+
+async function stageReleaseChanges() {
+  const add = () => runCommand("git", ["add", "--all"], { captureOutput: true, allowFailure: true });
+  let result = add();
+  if (result.status === 0) {
+    return;
+  }
+
+  const details = `${result.stderr}\n${result.stdout}`.trim();
+  if (!/index\.lock/u.test(details)) {
+    throw new Error(`git add --all failed with exit code ${result.status}.${details ? ` ${details}` : ""}`);
+  }
+
+  const lockPath = path.resolve(repositoryRoot, checked("git", ["rev-parse", "--git-path", "index.lock"], { captureOutput: true }));
+  const lock = await stat(lockPath).catch(() => null);
+  const minimumStaleAgeMs = 30_000;
+  if (!lock?.isFile() || lock.size !== 0 || Date.now() - lock.mtimeMs < minimumStaleAgeMs) {
+    throw new Error(`git add --all was blocked by a Git index lock that is not safely stale. ${details}`);
+  }
+
+  await rm(lockPath);
+  console.log("Removed a stale zero-byte Git index lock and retrying release staging.");
+  result = add();
+  if (result.status !== 0) {
+    const retryDetails = `${result.stderr}\n${result.stdout}`.trim();
+    throw new Error(`git add --all failed after stale-lock recovery with exit code ${result.status}.${retryDetails ? ` ${retryDetails}` : ""}`);
+  }
 }
 
 async function assertNoActiveWorkflowFiles() {
@@ -256,25 +284,22 @@ export async function runLocalRelease(args = process.argv.slice(2), { progress, 
     checked("npm", ["run", "code:statistics", "--", "--report", "--no-open", "--quiet"]);
   });
 
-  await performStep(releaseProgress, "Testing and creating installation packages", "Running the complete test suite, portable ZIP build, and both Windows installer builds.", () => {
+  await performStep(releaseProgress, "Testing release sources", "Running the complete test suite before creating the release commit.", () => {
     checked("npm", ["test"]);
-    checked("npm", ["run", "package:win", "--", "-Version", releaseContext.targetVersion, "-Runtime", runtime]);
   });
 
   let releaseCommit;
   let assetPaths;
   let assetNames;
   let bodyPath;
-  await performStep(releaseProgress, "Committing and verifying final artifacts", "Pushing the prepared version, then rebuilding packages from the exact release commit.", async () => {
-    checked("git", ["add", "--all"]);
+  await performStep(releaseProgress, "Committing and creating final artifacts", "Committing prepared sources, packaging once from that exact commit, then pushing after validation.", async () => {
+    await stageReleaseChanges();
     const staged = runCommand("git", ["diff", "--cached", "--quiet"], { allowFailure: true });
     if (staged.status === 1) {
       checked("git", ["commit", "-m", `Release Voltura Air ${releaseContext.targetVersion}`]);
     } else if (staged.status !== 0) {
       throw new Error("Could not inspect staged release changes.");
     }
-    checked("git", ["push", "origin", "main"]);
-
     releaseCommit = checked("git", ["rev-parse", "HEAD"], { captureOutput: true });
     checked("npm", ["run", "package:win", "--", "-Version", releaseContext.targetVersion, "-Runtime", runtime]);
     const finalStatus = checked("git", ["status", "--porcelain=v1", "--untracked-files=all"], { captureOutput: true });
@@ -290,6 +315,7 @@ export async function runLocalRelease(args = process.argv.slice(2), { progress, 
     ];
     await assertReleaseAssets(assetPaths);
     assetNames = assetPaths.map((filePath) => path.basename(filePath));
+    checked("git", ["push", "origin", "main"]);
     bodyPath = path.join(publishRoot, `release-notes-${releaseContext.targetTag}.md`);
     await writeFile(bodyPath, buildReleaseBody({
       notes: releaseContext.notes,

@@ -34,7 +34,7 @@ export default function ScreenViewWorkspace({ activePc, capability, clientId, on
     capability.requiresRepair
       ? "Scan this PC's pairing QR once to trust its screen identity."
       : !capability.enabled
-        ? "Enable encrypted Screen viewing under Developer tools on the PC."
+        ? "Screen viewing is unavailable on this PC."
         : !capability.permissionGranted
           ? "Allow this device to view the PC screen in PC permissions."
           : "Choose a display to begin."

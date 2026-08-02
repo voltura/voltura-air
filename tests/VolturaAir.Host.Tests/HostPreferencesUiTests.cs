@@ -140,6 +140,8 @@ public sealed partial class HostUiLayoutTests
                     string.Equals(checkbox.Content?.ToString(), "Allow paired devices to control presentations", StringComparison.Ordinal));
                 Assert.DoesNotContain(FindWpfDescendants<CheckBox>(window), checkbox =>
                     string.Equals(checkbox.Content?.ToString(), "Enable alpha features", StringComparison.Ordinal));
+                Assert.DoesNotContain(FindWpfDescendants<CheckBox>(window), checkbox =>
+                    checkbox.Content?.ToString()?.Contains("Screen viewing", StringComparison.OrdinalIgnoreCase) == true);
             }
             finally
             {

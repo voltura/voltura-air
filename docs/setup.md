@@ -86,9 +86,8 @@ browser/origin support. Normal input cannot control UAC, secure desktop, lock
 screen, or higher-integrity apps. Firewall/network isolation can block LAN
 traffic, and an unreachable/sleeping/shut-down host cannot receive commands.
 
-Encrypted Screen viewing is an off-by-default Developer tools feature. Enable
-**Enable encrypted Screen viewing**, then allow Screen viewing globally or for
-the intended device. A freshly paired client must have the PC identity pin.
+Encrypted Screen viewing requires Screen viewing permission globally or for the
+intended device. A freshly paired client must have the PC identity pin.
 Desktop Duplication GPU frames and cursor metadata support one display and one
 viewer at a time, video only, up to 1920 x 1080/30 frames per second. D3D11
 conversion and a hardware Media Foundation H.264 encoder feed a direct LAN

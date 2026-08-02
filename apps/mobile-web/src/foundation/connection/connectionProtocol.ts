@@ -147,16 +147,24 @@ function isServerMessage(value: unknown): value is ServerMessage {
 
   switch (value.type) {
     case "pair.accepted":
-      return hasOnlyFields(value, ["type", "clientId", "pcName", "paired", "capabilities", "host"]) &&
+      return hasOnlyFields(value, ["type", "clientId", "pcName", "paired", "capabilities", "host", "hostIdentity"]) &&
         isBoundedString(value.clientId, 128, false) &&
         isBoundedString(value.pcName, 120, false) &&
         value.paired === true &&
         isOptional(value, "capabilities", isServerCapabilities) &&
-        isOptional(value, "host", isHostStatusMetadata);
+        isOptional(value, "host", isHostStatusMetadata) &&
+        isOptional(value, "hostIdentity", isHostIdentity);
     case "pair.challenge":
       return hasOnlyFields(value, ["type", "clientId", "challenge"]) &&
         isBoundedString(value.clientId, 128, false) &&
         isBoundedString(value.challenge, 512, false);
+    case "pair.bootstrap.challenge":
+      return hasOnlyFields(value, ["type", "clientId", "clientNonce", "serverNonce", "hostIdentity", "proof"]) &&
+        isBoundedString(value.clientId, 128, false) &&
+        isBoundedString(value.clientNonce, 43, false) &&
+        isBoundedString(value.serverNonce, 43, false) &&
+        isHostIdentity(value.hostIdentity) &&
+        isBoundedString(value.proof, 43, false);
     case "pair.rejected":
       return hasOnlyFields(value, ["type", "reason"]) &&
         isBoundedString(value.reason, 120, false);
@@ -223,6 +231,24 @@ function isServerMessage(value: unknown): value is ServerMessage {
         isCustomScreenId(value.screenId) &&
         isCustomScreenId(value.buttonId) &&
         isResultBase(value);
+    case "screen.view.sources.result":
+      return hasOnlyFields(value, ["type", "operationId", "succeeded", "code", "message", "sources"]) &&
+        isOperationId(value.operationId) && isResultBase(value) && Array.isArray(value.sources) &&
+        value.sources.length <= 16 && value.sources.every(isScreenViewSource);
+    case "screen.view.start.result":
+      return hasOnlyFields(value, ["type", "operationId", "displayId", "succeeded", "code", "message", "offerSdp", "hostSignature"]) &&
+        isOperationId(value.operationId) && isBoundedString(value.displayId, 80, false) && isResultBase(value) &&
+        isOptional(value, "offerSdp", (candidate) => candidate === null || isBoundedString(candidate, 32 * 1024, false)) &&
+        isOptional(value, "hostSignature", (candidate) => candidate === null || isBoundedString(candidate, 128, false));
+    case "screen.view.answer.result":
+      return hasOnlyFields(value, ["type", "operationId", "succeeded", "code", "message"]) &&
+        isOperationId(value.operationId) && isResultBase(value);
+    case "screen.view.source.result":
+      return hasOnlyFields(value, ["type", "operationId", "displayId", "succeeded", "code", "message"]) &&
+        isOperationId(value.operationId) && isBoundedString(value.displayId, 80, false) && isResultBase(value);
+    case "screen.view.stop.result":
+      return hasOnlyFields(value, ["type", "operationId", "succeeded", "code", "message"]) &&
+        isOperationId(value.operationId) && isResultBase(value);
     case "url.open.result":
       return isOperationId(value.operationId) && isResultBase(value) &&
         isOptional(value, "normalizedUrl", isString);
@@ -255,10 +281,40 @@ function isServerCapabilities(value: unknown): boolean {
     isOptional(value, "remoteLaunch", isBoolean) &&
     isOptional(value, "customScreens", (candidate) =>
       candidate === null || isCustomScreensCapability(candidate)) &&
+    isOptional(value, "screenView", (candidate) =>
+      candidate === null || isScreenViewCapability(candidate)) &&
     isOptional(value, "urlOpen", (candidate) => isBooleanCapability(candidate, "canOpen")) &&
     isOptional(value, "sleep", isBoolean) &&
     isOptional(value, "textTransfer", isBoolean) &&
     isOptional(value, "volume", isBoolean);
+}
+
+function isHostIdentity(value: unknown): boolean {
+  return isRecord(value) &&
+    isBoundedString(value.publicKey, 128, false) &&
+    /^[A-Za-z0-9_-]{87}$/.test(value.publicKey) &&
+    isBoundedString(value.fingerprint, 64, false) &&
+    /^[A-Za-z0-9_-]{22}$/.test(value.fingerprint);
+}
+
+function isScreenViewCapability(value: unknown): boolean {
+  return isRecord(value) &&
+    typeof value.enabled === "boolean" &&
+    typeof value.permissionGranted === "boolean" &&
+    typeof value.canView === "boolean" &&
+    typeof value.requiresRepair === "boolean" &&
+    value.encrypted === true &&
+    value.maxWidth === 1920 &&
+    value.maxHeight === 1080 &&
+    value.maxFramesPerSecond === 30;
+}
+
+function isScreenViewSource(value: unknown): boolean {
+  return isRecord(value) && hasOnlyFields(value, ["id", "label", "width", "height", "isPrimary"]) &&
+    isBoundedString(value.id, 80, false) && isBoundedString(value.label, 120, false) &&
+    Number.isInteger(value.width) && (value.width as number) > 0 && (value.width as number) <= 16384 &&
+    Number.isInteger(value.height) && (value.height as number) > 0 && (value.height as number) <= 16384 &&
+    typeof value.isPrimary === "boolean";
 }
 
 function isCustomScreensCapability(value: unknown): boolean {
@@ -638,6 +694,7 @@ export const getCustomScreensCapability = (capabilities: ServerCapabilities | un
   capabilities?.customScreens && Array.isArray(capabilities.customScreens.screens)
     ? capabilities.customScreens
     : undefined;
+export const getScreenViewCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.screenView ?? undefined;
 export const hasTextTransferCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.textTransfer === true;
 export const getClipboardReadPermission = (capabilities: ServerCapabilities | undefined): boolean | undefined =>
   typeof capabilities?.clipboardRead === "boolean" ? capabilities.clipboardRead : undefined;

@@ -91,11 +91,12 @@ describe("GestureRecognizer", () => {
     );
     const events = recognizer.move(
       [
-        { id: 1, x: 95, y: 100 },
-        { id: 2, x: 165, y: 100 }
+        { id: 1, x: 97, y: 100 },
+        { id: 2, x: 163, y: 100 }
       ],
       20,
-      { ...defaultTrackpadSettings, zoomGestures: true }
+      { ...defaultTrackpadSettings, zoomGestures: true },
+      "zoom"
     );
 
     expect(events).toEqual([{ type: "pointer.zoom", direction: "in" }]);
@@ -113,14 +114,102 @@ describe("GestureRecognizer", () => {
     );
     const events = recognizer.move(
       [
-        { id: 1, x: 105, y: 100 },
-        { id: 2, x: 155, y: 100 }
+        { id: 1, x: 103, y: 100 },
+        { id: 2, x: 157, y: 100 }
       ],
       20,
-      { ...defaultTrackpadSettings, zoomGestures: true }
+      { ...defaultTrackpadSettings, zoomGestures: true },
+      "zoom"
     );
 
     expect(events).toEqual([{ type: "pointer.zoom", direction: "out" }]);
+  });
+
+  it("keeps two-finger scrolling when zoom gestures are enabled and finger spacing wobbles", () => {
+    const recognizer = new GestureRecognizer();
+
+    recognizer.start(
+      [
+        { id: 1, x: 100, y: 100 },
+        { id: 2, x: 160, y: 100 }
+      ],
+      0
+    );
+    const events = recognizer.move(
+      [
+        { id: 1, x: 94, y: 120 },
+        { id: 2, x: 166, y: 120 }
+      ],
+      20,
+      { ...defaultTrackpadSettings, zoomGestures: true },
+      "scroll"
+    );
+
+    expect(events).toEqual([{ type: "pointer.wheel", dx: 0, dy: -22 }]);
+  });
+
+  it("keeps spacing changes in explicit Scroll mode", () => {
+    const recognizer = new GestureRecognizer();
+    const settings = { ...defaultTrackpadSettings, zoomGestures: true };
+
+    recognizer.start(
+      [
+        { id: 1, x: 100, y: 100 },
+        { id: 2, x: 160, y: 100 }
+      ],
+      0
+    );
+    expect(recognizer.move(
+      [
+        { id: 1, x: 100, y: 120 },
+        { id: 2, x: 160, y: 120 }
+      ],
+      20,
+      settings,
+      "scroll"
+    )).toEqual([{ type: "pointer.wheel", dx: 0, dy: -22 }]);
+
+    expect(recognizer.move(
+      [
+        { id: 1, x: 90, y: 130 },
+        { id: 2, x: 170, y: 130 }
+      ],
+      40,
+      settings,
+      "scroll"
+    )).toEqual([{ type: "pointer.wheel", dx: 0, dy: -11 }]);
+  });
+
+  it("keeps shared movement out of explicit Zoom mode", () => {
+    const recognizer = new GestureRecognizer();
+    const settings = { ...defaultTrackpadSettings, zoomGestures: true };
+
+    recognizer.start(
+      [
+        { id: 1, x: 100, y: 100 },
+        { id: 2, x: 160, y: 100 }
+      ],
+      0
+    );
+    expect(recognizer.move(
+      [
+        { id: 1, x: 90, y: 100 },
+        { id: 2, x: 170, y: 100 }
+      ],
+      20,
+      settings,
+      "zoom"
+    )).toEqual([{ type: "pointer.zoom", direction: "in" }]);
+
+    expect(recognizer.move(
+      [
+        { id: 1, x: 90, y: 125 },
+        { id: 2, x: 170, y: 125 }
+      ],
+      40,
+      settings,
+      "zoom"
+    )).toEqual([]);
   });
 
   it("does not emit zoom events when zoom gestures are disabled", () => {
@@ -139,7 +228,8 @@ describe("GestureRecognizer", () => {
         { id: 2, x: 165, y: 100 }
       ],
       20,
-      { ...defaultTrackpadSettings, zoomGestures: false }
+      { ...defaultTrackpadSettings, zoomGestures: false },
+      "zoom"
     );
 
     expect(events).toEqual([]);

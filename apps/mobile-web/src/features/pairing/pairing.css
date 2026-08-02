@@ -196,6 +196,15 @@
   border-color: var(--accent);
 }
 
+.pairing-action-primary:disabled {
+  --control-background: var(--surface-raised);
+
+  color: var(--muted);
+  border-color: var(--border);
+  cursor: wait;
+  opacity: 1;
+}
+
 .pairing-action-secondary {
   --control-background: var(--surface-raised);
 }

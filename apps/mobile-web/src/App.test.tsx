@@ -52,6 +52,7 @@ function mockConnection(overrides: Partial<ReturnType<typeof useVolturaAirConnec
     connectionEpoch: 1,
     message: "Connected to Very Long Living Room Editing Workstation",
     send: vi.fn(),
+    screenViewCapability: undefined,
     requestAudioState: vi.fn(),
     clientId: "client-a",
     deviceName: "Phone",
@@ -436,6 +437,38 @@ describe("App header and mode navigation", () => {
     expect(screen.queryByRole("heading", { name: "Media controls" })).toBeNull();
     expect(document.querySelector(".trackpad-mode")).not.toBeNull();
     expect(document.querySelector(".top-mode-tabs")).not.toBeNull();
+    expect(document.querySelector(".bottom-mode-tabs")).not.toBeNull();
+  });
+
+  it("treats Screen as a separate workspace with only the compact mode selector", async () => {
+    mockConnection({
+      screenViewCapability: {
+        enabled: true,
+        permissionGranted: true,
+        canView: true,
+        requiresRepair: false,
+        encrypted: true,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        maxFramesPerSecond: 30
+      }
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    const menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog");
+    fireEvent.click(within(menu!).getByRole("button", { name: "View PC screen" }));
+
+    expect(await screen.findByText("Live mirror")).toBeTruthy();
+    expect(document.querySelector(".app-shell")?.classList).toContain("screen-view-active");
+    expect(document.querySelector(".top-mode-tabs")).toBeNull();
+    expect(document.querySelector(".bottom-mode-tabs")).toBeNull();
+    expect(screen.getByRole("button", { name: "Change mode" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Change mode" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Keyboard" }));
+    expect(screen.queryByText("Live mirror")).toBeNull();
+    expect(document.querySelector(".app-shell")?.classList).not.toContain("screen-view-active");
     expect(document.querySelector(".bottom-mode-tabs")).not.toBeNull();
   });
 

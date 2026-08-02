@@ -21,6 +21,7 @@ internal sealed class WebSocketSessionHandler(
     ClipboardCommandHandler clipboardCommands,
     InputCommandHandler inputCommands,
     CustomScreenCommandHandler customScreenCommands,
+    ScreenViewCommandHandler screenViewCommands,
     IAppLogWriter appLog,
     Action<ControllerSocketClosedEventArgs> reportSocketClosed)
 {
@@ -35,6 +36,7 @@ internal sealed class WebSocketSessionHandler(
         var authenticated = false;
         var authenticatedClientId = string.Empty;
         PendingReconnect? pendingReconnect = null;
+        PairingBootstrapPending? pendingPairing = null;
         IDisposable? activeConnection = null;
         var buffer = new byte[WebSocketTransport.MaxMessageBytes];
         using var receiveTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -75,12 +77,17 @@ internal sealed class WebSocketSessionHandler(
                 if (!authenticated)
                 {
                     var reconnectAttempt = pendingReconnect;
+                    var pairingAttempt = pendingPairing;
                     if (type == "pair.proof")
                     {
                         pendingReconnect = null;
                     }
+                    else if (type == "pair.bootstrap.proof")
+                    {
+                        pendingPairing = null;
+                    }
 
-                    var authentication = await TryAuthenticateAsync(socket, root, type, rateLimitKey, reconnectAttempt, cancellationToken);
+                    var authentication = await TryAuthenticateAsync(socket, root, type, rateLimitKey, reconnectAttempt, pairingAttempt, cancellationToken);
                     if (authentication is null)
                     {
                         continue;
@@ -92,6 +99,24 @@ internal sealed class WebSocketSessionHandler(
                         await WebSocketTransport.SendUnauthenticatedAsync(
                             socket,
                             new { type = "pair.challenge", clientId = nextReconnect.ClientId, challenge = nextReconnect.Challenge },
+                            cancellationToken);
+                        continue;
+                    }
+
+                    if (authentication.PendingPairing is { } nextPairing)
+                    {
+                        pendingPairing = nextPairing;
+                        await WebSocketTransport.SendUnauthenticatedAsync(
+                            socket,
+                            new
+                            {
+                                type = "pair.bootstrap.challenge",
+                                clientId = nextPairing.ClientId,
+                                clientNonce = nextPairing.ClientNonce,
+                                serverNonce = nextPairing.ServerNonce,
+                                hostIdentity = new { publicKey = nextPairing.HostPublicKey, fingerprint = nextPairing.HostFingerprint },
+                                proof = nextPairing.HostProof
+                            },
                             cancellationToken);
                         continue;
                     }
@@ -153,6 +178,7 @@ internal sealed class WebSocketSessionHandler(
         {
             if (!string.IsNullOrEmpty(authenticatedClientId))
             {
+                screenViewCommands.ClientDisconnected(authenticatedClientId);
                 transport.Unregister(authenticatedClientId, socket);
                 presentationCommands.DisableLaserForClient(authenticatedClientId);
             }
@@ -167,9 +193,10 @@ internal sealed class WebSocketSessionHandler(
         string? type,
         string rateLimitKey,
         PendingReconnect? pendingReconnect,
+        PairingBootstrapPending? pendingPairing,
         CancellationToken cancellationToken)
     {
-        if (type != "pair.hello" && type != "pair.proof")
+        if (type != "pair.hello" && type != "pair.proof" && type != "pair.bootstrap.proof")
         {
             await RejectPairingAsync(socket, "pair-first", cancellationToken);
             _pairingAttemptRateLimiter.RecordFailure(rateLimitKey);
@@ -203,7 +230,30 @@ internal sealed class WebSocketSessionHandler(
             }
 
             _pairingAttemptRateLimiter.Reset(rateLimitKey);
-            return new AuthenticatedClient(proof.ClientId, null);
+            return new AuthenticatedClient(proof.ClientId, null, null);
+        }
+
+        if (type == "pair.bootstrap.proof")
+        {
+            if (pendingPairing is null ||
+                !ClientMessageValidator.TryValidatePairBootstrapProof(root, out var proof) ||
+                !string.Equals(proof.ClientId, pendingPairing.ClientId, StringComparison.Ordinal))
+            {
+                _pairingAttemptRateLimiter.RecordFailure(rateLimitKey);
+                await RejectPairingAsync(socket, "invalid-message", cancellationToken);
+                return null;
+            }
+
+            var proofResult = pairingManager.CompletePairingBootstrap(pendingPairing, proof.Proof);
+            if (!proofResult.Accepted)
+            {
+                _pairingAttemptRateLimiter.RecordFailure(rateLimitKey);
+                await RejectPairingAsync(socket, proofResult.Reason, cancellationToken);
+                return null;
+            }
+
+            _pairingAttemptRateLimiter.Reset(rateLimitKey);
+            return new AuthenticatedClient(proof.ClientId, null, null);
         }
 
         if (!ClientMessageValidator.TryValidatePairHello(root, out var hello))
@@ -214,8 +264,15 @@ internal sealed class WebSocketSessionHandler(
         }
 
         var isRateLimited = _pairingAttemptRateLimiter.IsBlocked(rateLimitKey);
-        if (hello.PairToken is null)
+        if (hello.PairTokenId is null)
         {
+            if (hello.ClientNonce is not null || hello.ReconnectPublicKey is not null)
+            {
+                await RejectPairingAsync(socket, "invalid-message", cancellationToken);
+                _pairingAttemptRateLimiter.RecordFailure(rateLimitKey);
+                return null;
+            }
+
             var challenge = pairingManager.CreateReconnectChallenge(hello.ClientId);
             if (challenge is not null)
             {
@@ -227,7 +284,8 @@ internal sealed class WebSocketSessionHandler(
                         hello.DeviceName,
                         hello.Platform,
                         hello.Browser,
-                        hello.DisplayMode));
+                        hello.DisplayMode),
+                    null);
             }
 
             await RejectPairingAsync(socket, "device-revoked", cancellationToken);
@@ -235,19 +293,20 @@ internal sealed class WebSocketSessionHandler(
             return null;
         }
 
-        if (hello.ReconnectPublicKey is null)
+        if (hello.ReconnectPublicKey is null || hello.ClientNonce is null)
         {
             await RejectPairingAsync(socket, "invalid-message", cancellationToken);
             _pairingAttemptRateLimiter.RecordFailure(rateLimitKey);
             return null;
         }
 
-        var result = pairingManager.AcceptPairing(
+        var result = pairingManager.BeginPairingBootstrap(
             hello.ClientId,
             hello.DeviceName,
-            hello.PairToken,
+            hello.PairTokenId,
+            hello.ClientNonce,
+            hello.ReconnectPublicKey,
             now: null,
-            reconnectPublicKey: hello.ReconnectPublicKey,
             platform: hello.Platform,
             browser: hello.Browser,
             displayMode: hello.DisplayMode);
@@ -266,8 +325,7 @@ internal sealed class WebSocketSessionHandler(
             return null;
         }
 
-        _pairingAttemptRateLimiter.Reset(rateLimitKey);
-        return new AuthenticatedClient(hello.ClientId, null);
+        return new AuthenticatedClient(hello.ClientId, null, result.Pending);
     }
 
     private async Task<bool> DispatchAuthenticatedAsync(
@@ -328,6 +386,46 @@ internal sealed class WebSocketSessionHandler(
                     ProtocolMessageFields.GetString(root, "screenId"),
                     ProtocolMessageFields.GetString(root, "screenRevision"),
                     ProtocolMessageFields.GetString(root, "buttonId"),
+                    cancellationToken);
+                return true;
+            case "screen.view.sources.get":
+                await screenViewCommands.GetSourcesAsync(
+                    socket,
+                    clientId,
+                    ProtocolMessageFields.GetString(root, "operationId"),
+                    cancellationToken);
+                return true;
+            case "screen.view.start":
+                await screenViewCommands.StartAsync(
+                    socket,
+                    clientId,
+                    ProtocolMessageFields.GetString(root, "operationId"),
+                    ProtocolMessageFields.GetString(root, "displayId"),
+                    ProtocolMessageFields.GetString(root, "clientSignature"),
+                    cancellationToken);
+                return true;
+            case "screen.view.answer":
+                await screenViewCommands.AnswerAsync(
+                    socket,
+                    clientId,
+                    ProtocolMessageFields.GetString(root, "operationId"),
+                    ProtocolMessageFields.GetString(root, "answerSdp"),
+                    ProtocolMessageFields.GetString(root, "clientSignature"),
+                    cancellationToken);
+                return true;
+            case "screen.view.source.set":
+                await screenViewCommands.SetSourceAsync(
+                    socket,
+                    clientId,
+                    ProtocolMessageFields.GetString(root, "operationId"),
+                    ProtocolMessageFields.GetString(root, "displayId"),
+                    cancellationToken);
+                return true;
+            case "screen.view.stop":
+                await screenViewCommands.StopAsync(
+                    socket,
+                    clientId,
+                    ProtocolMessageFields.GetString(root, "operationId"),
                     cancellationToken);
                 return true;
             case "audio.get":
@@ -510,7 +608,10 @@ internal sealed class WebSocketSessionHandler(
         }
     }
 
-    private sealed record AuthenticatedClient(string ClientId, PendingReconnect? PendingReconnect);
+    private sealed record AuthenticatedClient(
+        string ClientId,
+        PendingReconnect? PendingReconnect,
+        PairingBootstrapPending? PendingPairing);
 
     private sealed record PendingReconnect(
         string ClientId,

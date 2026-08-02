@@ -44,5 +44,11 @@ A valid host is saved only after acceptance. A pairing link opens device-name
 confirmation and keeps its token semantics. **Forget** removes a saved profile.
 Missing input acknowledgements or health failure enters unavailable/retrying.
 
+The host identity is not a routing value and never appears in the pairing URL
+or saved-host address. A fresh short QR supplies one bootstrap token; the opened
+authenticated pairing exchange pins the PC public identity alongside the saved
+profile. A missing or mismatched pin requires a fresh scan of that PC rather
+than adding identity data to future QR codes.
+
 Changed selection, fallback, validation, persistence, and recovery use the
 [network/boundary validation route](setup.md#validation-by-change).

@@ -4,3 +4,19 @@
 @import url("./ui/overlays/info.css");
 @import url("./ui/feedback/feedback.css");
 @import url("./ui/guidance/guidance.css");
+
+.workspace-loading,
+.workspace-error {
+  min-height: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  padding: 24px;
+  color: var(--text);
+  text-align: center;
+}
+
+.workspace-error span {
+  color: var(--muted);
+}

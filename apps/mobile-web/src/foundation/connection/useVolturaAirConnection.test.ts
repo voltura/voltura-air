@@ -1,4 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
+import { hmac } from "@noble/hashes/hmac.js";
+import { sha256 } from "@noble/hashes/sha2.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPairingKeyMaterial } from "./pairingCredentials";
 import {
@@ -69,6 +71,12 @@ function dispatchSocketEvent(
   type: string,
   event: { code?: number; data?: string; reason?: string } = {},
 ) {
+  if (type === "message" && event.data) {
+    const frame = JSON.parse(event.data) as Record<string, unknown>;
+    if (frame.type === "pair.accepted" && frame.hostIdentity === undefined) {
+      event = { ...event, data: JSON.stringify({ ...frame, hostIdentity: testHostIdentity }) };
+    }
+  }
   act(() => {
     socket.dispatch(type, event);
   });
@@ -99,6 +107,41 @@ function createStorage(): Storage {
       items.set(key, String(value));
     },
   };
+}
+
+const testHostIdentity = {
+  publicKey: "BGsX0fLhLEJH-Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWT-NC4v4af5uO5-tKfA-eFivOM1drMV7Oy7ZAaDe_UfU",
+  fingerprint: "aYvqY9xEo0RmP_FCmuoQhA",
+};
+
+function pairedPc<T extends { id: string; url: string }>(profile: T) {
+  return {
+    ...profile,
+    hostIdentityFingerprint: testHostIdentity.fingerprint,
+    hostIdentityPublicKey: testHostIdentity.publicKey,
+  };
+}
+
+function base64Url(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function createTestHostProof(token: string, hello: { clientId: string; clientNonce: string; reconnectPublicKey: string }, serverNonce: string): string {
+  const encoder = new TextEncoder();
+  const transcript = [
+    "VolturaAir pairing host:v1",
+    base64Url(encoder.encode(hello.clientId)),
+    hello.clientNonce,
+    serverNonce,
+    hello.reconnectPublicKey,
+    testHostIdentity.publicKey,
+    testHostIdentity.fingerprint,
+  ].join("\n");
+  return base64Url(hmac(sha256, encoder.encode(token), encoder.encode(transcript)));
 }
 
 function storeReconnectKey(clientId: string, pcId: string): string {
@@ -176,7 +219,7 @@ describe("useVolturaAirConnection", () => {
 
   it("ignores malformed server messages without exceptions or partial state changes", async () => {
     const pcUrl = "http://pc.local:51395";
-    const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };
+    const pc = pairedPc({ customName: false, id: pcUrl, name: "PC", url: pcUrl });
     localStorage.setItem("voltura-air.clientId", "client-a");
     localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
     localStorage.setItem("voltura-air.activePcId", pc.id);
@@ -277,7 +320,7 @@ describe("useVolturaAirConnection", () => {
 
   it("does not replace a saved active PC from an invalid pairing URL host hint", async () => {
     const pcUrl = "http://pc.local:51395";
-    const pc = { customName: false, id: pcUrl, name: "Current PC", url: pcUrl };
+    const pc = pairedPc({ customName: false, id: pcUrl, name: "Current PC", url: pcUrl });
     localStorage.setItem("voltura-air.clientId", "client-a");
     localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
     localStorage.setItem("voltura-air.activePcId", pc.id);
@@ -302,7 +345,7 @@ describe("useVolturaAirConnection", () => {
 
   it("releases every WebSocket listener when the connection owner unmounts", async () => {
     const pcUrl = "http://pc.local:51395";
-    const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };
+    const pc = pairedPc({ customName: false, id: pcUrl, name: "PC", url: pcUrl });
     localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
     localStorage.setItem("voltura-air.activePcId", pc.id);
 
@@ -323,7 +366,7 @@ describe("useVolturaAirConnection", () => {
 
   it("keeps the active WebSocket when PC display metadata changes", async () => {
     const pcUrl = "http://pc.local:51395";
-    const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };
+    const pc = pairedPc({ customName: false, id: pcUrl, name: "PC", url: pcUrl });
     localStorage.setItem("voltura-air.clientId", "client-a");
     localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
     localStorage.setItem("voltura-air.activePcId", pc.id);
@@ -365,7 +408,7 @@ describe("useVolturaAirConnection", () => {
 
   it("clears a rejected reconnect key and returns to pairing instead of staying rejected", async () => {
     const pcUrl = "http://pc.local:51395";
-    const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };
+    const pc = pairedPc({ customName: false, id: pcUrl, name: "PC", url: pcUrl });
     localStorage.setItem("voltura-air.clientId", "client-a");
     localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
     localStorage.setItem("voltura-air.activePcId", pc.id);
@@ -402,7 +445,7 @@ describe("useVolturaAirConnection", () => {
 
   it("keeps an intentionally disconnected PC available for saved reconnect", async () => {
     const pcUrl = "http://pc.local:51395";
-    const pc = { customName: true, id: pcUrl, name: "Office PC", url: pcUrl };
+    const pc = pairedPc({ customName: true, id: pcUrl, name: "Office PC", url: pcUrl });
     localStorage.setItem("voltura-air.clientId", "client-a");
     localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
     localStorage.setItem("voltura-air.activePcId", pc.id);
@@ -425,7 +468,7 @@ describe("useVolturaAirConnection", () => {
 
   it("stores host pointer settings from metadata and sends device overrides", async () => {
     const pcUrl = "http://pc.local:51395";
-    const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };
+    const pc = pairedPc({ customName: false, id: pcUrl, name: "PC", url: pcUrl });
     localStorage.setItem("voltura-air.clientId", "client-a");
     localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
     localStorage.setItem("voltura-air.activePcId", pc.id);
@@ -476,7 +519,7 @@ describe("useVolturaAirConnection", () => {
 
   it("ignores state-changing messages from obsolete sockets", async () => {
     const pcUrl = "http://pc.local:51395";
-    const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };
+    const pc = pairedPc({ customName: false, id: pcUrl, name: "PC", url: pcUrl });
     localStorage.setItem("voltura-air.clientId", "client-a");
     localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
     localStorage.setItem("voltura-air.activePcId", pc.id);
@@ -511,7 +554,7 @@ describe("useVolturaAirConnection", () => {
 
   it("discards an unreachable manual address without changing the saved PC", async () => {
     const pcUrl = "http://pc.local:51395";
-    const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };
+    const pc = pairedPc({ customName: false, id: pcUrl, name: "PC", url: pcUrl });
     localStorage.setItem("voltura-air.clientId", "client-a");
     localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
     localStorage.setItem("voltura-air.activePcId", pc.id);
@@ -556,7 +599,7 @@ describe("useVolturaAirConnection", () => {
 
   it("stores a token pairing reconnect key only after the host accepts it", async () => {
     const pcUrl = "http://pc.local:51395";
-    const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };
+    const pc = pairedPc({ customName: false, id: pcUrl, name: "PC", url: pcUrl });
     const candidateUrl = "http://pc-two.local:51395";
     localStorage.setItem("voltura-air.clientId", "client-a");
     localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
@@ -586,6 +629,23 @@ describe("useVolturaAirConnection", () => {
 
     candidateSocket.readyState = MockWebSocket.OPEN;
     dispatchSocketEvent(candidateSocket, "open");
+    const hello = JSON.parse(candidateSocket.send.mock.calls.at(-1)?.[0] as string) as {
+      clientId: string;
+      clientNonce: string;
+      reconnectPublicKey: string;
+    };
+    const serverNonce = "B".repeat(43);
+    dispatchSocketEvent(candidateSocket, "message", {
+      data: JSON.stringify({
+        type: "pair.bootstrap.challenge",
+        clientId: hello.clientId,
+        clientNonce: hello.clientNonce,
+        serverNonce,
+        hostIdentity: testHostIdentity,
+        proof: createTestHostProof("pair-token", hello, serverNonce),
+      }),
+    });
+    expect(candidateSocket.send).toHaveBeenCalledWith(expect.stringContaining('"type":"pair.bootstrap.proof"'));
     dispatchSocketEvent(candidateSocket, "message", {
       data: JSON.stringify({
         type: "pair.accepted",
@@ -619,7 +679,7 @@ describe("useVolturaAirConnection", () => {
 
   it("marks the connection unavailable when an input action is attempted on a closed socket", async () => {
     const pcUrl = "http://pc.local:51395";
-    const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };
+    const pc = pairedPc({ customName: false, id: pcUrl, name: "PC", url: pcUrl });
     localStorage.setItem("voltura-air.clientId", "client-a");
     localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
     localStorage.setItem("voltura-air.activePcId", pc.id);
@@ -659,7 +719,7 @@ describe("useVolturaAirConnection", () => {
 
   it("surfaces current input errors without disconnecting the socket", async () => {
     const pcUrl = "http://pc.local:51395";
-    const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };
+    const pc = pairedPc({ customName: false, id: pcUrl, name: "PC", url: pcUrl });
     localStorage.setItem("voltura-air.clientId", "client-a");
     localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
     localStorage.setItem("voltura-air.activePcId", pc.id);
@@ -702,7 +762,7 @@ describe("useVolturaAirConnection", () => {
 
   it("prevents duplicate power requests and surfaces failures without disconnecting the socket", async () => {
     const pcUrl = "http://pc.local:51395";
-    const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };
+    const pc = pairedPc({ customName: false, id: pcUrl, name: "PC", url: pcUrl });
     localStorage.setItem("voltura-air.clientId", "client-a");
     localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
     localStorage.setItem("voltura-air.activePcId", pc.id);
@@ -778,7 +838,7 @@ describe("useVolturaAirConnection", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
       const pcUrl = "http://pc.local:51395";
-      const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };
+      const pc = pairedPc({ customName: false, id: pcUrl, name: "PC", url: pcUrl });
       localStorage.setItem("voltura-air.clientId", "client-a");
       localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
       localStorage.setItem("voltura-air.activePcId", pc.id);
@@ -834,7 +894,7 @@ describe("useVolturaAirConnection", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
       const pcUrl = "http://pc.local:51395";
-      const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };
+      const pc = pairedPc({ customName: false, id: pcUrl, name: "PC", url: pcUrl });
       localStorage.setItem("voltura-air.clientId", "client-a");
       localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
       localStorage.setItem("voltura-air.activePcId", pc.id);
@@ -878,7 +938,7 @@ describe("useVolturaAirConnection", () => {
 
   it("keeps stopped hosts on the stable unavailable screen after a socket close", async () => {
     const pcUrl = "http://pc.local:51395";
-    const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };
+    const pc = pairedPc({ customName: false, id: pcUrl, name: "PC", url: pcUrl });
     localStorage.setItem("voltura-air.clientId", "client-a");
     localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
     localStorage.setItem("voltura-air.activePcId", pc.id);
@@ -921,12 +981,12 @@ describe("useVolturaAirConnection", () => {
   });
 
   it("forgets only an inactive saved PC and ignores unknown or repeated requests", async () => {
-    const active = {
+    const active = pairedPc({
       customName: false,
       id: "http://pc-a.local:51395",
       name: "PC A",
       url: "http://pc-a.local:51395",
-    };
+    });
     const inactive = {
       customName: false,
       id: "http://pc-b.local:51395",
@@ -1085,7 +1145,7 @@ describe("useVolturaAirConnection", () => {
 
   it("ignores the old socket closing after a new QR pairing begins", async () => {
     const pcUrl = "http://pc.local:51395";
-    const pc = { customName: false, id: pcUrl, name: "PC", url: pcUrl };
+    const pc = pairedPc({ customName: false, id: pcUrl, name: "PC", url: pcUrl });
     localStorage.setItem("voltura-air.clientId", "client-a");
     localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
     localStorage.setItem("voltura-air.activePcId", pc.id);

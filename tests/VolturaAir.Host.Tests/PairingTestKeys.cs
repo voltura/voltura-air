@@ -25,6 +25,12 @@ public sealed class PairingTestKey : IDisposable
             HashAlgorithmName.SHA256,
             DSASignatureFormat.IeeeP1363FixedFieldConcatenation));
 
+    public string SignPayload(string payload) =>
+        Base64Url(_key.SignData(
+            Encoding.UTF8.GetBytes(payload),
+            HashAlgorithmName.SHA256,
+            DSASignatureFormat.IeeeP1363FixedFieldConcatenation));
+
     public void Dispose() => _key.Dispose();
 
     private static string Base64Url(byte[] bytes) =>

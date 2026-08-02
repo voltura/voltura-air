@@ -578,3 +578,20 @@ button span {
 .app-shell.mode-buttons-hidden .compact-mode-button {
   display: inline-flex;
 }
+
+.app-shell.screen-view-active {
+  grid-template-rows: auto minmax(0, 1fr);
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+}
+
+.app-shell.screen-view-active .compact-mode-button {
+  display: inline-flex;
+}
+
+@media (orientation: landscape) {
+  .app-shell.screen-view-active {
+    gap: 0.35rem;
+    padding-top: max(6px, env(safe-area-inset-top));
+    padding-bottom: 0;
+  }
+}

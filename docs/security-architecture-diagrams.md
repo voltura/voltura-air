@@ -9,6 +9,8 @@ subsystem boundaries; `docs/protocol.md` owns the wire contract.
 flowchart LR
   Client["PWA / browser client\nuntrusted UI and private-key storage"] -->|"HTTP app shell"| HostWeb["Windows host ASP.NET\nnormal mode: 0.0.0.0:selected port\ntest mode: 127.0.0.1"]
   Client -->|"WebSocket /ws\npair.hello then commands"| Session["WebSocketSessionHandler\nOrigin check, authentication,\nmessage validation"]
+  Client -->|"WebRTC H.264 + data channel\nDTLS-SRTP / DTLS"| ScreenStream["ScreenViewCoordinator\none viewer, bounded peer"]
+  ScreenStream --> Capture["DXGI GPU frames + cursor\nD3D11 NV12 + hardware H.264\none selected display"]
   Session --> Pairing["PairingManager\nshort-lived QR tokens\npaired-device records"]
   Pairing --> Store[("pairing.json\nreconnect public keys\npermission overrides")]
   Session --> Policy["HostStatusPayloadFactory\nhost + per-device permissions"]
@@ -34,14 +36,18 @@ sequenceDiagram
   participant Client as PWA client
   participant Store as Pairing store
 
-  Host->>QR: Create short-lived pairToken
+  Host->>QR: Create one short-lived pairToken
   QR->>Client: /pair?t=pairToken&v=version&h=host
-  Client->>Client: Generate P-256 key pair
-  Client->>Host: pair.hello(clientId, deviceName, pairToken, reconnectPublicKey)
-  Host->>Host: Validate and consume current/overlap token
-  Host->>Store: Store clientId + reconnect public key
-  Host->>Client: pair.accepted (no credential)
-  Note over Client: Keep private key in browser storage
+  Note over QR: No host identity or second identifier
+  Client->>Client: Generate reconnect key + nonce; hash token ID
+    Client->>Host: pair.hello(clientId, pairTokenId, clientNonce, reconnectPublicKey)
+    Host->>Client: pair.bootstrap.challenge(serverNonce, host public identity, host HMAC proof)
+  Client->>Client: Verify fingerprint + host proof using QR token
+    Client->>Host: pair.bootstrap.proof(client HMAC proof)
+  Host->>Host: Verify proof; consume current/overlap token
+  Host->>Store: Store reconnect public key + pinned host fingerprint
+  Host->>Client: pair.accepted(host public identity; no credential)
+  Note over Client: Keep reconnect private key and pinned host public identity
 
   Client->>Host: pair.hello(clientId, deviceName)
   Host->>Store: Load registered public key
@@ -52,6 +58,29 @@ sequenceDiagram
   Host->>Client: pair.accepted (no credential)
 
   Host-->>Client: Revocation closes active sockets
+```
+
+## Screen-stream authentication
+
+```mermaid
+sequenceDiagram
+  participant Client as Paired PWA
+  participant Control as Authenticated /ws
+  participant Peer as Direct LAN WebRTC
+  participant DXGI as Desktop Duplication
+
+  Client->>Control: signed screen.view.start(display)
+  Control->>Client: bounded offer SDP + pinned PC identity signature
+  Client->>Client: Verify exact offer hash and PC signature
+  Client->>Control: bounded answer SDP + reconnect-key signature
+  Control->>Peer: Apply authenticated answer
+  Peer->>Peer: Complete direct ICE and DTLS
+  Peer->>DXGI: Begin selected-display duplication
+  DXGI-->>Peer: GPU frame + cursor metadata
+  Peer-->>Client: DTLS-SRTP H.264 video
+  Peer-->>Client: DTLS cursor/status data channel
+  Client-->>Peer: RTCP NACK, PLI, and bitrate feedback
+  Control-->>Peer: permission/revocation/Stop closes and releases capture
 ```
 
 ## Authorization decision path

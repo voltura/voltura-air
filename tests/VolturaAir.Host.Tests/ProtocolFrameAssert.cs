@@ -6,6 +6,7 @@ internal static class ProtocolFrameAssert
     {
         ["pair.accepted"] = ["clientId", "pcName", "paired"],
         ["pair.challenge"] = ["clientId", "challenge"],
+        ["pair.bootstrap.challenge"] = ["clientId", "clientNonce", "serverNonce", "hostIdentity", "proof"],
         ["pair.rejected"] = ["reason"],
         ["status"] = ["connected"],
         ["health.pong"] = [],
@@ -24,6 +25,11 @@ internal static class ProtocolFrameAssert
         ["clipboard.get.result"] = ["operationId", "succeeded", "message"],
         ["custom.screen.get.result"] = ["operationId", "succeeded"],
         ["custom.screen.invoke.result"] = ["operationId", "screenId", "buttonId", "succeeded", "code", "message"],
+        ["screen.view.sources.result"] = ["operationId", "succeeded", "message", "sources"],
+        ["screen.view.start.result"] = ["operationId", "displayId", "succeeded", "message"],
+        ["screen.view.answer.result"] = ["operationId", "succeeded", "message"],
+        ["screen.view.source.result"] = ["operationId", "displayId", "succeeded", "message"],
+        ["screen.view.stop.result"] = ["operationId", "succeeded", "message"],
         ["audio.state"] = ["volume", "muted"]
     };
 

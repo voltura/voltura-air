@@ -13,6 +13,7 @@ The mobile browser stores in local site storage:
 - a random client identifier and the device name chosen by the user;
 - saved PC addresses and names;
 - private reconnect keys for paired PCs;
+- each paired PC's public identity key and fingerprint;
 - app, keyboard, remote, and trackpad settings; and
 - text snippets the user explicitly saves.
 
@@ -22,6 +23,8 @@ directory:
 - host settings and permissions;
 - paired-device identifiers and names;
 - the public reconnect key registered by each paired browser;
+- a persistent P-256 PC identity private key in the current user's Windows key
+  store and its public fingerprint in paired-device records;
 - device platform, browser, and display-mode descriptions;
 - pairing and connection timestamps;
 - per-device permission and pointer settings;
@@ -45,6 +48,13 @@ browser to the Windows host over the local network. Text, pointer coordinates,
 opened web addresses, pairing tokens, private reconnect keys, and reconnect
 proofs are not included in Voltura Air application logs.
 
+When the optional Screen tool is enabled and permitted, selected-display video
+travels on a direct WebRTC DTLS-SRTP media track and cursor/status updates use a
+DTLS-protected WebRTC data channel. Screen pixels, display contents, negotiated
+session keys, SDP, cursor coordinates, and encoded video are neither logged nor
+persisted. Captured GPU frames and encoded access units exist only in bounded
+memory until sent or replaced by newer work.
+
 Assigned Custom screens sent to mobile contain visual definitions, opaque
 screen/button IDs, and resolved availability only. Literal text, keyboard
 shortcut payloads, executable details, and host action mappings remain on the
@@ -56,9 +66,12 @@ Application-log entries for editor operations contain only the operation,
 outcome, and a bounded failure code.
 
 Because Voltura Air is a local HTTP/WebSocket app, local-network observers or
-interfering devices on an untrusted network may be able to observe connection
-metadata or disrupt remote-control traffic. Use Voltura Air only on networks
-you trust and remove paired devices that should no longer control the PC.
+interfering devices on an untrusted network may be able to observe HTTP and
+connection metadata or observe/disrupt existing command traffic. Screen media
+is encrypted in transit by WebRTC, but that does not hide connection timing,
+addresses, or HTTP metadata and does not change the trusted-LAN model for the
+rest of the product. Use Voltura Air only on networks you trust and remove
+paired devices that should no longer control or view the PC.
 
 Typed or dictated text is delivered to Windows only when the user requests it.
 Text may become part of the Windows clipboard or the selected destination
@@ -84,8 +97,9 @@ is governed by the privacy practices of that destination.
 Application logging on the Windows host is off by default. When enabled, logs
 contain timestamps, event and action types, outcomes, error details, and random
 client identifiers. They do not contain typed text, clipboard contents, opened
-web addresses, pointer coordinates, pairing tokens, private reconnect keys, or
-reconnect proofs.
+web addresses, pointer coordinates, pairing tokens or IDs, private reconnect or
+PC-identity keys, pairing/reconnect proofs, screen pixels, cursor coordinates,
+screen SDP, encoded video, or negotiated screen-session keys.
 Log retention is configurable from 1 to 30 days and defaults to 2 days. Logs are
 stored locally and can be viewed or deleted from Voltura Air Diagnostics.
 

@@ -313,6 +313,7 @@ internal enum DevicePermissionKind
     ScreenSaver,
     AwakeControl,
     ClipboardRead,
+    ScreenViewing,
     SignOut,
     Restart,
     Shutdown

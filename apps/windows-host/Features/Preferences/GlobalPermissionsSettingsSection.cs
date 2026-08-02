@@ -40,6 +40,7 @@ internal sealed class GlobalPermissionsSettingsSection(
             (Control: visuals.CreateCheckBox("Allow paired devices to start the screen saver", permissions.AllowScreenSaver), Key: "screen-saver"),
             (Control: visuals.CreateCheckBox("Allow paired devices to control Keep awake", permissions.AllowAwakeControl), Key: "awake"),
             (Control: visuals.CreateCheckBox("Allow paired devices to read the PC clipboard", permissions.AllowClipboardRead), Key: "clipboard"),
+            (Control: visuals.CreateCheckBox("Allow paired devices to view the PC screen", permissions.AllowScreenViewing), Key: "screen-view"),
             (Control: visuals.CreateCheckBox("Allow paired devices to sign out", permissions.AllowSignOut), Key: "sign-out"),
             (Control: visuals.CreateCheckBox("Allow paired devices to restart the PC", permissions.AllowRestart), Key: "restart"),
             (Control: visuals.CreateCheckBox("Allow paired devices to shut down the PC", permissions.AllowShutdown), Key: "shutdown")
@@ -89,6 +90,7 @@ internal sealed class GlobalPermissionsSettingsSection(
             AllowScreenSaver: IsAllowed("screen-saver"),
             AllowAwakeControl: IsAllowed("awake"),
             AllowClipboardRead: IsAllowed("clipboard"),
+            AllowScreenViewing: IsAllowed("screen-view"),
             AllowSignOut: IsAllowed("sign-out"),
             AllowRestart: IsAllowed("restart"),
             AllowShutdown: IsAllowed("shutdown")));

@@ -35,7 +35,10 @@ performs startup, rollback, and shutdown.
 | Host composition, rollback, shutdown | `Program` and `WpfHostRuntime` |
 | ASP.NET/static PWA and session capacity | `WebHostService` |
 | Pairing/authenticated session state | `PairingManager`, token authority, registry, store, and session handler |
+| Persistent PC identity and fresh-pair bootstrap proofs | `ScreenViewHostIdentity`, `PairingBootstrapCrypto`, and `PairingManager` |
 | Framing, socket registration, serialized sends | `WebSocketTransport` |
+| Screen-view tickets, single-viewer arbitration, encrypted records, and capture lifecycle | `ScreenViewCoordinator`, `ScreenViewCrypto`, and `DxgiScreenViewCaptureSource` |
+| Lazy mobile screen renderer and fallback crypto | `features/screen-view/` dynamic import |
 | Coalesced capability/status delivery | `HostStatusBroadcaster` and payload factory |
 | Validated input and focused Windows actions | Command handlers and platform adapters |
 | Custom-screen definitions, editing, assignment, and invocation | `CustomScreenStore`, `CustomScreenService`, `Features/CustomScreens`, and `CustomScreenCommandHandler` |
@@ -58,6 +61,7 @@ rollback and shutdown release composition-owned resources in reverse order.
 | Resource family | Required ownership |
 | --- | --- |
 | Sockets and status | Registered sends are serialized and timed; status uses one capacity-one coalescing worker; shutdown closes and awaits owned work. |
+| Screen capture and stream | The coordinator owns one expiring WebRTC offer or active viewer. The capture source owns one DXGI duplication session, D3D11 conversion resources, and hardware Media Foundation H.264 encoder. The peer owns its RTP track, DTLS data channel, ICE state, retransmission buffer, and native libdatachannel handles. Native resources are released on stop, switch, revocation, loss, or shutdown. |
 | Native input and Awake | Input is decoded once and dispatched in order. Native calls have bounded callers; late completion reconciles before more work. Awake uses `IAwakeService`, never power-plan changes or elevation. |
 | Logs and files | Producers use bounded non-blocking queues. Filesystem work stays off input/UI loops. Stores validate bounds and content, replace atomically, and preserve the last complete state. |
 | WPF and tray | Dispatcher work is owned and bounded. Timers, hooks, subscriptions, icons, windows, and refresh sessions are released on unload/shutdown. |
@@ -67,6 +71,23 @@ rollback and shutdown release composition-owned resources in reverse order.
 Optional features allocate no feature-specific worker, timer, subscription,
 native resource, or network activity while disabled. Hot input/render paths use
 cached settings and event-driven updates, not registry reads or polling.
+
+Screen viewing is navigation/capability wiring in the initial PWA bundle. Its
+workspace, WebRTC video renderer, event parser, host-identity verification, and
+diagnostics stay in the Screen dynamic chunk and load only when the tool opens.
+The JSON control socket owns discovery, signed offer/answer signaling,
+source-switch, and stop commands. Screen media uses a separate H.264 RTP track;
+cursor/status uses the `screen-events` data channel, so media backpressure cannot
+consume the command socket's serialized send queue.
+
+The capture owner uses Desktop Duplication GPU frames and cursor metadata. A
+D3D11 conversion stage supplies NV12 GPU surfaces to a capability-selected
+hardware Media Foundation H.264 transform. A bundled libdatachannel peer sends
+the Annex-B access units as H.264 RTP and owns DTLS-SRTP, direct LAN ICE,
+sender reports, NACK retransmission, keyframe requests, and receiver bitrate
+feedback. It uses no STUN or TURN service. Changing source/profile or ending
+capture disposes the encoder and duplication session; a new source begins with
+a keyframe.
 
 Custom screens cross the trust boundary as visual definitions and opaque IDs
 only. The host-owned store retains actions and assignments, the status

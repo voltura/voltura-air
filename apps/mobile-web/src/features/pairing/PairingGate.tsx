@@ -11,6 +11,7 @@ interface PairingGateProps {
   confirmPendingPairing: () => void;
   diagnostics: string;
   isSettingsOpen: boolean;
+  isPairingQrReading: boolean;
   manualReconnectProgress?: "reconnecting" | "connected" | undefined;
   message: string;
   pairingDeviceName: string;
@@ -31,6 +32,7 @@ export function PairingGate({
   confirmPendingPairing,
   diagnostics,
   isSettingsOpen,
+  isPairingQrReading,
   manualReconnectProgress,
   message,
   pairingDeviceName,
@@ -80,7 +82,9 @@ export function PairingGate({
           : canReconnectSavedPc
             ? () => { tryReconnectPc(selectedReconnectPc.id); }
             : scanPairingQr}
+        primaryActionPending={!pendingPairing && !canReconnectSavedPc && isPairingQrReading}
         onSecondaryAction={canReconnectSavedPc ? scanPairingQr : undefined}
+        secondaryActionDisabled={isPairingQrReading}
         onManualHostSubmit={connectManualHost}
         primaryLabel={pendingPairing ? "Pair" : canReconnectSavedPc ? "Try reconnect" : undefined}
         savedPcOptions={canReconnectSavedPc
@@ -102,6 +106,7 @@ export function PairingGate({
         onPrimaryAction={scanPairingQr}
         onManualHostSubmit={connectManualHost}
         primaryLabel="Take photo of new QR code"
+        primaryActionPending={isPairingQrReading}
       />
     );
   }
@@ -122,6 +127,7 @@ export function PairingGate({
       message={message}
       onPrimaryAction={tryManualReconnect}
       onSecondaryAction={scanPairingQr}
+      secondaryActionDisabled={isPairingQrReading}
       onManualHostSubmit={connectManualHost}
     />
   );

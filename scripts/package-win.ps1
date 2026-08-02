@@ -19,6 +19,30 @@ function Assert-LastExitCode {
     }
 }
 
+function Assert-ScreenWebRtcPayload {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PublishDirectory
+    )
+
+    $requiredRelativePaths = @(
+        "datachannel.dll",
+        "ThirdPartyNotices\libdatachannel\libdatachannel-LICENSE.txt",
+        "ThirdPartyNotices\libdatachannel\libjuice-LICENSE.txt",
+        "ThirdPartyNotices\libdatachannel\libsrtp-LICENSE.txt",
+        "ThirdPartyNotices\libdatachannel\nlohmann-json-LICENSE.txt",
+        "ThirdPartyNotices\libdatachannel\openssl-LICENSE.txt",
+        "ThirdPartyNotices\libdatachannel\plog-LICENSE.txt",
+        "ThirdPartyNotices\libdatachannel\usrsctp-LICENSE.txt"
+    )
+    foreach ($relativePath in $requiredRelativePaths) {
+        $requiredPath = Join-Path $PublishDirectory $relativePath
+        if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
+            throw "Expected Screen WebRTC release file was not found: $requiredPath"
+        }
+    }
+}
+
 if ($Runtime -cne "win-x64") {
     throw "Runtime '$Runtime' is not supported. Use win-x64."
 }
@@ -137,6 +161,7 @@ if (-not $FrameworkDependentOnly) {
     if (-not (Test-Path $publishedWatchdogExe)) {
         throw "Expected published cursor watchdog executable was not found: $publishedWatchdogExe"
     }
+    Assert-ScreenWebRtcPayload -PublishDirectory $publishDir
 }
 
 $frameworkDependentHostExe = Join-Path $frameworkDependentPublishDir "VolturaAir.Host.exe"
@@ -148,6 +173,7 @@ $frameworkDependentWatchdogExe = Join-Path $frameworkDependentPublishDir "Voltur
 if (-not (Test-Path $frameworkDependentWatchdogExe)) {
     throw "Expected framework-dependent cursor watchdog executable was not found: $frameworkDependentWatchdogExe"
 }
+Assert-ScreenWebRtcPayload -PublishDirectory $frameworkDependentPublishDir
 
 $makensis = Get-Command makensis -ErrorAction SilentlyContinue
 $makensisPath = $null

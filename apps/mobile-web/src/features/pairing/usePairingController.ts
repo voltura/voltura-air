@@ -37,6 +37,8 @@ export function usePairingController(options: PairingControllerOptions) {
   );
   const pairingQrInputRef = useRef<HTMLInputElement | null>(null);
   const scanGenerationRef = useRef(0);
+  const readingQrRef = useRef(false);
+  const [isPairingQrReading, setIsPairingQrReading] = useState(false);
 
   useEffect(() => () => { scanGenerationRef.current += 1; }, []);
 
@@ -68,7 +70,11 @@ export function usePairingController(options: PairingControllerOptions) {
     setPairingScanMessage("Connecting to manually entered PC...");
   };
 
-  const scanPairingQr = () => pairingQrInputRef.current?.click();
+  const scanPairingQr = () => {
+    if (!readingQrRef.current) {
+      pairingQrInputRef.current?.click();
+    }
+  };
 
   const onPairingQrSelected = async (event: ChangeEvent<HTMLInputElement>) => {
     const scanGeneration = scanGenerationRef.current + 1;
@@ -79,6 +85,8 @@ export function usePairingController(options: PairingControllerOptions) {
       return;
     }
 
+    readingQrRef.current = true;
+    setIsPairingQrReading(true);
     try {
       setPairingScanMessage("Reading QR code...");
 
@@ -120,6 +128,11 @@ export function usePairingController(options: PairingControllerOptions) {
       }
       console.error("Pairing QR scan failed", error, { name: file.name, type: file.type });
       setPairingScanMessage("Could not read the QR code. Try zooming in, retaking the picture, or scanning a new code.");
+    } finally {
+      if (scanGenerationRef.current === scanGeneration) {
+        readingQrRef.current = false;
+        setIsPairingQrReading(false);
+      }
     }
   };
 
@@ -127,6 +140,7 @@ export function usePairingController(options: PairingControllerOptions) {
     confirmPendingPairing,
     connectManualHost,
     onPairingQrSelected,
+    isPairingQrReading,
     pairingDeviceName,
     pairingDeviceNamePlaceholder,
     pairingQrInputRef,

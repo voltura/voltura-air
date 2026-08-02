@@ -20,6 +20,7 @@ async function createStatisticsFixture() {
     writeFixtureFile(root, "Directory.Build.props", "<Project />\n"),
     writeFixtureFile(root, "VolturaAir.slnx", "<Solution />\n"),
     writeFixtureFile(root, "package.json", JSON.stringify({ scripts: { "code:statistics": "node scripts/code-statistics.mjs" } })),
+    writeFixtureFile(root, "apps/mobile-web/vitest.config.ts", "export default { test: { globals: true, include: ['src/**/*.test.{ts,tsx}'] } };\n"),
     writeFixtureFile(root, "apps/mobile-web/src/App.tsx", "export function App() {\n  return null;\n}\n"),
     writeFixtureFile(root, "apps/mobile-web/src/App.test.tsx", "describe('App', () => {\n  it('works', () => {});\n  it.each([1])('works for %s', () => {});\n});\n"),
     writeFixtureFile(root, "apps/mobile-web/eslint-rules/architecture.test.mjs", "test('allows imports', () => {});\n"),
@@ -31,7 +32,7 @@ async function createStatisticsFixture() {
     writeFixtureFile(root, "scripts/run-chatgpt-codex-update-hidden.vbs", "WScript.Quit 0\n"),
     writeFixtureFile(root, "scripts/legacy/quality.yml", "name: quality\n"),
     writeFixtureFile(root, ".github/workflows/quality.yml", "name: quality\n"),
-    writeFixtureFile(root, "tests/scripts/publish-site.test.mjs", "test('publishes', () => {});\ntest('lists', () => {});\n"),
+    writeFixtureFile(root, "tests/scripts/publish-site.test.mjs", "import test from 'node:test';\ntest('publishes', () => {});\ntest('lists', () => {});\n"),
     writeFixtureFile(root, "installer/VolturaAir.nsi", "Name VolturaAir\n"),
     writeFixtureFile(root, "docs/site/index.php", "<?php echo 'Voltura Air';\n")
   ]);
@@ -43,13 +44,15 @@ test("code statistics covers production, test, automation, and script test cases
 
   const output = execFileSync(process.execPath, [scriptPath], { cwd: root, encoding: "utf8" });
 
-  assert.match(output, /Mobile client\s+\(apps\/mobile-web\)\r?\n  Total: 1 files, 3 lines/u);
+  assert.match(output, /Mobile client\s+\(apps\/mobile-web\)\r?\n  Total: 2 files, 4 lines/u);
   assert.match(output, /Mobile client tests\s+\(apps\/mobile-web\)\r?\n  Total: 2 files, 5 lines/u);
   assert.match(output, /Windows host tests\s+\(tests\/VolturaAir\.Host\.Tests\)\r?\n  Total: 2 files, 8 lines/u);
   assert.match(output, /Repository automation\s+\(scripts\)\r?\n  Total: 3 files, 3 lines/u);
   assert.match(output, /GitHub automation\s+\(\.github\)\r?\n  Total: 1 files, 1 lines/u);
-  assert.match(output, /Repository automation tests\s+\(tests\/scripts\)\r?\n  Total: 1 files, 2 lines/u);
+  assert.match(output, /Repository automation tests\s+\(tests\/scripts\)\r?\n  Total: 1 files, 3 lines/u);
   assert.match(output, /Installers\s+\(installer\)\r?\n  Total: 1 files, 1 lines/u);
+  assert.match(output, /Mobile client\s+1 files  2 cases/u);
+  assert.match(output, /Windows host\s+1 files  2 cases/u);
   assert.match(output, /Repository automation\s+1 files  2 cases/u);
 });
 
@@ -64,7 +67,7 @@ test("HTML statistics report uses the comprehensive statistics used by publish:s
   assert.match(html, /<h2>GitHub automation<\/h2>/u);
   assert.match(html, /<h2>Installers<\/h2>/u);
   assert.match(html, /<td>Repository automation<\/td><td>1<\/td><td>2<\/td>/u);
-  assert.match(html, /declared parameterized tests count once/u);
+  assert.match(html, /discovered test cases expand parameterized data/u);
   assert.match(html, /Source totals include production, test, installer, and repository automation code/u);
   assert.doesNotMatch(html, /undefined \d+\.\d+%/u);
 });

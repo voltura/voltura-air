@@ -1,6 +1,6 @@
 import { useEffect, useEffectEvent, useRef, type ReactNode } from "react";
 import { Maximize2, Minimize2, MousePointer2, Volume2, VolumeX } from "lucide-react";
-import type { TrackpadSettings } from "../../../foundation/input/gestures";
+import type { TrackpadSettings, TwoFingerMode } from "../../../foundation/input/gestures";
 import type { AudioStateMessage } from "../../../foundation/protocol/messages";
 
 type MouseButtonName = "left" | "right";
@@ -12,9 +12,11 @@ interface TrackpadModeProps {
   showRestoredMouseButtons?: boolean;
   supportsVolumeControl: boolean;
   trackpadSettings: TrackpadSettings;
+  twoFingerMode: TwoFingerMode;
   onSetVolume: (volume: number) => void;
   onToggleExpanded: () => void;
   onToggleMute: () => void;
+  onTwoFingerModeChange: (mode: TwoFingerMode) => void;
   onTouchCancel: (event: React.TouchEvent<HTMLDivElement>) => void;
   onTouchEnd: (event: React.TouchEvent<HTMLDivElement>) => void;
   onTouchMove: (event: React.TouchEvent<HTMLDivElement>) => void;
@@ -30,9 +32,11 @@ export function TrackpadMode({
   showRestoredMouseButtons = true,
   supportsVolumeControl,
   trackpadSettings,
+  twoFingerMode,
   onSetVolume,
   onToggleExpanded,
   onToggleMute,
+  onTwoFingerModeChange,
   onTouchCancel,
   onTouchEnd,
   onTouchMove,
@@ -172,6 +176,19 @@ export function TrackpadMode({
         >
           {isExpanded ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
         </button>
+        {trackpadSettings.zoomGestures && <button
+          className="trackpad-two-finger-mode"
+          type="button"
+          aria-label={`Two-finger mode: ${twoFingerMode === "scroll" ? "Scroll" : "Zoom"}. Switch to ${twoFingerMode === "scroll" ? "Zoom" : "Scroll"}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onTwoFingerModeChange(twoFingerMode === "scroll" ? "zoom" : "scroll");
+          }}
+          onTouchStart={stopTouchPropagation}
+          onTouchMove={stopTouchPropagation}
+          onTouchEnd={stopTouchPropagation}
+          onTouchCancel={stopTouchPropagation}
+        >{twoFingerMode === "scroll" ? "Scroll" : "Zoom"}</button>}
         <MousePointer2 aria-hidden="true" />
         {isExpanded && (
           <div className="trackpad-click-zones" aria-label="Mouse buttons">

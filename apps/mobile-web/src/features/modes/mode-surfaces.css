@@ -115,6 +115,29 @@
   height: 20px;
 }
 
+.trackpad-two-finger-mode {
+  position: absolute;
+  z-index: 7;
+  bottom: 10px;
+  left: 10px;
+  min-height: 36px;
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--surface-raised) 90%, transparent);
+  font-size: 0.78rem;
+  font-weight: 800;
+  touch-action: manipulation;
+}
+
+.trackpad-mode.expanded .trackpad-two-finger-mode {
+  bottom: calc(78px + env(safe-area-inset-bottom));
+  left: max(10px, env(safe-area-inset-left));
+}
+
+.trackpad-mode.expanded.large-click-buttons .trackpad-two-finger-mode {
+  bottom: calc(106px + env(safe-area-inset-bottom));
+}
+
 .trackpad-surface > svg {
   width: var(--trackpad-center-icon-size);
   height: var(--trackpad-center-icon-size);

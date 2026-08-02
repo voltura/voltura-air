@@ -1,6 +1,7 @@
 # Protocol
 
-JSON WebSocket contract at `/ws`. Product behavior belongs in
+JSON control WebSocket contract at `/ws`, including authenticated WebRTC screen
+signaling. Product behavior belongs in
 [features](features.md); routing in
 [network selection](network-and-host-selection.md); connection UX in
 [pairing feedback](pairing-feedback.md).
@@ -11,8 +12,9 @@ JSON WebSocket contract at `/ws`. Product behavior belongs in
   private LAN. Unrelated public origins are rejected before upgrade.
 - Maximum 64 sessions; `pair.hello` deadline 10 seconds; authenticated receive
   idle timeout 2 minutes.
-- Maximum text message 64 KiB across fragments. Oversize closes with 1009;
-  binary is rejected.
+- `/ws` accepts maximum 64 KiB text messages across fragments. Oversize closes
+  with 1009; binary is rejected. Screen media never enters this serialized
+  command queue; it uses a negotiated WebRTC media track and data channel.
 - Per-socket sends are serialized with a 5-second deadline; close has 1 second.
   Status updates are coalesced.
 - Required fields are present. Optional fields are omitted, not `null` or empty
@@ -26,8 +28,10 @@ Wire changes update the test server-frame catalog and follow
 
 ## Pairing link
 
-The host creates an absolute HTTP/HTTPS `/pair` URL with no credentials or
-fragment; `/` imports no pairing credential.
+The host creates an absolute HTTP/HTTPS `/pair` URL containing one short-lived
+bootstrap secret and no fragment. It does not include a host identity key,
+fingerprint, reconnect key, or second identifier; `/` imports no pairing
+credential.
 
 | Parameter | Contract |
 | --- | --- |
@@ -48,24 +52,61 @@ consumes both slots and creates a new visible token.
 
 ## Authentication
 
-Every session starts with `pair.hello`. Fresh pairing generates P-256 keys:
-mobile retains the private key; the host receives a Base64url uncompressed
-public key. `clientId` is non-secret. A client without the registered private
-key must pair again.
+Every control session starts with `pair.hello`. Fresh pairing generates a P-256
+reconnect key pair and a 32-byte client nonce. Mobile retains the reconnect
+private key and the QR token, sends only `SHA-256(token)` as `pairTokenId`, and
+never transmits the token itself over the socket. `clientId` is non-secret.
 
 ```json
 {
   "type": "pair.hello",
   "clientId": "browser-generated-id",
   "deviceName": "iPhone",
-  "pairToken": "short-lived-token",
+  "pairTokenId": "base64url-sha256-token-id",
+  "clientNonce": "base64url-32-byte-nonce",
   "reconnectPublicKey": "base64url-uncompressed-p256-public-key"
 }
 ```
 
-A valid token/public key consumes both token slots. For an existing `clientId`,
-it replaces the public key and revokes active sockets without adding another
-device record.
+The host resolves only its current/overlap token by ID, generates a server
+nonce, and returns its persistent P-256 public identity and an HMAC-SHA-256 host
+proof:
+
+```json
+{
+  "type": "pair.bootstrap.challenge",
+  "clientId": "browser-generated-id",
+  "clientNonce": "base64url-32-byte-nonce",
+  "serverNonce": "base64url-32-byte-nonce",
+  "hostIdentity": {
+    "publicKey": "base64url-uncompressed-p256-public-key",
+    "fingerprint": "base64url-sha256-public-key"
+  },
+  "proof": "base64url-hmac-sha256-host-proof"
+}
+```
+
+The host and client HMAC transcripts are newline-separated UTF-8 values:
+direction prefix (`VolturaAir pairing host:v1` or
+`VolturaAir pairing client:v1`), Base64url UTF-8 `clientId`, client nonce,
+server nonce, reconnect public key, host public key, and host fingerprint. The
+QR token's UTF-8 bytes are the HMAC key. Mobile verifies the public-key
+fingerprint and host proof before returning:
+
+```json
+{
+  "type": "pair.bootstrap.proof",
+  "clientId": "browser-generated-id",
+  "proof": "base64url-hmac-sha256-client-proof"
+}
+```
+
+Only a valid client proof consumes both token slots and stores the reconnect
+public key plus pinned host identity. For an existing `clientId`, fresh pairing
+replaces its keys and revokes active sockets without adding another record. A
+saved profile without a matching host identity pin is rejected and must pair
+again; the wire does not accept the earlier plaintext-token hello or a QR
+identity parameter.
 
 Reconnect omits token/key:
 
@@ -109,6 +150,10 @@ Success:
   "clientId": "browser-generated-id",
   "pcName": "WINDOWS-PC",
   "paired": true,
+  "hostIdentity": {
+    "publicKey": "base64url-uncompressed-p256-public-key",
+    "fingerprint": "base64url-sha256-public-key"
+  },
   "capabilities": {
     "remoteInput": true,
     "gestureDebug": false,
@@ -134,7 +179,17 @@ Success:
     "remoteLaunch": true,
     "urlOpen": { "canOpen": false },
     "textTransfer": true,
-    "clipboardRead": false
+    "clipboardRead": false,
+    "screenView": {
+      "enabled": false,
+      "permissionGranted": false,
+      "canView": false,
+      "requiresRepair": false,
+      "encrypted": true,
+      "maxWidth": 1920,
+      "maxHeight": 1080,
+      "maxFps": 30
+    }
   },
   "host": {
     "hostVersion": "1.2.3",
@@ -159,8 +214,9 @@ Success:
 }
 ```
 
-Fresh/reconnect acceptance has the same shape and never includes private keys,
-reconnect credentials, challenges, proofs, or tokens.
+Fresh/reconnect acceptance has the same shape and confirms the pinned public
+host identity. It never includes private keys, reconnect credentials,
+challenges, proofs, or tokens.
 
 ```json
 { "type": "status.get" }
@@ -186,6 +242,9 @@ Authenticated metadata is not authentication state:
   `inputBlockedByElevation`: higher-integrity foreground block.
 - `webClientBuildId`: served client bundle, independent of `hostVersion`.
 - Developer mode adds `developerMode: true` and `developerSessionId`.
+- `screenView` is always present for a supporting host so the tool remains
+  discoverable. `enabled`, `permissionGranted`, and `requiresRepair` explain
+  why `canView` is false.
 
 Adapter metadata may reveal local hardware and appears only in explicit redacted
 diagnostics.
@@ -229,6 +288,65 @@ from user action. Appearance changes set an override for the authenticated
 device; the host Devices page can restore inheritance from the global default.
 `health.pong` is liveness only; it contains no metadata/capability/audio state.
 Any valid client message resets the receive timeout.
+
+## Encrypted screen viewing
+
+Screen viewing is video-only, one display and one viewer at a time, and capped
+at 1920 x 1080 and 30 capture cycles per second. These bounded control messages
+use the authenticated `/ws` session:
+
+```json
+{ "type": "screen.view.sources.get", "operationId": "screen-sources-1" }
+{ "type": "screen.view.start", "operationId": "screen-start-1", "displayId": "display-1-1", "clientSignature": "base64url-p1363-signature" }
+{ "type": "screen.view.answer", "operationId": "screen-start-1", "answerSdp": "bounded WebRTC answer SDP", "clientSignature": "base64url-p1363-signature" }
+{ "type": "screen.view.source.set", "operationId": "screen-source-1", "displayId": "display-1-2" }
+{ "type": "screen.view.stop", "operationId": "screen-stop-1" }
+```
+
+Source, start, answer, source-switch, and stop results echo `operationId`; start
+also echoes `displayId`. The start request signs UTF-8
+`VolturaAir screen-view:start:v2:<clientId>:<operationId>:<displayId>` with the
+registered reconnect key. A successful start result supplies a bounded WebRTC
+offer SDP and a host-identity signature over UTF-8
+`VolturaAir screen-view:offer:v2:<clientId>:<operationId>:<displayId>:<offerHash>`,
+where `offerHash` is unpadded base64url SHA-256 of the exact UTF-8 offer SDP.
+The browser verifies that signature against its pinned PC identity before
+applying the offer or rendering pixels.
+
+An authorized source request succeeds with code `accepted` even when its
+`sources` array is empty, allowing the client to report that no connected
+display is available. Expected discovery failures such as unavailable Desktop
+Duplication return their bounded capture code and message as a failed screen
+result; they do not close the authenticated command socket. Start and source
+switch apply the same discovery boundary.
+
+The offer reserves the single viewer slot for at most 15 seconds. The browser
+creates a WebRTC answer and signs UTF-8
+`VolturaAir screen-view:answer:v2:<clientId>:<operationId>:<displayId>:<offerHash>:<answerHash>`
+with its reconnect key. `answerHash` is the same unpadded base64url SHA-256
+construction over the exact answer SDP. Invalid, mismatched, expired, or
+oversized signaling is rejected and releases the pending peer.
+
+WebRTC uses direct host ICE candidates only: there are no STUN or TURN servers.
+The selected display is sent as H.264 RTP on a send-only video track, with
+DTLS-SRTP providing media confidentiality, integrity, and replay protection.
+Cursor and terminal status records use the ordered reliable `screen-events`
+WebRTC data channel, protected by DTLS. Capture starts only after the peer,
+video track, and event channel are connected. The data channel record types are:
+
+- `4`: signed 64-bit sequence, visibility, signed cursor position, hotspot,
+  bounded dimensions, and an optional bounded PNG cursor shape; and
+- `5`: a bounded UTF-8 stopped/paused code and message for display, lock/session,
+  permission, or capture-device loss.
+
+Desktop Duplication supplies the selected GPU frame and cursor metadata. A
+hardware Media Foundation transform converts the frame to baseline H.264 at up
+to 1920 x 1080 and 30 frames per second. The RTP sender supports sender reports,
+NACK retransmission, receiver keyframe requests, and receiver bitrate estimates;
+buffered media and event data have fixed upper bounds. Source switching resets
+the duplication/encoder session and forces a keyframe. Permission revocation,
+disconnect, lock/session loss, display removal, stop, or host shutdown releases
+the peer, encoder, capture session, and native resources.
 
 ## Custom screens
 

@@ -41,6 +41,7 @@ internal sealed class HostStatusPayloadFactory(
             clientId,
             pcName = Environment.MachineName,
             paired = true,
+            hostIdentity = new { publicKey = pairingManager.HostIdentity.PublicKey, fingerprint = pairingManager.HostIdentity.Fingerprint },
             capabilities = CreateCapabilities(clientId, permissions),
             host = CreateHostStatus(clientId, permissions)
         };
@@ -68,6 +69,10 @@ internal sealed class HostStatusPayloadFactory(
     public bool CanLaunchRemoteApps(string clientId) => GetEffectivePermissions(clientId).AllowRemoteAppLaunch;
     public bool CanOpenUrls(string clientId) => GetEffectivePermissions(clientId).AllowUrlOpen;
     public bool CanReadClipboard(string clientId) => GetEffectivePermissions(clientId).AllowClipboardRead;
+    public bool CanViewScreen(string clientId) =>
+        AppDeveloperSettings.EnableScreenViewing() &&
+        pairingManager.HasCurrentHostIdentity(clientId) &&
+        GetEffectivePermissions(clientId).AllowScreenViewing;
     public bool CanControlAwake(string clientId) => GetEffectivePermissions(clientId).AllowAwakeControl;
     public HostPermissionSet GetEffectivePermissions(string clientId) =>
         pairingManager.GetEffectivePermissions(clientId, AppPermissionSettings.Load());
@@ -98,7 +103,18 @@ internal sealed class HostStatusPayloadFactory(
         textTransfer = permissions.AllowRemoteInput,
         clipboardRead = permissions.AllowClipboardRead,
         gestureDebug = AppDeveloperSettings.EnableGestureDebug(),
-        inputAck = true
+        inputAck = true,
+        screenView = new
+        {
+            enabled = AppDeveloperSettings.EnableScreenViewing(),
+            permissionGranted = permissions.AllowScreenViewing,
+            canView = AppDeveloperSettings.EnableScreenViewing() && permissions.AllowScreenViewing && pairingManager.HasCurrentHostIdentity(clientId),
+            requiresRepair = !pairingManager.HasCurrentHostIdentity(clientId),
+            encrypted = true,
+            maxWidth = 1920,
+            maxHeight = 1080,
+            maxFramesPerSecond = 30
+        }
     };
 
     private object CreatePowerPointCapability(string clientId)

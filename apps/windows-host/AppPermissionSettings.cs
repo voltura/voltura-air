@@ -17,6 +17,7 @@ public static class AppPermissionSettings
     private const string AllowScreenSaverValueName = "AllowScreenSaver";
     private const string AllowAwakeControlValueName = "AllowAwakeControl";
     private const string AllowClipboardReadValueName = "AllowClipboardRead";
+    private const string AllowScreenViewingValueName = "AllowScreenViewing";
     private const string AllowSignOutValueName = "AllowSignOut";
     private const string AllowRestartValueName = "AllowRestart";
     private const string AllowShutdownValueName = "AllowShutdown";
@@ -53,6 +54,7 @@ public static class AppPermissionSettings
         key.SetValue(AllowScreenSaverValueName, permissions.AllowScreenSaver ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowAwakeControlValueName, permissions.AllowAwakeControl ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowClipboardReadValueName, permissions.AllowClipboardRead ? 1 : 0, RegistryValueKind.DWord);
+        key.SetValue(AllowScreenViewingValueName, permissions.AllowScreenViewing ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowSignOutValueName, permissions.AllowSignOut ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowRestartValueName, permissions.AllowRestart ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowShutdownValueName, permissions.AllowShutdown ? 1 : 0, RegistryValueKind.DWord);
@@ -87,6 +89,7 @@ public static class AppPermissionSettings
                 AllowScreenSaver: GetBooleanValue(key, AllowScreenSaverValueName, HostPermissions.DefaultGlobal.AllowScreenSaver),
                 AllowAwakeControl: GetBooleanValue(key, AllowAwakeControlValueName, HostPermissions.DefaultGlobal.AllowAwakeControl),
                 AllowClipboardRead: GetBooleanValue(key, AllowClipboardReadValueName, HostPermissions.DefaultGlobal.AllowClipboardRead),
+                AllowScreenViewing: GetBooleanValue(key, AllowScreenViewingValueName, HostPermissions.DefaultGlobal.AllowScreenViewing),
                 AllowSignOut: GetBooleanValue(key, AllowSignOutValueName, HostPermissions.DefaultGlobal.AllowSignOut),
                 AllowRestart: GetBooleanValue(key, AllowRestartValueName, HostPermissions.DefaultGlobal.AllowRestart),
                 AllowShutdown: GetBooleanValue(key, AllowShutdownValueName, HostPermissions.DefaultGlobal.AllowShutdown));

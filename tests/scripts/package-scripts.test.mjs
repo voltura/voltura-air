@@ -84,8 +84,8 @@ test("quick development rebuilds the host-served client without validation", () 
   assert.match(devScript, /childEnv\.VOLTURA_AIR_USE_VITE_CLIENT = "0"/u);
   assert.doesNotMatch(devScript, /SKIP_CURSOR_WATCHDOG/u);
   assert.match(devScript, /delete childEnv\.VOLTURA_AIR_CLIENT_URL/u);
-  assert.match(devScript, /if \(quickStart\)[\s\S]*spawnCommand\("npm", \["run", "build:quick"/u);
-  assert.doesNotMatch(devScript, /if \(quickStart\)[\s\S]*runCommand\("npm", \["run", "build:quick"/u);
+  assert.match(devScript, /if \(quickStart\)[\s\S]*runCommand\("npm", \["run", "build:quick"/u);
+  assert.doesNotMatch(devScript, /if \(quickStart\)[\s\S]*spawnCommand\("npm", \["run", "build:quick"/u);
   assert.match(devScript, /persistentChildren\.push\(spawnCommand\("npm", \["run", "dev:host"\]/u);
   assert.match(devScript, /if \(!quickStart\)[\s\S]*vite\.js/u);
   assert.match(devHostScript, /if \(useViteClient\)[\s\S]*else \{\s*await waitForClientFiles\(\)/u);
@@ -147,6 +147,15 @@ test("release packaging stops immediately when a build command fails", () => {
   assert.match(packageWindowsScript, /npm run build --workspace apps\/mobile-web\s+Assert-LastExitCode "Mobile web build"/u);
   assert.match(packageWindowsScript, /-o \$publishDir\s+Assert-LastExitCode "Self-contained host publish"/u);
   assert.match(packageWindowsScript, /-o \$frameworkDependentPublishDir\s+Assert-LastExitCode "Framework-dependent host publish"/u);
+});
+
+test("release packaging requires the native Screen WebRTC runtime and dependency notices", () => {
+  assert.match(packageWindowsScript, /function Assert-ScreenWebRtcPayload/u);
+  assert.match(packageWindowsScript, /datachannel\.dll/u);
+  assert.match(packageWindowsScript, /libdatachannel-LICENSE\.txt/u);
+  assert.match(packageWindowsScript, /openssl-LICENSE\.txt/u);
+  assert.match(packageWindowsScript, /Assert-ScreenWebRtcPayload -PublishDirectory \$publishDir/u);
+  assert.match(packageWindowsScript, /Assert-ScreenWebRtcPayload -PublishDirectory \$frameworkDependentPublishDir/u);
 });
 
 test("release preparation synchronizes version-bearing files without editing the workflow", () => {

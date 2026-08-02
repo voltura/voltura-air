@@ -1,4 +1,4 @@
-import { StrictMode } from "react";
+import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { CustomScreenBrowserPreviewRoot } from "./app/CustomScreenBrowserPreviewRoot";
@@ -13,10 +13,14 @@ document.documentElement.dataset.displayMode = getDisplayMode();
 const previewScreenId = readCustomScreenPreviewId(window.location.href);
 const previewControlDepth =
   readCustomScreenPreviewControlDepth(window.location.href);
+const screenViewPreview = import.meta.env.DEV && new URL(window.location.href).searchParams.get("screenPreview") === "1";
+const ScreenViewBrowserPreviewRoot = lazy(() => import("./features/screen-view").then((module) => ({ default: module.ScreenViewBrowserPreviewRoot })));
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    {previewScreenId === null
+    {screenViewPreview
+      ? <Suspense fallback={null}><ScreenViewBrowserPreviewRoot /></Suspense>
+      : previewScreenId === null
       ? <App />
       : (
           <CustomScreenBrowserPreviewRoot
@@ -27,7 +31,7 @@ createRoot(document.getElementById("root")!).render(
   </StrictMode>
 );
 
-if (previewScreenId === null && "serviceWorker" in navigator) {
+if (!screenViewPreview && previewScreenId === null && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register(`/sw.js?build=${encodeURIComponent(__WEB_BUILD_ID__)}`).catch(() => {
       // The app still works without offline caching.

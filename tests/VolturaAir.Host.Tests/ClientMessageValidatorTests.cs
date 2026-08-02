@@ -18,6 +18,28 @@ public sealed class ClientMessageValidatorTests
     }
 
     [Theory]
+    [InlineData("""{ "type": "screen.view.start", "operationId": "screen-1", "displayId": "display-1", "clientSignature": "proof" }""", true)]
+    [InlineData("""{ "type": "screen.view.start", "operationId": "screen-1", "displayId": "display-1", "clientSignature": "proof", "streamFormats": "image-v1,fmp4-h264" }""", false)]
+    [InlineData("""{ "type": "screen.view.start", "operationId": "screen-1", "displayId": "display-1", "clientEphemeralPublicKey": "key", "clientSignature": "proof" }""", false)]
+    public void BoundsScreenViewOfferRequests(string json, bool expected)
+    {
+        using var document = JsonDocument.Parse(json);
+
+        Assert.Equal(expected, ClientMessageValidator.IsValidAuthenticatedMessage(document.RootElement, "screen.view.start"));
+    }
+
+    [Fact]
+    public void BoundsScreenViewAnswers()
+    {
+        using var valid = JsonDocument.Parse("""{ "type": "screen.view.answer", "operationId": "screen-1", "answerSdp": "v=0\\r\\n", "clientSignature": "proof" }""");
+        Assert.True(ClientMessageValidator.IsValidAuthenticatedMessage(valid.RootElement, "screen.view.answer"));
+
+        string oversized = new('a', ScreenViewProtocol.MaxSdpLength + 1);
+        using var invalid = JsonDocument.Parse(JsonSerializer.Serialize(new { type = "screen.view.answer", operationId = "screen-1", answerSdp = oversized, clientSignature = "proof" }));
+        Assert.False(ClientMessageValidator.IsValidAuthenticatedMessage(invalid.RootElement, "screen.view.answer"));
+    }
+
+    [Theory]
     [InlineData("""{ "type": "presentation.command", "operationId": "laser-1", "target": "powerpoint", "action": "pointer", "enabled": true }""", true)]
     [InlineData("""{ "type": "presentation.command", "operationId": "laser-1", "target": "pdf", "action": "pointer" }""", false)]
     [InlineData("""{ "type": "presentation.command", "operationId": "next-1", "target": "powerpoint", "action": "next", "enabled": false }""", false)]

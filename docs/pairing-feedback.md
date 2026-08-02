@@ -20,6 +20,14 @@ asks for device-name confirmation, then connects. Pairing, rejection,
 unavailable, and intentional-disconnect panels block inactive controls while
 keeping recovery actions usable.
 
+Photo decoding is one bounded attempt at a time. While the selected photo is
+being decoded, the primary action reads **Reading QR code...**, shows pending
+feedback, and is visibly and natively disabled; secondary photo/manual actions
+that could start a competing attempt are disabled too. Success, failure, or a
+newer attempt clears that state. The short QR contains only `t`, `v`, and the
+optional routing hint `h`; PC identity is authenticated after opening rather
+than increasing QR density.
+
 ## Failure map
 
 | Reason or condition | Meaning and recovery |
@@ -31,6 +39,7 @@ keeping recovery actions usable.
 | `invalid-token` | Code does not match; scan the current PC code. |
 | `device-revoked` | Pairing was removed; pair again with a fresh code. |
 | `invalid-proof` | Saved reconnect proof failed; pair again to replace it. |
+| `host-identity-missing` or identity mismatch | The saved PC has no valid pinned identity; scan that PC's fresh short QR and verify it again. |
 | `rate-limited` | Too many failures; wait, create a new code, and retry. |
 | `invalid-message` or `pair-first` | Refresh the mobile app from the PC and pair again. |
 | Unknown rejection | Show a `VAIR-PAIR-*` code and offer copied diagnostics. |
@@ -72,5 +81,5 @@ must keep input, validation, and actions reachable.
 
 Copied diagnostics may include state, failure reason, `VAIR-PAIR-*` code,
 credential-redacted page URL, browser user agent, display mode, and timestamp.
-They never include full pairing tokens, private reconnect keys, challenges, or
-proofs.
+They never include full pairing tokens, token IDs, private reconnect keys,
+host-identity private keys, challenges, or proofs.

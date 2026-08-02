@@ -22,6 +22,7 @@ public sealed class PairingLinkControllerTests
         Assert.Matches("^[A-Za-z0-9_-]{32}$", parameters["t"]);
         Assert.Equal(AppVersion.Display, parameters["v"]);
         Assert.Equal(2, parameters.Count);
+        Assert.DoesNotContain("k", parameters.Keys);
         Assert.DoesNotContain("h", parameters.Keys);
     }
 
@@ -77,6 +78,7 @@ public sealed class PairingLinkControllerTests
         Assert.InRange(controller.Url.Length, 1, 256);
         Assert.Equal("51395", parameters["h"]);
         Assert.Equal(3, parameters.Count);
+        Assert.DoesNotContain("k", parameters.Keys);
     }
 
     [Theory]

@@ -32,6 +32,17 @@ export const serverFrameCatalog = {
     }]
   },
   "pair.challenge": { required: ["clientId", "challenge"], frames: [{ type: "pair.challenge", clientId: "client-a", challenge: "challenge-a" }] },
+  "pair.bootstrap.challenge": {
+    required: ["clientId", "clientNonce", "serverNonce", "hostIdentity", "proof"],
+    frames: [{
+      type: "pair.bootstrap.challenge",
+      clientId: "client-a",
+      clientNonce: "A".repeat(43),
+      serverNonce: "B".repeat(43),
+      hostIdentity: { publicKey: "C".repeat(87), fingerprint: "D".repeat(22) },
+      proof: "E".repeat(43)
+    }]
+  },
   "pair.rejected": { required: ["reason"], frames: [{ type: "pair.rejected", reason: "invalid-token" }] },
   "status": {
     required: ["connected"],
@@ -250,6 +261,41 @@ export const serverFrameCatalog = {
         code: "permission-denied",
         message: "Blocked"
       }
+    ]
+  },
+  "screen.view.sources.result": {
+    required: ["operationId", "succeeded", "message", "sources"],
+    frames: [
+      { type: "screen.view.sources.result", operationId: "op-screen-sources", succeeded: true, message: "Displays are available.", sources: [{ id: "display-1", label: "Display 1", width: 1920, height: 1080, isPrimary: true }] },
+      { type: "screen.view.sources.result", operationId: "op-screen-sources-failed", succeeded: false, code: "permission-denied", message: "Screen viewing is disabled.", sources: [] }
+    ]
+  },
+  "screen.view.start.result": {
+    required: ["operationId", "displayId", "succeeded", "message"],
+    frames: [
+      { type: "screen.view.start.result", operationId: "op-screen-start", displayId: "display-1", succeeded: true, code: "accepted", message: "Ready.", offerSdp: "v=0\r\n", hostSignature: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" },
+      { type: "screen.view.start.result", operationId: "op-screen-start-busy", displayId: "display-1", succeeded: false, code: "busy", message: "Another device is viewing." }
+    ]
+  },
+  "screen.view.answer.result": {
+    required: ["operationId", "succeeded", "message"],
+    frames: [
+      { type: "screen.view.answer.result", operationId: "op-screen-start", succeeded: true, code: "accepted", message: "Opening." },
+      { type: "screen.view.answer.result", operationId: "op-screen-failed", succeeded: false, code: "invalid-answer", message: "Rejected." }
+    ]
+  },
+  "screen.view.source.result": {
+    required: ["operationId", "displayId", "succeeded", "message"],
+    frames: [
+      { type: "screen.view.source.result", operationId: "op-screen-source", displayId: "display-2", succeeded: true, code: "accepted", message: "The mirrored display was changed." },
+      { type: "screen.view.source.result", operationId: "op-screen-source-failed", displayId: "display-2", succeeded: false, code: "display-unavailable", message: "The selected display is unavailable." }
+    ]
+  },
+  "screen.view.stop.result": {
+    required: ["operationId", "succeeded", "message"],
+    frames: [
+      { type: "screen.view.stop.result", operationId: "op-screen-stop", succeeded: true, code: "stopped", message: "Screen viewing stopped." },
+      { type: "screen.view.stop.result", operationId: "op-screen-stop-failed", succeeded: false, code: "not-owner", message: "This device is not viewing." }
     ]
   },
   "audio.state": { required: ["volume", "muted"], frames: [{ type: "audio.state", volume: 72, muted: false }] }

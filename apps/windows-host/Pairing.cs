@@ -3,20 +3,35 @@ using System.Text;
 
 namespace VolturaAir.Host;
 
-public sealed class PairingManager(PairingStore store)
+public sealed class PairingManager
 {
+    private readonly ScreenViewHostIdentity _hostIdentity;
+    private readonly bool _ownsHostIdentity;
     internal static readonly TimeSpan TokenLifetime = PairingTokenAuthority.TokenLifetime;
     internal static readonly TimeSpan TokenRotationOverlap = PairingTokenAuthority.RotationOverlap;
 
     private readonly Lock _gate = new();
     private readonly PairingTokenAuthority _tokens = new();
-    private readonly PairedDeviceRegistry _devices = new(store);
+    private readonly PairedDeviceRegistry _devices;
+
+    public PairingManager(PairingStore store)
+        : this(store, ScreenViewHostIdentity.OpenCurrentUser(), ownsHostIdentity: true)
+    {
+    }
+
+    internal PairingManager(PairingStore store, ScreenViewHostIdentity hostIdentity, bool ownsHostIdentity = false)
+    {
+        _devices = new PairedDeviceRegistry(store);
+        _hostIdentity = hostIdentity;
+        _ownsHostIdentity = ownsHostIdentity;
+    }
 
     public event EventHandler? ConnectionChanged;
     public event EventHandler? PermissionsChanged;
     public event EventHandler? DeviceProfileChanged;
     public event EventHandler<PairingRevokedEventArgs>? PairingRevoked;
     internal event EventHandler? PairingCodeInvalidated;
+    internal ScreenViewHostIdentity HostIdentity => _hostIdentity;
 
     public bool IsPaired
     {
@@ -105,6 +120,86 @@ public sealed class PairingManager(PairingStore store)
         }
     }
 
+    internal PairingBootstrapStartResult BeginPairingBootstrap(
+        string clientId,
+        string deviceName,
+        string pairTokenId,
+        string clientNonce,
+        string reconnectPublicKey,
+        DateTimeOffset? now = null,
+        string? platform = null,
+        string? browser = null,
+        string? displayMode = null)
+    {
+        var acceptedAt = now ?? DateTimeOffset.UtcNow;
+        lock (_gate)
+        {
+            var rejectionReason = _tokens.ResolveById(pairTokenId, acceptedAt, out var token);
+            if (rejectionReason is not null || token is null)
+            {
+                return new PairingBootstrapStartResult(false, rejectionReason ?? "invalid-token");
+            }
+
+            if (!IsValidReconnectPublicKey(reconnectPublicKey) || !IsBase64Url(clientNonce) || clientNonce.Length != 43)
+            {
+                return new PairingBootstrapStartResult(false, "invalid-message");
+            }
+
+            var serverNonce = PairingBootstrapCrypto.CreateNonce();
+            var hostProof = PairingBootstrapCrypto.CreateHostProof(
+                token,
+                clientId,
+                clientNonce,
+                serverNonce,
+                reconnectPublicKey,
+                _hostIdentity.PublicKey,
+                _hostIdentity.Fingerprint);
+            var clientProof = PairingBootstrapCrypto.CreateClientProof(
+                token,
+                clientId,
+                clientNonce,
+                serverNonce,
+                reconnectPublicKey,
+                _hostIdentity.PublicKey,
+                _hostIdentity.Fingerprint);
+            return new PairingBootstrapStartResult(
+                true,
+                "challenge",
+                new PairingBootstrapPending(
+                    clientId,
+                    PairedDeviceRegistry.NormalizeDeviceName(deviceName),
+                    token,
+                    clientNonce,
+                    serverNonce,
+                    reconnectPublicKey,
+                    _hostIdentity.PublicKey,
+                    _hostIdentity.Fingerprint,
+                    hostProof,
+                    clientProof,
+                    PairedDeviceRegistry.NormalizeMetadata(platform),
+                    PairedDeviceRegistry.NormalizeMetadata(browser),
+                    PairedDeviceRegistry.NormalizeMetadata(displayMode)));
+        }
+    }
+
+    internal PairingResult CompletePairingBootstrap(PairingBootstrapPending pending, string clientProof, DateTimeOffset? now = null)
+    {
+        if (!PairingBootstrapCrypto.ProofsMatch(pending.ExpectedClientProof, clientProof))
+        {
+            return new PairingResult(false, "invalid-proof");
+        }
+
+        return AcceptPairing(
+            pending.ClientId,
+            pending.DeviceName,
+            pending.Token,
+            now,
+            pending.ReconnectPublicKey,
+            pending.Platform,
+            pending.Browser,
+            pending.DisplayMode);
+    }
+
     public PairingResult AcceptPairing(
         string clientId,
         string deviceName,
@@ -147,7 +242,8 @@ public sealed class PairingManager(PairingStore store)
                 acceptedAt,
                 Platform: normalizedPlatform,
                 Browser: normalizedBrowser,
-                DisplayMode: normalizedDisplayMode));
+                DisplayMode: normalizedDisplayMode,
+                HostIdentityFingerprint: _hostIdentity.Fingerprint));
             _tokens.Invalidate();
             pairingCodeInvalidated = true;
             connectionChanged = true;
@@ -315,6 +411,43 @@ public sealed class PairingManager(PairingStore store)
         lock (_gate)
         {
             return _devices.GetEffectivePermissions(clientId, globalPermissions);
+        }
+    }
+
+    internal bool HasCurrentHostIdentity(string clientId)
+    {
+        lock (_gate)
+        {
+            return string.Equals(
+                _devices.Find(clientId)?.HostIdentityFingerprint,
+                _hostIdentity.Fingerprint,
+                StringComparison.Ordinal);
+        }
+    }
+
+    internal bool VerifyClientSignature(string clientId, ReadOnlySpan<byte> payload, string signature)
+    {
+        lock (_gate)
+        {
+            var record = _devices.Find(clientId);
+            if (record is null || string.IsNullOrWhiteSpace(signature) || signature.Length > 512 || !IsBase64Url(signature))
+            {
+                return false;
+            }
+
+            try
+            {
+                using var ecdsa = CreateReconnectPublicKey(DecodeBase64Url(record.ReconnectPublicKey));
+                return ecdsa.VerifyData(
+                    payload,
+                    DecodeBase64Url(signature),
+                    HashAlgorithmName.SHA256,
+                    DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
+            }
+            catch (Exception ex) when (ex is CryptographicException or FormatException)
+            {
+                return false;
+            }
         }
     }
 
@@ -506,4 +639,13 @@ public sealed class PairingManager(PairingStore store)
             Interlocked.Exchange(ref _manager, null)?.ReleaseConnection(clientId);
         }
     }
+
+    internal void DisposeHostIdentity()
+    {
+        if (_ownsHostIdentity)
+        {
+            _hostIdentity.Dispose();
+        }
+    }
+
 }

@@ -17,6 +17,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
     private readonly Container _components = new();
     private readonly Dispatcher _dispatcher;
     private readonly PairingManager _pairingManager;
+    private readonly WebHostService _webHost;
     private readonly Action _requestShutdown;
     private readonly Forms.NotifyIcon _trayIcon;
     private readonly Forms.ContextMenuStrip _trayMenu = new();
@@ -26,6 +27,8 @@ internal sealed class WpfTrayApplicationContext : IDisposable
     private readonly OwnedDispatcherAction _connectionChangedAction;
     private readonly Action<string, string, Forms.ToolTipIcon>? _notificationSink;
     private bool _hadActiveController;
+    private Forms.ToolStripMenuItem? _screenViewingItem;
+    private string? _screenViewingDeviceName;
     private bool _disposed;
 
     public WpfTrayApplicationContext(
@@ -39,6 +42,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _mainWindow = mainWindow;
         _dispatcher = mainWindow.Dispatcher;
         _pairingManager = pairingManager;
+        _webHost = webHost;
         _requestShutdown = requestShutdown;
         _notificationSink = notificationSink;
         _hadActiveController = pairingManager.HasActiveController;
@@ -68,6 +72,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _trayIcon.DoubleClick += (_, _) => _mainWindow.ShowPage(HostPage.Connect);
         _mainWindow.HiddenToTray += OnMainWindowHiddenToTray;
         _pairingManager.ConnectionChanged += OnConnectionChanged;
+        _webHost.ScreenViewActivityChanged += OnScreenViewActivityChanged;
         TrayIconVisibilityPromoter.PromoteWhenReady(_components, _trayIcon);
 
         ApplyMenuTheme();
@@ -98,6 +103,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _disposed = true;
         AppThemeSettings.Changed -= OnAppThemeChanged;
         _pairingManager.ConnectionChanged -= OnConnectionChanged;
+        _webHost.ScreenViewActivityChanged -= OnScreenViewActivityChanged;
         _mainWindow.HiddenToTray -= OnMainWindowHiddenToTray;
         _connectionChangedAction.Dispose();
         _connectionFeedbackController.Dispose();
@@ -105,6 +111,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _trayIcon.Visible = false;
         _components.Dispose();
         _trayIcon.Dispose();
+        _screenViewingItem?.Dispose();
         _trayMenu.Dispose();
 
         foreach (var icon in _trayIcons.Values.Distinct())
@@ -115,6 +122,13 @@ internal sealed class WpfTrayApplicationContext : IDisposable
 
     private void BuildMenu()
     {
+        _screenViewingItem = new Forms.ToolStripMenuItem("Stop screen viewing")
+        {
+            Visible = false
+        };
+        _screenViewingItem.Click += (_, _) => RunProtected(_webHost.StopScreenViewing);
+        _trayMenu.Items.Add(_screenViewingItem);
+        _trayMenu.Items.Add(new Forms.ToolStripSeparator { Visible = false, Tag = "screen-view-separator" });
         var showItem = _trayMenu.Items.Add(
             "Show Voltura Air",
             null,
@@ -185,6 +199,39 @@ internal sealed class WpfTrayApplicationContext : IDisposable
 
     private void OnConnectionChanged(object? sender, EventArgs e) => _connectionChangedAction.Queue();
 
+    private void OnScreenViewActivityChanged(object? sender, ScreenViewActivityChangedEventArgs e)
+    {
+        _ = _dispatcher.BeginInvoke(() => ApplyScreenViewActivity(e));
+    }
+
+    private void ApplyScreenViewActivity(ScreenViewActivityChangedEventArgs activity)
+    {
+        if (_disposed || _screenViewingItem is null)
+        {
+            return;
+        }
+
+        _screenViewingDeviceName = activity.Active
+            ? _pairingManager.GetDeviceName(activity.ClientId) ?? "paired device"
+            : null;
+        _screenViewingItem.Text = activity.Active
+            ? $"Stop screen viewing - {_screenViewingDeviceName}"
+            : "Stop screen viewing";
+        _screenViewingItem.Visible = activity.Active;
+        if (_screenViewingItem.Owner?.Items.Count > 1 && _screenViewingItem.Owner.Items[1].Tag as string == "screen-view-separator")
+        {
+            _screenViewingItem.Owner.Items[1].Visible = activity.Active;
+        }
+        _trayIcon.Text = BuildTrayTooltip(_connectionFeedbackController.DisplayedState);
+        if (activity.Active)
+        {
+            ShowNotification(
+                "Screen viewing active",
+                $"{_screenViewingDeviceName} can see this display. Use the tray menu to stop immediately.",
+                Forms.ToolTipIcon.Info);
+        }
+    }
+
     private void HandleConnectionChanged()
     {
         if (_disposed)
@@ -226,6 +273,11 @@ internal sealed class WpfTrayApplicationContext : IDisposable
 
     private string BuildTrayTooltip(TrayConnectionState state)
     {
+        if (_screenViewingDeviceName is not null)
+        {
+            return TruncateTrayTooltip($"Voltura Air - screen viewed by {_screenViewingDeviceName}");
+        }
+
         var status = state switch
         {
             TrayConnectionState.Starting => "waiting for paired devices to reconnect",

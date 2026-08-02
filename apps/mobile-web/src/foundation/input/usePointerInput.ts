@@ -1,6 +1,6 @@
 import { useEffect, useRef, type TouchEvent } from "react";
 import type { ConnectionState } from "../connection/connectionTypes";
-import { GestureRecognizer, touchesFromList, type TrackpadSettings } from "./gestures";
+import { GestureRecognizer, touchesFromList, type TrackpadSettings, type TwoFingerMode } from "./gestures";
 import type { ClientMessage, KeyboardSpecialMessage } from "../protocol/messages";
 import { triggerHapticFeedback } from "./hapticFeedback";
 
@@ -8,9 +8,10 @@ interface PointerInputOptions {
   send: (payload: ClientMessage) => void;
   state: ConnectionState;
   trackpadSettings: TrackpadSettings;
+  twoFingerMode?: TwoFingerMode;
 }
 
-export function usePointerInput({ send, state, trackpadSettings }: PointerInputOptions) {
+export function usePointerInput({ send, state, trackpadSettings, twoFingerMode = "scroll" }: PointerInputOptions) {
   const recognizerRef = useRef(new GestureRecognizer());
   const pointerFrameRef = useRef<number | null>(null);
   const pendingPointerMoveRef = useRef<{ dx: number; dy: number } | null>(null);
@@ -100,7 +101,7 @@ export function usePointerInput({ send, state, trackpadSettings }: PointerInputO
 
   const onTouchMove = (event: TouchEvent<HTMLDivElement>) => {
     event.preventDefault();
-    recognizerRef.current.move(touchesFromList(event.targetTouches), event.timeStamp, trackpadSettings).forEach(emit);
+    recognizerRef.current.move(touchesFromList(event.targetTouches), event.timeStamp, trackpadSettings, twoFingerMode).forEach(emit);
   };
 
   const onTouchEnd = (event: TouchEvent<HTMLDivElement>) => {

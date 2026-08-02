@@ -257,7 +257,7 @@
               </tr>
               <tr>
                 <th scope="row">Screen viewing or mirroring</th>
-                <td class="comparison-voltura"><strong class="comparison-status">Not offered</strong>; Voltura Air is not remote desktop</td>
+                <td class="comparison-voltura"><strong class="comparison-status">Encrypted live mirror</strong>; one Windows display and one authorized viewer at a time, with adaptive desktop and video streaming</td>
                 <td>Screen Viewer is a <strong class="comparison-status">paid feature</strong></td>
                 <td><strong class="comparison-status">Not documented</strong> as a current core feature</td>
                 <td>Real-time PC screen sharing and remote viewing</td>

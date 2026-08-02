@@ -30,6 +30,9 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4078.44" />
     <PackageReference Include="QRCoder" Version="1.8.0" />
+    <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
+    <PackageReference Include="Vortice.D3DCompiler" Version="3.8.3" />
+    <PackageReference Include="Vortice.MediaFoundation" Version="3.8.3" />
   </ItemGroup>
 
   <ItemGroup>
@@ -49,6 +52,18 @@
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </Content>
     <Content Include="Assets\CustomPointerTemplates\*.cur">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </Content>
+    <Content Include="Native\win-x64\datachannel.dll">
+      <Link>datachannel.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </Content>
+    <Content Include="ThirdPartyNotices\libdatachannel\*.txt">
+      <Link>ThirdPartyNotices\libdatachannel\%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>

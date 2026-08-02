@@ -286,6 +286,7 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
             record.Platform,
             record.Browser,
             record.DisplayMode,
+            record.HostIdentityFingerprint,
             record.PermissionOverrides ?? new DevicePermissionOverrides(),
             record.PointerSpeedOverride,
             GetEffectivePointerSpeed(record),
@@ -331,6 +332,7 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
             Platform = string.IsNullOrWhiteSpace(record.Platform) ? existing.Platform : record.Platform,
             Browser = string.IsNullOrWhiteSpace(record.Browser) ? existing.Browser : record.Browser,
             DisplayMode = string.IsNullOrWhiteSpace(record.DisplayMode) ? existing.DisplayMode : record.DisplayMode,
+            HostIdentityFingerprint = record.HostIdentityFingerprint,
             PermissionOverrides = existing.PermissionOverrides,
             PointerSpeedOverride = existing.PointerSpeedOverride,
             ShowModeButtonsOverride = existing.ShowModeButtonsOverride,
@@ -391,6 +393,7 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
         AllowScreenSaver: permissionOverrides?.AllowScreenSaver,
         AllowAwakeControl: permissionOverrides?.AllowAwakeControl,
         AllowClipboardRead: permissionOverrides?.AllowClipboardRead,
+        AllowScreenViewing: permissionOverrides?.AllowScreenViewing,
         AllowSignOut: permissionOverrides?.AllowSignOut,
         AllowRestart: permissionOverrides?.AllowRestart,
         AllowShutdown: permissionOverrides?.AllowShutdown);

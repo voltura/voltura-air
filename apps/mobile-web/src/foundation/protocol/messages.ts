@@ -7,8 +7,15 @@ export interface PairHelloMessage {
   platform?: string;
   browser?: string;
   displayMode?: "browser" | "installed" | "unknown";
-  pairToken?: string | undefined;
+  pairTokenId?: string | undefined;
+  clientNonce?: string | undefined;
   reconnectPublicKey?: string | undefined;
+}
+
+export interface PairBootstrapProofMessage {
+  type: "pair.bootstrap.proof";
+  clientId: string;
+  proof: string;
 }
 
 export interface PairProofMessage {
@@ -72,6 +79,77 @@ export interface ServerCapabilities {
   textTransfer?: boolean;
   volume?: boolean;
   customScreens?: CustomScreensCapability | null;
+  screenView?: ScreenViewCapability | null;
+}
+
+export interface ScreenViewCapability {
+  enabled: boolean;
+  permissionGranted: boolean;
+  canView: boolean;
+  requiresRepair: boolean;
+  encrypted: true;
+  maxWidth: number;
+  maxHeight: number;
+  maxFramesPerSecond: number;
+}
+
+export interface ScreenViewSource {
+  id: string;
+  label: string;
+  width: number;
+  height: number;
+  isPrimary: boolean;
+}
+
+export interface ScreenViewSourcesGetMessage { type: "screen.view.sources.get"; operationId: string; }
+export interface ScreenViewStartMessage {
+  type: "screen.view.start";
+  operationId: string;
+  displayId: string;
+  clientSignature: string;
+}
+export interface ScreenViewAnswerMessage { type: "screen.view.answer"; operationId: string; answerSdp: string; clientSignature: string; }
+export interface ScreenViewStopMessage { type: "screen.view.stop"; operationId: string; }
+export interface ScreenViewSourceSetMessage { type: "screen.view.source.set"; operationId: string; displayId: string; }
+export interface ScreenViewSourcesResultMessage {
+  type: "screen.view.sources.result";
+  operationId: string;
+  succeeded: boolean;
+  code?: string;
+  message: string;
+  sources: ScreenViewSource[];
+}
+export interface ScreenViewStartResultMessage {
+  type: "screen.view.start.result";
+  operationId: string;
+  displayId: string;
+  succeeded: boolean;
+  code?: string;
+  message: string;
+  offerSdp?: string | null;
+  hostSignature?: string | null;
+}
+export interface ScreenViewAnswerResultMessage {
+  type: "screen.view.answer.result";
+  operationId: string;
+  succeeded: boolean;
+  code?: string;
+  message: string;
+}
+export interface ScreenViewStopResultMessage {
+  type: "screen.view.stop.result";
+  operationId: string;
+  succeeded: boolean;
+  code?: string;
+  message: string;
+}
+export interface ScreenViewSourceResultMessage {
+  type: "screen.view.source.result";
+  operationId: string;
+  displayId: string;
+  succeeded: boolean;
+  code?: string;
+  message: string;
 }
 
 export interface CustomScreenSummary {
@@ -290,12 +368,22 @@ export interface PairAcceptedMessage {
   paired: true;
   capabilities?: ServerCapabilities;
   host?: HostStatusMetadata;
+  hostIdentity?: { publicKey: string; fingerprint: string } | undefined;
 }
 
 export interface PairChallengeMessage {
   type: "pair.challenge";
   clientId: string;
   challenge: string;
+}
+
+export interface PairBootstrapChallengeMessage {
+  type: "pair.bootstrap.challenge";
+  clientId: string;
+  clientNonce: string;
+  serverNonce: string;
+  hostIdentity: { publicKey: string; fingerprint: string };
+  proof: string;
 }
 
 export type PairRejectionReason =
@@ -650,6 +738,7 @@ export interface AudioStateMessage {
 export type ClientMessage =
   | PairHelloMessage
   | PairProofMessage
+  | PairBootstrapProofMessage
   | PairDisconnectMessage
   | DeviceRenameMessage
   | HealthPingMessage
@@ -682,6 +771,11 @@ export type ClientMessage =
   | TextSendMessage
   | ClipboardGetMessage
   | AudioMuteToggleMessage
-  | AudioVolumeSetMessage;
+  | AudioVolumeSetMessage
+  | ScreenViewSourcesGetMessage
+  | ScreenViewStartMessage
+  | ScreenViewAnswerMessage
+  | ScreenViewSourceSetMessage
+  | ScreenViewStopMessage;
 
-export type ServerMessage = PairAcceptedMessage | PairChallengeMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | PresentationCommandResultMessage | PowerPointRefreshResultMessage | PowerPointLaunchResultMessage | PresentationSessionResultMessage | PresentationReportSaveResultMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | UrlOpenResultMessage | TextSendResultMessage | ClipboardGetResultMessage | AudioStateMessage | CustomScreenGetResultMessage | CustomScreenInvokeResultMessage;
+export type ServerMessage = PairAcceptedMessage | PairChallengeMessage | PairBootstrapChallengeMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | PresentationCommandResultMessage | PowerPointRefreshResultMessage | PowerPointLaunchResultMessage | PresentationSessionResultMessage | PresentationReportSaveResultMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | UrlOpenResultMessage | TextSendResultMessage | ClipboardGetResultMessage | AudioStateMessage | CustomScreenGetResultMessage | CustomScreenInvokeResultMessage | ScreenViewSourcesResultMessage | ScreenViewStartResultMessage | ScreenViewAnswerResultMessage | ScreenViewSourceResultMessage | ScreenViewStopResultMessage;

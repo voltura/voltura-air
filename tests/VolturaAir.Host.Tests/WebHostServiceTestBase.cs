@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
+using System.Text.Json.Nodes;
 using VolturaAir.Host;
 
 namespace VolturaAir.Host.Tests;
@@ -16,6 +17,47 @@ public abstract class WebHostServiceTestBase : IsolatedHostSettingsTest
     }
 
     protected static async Task<JsonElement> SendAndReceiveAsync(WebSocket socket, object payload)
+    {
+        var node = JsonSerializer.SerializeToNode(payload, JsonOptions.Default) as JsonObject;
+        if (node is not null &&
+            node["type"]?.GetValue<string>() == "pair.hello" &&
+            node["pairToken"] is JsonValue tokenNode && tokenNode.TryGetValue<string>(out var token) &&
+            node["clientId"] is JsonValue clientIdNode && clientIdNode.TryGetValue<string>(out var clientId) &&
+            node["reconnectPublicKey"] is JsonValue keyNode && keyNode.TryGetValue<string>(out var reconnectPublicKey))
+        {
+            // Test-only setup adapter. The socket receives only the current bootstrap protocol.
+            var clientNonce = PairingBootstrapCrypto.CreateNonce();
+            node.Remove("pairToken");
+            node.Remove("hostIdentityFingerprint");
+            node["pairTokenId"] = PairingTokenAuthority.CreateTokenId(token);
+            node["clientNonce"] = clientNonce;
+            var challenge = await SendAndReceiveRawAsync(socket, node);
+            if (challenge.GetProperty("type").GetString() != "pair.bootstrap.challenge")
+            {
+                return challenge;
+            }
+
+            var serverNonce = challenge.GetProperty("serverNonce").GetString()!;
+            var identity = challenge.GetProperty("hostIdentity");
+            return await SendAndReceiveRawAsync(socket, new
+            {
+                type = "pair.bootstrap.proof",
+                clientId,
+                proof = PairingBootstrapCrypto.CreateClientProof(
+                    token,
+                    clientId,
+                    clientNonce,
+                    serverNonce,
+                    reconnectPublicKey,
+                    identity.GetProperty("publicKey").GetString()!,
+                    identity.GetProperty("fingerprint").GetString()!)
+            });
+        }
+
+        return await SendAndReceiveRawAsync(socket, payload);
+    }
+
+    private static async Task<JsonElement> SendAndReceiveRawAsync(WebSocket socket, object payload)
     {
         await SendAsync(socket, payload);
         var response = await ReceiveTextAsync(socket);
@@ -131,7 +173,8 @@ public abstract class WebHostServiceTestBase : IsolatedHostSettingsTest
             ITextDestinationService? textDestinationService = null,
             IClipboardTextReader? clipboardTextReader = null,
             IPowerPointAutomationService? powerPointAutomation = null,
-            ISystemPowerController? powerController = null)
+            ISystemPowerController? powerController = null,
+            IScreenViewCaptureSource? screenViewCapture = null)
         {
             var store = new TempPairingStore();
             var inputInjector = new FakeInputInjector();
@@ -150,7 +193,8 @@ public abstract class WebHostServiceTestBase : IsolatedHostSettingsTest
                 clipboardTextReader: clipboardTextReader,
                 powerPointAutomation: powerPointAutomation,
                 isolatedTestMode: true,
-                configureWebHost: builder => builder.UseTestServer());
+                configureWebHost: builder => builder.UseTestServer(),
+                screenViewCapture: screenViewCapture);
             await webHost.StartAsync();
             return new WebHostFixture(store, inputInjector, manager, webHost);
         }

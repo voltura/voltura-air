@@ -34,6 +34,24 @@ internal sealed class PairingTokenAuthority
         return matchingToken.ExpiresAt <= acceptedAt ? "expired-token" : null;
     }
 
+    public string? ResolveById(string tokenId, DateTimeOffset acceptedAt, out string? token)
+    {
+        token = null;
+        var matchingToken = FindMatchingTokenById(tokenId);
+        if (matchingToken is null)
+        {
+            return _currentToken is null && _previousToken is null ? "stale-token" : "invalid-token";
+        }
+
+        if (matchingToken.ExpiresAt <= acceptedAt)
+        {
+            return "expired-token";
+        }
+
+        token = matchingToken.Value;
+        return null;
+    }
+
     public void Invalidate()
     {
         _currentToken = null;
@@ -48,6 +66,18 @@ internal sealed class PairingTokenAuthority
         }
 
         return _previousToken is not null && TokensMatch(_previousToken.Value, candidate)
+            ? _previousToken
+            : null;
+    }
+
+    private PairingToken? FindMatchingTokenById(string candidate)
+    {
+        if (_currentToken is not null && TokenIdsMatch(_currentToken.Value, candidate))
+        {
+            return _currentToken;
+        }
+
+        return _previousToken is not null && TokenIdsMatch(_previousToken.Value, candidate)
             ? _previousToken
             : null;
     }
@@ -68,6 +98,18 @@ internal sealed class PairingTokenAuthority
 
     private static bool TokensMatch(string expected, string candidate) =>
         CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(expected), Encoding.UTF8.GetBytes(candidate));
+
+    internal static string CreateTokenId(string token) => Base64Url(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
+
+    private static bool TokenIdsMatch(string token, string candidate) =>
+        CryptographicOperations.FixedTimeEquals(
+            Encoding.ASCII.GetBytes(CreateTokenId(token)),
+            Encoding.ASCII.GetBytes(candidate));
+
+    private static string Base64Url(byte[] bytes) => Convert.ToBase64String(bytes)
+        .TrimEnd('=')
+        .Replace('+', '-')
+        .Replace('/', '_');
 
     private sealed record PairingToken(string Value, DateTimeOffset ExpiresAt);
 }

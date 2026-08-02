@@ -396,6 +396,27 @@ describe("SettingsDrawer", () => {
     expect(screen.getByRole("checkbox", { name: "Start Kodi from Remote" })).toBeTruthy();
   });
 
+  it("keeps View PC screen discoverable when its PC developer toggle is off", () => {
+    const onOpenScreenView = vi.fn();
+    render(<SettingsDrawer
+      {...baseProps}
+      onOpenScreenView={onOpenScreenView}
+      screenViewCapability={{
+        enabled: false,
+        permissionGranted: true,
+        canView: false,
+        requiresRepair: false,
+        encrypted: true,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        maxFramesPerSecond: 30
+      }}
+    />);
+
+    fireEvent.click(screen.getByRole("button", { name: "View PC screen" }));
+    expect(onOpenScreenView).toHaveBeenCalledOnce();
+  });
+
   it("updates local remote launch action settings", () => {
     const updateRemoteSetting = vi.fn();
     render(<SettingsDrawer {...baseProps} supportsRemoteLaunch updateRemoteSetting={updateRemoteSetting} />);

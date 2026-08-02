@@ -37,6 +37,12 @@ export function parsePairingLink(source: string): PairingLink | null {
       return null;
     }
 
+    for (const key of url.searchParams.keys()) {
+      if (key !== "t" && key !== "v" && key !== "h") {
+        return null;
+      }
+    }
+
     const pcUrl = resolvePairingPcUrl(url);
     return pcUrl ? { pairToken: tokens[0]!, pcUrl } : null;
   } catch {

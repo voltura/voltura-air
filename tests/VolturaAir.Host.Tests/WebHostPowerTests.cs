@@ -418,15 +418,34 @@ public sealed class WebHostPowerTests : IsolatedHostSettingsTest
             return app.GetTestServer().CreateWebSocketClient().ConnectAsync(new Uri("ws://localhost/ws"), CancellationToken.None);
         }
 
-        public Task<JsonElement> PairAsync(WebSocket socket)
+        public async Task<JsonElement> PairAsync(WebSocket socket)
         {
-            return SendAndReceiveAsync(socket, new
+            string clientId = $"client-{Guid.NewGuid():N}";
+            string token = Manager.CreatePairingToken();
+            string clientNonce = PairingBootstrapCrypto.CreateNonce();
+            string reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing;
+            JsonElement challenge = await SendAndReceiveAsync(socket, new
             {
                 type = "pair.hello",
-                clientId = $"client-{Guid.NewGuid():N}",
+                clientId,
                 deviceName = "Phone",
-                pairToken = Manager.CreatePairingToken(),
-                reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing
+                pairTokenId = PairingTokenAuthority.CreateTokenId(token),
+                clientNonce,
+                reconnectPublicKey
+            });
+            JsonElement identity = challenge.GetProperty("hostIdentity");
+            return await SendAndReceiveAsync(socket, new
+            {
+                type = "pair.bootstrap.proof",
+                clientId,
+                proof = PairingBootstrapCrypto.CreateClientProof(
+                    token,
+                    clientId,
+                    clientNonce,
+                    challenge.GetProperty("serverNonce").GetString()!,
+                    reconnectPublicKey,
+                    identity.GetProperty("publicKey").GetString()!,
+                    identity.GetProperty("fingerprint").GetString()!)
             });
         }
 

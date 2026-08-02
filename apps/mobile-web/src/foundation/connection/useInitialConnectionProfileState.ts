@@ -19,7 +19,10 @@ export function useInitialConnectionProfileState() {
     [initialPairing]
   );
   const addressHasPcUrl = useMemo(() => hasPcUrlInAddress(window.location.href), []);
-  const addressPcProfile = useMemo(() => createPcProfile(initialPairing?.pcUrl ?? addressPcUrl), [addressPcUrl, initialPairing?.pcUrl]);
+  const addressPcProfile = useMemo(
+    () => createPcProfile(initialPairing?.pcUrl ?? addressPcUrl),
+    [addressPcUrl, initialPairing?.pcUrl]
+  );
   const storedPcProfiles = useMemo(() => loadPcProfiles(), []);
   const storedActivePcId = useMemo(() => loadActivePcId(), []);
   const effectiveStoredActivePcId = useMemo(

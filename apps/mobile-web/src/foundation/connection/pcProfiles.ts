@@ -9,9 +9,11 @@ export interface PcProfile {
   id: string;
   name: string;
   url: string;
+  hostIdentityFingerprint?: string | undefined;
+  hostIdentityPublicKey?: string | undefined;
 }
 
-export function createPcProfile(pcUrl: string): PcProfile {
+export function createPcProfile(pcUrl: string, hostIdentityFingerprint?: string): PcProfile {
   const origin = normalizePcUrl(pcUrl);
   if (!origin) {
     throw new TypeError("Invalid PC URL.");
@@ -21,7 +23,8 @@ export function createPcProfile(pcUrl: string): PcProfile {
     customName: false,
     id: origin,
     name: "PC",
-    url: origin
+    url: origin,
+    hostIdentityFingerprint
   };
 }
 
@@ -36,11 +39,18 @@ export function normalizePcProfile(value: unknown): PcProfile | null {
   }
 
   try {
-    const profile = createPcProfile(candidate.url);
+    const fingerprint = typeof candidate.hostIdentityFingerprint === "string" && /^[A-Za-z0-9_-]{22}$/.test(candidate.hostIdentityFingerprint)
+      ? candidate.hostIdentityFingerprint
+      : undefined;
+    const profile = createPcProfile(candidate.url, fingerprint);
+    const hostIdentityPublicKey = typeof candidate.hostIdentityPublicKey === "string" && /^[A-Za-z0-9_-]{87}$/.test(candidate.hostIdentityPublicKey)
+      ? candidate.hostIdentityPublicKey
+      : undefined;
     const customName = candidate.customName === true;
     const name = typeof candidate.name === "string" && candidate.name.trim().length > 0 ? candidate.name : profile.name;
     return {
       ...profile,
+      hostIdentityPublicKey,
       customName,
       name: customName || !isIpHost(name) ? name : profile.name
     };
@@ -74,6 +84,10 @@ export function loadActivePcId(storage: Storage = localStorage): string | null {
   }
 
   return normalizePcUrl(stored);
+}
+
+export function applyHostIdentityFromAcceptance(profiles: PcProfile[], pcId: string, publicKey: string, fingerprint: string): PcProfile[] {
+  return profiles.map((pc) => pc.id === pcId ? { ...pc, hostIdentityFingerprint: fingerprint, hostIdentityPublicKey: publicKey } : pc);
 }
 
 export function saveActivePcId(pcId: string | null, storage: Storage = localStorage): void {

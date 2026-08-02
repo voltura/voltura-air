@@ -6,7 +6,8 @@ namespace VolturaAir.Host;
 internal sealed record PairHelloRequest(
     string ClientId,
     string DeviceName,
-    string? PairToken,
+    string? PairTokenId,
+    string? ClientNonce,
     string? ReconnectPublicKey,
     string? Platform,
     string? Browser,
@@ -16,11 +17,19 @@ internal sealed record PairProofRequest(
     string ClientId,
     string Signature);
 
+internal sealed record PairBootstrapProofRequest(
+    string ClientId,
+    string Proof);
+
 internal static class ClientMessageValidator
 {
     private static readonly FrozenSet<string> PairHelloProperties = new[]
     {
-        "type", "clientId", "deviceName", "pairToken", "reconnectPublicKey", "platform", "browser", "displayMode"
+        "type", "clientId", "deviceName", "pairTokenId", "clientNonce", "reconnectPublicKey", "platform", "browser", "displayMode"
+    }.ToFrozenSet(StringComparer.Ordinal);
+    private static readonly FrozenSet<string> PairBootstrapProofProperties = new[]
+    {
+        "type", "clientId", "proof"
     }.ToFrozenSet(StringComparer.Ordinal);
     private static readonly FrozenSet<string> PairProofProperties = new[]
     {
@@ -45,6 +54,11 @@ internal static class ClientMessageValidator
                 "screenId",
                 "screenRevision",
                 "buttonId"),
+            ["screen.view.sources.get"] = Fields("type", "operationId"),
+            ["screen.view.start"] = Fields("type", "operationId", "displayId", "clientSignature"),
+            ["screen.view.answer"] = Fields("type", "operationId", "answerSdp", "clientSignature"),
+            ["screen.view.source.set"] = Fields("type", "operationId", "displayId"),
+            ["screen.view.stop"] = Fields("type", "operationId"),
             ["audio.get"] = Fields("type"),
             ["system.sleep"] = Fields("type"),
             ["system.power"] = Fields("type", "operationId", "action"),
@@ -119,7 +133,7 @@ internal static class ClientMessageValidator
 
     public static bool TryValidatePairHello(JsonElement root, out PairHelloRequest request)
     {
-        request = new PairHelloRequest(string.Empty, string.Empty, null, null, null, null, null);
+        request = new PairHelloRequest(string.Empty, string.Empty, null, null, null, null, null, null);
         if (!TryReadType(root, out var type) ||
             type != "pair.hello" ||
             !HasOnlyUniqueProperties(root, PairHelloProperties))
@@ -130,7 +144,8 @@ internal static class ClientMessageValidator
         if (!TryGetRequiredString(root, "clientId", MaxClientIdLength, allowEmpty: false, out var clientId) ||
             !TryGetRequiredString(root, "deviceName", MaxDeviceNameLength, allowEmpty: false, out var deviceName) ||
             string.IsNullOrWhiteSpace(deviceName) ||
-            !TryGetOptionalString(root, "pairToken", MaxCredentialLength, out var pairToken) ||
+            !TryGetOptionalString(root, "pairTokenId", MaxCredentialLength, out var pairTokenId) ||
+            !TryGetOptionalString(root, "clientNonce", MaxCredentialLength, out var clientNonce) ||
             !TryGetOptionalString(root, "reconnectPublicKey", MaxCredentialLength, out var reconnectPublicKey) ||
             !TryGetOptionalString(root, "platform", MaxMetadataLength, out var platform) ||
             !TryGetOptionalString(root, "browser", MaxMetadataLength, out var browser) ||
@@ -139,7 +154,23 @@ internal static class ClientMessageValidator
             return false;
         }
 
-        request = new PairHelloRequest(clientId, deviceName, pairToken, reconnectPublicKey, platform, browser, displayMode);
+        request = new PairHelloRequest(clientId, deviceName, pairTokenId, clientNonce, reconnectPublicKey, platform, browser, displayMode);
+        return true;
+    }
+
+    public static bool TryValidatePairBootstrapProof(JsonElement root, out PairBootstrapProofRequest request)
+    {
+        request = new PairBootstrapProofRequest(string.Empty, string.Empty);
+        if (!TryReadType(root, out var type) ||
+            type != "pair.bootstrap.proof" ||
+            !HasOnlyUniqueProperties(root, PairBootstrapProofProperties) ||
+            !TryGetRequiredString(root, "clientId", MaxClientIdLength, allowEmpty: false, out var clientId) ||
+            !TryGetRequiredString(root, "proof", MaxCredentialLength, allowEmpty: false, out var proof))
+        {
+            return false;
+        }
+
+        request = new PairBootstrapProofRequest(clientId, proof);
         return true;
     }
 
@@ -201,6 +232,26 @@ internal static class ClientMessageValidator
                 IsValidCustomScreenId(screenRevision) &&
                 TryGetRequiredString(root, "buttonId", CustomScreenLimits.MaxIdLength, allowEmpty: false, out var buttonId) &&
                 IsValidCustomScreenId(buttonId),
+            "screen.view.sources.get" =>
+                TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var screenSourcesOperationId) &&
+                IsValidOperationId(screenSourcesOperationId),
+            "screen.view.start" =>
+                TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var screenStartOperationId) &&
+                IsValidOperationId(screenStartOperationId) &&
+                TryGetRequiredString(root, "displayId", MaxMetadataLength, allowEmpty: false, out _) &&
+                TryGetRequiredString(root, "clientSignature", MaxCredentialLength, allowEmpty: false, out _),
+            "screen.view.answer" =>
+                TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var screenAnswerOperationId) &&
+                IsValidOperationId(screenAnswerOperationId) &&
+                TryGetRequiredString(root, "answerSdp", ScreenViewProtocol.MaxSdpLength, allowEmpty: false, out _) &&
+                TryGetRequiredString(root, "clientSignature", MaxCredentialLength, allowEmpty: false, out _),
+            "screen.view.source.set" =>
+                TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var screenSourceOperationId) &&
+                IsValidOperationId(screenSourceOperationId) &&
+                TryGetRequiredString(root, "displayId", MaxMetadataLength, allowEmpty: false, out _),
+            "screen.view.stop" =>
+                TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var screenStopOperationId) &&
+                IsValidOperationId(screenStopOperationId),
             "audio.get" => true,
             "system.sleep" => true,
             "system.power" => TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var powerOperationId) &&

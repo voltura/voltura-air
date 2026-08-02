@@ -13,6 +13,7 @@ public sealed record PairingRecord(
     string Platform = "",
     string Browser = "",
     string DisplayMode = "",
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? HostIdentityFingerprint = null,
     DevicePermissionOverrides? PermissionOverrides = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? PointerSpeedOverride = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? ShowModeButtonsOverride = null,
@@ -31,6 +32,7 @@ public sealed record PairedDeviceStatus(
     string Platform,
     string Browser,
     string DisplayMode,
+    string? HostIdentityFingerprint,
     DevicePermissionOverrides PermissionOverrides,
     int? PointerSpeedOverride,
     int PointerSpeed,
@@ -67,3 +69,23 @@ public sealed class PairingRevokedEventArgs(string? clientId) : EventArgs
 public sealed record PairingResult(bool Accepted, string Reason);
 
 internal sealed record PairingCode(string Value, DateTimeOffset ExpiresAt, DateTimeOffset RefreshAt);
+
+internal sealed record PairingBootstrapStartResult(
+    bool Accepted,
+    string Reason,
+    PairingBootstrapPending? Pending = null);
+
+internal sealed record PairingBootstrapPending(
+    string ClientId,
+    string DeviceName,
+    string Token,
+    string ClientNonce,
+    string ServerNonce,
+    string ReconnectPublicKey,
+    string HostPublicKey,
+    string HostFingerprint,
+    string HostProof,
+    string ExpectedClientProof,
+    string Platform,
+    string Browser,
+    string DisplayMode);

@@ -1,9 +1,10 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { readFile, readdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = process.cwd();
+const repositoryToolRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const arguments_ = process.argv.slice(2);
 const reportMode = arguments_.includes("--report") || process.env.npm_config_report === "true";
 const quietMode = arguments_.includes("--quiet");
@@ -92,21 +93,21 @@ const testReports = [
     directories: ["apps/mobile-web"],
     extensions: new Set([".js", ".jsx", ".mjs", ".ts", ".tsx"]),
     filePattern: /\.(?:test|spec)\.(?:js|jsx|mjs|ts|tsx)$/i,
-    testPattern: /\b(?:it|test)(?:\.(?:each|only|skip|todo))*\s*\(/g
+    countCases: countVitestCases
   },
   {
     title: "Windows host",
     directories: ["tests/VolturaAir.Host.Tests"],
     extensions: new Set([".cs"]),
     filePattern: /Tests?\.cs$/i,
-    testPattern: /\[(?:Fact|Theory)\]/g
+    countCases: countHostTestCases
   },
   {
     title: "Repository automation",
     directories: ["tests/scripts"],
     extensions: new Set([".mjs"]),
     filePattern: /\.test\.mjs$/i,
-    testPattern: /\btest(?:\.(?:each|only|skip|todo))*\s*\(/g
+    countCases: countJavaScriptTestCases
   }
 ];
 
@@ -187,16 +188,130 @@ async function createAssetsReport() {
   return { total: files.length, counts };
 }
 
+function countVitestCases() {
+  const vitestCli = path.join(repositoryToolRoot, "node_modules", "vitest", "vitest.mjs");
+  const result = spawnSync(process.execPath, [vitestCli, "list", "--root", path.join(root, "apps", "mobile-web"), "--json"], {
+    cwd: root,
+    encoding: "utf8",
+    maxBuffer: 32 * 1024 * 1024,
+    windowsHide: true
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(`Vitest discovery failed: ${(result.stderr || result.stdout).trim()}`);
+  }
+  const discovered = JSON.parse(result.stdout);
+  if (!Array.isArray(discovered)) throw new Error("Vitest discovery returned an invalid case list.");
+  return {
+    cases: discovered.length,
+    fileCount: new Set(discovered.map(({ file }) => file)).size
+  };
+}
+
+function countHostTestCases(files) {
+  return Promise.all(files.map(async (file) => {
+    const contents = await readFile(file, "utf8");
+    let cases = [...contents.matchAll(/\[Fact\]/g)].length;
+    for (const theory of contents.matchAll(/\[Theory\]([\s\S]*?)(?=\b(?:public|internal|private|protected)\s+(?:async\s+)?[\w<>,?.\[\]]+\s+\w+\s*\()/g)) {
+      const attributes = theory[1];
+      const inlineCases = [...attributes.matchAll(/\[InlineData\(/g)].length;
+      if (inlineCases > 0) {
+        cases += inlineCases;
+        continue;
+      }
+      const member = attributes.match(/\[MemberData\(nameof\((\w+)\)\)\]/);
+      cases += member ? countTheoryDataItems(contents, member[1]) : 1;
+    }
+    return cases;
+  })).then((counts) => counts.reduce((sum, count) => sum + count, 0));
+}
+
+function countTheoryDataItems(contents, memberName) {
+  const escapedName = memberName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const declaration = new RegExp(`\\b${escapedName}\\s*=>\\s*new\\s*\\([^)]*\\)\\s*\\{`, "g").exec(contents);
+  if (!declaration) return 1;
+  const openBrace = contents.indexOf("{", declaration.index);
+  const closeBrace = findMatchingBrace(contents, openBrace);
+  if (closeBrace < 0) return 1;
+  return countTopLevelItems(contents.slice(openBrace + 1, closeBrace));
+}
+
+function findMatchingBrace(contents, openBrace) {
+  let depth = 0;
+  for (let index = openBrace; index < contents.length; index++) {
+    if (contents[index] === "{") depth++;
+    if (contents[index] === "}" && --depth === 0) return index;
+  }
+  return -1;
+}
+
+function countTopLevelItems(contents) {
+  let depth = 0;
+  let count = 0;
+  let quote = null;
+  let escaped = false;
+  for (let index = 0; index < contents.length; index++) {
+    const character = contents[index];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === quote) quote = null;
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+      continue;
+    }
+    if (character === "{" || character === "(" || character === "[") depth++;
+    else if (character === "}" || character === ")" || character === "]") depth--;
+    else if (character === "," && depth === 0) count++;
+  }
+  return count + (contents.trim().replace(/,+\s*$/u, "").length > 0 && !contents.trim().endsWith(",") ? 1 : 0);
+}
+
+function stripJavaScriptCommentsAndLiterals(contents) {
+  return contents.replace(
+    /\/\*[\s\S]*?\*\/|\/\/[^\r\n]*|`(?:\\[\s\S]|[^`\\])*`|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g,
+    (match) => " ".repeat(match.length)
+  );
+}
+
+async function countJavaScriptTestCases(files) {
+  const selfTestFiles = files.filter((file) => path.basename(file) === "code-statistics.test.mjs");
+  const runnableFiles = files.filter((file) => !selfTestFiles.includes(file));
+  const countDeclaredCases = async (declaredFiles) => Promise.all(declaredFiles.map(async (file) => {
+    const contents = stripJavaScriptCommentsAndLiterals(await readFile(file, "utf8"));
+    return [...contents.matchAll(/\btest(?:\.(?:each|only|skip|todo))*\s*\(/g)].length;
+  })).then((counts) => counts.reduce((sum, count) => sum + count, 0));
+  const selfTestCount = await countDeclaredCases(selfTestFiles);
+  if (runnableFiles.length === 0) return selfTestCount;
+
+  const result = spawnSync(process.execPath, ["--test", "--test-reporter=tap", ...runnableFiles], {
+    cwd: root,
+    encoding: "utf8",
+    maxBuffer: 32 * 1024 * 1024,
+    windowsHide: true
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(`Repository test discovery failed: ${(result.stderr || result.stdout).trim()}`);
+  }
+  const summary = [...result.stdout.matchAll(/^# tests (\d+)\s*$/gm)].at(-1) ??
+    [...result.stdout.matchAll(/^1\.\.(\d+)\s*$/gm)].at(-1);
+  if (!summary) return countDeclaredCases(files);
+  return Number(summary[1]) + selfTestCount;
+}
+
 async function createTestsReport() {
-  return Promise.all(testReports.map(async ({ title, directories, extensions, filePattern, testPattern }) => {
+  return Promise.all(testReports.map(async ({ title, directories, extensions, filePattern, countCases }) => {
     const files = (await Promise.all(directories.map((directory) => collectFiles(path.join(root, directory), extensions))))
       .flat()
       .filter((file) => filePattern.test(path.basename(file)));
-    const cases = (await Promise.all(files.map(async (file) =>
-      [...(await readFile(file, "utf8")).matchAll(testPattern)].length)))
-      .reduce((total, count) => total + count, 0);
+    const countResult = await countCases(files);
+    const cases = typeof countResult === "number" ? countResult : countResult.cases;
+    const fileCount = typeof countResult === "number" ? files.length : countResult.fileCount;
 
-    return { title, files: files.length, cases };
+    return { title, files: fileCount, cases };
   }));
 }
 
@@ -304,7 +419,7 @@ function printAssetsReport({ total, counts }) {
 }
 
 function printTestsReport(tests) {
-  writeLine("Tests (declared cases; parameterized cases are counted once)");
+  writeLine("Tests (discovered cases; parameterized cases are expanded)");
   for (const { title, files, cases } of tests) {
     writeLine(`  ${title.padEnd(15)} ${formatNumber(files)} files  ${formatNumber(cases)} cases`);
   }
@@ -503,7 +618,7 @@ function createHtmlReport({ codeReports, grandTotal, assets, tests, scripts, npm
 </head>
 <body>
   <main>
-    <header><div><a class="back" href="./">&larr; Voltura Air home</a><h1>Code statistics</h1><p>Voltura Air repository overview</p></div><div class="meta">Source snapshot ${escapeHtml(generatedAt)}<br>Physical lines include blank lines; declared parameterized tests count once</div></header>
+    <header><div><a class="back" href="./">&larr; Voltura Air home</a><h1>Code statistics</h1><p>Voltura Air repository overview</p></div><div class="meta">Source snapshot ${escapeHtml(generatedAt)}<br>Physical lines include blank lines; discovered test cases expand parameterized data</div></header>
     <section class="summary" aria-label="Repository summary">
       <dl class="metric"><dt>Source files</dt><dd>${formatNumber(grandTotal.files)}<span>${formatNumber(grandTotal.lines)} total lines</span></dd></dl>
       <dl class="metric"><dt>Test cases</dt><dd>${formatNumber(totalTestCases)}<span>${formatNumber(tests.reduce((total, { files }) => total + files, 0))} test files</span></dd></dl>

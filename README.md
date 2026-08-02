@@ -10,6 +10,9 @@ PC. No app-store install, account, subscription, or cloud relay is required.
 ## What you can do
 
 - Use a phone or tablet as a wireless trackpad and keyboard.
+- View and control one Windows display live from a paired phone or tablet with
+  encrypted WebRTC video, responsive cursor movement, scrolling, and up to 5x
+  local zoom.
 - Control presentations, use a laser pointer, track time, and review saved
   reports on the PC.
 - Dictate, reuse snippets, and send text to a PC app, document, email draft, or
@@ -93,12 +96,16 @@ on uninstall. Start-at-sign-in is an in-app setting.
 3. Scan the QR code from a phone or tablet on the same Wi-Fi or LAN.
 
 Paired devices are remembered until removed or their browser data is cleared.
+The optional **View PC screen** tool is off by default; enable its Developer
+tools switch and Screen viewing permission on the PC before using it.
 
 ## Trust, privacy, and distribution
 
 Voltura Air is intended for trusted devices on a local network. It is not a
-remote-desktop service, public-internet relay, file-sync product, or remote wake
-solution for a sleeping or shut-down PC.
+public-internet remote-desktop service, cloud relay, file-sync product, or
+remote wake solution for a sleeping or shut-down PC. Live screen video is sent
+directly over the LAN with WebRTC encryption; the existing local HTTP and
+command connection retain the trusted-LAN security model.
 
 Voltura Air is freeware from Voltura AB and is open source under the
 [MIT License](LICENSE). It can be used without payment, registration, trial

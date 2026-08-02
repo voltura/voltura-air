@@ -28,6 +28,11 @@ internal sealed class DeveloperSettingsSection(
         gestureDebug.Unchecked += (_, _) => AppDeveloperSettings.SetEnableGestureDebug(false);
         toggles.Children.Add(gestureDebug);
 
+        var screenViewing = visuals.CreateCheckBox("Enable encrypted Screen viewing in the mobile app", AppDeveloperSettings.EnableScreenViewing());
+        screenViewing.Checked += (_, _) => AppDeveloperSettings.SetEnableScreenViewing(true);
+        screenViewing.Unchecked += (_, _) => AppDeveloperSettings.SetEnableScreenViewing(false);
+        toggles.Children.Add(screenViewing);
+
         AddWindowsLockPolicySetting(preferenceVisuals.AddNestedSection(parent, "Windows locking"));
     }
 

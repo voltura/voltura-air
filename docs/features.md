@@ -9,8 +9,9 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 - A Windows 11 host serves a phone/tablet PWA on the same Wi-Fi or LAN.
 - Normal use needs no mobile app-store install, account, subscription, trial,
   cloud relay, or internet input-forwarding service.
-- Voltura Air is not remote desktop, file sync, backup, notification sync, or a
-  cloud clipboard.
+- Voltura Air includes an optional local live display mirror, but is not a
+  general remote-desktop, file-sync, backup, notification-sync, or cloud
+  clipboard service.
 - The client cannot control or wake a sleeping, shut-down, or unreachable PC.
 - One host runs per signed-in Windows user. A second launch focuses it.
 
@@ -31,8 +32,10 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 - Pairing creates one remembered relationship per client ID. Removing a device
   revokes it immediately and requires fresh pairing.
 - Reconnect uses proof of possession; the private reconnect key remains on the
-  client. Pairing, reconnect, and commands are authenticated, bounded, and
-  validated.
+  client. Fresh pairing uses the single short QR token to authenticate and pin
+  the PC's persistent public identity after opening; no host identity or second
+  identifier is added to the QR. Pairing, reconnect, and commands are
+  authenticated, bounded, and validated.
 
 ### Devices, permissions, and settings
 
@@ -43,7 +46,7 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 - The Windows host's 3D control effect is a separate appearance preference and
   defaults off. The mobile/device default is on; each paired device can inherit,
   enable, or disable it.
-- Host permissions cover sleep, volume, Presentation, application launch, web
+- Host permissions cover sleep, volume, Screen viewing, Presentation, application launch, web
   addresses, PC clipboard reads, Lock, Blackout, display off, screen saver,
   sign out, restart, shutdown, Keep awake, and interaction with the host UI.
 - Unsupported actions are omitted; host-disabled actions explain the relevant
@@ -58,6 +61,45 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 - Custom pointer is host-wide, off by default, and configurable by size/color.
   Paired devices may toggle it. Cursor overrides return to the configured
   Windows scheme when Voltura Air exits.
+
+### Live screen mirror
+
+- **View PC screen** is a lazy-loaded mobile tool. It remains visible on hosts
+  that support it and explains whether the PC Developer tools toggle, effective
+  Screen viewing permission, or a fresh identity-pinning pairing is required.
+- Screen viewing is off by default. It has a feature-owned **Enable encrypted
+  Screen viewing** toggle under Developer tools, a denied-by-default global
+  permission, and an inheritable per-device override. Enabling a permission
+  does not silently enable the developer feature.
+- One authorized device can view one selected display at a time. Multiple
+  displays are selectable before or during viewing; another device receives a
+  busy result. Leaving the workspace stops viewing.
+- Windows Desktop Duplication supplies GPU display frames and cursor metadata.
+  D3D11 converts frames to NV12 and a capability-selected hardware Media
+  Foundation transform encodes baseline H.264 at up to 1920 x 1080 and 30
+  frames per second. A direct LAN WebRTC peer sends video over DTLS-SRTP and
+  cursor/status over a DTLS data channel. Receiver bandwidth estimates adjust
+  the bounded bitrate automatically; v1 exposes no quality control.
+- Screen media is independent of the JSON command socket, so a slow viewer
+  cannot delay trackpad or keyboard commands. The WebRTC sender bounds queued
+  media, supports packet retransmission and receiver keyframe requests, and
+  starts capture only after its video track and event channel connect.
+- One-finger movement controls the relative pointer. A compact two-finger mode
+  switch defaults to **Scroll**, where two-finger drag only scrolls the PC. In
+  **Zoom**, spread/pinch locally magnifies the mirror from 1x to 5x around the
+  gesture midpoint and two-finger drag pans locally. Switching modes preserves
+  the current magnification and position; the separate scale action returns the
+  mirror to 1x. A compact corner action available in both
+  orientations expands the mirror edge-to-edge across the device viewport; its
+  explicit exit action or any orientation change restores the normal workspace.
+  Compact Click, keyboard, display, and Stop controls sit around the responsive
+  canvas. V1 is video-only and excludes audio, absolute touch, windows,
+  all-monitor composition, multiple viewers, and game optimization.
+- The Windows tray shows a persistent viewing indicator with the paired device
+  name and an immediate Stop action. Permission/toggle revocation, disconnect,
+  lock or session loss, host exit, display removal, and capture-device loss stop
+  the stream and release native/network resources. Protected content and secure
+  desktop are never replaced with another capture method.
 
 ### Input and Windows actions
 
@@ -214,7 +256,9 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
 ### Trackpad
 
 - One-finger movement; tap, long-press, and two-finger right click; physical
-  left/right buttons; held-button drag; two-axis scroll; optional pinch zoom.
+  left/right buttons; held-button drag; two-axis scroll; optional **Pinch zoom**.
+  When Pinch zoom is enabled, a compact Trackpad switch chooses explicit
+  **Scroll** or **Zoom** behavior so one gesture cannot be mistaken for the other.
 - Pointer speed, smoothing, acceleration, scroll acceleration/direction,
   haptics, handedness, large buttons, and volume controls.
 - Full-screen trackpad and an optional host-enabled gesture debug surface.

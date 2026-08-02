@@ -47,6 +47,7 @@ Run the smallest relevant checks:
 | Ordinary host code | Warning-free `dotnet build VolturaAir.slnx`; focused `dotnet test --filter` for changed behavior |
 | Host source structure | Add `npm run host:ownership:check` |
 | Shared host lifecycle, native/resource, registry/persistence, network, or protocol boundary | Focused production-path boundary tests; full `npm run test:host` only when broad/shared |
+| Screen viewing | Fake-capture `TestServer` protocol/crypto/cleanup tests, mobile parser/renderer tests, bundle/size gates, then Windows preflight and `npm run dev:quick`; real phone/Wi-Fi viewing remains user acceptance |
 | Script | Relevant script test; full `npm run test:scripts` only for shared orchestration/root package composition |
 | Significant UI | Visual checkpoint by default; `npm run test:ui` only when its real pairing/smoke flow changes |
 | Structural/source ownership | `npm run size:check` |
@@ -84,3 +85,16 @@ The host targets Windows 11 and LAN use. Browser speech recognition depends on
 browser/origin support. Normal input cannot control UAC, secure desktop, lock
 screen, or higher-integrity apps. Firewall/network isolation can block LAN
 traffic, and an unreachable/sleeping/shut-down host cannot receive commands.
+
+Encrypted Screen viewing is an off-by-default Developer tools feature. Enable
+**Enable encrypted Screen viewing**, then allow Screen viewing globally or for
+the intended device. A freshly paired client must have the PC identity pin.
+Desktop Duplication GPU frames and cursor metadata support one display and one
+viewer at a time, video only, up to 1920 x 1080/30 frames per second. D3D11
+conversion and a hardware Media Foundation H.264 encoder feed a direct LAN
+WebRTC stream; the browser must support H.264 WebRTC playback. Pinch/spread
+magnifies the local mirror up to 5x, and two-finger drag pans while magnified.
+UAC/secure desktop, protected content,
+lock/session loss, display removal, or duplication loss stops/pauses the
+mirror; development and tests never substitute a real capture source in
+isolated mode.

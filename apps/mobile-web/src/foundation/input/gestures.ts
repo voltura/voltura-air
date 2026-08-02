@@ -28,6 +28,7 @@ export interface TrackpadSettings {
 }
 
 type Mode = "idle" | "pointer" | "twoFinger" | "cancelled";
+export type TwoFingerMode = "scroll" | "zoom";
 
 const tapMs = 260;
 const longPressMs = 620;
@@ -87,6 +88,8 @@ export class GestureRecognizer {
   private startPoints: TouchPoint[] = [];
   private lastPoints: TouchPoint[] = [];
   private maxDistance = 0;
+  private maxTwoFingerSpanChange = 0;
+  private twoFingerGestureActive = false;
   private smoothedPointerDelta: { dx: number; dy: number } | null = null;
 
   start(points: TouchPoint[], time: number): void {
@@ -94,6 +97,8 @@ export class GestureRecognizer {
     this.startPoints = clonePoints(points);
     this.lastPoints = clonePoints(points);
     this.maxDistance = 0;
+    this.maxTwoFingerSpanChange = 0;
+    this.twoFingerGestureActive = false;
     this.smoothedPointerDelta = null;
     this.mode = points.length === 1 ? "pointer" : points.length === 2 ? "twoFinger" : "cancelled";
   }
@@ -103,7 +108,7 @@ export class GestureRecognizer {
     this.smoothedPointerDelta = null;
   }
 
-  move(points: TouchPoint[], _time: number, settings: TrackpadSettings = defaultTrackpadSettings): GestureOutput[] {
+  move(points: TouchPoint[], _time: number, settings: TrackpadSettings = defaultTrackpadSettings, twoFingerMode: TwoFingerMode = "scroll"): GestureOutput[] {
     if (this.mode === "cancelled" || this.mode === "idle") {
       return [];
     }
@@ -163,14 +168,20 @@ export class GestureRecognizer {
       const startCenter = center(this.startPoints);
       const currentSpan = span(points);
       const previousSpan = span(this.lastPoints);
+      const startSpan = span(this.startPoints);
       this.maxDistance = Math.max(this.maxDistance, distance(currentCenter, startCenter));
-      this.lastPoints = clonePoints(points);
+      this.maxTwoFingerSpanChange = Math.max(this.maxTwoFingerSpanChange, Math.abs(currentSpan - startSpan));
 
       let dx = currentCenter.x - previousCenter.x;
       let dy = currentCenter.y - previousCenter.y;
       const spanDelta = currentSpan - previousSpan;
+      this.lastPoints = clonePoints(points);
 
-      if (settings.zoomGestures && Math.abs(spanDelta) >= zoomDistanceThreshold && Math.abs(spanDelta) > Math.max(Math.abs(dx), Math.abs(dy)) * 0.5) {
+      if (settings.zoomGestures && twoFingerMode === "zoom") {
+        if (Math.abs(spanDelta) < zoomDistanceThreshold) {
+          return [];
+        }
+        this.twoFingerGestureActive = true;
         return [{ type: "pointer.zoom", direction: spanDelta > 0 ? "in" : "out" }];
       }
 
@@ -188,6 +199,7 @@ export class GestureRecognizer {
       const wheelDx = settings.horizontalScroll ? round(dx * wheelSensitivity * direction) : 0;
       const wheelDy = settings.verticalScroll ? round(dy * wheelSensitivity * direction) : 0;
 
+      this.twoFingerGestureActive ||= wheelDx !== 0 || wheelDy !== 0;
       return wheelDx === 0 && wheelDy === 0 ? [] : [{ type: "pointer.wheel", dx: wheelDx, dy: wheelDy }];
     }
 
@@ -208,7 +220,7 @@ export class GestureRecognizer {
       return [{ type: "pointer.button", button: "right", action: "click" }];
     }
 
-    if (mode === "twoFinger" && duration <= tapMs && maxDistance <= scrollTapDistance) {
+    if (mode === "twoFinger" && !this.twoFingerGestureActive && duration <= tapMs && maxDistance <= scrollTapDistance && this.maxTwoFingerSpanChange <= scrollTapDistance) {
       return [{ type: "pointer.button", button: "right", action: "click" }];
     }
 

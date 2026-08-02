@@ -9,21 +9,20 @@ export async function decodeQrImage(file: File): Promise<string> {
   try {
     const jsQR = await loadQrDecoder();
     const image = await loadImage(imageUrl);
-    const imageData = drawImageToCanvas(image, 2048);
-    const code = scanImageData(imageData, jsQR);
+    const imageData = drawImageToCanvas(image, 1600);
+    const code = scanImageData(imageData, jsQR, "dontInvert");
     if (code?.data) {
       return code.data;
-    }
-
-    const smallerImageData = drawImageToCanvas(image, 1024);
-    const smallerCode = scanImageData(smallerImageData, jsQR) ?? scanRotatedImageData(smallerImageData, jsQR);
-    if (smallerCode?.data) {
-      return smallerCode.data;
     }
 
     const centerCode = scanCenterCrop(imageData, jsQR);
     if (centerCode?.data) {
       return centerCode.data;
+    }
+
+    const invertedCode = scanImageData(imageData, jsQR, "onlyInvert");
+    if (invertedCode?.data) {
+      return invertedCode.data;
     }
 
     throw new Error("QR code not found in image");
@@ -32,7 +31,7 @@ export async function decodeQrImage(file: File): Promise<string> {
       throw error;
     }
 
-    throw new Error(`Failed to decode QR code: ${String(error)}`);
+    throw new Error(`Failed to decode QR code: ${String(error)}`, { cause: error });
   } finally {
     URL.revokeObjectURL(imageUrl);
   }
@@ -59,60 +58,13 @@ function drawImageToCanvas(image: HTMLImageElement, maxDimension: number): Image
   return context.getImageData(0, 0, width, height);
 }
 
-function scanImageData(imageData: ImageData, jsQR: QrDecoder) {
-  return jsQR(imageData.data, imageData.width, imageData.height);
-}
-
-function scanRotatedImageData(imageData: ImageData, jsQR: QrDecoder) {
-  const rotated90 = rotateImageData(imageData, 90);
-  const code90 = scanImageData(rotated90, jsQR);
-  if (code90?.data) {
-    return code90;
-  }
-
-  const rotated180 = rotateImageData(imageData, 180);
-  const code180 = scanImageData(rotated180, jsQR);
-  if (code180?.data) {
-    return code180;
-  }
-
-  return scanImageData(rotateImageData(imageData, 270), jsQR);
+function scanImageData(imageData: ImageData, jsQR: QrDecoder, inversionAttempts: "dontInvert" | "onlyInvert") {
+  return jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts });
 }
 
 function scanCenterCrop(imageData: ImageData, jsQR: QrDecoder) {
   const centerCrop = cropCenter(imageData, 0.8);
-  return scanImageData(centerCrop, jsQR) ?? scanRotatedImageData(centerCrop, jsQR);
-}
-
-function rotateImageData(imageData: ImageData, degrees: 90 | 180 | 270): ImageData {
-  const sourceCanvas = document.createElement("canvas");
-  sourceCanvas.width = imageData.width;
-  sourceCanvas.height = imageData.height;
-  const sourceContext = sourceCanvas.getContext("2d");
-  if (!sourceContext) {
-    throw new Error("Canvas unavailable");
-  }
-
-  sourceContext.putImageData(imageData, 0, 0);
-
-  const canvas = document.createElement("canvas");
-  if (degrees === 180) {
-    canvas.width = imageData.width;
-    canvas.height = imageData.height;
-  } else {
-    canvas.width = imageData.height;
-    canvas.height = imageData.width;
-  }
-
-  const context = canvas.getContext("2d");
-  if (!context) {
-    throw new Error("Canvas unavailable");
-  }
-
-  context.translate(canvas.width / 2, canvas.height / 2);
-  context.rotate((Math.PI / 180) * degrees);
-  context.drawImage(sourceCanvas, -imageData.width / 2, -imageData.height / 2);
-  return context.getImageData(0, 0, canvas.width, canvas.height);
+  return scanImageData(centerCrop, jsQR, "dontInvert");
 }
 
 function cropCenter(imageData: ImageData, ratio: number): ImageData {

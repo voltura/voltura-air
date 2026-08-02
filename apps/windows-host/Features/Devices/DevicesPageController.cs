@@ -111,6 +111,7 @@ internal sealed class DevicesPageController(
             DevicePermissionKind.ScreenSaver => current with { AllowScreenSaver = value },
             DevicePermissionKind.AwakeControl => current with { AllowAwakeControl = value },
             DevicePermissionKind.ClipboardRead => current with { AllowClipboardRead = value },
+            DevicePermissionKind.ScreenViewing => current with { AllowScreenViewing = value },
             DevicePermissionKind.SignOut => current with { AllowSignOut = value },
             DevicePermissionKind.Restart => current with { AllowRestart = value },
             DevicePermissionKind.Shutdown => current with { AllowShutdown = value },
@@ -226,7 +227,8 @@ internal sealed class DevicesPageController(
             CreatePermission(device.ClientId, DevicePermissionKind.BlackoutDisplay, "Blackout display", device.PermissionOverrides.AllowBlackoutDisplay, global.AllowBlackoutDisplay),
             CreatePermission(device.ClientId, DevicePermissionKind.DisplayOff, "Turn off display", device.PermissionOverrides.AllowDisplayOff, global.AllowDisplayOff),
             CreatePermission(device.ClientId, DevicePermissionKind.AwakeControl, "Keep awake", device.PermissionOverrides.AllowAwakeControl, global.AllowAwakeControl),
-            CreatePermission(device.ClientId, DevicePermissionKind.ClipboardRead, "Read PC clipboard", device.PermissionOverrides.AllowClipboardRead, global.AllowClipboardRead)
+            CreatePermission(device.ClientId, DevicePermissionKind.ClipboardRead, "Read PC clipboard", device.PermissionOverrides.AllowClipboardRead, global.AllowClipboardRead),
+            CreatePermission(device.ClientId, DevicePermissionKind.ScreenViewing, "View PC screen", device.PermissionOverrides.AllowScreenViewing, global.AllowScreenViewing)
         ]);
         if (powerController.IsActionAvailable(SystemPowerActions.ScreenSaver))
         {

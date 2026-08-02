@@ -41,9 +41,27 @@ devices removed, and do not use Voltura Air on hostile or untrusted Wi-Fi.
 Voltura Air protects access with short-lived pairing tokens, P-256
 proof-of-possession reconnects, per-device permissions, bounded protocol
 messages, and recoverable command denials. The browser keeps the private
-reconnect key locally; the Windows host stores only its public key. These
+reconnect key locally; the Windows host stores only that reconnect key's public
+half. The host separately owns a persistent PC identity private key in the
+signed-in user's Windows key store, and paired browsers pin its public half. These
 controls do not make it a sandbox against malware already running as the same
 Windows user; same-user software can generally act with that user's privileges.
+
+Fresh pairing keeps the QR short: it contains one short-lived token, version,
+and optional routing hint, not a PC identity key or fingerprint. After opening,
+the token authenticates a challenge-response exchange that pins the host's
+persistent P-256 public identity and registers the browser's reconnect public
+key without transmitting the token on the WebSocket. A saved client without a
+valid PC identity pin must pair again.
+
+Optional Screen viewing negotiates a direct LAN WebRTC peer through the
+authenticated `/ws` control session. The reconnect key signs the start request
+and answer; the pinned PC identity signs the exact offer hash. Invalid,
+mismatched, or expired signaling is rejected before capture begins. Screen
+video uses DTLS-SRTP and cursor/status records use a DTLS-protected data channel,
+which provide confidentiality, integrity, and replay protection in transit.
+The HTTP app/signaling metadata and existing JSON command traffic retain the
+trusted-LAN threat model described above.
 
 The public Custom screens community library is a separate internet-facing
 service. Its account does not authorize access to a Windows host. Treat every

@@ -129,6 +129,23 @@ describe("usePairingController", () => {
     expect(result.current.pairingStatusMessage).toBe("Connecting to PC...");
   });
 
+  it("reports a bounded reading state until the selected image finishes", async () => {
+    const pending = deferred<string>();
+    vi.mocked(decodeQrImage).mockReturnValueOnce(pending.promise);
+    const { result } = renderHook(() => usePairingController(createOptions()));
+
+    let scan!: Promise<void>;
+    act(() => { scan = result.current.onPairingQrSelected(qrSelection()); });
+    expect(result.current.isPairingQrReading).toBe(true);
+    expect(result.current.pairingScanMessage).toBe("Reading QR code...");
+
+    await act(async () => {
+      pending.resolve(pairingUrl(pairToken, "http://pc.local:51395"));
+      await scan;
+    });
+    expect(result.current.isPairingQrReading).toBe(false);
+  });
+
   it("leaves an unavailable PC retry before confirming a newly scanned QR code", async () => {
     vi.mocked(decodeQrImage).mockResolvedValue(`http://phone.local:5173/pair?t=${pairToken}&v=0.6.1&h=http%3A%2F%2Fpc-two.local%3A51395`);
     const options = createOptions();

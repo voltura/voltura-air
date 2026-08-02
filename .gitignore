@@ -29,5 +29,8 @@ Thumbs.db
 # Local PHP/MariaDB site development state
 /.site-dev/
 
+# Local Codex build and probe output
+/.codex-tmp/
+
 ## Keep artifacts out of git
 /artifacts/*

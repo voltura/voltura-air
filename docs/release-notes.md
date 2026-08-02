@@ -6,6 +6,25 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v0.8.4
+
+- Added **View PC screen**, an optional encrypted live mirror for viewing and
+  controlling one Windows display from a paired phone or tablet.
+- Added smooth WebRTC video up to 1080p/30 fps, automatic bandwidth adjustment,
+  display switching, and a separate cursor for responsive desktop interaction.
+- Added pinch-to-zoom up to 5x with two-finger panning, plus compact mouse,
+  keyboard, and Stop controls that make text and desktop apps practical on a
+  small screen. Viewing can expand edge-to-edge in either orientation and
+  restores automatically when device orientation changes.
+- Added explicit **Scroll** and **Zoom** two-finger modes to the live mirror and
+  regular Trackpad, eliminating accidental zoom while scrolling. Switching the
+  live mirror mode preserves its current view, and the Trackpad switch appears
+  when **Pinch zoom** is enabled.
+- Added clear privacy controls: Screen viewing is off by default, requires its
+  Developer tools toggle and device permission, allows only one viewer, shows a
+  persistent Windows viewing indicator, and stops immediately when access or
+  the session ends.
+
 ## v0.8.3
 
 - Graduated Custom screens from alpha. The Windows editor, mobile screens,

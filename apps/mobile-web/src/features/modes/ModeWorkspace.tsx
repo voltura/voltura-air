@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type { AppTab } from "./modeTypes";
 import type { AppSettings } from "../../foundation/settings/appSettings";
-import type { TrackpadSettings } from "../../foundation/input/gestures";
+import type { TrackpadSettings, TwoFingerMode } from "../../foundation/input/gestures";
 import { triggerHapticFeedback } from "../../foundation/input/hapticFeedback";
 import { useKeyboardInput } from "../../foundation/input/useKeyboardInput";
 import { usePointerInput } from "../../foundation/input/usePointerInput";
@@ -110,11 +110,14 @@ export function ModeWorkspace({
     ? optimisticAudioState.value
     : connection.audioState;
   const [isTrackpadExpanded, setIsTrackpadExpanded] = useState(false);
+  const [trackpadTwoFingerMode, setTrackpadTwoFingerMode] = useState<TwoFingerMode>("scroll");
   const [textTransferDraft, setTextTransferDraft] = useState("");
+  const effectiveTrackpadTwoFingerMode = trackpadSettings.zoomGestures ? trackpadTwoFingerMode : "scroll";
   const { emit, onTouchCancel, onTouchEnd, onTouchMove, onTouchStart, sendSpecial, sendText, sleepPc } = usePointerInput({
     send: connection.send,
     state: connection.state,
-    trackpadSettings
+    trackpadSettings,
+    twoFingerMode: effectiveTrackpadTwoFingerMode
   });
   const {
     committedKeyboardTextRef,
@@ -173,13 +176,15 @@ export function ModeWorkspace({
         onSetVolume: setVolume,
         onToggleExpanded: () => { setIsTrackpadExpanded((current) => !current); },
         onToggleMute: toggleMute,
+        onTwoFingerModeChange: setTrackpadTwoFingerMode,
         onTouchCancel,
         onTouchEnd,
         onTouchMove,
         onTouchStart,
         supportsVolumeControl: connection.supportsVolumeControl,
         compactModeSelector: showTrackpadCompactModeSelector ? trackpadCompactModeSelector : undefined,
-        trackpadSettings
+        trackpadSettings,
+        twoFingerMode: effectiveTrackpadTwoFingerMode
       }}
       keyboardMode={{
         committedKeyboardTextRef,

@@ -15,6 +15,11 @@ import type {
   PresentationReportSaveResultMessage,
   PresentationSessionResultMessage,
   ServerCapabilities,
+  ScreenViewAnswerResultMessage,
+  ScreenViewSourcesResultMessage,
+  ScreenViewStartResultMessage,
+  ScreenViewSourceResultMessage,
+  ScreenViewStopResultMessage,
   SystemPowerResultMessage,
   TextSendResultMessage,
   UrlOpenResultMessage
@@ -33,8 +38,9 @@ import {
 } from "./connectionProtocol";
 import { requestHostState, trySendClientMessage } from "./connectionSocketMessages";
 import type { ConnectionError, ConnectionState, PairingAttempt } from "./connectionTypes";
-import { clearStoredReconnectKey, createPairingKeyMaterial, handlePairAccepted, hasStoredReconnectKey, signReconnectChallenge, shouldClearStoredReconnectKeyForRejection, type PairingKeyMaterial } from "./pairingCredentials";
+import { clearStoredReconnectKey, createPairingBootstrapMaterial, createPairingKeyMaterial, handlePairAccepted, hasStoredReconnectKey, isExpectedHostIdentity, signReconnectChallenge, shouldClearStoredReconnectKeyForRejection, verifyPairingBootstrapChallenge, type PairingBootstrapMaterial, type PairingKeyMaterial } from "./pairingCredentials";
 import {
+  applyHostIdentityFromAcceptance,
   applyPcNameFromHost,
   getWebSocketUrl,
   saveActivePcId,
@@ -57,6 +63,7 @@ interface ConnectionSocketLifecycleOptions {
   completeClipboardRead: (result: ClipboardGetResultMessage) => boolean;
   completeCustomScreenGet: (result: CustomScreenGetResultMessage) => boolean;
   completeCustomScreenInvoke: (result: CustomScreenInvokeResultMessage) => boolean;
+  completeScreenViewMessage: (result: ScreenViewSourcesResultMessage | ScreenViewStartResultMessage | ScreenViewAnswerResultMessage | ScreenViewSourceResultMessage | ScreenViewStopResultMessage) => void;
   completePowerAction: (result: SystemPowerResultMessage) => boolean;
   completePowerPointRefresh: (result: PowerPointRefreshResultMessage) => boolean;
   completePowerPointLaunch: (result: PowerPointLaunchResultMessage) => boolean;
@@ -104,6 +111,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     completeClipboardRead: completeClipboardReadState,
     completeCustomScreenGet: completeCustomScreenGetState,
     completeCustomScreenInvoke: completeCustomScreenInvokeState,
+    completeScreenViewMessage: completeScreenViewMessageState,
     completePowerAction: completePowerActionState,
     completePowerPointRefresh: completePowerPointRefreshState,
     completePowerPointLaunch: completePowerPointLaunchState,
@@ -148,6 +156,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
   const completeClipboardRead = useEffectEvent(completeClipboardReadState);
   const completeCustomScreenGet = useEffectEvent(completeCustomScreenGetState);
   const completeCustomScreenInvoke = useEffectEvent(completeCustomScreenInvokeState);
+  const completeScreenViewMessage = useEffectEvent(completeScreenViewMessageState);
   const completePowerAction = useEffectEvent(completePowerActionState);
   const completePowerPointRefresh = useEffectEvent(completePowerPointRefreshState);
   const completePowerPointLaunch = useEffectEvent(completePowerPointLaunchState);
@@ -172,6 +181,8 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     let backgroundSuspended = document.visibilityState === "hidden";
     let hasShownUnavailable = false;
     let pendingPairingKey: PairingKeyMaterial | null = null;
+    let pendingPairingBootstrap: PairingBootstrapMaterial | null = null;
+    let verifiedHostIdentity: { publicKey: string; fingerprint: string } | null = null;
   
     if (!connectionPcId || !connectionPcUrl) {
       clearRuntimeStateFromSocket();
@@ -379,15 +390,22 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
         setState("connecting");
         setMessage(`Connecting to ${getDisplayPcName(currentPc(), "", screenshotMode)}...`);
         const currentPairingAttempt = pairingAttemptRef.current;
+        const currentProfile = currentPc();
         pendingPairingKey = null;
+        pendingPairingBootstrap = null;
+        verifiedHostIdentity = null;
         if (currentPairingAttempt.token !== undefined) {
           pendingPairingKey = createPairingKeyMaterial();
-          if (!pendingPairingKey) {
+          pendingPairingBootstrap = createPairingBootstrapMaterial(currentPairingAttempt.token);
+          if (!pendingPairingKey || !pendingPairingBootstrap) {
             markUnavailable(ws, "This browser cannot create a saved pairing. Scan from a browser with cryptographic random support.", "VAIR-PAIR-KEY-UNAVAILABLE");
             return;
           }
         } else if (!hasStoredReconnectKey(clientId, pc.id)) {
           markUnavailable(ws, "Saved pairing is missing in this browser. Scan a fresh QR code to pair again.", "VAIR-PAIR-RECONNECT-KEY-MISSING");
+          return;
+        } else if (!currentProfile.hostIdentityFingerprint || !currentProfile.hostIdentityPublicKey) {
+          markUnavailable(ws, "This saved pairing predates authenticated PC identity. Scan a fresh QR code to pair again.", "VAIR-PAIR-HOST-IDENTITY-MISSING");
           return;
         }
 
@@ -398,7 +416,8 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
           platform: getPlatformName(),
           browser: getBrowserName(),
           displayMode: getDisplayMode(),
-          pairToken: currentPairingAttempt.token,
+          pairTokenId: pendingPairingBootstrap?.pairTokenId,
+          clientNonce: pendingPairingBootstrap?.clientNonce,
           reconnectPublicKey: pendingPairingKey?.reconnectPublicKey
         };
         ws.send(JSON.stringify(hello));
@@ -419,7 +438,40 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
           return;
         }
 
+        if (response.type === "pair.bootstrap.challenge") {
+          if (!pendingPairingBootstrap || !pendingPairingKey) {
+            markUnavailable(ws, "The PC sent an unexpected pairing challenge. Scan a fresh QR code.", "VAIR-PAIR-BOOTSTRAP-UNEXPECTED");
+            return;
+          }
+
+          const verified = verifyPairingBootstrapChallenge(
+            response,
+            pendingPairingBootstrap,
+            clientId,
+            pendingPairingKey.reconnectPublicKey
+          );
+          if (!verified) {
+            pendingPairingKey = null;
+            pendingPairingBootstrap = null;
+            markUnavailable(ws, "The PC could not prove the identity associated with this QR code. Scan a fresh code directly from the PC.", "VAIR-PAIR-HOST-PROOF-INVALID");
+            return;
+          }
+
+          verifiedHostIdentity = verified.hostIdentity;
+          pendingPairingBootstrap = null;
+          ws.send(JSON.stringify({ type: "pair.bootstrap.proof", clientId, proof: verified.clientProof } satisfies ClientMessage));
+          return;
+        }
+
         if (response.type === "pair.accepted") {
+          const expectedHostFingerprint = verifiedHostIdentity?.fingerprint ?? currentPc().hostIdentityFingerprint;
+          if (!expectedHostFingerprint || !isExpectedHostIdentity(response, expectedHostFingerprint)) {
+            pendingPairingKey = null;
+            pendingPairingBootstrap = null;
+            verifiedHostIdentity = null;
+            markUnavailable(ws, "The PC identity did not match the scanned pairing code. Scan a new code directly from the PC.", "VAIR-PAIR-HOST-IDENTITY-MISMATCH");
+            return;
+          }
           touchHealthy();
           setConnectionEpoch((current) => current + 1);
           if (commitManualPcOnAcceptance) {
@@ -435,7 +487,16 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
             setPendingManualPc((current) => current?.id === pc.id && current.url === pc.url ? null : current);
           }
           handlePairAccepted(response, pc.id, pendingPairingKey?.privateKey ?? null);
+          if (response.hostIdentity) {
+            setPairedPcs((current) => {
+              const next = applyHostIdentityFromAcceptance(current, pc.id, response.hostIdentity!.publicKey, response.hostIdentity!.fingerprint);
+              savePcProfiles(next);
+              return next;
+            });
+          }
           pendingPairingKey = null;
+          pendingPairingBootstrap = null;
+          verifiedHostIdentity = null;
           updateCapabilitiesFromSocket(response.capabilities);
           updateHostStatusFromSocket(response.host);
           if (!screenshotMode) {
@@ -479,6 +540,8 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
             clearStoredReconnectKey(clientId, pc.id);
           }
           pendingPairingKey = null;
+          pendingPairingBootstrap = null;
+          verifiedHostIdentity = null;
           clearRuntimeStateFromSocket();
           const rejectedMessage = `Pairing rejected: ${response.reason}`;
           setLastConnectionError({ code: diagnosticCodeForPairingReason(response.reason), message: rejectedMessage });
@@ -656,6 +719,13 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
               message: response.message
             });
           }
+          scheduleHealthCheck(ws);
+          return;
+        }
+
+        if (response.type === "screen.view.sources.result" || response.type === "screen.view.start.result" || response.type === "screen.view.answer.result" || response.type === "screen.view.source.result" || response.type === "screen.view.stop.result") {
+          touchHealthy();
+          completeScreenViewMessage(response);
           scheduleHealthCheck(ws);
           return;
         }

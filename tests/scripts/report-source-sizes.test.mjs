@@ -66,6 +66,20 @@ test("ignores generated catalog preview assets", async () => {
     });
 });
 
+test("ignores local Codex build probes", async () => {
+  await withFixture(
+    { "src/large.cs": "This fixture is intentionally cohesive so the strong-warning review has a sufficiently specific rationale." },
+    async (root) => {
+      const probe = path.join(root, ".codex-tmp/screen-probe");
+      await mkdir(probe, { recursive: true });
+      await writeFile(path.join(probe, "bundle.js"), "generated();\n".repeat(501), "utf8");
+
+      const result = await check(root);
+      assert.doesNotMatch(result.stdout, /screen-probe/u);
+      assert.match(result.stdout, /Every strong source-size warning has a current cohesive-ownership review/u);
+    });
+});
+
 test("rejects an unreviewed strong source-size warning", async () => {
   await withFixture({}, async (root) => {
     await assert.rejects(check(root), (error) => {

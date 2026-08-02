@@ -33,6 +33,7 @@ describe("parsePairingLink", () => {
     [`http://pc.local:51395/pair?t=short&v=${version}`, "an invalid token"],
     [`http://pc.local:51395/pair?t=${pairToken}&t=${pairToken}&v=${version}`, "duplicate tokens"],
     [`http://pc.local:51395/pair?t=${pairToken}&v=${version}&v=${version}`, "duplicate versions"],
+    [`http://pc.local:51395/pair?t=${pairToken}&v=${version}&k=${"a".repeat(22)}`, "an undeclared identity parameter"],
     [`http://pc.local:51395/pair?t=${pairToken}&v=${version}&h=51395&h=51396`, "duplicate host hints"],
     [`http://pc.local:51395/pair?t=${pairToken}&v=preview`, "an invalid version"],
     [`http://user:password@pc.local:51395/pair?t=${pairToken}&v=${version}`, "credentials"],

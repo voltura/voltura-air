@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getAvailableToolModeIds, toolModeDefinitions } from "./app/appModeTabs";
 import { createSettingsActions, SettingsDrawer } from "./features/settings";
 import { parsePairingLink } from "./foundation/pairing/pairingLink";
@@ -23,6 +23,9 @@ import { AnchoredHint } from "./ui/guidance/AnchoredHint";
 import { useOneShotHint } from "./ui/guidance/useOneShotHint";
 import { ConfirmationDialog } from "./ui/overlays/ConfirmationDialog";
 import { CustomScreenWorkspace } from "./features/custom-screens";
+import { WorkspaceErrorBoundary } from "./app/WorkspaceErrorBoundary";
+
+const ScreenViewWorkspace = lazy(() => import("./features/screen-view"));
 
 export function App() {
   const initialPairing = useMemo(() => parsePairingLink(window.location.href), []);
@@ -43,6 +46,7 @@ export function App() {
     customScreenGetResult,
     customScreenInvokeResult,
     customScreensCapability,
+    screenViewCapability,
     invokeCustomScreenButton,
     pendingCustomScreenButtonIds,
     requestCustomScreen,
@@ -74,6 +78,7 @@ export function App() {
   const [pendingRemoteLaunch, setPendingRemoteLaunch] = useState<RemoteLaunchAction | null>(null);
   const [suppressedClipboardResultId, setSuppressedClipboardResultId] = useState<string | null>(null);
   const [activeCustomScreenId, setActiveCustomScreenId] = useState<string | null>(null);
+  const [isScreenViewOpen, setIsScreenViewOpen] = useState(false);
   const inputBlockedByElevation = hostStatus?.inputBlockedByElevation === true;
   const [inputRecoveryDialog, setInputRecoveryDialog] = useState({
     blocked: inputBlockedByElevation,
@@ -287,6 +292,7 @@ export function App() {
   const {
     confirmPendingPairing,
     connectManualHost,
+    isPairingQrReading,
     onPairingQrSelected,
     pairingDeviceName,
     pairingDeviceNamePlaceholder,
@@ -423,7 +429,7 @@ export function App() {
 
   return (
     <div className={`app-frame${controlDepth ? " control-depth" : ""}`}>
-      <main className={`${shellClassName}${controlDepth ? " control-depth" : ""}`}>
+      <main className={`${shellClassName}${controlDepth ? " control-depth" : ""}${isScreenViewOpen ? " screen-view-active" : ""}`}>
         <AppHeader
           activeMode={activeModeTab}
           canShowModeNavigation={canShowModeNavigation}
@@ -440,6 +446,7 @@ export function App() {
           }}
           onSelectMode={(nextTab) => {
             dismissModeSwitchHint();
+            setIsScreenViewOpen(false);
             selectModeTabWithPresentationGuard(nextTab, "selector");
           }}
           onToggleModeSelector={() => {
@@ -457,6 +464,7 @@ export function App() {
           confirmPendingPairing={confirmPendingPairing}
           diagnostics={mobileDiagnostics}
           isSettingsOpen={isSettingsOpen}
+          isPairingQrReading={isPairingQrReading}
           manualReconnectProgress={manualReconnectProgress}
           message={message}
           pairingDeviceName={pairingDeviceName}
@@ -487,6 +495,7 @@ export function App() {
           installApp={installApp}
           installPrompt={installPrompt}
           isInstalled={isInstalled}
+          isPairingQrReading={isPairingQrReading}
           isOpen={isSettingsOpen}
           keyboardSettings={keyboardSettings}
           onClose={() => { setIsSettingsOpen(false); }}
@@ -494,6 +503,13 @@ export function App() {
           onOpenCustomScreen={(screenId) => {
             requestPresentationExit(() => {
               setActiveCustomScreenId(screenId);
+              setIsSettingsOpen(false);
+            });
+          }}
+          onOpenScreenView={() => {
+            requestPresentationExit(() => {
+              setActiveCustomScreenId(null);
+              setIsScreenViewOpen(true);
               setIsSettingsOpen(false);
             });
           }}
@@ -513,6 +529,7 @@ export function App() {
           renamePc={renamePc}
           remoteSettings={remoteSettings}
           scanPairingQr={scanPairingQr}
+          screenViewCapability={screenViewCapability}
           selectPc={(pcId) => {
             requestPresentationConnectionChange("connect", () => { selectPc(pcId); });
           }}
@@ -538,9 +555,24 @@ export function App() {
           updateTrackpadSetting={updateTrackpadSetting}
         />
 
-        {activeCustomScreenId === null && isModeButtonsVisible && <ModeNavigation className="tabs top-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTabWithPresentationGuard} />}
+        {activeCustomScreenId === null && !isScreenViewOpen && isModeButtonsVisible && <ModeNavigation className="tabs top-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTabWithPresentationGuard} />}
 
-        {activeCustomScreenId !== null ? (
+        {isScreenViewOpen && activePc && screenViewCapability ? (
+          <WorkspaceErrorBoundary featureName="Screen" onBack={() => { setIsScreenViewOpen(false); }}>
+            <Suspense fallback={<div className="workspace-loading">Opening Screen…</div>}>
+              <ScreenViewWorkspace
+                activePc={activePc}
+                capability={screenViewCapability}
+                clientId={clientId}
+                onBack={() => { setIsScreenViewOpen(false); }}
+                onOpenKeyboard={() => { setIsScreenViewOpen(false); selectModeTabWithPresentationGuard("keyboard", "selector"); }}
+                send={send}
+                state={state}
+                trackpadSettings={effectiveTrackpadSettings}
+              />
+            </Suspense>
+          </WorkspaceErrorBoundary>
+        ) : activeCustomScreenId !== null ? (
           <CustomScreenWorkspace
             audioState={connection.audioState}
             definition={customScreenDefinition?.id === activeCustomScreenId ? customScreenDefinition : null}
@@ -672,7 +704,7 @@ export function App() {
         />
       </main>
 
-      {activeCustomScreenId === null && isBottomModeNavigationVisible && <ModeNavigation className="tabs bottom-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTabWithPresentationGuard} />}
+      {activeCustomScreenId === null && !isScreenViewOpen && isBottomModeNavigationVisible && <ModeNavigation className="tabs bottom-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTabWithPresentationGuard} />}
     </div>
   );
 }

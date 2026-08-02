@@ -18,28 +18,8 @@ const persistentChildren = [];
 let shuttingDown = false;
 
 if (quickStart) {
-  console.log("Quick development: starting the host and rebuilding current mobile sources in parallel, without validation.");
-  const mobileBuild = spawnCommand("npm", ["run", "build:quick", "--workspace", "apps/mobile-web"], childEnv);
-  children.push(mobileBuild);
-  mobileBuild.on("error", (error) => {
-    console.error(`Failed to start ${mobileBuild.commandLine}:`, error);
-    shutdown("SIGTERM", 1);
-  });
-  mobileBuild.on("exit", (code, signal) => {
-    removeChild(mobileBuild);
-    if (shuttingDown) {
-      return;
-    }
-
-    if (signal) {
-      shutdown("SIGTERM", 1);
-      return;
-    }
-
-    if (code && code !== 0) {
-      shutdown("SIGTERM", code);
-    }
-  });
+  console.log("Quick development: rebuilding current mobile sources before starting the host, without validation.");
+  runCommand("npm", ["run", "build:quick", "--workspace", "apps/mobile-web"], childEnv);
 } else {
   runCommand("npm", ["run", "build", "--workspace", "apps/mobile-web"], childEnv);
 }
@@ -57,7 +37,6 @@ children.push(...persistentChildren);
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => shutdown(signal));
 }
-
 for (const child of persistentChildren) {
   child.on("error", (error) => {
     console.error(`Failed to start ${child.commandLine}:`, error);
@@ -126,11 +105,4 @@ function shutdown(signal, exitCode = 0) {
   }
 
   setTimeout(() => process.exit(exitCode), 500);
-}
-
-function removeChild(child) {
-  const index = children.indexOf(child);
-  if (index >= 0) {
-    children.splice(index, 1);
-  }
 }

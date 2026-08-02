@@ -23,9 +23,11 @@ interface PairingStatusProps {
   onPrimaryAction: () => void;
   onSecondaryAction?: (() => void) | undefined;
   primaryLabel?: string | undefined;
+  primaryActionPending?: boolean;
   pcName?: string;
   savedPcOptions?: SavedPcReconnectOption[] | undefined;
   secondaryLabel?: string | undefined;
+  secondaryActionDisabled?: boolean;
   selectedSavedPcId?: string | undefined;
   onSavedPcChange?: ((pcId: string) => void) | undefined;
 }
@@ -44,9 +46,11 @@ export function PairingStatus({
   onPrimaryAction,
   onSecondaryAction,
   primaryLabel,
+  primaryActionPending = false,
   pcName,
   savedPcOptions,
   secondaryLabel,
+  secondaryActionDisabled = false,
   selectedSavedPcId,
   onSavedPcChange
 }: PairingStatusProps) {
@@ -157,8 +161,10 @@ export function PairingStatus({
   const progressBody = connectionProgress === "connected"
     ? "Connection restored. Returning to your previous screen."
     : "Checking whether Voltura Air is available.";
-  const primaryActionDisabled = connectionProgress !== undefined;
-  const primaryActionLabel = connectionProgress === "reconnecting"
+  const primaryActionDisabled = connectionProgress !== undefined || primaryActionPending;
+  const primaryActionLabel = primaryActionPending
+    ? "Reading QR code…"
+    : connectionProgress === "reconnecting"
     ? "Reconnecting…"
     : connectionProgress === "connected"
       ? "Connected"
@@ -222,14 +228,16 @@ export function PairingStatus({
               ref={primaryActionRef}
               className="pairing-action-primary"
               type="button"
+              aria-busy={primaryActionPending || undefined}
               aria-disabled={primaryActionDisabled || undefined}
+              disabled={primaryActionDisabled}
               onClick={() => {
                 if (!primaryActionDisabled) {
                   onPrimaryAction();
                 }
               }}
             >
-              {connectionProgress === "reconnecting" ? (
+              {primaryActionPending || connectionProgress === "reconnecting" ? (
                 <>
                   <LoaderCircle className="pairing-progress-icon" aria-hidden="true" />
                   <span>{primaryActionLabel}</span>
@@ -249,7 +257,7 @@ export function PairingStatus({
             {!connectionProgress && (onSecondaryAction !== undefined || feedback.showRecoveryActions) && (
               <div className="pairing-secondary-actions">
                 {onSecondaryAction && (
-                  <button className="pairing-action-secondary" type="button" onClick={onSecondaryAction}>
+                  <button className="pairing-action-secondary" type="button" disabled={secondaryActionDisabled} onClick={onSecondaryAction}>
                     <Camera aria-hidden="true" />
                     <span>{secondaryLabel ?? "Take photo of new QR code"}</span>
                   </button>

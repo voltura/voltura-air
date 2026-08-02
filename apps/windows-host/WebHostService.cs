@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Logging;
 
 namespace VolturaAir.Host;
 
@@ -25,6 +26,7 @@ public sealed class WebHostService : IAsyncDisposable
     private readonly SemaphoreSlim _webSocketSessionSlots = new(MaxConcurrentWebSocketSessions, MaxConcurrentWebSocketSessions);
     private readonly HostStatusBroadcaster _statusBroadcaster;
     private readonly WebSocketSessionHandler _sessionHandler;
+    private readonly ScreenViewCoordinator _screenView;
     private readonly PresentationLaserPointerController _presentationLaserPointer;
     private readonly IPowerPointAutomationService _powerPoint;
     private readonly PowerPointPresentationSessionService _presentationSession;
@@ -37,6 +39,13 @@ public sealed class WebHostService : IAsyncDisposable
     private WebApplication? _app;
 
     internal void RevokeCursorOverrides() => _presentationLaserPointer.Revoke();
+    internal event EventHandler<ScreenViewActivityChangedEventArgs>? ScreenViewActivityChanged
+    {
+        add => _screenView.ActivityChanged += value;
+        remove => _screenView.ActivityChanged -= value;
+    }
+
+    internal void StopScreenViewing() => _screenView.Stop();
 
     public WebHostService(
         PairingManager pairingManager,
@@ -56,7 +65,8 @@ public sealed class WebHostService : IAsyncDisposable
         Action<bool>? applyPresentationLaserPointer = null,
         IPowerPointAutomationService? powerPointAutomation = null,
         bool isolatedTestMode = false,
-        Action<IWebHostBuilder>? configureWebHost = null)
+        Action<IWebHostBuilder>? configureWebHost = null,
+        IScreenViewCaptureSource? screenViewCapture = null)
     {
         _configureWebHost = configureWebHost;
 
@@ -224,6 +234,12 @@ public sealed class WebHostService : IAsyncDisposable
             resolvedAppLaunchService,
             _transport,
             _appLog);
+        _screenView = new ScreenViewCoordinator(
+            pairingManager,
+            statusFactory,
+            screenViewCapture ?? (isolatedTestMode ? new UnavailableScreenViewCaptureSource() : null),
+            isolatedTestMode ? new IsolatedScreenViewWebRtcPeerFactory() : null);
+        var screenViewCommands = new ScreenViewCommandHandler(_screenView, _transport);
         // An isolated browser may exercise the protocol, but it must never call
         // the native cursor API on the developer's Windows session.
         var resolvedApplyCustomPointer = isolatedTestMode ? null : applyCustomPointer;
@@ -245,6 +261,7 @@ public sealed class WebHostService : IAsyncDisposable
             clipboardCommands,
             inputCommands,
             customScreenCommands,
+            screenViewCommands,
             _appLog,
             args => ControllerSocketClosed?.Invoke(this, args));
         _statusBroadcaster = new HostStatusBroadcaster(
@@ -332,6 +349,7 @@ public sealed class WebHostService : IAsyncDisposable
     public async Task StartAsync()
     {
         var builder = WebApplication.CreateBuilder();
+        builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
         if (_configureWebHost is null)
         {
             builder.WebHost.UseUrls($"http://{_listenAddress}:{Port}");
@@ -382,6 +400,7 @@ public sealed class WebHostService : IAsyncDisposable
 
     public async Task StopAsync()
     {
+        await _screenView.DisposeAsync();
         _transport.AbortAll();
         if (_app is null)
         {
@@ -406,6 +425,7 @@ public sealed class WebHostService : IAsyncDisposable
         }
 
         await _statusBroadcaster.DisposeAsync();
+        await _screenView.DisposeAsync();
         _presentationCatalog.Changed -= OnPresentationCatalogChanged;
         _presentationCatalog.Dispose();
         _presentationSession.StateChanged -= OnPresentationSessionChanged;

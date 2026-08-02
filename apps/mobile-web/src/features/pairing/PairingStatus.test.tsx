@@ -135,6 +135,24 @@ describe("PairingStatus", () => {
     expect(onPrimaryAction).toHaveBeenCalledOnce();
   });
 
+  it("makes QR decoding visibly pending and non-interactive", () => {
+    const onPrimaryAction = vi.fn();
+    render(
+      <PairingStatus
+        blocksAppInteraction
+        message="Reading QR code..."
+        onPrimaryAction={onPrimaryAction}
+        primaryActionPending
+      />
+    );
+
+    const action = screen.getByRole("button", { name: "Reading QR code…" });
+    expect((action as HTMLButtonElement).disabled).toBe(true);
+    expect(action.getAttribute("aria-busy")).toBe("true");
+    fireEvent.click(action);
+    expect(onPrimaryAction).not.toHaveBeenCalled();
+  });
+
   it("shows copied diagnostics as a toast when the selected PC is unavailable", async () => {
     vi.mocked(copyTextToClipboard).mockResolvedValueOnce("copied");
 

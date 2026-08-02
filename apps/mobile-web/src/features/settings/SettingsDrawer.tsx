@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
-import { X } from "lucide-react";
+import { MonitorUp, X } from "lucide-react";
 import {
   CustomPointerSettingsSection,
   KeyboardSettingsSection,
@@ -123,6 +123,10 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
         <section className="drawer-group" aria-labelledby="drawer-tools-title">
           <h3 id="drawer-tools-title">Tools</h3>
           <div className="drawer-tool-list">
+            {props.screenViewCapability && <button type="button" onClick={props.onOpenScreenView}>
+              <MonitorUp aria-hidden="true" />
+              <span>View PC screen</span>
+            </button>}
             {props.toolOptions.filter(({ id }) => id !== "presentation" || props.presentationAvailable).map(({ id, Icon, label }) => {
               return (
                 <button key={id} type="button" onClick={() => props.onOpenMode?.(id)}>
@@ -157,6 +161,7 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
             diagnostics={props.diagnostics}
             disconnectActivePc={props.disconnectActivePc}
             forgetPc={props.forgetPc}
+            isPairingQrReading={props.isPairingQrReading ?? false}
             onManualHostSubmit={props.onManualHostSubmit}
             onPairingQrSelected={props.onPairingQrSelected}
             pairedPcs={props.pairedPcs}

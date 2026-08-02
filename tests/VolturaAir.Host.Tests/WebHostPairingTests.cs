@@ -6,6 +6,91 @@ namespace VolturaAir.Host.Tests;
 public sealed class WebHostPairingTests : WebHostServiceTestBase
 {
     [Fact]
+    public async Task WebSocketAuthenticatesHostIdentityBeforeAcceptingFreshPairing()
+    {
+        await using var fixture = await WebHostFixture.StartAsync();
+        using var key = new PairingTestKey();
+        using var socket = await ConnectAsync(fixture.WebHost);
+        var clientId = $"client-{Guid.NewGuid():N}";
+        var token = fixture.Manager.CreatePairingToken();
+        var clientNonce = PairingBootstrapCrypto.CreateNonce();
+
+        var challenge = await SendAndReceiveAsync(socket, new
+        {
+            type = "pair.hello",
+            clientId,
+            deviceName = "Phone",
+            pairTokenId = PairingTokenAuthority.CreateTokenId(token),
+            clientNonce,
+            reconnectPublicKey = key.PublicKey
+        });
+
+        Assert.Equal("pair.bootstrap.challenge", challenge.GetProperty("type").GetString());
+        Assert.Equal(clientNonce, challenge.GetProperty("clientNonce").GetString());
+        var serverNonce = challenge.GetProperty("serverNonce").GetString()!;
+        var identity = challenge.GetProperty("hostIdentity");
+        Assert.Equal(fixture.Manager.HostIdentity.PublicKey, identity.GetProperty("publicKey").GetString());
+        Assert.Equal(fixture.Manager.HostIdentity.Fingerprint, identity.GetProperty("fingerprint").GetString());
+        Assert.True(PairingBootstrapCrypto.ProofsMatch(
+            PairingBootstrapCrypto.CreateHostProof(
+                token,
+                clientId,
+                clientNonce,
+                serverNonce,
+                key.PublicKey,
+                fixture.Manager.HostIdentity.PublicKey,
+                fixture.Manager.HostIdentity.Fingerprint),
+            challenge.GetProperty("proof").GetString()!));
+
+        var accepted = await SendAndReceiveAsync(socket, new
+        {
+            type = "pair.bootstrap.proof",
+            clientId,
+            proof = PairingBootstrapCrypto.CreateClientProof(
+                token,
+                clientId,
+                clientNonce,
+                serverNonce,
+                key.PublicKey,
+                fixture.Manager.HostIdentity.PublicKey,
+                fixture.Manager.HostIdentity.Fingerprint)
+        });
+
+        Assert.Equal("pair.accepted", accepted.GetProperty("type").GetString());
+        Assert.True(fixture.Manager.HasCurrentHostIdentity(clientId));
+    }
+
+    [Fact]
+    public async Task WebSocketRejectsTamperedFreshPairingProof()
+    {
+        await using var fixture = await WebHostFixture.StartAsync();
+        using var socket = await ConnectAsync(fixture.WebHost);
+        var clientId = $"client-{Guid.NewGuid():N}";
+        var token = fixture.Manager.CreatePairingToken();
+
+        var challenge = await SendAndReceiveAsync(socket, new
+        {
+            type = "pair.hello",
+            clientId,
+            deviceName = "Phone",
+            pairTokenId = PairingTokenAuthority.CreateTokenId(token),
+            clientNonce = PairingBootstrapCrypto.CreateNonce(),
+            reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing
+        });
+        Assert.Equal("pair.bootstrap.challenge", challenge.GetProperty("type").GetString());
+
+        var rejected = await SendAndReceiveAsync(socket, new
+        {
+            type = "pair.bootstrap.proof",
+            clientId,
+            proof = new string('A', 43)
+        });
+
+        Assert.Equal("pair.rejected", rejected.GetProperty("type").GetString());
+        Assert.Equal("invalid-proof", rejected.GetProperty("reason").GetString());
+    }
+
+    [Fact]
     public async Task WebSocketRejectsMalformedPairHelloAsInvalidMessage()
     {
         await using var fixture = await WebHostFixture.StartAsync();

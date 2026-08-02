@@ -1,3 +1,5 @@
+using Microsoft.Win32;
+
 namespace VolturaAir.Host;
 
 internal sealed class WpfHostRuntime : IAsyncDisposable
@@ -11,6 +13,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
     private readonly WebHostService _webHost;
     private readonly WpfTrayApplicationContext _trayContext;
     private readonly IAppLog _appLog;
+    private readonly SessionSwitchEventHandler? _screenViewSessionSwitch;
     private int _disposeState;
 
     private WpfHostRuntime(
@@ -24,7 +27,8 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         PairingManager pairingManager,
         MainWindow mainWindow,
         WpfTrayApplicationContext trayContext,
-        IAppLog appLog)
+        IAppLog appLog,
+        SessionSwitchEventHandler? screenViewSessionSwitch)
     {
         _inputInjector = inputInjector;
         _cursorOverrides = cursorOverrides;
@@ -37,6 +41,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         MainWindow = mainWindow;
         _trayContext = trayContext;
         _appLog = appLog;
+        _screenViewSessionSwitch = screenViewSessionSwitch;
     }
 
     public PairingManager PairingManager { get; }
@@ -68,9 +73,11 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         PointerHighlightForegroundMonitor? pointerHighlightForegroundMonitor = null;
         MainWindow? mainWindow = null;
         WpfTrayApplicationContext? trayContext = null;
+        PairingManager? pairingManager = null;
+        SessionSwitchEventHandler? screenViewSessionSwitch = null;
         try
         {
-            var pairingManager = new PairingManager(new PairingStore(string.IsNullOrWhiteSpace(pairingStoreRoot) ? null : pairingStoreRoot));
+            pairingManager = new PairingManager(new PairingStore(string.IsNullOrWhiteSpace(pairingStoreRoot) ? null : pairingStoreRoot));
             inputInjector = new SendInputInjector();
             cursorWatchdogService = new CursorWatchdogService();
             customPointerService = new CustomPointerService();
@@ -113,6 +120,14 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
             inputDispatcher.TaskbarActivated += (_, _) => pointerHighlightForegroundMonitor.NotifyTaskbarActivation();
             webHost.SetInputBlockedByElevation(pointerHighlightForegroundMonitor.IsRemoteInputBlocked);
             await webHost.StartAsync();
+            if (!isolatedTestMode)
+            {
+                screenViewSessionSwitch = (_, eventArgs) =>
+                {
+                    if (StopsScreenViewForSessionSwitch(eventArgs.Reason)) webHost.StopScreenViewing();
+                };
+                SystemEvents.SessionSwitch += screenViewSessionSwitch;
+            }
 #if DEBUG
             if (isolatedTestMode &&
                 HasOption(args, "--presentation-demo-data") &&
@@ -158,10 +173,12 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 pairingManager,
                 mainWindow,
                 trayContext,
-                appLog);
+                appLog,
+                screenViewSessionSwitch);
         }
         catch
         {
+            if (screenViewSessionSwitch is not null) SystemEvents.SessionSwitch -= screenViewSessionSwitch;
             TryDispose(trayContext, appLog, "tray_context");
             TryCloseWindow(mainWindow, appLog);
             TryDispose(pointerHighlightForegroundMonitor, appLog, "pointer_foreground_monitor");
@@ -190,6 +207,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 TryDispose(cursorWatchdogService, appLog, "cursor_recovery_service");
             }
             TryDispose(inputInjector, appLog, "input_injector");
+            TryDisposePairingManager(pairingManager, appLog);
             await TryDisposeAsync(appLog as IAsyncDisposable, appLog, "application_log");
             throw;
         }
@@ -203,6 +221,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         }
 
         var appLog = _appLog;
+        if (_screenViewSessionSwitch is not null) SystemEvents.SessionSwitch -= _screenViewSessionSwitch;
         TryDispose(_trayContext, appLog, "tray_context");
         TryCloseWindow(MainWindow, appLog);
         await TryStopWebHostAsync(_webHost, appLog);
@@ -216,8 +235,15 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         _cursorOverrides.OverridesRevoked -= _cursorOverridesRevoked;
         TryDispose(_cursorOverrides, appLog, "cursor_overrides");
         TryDispose(_inputInjector, appLog, "input_injector");
+        TryDisposePairingManager(PairingManager, appLog);
         await TryDisposeAsync(appLog as IAsyncDisposable, appLog, "application_log");
     }
+
+    internal static bool StopsScreenViewForSessionSwitch(SessionSwitchReason reason) => reason is
+        SessionSwitchReason.SessionLock or
+        SessionSwitchReason.SessionLogoff or
+        SessionSwitchReason.ConsoleDisconnect or
+        SessionSwitchReason.RemoteDisconnect;
 
     private static void TryCloseWindow(MainWindow? mainWindow, IAppLog appLog)
     {
@@ -251,6 +277,18 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             LogCleanupFailure(appLog, resourceName, ex);
+        }
+    }
+
+    private static void TryDisposePairingManager(PairingManager? pairingManager, IAppLog appLog)
+    {
+        try
+        {
+            pairingManager?.DisposeHostIdentity();
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogCleanupFailure(appLog, "pairing_manager", ex);
         }
     }
 

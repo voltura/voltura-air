@@ -1,15 +1,30 @@
 import { p256 } from "@noble/curves/nist.js";
+import { hmac } from "@noble/hashes/hmac.js";
+import { sha256 } from "@noble/hashes/sha2.js";
 import { getBrowserName, getDefaultDeviceName, getDisplayMode, getPlatformName } from "../platform/clientEnvironment";
 import { getWebSocketUrl, type PcProfile } from "./pcProfiles";
-import type { PairAcceptedMessage } from "../protocol/messages";
+import type { PairAcceptedMessage, PairBootstrapChallengeMessage } from "../protocol/messages";
 import { parseServerMessage } from "./connectionProtocol";
 
 const revocationTimeoutMs = 10_000;
 const reconnectSigningPrefix = "VolturaAir reconnect:v1";
+const pairingHostProofPrefix = "VolturaAir pairing host:v1";
+const pairingClientProofPrefix = "VolturaAir pairing client:v1";
 
 export interface PairingKeyMaterial {
   privateKey: string;
   reconnectPublicKey: string;
+}
+
+export interface PairingBootstrapMaterial {
+  clientNonce: string;
+  pairTokenId: string;
+  token: string;
+}
+
+export interface VerifiedPairingBootstrap {
+  clientProof: string;
+  hostIdentity: { publicKey: string; fingerprint: string };
 }
 
 export function createPairingKeyMaterial(): PairingKeyMaterial | null {
@@ -24,12 +39,128 @@ export function createPairingKeyMaterial(): PairingKeyMaterial | null {
   };
 }
 
+export function createPairingBootstrapMaterial(token: string): PairingBootstrapMaterial | null {
+  if (!crypto.getRandomValues) {
+    return null;
+  }
+
+  const nonce = crypto.getRandomValues(new Uint8Array(32));
+  return {
+    clientNonce: base64Url(nonce),
+    pairTokenId: base64Url(sha256(new TextEncoder().encode(token))),
+    token
+  };
+}
+
+export function verifyPairingBootstrapChallenge(
+  challenge: PairBootstrapChallengeMessage,
+  material: PairingBootstrapMaterial,
+  clientId: string,
+  reconnectPublicKey: string
+): VerifiedPairingBootstrap | null {
+  if (challenge.clientId !== clientId || challenge.clientNonce !== material.clientNonce ||
+      !isValidHostIdentity(challenge.hostIdentity)) {
+    return null;
+  }
+
+  const expectedHostProof = createPairingProof(
+    pairingHostProofPrefix,
+    material.token,
+    clientId,
+    material.clientNonce,
+    challenge.serverNonce,
+    reconnectPublicKey,
+    challenge.hostIdentity.publicKey,
+    challenge.hostIdentity.fingerprint
+  );
+  if (!constantTimeEqual(expectedHostProof, challenge.proof)) {
+    return null;
+  }
+
+  return {
+    clientProof: createPairingProof(
+      pairingClientProofPrefix,
+      material.token,
+      clientId,
+      material.clientNonce,
+      challenge.serverNonce,
+      reconnectPublicKey,
+      challenge.hostIdentity.publicKey,
+      challenge.hostIdentity.fingerprint
+    ),
+    hostIdentity: challenge.hostIdentity
+  };
+}
+
 export function handlePairAccepted(message: PairAcceptedMessage, pcId: string, pendingKey: string | null): void {
   if (!pendingKey) {
     return;
   }
 
   localStorage.setItem(privateKeyStoreKey(message.clientId, pcId), pendingKey);
+}
+
+export function isExpectedHostIdentity(message: PairAcceptedMessage, expectedFingerprint: string | undefined): boolean {
+  if (!expectedFingerprint) {
+    return true;
+  }
+
+  const identity = message.hostIdentity;
+  if (identity?.fingerprint !== expectedFingerprint) {
+    return false;
+  }
+
+  try {
+    const encoded = decodeBase64Url(identity.publicKey);
+    return encoded.length === 65 && encoded[0] === 0x04 && base64Url(sha256(encoded).slice(0, 16)) === expectedFingerprint;
+  } catch {
+    return false;
+  }
+}
+
+function isValidHostIdentity(identity: { publicKey: string; fingerprint: string }): boolean {
+  try {
+    const encoded = decodeBase64Url(identity.publicKey);
+    return encoded.length === 65 && encoded[0] === 0x04 &&
+      base64Url(sha256(encoded).slice(0, 16)) === identity.fingerprint;
+  } catch {
+    return false;
+  }
+}
+
+function createPairingProof(
+  prefix: string,
+  token: string,
+  clientId: string,
+  clientNonce: string,
+  serverNonce: string,
+  reconnectPublicKey: string,
+  hostPublicKey: string,
+  hostFingerprint: string
+): string {
+  const encodedClientId = base64Url(new TextEncoder().encode(clientId));
+  const transcript = [
+    prefix,
+    encodedClientId,
+    clientNonce,
+    serverNonce,
+    reconnectPublicKey,
+    hostPublicKey,
+    hostFingerprint
+  ].join("\n");
+  return base64Url(hmac(sha256, new TextEncoder().encode(token), new TextEncoder().encode(transcript)));
+}
+
+function constantTimeEqual(left: string, right: string): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  let difference = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  }
+  return difference === 0;
 }
 
 export function hasStoredReconnectKey(clientId: string, pcId: string): boolean {
@@ -48,6 +179,14 @@ export function signReconnectChallenge(clientId: string, pcId: string, challenge
     { lowS: false }
   );
   return base64Url(signature);
+}
+
+export function signClientPayload(clientId: string, pcId: string, payload: string): string | null {
+  const privateKey = getStoredPrivateKey(clientId, pcId);
+  if (!privateKey) {
+    return null;
+  }
+  return base64Url(p256.sign(new TextEncoder().encode(payload), privateKey, { lowS: false }));
 }
 
 export function clearStoredReconnectKey(clientId: string, pcId: string): void {

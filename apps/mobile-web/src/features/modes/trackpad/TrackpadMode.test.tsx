@@ -8,11 +8,13 @@ const baseProps = {
   isExpanded: false,
   supportsVolumeControl: true,
   trackpadSettings: defaultTrackpadSettings,
+  twoFingerMode: "scroll" as const,
   onMouseButtonDown: vi.fn(),
   onMouseButtonUp: vi.fn(),
   onSetVolume: vi.fn(),
   onToggleExpanded: vi.fn(),
   onToggleMute: vi.fn(),
+  onTwoFingerModeChange: vi.fn(),
   onTouchCancel: vi.fn(),
   onTouchEnd: vi.fn(),
   onTouchMove: vi.fn(),
@@ -60,6 +62,42 @@ describe("TrackpadMode volume control", () => {
 
     expect(onToggleMute).toHaveBeenCalledOnce();
     expect(onSetVolume).toHaveBeenCalledWith(77);
+  });
+});
+
+describe("TrackpadMode two-finger mode", () => {
+  it("shows an isolated Scroll and Zoom switch when Pinch zoom is enabled", () => {
+    const onTouchStart = vi.fn();
+    const onTwoFingerModeChange = vi.fn();
+    const view = render(<TrackpadMode
+      {...baseProps}
+      onTouchStart={onTouchStart}
+      onTwoFingerModeChange={onTwoFingerModeChange}
+      trackpadSettings={{ ...defaultTrackpadSettings, zoomGestures: true }}
+    />);
+    const scrollButton = screen.getByRole("button", { name: "Two-finger mode: Scroll. Switch to Zoom" });
+
+    fireEvent.touchStart(scrollButton, { targetTouches: [{ identifier: 1, clientX: 20, clientY: 20 }] });
+    fireEvent.touchEnd(scrollButton, { targetTouches: [] });
+    fireEvent.click(scrollButton);
+
+    expect(onTouchStart).not.toHaveBeenCalled();
+    expect(onTwoFingerModeChange).toHaveBeenCalledExactlyOnceWith("zoom");
+
+    view.rerender(<TrackpadMode
+      {...baseProps}
+      onTwoFingerModeChange={onTwoFingerModeChange}
+      trackpadSettings={{ ...defaultTrackpadSettings, zoomGestures: true }}
+      twoFingerMode="zoom"
+    />);
+    fireEvent.click(screen.getByRole("button", { name: "Two-finger mode: Zoom. Switch to Scroll" }));
+    expect(onTwoFingerModeChange).toHaveBeenLastCalledWith("scroll");
+  });
+
+  it("hides the switch when Pinch zoom is disabled", () => {
+    render(<TrackpadMode {...baseProps} />);
+
+    expect(screen.queryByRole("button", { name: "Two-finger mode: Scroll. Switch to Zoom" })).toBeNull();
   });
 });
 

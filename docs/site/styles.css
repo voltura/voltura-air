@@ -272,6 +272,7 @@ h2 {
 }
 
 .feature-band,
+.comparison-section,
 .screen-section,
 .content-section,
 .download-band {
@@ -315,6 +316,197 @@ figcaption {
 .section-heading {
   max-width: 660px;
   margin-bottom: 26px;
+}
+
+.comparison-section {
+  border-top: 1px solid var(--border);
+}
+
+.comparison-heading {
+  max-width: 720px;
+  margin-bottom: 26px;
+}
+
+.comparison-heading > p:last-child {
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.55;
+}
+
+.comparison-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 18px 48px var(--shadow);
+  overscroll-behavior-inline: contain;
+}
+
+.comparison-scroll:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 4px;
+}
+
+.comparison-table {
+  width: 100%;
+  min-width: 920px;
+  border-spacing: 0;
+  color: var(--text);
+  font-size: 0.92rem;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.comparison-table caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.comparison-table th,
+.comparison-table td {
+  width: 21%;
+  min-width: 0;
+  vertical-align: top;
+  border-bottom: 1px solid var(--border);
+  padding: 16px;
+}
+
+.comparison-table thead th {
+  border-bottom-width: 2px;
+  background: var(--surface-raised);
+  font-weight: 800;
+}
+
+.comparison-table thead th:first-child {
+  position: sticky;
+  z-index: 3;
+  left: 0;
+}
+
+.comparison-table th:first-child {
+  width: 16%;
+  min-width: 150px;
+}
+
+.comparison-table tbody th {
+  position: sticky;
+  z-index: 1;
+  left: 0;
+  background: var(--surface);
+  font-size: 0.88rem;
+}
+
+.comparison-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.comparison-table .comparison-product {
+  font-size: 1rem;
+}
+
+.comparison-product span,
+.comparison-product small {
+  display: block;
+}
+
+.comparison-product small {
+  margin-top: 3px;
+  color: var(--accent);
+  font-size: 0.67rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.comparison-table .comparison-voltura {
+  background: color-mix(in srgb, var(--surface) 82%, var(--accent) 18%);
+}
+
+.comparison-table thead .comparison-voltura {
+  border-bottom-color: var(--accent);
+  background: color-mix(in srgb, var(--surface-raised) 76%, var(--accent) 24%);
+  font-weight: 900;
+}
+
+.comparison-status {
+  font-weight: 800;
+}
+
+.comparison-note {
+  margin: 18px 0 8px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.comparison-sources {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.comparison-sources summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--text);
+  font-weight: 800;
+}
+
+.comparison-sources summary:focus-visible,
+.comparison-sources a:focus-visible {
+  border-radius: 3px;
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.comparison-sources ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 24px;
+  margin: 14px 0 0;
+  padding-left: 20px;
+}
+
+.comparison-sources a {
+  color: var(--text);
+  text-decoration-color: var(--accent);
+  text-underline-offset: 0.18em;
+}
+
+.comparison-scroll-hint {
+  display: none;
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+@media (max-width: 919px) {
+  .comparison-scroll-hint {
+    display: block;
+  }
+
+  .comparison-sources ul {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (forced-colors: active) {
+  .comparison-scroll:focus-visible,
+  .comparison-sources summary:focus-visible,
+  .comparison-sources a:focus-visible {
+    outline-color: Highlight;
+  }
+
+  .comparison-table .comparison-voltura {
+    border-inline: 2px solid Highlight;
+    background: Canvas;
+  }
+
+  .comparison-table thead .comparison-voltura {
+    border-bottom-color: Highlight;
+  }
 }
 
 .screen-grid {

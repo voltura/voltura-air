@@ -122,9 +122,7 @@ async function captureMobileScreens(chromium, pairingUrl) {
     });
 
     const page = await context.newPage();
-    const url = new URL(pairingUrl);
-    url.searchParams.set("screenshot", "1");
-    await page.goto(url.href, { waitUntil: "networkidle" });
+    await page.goto(pairingUrl, { waitUntil: "networkidle" });
     await clickPairIfPresent(page);
     await waitForConnected(page);
 

@@ -424,7 +424,7 @@ function createHtmlReport({ codeReports, grandTotal, assets, tests, scripts, npm
   const largestRows = fileDetails.largest.map(({ file, size }) => `<li><div><code>${escapeHtml(relativePath(file))}</code><strong>${formatSize(size)}</strong></div><span style="--size: ${Math.max(2, size / largestSize * 100).toFixed(2)}%"></span></li>`).join("");
   const largestCodeSize = largestCodeFiles[0]?.size ?? 1;
   const largestCodeRows = largestCodeFiles.map(({ file, size }) => `<li><div><code>${escapeHtml(relativePath(file))}</code><strong>${formatSize(size)}</strong></div><span style="--size: ${Math.max(2, size / largestCodeSize * 100).toFixed(2)}%"></span></li>`).join("");
-  const generatedAt = fileDetails.newest.modified.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+  const generatedAt = fileDetails.newest.modified.toLocaleDateString("en-US", { dateStyle: "medium" });
 
   return `<!doctype html>
 <html lang="en">

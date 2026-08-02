@@ -198,9 +198,11 @@ async function launchBrowser(chromium) {
 
 async function clickPairIfPresent(page) {
   const pair = page.getByRole("button", { name: "Pair" });
-  if (await pair.isVisible({ timeout: 5000 }).catch(() => false)) {
-    await pair.click();
-  }
+  const becameVisible = await pair
+    .waitFor({ state: "visible", timeout: 10000 })
+    .then(() => true)
+    .catch(() => false);
+  if (becameVisible) await pair.click();
 }
 
 async function waitForConnected(page) {

@@ -67,7 +67,7 @@ export function createReleaseProgress({
       const totalDuration = elapsed();
       write();
       write(paint("green", "╔══════════════════════════════════════════════════════════╗"));
-      write(paint("green", "║  SUCCESS                                               ║"));
+      write(paint("green", "║  SUCCESS                                                 ║"));
       write(paint("green", "╚══════════════════════════════════════════════════════════╝"));
       write(summary);
       write(`Total release time: ${totalDuration}`);

@@ -25,7 +25,7 @@ test("release progress separates steps and reports successful total time", () =>
 
   assert.match(output, /Performing step 1 out of 2: Creating installation packages/u);
   assert.match(output, /Step 1 completed in 1m 05s/u);
-  assert.match(output, /GREEN = SUCCESS/u);
+  assert.match(output, /║  SUCCESS                                               ║/u);
   assert.match(output, /Total release time: 2m 05s/u);
 });
 
@@ -41,7 +41,7 @@ test("release progress identifies the failed step in red issue output", () => {
   progress.start("Testing release", "Running checks.");
   progress.issue(new Error("Tests failed."));
 
-  assert.match(output, /RED = ISSUE/u);
+  assert.match(output, /║  ISSUE                                                   ║/u);
   assert.match(output, /Stopped during step 1 of 6: Testing release/u);
   assert.match(output, /Tests failed\./u);
 });

@@ -77,7 +77,7 @@ export function createReleaseProgress({
       const message = error instanceof Error ? error.message : String(error);
       write();
       write(paint("red", "╔══════════════════════════════════════════════════════════╗"));
-      write(paint("red", "║  ISSUE                                                  ║"));
+      write(paint("red", "║  ISSUE                                                   ║"));
       write(paint("red", "╚══════════════════════════════════════════════════════════╝"));
       if (currentTitle) {
         write(`Stopped during step ${currentStep} of ${totalSteps}: ${currentTitle}`);

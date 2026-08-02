@@ -469,6 +469,11 @@ footer a:hover {
   font-weight: 700;
 }
 
+.catalog-tag-field {
+  display: grid;
+  gap: 7px;
+}
+
 .catalog-page input,
 .catalog-page textarea,
 .catalog-page select,
@@ -498,6 +503,132 @@ footer a:hover {
 .catalog-page select:focus {
   border-color: var(--accent);
   outline: 3px solid rgba(18, 168, 148, 0.18);
+}
+
+.catalog-tag-editor {
+  min-height: 44px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+}
+
+.catalog-tag-editor:focus-within {
+  border-color: var(--accent);
+  outline: 3px solid rgba(18, 168, 148, 0.18);
+}
+
+.catalog-tag-pills {
+  display: contents;
+}
+
+.catalog-tag-editor [data-tag-input] {
+  flex: 1 1 160px;
+  min-height: 30px;
+  border: 0;
+  padding: 5px 4px;
+  background: transparent;
+}
+
+.catalog-tag-editor [data-tag-input]:focus {
+  border-color: transparent;
+  outline: 0;
+}
+
+.catalog-tag-pill {
+  min-width: 0;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  padding: 5px 6px 5px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  color: color-mix(in srgb, var(--accent) 80%, white);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.catalog-tag-pill > span {
+  min-width: max-content;
+  max-width: min(24ch, calc(100vw - 120px));
+  flex: 0 0 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.catalog-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.catalog-tag-pill.is-static {
+  padding-inline: 10px;
+  border-color: var(--border);
+  background: var(--surface-raised);
+  color: var(--text);
+}
+
+.catalog-tags-empty {
+  color: var(--muted);
+}
+
+.catalog-page .catalog-tag-remove {
+  width: 1.375rem;
+  min-width: 1.375rem;
+  height: 1.375rem;
+  min-height: 1.375rem;
+  flex: 0 0 1.375rem;
+  position: relative;
+  display: block;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  box-shadow: none;
+}
+
+.catalog-page .catalog-tag-remove::before,
+.catalog-page .catalog-tag-remove::after {
+  content: "";
+  position: absolute;
+  top: 48%;
+  left: 50%;
+  width: 0.625rem;
+  height: 0.125rem;
+  border-radius: 999px;
+  background: currentColor;
+  transform-origin: center;
+}
+
+.catalog-page .catalog-tag-remove::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.catalog-page .catalog-tag-remove::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+.catalog-page .catalog-tag-remove:focus:not(:focus-visible) {
+  outline: none;
+  background: transparent;
+}
+
+.catalog-page .catalog-tag-remove:hover,
+.catalog-page .catalog-tag-remove:focus-visible {
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--accent) 65%, transparent);
+  outline-offset: 1px;
 }
 
 .catalog-page form label.catalog-package-drop {

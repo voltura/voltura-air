@@ -151,6 +151,59 @@ test("submission history uses linked rows, status pills, and an empty state", ()
   assert.match(styles, /\.catalog-submission-status\.is-rejected/u);
 });
 
+test("screen submission tags use an accessible removable pill editor", () => {
+  const upload = read("docs/site/screens/upload.php");
+  const edit = read("docs/site/screens/edit.php");
+  const layout = read("docs/site/screens/lib.php");
+  const script = read("docs/site/screens/tag-editor.js");
+  const styles = read("docs/site/styles.css");
+  assert.match(upload, /data-tag-editor/u);
+  assert.match(edit, /data-tag-editor/u);
+  assert.match(upload, /<label for="catalog-upload-tags">Tags<\/label>/u);
+  assert.match(edit, /<label for="catalog-edit-tags">Tags<\/label>/u);
+  assert.doesNotMatch(upload, /<label>Tags<span class="catalog-tag-editor"/u);
+  assert.doesNotMatch(edit, /<label>Tags<span class="catalog-tag-editor"/u);
+  assert.match(upload, /name="tags"[^>]*data-tags-value/u);
+  assert.match(edit, /name="tags"[^>]*data-tags-value/u);
+  assert.match(layout, /src="tag-editor\.js" defer/u);
+  assert.match(script, /event.key === ' '/u);
+  assert.match(script, /event.key === ','/u);
+  assert.match(script, /addEventListener\('blur', commit\)/u);
+  assert.match(script, /Remove tag \$\{tag\}/u);
+  assert.doesNotMatch(script, /remove\.textContent/u);
+  assert.doesNotMatch(script, /remove\.title/u);
+  assert.match(script, /event\.target === editor \|\| event\.target === pills/u);
+  assert.match(script, /input\.focus\(\)/u);
+  assert.match(script, /toLocaleLowerCase\(\) === tag\.toLocaleLowerCase\(\)/u);
+  assert.match(styles, /\.catalog-tag-pill/u);
+  assert.match(styles, /\.catalog-tag-remove:focus-visible/u);
+  assert.match(styles, /\.catalog-tag-remove:focus:not\(:focus-visible\)/u);
+  assert.match(styles, /\.catalog-tag-remove[\s\S]*height: 1\.375rem/u);
+  assert.match(styles, /\.catalog-tag-remove::before/u);
+  assert.match(styles, /\.catalog-tag-remove::after/u);
+  assert.match(styles, /top: 48%/u);
+  assert.match(styles, /width: 0\.625rem/u);
+  assert.match(styles, /translate\(-50%, -50%\) rotate\(45deg\)/u);
+});
+test("published screen details render tags as safe static pills", () => {
+  const view = read("docs/site/screens/view.php");
+  const library = read("docs/site/screens/lib.php");
+  const styles = read("docs/site/styles.css");
+  const staticTagRenderer = library.slice(
+    library.indexOf("function air_screen_tag_pills"),
+    library.indexOf("function air_screen_local_catalog_source"),
+  );
+  assert.match(view, /air_screen_tag_pills\(\(string\)\$item\['tags'\]\)/u);
+  assert.match(library, /function air_screen_tag_pills\(string \$tags\)/u);
+  assert.match(library, /catalog-tag-pill is-static/u);
+  assert.match(library, /None supplied\./u);
+  assert.match(styles, /\.catalog-tag-list/u);
+  assert.match(styles, /\.catalog-tag-pill\.is-static/u);
+  assert.match(styles, /\.catalog-tag-pill\.is-static[\s\S]*background: var\(--surface-raised\)/u);
+  assert.match(styles, /\.catalog-tag-pill\.is-static[\s\S]*color: var\(--text\)/u);
+  assert.doesNotMatch(staticTagRenderer, /catalog-tag-remove|Remove tag/u);
+});
+
 test("rejection requires feedback that the author can read and clear by resubmitting", () => {
   const moderation = read("docs/site/screens/admin.php");
   const upload = read("docs/site/screens/upload.php");
@@ -211,6 +264,32 @@ test("moderation emails approval or rejection status to the submitter", () => {
   assert.match(library, /View my submissions/u);
   assert.match(library, /VOLTURA_AIR_SITE_DEV/u);
   assert.match(library, /@mail\(\$recipient/u);
+});
+
+test("notification emails share an Outlook-compatible presentation shell", () => {
+  const library = read("docs/site/screens/lib.php");
+  const shell = library.slice(
+    library.indexOf("function air_screen_notification_email"),
+    library.indexOf("function air_screen_notify_moderators"),
+  );
+  assert.match(shell, /role="presentation"/u);
+  assert.match(shell, /width="600"/u);
+  assert.match(shell, /cellpadding="0" cellspacing="0" border="0"/u);
+  assert.match(shell, /bgcolor=/u);
+  assert.match(shell, /<table[^>]*><tr>[\s\S]*<td[^>]*><a href=/u);
+  assert.match(shell, /<td bgcolor="#0d8f7d" style="padding:13px 22px/u);
+  assert.match(shell, /<a href="[^"]+" style="display:block/u);
+  assert.doesNotMatch(shell, /display:\s*none|opacity:\s*0|mso-hide/u);
+  assert.equal((shell.match(/<a href=/gu) ?? []).length, 2);
+  assert.match(shell, /AIR_SCREEN_ORIGIN \. '\/"/u);
+  assert.match(shell, /This is an automated email from Voltura Air\. Replies are not monitored\./u);
+  assert.match(library, /air_screen_notification_subject\('Review needed', \$screenName\)/u);
+  assert.match(library, /air_screen_notification_subject\(\$approved \? 'Approved' : 'Rejected', \$screenName\)/u);
+  assert.match(library, /preg_replace\('\/\[\\r\\n\]\+\/u', ' ', \$screenName\)/u);
+  assert.match(library, /mb_encode_mimeheader/u);
+  assert.match(shell, /border-top:6px solid #0d8f7d/u);
+  assert.doesNotMatch(shell, /#d6a84b/u);
+  assert.doesNotMatch(shell, /If the button does not work|copy and paste this address/u);
 });
 
 test("catalog previews expose full content through compact and interactive modes", () => {

@@ -103,6 +103,24 @@ function air_screen_h(string $value): string
     return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
+function air_screen_tag_pills(string $tags): string
+{
+    $values = [];
+    $seen = [];
+    foreach (preg_split('/\s*,\s*/u', trim($tags), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $tag) {
+        $tag = trim($tag);
+        $key = strtolower($tag);
+        if ($tag === '' || isset($seen[$key])) {
+            continue;
+        }
+        $seen[$key] = true;
+        $values[] = '<span class="catalog-tag-pill is-static">' . air_screen_h($tag) . '</span>';
+    }
+    return $values === []
+        ? '<span class="catalog-tags-empty">None supplied.</span>'
+        : '<span class="catalog-tag-list" aria-label="Tags">' . implode('', $values) . '</span>';
+}
+
 function air_screen_local_catalog_source(): ?string
 {
     if (getenv('VOLTURA_AIR_SITE_DEV') !== '1') {
@@ -114,6 +132,46 @@ function air_screen_local_catalog_source(): ?string
         $host = '127.0.0.1:8765';
     }
     return 'http://' . $host . '/screens';
+}
+
+function air_screen_notification_email(
+    string $title,
+    string $content,
+    string $actionLabel,
+    string $actionUrl): string
+{
+    return '<!doctype html>
+        <html>
+        <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' . air_screen_h($title) . '</title></head>
+        <body style="margin:0;padding:0;background-color:#101418;font-family:Arial,Helvetica,sans-serif;color:#172027;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#101418" style="width:100%;border-collapse:collapse;background-color:#101418;">
+                <tr><td align="center" style="padding:32px 12px;">
+                    <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="#f7f2e9" style="width:100%;max-width:600px;border-collapse:separate;background-color:#f7f2e9;border-top:6px solid #0d8f7d;border-right:1px solid #3b4a52;border-bottom:1px solid #3b4a52;border-left:1px solid #3b4a52;">
+                        <tr><td style="padding:32px 36px 18px;font-size:26px;line-height:1.25;font-weight:bold;color:#172027;">' . air_screen_h($title) . '</td></tr>
+                        <tr><td style="padding:0 36px 28px;">' . $content . '</td></tr>
+                        <tr><td style="padding:0 36px 32px;">
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+                                <td bgcolor="#0d8f7d" style="padding:13px 22px;background-color:#0d8f7d;"><a href="' . air_screen_h($actionUrl) . '" style="display:block;color:#ffffff;text-decoration:none;font-size:16px;line-height:20px;font-weight:bold;">' . air_screen_h($actionLabel) . '</a></td>
+                            </tr></table>
+                        </td></tr>
+                        <tr><td style="padding:20px 36px;border-top:1px solid #d7d0c5;color:#71818a;font-size:13px;line-height:19px;">
+                            <a href="' . AIR_SCREEN_ORIGIN . '/" style="color:#0b776a;text-decoration:underline;">Voltura Air</a> custom-screen catalog<br>
+                            This is an automated email from Voltura Air. Replies are not monitored.
+                        </td></tr>
+                    </table>
+                </td></tr>
+            </table>
+        </body>
+        </html>';
+}
+
+function air_screen_notification_subject(string $status, string $screenName): string
+{
+    $safeName = trim((string)preg_replace('/[\r\n]+/u', ' ', $screenName));
+    $subject = $status . ': ' . ($safeName === '' ? 'Custom screen' : $safeName) . ' - Voltura Air';
+    return preg_match('/[^\x20-\x7E]/', $subject)
+        ? mb_encode_mimeheader($subject, 'UTF-8', 'B', "\r\n")
+        : $subject;
 }
 
 function air_screen_notify_moderators(
@@ -139,33 +197,29 @@ function air_screen_notify_moderators(
         }
 
         $moderationUrl = AIR_SCREEN_ORIGIN . '/screens/admin.php';
-        $subject = 'Voltura Air - Custom screen awaiting moderation';
+        $subject = air_screen_notification_subject('Review needed', $screenName);
         $safeName = air_screen_h($screenName);
         $safeAuthor = air_screen_h($authorName);
         $safeDescription = nl2br(air_screen_h($description));
         $safeTags = air_screen_h($tags === '' ? 'None' : $tags);
-        $body = '
-            <html>
-            <head><title>Voltura Air - Custom screen awaiting moderation</title></head>
-            <body style="margin:0;padding:0;background-color:#101418;font-family:Helvetica Neue,Arial,Helvetica,sans-serif;color:#172027;">
-                <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#101418;padding:24px;border:0;">
-                    <tr><td align="center">
-                        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background-color:#f7f2e9;padding:28px;border:1px solid #3b4a52;">
-                            <tr><td style="padding-bottom:18px;font-size:24px;font-weight:bold;">Custom screen awaiting moderation</td></tr>
-                            <tr><td style="padding-bottom:8px;font-size:18px;font-weight:bold;">' . $safeName . '</td></tr>
-                            <tr><td style="padding-bottom:16px;color:#4c5d66;">Submitted by ' . $safeAuthor . '</td></tr>
-                            <tr><td style="padding-bottom:8px;font-weight:bold;">Author notes</td></tr>
-                            <tr><td style="padding-bottom:16px;line-height:1.5;">' . ($safeDescription === '' ? 'No notes supplied.' : $safeDescription) . '</td></tr>
-                            <tr><td style="padding-bottom:22px;"><strong>Tags:</strong> ' . $safeTags . '</td></tr>
-                            <tr><td>
-                                <a href="' . $moderationUrl . '" style="display:inline-block;padding:12px 20px;background-color:#0d8f7d;color:#ffffff;text-decoration:none;font-weight:bold;">Review submission</a>
-                            </td></tr>
-                            <tr><td style="padding-top:24px;color:#71818a;font-size:13px;">Voltura Air custom-screen catalog</td></tr>
-                        </table>
-                    </td></tr>
-                </table>
-            </body>
-            </html>';
+        $content = '
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="width:100%;border-collapse:collapse;background-color:#ffffff;border:1px solid #ded7cc;">
+                <tr><td style="padding:18px 20px;">
+                    <div style="font-size:19px;line-height:26px;font-weight:bold;color:#172027;">' . $safeName . '</div>
+                    <div style="padding-top:6px;color:#4c5d66;font-size:15px;line-height:22px;">Submitted by ' . $safeAuthor . '</div>
+                </td></tr>
+            </table>
+            <div style="padding-top:24px;font-size:15px;line-height:23px;color:#172027;">
+                <div style="padding-bottom:7px;font-weight:bold;">Author notes</div>
+                <div>' . ($safeDescription === '' ? 'No notes supplied.' : $safeDescription) . '</div>
+                <div style="padding-top:18px;"><strong>Tags:</strong> ' . $safeTags . '</div>
+            </div>';
+        $body = air_screen_notification_email(
+            'Custom screen awaiting moderation',
+            $content,
+            'Review submission',
+            $moderationUrl
+        );
         $headers = air_screen_html_mail_headers();
 
         foreach ($recipients as $recipient) {
@@ -201,31 +255,25 @@ function air_screen_notify_submitter_status(
         $approved = $status === 'approved';
         $statusLabel = $approved ? 'approved' : 'rejected';
         $title = 'Your custom screen was ' . $statusLabel;
-        $subject = 'Voltura Air - Custom screen ' . $statusLabel;
+        $subject = air_screen_notification_subject($approved ? 'Approved' : 'Rejected', $screenName);
         $destination = $approved
             ? AIR_SCREEN_ORIGIN . '/screens/view.php?id=' . rawurlencode($packageId)
             : AIR_SCREEN_ORIGIN . '/screens/upload.php#submissions';
         $actionLabel = $approved ? 'View published screen' : 'View my submissions';
         $feedback = $reviewFeedback !== ''
-            ? '<tr><td style="padding-bottom:8px;font-weight:bold;">Reviewer feedback</td></tr><tr><td style="padding-bottom:22px;line-height:1.5;white-space:pre-wrap;">' . air_screen_h($reviewFeedback) . '</td></tr>'
+            ? '<div style="padding-top:24px;font-size:15px;line-height:23px;color:#172027;"><div style="padding-bottom:7px;font-weight:bold;">Reviewer feedback</div><div>' . nl2br(air_screen_h($reviewFeedback)) . '</div></div>'
             : '';
-        $body = '
-            <html>
-            <head><title>' . air_screen_h($title) . '</title></head>
-            <body style="margin:0;padding:0;background-color:#101418;font-family:Helvetica Neue,Arial,Helvetica,sans-serif;color:#172027;">
-                <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#101418;padding:24px;border:0;">
-                    <tr><td align="center">
-                        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background-color:#f7f2e9;padding:28px;border:1px solid #3b4a52;">
-                            <tr><td style="padding-bottom:18px;font-size:24px;font-weight:bold;">' . air_screen_h($title) . '</td></tr>
-                            <tr><td style="padding-bottom:18px;font-size:18px;font-weight:bold;">' . air_screen_h($screenName) . '</td></tr>
-                            ' . $feedback . '
-                            <tr><td><a href="' . air_screen_h($destination) . '" style="display:inline-block;padding:12px 20px;background-color:#0d8f7d;color:#ffffff;text-decoration:none;font-weight:bold;">' . $actionLabel . '</a></td></tr>
-                            <tr><td style="padding-top:24px;color:#71818a;font-size:13px;">Voltura Air custom-screen catalog</td></tr>
-                        </table>
-                    </td></tr>
-                </table>
-            </body>
-            </html>';
+        $content = '
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="width:100%;border-collapse:collapse;background-color:#ffffff;border:1px solid #ded7cc;">
+                <tr><td style="padding:18px 20px;font-size:19px;line-height:26px;font-weight:bold;color:#172027;">' . air_screen_h($screenName) . '</td></tr>
+            </table>
+            ' . $feedback;
+        $body = air_screen_notification_email(
+            $title,
+            $content,
+            $actionLabel,
+            $destination
+        );
         if (!@mail($recipient, $subject, $body, air_screen_html_mail_headers())) {
             error_log('Voltura Air submitter status notification failed for package ' . $packageId . '.');
         }
@@ -260,7 +308,7 @@ function air_screen_layout(
     $user = air_screen_user();
     echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">';
     echo '<title>' . air_screen_h($title) . ' - Voltura Air</title><meta name="theme-color" content="#101418">';
-    echo '<link rel="icon" href="../assets/voltura-air-icon.svg" type="image/svg+xml"><link rel="icon" href="../favicon-32.png" sizes="32x32" type="image/png"><link rel="icon" href="../favicon-16.png" sizes="16x16" type="image/png"><link rel="icon" href="../favicon.ico" sizes="any"><link rel="apple-touch-icon" href="../apple-touch-icon.png"><link rel="stylesheet" href="../styles.css"><script src="preview.js" defer></script></head><body class="catalog-page">';
+    echo '<link rel="icon" href="../assets/voltura-air-icon.svg" type="image/svg+xml"><link rel="icon" href="../favicon-32.png" sizes="32x32" type="image/png"><link rel="icon" href="../favicon-16.png" sizes="16x16" type="image/png"><link rel="icon" href="../favicon.ico" sizes="any"><link rel="apple-touch-icon" href="../apple-touch-icon.png"><link rel="stylesheet" href="../styles.css"><script src="preview.js" defer></script><script src="tag-editor.js" defer></script></head><body class="catalog-page">';
     echo '<header class="site-header"><a class="brand" href="../" aria-label="Voltura Air home"><img src="../assets/voltura-air-icon.svg" alt="" width="36" height="36"><span>Voltura Air</span></a><nav aria-label="Catalog navigation">';
     echo '<a href="../" aria-label="Voltura Air main page" title="Voltura Air main page">Voltura Air</a>';
     echo '<a href="./" aria-label="Browse community library of custom screens" title="Browse community library of custom screens">Browse screens</a>';

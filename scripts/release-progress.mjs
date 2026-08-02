@@ -67,7 +67,7 @@ export function createReleaseProgress({
       const totalDuration = elapsed();
       write();
       write(paint("green", "╔══════════════════════════════════════════════════════════╗"));
-      write(paint("green", "║  GREEN = SUCCESS                                         ║"));
+      write(paint("green", "║  SUCCESS                                               ║"));
       write(paint("green", "╚══════════════════════════════════════════════════════════╝"));
       write(summary);
       write(`Total release time: ${totalDuration}`);
@@ -77,7 +77,7 @@ export function createReleaseProgress({
       const message = error instanceof Error ? error.message : String(error);
       write();
       write(paint("red", "╔══════════════════════════════════════════════════════════╗"));
-      write(paint("red", "║  RED = ISSUE                                             ║"));
+      write(paint("red", "║  ISSUE                                                  ║"));
       write(paint("red", "╚══════════════════════════════════════════════════════════╝"));
       if (currentTitle) {
         write(`Stopped during step ${currentStep} of ${totalSteps}: ${currentTitle}`);

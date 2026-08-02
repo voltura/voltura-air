@@ -218,9 +218,12 @@ export function generateStatisticsReport({
 
 export async function runSitePublication({
   generate = generateStatisticsReport,
-  publish = publishSite
+  publish = publishSite,
+  skipGeneration = false
 } = {}) {
-  generate();
+  if (!skipGeneration) {
+    generate();
+  }
   return publish();
 }
 
@@ -281,8 +284,12 @@ async function main() {
     console.log("Removed the stored one.com SFTP password.");
   } else if (process.argv[2] === "--list") {
     await listSite();
-  } else {
+  } else if (process.argv[2] === "--prepared") {
+    await runSitePublication({ skipGeneration: true });
+  } else if (process.argv[2] === undefined) {
     await runSitePublication();
+  } else {
+    throw new Error(`Unsupported option: ${process.argv[2]}.`);
   }
 }
 

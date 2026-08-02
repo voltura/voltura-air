@@ -252,6 +252,7 @@ export async function runLocalRelease(args = process.argv.slice(2), { progress, 
     checked("npm", ["run", "size:check"]);
     checked("npm", ["run", "release", "--", releaseContext.targetVersion]);
     checked("npm", ["run", "branding:generate"]);
+    checked("npm", ["run", "site:preview:build"]);
     checked("npm", ["run", "code:statistics", "--", "--report", "--no-open", "--quiet"]);
   });
 
@@ -325,7 +326,7 @@ export async function runLocalRelease(args = process.argv.slice(2), { progress, 
   });
 
   await performStep(releaseProgress, publishLatest ? "Deploying the website and publishing Latest" : "Deploying the website and finalizing the draft", "Publishing the public site, then applying the requested GitHub release state.", () => {
-    checked("npm", ["run", "publish:site"]);
+    checked("npm", ["run", "publish:site:prepared"]);
     publishReleaseIfRequested({
       publishLatest,
       targetTag: releaseContext.targetTag,

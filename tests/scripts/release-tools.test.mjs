@@ -35,12 +35,18 @@ test("release commands accept at most one explicit version", () => {
   assert.throws(() => parseReleaseArguments(["latest"]), /semantic versioning/u);
 });
 
-test("release publication generates the tracked statistics page before staging", () => {
+test("release publication prepares the tracked site snapshot before staging and deploys it unchanged", () => {
+  const previewBuild = localReleaseSource.indexOf('"site:preview:build"');
   const generation = localReleaseSource.indexOf('"code:statistics"');
   const staging = localReleaseSource.indexOf('"git", ["add", "--all"]');
+  const deployment = localReleaseSource.indexOf('"publish:site:prepared"');
+  assert.ok(previewBuild > 0);
+  assert.ok(generation > previewBuild);
   assert.ok(generation > 0);
   assert.ok(staging > generation);
+  assert.ok(deployment > staging);
   assert.match(localReleaseSource, /"code:statistics", "--", "--report", "--no-open", "--quiet"/u);
+  assert.match(localReleaseSource, /"publish:site:prepared"/u);
 });
 
 test("local draft completion does not run publication or tag commands", () => {

@@ -52,6 +52,7 @@
     "site:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/site-dev.ps1",
     "site:preview:build": "npm run build:catalog-preview --workspace apps/mobile-web",
     "publish:site": "npm run site:preview:build && node scripts/publish-site.mjs",
+    "publish:site:prepared": "node scripts/publish-site.mjs --prepared",
     "publish:site:list": "node scripts/publish-site.mjs --list",
     "publish:site:password": "node scripts/publish-site.mjs --store-password",
     "publish:site:password:clear": "node scripts/publish-site.mjs --clear-password",

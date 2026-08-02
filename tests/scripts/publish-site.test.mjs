@@ -21,6 +21,16 @@ test("site publication refreshes statistics before uploading", async () => {
   assert.deepEqual(operations, ["generate", "publish"]);
 });
 
+test("prepared site publication uploads the committed snapshot without regenerating it", async () => {
+  const operations = [];
+  await runSitePublication({
+    generate: () => operations.push("generate"),
+    publish: async () => operations.push("publish"),
+    skipGeneration: true
+  });
+  assert.deepEqual(operations, ["publish"]);
+});
+
 test("statistics generation is quiet and does not open a browser during publication", () => {
   const calls = [];
   generateStatisticsReport({

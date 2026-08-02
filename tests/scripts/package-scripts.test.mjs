@@ -42,6 +42,7 @@ test("GitHub Actions stay archived but can be restored deliberately", () => {
   assert.equal(packageJson.scripts["actions:restore"], "node scripts/restore-github-actions.mjs");
   assert.equal(packageJson.scripts["release:draft"], "node scripts/release-publish.mjs");
   assert.equal(packageJson.scripts["release:full"], "node scripts/release-publish.mjs --publish-latest");
+  assert.equal(packageJson.scripts["publish:site:prepared"], "node scripts/publish-site.mjs --prepared");
   assert.equal(packageJson.scripts["release:sync-release-notes"], "node scripts/sync-release-notes.mjs");
   assert.equal(existsSync(new URL("../../.github/workflows/release.yml", import.meta.url)), false);
   assert.equal(existsSync(new URL("../../.github/workflows/quality.yml", import.meta.url)), false);

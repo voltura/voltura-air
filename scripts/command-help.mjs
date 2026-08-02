@@ -40,6 +40,7 @@ export const commandDescriptions = {
   "package:win:small": "Build only the framework-dependent Windows installer package.",
   "package:win:test": "Build an uncompressed Windows installer for testing.",
   "publish:site": "Refresh the code statistics page, then publish the public documentation site.",
+  "publish:site:prepared": "Publish the already prepared public-site snapshot without regenerating tracked files.",
   "publish:site:list": "List the public-site deployment configuration.",
   "publish:site:password": "Store the public-site deployment password securely for this user.",
   "publish:site:password:clear": "Remove the stored public-site deployment password.",

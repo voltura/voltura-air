@@ -28,6 +28,10 @@ artifacts, commits and pushes generated changes, rebuilds the final commit,
 creates/resumes the matching release, and deploys `docs/site`. Prerelease
 versions remain drafts. Set `NO_COLOR` to disable colored output.
 
+The catalog preview and statistics page are generated before the release commit;
+deployment uploads that prepared snapshot without regenerating tracked files.
+A successful release therefore leaves the Git working tree clean.
+
 ## Prerequisites
 
 - Windows, Node.js/npm, .NET 10 SDK, Git, and NSIS.

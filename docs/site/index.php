@@ -111,6 +111,10 @@
           <p>Move, click, scroll, zoom, type, and use common shortcuts from your mobile device.</p>
         </article>
         <article>
+          <h2>PC screen mirroring</h2>
+          <p>Mirror one Windows display live to one authorized phone or tablet at a time over an encrypted local connection.</p>
+        </article>
+        <article>
           <h2>Presentation remote</h2>
           <p>Control PowerPoint, Google Slides, or PDF/browser presentations, use a laser pointer, track time, and review saved reports on the PC.</p>
         </article>

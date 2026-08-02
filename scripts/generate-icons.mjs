@@ -1,4 +1,5 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
@@ -53,7 +54,7 @@ if (masterDimensions.width < 512 || masterDimensions.height < 512) {
   );
 }
 
-const browser = await chromium.launch({ headless: true });
+const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 512, height: 512 } });
 
 try {
@@ -71,6 +72,36 @@ try {
 console.log(
   `Generated and validated ${outputChecks.length} Voltura Air branding files from assets/branding.`,
 );
+
+async function launchBrowser() {
+  try {
+    return await chromium.launch({ channel: "chrome", headless: true });
+  } catch {
+    console.log("Chrome was not available; installing Playwright Chromium.");
+    await run("npx", ["--no-install", "playwright", "install", "chromium"]);
+    return chromium.launch({ headless: true });
+  }
+}
+
+async function run(command, args) {
+  await new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: repoRoot,
+      stdio: "inherit",
+      windowsHide: true,
+    });
+    child.once("error", reject);
+    child.once("exit", (code, signal) => {
+      if (signal) {
+        reject(new Error(`${command} ${args.join(" ")} was terminated by signal ${signal}.`));
+      } else if (code !== 0) {
+        reject(new Error(`${command} ${args.join(" ")} failed with exit code ${code}.`));
+      } else {
+        resolve();
+      }
+    });
+  });
+}
 
 async function loadMaster(masterPng) {
   const masterDataUri = `data:image/png;base64,${masterPng.toString("base64")}`;

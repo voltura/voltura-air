@@ -53,5 +53,5 @@ if ($user) {
     }
     $body .= '</dialog>';
 }
-$body .= $reportMessage . '<details class="catalog-report"><summary>Report this screen</summary><form method="post" action="report.php"><input type="hidden" name="id" value="' . $id . '"><input type="hidden" name="csrf" value="' . air_screen_h(air_screen_csrf()) . '"><input name="email" type="email" required placeholder="Your email"><textarea name="reason" required maxlength="1000" placeholder="Why should this screen be reviewed?"></textarea><button>Send report</button></form></details>';
+$body .= $reportMessage . '<details class="catalog-report"><summary>Report this screen</summary><form method="post" action="report.php"><input type="hidden" name="id" value="' . $id . '"><input type="hidden" name="csrf" value="' . air_screen_h(air_screen_csrf()) . '"><input name="email" type="email" required placeholder="Your email"><textarea name="reason" required maxlength="1000" placeholder="Why are you reporting it?"></textarea><button>Send report</button></form></details>';
 air_screen_layout($item['name'], $body);

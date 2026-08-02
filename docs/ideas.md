@@ -17,7 +17,12 @@ peaks, text, or audio in logs. Browser dictation must remain independent.
 
 ## Presentation
 
-- Define canonical presentation identity before cross-session analytics.
+- Consider reusable host-managed presentations only after defining canonical
+  presentation identity, file ownership, deletion behavior, and how saved runs
+  relate to the reusable item.
+- Consider bounded Open XML metadata inspection for modern PowerPoint files
+  without launching PowerPoint. Decide refresh behavior, legacy `.ppt`
+  treatment, failure states, and cleanup first.
 - Add bounded multi-select report actions with clear filtered-selection and
   partial-failure behavior.
 - Evaluate deeper mail-provider integration only with explicit consent, token

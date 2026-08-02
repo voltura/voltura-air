@@ -71,7 +71,7 @@ cached settings and event-driven updates, not registry reads or polling.
 Custom screens cross the trust boundary as visual definitions and opaque IDs
 only. The host-owned store retains actions and assignments, the status
 broadcaster publishes assigned summaries, and the command handler rechecks
-alpha state, assignment, revision, effective permission, and current approved
+  assignment, revision, effective permission, and current approved
 application ownership before dispatching through existing input/application
 owners. Screen components and actions remain shared identities; optional
 portrait and landscape records are peer layout overrides for visibility, order,
@@ -81,8 +81,8 @@ their measured height, and fill rows divide the remaining viewport by weight.
 Collapsible trackpads are the existing trackpad wire kind plus collapsible
 presentation state; fullscreen is local mobile state and never mutates the
 stored layout.
-The saved-screen preview reuses that visual projection through an alpha-gated
-loopback-only HTTP read. A themed WPF window owns the fixed device,
+The saved-screen preview reuses that visual projection through a loopback-only
+HTTP read. A themed WPF window owns the fixed device,
 orientation, and Rotate controls and embeds the saved mobile surface in
 WebView2 below them. The HTML contains no preview toolbar or window-resize
 logic. The embedded surface has no WebSocket command channel and therefore

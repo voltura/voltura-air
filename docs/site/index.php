@@ -214,6 +214,9 @@
           <p>
             Voltura Air is MIT-licensed. Follow the source quick start, inspect
             or adapt the code, report issues, or contribute improvements.
+            Custom screens are a good place to explore the Windows editor,
+            responsive mobile UI, local storage, and authenticated protocol
+            working together.
           </p>
           <div class="actions">
             <a class="button primary" href="https://github.com/voltura/voltura-air#develop-from-source">Start developing</a>

@@ -89,13 +89,11 @@ internal sealed class HostStatusPayloadFactory(
                 : null
         },
         remoteLaunch = permissions.AllowRemoteAppLaunch,
-        customScreens = AppDeveloperSettings.EnableAlphaFeatures()
-            ? new
-            {
-                catalogRevision = customScreenService.CatalogRevision,
-                screens = customScreenService.GetAssignedSummaries(clientId)
-            }
-            : null,
+        customScreens = new
+        {
+            catalogRevision = customScreenService.CatalogRevision,
+            screens = customScreenService.GetAssignedSummaries(clientId)
+        },
         urlOpen = new { canOpen = permissions.AllowUrlOpen },
         textTransfer = permissions.AllowRemoteInput,
         clipboardRead = permissions.AllowClipboardRead,

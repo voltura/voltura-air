@@ -44,7 +44,6 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
         int? slideNumber,
         bool? enabled)
     {
-        AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
         try
         {
@@ -106,7 +105,6 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     [Fact]
     public async Task StartingTheAlreadyTrackedPresentationNavigatesWithoutRejectingTheSession()
     {
-        AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
         try
         {
@@ -153,7 +151,6 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     public async Task ReadyPowerPointBlankCommandsUseVolturaOverlayWithoutAutomationOrInput(
         string action)
     {
-        AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
         try
         {
@@ -193,7 +190,6 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     [Fact]
     public async Task ReadyPowerPointBlankFailureIsExplicitAndDoesNotUseAutomationOrInput()
     {
-        AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
         try
         {
@@ -232,7 +228,6 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     [Fact]
     public async Task ReadyPowerPointGotoValidatesThenStartsAndNavigatesWithoutInput()
     {
-        AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
         try
         {
@@ -286,7 +281,6 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
         string action,
         int expectedSlide)
     {
-        AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
         try
         {
@@ -343,7 +337,6 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     [Fact]
     public async Task ReadyPowerPointNavigationDoesNotGuessWhenEditorSlideIsUnavailable()
     {
-        AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
         try
         {
@@ -379,7 +372,6 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     [Fact]
     public async Task StartingReadyPowerPointDismissesVolturaBlankOverlay()
     {
-        AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
         try
         {
@@ -437,7 +429,6 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     [Fact]
     public async Task StartingSamePausedPresentationResumesWithoutSaveOrDiscard()
     {
-        AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
         try
         {
@@ -497,7 +488,6 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     [Fact]
     public async Task PausedSessionBlocksDifferentPresentationBeforeAutomation()
     {
-        AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
         try
         {
@@ -560,7 +550,6 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     [Fact]
     public async Task InvalidReadyPowerPointGotoDoesNotStartOrInjectInput()
     {
-        AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
         try
         {
@@ -593,12 +582,11 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     }
 
     [Fact]
-    public async Task PresentationRemainsAdvertisedAndExecutableWhileAlphaFeaturesAreDisabled()
+    public async Task GraduatedCapabilitiesAreAdvertisedAndPresentationIsExecutable()
     {
         var originalPermissions = AppPermissionSettings.Load();
         try
         {
-            AppDeveloperSettings.SetEnableAlphaFeatures(false);
             AppPermissionSettings.Save(originalPermissions with { AllowPresentationControl = true });
             var automation = CreatePresentingPowerPoint();
             await using var fixture = await WebHostFixture.StartAsync(
@@ -626,9 +614,8 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
                     runtimePresentationId = "presentation-a"
                 });
 
-            Assert.False(AppDeveloperSettings.EnableAlphaFeatures());
             Assert.True(paired.GetProperty("capabilities").GetProperty("presentation").GetProperty("canControl").GetBoolean());
-            Assert.False(paired.GetProperty("capabilities").TryGetProperty("customScreens", out _));
+            Assert.True(paired.GetProperty("capabilities").TryGetProperty("customScreens", out _));
             Assert.True(result.GetProperty("succeeded").GetBoolean());
             Assert.True(sessionResult.GetProperty("succeeded").GetBoolean());
             Assert.Contains(automation.Commands, command => command.Action == "next");
@@ -642,33 +629,8 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     }
 
     [Fact]
-    public async Task AlphaSettingOnlyChangesAlphaCapabilities()
-    {
-        AppDeveloperSettings.SetEnableAlphaFeatures(false);
-        await using var fixture = await WebHostFixture.StartAsync();
-        var clientId = $"client-{Guid.NewGuid():N}";
-        using var socket = await ConnectAsync(fixture.WebHost);
-        var paired = await PairAsync(socket, fixture, clientId);
-        Assert.True(paired.GetProperty("capabilities").TryGetProperty("presentation", out _));
-        Assert.False(paired.GetProperty("capabilities").TryGetProperty("customScreens", out _));
-
-        AppDeveloperSettings.SetEnableAlphaFeatures(true);
-        using var enabledTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        using var enabledStatus = JsonDocument.Parse(await ReceiveTextAsync(socket, enabledTimeout.Token));
-        Assert.True(enabledStatus.RootElement.GetProperty("capabilities").GetProperty("presentation").GetProperty("canControl").GetBoolean());
-        Assert.True(enabledStatus.RootElement.GetProperty("capabilities").TryGetProperty("customScreens", out _));
-
-        AppDeveloperSettings.SetEnableAlphaFeatures(false);
-        using var disabledTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        using var disabledStatus = JsonDocument.Parse(await ReceiveTextAsync(socket, disabledTimeout.Token));
-        Assert.True(disabledStatus.RootElement.GetProperty("capabilities").TryGetProperty("presentation", out _));
-        Assert.False(disabledStatus.RootElement.GetProperty("capabilities").TryGetProperty("customScreens", out _));
-    }
-
-    [Fact]
     public async Task PresentationLaserUsesHostOwnedStateAndReturnsItsMatchingResult()
     {
-        AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
         try
         {
@@ -706,7 +668,6 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     [Fact]
     public async Task PowerPointPointerVisibilityFailureDoesNotDisableCustomLaserOrBlockLaterCommands()
     {
-        AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
         try
         {
@@ -788,7 +749,6 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     [Fact]
     public async Task PresentationPermissionDenialReturnsFeedbackWithoutInjectingOrClosing()
     {
-        AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
         try
         {
@@ -821,7 +781,6 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     [Fact]
     public async Task PresentationNativeFailureReturnsFeedbackAndNextTapStillWorks()
     {
-        AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
         try
         {
@@ -862,7 +821,6 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     [Fact]
     public async Task LaserPointerIsAvailableForPdfAndCanBeExplicitlyDisabled()
     {
-        AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
         try
         {
@@ -904,7 +862,6 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     [Fact]
     public async Task RevokingPermissionRestoresLaserAndCleanupRemainsAllowed()
     {
-        AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
         try
         {

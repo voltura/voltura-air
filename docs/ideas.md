@@ -6,7 +6,7 @@ privacy/security review, recovery behavior, and proportionate validation.
 
 ## Dictate: PC assistance
 
-Optionally add an alpha-gated Dictate path that inspects the Windows default
+Optionally add a named, feature-gated Dictate path that inspects the Windows default
 microphone and opens Windows Voice Typing without capturing audio.
 
 Decide the user value, permission model, privacy wording, and whether controlling

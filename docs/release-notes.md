@@ -8,6 +8,13 @@ create one. Keep the shared notices in
 
 ## v0.8.3
 
+- Graduated Custom screens from alpha. The Windows editor, mobile screens,
+  preview, and commands are now always available subject to their existing
+  action permissions.
+- Removed the global alpha-features switch. Future experimental features use
+  explicit, feature-owned toggles under Developer tools.
+- Unsupported Custom screens store versions are now left unchanged and reported
+  for recovery instead of being deleted.
 - Improved the Custom screens community library with tag-pill editing and
   display, a clearable search field, and a custom sort picker.
 - Added report delivery to Voltura Air by email, with a confirmation toast that

@@ -762,7 +762,6 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
                 Assert.True(FindVisualDescendants<Expander>(window)
                     .First(expander => string.Equals(expander.Header as string, "Permissions", StringComparison.Ordinal))
                     .IsExpanded);
-                AppDeveloperSettings.SetEnableAlphaFeatures(false);
                 window.ShowPage(HostPage.Devices);
                 window.UpdateLayout();
                 ExpandDevicePermissions(window);

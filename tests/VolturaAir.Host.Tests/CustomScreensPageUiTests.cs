@@ -24,7 +24,6 @@ public sealed partial class HostUiLayoutTests
             using var appScope = new WpfApplicationScope();
             using var store = new TempPairingStore();
             using var inputInjector = new SendInputInjector();
-            AppDeveloperSettings.SetEnableAlphaFeatures(true);
             var manager = new PairingManager(store.Store);
             var webHost = new WebHostService(
                 manager,
@@ -66,7 +65,6 @@ public sealed partial class HostUiLayoutTests
             using var appScope = new WpfApplicationScope();
             using var store = new TempPairingStore();
             using var inputInjector = new SendInputInjector();
-            AppDeveloperSettings.SetEnableAlphaFeatures(true);
             var manager = new PairingManager(store.Store);
             var webHost = new WebHostService(
                 manager,

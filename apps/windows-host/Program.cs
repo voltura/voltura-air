@@ -88,7 +88,6 @@ internal static class Program
 #endif
 
 #if DEBUG
-            ConfigureIsolatedDevelopmentSettings(args, isolatedTestMode);
             ConfigureSiteScreenshotSettings(args);
 #endif
             s_runtime = await WpfHostRuntime.StartAsync(args, requestShutdown, requestRestart);
@@ -206,21 +205,6 @@ internal static class Program
 #endif
 
 #if DEBUG
-    private static void ConfigureIsolatedDevelopmentSettings(string[] args, bool isolatedTestMode)
-    {
-        if (!args.Contains("--enable-alpha-features", StringComparer.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
-        if (!isolatedTestMode)
-        {
-            throw new InvalidOperationException("The alpha-feature development switch requires --isolated-test-mode.");
-        }
-
-        AppDeveloperSettings.SetEnableAlphaFeatures(true);
-    }
-
     private static void ConfigureSiteScreenshotSettings(string[] args)
     {
         if (!args.Contains("--site-screenshot-mode", StringComparer.OrdinalIgnoreCase))

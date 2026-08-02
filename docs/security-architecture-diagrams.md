@@ -16,7 +16,7 @@ flowchart LR
   Session --> CustomHandler["CustomScreenCommandHandler\nassignment + revision + permission"]
   CustomHandler --> CustomStore[("custom-screens.json\nhost-only actions + assignments")]
   CustomHandler --> Handlers
-  LocalBrowser["Default browser on this PC"] -->|"loopback-only saved preview GET"| Preview["Alpha preview endpoint\nvisual definition only"]
+  LocalBrowser["Default browser on this PC"] -->|"loopback-only saved preview GET"| Preview["Saved preview endpoint\nvisual definition only"]
   Preview --> CustomStore
   Handlers --> Windows["Windows user session\nSendInput, clipboard,\nprocess launch, power APIs"]
 
@@ -72,7 +72,7 @@ flowchart TD
   TextPerm -- "true" --> TextSink["TextDestinationService"]
 
   Dispatch --> Custom["custom.screen.get / invoke"]
-  Custom --> CustomGate{"Alpha + assignment +\nexact revision + action permission"}
+  Custom --> CustomGate{"Assignment + exact revision\n+ action permission"}
   CustomGate -- "false" --> CustomDenied["Recoverable custom-screen result\nno action executed"]
   CustomGate -- "true" --> OpaqueAction["Resolve opaque button host-side\nprotected input or approved app service"]
 

@@ -91,8 +91,7 @@ async function main() {
     tempAppDataDir,
     "--pairing-url-file",
     pairingUrlFile,
-    "--isolated-test-mode",
-    "--enable-alpha-features"
+    "--isolated-test-mode"
   ];
   if (smokeTest) {
     hostArguments.push("--minimized");

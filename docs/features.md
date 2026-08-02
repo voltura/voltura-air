@@ -19,8 +19,8 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 ### Shell, connection, and pairing
 
 - The Windows tray app provides Connect, Devices, Custom screens,
-  Presentations, Connection, Preferences, and Diagnostics. Custom screens is an
-  alpha surface. Closing the window leaves the host running.
+  Presentations, Connection, Preferences, and Diagnostics. Closing the window
+  leaves the host running.
 - Light, dark, system, Windows High Contrast, per-user installation, portable
   ZIP, and installer packages are supported.
 - Connect shows a short-lived QR code, refresh countdown, **New code**, and
@@ -48,9 +48,8 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   sign out, restart, shutdown, Keep awake, and interaction with the host UI.
 - Unsupported actions are omitted; host-disabled actions explain the relevant
   permission. Manually sent unauthorized commands are rejected.
-- **Enable alpha features** defaults on. Explicit off removes the Custom screens
-  capability and blocks its production commands while preserving saved
-  definitions. Presentation remains available and permission-gated.
+- Custom screens and Presentation are supported capabilities and remain
+  available subject to their action permissions.
 - Browser, Spotify, VLC, PowerPoint, and custom executable buttons are
   configured and tested locally. Mobile receives only an opaque action ID and a
   1–10-character label; paths and arguments stay on the PC.
@@ -80,7 +79,7 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   pairing credentials. Diagnostics provides filters, copy, folder, delete, and
   session-only automatic refresh.
 
-### Custom screens (alpha)
+### Custom screens
 
 - The Windows editor creates reusable, explicitly saved control screens and
   assigns each screen to any number of paired devices. The library supports
@@ -173,9 +172,8 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   expand or collapse every property group.
 - Definitions and assignments are stored atomically under the signed-in
   user's application-data folder. Invalid current-format files are preserved
-  and reported instead of replaced. During alpha development, unsupported
-  pre-release formats are removed completely and the library restarts empty;
-  no migration is attempted.
+  and reported instead of replaced. Unsupported store versions are also left
+  unchanged and reported so they can be recovered with a compatible version.
 - Successful and rejected Save, assignment, duplicate, reorder, delete, and
   preview operations use the optional Application log. Entries contain
   the operation and outcome only, never screen names, labels, literal text,
@@ -249,7 +247,7 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   settings control mappings, helper visibility, and allowed application
   shortcuts.
 
-### Custom screens (alpha)
+### Custom screens
 
 - Assigned screens appear in a **Custom screens** Menu group. Opening one uses
   the main workspace and hides the top and bottom mode-button rows. The quick
@@ -347,8 +345,7 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   from authoritative PowerPoint sessions use the selected presentation's
   PowerPoint name and retain its host-only canonical file link.
 - Saved reports stay in the signed-in user's local application data.
-  Presentation is composed and advertised independently of the alpha setting;
-  effective global and per-device Presentation permission still gates control,
+  Effective global and per-device Presentation permission gates control,
   session tracking, saved-file launch, and report saves.
 
 ### Dictation and text transfer

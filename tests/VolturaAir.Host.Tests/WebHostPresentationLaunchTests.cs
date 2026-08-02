@@ -6,8 +6,6 @@ public sealed class WebHostPresentationLaunchTests : WebHostServiceTestBase
     [Fact]
     public async Task SavedLaunchUsesOpaqueIdAndStartsAuthoritativeSession()
     {
-        var originalAlpha = AppDeveloperSettings.EnableAlphaFeatures();
-        AppDeveloperSettings.SetEnableAlphaFeatures(false);
         var path = Path.Combine(Path.GetTempPath(), $"VolturaAir-{Guid.NewGuid():N}.pptx");
         await File.WriteAllTextAsync(path, "test");
         try
@@ -105,7 +103,6 @@ public sealed class WebHostPresentationLaunchTests : WebHostServiceTestBase
         finally
         {
             File.Delete(path);
-            AppDeveloperSettings.SetEnableAlphaFeatures(originalAlpha);
         }
     }
 }

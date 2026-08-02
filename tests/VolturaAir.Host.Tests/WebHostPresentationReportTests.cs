@@ -6,10 +6,8 @@ namespace VolturaAir.Host.Tests;
 public sealed class WebHostPresentationReportTests : WebHostServiceTestBase
 {
     [Fact]
-    public async Task AuthenticatedSaveRemainsAvailableWithAlphaOffAndIsIdempotent()
+    public async Task AuthenticatedSaveIsIdempotent()
     {
-        var originalAlpha = AppDeveloperSettings.EnableAlphaFeatures();
-        AppDeveloperSettings.SetEnableAlphaFeatures(false);
         var originalPermissions = AppPermissionSettings.Load();
         try
         {
@@ -36,14 +34,12 @@ public sealed class WebHostPresentationReportTests : WebHostServiceTestBase
         finally
         {
             AppPermissionSettings.Save(originalPermissions);
-            AppDeveloperSettings.SetEnableAlphaFeatures(originalAlpha);
         }
     }
 
     [Fact]
     public async Task InvalidReportReturnsCorrelatedFailureWithoutClosingAuthenticatedSocket()
     {
-        AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
         try
         {
@@ -85,7 +81,6 @@ public sealed class WebHostPresentationReportTests : WebHostServiceTestBase
     [Fact]
     public async Task ReportPermissionDenialDoesNotReachStorage()
     {
-        AppDeveloperSettings.SetEnableAlphaFeatures(true);
         var originalPermissions = AppPermissionSettings.Load();
         try
         {

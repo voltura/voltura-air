@@ -230,10 +230,10 @@ device; the host Devices page can restore inheritance from the global default.
 `health.pong` is liveness only; it contains no metadata/capability/audio state.
 Any valid client message resets the receive timeout.
 
-## Custom screens (alpha)
+## Custom screens
 
-When alpha features are enabled, `capabilities.customScreens` contains the
-current catalog revision and assigned screen summaries in mobile Menu order:
+`capabilities.customScreens` contains the current catalog revision and assigned
+screen summaries in mobile Menu order:
 
 ```json
 {
@@ -250,10 +250,8 @@ current catalog revision and assigned screen summaries in mobile Menu order:
 }
 ```
 
-The capability is absent when alpha features are off. Clients that do not know
-the optional capability ignore it. A client must not send custom-screen
-messages when it is absent. Assignment grants catalog visibility only; action
-permission is evaluated separately.
+Clients that do not know the capability ignore it. Assignment grants catalog
+visibility only; action permission is evaluated separately.
 
 After authentication, mobile reports a bounded CSS viewport after connection
 and on a debounced size/orientation change:
@@ -338,14 +336,15 @@ built-in and approved-application buttons may also use bundled icons.
 The host library's **Preview** action opens
 `/?customScreenPreview=<screenId>` against the host loopback address. That
 entry point reads `GET /api/custom-screens/preview/<screenId>`, which accepts
-loopback requests only while alpha features are enabled and returns the same
+loopback requests only and returns the same
 bounded visual result envelope without assignment or action payloads. Preview
 does not establish a command channel, so its controls cannot invoke host
 actions.
 
 The current store format is version 3. It is the only accepted Custom screens
-format. While Custom screens remains alpha, the host removes other pre-release
-versions completely and starts an empty library.
+format. The host leaves unsupported versions unchanged, reports the unsupported
+version in the Custom screens library, and starts no replacement library so the
+file can be recovered with a compatible Voltura Air version.
 `navigationRing` is a version-3 section-kind extension. An older version-3 host
 that does not recognize it reports the current-format file as invalid and
 leaves it unchanged; reopening the library with a supporting build recovers it.
@@ -409,11 +408,11 @@ Result:
 }
 ```
 
-The host revalidates alpha state, assignment, exact screen revision, button ID,
+The host revalidates assignment, exact screen revision, button ID,
 effective permission, and current approved-application existence for every
 invocation. `stale-screen` executes nothing; mobile fetches the current screen
-before another invocation. Other recoverable codes include `feature-disabled`,
-`not-assigned`, `button-not-found`, `permission-denied`,
+before another invocation. Other recoverable codes include `not-assigned`,
+`button-not-found`, `permission-denied`,
 `action-unavailable`, `input-blocked`, and `dispatch-failed`.
 
 Text, key/shortcut, curated built-in, and trackpad input reuse the protected
@@ -606,8 +605,8 @@ denial performs no read.
 
 ## Presentation
 
-Authenticated status advertises `presentation` independently of the alpha
-setting. Effective global and per-device Presentation permission controls
+Authenticated status advertises `presentation`. Effective global and per-device
+Presentation permission controls
 `canControl`, PowerPoint detail, commands, saved-file launch, session tracking,
 and report saves. Older hosts may omit the optional capability; mobile then
 hides Presentation entry points. Commands are acknowledged; mobile allows one

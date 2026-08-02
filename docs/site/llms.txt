@@ -13,7 +13,7 @@ for a Windows 11 PC.
   and optional reports stored on the PC.
 - YouTube, Kodi, browser, media, volume, window, and approved application
   controls.
-- Default-on alpha Custom screens designed on the PC with responsive buttons,
+- Custom screens designed on the PC with responsive buttons,
   collapsible panels, safe shortcuts/actions, optional regular or collapsible
   trackpads, read-only Windows preview, and per-device assignment.
 - Acknowledged text transfer to reviewed PC destinations and an explicit,

@@ -94,7 +94,6 @@ public sealed class CustomScreenBrowserPreviewTests : WebHostServiceTestBase
     [Fact]
     public async Task LoopbackPreviewReturnsOnlyTheSavedVisualDefinition()
     {
-        AppDeveloperSettings.SetEnableAlphaFeatures(true);
         using var pairingStore = new TempPairingStore();
         using var inputInjector = new FakeInputInjector();
         var pairingManager = new PairingManager(pairingStore.Store);
@@ -154,7 +153,6 @@ public sealed class CustomScreenBrowserPreviewTests : WebHostServiceTestBase
     [Fact]
     public async Task PreviewDefinitionIsNotAvailableToLanRequests()
     {
-        AppDeveloperSettings.SetEnableAlphaFeatures(true);
         using var pairingStore = new TempPairingStore();
         using var inputInjector = new FakeInputInjector();
         var pairingManager = new PairingManager(pairingStore.Store);

@@ -23,10 +23,9 @@ WPF-only composition; shared tokens, states, accessibility, and layout remain in
 ## Shell, startup, and tray
 
 One `Voltura Air` window navigates Connect, Devices, Custom screens,
-Presentations, Connection, Preferences, and Diagnostics. Custom screens is
-hidden when alpha features are off. Closing hides the window to the notification
-area. The first close explains that paired devices remain active and that the
-tray icon reopens or exits.
+Presentations, Connection, Preferences, and Diagnostics. Closing hides the
+window to the notification area. The first close explains that paired devices
+remain active and that the tray icon reopens or exits.
 
 The startup window appears immediately and remains for its configured minimum.
 It keeps compact dimensions unless startup fails; error actions remain outside
@@ -232,9 +231,6 @@ buttons keep stable labels and show a semantic status dot plus above-control
 tooltip. Export opens the resulting file through Windows shell association.
 Email attaches every requested available file independently of linked URLs and
 fails clearly if one disappears; it never opens Explorer as a substitute.
-
-The Presentations page, controls, reports, and permission settings remain
-available when alpha is disabled.
 
 ## Shared control behavior
 

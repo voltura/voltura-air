@@ -18,7 +18,7 @@ installer artwork from `assets/branding/voltura-air-master.png`.
 ## Isolation and privacy
 
 Capture uses a temporary host with `--isolated-test-mode`, loopback, disposable
-settings/pairing data, alpha features enabled, and no-op power actions. The
+settings/pairing data, and no-op power actions. The
 launcher stops the normal host and waits for cursor restoration. Pairing URL
 files are temporary secrets: never publish live tokens, LAN addresses, machine
 names, or machine-specific QR codes.

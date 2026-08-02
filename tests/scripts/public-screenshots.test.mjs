@@ -42,8 +42,6 @@ test("public screenshot inventory stays curated and aligned", async () => {
   assert.match(captureScript, /\.resize\(\{ width: 350 \}\)[\s\S]*outputs\.iphoneKodiDarkForum/u);
   assert.match(captureScript, /"bin", "cli", "Debug", "net10\.0-windows"/u);
   assert.match(captureScript, /"--site-screenshot-mode"[\s\S]*"--isolated-test-mode"/u);
-  assert.match(captureScript, /"--isolated-test-mode"[\s\S]*"--enable-alpha-features"/u);
-  assert.doesNotMatch(hostProgram, /SetEnableAlphaFeatures\([\s\S]*--site-screenshot-custom-screens/u);
   assert.match(hostProgram, /BeginIsolatedScope\(\)[\s\S]*SetHighDpiMode/u);
   assert.match(captureScript, /getByRole\("button", \{ name: "Remote", exact: true \}\)/u);
   assert.match(captureScript, /getByText\("Switch modes from here\.", \{ exact: true \}\)[\s\S]*state: "visible"[\s\S]*state: "hidden"[\s\S]*page\.screenshot\(\{ path: outputs\.iphoneKodiDark \}\)/u);

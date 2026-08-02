@@ -72,7 +72,6 @@ Debug additionally supports:
 | `--print-host-client-url` | Print the selected host URL for `dev:host`. |
 | `--pairing-store-root <path>` | Redirect pairing data; requires isolation. |
 | `--pairing-url-file <path>` | Write a temporary private live pairing URL for automation. |
-| `--enable-alpha-features` | Enable alpha only inside isolated settings. |
 | `--site-screenshot-mode` | Public-safe rendering; requires isolation. |
 | `--site-screenshot-theme <Light|Dark|System>` | Select capture theme. |
 | `--site-screenshot-preferences-section <name>` | Open a Preferences section for capture. |

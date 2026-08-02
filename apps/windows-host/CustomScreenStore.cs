@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security;
 using System.Text;
 using System.Text.Json;
@@ -44,11 +45,10 @@ public sealed class CustomScreenStore : ICustomScreenStore
                 JsonOptions.Default);
             if (document is null || document.Version != CurrentVersion)
             {
-                // Alpha-only development policy. Custom screens must gain an
-                // explicit migration or informed recovery flow before the
-                // feature can graduate or ship as a stable user-data format.
-                File.Delete(_filePath);
-                return new([], null);
+                return new(
+                    [],
+                    $"This Custom screens file uses unsupported format version {document?.Version.ToString(CultureInfo.InvariantCulture) ?? "unknown"}. " +
+                    "It was left unchanged so it can be recovered with a compatible Voltura Air version.");
             }
 
             if (!CustomScreenValidator.TryValidateCollection(document.Screens, out var error))

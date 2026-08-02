@@ -12,14 +12,6 @@ Remove completed items after updating their current authority.
 3. Work promoted from `ideas.md` after its outcome, priority, ownership, and
    validation boundary are decided.
 
-## Custom screens graduation
-
-- [ ] Before removing the Custom screens alpha label or publishing its storage
-  as a stable user-data format, replace the alpha-only unsupported-version
-  deletion policy with tested versioned migration or an explicit,
-  user-informed recovery flow. Released user layouts must never be silently
-  deleted.
-
 ## Presentation graduation
 
 - [ ] Add reusable host presentations to the existing Presentations page:
@@ -38,5 +30,3 @@ Remove completed items after updating their current authority.
   restoration, adaptive layouts, and accessibility.
 - [ ] Review implemented Presentation behavior against `features.md`, protocol,
   privacy, UI, and host authorities.
-- [ ] Remove the alpha gate and alpha-only wording in one reviewed change while
-  retaining Presentation permission enforcement.

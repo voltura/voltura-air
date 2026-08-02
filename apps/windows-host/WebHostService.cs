@@ -607,8 +607,7 @@ public sealed class WebHostService : IAsyncDisposable
             HttpContext context,
             string screenId) =>
         {
-            if (!AppDeveloperSettings.EnableAlphaFeatures() ||
-                !IsLoopbackAddress(context.Connection.RemoteIpAddress))
+            if (!IsLoopbackAddress(context.Connection.RemoteIpAddress))
             {
                 return Results.NotFound();
             }

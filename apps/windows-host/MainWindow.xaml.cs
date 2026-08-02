@@ -172,9 +172,6 @@ public partial class MainWindow : Window
         _awakeService.StateChanged += OnAwakeStateChanged;
         IsVisibleChanged += OnWindowIsVisibleChanged;
         RefreshStatusText();
-        CustomScreensNavButton.Visibility = AppDeveloperSettings.EnableAlphaFeatures()
-            ? Visibility.Visible
-            : Visibility.Collapsed;
         _navigation.RefreshTheme();
     }
 
@@ -420,9 +417,6 @@ public partial class MainWindow : Window
     private void HandleThemeChanged()
     {
         WpfTheme.Apply(this);
-        CustomScreensNavButton.Visibility = AppDeveloperSettings.EnableAlphaFeatures()
-            ? Visibility.Visible
-            : Visibility.Collapsed;
         if (IsVisible)
         {
             if (_navigation.ActivePage == HostPage.Preferences)

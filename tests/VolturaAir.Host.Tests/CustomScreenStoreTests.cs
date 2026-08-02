@@ -23,7 +23,7 @@ public sealed class CustomScreenStoreTests
     }
 
     [Fact]
-    public void AlphaUnsupportedStoreIsRemovedAndStartsAnEmptyCurrentLibrary()
+    public void UnsupportedStoreIsPreservedAndReportsRecoveryGuidance()
     {
         using var folder = new TemporaryFolder();
         var store = new CustomScreenStore(folder.Path);
@@ -31,16 +31,14 @@ public sealed class CustomScreenStoreTests
         const string unsupported = """{"version":2,"screens":[]}""";
         File.WriteAllText(path, unsupported);
 
-        var service = new CustomScreenService(store, new FakeAppLaunchService());
+        var result = store.Load();
 
-        Assert.Null(service.LoadError);
-        Assert.False(File.Exists(path));
-        Assert.True(
-            service.TrySave(CustomScreenService.CreateDraft(), out _, out var error),
-            error);
+        Assert.False(result.Succeeded);
+        Assert.Empty(result.Screens);
+        Assert.Contains("unsupported format version 2", result.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("left unchanged", result.Error, StringComparison.OrdinalIgnoreCase);
         Assert.True(File.Exists(path));
-        using var document = JsonDocument.Parse(File.ReadAllText(path));
-        Assert.Equal(3, document.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(unsupported, File.ReadAllText(path));
     }
 
     [Fact]

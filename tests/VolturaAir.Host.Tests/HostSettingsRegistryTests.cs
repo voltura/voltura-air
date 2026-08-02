@@ -6,15 +6,6 @@ namespace VolturaAir.Host.Tests;
 public sealed class HostSettingsRegistryTests : IsolatedHostSettingsTest
 {
     [Fact]
-    public void AlphaFeaturesAreEnabledByDefaultAndCanBeExplicitlyDisabled()
-    {
-        Assert.True(AppDeveloperSettings.EnableAlphaFeatures());
-
-        AppDeveloperSettings.SetEnableAlphaFeatures(false);
-        Assert.False(AppDeveloperSettings.EnableAlphaFeatures());
-    }
-
-    [Fact]
     public void CustomScreenDeleteConfirmationsDefaultOnAndCanBeDisabled()
     {
         Assert.True(CustomScreenEditorSettings.ConfirmDeletes());
@@ -61,12 +52,10 @@ public sealed class HostSettingsRegistryTests : IsolatedHostSettingsTest
     {
         AppClientControlSettings.SetEnabled(false);
         AppLoggingSettings.SetEnabled(true);
-        AppDeveloperSettings.SetEnableAlphaFeatures(true);
         AppPermissionSettings.Save(HostPermissions.DefaultGlobal with { AllowRemoteInput = false });
 
         Assert.False(AppClientControlSettings.IsEnabled());
         Assert.True(AppLoggingSettings.IsEnabled());
-        Assert.True(AppDeveloperSettings.EnableAlphaFeatures());
         Assert.False(AppPermissionSettings.Load().AllowRemoteInput);
     }
 
@@ -123,19 +112,6 @@ public sealed class HostSettingsRegistryTests : IsolatedHostSettingsTest
         var updatedLaser = new PresentationLaserPointerSettings(5, PresentationLaserColor.Green);
         AppPointerSettings.SetPresentationLaserPointer(updatedLaser);
         Assert.Equal(updatedLaser, AppPointerSettings.GetPresentationLaserPointer());
-    }
-
-    [Fact]
-    public void AlphaFeaturesCanBeEnabledAndDisabled()
-    {
-        AppDeveloperSettings.SetEnableAlphaFeatures(false);
-        Assert.False(AppDeveloperSettings.EnableAlphaFeatures());
-
-        AppDeveloperSettings.SetEnableAlphaFeatures(true);
-        Assert.True(AppDeveloperSettings.EnableAlphaFeatures());
-
-        AppDeveloperSettings.SetEnableAlphaFeatures(false);
-        Assert.False(AppDeveloperSettings.EnableAlphaFeatures());
     }
 
     [Fact]

@@ -23,6 +23,18 @@ Voltura Air is a small freeware project from Voltura AB. Contributions should ke
 Install exact dependencies with `npm ci`; use `npm install` only when changing
 dependency manifests.
 
+## Custom screens
+
+Custom screens span the Windows editor, the mobile renderer, saved local data,
+and the authenticated protocol. Before changing their layout, storage, or
+messages, review [features](docs/features.md#custom-screens) and the
+[protocol contract](docs/protocol.md#custom-screens), preserve compatibility
+with saved screens and paired clients, and update the relevant authority and
+focused tests with the change.
+
+Experimental features use a named, feature-owned toggle under **Developer
+tools** when a toggle is needed. Do not add a global alpha-feature switch.
+
 ## Release model
 
 Voltura Air is distributed as freeware. Do not add licensing, payment, trial, telemetry, account, or cloud-relay behavior unless it has been explicitly accepted for the project.

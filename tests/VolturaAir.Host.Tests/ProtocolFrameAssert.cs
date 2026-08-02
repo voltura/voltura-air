@@ -22,6 +22,8 @@ internal static class ProtocolFrameAssert
         ["url.open.result"] = ["operationId", "succeeded", "message"],
         ["text.send.result"] = ["operationId", "succeeded", "message"],
         ["clipboard.get.result"] = ["operationId", "succeeded", "message"],
+        ["custom.screen.get.result"] = ["operationId", "succeeded"],
+        ["custom.screen.invoke.result"] = ["operationId", "screenId", "buttonId", "succeeded", "code", "message"],
         ["audio.state"] = ["volume", "muted"]
     };
 

@@ -233,10 +233,9 @@ async function launchHost(theme, customScreens = false) {
   const hostArgs = [
     "--site-screenshot-mode",
     "--site-screenshot-theme",
-    theme,
-    "--isolated-test-mode",
-    "--enable-alpha-features",
-    "--pairing-store-root",
+      theme,
+      "--isolated-test-mode",
+      "--pairing-store-root",
     tempAppDataDir,
     "--pairing-url-file",
     pairingUrlFile

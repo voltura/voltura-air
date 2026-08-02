@@ -23,17 +23,6 @@ internal sealed class DeveloperSettingsSection(
         developerMode.Unchecked += (_, _) => AppDeveloperSettings.SetDeveloperMode(false);
         toggles.Children.Add(developerMode);
 
-        var alphaFeatures = visuals.CreateCheckBox(
-            "Enable alpha features",
-            AppDeveloperSettings.EnableAlphaFeatures(),
-            showInformation: () => ThemedConfirmationDialog.ShowInformation(
-                owner,
-                "Alpha features",
-                "Shows experimental features that are still under development. Alpha features remain unavailable to paired devices until this setting is enabled."));
-        alphaFeatures.Checked += (_, _) => SetAlphaFeatures(true);
-        alphaFeatures.Unchecked += (_, _) => SetAlphaFeatures(false);
-        toggles.Children.Add(alphaFeatures);
-
         var gestureDebug = visuals.CreateCheckBox("Show gesture debug screen in the mobile app", AppDeveloperSettings.EnableGestureDebug());
         gestureDebug.Checked += (_, _) => AppDeveloperSettings.SetEnableGestureDebug(true);
         gestureDebug.Unchecked += (_, _) => AppDeveloperSettings.SetEnableGestureDebug(false);
@@ -116,11 +105,5 @@ internal sealed class DeveloperSettingsSection(
         toasts.Show(lockResult.Succeeded
             ? "Windows accepted the lock request."
             : "Windows still prevents workstation locking. A Windows policy or another program may control this setting.");
-    }
-
-    private void SetAlphaFeatures(bool enabled)
-    {
-        AppDeveloperSettings.SetEnableAlphaFeatures(enabled);
-        refresh();
     }
 }

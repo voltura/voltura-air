@@ -20,7 +20,7 @@ PC. No app-store install, account, subscription, or cloud relay is required.
   approved app actions, collapsible panels, and regular or collapsible
   trackpads, navigation rings, and D-pads; preview and assign them, export or
   import `.volturascreen` packages, or browse the
-  [community library](https://voltura.se/air/screens/) (alpha).
+  [community library](https://voltura.se/air/screens/).
 - Keep the PC awake, lock it, blank its displays, restart it, or shut it down.
 - Combine a keyboard and trackpad on a landscape tablet.
 

@@ -33,10 +33,7 @@ internal sealed class MainWindowNavigationController(
     public bool TrySelect(HostPage requestedPage)
     {
         var previousPage = ActivePage;
-        var page = requestedPage == HostPage.CustomScreens &&
-            !AppDeveloperSettings.EnableAlphaFeatures()
-                ? HostPage.Connect
-                : requestedPage;
+        var page = requestedPage;
         if (previousPage == HostPage.Connection &&
             page != HostPage.Connection &&
             !connectionPage.TryLeavePage())

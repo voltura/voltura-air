@@ -96,7 +96,8 @@ continues to require Secure session cookies and `docs/site/config.php`.
 - Lead with mobile control of a Windows PC.
 - Show a few recognizable current use cases; omit implementation/secondary
   controls.
-- Label gated alpha behavior and its default accurately.
+- Describe experimental features and their named, feature-owned toggles
+  accurately.
 - Make only authority-backed security/performance claims.
 - Keep release links, package labels, screenshots, `index.php`, and `llms.txt`
   aligned.

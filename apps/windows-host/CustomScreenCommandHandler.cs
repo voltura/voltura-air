@@ -18,16 +18,6 @@ internal sealed class CustomScreenCommandHandler(
         string screenId,
         CancellationToken cancellationToken)
     {
-        if (!AppDeveloperSettings.EnableAlphaFeatures())
-        {
-            return SendGetFailureAsync(
-                socket,
-                operationId,
-                "feature-disabled",
-                "Custom screens are disabled on the PC.",
-                cancellationToken);
-        }
-
         var definition = screens.GetMobileDefinition(
             clientId,
             screenId,
@@ -85,11 +75,6 @@ internal sealed class CustomScreenCommandHandler(
         string screenRevision,
         string buttonId)
     {
-        if (!AppDeveloperSettings.EnableAlphaFeatures())
-        {
-            return new(false, "feature-disabled", "Custom screens are disabled on the PC.");
-        }
-
         var screen = screens.Find(screenId);
         if (screen is null || !screen.AssignedClientIds.Contains(clientId, StringComparer.Ordinal))
         {

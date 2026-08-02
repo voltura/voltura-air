@@ -116,10 +116,10 @@ assignments and last viewport metadata but does not delete reusable screens.
 Screens can also be exported to local `.volturascreen` files and imported after
 review. Imported screens do not retain device assignments. Catalog installation
 downloads a package over HTTPS and opens the same local review before saving.
-While Custom screens is an alpha feature, starting a host that encounters an
-unsupported pre-release Custom screens store version deletes that store and
-starts an empty library. Invalid data in the current format is left in place
-and reported instead.
+When the host encounters an unsupported Custom screens store version, it leaves
+the file unchanged and reports how it can be recovered with a compatible
+Voltura Air version. Invalid data in the current format is also left in place
+and reported.
 
 The optional custom-screen catalog at `voltura.se/air/screens` stores the email
 address, display name, and password hash supplied when an account is created.

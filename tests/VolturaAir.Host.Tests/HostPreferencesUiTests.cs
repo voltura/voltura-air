@@ -138,73 +138,8 @@ public sealed partial class HostUiLayoutTests
                     string.Equals(checkbox.Content?.ToString(), "Allow paired devices to open web addresses", StringComparison.Ordinal));
                 Assert.Contains(FindWpfDescendants<CheckBox>(window), checkbox =>
                     string.Equals(checkbox.Content?.ToString(), "Allow paired devices to control presentations", StringComparison.Ordinal));
-                var alphaFeatures = Assert.Single(FindWpfDescendants<CheckBox>(window), checkbox =>
+                Assert.DoesNotContain(FindWpfDescendants<CheckBox>(window), checkbox =>
                     string.Equals(checkbox.Content?.ToString(), "Enable alpha features", StringComparison.Ordinal));
-                Assert.True(alphaFeatures.IsChecked);
-            }
-            finally
-            {
-                window.Close();
-                DisposeWebHost(webHost);
-            }
-        });
-    }
-
-    [Fact]
-    public void PresentationSettingsRemainVisibleWhenAlphaFeaturesAreDisabled()
-    {
-        if (!OperatingSystem.IsWindows())
-        {
-            return;
-        }
-
-        RunOnStaThread(() =>
-        {
-            using var appScope = new WpfApplicationScope();
-            using var store = new TempPairingStore();
-            using var injector = new SendInputInjector();
-            var manager = new PairingManager(store.Store);
-            var webHost = new WebHostService(manager, new InputDispatcher(injector), isolatedTestMode: true);
-            var window = new MainWindow(manager, webHost, clientUrl: null);
-            try
-            {
-                window.Show();
-                window.ShowPage(HostPage.Preferences);
-                window.UpdateLayout();
-
-                var alphaFeatures = Assert.Single(FindWpfDescendants<CheckBox>(window), checkbox =>
-                    string.Equals(checkbox.Content?.ToString(), "Enable alpha features", StringComparison.Ordinal));
-                alphaFeatures.IsChecked = true;
-                window.UpdateLayout();
-
-                Assert.True(AppDeveloperSettings.EnableAlphaFeatures());
-                Assert.Contains(FindWpfDescendants<CheckBox>(window), checkbox =>
-                    string.Equals(checkbox.Content?.ToString(), "Allow paired devices to control presentations", StringComparison.Ordinal));
-                var presentation = Assert.Single(
-                    FindWpfDescendants<Expander>(window),
-                    section => string.Equals(section.Header as string, "Presentation", StringComparison.Ordinal));
-                Assert.Equal(Visibility.Visible, presentation.Visibility);
-                presentation.IsExpanded = true;
-                window.UpdateLayout();
-                Assert.Contains(
-                    FindWpfDescendants<TextBlock>(presentation),
-                    text => string.Equals(text.Text, "Laser pointer size", StringComparison.Ordinal));
-                Assert.Contains(
-                    FindWpfDescendants<ToggleButton>(presentation),
-                    button => string.Equals(button.Content?.ToString(), "Red", StringComparison.Ordinal));
-
-                var refreshedAlphaFeatures = Assert.Single(FindWpfDescendants<CheckBox>(window), checkbox =>
-                    string.Equals(checkbox.Content?.ToString(), "Enable alpha features", StringComparison.Ordinal));
-                refreshedAlphaFeatures.IsChecked = false;
-                window.UpdateLayout();
-
-                Assert.False(AppDeveloperSettings.EnableAlphaFeatures());
-                Assert.Contains(FindWpfDescendants<CheckBox>(window), checkbox =>
-                    string.Equals(checkbox.Content?.ToString(), "Allow paired devices to control presentations", StringComparison.Ordinal));
-                var refreshedPresentation = Assert.Single(
-                    FindWpfDescendants<Expander>(window),
-                    section => string.Equals(section.Header as string, "Presentation", StringComparison.Ordinal));
-                Assert.Equal(Visibility.Visible, refreshedPresentation.Visibility);
             }
             finally
             {

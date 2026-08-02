@@ -6,6 +6,19 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v0.8.3
+
+- Improved the Custom screens community library with tag-pill editing and
+  display, a clearable search field, and a custom sort picker.
+- Added report delivery to Voltura Air by email, with a confirmation toast that
+  keeps visitors on the reported screen.
+- Added email notifications for new submissions and moderation decisions,
+  including the reviewer feedback sent to screen authors.
+- Added a **Remove rejected** action to submission history, so authors can hide
+  rejected submissions without permanently deleting their stored records.
+- Administrators can now permanently delete an approved custom screen from its
+  detail page as well as from the library list.
+
 ## v0.8.2
 
 - Added versioned `.volturascreen` export and reviewed import so Custom screens

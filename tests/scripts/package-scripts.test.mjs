@@ -72,6 +72,12 @@ test("host partial ownership runs in root and pull-request quality gates", () =>
   assert.match(qualityWorkflow, /run: npm run host:ownership:check/u);
 });
 
+test("root validation includes the portable relay without deploying it", () => {
+  assert.equal(packageJson.scripts["relay:health"], "node scripts/check-relay-health.mjs");
+  assert.match(packageJson.scripts.test, /npm run relay:check/u);
+  assert.doesNotMatch(packageJson.scripts.test, /relay:deploy|relay:health/u);
+});
+
 test("the production mobile build enforces its measured JavaScript budget", () => {
   assert.match(mobilePackageJson.scripts.build, /vite build && npm run bundle:check/u);
   assert.equal(mobilePackageJson.scripts["bundle:check"], "node ../../scripts/check-mobile-bundle-size.mjs");

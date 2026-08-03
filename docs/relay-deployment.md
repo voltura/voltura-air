@@ -36,12 +36,14 @@ duplicate them in registry settings or application code.
    the Worker/Durable Object, checks `/v1/health`, then writes the verified
    public address to `apps/windows-host/relay-service.json`. Secrets are stored
    as Cloudflare Worker secrets and are not written to the repository.
-8. Recheck source and the deployed endpoint with `npm run relay:check`. View
-   current-month TURN transfer with `npm run relay:usage`; its token prompt is
-   hidden.
-9. When ready, manually run `npm run publish:site` to upload the hosted PWA and
-   first-party `/a/<route>` redirect. This is intentionally separate from relay
-   deployment. Publishing a Windows build is also a separate release action.
+8. Recheck source with `npm run relay:check` and the deployed endpoint with
+   `npm run relay:health`. View current-month TURN transfer with
+   `npm run relay:usage`; its token prompt is hidden.
+9. Outside a stable release, manually run `npm run publish:site` to upload the
+   hosted PWA and first-party `/a/<route>` redirect. `npm run release:full`
+   deploys and verifies the official relay before publishing the site and
+   Windows release; `release:draft` leaves production relay infrastructure
+   unchanged.
 
 Cloudflare TURN credential generation and renewal follow the
 [official credential API](https://developers.cloudflare.com/realtime/turn/generate-credentials/).

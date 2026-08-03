@@ -25,8 +25,12 @@ npm run release:draft -- 0.8.0
 The command validates prerequisites and repository state, prepares the version,
 regenerates public assets/statistics, runs full build/tests, commits the prepared
 sources locally, packages and audits all artifacts once from that exact commit,
-then pushes, creates/resumes the matching release, and deploys `docs/site`.
-Prerelease versions remain drafts. Set `NO_COLOR` to disable colored output.
+then pushes and creates/resumes the matching release. A stable `release:full`
+deploys and verifies the configured Cloudflare relay before deploying
+`docs/site` and publishing GitHub Latest. Drafts do not change the production
+relay. Wrangler cache is ignored, and any other repository change during relay
+deployment fails the release before site or Latest publication. Prerelease
+versions remain drafts. Set `NO_COLOR` to disable colored output.
 
 The catalog preview and statistics page are generated before the release commit;
 deployment uploads that prepared snapshot without regenerating tracked files.
@@ -36,6 +40,8 @@ A successful release therefore leaves the Git working tree clean.
 
 - Windows, Node.js/npm, .NET 10 SDK, Git, and NSIS.
 - Authenticated GitHub CLI with write access to `voltura/voltura-air`.
+- Authenticated Wrangler access to the production Cloudflare account for a
+  stable `release:full`.
 - Site SFTP password stored by `npm run publish:site:password`.
 - Clean `main`, no merge/rebase, and no divergence from `origin/main`.
 - No workflow YAML under `.github/workflows`.

@@ -130,6 +130,19 @@ export function publishReleaseIfRequested({ publishLatest, targetTag, repository
   }
 }
 
+export function deployOfficialRelayIfRequested({ publishLatest }, execute = checked) {
+  if (!publishLatest) {
+    return;
+  }
+
+  execute("npm", ["run", "relay:deploy"]);
+  execute("npm", ["run", "relay:health"]);
+  const status = execute("git", ["status", "--porcelain=v1", "--untracked-files=all"], { captureOutput: true });
+  if (status) {
+    throw new Error(`Repository changed during relay deployment: ${status}`);
+  }
+}
+
 function remoteTagExists(tag) {
   return checked("git", ["ls-remote", "--tags", "origin", `refs/tags/${tag}`], { captureOutput: true }).length > 0;
 }
@@ -208,6 +221,9 @@ export async function runLocalRelease(args = process.argv.slice(2), { progress, 
       throw new Error(".NET 10 SDK was not found.");
     }
     checked("gh", ["auth", "status", "--hostname", "github.com"], { captureOutput: true });
+    if (publishLatest) {
+      checked("npm", ["exec", "--workspace", "@voltura-air/relay", "--", "wrangler", "whoami"], { captureOutput: true });
+    }
 
     const initialStatus = checked("git", ["status", "--porcelain=v1", "--untracked-files=all"], { captureOutput: true });
     if (initialStatus) {
@@ -352,15 +368,23 @@ export async function runLocalRelease(args = process.argv.slice(2), { progress, 
     auditDraft(auditedDraft, releaseCommit, assetNames);
   });
 
-  await performStep(releaseProgress, publishLatest ? "Deploying the website and publishing Latest" : "Deploying the website and finalizing the draft", "Publishing the public site, then applying the requested GitHub release state.", () => {
-    checked("npm", ["run", "publish:site:prepared"]);
-    publishReleaseIfRequested({
-      publishLatest,
-      targetTag: releaseContext.targetTag,
-      repository: releaseContext.repository,
-      expectedCommit: releaseCommit
-    });
-  });
+  await performStep(
+    releaseProgress,
+    publishLatest ? "Deploying the relay and website, then publishing Latest" : "Deploying the website and finalizing the draft",
+    publishLatest
+      ? "Deploying and checking the production relay, publishing the public site, then publishing GitHub Latest."
+      : "Publishing the public site while leaving production relay infrastructure unchanged.",
+    () => {
+      deployOfficialRelayIfRequested({ publishLatest });
+      checked("npm", ["run", "publish:site:prepared"]);
+      publishReleaseIfRequested({
+        publishLatest,
+        targetTag: releaseContext.targetTag,
+        repository: releaseContext.repository,
+        expectedCommit: releaseCommit
+      });
+    }
+  );
 
   const hashes = [];
   for (const assetPath of assetPaths) {

@@ -5,7 +5,7 @@ import path from "node:path";
 import test from "node:test";
 
 import { getNextReleaseVersion } from "../../scripts/bump-release.mjs";
-import { auditDraft, buildReleaseBody, getRelease, publishReleaseIfRequested } from "../../scripts/release-publish.mjs";
+import { auditDraft, buildReleaseBody, deployOfficialRelayIfRequested, getRelease, publishReleaseIfRequested } from "../../scripts/release-publish.mjs";
 import {
   compareSemver,
   extractUserFacingReleaseNotes,
@@ -85,6 +85,37 @@ test("local draft completion does not run publication or tag commands", () => {
   }, (command, args) => commands.push([command, args]));
 
   assert.deepEqual(commands, []);
+});
+
+test("only a stable full release deploys and verifies the official relay", () => {
+  const draftCommands = [];
+  deployOfficialRelayIfRequested({ publishLatest: false }, (command, args) => draftCommands.push([command, args]));
+  assert.deepEqual(draftCommands, []);
+
+  const stableCommands = [];
+  deployOfficialRelayIfRequested({ publishLatest: true }, (command, args) => {
+    stableCommands.push([command, args]);
+    return "";
+  });
+  assert.deepEqual(stableCommands, [
+    ["npm", ["run", "relay:deploy"]],
+    ["npm", ["run", "relay:health"]],
+    ["git", ["status", "--porcelain=v1", "--untracked-files=all"]]
+  ]);
+
+  assert.throws(() => deployOfficialRelayIfRequested(
+    { publishLatest: true },
+    (command) => command === "git" ? "?? unexpected.tmp" : ""
+  ), /changed during relay deployment/u);
+
+  const relayDeployment = localReleaseSource.lastIndexOf("deployOfficialRelayIfRequested({ publishLatest })");
+  const siteDeployment = localReleaseSource.lastIndexOf('checked("npm", ["run", "publish:site:prepared"])');
+  const latestPublication = localReleaseSource.lastIndexOf("publishReleaseIfRequested({");
+  assert.ok(relayDeployment > 0);
+  assert.ok(siteDeployment > relayDeployment);
+  assert.ok(latestPublication > siteDeployment);
+  assert.match(localReleaseSource,
+    /if \(publishLatest\) \{\s+checked\("npm", \["exec", "--workspace", "@voltura-air\/relay", "--", "wrangler", "whoami"\]/u);
 });
 
 test("local release does not fetch tags into the checkout", () => {

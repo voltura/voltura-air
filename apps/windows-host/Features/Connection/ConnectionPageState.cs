@@ -6,7 +6,10 @@ internal sealed record ConnectionConfiguration(
     string? ManualAdapterId,
     string? ManualAdapterName,
     PortSelectionMode PortMode,
-    int? ManualPort)
+    int? ManualPort,
+    ConnectionTransportMode TransportMode = ConnectionTransportMode.DirectLan,
+    string? CustomRelayEndpoint = null,
+    RelayScreenQuality RelayScreenQuality = RelayScreenQuality.Standard)
 {
     public static ConnectionConfiguration FromSnapshot(NetworkSettingsSnapshot snapshot) => new(
         snapshot.NetworkMode,
@@ -14,7 +17,10 @@ internal sealed record ConnectionConfiguration(
         snapshot.ManualAdapterId,
         snapshot.ManualAdapterName,
         snapshot.PortMode,
-        snapshot.ManualPort);
+        snapshot.ManualPort,
+        snapshot.TransportMode,
+        snapshot.CustomRelayEndpoint,
+        snapshot.RelayScreenQuality);
 
     public NetworkSettingsSnapshot ApplyTo(NetworkSettingsSnapshot snapshot) => snapshot with
     {
@@ -23,7 +29,10 @@ internal sealed record ConnectionConfiguration(
         ManualAdapterId = ManualAdapterId,
         ManualAdapterName = ManualAdapterName,
         PortMode = PortMode,
-        ManualPort = ManualPort
+        ManualPort = ManualPort,
+        TransportMode = TransportMode,
+        CustomRelayEndpoint = CustomRelayEndpoint,
+        RelayScreenQuality = RelayScreenQuality
     };
 }
 
@@ -81,6 +90,9 @@ internal sealed class ConnectionPageState(
     public bool HasPendingChanges => PendingConfiguration != SavedConfiguration || SaveRetryRequired;
 
     public bool UsesCustomPort => PendingConfiguration.PortMode == PortSelectionMode.Manual;
+    public bool UsesRelay => PendingConfiguration.TransportMode == ConnectionTransportMode.Relay;
+    public bool IsRelayEndpointValid => !UsesRelay || string.IsNullOrWhiteSpace(PendingConfiguration.CustomRelayEndpoint) ||
+        AppNetworkSettings.NormalizeRelayEndpoint(PendingConfiguration.CustomRelayEndpoint) is not null;
 
     public LanAddressCandidate? PendingAdapter => PendingConfiguration.NetworkMode == NetworkSelectionMode.Manual
         ? FindCandidate(PendingConfiguration)
@@ -129,6 +141,25 @@ internal sealed class ConnectionPageState(
     public void SetManualPort(int? port)
     {
         PendingConfiguration = PendingConfiguration with { ManualPort = port };
+        ClearFeedback();
+    }
+
+    public void SetTransportMode(ConnectionTransportMode mode)
+    {
+        PendingConfiguration = PendingConfiguration with { TransportMode = mode };
+        IsAdapterChooserOpen = false;
+        ClearFeedback();
+    }
+
+    public void SetRelayScreenQuality(RelayScreenQuality quality)
+    {
+        PendingConfiguration = PendingConfiguration with { RelayScreenQuality = quality };
+        ClearFeedback();
+    }
+
+    public void SetCustomRelayEndpoint(string? endpoint)
+    {
+        PendingConfiguration = PendingConfiguration with { CustomRelayEndpoint = endpoint };
         ClearFeedback();
     }
 

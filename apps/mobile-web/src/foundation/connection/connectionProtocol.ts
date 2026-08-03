@@ -236,10 +236,15 @@ function isServerMessage(value: unknown): value is ServerMessage {
         isOperationId(value.operationId) && isResultBase(value) && Array.isArray(value.sources) &&
         value.sources.length <= 16 && value.sources.every(isScreenViewSource);
     case "screen.view.start.result":
-      return hasOnlyFields(value, ["type", "operationId", "displayId", "succeeded", "code", "message", "offerSdp", "hostSignature"]) &&
+      return hasOnlyFields(value, ["type", "operationId", "displayId", "succeeded", "code", "message", "offerSdp", "hostSignature", "iceServers", "turnExpiresAt", "relayUsageBytes", "relayUsageCheckedAt", "relayScreenQuality"]) &&
         isOperationId(value.operationId) && isBoundedString(value.displayId, 80, false) && isResultBase(value) &&
         isOptional(value, "offerSdp", (candidate) => candidate === null || isBoundedString(candidate, 32 * 1024, false)) &&
-        isOptional(value, "hostSignature", (candidate) => candidate === null || isBoundedString(candidate, 128, false));
+        isOptional(value, "hostSignature", (candidate) => candidate === null || isBoundedString(candidate, 128, false)) &&
+        isOptional(value, "iceServers", (candidate) => candidate === null || isRelayIceServers(candidate)) &&
+        isOptional(value, "turnExpiresAt", (candidate) => candidate === null || isBoundedString(candidate, 40, false)) &&
+        isOptional(value, "relayUsageBytes", (candidate) => candidate === null || typeof candidate === "number" && Number.isSafeInteger(candidate) && candidate >= 0) &&
+        isOptional(value, "relayUsageCheckedAt", (candidate) => candidate === null || isBoundedString(candidate, 40, false)) &&
+        isOptional(value, "relayScreenQuality", (candidate) => candidate === null || isBoundedString(candidate, 32, false));
     case "screen.view.answer.result":
       return hasOnlyFields(value, ["type", "operationId", "succeeded", "code", "message"]) &&
         isOperationId(value.operationId) && isResultBase(value);
@@ -592,6 +597,22 @@ function hasOnlyFields(value: Record<string, unknown>, allowedFields: readonly s
 
 function isOptional(value: Record<string, unknown>, field: string, predicate: (candidate: unknown) => boolean): boolean {
   return !Object.hasOwn(value, field) || predicate(value[field]);
+}
+
+function isRelayIceServers(value: unknown): value is RTCIceServer[] {
+  return Array.isArray(value) && value.length > 0 && value.length <= 2 && value.every((server) => {
+    if (!isRecord(server) || !hasOnlyFields(server, ["urls", "username", "credential"]) ||
+        !isBoundedString(server.username, 512, false) || !isBoundedString(server.credential, 512, false)) {return false;}
+    const urls = server.urls;
+    return Array.isArray(urls) && urls.length > 0 && urls.length <= 4 && urls.every(isRelayTurnUrl);
+  });
+}
+
+function isRelayTurnUrl(value: unknown): value is string {
+  if (typeof value !== "string" || value.length > 512) {return false;}
+  const match = /^(?:turn|turns):[A-Za-z0-9.-]+(?::([0-9]{1,5}))?(?:\?transport=(?:tcp|udp))?$/u.exec(value);
+  if (!match) {return false;}
+  return match[1] === undefined || Number(match[1]) >= 1 && Number(match[1]) <= 65_535;
 }
 
 function isString(value: unknown): value is string {

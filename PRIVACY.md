@@ -1,8 +1,9 @@
 # Privacy policy
 
-Voltura Air operates between a Windows PC and paired devices on the same local
-network without requiring an account or cloud relay. Voltura AB does not
-provide advertising, analytics, or remote telemetry services for Voltura Air.
+Voltura Air defaults to direct operation between a Windows PC and paired
+devices on the same local network. An optional Cloud relay connection method is
+available and does not require a Voltura account. Voltura AB does not provide
+advertising or product-behavior analytics for Voltura Air.
 The separate Custom screens community library has an optional account system
 for people who choose to submit, rate, or manage shared screens.
 
@@ -39,21 +40,40 @@ directory:
   name, presentation type, dates, durations, sessions, breaks, slide timing, and
   optional local presentation-file path or HTTP/HTTPS presentation link.
 
-This information remains on the user's devices. Voltura AB does not receive it.
+Persistent pairing records, permissions, private reconnect keys, and saved
+content remain on the user's devices. Before Relay end-to-end encryption is
+established, the routing service forwards the pairing hello, challenge, and
+proof frames. These can contain the device name, client identifier,
+platform/browser description, public reconnect key, token identifier, nonces,
+and pairing or reconnect proofs. Voltura's relay is designed to forward these
+frames without parsing or storing their contents. The pairing token itself is
+kept in the QR URL fragment and is not sent to the routing service.
 
 ## Remote-control content
 
-Pointer, keyboard, text, and control commands travel directly from the paired
-browser to the Windows host over the local network. Text, pointer coordinates,
+In Direct mode, pointer, keyboard, text, and control commands travel directly
+from the paired browser to the Windows host. In Relay mode, both sides connect
+outward and accepted-session commands are end-to-end encrypted with
+direction-specific AES-256-GCM keys. The routing service can observe the opaque
+route, connection timing, network delivery metadata, and encrypted frame sizes,
+but not command contents. Text, pointer coordinates,
 opened web addresses, pairing tokens, private reconnect keys, and reconnect
 proofs are not included in Voltura Air application logs.
 
 When the optional Screen tool is enabled and permitted, selected-display video
-travels on a direct WebRTC DTLS-SRTP media track and cursor/status updates use a
+travels on a WebRTC DTLS-SRTP media track and cursor/status updates use a
 DTLS-protected WebRTC data channel. Screen pixels, display contents, negotiated
 session keys, SDP, cursor coordinates, and encoded video are neither logged nor
 persisted. Captured GPU frames and encoded access units exist only in bounded
 memory until sent or replaced by newer work.
+
+Relay screen viewing uses Cloudflare TURN. Cloudflare processes participant IP
+addresses, connection timing, credential requests, and byte counts while
+forwarding DTLS-SRTP ciphertext, but cannot decrypt screen pixels or the
+DTLS-protected data channel. Voltura Air queries aggregate current-month TURN
+ingress and egress solely for the local usage estimate and quota cutoff. TURN
+credentials expire after 15 minutes. Command relay remains available if screen
+credentials are blocked by quota.
 
 Assigned Custom screens sent to mobile contain visual definitions, opaque
 screen/button IDs, and resolved availability only. Literal text, keyboard
@@ -65,13 +85,19 @@ actions.
 Application-log entries for editor operations contain only the operation,
 outcome, and a bounded failure code.
 
-Because Voltura Air is a local HTTP/WebSocket app, local-network observers or
+In Direct mode, because Voltura Air is a local HTTP/WebSocket app, local-network observers or
 interfering devices on an untrusted network may be able to observe HTTP and
 connection metadata or observe/disrupt existing command traffic. Screen media
 is encrypted in transit by WebRTC, but that does not hide connection timing,
 addresses, or HTTP metadata and does not change the trusted-LAN model for the
 rest of the product. Use Voltura Air only on networks you trust and remove
 paired devices that should no longer control or view the PC.
+
+The Relay QR token is stored after `#` in the URL fragment. Browsers do not send
+that fragment to the `voltura.se` short-link redirect, hosted PWA, relay,
+analytics, or ordinary access logs. The website and Cloudflare may still
+process normal request metadata such as IP address, user agent, path, route,
+and timestamp for delivery and security.
 
 Typed or dictated text is delivered to Windows only when the user requests it.
 Text may become part of the Windows clipboard or the selected destination
@@ -100,6 +126,10 @@ client identifiers. They do not contain typed text, clipboard contents, opened
 web addresses, pointer coordinates, pairing tokens or IDs, private reconnect or
 PC-identity keys, pairing/reconnect proofs, screen pixels, cursor coordinates,
 screen SDP, encoded video, or negotiated screen-session keys.
+Safe Relay entries may record the connection method, official/custom endpoint
+type, state, selected quality, automatic Data Saver, quota warning/block, and a
+bounded failure code. They never record the endpoint, route, credential, IP
+address, SDP, command, text, coordinate, or screen content.
 Log retention is configurable from 1 to 30 days and defaults to 2 days. Logs are
 stored locally and can be viewed or deleted from Voltura Air Diagnostics.
 

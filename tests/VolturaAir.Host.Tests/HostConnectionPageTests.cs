@@ -11,6 +11,37 @@ namespace VolturaAir.Host.Tests;
 public sealed partial class HostUiLayoutTests
 {
     [Fact]
+    public void RelayUsageMeterShowsProviderSnapshotWithoutChangingPageLayoutOwnership()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            var page = new ConnectionPageView(
+                static () => { }, static () => { }, static () => { }, static () => { },
+                static _ => { }, static _ => { }, static _ => { }, static _ => { },
+                static _ => { }, static () => { }, static () => { })
+            {
+                TransportMode = ConnectionTransportMode.Relay,
+                RelayUsagePercent = 50,
+                RelayUsageSummary = "425.0 GB used · 425.0 GB remaining before screen relay stops",
+                RelayUsageThresholds = "Data saver starts at 750 GB · Screen relay stops at 850 GB",
+                ShowsRelayUsageMeter = true
+            };
+
+            var meter = FindWpfDescendants<ProgressBar>(page).Single(progress => progress.Name == "RelayUsageProgressBar");
+            var panel = FindWpfDescendants<FrameworkElement>(page).Single(element => element.Name == "RelayUsageMeterPanel");
+            Assert.Equal(50, meter.Value);
+            Assert.Equal(Visibility.Visible, panel.Visibility);
+            Assert.Contains("425.0 GB remaining", AutomationProperties.GetName(meter), StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
     public void ConnectionPageShowsSelectedAdapterWithAccessibleIndicator()
     {
         if (ShouldSkipNativeUiLayoutTests())
@@ -33,6 +64,9 @@ public sealed partial class HostUiLayoutTests
                 static () => { },
                 static () => { },
                 static () => { },
+                static _ => { },
+                static _ => { },
+                static _ => { },
                 static _ => { },
                 static _ => { },
                 static () => { },
@@ -170,6 +204,9 @@ public sealed partial class HostUiLayoutTests
                 static () => { },
                 static () => { },
                 static () => { },
+                static _ => { },
+                static _ => { },
+                static _ => { },
                 static _ => { },
                 static _ => { },
                 static () => { },

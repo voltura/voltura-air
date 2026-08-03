@@ -184,11 +184,22 @@ public sealed class PairingManager
 
     internal PairingResult CompletePairingBootstrap(PairingBootstrapPending pending, string clientProof, DateTimeOffset? now = null)
     {
-        if (!PairingBootstrapCrypto.ProofsMatch(pending.ExpectedClientProof, clientProof))
+        var verification = VerifyPairingBootstrap(pending, clientProof);
+        if (!verification.Accepted)
         {
-            return new PairingResult(false, "invalid-proof");
+            return verification;
         }
 
+        return CommitPairingBootstrap(pending, now);
+    }
+
+    internal static PairingResult VerifyPairingBootstrap(PairingBootstrapPending pending, string clientProof) =>
+        PairingBootstrapCrypto.ProofsMatch(pending.ExpectedClientProof, clientProof)
+            ? new PairingResult(true, string.Empty)
+            : new PairingResult(false, "invalid-proof");
+
+    internal PairingResult CommitPairingBootstrap(PairingBootstrapPending pending, DateTimeOffset? now = null)
+    {
         return AcceptPairing(
             pending.ClientId,
             pending.DeviceName,
@@ -448,6 +459,28 @@ public sealed class PairingManager
             {
                 return false;
             }
+        }
+    }
+
+    internal static bool VerifyPublicKeySignature(string publicKey, ReadOnlySpan<byte> payload, string signature)
+    {
+        if (!IsValidReconnectPublicKey(publicKey) || string.IsNullOrWhiteSpace(signature) || signature.Length > 512 || !IsBase64Url(signature))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var ecdsa = CreateReconnectPublicKey(DecodeBase64Url(publicKey));
+            return ecdsa.VerifyData(
+                payload,
+                DecodeBase64Url(signature),
+                HashAlgorithmName.SHA256,
+                DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
+        }
+        catch (Exception ex) when (ex is CryptographicException or FormatException)
+        {
+            return false;
         }
     }
 

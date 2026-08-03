@@ -37,6 +37,8 @@ performs startup, rollback, and shutdown.
 | Pairing/authenticated session state | `PairingManager`, token authority, registry, store, and session handler |
 | Persistent PC identity and fresh-pair bootstrap proofs | `ScreenViewHostIdentity`, `PairingBootstrapCrypto`, and `PairingManager` |
 | Framing, socket registration, serialized sends | `WebSocketTransport` |
+| Portable relay rooms, bounds, and provider contracts | `services/relay/src/core` |
+| Cloudflare and standalone relay adapters | `services/relay/src/cloudflare` and `services/relay/src/standalone` |
 | Screen-view tickets, single-viewer arbitration, encrypted records, and capture lifecycle | `ScreenViewCoordinator`, `ScreenViewCrypto`, and `DxgiScreenViewCaptureSource` |
 | Lazy mobile screen renderer and fallback crypto | `features/screen-view/` dynamic import |
 | Coalesced capability/status delivery | `HostStatusBroadcaster` and payload factory |
@@ -72,6 +74,19 @@ Optional features allocate no feature-specific worker, timer, subscription,
 native resource, or network activity while disabled. Hot input/render paths use
 cached settings and event-driven updates, not registry reads or polling.
 
+Direct LAN and Relay converge on the same `WebSocketSessionHandler` and
+`PairingManager`. In Relay mode a persistent routing key derives an opaque route
+and authenticates the one outbound host socket. Each device becomes a bounded
+virtual WebSocket. After the existing pairing or reconnect proof, P-256 ECDH,
+signed identity transcripts, HKDF-SHA256, and direction-specific AES-256-GCM
+protect every accepted-session frame. The service forwards opaque envelopes
+and does not own product pairing, permissions, commands, or device identities.
+
+Relay preserves the root responsiveness invariant: command/input framing is
+bounded and independent from media, TURN/usage work, persistence, logging, and
+UI. Slow consumers close instead of building lag; screen media may degrade or
+stop while commands remain responsive. Status UI reads one immutable snapshot.
+
 Screen viewing is navigation/capability wiring in the initial PWA bundle. Its
 workspace, WebRTC video renderer, event parser, host-identity verification, and
 diagnostics stay in the Screen dynamic chunk and load only when the tool opens.
@@ -83,11 +98,19 @@ consume the command socket's serialized send queue.
 The capture owner uses Desktop Duplication GPU frames and cursor metadata. A
 D3D11 conversion stage supplies NV12 GPU surfaces to a capability-selected
 hardware Media Foundation H.264 transform. A bundled libdatachannel peer sends
-the Annex-B access units as H.264 RTP and owns DTLS-SRTP, direct LAN ICE,
+the Annex-B access units as H.264 RTP and owns DTLS-SRTP, direct or relay-only ICE,
 sender reports, NACK retransmission, keyframe requests, and receiver bitrate
-feedback. It uses no STUN or TURN service. Changing source/profile or ending
-capture disposes the encoder and duplication session; a new source begins with
-a keyframe.
+feedback. Relay sessions receive short-lived TURN credentials through the
+authenticated routing identity. The Windows peer keeps libjuice as the ICE/TURN
+owner and supplies it a loopback-only TURN endpoint. A host-owned bounded bridge
+connects that endpoint to the issued `turns` service with certificate-validated
+TLS/TCP, translates only RFC 8656 datagram/stream framing, accepts one loopback
+owner, and ends with the peer. Direct sessions create no bridge or TURN service.
+The mobile Screen workspace owns relay-candidate gathering. It can complete a
+Relay answer from a settled relay-only SDP even when a browser leaves gathering
+in progress; Direct answers retain complete-gathering behavior. Changing
+source/profile or ending capture disposes the encoder and duplication session;
+a new source begins with a keyframe.
 
 Custom screens cross the trust boundary as visual definitions and opaque IDs
 only. The host-owned store retains actions and assignments, the status

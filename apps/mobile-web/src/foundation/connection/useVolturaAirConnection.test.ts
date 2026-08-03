@@ -1065,9 +1065,15 @@ describe("useVolturaAirConnection", () => {
     expect(runtimeSnapshot()).toEqual(expectedRuntime);
     expect(
       localStorage.getItem(`voltura-air.reconnect-key.client-a.${inactive.id}`),
-    ).toBeNull();
+    ).not.toBeNull();
     expect(socket.close).not.toHaveBeenCalled();
     expect(getSocket(1).url).toBe("ws://pc-b.local:51395/ws");
+    dispatchSocketEvent(getSocket(1), "error");
+    await waitFor(() => {
+      expect(
+        localStorage.getItem(`voltura-air.reconnect-key.client-a.${inactive.id}`),
+      ).toBeNull();
+    });
 
     act(() => { result.current.forgetPc(inactive.id); });
     expect(runtimeSnapshot()).toEqual(expectedRuntime);
@@ -1100,8 +1106,11 @@ describe("useVolturaAirConnection", () => {
     const { result } = renderHook(() => useVolturaAirConnection());
     await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
     const socket = getSocket(0);
+    socket.readyState = MockWebSocket.OPEN;
 
     act(() => { result.current.forgetPc(active.id); });
+    expect(socket.send).toHaveBeenCalledWith(JSON.stringify({ type: "pair.disconnect" }));
+    dispatchSocketEvent(socket, "close", { code: 1000, reason: "Host closed session" });
 
     await waitFor(() => { expect(result.current.state).toBe("needs-pairing"); });
     expect(result.current.activePc).toBeNull();
@@ -1131,8 +1140,11 @@ describe("useVolturaAirConnection", () => {
     const { result } = renderHook(() => useVolturaAirConnection());
     await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
     const socket = getSocket(0);
+    socket.readyState = MockWebSocket.OPEN;
 
     act(() => { result.current.forgetPc(active.id); });
+    expect(socket.send).toHaveBeenCalledWith(JSON.stringify({ type: "pair.disconnect" }));
+    dispatchSocketEvent(socket, "close", { code: 1000, reason: "Host closed session" });
 
     await waitFor(() => { expect(result.current.state).toBe("needs-pairing"); });
     expect(result.current.activePc).toBeNull();

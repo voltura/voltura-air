@@ -23,7 +23,7 @@ files are rebuilt, never hand-edited.
 | [Security](../SECURITY.md) | Authority | Vulnerability reporting/trust boundary. |
 | [Brand assets](../assets/branding/README.md) | Authority | Artwork sources/consumers. |
 | [Bug form](../.github/ISSUE_TEMPLATE/bug_report.yml) | Public intake | Safe reproduction/diagnostics. |
-| [Website](site/index.php) | Public | Use cases, trust, screenshots, downloads. |
+| [Website](site/index.php), [relay short redirect](site/a/index.php) | Public/service | Use cases, trust, downloads, and fragment-preserving Relay entry. |
 | [Custom-screen catalog](site/screens/index.php), [view](site/screens/view.php), [device preview](site/screens/preview-frame.php), [install](site/screens/install.php), [download](site/screens/download.php), [login](site/screens/login.php), [register](site/screens/register.php), [upload](site/screens/upload.php), [edit](site/screens/edit.php), [withdraw](site/screens/withdraw.php), [remove rejected](site/screens/remove-rejected.php), [moderation](site/screens/admin.php), [deletion](site/screens/delete.php), [rating](site/screens/rate.php), [report](site/screens/report.php), [logout](site/screens/logout.php), [catalog helpers](site/screens/lib.php) | Public/service | Reviewed custom-screen sharing, account, moderation, deletion, rating, preview, and download surfaces. |
 | [Machine summary](site/llms.txt) | Public | Compact public facts/links. |
 | [Code statistics](site/stats.html) | Generated | Regenerate with `npm run code:statistics -- --report`. |
@@ -52,5 +52,6 @@ files are rebuilt, never hand-edited.
 | [Release](release.md) | Operations | Version, verification, package, publication. |
 | [Release notes](release-notes.md) | History | User-visible release changes. |
 | [Site deployment](site-deployment.md) | Operations | Website publication/hosting. |
+| [Relay deployment](relay-deployment.md) | Operations | Cloudflare setup, quota checks, and advanced WSL self-hosting. |
 | [TODO](todo.md) | Approved work | Prioritized, decision-ready outcomes. |
 | [Ideas](ideas.md) | Possible work | Directions awaiting decisions/evidence. |

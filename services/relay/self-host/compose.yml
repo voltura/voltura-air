@@ -1,0 +1,76 @@
+services:
+  relay:
+    build:
+      context: ../../..
+      dockerfile: services/relay/Dockerfile
+    restart: unless-stopped
+    environment:
+      RELAY_PORT: "8787"
+      RELAY_ALLOWED_ORIGIN: "https://voltura.se"
+      TURN_SHARED_SECRET: "${TURN_SHARED_SECRET}"
+      TURN_PUBLIC_IP: "${TURN_PUBLIC_IP:?Set TURN_PUBLIC_IP to the public WAN IPv4 address}"
+      TURN_URLS: "turns:${TURN_HOSTNAME}:443?transport=tcp,turn:${TURN_HOSTNAME}:443?transport=udp"
+    expose:
+      - "8787"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/v1/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  coturn:
+    image: coturn/coturn:4.7.0-r0
+    restart: unless-stopped
+    depends_on:
+      relay:
+        condition: service_healthy
+    command:
+      - --fingerprint
+      - --use-auth-secret
+      - --static-auth-secret=${TURN_SHARED_SECRET}
+      - --realm=${TURN_HOSTNAME}
+      - --server-name=${TURN_HOSTNAME}
+      - --external-ip=${TURN_PUBLIC_IP:?Set TURN_PUBLIC_IP to the public WAN IPv4 address}
+      - --listening-port=443
+      - --tls-listening-port=5349
+      - --min-port=49160
+      - --max-port=49200
+      - --cert=/certs/fullchain.pem
+      - --pkey=/certs/privkey.pem
+      - --no-cli
+      - --no-multicast-peers
+      - --no-loopback-peers
+    volumes:
+      - "${CERTIFICATE_PATH}:/certs/fullchain.pem:ro"
+      - "${CERTIFICATE_KEY_PATH}:/certs/privkey.pem:ro"
+    ports:
+      - "443:443/udp"
+      - "49160-49200:49160-49200/udp"
+
+  edge:
+    image: nginx:1.29-alpine
+    restart: unless-stopped
+    depends_on:
+      relay:
+        condition: service_healthy
+      coturn:
+        condition: service_started
+    environment:
+      RELAY_HOSTNAME: "${RELAY_HOSTNAME}"
+      TURN_HOSTNAME: "${TURN_HOSTNAME}"
+      NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx
+    volumes:
+      - ./nginx.conf.template:/etc/nginx/templates/nginx.conf.template:ro
+      - "${CERTIFICATE_PATH}:/certs/fullchain.pem:ro"
+      - "${CERTIFICATE_KEY_PATH}:/certs/privkey.pem:ro"
+    ports:
+      - "443:443/tcp"
+
+  duckdns:
+    image: lscr.io/linuxserver/duckdns:latest
+    restart: unless-stopped
+    environment:
+      SUBDOMAINS: "${DUCKDNS_SUBDOMAINS}"
+      TOKEN: "${DUCKDNS_TOKEN}"
+      UPDATE_IP: ipv4
+      LOG_FILE: "false"

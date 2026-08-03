@@ -201,6 +201,26 @@
   font-size: 0.82rem;
 }
 
+.screen-view-playback-button {
+  position: absolute;
+  z-index: 5;
+  place-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 3rem;
+  padding: 0.75rem 1rem;
+  border-color: color-mix(in srgb, var(--accent) 70%, white);
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: 0 0.75rem 2rem color-mix(in srgb, black 45%, transparent);
+}
+
+.screen-view-playback-button svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
 .screen-view-controls {
   display: grid;
   padding: 0.8rem;

@@ -38,16 +38,18 @@ import {
 } from "./connectionProtocol";
 import { requestHostState, trySendClientMessage } from "./connectionSocketMessages";
 import type { ConnectionError, ConnectionState, PairingAttempt } from "./connectionTypes";
-import { clearStoredReconnectKey, createPairingBootstrapMaterial, createPairingKeyMaterial, handlePairAccepted, hasStoredReconnectKey, isExpectedHostIdentity, signReconnectChallenge, shouldClearStoredReconnectKeyForRejection, verifyPairingBootstrapChallenge, type PairingBootstrapMaterial, type PairingKeyMaterial } from "./pairingCredentials";
+import { clearStoredReconnectKey, createPairingBootstrapMaterial, createPairingKeyMaterial, handlePairAccepted, hasStoredReconnectKey, isExpectedHostIdentity, signClientPayload, signReconnectChallenge, shouldClearStoredReconnectKeyForRejection, verifyPairingBootstrapChallenge, type PairingBootstrapMaterial, type PairingKeyMaterial } from "./pairingCredentials";
 import {
   applyHostIdentityFromAcceptance,
   applyPcNameFromHost,
+  createPcProfile,
   getWebSocketUrl,
   saveActivePcId,
   savePcProfiles,
   upsertPcProfile,
   type PcProfile
 } from "./pcProfiles";
+import { beginRelaySession, parseRelayKeyChallenge, verifyRelayHostAcceptance, type PendingRelaySession, type RelayEncryptedChannel, type RelayEncryptedSend } from "./relaySessionCrypto";
 import type { PendingMovementAck } from "./useConnectionSender";
 
 const connectionTimeoutMs = 3000;
@@ -84,6 +86,7 @@ interface ConnectionSocketLifecycleOptions {
   pendingManualPc: PcProfile | null;
   pendingMovementAckRef: RefObject<PendingMovementAck | null>;
   reconnectRef: RefObject<(() => void) | null>;
+  relayEncryptedSendRef: RefObject<RelayEncryptedSend | null>;
   rescheduleHealthCheckRef: RefObject<(() => void) | null>;
   screenshotMode: boolean;
   setActivePcId: Dispatch<SetStateAction<string | null>>;
@@ -132,6 +135,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     pendingManualPc,
     pendingMovementAckRef,
     reconnectRef,
+    relayEncryptedSendRef,
     rescheduleHealthCheckRef,
     screenshotMode,
     setActivePcId,
@@ -183,9 +187,12 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     let pendingPairingKey: PairingKeyMaterial | null = null;
     let pendingPairingBootstrap: PairingBootstrapMaterial | null = null;
     let verifiedHostIdentity: { publicKey: string; fingerprint: string } | null = null;
+    let pendingRelaySession: PendingRelaySession | null = null;
+    let relayChannel: RelayEncryptedChannel | null = null;
   
     if (!connectionPcId || !connectionPcUrl) {
       clearRuntimeStateFromSocket();
+      relayEncryptedSendRef.current = null;
       socketRef.current?.close();
       return () => {
         disposed = true;
@@ -193,12 +200,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
       };
     }
   
-    const pc: PcProfile = {
-      customName: false,
-      id: connectionPcId,
-      name: "PC",
-      url: connectionPcUrl
-    };
+    const pc: PcProfile = { ...createPcProfile(connectionPcUrl), id: connectionPcId };
     const currentPc = () => getLatestConnectionPc(pc);
     let commitManualPcOnAcceptance = pendingManualPc?.id === pc.id && pendingManualPc.url === pc.url;
   
@@ -379,6 +381,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
       }
   
       const ws = new WebSocket(getWebSocketUrl(pc));
+      ws.binaryType = "arraybuffer";
       socketRef.current = ws;
       connectionTimer = window.setTimeout(() => { markUnavailable(ws); }, connectionTimeoutMs);
   
@@ -394,6 +397,9 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
         pendingPairingKey = null;
         pendingPairingBootstrap = null;
         verifiedHostIdentity = null;
+        pendingRelaySession = null;
+        relayChannel = null;
+        relayEncryptedSendRef.current = null;
         if (currentPairingAttempt.token !== undefined) {
           pendingPairingKey = createPairingKeyMaterial();
           pendingPairingBootstrap = createPairingBootstrapMaterial(currentPairingAttempt.token);
@@ -423,12 +429,67 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
         ws.send(JSON.stringify(hello));
       }
   
-      function onSocketMessage(event: MessageEvent) {
+      function onSocketMessage(event: MessageEvent): Promise<void> | void {
         if (disposed || ws !== socketRef.current) {
           return;
         }
-  
-        const response = parseServerMessage(event.data);
+
+        const messageData: unknown = event.data;
+        if (relayChannel) {
+          return relayChannel.decryptText(messageData).then((decrypted) => {
+            if (disposed || ws !== socketRef.current) {return;}
+            if (decrypted === null) {
+              markUnavailable(ws, "The encrypted relay session was altered or replayed. Scan a fresh QR code if this continues.", "VAIR-PAIR-RELAY-ENCRYPTION");
+              return;
+            }
+            handleSocketMessage(decrypted);
+          });
+        } else if (pc.transportMode === "relay" && typeof messageData === "string") {
+          let relayMessage: unknown;
+          try { relayMessage = JSON.parse(messageData); } catch { relayMessage = null; }
+          const challenge = parseRelayKeyChallenge(relayMessage);
+          if (challenge) {
+            const hostIdentityPublicKey = verifiedHostIdentity?.publicKey ?? currentPc().hostIdentityPublicKey;
+            if (challenge.routeId !== pc.relayRouteId || challenge.clientId !== clientId || !hostIdentityPublicKey) {
+              markUnavailable(ws, "The relay session identity did not match this saved PC.", "VAIR-PAIR-RELAY-IDENTITY");
+              return;
+            }
+            pendingRelaySession = beginRelaySession(
+              challenge,
+              hostIdentityPublicKey,
+              pendingPairingKey?.privateKey ?? null,
+              (transcript) => signClientPayload(clientId, pc.id, transcript));
+            if (!pendingRelaySession) {
+              markUnavailable(ws, "This browser could not create encrypted relay session keys.", "VAIR-PAIR-RELAY-KEY");
+              return;
+            }
+            ws.send(JSON.stringify(pendingRelaySession.proof));
+            return;
+          }
+          if (pendingRelaySession && verifyRelayHostAcceptance(pendingRelaySession, relayMessage)) {
+            relayChannel = pendingRelaySession.channel;
+            pendingRelaySession = null;
+            const rawSend = ws.send.bind(ws);
+            const encryptedSend: RelayEncryptedSend = (data) => {
+              if (!relayChannel) {return Promise.reject(new Error("Relay encryption is not active."));}
+              return relayChannel.send((encrypted) => rawSend(encrypted), data);
+            };
+            relayEncryptedSendRef.current = encryptedSend;
+            ws.send = ((data: string | ArrayBufferLike | Blob | ArrayBufferView) => {
+              if (typeof data !== "string" || !relayChannel) {throw new TypeError("Encrypted relay messages must be JSON text.");}
+              void encryptedSend(data).catch(() => {
+                markUnavailable(ws, "The encrypted relay send queue could not keep up. Reconnecting...", "VAIR-PAIR-RELAY-BACKPRESSURE");
+              });
+            });
+            return;
+          }
+        }
+
+        handleSocketMessage(messageData);
+      }
+
+      function handleSocketMessage(messageData: unknown) {
+        const response = parseServerMessage(messageData);
         if (!response) {
           return;
         }
@@ -817,10 +878,17 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
         markUnavailable(ws);
       }
   
+      let receiveQueue = Promise.resolve();
       removeSocketListeners = registerWebSocketListeners(ws, {
         close: onSocketClose,
         error: onSocketError,
-        message: onSocketMessage,
+        message: (event) => {
+          if (pc.transportMode === "relay") {
+            receiveQueue = receiveQueue.then(() => onSocketMessage(event));
+          } else {
+            void onSocketMessage(event);
+          }
+        },
         open: () => { void onSocketOpen(); }
       });
     }
@@ -868,6 +936,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
   
     return () => {
       disposed = true;
+      relayEncryptedSendRef.current = null;
       reconnectRef.current = null;
       rescheduleHealthCheckRef.current = null;
       window.removeEventListener("focus", reconnectIfStale);
@@ -892,6 +961,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     pendingManualPc?.url,
     pendingMovementAckRef,
     reconnectRef,
+    relayEncryptedSendRef,
     rescheduleHealthCheckRef,
     screenshotMode,
     setActivePcId,

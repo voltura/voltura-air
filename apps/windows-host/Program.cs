@@ -112,6 +112,10 @@ internal static class Program
             {
                 s_runtime.MainWindow.ShowCustomScreenEditorForScreenshot();
             }
+            else if (args.Contains("--site-screenshot-relay-connection", StringComparer.OrdinalIgnoreCase))
+            {
+                s_runtime.MainWindow.ShowRelayConnectionForScreenshot();
+            }
             else if (args.Contains("--presentation-demo-data", StringComparer.OrdinalIgnoreCase))
             {
                 s_runtime.MainWindow.ShowPage(HostPage.Presentations);

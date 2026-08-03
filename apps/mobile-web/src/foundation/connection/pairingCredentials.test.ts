@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createPairingKeyMaterial, revokePcPairing } from "./pairingCredentials";
+import { p256 } from "@noble/curves/nist.js";
+import { base64Url, createPairingKeyMaterial } from "./pairingCredentials";
+import { revokePcPairing } from "./relayPairingRevocation";
+import { RelayEncryptedChannel } from "./relaySessionCrypto";
 
 function decodeBase64Url(value: string): Uint8Array {
   const binary = atob(value.replace(/-/g, "+").replace(/_/g, "/").padEnd(value.length + ((4 - value.length % 4) % 4), "="));
@@ -43,9 +46,9 @@ class MockWebSocket {
   close = vi.fn(() => { this.readyState = MockWebSocket.CLOSED; });
   send = vi.fn();
 
-  dispatch(type: string, data?: string) {
+  dispatch(type: string, data?: unknown) {
     for (const listener of this.listeners.get(type) ?? []) {
-      listener({ data } as MessageEvent);
+      listener(type === "close" ? data as MessageEvent : { data } as MessageEvent);
     }
   }
 }
@@ -66,26 +69,127 @@ describe("revokePcPairing", () => {
 
   afterEach(() => { vi.useRealTimers(); });
 
-  it("closes a rejected best-effort revocation socket", () => {
+  it("closes a rejected best-effort revocation socket", async () => {
     localStorage.setItem("voltura-air.reconnect-key.client-a.pc-b", createPairingKeyMaterial()!.privateKey);
-    revokePcPairing({ customName: false, id: "pc-b", name: "PC B", url: "http://pc-b.local:51395" }, "client-a", "Phone", null);
+    const revocation = revokePcPairing({ customName: false, id: "pc-b", name: "PC B", url: "http://pc-b.local:51395" }, "client-a", "Phone", null);
     const socket = MockWebSocket.instances[0]!;
 
     socket.readyState = MockWebSocket.OPEN;
     socket.dispatch("open");
     socket.dispatch("message", JSON.stringify({ type: "pair.rejected", reason: "device-revoked" }));
 
+    await expect(revocation).resolves.toBe(false);
     expect(socket.close).toHaveBeenCalledOnce();
   });
 
-  it("bounds an unopened best-effort revocation socket", () => {
+  it("bounds an unopened best-effort revocation socket", async () => {
     vi.useFakeTimers();
     localStorage.setItem("voltura-air.reconnect-key.client-a.pc-b", createPairingKeyMaterial()!.privateKey);
-    revokePcPairing({ customName: false, id: "pc-b", name: "PC B", url: "http://pc-b.local:51395" }, "client-a", "Phone", null);
+    const revocation = revokePcPairing({ customName: false, id: "pc-b", name: "PC B", url: "http://pc-b.local:51395" }, "client-a", "Phone", null);
     const socket = MockWebSocket.instances[0]!;
 
     vi.advanceTimersByTime(10_000);
 
+    await expect(revocation).resolves.toBe(false);
     expect(socket.close).toHaveBeenCalledOnce();
+  });
+
+  it("waits for encrypted delivery and host closure on an active relay session", async () => {
+    const activeSocket = new MockWebSocket("wss://relay.test/ws") as unknown as WebSocket;
+    (activeSocket as unknown as MockWebSocket).readyState = MockWebSocket.OPEN;
+    let completeSend: (() => void) | undefined;
+    const encryptedSend = vi.fn(() => new Promise<void>((resolve) => { completeSend = resolve; }));
+    let completed = false;
+
+    const revocation = revokePcPairing(
+      { customName: false, id: "pc-b", name: "PC B", url: "https://relay.test", transportMode: "relay" },
+      "client-a",
+      "Phone",
+      activeSocket,
+      encryptedSend).then((result) => { completed = true; return result; });
+    (activeSocket as unknown as MockWebSocket).dispatch("close", { code: 1000, reason: "Host closed session" });
+
+    await Promise.resolve();
+    expect(completed).toBe(false);
+    completeSend!();
+    await expect(revocation).resolves.toBe(true);
+    expect(encryptedSend).toHaveBeenCalledWith(JSON.stringify({ type: "pair.disconnect" }));
+  });
+
+  it("does not treat an abnormal network close as revocation confirmation", async () => {
+    const activeSocket = new MockWebSocket("wss://relay.test/ws") as unknown as WebSocket;
+    (activeSocket as unknown as MockWebSocket).readyState = MockWebSocket.OPEN;
+
+    const revocation = revokePcPairing(
+      { customName: false, id: "pc-b", name: "PC B", url: "https://relay.test", transportMode: "relay" },
+      "client-a",
+      "Phone",
+      activeSocket,
+      () => Promise.resolve());
+    await Promise.resolve();
+    (activeSocket as unknown as MockWebSocket).dispatch("close", { code: 1006, reason: "" });
+
+    await expect(revocation).resolves.toBe(false);
+  });
+
+  it("completes relay key exchange before revoking an inactive pairing", async () => {
+    const hostIdentity = p256.keygen();
+    const hostEphemeral = p256.keygen();
+    const routeId = "r".repeat(22);
+    const hostIdentityPublicKey = base64Url(p256.getPublicKey(hostIdentity.secretKey, false));
+    const hostEphemeralPublicKey = base64Url(p256.getPublicKey(hostEphemeral.secretKey, false));
+    const nonce = base64Url(new Uint8Array(32).fill(7));
+    localStorage.setItem("voltura-air.reconnect-key.client-a.pc-b", createPairingKeyMaterial()!.privateKey);
+    const revocation = revokePcPairing({
+      customName: false,
+      hostIdentityPublicKey,
+      id: "pc-b",
+      name: "PC B",
+      relayRouteId: routeId,
+      transportMode: "relay",
+      url: "https://relay.test"
+    }, "client-a", "Phone", null);
+    const socket = MockWebSocket.instances[0]!;
+    socket.readyState = MockWebSocket.OPEN;
+    socket.dispatch("open");
+    socket.dispatch("message", JSON.stringify({ type: "pair.challenge", clientId: "client-a", challenge: base64Url(new Uint8Array(32).fill(5)) }));
+    socket.dispatch("message", JSON.stringify({
+      type: "session.key.challenge",
+      routeId,
+      clientId: "client-a",
+      hostEphemeralPublicKey,
+      nonce
+    }));
+    const proof = JSON.parse(String(socket.send.mock.calls.at(-1)![0])) as { clientEphemeralPublicKey: string };
+    const transcriptText = [
+      "voltura-air-relay-session-v1",
+      routeId,
+      "client-a",
+      hostIdentityPublicKey,
+      hostEphemeralPublicKey,
+      proof.clientEphemeralPublicKey,
+      nonce
+    ].join("\n");
+    const transcript = new TextEncoder().encode(transcriptText);
+    socket.dispatch("message", JSON.stringify({
+      type: "session.key.accepted",
+      signature: base64Url(p256.sign(transcript, hostIdentity.secretKey, { lowS: false }))
+    }));
+    const shared = p256.getSharedSecret(hostEphemeral.secretKey, decodeBase64Url(proof.clientEphemeralPublicKey), false).slice(1, 33);
+    const hostChannel = RelayEncryptedChannel.createHostForConformance(shared, transcript);
+    let acceptedFrame: ArrayBuffer | null = null;
+    await hostChannel.send((frame) => { acceptedFrame = frame; }, JSON.stringify({
+      type: "pair.accepted",
+      clientId: "client-a",
+      pcName: "PC B",
+      paired: true
+    }));
+    socket.dispatch("message", acceptedFrame);
+    await vi.waitFor(() => { expect(socket.send.mock.calls.at(-1)![0]).toBeInstanceOf(ArrayBuffer); });
+    const disconnectFrame = socket.send.mock.calls.at(-1)![0] as ArrayBuffer;
+
+    expect(await hostChannel.decryptText(disconnectFrame)).toBe(JSON.stringify({ type: "pair.disconnect" }));
+    socket.dispatch("close", { code: 1000, reason: "Host closed session" });
+    await expect(revocation).resolves.toBe(true);
   });
 });

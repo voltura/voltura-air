@@ -4,6 +4,18 @@ Authority for adapter/port selection, saved PCs, host hints, and manual recovery
 Wire shape: [protocol](protocol.md). Failure UX:
 [pairing feedback](pairing-feedback.md).
 
+## Connection method
+
+- **Direct local network** is the default and retains adapter, port, listener,
+  host-served PWA, and direct pairing behavior.
+- **Cloud relay through Voltura** binds the local listener to loopback and opens
+  an authenticated outbound relay connection. It hides adapter/port controls
+  and never opens Direct automatically after failure.
+- Changing either method uses the existing save/restart/rollback flow.
+- Relay retains its persistent opaque route and paired devices when disabled.
+  An optional custom endpoint is HTTPS-only and bounded to 512 characters.
+- Existing settings without a connection method normalize to Direct.
+
 ## Adapter
 
 - Default: rank active private IPv4 LAN adapters above VPN/tunnel/virtual
@@ -49,6 +61,12 @@ or saved-host address. A fresh short QR supplies one bootstrap token; the opened
 authenticated pairing exchange pins the PC public identity alongside the saved
 profile. A missing or mismatched pin requires a fresh scan of that PC rather
 than adding identity data to future QR codes.
+
+Relay profiles save service ID, opaque route, endpoint type, and pinned host
+identity. The official endpoint comes from `relay-service.json`; custom
+endpoints use the same protocol. Moving service infrastructure behind the same
+hostname needs no profile change. A hostname change requires a new QR/profile
+update, not different host or mobile code.
 
 Changed selection, fallback, validation, persistence, and recovery use the
 [network/boundary validation route](setup.md#validation-by-change).

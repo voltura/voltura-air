@@ -3,6 +3,18 @@ namespace VolturaAir.Host.Tests;
 public sealed class ScreenViewWebRtcTests
 {
     [Fact]
+    public void BundledPeerAcceptsTheOfficialRelayConfiguration()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        using var peer = new ScreenViewWebRtcPeer(new ScreenViewPeerConfiguration(
+        [
+            "turns:user:credential@turn.cloudflare.com:443?transport=tcp",
+            "turn:user:credential@turn.cloudflare.com:3478?transport=udp"
+        ], RelayOnly: true), _ => new FakeTurnTlsBridge());
+    }
+
+    [Fact]
     public void AdvertisesABaselineLevelThatSupportsTheMaximum1080p30Stream()
     {
         Assert.Contains("profile-level-id=42e028", ScreenViewWebRtcPeer.H264FormatParameters, StringComparison.Ordinal);
@@ -74,5 +86,14 @@ public sealed class ScreenViewWebRtcTests
     {
         public bool Disposed { get; private set; }
         public void Dispose() => Disposed = true;
+    }
+
+    private sealed class FakeTurnTlsBridge : ITurnTlsBridge
+    {
+        public string LocalIceServerUri => "turn:user:credential@127.0.0.1:41234?transport=udp";
+        public string? FailureCode => null;
+        public void Dispose()
+        {
+        }
     }
 }

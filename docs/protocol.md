@@ -8,6 +8,30 @@ signaling. Product behavior belongs in
 
 ## Transport and JSON
 
+Direct mode exposes `/ws` on the selected LAN adapter. Relay mode binds the
+same host application to loopback and multiplexes it through one authenticated
+outbound relay WebSocket. The Cloudflare Durable Object and standalone Node
+adapters share the same room contract: one authenticated host, at most 64
+device sockets, 64 KiB inner frames, bounded forwarding queues, and no stored
+commands. The opaque relay payload permits only the fixed 26-byte encrypted
+frame overhead above that limit; endpoints enforce 64 KiB again after decryption.
+
+An unauthenticated relay host candidate never owns the route. It has ten
+seconds to prove the routing key and is replaced by a newer candidate; only the
+authenticated socket blocks another host. A device Connected envelope carries
+a 16-byte route-scoped source key derived by the relay for host pairing-rate
+isolation. Hosts accept an empty payload from earlier relay adapters and isolate
+that connection by session ID; other Connected payload lengths are rejected.
+Host close envelopes contain only the session ID and make either relay adapter
+close that device socket; deploy the relay adapter before a host that emits this
+additive envelope kind.
+
+Relay does not change command-latency ownership. Usage analytics, TURN renewal,
+screen capture/encoding, logging, registry access, and host UI work never hold
+the command receive/send path. A full bounded queue or relay backpressure closes
+that slow session instead of accumulating delayed commands. Screen media uses
+its separate WebRTC transport and can fail while commands remain connected.
+
 - Allowed origins: missing, same-origin, configured development, loopback, and
   private LAN. Unrelated public origins are rejected before upgrade.
 - Maximum 64 sessions; `pair.hello` deadline 10 seconds; authenticated receive
@@ -45,6 +69,13 @@ Mobile removes `t` from the current URL before name confirmation/authentication.
 `/pair`, `v`, hints, and saved profiles never bypass token pairing or reconnect
 proof. Manual host forms belong in
 [network selection](network-and-host-selection.md).
+
+Relay uses `https://voltura.se/a/<22-character-route>?v=<version>#<token>`.
+`/a` redirects to `/air/app/` without a fragment so the browser preserves the
+secret locally and never sends it in an HTTP request. The route derives from a
+separate persistent routing public key and is not the PC name. A custom relay
+uses the longer hosted-app form with a validated Base64url HTTPS endpoint; it
+changes the saved profile, not the pairing or command protocol.
 
 Tokens last five minutes. Connect rotates 15 seconds before expiry and retains
 only the prior token for up to that 15-second overlap. Successful pairing
@@ -107,6 +138,16 @@ replaces its keys and revokes active sockets without adding another record. A
 saved profile without a matching host identity pin is rejected and must pair
 again; the wire does not accept the earlier plaintext-token hello or a QR
 identity parameter.
+
+For Relay, successful proof verification is followed by a signed ephemeral
+P-256 ECDH exchange. Its transcript binds route, client ID, pinned host
+identity, both ephemeral keys, and a nonce. HKDF-SHA256 derives separate
+AES-256-GCM keys and nonce prefixes for each direction. Frames contain version,
+direction, and a strictly monotonic 64-bit counter as authenticated data. The
+host commits fresh pairing and consumes the token only after this exchange;
+`pair.accepted` is the first encrypted application frame. Alteration, replay,
+wrong direction, skipped counters, route mismatch, or identity mismatch closes
+the session.
 
 Reconnect omits token/key:
 
@@ -327,7 +368,34 @@ with its reconnect key. `answerHash` is the same unpadded base64url SHA-256
 construction over the exact answer SDP. Invalid, mismatched, expired, or
 oversized signaling is rejected and releases the pending peer.
 
-WebRTC uses direct host ICE candidates only: there are no STUN or TURN servers.
+Direct mode uses host ICE candidates without STUN or TURN. Relay mode requests
+a signed, single-use 15-minute TURN credential from the active route and uses
+relay-only ICE. Mobile renews before expiry by stopping the old peer and
+performing a fresh signed WebRTC negotiation. The start result may include
+bounded `iceServers`, `turnExpiresAt`, `relayUsageBytes`,
+`relayUsageCheckedAt`, and `relayScreenQuality`; direct results omit them.
+Some browsers can gather usable relay candidates without changing their ICE
+gathering state to `complete`. In Relay mode the browser may therefore send its
+answer after at least one relay candidate is present in `localDescription` and
+candidate events have been quiet for 350 milliseconds. Before signing and
+sending, every candidate line in the answer SDP must be `typ relay`; an empty or
+mixed candidate set is rejected. The 10-second timeout remains a failure when
+no relay candidate exists. Direct mode continues to wait for gathering to
+complete.
+The authenticated relay TURN response carries `usageBytes`, `checkedAt`, and
+optional provider-owned `usageWarningBytes` and `usageCutoffBytes`. The host
+retains them as one immutable runtime snapshot, not registry settings. Missing
+or invalid limits hide the meter rather than inventing host defaults. A blocked
+response still carries the usage snapshot so the host can explain the cutoff.
+The hosted browser accepts Cloudflare TURN over UDP and TCP/TLS 443. The Windows
+host selects issued `turns` entries and maps each to an ephemeral loopback TURN
+UDP endpoint consumed by the existing libjuice ICE/TURN owner. A bounded,
+certificate-validating bridge carries those TURN messages over TLS/TCP to the
+original hostname and port. It preserves STUN messages and adds or removes only
+the four-byte alignment padding required for ChannelData on a stream transport.
+Reserved, malformed, oversized, non-loopback, or second-owner traffic is
+rejected. Consequently the PC's external relay-screen traffic is TCP 443; UDP is
+confined to loopback. DTLS-SRTP remains the media security boundary above TURN.
 The selected display is sent as H.264 RTP on a send-only video track, with
 DTLS-SRTP providing media confidentiality, integrity, and replay protection.
 Cursor and terminal status records use the ordered reliable `screen-events`
@@ -555,7 +623,8 @@ literal text, shortcut payloads, executable details, or viewport history.
 Button actions are `click`, `down`, `up`; `click` sends press/release.
 Zoom `in` means spread/pinch-out; `out` means pinch-in. Keyboard text cannot be
 empty, but whitespace is valid. Single-letter virtual keys use
-`keyboard.special`. `Undo` and `Redo` map to Ctrl+Z/Ctrl+Y.
+`keyboard.special`. Pointer and wheel `dx`/`dy` are finite values from -5000
+through 5000. `Undo` and `Redo` map to Ctrl+Z/Ctrl+Y.
 
 ### Input acknowledgements
 

@@ -12,6 +12,10 @@ const appleStartupDevices = JSON.parse(
 ) as AppleStartupDevice[];
 const configuredWebBuildId = process.env.VOLTURA_AIR_WEB_BUILD_ID?.trim();
 const webBuildId = configuredWebBuildId && configuredWebBuildId.length > 0 ? configuredWebBuildId : randomUUID();
+const appBase = process.env.VOLTURA_AIR_HOSTED === "1" ? "/air/app/" : "/";
+const relayService = JSON.parse(
+  readFileSync(new URL("../windows-host/relay-service.json", import.meta.url), "utf8").replace(/^\uFEFF/u, "")
+) as { serviceId: string; httpsBase: string };
 
 interface AppleStartupDevice {
   name: string;
@@ -23,17 +27,22 @@ interface AppleStartupDevice {
 ignoreDevSocketResets();
 
 export default defineConfig({
+  base: appBase,
   build: {
-    chunkSizeWarningLimit: 750
+    chunkSizeWarningLimit: 750,
+    outDir: process.env.VOLTURA_AIR_HOSTED === "1" ? "../../docs/site/app" : "dist",
+    emptyOutDir: true
   },
   define: {
     __APP_VERSION__: JSON.stringify(packageJson.version),
-    __WEB_BUILD_ID__: JSON.stringify(webBuildId)
+    __WEB_BUILD_ID__: JSON.stringify(webBuildId),
+    __RELAY_SERVICE_ID__: JSON.stringify(relayService.serviceId),
+    __RELAY_HTTPS_BASE__: JSON.stringify(relayService.httpsBase)
   },
-  plugins: [react(), appleStartupImages(), webBuildIdFile(webBuildId), compressedJavaScriptAssets()]
+  plugins: [react(), appleStartupImages(appBase), webBuildIdFile(webBuildId, appBase), hostedManifest(appBase), compressedJavaScriptAssets(appBase)]
 });
 
-function appleStartupImages(): Plugin {
+function appleStartupImages(base: string): Plugin {
   return {
     name: "apple-startup-images",
     transformIndexHtml(): HtmlTagDescriptor[] {
@@ -44,7 +53,7 @@ function appleStartupImages(): Plugin {
             injectTo: "head",
             attrs: {
               rel: "apple-touch-startup-image",
-              href: `/startup-images/${startupFileName(device, theme, orientation)}`,
+              href: `${base}startup-images/${startupFileName(device, theme, orientation)}`,
               media: [
                 "screen",
                 `(prefers-color-scheme: ${theme})`,
@@ -57,6 +66,23 @@ function appleStartupImages(): Plugin {
           }))
         )
       );
+    }
+  };
+}
+
+function hostedManifest(base: string): Plugin {
+  return {
+    name: "hosted-manifest",
+    apply: "build",
+    closeBundle() {
+      if (base === "/") {return;}
+      const output = fileURLToPath(new URL("../../docs/site/app/manifest.webmanifest", import.meta.url));
+      const manifest = JSON.parse(readFileSync(output, "utf8")) as Record<string, unknown> & { icons?: { src?: string }[] };
+      manifest.id = base;
+      manifest.start_url = base;
+      manifest.scope = base;
+      for (const icon of manifest.icons ?? []) {if (icon.src?.startsWith("/")) {icon.src = `${base}${icon.src.slice(1)}`;}}
+      writeFileSync(output, `${JSON.stringify(manifest, null, 2)}\n`);
     }
   };
 }
@@ -85,9 +111,9 @@ function ignoreDevSocketResets(): void {
   });
 }
 
-function webBuildIdFile(buildId: string): Plugin {
+function webBuildIdFile(buildId: string, base: string): Plugin {
   const writeBuildId = () => {
-    const distDir = fileURLToPath(new URL("./dist", import.meta.url));
+    const distDir = outputDirectory(base);
     mkdirSync(distDir, { recursive: true });
     writeFileSync(join(distDir, "web-build-id.txt"), `${buildId}\n`);
   };
@@ -103,12 +129,12 @@ function webBuildIdFile(buildId: string): Plugin {
   };
 }
 
-function compressedJavaScriptAssets(): Plugin {
+function compressedJavaScriptAssets(base: string): Plugin {
   return {
     name: "compressed-javascript-assets",
     apply: "build",
     closeBundle() {
-      const distDir = fileURLToPath(new URL("./dist", import.meta.url));
+      const distDir = outputDirectory(base);
       if (!existsSync(distDir)) {
         return;
       }
@@ -126,6 +152,10 @@ function compressedJavaScriptAssets(): Plugin {
       }
     }
   };
+}
+
+function outputDirectory(base: string): string {
+  return fileURLToPath(new URL(base === "/" ? "./dist" : "../../docs/site/app", import.meta.url));
 }
 
 function findJavaScriptFiles(directory: string): string[] {

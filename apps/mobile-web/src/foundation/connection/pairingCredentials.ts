@@ -1,12 +1,8 @@
 import { p256 } from "@noble/curves/nist.js";
 import { hmac } from "@noble/hashes/hmac.js";
 import { sha256 } from "@noble/hashes/sha2.js";
-import { getBrowserName, getDefaultDeviceName, getDisplayMode, getPlatformName } from "../platform/clientEnvironment";
-import { getWebSocketUrl, type PcProfile } from "./pcProfiles";
 import type { PairAcceptedMessage, PairBootstrapChallengeMessage } from "../protocol/messages";
-import { parseServerMessage } from "./connectionProtocol";
 
-const revocationTimeoutMs = 10_000;
 const reconnectSigningPrefix = "VolturaAir reconnect:v1";
 const pairingHostProofPrefix = "VolturaAir pairing host:v1";
 const pairingClientProofPrefix = "VolturaAir pairing client:v1";
@@ -189,102 +185,18 @@ export function signClientPayload(clientId: string, pcId: string, payload: strin
   return base64Url(p256.sign(new TextEncoder().encode(payload), privateKey, { lowS: false }));
 }
 
+export function signPrivateKeyPayload(privateKey: string, payload: Uint8Array): string {
+  return base64Url(p256.sign(payload, decodeBase64Url(privateKey), { lowS: false }));
+}
+
+export { base64Url, decodeBase64Url };
+
 export function clearStoredReconnectKey(clientId: string, pcId: string): void {
   localStorage.removeItem(privateKeyStoreKey(clientId, pcId));
 }
 
 export function shouldClearStoredReconnectKeyForRejection(reason: string): boolean {
   return reason === "device-revoked" || reason === "invalid-proof";
-}
-
-export function revokePcPairing(pc: PcProfile | null, clientId: string, deviceName: string, activeSocket: WebSocket | null): void {
-  if (!pc) {
-    return;
-  }
-  const pairedPc = pc;
-
-  if (activeSocket?.readyState === WebSocket.OPEN) {
-    activeSocket.send(JSON.stringify({ type: "pair.disconnect" }));
-    return;
-  }
-
-  if (!hasStoredReconnectKey(clientId, pairedPc.id)) {
-    return;
-  }
-
-  const socket = new WebSocket(getWebSocketUrl(pairedPc));
-  let finished = false;
-  const timeout = window.setTimeout(finish, revocationTimeoutMs);
-
-  function finish() {
-    if (finished) {
-      return;
-    }
-
-    finished = true;
-    window.clearTimeout(timeout);
-    socket.removeEventListener("open", onOpen);
-    socket.removeEventListener("message", onMessage);
-    socket.removeEventListener("close", finish);
-    socket.removeEventListener("error", finish);
-    if (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN) {
-      socket.close();
-    }
-  }
-
-  function onOpen() {
-    socket.send(JSON.stringify({
-      type: "pair.hello",
-      clientId,
-      deviceName: deviceName.trim() || getDefaultDeviceName(),
-      platform: getPlatformName(),
-      browser: getBrowserName(),
-      displayMode: getDisplayMode()
-    }));
-  }
-
-  function onMessage(event: MessageEvent) {
-    const response = parseServerMessage(event.data);
-    if (finished) {
-      return;
-    }
-
-    if (response?.type === "pair.challenge") {
-      sendReconnectProof(response.challenge);
-      return;
-    }
-
-    if (response?.type === "pair.rejected") {
-      finish();
-      return;
-    }
-
-    if (response?.type !== "pair.accepted") {
-      return;
-    }
-
-    socket.send(JSON.stringify({ type: "pair.disconnect" }));
-    finish();
-  }
-
-  function sendReconnectProof(challenge: string) {
-    if (finished) {
-      return;
-    }
-
-    const signature = signReconnectChallenge(clientId, pairedPc.id, challenge);
-    if (!signature) {
-      finish();
-      return;
-    }
-
-    socket.send(JSON.stringify({ type: "pair.proof", clientId, signature }));
-  }
-
-  socket.addEventListener("open", onOpen);
-  socket.addEventListener("message", onMessage);
-  socket.addEventListener("close", finish);
-  socket.addEventListener("error", finish);
 }
 
 function getStoredPrivateKey(clientId: string, pcId: string): Uint8Array | null {

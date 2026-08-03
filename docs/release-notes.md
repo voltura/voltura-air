@@ -6,6 +6,28 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v0.8.6
+
+- Added **Cloud relay through Voltura** as an optional connection method for
+  company and guest networks that block devices from connecting directly to a
+  PC. Direct local network remains the default and continues to work as before.
+- Added a short `voltura.se` pairing QR for Cloud relay. It opens the hosted
+  Voltura Air app, needs no Voltura account, and keeps the same trusted-device,
+  reconnect, permission, and removal controls as Direct mode.
+- Added end-to-end encrypted remote commands and live PC screen viewing through
+  the relay. The PC and phone both connect outward, so Relay mode does not need
+  an incoming Windows Firewall exception.
+- Added **Standard** and **Data saver** relay screen quality choices, a monthly
+  usage estimate with a used-versus-remaining allowance bar, and automatic
+  safeguards that reduce or pause screen traffic before the configured relay
+  allowance is exceeded. Commands remain available when screen relay is paused.
+- Added an advanced custom-relay option and a portable self-hosting deployment
+  for people who want to operate their own relay later.
+- Improved relay screen viewing in installed iPhone and iPad web apps, including
+  reliable connection when iOS has usable relay routes but keeps reporting that
+  network discovery is still in progress. Also fixed Screen Start/Stop and the
+  Keyboard and Trackpad shortcuts while the live mirror is open.
+
 ## v0.8.5
 
 - Removed the Developer tools checkbox for PC screen mirroring. **View PC

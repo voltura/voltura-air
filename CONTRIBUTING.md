@@ -19,6 +19,8 @@ Voltura Air is a small freeware project from Voltura AB. Contributions should ke
 3. Update documentation when behavior changes.
 4. Run the smallest checks for the changed risk boundary; use the
    [validation matrix](docs/setup.md#validation-by-change).
+5. Interaction and transport changes must preserve the bounded, non-blocking
+   responsiveness contract in [architecture](docs/architecture.md).
 
 Install exact dependencies with `npm ci`; use `npm install` only when changing
 dependency manifests.

@@ -41,6 +41,9 @@ only. Skip preflight for inspection, static/ownership checks, or `TestServer`.
 - Never log typed text, pointer coordinates, pairing tokens, reconnect keys, or
   proofs.
 - Pairing links stay short; exchange credentials after opening.
+- Interaction hot paths never wait on media, analytics, logging, UI, registry,
+  disk, or background work. Use cached settings, bounded queues/backpressure,
+  and separate transports so overload fails locally instead of building lag.
 - Custom screens and Presentation are supported capabilities. Experimental
   features use explicit, feature-owned toggles under Developer tools; do not
   add a global alpha gate.

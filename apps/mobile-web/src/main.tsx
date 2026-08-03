@@ -33,7 +33,7 @@ createRoot(document.getElementById("root")!).render(
 
 if (!screenViewPreview && previewScreenId === null && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register(`/sw.js?build=${encodeURIComponent(__WEB_BUILD_ID__)}`).catch(() => {
+    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js?build=${encodeURIComponent(__WEB_BUILD_ID__)}`, { scope: import.meta.env.BASE_URL }).catch(() => {
       // The app still works without offline caching.
     });
   });

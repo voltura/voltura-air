@@ -128,7 +128,8 @@ try {
 const checks = [
   ["top-level version", lock.version],
   ["root package entry", lock.packages && lock.packages[""] && lock.packages[""].version],
-  ["mobile workspace entry", lock.packages && lock.packages["apps/mobile-web"] && lock.packages["apps/mobile-web"].version]
+  ["mobile workspace entry", lock.packages && lock.packages["apps/mobile-web"] && lock.packages["apps/mobile-web"].version],
+  ["relay workspace entry", lock.packages && lock.packages["services/relay"] && lock.packages["services/relay"].version]
 ];
 
 let failed = false;
@@ -175,6 +176,7 @@ if (failed) {
 
 $rootPackagePath = 'package.json'
 $mobilePackagePath = 'apps\mobile-web\package.json'
+$relayPackagePath = 'services\relay\package.json'
 $packageLockPath = 'package-lock.json'
 $hostProjectPath = 'apps\windows-host\VolturaAir.Host.csproj'
 
@@ -199,6 +201,13 @@ Set-RegexValue `
     -Description 'mobile package version'
 
 Set-RegexValue `
+    -RelativePath $relayPackagePath `
+    -Pattern '(?<prefix>^[ \t]*"version"[ \t]*:[ \t]*")[^"]+(?<suffix>"[ \t]*,?[ \t]*\r?$)' `
+    -NewValue $Version `
+    -ExpectedCount 1 `
+    -Description 'relay package version'
+
+Set-RegexValue `
     -RelativePath $packageLockPath `
     -Pattern '(?<prefix>^(?<indent>[ \t]*)"name"[ \t]*:[ \t]*"voltura-air"[ \t]*,[ \t]*\r?\n\k<indent>"version"[ \t]*:[ \t]*")[^"]+(?<suffix>"[ \t]*,[ \t]*\r?$)' `
     -NewValue $Version `
@@ -211,6 +220,13 @@ Set-RegexValue `
     -NewValue $Version `
     -ExpectedCount 1 `
     -Description 'mobile package-lock version'
+
+Set-RegexValue `
+    -RelativePath $packageLockPath `
+    -Pattern '(?<prefix>^(?<indent>[ \t]*)"name"[ \t]*:[ \t]*"@voltura-air/relay"[ \t]*,[ \t]*\r?\n\k<indent>"version"[ \t]*:[ \t]*")[^"]+(?<suffix>"[ \t]*,[ \t]*\r?$)' `
+    -NewValue $Version `
+    -ExpectedCount 1 `
+    -Description 'relay package-lock version'
 
 Set-RegexValue `
     -RelativePath $hostProjectPath `
@@ -242,6 +258,7 @@ Set-RegexValue `
 
 $updatedRootPackage = Get-RepoText $rootPackagePath | ConvertFrom-Json
 $updatedMobilePackage = Get-RepoText $mobilePackagePath | ConvertFrom-Json
+$updatedRelayPackage = Get-RepoText $relayPackagePath | ConvertFrom-Json
 $updatedHostProject = [xml](Get-RepoText $hostProjectPath)
 
 if ([string]$updatedRootPackage.version -ne $Version) {
@@ -249,6 +266,9 @@ if ([string]$updatedRootPackage.version -ne $Version) {
 }
 if ([string]$updatedMobilePackage.version -ne $Version) {
     throw "apps/mobile-web/package.json did not validate with version '$Version'."
+}
+if ([string]$updatedRelayPackage.version -ne $Version) {
+    throw "services/relay/package.json did not validate with version '$Version'."
 }
 Assert-PackageLockVersions `
     -Content (Get-RepoText $packageLockPath) `

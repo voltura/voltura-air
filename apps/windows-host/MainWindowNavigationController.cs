@@ -95,7 +95,7 @@ internal sealed class MainWindowNavigationController(
         {
             case HostPage.Connect:
                 pageTitle.Text = "Connect";
-                pageSubtitle.Text = "Pair a phone, tablet, or browser on the same network.";
+                pageSubtitle.Text = connectPage.PageSubtitle;
                 pageContent.Content = connectPage.CreateView();
                 break;
             case HostPage.Devices:

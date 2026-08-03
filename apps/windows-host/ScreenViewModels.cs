@@ -7,7 +7,12 @@ internal sealed record ScreenViewStartResult(
     string Code,
     string Message,
     string? OfferSdp = null,
-    string? HostSignature = null);
+    string? HostSignature = null,
+    IReadOnlyList<RelayIceServer>? IceServers = null,
+    DateTimeOffset? TurnExpiresAt = null,
+    long? RelayUsageBytes = null,
+    DateTimeOffset? RelayUsageCheckedAt = null,
+    RelayScreenQuality? RelayScreenQuality = null);
 
 internal sealed record ScreenViewOperationResult(bool Succeeded, string Code, string Message);
 

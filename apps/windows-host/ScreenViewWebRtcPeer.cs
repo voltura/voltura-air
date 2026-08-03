@@ -18,11 +18,15 @@ internal interface IScreenViewWebRtcPeer : IDisposable
 internal interface IScreenViewWebRtcPeerFactory
 {
     IScreenViewWebRtcPeer Create();
+    IScreenViewWebRtcPeer Create(ScreenViewPeerConfiguration? configuration) => Create();
 }
+
+internal sealed record ScreenViewPeerConfiguration(IReadOnlyList<string> IceServerUris, bool RelayOnly);
 
 internal sealed class ScreenViewWebRtcPeerFactory : IScreenViewWebRtcPeerFactory
 {
     public IScreenViewWebRtcPeer Create() => new ScreenViewWebRtcPeer();
+    public IScreenViewWebRtcPeer Create(ScreenViewPeerConfiguration? configuration) => new ScreenViewWebRtcPeer(configuration);
 }
 
 internal sealed class IsolatedScreenViewWebRtcPeerFactory : IScreenViewWebRtcPeerFactory
@@ -82,6 +86,7 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
     private readonly LibDataChannelNative.ErrorCallback _errorCallback;
     private readonly LibDataChannelNative.PliCallback _pliCallback;
     private readonly LibDataChannelNative.RembCallback _rembCallback;
+    private readonly List<ITurnTlsBridge> _turnTlsBridges = [];
     private int _peer;
     private int _track;
     private int _eventsChannel;
@@ -92,8 +97,16 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
     private bool _transportConnected;
     private bool _disposed;
 
-    public ScreenViewWebRtcPeer()
+    public ScreenViewWebRtcPeer(ScreenViewPeerConfiguration? peerConfiguration = null)
+        : this(peerConfiguration, static endpoint => new TurnTlsBridge(endpoint))
     {
+    }
+
+    internal ScreenViewWebRtcPeer(
+        ScreenViewPeerConfiguration? peerConfiguration,
+        Func<TurnTlsEndpoint, ITurnTlsBridge> createTurnTlsBridge)
+    {
+        ArgumentNullException.ThrowIfNull(createTurnTlsBridge);
         _descriptionCallback = OnDescription;
         _stateCallback = OnState;
         _gatheringCallback = OnGathering;
@@ -106,11 +119,24 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
         nint pointer = GCHandle.ToIntPtr(_selfHandle);
         try
         {
+            IReadOnlyList<string> configuredIceServers = peerConfiguration?.RelayOnly == true
+                ? TurnTlsIceServerMapper.Map(peerConfiguration.IceServerUris, endpoint =>
+                {
+                    ITurnTlsBridge bridge = createTurnTlsBridge(endpoint);
+                    _turnTlsBridges.Add(bridge);
+                    return bridge.LocalIceServerUri;
+                })
+                : peerConfiguration?.IceServerUris ?? [];
+            using var iceServers = new NativeIceServerList(configuredIceServers);
             var configuration = new LibDataChannelNative.Configuration
             {
+                IceServers = iceServers.Pointer,
+                IceServersCount = iceServers.Count,
                 CertificateType = LibDataChannelNative.CertificateType.Ecdsa,
-                IceTransportPolicy = LibDataChannelNative.TransportPolicy.All,
-                EnableIceTcp = 0,
+                IceTransportPolicy = peerConfiguration?.RelayOnly == true
+                    ? LibDataChannelNative.TransportPolicy.Relay
+                    : LibDataChannelNative.TransportPolicy.All,
+                EnableIceTcp = peerConfiguration?.RelayOnly == true ? (byte)1 : (byte)0,
                 DisableAutoNegotiation = 1,
                 ForceMediaTransport = 1,
                 Mtu = 1280
@@ -266,10 +292,17 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
             _ = LibDataChannelNative.rtcDeletePeerConnection(peer);
         }
         if (_selfHandle.IsAllocated) _selfHandle.Free();
+        foreach (ITurnTlsBridge bridge in _turnTlsBridges) bridge.Dispose();
+        _turnTlsBridges.Clear();
     }
 
     private void CompleteOffer()
     {
+        if (_turnTlsBridges.FirstOrDefault(bridge => bridge.FailureCode is not null) is { FailureCode: not null })
+        {
+            _offer.TrySetException(new ScreenViewWebRtcException("The TURN TLS connection failed."));
+            return;
+        }
         int size = LibDataChannelNative.rtcGetLocalDescription(_peer, 0, 0);
         if (size <= 1 || size > ScreenViewProtocol.MaxSdpLength + 1)
         {
@@ -400,17 +433,8 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
         if (_transportConnected && _trackOpen && _eventsOpen) _connected.TrySetResult();
     }
 
-    private sealed class Utf8String(string value) : IDisposable
-    {
-        public nint Pointer { get; private set; } = Marshal.StringToCoTaskMemUTF8(value);
-        public void Dispose()
-        {
-            if (Pointer == 0) return;
-            Marshal.FreeCoTaskMem(Pointer);
-            Pointer = 0;
-        }
-    }
 }
+
 
 internal static class ScreenViewProtocol
 {

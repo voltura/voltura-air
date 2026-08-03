@@ -16,8 +16,9 @@ The password prompt is hidden and DPAPI-encrypted for the current Windows user
 outside Git at `%LOCALAPPDATA%\Voltura Air`. Remove it with
 `npm run publish:site:password:clear`; never store it in files or logs.
 
-Publication rebuilds the catalog's real mobile-device preview, regenerates
-`stats.html`, and uploads `docs/site` to `air`. It pins
+Publication rebuilds the catalog preview and hosted Relay PWA, regenerates
+`stats.html`, uploads `docs/site` to `air`, and uploads the first-party short
+redirect under the website-root `a` path. It pins
 server identity, overwrites matching files, adds new files, and retains
 remote-only files. `publish:site:list` is read-only.
 
@@ -101,7 +102,6 @@ continues to require Secure session cookies and `docs/site/config.php`.
 - Make only authority-backed security/performance claims.
 - Keep release links, package labels, screenshots, `index.php`, and `llms.txt`
   aligned.
-- Never imply remote wake, internet relay, signed binaries, or disabled
-  capability availability.
+- Never imply remote wake, signed binaries, or disabled capability availability.
 
 Catalog/link changes run `npm run docs:check`.

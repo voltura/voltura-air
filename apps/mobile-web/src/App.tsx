@@ -222,6 +222,7 @@ export function App() {
   const openModeFromMenuWithPresentationGuard: typeof openModeFromMenu = (mode) => {
     const openMode = () => {
       setActiveCustomScreenId(null);
+      setIsScreenViewOpen(false);
       if (mode === "presentation") {
         requestPresentationActivation();
       }

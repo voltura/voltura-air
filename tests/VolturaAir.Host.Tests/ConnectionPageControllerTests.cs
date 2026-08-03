@@ -7,6 +7,38 @@ namespace VolturaAir.Host.Tests;
 
 public sealed partial class HostUiLayoutTests
 {
+    [Theory]
+    [InlineData("https://relay.example", "https://relay.example")]
+    [InlineData("https://relay.example/", "https://relay.example")]
+    [InlineData("https://relay.example/path", null)]
+    [InlineData("http://relay.example", null)]
+    [InlineData("https://user:secret@relay.example", null)]
+    public void CustomRelayEndpointIsAnHttpsOriginOnly(string value, string? expected)
+    {
+        Assert.Equal(expected, AppNetworkSettings.NormalizeRelayEndpoint(value));
+    }
+
+    [Theory]
+    [InlineData(0L, 850_000_000_000L, 0d)]
+    [InlineData(425_000_000_000L, 850_000_000_000L, 50d)]
+    [InlineData(850_000_000_000L, 850_000_000_000L, 100d)]
+    [InlineData(900_000_000_000L, 850_000_000_000L, 100d)]
+    public void RelayUsageMeterUsesTheProviderCutoff(long usedBytes, long cutoffBytes, double expectedPercent)
+    {
+        Assert.Equal(expectedPercent, ConnectionPagePresenter.CalculateRelayUsagePercent(usedBytes, cutoffBytes), precision: 6);
+        Assert.True(ConnectionPagePresenter.HasRelayUsageMeter(usedBytes, 750_000_000_000L, cutoffBytes));
+        Assert.Contains("GB remaining", ConnectionPagePresenter.FormatRelayUsageSummary(usedBytes, cutoffBytes), StringComparison.Ordinal);
+        Assert.Contains("Data saver starts", ConnectionPagePresenter.FormatRelayUsageThresholds(750_000_000_000L, cutoffBytes), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RelayUsageMeterStaysHiddenWithoutAValidProviderPolicy()
+    {
+        Assert.False(ConnectionPagePresenter.HasRelayUsageMeter(100, null, null));
+        Assert.False(ConnectionPagePresenter.HasRelayUsageMeter(100, 900, 800));
+        Assert.Equal(0, ConnectionPagePresenter.CalculateRelayUsagePercent(100, null));
+    }
+
     [Fact]
     public void ConnectionChooserOpenAndCancelDoNotCreatePendingChanges()
     {

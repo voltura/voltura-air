@@ -60,6 +60,9 @@ export function normalizeDeviceNameInput(value: string | null): string | null {
 export function ensureClientMetadataInAddress(clientId: string, deviceName: string): void {
   try {
     const url = new URL(window.location.href);
+    if (url.pathname.startsWith("/a/") || url.pathname === "/air/app/") {
+      return;
+    }
     const normalizedDeviceName = deviceName.trim() || getDefaultDeviceName();
     if (url.searchParams.get(clientIdQueryParam) === clientId && url.searchParams.get(deviceNameQueryParam) === normalizedDeviceName) {
       return;
@@ -107,10 +110,16 @@ export function loadDeviceName(source: string): string {
 
 export function clearPairTokenFromAddress(): void {
   const url = new URL(window.location.href);
-  if (!url.searchParams.has("t")) {
-    return;
+  let changed = false;
+  if (url.searchParams.has("t")) {
+    url.searchParams.delete("t");
+    changed = true;
   }
-
-  url.searchParams.delete("t");
-  window.history.replaceState(null, "", url);
+  if ((url.pathname.startsWith("/a/") || url.pathname === "/air/app/") && url.hash) {
+    url.hash = "";
+    changed = true;
+  }
+  if (changed) {
+    window.history.replaceState(null, "", url);
+  }
 }

@@ -8,6 +8,14 @@ internal static class WebHostNetwork
 {
     public static bool IsPortAvailable(int port) => PortSelector.IsPortAvailable(port);
     public static int FindFreePort() => PortSelector.FindFreePort();
+    public static int FindFreeLoopbackPort()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        return port;
+    }
 
     public static string? GetDnsLanAddressFallback()
     {

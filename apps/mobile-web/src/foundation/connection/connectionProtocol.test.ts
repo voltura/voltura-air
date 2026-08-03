@@ -161,6 +161,36 @@ describe("parseServerMessage", () => {
     }))).toBeNull();
   });
 
+  it("accepts bounded self-hosted TURN URLs and rejects unsafe forms", () => {
+    const frame = {
+      type: "screen.view.start.result",
+      operationId: "op-screen-start",
+      displayId: "display-1",
+      succeeded: true,
+      message: "Ready.",
+      iceServers: [{
+        urls: ["turns:turn.example.net:443?transport=tcp", "turn:turn.example.net:49160?transport=udp"],
+        username: "temporary-user",
+        credential: "temporary-credential"
+      }]
+    };
+
+    expect(parseServerMessage(JSON.stringify(frame))).toEqual(frame);
+    for (const url of [
+      "stun:turn.example.net:443",
+      "turns:user@turn.example.net:443?transport=tcp",
+      "turns:turn.example.net:0?transport=tcp",
+      "turns:turn.example.net:65536?transport=tcp",
+      "turns:turn.example.net:443/path",
+      "turns:turn.example.net:443?transport=https"
+    ]) {
+      expect(parseServerMessage(JSON.stringify({
+        ...frame,
+        iceServers: [{ ...frame.iceServers[0], urls: [url] }]
+      }))).toBeNull();
+    }
+  });
+
   it("accepts current custom-trackpad fields and enforces compact names", () => {
     const frame = {
       type: "custom.screen.get.result",

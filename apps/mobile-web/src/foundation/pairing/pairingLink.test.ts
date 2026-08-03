@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parsePairingLink, parsePcUrl, validateManualConnectionInput } from "./pairingLink";
+import { hasPairingTokenParameter, parsePairingLink, parsePcUrl, validateManualConnectionInput } from "./pairingLink";
 
 const pairToken = "a".repeat(32);
 const version = "0.6.1";
@@ -26,6 +26,34 @@ describe("parsePairingLink", () => {
       pairToken,
       pcUrl: "http://phone.local:51395"
     });
+  });
+
+  it("reads an official short relay link without exposing the token in the request query", () => {
+    const route = "r".repeat(22);
+    expect(parsePairingLink(`https://voltura.se/a/${route}?v=${version}#${pairToken}`)).toEqual({
+      pairToken,
+      pcUrl: `https://voltura.se/a/${route}`
+    });
+    expect(hasPairingTokenParameter(`https://voltura.se/a/${route}?v=${version}#${pairToken}`)).toBe(true);
+  });
+
+  it("reads the hosted redirect target and a bounded custom relay endpoint", () => {
+    const route = "r".repeat(22);
+    const endpoint = btoa("https://relay.example").replace(/=+$/u, "");
+    expect(parsePairingLink(`https://voltura.se/air/app/?r=${route}&v=${version}&e=${endpoint}#${pairToken}`)).toEqual({
+      pairToken,
+      pcUrl: `https://voltura.se/a/${route}?e=${endpoint}`
+    });
+  });
+
+  it.each([
+    `http://voltura.se/a/${"r".repeat(22)}?v=${version}#${pairToken}`,
+    `https://example.test/a/${"r".repeat(22)}?v=${version}#${pairToken}`,
+    `https://voltura.se/a/${"r".repeat(22)}?v=${version}&e=aHR0cHM6Ly9yZWxheS5leGFtcGxl#${pairToken}`,
+    `https://voltura.se/air/app/?r=${"r".repeat(22)}&v=${version}&e=${btoa("http://relay.example")}#${pairToken}`,
+    `https://voltura.se/air/app/?r=${"r".repeat(22)}&v=${version}&e=${btoa("https://user:secret@relay.example")}#${pairToken}`
+  ])("rejects unsafe relay link %s", (source) => {
+    expect(parsePairingLink(source)).toBeNull();
   });
 
   it.each([

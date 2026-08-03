@@ -12,11 +12,19 @@ internal sealed class ConnectPageController(
     Action requestViewRefresh,
     Action openConnectionPage)
 {
-    private readonly PairingLinkController _pairingLinks = new(pairingManager, webHost.ServerUrl, clientUrl);
+    private readonly PairingLinkController _pairingLinks = new(
+        pairingManager,
+        webHost.ServerUrl,
+        clientUrl,
+        webHost.TransportMode,
+        webHost.RelayRouteId,
+        webHost.RelayEndpoint);
 
     public string PairingUrl => _pairingLinks.Url;
 
     public string ServerUrl => _pairingLinks.ServerUrl;
+
+    public string PageSubtitle => FormatPageSubtitle(webHost.TransportMode);
 
     public ConnectPageView CreateView()
     {
@@ -41,7 +49,8 @@ internal sealed class ConnectPageController(
             _pairingLinks.RefreshAt,
             CreateNewCode,
             () => clipboard.Copy(GetVisiblePairingUrl(), "Link copied"),
-            openConnectionPage);
+            openConnectionPage,
+            usesRelay: webHost.TransportMode == ConnectionTransportMode.Relay);
     }
 
     public void CreateNewCode()
@@ -62,6 +71,11 @@ internal sealed class ConnectPageController(
     {
         return usePublicScreenshotPairingUrl ? ProductWebsite.Url : _pairingLinks.Url;
     }
+
+    internal static string FormatPageSubtitle(ConnectionTransportMode mode) =>
+        mode == ConnectionTransportMode.Relay
+            ? "Pair a phone, tablet, or browser from any internet connection."
+            : "Pair a phone, tablet, or browser on the same network.";
 
     private string GetConnectionStatus()
     {

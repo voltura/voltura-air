@@ -1,15 +1,16 @@
 const webBuildId = new URL(self.location.href).searchParams.get("build") || "dev";
 const cacheName = `voltura-air-${webBuildId}`;
+const appBase = new URL("./", self.location.href).pathname;
 const shellFiles = [
-  "/",
-  "/manifest.webmanifest",
-  "/icon.svg",
-  "/apple-touch-icon.png",
-  "/icons/icon-192.png",
-  "/icons/icon-512.png",
-  "/icons/icon-maskable-192.png",
-  "/icons/icon-maskable-512.png"
-];
+  "",
+  "manifest.webmanifest",
+  "icon.svg",
+  "apple-touch-icon.png",
+  "icons/icon-192.png",
+  "icons/icon-512.png",
+  "icons/icon-maskable-192.png",
+  "icons/icon-maskable-512.png"
+].map((path) => `${appBase}${path}`);
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(cacheName).then((cache) => cache.addAll(shellFiles)));
@@ -37,7 +38,7 @@ self.addEventListener("fetch", (event) => {
       .then((response) => {
         if (response.ok) {
           const copy = response.clone();
-          const cacheKey = isNavigationRequest ? "/" : event.request;
+          const cacheKey = isNavigationRequest ? appBase : event.request;
           caches.open(cacheName).then((cache) => cache.put(cacheKey, copy));
         }
         return response;
@@ -51,7 +52,7 @@ self.addEventListener("fetch", (event) => {
         }
 
         if (isNavigationRequest) {
-          const shell = await caches.match("/");
+          const shell = await caches.match(appBase);
           if (shell) {
             return shell;
           }

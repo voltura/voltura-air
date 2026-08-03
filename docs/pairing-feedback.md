@@ -15,7 +15,9 @@ saved-PC, manual-host behavior:
 | `unavailable` | The active PC cannot be reached or recent input/health checks failed. |
 | `disconnected` | The user intentionally disconnected. |
 
-A valid pairing link imports its token, removes `t` from the visible address,
+A valid Direct pairing link imports its token and removes `t` from the visible address.
+An official Relay link keeps the token only in the URL fragment, removes the
+fragment after import, and stores the opaque route profile.
 asks for device-name confirmation, then connects. Pairing, rejection,
 unavailable, and intentional-disconnect panels block inactive controls while
 keeping recovery actions usable.
@@ -24,9 +26,9 @@ Photo decoding is one bounded attempt at a time. While the selected photo is
 being decoded, the primary action reads **Reading QR code...**, shows pending
 feedback, and is visibly and natively disabled; secondary photo/manual actions
 that could start a competing attempt are disabled too. Success, failure, or a
-newer attempt clears that state. The short QR contains only `t`, `v`, and the
-optional routing hint `h`; PC identity is authenticated after opening rather
-than increasing QR density.
+newer attempt clears that state. Direct QR uses `t`, `v`, and optional `h`;
+Relay QR uses opaque route, `v`, and fragment token. PC identity is
+authenticated after opening rather than increasing QR density.
 
 ## Failure map
 
@@ -44,6 +46,8 @@ than increasing QR density.
 | `invalid-message` or `pair-first` | Refresh the mobile app from the PC and pair again. |
 | Unknown rejection | Show a `VAIR-PAIR-*` code and offer copied diagnostics. |
 | `host-unreachable` | The browser cannot reach the PC; reconnect, rescan, enter the current host, and check LAN/firewall. |
+| `relay-encryption-failed` or Relay identity mismatch | The encrypted session did not authenticate; reconnect, then scan a fresh QR if repeated. |
+| `turn-unavailable` | Screen relay credentials are unavailable or quota-blocked; commands remain connected and Screen can be retried later. |
 | `socket-closed` | Host/network closed an authenticated connection; show available close details and reconnect without replaying input. |
 | `input-ack-timeout` | Input delivery is unconfirmed; enter unavailable/retrying and reconnect. |
 | `input-dispatch-failed` | Windows rejected one action; show it and keep the authenticated connection for later actions. |

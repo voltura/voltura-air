@@ -20,6 +20,7 @@ import { useConnectionSocketLifecycle } from "./useConnectionSocketLifecycle";
 import { hasStoredReconnectKey } from "./pairingCredentials";
 import { useCustomScreens } from "./useCustomScreens";
 import { publishScreenViewResult } from "./screenViewResultBus";
+import type { RelayEncryptedSend } from "./relaySessionCrypto";
 
 export type { PcProfile } from "./pcProfiles";
 export type { ConnectionError, ConnectionState } from "./connectionTypes";
@@ -60,6 +61,7 @@ export function useVolturaAirConnection() {
   const lastMovementAckAtRef = useRef(0);
   const reconnectRef = useRef<(() => void) | null>(null);
   const rescheduleHealthCheckRef = useRef<(() => void) | null>(null);
+  const relayEncryptedSendRef = useRef<RelayEncryptedSend | null>(null);
 
   useEffect(() => {
     lastUserActivityAtRef.current = Date.now();
@@ -163,6 +165,7 @@ export function useVolturaAirConnection() {
     pendingManualPc,
     pendingMovementAckRef,
     reconnectRef,
+    relayEncryptedSendRef,
     rescheduleHealthCheckRef,
     screenshotMode,
     setActivePcId,
@@ -217,7 +220,7 @@ export function useVolturaAirConnection() {
     addManualPc, beginNewPairing, connectManualPc, disconnectActivePc, forgetPc,
     pairWithToken, renameDevice, renamePc, selectPc, setHostCustomPointer, setHostControlDepth, setHostShowModeButtons, setHostPointerSpeed
   } = usePairedPcActions({
-    activePcId, clearRuntimeState, clientId, deviceNameRef, pairedPcs, screenshotMode, send,
+    activePcId, clearRuntimeState, clientId, deviceNameRef, pairedPcs, relayEncryptedSendRef, screenshotMode, send,
     setActivePcId, setDeviceName, setHostStatus, setLastConnectionError, setMessage, setPairedPcs,
     setPairingAttempt, setPendingManualPc, setState, socketRef, state
   });

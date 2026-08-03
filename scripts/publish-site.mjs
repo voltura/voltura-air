@@ -247,6 +247,11 @@ export async function publishSite({
       await sftp.put(accessRules, `${remoteDirectory}/.htaccess`);
     }
     await sftp.uploadDir(source, remoteDirectory);
+    const shortLinkSource = path.join(source, "a");
+    if (exists(shortLinkSource)) {
+      await sftp.mkdir("a", true);
+      await sftp.uploadDir(shortLinkSource, "a");
+    }
     log(`Published ${path.relative(repositoryRoot, source)} to ${host}:${remoteDirectory}`);
   } finally {
     await sftp.end();

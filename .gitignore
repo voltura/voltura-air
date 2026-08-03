@@ -22,6 +22,7 @@ Thumbs.db
 
 ## Packaged host web root is generated from apps/mobile-web/dist
 /apps/windows-host/wwwroot/
+/docs/site/app/
 
 # Hosting-only database credentials
 /docs/site/config.php

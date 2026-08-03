@@ -1,0 +1,30 @@
+{
+  "name": "@voltura-air/relay",
+  "private": true,
+  "version": "0.8.6",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/core/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "check": "npm run build && vitest run",
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "start": "tsx src/standalone/server.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260801.1",
+    "@types/node": "^26.0.0",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.20.6",
+    "typescript": "^7.0.2",
+    "vitest": "^4.0.0",
+    "wrangler": "^4.0.0"
+  }
+}

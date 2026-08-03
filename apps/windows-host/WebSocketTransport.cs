@@ -18,6 +18,40 @@ internal sealed class WebSocketTransport : IDisposable
     public WebSocket[] TakeRevoked(string? clientId) => _connections.TakeRevoked(clientId);
     public (string ClientId, WebSocket Socket)[] Snapshot() => _connections.Snapshot();
 
+    internal static async Task<BoundedMessage?> ReceiveBoundedMessageAsync(
+        WebSocket socket,
+        byte[] buffer,
+        WebSocketMessageType expectedType,
+        int maximumBytes,
+        CancellationToken cancellationToken)
+    {
+        var result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
+        if (result.MessageType == WebSocketMessageType.Close) return null;
+        if (result.MessageType != expectedType || result.Count > maximumBytes) throw new InvalidDataException();
+        if (result.EndOfMessage) return new BoundedMessage(buffer, result.Count);
+
+        using var stream = new MemoryStream(Math.Min(maximumBytes, Math.Max(result.Count * 2, 256)));
+        // MemoryStream writes are in-memory and cannot block on I/O.
+#pragma warning disable CA1849
+        stream.Write(buffer.AsSpan(0, result.Count));
+#pragma warning restore CA1849
+        while (!result.EndOfMessage)
+        {
+            result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
+            if (result.MessageType == WebSocketMessageType.Close) return null;
+            if (result.MessageType != expectedType || stream.Length + result.Count > maximumBytes)
+            {
+                throw new InvalidDataException();
+            }
+#pragma warning disable CA1849
+            stream.Write(buffer.AsSpan(0, result.Count));
+#pragma warning restore CA1849
+        }
+        return new BoundedMessage(stream.GetBuffer(), checked((int)stream.Length));
+    }
+
+    internal readonly record struct BoundedMessage(byte[] Buffer, int Count);
+
     public static async Task<JsonDocument?> ReceiveAsync(WebSocket socket, byte[] buffer, CancellationToken cancellationToken)
     {
         var result = await socket.ReceiveAsync(buffer, cancellationToken);

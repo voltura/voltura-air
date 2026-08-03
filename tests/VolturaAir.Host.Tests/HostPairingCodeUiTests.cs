@@ -146,6 +146,60 @@ public sealed partial class HostUiLayoutTests
     }
 
     [Fact]
+    public void RelayConnectDetailsHideLoopbackImplementationValues()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            var now = DateTimeOffset.UtcNow;
+            var changeCalls = 0;
+            var view = new ConnectPageView(
+                CreateTestBitmap(),
+                "https://voltura.se/a/AAAAAAAAAAAAAAAAAAAAAA?v=0.8.6#redacted",
+                "http://127.0.0.1:51395",
+                "Cloud relay through Voltura",
+                false,
+                "127.0.0.1",
+                "51395",
+                null,
+                null,
+                null,
+                now.AddMinutes(5),
+                static () => { },
+                static () => { },
+                () => changeCalls += 1,
+                usesRelay: true);
+
+            Assert.Equal("Connection method", view.SelectedAdapterCard.Title);
+            Assert.Equal("Cloud relay through Voltura", view.SelectedAdapterCard.Value);
+            Assert.Equal(Visibility.Visible, view.SelectedAdapterCard.Visibility);
+            Assert.Equal(Visibility.Collapsed, view.HostUrlCard.Visibility);
+            Assert.Equal(Visibility.Collapsed, view.SelectedIpCard.Visibility);
+            Assert.Equal(Visibility.Collapsed, view.SelectedPortCard.Visibility);
+            var actions = Assert.IsType<SpacingStackPanel>(view.SelectedAdapterCard.Actions);
+            var changeButton = actions.Children.OfType<Button>().Single(button => Equals(button.Content, "Change"));
+            Assert.Equal(Visibility.Visible, changeButton.Visibility);
+            changeButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal(1, changeCalls);
+        });
+    }
+
+    [Fact]
+    public void ConnectSubtitleMatchesTransport()
+    {
+        Assert.Equal(
+            "Pair a phone, tablet, or browser on the same network.",
+            ConnectPageController.FormatPageSubtitle(ConnectionTransportMode.DirectLan));
+        Assert.Equal(
+            "Pair a phone, tablet, or browser from any internet connection.",
+            ConnectPageController.FormatPageSubtitle(ConnectionTransportMode.Relay));
+    }
+
+    [Fact]
     public void ConnectCountdownPausesWhileMinimizedAndCatchesUpWhenRestored()
     {
         if (ShouldSkipNativeUiLayoutTests())

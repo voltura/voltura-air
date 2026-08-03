@@ -14,6 +14,19 @@ internal enum PortSelectionMode
     Manual
 }
 
+internal enum ConnectionTransportMode
+{
+    DirectLan,
+    Relay
+}
+
+internal enum RelayScreenQuality
+{
+    DataSaver,
+    Standard,
+    MaintainerFull
+}
+
 internal sealed record NetworkSettingsSnapshot(
     NetworkSelectionMode NetworkMode,
     string? ManualHostAddress,
@@ -22,7 +35,10 @@ internal sealed record NetworkSettingsSnapshot(
     PortSelectionMode PortMode,
     int? ManualPort,
     int? LastAutomaticPort,
-    string? LastAutomaticHostAddress);
+    string? LastAutomaticHostAddress,
+    ConnectionTransportMode TransportMode = ConnectionTransportMode.DirectLan,
+    string? CustomRelayEndpoint = null,
+    RelayScreenQuality RelayScreenQuality = RelayScreenQuality.Standard);
 
 internal static class AppNetworkSettings
 {
@@ -35,6 +51,9 @@ internal static class AppNetworkSettings
     private const string ManualPortValueName = "ManualPort";
     private const string LastAutomaticPortValueName = "LastAutomaticPort";
     private const string LastAutomaticHostAddressValueName = "LastAutomaticHostAddress";
+    private const string TransportModeValueName = "ConnectionTransportMode";
+    private const string CustomRelayEndpointValueName = "CustomRelayEndpoint";
+    private const string RelayScreenQualityValueName = "RelayScreenQuality";
 
     public static NetworkSettingsSnapshot Load()
     {
@@ -47,7 +66,10 @@ internal static class AppNetworkSettings
             ParseEnum(key?.GetValue(PortModeValueName) as string, PortSelectionMode.Automatic),
             ReadPort(key, ManualPortValueName),
             ReadPort(key, LastAutomaticPortValueName),
-            key?.GetValue(LastAutomaticHostAddressValueName) as string);
+            key?.GetValue(LastAutomaticHostAddressValueName) as string,
+            ParseEnum(key?.GetValue(TransportModeValueName) as string, ConnectionTransportMode.DirectLan),
+            NormalizeRelayEndpoint(key?.GetValue(CustomRelayEndpointValueName) as string),
+            NormalizeRelayQuality(ParseEnum(key?.GetValue(RelayScreenQualityValueName) as string, RelayScreenQuality.Standard)));
     }
 
     public static void Save(NetworkSettingsSnapshot settings)
@@ -63,6 +85,9 @@ internal static class AppNetworkSettings
         SetOptionalPort(key, ManualPortValueName, settings.ManualPort);
         SetOptionalPort(key, LastAutomaticPortValueName, settings.LastAutomaticPort);
         SetOptionalString(key, LastAutomaticHostAddressValueName, settings.LastAutomaticHostAddress);
+        key.SetValue(TransportModeValueName, settings.TransportMode.ToString(), RegistryValueKind.String);
+        SetOptionalString(key, CustomRelayEndpointValueName, NormalizeRelayEndpoint(settings.CustomRelayEndpoint));
+        key.SetValue(RelayScreenQualityValueName, NormalizeRelayQuality(settings.RelayScreenQuality).ToString(), RegistryValueKind.String);
     }
 
     public static void SetLastAutomaticPort(int port)
@@ -116,4 +141,23 @@ internal static class AppNetworkSettings
 
         key.SetValue(valueName, port.Value, RegistryValueKind.DWord);
     }
+
+    internal static string? NormalizeRelayEndpoint(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length > 512 ||
+            !Uri.TryCreate(value.Trim(), UriKind.Absolute, out var endpoint) ||
+            !string.Equals(endpoint.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ||
+            !string.IsNullOrEmpty(endpoint.UserInfo) || !string.IsNullOrEmpty(endpoint.Query) ||
+            !string.IsNullOrEmpty(endpoint.Fragment) || endpoint.AbsolutePath != "/")
+        {
+            return null;
+        }
+
+        return endpoint.GetLeftPart(UriPartial.Authority);
+    }
+
+    private static RelayScreenQuality NormalizeRelayQuality(RelayScreenQuality value) =>
+        value == RelayScreenQuality.MaintainerFull && !BuildFeatures.MaintainerRelayQuality
+            ? RelayScreenQuality.Standard
+            : value;
 }

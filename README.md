@@ -5,14 +5,17 @@
 </p>
 
 Turn a phone, tablet, or touch browser into a wireless remote for a Windows 11
-PC. No app-store install, account, subscription, or cloud relay is required.
+PC. No app-store install or Voltura account is required. Direct LAN remains the
+default; an optional cloud relay is available for networks that block inbound
+PC connections.
 
 ## What you can do
 
 - Use a phone or tablet as a wireless trackpad and keyboard.
-- View and control one Windows display live from a paired phone or tablet with
-  encrypted WebRTC video, responsive cursor movement, scrolling, and up to 5x
-  local zoom.
+- View and control one Windows display live from a paired phone or tablet over
+  Direct LAN or the optional Cloud relay, with encrypted video, responsive
+  cursor movement, scrolling, and up to 5x local zoom. Relay viewing offers
+  Standard and Data saver quality choices.
 - Control presentations, use a laser pointer, track time, and review saved
   reports on the PC.
 - Dictate, reuse snippets, and send text to a PC app, document, email draft, or
@@ -95,17 +98,24 @@ on uninstall. Start-at-sign-in is an in-app setting.
 2. Open **Connect**.
 3. Scan the QR code from a phone or tablet on the same Wi-Fi or LAN.
 
+For restricted company networks, open **Connection**, select **Cloud relay
+through Voltura**, then save and restart. Both devices connect outward, so the
+PC does not need an incoming firewall exception. The short QR opens the hosted
+Voltura Air app at `voltura.se`; pairing, reconnect, permissions, and device
+removal work the same way as Direct LAN.
+The Connection page shows the latest monthly screen usage, remaining protected
+allowance, and the active relay provider's warning and cutoff values.
+
 Paired devices are remembered until removed or their browser data is cleared.
 The optional **View PC screen** tool requires Screen viewing permission on the
 PC before a paired phone or tablet can use it.
 
 ## Trust, privacy, and distribution
 
-Voltura Air is intended for trusted devices on a local network. It is not a
-public-internet remote-desktop service, cloud relay, file-sync product, or
-remote wake solution for a sleeping or shut-down PC. Live screen video is sent
-directly over the LAN with WebRTC encryption; the existing local HTTP and
-command connection retain the trusted-LAN security model.
+Direct LAN is intended for trusted local networks. Optional Cloud relay carries
+end-to-end encrypted command frames through a routing service and uses TURN for
+DTLS-SRTP screen media; the relay cannot read commands or screen pixels. It is
+not file sync or a remote wake solution for a sleeping or shut-down PC.
 
 Voltura Air is freeware from Voltura AB and is open source under the
 [MIT License](LICENSE). It can be used without payment, registration, trial
@@ -141,6 +151,7 @@ npm run dev
 
 - [Contributing](CONTRIBUTING.md)
 - [Development workflows and validation](docs/setup.md#development-workflows)
+- [Cloud relay and advanced self-hosting](docs/relay-deployment.md)
 - [Documentation map](docs/README.md)
 
 ## Statistics

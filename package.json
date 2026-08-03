@@ -1,10 +1,11 @@
 {
   "name": "voltura-air",
   "private": true,
-  "version": "0.8.5",
+  "version": "0.8.6",
   "license": "MIT",
   "workspaces": [
-    "apps/mobile-web"
+    "apps/mobile-web",
+    "services/relay"
   ],
   "scripts": {
     "actions:restore": "node scripts/restore-github-actions.mjs",
@@ -46,12 +47,17 @@
     "release:draft": "node scripts/release-publish.mjs",
     "release:full": "node scripts/release-publish.mjs --publish-latest",
     "release:sync-release-notes": "node scripts/sync-release-notes.mjs",
+    "relay:check": "npm run check --workspace @voltura-air/relay",
+    "relay:deploy": "npm run deploy --workspace @voltura-air/relay",
+    "relay:setup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/relay-setup.ps1",
+    "relay:usage": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/relay-usage.ps1",
     "screenshots:site": "node scripts/capture-site-screenshots.mjs",
     "site:dev:init": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/site-dev-init.ps1",
     "site:dev:admin": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/site-dev-admin.ps1",
     "site:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/site-dev.ps1",
     "site:preview:build": "npm run build:catalog-preview --workspace apps/mobile-web",
-    "publish:site": "npm run site:preview:build && node scripts/publish-site.mjs",
+    "site:hosted:build": "npm run build:hosted --workspace apps/mobile-web",
+    "publish:site": "npm run site:preview:build && npm run site:hosted:build && node scripts/publish-site.mjs",
     "publish:site:prepared": "node scripts/publish-site.mjs --prepared",
     "publish:site:list": "node scripts/publish-site.mjs --list",
     "publish:site:password": "node scripts/publish-site.mjs --store-password",

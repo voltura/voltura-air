@@ -20,10 +20,11 @@ const sourceExtensions = new Set([
   ".ps1", ".ts", ".tsx", ".xaml"
 ]);
 const excludedDirectories = new Set([
-  ".codex-tmp", ".git", ".vs", "artifacts", "bin", "coverage", "dist", "node_modules", "obj"
+  ".codex-temp", ".codex-tmp", ".git", ".vs", "artifacts", "bin", "coverage", "dist", "node_modules", "obj"
 ]);
 const excludedPathPrefixes = [
   "apps/mobile-web/public/",
+  "docs/site/app/",
   "docs/site/assets/",
   "docs/site/screens/assets/",
   "installer/assets/"

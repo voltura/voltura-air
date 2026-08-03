@@ -7,8 +7,8 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 ## Scope and guarantees
 
 - A Windows 11 host serves a phone/tablet PWA on the same Wi-Fi or LAN.
-- Normal use needs no mobile app-store install, account, subscription, trial,
-  cloud relay, or internet input-forwarding service.
+- Direct use needs no mobile app-store install, account, subscription, trial,
+  or cloud service. Optional Relay uses Voltura's configured relay provider.
 - Voltura Air includes an optional local live display mirror, but is not a
   general remote-desktop, file-sync, backup, notification-sync, or cloud
   clipboard service.
@@ -31,6 +31,14 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   restart** and remain visually distinct from active settings.
 - Pairing creates one remembered relationship per client ID. Removing a device
   revokes it immediately and requires fresh pairing.
+- Connection offers exclusive **Direct local network** and **Cloud relay
+  through Voltura** methods. Direct remains the default. Relay binds the local
+  host to loopback and makes the PC and device connect outward without opening
+  the LAN listener; it never falls back to Direct automatically.
+- Relay pairing uses the short first-party `https://voltura.se/a/<route>` QR.
+  Its 32-character token stays in the URL fragment. Existing pairing,
+  reconnect, identity pinning, permissions, revocation, and rate limits are
+  reused inside an additional end-to-end encrypted relay session.
 - Reconnect uses proof of possession; the private reconnect key remains on the
   client. Fresh pairing uses the single short QR token to authenticate and pin
   the PC's persistent public identity after opening; no host identity or second
@@ -67,6 +75,18 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 - **View PC screen** is a lazy-loaded mobile tool. It remains visible on hosts
   that support it and explains whether the effective Screen viewing permission
   or a fresh identity-pinning pairing is required.
+- Direct viewing uses LAN ICE. Relay viewing uses relay-only TURN candidates,
+  15-minute credentials renewed with a fresh negotiation, and **Standard**
+  (4 Mbps) or **Data saver** (2 Mbps). At 750 GB estimated monthly TURN transfer
+  the service forces Data saver; at 850 GB it stops issuing credentials while
+  command relay remains available. Local maintainer builds may expose 8 Mbps;
+  normal and packaged builds cannot. The host shows the provider's current
+  used-versus-remaining allowance and thresholds on Connection.
+- The bundled Windows libdatachannel peer retains libjuice as its ICE and TURN
+  owner. In relay mode a bounded loopback bridge carries libjuice's TURN
+  messages over certificate-validated TLS/TCP 443, including the stream framing
+  and ChannelData padding required by RFC 8656. The PC therefore needs no
+  outbound UDP for relay screen viewing; Direct LAN behavior is unchanged.
 - Screen viewing is denied by default through its global permission and has an
   inheritable per-device override.
 - One authorized device can view one selected display at a time. Multiple

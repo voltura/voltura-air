@@ -68,6 +68,29 @@ public sealed class PairingManagerTests
     }
 
     [Fact]
+    public void VerifiedBootstrapDoesNotConsumeTokenUntilCommit()
+    {
+        using var store = new TempPairingStore();
+        using var key = new PairingTestKey();
+        var manager = new PairingManager(store.Store);
+        var now = DateTimeOffset.UtcNow;
+        var token = manager.CreatePairingToken(now);
+        var tokenId = PairingTokenAuthority.CreateTokenId(token);
+        var nonce = PairingBootstrapCrypto.CreateNonce();
+
+        var first = manager.BeginPairingBootstrap("client-a", "Phone", tokenId, nonce, key.PublicKey, now);
+        var pending = Assert.IsType<PairingBootstrapPending>(first.Pending);
+
+        Assert.True(PairingManager.VerifyPairingBootstrap(pending, pending.ExpectedClientProof).Accepted);
+        Assert.Equal(0, manager.PairedDeviceCount);
+        Assert.True(manager.BeginPairingBootstrap("client-a", "Phone", tokenId, PairingBootstrapCrypto.CreateNonce(), key.PublicKey, now).Accepted);
+
+        Assert.True(manager.CommitPairingBootstrap(pending, now).Accepted);
+        Assert.Equal(1, manager.PairedDeviceCount);
+        Assert.False(manager.BeginPairingBootstrap("client-b", "Tablet", tokenId, PairingBootstrapCrypto.CreateNonce(), key.PublicKey, now).Accepted);
+    }
+
+    [Fact]
     public void AcceptsReconnectProofForHostChallenge()
     {
         using var store = new TempPairingStore();

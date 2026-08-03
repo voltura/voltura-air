@@ -23,25 +23,131 @@ public partial class ConnectionPageView : WpfUserControl
         Action useAutomaticAdapter,
         Action refreshAdapters,
         Action cancelAdapterChooser,
+        Action<ConnectionTransportMode> setTransportMode,
+        Action<RelayScreenQuality> setRelayScreenQuality,
+        Action<string> setCustomRelayEndpoint,
         Action<bool> setUseCustomPort,
         Action<bool> setAdvancedExpanded,
         Action cancelChanges,
-        Action saveAndRestart)
+        Action saveAndRestart,
+        Action? retryRelay = null,
+        Action? refreshRelayUsage = null)
     {
         InitializeComponent();
         ChooseAdapterButton.Click += (_, _) => openAdapterChooser();
         ReturnAutomaticAdapterButton.Click += (_, _) => useAutomaticAdapter();
         RefreshAdaptersButton.Click += (_, _) => refreshAdapters();
         CancelAdapterChooserButton.Click += (_, _) => cancelAdapterChooser();
+        DirectLanRadioButton.Checked += (_, _) => RunUserAction(() => setTransportMode(ConnectionTransportMode.DirectLan));
+        RelayRadioButton.Checked += (_, _) => RunUserAction(() => setTransportMode(ConnectionTransportMode.Relay));
+        RelayStandardRadioButton.Checked += (_, _) => RunUserAction(() => setRelayScreenQuality(RelayScreenQuality.Standard));
+        RelayDataSaverRadioButton.Checked += (_, _) => RunUserAction(() => setRelayScreenQuality(RelayScreenQuality.DataSaver));
+        RelayMaintainerRadioButton.Checked += (_, _) => RunUserAction(() => setRelayScreenQuality(RelayScreenQuality.MaintainerFull));
+        CustomRelayEndpointTextBox.TextChanged += (_, _) => RunUserAction(() => setCustomRelayEndpoint(CustomRelayEndpointTextBox.Text));
         UseSpecificPortCheckBox.Checked += (_, _) => RunUserAction(() => setUseCustomPort(true));
         UseSpecificPortCheckBox.Unchecked += (_, _) => RunUserAction(() => setUseCustomPort(false));
         AdvancedConnectionExpander.Expanded += (_, _) => RunUserAction(() => setAdvancedExpanded(true));
         AdvancedConnectionExpander.Collapsed += (_, _) => RunUserAction(() => setAdvancedExpanded(false));
         CancelChangesButton.Click += (_, _) => cancelChanges();
         SaveRestartButton.Click += (_, _) => saveAndRestart();
+        RetryRelayButton.Click += (_, _) => retryRelay?.Invoke();
+        RefreshRelayUsageButton.Click += (_, _) => refreshRelayUsage?.Invoke();
+    }
+
+    internal string RelayConnectionStatus
+    {
+        set => RelayConnectionStatusText.Text = value;
+    }
+
+    internal string RelayUsage
+    {
+        set
+        {
+            RelayUsageText.Text = value;
+            RelayUsageText.Visibility = string.IsNullOrWhiteSpace(value) ? Visibility.Collapsed : Visibility.Visible;
+        }
+    }
+
+    internal double RelayUsagePercent
+    {
+        set => RelayUsageProgressBar.Value = value;
+    }
+
+    internal string RelayUsageSummary
+    {
+        set
+        {
+            RelayUsageSummaryText.Text = value;
+            AutomationProperties.SetName(RelayUsageProgressBar, value);
+        }
+    }
+
+    internal string RelayUsageThresholds
+    {
+        set => RelayUsageThresholdsText.Text = value;
+    }
+
+    internal bool ShowsRelayUsageMeter
+    {
+        set => RelayUsageMeterPanel.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    internal bool ShowsRelayRetry
+    {
+        set => RetryRelayButton.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    internal bool ShowsRelayUsageRefresh
+    {
+        set => RefreshRelayUsageButton.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
     }
 
     internal event Action<ConnectionCandidateItem>? CandidateSelected;
+
+    internal ConnectionTransportMode TransportMode
+    {
+        set
+        {
+            DirectLanRadioButton.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, value == ConnectionTransportMode.DirectLan);
+            RelayRadioButton.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, value == ConnectionTransportMode.Relay);
+            RelaySettingsPanel.Visibility = value == ConnectionTransportMode.Relay ? Visibility.Visible : Visibility.Collapsed;
+            CurrentConnectionPanel.Visibility = value == ConnectionTransportMode.DirectLan ? Visibility.Visible : Visibility.Collapsed;
+            ChooseAdapterButton.Visibility = value == ConnectionTransportMode.DirectLan ? Visibility.Visible : Visibility.Collapsed;
+            AdvancedConnectionExpander.Visibility = value == ConnectionTransportMode.DirectLan ? Visibility.Visible : Visibility.Collapsed;
+            if (value == ConnectionTransportMode.Relay) AdapterChooserPanel.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    internal RelayScreenQuality RelayScreenQuality
+    {
+        set
+        {
+            RelayStandardRadioButton.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, value == RelayScreenQuality.Standard);
+            RelayDataSaverRadioButton.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, value == RelayScreenQuality.DataSaver);
+            RelayMaintainerRadioButton.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, value == RelayScreenQuality.MaintainerFull);
+            RelayMaintainerRadioButton.Visibility = BuildFeatures.MaintainerRelayQuality ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
+    internal string CustomRelayEndpoint
+    {
+        set
+        {
+            if (!string.Equals(CustomRelayEndpointTextBox.Text, value, StringComparison.Ordinal))
+            {
+                CustomRelayEndpointTextBox.Text = value;
+            }
+        }
+    }
+
+    internal string RelayEndpointValidation
+    {
+        set
+        {
+            RelayEndpointValidationText.Text = value;
+            RelayEndpointValidationText.Visibility = string.IsNullOrWhiteSpace(value) ? Visibility.Collapsed : Visibility.Visible;
+        }
+    }
 
     internal IReadOnlyList<ConnectionCandidateItem> Candidates
     {
@@ -189,6 +295,16 @@ public partial class ConnectionPageView : WpfUserControl
     internal string AdapterChange
     {
         set => PendingAdapterChangeText.Text = value;
+    }
+
+    internal string ConnectionMethodChange
+    {
+        set => PendingConnectionMethodChangeText.Text = value;
+    }
+
+    internal bool ShowsConnectionMethodChange
+    {
+        set => PendingConnectionMethodChangePanel.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
     }
 
     internal bool ShowsAdapterChange

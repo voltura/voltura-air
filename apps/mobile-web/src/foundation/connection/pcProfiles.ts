@@ -11,9 +11,28 @@ export interface PcProfile {
   url: string;
   hostIdentityFingerprint?: string | undefined;
   hostIdentityPublicKey?: string | undefined;
+  transportMode?: "relay" | undefined;
+  relayRouteId?: string | undefined;
+  relayServiceId?: string | undefined;
+  relayEndpoint?: string | undefined;
 }
 
 export function createPcProfile(pcUrl: string, hostIdentityFingerprint?: string): PcProfile {
+  const relay = parseRelayProfileUrl(pcUrl);
+  if (relay) {
+    return {
+      customName: false,
+      id: `relay:${relay.endpoint ? "custom-v1" : __RELAY_SERVICE_ID__}:${relay.routeId}`,
+      name: "PC",
+      url: relay.url,
+      hostIdentityFingerprint,
+      transportMode: "relay",
+      relayRouteId: relay.routeId,
+      relayServiceId: relay.endpoint ? "custom-v1" : __RELAY_SERVICE_ID__,
+      ...(relay.endpoint ? { relayEndpoint: relay.endpoint } : {})
+    };
+  }
+
   const origin = normalizePcUrl(pcUrl);
   if (!origin) {
     throw new TypeError("Invalid PC URL.");
@@ -83,7 +102,7 @@ export function loadActivePcId(storage: Storage = localStorage): string | null {
     return null;
   }
 
-  return normalizePcUrl(stored);
+  return new RegExp(`^relay:(?:${escapeRegex(__RELAY_SERVICE_ID__)}|custom-v1):[A-Za-z0-9_-]{22}$`, "u").test(stored) ? stored : normalizePcUrl(stored);
 }
 
 export function applyHostIdentityFromAcceptance(profiles: PcProfile[], pcId: string, publicKey: string, fingerprint: string): PcProfile[] {
@@ -162,9 +181,51 @@ export function applyPcNameFromHost(profiles: PcProfile[], pcId: string, pcName:
 }
 
 export function getWebSocketUrl(pc: PcProfile): string {
+  if (pc.transportMode === "relay" && pc.relayRouteId && /^[A-Za-z0-9_-]{22}$/u.test(pc.relayRouteId)) {
+    const relayBase = new URL(pc.relayEndpoint ?? __RELAY_HTTPS_BASE__);
+    relayBase.protocol = "wss:";
+    relayBase.pathname = `/v1/device/${pc.relayRouteId}`;
+    return relayBase.toString();
+  }
   const url = new URL(pc.url);
   const protocol = url.protocol === "https:" ? "wss:" : "ws:";
   return `${protocol}//${url.host}/ws`;
+}
+
+function parseRelayProfileUrl(value: string): { routeId: string; url: string; endpoint?: string } | null {
+  try {
+    const url = new URL(value);
+    const match = url.protocol === "https:" && url.hostname === "voltura.se"
+      ? /^\/a\/([A-Za-z0-9_-]{22})\/?$/u.exec(url.pathname)
+      : null;
+    if (!match?.[1]) {return null;}
+    const endpoint = url.searchParams.get("e");
+    if ([...url.searchParams.keys()].some((key) => key !== "e") || url.searchParams.getAll("e").length > 1 || url.hash) {return null;}
+    let relayEndpoint: string | undefined;
+    if (endpoint) {
+      relayEndpoint = decodeRelayEndpoint(endpoint) ?? undefined;
+      if (!relayEndpoint) {return null;}
+    }
+    return {
+      routeId: match[1],
+      url: `https://voltura.se/a/${match[1]}${endpoint ? `?e=${encodeURIComponent(endpoint)}` : ""}`,
+      ...(relayEndpoint ? { endpoint: relayEndpoint } : {})
+    };
+  } catch {
+    return null;
+  }
+}
+
+function decodeRelayEndpoint(value: string): string | null {
+  try {
+    if (!/^[A-Za-z0-9_-]{1,683}$/u.test(value)) {return null;}
+    const binary = atob(value.replace(/-/gu, "+").replace(/_/gu, "/").padEnd(Math.ceil(value.length / 4) * 4, "="));
+    const endpoint = new URL(new TextDecoder("utf-8", { fatal: true }).decode(Uint8Array.from(binary, (character) => character.charCodeAt(0))));
+    return endpoint.protocol === "https:" && !endpoint.username && !endpoint.password && endpoint.pathname === "/" &&
+      !endpoint.search && !endpoint.hash && endpoint.toString().length <= 512 ? endpoint.origin : null;
+  } catch {
+    return null;
+  }
 }
 
 function isViteClientAddress(source: string): boolean {
@@ -173,4 +234,8 @@ function isViteClientAddress(source: string): boolean {
   } catch {
     return false;
   }
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }

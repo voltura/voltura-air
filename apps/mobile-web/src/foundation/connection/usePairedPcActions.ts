@@ -1,4 +1,4 @@
-import { useCallback, type Dispatch, type RefObject, type SetStateAction } from "react";
+import { useCallback, useRef, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { getDefaultDeviceName } from "../platform/clientEnvironment";
 import {
   createPcProfile,
@@ -13,7 +13,9 @@ import type { ClientMessage, HostStatusMetadata } from "../protocol/messages";
 import { deviceNameKey, normalizeDeviceNameInput } from "./clientIdentity";
 import { getDisplayPcName, normalizePointerSpeed } from "./connectionProtocol";
 import type { ConnectionError, ConnectionState, PairingAttempt } from "./connectionTypes";
-import { clearStoredReconnectKey, revokePcPairing } from "./pairingCredentials";
+import { clearStoredReconnectKey } from "./pairingCredentials";
+import type { RelayEncryptedSend } from "./relaySessionCrypto";
+import { revokePcPairing } from "./relayPairingRevocation";
 
 interface PairedPcActionOptions {
   activePcId: string | null;
@@ -21,6 +23,7 @@ interface PairedPcActionOptions {
   clientId: string;
   deviceNameRef: RefObject<string>;
   pairedPcs: PcProfile[];
+  relayEncryptedSendRef: RefObject<RelayEncryptedSend | null>;
   screenshotMode: boolean;
   send: (payload: ClientMessage) => void;
   setActivePcId: Dispatch<SetStateAction<string | null>>;
@@ -43,6 +46,7 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
     clientId,
     deviceNameRef,
     pairedPcs,
+    relayEncryptedSendRef,
     screenshotMode,
     send,
     setActivePcId,
@@ -57,6 +61,7 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
     socketRef,
     state
   } = options;
+  const forgettingPcIdsRef = useRef(new Set<string>());
 
   const pairWithToken = useCallback((token: string, pcUrl = window.location.origin, requestedDeviceName?: string) => {
     const nextDeviceName = normalizeDeviceNameInput(requestedDeviceName ?? deviceNameRef.current) ?? getDefaultDeviceName();
@@ -132,27 +137,35 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
 
   const forgetPc = useCallback((pcId: string) => {
     const pc = pairedPcs.find((profile) => profile.id === pcId) ?? null;
-    if (!pc) {
+    if (!pc || forgettingPcIdsRef.current.has(pcId)) {
       return;
     }
 
     const isActivePc = activePcId === pcId;
-    revokePcPairing(pc, clientId, deviceNameRef.current, isActivePc ? socketRef.current : null);
-    clearStoredReconnectKey(clientId, pcId);
-    setPairedPcs((current) => forgetPcProfile(current, activePcId, pcId).profiles);
+    const activeSocket = isActivePc ? socketRef.current : null;
+    forgettingPcIdsRef.current.add(pcId);
     if (!isActivePc) {
-      return;
+      setPairedPcs((current) => forgetPcProfile(current, activePcId, pcId).profiles);
     }
+    void revokePcPairing(pc, clientId, deviceNameRef.current, activeSocket, isActivePc ? relayEncryptedSendRef.current : null)
+      .finally(() => {
+        forgettingPcIdsRef.current.delete(pcId);
+        clearStoredReconnectKey(clientId, pcId);
+        if (!isActivePc) {return;}
+        setPairedPcs((current) => forgetPcProfile(current, activePcId, pcId).profiles);
+        if (socketRef.current !== activeSocket) {return;}
 
-    setPendingManualPc(null);
-    clearRuntimeState();
-    setLastConnectionError(null);
-    socketRef.current?.close();
-    setActivePcId(null);
-    setPairingAttempt((current) => ({ token: undefined, id: current.id + 1 }));
-    setState("needs-pairing");
-    setMessage("Disconnected. Choose a saved PC or scan a pairing QR.");
-  }, [activePcId, clearRuntimeState, clientId, deviceNameRef, pairedPcs, setActivePcId, setLastConnectionError, setMessage, setPairedPcs, setPairingAttempt, setPendingManualPc, setState, socketRef]);
+        setPendingManualPc(null);
+        clearRuntimeState();
+        setLastConnectionError(null);
+        socketRef.current?.close();
+        setActivePcId((current) => current === pcId ? null : current);
+        setPairingAttempt((current) => ({ token: undefined, id: current.id + 1 }));
+        setState("needs-pairing");
+        setMessage("Disconnected. Choose a saved PC or scan a pairing QR.");
+      })
+      .catch(() => undefined);
+  }, [activePcId, clearRuntimeState, clientId, deviceNameRef, pairedPcs, relayEncryptedSendRef, setActivePcId, setLastConnectionError, setMessage, setPairedPcs, setPairingAttempt, setPendingManualPc, setState, socketRef]);
 
   const renamePc = useCallback((pcId: string, name: string) => {
     setPairedPcs((current) => renamePcProfile(current, pcId, name));

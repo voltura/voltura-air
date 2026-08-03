@@ -128,6 +128,11 @@ export interface ScreenViewStartResultMessage {
   message: string;
   offerSdp?: string | null;
   hostSignature?: string | null;
+  iceServers?: RTCIceServer[] | null;
+  turnExpiresAt?: string | null;
+  relayUsageBytes?: number | null;
+  relayUsageCheckedAt?: string | null;
+  relayScreenQuality?: string | null;
 }
 export interface ScreenViewAnswerResultMessage {
   type: "screen.view.answer.result";

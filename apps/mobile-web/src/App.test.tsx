@@ -472,6 +472,46 @@ describe("App header and mode navigation", () => {
     expect(document.querySelector(".bottom-mode-tabs")).not.toBeNull();
   });
 
+  async function expectSettingsToolToLeaveScreen(modeName: "Keyboard" | "Trackpad") {
+    mockConnection({
+      screenViewCapability: {
+        enabled: true,
+        permissionGranted: true,
+        canView: true,
+        requiresRepair: false,
+        encrypted: true,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        maxFramesPerSecond: 30
+      }
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    let menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog")!;
+    fireEvent.click(within(menu).getByRole("button", { name: "View PC screen" }));
+    expect(await screen.findByText("Live mirror")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog")!;
+    const tools = within(menu).getByRole("region", { name: "Tools" });
+    const modeButton = Array.from(tools.querySelectorAll("button"))
+      .find((button) => button.textContent?.trim() === modeName);
+    expect(modeButton).toBeDefined();
+    fireEvent.click(modeButton!);
+
+    expect(screen.queryByText("Live mirror")).toBeNull();
+    expect(document.querySelector(".app-shell")?.classList).not.toContain("screen-view-active");
+  }
+
+  it("leaves Screen when opening Keyboard from the Settings drawer", async () => {
+    await expectSettingsToolToLeaveScreen("Keyboard");
+  });
+
+  it("leaves Screen when opening Trackpad from the Settings drawer", async () => {
+    await expectSettingsToolToLeaveScreen("Trackpad");
+  });
+
   it("opens compact mode navigation as an overlay without moving the keyboard controls", () => {
     render(<App />);
 

@@ -6,7 +6,8 @@ import {
   normalizePcProfile,
   renamePcProfile,
   selectPcProfile,
-  upsertPcProfile
+  upsertPcProfile,
+  getWebSocketUrl
 } from "./pcProfiles";
 
 describe("pcProfiles", () => {
@@ -32,6 +33,28 @@ describe("pcProfiles", () => {
       name: "Living room PC",
       url: "http://192.168.1.50:51395"
     });
+  });
+
+  it("creates an official relay profile and outbound WebSocket URL", () => {
+    const route = "r".repeat(22);
+    const profile = createPcProfile(`https://voltura.se/a/${route}`);
+
+    expect(profile).toMatchObject({
+      id: `relay:voltura-cloud-v1:${route}`,
+      transportMode: "relay",
+      relayRouteId: route,
+      relayServiceId: "voltura-cloud-v1"
+    });
+    expect(getWebSocketUrl(profile)).toBe(`wss://voltura-air-relay.voltura-air.workers.dev/v1/device/${route}`);
+  });
+
+  it("preserves a validated custom relay endpoint", () => {
+    const route = "r".repeat(22);
+    const encoded = btoa("https://relay.example").replace(/=+$/u, "");
+    const profile = createPcProfile(`https://voltura.se/a/${route}?e=${encoded}`);
+
+    expect(profile).toMatchObject({ relayServiceId: "custom-v1", relayEndpoint: "https://relay.example" });
+    expect(getWebSocketUrl(profile)).toBe(`wss://relay.example/v1/device/${route}`);
   });
 
   it.each([

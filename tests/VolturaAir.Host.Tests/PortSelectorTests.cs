@@ -127,6 +127,30 @@ public sealed class PortSelectorTests
         Assert.Equal(51395, result.Port);
     }
 
+    [Fact]
+    public void RelayModeIgnoresTheSavedDirectPortAndChoosesAnInternalLoopbackPort()
+    {
+        var settings = AutomaticSettings() with
+        {
+            TransportMode = ConnectionTransportMode.Relay,
+            PortMode = PortSelectionMode.Manual,
+            ManualPort = 51395
+        };
+
+        var result = WebHostService.SelectPort(
+            settings,
+            usesInMemoryTestServer: false,
+            _ => throw new InvalidOperationException("Relay must not inspect the Direct port."),
+            () => throw new InvalidOperationException("Relay must not select a public listener port."),
+            () => 60000);
+
+        Assert.True(result.Succeeded);
+        Assert.True(result.IsAutomatic);
+        Assert.Equal(60000, result.Port);
+        Assert.Null(result.ErrorMessage);
+        Assert.Null(result.Warning);
+    }
+
     private static NetworkSettingsSnapshot AutomaticSettings()
     {
         return new NetworkSettingsSnapshot(

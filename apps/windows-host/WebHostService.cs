@@ -27,6 +27,7 @@ public sealed class WebHostService : IAsyncDisposable
     private readonly HostStatusBroadcaster _statusBroadcaster;
     private readonly WebSocketSessionHandler _sessionHandler;
     private readonly ScreenViewCoordinator _screenView;
+    private readonly ScreenViewCommandHandler _screenViewCommands;
     private readonly PresentationLaserPointerController _presentationLaserPointer;
     private readonly IPowerPointAutomationService _powerPoint;
     private readonly PowerPointPresentationSessionService _presentationSession;
@@ -34,6 +35,7 @@ public sealed class WebHostService : IAsyncDisposable
     private readonly bool _ownsPowerPoint;
     private readonly Action<IWebHostBuilder>? _configureWebHost;
     private readonly string _listenAddress;
+    private readonly RelayHostConnection? _relay;
     private int _inputBlockedByElevation;
     private int _disposeState;
     private WebApplication? _app;
@@ -71,10 +73,14 @@ public sealed class WebHostService : IAsyncDisposable
         _configureWebHost = configureWebHost;
 
         var settings = AppNetworkSettings.Load();
+        TransportMode = settings.TransportMode;
         var usesInMemoryTestServer = isolatedTestMode && configureWebHost is not null;
-        var portSelection = usesInMemoryTestServer
-            ? new PortSelectionResult(true, PortSelector.PreferredPort, IsAutomatic: true, ErrorMessage: null)
-            : PortSelector.Select(settings, IsPortAvailable, FindFreePort);
+        var portSelection = SelectPort(
+            settings,
+            usesInMemoryTestServer,
+            IsPortAvailable,
+            FindFreePort,
+            FindFreeLoopbackPort);
         if (!portSelection.Succeeded)
         {
             throw new HostPortUnavailableException(portSelection.ErrorMessage ?? "The configured Voltura Air port is unavailable.");
@@ -83,16 +89,16 @@ public sealed class WebHostService : IAsyncDisposable
         Port = portSelection.Port;
         IsPortSelectionAutomatic = portSelection.IsAutomatic;
         PortSelectionWarning = portSelection.Warning;
-        if (portSelection.IsAutomatic && !isolatedTestMode)
+        if (portSelection.IsAutomatic && !isolatedTestMode && TransportMode == ConnectionTransportMode.DirectLan)
         {
             AppNetworkSettings.SetLastAutomaticPort(Port);
         }
 
-        if (isolatedTestMode)
+        if (isolatedTestMode || TransportMode == ConnectionTransportMode.Relay)
         {
             _listenAddress = "127.0.0.1";
             AdvertisedHostAddress = "127.0.0.1";
-            SelectedAdapterName = "Loopback (isolated test)";
+            SelectedAdapterName = isolatedTestMode ? "Loopback (isolated test)" : "Cloud relay through Voltura";
             IsAdapterSelectionAutomatic = true;
             AddressSelectionWarning = null;
         }
@@ -238,8 +244,9 @@ public sealed class WebHostService : IAsyncDisposable
             pairingManager,
             statusFactory,
             screenViewCapture ?? (isolatedTestMode ? new UnavailableScreenViewCaptureSource() : null),
-            isolatedTestMode ? new IsolatedScreenViewWebRtcPeerFactory() : null);
-        var screenViewCommands = new ScreenViewCommandHandler(_screenView, _transport);
+            isolatedTestMode ? new IsolatedScreenViewWebRtcPeerFactory() : null,
+            _appLog);
+        _screenViewCommands = new ScreenViewCommandHandler(_screenView, _transport, GetRelayTurnConfigurationAsync, _appLog);
         // An isolated browser may exercise the protocol, but it must never call
         // the native cursor API on the developer's Windows session.
         var resolvedApplyCustomPointer = isolatedTestMode ? null : applyCustomPointer;
@@ -261,7 +268,7 @@ public sealed class WebHostService : IAsyncDisposable
             clipboardCommands,
             inputCommands,
             customScreenCommands,
-            screenViewCommands,
+            _screenViewCommands,
             _appLog,
             args => ControllerSocketClosed?.Invoke(this, args));
         _statusBroadcaster = new HostStatusBroadcaster(
@@ -275,6 +282,15 @@ public sealed class WebHostService : IAsyncDisposable
             _presentationLaserPointer,
             _powerPoint,
             presentationBlankOverlay);
+        if (TransportMode == ConnectionTransportMode.Relay)
+        {
+#pragma warning disable CA2000 // RelayHostConnection owns and disposes the routing identity.
+            var relayIdentity = isolatedTestMode ? RelayRoutingIdentity.CreateEphemeral() : RelayRoutingIdentity.OpenCurrentUser();
+#pragma warning restore CA2000
+            RelayEndpoint = RelayEndpointDescriptor.FromSettings(settings);
+            _relay = new RelayHostConnection(RelayEndpoint, relayIdentity, HandleRelaySessionAsync, _appLog);
+            _relay.StateChanged += OnRelayStateChanged;
+        }
         _sessionHandler.StatusRefreshRequested += (_, _) => _statusBroadcaster.Queue();
         _presentationSession.StateChanged += OnPresentationSessionChanged;
         _presentationCatalog.Changed += OnPresentationCatalogChanged;
@@ -290,6 +306,16 @@ public sealed class WebHostService : IAsyncDisposable
     public string SelectedAdapterName { get; private set; }
     public string? AddressSelectionWarning { get; }
     public string? PortSelectionWarning { get; }
+    internal ConnectionTransportMode TransportMode { get; }
+    internal RelayEndpointDescriptor? RelayEndpoint { get; }
+    internal string? RelayRouteId => _relay?.RouteId;
+    internal RelayConnectionState RelayState => _relay?.State ?? RelayConnectionState.Disabled;
+    internal string? RelayFailureCode => _relay?.FailureCode;
+    internal RelayUsageSnapshot? RelayUsage => _relay?.LastUsage;
+    internal long? RelayUsageBytes => RelayUsage?.Bytes;
+    internal DateTimeOffset? RelayUsageCheckedAt => RelayUsage?.CheckedAt;
+    internal long? RelayUsageWarningBytes => RelayUsage?.WarningBytes;
+    internal long? RelayUsageCutoffBytes => RelayUsage?.CutoffBytes;
     internal bool IsAdapterSelectionAutomatic { get; }
     internal bool IsPortSelectionAutomatic { get; }
     internal string ListenAddress => _listenAddress;
@@ -307,6 +333,14 @@ public sealed class WebHostService : IAsyncDisposable
     public event EventHandler<ControllerSocketClosedEventArgs>? ControllerSocketClosed;
     internal event EventHandler<RemoteInputBlockedChangedEventArgs>? RemoteInputBlockedChanged;
     internal event EventHandler? PresentationSessionChanged;
+    internal event EventHandler? RelayStatusChanged;
+
+    internal void RetryRelay() => _relay?.Retry();
+
+    internal async Task RefreshRelayUsageAsync(CancellationToken cancellationToken = default)
+    {
+        await GetRelayTurnConfigurationAsync(cancellationToken);
+    }
 
     internal Task<SessionOperationResult> CompletePresentationSessionFromHostAsync(
         bool save,
@@ -323,6 +357,18 @@ public sealed class WebHostService : IAsyncDisposable
 
     internal static bool IsPortAvailable(int port) => WebHostNetwork.IsPortAvailable(port);
     internal static int FindFreePort() => WebHostNetwork.FindFreePort();
+    internal static int FindFreeLoopbackPort() => WebHostNetwork.FindFreeLoopbackPort();
+    internal static PortSelectionResult SelectPort(
+        NetworkSettingsSnapshot settings,
+        bool usesInMemoryTestServer,
+        Func<int, bool> isPortAvailable,
+        Func<int> findFreePort,
+        Func<int> findFreeLoopbackPort) =>
+        usesInMemoryTestServer
+            ? new PortSelectionResult(true, PortSelector.PreferredPort, IsAutomatic: true, ErrorMessage: null)
+            : settings.TransportMode == ConnectionTransportMode.Relay
+                ? new PortSelectionResult(true, findFreeLoopbackPort(), IsAutomatic: true, ErrorMessage: null)
+                : PortSelector.Select(settings, isPortAvailable, findFreePort);
     internal static string? GetDnsLanAddressFallback() => WebHostNetwork.GetDnsLanAddressFallback();
     internal static string BuildServerUrl(string hostAddress, int port) => WebHostNetwork.BuildServerUrl(hostAddress, port);
     internal static string BuildWebSocketUrl(string hostAddress, int port) => WebHostNetwork.BuildWebSocketUrl(hostAddress, port);
@@ -396,12 +442,18 @@ public sealed class WebHostService : IAsyncDisposable
         MapStaticFiles(app);
         _app = app;
         await app.StartAsync();
+        _relay?.Start();
     }
 
     public async Task StopAsync()
     {
+        await _screenViewCommands.DisposeAsync();
         await _screenView.DisposeAsync();
         _transport.AbortAll();
+        if (_relay is not null)
+        {
+            await _relay.DisposeAsync();
+        }
         if (_app is null)
         {
             return;
@@ -425,6 +477,7 @@ public sealed class WebHostService : IAsyncDisposable
         }
 
         await _statusBroadcaster.DisposeAsync();
+        await _screenViewCommands.DisposeAsync();
         await _screenView.DisposeAsync();
         _presentationCatalog.Changed -= OnPresentationCatalogChanged;
         _presentationCatalog.Dispose();
@@ -469,6 +522,11 @@ public sealed class WebHostService : IAsyncDisposable
         finally
         {
             _transport.Dispose();
+            if (_relay is not null)
+            {
+                _relay.StateChanged -= OnRelayStateChanged;
+                await _relay.DisposeAsync();
+            }
             try
             {
                 if (_powerController is IDisposable disposablePowerController)
@@ -505,6 +563,42 @@ public sealed class WebHostService : IAsyncDisposable
         AdvertisedHostAddress,
         Port,
         WebSocketUrl);
+
+    private async Task HandleRelaySessionAsync(WebSocket socket, string rateLimitKey, CancellationToken cancellationToken)
+    {
+        if (!await _webSocketSessionSlots.WaitAsync(0, cancellationToken))
+        {
+            await WebSocketTransport.CloseAsync(
+                socket,
+                "Relay session limit reached",
+                WebSocketCloseStatus.EndpointUnavailable,
+                cancellationToken);
+            return;
+        }
+
+        try
+        {
+            await _sessionHandler.HandleAsync(socket, rateLimitKey, cancellationToken);
+        }
+        finally
+        {
+            _webSocketSessionSlots.Release();
+        }
+    }
+
+    private void OnRelayStateChanged(object? sender, EventArgs e)
+    {
+        _statusBroadcaster.Queue();
+        RelayStatusChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private Task<RelayTurnConfiguration?> GetRelayTurnConfigurationAsync(CancellationToken cancellationToken)
+    {
+        var relay = _relay;
+        if (relay is null) return Task.FromResult<RelayTurnConfiguration?>(null);
+        var quality = AppNetworkSettings.Load().RelayScreenQuality;
+        return relay.GetTurnConfigurationAsync(quality, cancellationToken);
+    }
 
     internal static IPowerPointAutomationService ResolvePowerPointAutomation(
         IPowerPointAutomationService? supplied,

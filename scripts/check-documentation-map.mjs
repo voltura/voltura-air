@@ -111,6 +111,9 @@ async function collectPublicDocumentationSurfaces(root) {
 
   return (await collectFiles(siteRoot, root))
     .filter((file) => {
+      if (file.startsWith("docs/site/app/")) {
+        return false;
+      }
       if (file === "docs/site/config.php") {
         return false;
       }

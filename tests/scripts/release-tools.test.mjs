@@ -35,17 +35,20 @@ test("release commands accept at most one explicit version", () => {
   assert.throws(() => parseReleaseArguments(["latest"]), /semantic versioning/u);
 });
 
-test("release publication prepares the tracked site snapshot before staging and deploys it unchanged", () => {
+test("release publication prepares all site outputs before staging and deploys them unchanged", () => {
   const previewBuild = localReleaseSource.indexOf('"site:preview:build"');
+  const hostedBuild = localReleaseSource.indexOf('"site:hosted:build"');
   const generation = localReleaseSource.indexOf('"code:statistics"');
   const staging = localReleaseSource.indexOf("await stageReleaseChanges()");
   const deployment = localReleaseSource.indexOf('"publish:site:prepared"');
   assert.ok(previewBuild > 0);
-  assert.ok(generation > previewBuild);
+  assert.ok(hostedBuild > previewBuild);
+  assert.ok(generation > hostedBuild);
   assert.ok(generation > 0);
   assert.ok(staging > generation);
   assert.ok(deployment > staging);
   assert.match(localReleaseSource, /"code:statistics", "--", "--report", "--no-open", "--quiet"/u);
+  assert.equal(localReleaseSource.match(/"site:hosted:build"/gu)?.length, 1);
   assert.match(localReleaseSource, /"publish:site:prepared"/u);
 });
 

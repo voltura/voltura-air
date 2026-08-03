@@ -6,7 +6,7 @@
     <title>Voltura Air - Use Your Phone as a Windows 11 Remote</title>
     <meta
       name="description"
-      content="Turn your phone or tablet into a trackpad, keyboard, text sender, and media remote for Windows 11. Free, local, and no app-store download required."
+      content="Turn your phone or tablet into a Windows 11 remote over Direct LAN or an optional end-to-end encrypted Cloud relay. Free and no app-store download required."
     >
     <meta name="author" content="Voltura AB">
     <meta name="application-name" content="Voltura Air">
@@ -24,7 +24,7 @@
     <meta property="og:title" content="Voltura Air - Use Your Phone as a Windows 11 Remote">
     <meta
       property="og:description"
-      content="Turn your phone or tablet into a trackpad, keyboard, text sender, and media remote for Windows 11. Free, local, and no app-store download required."
+      content="Turn your phone or tablet into a Windows 11 remote over Direct LAN or an optional end-to-end encrypted Cloud relay. Free and no app-store download required."
     >
     <meta property="og:url" content="https://voltura.se/air/">
     <meta property="og:image" content="https://voltura.se/air/assets/voltura-air-host-dark.png">
@@ -36,7 +36,7 @@
     <meta name="twitter:title" content="Voltura Air - Use Your Phone as a Windows 11 Remote">
     <meta
       name="twitter:description"
-      content="Turn your phone or tablet into a trackpad, keyboard, text sender, and media remote for Windows 11. Free, local, and no app-store download required."
+      content="Turn your phone or tablet into a Windows 11 remote over Direct LAN or an optional end-to-end encrypted Cloud relay. Free and no app-store download required."
     >
     <meta name="twitter:image" content="https://voltura.se/air/assets/voltura-air-host-dark.png">
     <meta name="twitter:image:alt" content="Voltura Air Windows host and mobile remote control screens">
@@ -73,13 +73,14 @@
           <img class="hero-phone" src="./assets/voltura-air-iphone-dark.png" alt="">
         </div>
         <div class="hero-copy">
-          <p class="eyebrow">Free local remote for Windows 11</p>
+          <p class="eyebrow">Free Windows 11 remote - local or cloud relay</p>
           <h1>Voltura Air</h1>
           <p class="tagline">Turn your phone into the remote your PC is missing.</p>
           <p class="lede">
             Control your PC with a trackpad, keyboard, presentation and media
             remotes, text tools, and practical PC actions. Pair with a QR code -
-            no account, cloud relay, or phone app to install.
+            no account or phone app to install. Use Direct LAN or optional
+            end-to-end encrypted Cloud relay.
           </p>
           <div class="actions">
             <a class="button primary" href="https://github.com/voltura/voltura-air/releases/latest">Download for Windows</a>
@@ -112,7 +113,11 @@
         </article>
         <article>
           <h2>PC screen mirroring</h2>
-          <p>Mirror one Windows display live to one authorized phone or tablet at a time over an encrypted local connection.</p>
+          <p>Mirror one Windows display live to one authorized phone or tablet over Direct LAN or the encrypted Cloud relay, with Standard and Data saver relay quality.</p>
+        </article>
+        <article>
+          <h2>Cloud relay for restricted networks</h2>
+          <p>Let the PC and phone both connect outward when company or guest networks block direct device-to-PC access. Keep the same short QR pairing, trusted devices, and permissions without an incoming PC firewall exception.</p>
         </article>
         <article>
           <h2>Presentation remote</h2>
@@ -145,10 +150,11 @@
           <p class="eyebrow">Compare</p>
           <h2>How Voltura Air compares</h2>
           <p>
-            Voltura Air focuses on private, local Windows control without requiring
-            a mobile app, account, or paid upgrade. Other products may offer broader
-            operating-system support, remote desktop, file transfer, or gaming
-            features.
+            Voltura Air focuses on private Windows control without requiring a
+            mobile app, account, or paid upgrade. Use it directly on the local
+            network or through its optional encrypted outbound Cloud relay. Other
+            products may offer broader operating-system support, remote desktop,
+            file transfer, or gaming features.
           </p>
         </div>
         <p class="comparison-scroll-hint">Scroll horizontally to compare all products.</p>
@@ -198,10 +204,17 @@
               </tr>
               <tr>
                 <th scope="row">Connection scope</th>
-                <td class="comparison-voltura"><strong class="comparison-status">Local network only</strong>; same Wi-Fi or LAN, with no cloud relay or internet input forwarding</td>
+                <td class="comparison-voltura"><strong class="comparison-status">Direct or optional Cloud relay</strong>; both preserve pairing and per-device permissions</td>
                 <td>Wi-Fi or Bluetooth; manual internet access can be configured</td>
                 <td>Wi-Fi or Bluetooth</td>
                 <td>Local and remote Wi-Fi connections are advertised</td>
+              </tr>
+              <tr>
+                <th scope="row">Incoming PC firewall access</th>
+                <td class="comparison-voltura"><strong class="comparison-status">Not required in Cloud relay mode</strong>; the PC and phone both connect outward</td>
+                <td>Manual internet access uses router port forwarding and firewall configuration</td>
+                <td><strong class="comparison-status">Not documented</strong> for an equivalent outbound relay</td>
+                <td><strong class="comparison-status">Not documented</strong> for an equivalent outbound relay</td>
               </tr>
               <tr>
                 <th scope="row">Trackpad and keyboard</th>
@@ -261,7 +274,7 @@
               </tr>
               <tr>
                 <th scope="row">Screen viewing or mirroring</th>
-                <td class="comparison-voltura"><strong class="comparison-status">Encrypted live mirror</strong>; one Windows display and one authorized viewer at a time, with adaptive desktop and video streaming</td>
+                <td class="comparison-voltura"><strong class="comparison-status">Encrypted live mirror over Direct LAN or Cloud relay</strong>; one Windows display and one authorized viewer at a time, with adaptive desktop and video streaming</td>
                 <td>Screen Viewer is a <strong class="comparison-status">paid feature</strong></td>
                 <td><strong class="comparison-status">Not documented</strong> as a current core feature</td>
                 <td>Real-time PC screen sharing and remote viewing</td>
@@ -299,7 +312,7 @@
         </div>
         <p class="comparison-note">
           Comparison based on publicly documented product information checked on
-          2 August 2026. Features, availability, and pricing models may change.
+          3 August 2026. Features, availability, and pricing models may change.
         </p>
         <details class="comparison-sources">
           <summary>Comparison sources</summary>
@@ -361,7 +374,7 @@
         </div>
         <ol class="steps">
           <li>Install and start Voltura Air on the Windows 11 PC you want to control.</li>
-          <li>Scan the pairing QR code with a phone or tablet on the same Wi-Fi or local network.</li>
+          <li>Scan the pairing QR code. Direct uses the same Wi-Fi/LAN; optional Cloud relay connects both devices outward.</li>
           <li>Choose the control surface you need and start using the PC.</li>
           <li>Optionally add the mobile page to your home screen for faster access later.</li>
         </ol>
@@ -370,12 +383,13 @@
       <section id="trust" class="content-section split">
         <div>
           <p class="eyebrow">Privacy and control</p>
-          <h2>Local control without the cloud</h2>
+          <h2>You choose the connection</h2>
         </div>
         <div>
           <p>
-            Voltura Air connects directly to your PC over your local network.
-            There is no account or cloud relay.
+            Direct LAN remains the default. Optional Cloud relay avoids an
+            inbound PC firewall exception and keeps commands and screen media
+            end-to-end encrypted. No Voltura account is required.
           </p>
           <ul>
             <li>Review paired devices and remove access at any time.</li>

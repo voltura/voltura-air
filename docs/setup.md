@@ -47,6 +47,7 @@ Run the smallest relevant checks:
 | Ordinary host code | Warning-free `dotnet build VolturaAir.slnx`; focused `dotnet test --filter` for changed behavior |
 | Host source structure | Add `npm run host:ownership:check` |
 | Shared host lifecycle, native/resource, registry/persistence, network, or protocol boundary | Focused production-path boundary tests; full `npm run test:host` only when broad/shared |
+| Interaction/transport hot path | Prove delayed media, analytics, logging, persistence, and UI work cannot hold command/input processing; test bounded overload rather than latency growth |
 | Screen viewing | Fake-capture `TestServer` protocol/crypto/cleanup tests, mobile parser/renderer tests, bundle/size gates, then Windows preflight and `npm run dev:quick`; real phone/Wi-Fi viewing remains user acceptance |
 | Script | Relevant script test; full `npm run test:scripts` only for shared orchestration/root package composition |
 | Significant UI | Visual checkpoint by default; `npm run test:ui` only when its real pairing/smoke flow changes |
@@ -76,6 +77,7 @@ Debug additionally supports:
 | `--site-screenshot-mode` | Public-safe rendering; requires isolation. |
 | `--site-screenshot-theme <Light|Dark|System>` | Select capture theme. |
 | `--site-screenshot-preferences-section <name>` | Open a Preferences section for capture. |
+| `--site-screenshot-relay-connection` | Open Connection with Relay selected for an isolated UI review capture. |
 
 Release builds ignore Debug-only options and `VOLTURA_AIR_CLIENT_URL`.
 

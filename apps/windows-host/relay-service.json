@@ -1,0 +1,5 @@
+{
+    "serviceId":  "voltura-cloud-v1",
+    "httpsBase":  "https://voltura-air-relay.voltura-air.workers.dev",
+    "supportsTurn":  true
+}

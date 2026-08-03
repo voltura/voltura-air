@@ -28,8 +28,9 @@ Please include, when safe to share privately:
 
 ## Security boundaries
 
-Voltura Air is designed for trusted devices on the same local network. It is not
-intended to expose PC control over the public internet.
+Direct LAN is designed for trusted devices on the same local network. Optional
+Relay is an internet transport for paired devices; it does not turn the routing
+service into a trusted command endpoint.
 
 The Windows host serves the mobile web app over HTTP on the local network. This
 keeps setup simple for browsers and phones on the same LAN, but it also means
@@ -54,7 +55,7 @@ persistent P-256 public identity and registers the browser's reconnect public
 key without transmitting the token on the WebSocket. A saved client without a
 valid PC identity pin must pair again.
 
-Optional Screen viewing negotiates a direct LAN WebRTC peer through the
+Optional Screen viewing negotiates a WebRTC peer through the
 authenticated `/ws` control session. The reconnect key signs the start request
 and answer; the pinned PC identity signs the exact offer hash. Invalid,
 mismatched, or expired signaling is rejected before capture begins. Screen
@@ -62,6 +63,28 @@ video uses DTLS-SRTP and cursor/status records use a DTLS-protected data channel
 which provide confidentiality, integrity, and replay protection in transit.
 The HTTP app/signaling metadata and existing JSON command traffic retain the
 trusted-LAN threat model described above.
+
+In Relay mode the Windows host binds only to loopback and both endpoints open
+outbound connections. A separate persistent routing identity authenticates the
+one host allowed for an opaque route. The existing pairing/reconnect proof runs
+unchanged, followed by signed ephemeral P-256 ECDH. The transcript binds route,
+client ID, both ephemeral keys, nonce, and pinned host identity. HKDF-SHA256 and
+AES-256-GCM protect all accepted-session frames with direction and monotonic
+counters. Fresh tokens are consumed only after encryption succeeds. The relay
+therefore forwards ciphertext and cannot grant permission or synthesize valid
+commands. It can still deny service and observe routing/network metadata and
+encrypted frame sizes.
+
+Relay screen media retains WebRTC DTLS-SRTP and uses short-lived relay-only TURN
+credentials. Signed credential requests require the active host routing key and
+reject timestamp/nonce replay. Usage thresholds restrict TURN issuance without
+affecting command authentication. A self-hosted relay changes endpoint and
+deployment ownership, not these application-layer security contracts.
+
+Pending relay host sockets do not reserve a route before routing-key proof.
+The relay also supplies a route-scoped opaque source key so one device source
+cannot consume another source's host pairing-failure allowance; the key is not
+logged or persisted by the host.
 
 The public Custom screens community library is a separate internet-facing
 service. Its account does not authorize access to a Windows host. Treat every

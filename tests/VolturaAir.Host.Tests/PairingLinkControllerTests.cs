@@ -89,6 +89,53 @@ public sealed class PairingLinkControllerTests
         Assert.Equal(expectedHint, PairingLinkController.CreateHostHint(clientUrl, serverUrl));
     }
 
+    [Fact]
+    public void RelayUsesShortFirstPartyLinkAndKeepsTokenInFragment()
+    {
+        using var store = new TempPairingStore();
+        var routeId = new string('r', 22);
+        var controller = new PairingLinkController(
+            new PairingManager(store.Store),
+            "http://127.0.0.1:51395",
+            clientUrl: null,
+            ConnectionTransportMode.Relay,
+            routeId,
+            new RelayEndpointDescriptor(
+                RelayEndpointDescriptor.OfficialServiceId,
+                new Uri("https://relay.example"),
+                new Uri("wss://relay.example"),
+                SupportsTurn: true));
+
+        var url = new Uri(controller.Url);
+
+        Assert.Equal("https://voltura.se", url.GetLeftPart(UriPartial.Authority));
+        Assert.Equal($"/a/{routeId}", url.AbsolutePath);
+        Assert.Equal(AppVersion.Display, ParseQuery(url)["v"]);
+        Assert.Matches("^#[A-Za-z0-9_-]{32}$", url.Fragment);
+        Assert.InRange(controller.Url.Length, 1, 128);
+    }
+
+    [Fact]
+    public void CustomRelayUsesHostedAppLinkWithBoundedEndpointMetadata()
+    {
+        using var store = new TempPairingStore();
+        var controller = new PairingLinkController(
+            new PairingManager(store.Store),
+            "http://127.0.0.1:51395",
+            clientUrl: null,
+            ConnectionTransportMode.Relay,
+            new string('r', 22),
+            new RelayEndpointDescriptor("custom-v1", new Uri("https://relay.example"), new Uri("wss://relay.example"), SupportsTurn: false));
+
+        var url = new Uri(controller.Url);
+        var parameters = ParseQuery(url);
+        var endpoint = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(parameters["e"].Replace('-', '+').Replace('_', '/').PadRight(28, '=')));
+
+        Assert.Equal("/air/app/", url.AbsolutePath);
+        Assert.Equal("https://relay.example", endpoint);
+        Assert.Matches("^#[A-Za-z0-9_-]{32}$", url.Fragment);
+    }
+
     private static Dictionary<string, string> ParseQuery(Uri url)
     {
         return url.Query.TrimStart('?')

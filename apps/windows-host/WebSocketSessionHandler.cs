@@ -1,4 +1,5 @@
 using System.Net.WebSockets;
+using System.Security.Cryptography;
 using System.Text.Json;
 
 namespace VolturaAir.Host;
@@ -121,6 +122,43 @@ internal sealed class WebSocketSessionHandler(
                         continue;
                     }
 
+                    bool relayEncryptionEstablished;
+                    try
+                    {
+                        relayEncryptionEstablished = socket is not RelayVirtualWebSocket relaySocket ||
+                            await EstablishRelayEncryptionAsync(
+                                relaySocket,
+                                authentication.ClientId,
+                                authentication.PendingPairingCommit?.ReconnectPublicKey,
+                                buffer,
+                                receiveTimeout.Token);
+                    }
+                    catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                    {
+                        await WebSocketTransport.CloseAsync(
+                            socket,
+                            "Pairing timed out",
+                            WebSocketCloseStatus.EndpointUnavailable,
+                            cancellationToken);
+                        break;
+                    }
+
+                    if (!relayEncryptionEstablished)
+                    {
+                        await RejectPairingAsync(socket, "relay-encryption-failed", cancellationToken);
+                        break;
+                    }
+
+                    if (authentication.PendingPairingCommit is { } pairingToCommit)
+                    {
+                        var commit = pairingManager.CommitPairingBootstrap(pairingToCommit);
+                        if (!commit.Accepted)
+                        {
+                            await RejectPairingAsync(socket, commit.Reason, cancellationToken);
+                            break;
+                        }
+                    }
+
                     authenticated = true;
                     authenticatedClientId = authentication.ClientId;
                     transport.Register(authentication.ClientId, socket);
@@ -178,7 +216,7 @@ internal sealed class WebSocketSessionHandler(
         {
             if (!string.IsNullOrEmpty(authenticatedClientId))
             {
-                screenViewCommands.ClientDisconnected(authenticatedClientId);
+                await screenViewCommands.ClientDisconnectedAsync(authenticatedClientId);
                 transport.Unregister(authenticatedClientId, socket);
                 presentationCommands.DisableLaserForClient(authenticatedClientId);
             }
@@ -244,7 +282,9 @@ internal sealed class WebSocketSessionHandler(
                 return null;
             }
 
-            var proofResult = pairingManager.CompletePairingBootstrap(pendingPairing, proof.Proof);
+            var proofResult = socket is RelayVirtualWebSocket
+                ? PairingManager.VerifyPairingBootstrap(pendingPairing, proof.Proof)
+                : pairingManager.CompletePairingBootstrap(pendingPairing, proof.Proof);
             if (!proofResult.Accepted)
             {
                 _pairingAttemptRateLimiter.RecordFailure(rateLimitKey);
@@ -253,7 +293,11 @@ internal sealed class WebSocketSessionHandler(
             }
 
             _pairingAttemptRateLimiter.Reset(rateLimitKey);
-            return new AuthenticatedClient(proof.ClientId, null, null);
+            return new AuthenticatedClient(
+                proof.ClientId,
+                null,
+                null,
+                socket is RelayVirtualWebSocket ? pendingPairing : null);
         }
 
         if (!ClientMessageValidator.TryValidatePairHello(root, out var hello))
@@ -325,7 +369,69 @@ internal sealed class WebSocketSessionHandler(
             return null;
         }
 
-        return new AuthenticatedClient(hello.ClientId, null, result.Pending);
+        return new AuthenticatedClient(hello.ClientId, null, result.Pending, null);
+    }
+
+    private async Task<bool> EstablishRelayEncryptionAsync(
+        RelayVirtualWebSocket socket,
+        string clientId,
+        string? freshReconnectPublicKey,
+        byte[] buffer,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var hostKey = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256);
+            var hostEphemeral = RelaySessionCrypto.ExportPublicKey(hostKey);
+            var nonce = ScreenViewHostIdentity.Base64Url(RandomNumberGenerator.GetBytes(32));
+            await WebSocketTransport.SendUnauthenticatedAsync(socket, new
+            {
+                type = "session.key.challenge",
+                routeId = socket.RouteId,
+                clientId,
+                hostEphemeralPublicKey = hostEphemeral,
+                nonce
+            }, cancellationToken);
+
+            using var response = await WebSocketTransport.ReceiveAsync(socket, buffer, cancellationToken);
+            if (response is null || response.RootElement.ValueKind != JsonValueKind.Object ||
+                !response.RootElement.TryGetProperty("type", out var type) || type.GetString() != "session.key.proof" ||
+                !response.RootElement.TryGetProperty("clientEphemeralPublicKey", out var clientKeyValue) ||
+                clientKeyValue.GetString() is not { Length: 87 } clientKey ||
+                !response.RootElement.TryGetProperty("signature", out var signatureValue) ||
+                signatureValue.GetString() is not { Length: 86 } signature ||
+                response.RootElement.EnumerateObject().Count() != 3)
+            {
+                return false;
+            }
+
+            var transcript = RelaySessionCrypto.CreateTranscript(
+                socket.RouteId,
+                clientId,
+                pairingManager.HostIdentity.PublicKey,
+                hostEphemeral,
+                clientKey,
+                nonce);
+            var signatureValid = freshReconnectPublicKey is null
+                ? pairingManager.VerifyClientSignature(clientId, transcript, signature)
+                : PairingManager.VerifyPublicKeySignature(freshReconnectPublicKey, transcript, signature);
+            if (!signatureValid) return false;
+
+#pragma warning disable CA2000 // RelayVirtualWebSocket owns the crypto after EnableEncryption.
+            var crypto = RelaySessionCrypto.CreateHost(hostKey, clientKey, transcript);
+#pragma warning restore CA2000
+            await WebSocketTransport.SendUnauthenticatedAsync(socket, new
+            {
+                type = "session.key.accepted",
+                signature = pairingManager.HostIdentity.Sign(transcript)
+            }, cancellationToken);
+            socket.EnableEncryption(crypto);
+            return true;
+        }
+        catch (Exception exception) when (exception is CryptographicException or JsonException or FormatException or WebSocketException)
+        {
+            return false;
+        }
     }
 
     private async Task<bool> DispatchAuthenticatedAsync(
@@ -611,7 +717,8 @@ internal sealed class WebSocketSessionHandler(
     private sealed record AuthenticatedClient(
         string ClientId,
         PendingReconnect? PendingReconnect,
-        PairingBootstrapPending? PendingPairing);
+        PairingBootstrapPending? PendingPairing,
+        PairingBootstrapPending? PendingPairingCommit = null);
 
     private sealed record PendingReconnect(
         string ClientId,

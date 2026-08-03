@@ -13,6 +13,7 @@ internal sealed class ConnectionPageController
     private readonly ConnectionPageBoundaryFeedback _feedback;
     private readonly ConnectionConfiguration _activeConfiguration;
     private readonly ConnectionPortController _portInput;
+    private readonly IAppLogWriter _appLog;
     private ConnectionPageState? _state;
     private ConnectionPageView? _page;
 
@@ -34,11 +35,27 @@ internal sealed class ConnectionPageController
         _saveSettings = saveSettings ?? AppNetworkSettings.Save;
         _loadCandidates = loadCandidates ?? LanAddressSelector.GetCandidates;
         _feedback = new ConnectionPageBoundaryFeedback(owner, appLog, confirm);
+        _appLog = appLog;
         _activeConfiguration = ConnectionConfiguration.FromSnapshot(_loadSettings());
         _portInput = new ConnectionPortController(Render);
+        _webHost.RelayStatusChanged += OnRelayStatusChanged;
     }
 
     public bool HasPendingChanges => _state?.HasPendingChanges == true;
+
+    internal void ShowRelayForScreenshot()
+    {
+        _state?.SetTransportMode(ConnectionTransportMode.Relay);
+        Render();
+    }
+
+    private void OnRelayStatusChanged(object? sender, EventArgs e)
+    {
+        var page = _page;
+        if (page is null || page.Dispatcher.HasShutdownStarted) return;
+        if (page.Dispatcher.CheckAccess()) Render();
+        else _ = page.Dispatcher.BeginInvoke(Render);
+    }
 
     public ConnectionPageView CreateView(bool preserveState = false)
     {
@@ -60,10 +77,15 @@ internal sealed class ConnectionPageController
             UseAutomaticAdapter,
             RefreshAdapters,
             CancelAdapterChooser,
+            SetTransportMode,
+            SetRelayScreenQuality,
+            SetCustomRelayEndpoint,
             SetUseCustomPort,
             SetAdvancedExpanded,
             CancelPendingChanges,
-            SaveAndRestart);
+            SaveAndRestart,
+            _webHost.RetryRelay,
+            RefreshRelayUsage);
         _page.CandidateSelected += SelectAdapter;
         _portInput.Attach(_page, _state);
         Render();
@@ -129,6 +151,17 @@ internal sealed class ConnectionPageController
         _page?.FocusAdapterChooser();
     }
 
+    private void RefreshRelayUsage()
+    {
+        _ = RefreshRelayUsageAsync();
+    }
+
+    private async Task RefreshRelayUsageAsync()
+    {
+        await _webHost.RefreshRelayUsageAsync();
+        if (_page is not null) Render();
+    }
+
     internal void SelectAdapter(ConnectionCandidateItem item)
     {
         _state?.SelectAdapter(item.Candidate);
@@ -156,6 +189,24 @@ internal sealed class ConnectionPageController
         {
             _page?.FocusPortInput();
         }
+    }
+
+    private void SetTransportMode(ConnectionTransportMode mode)
+    {
+        _state?.SetTransportMode(mode);
+        Render();
+    }
+
+    private void SetRelayScreenQuality(RelayScreenQuality quality)
+    {
+        _state?.SetRelayScreenQuality(quality);
+        Render();
+    }
+
+    private void SetCustomRelayEndpoint(string endpoint)
+    {
+        _state?.SetCustomRelayEndpoint(endpoint);
+        Render();
     }
 
     private void SetAdvancedExpanded(bool isExpanded)
@@ -186,7 +237,8 @@ internal sealed class ConnectionPageController
         }
 
         var validation = _portInput.GetValidation();
-        if (!_state.HasPendingChanges || !_state.IsPendingAdapterAvailable || !validation.IsValid)
+        if (!_state.HasPendingChanges || !_state.IsRelayEndpointValid ||
+            (!_state.UsesRelay && (!_state.IsPendingAdapterAvailable || !validation.IsValid)))
         {
             Render();
             return;
@@ -197,6 +249,7 @@ internal sealed class ConnectionPageController
             return;
         }
 
+        var savedBefore = _state.SavedConfiguration;
         var pending = NormalizePendingConfiguration(_state.PendingConfiguration);
         NetworkSettingsSnapshot? originalSnapshot = null;
         try
@@ -235,6 +288,33 @@ internal sealed class ConnectionPageController
         }
 
         _state.MarkSaved(pending);
+        if (savedBefore.TransportMode != pending.TransportMode)
+        {
+            _appLog.Write(new AppLogEntry(
+                "host_action",
+                "windows_host",
+                Action: "connection_method_saved",
+                Outcome: "restart_requested",
+                Code: pending.TransportMode == ConnectionTransportMode.Relay ? "relay" : "direct"));
+        }
+        if (savedBefore.RelayScreenQuality != pending.RelayScreenQuality)
+        {
+            _appLog.Write(new AppLogEntry(
+                "host_action",
+                "windows_host",
+                Action: "relay_screen_quality_changed",
+                Outcome: "saved",
+                Code: pending.RelayScreenQuality.ToString().ToLowerInvariant()));
+        }
+        if (!string.Equals(savedBefore.CustomRelayEndpoint, pending.CustomRelayEndpoint, StringComparison.Ordinal))
+        {
+            _appLog.Write(new AppLogEntry(
+                "host_action",
+                "windows_host",
+                Action: "relay_endpoint_type_saved",
+                Outcome: "restart_requested",
+                Code: pending.CustomRelayEndpoint is null ? "official" : "custom"));
+        }
         Render();
         try
         {
@@ -275,6 +355,17 @@ internal sealed class ConnectionPageController
 
     private ConnectionConfiguration NormalizePendingConfiguration(ConnectionConfiguration pending)
     {
+        if (pending.TransportMode == ConnectionTransportMode.Relay)
+        {
+            pending = pending with
+            {
+                CustomRelayEndpoint = AppNetworkSettings.NormalizeRelayEndpoint(pending.CustomRelayEndpoint),
+                RelayScreenQuality = pending.RelayScreenQuality == RelayScreenQuality.MaintainerFull && !BuildFeatures.MaintainerRelayQuality
+                    ? RelayScreenQuality.Standard
+                    : pending.RelayScreenQuality
+            };
+        }
+
         if (pending.NetworkMode == NetworkSelectionMode.Manual && _state?.PendingAdapter is { } adapter)
         {
             pending = pending with

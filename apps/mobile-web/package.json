@@ -1,13 +1,14 @@
 {
   "name": "@voltura-air/mobile-web",
   "private": true,
-  "version": "0.8.5",
+  "version": "0.8.6",
   "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --strictPort",
     "build": "npm run check && vite build && npm run bundle:check",
     "build:quick": "vite build",
+    "build:hosted": "cross-env VOLTURA_AIR_HOSTED=1 vite build",
     "build:catalog-preview": "vite build --config vite.catalog-preview.config.ts",
     "bundle:check": "node ../../scripts/check-mobile-bundle-size.mjs",
     "check": "npm run typecheck && npm run lint",
@@ -34,6 +35,7 @@
     "@types/node": "^26.1.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
+    "cross-env": "^10.1.0",
     "@typescript/native": "npm:typescript@^7.0.2",
     "@vitejs/plugin-react": "^6.0.4",
     "eslint": "^10.7.0",

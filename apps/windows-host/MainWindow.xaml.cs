@@ -206,6 +206,12 @@ public partial class MainWindow : Window
         _customScreensPage.OpenFirstForScreenshot();
     }
 
+    public void ShowRelayConnectionForScreenshot()
+    {
+        ShowPage(HostPage.Connection);
+        _connectionPage.ShowRelayForScreenshot();
+    }
+
     internal async Task OpenCatalogImportAsync(CatalogImportRequest request)
     {
         await Dispatcher.InvokeAsync(ShowCatalogImportPage);

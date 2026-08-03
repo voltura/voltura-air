@@ -161,6 +161,7 @@ test("release packaging requires the native Screen WebRTC runtime and dependency
 test("release preparation synchronizes version-bearing files without editing the workflow", () => {
   assert.match(prepareReleaseScript, /\$rootPackagePath = 'package\.json'/u);
   assert.match(prepareReleaseScript, /\$mobilePackagePath = 'apps\\mobile-web\\package\.json'/u);
+  assert.match(prepareReleaseScript, /\$relayPackagePath = 'services\\relay\\package\.json'/u);
   assert.match(prepareReleaseScript, /\$packageLockPath = 'package-lock\.json'/u);
   assert.match(prepareReleaseScript, /\$hostProjectPath = 'apps\\windows-host\\VolturaAir\.Host\.csproj'/u);
   assert.doesNotMatch(prepareReleaseScript, /releaseWorkflowPath|release\.yml/u);

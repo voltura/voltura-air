@@ -35,7 +35,8 @@ public partial class ConnectPageView : WpfUserControl
         Action createNewCode,
         Action copyLink,
         Action changeAdapter,
-        Func<DateTimeOffset>? getCurrentTime = null)
+        Func<DateTimeOffset>? getCurrentTime = null,
+        bool usesRelay = false)
     {
         InitializeComponent();
         _createNewCode = createNewCode;
@@ -55,14 +56,18 @@ public partial class ConnectPageView : WpfUserControl
         PairingLinkCard.Value = pairingLink;
         HostUrlCard.Value = hostUrl;
         SelectedAdapterCard.Value = selectedAdapter;
-        SelectedAdapterCard.Visibility = showSelectedAdapter || !string.IsNullOrWhiteSpace(addressWarning)
+        SelectedAdapterCard.Title = usesRelay ? "Connection method" : "Network adapter";
+        SelectedAdapterCard.Visibility = usesRelay || showSelectedAdapter || !string.IsNullOrWhiteSpace(addressWarning)
             ? Visibility.Visible
             : Visibility.Collapsed;
-        AdapterChangeButton.Visibility = showSelectedAdapter ? Visibility.Visible : Visibility.Collapsed;
+        AdapterChangeButton.Visibility = usesRelay || showSelectedAdapter ? Visibility.Visible : Visibility.Collapsed;
+        HostUrlCard.Visibility = usesRelay ? Visibility.Collapsed : Visibility.Visible;
         SelectedIpCard.Value = selectedIp;
+        SelectedIpCard.Visibility = usesRelay ? Visibility.Collapsed : Visibility.Visible;
         SelectedPortCard.Value = selectedPort;
-        AddressWarningNotice.SetMessage(addressWarning, addressWarningEmphasis);
-        SetNotice(PortWarningNotice, PortWarningText, portWarning);
+        SelectedPortCard.Visibility = usesRelay ? Visibility.Collapsed : Visibility.Visible;
+        AddressWarningNotice.SetMessage(usesRelay ? null : addressWarning, usesRelay ? null : addressWarningEmphasis);
+        SetNotice(PortWarningNotice, PortWarningText, usesRelay ? null : portWarning);
         RenderCountdown(_getCurrentTime());
     }
 

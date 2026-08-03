@@ -49,6 +49,13 @@ port state in its header. Pending settings are not presented as active: a fixed
 change summary lists only changed values and provides **Discard changes** and
 **Save and restart**.
 
+Connection begins with exclusive Direct LAN and Cloud relay choices. Direct
+shows the adapter and port surfaces above. Relay replaces them with safe
+connection state, retry, a used-versus-remaining monthly screen-transfer bar,
+2/4 Mbps quality, and a collapsed custom HTTPS endpoint. Normal builds never
+show the local-only maintainer 8 Mbps choice. Relay failure never silently opens
+Direct.
+
 ## Preferences
 
 Themed sections start collapsed and allow one open section. Headers are

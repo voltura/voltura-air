@@ -12,10 +12,10 @@
     <UseWPF>true</UseWPF>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <ApplicationIcon>Assets\VolturaAir.ico</ApplicationIcon>
-    <Version>0.8.5</Version>
-    <AssemblyVersion>0.8.5.0</AssemblyVersion>
-    <FileVersion>0.8.5.0</FileVersion>
-    <InformationalVersion>0.8.5</InformationalVersion>
+    <Version>0.8.6</Version>
+    <AssemblyVersion>0.8.6.0</AssemblyVersion>
+    <FileVersion>0.8.6.0</FileVersion>
+    <InformationalVersion>0.8.6</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Title>Voltura Air</Title>
     <AssemblyTitle>Voltura Air</AssemblyTitle>
@@ -24,9 +24,17 @@
     <Authors>Voltura AB</Authors>
     <Copyright>Copyright (c) Voltura AB</Copyright>
     <Description>Voltura Air Windows host</Description>
+    <MaintainerRelayQuality Condition="'$(MaintainerRelayQuality)' == ''">false</MaintainerRelayQuality>
+    <DefineConstants Condition="'$(MaintainerRelayQuality)' == 'true'">$(DefineConstants);VOLTURA_MAINTAINER_RELAY</DefineConstants>
   </PropertyGroup>
 
+  <Target Name="RejectPublishedMaintainerRelayBuild" BeforeTargets="Publish"
+          Condition="'$(MaintainerRelayQuality)' == 'true'">
+    <Error Text="Maintainer relay quality is local-only and cannot be published." />
+  </Target>
+
   <ItemGroup>
+    <None Update="relay-service.json" CopyToOutputDirectory="PreserveNewest" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4078.44" />
     <PackageReference Include="QRCoder" Version="1.8.0" />

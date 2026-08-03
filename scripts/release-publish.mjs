@@ -281,6 +281,7 @@ export async function runLocalRelease(args = process.argv.slice(2), { progress, 
     checked("npm", ["run", "release", "--", releaseContext.targetVersion]);
     checked("npm", ["run", "branding:generate"]);
     checked("npm", ["run", "site:preview:build"]);
+    checked("npm", ["run", "site:hosted:build"]);
     checked("npm", ["run", "code:statistics", "--", "--report", "--no-open", "--quiet"]);
   });
 

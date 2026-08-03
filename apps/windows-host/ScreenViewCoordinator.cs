@@ -12,6 +12,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
     private readonly HostStatusPayloadFactory _statusFactory;
     private readonly IScreenViewCaptureSource _capture;
     private readonly IScreenViewWebRtcPeerFactory _peerFactory;
+    private readonly IAppLogWriter _appLog;
     private PendingView? _pending;
     private ActiveView? _active;
     private int _disposed;
@@ -20,12 +21,14 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         PairingManager pairingManager,
         HostStatusPayloadFactory statusFactory,
         IScreenViewCaptureSource? capture = null,
-        IScreenViewWebRtcPeerFactory? peerFactory = null)
+        IScreenViewWebRtcPeerFactory? peerFactory = null,
+        IAppLogWriter? appLog = null)
     {
         _pairingManager = pairingManager;
         _statusFactory = statusFactory;
         _capture = capture ?? new DxgiScreenViewCaptureSource();
         _peerFactory = peerFactory ?? new ScreenViewWebRtcPeerFactory();
+        _appLog = appLog ?? NullAppLog.Instance;
         pairingManager.PairingRevoked += OnPairingRevoked;
         pairingManager.PermissionsChanged += OnPermissionsChanged;
         AppPermissionSettings.Changed += OnPermissionsChanged;
@@ -44,6 +47,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         string displayId,
         string clientSignature,
         CancellationToken cancellationToken,
+        RelayTurnConfiguration? relay = null,
         DateTimeOffset? now = null)
     {
         if (!CanStart(clientId))
@@ -61,15 +65,17 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         IScreenViewWebRtcPeer peer;
         try
         {
-            peer = _peerFactory.Create();
+            peer = _peerFactory.Create(relay is null ? null : new ScreenViewPeerConfiguration(relay.HostIceServerUris, RelayOnly: true));
         }
         catch (Exception ex) when (ex is ScreenViewWebRtcException or DllNotFoundException or BadImageFormatException)
         {
+            if (relay is not null)
+                _appLog.Write(new AppLogEntry("relay_turn", "windows_host", Action: "screen_transport_failed", Outcome: "failed", Code: "setup"));
             return Failure("webrtc-unavailable", "The WebRTC screen transport is unavailable on this PC.");
         }
 
         var createdAt = now ?? DateTimeOffset.UtcNow;
-        var pending = new PendingView(clientId, operationId, displayId, createdAt + SignalingLifetime, peer);
+        var pending = new PendingView(clientId, operationId, displayId, createdAt + SignalingLifetime, peer, relay?.MaximumBitrate ?? InitialBitrate);
         PendingView? expired;
         bool busy;
         lock (_gate)
@@ -96,12 +102,19 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
                 "accepted",
                 "The encrypted WebRTC screen connection is ready.",
                 offerSdp,
-                _pairingManager.HostIdentity.Sign(Encoding.UTF8.GetBytes(hostTranscript)));
+                _pairingManager.HostIdentity.Sign(Encoding.UTF8.GetBytes(hostTranscript)),
+                relay?.IceServers,
+                relay?.ExpiresAt,
+                relay?.UsageBytes,
+                relay?.CheckedAt,
+                relay?.EffectiveQuality);
         }
         catch (Exception ex) when (ex is OperationCanceledException or ScreenViewWebRtcException or ObjectDisposedException)
         {
             RemovePending(pending);
             pending.Release();
+            if (relay is not null && ex is not OperationCanceledException)
+                _appLog.Write(new AppLogEntry("relay_turn", "windows_host", Action: "screen_transport_failed", Outcome: "failed", Code: "offer"));
             return Failure("webrtc-unavailable", "The PC could not create a WebRTC screen offer.");
         }
     }
@@ -159,7 +172,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         {
             if (ReferenceEquals(_pending, pending) && _active is null)
             {
-                active = new ActiveView(pending.ClientId, pending.DisplayId, pending.Peer);
+                active = new ActiveView(pending.ClientId, pending.DisplayId, pending.Peer, pending.MaximumBitrate);
                 _pending = null;
                 pending.DetachPeer();
                 _active = active;
@@ -359,7 +372,8 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         string operationId,
         string displayId,
         DateTimeOffset expiresAt,
-        IScreenViewWebRtcPeer peer)
+        IScreenViewWebRtcPeer peer,
+        int maximumBitrate)
     {
         private IScreenViewWebRtcPeer? _peer = peer;
         public string ClientId { get; } = clientId;
@@ -367,16 +381,18 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         public string DisplayId { get; } = displayId;
         public DateTimeOffset ExpiresAt { get; } = expiresAt;
         public IScreenViewWebRtcPeer Peer => _peer ?? throw new ObjectDisposedException(nameof(PendingView));
+        public int MaximumBitrate { get; } = maximumBitrate;
         public string? OfferHash { get; private set; }
         public void SetOffer(string offerHash) => OfferHash = offerHash;
         public void DetachPeer() => _peer = null;
         public void Release() { _peer?.Dispose(); _peer = null; }
     }
 
-    private sealed class ActiveView(string clientId, string displayId, IScreenViewWebRtcPeer peer)
+    private sealed class ActiveView(string clientId, string displayId, IScreenViewWebRtcPeer peer, int maximumBitrate)
     {
         private string _displayId = displayId;
-        private int _targetBitrate = InitialBitrate;
+        private readonly int _maximumBitrate = maximumBitrate;
+        private int _targetBitrate = maximumBitrate;
         private int _forceKeyFrame = 1;
         public string ClientId { get; } = clientId;
         public string DisplayId => Volatile.Read(ref _displayId);
@@ -398,6 +414,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
                 < 7_000_000 => 6_000_000,
                 _ => 8_000_000
             };
+            bitrate = Math.Min(bitrate, _maximumBitrate);
             if (Interlocked.Exchange(ref _targetBitrate, bitrate) != bitrate) RequestKeyFrame();
         }
         public void Release() { Stop.Dispose(); Peer.Dispose(); }

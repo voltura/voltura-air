@@ -97,15 +97,17 @@ test("package uploads expose a visually distinct drop target and selected state"
   assert.match(styles, /\.catalog-package-drop\.has-package/u);
 });
 
-test("catalog navigation uses specific labels and detail pages link back to browse", () => {
+test("catalog navigation preserves the main site links and detail pages link back to browse", () => {
   const library = read("docs/site/screens/lib.php");
   const index = read("docs/site/screens/index.php");
-  assert.match(library, />Voltura Air<\/a>/u);
-  assert.match(library, />Browse screens<\/a>/u);
+  assert.match(library, /href="\.\.\/#features">Features<\/a>/u);
+  assert.match(library, /href="\.\/" aria-current="page">Custom screens<\/a>/u);
+  assert.match(library, /href="\.\.\/#download">Download<\/a>/u);
   assert.match(library, />Upload screen<\/a>/u);
   assert.match(library, /href="upload\.php#submissions"[^>]*>My submissions<\/a>/u);
   assert.match(library, />Moderate screens<\/a>/u);
   assert.match(library, />Sign out<\/a>/u);
+  assert.match(library, /href="\.\.\/sitemap\.php">Sitemap<\/a>/u);
   assert.match(
     library,
     /href="\.\/" aria-label="Browse community library of custom screens"><span aria-hidden="true">&larr;<\/span> Community library<\/a>/u,

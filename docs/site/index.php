@@ -459,6 +459,7 @@
       <a href="https://voltura.se/" aria-label="Voltura AB home">Voltura AB</a>
       <a href="https://github.com/voltura/voltura-air">GitHub</a>
       <a href="./stats.html">Code statistics</a>
+      <a href="./sitemap.php">Sitemap</a>
       <a href="https://github.com/voltura/voltura-air/blob/main/PRIVACY.md">Privacy</a>
       <a href="https://github.com/voltura/voltura-air/blob/main/LICENSE">MIT License</a>
       <a href="https://github.com/voltura/voltura-air/blob/main/THIRD-PARTY-NOTICES.md">Third-party notices</a>

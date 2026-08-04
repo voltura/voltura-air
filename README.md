@@ -126,7 +126,8 @@ unknown-publisher or Microsoft Defender SmartScreen warning. Download only from
 the [official product page](https://voltura.se/air/) or the
 [official GitHub releases](https://github.com/voltura/voltura-air/releases/latest).
 
-[Privacy policy](PRIVACY.md) · [Security policy](SECURITY.md)
+[Privacy policy](PRIVACY.md) · [Security policy](SECURITY.md) ·
+[Third-party software notices](THIRD-PARTY-NOTICES.md)
 
 Do not publish vulnerability details or pairing credentials in a public issue.
 

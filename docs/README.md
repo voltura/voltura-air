@@ -21,6 +21,7 @@ files are rebuilt, never hand-edited.
 | [Code of Conduct](../CODE_OF_CONDUCT.md) | Authority | Community conduct/enforcement. |
 | [Privacy](../PRIVACY.md) | Authority | Data, services, logs, retention, deletion. |
 | [Security](../SECURITY.md) | Authority | Vulnerability reporting/trust boundary. |
+| [Third-party software notices](../THIRD-PARTY-NOTICES.md) | Legal/attribution authority | Shipped components, licenses, source availability, and distribution notices. |
 | [Brand assets](../assets/branding/README.md) | Authority | Artwork sources/consumers. |
 | [Bug form](../.github/ISSUE_TEMPLATE/bug_report.yml) | Public intake | Safe reproduction/diagnostics. |
 | [Website](site/index.php), [relay short redirect](site/a/index.php) | Public/service | Use cases, trust, downloads, and fragment-preserving Relay entry. |

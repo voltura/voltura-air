@@ -105,6 +105,13 @@ describe("SettingsDrawer", () => {
     expect(Array.from(document.querySelectorAll("details")).every((details) => !details.open)).toBe(true);
   });
 
+  it("links to the notices distributed with the PWA", () => {
+    render(<SettingsDrawer {...baseProps} />);
+
+    expect(screen.getByRole("link", { name: "Third-party notices" }).getAttribute("href"))
+      .toBe("./third-party-notices.txt");
+  });
+
   it("owns modal focus and returns it after a user close", () => {
     const trigger = document.createElement("button");
     document.body.append(trigger);

@@ -8,6 +8,7 @@ const packageJson = JSON.parse(readFileSync(new URL("../../package.json", import
 const mobilePackageJson = JSON.parse(readFileSync(new URL("../../apps/mobile-web/package.json", import.meta.url), "utf8"));
 const releaseWorkflow = readFileSync(new URL("../../scripts/legacy/release.yml", import.meta.url), "utf8");
 const packageWindowsScript = readFileSync(new URL("../../scripts/package-win.ps1", import.meta.url), "utf8");
+const buildLibdatachannelScript = readFileSync(new URL("../../scripts/build-libdatachannel.ps1", import.meta.url), "utf8");
 const verifyWindowsVersionScript = readFileSync(new URL("../../scripts/verify-windows-version.ps1", import.meta.url), "utf8");
 const prepareReleaseScript = readFileSync(new URL("../../scripts/prepare-release.ps1", import.meta.url), "utf8");
 const qualityWorkflow = readFileSync(new URL("../../scripts/legacy/quality.yml", import.meta.url), "utf8");
@@ -155,13 +156,30 @@ test("release packaging stops immediately when a build command fails", () => {
   assert.match(packageWindowsScript, /-o \$frameworkDependentPublishDir\s+Assert-LastExitCode "Framework-dependent host publish"/u);
 });
 
-test("release packaging requires the native Screen WebRTC runtime and dependency notices", () => {
+test("release packaging requires all runtime notices and the native Screen WebRTC source record", () => {
   assert.match(packageWindowsScript, /function Assert-ScreenWebRtcPayload/u);
   assert.match(packageWindowsScript, /datachannel\.dll/u);
+  assert.match(packageWindowsScript, /ThirdPartyNotices\\README\.txt/u);
   assert.match(packageWindowsScript, /libdatachannel-LICENSE\.txt/u);
   assert.match(packageWindowsScript, /openssl-LICENSE\.txt/u);
-  assert.match(packageWindowsScript, /Assert-ScreenWebRtcPayload -PublishDirectory \$publishDir/u);
+  assert.match(packageWindowsScript, /libdatachannel\\SOURCE\.txt/u);
+  assert.match(packageWindowsScript, /Microsoft\.Web\.WebView2-NOTICE\.txt/u);
+  assert.match(packageWindowsScript, /QRCoder-LICENSE\.txt/u);
+  assert.match(packageWindowsScript, /Vortice-SharpGen-LICENSE\.txt/u);
+  assert.match(packageWindowsScript, /wwwroot\\third-party-notices\.txt/u);
+  assert.match(packageWindowsScript, /Copy-DotNetRuntimeNotices -PublishDirectory \$publishDir/u);
+  assert.match(packageWindowsScript, /Assert-ScreenWebRtcPayload -PublishDirectory \$publishDir -RequireDotNetRuntimeNotices/u);
   assert.match(packageWindowsScript, /Assert-ScreenWebRtcPayload -PublishDirectory \$frameworkDependentPublishDir/u);
+});
+
+test("the native Screen WebRTC rebuild recipe pins source, submodules, OpenSSL, and static dependencies", () => {
+  assert.match(buildLibdatachannelScript, /443f6934d9007eb7076ab7825ba330f355fcbead/u);
+  assert.match(buildLibdatachannelScript, /3c40a3545b6b1b62c7adee7f8f2bd58aa290afd6/u);
+  assert.match(buildLibdatachannelScript, /openssl"; version = "3\.6\.0"; "port-version" = 3/u);
+  assert.match(buildLibdatachannelScript, /-DBUILD_SHARED_DEPS_LIBS=OFF/u);
+  assert.match(buildLibdatachannelScript, /-DOPENSSL_USE_STATIC_LIBS=TRUE/u);
+  assert.match(buildLibdatachannelScript, /CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded/u);
+  assert.match(buildLibdatachannelScript, /Review the ABI, dependency list, tests, hash, licenses, and SOURCE\.txt/u);
 });
 
 test("release preparation synchronizes version-bearing files without editing the workflow", () => {

@@ -49,6 +49,8 @@ export const commandDescriptions = {
   "site:dev": "Run the PHP public site locally against the development catalog database.",
   "site:hosted:build": "Build the separately scoped hosted Relay PWA under docs/site/app.",
   "site:preview:build": "Build the catalog preview from the real mobile custom-screen renderer.",
+  "third-party:check": "Verify shipped dependency versions, native provenance, and generated browser notices.",
+  "third-party:generate": "Regenerate the mobile PWA's complete third-party license notice from installed production packages.",
   release: "Prepare a versioned release and update its authoritative version values.",
   "release:bump": "Advance version values only through the project's one-digit patch and minor sequence.",
   "release:draft": "Build, test, package, push, deploy the site, and create an audited GitHub draft; accepts an optional version.",

@@ -104,10 +104,17 @@ artifacts/publish/VolturaAir-Setup-<version>-win-x64.exe
 artifacts/publish/VolturaAir-Setup-<version>-win-x64-full.exe
 ```
 
-Every Windows artifact includes `datachannel.dll` beside the host executable
-and the corresponding libdatachannel/OpenSSL dependency notices under
-`ThirdPartyNotices/libdatachannel`. Packaging/audit validation must reject an
-artifact that omits either the native WebRTC runtime or those notices.
+Every Windows artifact includes `datachannel.dll` beside the host executable,
+the PWA's `third-party-notices.txt`, and the complete native and managed runtime
+notices under `ThirdPartyNotices`. The self-contained ZIP/full installer also
+includes the .NET redistribution license and third-party notices copied from
+the exact SDK used to build it. Packaging validation must reject an artifact
+that omits any required notice. The component inventory, source links, and
+native build provenance are owned by `THIRD-PARTY-NOTICES.md` and
+`ThirdPartyNotices/libdatachannel/SOURCE.txt`; update both whenever the native
+binary, its source, or a production dependency changes. Rebuild the native DLL
+only with `scripts/build-libdatachannel.ps1`, then review its ABI/dependencies,
+run Screen-view tests, and update the recorded hash before packaging.
 
 For explicit script options:
 

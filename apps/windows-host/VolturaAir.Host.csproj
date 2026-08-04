@@ -70,8 +70,8 @@
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </Content>
-    <Content Include="ThirdPartyNotices\libdatachannel\*.txt">
-      <Link>ThirdPartyNotices\libdatachannel\%(Filename)%(Extension)</Link>
+    <Content Include="ThirdPartyNotices\**\*.txt">
+      <Link>ThirdPartyNotices\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>

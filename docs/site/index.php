@@ -461,6 +461,7 @@
       <a href="./stats.html">Code statistics</a>
       <a href="https://github.com/voltura/voltura-air/blob/main/PRIVACY.md">Privacy</a>
       <a href="https://github.com/voltura/voltura-air/blob/main/LICENSE">MIT License</a>
+      <a href="https://github.com/voltura/voltura-air/blob/main/THIRD-PARTY-NOTICES.md">Third-party notices</a>
       <a href="https://www.linkedin.com/in/joakim-voltura/">LinkedIn</a>
       <a href="https://ko-fi.com/voltura">Ko-fi</a>
       <a href="https://www.paypal.me/voltura">PayPal</a>

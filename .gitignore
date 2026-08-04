@@ -32,6 +32,7 @@ Thumbs.db
 /.site-dev/
 
 # Local Codex build and probe output
+/.codex-temp/
 /.codex-tmp/
 
 ## Keep artifacts out of git

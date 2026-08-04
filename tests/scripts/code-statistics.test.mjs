@@ -19,6 +19,8 @@ async function createStatisticsFixture() {
   await Promise.all([
     writeFixtureFile(root, "Directory.Build.props", "<Project />\n"),
     writeFixtureFile(root, "VolturaAir.slnx", "<Solution />\n"),
+    writeFixtureFile(root, ".gitignore", "/.codex-temp/\n/.codex-tmp/\n"),
+    writeFixtureFile(root, "README.md", "# Fixture\n"),
     writeFixtureFile(root, "package.json", JSON.stringify({ scripts: { "code:statistics": "node scripts/code-statistics.mjs" } })),
     writeFixtureFile(root, "apps/mobile-web/vitest.config.ts", "export default { test: { globals: true, include: ['src/**/*.test.{ts,tsx}'] } };\n"),
     writeFixtureFile(root, "apps/mobile-web/src/App.tsx", "export function App() {\n  return null;\n}\n"),
@@ -34,7 +36,17 @@ async function createStatisticsFixture() {
     writeFixtureFile(root, ".github/workflows/quality.yml", "name: quality\n"),
     writeFixtureFile(root, "tests/scripts/publish-site.test.mjs", "import test from 'node:test';\ntest('publishes', () => {});\ntest('lists', () => {});\n"),
     writeFixtureFile(root, "installer/VolturaAir.nsi", "Name VolturaAir\n"),
-    writeFixtureFile(root, "docs/site/index.php", "<?php echo 'Voltura Air';\n")
+    writeFixtureFile(root, "docs/site/index.php", "<?php echo 'Voltura Air';\n"),
+    writeFixtureFile(root, ".codex-temp/relay-build/generated.js", "// generated\n"),
+    writeFixtureFile(root, ".codex-temp/relay-build/generated.png", "generated\n"),
+    writeFixtureFile(root, ".codex-tmp/probe/generated.mjs", "// generated\n"),
+    writeFixtureFile(root, ".codex-tmp/probe/package.json", JSON.stringify({ scripts: { generated: "node generated.mjs" } }))
+  ]);
+  execFileSync("git", ["init", "--quiet"], { cwd: root });
+  execFileSync("git", ["-c", "core.autocrlf=false", "add", "--all"], { cwd: root });
+  await Promise.all([
+    writeFixtureFile(root, "untracked-root.png", "untracked\n"),
+    writeFixtureFile(root, "apps/mobile-web/src/Untracked.test.tsx", "it('is not maintained', () => {});\n")
   ]);
   return root;
 }
@@ -54,6 +66,8 @@ test("code statistics covers production, test, automation, and script test cases
   assert.match(output, /Mobile client\s+1 files  2 cases/u);
   assert.match(output, /Windows host\s+1 files  2 cases/u);
   assert.match(output, /Repository automation\s+1 files  2 cases/u);
+  assert.doesNotMatch(output, /\.codex-(?:temp|tmp)/u);
+  assert.doesNotMatch(output, /untracked-root/u);
 });
 
 test("HTML statistics report uses the comprehensive statistics used by publish:site", async () => {
@@ -70,4 +84,9 @@ test("HTML statistics report uses the comprehensive statistics used by publish:s
   assert.match(html, /discovered test cases expand parameterized data/u);
   assert.match(html, /Source totals include production, test, installer, and repository automation code/u);
   assert.doesNotMatch(html, /undefined \d+\.\d+%/u);
+  assert.doesNotMatch(html, /NaN%/u);
+  assert.doesNotMatch(html, /\.codex-(?:temp|tmp)/u);
+  assert.doesNotMatch(html, /untracked-root/u);
+  assert.match(html, /<dt>Assets<\/dt><dd>1/u);
+  assert.match(html, /<dt>NPM commands<\/dt><dd>1<span>7 script files<\/span>/u);
 });

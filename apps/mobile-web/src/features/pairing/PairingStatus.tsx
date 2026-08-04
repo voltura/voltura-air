@@ -29,6 +29,7 @@ interface PairingStatusProps {
   secondaryLabel?: string | undefined;
   secondaryActionDisabled?: boolean;
   selectedSavedPcId?: string | undefined;
+  transportMode?: "relay" | undefined;
   onSavedPcChange?: ((pcId: string) => void) | undefined;
 }
 
@@ -52,9 +53,13 @@ export function PairingStatus({
   secondaryLabel,
   secondaryActionDisabled = false,
   selectedSavedPcId,
+  transportMode,
   onSavedPcChange
 }: PairingStatusProps) {
-  const feedback = useMemo(() => getPairingFeedback(message, activePcUnavailable), [activePcUnavailable, message]);
+  const feedback = useMemo(
+    () => getPairingFeedback(message, activePcUnavailable, transportMode),
+    [activePcUnavailable, message, transportMode]
+  );
   const headingId = useId();
   const descriptionId = useId();
   const manualHostErrorId = useId();
@@ -91,7 +96,12 @@ export function PairingStatus({
     setCopyToast("");
     setCopyStatus("");
     setManualDiagnostics("");
-    const diagnosticsText = diagnostics ?? buildPairingDiagnostics(message, activePcUnavailable, feedback.diagnosticCode);
+    const diagnosticsText = diagnostics ?? buildPairingDiagnostics(
+      message,
+      activePcUnavailable,
+      feedback.diagnosticCode,
+      transportMode
+    );
     const result = await copyTextToClipboard(diagnosticsText);
     if (result === "copied") {
       setCopyToast("Diagnostics copied.");

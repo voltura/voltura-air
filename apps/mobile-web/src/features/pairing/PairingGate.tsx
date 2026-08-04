@@ -62,6 +62,7 @@ export function PairingGate({
         message={message}
         onPrimaryAction={tryManualReconnect}
         pcName={getPcDisplayName(activePc)}
+        transportMode={activePc.transportMode}
       />
     );
   }
@@ -129,6 +130,7 @@ export function PairingGate({
       onSecondaryAction={scanPairingQr}
       secondaryActionDisabled={isPairingQrReading}
       onManualHostSubmit={connectManualHost}
+      transportMode={activePc.transportMode}
     />
   );
 }

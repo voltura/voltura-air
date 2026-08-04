@@ -6,6 +6,10 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v0.8.7
+
+- Improved relay paring connection issue feedback and error handling
+
 ## v0.8.6
 
 - Added **Cloud relay through Voltura** as an optional connection method for

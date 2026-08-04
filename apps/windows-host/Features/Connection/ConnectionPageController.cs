@@ -1,9 +1,11 @@
 using System.Windows;
+using VolturaAir.Host.Ui;
 
 namespace VolturaAir.Host.Features.Connection;
 
-internal sealed class ConnectionPageController
+internal sealed class ConnectionPageController : IDisposable
 {
+    private readonly Window _owner;
     private readonly PairingManager _pairingManager;
     private readonly WebHostService _webHost;
     private readonly Action _requestRestart;
@@ -14,6 +16,9 @@ internal sealed class ConnectionPageController
     private readonly ConnectionConfiguration _activeConfiguration;
     private readonly ConnectionPortController _portInput;
     private readonly IAppLogWriter _appLog;
+    private readonly HostToastPresenter? _toasts;
+    private readonly RelayOutageNotificationPolicy _relayNotifications = new();
+    private bool _disposed;
     private ConnectionPageState? _state;
     private ConnectionPageView? _page;
 
@@ -23,11 +28,13 @@ internal sealed class ConnectionPageController
         WebHostService webHost,
         Action requestRestart,
         IAppLogWriter appLog,
+        HostToastPresenter? toasts = null,
         Func<NetworkSettingsSnapshot>? loadSettings = null,
         Action<NetworkSettingsSnapshot>? saveSettings = null,
         Func<ConnectionConfirmation, bool>? confirm = null,
         Func<IReadOnlyList<LanAddressCandidate>>? loadCandidates = null)
     {
+        _owner = owner;
         _pairingManager = pairingManager;
         _webHost = webHost;
         _requestRestart = requestRestart;
@@ -36,9 +43,11 @@ internal sealed class ConnectionPageController
         _loadCandidates = loadCandidates ?? LanAddressSelector.GetCandidates;
         _feedback = new ConnectionPageBoundaryFeedback(owner, appLog, confirm);
         _appLog = appLog;
+        _toasts = toasts;
         _activeConfiguration = ConnectionConfiguration.FromSnapshot(_loadSettings());
         _portInput = new ConnectionPortController(Render);
         _webHost.RelayStatusChanged += OnRelayStatusChanged;
+        HandleRelayStatusChanged(_webHost.RelayState, _webHost.RelayFailureCode);
     }
 
     public bool HasPendingChanges => _state?.HasPendingChanges == true;
@@ -49,12 +58,38 @@ internal sealed class ConnectionPageController
         Render();
     }
 
-    private void OnRelayStatusChanged(object? sender, EventArgs e)
+    private void OnRelayStatusChanged(object? sender, RelayStatusChangedEventArgs e)
     {
-        var page = _page;
-        if (page is null || page.Dispatcher.HasShutdownStarted) return;
-        if (page.Dispatcher.CheckAccess()) Render();
-        else _ = page.Dispatcher.BeginInvoke(Render);
+        if (_disposed || _owner.Dispatcher.HasShutdownStarted) return;
+        if (_owner.Dispatcher.CheckAccess()) HandleRelayStatusChanged(e.State, e.FailureCode);
+        else _ = _owner.Dispatcher.BeginInvoke(() => HandleRelayStatusChanged(e.State, e.FailureCode));
+    }
+
+    private void HandleRelayStatusChanged(RelayConnectionState state, string? failureCode)
+    {
+        if (_disposed) return;
+
+        switch (_relayNotifications.Observe(state, failureCode))
+        {
+            case RelayOutageNotification.Failure:
+                _toasts?.Show(
+                    "Could not connect to Voltura Cloud. Retrying automatically.",
+                    "Cloud relay",
+                    HostToastTone.Failure);
+                break;
+            case RelayOutageNotification.Restored:
+                _toasts?.Show("Cloud relay connection restored.", "Cloud relay");
+                break;
+        }
+
+        if (_page is not null) Render();
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _webHost.RelayStatusChanged -= OnRelayStatusChanged;
     }
 
     public ConnectionPageView CreateView(bool preserveState = false)

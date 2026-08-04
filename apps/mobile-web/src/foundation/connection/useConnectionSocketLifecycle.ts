@@ -390,8 +390,10 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
           return;
         }
   
-        setState("connecting");
-        setMessage(`Connecting to ${getDisplayPcName(currentPc(), "", screenshotMode)}...`);
+        if (!hasShownUnavailable) {
+          setState("connecting");
+          setMessage(`Connecting to ${getDisplayPcName(currentPc(), "", screenshotMode)}...`);
+        }
         const currentPairingAttempt = pairingAttemptRef.current;
         const currentProfile = currentPc();
         pendingPairingKey = null;

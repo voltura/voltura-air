@@ -33,7 +33,11 @@ const defaultPairingFeedback: PairingFeedback = {
   showRecoveryActions: false
 };
 
-export function getPairingFeedback(message: string, activePcUnavailable = false): PairingFeedback {
+export function getPairingFeedback(
+  message: string,
+  activePcUnavailable = false,
+  transportMode?: "relay"
+): PairingFeedback {
   const normalizedMessage = message.trim();
   if (activePcUnavailable) {
     if (/closed the controller connection/i.test(normalizedMessage)) {
@@ -49,6 +53,24 @@ export function getPairingFeedback(message: string, activePcUnavailable = false)
         primaryLabel: "Try reconnect",
         reason: "socket-closed",
         severity: "warning",
+        showRecoveryActions: true
+      };
+    }
+
+    if (transportMode === "relay") {
+      return {
+        title: "Relay connection unavailable",
+        body: "Could not reach the PC through Voltura Cloud. Make sure Voltura Air is running and the PC has internet access. A VPN or work network may block the relay connection.",
+        diagnosticCode: "VAIR-PAIR-HOST-UNREACHABLE",
+        hints: [
+          "Check that Voltura Air is still running on the PC.",
+          "Check that the PC has internet access.",
+          "A VPN or managed work network may restrict the relay connection. Disconnect or reconfigure it if permitted, then try again.",
+          "If the phone or tablet is on the same LAN as the PC, you can pair again using Direct local network."
+        ],
+        primaryLabel: "Try reconnect",
+        reason: "host-unreachable",
+        severity: "error",
         showRecoveryActions: true
       };
     }
@@ -130,11 +152,17 @@ export function getPairingFeedback(message: string, activePcUnavailable = false)
   return normalizedMessage ? { ...defaultPairingFeedback, body: normalizedMessage } : defaultPairingFeedback;
 }
 
-export function buildPairingDiagnostics(message: string, activePcUnavailable = false, diagnosticCode?: string): string {
-  const feedback = getPairingFeedback(message, activePcUnavailable);
+export function buildPairingDiagnostics(
+  message: string,
+  activePcUnavailable = false,
+  diagnosticCode?: string,
+  transportMode?: "relay"
+): string {
+  const feedback = getPairingFeedback(message, activePcUnavailable, transportMode);
   const diagnostics = {
     state: activePcUnavailable ? "host-unavailable" : feedback.reason ? "pairing-failed" : "pairing",
     reason: feedback.reason ?? null,
+    transportMode: transportMode ?? "direct",
     diagnosticCode: diagnosticCode ?? feedback.diagnosticCode ?? null,
     message: message.trim(),
     pageUrl: safeLocationHref(),

@@ -180,6 +180,17 @@ nav a:hover {
   isolation: isolate;
 }
 
+@media (min-width: 901px) {
+  .hero {
+    min-height: min(720px, calc(100svh - 112px));
+    padding-block: clamp(36px, 6vw, 68px);
+  }
+
+  .hero h1 {
+    font-size: clamp(4rem, 10.5vw, 7.6rem);
+  }
+}
+
 .hero::before {
   content: "";
   position: absolute;

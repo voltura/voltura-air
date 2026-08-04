@@ -48,8 +48,28 @@ const reports = [
     title: "Windows host tests",
     locations: ["tests/VolturaAir.Host.Tests"],
     directories: ["tests/VolturaAir.Host.Tests"],
-    extensions: new Set([".cs", ".csproj"]),
-    includePattern: /(?:Tests?\.cs|\.csproj)$/i
+    extensions: new Set([".cs", ".csproj"])
+  },
+  {
+    title: "Relay service",
+    locations: ["services/relay"],
+    directories: ["services/relay"],
+    additionalFiles: ["services/relay/Dockerfile"],
+    extensions: new Set([".json", ".jsonc", ".template", ".ts", ".yml"]),
+    excludePattern: /\.test\.ts$/i
+  },
+  {
+    title: "Relay service tests",
+    locations: ["services/relay/tests"],
+    directories: ["services/relay/tests"],
+    extensions: new Set([".ts"]),
+    includePattern: /\.test\.ts$/i
+  },
+  {
+    title: "Public website",
+    locations: ["docs/site"],
+    directories: ["docs/site"],
+    extensions: new Set([".css", ".js", ".php", ".sql"])
   },
   {
     title: "Repository automation",
@@ -90,7 +110,7 @@ const testReports = [
     directories: ["apps/mobile-web"],
     extensions: new Set([".js", ".jsx", ".mjs", ".ts", ".tsx"]),
     filePattern: /\.(?:test|spec)\.(?:js|jsx|mjs|ts|tsx)$/i,
-    countCases: countVitestCases
+    countCases: createVitestCaseCounter("apps/mobile-web")
   },
   {
     title: "Windows host",
@@ -105,6 +125,13 @@ const testReports = [
     extensions: new Set([".mjs"]),
     filePattern: /\.test\.mjs$/i,
     countCases: countJavaScriptTestCases
+  },
+  {
+    title: "Relay service",
+    directories: ["services/relay/tests"],
+    extensions: new Set([".ts"]),
+    filePattern: /\.test\.ts$/i,
+    countCases: createVitestCaseCounter("services/relay")
   }
 ];
 
@@ -152,13 +179,13 @@ async function createSourceReport({ title, locations, directories, additionalFil
   const additionalFilePaths = new Set(additionalFiles.map((file) => path.join(root, file)));
   const files = repositoryFiles
     .filter((file) => directories.some((directory) => isInDirectory(file, directory)) || additionalFilePaths.has(file))
-    .filter((file) => extensions.has(path.extname(file).toLowerCase()))
+    .filter((file) => additionalFilePaths.has(file) || extensions.has(path.extname(file).toLowerCase()))
     .filter((file) => !includePattern || includePattern.test(path.basename(file)))
     .filter((file) => !excludePattern || !excludePattern.test(path.basename(file)));
   const byExtension = new Map();
 
   for (const file of files) {
-    const extension = path.extname(file).toLowerCase();
+    const extension = path.extname(file).toLowerCase() || "(no extension)";
     const lines = countLines(await readFile(file, "utf8"));
     const statistics = byExtension.get(extension) ?? { files: 0, lines: 0 };
 
@@ -190,9 +217,11 @@ async function createAssetsReport(repositoryFiles) {
   return { total: files.length, counts };
 }
 
-function countVitestCases(files) {
+function createVitestCaseCounter(projectDirectory) {
+  return function countVitestCases(files) {
   const vitestCli = path.join(repositoryToolRoot, "node_modules", "vitest", "vitest.mjs");
-  const result = spawnSync(process.execPath, [vitestCli, "list", "--root", path.join(root, "apps", "mobile-web"), "--json"], {
+  const projectRoot = path.join(root, projectDirectory);
+  const result = spawnSync(process.execPath, [vitestCli, "list", "--root", projectRoot, "--json"], {
     cwd: root,
     encoding: "utf8",
     maxBuffer: 32 * 1024 * 1024,
@@ -205,10 +234,13 @@ function countVitestCases(files) {
   const discovered = JSON.parse(result.stdout);
   if (!Array.isArray(discovered)) throw new Error("Vitest discovery returned an invalid case list.");
   const trackedFiles = new Set(files.map((file) => path.resolve(file)));
-  const trackedCases = discovered.filter(({ file }) => typeof file === "string" && trackedFiles.has(path.resolve(root, file)));
+  const trackedCases = discovered.filter(({ file }) => typeof file === "string" && (
+    trackedFiles.has(path.resolve(root, file)) || trackedFiles.has(path.resolve(projectRoot, file))
+  ));
   return {
     cases: trackedCases.length,
     fileCount: new Set(trackedCases.map(({ file }) => path.resolve(root, file))).size
+  };
   };
 }
 
@@ -644,7 +676,7 @@ function createHtmlReport({ codeReports, grandTotal, assets, tests, scripts, npm
     </section>
     <section class="largest"><h2>Top 10 largest source code files</h2><ol>${largestCodeRows}</ol></section>
     <section class="largest"><h2>Top 10 largest maintained files</h2><ol>${largestRows}</ol></section>
-    <footer>Build output, dependencies, coverage output, and other generated directories are excluded. Source totals include production, test, installer, and repository automation code.</footer>
+    <footer>Build output, dependencies, coverage output, and other generated directories are excluded. Source totals include every maintained production, test, website, installer, and repository automation area.</footer>
   </main>
 </body>
 </html>`;

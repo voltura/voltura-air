@@ -108,16 +108,21 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   gesture midpoint and two-finger drag pans locally. Switching modes preserves
   the current magnification and position; the separate scale action returns the
   mirror to 1x. A compact corner action available in both
-  orientations expands the mirror edge-to-edge across the device viewport; its
-  explicit exit action or any orientation change restores the normal workspace.
+  orientations expands the mirror edge-to-edge across the device viewport and
+  remains expanded across orientation changes; its explicit exit action restores
+  the normal workspace.
   Compact Click, keyboard, display, and Stop controls sit around the responsive
   canvas. V1 is video-only and excludes audio, absolute touch, windows,
   all-monitor composition, multiple viewers, and game optimization.
 - The Windows tray shows a persistent viewing indicator with the paired device
-  name and an immediate Stop action. Permission/toggle revocation, disconnect,
-  lock or session loss, host exit, display removal, and capture-device loss stop
-  the stream and release native/network resources. Protected content and secure
-  desktop are never replaced with another capture method.
+  name and an immediate Stop action. Its submenu can stop the stream and set
+  that device's **View PC screen** permission to **Block** so it cannot reconnect
+  until the permission is changed. Both tray actions close the complete menu and
+  tell the viewer whether the PC stopped or disallowed it. Permission/toggle
+  revocation, disconnect, lock or session loss, host exit, display removal, and
+  capture-device loss stop the stream and release native/network resources.
+  Protected content and secure desktop are never replaced with another capture
+  method.
 
 ### Input and Windows actions
 

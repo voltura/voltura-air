@@ -290,6 +290,8 @@
 @media (orientation: landscape) {
   .screen-view-workspace {
     position: relative;
+    align-self: stretch;
+    height: auto;
     grid-template-rows: minmax(0, 1fr) auto;
     gap: 0.35rem;
   }

@@ -354,6 +354,18 @@ where `offerHash` is unpadded base64url SHA-256 of the exact UTF-8 offer SDP.
 The browser verifies that signature against its pinned PC identity before
 applying the offer or rendering pixels.
 
+When the PC owner uses the tray Stop action, the host sends the current viewer
+one terminal command-channel event as it ends the media session:
+
+```json
+{ "type": "screen.view.ended", "reason": "host-stopped", "message": "The PC stopped screen viewing." }
+{ "type": "screen.view.ended", "reason": "permission-revoked", "message": "The PC stopped screen viewing and disallowed this device." }
+```
+
+The client clears the video and disables stage input immediately. The two
+listed reasons are the complete current contract; other reason values are
+rejected rather than interpreted as a legacy variant.
+
 An authorized source request succeeds with code `accepted` even when its
 `sources` array is empty, allowing the client to report that no connected
 display is available. Expected discovery failures such as unavailable Desktop

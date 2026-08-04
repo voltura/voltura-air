@@ -161,6 +161,17 @@ describe("parseServerMessage", () => {
     }))).toBeNull();
   });
 
+  it("accepts only the current host-ended screen-view reasons", () => {
+    const frame = {
+      type: "screen.view.ended",
+      reason: "host-stopped",
+      message: "The PC stopped screen viewing."
+    };
+
+    expect(parseServerMessage(JSON.stringify(frame))).toEqual(frame);
+    expect(parseServerMessage(JSON.stringify({ ...frame, reason: "legacy-stop" }))).toBeNull();
+  });
+
   it("accepts bounded self-hosted TURN URLs and rejects unsafe forms", () => {
     const frame = {
       type: "screen.view.start.result",

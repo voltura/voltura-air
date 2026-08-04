@@ -1,6 +1,6 @@
-import type { ScreenViewAnswerResultMessage, ScreenViewSourceResultMessage, ScreenViewSourcesResultMessage, ScreenViewStartResultMessage, ScreenViewStopResultMessage } from "../protocol/messages";
+import type { ScreenViewAnswerResultMessage, ScreenViewEndedMessage, ScreenViewSourceResultMessage, ScreenViewSourcesResultMessage, ScreenViewStartResultMessage, ScreenViewStopResultMessage } from "../protocol/messages";
 
-export type ScreenViewControlResult = ScreenViewSourcesResultMessage | ScreenViewStartResultMessage | ScreenViewAnswerResultMessage | ScreenViewSourceResultMessage | ScreenViewStopResultMessage;
+export type ScreenViewControlResult = ScreenViewSourcesResultMessage | ScreenViewStartResultMessage | ScreenViewAnswerResultMessage | ScreenViewSourceResultMessage | ScreenViewStopResultMessage | ScreenViewEndedMessage;
 type Listener = (message: ScreenViewControlResult) => void;
 const listeners = new Set<Listener>();
 

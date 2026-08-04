@@ -9,6 +9,29 @@ afterEach(() => {
 });
 
 describe("usePointerInput", () => {
+  it("cancels queued pointer input when the owning surface becomes unavailable", () => {
+    const send = vi.fn();
+    let frame: FrameRequestCallback | undefined;
+    const cancelAnimationFrame = vi.fn();
+    vi.stubGlobal("requestAnimationFrame", vi.fn((callback: FrameRequestCallback) => {
+      frame = callback;
+      return 1;
+    }));
+    vi.stubGlobal("cancelAnimationFrame", cancelAnimationFrame);
+    const { result } = renderHook(() => usePointerInput({
+      send,
+      state: "paired",
+      trackpadSettings: defaultTrackpadSettings
+    }));
+
+    act(() => {result.current.emit({ type: "pointer.move", dx: 4, dy: 2 });});
+    act(() => {result.current.cancel();});
+    act(() => {frame?.(0);});
+
+    expect(cancelAnimationFrame).toHaveBeenCalledWith(1);
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it("does not flush a queued pointer delta after the connection leaves paired", () => {
     const send = vi.fn();
     let frame: FrameRequestCallback | undefined;

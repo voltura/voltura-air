@@ -19,12 +19,7 @@ export function usePointerInput({ send, state, trackpadSettings, twoFingerMode =
   const sendRef = useRef(send);
   const stateRef = useRef(state);
 
-  useEffect(() => {
-    sendRef.current = send;
-    stateRef.current = state;
-  }, [send, state]);
-
-  useEffect(() => () => {
+  const cancel = () => {
     if (pointerFrameRef.current !== null) {
       window.cancelAnimationFrame(pointerFrameRef.current);
       pointerFrameRef.current = null;
@@ -32,6 +27,15 @@ export function usePointerInput({ send, state, trackpadSettings, twoFingerMode =
     pendingPointerMoveRef.current = null;
     pendingPointerWheelRef.current = null;
     recognizerRef.current.cancel();
+  };
+
+  useEffect(() => {
+    sendRef.current = send;
+    stateRef.current = state;
+  }, [send, state]);
+
+  useEffect(() => () => {
+    cancel();
   }, []);
 
   const sendPendingPointerDeltas = () => {
@@ -115,13 +119,7 @@ export function usePointerInput({ send, state, trackpadSettings, twoFingerMode =
 
   const onTouchCancel = (event: TouchEvent<HTMLDivElement>) => {
     event.preventDefault();
-    recognizerRef.current.cancel();
-    if (pointerFrameRef.current !== null) {
-      window.cancelAnimationFrame(pointerFrameRef.current);
-      pointerFrameRef.current = null;
-    }
-    pendingPointerMoveRef.current = null;
-    pendingPointerWheelRef.current = null;
+    cancel();
   };
 
   const sendSpecial = (key: string, modifiers?: string[]) => {
@@ -136,7 +134,7 @@ export function usePointerInput({ send, state, trackpadSettings, twoFingerMode =
 
   const sleepPc = () => { emit({ type: "system.sleep" }); };
 
-  return { emit, onTouchCancel, onTouchEnd, onTouchMove, onTouchStart, sendSpecial, sendText, sleepPc };
+  return { cancel, emit, onTouchCancel, onTouchEnd, onTouchMove, onTouchStart, sendSpecial, sendText, sleepPc };
 }
 
 function roundDelta(value: number): number {

@@ -47,6 +47,13 @@ public sealed class WebHostService : IAsyncDisposable
         remove => _screenView.ActivityChanged -= value;
     }
 
+    internal Task StopScreenViewingFromHostAsync(string clientId, bool disallowed)
+    {
+        Task notification = _screenViewCommands.NotifyHostStoppedAsync(clientId, disallowed);
+        _screenView.Stop(clientId);
+        return notification;
+    }
+
     internal void StopScreenViewing() => _screenView.Stop();
 
     public WebHostService(

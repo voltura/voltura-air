@@ -16,6 +16,7 @@ import type {
   PresentationSessionResultMessage,
   ServerCapabilities,
   ScreenViewAnswerResultMessage,
+  ScreenViewEndedMessage,
   ScreenViewSourcesResultMessage,
   ScreenViewStartResultMessage,
   ScreenViewSourceResultMessage,
@@ -65,7 +66,7 @@ interface ConnectionSocketLifecycleOptions {
   completeClipboardRead: (result: ClipboardGetResultMessage) => boolean;
   completeCustomScreenGet: (result: CustomScreenGetResultMessage) => boolean;
   completeCustomScreenInvoke: (result: CustomScreenInvokeResultMessage) => boolean;
-  completeScreenViewMessage: (result: ScreenViewSourcesResultMessage | ScreenViewStartResultMessage | ScreenViewAnswerResultMessage | ScreenViewSourceResultMessage | ScreenViewStopResultMessage) => void;
+  completeScreenViewMessage: (result: ScreenViewSourcesResultMessage | ScreenViewStartResultMessage | ScreenViewAnswerResultMessage | ScreenViewSourceResultMessage | ScreenViewStopResultMessage | ScreenViewEndedMessage) => void;
   completePowerAction: (result: SystemPowerResultMessage) => boolean;
   completePowerPointRefresh: (result: PowerPointRefreshResultMessage) => boolean;
   completePowerPointLaunch: (result: PowerPointLaunchResultMessage) => boolean;
@@ -786,7 +787,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
           return;
         }
 
-        if (response.type === "screen.view.sources.result" || response.type === "screen.view.start.result" || response.type === "screen.view.answer.result" || response.type === "screen.view.source.result" || response.type === "screen.view.stop.result") {
+        if (response.type === "screen.view.sources.result" || response.type === "screen.view.start.result" || response.type === "screen.view.answer.result" || response.type === "screen.view.source.result" || response.type === "screen.view.stop.result" || response.type === "screen.view.ended") {
           touchHealthy();
           completeScreenViewMessage(response);
           scheduleHealthCheck(ws);

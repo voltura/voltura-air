@@ -367,7 +367,7 @@ describe("ScreenViewWorkspace", () => {
     fireEvent.click(fullScreenButton);
     await waitFor(() => expect(document.querySelector(".screen-view-workspace")?.classList).toContain("is-immersive"));
     expect(send.mock.calls.some(([message]) => message.type === "pointer.button")).toBe(false);
-    screen.getByRole("button", { name: "Exit full screen" }).click();
+    fireEvent.click(screen.getByRole("button", { name: "Exit full screen" }));
     await waitFor(() => expect(document.querySelector(".screen-view-workspace")?.classList).not.toContain("is-immersive"));
   });
 
@@ -436,7 +436,7 @@ describe("ScreenViewWorkspace", () => {
     />);
 
     fireEvent.loadedData(screen.getByLabelText("Mirrored PC display video"));
-    screen.getByRole("button", { name: "View PC screen full screen" }).click();
+    fireEvent.click(screen.getByRole("button", { name: "View PC screen full screen" }));
     await waitFor(() => expect(document.querySelector(".screen-view-workspace")?.classList).toContain("is-immersive"));
     vi.stubGlobal("innerWidth", 844);
     vi.stubGlobal("innerHeight", 390);

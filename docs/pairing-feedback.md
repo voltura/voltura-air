@@ -45,15 +45,18 @@ authenticated after opening rather than increasing QR density.
 | `rate-limited` | Too many failures; wait, create a new code, and retry. |
 | `invalid-message` or `pair-first` | Refresh the mobile app from the PC and pair again. |
 | Unknown rejection | Show a `VAIR-PAIR-*` code and offer copied diagnostics. |
-| `host-unreachable` | The browser cannot reach the PC; reconnect, rescan, enter the current host, and check LAN/firewall. |
+| `host-unreachable` in Direct mode | The browser cannot reach the PC; reconnect, rescan, enter the current host, and check LAN/firewall. |
+| `host-unreachable` in Relay mode | The browser cannot reach the PC through the configured relay; keep the unavailable panel stable while retrying, and check the running host, PC internet access, and permitted VPN/work-network restrictions. |
 | `relay-encryption-failed` or Relay identity mismatch | The encrypted session did not authenticate; reconnect, then scan a fresh QR if repeated. |
 | `turn-unavailable` | Screen relay credentials are unavailable or quota-blocked; commands remain connected and Screen can be retried later. |
 | `socket-closed` | Host/network closed an authenticated connection; show available close details and reconnect without replaying input. |
 | `input-ack-timeout` | Input delivery is unconfirmed; enter unavailable/retrying and reconnect. |
 | `input-dispatch-failed` | Windows rejected one action; show it and keep the authenticated connection for later actions. |
 
-The browser cannot distinguish firewall, VPN, stale address, port, or other
-network causes of `host-unreachable`. Recoverable `input.error` is not a
+The browser cannot identify the underlying cause of `host-unreachable`. Direct
+mode therefore names LAN, firewall, stale address, and port as possibilities;
+Relay mode names PC internet access, VPN or managed-network restrictions, and
+relay availability as possibilities. Recoverable `input.error` is not a
 connection failure.
 
 ## Recovery
@@ -63,7 +66,8 @@ Expose only relevant actions near the error:
 - **Take photo of QR code** for first pairing and QR/token failures.
 - **Try reconnect** for unreachable hosts.
 - **Enter host manually** for address/port recovery.
-- **Open troubleshooting help** for LAN, firewall, and stale-code guidance.
+- **Open troubleshooting help** for transport-specific LAN/firewall or
+  internet/VPN/work-network guidance.
 - **Copy diagnostics** for repeated failures.
 
 Reconnect keeps the panel visible, prevents duplicate attempts, shows progress,

@@ -254,6 +254,10 @@ function isServerMessage(value: unknown): value is ServerMessage {
     case "screen.view.stop.result":
       return hasOnlyFields(value, ["type", "operationId", "succeeded", "code", "message"]) &&
         isOperationId(value.operationId) && isResultBase(value);
+    case "screen.view.ended":
+      return hasOnlyFields(value, ["type", "reason", "message"]) &&
+        isOneOf(value.reason, ["host-stopped", "permission-revoked"]) &&
+        isBoundedString(value.message, 240, false);
     case "url.open.result":
       return isOperationId(value.operationId) && isResultBase(value) &&
         isOptional(value, "normalizedUrl", isString);

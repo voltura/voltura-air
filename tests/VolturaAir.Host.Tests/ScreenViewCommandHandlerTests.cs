@@ -4,6 +4,37 @@ namespace VolturaAir.Host.Tests;
 
 public sealed class ScreenViewCommandHandlerTests
 {
+    [Theory]
+    [InlineData(false, "host-stopped", "The PC stopped screen viewing.")]
+    [InlineData(true, "permission-revoked", "The PC stopped screen viewing and disallowed this device.")]
+    public async Task HostStopNotifiesOnlyTheActiveViewer(bool disallowed, string reason, string message)
+    {
+        var sent = new TaskCompletionSource<RelayEnvelope>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var targetSocket = new RelayVirtualWebSocket(
+            Guid.NewGuid(),
+            new string('r', 22),
+            (envelope, _) =>
+            {
+                sent.TrySetResult(envelope);
+                return Task.CompletedTask;
+            });
+        using var otherSocket = new RelayVirtualWebSocket(Guid.NewGuid(), new string('s', 22), (_, _) => Task.CompletedTask);
+        using var transport = new WebSocketTransport();
+        transport.Register("client-a", targetSocket);
+        transport.Register("client-b", otherSocket);
+        await using var handler = new ScreenViewCommandHandler(null!, transport);
+
+        await handler.NotifyHostStoppedAsync("client-a", disallowed);
+        RelayEnvelope envelope = await sent.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        using var document = JsonDocument.Parse(envelope.Payload);
+
+        Assert.Equal("screen.view.ended", document.RootElement.GetProperty("type").GetString());
+        Assert.Equal(reason, document.RootElement.GetProperty("reason").GetString());
+        Assert.Equal(message, document.RootElement.GetProperty("message").GetString());
+        transport.Unregister("client-a", targetSocket);
+        transport.Unregister("client-b", otherSocket);
+    }
+
     [Fact]
     public async Task RelayTurnProvisioningDoesNotHoldTheCommandDispatchPath()
     {

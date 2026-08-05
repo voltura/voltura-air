@@ -93,6 +93,7 @@ export default function ScreenViewWorkspace({ activePc, capability, clientId, on
   }, []);
 
   function onScreenTouchStart(event: TouchEvent<HTMLDivElement>) {
+    if (!viewing) {event.preventDefault(); return;}
     if (suppressPointerUntilClearRef.current) {event.preventDefault(); return;}
     pointerInput.onTouchStart(event);
     if (event.targetTouches.length !== 2 || !stageRef.current) {return;}
@@ -105,6 +106,7 @@ export default function ScreenViewWorkspace({ activePc, capability, clientId, on
   }
 
   function onScreenTouchMove(event: TouchEvent<HTMLDivElement>) {
+    if (!viewing) {event.preventDefault(); return;}
     const pinch = pinchRef.current;
     if (!pinch || event.targetTouches.length < 2 || !stageRef.current) {
       if (!suppressPointerUntilClearRef.current) {pointerInput.onTouchMove(event);} else {event.preventDefault();}
@@ -126,6 +128,11 @@ export default function ScreenViewWorkspace({ activePc, capability, clientId, on
   }
 
   function onScreenTouchEnd(event: TouchEvent<HTMLDivElement>) {
+    if (!viewing) {
+      event.preventDefault();
+      cancelScreenGesture();
+      return;
+    }
     const pinch = pinchRef.current;
     if (pinch?.mode === "local") {
       event.preventDefault();
@@ -143,9 +150,14 @@ export default function ScreenViewWorkspace({ activePc, capability, clientId, on
   }
 
   function onScreenTouchCancel(event: TouchEvent<HTMLDivElement>) {
+    event.preventDefault();
+    cancelScreenGesture();
+  }
+
+  function cancelScreenGesture() {
     pinchRef.current = null;
     suppressPointerUntilClearRef.current = false;
-    pointerInput.onTouchCancel(event);
+    pointerInput.cancel();
   }
 
   function start(displayId = selected) {
@@ -257,22 +269,24 @@ export default function ScreenViewWorkspace({ activePc, capability, clientId, on
       if (peer.connectionState === "connected") {
         window.clearTimeout(disconnectedRecoveryRef.current);
         disconnectedRecoveryRef.current = undefined;
+        if (hasVisualFrameRef.current) {setViewing(true);}
         setStatus("Live - Encrypted WebRTC");
       }
       if (peer.connectionState === "disconnected") {
         window.clearTimeout(disconnectedRecoveryRef.current);
-        setStatus("Screen connection interrupted. Reconnecting...");
+        setViewing(false);
+        setStatus("Screen video interrupted. Reconnecting for up to 8 seconds...");
         disconnectedRecoveryRef.current = window.setTimeout(() => {
           if (peerRef.current === peer && peer.connectionState === "disconnected") {
             closeStream();
-            setStatus("The WebRTC mirror disconnected. Tap Start to try again.");
+            setStatus("Screen video connection was lost. Tap Start to reconnect.");
           }
         }, disconnectedRecoveryMs);
       }
       if (peer.connectionState === "failed" || peer.connectionState === "closed") {
         if (peerRef.current === peer) {
           closeStream();
-          setStatus("The WebRTC mirror disconnected. Tap Start to try again.");
+          setStatus("Screen video connection was lost. Tap Start to reconnect.");
         }
       }
     });
@@ -347,6 +361,9 @@ export default function ScreenViewWorkspace({ activePc, capability, clientId, on
   }
 
   function closeStream() {
+    cancelScreenGesture();
+    applyViewTransform(identityScreenViewTransform);
+    setTwoFingerMode("scroll");
     window.clearTimeout(credentialRenewalRef.current);
     credentialRenewalRef.current = undefined;
     window.clearTimeout(renewalRestartRef.current);
@@ -407,6 +424,9 @@ export default function ScreenViewWorkspace({ activePc, capability, clientId, on
       if (pendingStopRef.current === message.operationId) {
         pendingStopRef.current = null;
       }
+    } else if (message.type === "screen.view.ended") {
+      closeStream();
+      setStatus(message.message);
     }
   });
   const stopLocalStream = useEffectEvent(closeStream);
@@ -489,8 +509,8 @@ export default function ScreenViewWorkspace({ activePc, capability, clientId, on
       {sources.length > 1 && <label>Display<select value={selected} onChange={(event) => selectSource(event.target.value)}>{sources.map((source) => <option key={source.id} value={source.id}>{source.label} - {source.width}x{source.height}</option>)}</select></label>}
       <p role="status">{status}</p>
       <div className="screen-view-actions">
-        <button type="button" onClick={() => send({ type: "pointer.button", button: "left", action: "click" })}><MousePointer2 /> Click</button>
-        <button type="button" onClick={onOpenKeyboard}><Keyboard /> Keys</button>
+        <button type="button" disabled={!viewing} onClick={() => send({ type: "pointer.button", button: "left", action: "click" })}><MousePointer2 /> Click</button>
+        <button type="button" disabled={!viewing} onClick={onOpenKeyboard}><Keyboard /> Keys</button>
         {streaming ? <button type="button" className="danger" onClick={stop}><Square /> Stop</button> : <button type="button" className="primary" disabled={!selected || !capability.canView || capability.requiresRepair} onClick={() => start()}><MonitorUp /> Start</button>}
       </div>
     </div>

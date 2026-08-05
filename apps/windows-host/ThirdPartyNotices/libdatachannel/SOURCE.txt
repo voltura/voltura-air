@@ -1,0 +1,51 @@
+LIBDATACHANNEL SOURCE AND BUILD PROVENANCE
+==========================================
+
+Distributed binary
+------------------
+
+File: datachannel.dll
+Target: Windows x64
+SHA-256: 08810cc4dfb2086727d312b1fe0e88e9dd2bf45239559a5495dc76d3a49f9fa1
+
+MPL-covered source
+------------------
+
+libdatachannel version: 0.24.5
+libdatachannel commit: 443f6934d9007eb7076ab7825ba330f355fcbead
+Source: https://github.com/paullouisageneau/libdatachannel/tree/v0.24.5
+License: Mozilla Public License 2.0
+
+Pinned upstream submodules at that tag:
+
+  libjuice:     3c40a3545b6b1b62c7adee7f8f2bd58aa290afd6
+  libsrtp:      24b3bf8f19b6f5ab4cd2bcceb4f4064efca86fd5
+  plog:         94899e0b926ac1b0f4750bfbd495167b4a6ae9ef
+  usrsctp:      fec583d54493f879d2ae44a743423bf8a04371ab
+  nlohmann JSON: 55f93686c01528224f448c19128836e7df245f72
+
+libjuice is also licensed under the Mozilla Public License 2.0. The shipped DLL
+was compiled from a clean upstream checkout at these revisions; no
+libdatachannel or libjuice source files were modified. The tracked rebuild
+recipe is scripts/build-libdatachannel.ps1.
+
+Build evidence
+--------------
+
+The binary was built by Voltura with Visual Studio 2022/CMake as a shared
+libdatachannel DLL with statically linked dependencies and static MSVC runtime.
+WebSocket, examples, and upstream tests were disabled; media remained enabled.
+OpenSSL 3.6.0 port revision 3 was built by vcpkg for x64-windows-static from
+port tree 21c1dabbf149eaa75b6c8b6ba9c3c6edb4f47ea7. Embedded source paths
+identify the clean libdatachannel and bundled libjuice/usrsctp trees.
+
+Replacement binaries must not be accepted without running the tracked recipe,
+reviewing the resulting dependency/ABI surface, exercising Screen viewing, and
+updating this hash/source record and all affected license files.
+
+Other bundled source and licenses
+---------------------------------
+
+The adjacent files contain the full licenses for libdatachannel, libjuice,
+libsrtp, OpenSSL, usrsctp, plog, and nlohmann JSON. Upstream dependency URLs are
+also recorded in the repository-level THIRD-PARTY-NOTICES.md.

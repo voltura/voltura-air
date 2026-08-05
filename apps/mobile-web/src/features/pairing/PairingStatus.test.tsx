@@ -59,6 +59,24 @@ describe("PairingStatus", () => {
     expect(primaryAction).toBe(document.activeElement);
   });
 
+  it("shows relay-specific recovery while retaining the standard unavailable actions", () => {
+    render(
+      <PairingStatus
+        activePcUnavailable
+        message="PC is not available. Retrying..."
+        onPrimaryAction={vi.fn()}
+        transportMode="relay"
+      />
+    );
+
+    expect(screen.getByRole("heading", { name: "Relay connection unavailable" })).toBeTruthy();
+    expect(screen.getByText(/VPN or work network/u)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Try reconnect" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Enter host manually" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Open troubleshooting help" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Copy diagnostics" })).toBeTruthy();
+  });
+
   it("includes the saved-PC selector in the blocking focus order", () => {
     render(
       <PairingStatus

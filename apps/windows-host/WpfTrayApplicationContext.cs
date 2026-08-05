@@ -28,6 +28,8 @@ internal sealed class WpfTrayApplicationContext : IDisposable
     private readonly Action<string, string, Forms.ToolTipIcon>? _notificationSink;
     private bool _hadActiveController;
     private Forms.ToolStripMenuItem? _screenViewingItem;
+    private Forms.ToolStripMenuItem? _blockScreenViewingItem;
+    private string? _screenViewingClientId;
     private string? _screenViewingDeviceName;
     private bool _disposed;
 
@@ -111,6 +113,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _trayIcon.Visible = false;
         _components.Dispose();
         _trayIcon.Dispose();
+        _blockScreenViewingItem?.Dispose();
         _screenViewingItem?.Dispose();
         _trayMenu.Dispose();
 
@@ -126,7 +129,10 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         {
             Visible = false
         };
-        _screenViewingItem.Click += (_, _) => RunProtected(_webHost.StopScreenViewing);
+        _screenViewingItem.Click += async (_, _) => await RunProtectedAsync(() => StopScreenViewingFromTrayAsync(disallow: false));
+        _blockScreenViewingItem = new Forms.ToolStripMenuItem("Disallow device");
+        _blockScreenViewingItem.Click += async (_, _) => await RunProtectedAsync(() => StopScreenViewingFromTrayAsync(disallow: true));
+        _screenViewingItem.DropDownItems.Add(_blockScreenViewingItem);
         _trayMenu.Items.Add(_screenViewingItem);
         _trayMenu.Items.Add(new Forms.ToolStripSeparator { Visible = false, Tag = "screen-view-separator" });
         var showItem = _trayMenu.Items.Add(
@@ -211,13 +217,24 @@ internal sealed class WpfTrayApplicationContext : IDisposable
             return;
         }
 
+        _screenViewingClientId = activity.Active ? activity.ClientId : null;
         _screenViewingDeviceName = activity.Active
             ? _pairingManager.GetDeviceName(activity.ClientId) ?? "paired device"
             : null;
         _screenViewingItem.Text = activity.Active
             ? $"Stop screen viewing - {_screenViewingDeviceName}"
             : "Stop screen viewing";
+        if (_blockScreenViewingItem is { } blockScreenViewingItem)
+        {
+            blockScreenViewingItem.Text = activity.Active
+                ? $"Disallow {_screenViewingDeviceName}"
+                : "Disallow device";
+        }
         _screenViewingItem.Visible = activity.Active;
+        if (!activity.Active)
+        {
+            CloseScreenViewingMenus();
+        }
         if (_screenViewingItem.Owner?.Items.Count > 1 && _screenViewingItem.Owner.Items[1].Tag as string == "screen-view-separator")
         {
             _screenViewingItem.Owner.Items[1].Visible = activity.Active;
@@ -230,6 +247,37 @@ internal sealed class WpfTrayApplicationContext : IDisposable
                 $"{_screenViewingDeviceName} can see this display. Use the tray menu to stop immediately.",
                 Forms.ToolTipIcon.Info);
         }
+    }
+
+    private async Task StopScreenViewingFromTrayAsync(bool disallow)
+    {
+        var clientId = _screenViewingClientId;
+        CloseScreenViewingMenus();
+        if (clientId is null)
+        {
+            return;
+        }
+
+        Task notification = _webHost.StopScreenViewingFromHostAsync(clientId, disallow);
+        if (disallow)
+        {
+            BlockScreenViewingPermission(_pairingManager, clientId);
+        }
+        await notification;
+    }
+
+    private void CloseScreenViewingMenus()
+    {
+        _screenViewingItem?.DropDown.Close(Forms.ToolStripDropDownCloseReason.ItemClicked);
+        _trayMenu.Close(Forms.ToolStripDropDownCloseReason.ItemClicked);
+    }
+
+    internal static bool BlockScreenViewingPermission(PairingManager pairingManager, string clientId)
+    {
+        var current = pairingManager.GetDevicePermissionOverrides(clientId);
+        return pairingManager.SetDevicePermissionOverrides(
+            clientId,
+            current with { AllowScreenViewing = false });
     }
 
     private void HandleConnectionChanged()
@@ -353,4 +401,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
             action();
         }
     }
+
+    private static Task RunProtectedAsync(Func<Task> action) =>
+        HostUiInputGuard.IsRecentProtectedClientInput() ? Task.CompletedTask : action();
 }

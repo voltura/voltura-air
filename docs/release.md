@@ -25,8 +25,12 @@ npm run release:draft -- 0.8.0
 The command validates prerequisites and repository state, prepares the version,
 regenerates public assets/statistics, runs full build/tests, commits the prepared
 sources locally, packages and audits all artifacts once from that exact commit,
-then pushes, creates/resumes the matching release, and deploys `docs/site`.
-Prerelease versions remain drafts. Set `NO_COLOR` to disable colored output.
+then pushes and creates/resumes the matching release. A stable `release:full`
+deploys and verifies the configured Cloudflare relay before deploying
+`docs/site` and publishing GitHub Latest. Drafts do not change the production
+relay. Wrangler cache is ignored, and any other repository change during relay
+deployment fails the release before site or Latest publication. Prerelease
+versions remain drafts. Set `NO_COLOR` to disable colored output.
 
 The catalog preview and statistics page are generated before the release commit;
 deployment uploads that prepared snapshot without regenerating tracked files.
@@ -36,6 +40,8 @@ A successful release therefore leaves the Git working tree clean.
 
 - Windows, Node.js/npm, .NET 10 SDK, Git, and NSIS.
 - Authenticated GitHub CLI with write access to `voltura/voltura-air`.
+- Authenticated Wrangler access to the production Cloudflare account for a
+  stable `release:full`.
 - Site SFTP password stored by `npm run publish:site:password`.
 - Clean `main`, no merge/rebase, and no divergence from `origin/main`.
 - No workflow YAML under `.github/workflows`.
@@ -98,10 +104,17 @@ artifacts/publish/VolturaAir-Setup-<version>-win-x64.exe
 artifacts/publish/VolturaAir-Setup-<version>-win-x64-full.exe
 ```
 
-Every Windows artifact includes `datachannel.dll` beside the host executable
-and the corresponding libdatachannel/OpenSSL dependency notices under
-`ThirdPartyNotices/libdatachannel`. Packaging/audit validation must reject an
-artifact that omits either the native WebRTC runtime or those notices.
+Every Windows artifact includes `datachannel.dll` beside the host executable,
+the PWA's `third-party-notices.txt`, and the complete native and managed runtime
+notices under `ThirdPartyNotices`. The self-contained ZIP/full installer also
+includes the .NET redistribution license and third-party notices copied from
+the exact SDK used to build it. Packaging validation must reject an artifact
+that omits any required notice. The component inventory, source links, and
+native build provenance are owned by `THIRD-PARTY-NOTICES.md` and
+`ThirdPartyNotices/libdatachannel/SOURCE.txt`; update both whenever the native
+binary, its source, or a production dependency changes. Rebuild the native DLL
+only with `scripts/build-libdatachannel.ps1`, then review its ABI/dependencies,
+run Screen-view tests, and update the recorded hash before packaging.
 
 For explicit script options:
 

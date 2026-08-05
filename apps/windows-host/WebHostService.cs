@@ -47,6 +47,13 @@ public sealed class WebHostService : IAsyncDisposable
         remove => _screenView.ActivityChanged -= value;
     }
 
+    internal Task StopScreenViewingFromHostAsync(string clientId, bool disallowed)
+    {
+        Task notification = _screenViewCommands.NotifyHostStoppedAsync(clientId, disallowed);
+        _screenView.Stop(clientId);
+        return notification;
+    }
+
     internal void StopScreenViewing() => _screenView.Stop();
 
     public WebHostService(
@@ -333,7 +340,7 @@ public sealed class WebHostService : IAsyncDisposable
     public event EventHandler<ControllerSocketClosedEventArgs>? ControllerSocketClosed;
     internal event EventHandler<RemoteInputBlockedChangedEventArgs>? RemoteInputBlockedChanged;
     internal event EventHandler? PresentationSessionChanged;
-    internal event EventHandler? RelayStatusChanged;
+    internal event EventHandler<RelayStatusChangedEventArgs>? RelayStatusChanged;
 
     internal void RetryRelay() => _relay?.Retry();
 
@@ -589,7 +596,7 @@ public sealed class WebHostService : IAsyncDisposable
     private void OnRelayStateChanged(object? sender, EventArgs e)
     {
         _statusBroadcaster.Queue();
-        RelayStatusChanged?.Invoke(this, EventArgs.Empty);
+        RelayStatusChanged?.Invoke(this, new RelayStatusChangedEventArgs(RelayState, RelayFailureCode));
     }
 
     private Task<RelayTurnConfiguration?> GetRelayTurnConfigurationAsync(CancellationToken cancellationToken)

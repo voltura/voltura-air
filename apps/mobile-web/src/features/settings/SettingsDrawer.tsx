@@ -219,6 +219,10 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
         <SettingsSectionDetails section="custom-pointer" label="Custom pointer" isOpen={openSection === "custom-pointer"} onToggle={toggleSection}>
           <CustomPointerSettingsSection customPointerEnabled={props.customPointerEnabled} setHostCustomPointer={props.setHostCustomPointer} />
         </SettingsSectionDetails>
+
+        <footer className="drawer-legal-links">
+          <a href="./third-party-notices.txt" target="_blank" rel="noreferrer">Third-party notices</a>
+        </footer>
       </div>
       </div>
     </dialog>

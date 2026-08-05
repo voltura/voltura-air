@@ -19,6 +19,14 @@ internal enum RelayConnectionState
     Disconnected
 }
 
+internal sealed class RelayStatusChangedEventArgs(
+    RelayConnectionState state,
+    string? failureCode) : EventArgs
+{
+    public RelayConnectionState State { get; } = state;
+    public string? FailureCode { get; } = failureCode;
+}
+
 internal sealed class RelayHostConnection : IAsyncDisposable
 {
     private const int MaximumTurnResponseBytes = 64 * 1024;

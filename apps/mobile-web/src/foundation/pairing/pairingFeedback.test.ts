@@ -21,6 +21,18 @@ describe("getPairingFeedback", () => {
     expect(feedback.body).toContain("Windows Firewall");
   });
 
+  it("maps unavailable relay hosts to internet, VPN, and work-network guidance", () => {
+    const feedback = getPairingFeedback("PC is currently not available. Retrying...", true, "relay");
+
+    expect(feedback.reason).toBe("host-unreachable");
+    expect(feedback.title).toBe("Relay connection unavailable");
+    expect(feedback.body).toContain("through Voltura Cloud");
+    expect(feedback.body).toContain("VPN or work network");
+    expect(feedback.body).not.toContain("Windows Firewall");
+    expect(feedback.primaryLabel).toBe("Try reconnect");
+    expect(feedback.showRecoveryActions).toBe(true);
+  });
+
   it("maps unreadable QR photos to a retryable QR error", () => {
     const feedback = getPairingFeedback("Could not read the QR code. Try zooming in.");
 

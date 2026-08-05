@@ -122,6 +122,19 @@
   color: var(--accent);
 }
 
+.drawer-legal-links {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-sm) 0 var(--space-2xs);
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.drawer-legal-links a {
+  color: inherit;
+  text-underline-offset: 3px;
+}
+
 .settings-section {
   display: grid;
   gap: 10px;

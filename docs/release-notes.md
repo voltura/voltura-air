@@ -6,6 +6,23 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v0.8.8
+
+- Fixed live PC screen viewing in phone and tablet landscape mode, including the
+  missing mirror, overlapping status and controls, and unintended page zooming.
+- Added **Disallow device** under the active **Stop screen viewing** tray action,
+  so the PC owner can stop the mirror and block that device from immediately
+  starting it again.
+- Improved host-initiated screen stopping with a menu that closes completely,
+  a clear message on the viewing device, and immediate removal of stale video
+  and screen input.
+- Full-screen PC viewing now remains full screen when the phone or tablet is
+  rotated.
+
+## v0.8.7
+
+- Improved relay paring connection issue feedback and error handling
+
 ## v0.8.6
 
 - Added **Cloud relay through Voltura** as an optional connection method for

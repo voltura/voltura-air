@@ -348,9 +348,8 @@ function air_screen_layout(
     echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">';
     echo '<title>' . air_screen_h($title) . ' - Voltura Air</title><meta name="theme-color" content="#101418">';
     echo '<link rel="icon" href="../assets/voltura-air-icon.svg" type="image/svg+xml"><link rel="icon" href="../favicon-32.png" sizes="32x32" type="image/png"><link rel="icon" href="../favicon-16.png" sizes="16x16" type="image/png"><link rel="icon" href="../favicon.ico" sizes="any"><link rel="apple-touch-icon" href="../apple-touch-icon.png"><link rel="stylesheet" href="../styles.css"><script src="preview.js" defer></script><script src="tag-editor.js" defer></script></head><body class="catalog-page">';
-    echo '<header class="site-header"><a class="brand" href="../" aria-label="Voltura Air home"><img src="../assets/voltura-air-icon.svg" alt="" width="36" height="36"><span>Voltura Air</span></a><nav aria-label="Catalog navigation">';
-    echo '<a href="../" aria-label="Voltura Air main page" title="Voltura Air main page">Voltura Air</a>';
-    echo '<a href="./" aria-label="Browse community library of custom screens" title="Browse community library of custom screens">Browse screens</a>';
+    echo '<header class="site-header"><a class="brand" href="../" aria-label="Voltura Air home"><img src="../assets/voltura-air-icon.svg" alt="" width="36" height="36"><span>Voltura Air</span></a><nav aria-label="Site navigation">';
+    echo '<a href="../#features">Features</a><a href="../#compare">Compare</a><a href="../#screens">Screenshots</a><a href="./" aria-current="page">Custom screens</a><a href="../#setup">Setup</a><a href="../#trust">Privacy</a><a href="../#source">Develop</a><a href="../#download">Download</a>';
     if ($user) {
         echo '<a href="upload.php" aria-label="Upload a custom screen" title="Upload a custom screen">Upload screen</a>';
         echo '<a href="upload.php#submissions" aria-label="View my custom screen submissions" title="View my custom screen submissions">My submissions</a>';
@@ -364,7 +363,7 @@ function air_screen_layout(
     $eyebrow = $showCatalogBackLink
         ? '<a class="eyebrow catalog-heading-back" href="./" aria-label="Browse community library of custom screens"><span aria-hidden="true">&larr;</span> Community library</a>'
         : '<p class="eyebrow">Community library</p>';
-    echo '</nav></header><main class="catalog-main"><header class="catalog-heading">' . $eyebrow . '<h1>' . air_screen_h($title) . '</h1></header><div class="catalog-content">' . $body . '</div></main><footer class="catalog-footer"><a href="../">Voltura Air</a><span>Community-made control surfaces</span></footer></body></html>';
+    echo '</nav></header><main class="catalog-main"><header class="catalog-heading">' . $eyebrow . '<h1>' . air_screen_h($title) . '</h1></header><div class="catalog-content">' . $body . '</div></main><footer class="catalog-footer"><a href="https://voltura.se/" aria-label="Voltura AB home">Voltura AB</a><a href="https://github.com/voltura/voltura-air">GitHub</a><a href="../stats.html">Code statistics</a><a href="../sitemap.php">Sitemap</a><a href="https://github.com/voltura/voltura-air/blob/main/PRIVACY.md">Privacy</a><a href="https://github.com/voltura/voltura-air/blob/main/LICENSE">MIT License</a><a href="https://github.com/voltura/voltura-air/blob/main/THIRD-PARTY-NOTICES.md">Third-party notices</a><a href="https://www.linkedin.com/in/joakim-voltura/">LinkedIn</a><a href="https://ko-fi.com/voltura">Ko-fi</a><a href="https://www.paypal.me/voltura">PayPal</a><a href="../">voltura.se/air</a></footer></body></html>';
 }
 
 function air_screen_preview(string $json, string $label, bool $compact = false, ?string $packageId = null): string

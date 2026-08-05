@@ -1,4 +1,6 @@
 using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Automation.Peers;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
@@ -9,13 +11,32 @@ using Panel = System.Windows.Controls.Panel;
 
 namespace VolturaAir.Host.Ui;
 
+internal enum HostToastTone
+{
+    Success,
+    Failure
+}
+
+internal sealed class HostToastLiveRegion : Border
+{
+    protected override AutomationPeer OnCreateAutomationPeer() => new HostToastAutomationPeer(this);
+
+    public void Announce()
+    {
+        UIElementAutomationPeer.CreatePeerForElement(this)?
+            .RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
+    }
+
+    private sealed class HostToastAutomationPeer(HostToastLiveRegion owner) : FrameworkElementAutomationPeer(owner);
+}
+
 internal sealed class HostToastPresenter : IDisposable
 {
     private readonly Grid _root;
     private readonly HostVisualFactory _visuals;
     private readonly Func<string> _defaultTitle;
     private readonly DispatcherTimer _timer;
-    private Border? _toast;
+    private HostToastLiveRegion? _toast;
     private bool _disposed;
 
     public HostToastPresenter(Grid root, HostVisualFactory visuals, Func<string> defaultTitle)
@@ -25,18 +46,23 @@ internal sealed class HostToastPresenter : IDisposable
         _defaultTitle = defaultTitle;
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.4) };
         _timer.Tick += OnTimerTick;
+        _root.IsVisibleChanged += OnRootIsVisibleChanged;
     }
 
-    public void Show(string message, string? title = null)
+    public void Show(string message, string? title = null, HostToastTone tone = HostToastTone.Success)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         RemoveToast();
 
-        _toast = CreateToast(title ?? _defaultTitle(), message);
+        _toast = CreateToast(title ?? _defaultTitle(), message, tone);
         Grid.SetRow(_toast, 2);
         Panel.SetZIndex(_toast, 50);
         _root.Children.Add(_toast);
-        _timer.Start();
+        _toast.Announce();
+        if (_root.IsVisible)
+        {
+            _timer.Start();
+        }
     }
 
     public void Dispose()
@@ -49,11 +75,14 @@ internal sealed class HostToastPresenter : IDisposable
         _disposed = true;
         _timer.Stop();
         _timer.Tick -= OnTimerTick;
+        _root.IsVisibleChanged -= OnRootIsVisibleChanged;
         RemoveToast();
     }
 
-    private Border CreateToast(string title, string message)
+    private HostToastLiveRegion CreateToast(string title, string message, HostToastTone tone)
     {
+        var isFailure = tone == HostToastTone.Failure;
+        var toneBrush = _visuals.Brush(isFailure ? "DangerBrush" : "AccentBrush");
         var layout = new Grid();
         layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(4) });
         layout.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -61,7 +90,7 @@ internal sealed class HostToastPresenter : IDisposable
 
         var accentStrip = new Border
         {
-            Background = _visuals.Brush("AccentBrush"),
+            Background = toneBrush,
             CornerRadius = new CornerRadius(4, 0, 0, 4)
         };
         layout.Children.Add(accentStrip);
@@ -72,13 +101,13 @@ internal sealed class HostToastPresenter : IDisposable
             Height = 22,
             Margin = new Thickness(14, 12, 10, 12),
             CornerRadius = new CornerRadius(11),
-            Background = _visuals.Brush("AccentBrush"),
+            Background = toneBrush,
             Child = new TextBlock
             {
-                Text = "\u2713",
+                Text = isFailure ? "!" : "\u2713",
                 FontSize = 13,
                 FontWeight = FontWeights.Bold,
-                Foreground = _visuals.Brush("AccentTextBrush"),
+                Foreground = isFailure ? _visuals.Brush("SurfaceBrush") : _visuals.Brush("AccentTextBrush"),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             }
@@ -110,9 +139,9 @@ internal sealed class HostToastPresenter : IDisposable
         Grid.SetColumn(text, 2);
         layout.Children.Add(text);
 
-        return new Border
+        var toast = new HostToastLiveRegion
         {
-            Tag = title,
+            Tag = tone,
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Bottom,
             Background = _visuals.Brush("SurfaceBrush"),
@@ -132,11 +161,25 @@ internal sealed class HostToastPresenter : IDisposable
             },
             Child = layout
         };
+        AutomationProperties.SetName(toast, $"{title}: {message}");
+        AutomationProperties.SetItemStatus(toast, isFailure ? "Error" : "Success");
+        AutomationProperties.SetLiveSetting(toast, isFailure ? AutomationLiveSetting.Assertive : AutomationLiveSetting.Polite);
+        return toast;
     }
 
     private void OnTimerTick(object? sender, EventArgs eventArgs)
     {
         RemoveToast();
+    }
+
+    private void OnRootIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs eventArgs)
+    {
+        if (!_disposed && _toast is not null && _root.IsVisible)
+        {
+            _toast.Announce();
+            _timer.Stop();
+            _timer.Start();
+        }
     }
 
     private void RemoveToast()

@@ -4,15 +4,15 @@
   <img src="apps/windows-host/Assets/VolturaAir-256.png" alt="Voltura Air application icon" width="128">
 </p>
 
-Turn a phone, tablet, or touch browser into a wireless remote for a Windows 11
-PC. No app-store install or Voltura account is required. Direct LAN remains the
-default; an optional cloud relay is available for networks that block inbound
-PC connections.
+Turn a phone, tablet, or touch browser into a wireless remote&mdash;and live screen
+viewer&mdash;for a Windows 11 PC. No app-store install or Voltura account is
+required. Direct LAN remains the default; an optional Cloud relay is available
+for networks that block inbound PC connections.
 
 ## What you can do
 
 - Use a phone or tablet as a wireless trackpad and keyboard.
-- View and control one Windows display live from a paired phone or tablet over
+- Mirror one selected Windows display live on a paired phone or tablet over
   Direct LAN or the optional Cloud relay, with encrypted video, responsive
   cursor movement, scrolling, and up to 5x local zoom. Relay viewing offers
   Standard and Data saver quality choices.
@@ -103,8 +103,6 @@ through Voltura**, then save and restart. Both devices connect outward, so the
 PC does not need an incoming firewall exception. The short QR opens the hosted
 Voltura Air app at `voltura.se`; pairing, reconnect, permissions, and device
 removal work the same way as Direct LAN.
-The Connection page shows the latest monthly screen usage, remaining protected
-allowance, and the active relay provider's warning and cutoff values.
 
 Paired devices are remembered until removed or their browser data is cleared.
 The optional **View PC screen** tool requires Screen viewing permission on the
@@ -126,7 +124,8 @@ unknown-publisher or Microsoft Defender SmartScreen warning. Download only from
 the [official product page](https://voltura.se/air/) or the
 [official GitHub releases](https://github.com/voltura/voltura-air/releases/latest).
 
-[Privacy policy](PRIVACY.md) · [Security policy](SECURITY.md)
+[Privacy policy](PRIVACY.md) &middot; [Security policy](SECURITY.md) &middot;
+[Third-party software notices](THIRD-PARTY-NOTICES.md)
 
 Do not publish vulnerability details or pairing credentials in a public issue.
 

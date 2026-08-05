@@ -56,3 +56,4 @@ portable ZIP.
 - Source code: https://github.com/voltura/voltura-air
 - Latest release: https://github.com/voltura/voltura-air/releases/latest
 - License: https://github.com/voltura/voltura-air/blob/main/LICENSE
+- Third-party software notices: https://github.com/voltura/voltura-air/blob/main/THIRD-PARTY-NOTICES.md

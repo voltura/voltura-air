@@ -155,7 +155,9 @@ preferences. Selection and the active Add-button row use an accent indication.
 All drag operations retain properties-panel Move actions. Component context
 menus are content-sized. Orientation-local Hide and shared Delete everywhere
 are distinct operations with independent confirmation settings. Destructive
-confirmations, selects, and success toasts use shared themed primitives. The
+confirmations, selects, and semantic toasts use shared themed primitives.
+Success uses the accent treatment; failures use the danger treatment, an error
+icon, and assertive accessible status without relying on color alone. The
 right inspector uses slim `+`/`−` disclosure rows, provides header-level
 expand-all and collapse-all actions, opens generated Name and Label values, and
 frames action-dependent fields on one subtle surface.

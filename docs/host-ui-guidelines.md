@@ -54,7 +54,9 @@ shows the adapter and port surfaces above. Relay replaces them with safe
 connection state, retry, a used-versus-remaining monthly screen-transfer bar,
 2/4 Mbps quality, and a collapsed custom HTTPS endpoint. Normal builds never
 show the local-only maintainer 8 Mbps choice. Relay failure never silently opens
-Direct.
+Direct. The first failed connection in an outage shows one danger-tone host
+toast while retries remain automatic and quiet; restoration shows one success
+toast. Initial successful connection does not show a restoration toast.
 
 ## Preferences
 

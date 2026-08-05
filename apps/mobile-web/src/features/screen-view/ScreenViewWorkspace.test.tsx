@@ -159,6 +159,53 @@ describe("ScreenViewWorkspace", () => {
     expect(screen.getByRole("status").textContent).toBe("Preparing encrypted WebRTC mirror...");
   });
 
+  it("clears stale video and input when the PC stops or disallows viewing", () => {
+    const send = vi.fn<(message: ClientMessage) => void>();
+    render(<ScreenViewWorkspace
+      activePc={{ customName: false, id: "http://192.168.1.10:51396", name: "PC", url: "http://192.168.1.10:51396" }}
+      capability={capability}
+      clientId="client-test"
+      onBack={vi.fn()}
+      onOpenKeyboard={vi.fn()}
+      send={send}
+      state="paired"
+      trackpadSettings={defaultTrackpadSettings}
+    />);
+    fireEvent.loadedData(screen.getByLabelText("Mirrored PC display video"));
+    expect(screen.getByRole("button", { name: "Click" }).hasAttribute("disabled")).toBe(false);
+    const stage = document.querySelector<HTMLElement>(".screen-view-stage");
+    if (!stage) {throw new Error("Screen stage was not rendered.");}
+    Object.defineProperty(stage, "clientWidth", { configurable: true, value: 400 });
+    Object.defineProperty(stage, "clientHeight", { configurable: true, value: 220 });
+    fireEvent.click(screen.getByRole("button", { name: "Two-finger mode: Scroll. Switch to Zoom" }));
+    fireEvent.touchStart(stage, { targetTouches: [
+      { identifier: 1, clientX: 100, clientY: 100 },
+      { identifier: 2, clientX: 160, clientY: 100 }
+    ] });
+    fireEvent.touchMove(stage, { targetTouches: [
+      { identifier: 1, clientX: 70, clientY: 100 },
+      { identifier: 2, clientX: 190, clientY: 100 }
+    ] });
+    fireEvent.touchEnd(stage, { targetTouches: [] });
+    expect(document.querySelector(".screen-view-content")?.classList).toContain("zoomed");
+
+    act(() => {
+      publishScreenViewResult({
+        type: "screen.view.ended",
+        reason: "permission-revoked",
+        message: "The PC stopped screen viewing and disallowed this device."
+      });
+    });
+
+    expect(screen.getByText("Your PC display appears here")).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toBe("The PC stopped screen viewing and disallowed this device.");
+    expect(screen.getByRole("button", { name: "Click" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: "Keys" }).hasAttribute("disabled")).toBe(true);
+    expect(document.querySelector(".screen-view-content")?.classList).not.toContain("zoomed");
+    expect(document.querySelector<HTMLElement>(".screen-view-content")?.style.transform).toBe("");
+    expect(screen.queryByRole("button", { name: "Reset screen zoom" })).toBeNull();
+  });
+
   it("offers a working user-gesture playback retry when autoplay is blocked", async () => {
     class FakePeerConnection {
       static instance: FakePeerConnection | null = null;
@@ -276,7 +323,8 @@ describe("ScreenViewWorkspace", () => {
     if (!FakePeerConnection.instance) {throw new Error("Fake peer connection was not created.");}
     FakePeerConnection.instance.connectionState = "disconnected";
     act(() => {FakePeerConnection.instance?.emit("connectionstatechange", {});});
-    expect(screen.getByRole("status").textContent).toBe("Screen connection interrupted. Reconnecting...");
+    expect(screen.getByRole("status").textContent).toBe("Screen video interrupted. Reconnecting for up to 8 seconds...");
+    expect(screen.getByText("Your PC display appears here")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Stop" })).toBeTruthy();
     FakePeerConnection.instance.connectionState = "connected";
     act(() => {FakePeerConnection.instance?.emit("connectionstatechange", {});});
@@ -294,7 +342,7 @@ describe("ScreenViewWorkspace", () => {
     });
     expect(screen.queryByRole("button", { name: "Show video" })).toBeNull();
     expect(screen.getByText("Your PC display appears here")).toBeTruthy();
-    expect(screen.getByRole("status").textContent).toBe("The WebRTC mirror disconnected. Tap Start to try again.");
+    expect(screen.getByRole("status").textContent).toBe("Screen video connection was lost. Tap Start to reconnect.");
   });
 
   it("uses an in-app full-screen fallback and keeps an explicit exit control", async () => {
@@ -319,11 +367,60 @@ describe("ScreenViewWorkspace", () => {
     fireEvent.click(fullScreenButton);
     await waitFor(() => expect(document.querySelector(".screen-view-workspace")?.classList).toContain("is-immersive"));
     expect(send.mock.calls.some(([message]) => message.type === "pointer.button")).toBe(false);
-    screen.getByRole("button", { name: "Exit full screen" }).click();
+    fireEvent.click(screen.getByRole("button", { name: "Exit full screen" }));
     await waitFor(() => expect(document.querySelector(".screen-view-workspace")?.classList).not.toContain("is-immersive"));
   });
 
-  it("offers full screen in portrait and exits when rotating to landscape", async () => {
+  it("restores the workspace when native fullscreen ends without an orientation change", async () => {
+    const send = vi.fn<(message: ClientMessage) => void>();
+    const fullscreenDescriptor = Object.getOwnPropertyDescriptor(document, "fullscreenElement");
+    let fullscreenElement: Element | null = null;
+    Object.defineProperty(document, "fullscreenElement", {
+      configurable: true,
+      get: () => fullscreenElement
+    });
+
+    try {
+      render(<ScreenViewWorkspace
+        activePc={{ customName: false, id: "http://192.168.1.10:51396", name: "PC", url: "http://192.168.1.10:51396" }}
+        capability={capability}
+        clientId="client-test"
+        onBack={vi.fn()}
+        onOpenKeyboard={vi.fn()}
+        send={send}
+        state="paired"
+        trackpadSettings={defaultTrackpadSettings}
+      />);
+
+      fireEvent.loadedData(screen.getByLabelText("Mirrored PC display video"));
+      const workspace = document.querySelector<HTMLElement>(".screen-view-workspace");
+      if (!workspace) {throw new Error("Screen workspace was not rendered.");}
+      Object.defineProperty(workspace, "requestFullscreen", {
+        configurable: true,
+        value: vi.fn(() => {
+          fullscreenElement = workspace;
+          return Promise.resolve();
+        })
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "View PC screen full screen" }));
+      await waitFor(() => expect(workspace.classList).toContain("is-immersive"));
+      await waitFor(() => expect(fullscreenElement).toBe(workspace));
+
+      fullscreenElement = null;
+      act(() => {document.dispatchEvent(new Event("fullscreenchange"));});
+
+      await waitFor(() => expect(workspace.classList).not.toContain("is-immersive"));
+    } finally {
+      if (fullscreenDescriptor) {
+        Object.defineProperty(document, "fullscreenElement", fullscreenDescriptor);
+      } else {
+        Reflect.deleteProperty(document, "fullscreenElement");
+      }
+    }
+  });
+
+  it("keeps full screen active when rotating between portrait and landscape", async () => {
     const send = vi.fn<(message: ClientMessage) => void>();
     vi.stubGlobal("innerWidth", 390);
     vi.stubGlobal("innerHeight", 844);
@@ -339,12 +436,12 @@ describe("ScreenViewWorkspace", () => {
     />);
 
     fireEvent.loadedData(screen.getByLabelText("Mirrored PC display video"));
-    screen.getByRole("button", { name: "View PC screen full screen" }).click();
+    fireEvent.click(screen.getByRole("button", { name: "View PC screen full screen" }));
     await waitFor(() => expect(document.querySelector(".screen-view-workspace")?.classList).toContain("is-immersive"));
     vi.stubGlobal("innerWidth", 844);
     vi.stubGlobal("innerHeight", 390);
     act(() => {window.dispatchEvent(new Event("orientationchange"));});
-    await waitFor(() => expect(document.querySelector(".screen-view-workspace")?.classList).not.toContain("is-immersive"));
+    expect(document.querySelector(".screen-view-workspace")?.classList).toContain("is-immersive");
   });
 
   it("uses an unzoomed two-finger drag for remote scrolling despite finger-spacing wobble", async () => {
@@ -361,6 +458,7 @@ describe("ScreenViewWorkspace", () => {
     />);
     const stage = document.querySelector<HTMLElement>(".screen-view-stage");
     if (!stage) {throw new Error("Screen stage was not rendered.");}
+    fireEvent.loadedData(screen.getByLabelText("Mirrored PC display video"));
     const first = [
       { identifier: 1, clientX: 100, clientY: 100 },
       { identifier: 2, clientX: 160, clientY: 100 }

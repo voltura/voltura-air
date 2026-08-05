@@ -298,6 +298,13 @@ export const serverFrameCatalog = {
       { type: "screen.view.stop.result", operationId: "op-screen-stop-failed", succeeded: false, code: "not-owner", message: "This device is not viewing." }
     ]
   },
+  "screen.view.ended": {
+    required: ["reason", "message"],
+    frames: [
+      { type: "screen.view.ended", reason: "host-stopped", message: "The PC stopped screen viewing." },
+      { type: "screen.view.ended", reason: "permission-revoked", message: "The PC stopped screen viewing and disallowed this device." }
+    ]
+  },
   "audio.state": { required: ["volume", "muted"], frames: [{ type: "audio.state", volume: 72, muted: false }] }
 } satisfies { [T in ServerMessageType]: ServerFrameContract<T> };
 

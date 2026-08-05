@@ -78,15 +78,14 @@
           <p class="tagline">Turn your phone into the remote your PC is missing.</p>
           <p class="lede">
             Control your PC with a trackpad, keyboard, presentation and media
-            remotes, text tools, and practical PC actions. Pair with a QR code -
-            no account or phone app to install. Use Direct LAN or optional
-            end-to-end encrypted Cloud relay.
+            remotes, text tools, practical PC actions, and live screen mirroring.
+            Pair by QR code&mdash;no account or phone app required. Connect over
+            Direct LAN or an optional end-to-end encrypted Cloud relay.
           </p>
           <div class="actions">
             <a class="button primary" href="https://github.com/voltura/voltura-air/releases/latest">Download for Windows</a>
             <a class="button secondary" href="#features">Explore features</a>
             <a class="button secondary" href="#screens">See screenshots</a>
-            <a class="button secondary" href="./screens/">Browse custom screens</a>
           </div>
         </div>
       </section>
@@ -459,8 +458,10 @@
       <a href="https://voltura.se/" aria-label="Voltura AB home">Voltura AB</a>
       <a href="https://github.com/voltura/voltura-air">GitHub</a>
       <a href="./stats.html">Code statistics</a>
+      <a href="./sitemap.php">Sitemap</a>
       <a href="https://github.com/voltura/voltura-air/blob/main/PRIVACY.md">Privacy</a>
       <a href="https://github.com/voltura/voltura-air/blob/main/LICENSE">MIT License</a>
+      <a href="https://github.com/voltura/voltura-air/blob/main/THIRD-PARTY-NOTICES.md">Third-party notices</a>
       <a href="https://www.linkedin.com/in/joakim-voltura/">LinkedIn</a>
       <a href="https://ko-fi.com/voltura">Ko-fi</a>
       <a href="https://www.paypal.me/voltura">PayPal</a>

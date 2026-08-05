@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -18,9 +18,6 @@ if (unsupportedArguments.length > 0) {
 }
 
 const reportLines = [];
-const excludedDirectories = new Set([
-  ".git", ".vs", "artifacts", "bin", "coverage", "dist", "node_modules", "obj", "TestResults"
-]);
 const reports = [
   {
     title: "Mobile client",
@@ -51,8 +48,28 @@ const reports = [
     title: "Windows host tests",
     locations: ["tests/VolturaAir.Host.Tests"],
     directories: ["tests/VolturaAir.Host.Tests"],
-    extensions: new Set([".cs", ".csproj"]),
-    includePattern: /(?:Tests?\.cs|\.csproj)$/i
+    extensions: new Set([".cs", ".csproj"])
+  },
+  {
+    title: "Relay service",
+    locations: ["services/relay"],
+    directories: ["services/relay"],
+    additionalFiles: ["services/relay/Dockerfile"],
+    extensions: new Set([".json", ".jsonc", ".template", ".ts", ".yml"]),
+    excludePattern: /\.test\.ts$/i
+  },
+  {
+    title: "Relay service tests",
+    locations: ["services/relay/tests"],
+    directories: ["services/relay/tests"],
+    extensions: new Set([".ts"]),
+    includePattern: /\.test\.ts$/i
+  },
+  {
+    title: "Public website",
+    locations: ["docs/site"],
+    directories: ["docs/site"],
+    extensions: new Set([".css", ".js", ".php", ".sql"])
   },
   {
     title: "Repository automation",
@@ -93,7 +110,7 @@ const testReports = [
     directories: ["apps/mobile-web"],
     extensions: new Set([".js", ".jsx", ".mjs", ".ts", ".tsx"]),
     filePattern: /\.(?:test|spec)\.(?:js|jsx|mjs|ts|tsx)$/i,
-    countCases: countVitestCases
+    countCases: createVitestCaseCounter("apps/mobile-web")
   },
   {
     title: "Windows host",
@@ -108,6 +125,13 @@ const testReports = [
     extensions: new Set([".mjs"]),
     filePattern: /\.test\.mjs$/i,
     countCases: countJavaScriptTestCases
+  },
+  {
+    title: "Relay service",
+    directories: ["services/relay/tests"],
+    extensions: new Set([".ts"]),
+    filePattern: /\.test\.ts$/i,
+    countCases: createVitestCaseCounter("services/relay")
   }
 ];
 
@@ -120,43 +144,48 @@ function countLines(contents) {
   return lineFeeds + (contents.endsWith("\n") ? 0 : 1);
 }
 
-async function collectFiles(directory, extensions) {
-  const entries = await readdir(directory, { withFileTypes: true });
-  const files = [];
-
-  for (const entry of entries) {
-    const absolutePath = path.join(directory, entry.name);
-
-    if (entry.isDirectory()) {
-      if (!excludedDirectories.has(entry.name)) {
-        files.push(...await collectFiles(absolutePath, extensions));
-      }
-
-      continue;
-    }
-
-    if (entry.isFile() && absolutePath !== reportPath && (!extensions || extensions.has(path.extname(entry.name).toLowerCase()))) {
-      files.push(absolutePath);
-    }
+async function collectRepositoryFiles() {
+  const result = spawnSync("git", ["ls-files", "--cached", "-z"], {
+    cwd: root,
+    encoding: "utf8",
+    maxBuffer: 32 * 1024 * 1024,
+    windowsHide: true
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(`Git tracked-file discovery failed: ${(result.stderr || result.stdout).trim()}`);
   }
 
-  return files;
+  const candidates = result.stdout
+    .split("\0")
+    .filter(Boolean)
+    .map((file) => path.join(root, file));
+  const existingFiles = await Promise.all(candidates.map(async (file) => {
+    try {
+      return (await stat(file)).isFile() ? file : null;
+    } catch {
+      return null;
+    }
+  }));
+  return existingFiles.filter(Boolean).filter((file) => file !== reportPath);
 }
 
-async function createSourceReport({ title, locations, directories, additionalFiles = [], extensions, includePattern, excludePattern }) {
-  const files = (await Promise.all(directories.map((directory) => collectFiles(path.join(root, directory), extensions))))
-    .flat()
+function isInDirectory(file, directory) {
+  const relative = path.relative(path.join(root, directory), file);
+  return relative !== "" && !relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative);
+}
+
+async function createSourceReport({ title, locations, directories, additionalFiles = [], extensions, includePattern, excludePattern }, repositoryFiles) {
+  const additionalFilePaths = new Set(additionalFiles.map((file) => path.join(root, file)));
+  const files = repositoryFiles
+    .filter((file) => directories.some((directory) => isInDirectory(file, directory)) || additionalFilePaths.has(file))
+    .filter((file) => additionalFilePaths.has(file) || extensions.has(path.extname(file).toLowerCase()))
     .filter((file) => !includePattern || includePattern.test(path.basename(file)))
     .filter((file) => !excludePattern || !excludePattern.test(path.basename(file)));
-  files.push(...additionalFiles
-    .map((file) => path.join(root, file))
-    .filter((file) => !includePattern || includePattern.test(path.basename(file)))
-    .filter((file) => !excludePattern || !excludePattern.test(path.basename(file)))
-    .filter((file) => extensions.has(path.extname(file).toLowerCase())));
   const byExtension = new Map();
 
   for (const file of files) {
-    const extension = path.extname(file).toLowerCase();
+    const extension = path.extname(file).toLowerCase() || "(no extension)";
     const lines = countLines(await readFile(file, "utf8"));
     const statistics = byExtension.get(extension) ?? { files: 0, lines: 0 };
 
@@ -176,8 +205,8 @@ async function createSourceReport({ title, locations, directories, additionalFil
   return { title, locations, totals, byExtension, files };
 }
 
-async function createAssetsReport() {
-  const files = await collectFiles(root, assetExtensions);
+async function createAssetsReport(repositoryFiles) {
+  const files = repositoryFiles.filter((file) => assetExtensions.has(path.extname(file).toLowerCase()));
   const counts = new Map();
 
   for (const file of files) {
@@ -188,9 +217,11 @@ async function createAssetsReport() {
   return { total: files.length, counts };
 }
 
-function countVitestCases() {
+function createVitestCaseCounter(projectDirectory) {
+  return function countVitestCases(files) {
   const vitestCli = path.join(repositoryToolRoot, "node_modules", "vitest", "vitest.mjs");
-  const result = spawnSync(process.execPath, [vitestCli, "list", "--root", path.join(root, "apps", "mobile-web"), "--json"], {
+  const projectRoot = path.join(root, projectDirectory);
+  const result = spawnSync(process.execPath, [vitestCli, "list", "--root", projectRoot, "--json"], {
     cwd: root,
     encoding: "utf8",
     maxBuffer: 32 * 1024 * 1024,
@@ -202,9 +233,14 @@ function countVitestCases() {
   }
   const discovered = JSON.parse(result.stdout);
   if (!Array.isArray(discovered)) throw new Error("Vitest discovery returned an invalid case list.");
+  const trackedFiles = new Set(files.map((file) => path.resolve(file)));
+  const trackedCases = discovered.filter(({ file }) => typeof file === "string" && (
+    trackedFiles.has(path.resolve(root, file)) || trackedFiles.has(path.resolve(projectRoot, file))
+  ));
   return {
-    cases: discovered.length,
-    fileCount: new Set(discovered.map(({ file }) => file)).size
+    cases: trackedCases.length,
+    fileCount: new Set(trackedCases.map(({ file }) => path.resolve(root, file))).size
+  };
   };
 }
 
@@ -302,10 +338,11 @@ async function countJavaScriptTestCases(files) {
   return Number(summary[1]) + selfTestCount;
 }
 
-async function createTestsReport() {
+async function createTestsReport(repositoryFiles) {
   return Promise.all(testReports.map(async ({ title, directories, extensions, filePattern, countCases }) => {
-    const files = (await Promise.all(directories.map((directory) => collectFiles(path.join(root, directory), extensions))))
-      .flat()
+    const files = repositoryFiles
+      .filter((file) => directories.some((directory) => isInDirectory(file, directory)))
+      .filter((file) => extensions.has(path.extname(file).toLowerCase()))
       .filter((file) => filePattern.test(path.basename(file)));
     const countResult = await countCases(files);
     const cases = typeof countResult === "number" ? countResult : countResult.cases;
@@ -481,7 +518,7 @@ function renderSourceReport({ title, locations, totals, byExtension }) {
 }
 
 function formatPercentage(value, total) {
-  return `${Math.round(value / total * 100)}%`;
+  return `${total === 0 ? 0 : Math.round(value / total * 100)}%`;
 }
 
 function createDonut(segments, total, unit) {
@@ -491,7 +528,7 @@ function createDonut(segments, total, unit) {
   ];
   let position = 0;
   const gradient = segments.map(({ value }, index) => {
-    const end = position + value / total * 100;
+    const end = position + (total === 0 ? 0 : value / total * 100);
     const value_ = `${colors[index % colors.length]} ${position.toFixed(2)}% ${end.toFixed(2)}%`;
     position = end;
     return value_;
@@ -639,7 +676,7 @@ function createHtmlReport({ codeReports, grandTotal, assets, tests, scripts, npm
     </section>
     <section class="largest"><h2>Top 10 largest source code files</h2><ol>${largestCodeRows}</ol></section>
     <section class="largest"><h2>Top 10 largest maintained files</h2><ol>${largestRows}</ol></section>
-    <footer>Build output, dependencies, coverage output, and other generated directories are excluded. Source totals include production, test, installer, and repository automation code.</footer>
+    <footer>Build output, dependencies, coverage output, and other generated directories are excluded. Source totals include every maintained production, test, website, installer, and repository automation area.</footer>
   </main>
 </body>
 </html>`;
@@ -653,12 +690,12 @@ function openInDefaultBrowser(reportPath) {
   process_.unref();
 }
 
-const codeReports = await Promise.all(reports.map(createSourceReport));
+const repositoryFiles = await collectRepositoryFiles();
+const codeReports = await Promise.all(reports.map((report) => createSourceReport(report, repositoryFiles)));
 const grandTotal = createGrandTotal(codeReports);
 const largestCodeFiles = await createCodeFileDetailsReport(codeReports);
-const assets = await createAssetsReport();
-const tests = await createTestsReport();
-const repositoryFiles = await collectFiles(root);
+const assets = await createAssetsReport(repositoryFiles);
+const tests = await createTestsReport(repositoryFiles);
 const scripts = createScriptsReport(repositoryFiles);
 const npmCommands = await createNpmCommandsReport(repositoryFiles);
 const fileDetails = await createFileDetailsReport(repositoryFiles);

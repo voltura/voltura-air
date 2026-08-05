@@ -18,17 +18,19 @@ installer artwork from `assets/branding/voltura-air-master.png`.
 ## Isolation and privacy
 
 Capture uses a temporary host with `--isolated-test-mode`, loopback, disposable
-settings/pairing data, and no-op power actions. The
-launcher stops the normal host and waits for cursor restoration. Pairing URL
-files are temporary secrets: never publish live tokens, LAN addresses, machine
-names, or machine-specific QR codes.
+settings/pairing data, and no-op power actions. The launcher stops the normal
+host and waits for cursor restoration. Pairing URL files are temporary secrets:
+never publish live tokens, LAN addresses, machine names, or machine-specific QR
+codes.
 
 `--site-screenshot-mode` shows the public product URL and replaces the connected
 PC name with `PC`. The Debug capture options are listed in
 [setup](setup.md#host-options).
 
-Keep the Windows desktop unobstructed while host images are captured. Do not
-edit a machine name out afterward; recapture safely.
+WPF host images are rendered directly from the laid-out visual tree with
+`RenderTargetBitmap`; no host or startup window is shown and desktop contents
+cannot cover the result. Browser images use Playwright. Do not edit a machine
+name or other private data out afterward; recapture safely.
 
 ## Public set
 
@@ -44,7 +46,7 @@ docs/site/assets/voltura-air-iphone-kodi-dark-forum.png
 docs/site/assets/voltura-air-split.png
 ```
 
-The set covers host pairing, the maximized responsive Custom screens editor,
+The set covers host pairing, the fixed-size responsive Custom screens editor,
 phone trackpad, couch remote, and tablet split mode. The 350-pixel-wide
 `-forum` image is derived from the Kodi screenshot for forum posts. README and
 the website reuse the full-size images. Add an image only for a distinct core

@@ -221,6 +221,29 @@ internal sealed class ScreenViewCommandHandler(
         }, cancellationToken);
     }
 
+    public async Task NotifyHostStoppedAsync(string clientId, bool disallowed, CancellationToken cancellationToken = default)
+    {
+        var payload = new
+        {
+            type = "screen.view.ended",
+            reason = disallowed ? "permission-revoked" : "host-stopped",
+            message = disallowed
+                ? "The PC stopped screen viewing and disallowed this device."
+                : "The PC stopped screen viewing."
+        };
+        foreach (var (_, socket) in transport.Snapshot().Where(connection =>
+            string.Equals(connection.ClientId, clientId, StringComparison.Ordinal)))
+        {
+            try
+            {
+                await transport.SendAsync(socket, payload, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is OperationCanceledException or WebSocketException or ObjectDisposedException)
+            {
+            }
+        }
+    }
+
     public Task SetSourceAsync(WebSocket socket, string clientId, string operationId, string displayId, CancellationToken cancellationToken)
     {
         ScreenViewOperationResult result = coordinator.SetSource(clientId, displayId);

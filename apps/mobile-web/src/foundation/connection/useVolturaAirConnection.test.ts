@@ -980,6 +980,49 @@ describe("useVolturaAirConnection", () => {
     );
   });
 
+  it("keeps relay retries behind the stable unavailable state", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const route = "r".repeat(22);
+      const pc = pairedPc({
+        customName: false,
+        id: `relay:voltura-cloud-v1:${route}`,
+        name: "Office PC",
+        url: `https://voltura.se/a/${route}`,
+        transportMode: "relay" as const,
+        relayRouteId: route,
+        relayServiceId: "voltura-cloud-v1",
+      });
+      localStorage.setItem("voltura-air.clientId", "client-a");
+      localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
+      localStorage.setItem("voltura-air.activePcId", pc.id);
+      storeReconnectKey("client-a", pc.id);
+
+      const { result } = renderHook(() => useVolturaAirConnection());
+      await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
+
+      dispatchSocketEvent(getSocket(0), "error");
+      expect(result.current.state).toBe("unavailable");
+      expect(result.current.lastConnectionError?.code).toBe("VAIR-PAIR-HOST-UNREACHABLE");
+
+      await act(() => vi.advanceTimersByTime(1200));
+      expect(MockWebSocket.instances).toHaveLength(2);
+      expect(result.current.state).toBe("unavailable");
+
+      dispatchSocketEvent(getSocket(1), "open");
+      expect(result.current.state).toBe("unavailable");
+      expect(result.current.message).toContain("Retrying");
+
+      dispatchSocketEvent(getSocket(1), "error");
+      await act(() => vi.advanceTimersByTime(1200));
+      expect(MockWebSocket.instances).toHaveLength(3);
+      expect(result.current.state).toBe("unavailable");
+      expect(result.current.message).toContain("Retrying");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("forgets only an inactive saved PC and ignores unknown or repeated requests", async () => {
     const active = pairedPc({
       customName: false,

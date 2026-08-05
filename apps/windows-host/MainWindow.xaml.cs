@@ -103,7 +103,8 @@ public partial class MainWindow : Window
             pairingManager,
             webHost,
             requestRestart ?? (static () => { }),
-            effectiveAppLog);
+            effectiveAppLog,
+            _toasts);
         _preferencesPage = new PreferencesPageController(
             this,
             effectivePowerController,
@@ -291,6 +292,7 @@ public partial class MainWindow : Window
         _deviceProfileChangedAction.Dispose();
         _themeChangedAction.Dispose();
         _awakeStateChangedAction.Dispose();
+        _connectionPage.Dispose();
         _toasts.Dispose();
         base.OnClosed(e);
     }

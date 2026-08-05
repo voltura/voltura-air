@@ -27,6 +27,64 @@ function Find-Executable([string[]]$Names, [string[]]$Patterns) {
     return $null
 }
 
+function Refresh-ProcessPath {
+    $entries = @(
+        [Environment]::GetEnvironmentVariable('Path', 'Machine') -split ';'
+        [Environment]::GetEnvironmentVariable('Path', 'User') -split ';'
+        $env:Path -split ';'
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+    $deduplicated = [Collections.Generic.List[string]]::new()
+    foreach ($entry in $entries) {
+        $expanded = [Environment]::ExpandEnvironmentVariables($entry).Trim().TrimEnd('\')
+        if (-not [string]::IsNullOrWhiteSpace($expanded) -and
+            -not ($deduplicated | Where-Object { $_ -ieq $expanded })) {
+            $deduplicated.Add($expanded)
+        }
+    }
+
+    $wingetLinks = Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Links'
+    if ((Test-Path -LiteralPath $wingetLinks -PathType Container) -and
+        -not ($deduplicated | Where-Object { $_ -ieq $wingetLinks })) {
+        $deduplicated.Insert(0, $wingetLinks)
+    }
+
+    $env:Path = $deduplicated -join ';'
+}
+
+function Find-WingetPortableExecutable([string]$PackageId, [string]$ExecutableName) {
+    $packagesRoot = Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Packages'
+    if (-not (Test-Path -LiteralPath $packagesRoot -PathType Container)) { return $null }
+
+    $packageDirectories = Get-ChildItem -Path (Join-Path $packagesRoot "$PackageId`_*") -Directory -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTimeUtc -Descending
+    foreach ($packageDirectory in $packageDirectories) {
+        $match = Get-ChildItem -LiteralPath $packageDirectory.FullName -Filter $ExecutableName -File -Recurse -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+        if ($match) { return $match.FullName }
+    }
+    return $null
+}
+
+function Find-PhpExecutable {
+    $php = Find-Executable @('php.exe', 'php') @(
+        "$env:LOCALAPPDATA\Microsoft\WinGet\Links\php.exe",
+        "$env:ProgramFiles\PHP\php.exe"
+    )
+    if ($php) { return $php }
+    return Find-WingetPortableExecutable 'PHP.PHP.8.4' 'php.exe'
+}
+
+function Wait-ForPhpExecutable {
+    for ($attempt = 0; $attempt -lt 20; $attempt++) {
+        Refresh-ProcessPath
+        $php = Find-PhpExecutable
+        if ($php) { return $php }
+        Start-Sleep -Milliseconds 500
+    }
+    return $null
+}
+
 function Install-WingetPackage([string]$Id, [switch]$Interactive) {
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
         throw "Windows Package Manager (winget) is required to install $Id."
@@ -81,19 +139,15 @@ function Invoke-MariaDb([string]$Executable, [string[]]$Arguments, [string]$Sql)
     }
 }
 
-$php = Find-Executable @('php.exe', 'php') @(
-    "$env:LOCALAPPDATA\Microsoft\WinGet\Links\php.exe",
-    "$env:ProgramFiles\PHP\php.exe"
-)
+$php = Find-PhpExecutable
 if (-not $php) {
     Write-Host 'Installing PHP 8.4...'
     Install-WingetPackage 'PHP.PHP.8.4'
-    $php = Find-Executable @('php.exe', 'php') @(
-        "$env:LOCALAPPDATA\Microsoft\WinGet\Links\php.exe",
-        "$env:ProgramFiles\PHP\php.exe"
-    )
+    $php = Wait-ForPhpExecutable
 }
-if (-not $php) { throw 'PHP was installed but php.exe could not be found. Open a new terminal and rerun this command.' }
+if (-not $php) {
+    throw 'PHP was installed but php.exe could not be resolved from the refreshed PATH, WinGet links, or WinGet package directory.'
+}
 
 $mariaPatterns = @(
     "$env:ProgramFiles\MariaDB *\bin\mariadb.exe",
@@ -105,9 +159,10 @@ if (-not $maria) {
     Write-Host 'Installing MariaDB. Keep the default local database instance enabled and choose a root password in the installer.'
     Install-WingetPackage 'MariaDB.Server' -Interactive
     Read-Host 'Finish the MariaDB installer completely, including its root-password setup, then press Enter here'
+    Refresh-ProcessPath
     $maria = Find-Executable @('mariadb.exe', 'mariadb', 'mysql.exe', 'mysql') $mariaPatterns
 }
-if (-not $maria) { throw 'MariaDB was installed but its command-line client could not be found. Open a new terminal and rerun this command.' }
+if (-not $maria) { throw 'MariaDB was installed but its command-line client could not be found.' }
 
 $mariaService = Get-Service -Name 'MariaDB' -ErrorAction SilentlyContinue
 if ($mariaService -and $mariaService.Status -ne 'Running') {

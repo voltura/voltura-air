@@ -49,7 +49,16 @@ internal static class Program
             app.Exit += OnApplicationExit;
 
             var startupWindow = new StartupWindow();
-            startupWindow.Show();
+#if DEBUG
+            var offscreenSiteScreenshot = !string.IsNullOrWhiteSpace(
+                GetOption(args, "--site-screenshot-output"));
+#else
+            const bool offscreenSiteScreenshot = false;
+#endif
+            if (!offscreenSiteScreenshot)
+            {
+                startupWindow.Show();
+            }
 
             _ = app.Dispatcher.InvokeAsync(() => InitializeAsync(
                 startupWindow,
@@ -91,6 +100,14 @@ internal static class Program
             ConfigureSiteScreenshotSettings(args);
 #endif
             s_runtime = await WpfHostRuntime.StartAsync(args, requestShutdown, requestRestart);
+#if DEBUG
+            var siteScreenshotOutput = GetOption(args, "--site-screenshot-output");
+            if (!string.IsNullOrWhiteSpace(siteScreenshotOutput))
+            {
+                await s_runtime.MainWindow.RenderSiteScreenshotAsync(args, siteScreenshotOutput);
+                return;
+            }
+#endif
             var remaining = TimeSpan.FromMilliseconds(1500) - (DateTimeOffset.UtcNow - startedAt);
             if (remaining > TimeSpan.Zero)
             {
@@ -134,6 +151,14 @@ internal static class Program
         }
         catch (Exception ex)
         {
+#if DEBUG
+            if (!string.IsNullOrWhiteSpace(GetOption(args, "--site-screenshot-output")))
+            {
+                Console.Error.WriteLine(ex);
+                requestShutdown();
+                return;
+            }
+#endif
             startupWindow.ShowError(
                 ex is HostPortUnavailableException
                     ? ex.Message

@@ -8,6 +8,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+if ($Runtime -cne "win-x64") {
+    throw "Runtime '$Runtime' is not supported. Use win-x64."
+}
+
 function Assert-LastExitCode {
     param(
         [Parameter(Mandatory = $true)]
@@ -22,19 +26,33 @@ function Assert-LastExitCode {
 function Assert-ScreenWebRtcPayload {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$PublishDirectory
+        [string]$PublishDirectory,
+        [switch]$RequireDotNetRuntimeNotices
     )
 
     $requiredRelativePaths = @(
         "datachannel.dll",
+        "ThirdPartyNotices\README.txt",
+        "ThirdPartyNotices\managed\Microsoft.Web.WebView2-LICENSE.txt",
+        "ThirdPartyNotices\managed\Microsoft.Web.WebView2-NOTICE.txt",
+        "ThirdPartyNotices\managed\QRCoder-LICENSE.txt",
+        "ThirdPartyNotices\managed\Vortice-SharpGen-LICENSE.txt",
         "ThirdPartyNotices\libdatachannel\libdatachannel-LICENSE.txt",
         "ThirdPartyNotices\libdatachannel\libjuice-LICENSE.txt",
         "ThirdPartyNotices\libdatachannel\libsrtp-LICENSE.txt",
         "ThirdPartyNotices\libdatachannel\nlohmann-json-LICENSE.txt",
         "ThirdPartyNotices\libdatachannel\openssl-LICENSE.txt",
         "ThirdPartyNotices\libdatachannel\plog-LICENSE.txt",
-        "ThirdPartyNotices\libdatachannel\usrsctp-LICENSE.txt"
+        "ThirdPartyNotices\libdatachannel\usrsctp-LICENSE.txt",
+        "ThirdPartyNotices\libdatachannel\SOURCE.txt",
+        "wwwroot\third-party-notices.txt"
     )
+    if ($RequireDotNetRuntimeNotices) {
+        $requiredRelativePaths += @(
+            "ThirdPartyNotices\dotnet-LICENSE.txt",
+            "ThirdPartyNotices\dotnet-ThirdPartyNotices.txt"
+        )
+    }
     foreach ($relativePath in $requiredRelativePaths) {
         $requiredPath = Join-Path $PublishDirectory $relativePath
         if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
@@ -43,8 +61,26 @@ function Assert-ScreenWebRtcPayload {
     }
 }
 
-if ($Runtime -cne "win-x64") {
-    throw "Runtime '$Runtime' is not supported. Use win-x64."
+function Copy-DotNetRuntimeNotices {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PublishDirectory
+    )
+
+    $dotnetCommand = Get-Command dotnet -ErrorAction Stop
+    $dotnetRoot = Split-Path -Parent $dotnetCommand.Source
+    $licensePath = Join-Path $dotnetRoot "LICENSE.txt"
+    $noticesPath = Join-Path $dotnetRoot "ThirdPartyNotices.txt"
+    foreach ($requiredPath in @($licensePath, $noticesPath)) {
+        if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
+            throw "Expected .NET redistribution notice was not found: $requiredPath"
+        }
+    }
+
+    $noticeDirectory = Join-Path $PublishDirectory "ThirdPartyNotices"
+    New-Item -ItemType Directory -Force -Path $noticeDirectory | Out-Null
+    Copy-Item -LiteralPath $licensePath -Destination (Join-Path $noticeDirectory "dotnet-LICENSE.txt") -Force
+    Copy-Item -LiteralPath $noticesPath -Destination (Join-Path $noticeDirectory "dotnet-ThirdPartyNotices.txt") -Force
 }
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
@@ -123,6 +159,7 @@ if (-not $SkipBuild) {
             powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-cursor-watchdog.ps1 `
                 -OutputPath (Join-Path $publishDir "VolturaAir.CursorWatchdog.exe")
             Assert-LastExitCode "Self-contained cursor watchdog build"
+            Copy-DotNetRuntimeNotices -PublishDirectory $publishDir
         }
 
         dotnet publish apps/windows-host/VolturaAir.Host.csproj `
@@ -161,7 +198,7 @@ if (-not $FrameworkDependentOnly) {
     if (-not (Test-Path $publishedWatchdogExe)) {
         throw "Expected published cursor watchdog executable was not found: $publishedWatchdogExe"
     }
-    Assert-ScreenWebRtcPayload -PublishDirectory $publishDir
+    Assert-ScreenWebRtcPayload -PublishDirectory $publishDir -RequireDotNetRuntimeNotices
 }
 
 $frameworkDependentHostExe = Join-Path $frameworkDependentPublishDir "VolturaAir.Host.exe"

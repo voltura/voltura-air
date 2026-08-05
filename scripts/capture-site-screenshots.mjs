@@ -125,6 +125,7 @@ async function captureMobileScreens(chromium, pairingUrl) {
     await page.goto(pairingUrl, { waitUntil: "networkidle" });
     await clickPairIfPresent(page);
     await waitForConnected(page);
+    await waitForTrackpadVolume(page);
 
     await page.screenshot({ path: outputs.iphoneLight });
 
@@ -207,10 +208,15 @@ async function waitForConnected(page) {
   await page.locator(".status.paired").waitFor({ state: "visible", timeout: 10000 });
 }
 
+async function waitForTrackpadVolume(page) {
+  await page.locator(".trackpad-mode .volume-control").waitFor({ state: "visible", timeout: 5000 });
+}
+
 async function setMobileTheme(page, theme) {
   await page.evaluate((nextTheme) => localStorage.setItem("voltura-air.themeMode", nextTheme), theme);
   await page.reload({ waitUntil: "networkidle" });
   await waitForConnected(page);
+  await waitForTrackpadVolume(page);
 }
 
 async function captureHostWindow(outputPath) {

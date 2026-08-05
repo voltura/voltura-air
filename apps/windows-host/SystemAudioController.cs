@@ -7,15 +7,39 @@ public sealed class SystemAudioController : ISystemAudioController
     private static readonly Guid AudioEndpointVolumeId = new("5CDF2C82-841E-4546-9722-0CF74078229A");
     private static readonly Guid EmptyEventContext = Guid.Empty;
     private const int ClsctxAll = 23;
+    private readonly bool _useSiteScreenshotState;
+    private AudioState _siteScreenshotState;
+
+    public SystemAudioController()
+        : this(IsSiteScreenshotMode(Environment.GetCommandLineArgs()))
+    {
+    }
+
+    internal SystemAudioController(bool useSiteScreenshotState)
+    {
+        _useSiteScreenshotState = useSiteScreenshotState;
+        _siteScreenshotState = new AudioState(42, false);
+    }
 
     public AudioState GetState()
     {
+        if (_useSiteScreenshotState)
+        {
+            return _siteScreenshotState;
+        }
+
         using var endpoint = AudioEndpointHandle.Create();
         return endpoint.GetState();
     }
 
     public AudioState ToggleMute()
     {
+        if (_useSiteScreenshotState)
+        {
+            _siteScreenshotState = _siteScreenshotState with { Muted = !_siteScreenshotState.Muted };
+            return _siteScreenshotState;
+        }
+
         using var endpoint = AudioEndpointHandle.Create();
         var state = endpoint.GetState();
         endpoint.SetMute(!state.Muted);
@@ -24,10 +48,25 @@ public sealed class SystemAudioController : ISystemAudioController
 
     public AudioState SetVolume(int volume)
     {
+        if (_useSiteScreenshotState)
+        {
+            _siteScreenshotState = new AudioState(Math.Clamp(volume, 0, 100), false);
+            return _siteScreenshotState;
+        }
+
         using var endpoint = AudioEndpointHandle.Create();
         endpoint.SetMute(false);
         endpoint.SetVolume(volume);
         return endpoint.GetState();
+    }
+
+    internal static bool IsSiteScreenshotMode(string[] arguments)
+    {
+#if DEBUG
+        return arguments.Contains("--site-screenshot-mode", StringComparer.OrdinalIgnoreCase);
+#else
+        return false;
+#endif
     }
 
     private sealed class AudioEndpointHandle : IDisposable

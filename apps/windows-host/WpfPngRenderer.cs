@@ -3,6 +3,10 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using WpfBrush = System.Windows.Media.Brush;
+using WpfPoint = System.Windows.Point;
+using WpfRect = System.Windows.Rect;
+using WpfSize = System.Windows.Size;
 
 namespace VolturaAir.Host;
 
@@ -10,9 +14,9 @@ internal static class WpfPngRenderer
 {
     internal static async Task SaveAsync(
         FrameworkElement visual,
-        Brush background,
+        WpfBrush background,
         string outputPath,
-        Size size)
+        WpfSize size)
     {
         ArgumentNullException.ThrowIfNull(visual);
         ArgumentNullException.ThrowIfNull(background);
@@ -49,7 +53,7 @@ internal static class WpfPngRenderer
         var drawing = new DrawingVisual();
         using (var context = drawing.RenderOpen())
         {
-            var bounds = new Rect(0, 0, size.Width, size.Height);
+            var bounds = new WpfRect(0, 0, size.Width, size.Height);
             context.DrawRectangle(background, null, bounds);
             context.DrawRectangle(
                 new VisualBrush(visual)
@@ -88,10 +92,10 @@ internal static class WpfPngRenderer
         }
     }
 
-    private static void Layout(FrameworkElement visual, Size size)
+    private static void Layout(FrameworkElement visual, WpfSize size)
     {
         visual.Measure(size);
-        visual.Arrange(new Rect(new Point(0, 0), size));
+        visual.Arrange(new WpfRect(new WpfPoint(0, 0), size));
         visual.UpdateLayout();
     }
 }

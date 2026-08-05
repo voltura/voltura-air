@@ -25,9 +25,18 @@ function extractScreenshots(contents) {
 }
 
 test("public screenshot inventory stays curated and aligned", async () => {
-  const [captureScript, hostProgram, runbook, readme, marketingPage, assetFiles] = await Promise.all([
+  const [
+    captureScript,
+    hostProgram,
+    systemAudioController,
+    runbook,
+    readme,
+    marketingPage,
+    assetFiles
+  ] = await Promise.all([
     readFile(new URL("../../scripts/capture-site-screenshots.mjs", import.meta.url), "utf8"),
     readFile(new URL("../../apps/windows-host/Program.cs", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/windows-host/SystemAudioController.cs", import.meta.url), "utf8"),
     readFile(new URL("../../docs/screenshots.md", import.meta.url), "utf8"),
     readFile(new URL("../../README.md", import.meta.url), "utf8"),
     readFile(new URL("../../docs/site/index.php", import.meta.url), "utf8"),
@@ -43,6 +52,10 @@ test("public screenshot inventory stays curated and aligned", async () => {
   assert.match(captureScript, /"bin", "cli", "Debug", "net10\.0-windows"/u);
   assert.match(captureScript, /"--site-screenshot-mode"[\s\S]*"--isolated-test-mode"/u);
   assert.match(hostProgram, /BeginIsolatedScope\(\)[\s\S]*SetHighDpiMode/u);
+  assert.match(systemAudioController, /new AudioState\(42, false\)/u);
+  assert.match(systemAudioController, /--site-screenshot-mode/u);
+  assert.match(captureScript, /waitForTrackpadVolume\(page\)[\s\S]*iphoneLight/u);
+  assert.match(captureScript, /\.trackpad-mode \.volume-control/u);
   assert.match(captureScript, /getByRole\("button", \{ name: "Remote", exact: true \}\)/u);
   assert.match(captureScript, /getByText\("Switch modes from here\.", \{ exact: true \}\)[\s\S]*state: "visible"[\s\S]*state: "hidden"[\s\S]*page\.screenshot\(\{ path: outputs\.iphoneKodiDark \}\)/u);
   assert.match(captureScript, /DwmGetWindowAttributeUInt\(\$hwnd, 37,/u);

@@ -154,7 +154,7 @@ internal static class Program
 #if DEBUG
             if (!string.IsNullOrWhiteSpace(GetOption(args, "--site-screenshot-output")))
             {
-                Console.Error.WriteLine(ex);
+                await Console.Error.WriteLineAsync(ex.ToString());
                 requestShutdown();
                 return;
             }

@@ -26,7 +26,8 @@ internal static class WpfPngRenderer
             throw new ArgumentOutOfRangeException(nameof(size), "WPF render dimensions must be positive.");
         }
 
-        var directory = Path.GetDirectoryName(Path.GetFullPath(outputPath));
+        var fullOutputPath = Path.GetFullPath(outputPath);
+        var directory = Path.GetDirectoryName(fullOutputPath);
         if (!string.IsNullOrWhiteSpace(directory))
         {
             Directory.CreateDirectory(directory);
@@ -64,15 +65,27 @@ internal static class WpfPngRenderer
         target.Render(drawing);
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(target));
-        await using var stream = new FileStream(
-            outputPath,
-            FileMode.Create,
-            FileAccess.Write,
-            FileShare.None,
-            bufferSize: 64 * 1024,
-            useAsync: true);
-        encoder.Save(stream);
-        await stream.FlushAsync();
+        var temporaryPath = $"{fullOutputPath}.{Environment.ProcessId}.tmp";
+        try
+        {
+            await using (var stream = new FileStream(
+                temporaryPath,
+                FileMode.Create,
+                FileAccess.Write,
+                FileShare.None,
+                bufferSize: 64 * 1024,
+                useAsync: true))
+            {
+                encoder.Save(stream);
+                await stream.FlushAsync();
+            }
+
+            File.Move(temporaryPath, fullOutputPath, overwrite: true);
+        }
+        finally
+        {
+            File.Delete(temporaryPath);
+        }
     }
 
     private static void Layout(FrameworkElement visual, Size size)

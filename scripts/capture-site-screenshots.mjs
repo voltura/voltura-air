@@ -13,7 +13,6 @@ const assetsDir = path.join(repoRoot, "docs", "site", "assets");
 const tempDir = path.join(os.tmpdir(), "voltura-air-site-screenshots");
 const tempAppDataDir = path.join(tempDir, "appdata");
 const pairingUrlFile = path.join(tempDir, "pairing-url.txt");
-const hostCaptureScript = path.join(tempDir, "capture-window.ps1");
 const hostExe = path.join(repoRoot, "apps", "windows-host", "bin", "cli", "Debug", "net10.0-windows", "VolturaAir.Host.exe");
 
 const outputs = {
@@ -35,14 +34,13 @@ main().catch((error) => {
 
 async function main() {
   if (process.platform !== "win32") {
-    throw new Error("Site screenshot capture must run on Windows because it captures the WPF host window.");
+    throw new Error("Site screenshot capture must run on Windows because it renders the WPF host.");
   }
 
   await fs.mkdir(tempDir, { recursive: true });
   await fs.mkdir(tempAppDataDir, { recursive: true });
   await fs.mkdir(assetsDir, { recursive: true });
   await ensureCaptureDependencies();
-  await writeHostCaptureScript();
 
   try {
     const requireFromTemp = createRequire(path.join(tempDir, "package.json"));
@@ -52,23 +50,11 @@ async function main() {
     await run("npm", ["run", "build", "--workspace", "apps/mobile-web"]);
     await run("dotnet", ["build", "VolturaAir.slnx"]);
 
-    const darkHost = await launchHost("Dark");
-    try {
-      await captureHostWindow(outputs.hostDark);
-    } finally {
-      await stopProcess(darkHost.process);
-    }
+    await renderHostScreenshot("Dark", outputs.hostDark);
+    await renderHostScreenshot("Dark", outputs.hostCustomScreensDark, true);
 
-    const darkCustomScreensHost = await launchHost("Dark", true);
+    const lightHost = await launchHost("Light", outputs.hostLight);
     try {
-      await captureHostWindow(outputs.hostCustomScreensDark);
-    } finally {
-      await stopProcess(darkCustomScreensHost.process);
-    }
-
-    const lightHost = await launchHost("Light");
-    try {
-      await captureHostWindow(outputs.hostLight);
       await captureMobileScreens(chromium, lightHost.pairingUrl);
       await sharp(outputs.iphoneKodiDark)
         .resize({ width: 350 })
@@ -78,16 +64,20 @@ async function main() {
       await stopProcess(lightHost.process);
     }
 
-    const lightCustomScreensHost = await launchHost("Light", true);
-    try {
-      await captureHostWindow(outputs.hostCustomScreensLight);
-    } finally {
-      await stopProcess(lightCustomScreensHost.process);
-    }
+    await renderHostScreenshot("Light", outputs.hostCustomScreensLight, true);
 
     console.log(`Site screenshots written to ${assetsDir}`);
   } finally {
     await stopRunningHost();
+  }
+}
+
+async function renderHostScreenshot(theme, outputPath, customScreens = false) {
+  const host = await launchHost(theme, outputPath, customScreens);
+  try {
+    // launchHost returns only after the off-screen PNG has been written.
+  } finally {
+    await stopProcess(host.process);
   }
 }
 
@@ -219,29 +209,18 @@ async function setMobileTheme(page, theme) {
   await waitForTrackpadVolume(page);
 }
 
-async function captureHostWindow(outputPath) {
-  const rawPath = path.join(tempDir, `host-${Date.now()}.png`);
-  await run("powershell", [
-    "-NoProfile",
-    "-ExecutionPolicy",
-    "Bypass",
-    "-File",
-    hostCaptureScript,
-    "-OutputPath",
-    rawPath
-  ]);
-  await fs.copyFile(rawPath, outputPath);
-}
-
-async function launchHost(theme, customScreens = false) {
+async function launchHost(theme, outputPath, customScreens = false) {
   await fs.rm(pairingUrlFile, { force: true });
+  await fs.rm(outputPath, { force: true });
   await fs.rm(path.join(tempAppDataDir, "Voltura Air"), { recursive: true, force: true });
   const hostArgs = [
     "--site-screenshot-mode",
     "--site-screenshot-theme",
-      theme,
-      "--isolated-test-mode",
-      "--pairing-store-root",
+    theme,
+    "--site-screenshot-output",
+    outputPath,
+    "--isolated-test-mode",
+    "--pairing-store-root",
     tempAppDataDir,
     "--pairing-url-file",
     pairingUrlFile
@@ -255,12 +234,14 @@ async function launchHost(theme, customScreens = false) {
       ...process.env,
       APPDATA: tempAppDataDir
     },
-    stdio: "ignore",
-    windowsHide: false
+    stdio: ["ignore", "inherit", "inherit"],
+    windowsHide: true
   });
 
-  const pairingUrl = await waitForTextFile(pairingUrlFile, 15000);
-  await delay(1800);
+  const [pairingUrl] = await Promise.all([
+    waitForTextFile(pairingUrlFile, 15000, child),
+    waitForNonEmptyFile(outputPath, 15000, child)
+  ]);
   return { process: child, pairingUrl };
 }
 
@@ -295,85 +276,45 @@ async function waitForProcessExit(child, timeoutMs) {
   ]);
 }
 
-async function writeHostCaptureScript() {
-  await fs.writeFile(hostCaptureScript, String.raw`
-param(
-  [Parameter(Mandatory = $true)]
-  [string]$OutputPath
-)
-
-Add-Type -AssemblyName System.Drawing
-Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-public static class NativeWindowCapture {
-  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
-  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-  [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd);
-  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
-  [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out RECT pvAttribute, int cbAttribute);
-  [DllImport("dwmapi.dll", EntryPoint = "DwmGetWindowAttribute")] public static extern int DwmGetWindowAttributeUInt(IntPtr hwnd, int dwAttribute, out uint pvAttribute, int cbAttribute);
-  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
-}
-"@
-
-$process = Get-Process VolturaAir.Host -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
-if (-not $process) {
-  throw "Voltura Air host window was not found."
-}
-
-$hwnd = $process.MainWindowHandle
-if ([NativeWindowCapture]::IsIconic($hwnd)) {
-  [NativeWindowCapture]::ShowWindow($hwnd, 9) | Out-Null
-}
-[NativeWindowCapture]::SetForegroundWindow($hwnd) | Out-Null
-Start-Sleep -Milliseconds 450
-
-$rect = New-Object NativeWindowCapture+RECT
-$dwmResult = [NativeWindowCapture]::DwmGetWindowAttribute($hwnd, 9, [ref]$rect, [Runtime.InteropServices.Marshal]::SizeOf([type][NativeWindowCapture+RECT]))
-if ($dwmResult -ne 0) {
-  [NativeWindowCapture]::GetWindowRect($hwnd, [ref]$rect) | Out-Null
-}
-$visibleFrameBorder = [uint32]0
-$borderResult = [NativeWindowCapture]::DwmGetWindowAttributeUInt($hwnd, 37, [ref]$visibleFrameBorder, [Runtime.InteropServices.Marshal]::SizeOf([type][uint32]))
-if ($borderResult -eq 0 -and $visibleFrameBorder -gt 0) {
-  $borderInset = [int]$visibleFrameBorder
-  $rect.Left += $borderInset
-  $rect.Top += $borderInset
-  $rect.Right -= $borderInset
-  $rect.Bottom -= $borderInset
-}
-$width = $rect.Right - $rect.Left
-$height = $rect.Bottom - $rect.Top
-# DWM extended-frame bounds omit the invisible resize border. Windows 11 also
-# reports its DPI-aware visible border separately; exclude that colored frame
-# so the PNG begins at the actual host surface. The startup window remains far
-# below this size guard after the inset is applied.
-if ($width -lt 1120 -or $height -lt 720) {
-  throw "Voltura Air host window capture bounds were too small: $($width)x$($height)."
-}
-$bitmap = New-Object System.Drawing.Bitmap($width, $height)
-$graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-$graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, [System.Drawing.Size]::new($width, $height))
-$graphics.Dispose()
-$bitmap.Save($OutputPath, [System.Drawing.Imaging.ImageFormat]::Png)
-$bitmap.Dispose()
-`);
-}
-
-async function waitForTextFile(filePath, timeoutMs) {
+async function waitForTextFile(filePath, timeoutMs, child) {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
+    throwIfHostExited(child, filePath);
     if (existsSync(filePath)) {
       const value = (await fs.readFile(filePath, "utf8")).trim();
       if (value) {
         return value;
       }
     }
-    await delay(200);
+    await delay(100);
   }
 
   throw new Error(`Timed out waiting for ${filePath}`);
+}
+
+async function waitForNonEmptyFile(filePath, timeoutMs, child) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    throwIfHostExited(child, filePath);
+    try {
+      if ((await fs.stat(filePath)).size > 0) {
+        return;
+      }
+    } catch (error) {
+      if (error.code !== "ENOENT") {
+        throw error;
+      }
+    }
+    await delay(100);
+  }
+
+  throw new Error(`Timed out waiting for ${filePath}`);
+}
+
+function throwIfHostExited(child, awaitedPath) {
+  if (child.exitCode !== null) {
+    throw new Error(`Voltura Air host exited with code ${child.exitCode} before writing ${awaitedPath}`);
+  }
 }
 
 function delay(ms) {

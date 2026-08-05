@@ -40,6 +40,16 @@ public sealed class AudioMessageRouterTests
     }
 
     [Fact]
+    public void SiteScreenshotAudioDoesNotDependOnAWindowsEndpoint()
+    {
+        var audio = new SystemAudioController(useSiteScreenshotState: true);
+
+        Assert.Equal(new AudioState(42, false), audio.GetState());
+        Assert.Equal(new AudioState(42, true), audio.ToggleMute());
+        Assert.Equal(new AudioState(100, false), audio.SetVolume(125));
+    }
+
+    [Fact]
     public void AudioFailuresAreHandledWithoutThrowing()
     {
         var audio = new FakeAudioController(new AudioState(67, false)) { ThrowOnAccess = true };

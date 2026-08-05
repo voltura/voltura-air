@@ -25,9 +25,20 @@ function extractScreenshots(contents) {
 }
 
 test("public screenshot inventory stays curated and aligned", async () => {
-  const [captureScript, hostProgram, runbook, readme, marketingPage, assetFiles] = await Promise.all([
+  const [
+    captureScript,
+    hostProgram,
+    hostScreenshot,
+    wpfRenderer,
+    runbook,
+    readme,
+    marketingPage,
+    assetFiles
+  ] = await Promise.all([
     readFile(new URL("../../scripts/capture-site-screenshots.mjs", import.meta.url), "utf8"),
     readFile(new URL("../../apps/windows-host/Program.cs", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/windows-host/MainWindow.SiteScreenshot.cs", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/windows-host/WpfPngRenderer.cs", import.meta.url), "utf8"),
     readFile(new URL("../../docs/screenshots.md", import.meta.url), "utf8"),
     readFile(new URL("../../README.md", import.meta.url), "utf8"),
     readFile(new URL("../../docs/site/index.php", import.meta.url), "utf8"),
@@ -41,16 +52,19 @@ test("public screenshot inventory stays curated and aligned", async () => {
   assert.deepEqual(extractScreenshots(`${readme}\n${marketingPage}`), expectedScreenshots);
   assert.match(captureScript, /\.resize\(\{ width: 350 \}\)[\s\S]*outputs\.iphoneKodiDarkForum/u);
   assert.match(captureScript, /"bin", "cli", "Debug", "net10\.0-windows"/u);
-  assert.match(captureScript, /"--site-screenshot-mode"[\s\S]*"--isolated-test-mode"/u);
+  assert.match(captureScript, /"--site-screenshot-mode"[\s\S]*"--site-screenshot-output"[\s\S]*"--isolated-test-mode"/u);
   assert.match(hostProgram, /BeginIsolatedScope\(\)[\s\S]*SetHighDpiMode/u);
+  assert.match(hostProgram, /offscreenSiteScreenshot[\s\S]*if \(!offscreenSiteScreenshot\)[\s\S]*startupWindow\.Show\(\)/u);
+  assert.match(hostProgram, /RenderSiteScreenshotAsync\(args, siteScreenshotOutput\)/u);
+  assert.match(hostScreenshot, /WpfPngRenderer\.SaveAsync\(WindowScrollViewer, Background, outputPath, size\)/u);
+  assert.match(wpfRenderer, /RenderTargetBitmap/u);
+  assert.match(wpfRenderer, /VisualBrush\(visual\)/u);
+  assert.match(wpfRenderer, /PngBitmapEncoder/u);
+  assert.doesNotMatch(captureScript, /capture-window\.ps1|CopyFromScreen|DwmGetWindowAttribute|MainWindowHandle|SetForegroundWindow/u);
   assert.match(captureScript, /waitForTrackpadVolume\(page\)[\s\S]*iphoneLight/u);
   assert.match(captureScript, /\.trackpad-mode \.volume-control/u);
   assert.match(captureScript, /getByRole\("button", \{ name: "Remote", exact: true \}\)/u);
   assert.match(captureScript, /getByText\("Switch modes from here\.", \{ exact: true \}\)[\s\S]*state: "visible"[\s\S]*state: "hidden"[\s\S]*page\.screenshot\(\{ path: outputs\.iphoneKodiDark \}\)/u);
-  assert.match(captureScript, /DwmGetWindowAttributeUInt\(\$hwnd, 37,/u);
-  assert.match(captureScript, /IsIconic\(\$hwnd\)[\s\S]*ShowWindow\(\$hwnd, 9\)/u);
-  assert.match(captureScript, /\$rect\.Left \+= \$borderInset/u);
-  assert.match(captureScript, /\$rect\.Bottom -= \$borderInset/u);
   assert.equal(marketingPage.match(/<figure class="screen-card/gu)?.length, 5);
   assert.equal(marketingPage.match(/<picture>/gu)?.length, 3);
   assert.equal(readme.match(/<picture>/gu)?.length, 3);

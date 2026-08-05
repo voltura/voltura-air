@@ -24,7 +24,7 @@ const unprotectPasswordCommand = `
 $credentialPath = [Console]::In.ReadToEnd()
 $ciphertext = [System.IO.File]::ReadAllText($credentialPath).Trim()
 $secure = ConvertTo-SecureString -String $ciphertext
-$credential = New-Object System.Management.Automation.PSCredential("Voltura Air site publishing", $secure)
+$credential = [System.Management.Automation.PSCredential]::new("Voltura Air site publishing", $secure)
 [Console]::Out.Write($credential.GetNetworkCredential().Password)
 `;
 
@@ -44,19 +44,16 @@ export function getSitePublishPaths(environment = process.env) {
 }
 
 export function runPowerShell(command, input, options = {}) {
-  const systemRoot = options.systemRoot ?? process.env.SystemRoot;
   const run = options.run ?? spawnSync;
-  if (!systemRoot) {
-    throw new Error("Windows did not provide SystemRoot for protected password storage.");
-  }
-
+  const executable = options.executable ?? "pwsh.exe";
   const result = run(
-    path.join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"),
+    executable,
     ["-NoProfile", "-NonInteractive", "-Command", command],
     { encoding: "utf8", input, windowsHide: true }
   );
   if (result.error || result.status !== 0) {
-    throw new Error("Windows could not access the protected site publishing password.");
+    const detail = (result.stderr || result.error?.message || "unknown PowerShell error").trim();
+    throw new Error(`PowerShell 7 could not access the protected site publishing password: ${detail}`);
   }
   return result.stdout;
 }

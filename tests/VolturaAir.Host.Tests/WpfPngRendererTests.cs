@@ -2,10 +2,11 @@ using System.IO;
 using System.Runtime.ExceptionServices;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using VolturaAir.Host;
+using WpfBrushes = System.Windows.Media.Brushes;
+using WpfSize = System.Windows.Size;
 
 namespace VolturaAir.Host.Tests;
 
@@ -41,7 +42,7 @@ public sealed class WpfPngRendererTests
                 visual.Children.Add(new TextBlock
                 {
                     Text = "Voltura Air",
-                    Foreground = Brushes.Black,
+                    Foreground = WpfBrushes.Black,
                     FontSize = 24,
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center
@@ -49,9 +50,9 @@ public sealed class WpfPngRendererTests
 
                 await WpfPngRenderer.SaveAsync(
                     visual,
-                    Brushes.White,
+                    WpfBrushes.White,
                     outputPath,
-                    new Size(320, 180));
+                    new WpfSize(320, 180));
 
                 await using var stream = File.OpenRead(outputPath);
                 var decoder = new PngBitmapDecoder(

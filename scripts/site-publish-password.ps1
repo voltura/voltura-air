@@ -4,6 +4,35 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+if ($PSVersionTable.PSEdition -ne 'Desktop') {
+    $windowsPowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    if (-not (Test-Path -LiteralPath $windowsPowerShell -PathType Leaf)) {
+        throw "Windows PowerShell 5.1 was not found at $windowsPowerShell."
+    }
+
+    $arguments = @(
+        '-NoProfile',
+        '-ExecutionPolicy', 'Bypass',
+        '-File', $PSCommandPath
+    )
+    if ($Clear) { $arguments += '-Clear' }
+
+    & $windowsPowerShell @arguments
+    exit $LASTEXITCODE
+}
+
+# A PowerShell 7 parent process can pass its PSModulePath to Windows PowerShell
+# 5.1. Restore the Windows PowerShell module locations before importing the
+# security module used by ConvertFrom-SecureString.
+$modulePaths = @(
+    (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'WindowsPowerShell\Modules'),
+    (Join-Path $env:ProgramFiles 'WindowsPowerShell\Modules'),
+    (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\Modules')
+) | Where-Object { Test-Path -LiteralPath $_ -PathType Container }
+$env:PSModulePath = ($modulePaths | Select-Object -Unique) -join ';'
+Import-Module Microsoft.PowerShell.Security -ErrorAction Stop
+
 $storageDirectory = Join-Path $env:LOCALAPPDATA 'Voltura Air'
 $credentialPath = Join-Path $storageDirectory 'site-publish-sftp-password.dpapi'
 

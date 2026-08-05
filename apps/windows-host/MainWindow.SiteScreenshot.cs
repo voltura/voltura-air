@@ -1,14 +1,14 @@
 #if DEBUG
-using System.Windows;
 using System.Windows.Controls;
 using VolturaAir.Host.Features.Preferences;
+using WpfSize = System.Windows.Size;
 
 namespace VolturaAir.Host;
 
 public partial class MainWindow
 {
-    private static readonly Size StandardSiteScreenshotSize = new(1160, 760);
-    private static readonly Size EditorSiteScreenshotSize = new(1600, 900);
+    private static readonly WpfSize StandardSiteScreenshotSize = new(1160, 760);
+    private static readonly WpfSize EditorSiteScreenshotSize = new(1600, 900);
 
     internal async Task RenderSiteScreenshotAsync(string[] args, string outputPath)
     {
@@ -16,7 +16,7 @@ public partial class MainWindow
         await WpfPngRenderer.SaveAsync(WindowScrollViewer, Background, outputPath, size);
     }
 
-    private Size PrepareSiteScreenshot(string[] args)
+    private WpfSize PrepareSiteScreenshot(string[] args)
     {
         var preferencesSection = GetOption(args, "--site-screenshot-preferences-section");
         if (args.Contains("--site-screenshot-custom-screens", StringComparer.OrdinalIgnoreCase))

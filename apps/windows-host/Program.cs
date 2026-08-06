@@ -101,9 +101,10 @@ internal static class Program
 #endif
             s_runtime = await WpfHostRuntime.StartAsync(args, requestShutdown, requestRestart);
 #if DEBUG
-            var siteScreenshotOutput = GetOption(args, "--site-screenshot-output");
-            if (!string.IsNullOrWhiteSpace(siteScreenshotOutput))
+            var requestedSiteScreenshotOutput = GetOption(args, "--site-screenshot-output");
+            if (!string.IsNullOrWhiteSpace(requestedSiteScreenshotOutput))
             {
+                var siteScreenshotOutput = ResolveSiteScreenshotOutputPath(requestedSiteScreenshotOutput);
                 await s_runtime.MainWindow.RenderSiteScreenshotAsync(args, siteScreenshotOutput);
                 return;
             }
@@ -230,6 +231,45 @@ internal static class Program
         }
 
         return null;
+    }
+#endif
+
+#if DEBUG
+    private static string ResolveSiteScreenshotOutputPath(string requestedOutputPath)
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var assetsDirectory = Path.Combine(repositoryRoot, "docs", "site", "assets");
+        var resolvedOutputPath = Path.GetFileName(requestedOutputPath) switch
+        {
+            "voltura-air-host.png" => Path.Combine(assetsDirectory, "voltura-air-host.png"),
+            "voltura-air-host-dark.png" => Path.Combine(assetsDirectory, "voltura-air-host-dark.png"),
+            "voltura-air-host-custom-screens.png" => Path.Combine(assetsDirectory, "voltura-air-host-custom-screens.png"),
+            "voltura-air-host-custom-screens-dark.png" => Path.Combine(assetsDirectory, "voltura-air-host-custom-screens-dark.png"),
+            _ => throw new InvalidOperationException("Site screenshots may only write the curated host image files.")
+        };
+
+        if (!string.Equals(
+            Path.GetFullPath(requestedOutputPath),
+            Path.GetFullPath(resolvedOutputPath),
+            StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Site screenshots must be written to docs/site/assets.");
+        }
+
+        return resolvedOutputPath;
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "VolturaAir.slnx")))
+            {
+                return directory.FullName;
+            }
+        }
+
+        throw new InvalidOperationException("Could not locate the Voltura Air repository root for site screenshot output.");
     }
 #endif
 

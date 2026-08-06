@@ -153,9 +153,23 @@ function countOccurrences(text, value) {
   return text.split(value).length - 1;
 }
 
+function removeHtmlComments(input) {
+  let current = input;
+  let previous;
+  do {
+    previous = current;
+    current = current.replace(/<!--[\s\S]*?-->/gu, "");
+  } while (current !== previous);
+
+  if (current.includes("<!--") || current.includes("-->")) {
+    throw new Error("Release notes contain malformed HTML comments.");
+  }
+  return current;
+}
+
 export function validateReleaseNotesContent(content, { preserveComments = false } = {}) {
   const trimmedContent = content.trim();
-  const releaseContent = trimmedContent.replace(/<!--[\s\S]*?-->/gu, "").trim();
+  const releaseContent = removeHtmlComments(trimmedContent).trim();
   if (countOccurrences(releaseContent, freewareNotice) !== 1) {
     throw new Error("Release notes must contain exactly one canonical freeware notice.");
   }
@@ -182,7 +196,7 @@ export function extractUserFacingReleaseNotes(content) {
 
 function validateUserFacingReleaseNotes(content, { preserveComments = false } = {}) {
   const trimmedContent = content.trim();
-  const releaseContent = trimmedContent.replace(/<!--[\s\S]*?-->/gu, "").trim();
+  const releaseContent = removeHtmlComments(trimmedContent).trim();
   if (releaseContent.includes(freewareNotice) || releaseContent.includes(unsignedReleaseNotice)) {
     throw new Error("Version sections must not repeat the notices from '## General notices'.");
   }
@@ -238,7 +252,7 @@ export function getGeneralReleaseNotices(text) {
   nextHeading.lastIndex = contentStart;
   const next = nextHeading.exec(text);
   const content = text.slice(contentStart, next?.index ?? text.length).trim();
-  const releaseContent = content.replace(/<!--[\s\S]*?-->/gu, "").trim();
+  const releaseContent = removeHtmlComments(content).trim();
   if (countOccurrences(releaseContent, freewareNotice) !== 1
     || countOccurrences(releaseContent, unsignedReleaseNotice) !== 1) {
     throw new Error("General notices must contain exactly one copy of each canonical notice.");

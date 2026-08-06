@@ -1,0 +1,157 @@
+name: Apply code scanning alert 1 fix
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/apply-code-scanning-fix-1.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Remove shell command construction
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("scripts/dev-ui.mjs")
+          content = path.read_text(encoding="utf-8")
+
+          old_client = '''const clientPort = readPreferredClientPort();
+          const smokeTest = process.argv.includes("--smoke-test");
+          const hostStartupTimeoutMs = 120000;
+          const clientUrl = process.env.VOLTURA_AIR_CLIENT_URL ?? `http://127.0.0.1:${clientPort}`;
+          const clientHost = new URL(clientUrl).hostname;
+          '''
+          new_client = '''const clientPort = readPreferredClientPort();
+          const smokeTest = process.argv.includes("--smoke-test");
+          const hostStartupTimeoutMs = 120000;
+          validateClientUrlOverride(process.env.VOLTURA_AIR_CLIENT_URL, clientPort);
+          const clientUrl = `http://127.0.0.1:${clientPort}`;
+          const clientHost = "127.0.0.1";
+          '''
+
+          old_signals = '''for (const signal of ["SIGINT", "SIGTERM"]) {
+            process.once(signal, () => shutdown(signal));
+          }
+
+          async function main() {
+          '''
+          new_signals = '''for (const signal of ["SIGINT", "SIGTERM"]) {
+            process.once(signal, () => shutdown(signal));
+          }
+
+          function validateClientUrlOverride(requestedUrl, expectedPort) {
+            if (!requestedUrl) {
+              return;
+            }
+
+            const url = new URL(requestedUrl);
+            const loopbackHosts = new Set(["127.0.0.1", "localhost", "[::1]"]);
+            const port = url.port ? Number.parseInt(url.port, 10) : 80;
+            if (url.protocol !== "http:" ||
+                !loopbackHosts.has(url.hostname) ||
+                port !== expectedPort ||
+                url.username ||
+                url.password ||
+                url.pathname !== "/" ||
+                url.search ||
+                url.hash) {
+              throw new Error(`VOLTURA_AIR_CLIENT_URL must be a loopback HTTP origin on port ${expectedPort}.`);
+            }
+          }
+
+          async function main() {
+          '''
+
+          old_spawn = '''function spawnCommand(command, args, env, options = {}) {
+            const commandLine = [command, ...args].join(" ");
+            const child = process.platform === "win32"
+              ? spawn("cmd.exe", ["/d", "/s", "/c", commandLine], { stdio: "inherit", env, windowsHide: false, ...options })
+              : spawn(command, args, { stdio: "inherit", env, ...options });
+
+            child.commandLine = commandLine;
+          '''
+          new_spawn = '''function spawnCommand(command, args, env, options = {}) {
+            const executable = resolveCommand(command);
+            const commandLine = [command, ...args].join(" ");
+            const child = spawn(executable, args, {
+              stdio: "inherit",
+              env,
+              windowsHide: false,
+              ...options
+            });
+
+            child.commandLine = commandLine;
+          '''
+
+          old_run = '''async function run(command, args, options = {}) {
+            const executable = resolveCommand(command);
+            console.log(`> ${command} ${args.join(" ")}`);
+            await new Promise((resolve, reject) => {
+              const [spawnFile, spawnArgs] = process.platform === "win32"
+                ? ["cmd.exe", ["/d", "/s", "/c", [executable, ...args].join(" ")]]
+                : [executable, args];
+              const child = spawn(spawnFile, spawnArgs, {
+          '''
+          new_run = '''async function run(command, args, options = {}) {
+            console.log(`> ${command} ${args.join(" ")}`);
+            await new Promise((resolve, reject) => {
+              const [spawnFile, spawnArgs] = resolveSpawnTarget(command, args);
+              const child = spawn(spawnFile, spawnArgs, {
+          '''
+
+          old_shutdown = '''function shutdown(signal, exitCode = 0) {
+          '''
+          new_shutdown = '''function resolveSpawnTarget(command, args) {
+            if (process.platform !== "win32" || (command !== "npm" && command !== "npx")) {
+              return [resolveCommand(command), args];
+            }
+
+            const cliName = command === "npm" ? "npm-cli.js" : "npx-cli.js";
+            const cliPath = path.join(
+              path.dirname(process.execPath),
+              "node_modules",
+              "npm",
+              "bin",
+              cliName);
+            return [process.execPath, [cliPath, ...args]];
+          }
+
+          function shutdown(signal, exitCode = 0) {
+          '''
+
+          replacements = [
+              (old_client, new_client),
+              (old_signals, new_signals),
+              (old_spawn, new_spawn),
+              (old_run, new_run),
+              (old_shutdown, new_shutdown),
+          ]
+          for old, new in replacements:
+              if old not in content:
+                  raise SystemExit(f"Expected dev-ui.mjs block was not found:\n{old}")
+              content = content.replace(old, new, 1)
+
+          path.write_text(content, encoding="utf-8", newline="\n")
+          Path(".github/workflows/apply-code-scanning-fix-1.yml").unlink()
+
+      - name: Check JavaScript syntax
+        run: node --check scripts/dev-ui.mjs
+
+      - name: Commit directly to main
+        run: |
+          git config user.name "Voltura Air automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add scripts/dev-ui.mjs .github/workflows/apply-code-scanning-fix-1.yml
+          git commit -m "Avoid shell command construction in dev UI"
+          git push origin HEAD:main

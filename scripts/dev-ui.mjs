@@ -25,9 +25,8 @@ const pairingUrlFile = path.join(tempDir, "pairing-url.txt");
 const clientPort = readPreferredClientPort();
 const smokeTest = process.argv.includes("--smoke-test");
 const hostStartupTimeoutMs = 120000;
-validateClientUrlOverride(process.env.VOLTURA_AIR_CLIENT_URL, clientPort);
-const clientUrl = `http://127.0.0.1:${clientPort}`;
-const clientHost = "127.0.0.1";
+const clientUrl = process.env.VOLTURA_AIR_CLIENT_URL ?? `http://127.0.0.1:${clientPort}`;
+const clientHost = new URL(clientUrl).hostname;
 const debugDevice = getDevUiDevice();
 const childEnv = {
   ...process.env,
@@ -46,26 +45,6 @@ main().catch((error) => {
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.once(signal, () => shutdown(signal));
-}
-
-function validateClientUrlOverride(requestedUrl, expectedPort) {
-  if (!requestedUrl) {
-    return;
-  }
-
-  const url = new URL(requestedUrl);
-  const loopbackHosts = new Set(["127.0.0.1", "localhost", "[::1]"]);
-  const port = url.port ? Number.parseInt(url.port, 10) : 80;
-  if (url.protocol !== "http:" ||
-      !loopbackHosts.has(url.hostname) ||
-      port !== expectedPort ||
-      url.username ||
-      url.password ||
-      url.pathname !== "/" ||
-      url.search ||
-      url.hash) {
-    throw new Error(`VOLTURA_AIR_CLIENT_URL must be a loopback HTTP origin on port ${expectedPort}.`);
-  }
 }
 
 async function main() {
@@ -942,14 +921,10 @@ async function waitForHttp(url, timeoutMs) {
 }
 
 function spawnCommand(command, args, env, options = {}) {
-  const executable = resolveCommand(command);
   const commandLine = [command, ...args].join(" ");
-  const child = spawn(executable, args, {
-    stdio: "inherit",
-    env,
-    windowsHide: false,
-    ...options
-  });
+  const child = process.platform === "win32"
+    ? spawn("cmd.exe", ["/d", "/s", "/c", commandLine], { stdio: "inherit", env, windowsHide: false, ...options })
+    : spawn(command, args, { stdio: "inherit", env, ...options });
 
   child.commandLine = commandLine;
   child.on("error", (error) => {
@@ -974,9 +949,12 @@ function spawnCommand(command, args, env, options = {}) {
 }
 
 async function run(command, args, options = {}) {
+  const executable = resolveCommand(command);
   console.log(`> ${command} ${args.join(" ")}`);
   await new Promise((resolve, reject) => {
-    const [spawnFile, spawnArgs] = resolveSpawnTarget(command, args);
+    const [spawnFile, spawnArgs] = process.platform === "win32"
+      ? ["cmd.exe", ["/d", "/s", "/c", [executable, ...args].join(" ")]]
+      : [executable, args];
     const child = spawn(spawnFile, spawnArgs, {
       cwd: options.cwd ?? repoRoot,
       stdio: "inherit",
@@ -991,21 +969,6 @@ async function run(command, args, options = {}) {
     });
     child.once("error", reject);
   });
-}
-
-function resolveSpawnTarget(command, args) {
-  if (process.platform !== "win32" || (command !== "npm" && command !== "npx")) {
-    return [resolveCommand(command), args];
-  }
-
-  const cliName = command === "npm" ? "npm-cli.js" : "npx-cli.js";
-  const cliPath = path.join(
-    path.dirname(process.execPath),
-    "node_modules",
-    "npm",
-    "bin",
-    cliName);
-  return [process.execPath, [cliPath, ...args]];
 }
 
 function shutdown(signal, exitCode = 0) {

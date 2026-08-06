@@ -1,3 +1,4 @@
+# One-use workflow; it deletes itself after applying the fix.
 name: Apply code scanning alert 1 fix
 
 on:

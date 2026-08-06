@@ -39,6 +39,11 @@ peaks, text, or audio in logs. Browser dictation must remain independent.
 
 ## Control and personalization
 
+### Files
+
+- Consider host-defined custom Files locations below the Windows known folders after defining configuration ownership, unavailable-target behavior, ordering, and per-device visibility.
+- Consider an internal read-only file viewer after defining supported formats, bounded decoding/rendering, privacy, temporary-data cleanup, large-file behavior, and fallback to the Windows default application.
+
 ### Additional device preferences
 
 Candidates include restoring the last supported mode per PC/client and

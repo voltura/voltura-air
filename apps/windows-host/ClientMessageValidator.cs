@@ -97,6 +97,19 @@ internal static class ClientMessageValidator
             ["url.open"] = Fields("type", "operationId", "url"),
             ["text.send"] = Fields("type", "operationId", "text", "sendEnter"),
             ["clipboard.get"] = Fields("type", "operationId"),
+            ["file.session.open"] = Fields("type", "operationId"),
+            ["file.page.get"] = Fields("type", "operationId", "sessionId", "panel", "revision", "continuation"),
+            ["file.navigate"] = Fields("type", "operationId", "sessionId", "panel", "revision", "targetId"),
+            ["file.refresh"] = Fields("type", "operationId", "sessionId", "panel"),
+            ["file.sort"] = Fields("type", "operationId", "sessionId", "panel", "sortBy", "descending"),
+            ["file.properties.get"] = Fields("type", "operationId", "sessionId", "panel", "revision", "entryId"),
+            ["file.clipboard.set"] = Fields("type", "operationId", "sessionId", "panel", "revision", "effect", "selectionAll", "entryIds", "excludedEntryIds"),
+            ["file.open"] = Fields("type", "operationId", "sessionId", "panel", "revision", "entryId"),
+            ["file.jobs.get"] = Fields("type", "operationId"),
+            ["file.job.create"] = Fields("type", "operationId", "sessionId", "panel", "revision", "operation", "destinationPanel", "newName", "selectionAll", "entryIds", "excludedEntryIds"),
+            ["file.job.control"] = Fields("type", "operationId", "jobId", "action"),
+            ["file.job.reorder"] = Fields("type", "operationId", "jobId", "direction"),
+            ["file.job.conflict.resolve"] = Fields("type", "operationId", "jobId", "resolution", "applyToAll"),
             ["audio.mute.toggle"] = Fields("type"),
             ["audio.volume.set"] = Fields("type", "volume"),
             ["pointer.move"] = Fields("type", "seq", "dx", "dy"),
@@ -301,6 +314,36 @@ internal static class ClientMessageValidator
                 root.TryGetProperty("sendEnter", out var sendEnter) && sendEnter.ValueKind is JsonValueKind.True or JsonValueKind.False,
             "clipboard.get" => TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var clipboardOperationId) &&
                 IsValidOperationId(clipboardOperationId),
+            "file.session.open" or "file.jobs.get" => IsValidFileOperationId(root),
+            "file.page.get" => IsValidFilePanelRequest(root, requireRevision: true) &&
+                TryGetRequiredString(root, "continuation", MaxCredentialLength, allowEmpty: false, out _),
+            "file.navigate" => IsValidFilePanelRequest(root, requireRevision: true) &&
+                TryGetRequiredString(root, "targetId", MaxCredentialLength, allowEmpty: false, out _),
+            "file.refresh" => IsValidFilePanelRequest(root, requireRevision: false),
+            "file.sort" => IsValidFilePanelRequest(root, requireRevision: false) &&
+                TryGetRequiredString(root, "sortBy", 16, allowEmpty: false, out var sortBy) && sortBy is "name" or "size" or "type" or "modified" &&
+                root.TryGetProperty("descending", out var descending) && descending.ValueKind is JsonValueKind.True or JsonValueKind.False,
+            "file.properties.get" or "file.open" => IsValidFilePanelRequest(root, requireRevision: true) &&
+                TryGetRequiredString(root, "entryId", MaxCredentialLength, allowEmpty: false, out _),
+            "file.clipboard.set" => IsValidFilePanelRequest(root, requireRevision: true) &&
+                TryGetRequiredString(root, "effect", 8, allowEmpty: false, out var effect) && effect is "copy" or "move" &&
+                IsValidFileSelection(root),
+            "file.job.create" => IsValidFilePanelRequest(root, requireRevision: true) &&
+                TryGetRequiredString(root, "operation", 16, allowEmpty: false, out var fileOperation) &&
+                fileOperation is "copy" or "move" or "paste" or "rename" or "delete" &&
+                TryGetOptionalString(root, "destinationPanel", 8, out var destinationPanel) && destinationPanel is null or "left" or "right" &&
+                TryGetOptionalString(root, "newName", FileManagerProtocol.MaxNameLength, out _) &&
+                IsValidFileSelection(root),
+            "file.job.control" => IsValidFileOperationId(root) &&
+                TryGetRequiredString(root, "jobId", MaxCredentialLength, allowEmpty: false, out _) &&
+                TryGetRequiredString(root, "action", 16, allowEmpty: false, out var jobAction) && jobAction is "pause" or "resume" or "cancel",
+            "file.job.reorder" => IsValidFileOperationId(root) &&
+                TryGetRequiredString(root, "jobId", MaxCredentialLength, allowEmpty: false, out _) &&
+                TryGetRequiredString(root, "direction", 8, allowEmpty: false, out var direction) && direction is "up" or "down",
+            "file.job.conflict.resolve" => IsValidFileOperationId(root) &&
+                TryGetRequiredString(root, "jobId", MaxCredentialLength, allowEmpty: false, out _) &&
+                TryGetRequiredString(root, "resolution", 16, allowEmpty: false, out var resolution) && resolution is "replace" or "skip" or "cancel" &&
+                root.TryGetProperty("applyToAll", out var applyToAll) && applyToAll.ValueKind is JsonValueKind.True or JsonValueKind.False,
             "audio.mute.toggle" => true,
             "audio.volume.set" => TryGetNumber(root, "volume", 0, 100, out _),
             "pointer.move" or "pointer.button" or "pointer.wheel" or "pointer.zoom" or "keyboard.text" or "keyboard.special" =>
@@ -496,6 +539,29 @@ internal static class ClientMessageValidator
             : !hasRuntimeId;
     }
 
+    private static bool IsValidFileOperationId(JsonElement root) =>
+        TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var operationId) &&
+        IsValidOperationId(operationId);
+
+    private static bool IsValidFilePanelRequest(JsonElement root, bool requireRevision)
+    {
+        if (!IsValidFileOperationId(root) ||
+            !TryGetRequiredString(root, "sessionId", MaxCredentialLength, allowEmpty: false, out _) ||
+            !TryGetRequiredString(root, "panel", 8, allowEmpty: false, out var panel) || panel is not ("left" or "right"))
+        {
+            return false;
+        }
+        return !requireRevision || TryGetRequiredString(root, "revision", MaxCredentialLength, allowEmpty: false, out _);
+    }
+
+    private static bool IsValidFileSelection(JsonElement root) =>
+        root.TryGetProperty("selectionAll", out var all) && all.ValueKind is JsonValueKind.True or JsonValueKind.False &&
+        TryGetRequiredStringArray(root, "entryIds", FileManagerProtocol.MaxSelectionItems, MaxCredentialLength, out var entryIds) &&
+        TryGetRequiredStringArray(root, "excludedEntryIds", FileManagerProtocol.MaxSelectionItems, MaxCredentialLength, out var excluded) &&
+        (all.GetBoolean() || entryIds.Length > 0) &&
+        (!all.GetBoolean() || entryIds.Length == 0) &&
+        (!all.GetBoolean() || excluded.Length <= FileManagerProtocol.MaxSelectionItems);
+
     private static FrozenSet<string> Fields(params string[] names) => names.ToFrozenSet(StringComparer.Ordinal);
 
     private static bool HasOnlyUniqueProperties(JsonElement root, FrozenSet<string> allowedProperties)
@@ -609,6 +675,33 @@ internal static class ClientMessageValidator
 
         values = [.. items];
         return values.Length > 0;
+    }
+
+    private static bool TryGetRequiredStringArray(
+        JsonElement root,
+        string propertyName,
+        int maxItems,
+        int maxItemLength,
+        out string[] values)
+    {
+        values = [];
+        if (!root.TryGetProperty(propertyName, out var property) || property.ValueKind != JsonValueKind.Array)
+        {
+            return false;
+        }
+        var items = new List<string>(Math.Min(maxItems, property.GetArrayLength()));
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var item in property.EnumerateArray())
+        {
+            var value = item.ValueKind == JsonValueKind.String ? item.GetString() : null;
+            if (string.IsNullOrEmpty(value) || value.Length > maxItemLength || !seen.Add(value) || items.Count >= maxItems)
+            {
+                return false;
+            }
+            items.Add(value);
+        }
+        values = [.. items];
+        return true;
     }
 
     private static bool TryGetPointerDelta(JsonElement root, string propertyName, out int value)

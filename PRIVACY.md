@@ -18,8 +18,8 @@ The mobile browser stores in local site storage:
 - app, keyboard, remote, and trackpad settings; and
 - text snippets the user explicitly saves.
 
-The Windows host stores under the current Windows user's application-data
-directory:
+The Windows host stores in the current Windows user's registry, application-data
+directory, and Windows key store:
 
 - host settings and permissions;
 - paired-device identifiers and names;
@@ -38,7 +38,12 @@ directory:
   screens preview window; and
 - presentation reports the user explicitly saves, including captured device
   name, presentation type, dates, durations, sessions, breaks, slide timing, and
-  optional local presentation-file path or HTTP/HTTPS presentation link.
+  optional local presentation-file path or HTTP/HTTPS presentation link;
+- the last valid left/right Files panel locations for each paired device; and
+- a bounded local journal for active file operations containing the originating
+  device, operation kind, job ID, and temporary destination paths needed for
+  restart cleanup. The journal is cleared after cleanup and interrupted work is
+  not resumed automatically.
 
 Persistent pairing records, permissions, private reconnect keys, and saved
 content remain on the user's devices. Before Relay end-to-end encryption is
@@ -106,6 +111,13 @@ browser only after an explicit request and when the host permission allows it.
 The browser does not store returned clipboard text unless the user explicitly
 saves it as a text snippet.
 
+When Files is permitted, mobile receives bounded directory metadata such as
+display locations, names, sizes, types, dates, attributes, progress display
+names, and properties. File content stays on the PC or its mapped drives and is
+not transferred to the mobile device. Client commands contain opaque references
+rather than paths. File paths, names, clipboard file lists, conflict names,
+temporary paths, and operation contents are excluded from application logs.
+
 ## Dictation and external services
 
 Dictation uses the speech-recognition capability supplied by the mobile browser
@@ -122,7 +134,8 @@ is governed by the privacy practices of that destination.
 
 Application logging on the Windows host is off by default. When enabled, logs
 contain timestamps, event and action types, outcomes, error details, and random
-client identifiers. They do not contain typed text, clipboard contents, opened
+client identifiers. They do not contain typed text, clipboard contents, file
+paths or names, file-operation conflict names, opened
 web addresses, pointer coordinates, pairing tokens or IDs, private reconnect or
 PC-identity keys, pairing/reconnect proofs, screen pixels, cursor coordinates,
 screen SDP, encoded video, or negotiated screen-session keys.

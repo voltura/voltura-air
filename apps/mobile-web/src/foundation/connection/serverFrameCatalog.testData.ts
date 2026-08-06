@@ -8,6 +8,22 @@ export interface ServerFrameContract<T extends ServerMessageType> {
   frames: readonly MessageOfType<T>[];
 }
 
+const filePage = {
+  panel: "left" as const,
+  revision: "revision-a",
+  displayPath: "Downloads",
+  parentId: "parent-a",
+  driveId: "drive-a",
+  sortBy: "name" as const,
+  descending: false,
+  totalCount: 0,
+  entries: [],
+  continuation: null
+};
+const fileSession = { sessionId: "session-a", drives: [], shortcuts: [], left: filePage, right: { ...filePage, panel: "right" as const } };
+const fileProperties = { entryId: "entry-a", name: "file.txt", fullPath: "Downloads\\file.txt", kind: "file" as const, extension: "txt", size: 12, createdUtc: "2026-08-04T00:00:00Z", modifiedUtc: "2026-08-04T00:00:00Z", accessedUtc: "2026-08-04T00:00:00Z", attributes: [] };
+const fileJob = { jobId: "job-a", operation: "copy" as const, state: "queued" as const, queuePosition: 1, itemsCompleted: 0, itemsTotal: 1, bytesCompleted: 0, bytesTotal: 12, canPause: false, canResume: false, canCancel: true };
+
 export const serverFrameCatalog = {
   "pair.accepted": {
     required: ["clientId", "pcName", "paired"],
@@ -305,6 +321,55 @@ export const serverFrameCatalog = {
       { type: "screen.view.ended", reason: "permission-revoked", message: "The PC stopped screen viewing and disallowed this device." }
     ]
   },
+  "file.session.open.result": { required: ["operationId", "succeeded", "message"], frames: [
+    { type: "file.session.open.result", operationId: "op-file-session-ok", succeeded: true, message: "Opened.", session: fileSession },
+    { type: "file.session.open.result", operationId: "op-file-session", succeeded: false, message: "Unavailable." }
+  ] },
+  "file.page.get.result": { required: ["operationId", "succeeded", "message"], frames: [
+    { type: "file.page.get.result", operationId: "op-file-page-ok", succeeded: true, message: "Loaded.", page: filePage },
+    { type: "file.page.get.result", operationId: "op-file-page", succeeded: false, message: "Unavailable." }
+  ] },
+  "file.navigate.result": { required: ["operationId", "succeeded", "message"], frames: [
+    { type: "file.navigate.result", operationId: "op-file-nav-ok", succeeded: true, message: "Opened.", page: filePage },
+    { type: "file.navigate.result", operationId: "op-file-nav", succeeded: false, message: "Unavailable." }
+  ] },
+  "file.refresh.result": { required: ["operationId", "succeeded", "message"], frames: [
+    { type: "file.refresh.result", operationId: "op-file-refresh-ok", succeeded: true, message: "Refreshed.", page: filePage },
+    { type: "file.refresh.result", operationId: "op-file-refresh", succeeded: false, message: "Unavailable." }
+  ] },
+  "file.properties.get.result": { required: ["operationId", "succeeded", "message"], frames: [
+    { type: "file.properties.get.result", operationId: "op-file-properties-ok", succeeded: true, message: "Loaded.", properties: fileProperties },
+    { type: "file.properties.get.result", operationId: "op-file-properties", succeeded: false, message: "Unavailable." }
+  ] },
+  "file.clipboard.set.result": { required: ["operationId", "succeeded", "message"], frames: [
+    { type: "file.clipboard.set.result", operationId: "op-file-clipboard-ok", succeeded: true, message: "Copied." },
+    { type: "file.clipboard.set.result", operationId: "op-file-clipboard", succeeded: false, message: "Unavailable." }
+  ] },
+  "file.open.result": { required: ["operationId", "succeeded", "message"], frames: [
+    { type: "file.open.result", operationId: "op-file-open-ok", succeeded: true, message: "Opened." },
+    { type: "file.open.result", operationId: "op-file-open", succeeded: false, message: "Unavailable." }
+  ] },
+  "file.job.create.result": { required: ["operationId", "succeeded", "message"], frames: [
+    { type: "file.job.create.result", operationId: "op-file-job-ok", succeeded: true, message: "Queued.", job: fileJob },
+    { type: "file.job.create.result", operationId: "op-file-job", succeeded: false, message: "Unavailable." }
+  ] },
+  "file.job.control.result": { required: ["operationId", "succeeded", "message"], frames: [
+    { type: "file.job.control.result", operationId: "op-file-control-ok", succeeded: true, message: "Paused." },
+    { type: "file.job.control.result", operationId: "op-file-control", succeeded: false, message: "Unavailable." }
+  ] },
+  "file.job.reorder.result": { required: ["operationId", "succeeded", "message"], frames: [
+    { type: "file.job.reorder.result", operationId: "op-file-reorder-ok", succeeded: true, message: "Reordered." },
+    { type: "file.job.reorder.result", operationId: "op-file-reorder", succeeded: false, message: "Unavailable." }
+  ] },
+  "file.job.conflict.resolve.result": { required: ["operationId", "succeeded", "message"], frames: [
+    { type: "file.job.conflict.resolve.result", operationId: "op-file-conflict-ok", succeeded: true, message: "Resolved." },
+    { type: "file.job.conflict.resolve.result", operationId: "op-file-conflict", succeeded: false, message: "Unavailable." }
+  ] },
+  "file.sort.result": { required: ["operationId", "succeeded", "message"], frames: [
+    { type: "file.sort.result", operationId: "op-file-sort-ok", succeeded: true, message: "Sorted.", page: filePage },
+    { type: "file.sort.result", operationId: "op-file-sort", succeeded: false, message: "Unavailable." }
+  ] },
+  "file.jobs.status": { required: ["jobs"], frames: [{ type: "file.jobs.status", jobs: [] }] },
   "audio.state": { required: ["volume", "muted"], frames: [{ type: "audio.state", volume: 72, muted: false }] }
 } satisfies { [T in ServerMessageType]: ServerFrameContract<T> };
 

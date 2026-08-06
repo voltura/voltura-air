@@ -1,0 +1,517 @@
+.file-manager-workspace {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  grid-template-rows: minmax(0, 1fr) auto;
+  overflow: hidden;
+  container-type: inline-size;
+  background: var(--background);
+}
+
+.file-manager-stage {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  background: var(--surface);
+}
+
+.file-manager-content {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+  transform-origin: 0 0;
+}
+
+.file-manager-content[style] {
+  will-change: transform;
+}
+
+.file-toolbar {
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 1px;
+  padding: 1px;
+  border-bottom: 1px solid var(--border);
+  background: var(--border);
+}
+
+.file-toolbar button {
+  display: grid;
+  min-width: 0;
+  min-height: 3.25rem;
+  padding: 0.25rem 0.1rem;
+  border: 0;
+  border-radius: 0;
+  background: var(--surface-elevated, var(--surface));
+  box-shadow: none;
+  place-items: center;
+  gap: 0.1rem;
+  font-size: 0.64rem;
+}
+
+.file-toolbar button:disabled {
+  opacity: 0.38;
+}
+
+.file-toolbar svg {
+  width: 1.18rem;
+  height: 1.18rem;
+}
+
+.file-shortcuts-menu {
+  position: absolute;
+  z-index: 5;
+  top: 3.45rem;
+  right: 0.35rem;
+  display: grid;
+  min-width: 12rem;
+  padding: 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  background: var(--surface-elevated, var(--surface));
+  box-shadow: 0 0.8rem 2rem color-mix(in srgb, black 28%, transparent);
+}
+
+.file-shortcuts-menu button {
+  justify-content: flex-start;
+  box-shadow: none;
+  gap: 0.5rem;
+}
+
+.file-shortcuts-menu svg {
+  width: 1rem;
+}
+
+.file-manager-panels {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1px;
+  background: var(--border);
+}
+
+.file-panel {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  background: var(--surface);
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+}
+
+.file-panel:last-child {
+  display: none;
+}
+
+.file-panel.active {
+  outline-color: var(--accent);
+}
+
+.file-panel-location {
+  display: grid;
+  min-width: 0;
+  min-height: 2.35rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: stretch;
+  background: color-mix(in srgb, var(--accent) 30%, var(--surface));
+}
+
+.file-panel.active .file-panel-location {
+  background: color-mix(in srgb, var(--accent) 58%, var(--surface));
+}
+
+.file-panel-location select {
+  width: 5.5rem;
+  border: 0;
+  border-right: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+}
+
+.file-panel-location div {
+  min-width: 0;
+  padding: 0.48rem 0.55rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.file-columns,
+.file-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) 3.8rem 3rem 6rem;
+  align-items: center;
+}
+
+.file-columns {
+  min-height: 1.7rem;
+  border-block: 1px solid var(--border);
+  background: var(--surface-muted, var(--surface));
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.file-columns button {
+  min-height: 1.7rem;
+  padding-inline: 0.45rem;
+  border: 0;
+  border-right: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+}
+
+.file-list {
+  position: relative;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+.file-list-space {
+  position: relative;
+  min-width: 100%;
+}
+
+.file-row {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 46px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.file-row.selected {
+  background: color-mix(in srgb, var(--accent) 24%, var(--surface));
+}
+
+.file-row > input {
+  position: absolute;
+  z-index: 2;
+  left: 0.35rem;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.file-row > button {
+  display: flex;
+  justify-content: flex-start;
+  min-width: 0;
+  min-height: 100%;
+  padding: 0.25rem 0.35rem 0.25rem 2rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  text-align: left;
+  gap: 0.4rem;
+}
+
+.file-row > button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-row > button small {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 0.62rem;
+}
+
+.file-row > button svg {
+  flex: 0 0 auto;
+  width: 1.25rem;
+  color: var(--accent);
+}
+
+.file-row > span,
+.file-row > time {
+  min-width: 0;
+  padding-inline: 0.45rem;
+  overflow: hidden;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.file-row.parent {
+  grid-template-columns: auto minmax(0, 1fr) 3.8rem 3rem 6rem;
+  width: 100%;
+  padding: 0 0.45rem;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  box-shadow: none;
+  text-align: left;
+}
+
+.file-row.parent svg {
+  width: 1.25rem;
+  color: var(--accent);
+}
+
+.file-panel footer {
+  min-height: 1.7rem;
+  padding: 0.3rem 0.45rem;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.68rem;
+}
+
+.file-page-state {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  padding: 0.4rem;
+  background: var(--surface);
+  text-align: center;
+}
+
+.file-gesture-mode,
+.file-zoom-reset {
+  position: absolute;
+  z-index: 8;
+  bottom: 0.45rem;
+  min-height: 2.25rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.file-gesture-mode {
+  left: 0.45rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.file-gesture-mode svg {
+  width: 0.9rem;
+}
+
+.file-zoom-reset {
+  right: 0.45rem;
+}
+
+.file-status {
+  min-height: 1.65rem;
+  padding: 0.25rem 0.5rem;
+  overflow: hidden;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.7rem;
+}
+
+.file-job-minimized {
+  display: grid;
+  position: absolute;
+  z-index: 9;
+  right: 0.5rem;
+  bottom: 2rem;
+  left: 0.5rem;
+  padding: 0.5rem 0.7rem;
+  background: color-mix(in srgb, var(--surface) 95%, transparent);
+  box-shadow: 0 0.55rem 1.3rem color-mix(in srgb, black 25%, transparent);
+  text-align: left;
+  gap: 0.25rem;
+}
+
+.file-job-minimized progress {
+  width: 100%;
+}
+
+.file-operation-scrim {
+  position: fixed;
+  z-index: 90;
+  inset: 0;
+  display: grid;
+  padding: 1rem;
+  background: color-mix(in srgb, black 55%, transparent);
+  place-items: center;
+}
+
+.file-operation-center {
+  display: grid;
+  width: min(34rem, 100%);
+  max-height: min(42rem, 90svh);
+  padding: 0.8rem;
+  overflow: auto;
+  border-radius: 0.8rem;
+  background: var(--surface);
+  gap: 0.65rem;
+}
+
+.file-operation-center header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.file-operation-center article {
+  display: grid;
+  padding: 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  gap: 0.35rem;
+}
+
+.file-operation-center article > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.file-operation-center button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.file-operation-center svg {
+  width: 0.9rem;
+}
+
+.file-conflict {
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--border);
+}
+
+.file-properties {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.45rem 0.7rem;
+}
+
+.file-properties dt {
+  color: var(--text-muted);
+  font-weight: 800;
+}
+
+.file-properties dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.file-rename-field {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.file-manager-unavailable {
+  display: grid;
+  height: 100%;
+  padding: 2rem;
+  place-content: center;
+  justify-items: center;
+  text-align: center;
+  gap: 0.5rem;
+}
+
+.file-manager-unavailable svg {
+  width: 3rem;
+  height: 3rem;
+  color: var(--text-muted);
+}
+
+@container (max-width: 639px) {
+  .file-row:not(.parent) {
+    grid-template-columns: 4.25rem 3rem minmax(0, 1fr);
+    grid-template-rows: 1.65rem 1.2rem;
+  }
+
+  .file-row:not(.parent) > button {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    padding-block: 0;
+  }
+
+  .file-row:not(.parent) > span:first-of-type {
+    grid-column: 1;
+    grid-row: 2;
+    padding-left: 2rem;
+  }
+
+  .file-row:not(.parent) > span:nth-of-type(2) {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .file-row:not(.parent) > time {
+    grid-column: 3;
+    grid-row: 2;
+    text-align: right;
+  }
+}
+
+@container (min-width: 640px) {
+  .file-manager-panels {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .file-panel:last-child {
+    display: grid;
+  }
+
+  .file-toolbar {
+    grid-template-columns: repeat(14, minmax(0, 1fr));
+  }
+
+  .file-toolbar button {
+    min-height: 3rem;
+  }
+
+  .file-columns,
+  .file-row {
+    grid-template-columns: minmax(0, 1fr) 3.8rem 3rem 6rem;
+  }
+
+  .file-row.parent {
+    grid-template-columns: auto minmax(0, 1fr) 3.8rem 3rem 6rem;
+  }
+
+  .file-columns {
+    grid-template-columns: minmax(0, 1fr) 3.8rem 3rem 6rem;
+  }
+}
+
+@media (height <= 430px) {
+  .file-toolbar button {
+    min-height: 2.65rem;
+  }
+
+  .file-toolbar button span {
+    display: none;
+  }
+
+  .file-status {
+    display: none;
+  }
+}

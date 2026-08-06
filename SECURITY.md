@@ -48,6 +48,16 @@ signed-in user's Windows key store, and paired browsers pin its public half. The
 controls do not make it a sandbox against malware already running as the same
 Windows user; same-user software can generally act with that user's privileges.
 
+The optional Files tool has separate default-off browse/open and change
+permissions, each resolved through global and per-device policy. Authenticated
+clients submit only bounded opaque session, location, entry, revision,
+continuation, and job references; the host never accepts a client path. It
+revalidates the complete directory revision before clipboard, Shell, or mutation
+work begins. File content remains on the PC, deletion is limited to Windows
+Recycle Bin eligibility, and permission revocation closes sessions and cancels
+owned work. This is remote operation with the signed-in Windows user's authority,
+not a sandbox against that user or same-user malware.
+
 Fresh pairing keeps the QR short: it contains one short-lived token, version,
 and optional routing hint, not a PC identity key or fingerprint. After opening,
 the token authenticates a challenge-response exchange that pins the host's

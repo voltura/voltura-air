@@ -80,7 +80,108 @@ export interface ServerCapabilities {
   volume?: boolean;
   customScreens?: CustomScreensCapability | null;
   screenView?: ScreenViewCapability | null;
+  fileManager?: FileManagerCapability | null;
 }
+
+export interface FileManagerCapability {
+  canBrowse: boolean;
+  canModify: boolean;
+  maxPageSize: number;
+}
+
+export interface FileManagerEntry {
+  id: string;
+  name: string;
+  kind: "file" | "folder";
+  extension: string;
+  size?: number | null;
+  modifiedUtc: string;
+  attributes: string[];
+}
+
+export interface FileManagerPanelPage {
+  panel: "left" | "right";
+  revision: string;
+  displayPath: string;
+  parentId?: string | null;
+  driveId?: string | null;
+  sortBy: "name" | "size" | "type" | "modified";
+  descending: boolean;
+  totalCount: number;
+  entries: FileManagerEntry[];
+  continuation?: string | null;
+}
+
+export interface FileManagerSession {
+  sessionId: string;
+  drives: { id: string; label: string; driveType: string; freeBytes?: number | null; totalBytes?: number | null }[];
+  shortcuts: { id: string; label: string }[];
+  left: FileManagerPanelPage;
+  right: FileManagerPanelPage;
+}
+
+export interface FileManagerProperties {
+  entryId: string;
+  name: string;
+  fullPath: string;
+  kind: "file" | "folder";
+  extension: string;
+  size?: number | null;
+  createdUtc: string;
+  modifiedUtc: string;
+  accessedUtc: string;
+  attributes: string[];
+}
+
+export type FileJobState = "queued" | "preparing" | "running" | "paused" | "needs-attention" | "canceling" | "completed" | "failed" | "canceled" | "interrupted";
+export interface FileJobSnapshot {
+  jobId: string;
+  operation: "copy" | "move" | "delete" | "rename";
+  state: FileJobState;
+  queuePosition: number;
+  itemsCompleted: number;
+  itemsTotal: number;
+  bytesCompleted: number;
+  bytesTotal: number;
+  bytesPerSecond?: number | null;
+  etaSeconds?: number | null;
+  currentName?: string | null;
+  message?: string | null;
+  conflictName?: string | null;
+  canPause: boolean;
+  canResume: boolean;
+  canCancel: boolean;
+}
+
+export interface FileSelectionMessageFields {
+  selectionAll: boolean;
+  entryIds: string[];
+  excludedEntryIds: string[];
+}
+
+export interface FileSessionOpenMessage { type: "file.session.open"; operationId: string; }
+export interface FilePageGetMessage { type: "file.page.get"; operationId: string; sessionId: string; panel: "left" | "right"; revision: string; continuation: string; }
+export interface FileNavigateMessage { type: "file.navigate"; operationId: string; sessionId: string; panel: "left" | "right"; revision: string; targetId: string; }
+export interface FileRefreshMessage { type: "file.refresh"; operationId: string; sessionId: string; panel: "left" | "right"; }
+export interface FileSortMessage { type: "file.sort"; operationId: string; sessionId: string; panel: "left" | "right"; sortBy: "name" | "size" | "type" | "modified"; descending: boolean; }
+export interface FilePropertiesGetMessage { type: "file.properties.get"; operationId: string; sessionId: string; panel: "left" | "right"; revision: string; entryId: string; }
+export interface FileClipboardSetMessage extends FileSelectionMessageFields { type: "file.clipboard.set"; operationId: string; sessionId: string; panel: "left" | "right"; revision: string; effect: "copy" | "move"; }
+export interface FileOpenMessage { type: "file.open"; operationId: string; sessionId: string; panel: "left" | "right"; revision: string; entryId: string; }
+export interface FileJobsGetMessage { type: "file.jobs.get"; operationId: string; }
+export interface FileJobCreateMessage extends FileSelectionMessageFields { type: "file.job.create"; operationId: string; sessionId: string; panel: "left" | "right"; revision: string; operation: "copy" | "move" | "paste" | "rename" | "delete"; destinationPanel?: "left" | "right"; newName?: string; }
+export interface FileJobControlMessage { type: "file.job.control"; operationId: string; jobId: string; action: "pause" | "resume" | "cancel"; }
+export interface FileJobReorderMessage { type: "file.job.reorder"; operationId: string; jobId: string; direction: "up" | "down"; }
+export interface FileConflictResolveMessage { type: "file.job.conflict.resolve"; operationId: string; jobId: string; resolution: "replace" | "skip" | "cancel"; applyToAll: boolean; }
+
+export interface FileSessionOpenResultMessage { type: "file.session.open.result"; operationId: string; succeeded: boolean; code?: string | null; message: string; session?: FileManagerSession | null; }
+interface FilePanelResultMessageBase<T extends "file.page.get.result" | "file.navigate.result" | "file.refresh.result" | "file.sort.result"> { type: T; operationId: string; succeeded: boolean; code?: string | null; message: string; page?: FileManagerPanelPage | null; }
+export type FilePanelResultMessage = FilePanelResultMessageBase<"file.page.get.result"> | FilePanelResultMessageBase<"file.navigate.result"> | FilePanelResultMessageBase<"file.refresh.result"> | FilePanelResultMessageBase<"file.sort.result">;
+export interface FilePropertiesResultMessage { type: "file.properties.get.result"; operationId: string; succeeded: boolean; code?: string | null; message: string; properties?: FileManagerProperties | null; }
+interface FileActionResultMessageBase<T extends "file.clipboard.set.result" | "file.open.result" | "file.job.control.result" | "file.job.reorder.result" | "file.job.conflict.resolve.result"> { type: T; operationId: string; succeeded: boolean; code?: string | null; message: string; }
+export type FileActionResultMessage = FileActionResultMessageBase<"file.clipboard.set.result"> | FileActionResultMessageBase<"file.open.result"> | FileActionResultMessageBase<"file.job.control.result"> | FileActionResultMessageBase<"file.job.reorder.result"> | FileActionResultMessageBase<"file.job.conflict.resolve.result">;
+export interface FileJobCreateResultMessage { type: "file.job.create.result"; operationId: string; succeeded: boolean; code?: string | null; message: string; job?: FileJobSnapshot | null; }
+export interface FileJobsStatusMessage { type: "file.jobs.status"; operationId?: string; jobs: FileJobSnapshot[]; }
+export type FileManagerServerMessage = FileSessionOpenResultMessage | FilePanelResultMessage | FilePropertiesResultMessage | FileActionResultMessage | FileJobCreateResultMessage | FileJobsStatusMessage;
 
 export interface ScreenViewCapability {
   enabled: boolean;
@@ -786,6 +887,19 @@ export type ClientMessage =
   | ScreenViewStartMessage
   | ScreenViewAnswerMessage
   | ScreenViewSourceSetMessage
-  | ScreenViewStopMessage;
+  | ScreenViewStopMessage
+  | FileSessionOpenMessage
+  | FilePageGetMessage
+  | FileNavigateMessage
+  | FileRefreshMessage
+  | FileSortMessage
+  | FilePropertiesGetMessage
+  | FileClipboardSetMessage
+  | FileOpenMessage
+  | FileJobsGetMessage
+  | FileJobCreateMessage
+  | FileJobControlMessage
+  | FileJobReorderMessage
+  | FileConflictResolveMessage;
 
-export type ServerMessage = PairAcceptedMessage | PairChallengeMessage | PairBootstrapChallengeMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | PresentationCommandResultMessage | PowerPointRefreshResultMessage | PowerPointLaunchResultMessage | PresentationSessionResultMessage | PresentationReportSaveResultMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | UrlOpenResultMessage | TextSendResultMessage | ClipboardGetResultMessage | AudioStateMessage | CustomScreenGetResultMessage | CustomScreenInvokeResultMessage | ScreenViewSourcesResultMessage | ScreenViewStartResultMessage | ScreenViewAnswerResultMessage | ScreenViewSourceResultMessage | ScreenViewStopResultMessage | ScreenViewEndedMessage;
+export type ServerMessage = PairAcceptedMessage | PairChallengeMessage | PairBootstrapChallengeMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | PresentationCommandResultMessage | PowerPointRefreshResultMessage | PowerPointLaunchResultMessage | PresentationSessionResultMessage | PresentationReportSaveResultMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | UrlOpenResultMessage | TextSendResultMessage | ClipboardGetResultMessage | AudioStateMessage | CustomScreenGetResultMessage | CustomScreenInvokeResultMessage | ScreenViewSourcesResultMessage | ScreenViewStartResultMessage | ScreenViewAnswerResultMessage | ScreenViewSourceResultMessage | ScreenViewStopResultMessage | ScreenViewEndedMessage | FileManagerServerMessage;

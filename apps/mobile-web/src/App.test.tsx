@@ -53,6 +53,7 @@ function mockConnection(overrides: Partial<ReturnType<typeof useVolturaAirConnec
     message: "Connected to Very Long Living Room Editing Workstation",
     send: vi.fn(),
     screenViewCapability: undefined,
+    fileManagerCapability: undefined,
     requestAudioState: vi.fn(),
     clientId: "client-a",
     deviceName: "Phone",
@@ -639,6 +640,21 @@ describe("App header and mode navigation", () => {
 
     expect(document.querySelector(".bottom-mode-tabs")).toBe(bottomModeNavigation);
     expect(fourthModeButton.getAttribute("aria-current")).toBe("page");
+  });
+
+  it("uses Files as an optional fourth mode without changing Presentation's default", async () => {
+    localStorage.setItem("voltura-air.appSettings.client-a.pc-a", JSON.stringify({ fourthMode: "files" }));
+    mockConnection({ fileManagerCapability: { canBrowse: false, canModify: false, maxPageSize: 100 } });
+    render(<App />);
+
+    const bottomModeNavigation = document.querySelector<HTMLElement>(".bottom-mode-tabs");
+    const filesButton = within(bottomModeNavigation!).getByRole("button", { name: "Files on PC" });
+    fireEvent.click(filesButton);
+
+    expect(await screen.findByText("Files needs permission")).toBeTruthy();
+    expect(document.querySelector(".app-shell")?.classList.contains("files-active")).toBe(true);
+    expect(document.querySelector(".bottom-mode-tabs")).toBeNull();
+    expect(screen.getByRole("button", { name: "Change mode" })).toBeTruthy();
   });
 
   it("keeps Presentation navigation available when it is the configured fourth mode", () => {

@@ -112,6 +112,8 @@ internal sealed class DevicesPageController(
             DevicePermissionKind.AwakeControl => current with { AllowAwakeControl = value },
             DevicePermissionKind.ClipboardRead => current with { AllowClipboardRead = value },
             DevicePermissionKind.ScreenViewing => current with { AllowScreenViewing = value },
+            DevicePermissionKind.FileBrowsing => current with { AllowFileBrowsing = value },
+            DevicePermissionKind.FileChanges => current with { AllowFileChanges = value },
             DevicePermissionKind.SignOut => current with { AllowSignOut = value },
             DevicePermissionKind.Restart => current with { AllowRestart = value },
             DevicePermissionKind.Shutdown => current with { AllowShutdown = value },
@@ -228,7 +230,9 @@ internal sealed class DevicesPageController(
             CreatePermission(device.ClientId, DevicePermissionKind.DisplayOff, "Turn off display", device.PermissionOverrides.AllowDisplayOff, global.AllowDisplayOff),
             CreatePermission(device.ClientId, DevicePermissionKind.AwakeControl, "Keep awake", device.PermissionOverrides.AllowAwakeControl, global.AllowAwakeControl),
             CreatePermission(device.ClientId, DevicePermissionKind.ClipboardRead, "Read PC clipboard", device.PermissionOverrides.AllowClipboardRead, global.AllowClipboardRead),
-            CreatePermission(device.ClientId, DevicePermissionKind.ScreenViewing, "View PC screen", device.PermissionOverrides.AllowScreenViewing, global.AllowScreenViewing)
+            CreatePermission(device.ClientId, DevicePermissionKind.ScreenViewing, "View PC screen", device.PermissionOverrides.AllowScreenViewing, global.AllowScreenViewing),
+            CreatePermission(device.ClientId, DevicePermissionKind.FileBrowsing, "Browse and open files", device.PermissionOverrides.AllowFileBrowsing, global.AllowFileBrowsing),
+            CreatePermission(device.ClientId, DevicePermissionKind.FileChanges, "Change files", device.PermissionOverrides.AllowFileChanges, global.AllowFileChanges)
         ]);
         if (powerController.IsActionAvailable(SystemPowerActions.ScreenSaver))
         {

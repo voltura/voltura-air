@@ -186,6 +186,8 @@ Settings disclosures start collapsed, allow one open section, and minimally
 scroll their own region only when the first usable control would be clipped;
 keep the focused summary visible and respect reduced motion.
 
+Files uses one panel below 640 CSS pixels and two equal panels at or above that content boundary. The app header and compact selector stay outside the Files viewport; action rows and panel headers stay outside each virtualized list scroller. A feature-owned container query controls panel composition. Its explicit Scroll/Zoom chip reserves two-finger contact before the gesture begins: Scroll leaves normal controls and list scrolling active, while Zoom magnifies and pans the clipped 1×–5× workspace. Rotation changes the underlying layout, never the breakpoint through scale, and reclamps the transform. Modal properties, conflicts, menus, feedback, and the app-wide operation indicator stay untransformed.
+
 ## Interaction states
 
 | State | Required outcome |

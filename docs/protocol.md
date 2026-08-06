@@ -802,6 +802,36 @@ Codes: `VAIR-CLIPBOARD-PERMISSION-DENIED`, `VAIR-CLIPBOARD-NO-TEXT`,
 `VAIR-CLIPBOARD-TEXT-TOO-LONG`, `VAIR-CLIPBOARD-UNAVAILABLE`. Permission
 denial performs no read.
 
+## Host file manager
+
+`capabilities.fileManager` is present when the host supports Files:
+
+```json
+{ "canBrowse": false, "canModify": false, "maxPageSize": 100 }
+```
+
+The capability remains present when permission is denied so mobile can show recovery guidance. `canBrowse` reflects **Browse and open files**. `canModify` additionally requires **Change files**. Both permissions default off and resolve global plus per-device policy.
+
+Clients never send a path. The host issues opaque `sessionId`, drive/shortcut/entry IDs, panel `revision`, `continuation`, and `jobId` values. Each authenticated request has an `operationId` and only the fields listed here:
+
+- `file.session.open`: opens/replaces the originating device's navigation session and returns `file.session.open.result` with drives, known-folder shortcuts, and left/right first pages.
+- `file.page.get`: `sessionId`, `panel`, `revision`, `continuation`. A continuation is single-use, belongs to one panel revision, and returns at most 100 entries in `file.page.get.result`.
+- `file.navigate`: `sessionId`, `panel`, `revision`, `targetId`; `file.refresh`: `sessionId`, `panel`; and `file.sort`: `sessionId`, `panel`, `sortBy` (`name|size|type|modified`), `descending`. Their matching `.result` contains one replacement page.
+- `file.properties.get` and `file.open`: `sessionId`, `panel`, `revision`, `entryId`. Properties returns bounded name/display path, kind, extension, optional size, timestamps, and attributes. Open delegates to the Windows Shell.
+- `file.clipboard.set`: session/panel/revision plus `effect` (`copy|move`), `selectionAll`, at most 512 explicit `entryIds`, and at most 512 `excludedEntryIds`. The host writes a Shell file-drop list and preferred effect to the real Windows clipboard.
+- `file.jobs.get` returns `file.jobs.status`. `file.job.create` adds session/panel/revision, `operation` (`copy|move|paste|rename|delete`), optional destination panel or bounded new name, and the selection fields. Paste resolves a compatible Explorer/Windows file clipboard on the host; no clipboard paths cross the protocol.
+- `file.job.control` carries `jobId` and `action` (`pause|resume|cancel`); `file.job.reorder` carries `direction` (`up|down`); `file.job.conflict.resolve` carries `resolution` (`replace|skip|cancel`) and `applyToAll`.
+
+A panel page contains `panel`, opaque `revision`, display-only `displayPath`, optional opaque parent/drive IDs, `sortBy`, `descending`, complete `totalCount`, up to 100 entries, and optional continuation. Entries contain an opaque ID, name, `file|folder`, extension, optional non-negative size, modified time, and at most eight bounded attributes. Folders remain before files for every sort, and pages are slices of that complete host order.
+
+`selectionAll: true` means the complete referenced directory revision minus exclusions, not the loaded pages. Immediately before resolving any entry or selection, the host compares the current directory metadata with that revision. A mismatch returns `stale-panel`, queues nothing, performs no partial action, and mobile refreshes the panel. Expired sessions, consumed continuations, unavailable entries/targets/shares, invalid sorts/names, clipboard/Shell failures, Recycle Bin ineligibility, full queues, and unauthorized jobs return bounded codes and messages without paths.
+
+Mutation creation returns `file.job.create.result` with a job immediately. `file.jobs.status` is owner-filtered, contains at most 32 snapshots, and is also coalesced after changes. A snapshot contains operation, queue state/position, completed/total items and bytes, optional bytes/second, ETA, current display name/message/conflict display name, and pause/resume/cancel availability. States are `queued`, `preparing`, `running`, `paused`, `needs-attention`, `canceling`, `completed`, `failed`, `canceled`, and `interrupted`.
+
+One mutation runs host-wide. Reordering swaps only the originating device's queued slots, so another device's positions are not crossed. Permission revocation closes that device's sessions and cancels owned active/queued work. Disconnect does neither. The host journals active job identity and partial destination paths locally, atomically commits each copied file from a temporary destination, removes the current partial file on cancellation, and reports cleanup as `interrupted` after restart without automatic resume. Move sources are removed only after their destination entries commit successfully; a skipped/failed subtree preserves its source.
+
+Every file message remains within the existing 64 KiB frame limit. Paths, filenames, clipboard lists, conflict names, temporary names, tokens, keys, and proofs are excluded from application logs.
+
 ## Presentation
 
 Authenticated status advertises `presentation`. Effective global and per-device

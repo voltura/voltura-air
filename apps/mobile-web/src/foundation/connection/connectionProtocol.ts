@@ -270,6 +270,20 @@ function isServerMessage(value: unknown): value is ServerMessage {
     case "audio.state":
       return typeof value.volume === "number" && Number.isFinite(value.volume) && value.volume >= 0 && value.volume <= 100 &&
         typeof value.muted === "boolean";
+    case "file.session.open.result":
+    case "file.page.get.result":
+    case "file.navigate.result":
+    case "file.refresh.result":
+    case "file.sort.result":
+    case "file.properties.get.result":
+    case "file.clipboard.set.result":
+    case "file.open.result":
+    case "file.job.create.result":
+    case "file.job.control.result":
+    case "file.job.reorder.result":
+    case "file.job.conflict.resolve.result":
+    case "file.jobs.status":
+      return isFileManagerServerMessage(value);
     default:
       return false;
   }
@@ -292,10 +306,84 @@ function isServerCapabilities(value: unknown): boolean {
       candidate === null || isCustomScreensCapability(candidate)) &&
     isOptional(value, "screenView", (candidate) =>
       candidate === null || isScreenViewCapability(candidate)) &&
+    isOptional(value, "fileManager", (candidate) =>
+      candidate === null || isFileManagerCapability(candidate)) &&
     isOptional(value, "urlOpen", (candidate) => isBooleanCapability(candidate, "canOpen")) &&
     isOptional(value, "sleep", isBoolean) &&
     isOptional(value, "textTransfer", isBoolean) &&
     isOptional(value, "volume", isBoolean);
+}
+
+function isFileManagerCapability(value: unknown): boolean {
+  return isRecord(value) && typeof value.canBrowse === "boolean" && typeof value.canModify === "boolean" &&
+    Number.isInteger(value.maxPageSize) && (value.maxPageSize as number) >= 1 && (value.maxPageSize as number) <= 100;
+}
+
+function isFileManagerServerMessage(value: Record<string, unknown>): boolean {
+  if (value.type === "file.jobs.status") {
+    return isOptional(value, "operationId", isOperationId) && Array.isArray(value.jobs) && value.jobs.length <= 32 && value.jobs.every(isFileJob);
+  }
+  if (!isOperationId(value.operationId) || !isResultBase(value)) {return false;}
+  if (value.type === "file.session.open.result") {
+    return isOptional(value, "session", (candidate) => candidate === null || isFileSession(candidate)) &&
+      (value.succeeded === false || isFileSession(value.session));
+  }
+  if (value.type === "file.page.get.result" || value.type === "file.navigate.result" || value.type === "file.refresh.result" || value.type === "file.sort.result") {
+    return isOptional(value, "page", (candidate) => candidate === null || isFilePanelPage(candidate)) &&
+      (value.succeeded === false || isFilePanelPage(value.page));
+  }
+  if (value.type === "file.properties.get.result") {
+    return isOptional(value, "properties", (candidate) => candidate === null || isFileProperties(candidate)) &&
+      (value.succeeded === false || isFileProperties(value.properties));
+  }
+  if (value.type === "file.job.create.result") {
+    return isOptional(value, "job", (candidate) => candidate === null || isFileJob(candidate));
+  }
+  return true;
+}
+
+function isFileSession(value: unknown): boolean {
+  return isRecord(value) && isBoundedString(value.sessionId, 512, false) &&
+    Array.isArray(value.drives) && value.drives.length <= 64 && value.drives.every((item) =>
+      isRecord(item) && isBoundedString(item.id, 512, false) && isBoundedString(item.label, 260, false) && isBoundedString(item.driveType, 32, false)) &&
+    Array.isArray(value.shortcuts) && value.shortcuts.length <= 16 && value.shortcuts.every((item) =>
+      isRecord(item) && isBoundedString(item.id, 512, false) && isBoundedString(item.label, 80, false)) &&
+    isFilePanelPage(value.left) && isFilePanelPage(value.right);
+}
+
+function isFilePanelPage(value: unknown): boolean {
+  return isRecord(value) && isOneOf(value.panel, ["left", "right"]) &&
+    isBoundedString(value.revision, 512, false) && isBoundedString(value.displayPath, 32767, false) &&
+    isOptional(value, "parentId", (candidate) => candidate === null || isBoundedString(candidate, 512, false)) &&
+    isOptional(value, "driveId", (candidate) => candidate === null || isBoundedString(candidate, 512, false)) &&
+    isOneOf(value.sortBy, ["name", "size", "type", "modified"]) && typeof value.descending === "boolean" &&
+    Number.isInteger(value.totalCount) && (value.totalCount as number) >= 0 &&
+    Array.isArray(value.entries) && value.entries.length <= 100 && value.entries.every(isFileEntry) &&
+    isOptional(value, "continuation", (candidate) => candidate === null || isBoundedString(candidate, 512, false));
+}
+
+function isFileEntry(value: unknown): boolean {
+  return isRecord(value) && isBoundedString(value.id, 512, false) && isBoundedString(value.name, 255, false) &&
+    isOneOf(value.kind, ["file", "folder"]) && isBoundedString(value.extension, 255, true) &&
+    isOptional(value, "size", (candidate) => candidate === null || Number.isSafeInteger(candidate) && (candidate as number) >= 0) &&
+    isBoundedString(value.modifiedUtc, 64, false) && Array.isArray(value.attributes) && value.attributes.length <= 8 &&
+    value.attributes.every((attribute) => isBoundedString(attribute, 32, false));
+}
+
+function isFileProperties(value: unknown): boolean {
+  return isRecord(value) && isBoundedString(value.entryId, 512, false) && isBoundedString(value.name, 255, false) &&
+    isBoundedString(value.fullPath, 32767, false) && isOneOf(value.kind, ["file", "folder"]) &&
+    isBoundedString(value.extension, 255, true) && isBoundedString(value.createdUtc, 64, false) &&
+    isBoundedString(value.modifiedUtc, 64, false) && isBoundedString(value.accessedUtc, 64, false) &&
+    Array.isArray(value.attributes) && value.attributes.length <= 8;
+}
+
+function isFileJob(value: unknown): boolean {
+  return isRecord(value) && isBoundedString(value.jobId, 512, false) && isOneOf(value.operation, ["copy", "move", "delete", "rename"]) &&
+    isOneOf(value.state, ["queued", "preparing", "running", "paused", "needs-attention", "canceling", "completed", "failed", "canceled", "interrupted"]) &&
+    ["queuePosition", "itemsCompleted", "itemsTotal", "bytesCompleted", "bytesTotal"].every((field) =>
+      Number.isFinite(value[field]) && (value[field] as number) >= 0) &&
+    typeof value.canPause === "boolean" && typeof value.canResume === "boolean" && typeof value.canCancel === "boolean";
 }
 
 function isHostIdentity(value: unknown): boolean {
@@ -720,6 +808,7 @@ export const getCustomScreensCapability = (capabilities: ServerCapabilities | un
     ? capabilities.customScreens
     : undefined;
 export const getScreenViewCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.screenView ?? undefined;
+export const getFileManagerCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.fileManager ?? undefined;
 export const hasTextTransferCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.textTransfer === true;
 export const getClipboardReadPermission = (capabilities: ServerCapabilities | undefined): boolean | undefined =>
   typeof capabilities?.clipboardRead === "boolean" ? capabilities.clipboardRead : undefined;

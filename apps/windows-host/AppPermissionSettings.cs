@@ -21,6 +21,8 @@ public static class AppPermissionSettings
     private const string AllowSignOutValueName = "AllowSignOut";
     private const string AllowRestartValueName = "AllowRestart";
     private const string AllowShutdownValueName = "AllowShutdown";
+    private const string AllowFileBrowsingValueName = "AllowFileBrowsing";
+    private const string AllowFileChangesValueName = "AllowFileChanges";
     private static HostPermissionSet _cachedPermissions = HostPermissions.DefaultGlobal;
 
     static AppPermissionSettings()
@@ -58,6 +60,8 @@ public static class AppPermissionSettings
         key.SetValue(AllowSignOutValueName, permissions.AllowSignOut ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowRestartValueName, permissions.AllowRestart ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowShutdownValueName, permissions.AllowShutdown ? 1 : 0, RegistryValueKind.DWord);
+        key.SetValue(AllowFileBrowsingValueName, permissions.AllowFileBrowsing ? 1 : 0, RegistryValueKind.DWord);
+        key.SetValue(AllowFileChangesValueName, permissions.AllowFileChanges ? 1 : 0, RegistryValueKind.DWord);
         Volatile.Write(ref _cachedPermissions, permissions);
 
         if (current != permissions)
@@ -92,7 +96,9 @@ public static class AppPermissionSettings
                 AllowScreenViewing: GetBooleanValue(key, AllowScreenViewingValueName, HostPermissions.DefaultGlobal.AllowScreenViewing),
                 AllowSignOut: GetBooleanValue(key, AllowSignOutValueName, HostPermissions.DefaultGlobal.AllowSignOut),
                 AllowRestart: GetBooleanValue(key, AllowRestartValueName, HostPermissions.DefaultGlobal.AllowRestart),
-                AllowShutdown: GetBooleanValue(key, AllowShutdownValueName, HostPermissions.DefaultGlobal.AllowShutdown));
+                AllowShutdown: GetBooleanValue(key, AllowShutdownValueName, HostPermissions.DefaultGlobal.AllowShutdown),
+                AllowFileBrowsing: GetBooleanValue(key, AllowFileBrowsingValueName, HostPermissions.DefaultGlobal.AllowFileBrowsing),
+                AllowFileChanges: GetBooleanValue(key, AllowFileChangesValueName, HostPermissions.DefaultGlobal.AllowFileChanges));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {

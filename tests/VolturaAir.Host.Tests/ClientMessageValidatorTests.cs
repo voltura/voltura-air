@@ -6,6 +6,21 @@ namespace VolturaAir.Host.Tests;
 public sealed class ClientMessageValidatorTests
 {
     [Theory]
+    [InlineData("file.session.open", """{ "type": "file.session.open", "operationId": "files-1" }""", true)]
+    [InlineData("file.page.get", """{ "type": "file.page.get", "operationId": "files-2", "sessionId": "session", "panel": "left", "revision": "revision", "continuation": "opaque" }""", true)]
+    [InlineData("file.page.get", """{ "type": "file.page.get", "operationId": "files-2", "sessionId": "session", "panel": "left", "revision": "revision", "continuation": "opaque", "path": "C:\\" }""", false)]
+    [InlineData("file.sort", """{ "type": "file.sort", "operationId": "files-3", "sessionId": "session", "panel": "right", "sortBy": "modified", "descending": true }""", true)]
+    [InlineData("file.sort", """{ "type": "file.sort", "operationId": "files-3", "sessionId": "session", "panel": "right", "sortBy": "path", "descending": true }""", false)]
+    [InlineData("file.job.create", """{ "type": "file.job.create", "operationId": "files-4", "sessionId": "session", "panel": "left", "revision": "revision", "operation": "copy", "destinationPanel": "right", "selectionAll": true, "entryIds": [], "excludedEntryIds": ["entry-a"] }""", true)]
+    [InlineData("file.job.create", """{ "type": "file.job.create", "operationId": "files-4", "sessionId": "session", "panel": "left", "revision": "revision", "operation": "copy", "destinationPanel": "right", "selectionAll": true, "entryIds": [], "excludedEntryIds": [], "sourcePath": "C:\\Users" }""", false)]
+    public void ValidatesOpaqueFileManagerMessages(string type, string json, bool expected)
+    {
+        using var document = JsonDocument.Parse(json);
+
+        Assert.Equal(expected, ClientMessageValidator.IsValidAuthenticatedMessage(document.RootElement, type));
+    }
+
+    [Theory]
     [InlineData("""{ "type": "appearance.control-depth.set", "controlDepth": true }""", true)]
     [InlineData("""{ "type": "appearance.control-depth.set", "controlDepth": false }""", true)]
     [InlineData("""{ "type": "appearance.control-depth.set", "controlDepth": 1 }""", false)]

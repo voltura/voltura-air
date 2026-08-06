@@ -314,6 +314,8 @@ internal enum DevicePermissionKind
     AwakeControl,
     ClipboardRead,
     ScreenViewing,
+    FileBrowsing,
+    FileChanges,
     SignOut,
     Restart,
     Shutdown

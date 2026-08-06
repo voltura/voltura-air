@@ -13,4 +13,17 @@ describe("capability-aware app modes", () => {
     expect(getEffectiveFourthMode("presentation", true)).toBe("presentation");
     expect(getModeTabs("presentation", true).at(-1)?.id).toBe("presentation");
   });
+
+  it("keeps Presentation as the default and falls back from Files to Presentation then Dictation", () => {
+    expect(getModeTabs("files", true, true).at(-1)?.id).toBe("files");
+    expect(getEffectiveFourthMode("files", true, false)).toBe("presentation");
+    expect(getModeTabs("files", true, false).at(-1)?.id).toBe("presentation");
+    expect(getEffectiveFourthMode("files", false, false)).toBe("dictation");
+    expect(getModeTabs("files", false, false).at(-1)?.id).toBe("dictation");
+  });
+
+  it("offers Files under Tools only when the host supports it", () => {
+    expect(getAvailableToolModeIds(true, false)).not.toContain("files");
+    expect(getAvailableToolModeIds(true, true)).toContain("files");
+  });
 });

@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import { Circle, Menu, MousePointer2 } from "lucide-react";
+import { Circle, Files, Menu, MousePointer2 } from "lucide-react";
 import type { MainAppTab, ModeDefinition } from "./appModeTabs";
 import type { ConnectionState } from "../foundation/connection/connectionTypes";
 import { useDeveloperRefreshLongPress } from "./useDeveloperRefreshLongPress";
@@ -13,9 +13,11 @@ interface AppHeaderProps {
   developerMode: boolean;
   isModeSelectorOpen: boolean;
   message: string;
+  fileJobCount?: number;
   modeTabs: ModeDefinition[];
   onCloseModeSelector: () => void;
   onOpenSettings: () => void;
+  onOpenFileJobs?: () => void;
   onSelectMode: (tab: MainAppTab) => void;
   onToggleModeSelector: () => void;
   refreshInstalledApp: () => void | Promise<void>;
@@ -31,9 +33,11 @@ export function AppHeader({
   developerMode,
   isModeSelectorOpen,
   message,
+  fileJobCount = 0,
   modeTabs,
   onCloseModeSelector,
   onOpenSettings,
+  onOpenFileJobs,
   onSelectMode,
   onToggleModeSelector,
   refreshInstalledApp,
@@ -57,6 +61,7 @@ export function AppHeader({
             <CompactModeSelectorButton buttonRef={compactModeButtonRef} activeMode={activeMode} isOpen={isModeSelectorOpen} onToggle={onToggleModeSelector} />
           )}
         </div>
+        {fileJobCount > 0 && onOpenFileJobs && <button className="header-file-job" type="button" onClick={onOpenFileJobs} aria-label={`Open ${fileJobCount} active file operation${fileJobCount === 1 ? "" : "s"}`}><Files aria-hidden="true" /><span>{fileJobCount}</span></button>}
         <div className={`status ${state}`} title={message}>
           <Circle aria-hidden="true" />
           <span className="status-full">{message}</span>

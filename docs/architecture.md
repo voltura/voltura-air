@@ -40,6 +40,7 @@ performs startup, rollback, and shutdown.
 | Portable relay rooms, bounds, and provider contracts | `services/relay/src/core` |
 | Cloudflare and standalone relay adapters | `services/relay/src/cloudflare` and `services/relay/src/standalone` |
 | Screen-view tickets, single-viewer arbitration, encrypted records, and capture lifecycle | `ScreenViewCoordinator`, `ScreenViewCrypto`, and `DxgiScreenViewCaptureSource` |
+| Opaque file navigation, Windows file clipboard/Shell actions, persisted panel locations, and serialized mutation work | `FileManagerService`, its platform/location/journal adapters, and `FileManagerCommandHandler` |
 | Lazy mobile screen renderer and fallback crypto | `features/screen-view/` dynamic import |
 | Coalesced capability/status delivery | `HostStatusBroadcaster` and payload factory |
 | Validated input and focused Windows actions | Command handlers and platform adapters |
@@ -94,6 +95,8 @@ The JSON control socket owns discovery, signed offer/answer signaling,
 source-switch, and stop commands. Screen media uses a separate H.264 RTP track;
 cursor/status uses the `screen-events` data channel, so media backpressure cannot
 consume the command socket's serialized send queue.
+
+Files follows the same lazy feature boundary: the initial shell carries only capability/navigation wiring and loads `features/file-manager` on entry. The host resolves every opaque session, location, entry, revision, continuation, and job reference. `FileManagerService` intentionally keeps revision validation and queue admission in one cohesive boundary so a changed directory cannot enqueue a partially resolved operation. Its bounded workers own the single mutation queue, panel-location persistence, and atomic local job journal; shutdown cancels and awaits them. The large service is a recorded source-limit exception because splitting opaque resolution from operation admission would weaken that atomic contract; Windows clipboard, Shell, location-store, and journal behavior remain replaceable adapters.
 
 The capture owner uses Desktop Duplication GPU frames and cursor metadata. A
 D3D11 conversion stage supplies NV12 GPU surfaces to a capability-selected

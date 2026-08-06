@@ -44,6 +44,7 @@ export interface SettingsDrawerProps {
   pairingQrInputRef: RefObject<HTMLInputElement | null>;
   pairingScanMessage: string;
   presentationAvailable: boolean;
+  filesAvailable?: boolean;
   refreshInstalledApp: () => Promise<void>;
   refreshMessage: string;
   renameDevice: (name: string) => void;

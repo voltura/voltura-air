@@ -54,7 +54,7 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 - The Windows host's 3D control effect is a separate appearance preference and
   defaults off. The mobile/device default is on; each paired device can inherit,
   enable, or disable it.
-- Host permissions cover sleep, volume, Screen viewing, Presentation, application launch, web
+- Host permissions cover sleep, volume, Screen viewing, Presentation, file browsing/opening, file changes, application launch, web
   addresses, PC clipboard reads, Lock, Blackout, display off, screen saver,
   sign out, restart, shutdown, Keep awake, and interaction with the host UI.
 - Unsupported actions are omitted; host-disabled actions explain the relevant
@@ -415,6 +415,18 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   Effective global and per-device Presentation permission gates control,
   session tracking, saved-file launch, and report saves.
 
+### Files
+
+- **Files** is a lazy-loaded, touch-first view of files that remain on the Windows PC or its mapped drives. It is an optional fourth-mode choice and a Menu tool; Presentation remains the default fourth mode. A saved Files choice falls back to Presentation on an older host, then to Dictation when Presentation is also unavailable.
+- Below 640 CSS pixels Files shows one panel; at 640 pixels or wider it shows two equal, independently scrollable panels. Each panel has a drive selector, its own location, selection, sort, and scroll state. The active panel receives the shared Windows-known-folder menu. Valid panel locations are restored per paired device, initially preferring Downloads and Documents.
+- Folders sort before files. `..` is first when a parent exists. Name, Size, Type, and Modified are host-sorted across the complete directory; hidden, system, read-only, archive, and reparse-point attributes remain visible.
+- Directory responses contain at most 100 entries and an opaque continuation. Near-end scrolling loads and appends the next page; a failed page preserves loaded rows and shows Retry. Rows are virtualized. Select all represents the complete current directory revision with explicit exclusions, including entries not loaded when Select all was pressed.
+- Folder taps navigate; file taps select; checkboxes explicitly multi-select files or folders. Touch action rows provide Select all, Unselect all, Cut, Copy, Paste, Properties, Delete, Rename, View, and Open. Two-panel layouts also copy or move the active selection directly to the other panel's current folder.
+- Cut, Copy, and Paste use the real Windows Shell file clipboard and interoperate with Explorer. View/Open use the default Windows application; opening a folder launches Explorer. Delete is confirmed on mobile and uses only the Recycle Bin; the host rejects the whole request before queueing when any item cannot be recycled.
+- Copy, Move, Paste, Rename, and Delete return a host job immediately. One mutation runs host-wide while the rest queue. Jobs expose preparing, running, pause/resume/cancel, conflict attention with Replace/Skip/Cancel and apply-to-all, byte/item progress, rate, ETA, completion/failure, and restart interruption. Jobs continue across mobile mode changes and reconnects and are visible and controllable only to their originating paired device. Restart cleanup removes journaled partial destination files and does not automatically resume work.
+- Files keeps the app header and compact mode selector fixed and hides the large mode rows. Its Scroll/Zoom switch assigns ordinary interaction or two-finger workspace magnification explicitly. The complete Files workspace zooms from 1× to 5× inside its clipped viewport; app chrome, menus, sheets, toasts, and the operation center do not. Exit, reopen, and reconnect reset to 1×; rotation recomputes the unzoomed one/two-panel layout and reclamps panning.
+- Separate default-off **Browse and open files** and **Change files** permissions have global defaults and per-device overrides. A supported but denied device keeps Files visible with permission guidance. Revocation closes opaque navigation sessions and cancels that device's active mutation work.
+
 ### Dictation and text transfer
 
 - Dictation uses browser speech recognition when available, lets users
@@ -441,8 +453,9 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
 ### Navigation and split layout
 
 Trackpad, Keyboard, and Remote are fixed primary modes. The configurable fourth
-mode is Presentation, Dictation, Send text, or Get text and defaults to
-Presentation; Dictation is the fallback when Presentation capability is absent.
+mode is Presentation, Files, Dictation, Send text, or Get text and defaults to
+Presentation. An unavailable Files choice falls back to Presentation, then
+Dictation; an unavailable Presentation choice falls back to Dictation.
 All tools remain directly available from Menu.
 
 Wide landscape can show keyboard and trackpad side by side with selectable pane

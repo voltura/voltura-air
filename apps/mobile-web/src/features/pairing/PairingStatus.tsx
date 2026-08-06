@@ -126,15 +126,15 @@ export function PairingStatus({
       return false;
     }
 
-    if (onManualHostSubmit) {
-      onManualHostSubmit(validation.target);
-      setManualHost("");
-      setManualHostError("");
-      return true;
+    if (!onManualHostSubmit) {
+      setManualHostError("Manual connection is unavailable in this state.");
+      return false;
     }
 
-    window.location.assign(validation.target.kind === "pairing" ? manualHost.trim() : validation.target.pcUrl);
-    return false;
+    onManualHostSubmit(validation.target);
+    setManualHost("");
+    setManualHostError("");
+    return true;
   };
 
   const keepModalFocusInside = (event: React.KeyboardEvent<HTMLElement>) => {

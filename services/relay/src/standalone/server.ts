@@ -228,6 +228,9 @@ async function issueTurn(request: import("node:http").IncomingMessage, response:
   usedTurnNonces.set(replayKey, now);
   const expiresAt = new Date(now + 15 * 60_000);
   const username = `${Math.floor(expiresAt.getTime() / 1000)}:${routeId}`;
+  // Coturn's shared-secret TURN REST credentials require this exact HMAC-SHA1 derivation.
+  // This is protocol interoperability, not a general-purpose hash or signature choice.
+  // codeql[js/weak-cryptographic-algorithm]
   const credential = createHmac("sha1", turnSharedSecret).update(username).digest("base64");
   json(response, 200, {
     allowed: true,

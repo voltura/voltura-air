@@ -168,12 +168,6 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
   const completeCustomScreenInvoke = useEffectEvent(completeCustomScreenInvokeState);
   const completeScreenViewMessage = useEffectEvent(completeScreenViewMessageState);
   const completePowerAction = useEffectEvent(completePowerActionState);
-  const completeAwakeChange = useEffectEvent(completeAwakeChangeState);
-  const completeClipboardRead = useEffectEvent(completeClipboardReadState);
-  const completeCustomScreenGet = useEffectEvent(completeCustomScreenGetState);
-  const completeCustomScreenInvoke = useEffectEvent(completeCustomScreenInvokeState);
-  const completeScreenViewMessage = useEffectEvent(completeScreenViewMessageState);
-  const completePowerAction = useEffectEvent(completePowerActionState);
   const completePowerPointRefresh = useEffectEvent(completePowerPointRefreshState);
   const completePowerPointLaunch = useEffectEvent(completePowerPointLaunchState);
   const completePresentationCommand = useEffectEvent(completePresentationCommandState);

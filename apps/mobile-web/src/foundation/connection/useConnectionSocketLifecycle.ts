@@ -54,10 +54,15 @@ import {
 import { beginRelaySession, parseRelayKeyChallenge, verifyRelayHostAcceptance, type PendingRelaySession, type RelayEncryptedChannel, type RelayEncryptedSend } from "./relaySessionCrypto";
 import type { PendingMovementAck } from "./useConnectionSender";
 
-const connectionTimeoutMs = 3000;
+const directConnectionTimeoutMs = 3000;
+const relayConnectionTimeoutMs = 10000;
 const healthCheckTimeoutMs = 6500;
 const retryDelayMs = 1200;
 const displayOffHealthCheckDelayMs = 1000;
+
+export function getConnectionTimeoutMs(transportMode: PcProfile["transportMode"]): number {
+  return transportMode === "relay" ? relayConnectionTimeoutMs : directConnectionTimeoutMs;
+}
 
 interface ConnectionSocketLifecycleOptions {
   clearRuntimeStateFromSocket: () => void;
@@ -388,7 +393,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
       const ws = new WebSocket(getWebSocketUrl(pc));
       ws.binaryType = "arraybuffer";
       socketRef.current = ws;
-      connectionTimer = window.setTimeout(() => { markUnavailable(ws); }, connectionTimeoutMs);
+      connectionTimer = window.setTimeout(() => { markUnavailable(ws); }, getConnectionTimeoutMs(pc.transportMode));
   
       function onSocketOpen() {
         if (disposed || ws !== socketRef.current) {

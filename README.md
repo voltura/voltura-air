@@ -102,7 +102,9 @@ For restricted company networks, open **Connection**, select **Cloud relay
 through Voltura**, then save and restart. Both devices connect outward, so the
 PC does not need an incoming firewall exception. The short QR opens the hosted
 Voltura Air app at `voltura.se`; pairing, reconnect, permissions, and device
-removal work the same way as Direct LAN.
+removal work the same way as Direct LAN. Initial Direct connections use a
+3-second startup window; Relay connections allow 10 seconds so VPN and managed
+network inspection can add latency without causing an early failure.
 
 Paired devices are remembered until removed or their browser data is cleared.
 The optional **View PC screen** tool requires Screen viewing permission on the

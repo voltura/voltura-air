@@ -59,6 +59,10 @@ internal sealed class WebSocketSessionHandler(
                 }
                 catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                 {
+                    var timeoutClientId = authenticated
+                        ? authenticatedClientId
+                        : pendingReconnect?.ClientId ?? pendingPairing?.ClientId;
+                    LogConnectionTimeout(socket, authenticated, timeoutClientId);
                     await WebSocketTransport.CloseAsync(
                         socket,
                         authenticated ? "Connection timed out" : "Pairing timed out",
@@ -136,6 +140,7 @@ internal sealed class WebSocketSessionHandler(
                     }
                     catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                     {
+                        LogConnectionTimeout(socket, authenticated: false, authentication.ClientId);
                         await WebSocketTransport.CloseAsync(
                             socket,
                             "Pairing timed out",
@@ -696,6 +701,19 @@ internal sealed class WebSocketSessionHandler(
 
     private Task SendAudioStateAsync(WebSocket socket, AudioState state, CancellationToken cancellationToken) =>
         transport.SendAsync(socket, new { type = "audio.state", volume = state.Volume, muted = state.Muted }, cancellationToken);
+
+    private void LogConnectionTimeout(WebSocket socket, bool authenticated, string? clientId)
+    {
+        var timeout = authenticated ? AuthenticatedInactivityTimeout : PairingHandshakeTimeout;
+        appLog.Write(new AppLogEntry(
+            Event: "host_action",
+            Source: "windows_host",
+            ClientId: string.IsNullOrWhiteSpace(clientId) ? null : clientId,
+            Action: authenticated ? "connection_inactivity_timeout" : "pairing_handshake_timeout",
+            Outcome: "timed_out",
+            Code: socket is RelayVirtualWebSocket ? "relay" : "direct",
+            Detail: $"timeoutMs={(long)timeout.TotalMilliseconds}"));
+    }
 
     private async Task CloseAuthenticatedAsync(
         WebSocket socket,

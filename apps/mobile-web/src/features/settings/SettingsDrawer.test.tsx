@@ -24,6 +24,7 @@ const baseProps = {
   onManualHostSubmit: vi.fn(),
   onOpenGestureDebug: vi.fn(),
   onPairingQrSelected: vi.fn(),
+  onOpenThirdPartyNotices: vi.fn(),
   pairedPcs: [],
   pairingQrInputRef: { current: null },
   pairingScanMessage: "Scan the QR code shown on your PC.",
@@ -105,11 +106,12 @@ describe("SettingsDrawer", () => {
     expect(Array.from(document.querySelectorAll("details")).every((details) => !details.open)).toBe(true);
   });
 
-  it("links to the notices distributed with the PWA", () => {
+  it("opens the notices inside the app", () => {
     render(<SettingsDrawer {...baseProps} />);
 
-    expect(screen.getByRole("link", { name: "Third-party notices" }).getAttribute("href"))
-      .toBe("./third-party-notices.txt");
+    expect(screen.getByRole("button", { name: "Third-party notices" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Third-party notices" }));
+    expect(baseProps.onOpenThirdPartyNotices).toHaveBeenCalledOnce();
   });
 
   it("owns modal focus and returns it after a user close", () => {

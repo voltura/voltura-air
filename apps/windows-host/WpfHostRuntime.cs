@@ -50,8 +50,15 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
 
     public static async Task<WpfHostRuntime> StartAsync(string[] args, Action requestShutdown, Action requestRestart)
     {
+        var isolatedTestMode = HasOption(args, "--isolated-test-mode");
 #if DEBUG
-        var pairingStoreRoot = GetOption(args, "--pairing-store-root");
+        var requestedPairingStoreRoot = GetOption(args, "--pairing-store-root");
+        var pairingStoreRoot = string.IsNullOrWhiteSpace(requestedPairingStoreRoot)
+            ? null
+            : ResolveIsolatedAutomationPath(
+                args,
+                requestedPairingStoreRoot,
+                "appdata");
         var clientUrl = GetOption(args, "--client-url") ?? Environment.GetEnvironmentVariable("VOLTURA_AIR_CLIENT_URL");
         var usePublicScreenshotPairingUrl = HasOption(args, "--site-screenshot-mode");
 #else
@@ -59,7 +66,6 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         string? clientUrl = null;
         const bool usePublicScreenshotPairingUrl = false;
 #endif
-        var isolatedTestMode = HasOption(args, "--isolated-test-mode");
         IAppLog appLog = isolatedTestMode ? NullAppLog.Instance : new AppLog();
         SendInputInjector? inputInjector = null;
         CursorWatchdogService? cursorWatchdogService = null;
@@ -77,7 +83,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         SessionSwitchEventHandler? screenViewSessionSwitch = null;
         try
         {
-            pairingManager = new PairingManager(new PairingStore(string.IsNullOrWhiteSpace(pairingStoreRoot) ? null : pairingStoreRoot));
+            pairingManager = new PairingManager(new PairingStore(pairingStoreRoot));
             inputInjector = new SendInputInjector();
             cursorWatchdogService = new CursorWatchdogService();
             customPointerService = new CustomPointerService();
@@ -361,15 +367,46 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
     }
 
 #if DEBUG
+    private static string ResolveIsolatedAutomationPath(
+        string[] args,
+        string requestedPath,
+        string leafName)
+    {
+        if (!HasOption(args, "--isolated-test-mode"))
+        {
+            throw new InvalidOperationException("Isolated automation paths require --isolated-test-mode.");
+        }
+
+        var automationDirectoryName = HasOption(args, "--site-screenshot-mode")
+            ? "voltura-air-site-screenshots"
+            : "voltura-air-dev-ui";
+        var expectedPath = Path.GetFullPath(Path.Combine(
+            Path.GetTempPath(),
+            automationDirectoryName,
+            leafName));
+        if (!string.Equals(
+            Path.GetFullPath(requestedPath),
+            expectedPath,
+            StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Isolated automation files must use the Voltura Air temporary workspace.");
+        }
+
+        return expectedPath;
+    }
+
     private static void WritePairingUrlIfRequested(string[] args, string pairingUrl)
     {
-        var pairingUrlFile = GetOption(args, "--pairing-url-file");
-        if (string.IsNullOrWhiteSpace(pairingUrlFile))
+        var requestedPairingUrlFile = GetOption(args, "--pairing-url-file");
+        if (string.IsNullOrWhiteSpace(requestedPairingUrlFile))
         {
             return;
         }
 
-        var fullPath = Path.GetFullPath(pairingUrlFile);
+        var fullPath = ResolveIsolatedAutomationPath(
+            args,
+            requestedPairingUrlFile,
+            "pairing-url.txt");
         var directory = Path.GetDirectoryName(fullPath);
         if (!string.IsNullOrWhiteSpace(directory))
         {

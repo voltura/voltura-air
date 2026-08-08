@@ -25,6 +25,7 @@ import { ConfirmationDialog } from "./ui/overlays/ConfirmationDialog";
 import { CustomScreenWorkspace } from "./features/custom-screens";
 import { WorkspaceErrorBoundary } from "./app/WorkspaceErrorBoundary";
 import { subscribeFileManagerResults } from "./foundation/connection/fileManagerResultBus";
+import { ThirdPartyNoticesWorkspace } from "./features/legal";
 
 const ScreenViewWorkspace = lazy(() => import("./features/screen-view"));
 const FileManagerWorkspace = lazy(() => import("./features/file-manager"));
@@ -97,6 +98,7 @@ export function App() {
       fileJobStatesRef.current.set(job.jobId, job.state);
     }
   }), []);
+  const [isThirdPartyNoticesOpen, setIsThirdPartyNoticesOpen] = useState(false);
   const inputBlockedByElevation = hostStatus?.inputBlockedByElevation === true;
   const [inputRecoveryDialog, setInputRecoveryDialog] = useState({
     blocked: inputBlockedByElevation,
@@ -227,6 +229,7 @@ export function App() {
   const selectModeTabWithPresentationGuard: typeof selectModeTab = (nextTab, source) => {
     const selectMode = () => {
       setActiveCustomScreenId(null);
+      setIsThirdPartyNoticesOpen(false);
       if (nextTab === "presentation") {
         requestPresentationActivation();
       }
@@ -243,6 +246,7 @@ export function App() {
     const openMode = () => {
       setActiveCustomScreenId(null);
       setIsScreenViewOpen(false);
+      setIsThirdPartyNoticesOpen(false);
       if (mode === "presentation") {
         requestPresentationActivation();
       }
@@ -258,6 +262,7 @@ export function App() {
   const openGestureDebugWithPresentationGuard = () => {
     requestPresentationExit(() => {
       setActiveCustomScreenId(null);
+      setIsThirdPartyNoticesOpen(false);
       openGestureDebug();
     });
   };
@@ -295,6 +300,7 @@ export function App() {
     if (key === "mode") {
       requestPresentationExit(() => {
         setActiveCustomScreenId(null);
+        setIsThirdPartyNoticesOpen(false);
         selectModeTab("remote", "settings");
         setIsSettingsOpen(false);
         requestRemoteModeLaunch(value, nextSettings);
@@ -530,12 +536,14 @@ export function App() {
           onOpenCustomScreen={(screenId) => {
             requestPresentationExit(() => {
               setActiveCustomScreenId(screenId);
+              setIsThirdPartyNoticesOpen(false);
               setIsSettingsOpen(false);
             });
           }}
           onOpenScreenView={() => {
             requestPresentationExit(() => {
               setActiveCustomScreenId(null);
+              setIsThirdPartyNoticesOpen(false);
               setIsScreenViewOpen(true);
               setIsSettingsOpen(false);
             });
@@ -543,6 +551,12 @@ export function App() {
           onOpenMode={(mode) => {
             dismissModeSwitchHint();
             openModeFromMenuWithPresentationGuard(mode);
+          }}
+          onOpenThirdPartyNotices={() => {
+            closeTransientSurfaces();
+            setActiveCustomScreenId(null);
+            setIsScreenViewOpen(false);
+            setIsThirdPartyNoticesOpen(true);
           }}
           onPairingQrSelected={onPairingQrSelected}
           onManualHostSubmit={connectManualHost}
@@ -585,7 +599,9 @@ export function App() {
 
         {activeCustomScreenId === null && !isScreenViewOpen && tab !== "files" && isModeButtonsVisible && <ModeNavigation className="tabs top-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTabWithPresentationGuard} />}
 
-        {isScreenViewOpen && activePc && screenViewCapability ? (
+        {isThirdPartyNoticesOpen ? (
+          <ThirdPartyNoticesWorkspace onBack={() => { setIsThirdPartyNoticesOpen(false); }} />
+        ) : isScreenViewOpen && activePc && screenViewCapability ? (
           <WorkspaceErrorBoundary featureName="Screen" onBack={() => { setIsScreenViewOpen(false); }}>
             <Suspense fallback={<div className="workspace-loading">Opening Screen…</div>}>
               <ScreenViewWorkspace

@@ -222,7 +222,7 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
         </SettingsSectionDetails>
 
         <footer className="drawer-legal-links">
-          <a href="./third-party-notices.txt" target="_blank" rel="noreferrer">Third-party notices</a>
+          <button className="drawer-legal-link" type="button" onClick={props.onOpenThirdPartyNotices}>Third-party notices</button>
         </footer>
       </div>
       </div>

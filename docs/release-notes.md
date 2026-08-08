@@ -6,6 +6,12 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v0.8.9
+
+- Added File Manager: TODO: fill release notes about this feature
+- Corrected view of third-party notices on mobile app
+- General security related improvements
+
 ## v0.8.8
 
 - Fixed live PC screen viewing in phone and tablet landscape mode, including the

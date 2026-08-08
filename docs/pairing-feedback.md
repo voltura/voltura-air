@@ -22,6 +22,12 @@ asks for device-name confirmation, then connects. Pairing, rejection,
 unavailable, and intentional-disconnect panels block inactive controls while
 keeping recovery actions usable.
 
+The browser gives an initial Direct connection 3 seconds to open and authenticate.
+Relay connections get 10 seconds because VPNs, managed networks, DNS, TLS, and
+WebSocket inspection can add material startup latency. The longer Relay window
+does not change pairing, identity verification, encryption, retry behavior, or
+Direct-mode responsiveness.
+
 Photo decoding is one bounded attempt at a time. While the selected photo is
 being decoded, the primary action reads **Reading QR code...**, shows pending
 feedback, and is visibly and natively disabled; secondary photo/manual actions
@@ -91,3 +97,9 @@ Copied diagnostics may include state, failure reason, `VAIR-PAIR-*` code,
 credential-redacted page URL, browser user agent, display mode, and timestamp.
 They never include full pairing tokens, token IDs, private reconnect keys,
 host-identity private keys, challenges, or proofs.
+
+When **Write application log** is enabled, host-observed pairing-handshake and
+authenticated-inactivity timeouts are written through the normal Application Log
+pipeline with the transport (`direct` or `relay`) and configured timeout. A
+browser-side startup timeout that occurs before any connection reaches the PC
+cannot be written to the PC Application Log.

@@ -24,6 +24,7 @@ import { useOneShotHint } from "./ui/guidance/useOneShotHint";
 import { ConfirmationDialog } from "./ui/overlays/ConfirmationDialog";
 import { CustomScreenWorkspace } from "./features/custom-screens";
 import { WorkspaceErrorBoundary } from "./app/WorkspaceErrorBoundary";
+import { ThirdPartyNoticesWorkspace } from "./features/legal";
 
 const ScreenViewWorkspace = lazy(() => import("./features/screen-view"));
 
@@ -79,6 +80,7 @@ export function App() {
   const [suppressedClipboardResultId, setSuppressedClipboardResultId] = useState<string | null>(null);
   const [activeCustomScreenId, setActiveCustomScreenId] = useState<string | null>(null);
   const [isScreenViewOpen, setIsScreenViewOpen] = useState(false);
+  const [isThirdPartyNoticesOpen, setIsThirdPartyNoticesOpen] = useState(false);
   const inputBlockedByElevation = hostStatus?.inputBlockedByElevation === true;
   const [inputRecoveryDialog, setInputRecoveryDialog] = useState({
     blocked: inputBlockedByElevation,
@@ -207,6 +209,7 @@ export function App() {
   const selectModeTabWithPresentationGuard: typeof selectModeTab = (nextTab, source) => {
     const selectMode = () => {
       setActiveCustomScreenId(null);
+      setIsThirdPartyNoticesOpen(false);
       if (nextTab === "presentation") {
         requestPresentationActivation();
       }
@@ -223,6 +226,7 @@ export function App() {
     const openMode = () => {
       setActiveCustomScreenId(null);
       setIsScreenViewOpen(false);
+      setIsThirdPartyNoticesOpen(false);
       if (mode === "presentation") {
         requestPresentationActivation();
       }
@@ -238,6 +242,7 @@ export function App() {
   const openGestureDebugWithPresentationGuard = () => {
     requestPresentationExit(() => {
       setActiveCustomScreenId(null);
+      setIsThirdPartyNoticesOpen(false);
       openGestureDebug();
     });
   };
@@ -275,6 +280,7 @@ export function App() {
     if (key === "mode") {
       requestPresentationExit(() => {
         setActiveCustomScreenId(null);
+        setIsThirdPartyNoticesOpen(false);
         selectModeTab("remote", "settings");
         setIsSettingsOpen(false);
         requestRemoteModeLaunch(value, nextSettings);
@@ -504,12 +510,14 @@ export function App() {
           onOpenCustomScreen={(screenId) => {
             requestPresentationExit(() => {
               setActiveCustomScreenId(screenId);
+              setIsThirdPartyNoticesOpen(false);
               setIsSettingsOpen(false);
             });
           }}
           onOpenScreenView={() => {
             requestPresentationExit(() => {
               setActiveCustomScreenId(null);
+              setIsThirdPartyNoticesOpen(false);
               setIsScreenViewOpen(true);
               setIsSettingsOpen(false);
             });
@@ -517,6 +525,12 @@ export function App() {
           onOpenMode={(mode) => {
             dismissModeSwitchHint();
             openModeFromMenuWithPresentationGuard(mode);
+          }}
+          onOpenThirdPartyNotices={() => {
+            closeTransientSurfaces();
+            setActiveCustomScreenId(null);
+            setIsScreenViewOpen(false);
+            setIsThirdPartyNoticesOpen(true);
           }}
           onPairingQrSelected={onPairingQrSelected}
           onManualHostSubmit={connectManualHost}
@@ -558,7 +572,9 @@ export function App() {
 
         {activeCustomScreenId === null && !isScreenViewOpen && isModeButtonsVisible && <ModeNavigation className="tabs top-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTabWithPresentationGuard} />}
 
-        {isScreenViewOpen && activePc && screenViewCapability ? (
+        {isThirdPartyNoticesOpen ? (
+          <ThirdPartyNoticesWorkspace onBack={() => { setIsThirdPartyNoticesOpen(false); }} />
+        ) : isScreenViewOpen && activePc && screenViewCapability ? (
           <WorkspaceErrorBoundary featureName="Screen" onBack={() => { setIsScreenViewOpen(false); }}>
             <Suspense fallback={<div className="workspace-loading">Opening Screen…</div>}>
               <ScreenViewWorkspace

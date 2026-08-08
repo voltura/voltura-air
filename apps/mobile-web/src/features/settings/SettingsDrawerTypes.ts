@@ -37,6 +37,7 @@ export interface SettingsDrawerProps {
   onManualHostSubmit: (target: ManualConnectionTarget) => void;
   onOpenGestureDebug?: (() => void) | undefined;
   onOpenMode?: (mode: SettingsModeId) => void;
+  onOpenThirdPartyNotices: () => void;
   onOpenCustomScreen?: ((screenId: string) => void) | undefined;
   onOpenScreenView?: (() => void) | undefined;
   screenViewCapability?: ScreenViewCapability | undefined;

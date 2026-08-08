@@ -1,0 +1,1 @@
+export { ThirdPartyNoticesWorkspace } from "./ThirdPartyNoticesWorkspace";

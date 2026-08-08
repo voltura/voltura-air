@@ -130,9 +130,30 @@
   font-size: 0.78rem;
 }
 
-.drawer-legal-links a {
+.drawer-legal-links button.drawer-legal-link {
+  --control-background: transparent;
+
+  display: inline;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
   color: inherit;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
   text-underline-offset: 3px;
+  text-decoration: underline;
+}
+
+.drawer-legal-links button.drawer-legal-link:not(:disabled, [aria-disabled="true"]):active {
+  color: inherit;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  transform: none;
 }
 
 .settings-section {

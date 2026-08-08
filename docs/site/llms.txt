@@ -26,6 +26,8 @@ for a Windows 11 PC.
 - Cloud relay makes the Windows PC and mobile device connect outward, avoids an
   incoming PC firewall exception, and supports encrypted commands plus live
   screen viewing with Standard and Data saver quality choices.
+- Initial Direct connections use a 3-second startup window; Relay connections
+  allow 10 seconds to tolerate additional VPN or managed-network latency.
 - Reviewed custom screens can be browsed at https://voltura.se/air/screens/ and
   imported into Voltura Air after local review.
 

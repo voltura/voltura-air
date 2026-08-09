@@ -36,7 +36,7 @@ internal sealed class GlobalPermissionsSettingsSection(
             (Control: visuals.CreateCheckBox("Allow paired devices to open web addresses", permissions.AllowUrlOpen), Key: "url"),
             (Control: visuals.CreateCheckBox("Allow paired devices to lock the PC", permissions.AllowPcLock), Key: "lock"),
             (Control: visuals.CreateCheckBox("Allow paired devices to blackout displays", permissions.AllowBlackoutDisplay), Key: "blackout"),
-            (Control: visuals.CreateCheckBox("Allow paired devices to control display power and topology", permissions.AllowDisplayControl), Key: "display-control"),
+            (Control: visuals.CreateCheckBox("Allow paired devices to turn off displays and change multi-monitor mode.", permissions.AllowDisplayControl), Key: "display-control"),
             (Control: visuals.CreateCheckBox("Allow paired devices to start the screen saver", permissions.AllowScreenSaver), Key: "screen-saver"),
             (Control: visuals.CreateCheckBox("Allow paired devices to control Keep awake", permissions.AllowAwakeControl), Key: "awake"),
             (Control: visuals.CreateCheckBox("Allow paired devices to read the PC clipboard", permissions.AllowClipboardRead), Key: "clipboard"),

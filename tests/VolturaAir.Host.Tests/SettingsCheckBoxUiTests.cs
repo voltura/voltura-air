@@ -118,7 +118,7 @@ public sealed partial class HostUiLayoutTests
                 var startup = Assert.Single(settings, setting => setting.Label == "Start Voltura Air when I sign in to Windows");
                 var logging = Assert.Single(settings, setting => setting.Label == "Write application log");
                 var url = Assert.Single(settings, setting => setting.Label == "Allow paired devices to open web addresses");
-                var displays = Assert.Single(settings, setting => setting.Label == "Allow paired devices to control display power and topology");
+                var displays = Assert.Single(settings, setting => setting.Label == "Allow paired devices to turn off displays and change multi-monitor mode.");
                 var shutdown = Assert.Single(settings, setting => setting.Label == "Allow paired devices to shut down the PC");
                 var presetLabels = AppLaunchSettings.GetPresets()
                     .Select(preset => $"Show {AppLaunchSettings.GetPresetName(preset.Kind)}")

@@ -1,7 +1,7 @@
 {
   "name": "voltura-air",
   "private": true,
-  "version": "0.8.9",
+  "version": "0.8.10",
   "license": "MIT",
   "workspaces": [
     "apps/mobile-web",

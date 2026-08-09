@@ -47,7 +47,7 @@ export default function ScreenViewWorkspace({ activePc, capability, clientId, on
   const [streaming, setStreaming] = useState(false);
   const [playbackBlocked, setPlaybackBlocked] = useState(false);
   const [viewTransform, setViewTransform] = useState<ScreenViewTransform>(identityScreenViewTransform);
-  const [twoFingerMode, setTwoFingerMode] = useState<TwoFingerMode>("scroll");
+  const [twoFingerMode, setTwoFingerMode] = useState<TwoFingerMode>("zoom");
   const { workspaceRef, immersive, enterImmersive, exitImmersive } = useScreenViewFullscreen();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);

@@ -49,6 +49,7 @@ Run the smallest relevant checks:
 | Shared host lifecycle, native/resource, registry/persistence, network, or protocol boundary | Focused production-path boundary tests; full `npm run test:host` only when broad/shared |
 | Interaction/transport hot path | Prove delayed media, analytics, logging, persistence, and UI work cannot hold command/input processing; test bounded overload rather than latency growth |
 | Screen viewing | Fake-capture `TestServer` protocol/crypto/cleanup tests, mobile parser/renderer tests, bundle/size gates, then Windows preflight and `npm run dev:quick`; real phone/Wi-Fi viewing remains user acceptance |
+| Files on PC | Mobile pagination/selection/gesture tests, strict protocol tests, focused host file-system/clipboard/job tests, host ownership and size gates, then Windows local/mapped-drive acceptance |
 | Script | Relevant script test; full `npm run test:scripts` only for shared orchestration/root package composition |
 | Significant UI | Visual checkpoint by default; `npm run test:ui` only when its real pairing/smoke flow changes |
 | Structural/source ownership | `npm run size:check` |

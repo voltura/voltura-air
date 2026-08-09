@@ -369,7 +369,10 @@ export const serverFrameCatalog = {
     { type: "file.sort.result", operationId: "op-file-sort-ok", succeeded: true, message: "Sorted.", page: filePage },
     { type: "file.sort.result", operationId: "op-file-sort", succeeded: false, message: "Unavailable." }
   ] },
-  "file.jobs.status": { required: ["jobs"], frames: [{ type: "file.jobs.status", jobs: [] }] },
+  "file.jobs.status": { required: ["jobs"], frames: [
+    { type: "file.jobs.status", jobs: [] },
+    { type: "file.jobs.status", operationId: "op-file-paste-status", jobs: [{ ...fileJob, jobId: "job-paste", operation: "paste" }] }
+  ] },
   "audio.state": { required: ["volume", "muted"], frames: [{ type: "audio.state", volume: 72, muted: false }] }
 } satisfies { [T in ServerMessageType]: ServerFrameContract<T> };
 

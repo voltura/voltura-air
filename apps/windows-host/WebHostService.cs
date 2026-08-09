@@ -240,7 +240,7 @@ public sealed class WebHostService : IAsyncDisposable
             statusFactory,
             commandLog,
             _transport);
-        _fileManager = new FileManagerService();
+        _fileManager = new FileManagerService(hideProtectedItems: statusFactory.HideProtectedFileSystemItems);
         _fileManagerCommands = new FileManagerCommandHandler(_fileManager, statusFactory, _transport, pairingManager);
         var inputCommands = new InputCommandHandler(inputDispatcher, _powerController, commandLog, _transport);
         var customScreenCommands = new CustomScreenCommandHandler(

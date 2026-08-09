@@ -44,17 +44,22 @@ docs/site/assets/voltura-air-iphone-dark.png
 docs/site/assets/voltura-air-iphone-kodi-dark.png
 docs/site/assets/voltura-air-iphone-kodi-dark-forum.png
 docs/site/assets/voltura-air-split.png
+docs/site/assets/voltura-air-files.png
+docs/site/assets/voltura-air-files-dark.png
 ```
 
 The set covers host pairing, the fixed-size responsive Custom screens editor,
-phone trackpad, couch remote, and tablet split mode. The 350-pixel-wide
+phone trackpad, couch remote, tablet split mode, and a two-panel Files on PC
+view rendered from deterministic example folders and files. The 350-pixel-wide
 `-forum` image is derived from the Kodi screenshot for forum posts. README and
 the website reuse the full-size images. Add an image only for a distinct core
 use case.
 
 Mobile public captures use the real isolated pairing flow at 393×852 phone
 portrait and 1180×820 tablet landscape. Capture light and dark themes from the
-app; status must already contain `PC`.
+app; status must already contain `PC`. The Files capture uses only the
+screenshot harness's fixed example data; never use a developer's real drives,
+paths, filenames, or account name.
 
 Installer outputs:
 

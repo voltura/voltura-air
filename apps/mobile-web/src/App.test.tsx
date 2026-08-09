@@ -644,7 +644,7 @@ describe("App header and mode navigation", () => {
 
   it("uses Files as an optional fourth mode without changing Presentation's default", async () => {
     localStorage.setItem("voltura-air.appSettings.client-a.pc-a", JSON.stringify({ fourthMode: "files" }));
-    mockConnection({ fileManagerCapability: { canBrowse: false, canModify: false, maxPageSize: 100 } });
+    mockConnection({ fileManagerCapability: { canBrowse: false, canModify: false, hidesProtectedSystemItems: true, maxPageSize: 100 } });
     render(<App />);
 
     const bottomModeNavigation = document.querySelector<HTMLElement>(".bottom-mode-tabs");

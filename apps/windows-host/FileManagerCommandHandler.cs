@@ -135,13 +135,15 @@ internal sealed class FileManagerCommandHandler : IAsyncDisposable
                 await _transport.SendAsync(socket, new { type = "file.jobs.status", operationId, jobs = _service.GetJobs(clientId) }, cancellationToken);
                 return;
             case "file.job.control":
-                if (!_status.CanChangeFiles(clientId))
+                var jobAction = String(root, "action");
+                var canControlJob = jobAction == "dismiss" ? _status.CanBrowseFiles(clientId) : _status.CanChangeFiles(clientId);
+                if (!canControlJob)
                 {
-                    _service.RevokeClient(clientId, closeSession: false);
-                    await SendResultAsync(socket, type, operationId, false, "permission-denied", "Change files is disabled for this device on the PC.", cancellationToken);
+                    if (jobAction != "dismiss") _service.RevokeClient(clientId, closeSession: false);
+                    await SendResultAsync(socket, type, operationId, false, "permission-denied", jobAction == "dismiss" ? "File browsing is disabled for this device on the PC." : "Change files is disabled for this device on the PC.", cancellationToken);
                     return;
                 }
-                var controlled = _service.ControlJob(clientId, String(root, "jobId"), String(root, "action"));
+                var controlled = _service.ControlJob(clientId, String(root, "jobId"), jobAction);
                 await SendResultAsync(socket, type, operationId, controlled, controlled ? null : "job-unavailable", controlled ? "File job updated." : "The file job is unavailable.", cancellationToken);
                 return;
             case "file.job.reorder":
@@ -179,7 +181,8 @@ internal sealed class FileManagerCommandHandler : IAsyncDisposable
                     ReadSelection(root),
                     String(root, "operation"),
                     OptionalString(root, "destinationPanel"),
-                    OptionalString(root, "newName"));
+                    OptionalString(root, "newName"),
+                    OptionalString(root, "destinationRevision"));
                 await _transport.SendAsync(socket, new
                 {
                     type = "file.job.create.result",
@@ -242,7 +245,12 @@ internal sealed class FileManagerCommandHandler : IAsyncDisposable
             operationId,
             succeeded,
             code = succeeded ? null : code,
-            message = succeeded ? "Folder loaded." : code == "stale-panel" ? "The folder changed. Refresh it and try again." : "The folder is unavailable.",
+            message = succeeded ? "Folder loaded." : code switch
+            {
+                "stale-panel" => "The folder changed. Refresh it and try again.",
+                "access-denied" => "Windows does not allow access to this folder.",
+                _ => "The folder is unavailable."
+            },
             page
         }, cancellationToken);
 

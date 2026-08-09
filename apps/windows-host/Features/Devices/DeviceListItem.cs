@@ -248,7 +248,9 @@ internal sealed class DevicePermissionItem(
     DevicePermissionKind kind,
     string title,
     bool? overrideValue,
-    bool inheritedAllow) : INotifyPropertyChanged
+    bool inheritedAllow,
+    string positiveLabel = "Allow",
+    string negativeLabel = "Block") : INotifyPropertyChanged
 {
     private bool? _overrideValue = overrideValue;
 
@@ -268,8 +270,8 @@ internal sealed class DevicePermissionItem(
     public string AllowVisualState => IsExplicitAllow ? "Selected" : IsInheritedAllow ? "Effective" : "Default";
     public string BlockVisualState => IsExplicitBlock ? "Selected" : IsInheritedBlock ? "Effective" : "Default";
     public string UseGlobalLabel => OverrideValue is null ? "✓ Use global" : "Use global";
-    public string AllowLabel => OverrideValue == true || (OverrideValue is null && InheritedAllow) ? "✓ Allow" : "Allow";
-    public string BlockLabel => OverrideValue == false || (OverrideValue is null && !InheritedAllow) ? "✓ Block" : "Block";
+    public string AllowLabel => OverrideValue == true || (OverrideValue is null && InheritedAllow) ? $"✓ {positiveLabel}" : positiveLabel;
+    public string BlockLabel => OverrideValue == false || (OverrideValue is null && !InheritedAllow) ? $"✓ {negativeLabel}" : negativeLabel;
 
     public void SetOverrideValue(bool? value)
     {
@@ -316,6 +318,7 @@ internal enum DevicePermissionKind
     ScreenViewing,
     FileBrowsing,
     FileChanges,
+    HideProtectedFileSystemItems,
     SignOut,
     Restart,
     Shutdown

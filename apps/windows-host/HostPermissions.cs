@@ -18,7 +18,8 @@ public sealed record HostPermissionSet(
     bool AllowRestart = false,
     bool AllowShutdown = false,
     bool AllowFileBrowsing = false,
-    bool AllowFileChanges = false);
+    bool AllowFileChanges = false,
+    bool HideProtectedFileSystemItems = true);
 
 public sealed record DevicePermissionOverrides(
     bool? AllowRemoteInput = null,
@@ -38,7 +39,8 @@ public sealed record DevicePermissionOverrides(
     bool? AllowRestart = null,
     bool? AllowShutdown = null,
     bool? AllowFileBrowsing = null,
-    bool? AllowFileChanges = null);
+    bool? AllowFileChanges = null,
+    bool? HideProtectedFileSystemItems = null);
 
 public static class HostPermissions
 {
@@ -60,7 +62,8 @@ public static class HostPermissions
         AllowRestart: false,
         AllowShutdown: false,
         AllowFileBrowsing: false,
-        AllowFileChanges: false);
+        AllowFileChanges: false,
+        HideProtectedFileSystemItems: true);
 
     public static HostPermissionSet Resolve(HostPermissionSet global, DevicePermissionOverrides? deviceOverrides)
     {
@@ -82,6 +85,7 @@ public static class HostPermissions
             AllowRestart: deviceOverrides?.AllowRestart ?? global.AllowRestart,
             AllowShutdown: deviceOverrides?.AllowShutdown ?? global.AllowShutdown,
             AllowFileBrowsing: deviceOverrides?.AllowFileBrowsing ?? global.AllowFileBrowsing,
-            AllowFileChanges: deviceOverrides?.AllowFileChanges ?? global.AllowFileChanges);
+            AllowFileChanges: deviceOverrides?.AllowFileChanges ?? global.AllowFileChanges,
+            HideProtectedFileSystemItems: deviceOverrides?.HideProtectedFileSystemItems ?? global.HideProtectedFileSystemItems);
     }
 }

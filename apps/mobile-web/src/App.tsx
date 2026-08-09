@@ -125,6 +125,16 @@ export function App() {
   } = pcSettings;
   const presentationAvailable = presentationCapability !== undefined;
   const filesAvailable = fileManagerCapability !== undefined;
+  const canMirrorFileView = screenViewCapability?.canView === true && screenViewCapability.requiresRepair === false;
+  const mirrorFileViewUnavailableMessage = !screenViewCapability
+    ? "View requires PC Screen, which is unavailable on this host."
+    : screenViewCapability.requiresRepair
+      ? "View requires a trusted PC Screen connection. Scan this PC's pairing QR again."
+      : !screenViewCapability.enabled
+        ? "View requires PC Screen, which is unavailable on this PC."
+        : !screenViewCapability.permissionGranted
+          ? "Allow this device to view the PC screen in PC permissions before using View."
+          : "PC Screen is not currently available.";
   const {
     dismiss: dismissModeSwitchHint,
     open: isModeSwitchHintOpen,
@@ -148,6 +158,11 @@ export function App() {
   const handlePresentationActivationRequestHandled = useCallback(() => {
     setPresentationActivationRequest({ connectionEpoch, id: 0 });
   }, [connectionEpoch]);
+  const openScreenViewFromFiles = useCallback(() => {
+    setActiveCustomScreenId(null);
+    setIsThirdPartyNoticesOpen(false);
+    setIsScreenViewOpen(true);
+  }, []);
   const requestPresentationActivation = () => {
     setPresentationActivationRequest((current) => ({
       connectionEpoch,
@@ -207,7 +222,7 @@ export function App() {
     filesAvailable,
     supportsGestureDebug,
     trackpadSettings,
-    showModeButtons
+    showModeButtons: showModeButtons && !isThirdPartyNoticesOpen
   });
   useEffect(() => {
     if (state === "paired" &&
@@ -394,7 +409,7 @@ export function App() {
       return;
     }
 
-    const timeout = window.setTimeout(() => { setTransientFeedback(null); }, 3000);
+    const timeout = window.setTimeout(() => { setTransientFeedback(null); }, transientFeedback.tone === "error" ? 8000 : 4000);
     return () => { window.clearTimeout(timeout); };
   }, [transientFeedback]);
 
@@ -633,9 +648,12 @@ export function App() {
           <WorkspaceErrorBoundary featureName="Files" onBack={() => { selectModeTabWithPresentationGuard("trackpad", "selector"); }}>
             <Suspense fallback={<div className="workspace-loading">Opening Files…</div>}>
               <FileManagerWorkspace
-                key={`${connectionEpoch}-${String(fileManagerCapability.canBrowse)}-${String(fileManagerCapability.canModify)}`}
+                key={`${connectionEpoch}-${String(fileManagerCapability.canBrowse)}-${String(fileManagerCapability.canModify)}-${String(fileManagerCapability.hidesProtectedSystemItems)}`}
                 capability={fileManagerCapability}
+                canMirrorView={canMirrorFileView}
                 connectionEpoch={connectionEpoch}
+                mirrorViewUnavailableMessage={mirrorFileViewUnavailableMessage}
+                onMirrorView={openScreenViewFromFiles}
                 send={send}
                 state={state}
               />
@@ -718,6 +736,7 @@ export function App() {
           tab={tab}
           textTransferResult={textTransferResult}
           transientFeedback={transientFeedback}
+          onDismissTransient={() => setTransientFeedback(null)}
         />
         <ConfirmationDialog
           confirmLabel={`Open ${pendingRemoteLaunch === "openYoutube" ? "YouTube" : "Kodi"}`}

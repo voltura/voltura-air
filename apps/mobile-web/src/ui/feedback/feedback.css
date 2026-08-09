@@ -14,7 +14,29 @@
   font-size: 0.86rem;
   text-align: left;
   overflow-wrap: anywhere;
-  pointer-events: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.55rem;
+  pointer-events: auto;
+}
+
+.app-toast > span {
+  min-width: 0;
+}
+
+.app-toast > button {
+  width: 1.65rem;
+  min-width: 1.65rem;
+  height: 1.65rem;
+  min-height: 1.65rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: currentcolor;
+  font-size: 1.2rem;
+  line-height: 1;
 }
 
 .app-toast.pending {

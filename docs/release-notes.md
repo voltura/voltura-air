@@ -8,9 +8,26 @@ create one. Keep the shared notices in
 
 ## v0.8.9
 
-- Added File Manager: TODO: fill release notes about this feature
-- Corrected view of third-party notices on mobile app
-- General security related improvements
+- Added **Files on PC**, a touch-first host file manager with one panel in
+  narrow views and two independent panels whenever the screen is wide enough,
+  including phones in landscape. Browse local and mapped
+  drives, use Windows locations, sort and select files or folders, inspect
+  properties, and open items with their Windows apps without transferring file
+  content to the mobile device.
+- Added direct two-panel Copy and Move, Windows clipboard Cut/Copy/Paste, safe
+  Recycle Bin deletion, rename, background progress, pause/resume/cancel,
+  conflict handling, reconnect recovery, and removable operation history.
+- Added separate host and per-device permissions for browsing/opening and
+  changing files. Protected operating-system items are hidden by default, with
+  a global setting and per-device override.
+- Added **View** in Files to open a document on the PC and continue into the
+  independently authorized encrypted PC screen mirror. PC screen viewing now
+  starts in Zoom mode for two-finger gestures.
+- Improved **Third-party notices** on mobile with a readable in-app view,
+  component summaries, source links, and clear loading or failure feedback.
+- Gave Cloud relay connections more startup time before reporting the PC as
+  unavailable, improving reliability on VPNs and managed networks that add
+  connection delay. Direct local connections remain fast as before.
 
 ## v0.8.8
 

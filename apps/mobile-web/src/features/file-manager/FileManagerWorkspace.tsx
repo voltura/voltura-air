@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type TouchEvent } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import {
-  ArrowDown, ArrowUp, CheckCheck, Clipboard, ClipboardPaste, Copy, Eye, File, FileArchive, FileQuestion, Files,
+  ArrowDown, ArrowUp, CheckCheck, CircleCheck, Clipboard, ClipboardPaste, Copy, Eye, File, FileArchive, FileQuestion, Files,
   Folder, FolderInput, FolderOpen, FolderOutput, HardDrive, Info, Pause, Play, RefreshCw,
-  Scissors, SkipForward, Trash2, Type, X, ZoomIn
+  Scissors, SkipForward, Trash2, TriangleAlert, Type, X
 } from "lucide-react";
 import type { ConnectionState } from "../../foundation/connection/connectionTypes";
 import { subscribeFileManagerResults } from "../../foundation/connection/fileManagerResultBus";
@@ -13,57 +14,62 @@ import type {
 import { ModalDialog } from "../../ui/overlays/ModalDialog";
 import { ConfirmationDialog } from "../../ui/overlays/ConfirmationDialog";
 import { createLocalId } from "../../foundation/identity/localId";
-import { clampFileManagerTransform, fileTouchPair, identityFileManagerTransform, updateFileManagerPinch, type FileManagerPinchStart, type FileManagerTransform } from "./fileManagerZoom";
 import "./file-manager.css";
 
 type PanelName = "left" | "right";
 interface SelectionState { all: boolean; ids: Set<string>; excluded: Set<string>; }
 interface PanelView { page: FileManagerPanelPage; entries: FileManagerEntry[]; loadingMore: boolean; pageError: string; }
 interface PendingPanelRequest { panel: PanelName; kind: "page" | "replace"; revision: string; }
+interface TrackedJob { operation: "copy" | "move" | "paste" | "rename" | "delete"; sourcePanel: PanelName; destinationPanel?: PanelName; }
 
 interface Props {
   capability: FileManagerCapability;
+  canMirrorView: boolean;
   connectionEpoch: number;
+  mirrorViewUnavailableMessage: string;
+  onMirrorView: () => void;
   send: (message: ClientMessage) => void;
   state: ConnectionState;
 }
 
 const emptySelection = (): SelectionState => ({ all: false, ids: new Set(), excluded: new Set() });
 
-export default function FileManagerWorkspace({ capability, connectionEpoch, send, state }: Props) {
+export default function FileManagerWorkspace({ capability, canMirrorView, connectionEpoch, mirrorViewUnavailableMessage, onMirrorView, send, state }: Props) {
   const [session, setSession] = useState<FileManagerSession | null>(null);
   const [panels, setPanels] = useState<Record<PanelName, PanelView> | null>(null);
   const [activePanel, setActivePanel] = useState<PanelName>("left");
   const [selections, setSelections] = useState<Record<PanelName, SelectionState>>({ left: emptySelection(), right: emptySelection() });
   const [status, setStatus] = useState("Opening Files…");
+  const [statusTone, setStatusTone] = useState<"neutral" | "success" | "error">("neutral");
   const [properties, setProperties] = useState<FileManagerProperties | null>(null);
   const [jobs, setJobs] = useState<FileJobSnapshot[]>([]);
   const [operationsOpen, setOperationsOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [clipboardOpen, setClipboardOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [renameDraft, setRenameDraft] = useState<string | null>(null);
-  const [twoFingerMode, setTwoFingerMode] = useState<"scroll" | "zoom">("scroll");
-  const [transform, setTransform] = useState<FileManagerTransform>(identityFileManagerTransform);
   const [dualPanel, setDualPanel] = useState(false);
-  const transformRef = useRef(transform);
   const stageRef = useRef<HTMLDivElement>(null);
-  const pinchRef = useRef<FileManagerPinchStart | null>(null);
   const sessionRequestRef = useRef("");
   const sessionRef = useRef<FileManagerSession | null>(null);
   const panelsRef = useRef<Record<PanelName, PanelView> | null>(null);
   const pendingPanelRequests = useRef(new Map<string, PendingPanelRequest>());
   const latestReplacementRequest = useRef<Record<PanelName, string>>({ left: "", right: "" });
-  const pendingJobRequests = useRef(new Map<string, PanelName>());
+  const pendingJobRequests = useRef(new Map<string, TrackedJob>());
+  const pendingMirrorOpenRef = useRef("");
+  const trackedJobs = useRef(new Map<string, TrackedJob>());
+  const terminalJobEffects = useRef(new Set<string>());
+  const jobsRef = useRef<FileJobSnapshot[]>([]);
 
-  useEffect(() => { transformRef.current = transform; }, [transform]);
   useEffect(() => { sessionRef.current = session; }, [session]);
   useEffect(() => { panelsRef.current = panels; }, [panels]);
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) {return;}
     const updateLayout = () => {
-      setDualPanel(stage.clientWidth >= 640);
-      setTransform((current) => clampFileManagerTransform(current, stage.clientWidth, stage.clientHeight));
+      const nextDualPanel = stage.clientWidth >= 640;
+      setDualPanel(nextDualPanel);
+      if (!nextDualPanel) {setClipboardOpen(false);}
     };
     const observer = new ResizeObserver(updateLayout);
     updateLayout();
@@ -78,16 +84,47 @@ export default function FileManagerWorkspace({ capability, connectionEpoch, send
     send({ type: "file.jobs.get", operationId: createLocalId() });
   }, [capability.canBrowse, connectionEpoch, send, state]);
 
-  useEffect(() => subscribeFileManagerResults((message) => {
+  useEffect(() => {
+    const refreshPanel = (panel: PanelName) => {
+      const currentSession = sessionRef.current;
+      const currentPanels = panelsRef.current;
+      if (!currentSession || !currentPanels) {return;}
+      const operationId = createLocalId();
+      latestReplacementRequest.current[panel] = operationId;
+      pendingPanelRequests.current.set(operationId, { panel, kind: "replace", revision: currentPanels[panel].page.revision });
+      send({ type: "file.refresh", operationId, sessionId: currentSession.sessionId, panel });
+    };
+    const applyTerminalJobEffects = (job: FileJobSnapshot) => {
+      const tracked = trackedJobs.current.get(job.jobId);
+      if (!tracked || !isTerminalJob(job.state) || terminalJobEffects.current.has(job.jobId)) {return;}
+      terminalJobEffects.current.add(job.jobId);
+      trackedJobs.current.delete(job.jobId);
+      const completed = job.state === "completed";
+      setStatus(job.message ?? (completed ? `${job.operation} completed.` : `${job.operation} did not complete.`));
+      setStatusTone(completed ? "success" : job.state === "canceled" ? "neutral" : "error");
+      if (completed && tracked.operation === "copy") {
+        setSelections((current) => ({ ...current, [tracked.sourcePanel]: emptySelection() }));
+      }
+      const refreshPanels = new Set<PanelName>();
+      if (tracked.operation === "move" || tracked.operation === "delete" || tracked.operation === "rename" || tracked.operation === "paste") {
+        refreshPanels.add(tracked.sourcePanel);
+      }
+      if (tracked.operation === "copy" || tracked.operation === "move") {
+        refreshPanels.add(tracked.destinationPanel!);
+      }
+      refreshPanels.forEach(refreshPanel);
+    };
+    return subscribeFileManagerResults((message) => {
     if (message.type === "file.session.open.result") {
       if (message.operationId !== sessionRequestRef.current) {return;}
-      if (!message.succeeded || !message.session) { setStatus(message.message); return; }
+      if (!message.succeeded || !message.session) { setStatus(message.message); setStatusTone("error"); return; }
       setSession(message.session);
       setPanels({
         left: { page: message.session.left, entries: message.session.left.entries, loadingMore: false, pageError: "" },
         right: { page: message.session.right, entries: message.session.right.entries, loadingMore: false, pageError: "" }
       });
       setStatus("Files ready.");
+      setStatusTone("neutral");
       return;
     }
     if (message.type === "file.page.get.result" || message.type === "file.navigate.result" || message.type === "file.refresh.result" || message.type === "file.sort.result") {
@@ -97,6 +134,7 @@ export default function FileManagerWorkspace({ capability, connectionEpoch, send
       if (pending.kind === "replace" && latestReplacementRequest.current[pending.panel] !== message.operationId) {return;}
       if (!message.succeeded || !message.page) {
         setStatus(message.message);
+        setStatusTone("error");
         setPanels((current) => current ? {
           ...current,
           [pending.panel]: { ...current[pending.panel], loadingMore: false, pageError: pending.kind === "page" ? message.message : current[pending.panel].pageError }
@@ -127,35 +165,59 @@ export default function FileManagerWorkspace({ capability, connectionEpoch, send
         setSelections((current) => ({ ...current, [page.panel]: emptySelection() }));
       }
       setStatus(message.message);
+      setStatusTone("neutral");
       return;
     }
     if (message.type === "file.properties.get.result") {
       if (message.succeeded && message.properties) {setProperties(message.properties);}
       setStatus(message.message);
+      setStatusTone(message.succeeded ? "success" : "error");
       return;
     }
-    if (message.type === "file.jobs.status") { setJobs(message.jobs); return; }
+    if (message.type === "file.jobs.status") {
+      jobsRef.current = message.jobs;
+      setJobs(message.jobs);
+      message.jobs.forEach((job) => {
+        applyTerminalJobEffects(job);
+      });
+      return;
+    }
     if (message.type === "file.job.create.result" && message.job) {
+      const tracked = pendingJobRequests.current.get(message.operationId);
       pendingJobRequests.current.delete(message.operationId);
-      setJobs((current) => [message.job!, ...current.filter((job) => job.jobId !== message.job!.jobId)]);
+      if (tracked) {trackedJobs.current.set(message.job.jobId, tracked);}
+      const newest = jobsRef.current.find((job) => job.jobId === message.job!.jobId) ?? message.job;
+      jobsRef.current = [newest, ...jobsRef.current.filter((job) => job.jobId !== newest.jobId)];
+      setJobs(jobsRef.current);
+      applyTerminalJobEffects(newest);
       setStatus(message.message);
+      setStatusTone("success");
       return;
     }
     if (message.type === "file.job.create.result") {
-      const panel = pendingJobRequests.current.get(message.operationId);
+      const tracked = pendingJobRequests.current.get(message.operationId);
       pendingJobRequests.current.delete(message.operationId);
-      if (message.code === "stale-panel" && panel) {
+      if (message.code === "stale-panel" && tracked) {
         const currentSession = sessionRef.current;
         if (currentSession) {
           const refreshId = createLocalId();
-          latestReplacementRequest.current[panel] = refreshId;
-          pendingPanelRequests.current.set(refreshId, { panel, kind: "replace", revision: "" });
-          send({ type: "file.refresh", operationId: refreshId, sessionId: currentSession.sessionId, panel });
+          latestReplacementRequest.current[tracked.sourcePanel] = refreshId;
+          pendingPanelRequests.current.set(refreshId, { panel: tracked.sourcePanel, kind: "replace", revision: "" });
+          send({ type: "file.refresh", operationId: refreshId, sessionId: currentSession.sessionId, panel: tracked.sourcePanel });
         }
       }
     }
+    if (message.type === "file.open.result" && message.operationId === pendingMirrorOpenRef.current) {
+      pendingMirrorOpenRef.current = "";
+      setStatus(message.message);
+      setStatusTone(message.succeeded ? "success" : "error");
+      if (message.succeeded) {onMirrorView();}
+      return;
+    }
     setStatus(message.message);
-  }), [send]);
+    setStatusTone(message.succeeded ? "success" : "error");
+    });
+  }, [onMirrorView, send]);
 
   const sendPanel = (panel: PanelName, targetId: string) => {
     if (!session || !panels) {return;}
@@ -213,11 +275,18 @@ export default function FileManagerWorkspace({ capability, connectionEpoch, send
   const createJob = (operation: "copy" | "move" | "paste" | "rename" | "delete", newName?: string) => {
     if (!session || !panels) {return;}
     const destination = operation === "copy" || operation === "move"
-      ? { destinationPanel: activePanel === "left" ? "right" as const : "left" as const }
+      ? (() => {
+          const destinationPanel = activePanel === "left" ? "right" as const : "left" as const;
+          return { destinationPanel, destinationRevision: panels[destinationPanel].page.revision };
+        })()
       : {};
     const rename = newName === undefined ? {} : { newName };
     const operationId = createLocalId();
-    pendingJobRequests.current.set(operationId, activePanel);
+    pendingJobRequests.current.set(operationId, {
+      operation,
+      sourcePanel: activePanel,
+      ...(operation === "copy" || operation === "move" ? { destinationPanel: activePanel === "left" ? "right" as const : "left" as const } : {})
+    });
     send({
       type: "file.job.create", operationId, sessionId: session.sessionId, panel: activePanel,
       revision: panels[activePanel].page.revision, operation,
@@ -231,26 +300,25 @@ export default function FileManagerWorkspace({ capability, connectionEpoch, send
     if (!entry || !session || !panels) {return;}
     send({ type: "file.open", operationId: createLocalId(), sessionId: session.sessionId, panel: activePanel, revision: panels[activePanel].page.revision, entryId: entry.id });
   };
-  const getProperties = () => {
+  const viewSelected = () => {
     const entry = singleSelected(activePanel);
     if (!entry || !session || !panels) {return;}
-    send({ type: "file.properties.get", operationId: createLocalId(), sessionId: session.sessionId, panel: activePanel, revision: panels[activePanel].page.revision, entryId: entry.id });
+    if (!canMirrorView) {
+      setStatus(mirrorViewUnavailableMessage);
+      setStatusTone("error");
+      return;
+    }
+    const operationId = createLocalId();
+    pendingMirrorOpenRef.current = operationId;
+    setStatus("Opening the file on the PC before starting the mirror…");
+    setStatusTone("neutral");
+    send({ type: "file.open", operationId, sessionId: session.sessionId, panel: activePanel, revision: panels[activePanel].page.revision, entryId: entry.id });
   };
-
-  const onTouchStart = (event: TouchEvent<HTMLDivElement>) => {
-    if (twoFingerMode !== "zoom" || event.targetTouches.length !== 2 || !stageRef.current) {return;}
-    const bounds = stageRef.current.getBoundingClientRect();
-    const pair = fileTouchPair(event.targetTouches, bounds.left, bounds.top);
-    if (pair) {pinchRef.current = { ...pair, transform: transformRef.current };}
+  const getProperties = (panel = activePanel, entryId = singleSelected(panel)?.id) => {
+    if (!entryId || !session || !panels) {return;}
+    setActivePanel(panel);
+    send({ type: "file.properties.get", operationId: createLocalId(), sessionId: session.sessionId, panel, revision: panels[panel].page.revision, entryId });
   };
-  const onTouchMove = (event: TouchEvent<HTMLDivElement>) => {
-    if (!pinchRef.current || event.targetTouches.length !== 2 || !stageRef.current) {return;}
-    event.preventDefault();
-    const bounds = stageRef.current.getBoundingClientRect();
-    const pair = fileTouchPair(event.targetTouches, bounds.left, bounds.top);
-    if (pair) {setTransform(updateFileManagerPinch(pinchRef.current, pair.distance, pair.midpointX, pair.midpointY, bounds.width, bounds.height));}
-  };
-  const endPinch = () => { pinchRef.current = null; };
 
   if (!capability.canBrowse) {
     return <section className="file-manager-unavailable"><Files aria-hidden="true" /><h2>Files needs permission</h2><p>Enable Browse and open files for this device on the PC.</p></section>;
@@ -261,30 +329,42 @@ export default function FileManagerWorkspace({ capability, connectionEpoch, send
   const single = singleSelected(activePanel);
   const activeJobs = jobs.filter((job) => !["completed", "failed", "canceled", "interrupted"].includes(job.state));
   const leadingJob = activeJobs[0];
+  const terminalJobCount = jobs.filter((job) => isTerminalJob(job.state)).length;
+  const dismissTransientMenus = (target: EventTarget | null) => {
+    if ((target as HTMLElement | null)?.closest(".file-toolbar-menu, .file-shortcuts-menu, [data-file-menu-trigger]")) {return;}
+    setClipboardOpen(false);
+    setShortcutsOpen(false);
+  };
 
   return (
     <section className="file-manager-workspace" aria-label="Files on PC">
-      <div ref={stageRef} className={`file-manager-stage ${twoFingerMode}-mode`} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={endPinch} onTouchCancel={endPinch}>
-        <div className="file-manager-content" style={transform.scale > 1.01 ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0) scale(${transform.scale})` } : undefined}>
+      <div ref={stageRef} className="file-manager-stage">
+        <div className="file-manager-content" onPointerDownCapture={(event) => dismissTransientMenus(event.target)} onClickCapture={(event) => dismissTransientMenus(event.target)}>
           <FileToolbar
             canModify={capability.canModify} dualPanel={dualPanel} selected={selected} single={single}
             onSelectAll={() => setSelections((current) => ({ ...current, [activePanel]: { all: true, ids: new Set(), excluded: new Set() } }))}
             onUnselectAll={() => setSelections((current) => ({ ...current, [activePanel]: emptySelection() }))}
             onCut={() => setClipboard("move")} onCopyClipboard={() => setClipboard("copy")} onPaste={() => createJob("paste")}
-            onProperties={getProperties} onDelete={() => setDeleteOpen(true)}
+            onProperties={() => getProperties()} onDelete={() => setDeleteOpen(true)}
             onRename={() => { if (single) {setRenameDraft(single.name);} }}
-            onView={openSelected} onOpen={openSelected} onCopy={() => createJob("copy")} onMove={() => createJob("move")}
-            onShortcuts={() => setShortcutsOpen((open) => !open)} onRefresh={() => {
+            onView={viewSelected} onOpen={openSelected} onCopy={() => createJob("copy")} onMove={() => createJob("move")}
+            onClipboard={() => { setClipboardOpen((open) => !open); setShortcutsOpen(false); }}
+            onShortcuts={() => { setShortcutsOpen((open) => !open); setClipboardOpen(false); }} onRefresh={() => {
               const operationId = createLocalId();
               latestReplacementRequest.current[activePanel] = operationId;
               pendingPanelRequests.current.set(operationId, { panel: activePanel, kind: "replace", revision: panels[activePanel].page.revision });
               send({ type: "file.refresh", operationId, sessionId: session.sessionId, panel: activePanel });
             }}
           />
+          {clipboardOpen && <div className="file-toolbar-menu file-clipboard-menu" role="menu" aria-label="Windows file clipboard">
+            <button role="menuitem" onClick={() => { setClipboard("move"); setClipboardOpen(false); }} disabled={!capability.canModify || selected === 0}><Scissors />Cut to clipboard</button>
+            <button role="menuitem" onClick={() => { setClipboard("copy"); setClipboardOpen(false); }} disabled={selected === 0}><Clipboard />Copy to clipboard</button>
+          </div>}
           {shortcutsOpen && <div className="file-shortcuts-menu" role="menu" aria-label="File shortcuts">{session.shortcuts.map((shortcut) => <button key={shortcut.id} role="menuitem" onClick={() => { sendPanel(activePanel, shortcut.id); setShortcutsOpen(false); }}><FolderOpen />{shortcut.label}</button>)}</div>}
           <div className="file-manager-panels">
             {(["left", "right"] as const).map((panel) => <FilePanel key={panel} active={activePanel === panel} drives={session.drives} panel={panels[panel]} selection={selections[panel]}
               onActivate={() => setActivePanel(panel)} onDrive={(id) => sendPanel(panel, id)} onLoadMore={() => loadMore(panel)} onNavigate={(id) => sendPanel(panel, id)}
+              onProperties={(entryId) => getProperties(panel, entryId)}
               onSort={(sortBy) => {
                 const operationId = createLocalId();
                 latestReplacementRequest.current[panel] = operationId;
@@ -293,13 +373,10 @@ export default function FileManagerWorkspace({ capability, connectionEpoch, send
               }} onToggle={(id) => toggleEntry(panel, id)} />)}
           </div>
         </div>
-        <button className="file-gesture-mode" type="button" onClick={() => setTwoFingerMode((mode) => mode === "scroll" ? "zoom" : "scroll")}>
-          {twoFingerMode === "scroll" ? <><RefreshCw /><span>Scroll</span></> : <><ZoomIn /><span>Zoom</span></>}
-        </button>
-        {transform.scale > 1.01 && <button className="file-zoom-reset" type="button" onClick={() => setTransform(identityFileManagerTransform)}>{transform.scale.toFixed(1)}×</button>}
       </div>
-      <div className="file-status" role="status">{status}</div>
+      <div className={`file-status ${statusTone}`} role={statusTone === "error" ? "alert" : "status"}>{statusTone === "error" ? <TriangleAlert /> : statusTone === "success" ? <CircleCheck /> : <Info />}<span>{status}</span></div>
       {leadingJob && <button className="file-job-minimized" onClick={() => setOperationsOpen(true)}><span>{leadingJob.operation} · {leadingJob.currentName ?? leadingJob.state}</span><progress max={Math.max(1, leadingJob.bytesTotal || leadingJob.itemsTotal)} value={leadingJob.bytesTotal ? leadingJob.bytesCompleted : leadingJob.itemsCompleted} /></button>}
+      {!leadingJob && terminalJobCount > 0 && <button className="file-job-minimized file-job-history" onClick={() => setOperationsOpen(true)}><span>File operations · {terminalJobCount} in history</span></button>}
       {operationsOpen && <OperationCenter jobs={jobs} onClose={() => setOperationsOpen(false)} send={send} />}
       {properties && <PropertiesDialog value={properties} onClose={() => setProperties(null)} />}
       <ConfirmationDialog confirmLabel="Move to Recycle Bin" description={`Move ${selected} selected item${selected === 1 ? "" : "s"} to the Windows Recycle Bin? The PC rejects the operation if every item cannot be recycled.`} isOpen={deleteOpen} onCancel={() => setDeleteOpen(false)} onConfirm={() => { setDeleteOpen(false); createJob("delete"); }} title="Delete selected items?" />
@@ -321,30 +398,33 @@ function FileToolbar(props: {
   canModify: boolean; dualPanel: boolean; selected: number; single: FileManagerEntry | null;
   onSelectAll: () => void; onUnselectAll: () => void; onCut: () => void; onCopyClipboard: () => void; onPaste: () => void;
   onProperties: () => void; onDelete: () => void; onRename: () => void; onView: () => void; onOpen: () => void; onCopy: () => void; onMove: () => void;
-  onShortcuts: () => void; onRefresh: () => void;
+  onClipboard: () => void; onShortcuts: () => void; onRefresh: () => void;
 }) {
-  const action = (label: string, Icon: typeof Copy, run: () => void, disabled = false) => <button type="button" aria-label={label} title={label} disabled={disabled} onClick={run}><Icon /><span>{label}</span></button>;
-  return <div className="file-toolbar" aria-label="File actions">
+  const action = (label: string, Icon: typeof Copy, run: () => void, disabled = false, menuTrigger = false) => <button type="button" aria-label={label} title={label} data-file-menu-trigger={menuTrigger || undefined} disabled={disabled} onClick={run}><Icon /><span>{label}</span></button>;
+  return <div className={`file-toolbar ${props.dualPanel ? "dual-panel" : "single-panel"}`} aria-label="File actions">
     {action("Select all", CheckCheck, props.onSelectAll)}{action("Unselect all", X, props.onUnselectAll, props.selected === 0)}
-    {action("Cut", Scissors, props.onCut, !props.canModify || props.selected === 0)}{action("Copy", Clipboard, props.onCopyClipboard, props.selected === 0)}
+    {props.dualPanel
+      ? <>{action("Copy", FolderOutput, props.onCopy, !props.canModify || props.selected === 0)}{action("Move", FolderInput, props.onMove, !props.canModify || props.selected === 0)}</>
+      : <>{action("Cut", Scissors, props.onCut, !props.canModify || props.selected === 0)}{action("Copy", Clipboard, props.onCopyClipboard, props.selected === 0)}</>}
     {action("Paste", ClipboardPaste, props.onPaste, !props.canModify)}{action("Properties", Info, props.onProperties, !props.single)}
     {action("Delete", Trash2, props.onDelete, !props.canModify || props.selected === 0)}{action("Rename", Type, props.onRename, !props.canModify || !props.single)}
     {action("View", Eye, props.onView, props.single?.kind !== "file")}{action("Open", FolderOpen, props.onOpen, !props.single)}
-    {props.dualPanel && action("Copy to other", FolderOutput, props.onCopy, !props.canModify || props.selected === 0)}
-    {props.dualPanel && action("Move to other", FolderInput, props.onMove, !props.canModify || props.selected === 0)}
-    {action("Locations", HardDrive, props.onShortcuts)}{action("Refresh", RefreshCw, props.onRefresh)}
+    {props.dualPanel && action("Clipboard", Clipboard, props.onClipboard, false, true)}
+    {action("Locations", HardDrive, props.onShortcuts, false, true)}{action("Refresh", RefreshCw, props.onRefresh)}
   </div>;
 }
 
-function FilePanel({ active, drives, panel, selection, onActivate, onDrive, onLoadMore, onNavigate, onSort, onToggle }: {
+function FilePanel({ active, drives, panel, selection, onActivate, onDrive, onLoadMore, onNavigate, onProperties, onSort, onToggle }: {
   active: boolean; drives: FileManagerSession["drives"]; panel: PanelView; selection: SelectionState;
   onActivate: () => void; onDrive: (id: string) => void; onLoadMore: () => void; onNavigate: (id: string) => void;
-  onSort: (sortBy: "name" | "size" | "type" | "modified") => void; onToggle: (id: string) => void;
+  onProperties: (entryId: string) => void; onSort: (sortBy: "name" | "size" | "type" | "modified") => void; onToggle: (id: string) => void;
 }) {
   const [scrollTop, setScrollTop] = useState(0);
   const [height, setHeight] = useState(400);
   const viewportRef = useRef<HTMLDivElement>(null);
-  const rowHeight = 46;
+  const longPressRef = useRef<{ timer: ReturnType<typeof setTimeout>; pointerId: number; x: number; y: number; fired: boolean } | null>(null);
+  const suppressClickRef = useRef(false);
+  const rowHeight = 54;
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) {return;}
@@ -352,58 +432,104 @@ function FilePanel({ active, drives, panel, selection, onActivate, onDrive, onLo
     observer.observe(viewport);
     return () => observer.disconnect();
   }, []);
+  useEffect(() => () => {
+    if (longPressRef.current) {clearTimeout(longPressRef.current.timer);}
+  }, []);
   const start = Math.max(0, Math.floor(scrollTop / rowHeight) - 5);
   const visible = Math.ceil(height / rowHeight) + 10;
   const parentOffset = panel.page.parentId ? 1 : 0;
   const entryStart = Math.max(0, start - parentOffset);
   const rows = panel.entries.slice(entryStart, entryStart + visible);
+  const visibleAttributes = [...new Set(panel.entries.flatMap((entry) => entry.attributes))];
   useEffect(() => {
     if (entryStart + visible >= panel.entries.length - 10 && panel.page.continuation && !panel.loadingMore && !panel.pageError) {onLoadMore();}
   }, [entryStart, onLoadMore, panel.entries.length, panel.loadingMore, panel.page.continuation, panel.pageError, visible]);
+  const cancelLongPress = () => {
+    if (!longPressRef.current) {return;}
+    clearTimeout(longPressRef.current.timer);
+    longPressRef.current = null;
+  };
+  const beginLongPress = (event: ReactPointerEvent<HTMLElement>) => {
+    if (event.pointerType === "mouse" && event.button !== 0) {return;}
+    const target = (event.target as HTMLElement).closest<HTMLElement>("[data-properties-entry]");
+    const entryId = target?.dataset.propertiesEntry;
+    if (!entryId) {return;}
+    cancelLongPress();
+    const pending = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      fired: false,
+      timer: setTimeout(() => {
+        pending.fired = true;
+        suppressClickRef.current = true;
+        onProperties(entryId);
+      }, 550)
+    };
+    longPressRef.current = pending;
+  };
+  const moveLongPress = (event: ReactPointerEvent<HTMLElement>) => {
+    const pending = longPressRef.current;
+    if (pending?.pointerId !== event.pointerId) {return;}
+    if (Math.hypot(event.clientX - pending.x, event.clientY - pending.y) > 10) {cancelLongPress();}
+  };
+  const endLongPress = (event: ReactPointerEvent<HTMLElement>) => {
+    if (longPressRef.current?.pointerId === event.pointerId) {cancelLongPress();}
+  };
+  const suppressLongPressClick = (event: ReactMouseEvent<HTMLElement>) => {
+    if (!suppressClickRef.current) {return;}
+    suppressClickRef.current = false;
+    event.preventDefault();
+    event.stopPropagation();
+  };
   const heading = (label: string, sortBy: "name" | "size" | "type" | "modified") => <button type="button" onClick={() => onSort(sortBy)}>{label}{panel.page.sortBy === sortBy ? panel.page.descending ? " ↓" : " ↑" : ""}</button>;
-  return <section className={`file-panel ${active ? "active" : ""}`} onPointerDown={onActivate} aria-label={`${panel.page.panel} file panel`}>
+  return <section className={`file-panel ${active ? "active" : ""}`} onPointerDown={onActivate} onPointerDownCapture={beginLongPress} onPointerMoveCapture={moveLongPress} onPointerUpCapture={endLongPress} onPointerCancelCapture={endLongPress} onClickCapture={suppressLongPressClick} onContextMenuCapture={(event) => { if ((event.target as HTMLElement).closest("[data-properties-entry]")) {event.preventDefault();} }} aria-label={`${panel.page.panel} file panel`}>
     <div className="file-panel-location">
       <select aria-label={`${panel.page.panel} drive`} value={panel.page.driveId ?? ""} onChange={(event) => onDrive(event.target.value)}><option value="" disabled>Drive</option>{drives.map((drive) => <option key={drive.id} value={drive.id}>{drive.label}</option>)}</select>
-      <div title={panel.page.displayPath}>{panel.page.displayPath}</div>
+      <div data-properties-entry="current" title={`${panel.page.displayPath} — long press for properties`}>{panel.page.displayPath}</div>
     </div>
     <div className="file-columns">{heading("Name", "name")}{heading("Size", "size")}{heading("Type", "type")}{heading("Modified", "modified")}</div>
     <div ref={viewportRef} className="file-list" onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}>
       <div className="file-list-space" style={{ height: (panel.entries.length + (panel.page.parentId ? 1 : 0)) * rowHeight }}>
-        {panel.page.parentId && start === 0 && <button className="file-row parent" style={{ transform: "translateY(0)" }} onClick={() => onNavigate(panel.page.parentId!)}><FolderOpen /><span>..</span><span>DIR</span><span /><span /></button>}
+        {panel.page.parentId && start === 0 && <div className="file-row parent" style={{ transform: "translateY(0)" }}><button type="button" title="Up one folder" onClick={() => onNavigate(panel.page.parentId!)}><FolderOpen /><span>..</span></button><span /><span /><span /></div>}
         {rows.map((entry, index) => {
           const absoluteIndex = entryStart + index + parentOffset;
           const checked = selection.all ? !selection.excluded.has(entry.id) : selection.ids.has(entry.id);
           const Icon = entry.kind === "folder" ? Folder : (/^(zip|rar|7z|iso)$/i.exec(entry.extension)) ? FileArchive : entry.extension ? File : FileQuestion;
-          return <div key={entry.id} className={`file-row ${checked ? "selected" : ""}`} style={{ transform: `translateY(${absoluteIndex * rowHeight}px)` }}>
+          const modified = formatModified(entry.modifiedUtc);
+          const attributeLabel = entry.attributes.map(fileAttributeLabel).join(", ");
+          return <div key={entry.id} data-properties-entry={entry.id} className={`file-row ${checked ? "selected" : ""}`} style={{ transform: `translateY(${absoluteIndex * rowHeight}px)` }}>
             <input type="checkbox" aria-label={`Select ${entry.name}`} checked={checked} onChange={() => onToggle(entry.id)} />
-            <button type="button" title={entry.name} onClick={() => entry.kind === "folder" ? onNavigate(entry.id) : onToggle(entry.id)}><Icon /><span>{entry.name}</span>{entry.attributes.length > 0 && <small>{entry.attributes.map((attribute) => attribute[0]?.toUpperCase()).join("")}</small>}</button>
-            <span>{entry.kind === "folder" ? "DIR" : formatBytes(entry.size ?? 0)}</span><span>{entry.kind === "folder" ? "Folder" : entry.extension || "File"}</span><time>{new Date(entry.modifiedUtc).toLocaleString()}</time>
+            <button type="button" title={entry.name} onClick={() => entry.kind === "folder" ? onNavigate(entry.id) : onToggle(entry.id)}><Icon /><span>{entry.name}</span>{entry.attributes.length > 0 && <small className="file-attributes" aria-label={attributeLabel} title={attributeLabel}>{entry.attributes.map(fileAttributeCode).join("")}</small>}</button>
+            <span>{entry.kind === "folder" ? "DIR" : formatBytes(entry.size ?? 0)}</span><span>{entry.kind === "folder" ? "Folder" : entry.extension || "File"}</span><time dateTime={entry.modifiedUtc}><span>{modified.date}</span><span>{modified.time}</span></time>
           </div>;
         })}
       </div>
       {(panel.loadingMore || panel.pageError) && <div className="file-page-state">{panel.loadingMore ? "Loading more…" : <button onClick={onLoadMore}>Retry loading more</button>}</div>}
     </div>
-    <footer>{selection.all ? panel.page.totalCount - selection.excluded.size : selection.ids.size} selected · {panel.page.totalCount} items</footer>
+    <footer><span>{selection.all ? panel.page.totalCount - selection.excluded.size : selection.ids.size} selected · {panel.page.totalCount} items</span>{visibleAttributes.length > 0 && <span className="file-attribute-legend">{visibleAttributes.map((attribute) => `${fileAttributeCode(attribute)} ${fileAttributeLabel(attribute)}`).join(" · ")}</span>}</footer>
   </section>;
 }
 
 function OperationCenter({ jobs, onClose, send }: { jobs: FileJobSnapshot[]; onClose: () => void; send: (message: ClientMessage) => void }) {
   const [applyAll, setApplyAll] = useState<Record<string, boolean>>({});
   const [cancelMoveJobId, setCancelMoveJobId] = useState<string | null>(null);
-  const control = (jobId: string, action: "pause" | "resume" | "cancel") => send({ type: "file.job.control", operationId: createLocalId(), jobId, action });
+  const terminalJobs = jobs.filter((job) => isTerminalJob(job.state));
+  const control = (jobId: string, action: "pause" | "resume" | "cancel" | "dismiss") => send({ type: "file.job.control", operationId: createLocalId(), jobId, action });
   return <div className="file-operation-scrim">
     <section className="file-operation-center" role="dialog" aria-modal="true" aria-label="File operations">
-      <header><h2>File operations</h2><button aria-label="Close file operations" onClick={onClose}><X /></button></header>
+      <header><h2>File operations</h2><div>{terminalJobs.length > 0 && <button onClick={() => terminalJobs.forEach((job) => control(job.jobId, "dismiss"))}><Trash2 />Clear history</button>}<button aria-label="Close file operations" onClick={onClose}><X /></button></div></header>
       {jobs.length === 0 ? <p>No file operations.</p> : jobs.map((job) => <article key={job.jobId}>
         <strong>{job.operation} · {job.state}</strong>
         <span>{job.currentName ?? job.message}</span>
         <progress max={Math.max(1, job.bytesTotal || job.itemsTotal)} value={job.bytesTotal ? job.bytesCompleted : job.itemsCompleted} />
-        <small>{job.itemsCompleted} / {job.itemsTotal} items · {formatBytes(job.bytesCompleted)} / {formatBytes(job.bytesTotal)}{job.bytesPerSecond ? ` · ${formatBytes(job.bytesPerSecond)}/s` : ""}{job.etaSeconds ? ` · ${formatDuration(job.etaSeconds)} remaining` : ""}</small>
+        <small>{job.itemsCompleted} / {job.itemsTotal} items · {formatBytes(job.bytesCompleted)} / {formatBytes(job.bytesTotal)}{!isTerminalJob(job.state) && job.bytesPerSecond ? ` · ${formatBytes(job.bytesPerSecond)}/s` : ""}{!isTerminalJob(job.state) && job.etaSeconds ? ` · ${formatDuration(job.etaSeconds)} remaining` : ""}</small>
         <div>
           {job.state === "queued" && <><button onClick={() => send({ type: "file.job.reorder", operationId: createLocalId(), jobId: job.jobId, direction: "up" })}><ArrowUp />Earlier</button><button onClick={() => send({ type: "file.job.reorder", operationId: createLocalId(), jobId: job.jobId, direction: "down" })}><ArrowDown />Later</button></>}
           {job.canPause && <button onClick={() => control(job.jobId, "pause")}><Pause />Pause</button>}
           {job.canResume && <button onClick={() => control(job.jobId, "resume")}><Play />Resume</button>}
           {job.canCancel && <button className="danger-button" onClick={() => { if (job.operation === "move") {setCancelMoveJobId(job.jobId);} else {control(job.jobId, "cancel");} }}><X />Cancel</button>}
+          {isTerminalJob(job.state) && <button onClick={() => control(job.jobId, "dismiss")}><X />Remove</button>}
         </div>
         {job.state === "needs-attention" && <div className="file-conflict">
           <p>{job.conflictName} already exists.</p>
@@ -432,4 +558,25 @@ function formatDuration(seconds: number): string {
   if (seconds < 60) {return `${seconds}s`;}
   const minutes = Math.floor(seconds / 60);
   return `${minutes}m ${seconds % 60}s`;
+}
+
+function isTerminalJob(state: string): boolean {
+  return state === "completed" || state === "failed" || state === "canceled" || state === "interrupted";
+}
+
+function formatModified(value: string): { date: string; time: string } {
+  const date = new Date(value);
+  const twoDigits = (part: number) => String(part).padStart(2, "0");
+  return {
+    date: `${twoDigits(date.getDate())}/${twoDigits(date.getMonth() + 1)}/${date.getFullYear()}`,
+    time: `${twoDigits(date.getHours())}:${twoDigits(date.getMinutes())}:${twoDigits(date.getSeconds())}`
+  };
+}
+
+function fileAttributeCode(attribute: string): string {
+  return ({ hidden: "H", system: "S", "read-only": "R", archive: "A", "reparse-point": "L" } as Record<string, string>)[attribute] ?? "?";
+}
+
+function fileAttributeLabel(attribute: string): string {
+  return ({ hidden: "Hidden", system: "System", "read-only": "Read-only", archive: "Archive", "reparse-point": "Link" } as Record<string, string>)[attribute] ?? attribute;
 }

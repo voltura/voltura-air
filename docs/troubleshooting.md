@@ -111,6 +111,24 @@ Check the global and device Presentation permission. Blackout has a separate
 permission. Focus the intended viewer, select its matching target, and start
 Google Slides presenting before sending controls.
 
+## Files on PC is unavailable or a folder will not open
+
+Check **Browse and open files** globally and for the paired device. Copy, Move,
+Paste, Rename, and Delete also need **Change files**. **View** additionally needs
+the normal PC Screen permission and a current trusted pairing.
+
+Windows can expose compatibility links and protected operating-system folders
+that the signed-in user cannot enumerate. Voltura Air leaves the current panel
+unchanged and reports the refusal instead of disconnecting. The recommended
+**Hide protected operating system files and folders** setting is enabled by
+default and can be overridden per device. Mapped drives must be available in
+the same signed-in Windows session as the host.
+
+If a directory changes between listing and an operation, Files refreshes it and
+does not start a partial action. A canceled or failed operation keeps the
+selection for retry; a completed selection-based operation clears it. Terminal
+operation history can be removed from **File operations**.
+
 ## Lock PC disabled or failing
 
 In **Developer tools > Windows locking**, use **Test Lock PC**. If permitted,

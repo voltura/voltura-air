@@ -7,18 +7,20 @@ const expectedScreenshots = [
   "voltura-air-host-custom-screens.png",
   "voltura-air-host-dark.png",
   "voltura-air-host.png",
+  "voltura-air-files-dark.png",
+  "voltura-air-files.png",
   "voltura-air-iphone-dark.png",
   "voltura-air-iphone-kodi-dark.png",
   "voltura-air-iphone.png",
   "voltura-air-split.png"
-];
+].sort();
 
 const expectedSiteAssets = [
   ...expectedScreenshots,
   "voltura-air-iphone-kodi-dark-forum.png"
 ].sort();
 
-const screenshotPattern = /voltura-air-(?:host|iphone|split)[a-z-]*\.png/gu;
+const screenshotPattern = /voltura-air-(?:files|host|iphone|split)[a-z-]*\.png/gu;
 
 function extractScreenshots(contents) {
   return [...new Set(contents.match(screenshotPattern) ?? [])].sort();
@@ -37,7 +39,7 @@ test("public screenshot inventory stays curated and aligned", async () => {
   ] = await Promise.all([
     readFile(new URL("../../scripts/capture-site-screenshots.mjs", import.meta.url), "utf8"),
     readFile(new URL("../../apps/windows-host/Program.cs", import.meta.url), "utf8"),
-    readFile(new URL("../../apps/windows-host/MainWindow.SiteScreenshot.cs", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/windows-host/MainWindow.xaml.cs", import.meta.url), "utf8"),
     readFile(new URL("../../apps/windows-host/WpfPngRenderer.cs", import.meta.url), "utf8"),
     readFile(new URL("../../docs/screenshots.md", import.meta.url), "utf8"),
     readFile(new URL("../../README.md", import.meta.url), "utf8"),
@@ -65,7 +67,11 @@ test("public screenshot inventory stays curated and aligned", async () => {
   assert.match(captureScript, /\.trackpad-mode \.volume-control/u);
   assert.match(captureScript, /getByRole\("button", \{ name: "Remote", exact: true \}\)/u);
   assert.match(captureScript, /getByText\("Switch modes from here\.", \{ exact: true \}\)[\s\S]*state: "visible"[\s\S]*state: "hidden"[\s\S]*page\.screenshot\(\{ path: outputs\.iphoneKodiDark \}\)/u);
-  assert.equal(marketingPage.match(/<figure class="screen-card/gu)?.length, 5);
-  assert.equal(marketingPage.match(/<picture>/gu)?.length, 3);
-  assert.equal(readme.match(/<picture>/gu)?.length, 3);
+  assert.match(captureScript, /filesPreview=1[\s\S]*file-manager-workspace/u);
+  assert.match(captureScript, /const lightHost = await launchHost[\s\S]*try \{[\s\S]*filePreview = await launchFilePreview[\s\S]*finally \{[\s\S]*stopPreviewProcess[\s\S]*finally \{[\s\S]*stopProcess\(lightHost\.process\)/u);
+  assert.match(captureScript, /\[\["light", outputs\.filesLight\], \["dark", outputs\.filesDark\]\]/u);
+  assert.match(captureScript, /viewport: \{ width: 1180, height: 820 \}[\s\S]*hasTouch: true/u);
+  assert.equal(marketingPage.match(/<figure class="screen-card/gu)?.length, 6);
+  assert.equal(marketingPage.match(/<picture>/gu)?.length, 4);
+  assert.equal(readme.match(/<picture>/gu)?.length, 4);
 });

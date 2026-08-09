@@ -316,6 +316,7 @@ function isServerCapabilities(value: unknown): boolean {
 
 function isFileManagerCapability(value: unknown): boolean {
   return isRecord(value) && typeof value.canBrowse === "boolean" && typeof value.canModify === "boolean" &&
+    typeof value.hidesProtectedSystemItems === "boolean" &&
     Number.isInteger(value.maxPageSize) && (value.maxPageSize as number) >= 1 && (value.maxPageSize as number) <= 100;
 }
 
@@ -379,7 +380,7 @@ function isFileProperties(value: unknown): boolean {
 }
 
 function isFileJob(value: unknown): boolean {
-  return isRecord(value) && isBoundedString(value.jobId, 512, false) && isOneOf(value.operation, ["copy", "move", "delete", "rename"]) &&
+  return isRecord(value) && isBoundedString(value.jobId, 512, false) && isOneOf(value.operation, ["copy", "move", "paste", "delete", "rename"]) &&
     isOneOf(value.state, ["queued", "preparing", "running", "paused", "needs-attention", "canceling", "completed", "failed", "canceled", "interrupted"]) &&
     ["queuePosition", "itemsCompleted", "itemsTotal", "bytesCompleted", "bytesTotal"].every((field) =>
       Number.isFinite(value[field]) && (value[field] as number) >= 0) &&

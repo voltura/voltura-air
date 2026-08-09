@@ -11,8 +11,11 @@ public sealed class ClientMessageValidatorTests
     [InlineData("file.page.get", """{ "type": "file.page.get", "operationId": "files-2", "sessionId": "session", "panel": "left", "revision": "revision", "continuation": "opaque", "path": "C:\\" }""", false)]
     [InlineData("file.sort", """{ "type": "file.sort", "operationId": "files-3", "sessionId": "session", "panel": "right", "sortBy": "modified", "descending": true }""", true)]
     [InlineData("file.sort", """{ "type": "file.sort", "operationId": "files-3", "sessionId": "session", "panel": "right", "sortBy": "path", "descending": true }""", false)]
-    [InlineData("file.job.create", """{ "type": "file.job.create", "operationId": "files-4", "sessionId": "session", "panel": "left", "revision": "revision", "operation": "copy", "destinationPanel": "right", "selectionAll": true, "entryIds": [], "excludedEntryIds": ["entry-a"] }""", true)]
-    [InlineData("file.job.create", """{ "type": "file.job.create", "operationId": "files-4", "sessionId": "session", "panel": "left", "revision": "revision", "operation": "copy", "destinationPanel": "right", "selectionAll": true, "entryIds": [], "excludedEntryIds": [], "sourcePath": "C:\\Users" }""", false)]
+    [InlineData("file.job.create", """{ "type": "file.job.create", "operationId": "files-4", "sessionId": "session", "panel": "left", "revision": "revision", "operation": "copy", "destinationPanel": "right", "destinationRevision": "destination-revision", "selectionAll": true, "entryIds": [], "excludedEntryIds": ["entry-a"] }""", true)]
+    [InlineData("file.job.create", """{ "type": "file.job.create", "operationId": "files-4", "sessionId": "session", "panel": "left", "revision": "revision", "operation": "copy", "destinationPanel": "right", "selectionAll": true, "entryIds": [], "excludedEntryIds": [] }""", false)]
+    [InlineData("file.job.create", """{ "type": "file.job.create", "operationId": "files-4", "sessionId": "session", "panel": "left", "revision": "revision", "operation": "copy", "destinationPanel": "right", "destinationRevision": "destination-revision", "selectionAll": true, "entryIds": [], "excludedEntryIds": [], "sourcePath": "C:\\Users" }""", false)]
+    [InlineData("file.job.control", """{ "type": "file.job.control", "operationId": "files-5", "jobId": "job-a", "action": "dismiss" }""", true)]
+    [InlineData("file.job.control", """{ "type": "file.job.control", "operationId": "files-5", "jobId": "job-a", "action": "remove" }""", false)]
     public void ValidatesOpaqueFileManagerMessages(string type, string json, bool expected)
     {
         using var document = JsonDocument.Parse(json);

@@ -114,6 +114,7 @@ internal sealed class DevicesPageController(
             DevicePermissionKind.ScreenViewing => current with { AllowScreenViewing = value },
             DevicePermissionKind.FileBrowsing => current with { AllowFileBrowsing = value },
             DevicePermissionKind.FileChanges => current with { AllowFileChanges = value },
+            DevicePermissionKind.HideProtectedFileSystemItems => current with { HideProtectedFileSystemItems = value },
             DevicePermissionKind.SignOut => current with { AllowSignOut = value },
             DevicePermissionKind.Restart => current with { AllowRestart = value },
             DevicePermissionKind.Shutdown => current with { AllowShutdown = value },
@@ -232,7 +233,8 @@ internal sealed class DevicesPageController(
             CreatePermission(device.ClientId, DevicePermissionKind.ClipboardRead, "Read PC clipboard", device.PermissionOverrides.AllowClipboardRead, global.AllowClipboardRead),
             CreatePermission(device.ClientId, DevicePermissionKind.ScreenViewing, "View PC screen", device.PermissionOverrides.AllowScreenViewing, global.AllowScreenViewing),
             CreatePermission(device.ClientId, DevicePermissionKind.FileBrowsing, "Browse and open files", device.PermissionOverrides.AllowFileBrowsing, global.AllowFileBrowsing),
-            CreatePermission(device.ClientId, DevicePermissionKind.FileChanges, "Change files", device.PermissionOverrides.AllowFileChanges, global.AllowFileChanges)
+            CreatePermission(device.ClientId, DevicePermissionKind.FileChanges, "Change files", device.PermissionOverrides.AllowFileChanges, global.AllowFileChanges),
+            CreatePermission(device.ClientId, DevicePermissionKind.HideProtectedFileSystemItems, "Protected operating system items", device.PermissionOverrides.HideProtectedFileSystemItems, global.HideProtectedFileSystemItems, "Hide", "Show")
         ]);
         if (powerController.IsActionAvailable(SystemPowerActions.ScreenSaver))
         {
@@ -247,8 +249,8 @@ internal sealed class DevicesPageController(
         return permissions;
     }
 
-    private static DevicePermissionItem CreatePermission(string clientId, DevicePermissionKind kind, string title, bool? overrideValue, bool inheritedAllow) =>
-        new(clientId, kind, title, overrideValue, inheritedAllow);
+    private static DevicePermissionItem CreatePermission(string clientId, DevicePermissionKind kind, string title, bool? overrideValue, bool inheritedAllow, string positiveLabel = "Allow", string negativeLabel = "Block") =>
+        new(clientId, kind, title, overrideValue, inheritedAllow, positiveLabel, negativeLabel);
 
     private static string GetDeviceActivityText(PairedDeviceStatus device)
     {

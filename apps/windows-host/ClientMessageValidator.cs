@@ -106,7 +106,7 @@ internal static class ClientMessageValidator
             ["file.clipboard.set"] = Fields("type", "operationId", "sessionId", "panel", "revision", "effect", "selectionAll", "entryIds", "excludedEntryIds"),
             ["file.open"] = Fields("type", "operationId", "sessionId", "panel", "revision", "entryId"),
             ["file.jobs.get"] = Fields("type", "operationId"),
-            ["file.job.create"] = Fields("type", "operationId", "sessionId", "panel", "revision", "operation", "destinationPanel", "newName", "selectionAll", "entryIds", "excludedEntryIds"),
+            ["file.job.create"] = Fields("type", "operationId", "sessionId", "panel", "revision", "operation", "destinationPanel", "destinationRevision", "newName", "selectionAll", "entryIds", "excludedEntryIds"),
             ["file.job.control"] = Fields("type", "operationId", "jobId", "action"),
             ["file.job.reorder"] = Fields("type", "operationId", "jobId", "direction"),
             ["file.job.conflict.resolve"] = Fields("type", "operationId", "jobId", "resolution", "applyToAll"),
@@ -332,11 +332,15 @@ internal static class ClientMessageValidator
                 TryGetRequiredString(root, "operation", 16, allowEmpty: false, out var fileOperation) &&
                 fileOperation is "copy" or "move" or "paste" or "rename" or "delete" &&
                 TryGetOptionalString(root, "destinationPanel", 8, out var destinationPanel) && destinationPanel is null or "left" or "right" &&
+                TryGetOptionalString(root, "destinationRevision", MaxCredentialLength, out var destinationRevision) &&
+                (fileOperation is "copy" or "move"
+                    ? destinationPanel is not null && destinationRevision is not null
+                    : destinationPanel is null && destinationRevision is null) &&
                 TryGetOptionalString(root, "newName", FileManagerProtocol.MaxNameLength, out _) &&
                 IsValidFileSelection(root),
             "file.job.control" => IsValidFileOperationId(root) &&
                 TryGetRequiredString(root, "jobId", MaxCredentialLength, allowEmpty: false, out _) &&
-                TryGetRequiredString(root, "action", 16, allowEmpty: false, out var jobAction) && jobAction is "pause" or "resume" or "cancel",
+                TryGetRequiredString(root, "action", 16, allowEmpty: false, out var jobAction) && jobAction is "pause" or "resume" or "cancel" or "dismiss",
             "file.job.reorder" => IsValidFileOperationId(root) &&
                 TryGetRequiredString(root, "jobId", MaxCredentialLength, allowEmpty: false, out _) &&
                 TryGetRequiredString(root, "direction", 8, allowEmpty: false, out var direction) && direction is "up" or "down",

@@ -115,7 +115,9 @@ When Files is permitted, mobile receives bounded directory metadata such as
 display locations, names, sizes, types, dates, attributes, progress display
 names, and properties. File content stays on the PC or its mapped drives and is
 not transferred to the mobile device. Client commands contain opaque references
-rather than paths. File paths, names, clipboard file lists, conflict names,
+rather than paths. By default, the host removes entries marked with both Windows
+Hidden and System attributes before producing directory metadata; this setting
+has a global value and a per-device override. File paths, names, clipboard file lists, conflict names,
 temporary paths, and operation contents are excluded from application logs.
 
 ## Dictation and external services

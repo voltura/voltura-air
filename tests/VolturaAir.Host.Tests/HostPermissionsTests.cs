@@ -23,17 +23,19 @@ public sealed class HostPermissionsTests
         Assert.False(HostPermissions.DefaultGlobal.AllowShutdown);
         Assert.False(HostPermissions.DefaultGlobal.AllowFileBrowsing);
         Assert.False(HostPermissions.DefaultGlobal.AllowFileChanges);
+        Assert.True(HostPermissions.DefaultGlobal.HideProtectedFileSystemItems);
     }
 
     [Fact]
     public void DeviceFilePermissionsOverrideTheirSeparateGlobalDefaults()
     {
         var effective = HostPermissions.Resolve(
-            new HostPermissionSet(AllowFileBrowsing: false, AllowFileChanges: true),
-            new DevicePermissionOverrides(AllowFileBrowsing: true, AllowFileChanges: false));
+            new HostPermissionSet(AllowFileBrowsing: false, AllowFileChanges: true, HideProtectedFileSystemItems: true),
+            new DevicePermissionOverrides(AllowFileBrowsing: true, AllowFileChanges: false, HideProtectedFileSystemItems: false));
 
         Assert.True(effective.AllowFileBrowsing);
         Assert.False(effective.AllowFileChanges);
+        Assert.False(effective.HideProtectedFileSystemItems);
     }
 
     [Fact]

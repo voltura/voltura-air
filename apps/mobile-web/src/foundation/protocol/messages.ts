@@ -86,6 +86,7 @@ export interface ServerCapabilities {
 export interface FileManagerCapability {
   canBrowse: boolean;
   canModify: boolean;
+  hidesProtectedSystemItems: boolean;
   maxPageSize: number;
 }
 
@@ -136,7 +137,7 @@ export interface FileManagerProperties {
 export type FileJobState = "queued" | "preparing" | "running" | "paused" | "needs-attention" | "canceling" | "completed" | "failed" | "canceled" | "interrupted";
 export interface FileJobSnapshot {
   jobId: string;
-  operation: "copy" | "move" | "delete" | "rename";
+  operation: "copy" | "move" | "paste" | "delete" | "rename";
   state: FileJobState;
   queuePosition: number;
   itemsCompleted: number;
@@ -168,8 +169,8 @@ export interface FilePropertiesGetMessage { type: "file.properties.get"; operati
 export interface FileClipboardSetMessage extends FileSelectionMessageFields { type: "file.clipboard.set"; operationId: string; sessionId: string; panel: "left" | "right"; revision: string; effect: "copy" | "move"; }
 export interface FileOpenMessage { type: "file.open"; operationId: string; sessionId: string; panel: "left" | "right"; revision: string; entryId: string; }
 export interface FileJobsGetMessage { type: "file.jobs.get"; operationId: string; }
-export interface FileJobCreateMessage extends FileSelectionMessageFields { type: "file.job.create"; operationId: string; sessionId: string; panel: "left" | "right"; revision: string; operation: "copy" | "move" | "paste" | "rename" | "delete"; destinationPanel?: "left" | "right"; newName?: string; }
-export interface FileJobControlMessage { type: "file.job.control"; operationId: string; jobId: string; action: "pause" | "resume" | "cancel"; }
+export interface FileJobCreateMessage extends FileSelectionMessageFields { type: "file.job.create"; operationId: string; sessionId: string; panel: "left" | "right"; revision: string; operation: "copy" | "move" | "paste" | "rename" | "delete"; destinationPanel?: "left" | "right"; destinationRevision?: string; newName?: string; }
+export interface FileJobControlMessage { type: "file.job.control"; operationId: string; jobId: string; action: "pause" | "resume" | "cancel" | "dismiss"; }
 export interface FileJobReorderMessage { type: "file.job.reorder"; operationId: string; jobId: string; direction: "up" | "down"; }
 export interface FileConflictResolveMessage { type: "file.job.conflict.resolve"; operationId: string; jobId: string; resolution: "replace" | "skip" | "cancel"; applyToAll: boolean; }
 

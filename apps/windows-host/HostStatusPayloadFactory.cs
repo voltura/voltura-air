@@ -71,6 +71,7 @@ internal sealed class HostStatusPayloadFactory(
     public bool CanReadClipboard(string clientId) => GetEffectivePermissions(clientId).AllowClipboardRead;
     public bool CanBrowseFiles(string clientId) => GetEffectivePermissions(clientId).AllowFileBrowsing;
     public bool CanChangeFiles(string clientId) => GetEffectivePermissions(clientId).AllowFileBrowsing && GetEffectivePermissions(clientId).AllowFileChanges;
+    public bool HideProtectedFileSystemItems(string clientId) => GetEffectivePermissions(clientId).HideProtectedFileSystemItems;
     public bool CanViewScreen(string clientId) =>
         pairingManager.HasCurrentHostIdentity(clientId) &&
         GetEffectivePermissions(clientId).AllowScreenViewing;
@@ -120,6 +121,7 @@ internal sealed class HostStatusPayloadFactory(
         {
             canBrowse = permissions.AllowFileBrowsing,
             canModify = permissions.AllowFileBrowsing && permissions.AllowFileChanges,
+            hidesProtectedSystemItems = permissions.HideProtectedFileSystemItems,
             maxPageSize = FileManagerProtocol.PageSize
         }
     };

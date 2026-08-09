@@ -394,7 +394,9 @@ public partial class ConnectionPageView : WpfUserControl
                 return;
             }
 
-            ManualPortTextBox.Focus();
+            var focusScope = FocusManager.GetFocusScope(ManualPortTextBox);
+            FocusManager.SetFocusedElement(focusScope, ManualPortTextBox);
+            Keyboard.Focus(ManualPortTextBox);
             ManualPortTextBox.SelectAll();
             ManualPortPanel.BringIntoView();
         }, DispatcherPriority.Loaded);

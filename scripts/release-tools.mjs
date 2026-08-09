@@ -138,6 +138,14 @@ export function resolveReleaseVersion({
     targetVersion = currentVersion;
   }
 
+  const targetSemver = parseSemver(targetVersion);
+  if (targetSemver.prerelease.length === 0 &&
+      (targetSemver.core[1] > 9 || targetSemver.core[2] > 9)) {
+    throw new Error(
+      `Stable release '${targetVersion}' must use single-digit minor and patch components.`
+    );
+  }
+
   if (compareSemver(targetVersion, latestReleasedVersion) <= 0) {
     const label = explicitVersion ? "Explicit version" : "Resolved version";
     throw new Error(`${label} '${targetVersion}' must be newer than '${latestReleasedVersion}'.`);

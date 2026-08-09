@@ -16,8 +16,9 @@ Read only task-relevant sections unless changing broad contracts.
 
 ## Work
 
-- Reuse existing owners before adding helpers/storage/fields/workers; prefer explicit
-  ownership and events.
+- Prefer the simplest design that fits existing architecture. Reuse/extend existing
+  owners, logic, protocols, and models before adding services/messages/state/storage/
+  frameworks; new abstractions require a concrete gap.
 - Before wire/persisted changes, define compatibility/rejection for existing
   values/messages; update authority/tests.
 - Protocol/security tests are contracts; helpers never repair tested messages.

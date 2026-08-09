@@ -20,6 +20,7 @@ import { useConnectionSocketLifecycle } from "./useConnectionSocketLifecycle";
 import { hasStoredReconnectKey } from "./pairingCredentials";
 import { useCustomScreens } from "./useCustomScreens";
 import { publishScreenViewResult } from "./screenViewResultBus";
+import { publishFileManagerResult } from "./fileManagerResultBus";
 import type { RelayEncryptedSend } from "./relaySessionCrypto";
 
 export type { PcProfile } from "./pcProfiles";
@@ -70,7 +71,7 @@ export function useVolturaAirConnection() {
   const pendingInputAcksRef = useRef<Map<number, number>>(new Map());
   const pendingMovementAckRef = useRef<PendingMovementAck | null>(null);
   const {
-    audioState, awakeCapability, clipboardReadPermission, clearRuntimeState, customScreensCapability, hostStatus, powerCapabilities, presentationCapability, screenViewCapability, setAudioState,
+    audioState, awakeCapability, clipboardReadPermission, clearRuntimeState, customScreensCapability, fileManagerCapability, hostStatus, powerCapabilities, presentationCapability, screenViewCapability, setAudioState,
     setHostStatus, supportsGestureDebug, supportsInputAckRef, supportsRemoteLaunch, supportsSleep, supportsTextTransfer,
     supportsVolumeControl, supportsVolumeControlRef, updateCapabilities, updateHostStatus, urlOpenCapability
   } = useConnectionRuntimeState(pendingInputAcksRef, pendingMovementAckRef);
@@ -145,6 +146,7 @@ export function useVolturaAirConnection() {
     completeCustomScreenGet,
     completeCustomScreenInvoke,
     completeScreenViewMessage: publishScreenViewResult,
+    completeFileManagerMessage: publishFileManagerResult,
     completePowerAction: completePowerActionState,
     completePowerPointRefresh: completePowerPointRefreshState,
     completePowerPointLaunch: completePowerPointLaunchState,
@@ -225,7 +227,7 @@ export function useVolturaAirConnection() {
     setPairingAttempt, setPendingManualPc, setState, socketRef, state
   });
 
-  return { state, connectionEpoch, message: displayMessage, send, requestAudioState, requestPowerAction, requestAwakeChange, requestAppLaunch, requestPowerPointRefresh, requestPowerPointLaunch, requestPresentationCommand, requestPresentationSession, requestPresentationReportSave, requestUrlOpen, requestTextTransfer, requestClipboardRead, requestCustomScreen, invokeCustomScreenButton, pendingCustomScreenButtonIds, customScreenDefinition, customScreenGetResult, customScreenInvokeResult, customScreensCapability, screenViewCapability, pendingPowerPointRefresh, pendingPowerPointLaunch, pendingPresentationCommand, pendingPresentationSession, pendingPresentationReportSave, powerPointRefreshResult, powerPointLaunchResult, presentationResult, presentationSessionResult, presentationReportSaveResult, presentationCapability, pendingTextTransfer, pendingClipboardRead, textTransferResult, clipboardReadResult, clipboardText, setClipboardText, clipboardReadPermission, pendingAppLaunchId, appLaunchResult, pendingUrlOpen, urlOpenResult, urlOpenCapability, pendingPowerAction, powerActionResult, pendingAwakeChange, awakeResult, clientId, deviceName, activePc, pairedPcs, reconnectablePcs, audioState, awakeCapability, powerCapabilities, supportsGestureDebug, supportsSleep, supportsVolumeControl, supportsRemoteLaunch, supportsTextTransfer, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, beginNewPairing, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice, setHostCustomPointer, setHostControlDepth, setHostShowModeButtons, setHostPointerSpeed };
+  return { state, connectionEpoch, message: displayMessage, send, requestAudioState, requestPowerAction, requestAwakeChange, requestAppLaunch, requestPowerPointRefresh, requestPowerPointLaunch, requestPresentationCommand, requestPresentationSession, requestPresentationReportSave, requestUrlOpen, requestTextTransfer, requestClipboardRead, requestCustomScreen, invokeCustomScreenButton, pendingCustomScreenButtonIds, customScreenDefinition, customScreenGetResult, customScreenInvokeResult, customScreensCapability, fileManagerCapability, screenViewCapability, pendingPowerPointRefresh, pendingPowerPointLaunch, pendingPresentationCommand, pendingPresentationSession, pendingPresentationReportSave, powerPointRefreshResult, powerPointLaunchResult, presentationResult, presentationSessionResult, presentationReportSaveResult, presentationCapability, pendingTextTransfer, pendingClipboardRead, textTransferResult, clipboardReadResult, clipboardText, setClipboardText, clipboardReadPermission, pendingAppLaunchId, appLaunchResult, pendingUrlOpen, urlOpenResult, urlOpenCapability, pendingPowerAction, powerActionResult, pendingAwakeChange, awakeResult, clientId, deviceName, activePc, pairedPcs, reconnectablePcs, audioState, awakeCapability, powerCapabilities, supportsGestureDebug, supportsSleep, supportsVolumeControl, supportsRemoteLaunch, supportsTextTransfer, lastConnectionError, hostStatus, pairWithToken, selectPc, addManualPc, beginNewPairing, connectManualPc, disconnectActivePc, forgetPc, renamePc, renameDevice, setHostCustomPointer, setHostControlDepth, setHostShowModeButtons, setHostPointerSpeed };
 }
 
 

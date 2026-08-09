@@ -15,6 +15,7 @@ interface GlobalOperationFeedbackProps {
   tab: AppTab;
   textTransferResult: TextSendResultMessage | null;
   transientFeedback: AppToastMessage | null;
+  onDismissTransient?: () => void;
 }
 
 export function GlobalOperationFeedback({
@@ -28,7 +29,8 @@ export function GlobalOperationFeedback({
   presentationSessionResult,
   tab,
   textTransferResult,
-  transientFeedback
+  transientFeedback,
+  onDismissTransient
 }: GlobalOperationFeedbackProps) {
   let feedback = transientFeedback;
 
@@ -61,7 +63,7 @@ export function GlobalOperationFeedback({
     };
   }
 
-  return feedback ? <AppToast tone={feedback.tone}>{feedback.message}</AppToast> : null;
+  return feedback ? <AppToast tone={feedback.tone} {...(transientFeedback && onDismissTransient ? { onDismiss: onDismissTransient } : {})}>{feedback.message}</AppToast> : null;
 }
 
 function presentationSessionActionLabel(result: PresentationSessionResultMessage): string {

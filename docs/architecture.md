@@ -40,6 +40,7 @@ performs startup, rollback, and shutdown.
 | Portable relay rooms, bounds, and provider contracts | `services/relay/src/core` |
 | Cloudflare and standalone relay adapters | `services/relay/src/cloudflare` and `services/relay/src/standalone` |
 | Screen-view tickets, single-viewer arbitration, encrypted records, and capture lifecycle | `ScreenViewCoordinator`, `ScreenViewCrypto`, and `DxgiScreenViewCaptureSource` |
+| Opaque file navigation, Windows file clipboard/Shell actions, persisted panel locations, and serialized mutation work | `FileManagerService`, its platform/location/journal adapters, and `FileManagerCommandHandler` |
 | Lazy mobile screen renderer and fallback crypto | `features/screen-view/` dynamic import |
 | Coalesced capability/status delivery | `HostStatusBroadcaster` and payload factory |
 | Validated input and focused Windows actions | Command handlers and platform adapters |
@@ -94,6 +95,8 @@ The JSON control socket owns discovery, signed offer/answer signaling,
 source-switch, and stop commands. Screen media uses a separate H.264 RTP track;
 cursor/status uses the `screen-events` data channel, so media backpressure cannot
 consume the command socket's serialized send queue.
+
+Files follows the same lazy feature boundary: the initial shell carries only capability/navigation wiring and loads `features/file-manager` on entry. The host resolves every opaque session, location, entry, revision, continuation, and job reference. Effective global/per-device Files policy is applied while the host constructs each directory revision, including removal of protected Hidden+System items before any client-visible count or opaque entry reference exists. `FileManagerService` intentionally validates source and destination revisions together with queue admission so a changed directory cannot redirect or partially resolve an operation. Its bounded workers own the single mutation queue, panel-location persistence, and atomic local job journal; shutdown cancels and awaits them. Every temporary, backup, or partially committed artifact remains durably owned until cleanup, commit, or rollback is confirmed. Windows clipboard, Shell, location-store, and journal behavior remain replaceable adapters so destructive transitions can be fault-injected independently.
 
 The capture owner uses Desktop Duplication GPU frames and cursor metadata. A
 D3D11 conversion stage supplies NV12 GPU surfaces to a capability-selected

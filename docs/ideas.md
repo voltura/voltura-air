@@ -39,6 +39,12 @@ peaks, text, or audio in logs. Browser dictation must remain independent.
 
 ## Control and personalization
 
+### Files
+
+- Consider host-defined custom Files locations below the Windows known folders after defining configuration ownership, unavailable-target behavior, ordering, and per-device visibility.
+- Consider an internal read-only file viewer after defining supported formats, bounded decoding/rendering, privacy, temporary-data cleanup, large-file behavior, and fallback to the Windows default application.
+- Consider transferring files between the PC and mobile device as a separate extension to Files on PC. Start with one-file-at-a-time authenticated streaming downloads, then evaluate uploads and multi-file archives. Keep host-side Copy and Move distinct, require a separate global permission with per-device overrides, and define large-file confirmation, progress, cancellation, relay encryption, quotas, safe names, path containment, partial-file cleanup, and short-lived download authorization before implementation.
+
 ### Additional device preferences
 
 Candidates include restoring the last supported mode per PC/client and
@@ -64,7 +70,7 @@ browser-local unless a cross-device workflow justifies host ownership.
 | --- | --- |
 | Wake-on-LAN | An available LAN sender, hardware/network prerequisites, validated target data, and explicit confirmation. |
 | Screen preview | Consent, capture behavior, protected content, encoding, limits, authorization, and cleanup. |
-| Phone-to-PC files | Authenticated upload, quotas, safe names, path containment, provenance, cancellation, and partial-file cleanup. |
+| PC/mobile file transfer | Authenticated streaming download and upload, separate permission, relay encryption, quotas, safe names, path containment, provenance, cancellation, and partial-file cleanup. |
 | Motion pointer | Browser permission behavior, calibration, sensitivity, active-session collection, and cleanup. |
 | Gamepad mode | Driver, signing, elevation, install/remove, anti-cheat behavior, neutral disconnect, and latency. |
 | Native mobile apps | Demonstrated PWA gap, platform scope, protocol parity, accessibility, privacy, distribution, and maintenance. |

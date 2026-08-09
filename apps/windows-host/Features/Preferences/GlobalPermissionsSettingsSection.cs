@@ -41,6 +41,9 @@ internal sealed class GlobalPermissionsSettingsSection(
             (Control: visuals.CreateCheckBox("Allow paired devices to control Keep awake", permissions.AllowAwakeControl), Key: "awake"),
             (Control: visuals.CreateCheckBox("Allow paired devices to read the PC clipboard", permissions.AllowClipboardRead), Key: "clipboard"),
             (Control: visuals.CreateCheckBox("Allow paired devices to view the PC screen", permissions.AllowScreenViewing), Key: "screen-view"),
+            (Control: visuals.CreateCheckBox("Allow paired devices to browse and open files", permissions.AllowFileBrowsing), Key: "file-browse"),
+            (Control: visuals.CreateCheckBox("Allow paired devices to change files", permissions.AllowFileChanges), Key: "file-change"),
+            (Control: visuals.CreateCheckBox("Hide protected operating system files and folders (recommended)", permissions.HideProtectedFileSystemItems), Key: "file-hide-protected"),
             (Control: visuals.CreateCheckBox("Allow paired devices to sign out", permissions.AllowSignOut), Key: "sign-out"),
             (Control: visuals.CreateCheckBox("Allow paired devices to restart the PC", permissions.AllowRestart), Key: "restart"),
             (Control: visuals.CreateCheckBox("Allow paired devices to shut down the PC", permissions.AllowShutdown), Key: "shutdown")
@@ -66,7 +69,7 @@ internal sealed class GlobalPermissionsSettingsSection(
         }
         parent.Children.Add(visuals.CreateMutedText("Display off and session-ending actions require hold-to-confirm on the mobile device."));
         var details = preferenceVisuals.AddNestedSection(parent, "More about global permissions");
-        details.Children.Add(visuals.CreateMutedText("Pointer and keyboard control, lock, and blackout are enabled by default. The screen-saver permission appears when Windows has a screen saver configured. Opening web addresses, reading the PC clipboard, display off, sign out, restart, and shut down require explicit host approval."));
+        details.Children.Add(visuals.CreateMutedText("Pointer and keyboard control, lock, blackout, and hiding protected operating system items are enabled by default. The screen-saver permission appears when Windows has a screen saver configured. Opening web addresses, reading the PC clipboard, display off, sign out, restart, and shut down require explicit host approval."));
     }
 
     private void Save((SettingsCheckBox Control, string Key)[] controls)
@@ -93,6 +96,9 @@ internal sealed class GlobalPermissionsSettingsSection(
             AllowScreenViewing: IsAllowed("screen-view"),
             AllowSignOut: IsAllowed("sign-out"),
             AllowRestart: IsAllowed("restart"),
-            AllowShutdown: IsAllowed("shutdown")));
+            AllowShutdown: IsAllowed("shutdown"),
+            AllowFileBrowsing: IsAllowed("file-browse"),
+            AllowFileChanges: IsAllowed("file-change"),
+            HideProtectedFileSystemItems: IsAllowed("file-hide-protected")));
     }
 }

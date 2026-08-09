@@ -14,11 +14,15 @@ const previewScreenId = readCustomScreenPreviewId(window.location.href);
 const previewControlDepth =
   readCustomScreenPreviewControlDepth(window.location.href);
 const screenViewPreview = import.meta.env.DEV && new URL(window.location.href).searchParams.get("screenPreview") === "1";
+const fileManagerPreview = import.meta.env.DEV && new URL(window.location.href).searchParams.get("filesPreview") === "1";
 const ScreenViewBrowserPreviewRoot = lazy(() => import("./features/screen-view").then((module) => ({ default: module.ScreenViewBrowserPreviewRoot })));
+const FileManagerBrowserPreviewRoot = lazy(() => import("./app/FileManagerBrowserPreviewRoot").then((module) => ({ default: module.FileManagerBrowserPreviewRoot })));
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    {screenViewPreview
+    {fileManagerPreview
+      ? <Suspense fallback={null}><FileManagerBrowserPreviewRoot /></Suspense>
+      : screenViewPreview
       ? <Suspense fallback={null}><ScreenViewBrowserPreviewRoot /></Suspense>
       : previewScreenId === null
       ? <App />
@@ -31,7 +35,7 @@ createRoot(document.getElementById("root")!).render(
   </StrictMode>
 );
 
-if (!screenViewPreview && previewScreenId === null && "serviceWorker" in navigator) {
+if (!fileManagerPreview && !screenViewPreview && previewScreenId === null && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js?build=${encodeURIComponent(__WEB_BUILD_ID__)}`, { scope: import.meta.env.BASE_URL }).catch(() => {
       // The app still works without offline caching.

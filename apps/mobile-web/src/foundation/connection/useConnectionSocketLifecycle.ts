@@ -8,6 +8,7 @@ import type {
   ClipboardGetResultMessage,
   CustomScreenGetResultMessage,
   CustomScreenInvokeResultMessage,
+  FileManagerServerMessage,
   HostStatusMetadata,
   PowerPointRefreshResultMessage,
   PowerPointLaunchResultMessage,
@@ -72,6 +73,7 @@ interface ConnectionSocketLifecycleOptions {
   completeCustomScreenGet: (result: CustomScreenGetResultMessage) => boolean;
   completeCustomScreenInvoke: (result: CustomScreenInvokeResultMessage) => boolean;
   completeScreenViewMessage: (result: ScreenViewSourcesResultMessage | ScreenViewStartResultMessage | ScreenViewAnswerResultMessage | ScreenViewSourceResultMessage | ScreenViewStopResultMessage | ScreenViewEndedMessage) => void;
+  completeFileManagerMessage: (result: FileManagerServerMessage) => void;
   completePowerAction: (result: SystemPowerResultMessage) => boolean;
   completePowerPointRefresh: (result: PowerPointRefreshResultMessage) => boolean;
   completePowerPointLaunch: (result: PowerPointLaunchResultMessage) => boolean;
@@ -121,6 +123,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     completeCustomScreenGet: completeCustomScreenGetState,
     completeCustomScreenInvoke: completeCustomScreenInvokeState,
     completeScreenViewMessage: completeScreenViewMessageState,
+    completeFileManagerMessage: completeFileManagerMessageState,
     completePowerAction: completePowerActionState,
     completePowerPointRefresh: completePowerPointRefreshState,
     completePowerPointLaunch: completePowerPointLaunchState,
@@ -167,6 +170,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
   const completeCustomScreenGet = useEffectEvent(completeCustomScreenGetState);
   const completeCustomScreenInvoke = useEffectEvent(completeCustomScreenInvokeState);
   const completeScreenViewMessage = useEffectEvent(completeScreenViewMessageState);
+  const completeFileManagerMessage = useEffectEvent(completeFileManagerMessageState);
   const completePowerAction = useEffectEvent(completePowerActionState);
   const completePowerPointRefresh = useEffectEvent(completePowerPointRefreshState);
   const completePowerPointLaunch = useEffectEvent(completePowerPointLaunchState);
@@ -795,6 +799,13 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
         if (response.type === "screen.view.sources.result" || response.type === "screen.view.start.result" || response.type === "screen.view.answer.result" || response.type === "screen.view.source.result" || response.type === "screen.view.stop.result" || response.type === "screen.view.ended") {
           touchHealthy();
           completeScreenViewMessage(response);
+          scheduleHealthCheck(ws);
+          return;
+        }
+
+        if (response.type.startsWith("file.")) {
+          touchHealthy();
+          completeFileManagerMessage(response as FileManagerServerMessage);
           scheduleHealthCheck(ws);
           return;
         }

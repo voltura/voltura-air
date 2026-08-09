@@ -20,6 +20,7 @@ internal sealed class WebSocketSessionHandler(
     ExternalActionCommandHandler externalActionCommands,
     TextTransferCommandHandler textTransferCommands,
     ClipboardCommandHandler clipboardCommands,
+    FileManagerCommandHandler fileManagerCommands,
     InputCommandHandler inputCommands,
     CustomScreenCommandHandler customScreenCommands,
     ScreenViewCommandHandler screenViewCommands,
@@ -598,6 +599,21 @@ internal sealed class WebSocketSessionHandler(
                 return true;
             case "clipboard.get":
                 await clipboardCommands.HandleAsync(socket, clientId, ProtocolMessageFields.GetString(root, "operationId"), cancellationToken);
+                return true;
+            case "file.session.open":
+            case "file.page.get":
+            case "file.navigate":
+            case "file.refresh":
+            case "file.sort":
+            case "file.properties.get":
+            case "file.clipboard.set":
+            case "file.open":
+            case "file.jobs.get":
+            case "file.job.create":
+            case "file.job.control":
+            case "file.job.reorder":
+            case "file.job.conflict.resolve":
+                await fileManagerCommands.HandleAsync(socket, clientId, type, root, cancellationToken);
                 return true;
         }
 

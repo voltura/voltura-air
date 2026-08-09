@@ -23,19 +23,21 @@ export function AppSettingsSection({
   installPrompt,
   isInstalled,
   presentationAvailable,
+  filesAvailable,
   refreshInstalledApp,
   refreshMessage,
   updateAppSetting
-}: Pick<SettingsDrawerProps, "appSettings" | "installApp" | "installPrompt" | "isInstalled" | "presentationAvailable" | "refreshInstalledApp" | "refreshMessage" | "updateAppSetting">) {
+}: Pick<SettingsDrawerProps, "appSettings" | "filesAvailable" | "installApp" | "installPrompt" | "isInstalled" | "presentationAvailable" | "refreshInstalledApp" | "refreshMessage" | "updateAppSetting">) {
   return (
     <div className="install-card">
       <label className="setting-group">
         <span>Fourth mode button</span>
-        <select className="text-input fourth-mode-select" value={getEffectiveFourthMode(appSettings.fourthMode, presentationAvailable)} onChange={(event) => { updateAppSetting("fourthMode", event.target.value === "presentation" || event.target.value === "text-transfer" || event.target.value === "clipboard-read" ? event.target.value : "dictation"); }}>
+        <select className="text-input fourth-mode-select" value={getEffectiveFourthMode(appSettings.fourthMode, presentationAvailable, filesAvailable)} onChange={(event) => { updateAppSetting("fourthMode", event.target.value === "presentation" || event.target.value === "text-transfer" || event.target.value === "clipboard-read" || event.target.value === "files" ? event.target.value : "dictation"); }}>
           {presentationAvailable && <option value="presentation">Presentation</option>}
           <option value="dictation">Dictation</option>
           <option value="text-transfer">Send text to PC</option>
           <option value="clipboard-read">Get text from PC</option>
+          {filesAvailable && <option value="files">Files</option>}
         </select>
       </label>
       {!isInstalled && (

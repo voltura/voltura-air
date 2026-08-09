@@ -78,7 +78,7 @@
           <p class="tagline">Turn your phone into the remote your PC is missing.</p>
           <p class="lede">
             Control your PC with a trackpad, keyboard, presentation and media
-            remotes, text tools, practical PC actions, and live screen mirroring.
+            remotes, file and text tools, practical PC actions, and live screen mirroring.
             Pair by QR code&mdash;no account or phone app required. Connect over
             Direct LAN or an optional end-to-end encrypted Cloud relay.
           </p>
@@ -93,15 +93,15 @@
       <section id="promise" class="feature-band" aria-label="Product promise">
         <article>
           <h2>No phone app to install</h2>
-          <p>Open Voltura Air in your mobile browser or add it to your home screen for an app-like experience.</p>
+          <p>Use Voltura Air in your mobile browser or add it to your home screen.</p>
         </article>
         <article>
           <h2>Built for Windows 11</h2>
-          <p>Pair trusted devices by QR code and choose what each device is allowed to do.</p>
+          <p>Pair trusted devices by QR code and choose each device's permissions.</p>
         </article>
         <article>
           <h2>Completely free</h2>
-          <p>No account, subscription, trial limit, or locked features. The source is available under the MIT License.</p>
+          <p>No account, subscription, trial, or locked features. Open source under the MIT License.</p>
         </article>
       </section>
 
@@ -112,27 +112,31 @@
         </article>
         <article>
           <h2>PC screen mirroring</h2>
-          <p>Mirror one Windows display live to one authorized phone or tablet over Direct LAN or the encrypted Cloud relay, with Standard and Data saver relay quality.</p>
+          <p>Mirror one Windows display to an authorized phone or tablet over Direct LAN or encrypted Cloud relay, with Standard and Data saver modes.</p>
+        </article>
+        <article>
+          <h2>Files on PC</h2>
+          <p>Browse files that stay on the PC or mapped drives. Use one or two touch panels for direct copy and move, Windows clipboard actions, properties, Recycle Bin deletion, and background progress.</p>
         </article>
         <article>
           <h2>Cloud relay for restricted networks</h2>
-          <p>Let the PC and phone both connect outward when company or guest networks block direct device-to-PC access. Keep the same short QR pairing, trusted devices, and permissions without an incoming PC firewall exception.</p>
+          <p>Connect through restricted company or guest networks without an incoming PC firewall exception. Keep the same QR pairing, trusted devices, and permissions.</p>
         </article>
         <article>
           <h2>Presentation remote</h2>
-          <p>Control PowerPoint, Google Slides, or PDF/browser presentations, use a laser pointer, track time, and review saved reports on the PC.</p>
+          <p>Control PowerPoint, Google Slides, and PDF/browser presentations with a laser pointer, timer, and saved reports.</p>
         </article>
         <article>
           <h2>Text and dictation</h2>
-          <p>Dictate, reuse snippets, or compose longer text, then send it to a PC app, document, email draft, or clipboard.</p>
+          <p>Dictate, reuse snippets, or compose text, then send it to a PC app or clipboard.</p>
         </article>
         <article>
           <h2>Couch remote</h2>
-          <p>Control media, volume, YouTube, Kodi, browser tabs, windows, and applications selected on the PC.</p>
+          <p>Control media, volume, YouTube, Kodi, browser tabs, windows, and approved PC apps.</p>
         </article>
         <article>
           <h2>Custom screens</h2>
-          <p>Build responsive buttons, collapsible panels, trackpads, navigation rings, and D-pads on the PC. Preview and assign them, share reviewed <code>.volturascreen</code> packages, or browse the community library while actions remain under host permissions.</p>
+          <p>Build responsive control screens with buttons, panels, trackpads, navigation rings, and D-pads. Preview, assign, import, export, or browse reviewed community designs.</p>
         </article>
         <article>
           <h2>PC actions</h2>
@@ -280,7 +284,7 @@
               </tr>
               <tr>
                 <th scope="row">File access or transfer</th>
-                <td class="comparison-voltura"><strong class="comparison-status">Not offered</strong></td>
+                <td class="comparison-voltura"><strong class="comparison-status">Touch-first host file manager</strong>; one or two panels, local and mapped drives, Windows clipboard operations, direct copy/move, background jobs, and host/per-device permissions. Files remain on the PC rather than transferring to the phone.</td>
                 <td>File and folder browsing remotes are available</td>
                 <td>Cross-device clipboard transfers text and images; general file transfer is <strong class="comparison-status">not documented</strong></td>
                 <td>File Explorer and file-transfer functionality are advertised</td>
@@ -310,8 +314,9 @@
           </table>
         </div>
         <p class="comparison-note">
-          Comparison based on publicly documented product information checked on
-          3 August 2026. Features, availability, and pricing models may change.
+          Competitor information was checked on 3 August 2026; Voltura Air
+          capabilities were updated on 9 August 2026. Features, availability,
+          and pricing models may change.
         </p>
         <details class="comparison-sources">
           <summary>Comparison sources</summary>
@@ -362,6 +367,13 @@
           <figure class="screen-card wide">
             <img src="./assets/voltura-air-split.png" alt="Voltura Air split keyboard and trackpad mode on a tablet in landscape orientation">
             <figcaption>Tablet split mode</figcaption>
+          </figure>
+          <figure class="screen-card wide">
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="./assets/voltura-air-files-dark.png">
+              <img src="./assets/voltura-air-files.png" alt="Voltura Air Files on PC two-panel file manager with example files on a tablet">
+            </picture>
+            <figcaption>Two-panel Files on PC</figcaption>
           </figure>
         </div>
       </section>

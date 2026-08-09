@@ -19,6 +19,7 @@ public sealed class WpfPngRendererTests
         var thread = new Thread(() =>
         {
             var dispatcher = Dispatcher.CurrentDispatcher;
+            SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(dispatcher));
             _ = RenderAsync(dispatcher);
             Dispatcher.Run();
         });

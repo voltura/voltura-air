@@ -177,7 +177,7 @@ describe("ScreenViewWorkspace", () => {
     if (!stage) {throw new Error("Screen stage was not rendered.");}
     Object.defineProperty(stage, "clientWidth", { configurable: true, value: 400 });
     Object.defineProperty(stage, "clientHeight", { configurable: true, value: 220 });
-    fireEvent.click(screen.getByRole("button", { name: "Two-finger mode: Scroll. Switch to Zoom" }));
+    expect(screen.getByRole("button", { name: "Two-finger mode: Zoom. Switch to Scroll" })).toBeTruthy();
     fireEvent.touchStart(stage, { targetTouches: [
       { identifier: 1, clientX: 100, clientY: 100 },
       { identifier: 2, clientX: 160, clientY: 100 }
@@ -359,6 +359,7 @@ describe("ScreenViewWorkspace", () => {
     />);
 
     fireEvent.loadedData(screen.getByLabelText("Mirrored PC display video"));
+    fireEvent.click(screen.getByRole("button", { name: "Two-finger mode: Zoom. Switch to Scroll" }));
     const fullScreenButton = screen.getByRole("button", { name: "View PC screen full screen" });
     fireEvent.touchStart(fullScreenButton, {
       targetTouches: [{ identifier: 1, clientX: 360, clientY: 80 }]
@@ -459,6 +460,7 @@ describe("ScreenViewWorkspace", () => {
     const stage = document.querySelector<HTMLElement>(".screen-view-stage");
     if (!stage) {throw new Error("Screen stage was not rendered.");}
     fireEvent.loadedData(screen.getByLabelText("Mirrored PC display video"));
+    fireEvent.click(screen.getByRole("button", { name: "Two-finger mode: Zoom. Switch to Scroll" }));
     const first = [
       { identifier: 1, clientX: 100, clientY: 100 },
       { identifier: 2, clientX: 160, clientY: 100 }
@@ -492,10 +494,7 @@ describe("ScreenViewWorkspace", () => {
     Object.defineProperty(stage, "clientWidth", { configurable: true, value: 400 });
     Object.defineProperty(stage, "clientHeight", { configurable: true, value: 220 });
     fireEvent.loadedData(screen.getByLabelText("Mirrored PC display video"));
-    const zoomModeButton = screen.getByRole("button", { name: "Two-finger mode: Scroll. Switch to Zoom" });
-    fireEvent.touchStart(zoomModeButton, { targetTouches: [{ identifier: 1, clientX: 20, clientY: 200 }] });
-    fireEvent.touchEnd(zoomModeButton, { targetTouches: [] });
-    fireEvent.click(zoomModeButton);
+    expect(screen.getByRole("button", { name: "Two-finger mode: Zoom. Switch to Scroll" })).toBeTruthy();
     expect(send.mock.calls.some(([message]) => message.type === "pointer.button")).toBe(false);
     const first = [
       { identifier: 1, clientX: 100, clientY: 100 },

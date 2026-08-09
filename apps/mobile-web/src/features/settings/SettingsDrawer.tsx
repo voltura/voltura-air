@@ -204,6 +204,7 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
             refreshInstalledApp={props.refreshInstalledApp}
             refreshMessage={props.refreshMessage}
             presentationAvailable={props.presentationAvailable}
+            filesAvailable={props.filesAvailable ?? false}
             updateAppSetting={props.updateAppSetting}
           />
         </SettingsSectionDetails>

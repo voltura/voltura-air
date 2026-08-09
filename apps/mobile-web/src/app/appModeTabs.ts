@@ -1,4 +1,4 @@
-import { ClipboardPaste, Keyboard, Mic, MousePointer2, Presentation as PresentationIcon, Send, Tv } from "lucide-react";
+import { ClipboardPaste, Files, Keyboard, Mic, MousePointer2, Presentation as PresentationIcon, Send, Tv } from "lucide-react";
 import { getEffectiveFourthMode } from "../foundation/settings/appSettings";
 import type { MainAppTab, ToolAppTab } from "../features/modes";
 
@@ -23,18 +23,19 @@ export const toolModeDefinitions: Record<ToolAppTab, ModeDefinition> = {
   presentation: { id: "presentation", label: "Presentation", ariaLabel: "Presentation", Icon: PresentationIcon },
   dictation: { id: "dictation", label: "Dictate", ariaLabel: "Dictation", Icon: Mic },
   "text-transfer": { id: "text-transfer", label: "Send text", ariaLabel: "Send text to PC", Icon: Send },
-  "clipboard-read": { id: "clipboard-read", label: "Get text", ariaLabel: "Get text from PC", Icon: ClipboardPaste }
+  "clipboard-read": { id: "clipboard-read", label: "Get text", ariaLabel: "Get text from PC", Icon: ClipboardPaste },
+  files: { id: "files", label: "Files", ariaLabel: "Files on PC", Icon: Files }
 };
 
-const toolModeOrder = ["presentation", "dictation", "text-transfer", "clipboard-read"] satisfies ToolAppTab[];
-const stableToolModeOrder = ["dictation", "text-transfer", "clipboard-read"] satisfies ToolAppTab[];
+const toolModeOrder = ["presentation", "dictation", "text-transfer", "clipboard-read", "files"] satisfies ToolAppTab[];
+const stableToolModeOrder = ["dictation", "text-transfer", "clipboard-read", "files"] satisfies ToolAppTab[];
 
-export function getAvailableToolModeIds(presentationAvailable: boolean): ToolAppTab[] {
-  return presentationAvailable ? toolModeOrder : stableToolModeOrder;
+export function getAvailableToolModeIds(presentationAvailable: boolean, filesAvailable = false): ToolAppTab[] {
+  return (presentationAvailable ? toolModeOrder : stableToolModeOrder).filter((id) => id !== "files" || filesAvailable);
 }
 
-export function getModeTabs(fourthMode: ToolAppTab, presentationAvailable: boolean): ModeDefinition[] {
-  const effectiveFourthMode = getEffectiveFourthMode(fourthMode, presentationAvailable);
+export function getModeTabs(fourthMode: ToolAppTab, presentationAvailable: boolean, filesAvailable = false): ModeDefinition[] {
+  const effectiveFourthMode = getEffectiveFourthMode(fourthMode, presentationAvailable, filesAvailable);
   return [...primaryModeDefinitions, toolModeDefinitions[effectiveFourthMode]];
 }
 

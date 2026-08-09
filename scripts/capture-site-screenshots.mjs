@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
 import { spawn } from "node:child_process";
-import { stopExistingHost } from "./dev-shared.mjs";
+import { stopChild, stopExistingHost } from "./dev-shared.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const assetsDir = path.join(repoRoot, "docs", "site", "assets");
@@ -24,7 +24,9 @@ const outputs = {
   iphoneDark: path.join(assetsDir, "voltura-air-iphone-dark.png"),
   iphoneKodiDark: path.join(assetsDir, "voltura-air-iphone-kodi-dark.png"),
   iphoneKodiDarkForum: path.join(assetsDir, "voltura-air-iphone-kodi-dark-forum.png"),
-  split: path.join(assetsDir, "voltura-air-split.png")
+  split: path.join(assetsDir, "voltura-air-split.png"),
+  filesLight: path.join(assetsDir, "voltura-air-files.png"),
+  filesDark: path.join(assetsDir, "voltura-air-files-dark.png")
 };
 
 main().catch((error) => {
@@ -55,11 +57,17 @@ async function main() {
 
     const lightHost = await launchHost("Light", outputs.hostLight);
     try {
-      await captureMobileScreens(chromium, lightHost.pairingUrl);
-      await sharp(outputs.iphoneKodiDark)
-        .resize({ width: 350 })
-        .png()
-        .toFile(outputs.iphoneKodiDarkForum);
+      let filePreview;
+      try {
+        filePreview = await launchFilePreview();
+        await captureMobileScreens(chromium, lightHost.pairingUrl, filePreview.url);
+        await sharp(outputs.iphoneKodiDark)
+          .resize({ width: 350 })
+          .png()
+          .toFile(outputs.iphoneKodiDarkForum);
+      } finally {
+        if (filePreview) await stopPreviewProcess(filePreview.process);
+      }
     } finally {
       await stopProcess(lightHost.process);
     }
@@ -95,7 +103,7 @@ async function ensureCaptureDependencies() {
   await run("npm", ["install", "--no-audit", "--no-fund", "--no-save", ...modules], { cwd: tempDir });
 }
 
-async function captureMobileScreens(chromium, pairingUrl) {
+async function captureMobileScreens(chromium, pairingUrl, filePreviewUrl) {
   const browser = await launchBrowser(chromium);
   try {
     const context = await browser.newContext({
@@ -141,8 +149,34 @@ async function captureMobileScreens(chromium, pairingUrl) {
     await page.reload({ waitUntil: "networkidle" });
     await page.locator(".split-mode-shell").waitFor({ timeout: 5000 });
     await page.screenshot({ path: outputs.split });
+
+    await captureFilesPreview(browser, filePreviewUrl);
   } finally {
     await browser.close();
+  }
+}
+
+async function captureFilesPreview(browser, previewUrl) {
+  for (const [theme, outputPath] of [["light", outputs.filesLight], ["dark", outputs.filesDark]]) {
+    const context = await browser.newContext({
+      viewport: { width: 1180, height: 820 },
+      deviceScaleFactor: 1,
+      isMobile: false,
+      hasTouch: true
+    });
+    await context.addInitScript((nextTheme) => {
+      localStorage.setItem("voltura-air.themeMode", nextTheme);
+    }, theme);
+    try {
+      const page = await context.newPage();
+      await page.goto(`${previewUrl}/?filesPreview=1`, { waitUntil: "networkidle" });
+      await page.locator(".file-manager-workspace").waitFor({ timeout: 5000 });
+      await page.locator(".file-panel").nth(1).waitFor({ state: "visible", timeout: 5000 });
+      await page.getByText("Files ready.", { exact: true }).waitFor({ state: "visible", timeout: 5000 });
+      await page.screenshot({ path: outputPath });
+    } finally {
+      await context.close();
+    }
   }
 }
 
@@ -245,6 +279,21 @@ async function launchHost(theme, outputPath, customScreens = false) {
   return { process: child, pairingUrl };
 }
 
+async function launchFilePreview() {
+  const port = 5183;
+  const url = `http://127.0.0.1:${port}`;
+  const [executable, args] = process.platform === "win32"
+    ? ["cmd.exe", ["/d", "/s", "/c", "npm", "run", "dev", "--workspace", "apps/mobile-web", "--", "--host", "127.0.0.1", "--port", String(port), "--strictPort"]]
+    : ["npm", ["run", "dev", "--workspace", "apps/mobile-web", "--", "--host", "127.0.0.1", "--port", String(port), "--strictPort"]];
+  const child = spawn(executable, args, {
+    cwd: repoRoot,
+    stdio: ["ignore", "inherit", "inherit"],
+    windowsHide: true
+  });
+  await waitForHttp(url, 15000, child);
+  return { process: child, url };
+}
+
 async function stopRunningHost() {
   stopExistingHost();
 }
@@ -262,6 +311,16 @@ async function stopProcess(child) {
   child.kill("SIGKILL");
   if (!await waitForProcessExit(child, 2500)) {
     throw new Error("Timed out waiting for the screenshot host to exit.");
+  }
+}
+
+async function stopPreviewProcess(child) {
+  if (child.exitCode !== null) {
+    return;
+  }
+  stopChild(child, "SIGTERM");
+  if (!await waitForProcessExit(child, 2500)) {
+    throw new Error("Timed out waiting for the Files screenshot preview to exit.");
   }
 }
 
@@ -315,6 +374,23 @@ function throwIfHostExited(child, awaitedPath) {
   if (child.exitCode !== null) {
     throw new Error(`Voltura Air host exited with code ${child.exitCode} before writing ${awaitedPath}`);
   }
+}
+
+async function waitForHttp(url, timeoutMs, child) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    throwIfHostExited(child, url);
+    try {
+      const response = await fetch(url);
+      if (response.ok) {
+        return;
+      }
+    } catch {
+      // The Vite listener is still starting.
+    }
+    await delay(100);
+  }
+  throw new Error(`Timed out waiting for ${url}`);
 }
 
 function delay(ms) {

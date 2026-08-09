@@ -24,9 +24,11 @@ import { useOneShotHint } from "./ui/guidance/useOneShotHint";
 import { ConfirmationDialog } from "./ui/overlays/ConfirmationDialog";
 import { CustomScreenWorkspace } from "./features/custom-screens";
 import { WorkspaceErrorBoundary } from "./app/WorkspaceErrorBoundary";
+import { subscribeFileManagerResults } from "./foundation/connection/fileManagerResultBus";
 import { ThirdPartyNoticesWorkspace } from "./features/legal";
 
 const ScreenViewWorkspace = lazy(() => import("./features/screen-view"));
+const FileManagerWorkspace = lazy(() => import("./features/file-manager"));
 
 export function App() {
   const initialPairing = useMemo(() => parsePairingLink(window.location.href), []);
@@ -48,6 +50,7 @@ export function App() {
     customScreenInvokeResult,
     customScreensCapability,
     screenViewCapability,
+    fileManagerCapability,
     invokeCustomScreenButton,
     pendingCustomScreenButtonIds,
     requestCustomScreen,
@@ -80,6 +83,21 @@ export function App() {
   const [suppressedClipboardResultId, setSuppressedClipboardResultId] = useState<string | null>(null);
   const [activeCustomScreenId, setActiveCustomScreenId] = useState<string | null>(null);
   const [isScreenViewOpen, setIsScreenViewOpen] = useState(false);
+  const [activeFileJobCount, setActiveFileJobCount] = useState(0);
+  const fileJobStatesRef = useRef(new Map<string, string>());
+  useEffect(() => subscribeFileManagerResults((result) => {
+    if (result.type !== "file.jobs.status") {return;}
+    setActiveFileJobCount(result.jobs.filter((job) => !["completed", "failed", "canceled", "interrupted"].includes(job.state)).length);
+    for (const job of result.jobs) {
+      const previous = fileJobStatesRef.current.get(job.jobId);
+      if (previous && previous !== job.state && job.state === "completed") {
+        setTransientFeedback({ tone: "success", message: `${job.operation} completed on the PC.` });
+      } else if (previous && previous !== job.state && (job.state === "failed" || job.state === "interrupted")) {
+        setTransientFeedback({ tone: "error", message: job.message ?? `${job.operation} did not complete.` });
+      }
+      fileJobStatesRef.current.set(job.jobId, job.state);
+    }
+  }), []);
   const [isThirdPartyNoticesOpen, setIsThirdPartyNoticesOpen] = useState(false);
   const inputBlockedByElevation = hostStatus?.inputBlockedByElevation === true;
   const [inputRecoveryDialog, setInputRecoveryDialog] = useState({
@@ -106,6 +124,17 @@ export function App() {
     trackpadSettings
   } = pcSettings;
   const presentationAvailable = presentationCapability !== undefined;
+  const filesAvailable = fileManagerCapability !== undefined;
+  const canMirrorFileView = screenViewCapability?.canView === true && screenViewCapability.requiresRepair === false;
+  const mirrorFileViewUnavailableMessage = !screenViewCapability
+    ? "View requires PC Screen, which is unavailable on this host."
+    : screenViewCapability.requiresRepair
+      ? "View requires a trusted PC Screen connection. Scan this PC's pairing QR again."
+      : !screenViewCapability.enabled
+        ? "View requires PC Screen, which is unavailable on this PC."
+        : !screenViewCapability.permissionGranted
+          ? "Allow this device to view the PC screen in PC permissions before using View."
+          : "PC Screen is not currently available.";
   const {
     dismiss: dismissModeSwitchHint,
     open: isModeSwitchHintOpen,
@@ -129,6 +158,11 @@ export function App() {
   const handlePresentationActivationRequestHandled = useCallback(() => {
     setPresentationActivationRequest({ connectionEpoch, id: 0 });
   }, [connectionEpoch]);
+  const openScreenViewFromFiles = useCallback(() => {
+    setActiveCustomScreenId(null);
+    setIsThirdPartyNoticesOpen(false);
+    setIsScreenViewOpen(true);
+  }, []);
   const requestPresentationActivation = () => {
     setPresentationActivationRequest((current) => ({
       connectionEpoch,
@@ -185,9 +219,10 @@ export function App() {
     onActiveModeTabCollapse: showModeSwitchHintOnce,
     onEnterRemote: () => { requestRemoteModeLaunch(remoteSettings.mode, remoteSettings); },
     presentationAvailable: presentationAvailable || presentationSessionActive,
+    filesAvailable,
     supportsGestureDebug,
     trackpadSettings,
-    showModeButtons
+    showModeButtons: showModeButtons && !isThirdPartyNoticesOpen
   });
   useEffect(() => {
     if (state === "paired" &&
@@ -374,7 +409,7 @@ export function App() {
       return;
     }
 
-    const timeout = window.setTimeout(() => { setTransientFeedback(null); }, 3000);
+    const timeout = window.setTimeout(() => { setTransientFeedback(null); }, transientFeedback.tone === "error" ? 8000 : 4000);
     return () => { window.clearTimeout(timeout); };
   }, [transientFeedback]);
 
@@ -436,7 +471,7 @@ export function App() {
 
   return (
     <div className={`app-frame${controlDepth ? " control-depth" : ""}`}>
-      <main className={`${shellClassName}${controlDepth ? " control-depth" : ""}${isScreenViewOpen ? " screen-view-active" : ""}`}>
+      <main className={`${shellClassName}${controlDepth ? " control-depth" : ""}${isScreenViewOpen ? " screen-view-active" : ""}${tab === "files" ? " files-active" : ""}`}>
         <AppHeader
           activeMode={activeModeTab}
           canShowModeNavigation={canShowModeNavigation}
@@ -445,12 +480,18 @@ export function App() {
           developerMode={developerMode}
           isModeSelectorOpen={isModeSelectorOpen && modeSelectorAnchor === "header"}
           message={message}
+          fileJobCount={activeFileJobCount}
           modeTabs={modeTabs}
           onCloseModeSelector={closeModeSelector}
           onOpenSettings={() => {
             dismissModeSwitchHint();
             openSettings();
           }}
+          {...(filesAvailable ? { onOpenFileJobs: () => {
+            setActiveCustomScreenId(null);
+            setIsScreenViewOpen(false);
+            selectModeTabWithPresentationGuard("files", "selector");
+          } } : {})}
           onSelectMode={(nextTab) => {
             dismissModeSwitchHint();
             setIsScreenViewOpen(false);
@@ -538,6 +579,7 @@ export function App() {
           pairingQrInputRef={pairingQrInputRef}
           pairingScanMessage={pairingScanMessage}
           presentationAvailable={presentationAvailable}
+          filesAvailable={filesAvailable}
           refreshInstalledApp={refreshInstalledApp}
           refreshMessage={refreshMessage}
           renameDevice={renameDevice}
@@ -559,7 +601,7 @@ export function App() {
           showModeButtons={showModeButtons}
           toolOptions={[
             ...modeTabs,
-            ...getAvailableToolModeIds(presentationAvailable)
+            ...getAvailableToolModeIds(presentationAvailable, filesAvailable)
               .filter((id) => !modeTabs.some((mode) => mode.id === id))
               .map((id) => toolModeDefinitions[id])
           ].map(({ id, label, ariaLabel, Icon }) => ({ id, label: id === "trackpad" || id === "keyboard" || id === "remote" ? label : ariaLabel, Icon }))}
@@ -570,7 +612,7 @@ export function App() {
           updateTrackpadSetting={updateTrackpadSetting}
         />
 
-        {activeCustomScreenId === null && !isScreenViewOpen && isModeButtonsVisible && <ModeNavigation className="tabs top-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTabWithPresentationGuard} />}
+        {activeCustomScreenId === null && !isScreenViewOpen && tab !== "files" && isModeButtonsVisible && <ModeNavigation className="tabs top-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTabWithPresentationGuard} />}
 
         {isThirdPartyNoticesOpen ? (
           <ThirdPartyNoticesWorkspace onBack={() => { setIsThirdPartyNoticesOpen(false); }} />
@@ -602,6 +644,21 @@ export function App() {
             state={state}
             trackpadSettings={effectiveTrackpadSettings}
           />
+        ) : tab === "files" && fileManagerCapability ? (
+          <WorkspaceErrorBoundary featureName="Files" onBack={() => { selectModeTabWithPresentationGuard("trackpad", "selector"); }}>
+            <Suspense fallback={<div className="workspace-loading">Opening Files…</div>}>
+              <FileManagerWorkspace
+                key={`${connectionEpoch}-${String(fileManagerCapability.canBrowse)}-${String(fileManagerCapability.canModify)}-${String(fileManagerCapability.hidesProtectedSystemItems)}`}
+                capability={fileManagerCapability}
+                canMirrorView={canMirrorFileView}
+                connectionEpoch={connectionEpoch}
+                mirrorViewUnavailableMessage={mirrorFileViewUnavailableMessage}
+                onMirrorView={openScreenViewFromFiles}
+                send={send}
+                state={state}
+              />
+            </Suspense>
+          </WorkspaceErrorBoundary>
         ) : <ModeWorkspace
           appSettings={appSettings}
           connection={connection}
@@ -679,6 +736,7 @@ export function App() {
           tab={tab}
           textTransferResult={textTransferResult}
           transientFeedback={transientFeedback}
+          onDismissTransient={() => setTransientFeedback(null)}
         />
         <ConfirmationDialog
           confirmLabel={`Open ${pendingRemoteLaunch === "openYoutube" ? "YouTube" : "Kodi"}`}
@@ -721,7 +779,7 @@ export function App() {
         />
       </main>
 
-      {activeCustomScreenId === null && !isScreenViewOpen && isBottomModeNavigationVisible && <ModeNavigation className="tabs bottom-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTabWithPresentationGuard} />}
+      {activeCustomScreenId === null && !isScreenViewOpen && tab !== "files" && isBottomModeNavigationVisible && <ModeNavigation className="tabs bottom-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTabWithPresentationGuard} />}
     </div>
   );
 }

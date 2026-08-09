@@ -396,7 +396,10 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
         AllowScreenViewing: permissionOverrides?.AllowScreenViewing,
         AllowSignOut: permissionOverrides?.AllowSignOut,
         AllowRestart: permissionOverrides?.AllowRestart,
-        AllowShutdown: permissionOverrides?.AllowShutdown);
+        AllowShutdown: permissionOverrides?.AllowShutdown,
+        AllowFileBrowsing: permissionOverrides?.AllowFileBrowsing,
+        AllowFileChanges: permissionOverrides?.AllowFileChanges,
+        HideProtectedFileSystemItems: permissionOverrides?.HideProtectedFileSystemItems);
 
     private static int? NormalizePointerSpeedOverride(int? pointerSpeedOverride) => pointerSpeedOverride is not null
         ? DevicePointerProfile.NormalizePointerSpeed(pointerSpeedOverride.Value)

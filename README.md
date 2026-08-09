@@ -16,6 +16,11 @@ for networks that block inbound PC connections.
   Direct LAN or the optional Cloud relay, with encrypted video, responsive
   cursor movement, scrolling, and up to 5x local zoom. Relay viewing offers
   Standard and Data saver quality choices.
+- Browse and manage files that stay on the PC or its mapped drives. **Files on
+  PC** adapts from one touch panel in narrow views to two panels whenever the
+  screen is wide enough, including phones in landscape,
+  with direct copy/move, Windows clipboard operations, properties, background
+  progress, and an option to open a file and continue into the PC screen mirror.
 - Control presentations, use a laser pointer, track time, and review saved
   reports on the PC.
 - Dictate, reuse snippets, and send text to a PC app, document, email draft, or
@@ -76,6 +81,15 @@ See the [complete implemented feature list](docs/features.md).
   <sub>Phone Kodi remote</sub>
 </p>
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/site/assets/voltura-air-files-dark.png">
+    <img src="docs/site/assets/voltura-air-files.png" alt="Voltura Air Files on PC two-panel file manager on a tablet" width="900">
+  </picture>
+  <br>
+  <sub>Two-panel Files on PC</sub>
+</p>
+
 ## Download and install
 
 Voltura Air requires Windows 11. Choose one package from the
@@ -108,7 +122,9 @@ network inspection can add latency without causing an early failure.
 
 Paired devices are remembered until removed or their browser data is cleared.
 The optional **View PC screen** tool requires Screen viewing permission on the
-PC before a paired phone or tablet can use it.
+PC before a paired phone or tablet can use it. **Files on PC** separately
+requires Browse and open files permission; file-changing actions also require
+Change files permission.
 
 ## Trust, privacy, and distribution
 

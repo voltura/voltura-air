@@ -16,7 +16,10 @@ public sealed record HostPermissionSet(
     bool AllowScreenViewing = false,
     bool AllowSignOut = false,
     bool AllowRestart = false,
-    bool AllowShutdown = false);
+    bool AllowShutdown = false,
+    bool AllowFileBrowsing = false,
+    bool AllowFileChanges = false,
+    bool HideProtectedFileSystemItems = true);
 
 public sealed record DevicePermissionOverrides(
     bool? AllowRemoteInput = null,
@@ -34,7 +37,10 @@ public sealed record DevicePermissionOverrides(
     bool? AllowScreenViewing = null,
     bool? AllowSignOut = null,
     bool? AllowRestart = null,
-    bool? AllowShutdown = null);
+    bool? AllowShutdown = null,
+    bool? AllowFileBrowsing = null,
+    bool? AllowFileChanges = null,
+    bool? HideProtectedFileSystemItems = null);
 
 public static class HostPermissions
 {
@@ -54,7 +60,10 @@ public static class HostPermissions
         AllowScreenViewing: false,
         AllowSignOut: false,
         AllowRestart: false,
-        AllowShutdown: false);
+        AllowShutdown: false,
+        AllowFileBrowsing: false,
+        AllowFileChanges: false,
+        HideProtectedFileSystemItems: true);
 
     public static HostPermissionSet Resolve(HostPermissionSet global, DevicePermissionOverrides? deviceOverrides)
     {
@@ -74,6 +83,9 @@ public static class HostPermissions
             AllowScreenViewing: deviceOverrides?.AllowScreenViewing ?? global.AllowScreenViewing,
             AllowSignOut: deviceOverrides?.AllowSignOut ?? global.AllowSignOut,
             AllowRestart: deviceOverrides?.AllowRestart ?? global.AllowRestart,
-            AllowShutdown: deviceOverrides?.AllowShutdown ?? global.AllowShutdown);
+            AllowShutdown: deviceOverrides?.AllowShutdown ?? global.AllowShutdown,
+            AllowFileBrowsing: deviceOverrides?.AllowFileBrowsing ?? global.AllowFileBrowsing,
+            AllowFileChanges: deviceOverrides?.AllowFileChanges ?? global.AllowFileChanges,
+            HideProtectedFileSystemItems: deviceOverrides?.HideProtectedFileSystemItems ?? global.HideProtectedFileSystemItems);
     }
 }

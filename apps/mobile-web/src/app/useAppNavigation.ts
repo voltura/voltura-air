@@ -15,6 +15,7 @@ interface AppNavigationOptions {
   onActiveModeTabCollapse?: (() => void) | undefined;
   onEnterRemote: () => void;
   presentationAvailable: boolean;
+  filesAvailable?: boolean;
   showModeButtons?: boolean;
   supportsGestureDebug: boolean;
   trackpadSettings: NavigationTrackpadSettings;
@@ -53,6 +54,7 @@ export function useAppNavigation({
   onActiveModeTabCollapse,
   onEnterRemote,
   presentationAvailable,
+  filesAvailable = false,
   showModeButtons = true,
   supportsGestureDebug,
   trackpadSettings
@@ -63,7 +65,7 @@ export function useAppNavigation({
   const [areModeTabsCollapsed, setAreModeTabsCollapsed] = useState(false);
   const [modeSelectorAnchor, setModeSelectorAnchor] = useState<ModeSelectorAnchor | null>(null);
   const [isRemoteUtilityPanelOpen, setIsRemoteUtilityPanelOpen] = useState(false);
-  const modeTabs = useMemo(() => getModeTabs(fourthMode, presentationAvailable), [fourthMode, presentationAvailable]);
+  const modeTabs = useMemo(() => getModeTabs(fourthMode, presentationAvailable, filesAvailable), [filesAvailable, fourthMode, presentationAvailable]);
 
   useEffect(() => {
     const onResize = () => { setCanUseSplitMode(readSplitModeSupport()); };
@@ -81,7 +83,9 @@ export function useAppNavigation({
     ? "trackpad"
     : requestedTab === "presentation" && !presentationAvailable
       ? "dictation"
-      : requestedTab;
+      : requestedTab === "files" && !filesAvailable
+        ? presentationAvailable ? "presentation" : "dictation"
+        : requestedTab;
   const effectiveModeSelectorAnchor = tab === "debug" ? null : modeSelectorAnchor;
   const effectiveModeSelectorOpen = effectiveModeSelectorAnchor !== null;
   const effectiveModeTabsCollapsed = tab === "debug" ? false : areModeTabsCollapsed;
@@ -145,6 +149,7 @@ export function useAppNavigation({
     tab === "presentation" && "presentation-active",
     tab === "text-transfer" && "text-transfer-active",
     tab === "clipboard-read" && "clipboard-read-active",
+    tab === "files" && "files-active",
     effectiveRemoteUtilityPanelOpen && "remote-utility-open",
     shouldShowSplitMode && "split-mode-active",
     !showModeButtons && "mode-buttons-hidden",

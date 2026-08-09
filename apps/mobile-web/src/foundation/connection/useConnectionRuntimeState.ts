@@ -1,11 +1,12 @@
 import { useCallback, useRef, useState, type RefObject } from "react";
-import type { AudioStateMessage, AwakeCapability, CustomScreensCapability, HostStatusMetadata, PowerCapabilities, PresentationCapability, ScreenViewCapability, ServerCapabilities, UrlOpenCapability } from "../protocol/messages";
+import type { AudioStateMessage, AwakeCapability, CustomScreensCapability, FileManagerCapability, HostStatusMetadata, PowerCapabilities, PresentationCapability, ScreenViewCapability, ServerCapabilities, UrlOpenCapability } from "../protocol/messages";
 import {
   getPowerCapabilities,
   getAwakeCapability,
   getPresentationCapability,
   getCustomScreensCapability,
   getScreenViewCapability,
+  getFileManagerCapability,
   hasGestureDebugCapability,
   getClipboardReadPermission,
   getUrlOpenCapability,
@@ -35,6 +36,7 @@ export function useConnectionRuntimeState(
   const [presentationCapability, setPresentationCapability] = useState<PresentationCapability | undefined>(undefined);
   const [customScreensCapability, setCustomScreensCapability] = useState<CustomScreensCapability | undefined>(undefined);
   const [screenViewCapability, setScreenViewCapability] = useState<ScreenViewCapability | undefined>(undefined);
+  const [fileManagerCapability, setFileManagerCapability] = useState<FileManagerCapability | undefined>(undefined);
   const [hostStatus, setHostStatus] = useState<HostStatusMetadata | null>(null);
   const supportsVolumeControlRef = useRef(false);
   const supportsInputAckRef = useRef(false);
@@ -55,6 +57,7 @@ export function useConnectionRuntimeState(
     setPresentationCapability(undefined);
     setCustomScreensCapability(undefined);
     setScreenViewCapability(undefined);
+    setFileManagerCapability(undefined);
     setHostStatus(null);
     supportsVolumeControlRef.current = false;
     supportsInputAckRef.current = false;
@@ -74,6 +77,7 @@ export function useConnectionRuntimeState(
     setPresentationCapability(connected ? getPresentationCapability(capabilities) : undefined);
     setCustomScreensCapability(connected ? getCustomScreensCapability(capabilities) : undefined);
     setScreenViewCapability(connected ? getScreenViewCapability(capabilities) : undefined);
+    setFileManagerCapability(connected ? getFileManagerCapability(capabilities) : undefined);
     setAwakeCapability(connected ? getAwakeCapability(capabilities) : null);
     supportsVolumeControlRef.current = nextSupportsVolumeControl;
     supportsInputAckRef.current = nextSupportsInputAck;
@@ -103,6 +107,7 @@ export function useConnectionRuntimeState(
     powerCapabilities,
     presentationCapability,
     screenViewCapability,
+    fileManagerCapability,
     setAudioState,
     setHostStatus,
     supportsGestureDebug,

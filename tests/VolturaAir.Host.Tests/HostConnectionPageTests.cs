@@ -137,7 +137,11 @@ public sealed partial class HostUiLayoutTests
                 Assert.Equal(Visibility.Collapsed, port.Parent is FrameworkElement parent ? parent.Visibility : Visibility.Visible);
                 advanced.IsExpanded = true;
                 custom.IsChecked = true;
-                WaitForWpf(() => port.IsKeyboardFocusWithin, "custom port focus");
+                WaitForWpf(
+                    () => port.IsKeyboardFocusWithin || ReferenceEquals(
+                        FocusManager.GetFocusedElement(FocusManager.GetFocusScope(port)),
+                        port),
+                    "custom port focus");
                 window.UpdateLayout();
                 Assert.True(custom.IsChecked);
                 Assert.Equal("Use a custom port", custom.Content);

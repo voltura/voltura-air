@@ -28,6 +28,8 @@ public sealed class WebHostService : IAsyncDisposable
     private readonly WebSocketSessionHandler _sessionHandler;
     private readonly ScreenViewCoordinator _screenView;
     private readonly ScreenViewCommandHandler _screenViewCommands;
+    private readonly FileManagerService _fileManager;
+    private readonly FileManagerCommandHandler _fileManagerCommands;
     private readonly PresentationLaserPointerController _presentationLaserPointer;
     private readonly IPowerPointAutomationService _powerPoint;
     private readonly PowerPointPresentationSessionService _presentationSession;
@@ -238,6 +240,8 @@ public sealed class WebHostService : IAsyncDisposable
             statusFactory,
             commandLog,
             _transport);
+        _fileManager = new FileManagerService(hideProtectedItems: statusFactory.HideProtectedFileSystemItems);
+        _fileManagerCommands = new FileManagerCommandHandler(_fileManager, statusFactory, _transport, pairingManager);
         var inputCommands = new InputCommandHandler(inputDispatcher, _powerController, commandLog, _transport);
         var customScreenCommands = new CustomScreenCommandHandler(
             CustomScreenService,
@@ -273,6 +277,7 @@ public sealed class WebHostService : IAsyncDisposable
             externalActionCommands,
             textTransferCommands,
             clipboardCommands,
+            _fileManagerCommands,
             inputCommands,
             customScreenCommands,
             _screenViewCommands,
@@ -484,6 +489,8 @@ public sealed class WebHostService : IAsyncDisposable
         }
 
         await _statusBroadcaster.DisposeAsync();
+        await _fileManagerCommands.DisposeAsync();
+        await _fileManager.DisposeAsync();
         await _screenViewCommands.DisposeAsync();
         await _screenView.DisposeAsync();
         _presentationCatalog.Changed -= OnPresentationCatalogChanged;

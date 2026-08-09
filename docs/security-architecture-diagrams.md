@@ -16,6 +16,9 @@ flowchart LR
   Session --> Policy["HostStatusPayloadFactory\nhost + per-device permissions"]
   Session --> Handlers["Focused command handlers\ninput, text, clipboard,\nlaunch, URL, power, awake"]
   Session --> CustomHandler["CustomScreenCommandHandler\nassignment + revision + permission"]
+  Session --> FileHandler["FileManagerCommandHandler\nbrowse/change permission + opaque references"]
+  FileHandler --> FileService["FileManagerService\nrevision validation + one mutation queue"]
+  FileService --> FileSystem["Windows Shell, file system,\nRecycle Bin, mapped drives"]
   CustomHandler --> CustomStore[("custom-screens.json\nhost-only actions + assignments")]
   CustomHandler --> Handlers
   LocalBrowser["Default browser on this PC"] -->|"loopback-only saved preview GET"| Preview["Saved preview endpoint\nvisual definition only"]
@@ -104,6 +107,13 @@ flowchart TD
   Custom --> CustomGate{"Assignment + exact revision\n+ action permission"}
   CustomGate -- "false" --> CustomDenied["Recoverable custom-screen result\nno action executed"]
   CustomGate -- "true" --> OpaqueAction["Resolve opaque button host-side\nprotected input or approved app service"]
+
+  Dispatch --> Files["file.*"]
+  Files --> FilePerm{"Browse/open permission\n+ Change files for mutations"}
+  FilePerm -- "false" --> FileDenied["Recoverable denied result\nno path resolved"]
+  FilePerm -- "true" --> FileRevision{"Opaque session + current\ndirectory revision valid"}
+  FileRevision -- "false" --> FileStale["stale-panel\nno partial action"]
+  FileRevision -- "true" --> FileAction["Windows Shell/file-system action\nunder signed-in user authority"]
 
   Dispatch --> Privileged["launch / URL / clipboard / power / awake / presentation / audio"]
   Privileged --> SpecificPerm{"Specific host + per-device permission"}

@@ -54,7 +54,7 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 - The Windows host's 3D control effect is a separate appearance preference and
   defaults off. The mobile/device default is on; each paired device can inherit,
   enable, or disable it.
-- Host permissions cover sleep, volume, Screen viewing, Presentation, application launch, web
+- Host permissions cover sleep, volume, Screen viewing, Presentation, file browsing/opening, file changes, application launch, web
   addresses, PC clipboard reads, Lock, Blackout, display off, screen saver,
   sign out, restart, shutdown, Keep awake, and interaction with the host UI.
 - Unsupported actions are omitted; host-disabled actions explain the relevant
@@ -102,12 +102,13 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   cannot delay trackpad or keyboard commands. The WebRTC sender bounds queued
   media, supports packet retransmission and receiver keyframe requests, and
   starts capture only after its video track and event channel connect.
-- One-finger movement controls the relative pointer. A compact two-finger mode
-  switch defaults to **Scroll**, where two-finger drag only scrolls the PC. In
-  **Zoom**, spread/pinch locally magnifies the mirror from 1x to 5x around the
+- One-finger movement controls the relative pointer. The compact two-finger
+  switch defaults to **Zoom**, where spread/pinch locally magnifies the mirror
+  from 1x to 5x around the
   gesture midpoint and two-finger drag pans locally. Switching modes preserves
-  the current magnification and position; the separate scale action returns the
-  mirror to 1x. A compact corner action available in both
+  the current magnification and position. In **Scroll**, two-finger drag scrolls
+  the PC; the separate scale action returns the mirror to 1x. A compact corner
+  action available in both
   orientations expands the mirror edge-to-edge across the device viewport and
   remains expanded across orientation changes; its explicit exit action restores
   the normal workspace.
@@ -415,6 +416,18 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   Effective global and per-device Presentation permission gates control,
   session tracking, saved-file launch, and report saves.
 
+### Files
+
+- **Files** is a lazy-loaded, touch-first view of files that remain on the Windows PC or its mapped drives. It is an optional fourth-mode choice and a Menu tool; Presentation remains the default fourth mode. A saved Files choice falls back to Presentation on an older host, then to Dictation when Presentation is also unavailable.
+- Below 640 CSS pixels Files shows one panel; at 640 pixels or wider it shows two equal, independently scrollable panels. Each panel has a drive selector, its own location, selection, sort, and scroll state. The active panel receives the shared Windows-known-folder menu. Valid panel locations are restored per paired device, initially preferring Downloads and Documents.
+- Folders sort before files. `..` is first when a parent exists. Name, Size, Type, and Modified are host-sorted across the complete directory; ordinary hidden-only or system-only items, read-only, archive, and reparse-point attributes remain visible. **Hide protected operating system files and folders (recommended)** is enabled globally by default with a per-device Use global/Hide/Show override. The host excludes items carrying both Windows Hidden and System attributes before counts, sorting, pagination, selection, or operations; disabling the effective setting exposes them with their attributes.
+- Directory responses contain at most 100 entries and an opaque continuation. Near-end scrolling loads and appends the next page; a failed page preserves loaded rows and shows Retry. Rows are virtualized. Select all represents the complete current directory revision with explicit exclusions, including entries not loaded when Select all was pressed.
+- Folder taps navigate; file taps select; checkboxes explicitly multi-select files or folders. A long press on a file, folder, or the current location opens Properties. Names use up to two lines before truncating, and the `..` navigation row carries no file metadata. Navigation is atomic: an unavailable or Windows-protected destination leaves the current panel and connection unchanged and reports the local folder error. File operations distinguish a missing or unavailable item from Windows denying the PC account permission to change it. In one-panel layouts Cut and Copy target the Windows clipboard. In two-panel layouts the primary Copy and Move actions target the other panel's current folder, while a secondary Clipboard menu retains Windows Cut and Copy. Paste, Properties, Delete, Rename, View, Open, Select all, and Unselect all remain directly available.
+- Cut, Copy, and Paste use the real Windows Shell file clipboard and interoperate with Explorer. **Open** delegates to the Windows default application and stays in Files; opening a folder launches Explorer. **View** is available for files when both effective Browse/open and PC Screen authorization permit it: the host first confirms the Shell open, then mobile enters the independently authorized encrypted PC Screen mirror. A failed Shell open or unavailable/denied Screen permission leaves Files active with guidance. With one display the mirror starts automatically; multiple displays retain the Screen chooser. Back returns to Files. Delete is confirmed on mobile and uses only the Recycle Bin; the host rejects the whole request before queueing when any item cannot be recycled.
+- Copy, Move, Paste, Rename, and Delete return a host job immediately. One mutation runs host-wide while the rest queue within a bounded, fully inspectable operation window. Direct Copy/Move binds both rendered panel revisions before queueing, so later navigation cannot redirect an operation. Jobs expose preparing, running, pause/resume/cancel, conflict attention with Replace/Skip/Cancel and apply-to-all, byte/item progress, rate, ETA, completion/failure, and restart interruption. Every completed, failed, or canceled tracked operation refreshes each panel that may already have changed; refreshed revisions reset their selections, while a failed Copy can preserve the unchanged source selection. Jobs continue across mobile mode changes and reconnects and are visible and controllable only to their originating paired device. The newest completed, failed, canceled, and interrupted history remains available and can be removed individually or cleared together; dismissing history never discards the host's private recovery responsibility. Partial-copy and replacement paths are created only after their recovery records are durably saved. Restart recovery removes journaled partial destinations, restores an original destination interrupted during replacement, retains temporarily unavailable cleanup for a later retry, and does not automatically resume work.
+- Files keeps the app header and compact mode selector fixed and hides the large mode rows. File lists own ordinary native touch scrolling, including two-finger scrolling, without feature-specific magnification or transformed layout state.
+- Separate default-off **Browse and open files** and **Change files** permissions have global defaults and per-device overrides. The default-on protected-operating-system-item filter uses the same global plus per-device policy model. A supported but denied device keeps Files visible with permission guidance. Revocation closes opaque navigation sessions and cancels that device's active mutation work.
+
 ### Dictation and text transfer
 
 - Dictation uses browser speech recognition when available, lets users
@@ -441,8 +454,9 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
 ### Navigation and split layout
 
 Trackpad, Keyboard, and Remote are fixed primary modes. The configurable fourth
-mode is Presentation, Dictation, Send text, or Get text and defaults to
-Presentation; Dictation is the fallback when Presentation capability is absent.
+mode is Presentation, Files, Dictation, Send text, or Get text and defaults to
+Presentation. An unavailable Files choice falls back to Presentation, then
+Dictation; an unavailable Presentation choice falls back to Dictation.
 All tools remain directly available from Menu.
 
 Wide landscape can show keyboard and trackpad side by side with selectable pane

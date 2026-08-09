@@ -48,6 +48,24 @@ signed-in user's Windows key store, and paired browsers pin its public half. The
 controls do not make it a sandbox against malware already running as the same
 Windows user; same-user software can generally act with that user's privileges.
 
+The optional Files tool has separate default-off browse/open and change
+permissions, each resolved through global and per-device policy. Authenticated
+clients submit only bounded opaque session, location, entry, revision,
+continuation, and job references; the host never accepts a client path. It
+removes protected Hidden+System entries by default before issuing client-visible
+counts or references, with a global setting and per-device override, and
+revalidates the complete directory revision before clipboard, Shell, or mutation
+work begins. File content remains on the PC, deletion is limited to Windows
+Recycle Bin eligibility, and permission revocation closes sessions and cancels
+owned work. This is remote operation with the signed-in Windows user's authority,
+not a sandbox against that user or same-user malware.
+
+Files **View** composes existing boundaries rather than granting a combined
+permission: the host first authorizes and completes `file.open` under the
+effective Browse/open policy, and Screen then independently requires its
+effective global/per-device permission, current host identity trust, and normal
+encrypted screen-start authorization.
+
 Fresh pairing keeps the QR short: it contains one short-lived token, version,
 and optional routing hint, not a PC identity key or fingerprint. After opening,
 the token authenticates a challenge-response exchange that pins the host's

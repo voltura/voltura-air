@@ -264,7 +264,7 @@ svg {
 
 .top-bar {
   display: grid;
-  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  grid-template-columns: minmax(0, auto) auto minmax(0, 1fr);
   align-items: center;
   min-width: 0;
 }
@@ -354,6 +354,21 @@ button span {
   grid-auto-columns: minmax(0, 1fr);
   grid-auto-flow: column;
   container-type: inline-size;
+}
+
+.header-file-job {
+  display: inline-flex;
+  min-width: 44px;
+  min-height: 38px;
+  padding: 0.35rem 0.55rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  color: var(--accent);
+}
+
+.header-file-job svg {
+  width: 1.05rem;
 }
 
 .tabs button {
@@ -451,7 +466,7 @@ button span {
   }
 
   .top-bar {
-    grid-template-columns: minmax(0, auto) minmax(72px, 1fr);
+    grid-template-columns: minmax(0, auto) auto minmax(72px, 1fr);
   }
 
   .brand-group {
@@ -582,6 +597,10 @@ button span {
 .app-shell.screen-view-active {
   grid-template-rows: auto minmax(0, 1fr);
   padding-bottom: max(12px, env(safe-area-inset-bottom));
+}
+
+.app-shell.files-active {
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .app-shell.screen-view-active .compact-mode-button {

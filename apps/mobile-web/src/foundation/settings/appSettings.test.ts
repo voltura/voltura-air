@@ -15,6 +15,7 @@ describe("normalizeAppSettings", () => {
     expect(normalizeAppSettings({ fourthMode: "presentation" }).fourthMode).toBe("presentation");
     expect(normalizeAppSettings({ fourthMode: "text-transfer" }).fourthMode).toBe("text-transfer");
     expect(normalizeAppSettings({ fourthMode: "dictation" }).fourthMode).toBe("dictation");
+    expect(normalizeAppSettings({ fourthMode: "files" }).fourthMode).toBe("files");
     expect(normalizeAppSettings({ fourthMode: "invalid" as never }).fourthMode).toBe("presentation");
   });
 

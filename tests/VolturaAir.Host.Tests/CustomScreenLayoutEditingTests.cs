@@ -193,6 +193,31 @@ public sealed class CustomScreenLayoutEditingTests
     }
 
     [Fact]
+    public void DroppingALaserPointerCreatesAConfiguredNormalButton()
+    {
+        var draft = CustomScreenService.CreateDraft();
+
+        var edit = CustomScreenPreviewDraftEditing.CreatePanelForDroppedButton(
+            draft,
+            existingButtonId: null,
+            "portrait",
+            laserPointer: true);
+
+        Assert.NotNull(edit);
+        var panel = edit.Draft.Sections.Single(section =>
+            section.Id == edit.SelectedSectionId);
+        var button = Assert.Single(panel.Buttons);
+        Assert.Equal("Laser pointer", button.Name);
+        Assert.Equal("Laser pointer", button.Label);
+        Assert.Equal("mouse-pointer-2", button.Icon);
+        Assert.Equal("iconLabel", button.Presentation);
+        Assert.Equal("standard", button.Size);
+        Assert.False(button.Repeat);
+        Assert.Equal("laserPointer", button.Action.Kind);
+        Assert.Equal("default", button.Action.Color);
+    }
+
+    [Fact]
     public void DroppingAnExistingButtonOnOpenCanvasCreatesAPanelAndMovesIt()
     {
         var draft = CustomScreenService.CreateDraft();

@@ -107,7 +107,8 @@ public sealed record CustomScreenAction(
     IReadOnlyList<string>? Modifiers = null,
     string? ActionId = null,
     string? BuiltIn = null,
-    string? Url = null);
+    string? Url = null,
+    string? Color = null);
 
 public sealed record CustomScreenSummary(string Id, string Name, string Revision);
 
@@ -162,7 +163,8 @@ public sealed record CustomScreenMobileButton(
     string? UnavailableReason,
     int Row,
     string? Confirmation = null,
-    string? ConfirmationMessage = null);
+    string? ConfirmationMessage = null,
+    string? LaserPointerColor = null);
 
 public sealed record CustomScreenStoreLoadResult(
     IReadOnlyList<CustomScreenDefinition> Screens,

@@ -112,6 +112,21 @@ describe("connection protocol policy", () => {
       presentation: {
         canControl: true,
         canSaveReports: true,
+        laserPointerActive: true,
+        laserPointerColor: "green",
+        laserPointerDefaultColor: "red"
+      }
+    })).toEqual({
+      canControl: true,
+      canSaveReports: true,
+      laserPointerActive: true,
+      laserPointerColor: "green",
+      laserPointerDefaultColor: "red"
+    });
+    expect(getPresentationCapability({
+      presentation: {
+        canControl: true,
+        canSaveReports: true,
         laserPointerActive: false,
         powerPoint: {
           state: "ready",

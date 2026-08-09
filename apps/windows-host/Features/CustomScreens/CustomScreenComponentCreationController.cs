@@ -23,7 +23,11 @@ internal sealed class CustomScreenComponentCreationController(
             orientation: getOrientation()));
     }
 
-    public void AddButton()
+    public void AddButton() => AddButton(laserPointer: false);
+
+    public void AddLaserPointer() => AddButton(laserPointer: true);
+
+    private void AddButton(bool laserPointer)
     {
         var draft = getDraft();
         if (draft is null)
@@ -59,7 +63,8 @@ internal sealed class CustomScreenComponentCreationController(
             targetRow,
             targetButtonId: null,
             insertAfter: false,
-            orientation: getOrientation());
+            orientation: getOrientation(),
+            laserPointer);
         if (edit is not null)
         {
             apply(edit);

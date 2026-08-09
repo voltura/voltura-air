@@ -498,6 +498,9 @@ internal sealed class WebSocketSessionHandler(
                     ProtocolMessageFields.GetString(root, "screenId"),
                     ProtocolMessageFields.GetString(root, "screenRevision"),
                     ProtocolMessageFields.GetString(root, "buttonId"),
+                    root.TryGetProperty("enabled", out var customScreenEnabled)
+                        ? customScreenEnabled.GetBoolean()
+                        : null,
                     cancellationToken);
                 return true;
             case "screen.view.sources.get":

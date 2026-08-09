@@ -201,7 +201,7 @@ internal sealed class CustomScreenPreviewDragController(
     {
         var item = GetDragItem(eventArgs);
         if (sender is not Button button ||
-            item?.Kind is not ("button" or "new-button"))
+            item?.Kind is not ("button" or "new-button" or "new-laser-pointer"))
         {
             eventArgs.Effects = DragDropEffects.None;
             eventArgs.Handled = false;
@@ -220,7 +220,7 @@ internal sealed class CustomScreenPreviewDragController(
     {
         var item = GetDragItem(eventArgs);
         if (sender is not Border card ||
-            item?.Kind is not ("section" or "new-section" or "new-collapsible" or "new-volume" or "new-trackpad" or "new-collapsible-trackpad" or "new-navigation-ring" or "new-dpad" or "button" or "new-button"))
+            item?.Kind is not ("section" or "new-section" or "new-collapsible" or "new-volume" or "new-trackpad" or "new-collapsible-trackpad" or "new-navigation-ring" or "new-dpad" or "button" or "new-button" or "new-laser-pointer"))
         {
             eventArgs.Effects = DragDropEffects.None;
             eventArgs.Handled = true;
@@ -241,7 +241,7 @@ internal sealed class CustomScreenPreviewDragController(
     {
         var item = GetDragItem(eventArgs);
         if (sender is not FrameworkElement target ||
-            item?.Kind is not ("button" or "new-button"))
+            item?.Kind is not ("button" or "new-button" or "new-laser-pointer"))
         {
             eventArgs.Effects = DragDropEffects.None;
             eventArgs.Handled = false;
@@ -296,7 +296,7 @@ internal sealed class CustomScreenPreviewDragController(
             section.Id == targetSectionId) is { } targetSection &&
             CustomScreenSectionKinds.AllowsButtons(targetSection.Kind))
         {
-            if (item.Kind == "new-button")
+            if (item.Kind is "new-button" or "new-laser-pointer")
             {
                 Apply(CustomScreenPreviewDraftEditing.CreateButton(
                     _draft!,
@@ -304,7 +304,8 @@ internal sealed class CustomScreenPreviewDragController(
                     0,
                     null,
                     insertAfter: true,
-                    _orientation));
+                    _orientation,
+                    laserPointer: item.Kind == "new-laser-pointer"));
             }
             else
             {
@@ -330,7 +331,7 @@ internal sealed class CustomScreenPreviewDragController(
             return;
         }
 
-        if (item?.Kind == "new-button")
+        if (item?.Kind is "new-button" or "new-laser-pointer")
         {
             Apply(CustomScreenPreviewDraftEditing.CreateButton(
                 _draft!,
@@ -338,7 +339,8 @@ internal sealed class CustomScreenPreviewDragController(
                 targetRow,
                 null,
                 insertAfter: true,
-                _orientation));
+                _orientation,
+                laserPointer: item.Kind == "new-laser-pointer"));
             eventArgs.Handled = true;
         }
         else if (item?.Kind == "button")
@@ -372,7 +374,7 @@ internal sealed class CustomScreenPreviewDragController(
             return;
         }
 
-        if (item.Kind == "new-button")
+        if (item.Kind is "new-button" or "new-laser-pointer")
         {
             Apply(CustomScreenPreviewDraftEditing.CreateButton(
                 _draft!,
@@ -380,7 +382,8 @@ internal sealed class CustomScreenPreviewDragController(
                 targetVisualRow ?? 0,
                 targetButtonId,
                 insertAfter,
-                _orientation));
+                _orientation,
+                laserPointer: item.Kind == "new-laser-pointer"));
         }
         else if (item.Kind == "button")
         {
@@ -414,7 +417,7 @@ internal sealed class CustomScreenPreviewDragController(
     {
         var item = GetDragItem(eventArgs);
         if (item?.Kind is not ("new-section" or "new-collapsible" or "new-volume" or "new-trackpad" or "new-collapsible-trackpad" or "new-navigation-ring" or "new-dpad") &&
-            item?.Kind is not ("new-button" or "button"))
+            item?.Kind is not ("new-button" or "new-laser-pointer" or "button"))
         {
             eventArgs.Effects = DragDropEffects.None;
             return;
@@ -436,13 +439,14 @@ internal sealed class CustomScreenPreviewDragController(
             return;
         }
 
-        if (item.Kind is "new-button" or "button")
+        if (item.Kind is "new-button" or "new-laser-pointer" or "button")
         {
             var buttonEdit =
                 CustomScreenPreviewDraftEditing.CreatePanelForDroppedButton(
                 _draft,
                 item.Kind == "button" ? item.Id : null,
-                _orientation);
+                _orientation,
+                laserPointer: item.Kind == "new-laser-pointer");
             Apply(buttonEdit);
             eventArgs.Effects = DragDropEffects.Move;
             eventArgs.Handled = buttonEdit is not null;

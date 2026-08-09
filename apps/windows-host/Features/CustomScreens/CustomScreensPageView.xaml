@@ -274,6 +274,42 @@
                                         AutomationProperties.Name="Drag Button onto layout" />
                               </Grid>
                             </Border>
+                            <Border x:Name="LaserPointerPaletteItem"
+                                    Background="{DynamicResource SurfaceRaisedBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8">
+                              <Grid>
+                                <Grid.ColumnDefinitions>
+                                  <ColumnDefinition Width="*" />
+                                  <ColumnDefinition Width="44" />
+                                </Grid.ColumnDefinitions>
+                                <Button x:Name="LaserPointerPaletteButton"
+                                        Grid.Column="0"
+                                        Content="+ Laser pointer"
+                                        ContentTemplate="{StaticResource CustomScreenPaletteButtonLabelTemplate}"
+                                        Margin="0"
+                                        Padding="12,8"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        HorizontalContentAlignment="Left"
+                                        ToolTip="Click to add a Laser pointer button"
+                                        Click="OnAddLaserPointer" />
+                                <Button x:Name="LaserPointerPaletteDragHandle"
+                                        Grid.Column="1"
+                                        Width="38"
+                                        Height="38"
+                                        Margin="0"
+                                        Padding="0"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Content="&#x283F;"
+                                        Cursor="SizeAll"
+                                        Style="{DynamicResource CompactIconButtonStyle}"
+                                        ToolTip="Drag Laser pointer into a panel or row"
+                                        AutomationProperties.Name="Drag Laser pointer onto layout" />
+                              </Grid>
+                            </Border>
                             <Border x:Name="VolumePaletteItem"
                                     Background="{DynamicResource SurfaceRaisedBrush}"
                                     BorderBrush="{DynamicResource BorderBrush}"

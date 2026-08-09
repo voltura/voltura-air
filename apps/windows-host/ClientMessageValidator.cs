@@ -53,7 +53,8 @@ internal static class ClientMessageValidator
                 "operationId",
                 "screenId",
                 "screenRevision",
-                "buttonId"),
+                "buttonId",
+                "enabled"),
             ["screen.view.sources.get"] = Fields("type", "operationId"),
             ["screen.view.start"] = Fields("type", "operationId", "displayId", "clientSignature"),
             ["screen.view.answer"] = Fields("type", "operationId", "answerSdp", "clientSignature"),
@@ -244,7 +245,9 @@ internal static class ClientMessageValidator
                 TryGetRequiredString(root, "screenRevision", CustomScreenLimits.MaxIdLength, allowEmpty: false, out var screenRevision) &&
                 IsValidCustomScreenId(screenRevision) &&
                 TryGetRequiredString(root, "buttonId", CustomScreenLimits.MaxIdLength, allowEmpty: false, out var buttonId) &&
-                IsValidCustomScreenId(buttonId),
+                IsValidCustomScreenId(buttonId) &&
+                (!root.TryGetProperty("enabled", out var customScreenEnabled) ||
+                    customScreenEnabled.ValueKind is JsonValueKind.True or JsonValueKind.False),
             "screen.view.sources.get" =>
                 TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var screenSourcesOperationId) &&
                 IsValidOperationId(screenSourcesOperationId),

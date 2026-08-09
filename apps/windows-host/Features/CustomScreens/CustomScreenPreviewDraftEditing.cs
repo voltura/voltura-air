@@ -121,7 +121,8 @@ internal static class CustomScreenPreviewDraftEditing
     public static CustomScreenDraftEdit? CreatePanelForDroppedButton(
         CustomScreenDefinition draft,
         string? existingButtonId,
-        string orientation)
+        string orientation,
+        bool laserPointer = false)
     {
         var panelEdit = CreateSection(
             draft,
@@ -136,7 +137,8 @@ internal static class CustomScreenPreviewDraftEditing
                 targetRow: 0,
                 targetButtonId: null,
                 insertAfter: true,
-                orientation)
+                orientation,
+                laserPointer)
             : MoveButtonToSection(
                 panelEdit.Draft,
                 existingButtonId,
@@ -186,7 +188,8 @@ internal static class CustomScreenPreviewDraftEditing
         int targetRow,
         string? targetButtonId,
         bool insertAfter,
-        string orientation)
+        string orientation,
+        bool laserPointer = false)
     {
         var targetSection = draft.Sections.FirstOrDefault(section =>
             section.Id == targetSectionId);
@@ -196,10 +199,9 @@ internal static class CustomScreenPreviewDraftEditing
             return null;
         }
 
-        var next = CustomScreenService.CreateButton(
-            draft,
-            targetSectionId,
-            targetRow);
+        var next = laserPointer
+            ? CustomScreenService.CreateLaserPointer(draft, targetSectionId, targetRow)
+            : CustomScreenService.CreateButton(draft, targetSectionId, targetRow);
         var created = next.Sections
             .First(section => section.Id == targetSectionId)
             .Buttons[^1];

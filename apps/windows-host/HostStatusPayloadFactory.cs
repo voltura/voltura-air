@@ -11,6 +11,7 @@ internal sealed class HostStatusPayloadFactory(
     Func<HostNetworkSnapshot> getNetwork,
     Func<bool> isInputBlockedByElevation,
     Func<bool> isPresentationLaserPointerEnabled,
+    Func<PresentationLaserColor?> getPresentationLaserPointerColor,
     Func<PresentationBlankOverlaySnapshot?> getPresentationBlank,
     Func<PowerPointAutomationSnapshot> getPowerPointSnapshot,
     Func<PowerPointSessionSnapshot> getPowerPointSession,
@@ -91,6 +92,9 @@ internal sealed class HostStatusPayloadFactory(
             canControl = permissions.AllowPresentationControl,
             canSaveReports = permissions.AllowPresentationControl,
             laserPointerActive = isPresentationLaserPointerEnabled(),
+            laserPointerColor = ToLaserColor(getPresentationLaserPointerColor()),
+            laserPointerDefaultColor = ToLaserColor(
+                AppPointerSettings.GetPresentationLaserPointer().Color),
             powerPoint = permissions.AllowPresentationControl
                 ? CreatePowerPointCapability(clientId)
                 : null
@@ -124,6 +128,14 @@ internal sealed class HostStatusPayloadFactory(
             hidesProtectedSystemItems = permissions.HideProtectedFileSystemItems,
             maxPageSize = FileManagerProtocol.PageSize
         }
+    };
+
+    private static string? ToLaserColor(PresentationLaserColor? color) => color switch
+    {
+        PresentationLaserColor.Red => "red",
+        PresentationLaserColor.Green => "green",
+        PresentationLaserColor.Blue => "blue",
+        _ => null
     };
 
     private object CreatePowerPointCapability(string clientId)

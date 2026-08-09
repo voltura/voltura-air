@@ -49,6 +49,13 @@ internal sealed class CustomScreensPageController(
         if (_view is not null && screens.Count > 0)
         {
             _view.OpenEditor(screens[0]);
+            var laserButton = screens[0].Sections
+                .SelectMany(section => section.Buttons.Select(button => (section.Id, Button: button)))
+                .FirstOrDefault(item => item.Button.Action.Kind == "laserPointer");
+            if (laserButton.Button is not null)
+            {
+                _view.SelectButtonForScreenshot(laserButton.Id, laserButton.Button.Id);
+            }
         }
     }
 

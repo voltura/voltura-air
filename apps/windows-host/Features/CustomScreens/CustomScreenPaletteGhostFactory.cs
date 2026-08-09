@@ -23,6 +23,7 @@ internal static class CustomScreenPaletteGhostFactory
         return kind switch
         {
             "new-button" => CreateButton(resourceSource),
+            "new-laser-pointer" => CreateLaserPointer(resourceSource),
             "new-volume" => CreateVolume(resourceSource, width),
             "new-trackpad" => CreateTrackpad(resourceSource, width),
             "new-collapsible-trackpad" => CreateCollapsibleTrackpad(resourceSource, width),
@@ -82,6 +83,19 @@ internal static class CustomScreenPaletteGhostFactory
             new TextBlock
             {
                 Text = "[play]  New button",
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Foreground = Brush(resources, "TextBrush")
+            });
+
+    private static Border CreateLaserPointer(FrameworkElement resources) =>
+        Card(
+            resources,
+            124,
+            52,
+            new TextBlock
+            {
+                Text = "[mouse-pointer-2]  Laser pointer",
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
                 Foreground = Brush(resources, "TextBrush")

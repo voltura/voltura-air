@@ -102,7 +102,10 @@ internal sealed class CustomScreenMobileProjection(
                     availability.Reason,
                     button.Row,
                     hostAction?.Confirmation == "none" ? null : hostAction?.Confirmation,
-                    hostAction?.ConfirmationMessage);
+                    hostAction?.ConfirmationMessage,
+                    button.Action.Kind == "laserPointer"
+                        ? button.Action.Color
+                        : null);
             })],
             CustomScreenSectionKinds.IsTrackpad(section.Kind)
                 ? "trackpad"
@@ -185,6 +188,13 @@ internal sealed class CustomScreenMobileProjection(
             return CustomScreenHostActions.IsPermitted(action.ActionId, permissions)
                 ? (true, null)
                 : (false, "This host or system action is disabled for this device on the PC.");
+        }
+
+        if (action.Kind == "laserPointer")
+        {
+            return permissions.AllowPresentationControl
+                ? (true, null)
+                : (false, "Presentation control is disabled for this device on the PC.");
         }
 
         return canUseRemoteInput

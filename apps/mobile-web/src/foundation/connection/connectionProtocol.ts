@@ -519,7 +519,9 @@ function isCustomScreenButton(value: unknown): boolean {
     isOptional(value, "landscape", isNullableCustomScreenOverride) &&
     isOptional(value, "unavailableReason", (candidate) => candidate === null || isBoundedString(candidate, 300, false)) &&
     isOptional(value, "confirmation", (candidate) => candidate === null || isOneOf(candidate, ["confirm", "hold"])) &&
-    isOptional(value, "confirmationMessage", (candidate) => candidate === null || isBoundedString(candidate, 300, false));
+    isOptional(value, "confirmationMessage", (candidate) => candidate === null || isBoundedString(candidate, 300, false)) &&
+    isOptional(value, "laserPointerColor", (candidate) =>
+      candidate === null || isOneOf(candidate, ["default", "red", "green", "blue"]));
 }
 
 function isNullableCustomScreenOverride(value: unknown): boolean {
@@ -604,6 +606,10 @@ function isPresentationCapability(value: unknown): boolean {
     typeof value.canControl === "boolean" &&
     typeof value.canSaveReports === "boolean" &&
     typeof value.laserPointerActive === "boolean" &&
+    isOptional(value, "laserPointerColor", (candidate) =>
+      candidate === null || isOneOf(candidate, ["red", "green", "blue"])) &&
+    isOptional(value, "laserPointerDefaultColor", (candidate) =>
+      isOneOf(candidate, ["red", "green", "blue"])) &&
     isOptional(value, "powerPoint", (candidate) =>
       candidate === null || isPowerPointCapability(candidate));
 }
@@ -800,6 +806,12 @@ export const getPresentationCapability = (capabilities: ServerCapabilities | und
         canControl: capabilities.presentation.canControl,
         canSaveReports: capabilities.presentation.canSaveReports,
         laserPointerActive: capabilities.presentation.laserPointerActive,
+        ...(capabilities.presentation.laserPointerColor === undefined
+          ? {}
+          : { laserPointerColor: capabilities.presentation.laserPointerColor }),
+        ...(capabilities.presentation.laserPointerDefaultColor === undefined
+          ? {}
+          : { laserPointerDefaultColor: capabilities.presentation.laserPointerDefaultColor }),
         ...(capabilities.presentation.powerPoint === undefined
           ? {}
           : { powerPoint: capabilities.presentation.powerPoint })

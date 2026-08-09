@@ -73,7 +73,7 @@ public sealed class WebHostService : IAsyncDisposable
         ITextDestinationService? textDestinationService = null,
         IClipboardTextReader? clipboardTextReader = null,
         Action<CustomPointerSettings>? applyCustomPointer = null,
-        Action<bool>? applyPresentationLaserPointer = null,
+        Action<bool, PresentationLaserColor?>? applyPresentationLaserPointer = null,
         IPowerPointAutomationService? powerPointAutomation = null,
         bool isolatedTestMode = false,
         Action<IWebHostBuilder>? configureWebHost = null,
@@ -176,6 +176,7 @@ public sealed class WebHostService : IAsyncDisposable
             GetNetworkSnapshot,
             () => IsInputBlockedByElevation,
             () => _presentationLaserPointer.IsEnabled,
+            () => _presentationLaserPointer.ActiveColor,
             () => presentationBlankOverlay.Snapshot,
             () => _powerPoint.Snapshot,
             () => _presentationSession.Snapshot,
@@ -251,6 +252,7 @@ public sealed class WebHostService : IAsyncDisposable
             _workstationLockPolicy,
             resolvedAppLaunchService,
             resolvedUrlOpenService,
+            _presentationLaserPointer,
             _transport,
             _appLog);
         _screenView = new ScreenViewCoordinator(

@@ -287,6 +287,13 @@
   opacity: 0.48;
 }
 
+.custom-screen-button.active {
+  --control-background: var(--accent);
+
+  color: var(--on-action);
+  border-color: var(--accent);
+}
+
 .custom-screen-trackpad-layout {
   display: grid;
   grid-template-rows: minmax(10rem, 1fr) auto;

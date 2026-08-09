@@ -11,6 +11,10 @@ create one. Keep the shared notices in
 - Added **Find a setting** to Windows Preferences. Search by any part of a
   setting name, then select a result to open its section and jump directly to
   the control.
+- Added a dedicated **Laser pointer** component to Custom Screens. Choose the
+  default Presentation color, red, green, or blue in the Windows editor, then
+  use the button from mobile to turn the pointer on, change color, or turn it
+  off.
 
 ## v0.8.10
 

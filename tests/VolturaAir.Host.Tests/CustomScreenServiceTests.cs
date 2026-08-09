@@ -677,6 +677,98 @@ public sealed class CustomScreenServiceTests
             service.GetAll().Select(screen => screen.Id));
     }
 
+    [Theory]
+    [InlineData("default")]
+    [InlineData("red")]
+    [InlineData("green")]
+    [InlineData("blue")]
+    public void LaserPointerPublishesConfiguredColorAndPresentationPermission(
+        string color)
+    {
+        var service = CreateService();
+        var draft = CustomScreenService.CreateDraft();
+        draft = CustomScreenService.CreateLaserPointer(
+            draft,
+            draft.Sections[0].Id);
+        var laser = draft.Sections[0].Buttons[^1];
+        draft = ReplaceButton(
+            draft,
+            laser with
+            {
+                Action = new CustomScreenAction("laserPointer", Color: color)
+            }) with
+        {
+            AssignedClientIds = ["phone-a"]
+        };
+
+        Assert.True(service.TrySave(draft, out var saved, out var error), error);
+        var allowed = service.GetMobileDefinition(
+            "phone-a",
+            saved.Id,
+            canUseRemoteInput: false,
+            canLaunchApps: false,
+            permissions: new HostPermissionSet(AllowPresentationControl: true));
+        var blocked = service.GetMobileDefinition(
+            "phone-a",
+            saved.Id,
+            canUseRemoteInput: true,
+            canLaunchApps: true,
+            permissions: new HostPermissionSet(AllowPresentationControl: false));
+
+        var allowedLaser = allowed!.Sections.SelectMany(section => section.Buttons)
+            .Single(button => button.Id == laser.Id);
+        var blockedLaser = blocked!.Sections.SelectMany(section => section.Buttons)
+            .Single(button => button.Id == laser.Id);
+        Assert.True(allowedLaser.Enabled);
+        Assert.Equal(color, allowedLaser.LaserPointerColor);
+        Assert.False(blockedLaser.Enabled);
+        Assert.Contains("Presentation control", blockedLaser.UnavailableReason);
+    }
+
+    [Fact]
+    public void LaserPointerRejectsMissingInvalidUnrelatedAndRepeatData()
+    {
+        var service = CreateService();
+        var draft = CustomScreenService.CreateDraft();
+        draft = CustomScreenService.CreateLaserPointer(draft, draft.Sections[0].Id);
+        var laser = draft.Sections[0].Buttons[^1];
+
+        Assert.False(service.TrySave(
+            ReplaceButton(draft, laser with
+            {
+                Action = new CustomScreenAction("laserPointer")
+            }),
+            out _,
+            out _));
+        Assert.False(service.TrySave(
+            ReplaceButton(draft, laser with
+            {
+                Action = new CustomScreenAction("laserPointer", Text: "bad", Color: "red")
+            }),
+            out _,
+            out _));
+        Assert.False(service.TrySave(
+            ReplaceButton(draft, laser with
+            {
+                Action = new CustomScreenAction("laserPointer", Color: "purple")
+            }),
+            out _,
+            out _));
+        Assert.False(service.TrySave(
+            ReplaceButton(draft, laser with { Repeat = true }),
+            out _,
+            out _));
+
+        var ordinary = draft.Sections[0].Buttons[0];
+        Assert.False(service.TrySave(
+            ReplaceButton(draft, ordinary with
+            {
+                Action = ordinary.Action with { Color = "red" }
+            }),
+            out _,
+            out _));
+    }
+
     private static CustomScreenDefinition SaveNamed(
         CustomScreenService service,
         string name)
@@ -702,6 +794,18 @@ public sealed class CustomScreenServiceTests
             Sections = [section with { Buttons = [button] }]
         };
     }
+
+    private static CustomScreenDefinition ReplaceButton(
+        CustomScreenDefinition draft,
+        CustomScreenButton replacement) =>
+        draft with
+        {
+            Sections = [.. draft.Sections.Select(section => section with
+            {
+                Buttons = [.. section.Buttons.Select(button =>
+                    button.Id == replacement.Id ? replacement : button)]
+            })]
+        };
 
     private static CustomScreenService CreateService() =>
         new(new InMemoryCustomScreenStore(), new FakeAppLaunchService());

@@ -106,8 +106,15 @@ function projectButton(source: unknown, index: number): CustomScreenButtonDefini
     row: integer(value(button, "row"), 0),
     portrait: projectLayout(value(button, "portrait")),
     landscape: projectLayout(value(button, "landscape")),
-    enabled: true
+    enabled: true,
+    ...(isLaserPointerColor(value(button, "laserPointerColor"))
+      ? { laserPointerColor: value(button, "laserPointerColor") as "default" | "red" | "green" | "blue" }
+      : {})
   };
+}
+
+function isLaserPointerColor(candidate: unknown): boolean {
+  return candidate === "default" || candidate === "red" || candidate === "green" || candidate === "blue";
 }
 
 function projectLayout(source: unknown): CustomScreenLayoutOverride | null {

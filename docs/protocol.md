@@ -511,7 +511,9 @@ same collapsible fields. Trackpad sections may include
 `trackpadFullscreenControl`; maximizing is local UI state and Restore returns
 the section to its saved responsive position. Buttons contain only
 visual/accessibility fields, row, repeat state, and resolved
-availability/reason. Buttons for protected host actions additionally receive a
+availability/reason. A Laser pointer button additionally receives only
+`laserPointerColor` (`default`, `red`, `green`, or `blue`); a missing field
+identifies an ordinary button. Buttons for protected host actions additionally receive a
 host-derived `confirmation` value (`confirm` or `hold`) and bounded warning
 text. Screen JSON cannot select or weaken that safety policy. Literal text,
 shortcut payloads, URLs, executable details, known-app mappings, and host
@@ -586,7 +588,9 @@ exported; portable packages use allow-listed `knownApp` profiles. A matching
 portable definition requires explicit duplicate confirmation.
 
 Portable button actions are `text`, `shortcut`, `builtIn`, `urlOpen`,
-`knownApp`, and `hostAction`. `urlOpen` accepts only HTTP and HTTPS and reuses
+`knownApp`, `hostAction`, and `laserPointer`. A laser action requires exactly
+one `color` value: `default`, `red`, `green`, or `blue`; its button cannot
+repeat. `urlOpen` accepts only HTTP and HTTPS and reuses
 the host URL permission and opener. `knownApp` accepts `browser`, `spotify`,
 `vlc`, `zoom`, `plex`, `windowsPhotos`, or `blender`; the host focuses an
 existing normal window when possible, otherwise launches only a fixed detected
@@ -615,9 +619,16 @@ Invoke an available button:
   "operationId": "local-operation-id",
   "screenId": "screen.opaque-id",
   "screenRevision": "opaque-screen-revision",
-  "buttonId": "button.opaque-id"
+  "buttonId": "button.opaque-id",
+  "enabled": false
 }
 ```
+
+`enabled` is optional and valid only for a Laser pointer button. When omitted,
+the owner toggles off the same effective color or recolors to a different
+configured color. `true` explicitly enables or recolors, and `false` is an
+idempotent owner-only cleanup request. Another device cannot disable, recolor,
+or take ownership. Ordinary actions reject the field.
 
 Result:
 
@@ -932,6 +943,8 @@ Enabled capability:
     "canControl": true,
     "canSaveReports": true,
     "laserPointerActive": false,
+    "laserPointerColor": null,
+    "laserPointerDefaultColor": "red",
     "powerPoint": {
       "state": "ready",
       "foregroundActivationSupported": true,
@@ -966,6 +979,10 @@ Enabled capability:
 ```
 
 Values reflect effective device permission; laser state is host-authoritative.
+`laserPointerColor` is the concrete active `red`, `green`, or `blue`, or null
+when inactive. `laserPointerDefaultColor` is the current Preferences color.
+Custom screen controls resolve `default` against that value and use the same
+status broadcast as Presentation; there is no separate laser-status message.
 Mobile sends `activate` when entering PowerPoint mode only when
 `foregroundActivationSupported` is true. Older hosts omit the field, so newer
 clients retain their previous no-request behavior against them.

@@ -6,6 +6,26 @@ namespace VolturaAir.Host.Tests;
 [Collection(AppPermissionSettingsCollection.Name)]
 public sealed class CustomPointerServiceTests : IsolatedHostSettingsTest
 {
+    [Fact]
+    public void TemporaryLaserColorOverridePreservesGlobalSizeAndSettings()
+    {
+        var global = new PresentationLaserPointerSettings(
+            9,
+            PresentationLaserColor.Green);
+
+        Assert.Equal(
+            global,
+            CursorOverrideCoordinator.ResolvePresentationLaserSettings(
+                global,
+                colorOverride: null));
+        Assert.Equal(
+            new PresentationLaserPointerSettings(9, PresentationLaserColor.Blue),
+            CursorOverrideCoordinator.ResolvePresentationLaserSettings(
+                global,
+                PresentationLaserColor.Blue));
+        Assert.Equal(PresentationLaserColor.Green, global.Color);
+    }
+
     [Theory]
     [InlineData(1, 32)]
     [InlineData(6, 112)]

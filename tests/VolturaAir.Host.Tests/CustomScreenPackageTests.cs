@@ -24,6 +24,33 @@ public sealed class CustomScreenPackageTests
     }
 
     [Fact]
+    public void LaserPointerColorRoundTripsThroughPortablePackage()
+    {
+        var source = CustomScreenService.CreateDraft();
+        source = CustomScreenService.CreateLaserPointer(source, source.Sections[0].Id);
+        var laser = source.Sections[0].Buttons[^1];
+        source = source with
+        {
+            Sections = [source.Sections[0] with
+            {
+                Buttons = [.. source.Sections[0].Buttons.Take(source.Sections[0].Buttons.Count - 1), laser with
+                {
+                    Action = new CustomScreenAction("laserPointer", Color: "blue")
+                }]
+            }]
+        };
+
+        Assert.True(CustomScreenPackages.TryRead(
+            CustomScreenPackages.Serialize(source),
+            out var inspection,
+            out var error), error);
+
+        var importedLaser = inspection!.ImportedScreen.Sections[0].Buttons[^1];
+        Assert.Equal("laserPointer", importedLaser.Action.Kind);
+        Assert.Equal("blue", importedLaser.Action.Color);
+    }
+
+    [Fact]
     public void PortablePackagesRejectHostLocalApplicationActions()
     {
         var source = CustomScreenService.CreateDraft();

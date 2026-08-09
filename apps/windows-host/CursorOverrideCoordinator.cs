@@ -4,7 +4,9 @@ internal interface ICursorOverrideController
 {
     void ApplyCustomPointer(CustomPointerSettings settings);
 
-    void SetPresentationLaserPointer(bool enabled);
+    void SetPresentationLaserPointer(
+        bool enabled,
+        PresentationLaserColor? colorOverride = null);
 
     void ApplyPresentationLaserPointerSettings(PresentationLaserPointerSettings settings);
 }
@@ -21,6 +23,7 @@ internal sealed class CursorOverrideCoordinator : ICursorOverrideController, IDi
     private readonly SemaphoreSlim _recoveryWorkerGate = new(1, 1);
     private Task? _recoveryWorker;
     private bool _laserEnabled;
+    private PresentationLaserColor? _laserColorOverride;
     private bool _disposed;
 
     internal CursorOverrideCoordinator(
@@ -85,20 +88,31 @@ internal sealed class CursorOverrideCoordinator : ICursorOverrideController, IDi
         }
     }
 
-    public void SetPresentationLaserPointer(bool enabled)
+    public void SetPresentationLaserPointer(
+        bool enabled,
+        PresentationLaserColor? colorOverride = null)
     {
         lock (_gate)
         {
             ThrowIfDisposed();
             if (enabled)
             {
-                ApplyProtected(() => _pointer.SetPresentationLaserPointer(enabled: true));
+                var settings = AppPointerSettings.GetPresentationLaserPointer();
+                settings = ResolvePresentationLaserSettings(settings, colorOverride);
+
+                ApplyProtected(() =>
+                {
+                    _pointer.ApplyPresentationLaserPointerSettings(settings);
+                    _pointer.SetPresentationLaserPointer(enabled: true);
+                });
                 _laserEnabled = true;
+                _laserColorOverride = colorOverride;
             }
             else
             {
                 _pointer.SetPresentationLaserPointer(enabled: false);
                 _laserEnabled = false;
+                _laserColorOverride = null;
             }
         }
     }
@@ -110,7 +124,10 @@ internal sealed class CursorOverrideCoordinator : ICursorOverrideController, IDi
             ThrowIfDisposed();
             if (_laserEnabled)
             {
-                ApplyProtected(() => _pointer.ApplyPresentationLaserPointerSettings(settings));
+                var effective = ResolvePresentationLaserSettings(
+                    settings,
+                    _laserColorOverride);
+                ApplyProtected(() => _pointer.ApplyPresentationLaserPointerSettings(effective));
             }
             else
             {
@@ -195,6 +212,7 @@ internal sealed class CursorOverrideCoordinator : ICursorOverrideController, IDi
             lock (_gate)
             {
                 _laserEnabled = false;
+                _laserColorOverride = null;
             }
 
             OverridesRevoked?.Invoke(this, EventArgs.Empty);
@@ -266,6 +284,11 @@ internal sealed class CursorOverrideCoordinator : ICursorOverrideController, IDi
     }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
+
+    internal static PresentationLaserPointerSettings ResolvePresentationLaserSettings(
+        PresentationLaserPointerSettings settings,
+        PresentationLaserColor? colorOverride) =>
+        colorOverride is { } color ? settings with { Color = color } : settings;
 }
 
 internal sealed class InertCursorOverrideController : ICursorOverrideController
@@ -280,7 +303,9 @@ internal sealed class InertCursorOverrideController : ICursorOverrideController
     {
     }
 
-    public void SetPresentationLaserPointer(bool enabled)
+    public void SetPresentationLaserPointer(
+        bool enabled,
+        PresentationLaserColor? colorOverride = null)
     {
     }
 

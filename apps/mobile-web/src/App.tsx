@@ -227,10 +227,11 @@ export function App() {
   useEffect(() => {
     if (state === "paired" &&
         tab !== "presentation" &&
+        activeCustomScreenId === null &&
         presentationCapability?.laserPointerActive === true) {
       requestPresentationCommand("powerpoint", "pointer", false);
     }
-  }, [presentationCapability?.laserPointerActive, requestPresentationCommand, state, tab]);
+  }, [activeCustomScreenId, presentationCapability?.laserPointerActive, requestPresentationCommand, state, tab]);
   const requestPresentationExit = (action: () => void) => {
     if (tab === "presentation" && presentationSessionActive) {
       pendingPresentationExitRef.current = action;
@@ -639,6 +640,7 @@ export function App() {
             invoke={invokeCustomScreenButton}
             onBack={() => { setActiveCustomScreenId(null); }}
             pendingButtonIds={pendingCustomScreenButtonIds}
+            presentationCapability={presentationCapability}
             requestedName={activeCustomScreenSummary?.name ?? "Custom screen"}
             send={send}
             state={state}

@@ -85,6 +85,30 @@ internal static class CustomScreenDraftFactory
         return screen with { Sections = sections };
     }
 
+    public static CustomScreenDefinition CreateLaserPointer(
+        CustomScreenDefinition screen,
+        string sectionId,
+        int row)
+    {
+        var button = new CustomScreenButton(
+            $"button.{Guid.NewGuid():N}",
+            "Laser pointer",
+            "Laser pointer",
+            "mouse-pointer-2",
+            "iconLabel",
+            "standard",
+            false,
+            null,
+            null,
+            new CustomScreenAction("laserPointer", Color: "default"),
+            row);
+        var sections = screen.Sections.Select(section =>
+            string.Equals(section.Id, sectionId, StringComparison.Ordinal)
+                ? section with { Buttons = [.. section.Buttons, button] }
+                : section).ToArray();
+        return screen with { Sections = sections };
+    }
+
     public static CustomScreenDefinition CreateTrackpad(CustomScreenDefinition screen)
     {
         var sections = screen.Sections.Append(new CustomScreenSection(

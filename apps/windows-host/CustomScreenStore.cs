@@ -173,10 +173,12 @@ internal static class CustomScreenValidator
         "play", "pause", "skip-back", "skip-forward", "volume-1", "volume-2",
         "volume-x", "arrow-up", "arrow-down", "arrow-left", "arrow-right",
         "corner-down-left", "escape", "keyboard", "clipboard", "copy", "app-window",
-        "monitor", "minimize", "square-x", "search", "refresh", "maximize", "command"
+        "monitor", "minimize", "square-x", "search", "refresh", "maximize", "command",
+        "mouse-pointer-2"
     ];
     private static readonly HashSet<string> ActionKinds =
-        ["text", "shortcut", "appLaunch", "builtIn", "urlOpen", "knownApp", "hostAction"];
+        ["text", "shortcut", "appLaunch", "builtIn", "urlOpen", "knownApp", "hostAction", "laserPointer"];
+    private static readonly HashSet<string> LaserColors = ["default", "red", "green", "blue"];
     private static readonly HashSet<string> Modifiers = ["Control", "Shift", "Alt", "AltGr", "Win"];
 
     public static bool TryValidateCollection(
@@ -314,6 +316,7 @@ internal static class CustomScreenValidator
         button.Row is >= 0 and <= 3 &&
         ValidOverride(button.Portrait, section: false) &&
         ValidOverride(button.Landscape, section: false) &&
+        (button.Action.Kind != "laserPointer" || !button.Repeat) &&
         (!CustomScreenService.RequiresLabelOnlyPresentation(button.Action) ||
          button.Presentation == "label") &&
         TryValidateAction(button.Action);
@@ -346,6 +349,9 @@ internal static class CustomScreenValidator
                 HasOnly(action, actionId: true),
             "hostAction" => CustomScreenHostActions.IsSupported(action.ActionId) &&
                 HasOnly(action, actionId: true),
+            "laserPointer" => action.Color is not null &&
+                LaserColors.Contains(action.Color) &&
+                HasOnly(action, color: true),
             _ => false
         };
     }
@@ -357,13 +363,15 @@ internal static class CustomScreenValidator
         bool modifiers = false,
         bool actionId = false,
         bool builtIn = false,
-        bool url = false) =>
+        bool url = false,
+        bool color = false) =>
         (text || action.Text is null) &&
         (key || action.Key is null) &&
         (modifiers || action.Modifiers is null) &&
         (actionId || action.ActionId is null) &&
         (builtIn || action.BuiltIn is null) &&
-        (url || action.Url is null);
+        (url || action.Url is null) &&
+        (color || action.Color is null);
 
     private static bool ValidOverride(CustomScreenLayoutOverride? value, bool section) =>
         value is null ||

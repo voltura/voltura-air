@@ -69,6 +69,21 @@ public sealed class ClientMessageValidatorTests
     }
 
     [Theory]
+    [InlineData("""{ "type": "custom.screen.invoke", "operationId": "laser-1", "screenId": "screen-1", "screenRevision": "revision-1", "buttonId": "button-1" }""", true)]
+    [InlineData("""{ "type": "custom.screen.invoke", "operationId": "laser-1", "screenId": "screen-1", "screenRevision": "revision-1", "buttonId": "button-1", "enabled": false }""", true)]
+    [InlineData("""{ "type": "custom.screen.invoke", "operationId": "laser-1", "screenId": "screen-1", "screenRevision": "revision-1", "buttonId": "button-1", "enabled": "false" }""", false)]
+    public void ValidatesOptionalCustomScreenLaserState(string json, bool expected)
+    {
+        using var document = JsonDocument.Parse(json);
+
+        Assert.Equal(
+            expected,
+            ClientMessageValidator.IsValidAuthenticatedMessage(
+                document.RootElement,
+                "custom.screen.invoke"));
+    }
+
+    [Theory]
     [InlineData("""{ "type": "presentation.command", "operationId": "go-1", "target": "powerpoint", "action": "goto", "runtimePresentationId": "runtime-1", "slideNumber": 8 }""", "presentation.command", true)]
     [InlineData("""{ "type": "presentation.command", "operationId": "go-1", "target": "powerpoint", "action": "goto", "slideNumber": 0 }""", "presentation.command", false)]
     [InlineData("""{ "type": "presentation.command", "operationId": "pause-1", "target": "powerpoint", "action": "pause" }""", "presentation.command", false)]

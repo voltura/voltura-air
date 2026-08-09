@@ -39,6 +39,7 @@ export function useCustomScreens(
   const pendingInvokesRef = useRef(new Map<string, {
     buttonId: string;
     connectionEpoch: number;
+    suppressResult: boolean;
   }>());
 
   const requestCustomScreen = useCallback((screenId: string) => {
@@ -55,14 +56,16 @@ export function useCustomScreens(
   const invokeCustomScreenButton = useCallback((
     screenId: string,
     screenRevision: string,
-    buttonId: string
+    buttonId: string,
+    enabled?: boolean,
+    suppressResult = false
   ) => {
     if (state !== "paired") {
       return;
     }
 
     const operationId = createLocalId();
-    pendingInvokesRef.current.set(operationId, { buttonId, connectionEpoch });
+    pendingInvokesRef.current.set(operationId, { buttonId, connectionEpoch, suppressResult });
     setPendingButtonsState((current) => ({
       connectionEpoch,
       values: new Set(current.connectionEpoch === connectionEpoch ? current.values : []).add(buttonId)
@@ -72,7 +75,8 @@ export function useCustomScreens(
       operationId,
       screenId,
       screenRevision,
-      buttonId
+      buttonId,
+      ...(enabled === undefined ? {} : { enabled })
     });
   }, [connectionEpoch, send, state]);
 
@@ -107,11 +111,13 @@ export function useCustomScreens(
       }
       return { connectionEpoch, values: next };
     });
-    setInvokeResultState({ connectionEpoch, value: result });
+    if (!pending.suppressResult) {
+      setInvokeResultState({ connectionEpoch, value: result });
+    }
     if (result.code === "stale-screen") {
       setDefinitionState(null);
     }
-    return true;
+    return !pending.suppressResult;
   }, [connectionEpoch]);
 
   const isCurrentConnection = state === "paired";

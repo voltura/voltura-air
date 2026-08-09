@@ -109,6 +109,12 @@ public sealed class CustomScreenService
         int row = 0)
         => CustomScreenDraftFactory.CreateButton(screen, sectionId, row);
 
+    public static CustomScreenDefinition CreateLaserPointer(
+        CustomScreenDefinition screen,
+        string sectionId,
+        int row = 0)
+        => CustomScreenDraftFactory.CreateLaserPointer(screen, sectionId, row);
+
     public static CustomScreenDefinition CreateTrackpad(CustomScreenDefinition screen) =>
         CustomScreenDraftFactory.CreateTrackpad(screen);
 

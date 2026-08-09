@@ -30,6 +30,8 @@ internal sealed class CustomScreenPaletteDragController
         FrameworkElement collapsibleSectionAnchor,
         Button buttonHandle,
         FrameworkElement buttonAnchor,
+        Button laserPointerHandle,
+        FrameworkElement laserPointerAnchor,
         Button volumeHandle,
         FrameworkElement volumeAnchor,
         Button trackpadHandle,
@@ -49,6 +51,7 @@ internal sealed class CustomScreenPaletteDragController
             collapsibleSectionAnchor,
             "new-collapsible");
         Attach(buttonHandle, buttonAnchor, "new-button");
+        Attach(laserPointerHandle, laserPointerAnchor, "new-laser-pointer");
         Attach(volumeHandle, volumeAnchor, "new-volume");
         Attach(trackpadHandle, trackpadAnchor, "new-trackpad");
         Attach(

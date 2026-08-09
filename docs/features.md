@@ -191,6 +191,13 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   use bundled icons. Screen and button editor
   names are limited to 24 characters, panel, trackpad, and navigation-ring names to 20, and
   visible button labels to 16.
+- The dedicated **Laser pointer** palette item creates a normal button with a
+  fixed Laser pointer action, a non-repeatable default configuration, and a
+  Default, Red, Green, or Blue color choice. Default follows the current
+  Presentation laser color; explicit colors override only that activation.
+  Laser buttons retain the normal name, label, icon, size, row, orientation,
+  movement, and delete properties and cannot be created by changing a generic
+  button's action type.
 - The shortcut builder stages a command before applying it. Selected modifiers
   leave the available choices and appear in the command preview in selection
   order. A selected letter or number remains visibly selected. The editor does
@@ -366,6 +373,10 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
 - The PC resolves every opaque button ID at invocation time. Missing approved
   applications and denied permissions leave the control in place but disabled
   with a reason. A stale revision cannot execute; mobile refetches the screen.
+- Laser pointer buttons use Presentation-control permission, not Remote input.
+  The host remains authoritative for their pressed color and single-device
+  ownership. Buttons resolving to the same concrete color appear pressed
+  together; leaving the screen sends an idempotent owner-only off request.
 - Repeatable arrows, seek, and volume controls use the standard 400 ms initial
   delay and 55 ms cadence and stop on release, cancellation, lost capture,
   visibility loss, unmount, or disconnect.
@@ -411,7 +422,10 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   PowerPoint's arrow visibility is adjusted on a best-effort basis and restored
   to automatic on disable or mandatory cleanup; a native pointer-option failure
   does not disable Voltura Air's cursor. An active laser prevents presentation
-  switching.
+  switching. Presentation mode always uses the current default Presentation
+  color. A Custom screen can temporarily request Red, Green, or Blue without
+  changing Preferences; its size still follows the global laser size, Default
+  follows later preference changes, and an explicit color remains explicit.
 - A PowerPoint session starts when mobile starts the slideshow or explicitly
   chooses **Start tracking**. The host owns monotonic timing, manual breaks,
   current/total slide state, and a bounded ordered visit timeline. Black, white,

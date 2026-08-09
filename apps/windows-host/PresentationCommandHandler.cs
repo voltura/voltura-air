@@ -478,7 +478,15 @@ internal sealed class PresentationCommandHandler(
     {
         try
         {
-            laserPointer.SetEnabled(clientId, enabled: true);
+            var outcome = laserPointer.SetEnabled(clientId, enabled: true);
+            if (outcome == LaserPointerChangeOutcome.OwnerConflict)
+            {
+                return new(
+                    false,
+                    "pointer-owner-active",
+                    "Turn off the active laser pointer before another device uses it.");
+            }
+
             return new(true, null, "Voltura Air laser pointer enabled.");
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)

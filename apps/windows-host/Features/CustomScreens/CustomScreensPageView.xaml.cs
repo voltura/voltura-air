@@ -140,6 +140,8 @@ public partial class CustomScreensPageView : UserControl
             CollapsibleSectionPaletteItem,
             ButtonPaletteDragHandle,
             ButtonPaletteItem,
+            LaserPointerPaletteDragHandle,
+            LaserPointerPaletteItem,
             VolumePaletteDragHandle,
             VolumePaletteItem,
             TrackpadPaletteDragHandle,
@@ -239,6 +241,13 @@ public partial class CustomScreensPageView : UserControl
         _redo.Clear();
         LibraryRoot.Visibility = Visibility.Collapsed;
         EditorRoot.Visibility = Visibility.Visible;
+        SynchronizeEditor();
+    }
+    internal void SelectButtonForScreenshot(string sectionId, string buttonId)
+    {
+        _selectedSectionId = sectionId;
+        _selectedButtonId = buttonId;
+        _selectedRow = null;
         SynchronizeEditor();
     }
     private void SynchronizeEditor()
@@ -553,6 +562,9 @@ public partial class CustomScreensPageView : UserControl
     private void OnAddSection(object sender, RoutedEventArgs e) => _componentCreation.AddSection("buttons");
 
     private void OnAddButton(object sender, RoutedEventArgs e) => _componentCreation.AddButton();
+
+    private void OnAddLaserPointer(object sender, RoutedEventArgs e) =>
+        _componentCreation.AddLaserPointer();
 
     private void OnAddVolume(object sender, RoutedEventArgs e) => _componentCreation.AddSection("volume");
 

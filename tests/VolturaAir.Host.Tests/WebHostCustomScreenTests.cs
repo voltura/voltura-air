@@ -99,6 +99,73 @@ public sealed class WebHostCustomScreenTests : WebHostServiceTestBase
     }
 
     [Fact]
+    public async Task LaserPointerUsesPresentationPermissionWithoutRemoteInput()
+    {
+        var originalPermissions = AppPermissionSettings.Load();
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with
+            {
+                AllowPresentationControl = true,
+                AllowRemoteInput = false
+            });
+            await using var fixture = await WebHostFixture.StartAsync();
+
+            var result = await InvokeAsync(
+                fixture,
+                new CustomScreenAction("laserPointer", Color: "green"));
+
+            Assert.True(result.GetProperty("succeeded").GetBoolean());
+            Assert.Equal("enabled", result.GetProperty("code").GetString());
+        }
+        finally
+        {
+            AppPermissionSettings.Save(originalPermissions);
+        }
+    }
+
+    [Fact]
+    public async Task LaserPointerRequiresPresentationPermission()
+    {
+        var originalPermissions = AppPermissionSettings.Load();
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with
+            {
+                AllowPresentationControl = false,
+                AllowRemoteInput = true
+            });
+            await using var fixture = await WebHostFixture.StartAsync();
+
+            var result = await InvokeAsync(
+                fixture,
+                new CustomScreenAction("laserPointer", Color: "red"));
+
+            Assert.False(result.GetProperty("succeeded").GetBoolean());
+            Assert.Equal("permission-denied", result.GetProperty("code").GetString());
+        }
+        finally
+        {
+            AppPermissionSettings.Save(originalPermissions);
+        }
+    }
+
+    [Fact]
+    public async Task EnabledStateIsRejectedForOrdinaryCustomScreenActions()
+    {
+        await using var fixture = await WebHostFixture.StartAsync();
+
+        var result = await InvokeAsync(
+            fixture,
+            new CustomScreenAction("builtIn", BuiltIn: "media.playPause"),
+            enabled: false);
+
+        Assert.False(result.GetProperty("succeeded").GetBoolean());
+        Assert.Equal("invalid-request", result.GetProperty("code").GetString());
+        Assert.Empty(fixture.InputInjector.Events);
+    }
+
+    [Fact]
     public async Task WebsiteActionUsesTheExistingValidatedUrlBoundary()
     {
         var originalPermissions = AppPermissionSettings.Load();
@@ -155,7 +222,8 @@ public sealed class WebHostCustomScreenTests : WebHostServiceTestBase
     private static async Task<System.Text.Json.JsonElement> InvokeAsync(
         WebHostFixture fixture,
         CustomScreenAction action,
-        string? requiredKnownApp = null)
+        string? requiredKnownApp = null,
+        bool? enabled = null)
     {
         var clientId = $"client-{Guid.NewGuid():N}";
         var draft = CustomScreenService.CreateDraft();
@@ -200,14 +268,31 @@ public sealed class WebHostCustomScreenTests : WebHostServiceTestBase
             pairToken = fixture.Manager.CreatePairingToken(),
             reconnectPublicKey = PairingTestKey.PublicKeyForFreshPairing
         });
-        return await SendAndReceiveAsync(socket, new
+        var payload = new System.Text.Json.Nodes.JsonObject
         {
-            type = "custom.screen.invoke",
-            operationId = $"invoke-{Guid.NewGuid():N}",
-            screenId = assigned.Id,
-            screenRevision = assigned.Revision,
-            buttonId = button.Id
-        });
+            ["type"] = "custom.screen.invoke",
+            ["operationId"] = $"invoke-{Guid.NewGuid():N}",
+            ["screenId"] = assigned.Id,
+            ["screenRevision"] = assigned.Revision,
+            ["buttonId"] = button.Id
+        };
+        if (enabled is { } requestedState)
+        {
+            payload["enabled"] = requestedState;
+        }
+
+        await SendAsync(socket, payload);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        while (true)
+        {
+            using var response = System.Text.Json.JsonDocument.Parse(
+                await ReceiveTextAsync(socket, timeout.Token));
+            if (response.RootElement.GetProperty("type").GetString() ==
+                "custom.screen.invoke.result")
+            {
+                return response.RootElement.Clone();
+            }
+        }
     }
 
     private sealed class RecordingUrlLauncher : IUrlShellLauncher

@@ -13,7 +13,8 @@ import type {
   ClientMessage,
   AudioStateMessage,
   CustomScreenButtonDefinition,
-  CustomScreenDefinition
+  CustomScreenDefinition,
+  PresentationCapability
 } from "../../foundation/protocol/messages";
 import type { ConnectionState } from "../../foundation/connection/connectionTypes";
 import type { TrackpadSettings } from "../../foundation/input/gestures";
@@ -31,10 +32,17 @@ interface CustomScreenWorkspaceProps {
   audioState?: AudioStateMessage | null;
   definition: CustomScreenDefinition | null;
   error?: string | null;
-  invoke: (screenId: string, revision: string, buttonId: string) => void;
+  invoke: (
+    screenId: string,
+    revision: string,
+    buttonId: string,
+    enabled?: boolean,
+    suppressResult?: boolean
+  ) => void;
   onBack: () => void;
   pendingButtonIds: ReadonlySet<string>;
   requestedName: string;
+  presentationCapability?: PresentationCapability | null | undefined;
   send: (payload: ClientMessage) => void;
   state: ConnectionState;
   trackpadSettings: TrackpadSettings;
@@ -47,6 +55,7 @@ export function CustomScreenWorkspace({
   invoke,
   onBack,
   pendingButtonIds,
+  presentationCapability = null,
   requestedName,
   send,
   state,
@@ -55,6 +64,15 @@ export function CustomScreenWorkspace({
   const [orientation, setOrientation] = useState<"portrait" | "landscape">(
     window.innerWidth > window.innerHeight ? "landscape" : "portrait");
   const definitionKey = definition ? `${definition.id}:${definition.revision}` : "";
+  const laserPointerActive = presentationCapability?.laserPointerActive === true;
+  const laserPointerColor = presentationCapability?.laserPointerColor ??
+    (laserPointerActive ? presentationCapability?.laserPointerDefaultColor ?? "red" : null);
+  const laserPointerDefaultColor = presentationCapability?.laserPointerDefaultColor ?? "red";
+  const laserPointerPending = definition?.sections.some(section =>
+    section.buttons.some(button =>
+      button.laserPointerColor !== null &&
+      button.laserPointerColor !== undefined &&
+      pendingButtonIds.has(button.id))) === true;
   const [expansionState, setExpansionState] = useState<{
     definitionKey: string;
     values: ReadonlyMap<string, boolean>;
@@ -155,6 +173,29 @@ export function CustomScreenWorkspace({
       send({ type: "audio.get" });
     }
   }, [definition, send, state]);
+
+  useEffect(() => {
+    if (!definition) {
+      return undefined;
+    }
+
+    const laserButton = definition.sections
+      .flatMap(section => section.buttons)
+      .find(button => button.laserPointerColor !== null &&
+        button.laserPointerColor !== undefined);
+    if (!laserButton) {
+      return undefined;
+    }
+
+    return () => {
+      invoke(
+        definition.id,
+        definition.revision,
+        laserButton.id,
+        false,
+        true);
+    };
+  }, [definition, invoke]);
 
   const sections = useMemo(() => {
     if (!definition) {
@@ -393,14 +434,22 @@ export function CustomScreenWorkspace({
                   <CustomScreenButtonGrid
                     collapsible={collapsible}
                     contentId={contentId}
-                    invoke={(button) => {
+                    invoke={(button, enabled) => {
                       if (ignoreClickRef.current) {
                         ignoreClickRef.current = false;
                         repeatPointerReleasedRef.current = false;
                         return;
                       }
-                      invoke(definition.id, definition.revision, button.id);
+                      if (enabled === undefined) {
+                        invoke(definition.id, definition.revision, button.id);
+                      } else {
+                        invoke(definition.id, definition.revision, button.id, enabled);
+                      }
                     }}
+                    laserPointerActive={laserPointerActive}
+                    laserPointerColor={laserPointerColor}
+                    laserPointerDefaultColor={laserPointerDefaultColor}
+                    laserPointerPending={laserPointerPending}
                     onPointerDown={press}
                     onPointerCancel={cancelRepeatPress}
                     onPointerUp={completeRepeatPress}

@@ -133,7 +133,7 @@ public sealed partial class HostUiLayoutTests
                     Visibility.Collapsed,
                     hiddenControlsExpander.Visibility);
                 Assert.Equal(
-                    8,
+                    9,
                     FindVisualDescendants<Button>(page).Count(button =>
                         AutomationProperties.GetName(button)
                             .StartsWith("Drag ", StringComparison.Ordinal) &&
@@ -148,6 +148,8 @@ public sealed partial class HostUiLayoutTests
                         "CollapsibleSectionPaletteDragHandle"),
                     ("ButtonPaletteItem", "ButtonPaletteButton",
                         "ButtonPaletteDragHandle"),
+                    ("LaserPointerPaletteItem", "LaserPointerPaletteButton",
+                        "LaserPointerPaletteDragHandle"),
                     ("VolumePaletteItem", "VolumePaletteButton",
                         "VolumePaletteDragHandle"),
                     ("TrackpadPaletteItem", "TrackpadPaletteButton",
@@ -206,6 +208,19 @@ public sealed partial class HostUiLayoutTests
                         .Single(textBox =>
                             AutomationProperties.GetName(textBox) == "Name")
                         .MaxLength);
+
+                Assert.IsType<Button>(page.FindName("LaserPointerPaletteButton"))
+                    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                owner.UpdateLayout();
+                Assert.DoesNotContain(
+                    FindVisualDescendants<ComboBox>(page),
+                    combo => AutomationProperties.GetName(combo) == "Action type");
+                var color = FindVisualDescendants<ComboBox>(page)
+                    .Single(combo => AutomationProperties.GetName(combo) == "Color");
+                Assert.Equal("Default", Assert.IsType<ComboBoxItem>(color.SelectedItem).Content);
+                var repeat = FindVisualDescendants<CheckBox>(page)
+                    .Single(checkBox => Equals(checkBox.Content, "Repeat while held"));
+                Assert.False(repeat.IsEnabled);
 
                 FindVisualDescendants<Button>(page)
                     .Single(button => AutomationProperties.GetName(button) ==

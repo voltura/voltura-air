@@ -298,6 +298,7 @@ export interface CustomScreenButtonDefinition {
   unavailableReason?: string | null;
   confirmation?: "confirm" | "hold" | null;
   confirmationMessage?: string | null;
+  laserPointerColor?: LaserPointerColor | null;
 }
 
 export interface CustomScreenSectionDefinition {
@@ -368,6 +369,7 @@ export interface CustomScreenInvokeMessage {
   screenId: string;
   screenRevision: string;
   buttonId: string;
+  enabled?: boolean;
 }
 
 export interface CustomScreenInvokeResultMessage {
@@ -384,8 +386,13 @@ export interface PresentationCapability {
   canControl: boolean;
   canSaveReports: boolean;
   laserPointerActive: boolean;
+  laserPointerColor?: PresentationLaserColor | null;
+  laserPointerDefaultColor?: PresentationLaserColor;
   powerPoint?: PowerPointCapability | null;
 }
+
+export type LaserPointerColor = "default" | "red" | "green" | "blue";
+export type PresentationLaserColor = Exclude<LaserPointerColor, "default">;
 
 export interface PowerPointPresentation {
   runtimePresentationId: string;

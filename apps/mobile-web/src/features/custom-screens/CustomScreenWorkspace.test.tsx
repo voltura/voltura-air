@@ -140,6 +140,85 @@ describe("CustomScreenWorkspace", () => {
       "button.play");
   });
 
+  it("renders authoritative laser colors and blocks pending recolor while keeping off available", () => {
+    const invoke = vi.fn();
+    const laserDefinition = withLaserButtons();
+    const view = render(
+      <CustomScreenWorkspace
+        definition={laserDefinition}
+        invoke={invoke}
+        onBack={vi.fn()}
+        pendingButtonIds={new Set(["button.green-laser"])}
+        presentationCapability={{
+          canControl: true,
+          canSaveReports: true,
+          laserPointerActive: true,
+          laserPointerColor: "red",
+          laserPointerDefaultColor: "red"
+        }}
+        requestedName="Lasers"
+        send={vi.fn()}
+        state="paired"
+        trackpadSettings={defaultTrackpadSettings}
+      />
+    );
+
+    const defaultLaser = screen.getByRole<HTMLButtonElement>("button", { name: "Default laser" });
+    const redLaser = screen.getByRole<HTMLButtonElement>("button", { name: "Red laser" });
+    const greenLaser = screen.getByRole<HTMLButtonElement>("button", { name: "Green laser" });
+    expect(defaultLaser.getAttribute("aria-pressed")).toBe("true");
+    expect(redLaser.getAttribute("aria-pressed")).toBe("true");
+    expect(defaultLaser.disabled).toBe(false);
+    expect(greenLaser.disabled).toBe(true);
+
+    fireEvent.click(defaultLaser);
+    expect(invoke).toHaveBeenLastCalledWith(
+      "screen.lasers",
+      "revision.lasers",
+      "button.default-laser",
+      false);
+
+    view.unmount();
+    expect(invoke).toHaveBeenLastCalledWith(
+      "screen.lasers",
+      "revision.lasers",
+      "button.default-laser",
+      false,
+      true);
+  });
+
+  it("does not optimistically press a laser recolor", () => {
+    const invoke = vi.fn();
+    render(
+      <CustomScreenWorkspace
+        definition={withLaserButtons()}
+        invoke={invoke}
+        onBack={vi.fn()}
+        pendingButtonIds={new Set()}
+        presentationCapability={{
+          canControl: true,
+          canSaveReports: true,
+          laserPointerActive: true,
+          laserPointerColor: "red",
+          laserPointerDefaultColor: "red"
+        }}
+        requestedName="Lasers"
+        send={vi.fn()}
+        state="paired"
+        trackpadSettings={defaultTrackpadSettings}
+      />
+    );
+
+    const greenLaser = screen.getByRole("button", { name: "Green laser" });
+    expect(greenLaser.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(greenLaser);
+    expect(greenLaser.getAttribute("aria-pressed")).toBe("false");
+    expect(invoke).toHaveBeenCalledWith(
+      "screen.lasers",
+      "revision.lasers",
+      "button.green-laser");
+  });
+
   it("requires confirmation before invoking protected host actions", () => {
     const invoke = vi.fn();
     const protectedDefinition: CustomScreenDefinition = {
@@ -545,4 +624,43 @@ function workspace(invoke = vi.fn()) {
       trackpadSettings={defaultTrackpadSettings}
     />
   );
+}
+
+function withLaserButtons(): CustomScreenDefinition {
+  return {
+    ...definition,
+    id: "screen.lasers",
+    name: "Lasers",
+    revision: "revision.lasers",
+    orientationLayoutsEnabled: false,
+    sections: [{
+      ...definition.sections[0]!,
+      portrait: null,
+      landscape: null,
+      buttons: [
+        laserButton("button.default-laser", "Default laser", "default"),
+        laserButton("button.red-laser", "Red laser", "red"),
+        laserButton("button.green-laser", "Green laser", "green")
+      ]
+    }]
+  };
+}
+
+function laserButton(
+  id: string,
+  name: string,
+  color: "default" | "red" | "green"
+) {
+  return {
+    id,
+    name,
+    label: name,
+    icon: "mouse-pointer-2",
+    presentation: "iconLabel" as const,
+    size: "standard" as const,
+    repeat: false,
+    row: 0,
+    enabled: true,
+    laserPointerColor: color
+  };
 }

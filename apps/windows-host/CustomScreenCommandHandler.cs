@@ -10,6 +10,7 @@ internal sealed class CustomScreenCommandHandler(
     IWorkstationLockPolicy workstationLockPolicy,
     IAppLaunchService appLaunchService,
     IUrlOpenService urlOpenService,
+    PresentationLaserPointerController laserPointer,
     WebSocketTransport transport,
     IAppLogWriter appLog)
 {
@@ -58,9 +59,15 @@ internal sealed class CustomScreenCommandHandler(
         string screenId,
         string screenRevision,
         string buttonId,
+        bool? requestedState,
         CancellationToken cancellationToken)
     {
-        var result = Execute(clientId, screenId, screenRevision, buttonId);
+        var result = Execute(
+            clientId,
+            screenId,
+            screenRevision,
+            buttonId,
+            requestedState);
         appLog.Write(new AppLogEntry(
             Event: "command_outcome",
             Source: "windows_host",
@@ -84,7 +91,8 @@ internal sealed class CustomScreenCommandHandler(
         string clientId,
         string screenId,
         string screenRevision,
-        string buttonId)
+        string buttonId,
+        bool? requestedState)
     {
         var screen = screens.Find(screenId);
         if (screen is null || !screen.AssignedClientIds.Contains(clientId, StringComparer.Ordinal))
@@ -118,6 +126,46 @@ internal sealed class CustomScreenCommandHandler(
         }
 
         var action = button.Action;
+        if (action.Kind != "laserPointer" && requestedState is not null)
+        {
+            return new(false, "invalid-request", "Enabled state is only valid for a Laser pointer control.");
+        }
+
+        if (action.Kind == "laserPointer")
+        {
+            if (!statusFactory.CanControlPresentations(clientId))
+            {
+                return new(false, "permission-denied", "Presentation control is disabled for this device on the PC.");
+            }
+
+            var colorOverride = action.Color switch
+            {
+                "red" => PresentationLaserColor.Red,
+                "green" => PresentationLaserColor.Green,
+                "blue" => PresentationLaserColor.Blue,
+                _ => (PresentationLaserColor?)null
+            };
+            try
+            {
+                var outcome = requestedState is { } enabled
+                    ? laserPointer.SetEnabled(clientId, enabled, colorOverride: colorOverride)
+                    : laserPointer.Toggle(clientId, colorOverride);
+                return outcome == LaserPointerChangeOutcome.OwnerConflict
+                    ? new(false, "pointer-owner-active", "Another device owns the active laser pointer.")
+                    : new(
+                        true,
+                        laserPointer.IsEnabled ? "enabled" : "disabled",
+                        laserPointer.IsEnabled
+                            ? "Voltura Air laser pointer enabled."
+                            : "Voltura Air laser pointer disabled.");
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                InputDispatchDiagnostics.Write("custom.screen.invoke", null, string.Empty, exception);
+                return new(false, "pointer-failed", "Windows could not change the Voltura Air laser pointer.");
+            }
+        }
+
         if (action.Kind == "appLaunch")
         {
             if (!statusFactory.CanLaunchRemoteApps(clientId))

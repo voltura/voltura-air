@@ -14,6 +14,27 @@ internal sealed class CustomScreenActionPropertiesController(
 {
     public void Render(CustomScreenButton button, StackPanel panel)
     {
+        if (button.Action.Kind == "laserPointer")
+        {
+            panel.Children.Add(new TextBlock
+            {
+                Text = "Laser pointer",
+                FontWeight = FontWeights.SemiBold,
+                Foreground = brush("TextBrush")
+            });
+            AddTaggedChoiceProperty(
+                panel,
+                "Color",
+                [("Default", "default"), ("Red", "red"), ("Green", "green"), ("Blue", "blue")],
+                button.Action.Color ?? "default",
+                value => updateButton(button with
+                {
+                    Action = new CustomScreenAction("laserPointer", Color: value),
+                    Repeat = false
+                }));
+            return;
+        }
+
         AddTaggedChoiceProperty(
             panel,
             "Action type",

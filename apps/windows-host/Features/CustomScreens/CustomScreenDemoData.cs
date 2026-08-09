@@ -23,6 +23,7 @@ internal static class CustomScreenDemoData
                     new(0, true, 12),
                     new(0, true, 6),
                     [
+                        LaserButton("laser", 1),
                         Button("previous", "Previous", "skip-back", "media.previous", 1),
                         Button("play", "Play / pause", "play", "media.playPause", 1),
                         Button("next", "Next", "skip-forward", "media.next", 2),
@@ -83,5 +84,19 @@ internal static class CustomScreenDemoData
             null,
             null,
             new CustomScreenAction("builtIn", BuiltIn: builtIn),
+            row);
+
+    private static CustomScreenButton LaserButton(string id, int row) =>
+        new(
+            $"button.{id}",
+            "Laser pointer",
+            "Laser pointer",
+            "mouse-pointer-2",
+            "iconLabel",
+            "standard",
+            false,
+            null,
+            null,
+            new CustomScreenAction("laserPointer", Color: "default"),
             row);
 }

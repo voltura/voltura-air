@@ -2,7 +2,7 @@ import { useRef, useState, type PointerEvent } from "react";
 import {
   AppWindow, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Clipboard, Command,
   CornerDownLeft, Copy, Keyboard, Maximize, Minimize, Monitor, Pause, Play,
-  RefreshCw, Search, SkipBack, SkipForward, SquareX, Volume1, Volume2, VolumeX
+  MousePointer2, RefreshCw, Search, SkipBack, SkipForward, SquareX, Volume1, Volume2, VolumeX
 } from "lucide-react";
 import type {
   CustomScreenButtonDefinition,
@@ -27,6 +27,7 @@ const icons = {
   maximize: Maximize,
   minimize: Minimize,
   monitor: Monitor,
+  "mouse-pointer-2": MousePointer2,
   pause: Pause,
   play: Play,
   refresh: RefreshCw,
@@ -42,7 +43,11 @@ const icons = {
 interface CustomScreenButtonGridProps {
   collapsible: boolean;
   contentId: string;
-  invoke: (button: CustomScreenButtonDefinition) => void;
+  invoke: (button: CustomScreenButtonDefinition, enabled?: boolean) => void;
+  laserPointerActive: boolean;
+  laserPointerColor: "red" | "green" | "blue" | null;
+  laserPointerDefaultColor: "red" | "green" | "blue";
+  laserPointerPending: boolean;
   onPointerDown: (
     event: PointerEvent<HTMLButtonElement>,
     button: CustomScreenButtonDefinition
@@ -60,6 +65,10 @@ export function CustomScreenButtonGrid({
   collapsible,
   contentId,
   invoke,
+  laserPointerActive,
+  laserPointerColor,
+  laserPointerDefaultColor,
+  laserPointerPending,
   onLostPointerCapture,
   onPointerCancel,
   onPointerDown,
@@ -92,18 +101,28 @@ export function CustomScreenButtonGrid({
           {row.map(({ button, layout }) => {
             const Icon = icons[button.icon as keyof typeof icons] ?? Command;
             const size = layout?.size ?? button.size;
+            const effectiveLaserColor = button.laserPointerColor === "default"
+              ? laserPointerDefaultColor
+              : button.laserPointerColor;
+            const laserPressed = effectiveLaserColor !== undefined &&
+              laserPointerActive && laserPointerColor === effectiveLaserColor;
+            const isLaserPointer = button.laserPointerColor !== null &&
+              button.laserPointerColor !== undefined;
+            const laserDisabled = isLaserPointer &&
+              laserPointerPending && !laserPressed;
             return (
               <button
                 aria-label={button.name}
-                className={`custom-screen-button size-${size}`}
+                aria-pressed={isLaserPointer ? laserPressed : undefined}
+                className={`custom-screen-button size-${size}${laserPressed ? " active" : ""}`}
                 data-custom-screen-button-id={button.id}
-                disabled={!button.enabled}
+                disabled={!button.enabled || laserDisabled}
                 key={button.id}
                 onClick={() => {
                   if (button.confirmation) {
                     setConfirmation(button);
                   } else {
-                    invoke(button);
+                    invoke(button, isLaserPointer && laserPressed ? false : undefined);
                   }
                 }}
                 onLostPointerCapture={onLostPointerCapture}
@@ -117,7 +136,8 @@ export function CustomScreenButtonGrid({
               >
                 {button.presentation !== "label" && <Icon aria-hidden="true" />}
                 {button.presentation !== "icon" && <span>{button.label}</span>}
-                {pendingButtonIds.has(button.id) &&
+                {(pendingButtonIds.has(button.id) ||
+                  isLaserPointer && laserPointerPending) &&
                   <span className="custom-screen-pending" aria-hidden="true" />}
               </button>
             );

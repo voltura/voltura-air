@@ -1,12 +1,20 @@
 namespace VolturaAir.Host;
 
+internal enum LaserPointerChangeOutcome
+{
+    Changed,
+    Unchanged,
+    OwnerConflict
+}
+
 internal sealed class PresentationLaserPointerController(
-    Action<bool>? apply,
+    Action<bool, PresentationLaserColor?>? apply,
     Action<string>? restorePowerPointPointer = null) : IDisposable
 {
     private readonly Lock _gate = new();
     private string? _ownerClientId;
     private string? _runtimePresentationId;
+    private PresentationLaserColor? _colorOverride;
     private bool _enabled;
     private bool _disposed;
 
@@ -17,6 +25,17 @@ internal sealed class PresentationLaserPointerController(
             lock (_gate)
             {
                 return _enabled;
+            }
+        }
+    }
+
+    public PresentationLaserColor? ActiveColor
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _enabled ? ResolveColor(_colorOverride) : null;
             }
         }
     }
@@ -43,59 +62,23 @@ internal sealed class PresentationLaserPointerController(
         }
     }
 
-    public void SetEnabled(
+    public LaserPointerChangeOutcome SetEnabled(
         string clientId,
         bool enabled,
-        string? runtimePresentationId = null)
-    {
-        bool changed;
-        string? presentationToRestore = null;
-        lock (_gate)
-        {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            if (!enabled && _ownerClientId is not null &&
-                !string.Equals(_ownerClientId, clientId, StringComparison.Ordinal))
-            {
-                return;
-            }
+        string? runtimePresentationId = null,
+        PresentationLaserColor? colorOverride = null) =>
+        Change(clientId, enabled, runtimePresentationId, colorOverride);
 
-            if (_enabled == enabled)
-            {
-                return;
-            }
-
-            apply?.Invoke(enabled);
-            if (!enabled)
-            {
-                presentationToRestore = _runtimePresentationId;
-            }
-
-            _enabled = enabled;
-            _ownerClientId = enabled ? clientId : null;
-            _runtimePresentationId = enabled ? runtimePresentationId : null;
-            changed = true;
-        }
-
-        RestorePowerPointPointer(presentationToRestore);
-        if (changed)
-        {
-            StateChanged?.Invoke(this, EventArgs.Empty);
-        }
-    }
+    public LaserPointerChangeOutcome Toggle(
+        string clientId,
+        PresentationLaserColor? colorOverride = null) =>
+        Change(clientId, enabled: null, runtimePresentationId: null, colorOverride);
 
     public void DisableForClient(string clientId, bool restorePowerPoint = true)
     {
-        lock (_gate)
-        {
-            if (_disposed || !_enabled || !string.Equals(_ownerClientId, clientId, StringComparison.Ordinal))
-            {
-                return;
-            }
-        }
-
         if (restorePowerPoint)
         {
-            SetEnabled(clientId, enabled: false);
+            _ = SetEnabled(clientId, enabled: false);
             return;
         }
 
@@ -122,7 +105,7 @@ internal sealed class PresentationLaserPointerController(
 
         if (owner is not null)
         {
-            SetEnabled(owner, enabled: false);
+            _ = SetEnabled(owner, enabled: false);
         }
     }
 
@@ -142,28 +125,7 @@ internal sealed class PresentationLaserPointerController(
 
         if (ownerClientId is not null && !canControl(ownerClientId))
         {
-            var changed = false;
-            string? presentationToRestore = null;
-            lock (_gate)
-            {
-                if (!_disposed &&
-                    _enabled &&
-                    string.Equals(_ownerClientId, ownerClientId, StringComparison.Ordinal))
-                {
-                    apply?.Invoke(false);
-                    presentationToRestore = _runtimePresentationId;
-                    _enabled = false;
-                    _ownerClientId = null;
-                    _runtimePresentationId = null;
-                    changed = true;
-                }
-            }
-
-            if (changed)
-            {
-                RestorePowerPointPointer(presentationToRestore);
-                StateChanged?.Invoke(this, EventArgs.Empty);
-            }
+            _ = SetEnabled(ownerClientId, enabled: false);
         }
     }
 
@@ -178,9 +140,7 @@ internal sealed class PresentationLaserPointerController(
             }
 
             presentationToRestore = _runtimePresentationId;
-            _enabled = false;
-            _ownerClientId = null;
-            _runtimePresentationId = null;
+            ClearState();
         }
 
         if (restorePowerPoint)
@@ -204,14 +164,12 @@ internal sealed class PresentationLaserPointerController(
 
             if (_enabled)
             {
-                apply?.Invoke(false);
+                apply?.Invoke(false, null);
                 presentationToRestore = _runtimePresentationId;
                 changed = true;
             }
 
-            _enabled = false;
-            _ownerClientId = null;
-            _runtimePresentationId = null;
+            ClearState();
             _disposed = true;
         }
 
@@ -220,6 +178,74 @@ internal sealed class PresentationLaserPointerController(
         {
             StateChanged?.Invoke(this, EventArgs.Empty);
         }
+    }
+
+    private LaserPointerChangeOutcome Change(
+        string clientId,
+        bool? enabled,
+        string? runtimePresentationId,
+        PresentationLaserColor? colorOverride)
+    {
+        bool changed;
+        string? presentationToRestore = null;
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_enabled &&
+                !string.Equals(_ownerClientId, clientId, StringComparison.Ordinal))
+            {
+                return LaserPointerChangeOutcome.OwnerConflict;
+            }
+
+            var desiredEnabled = enabled ?? !(_enabled &&
+                ResolveColor(_colorOverride) == ResolveColor(colorOverride));
+            if (!desiredEnabled)
+            {
+                if (!_enabled)
+                {
+                    return LaserPointerChangeOutcome.Unchanged;
+                }
+
+                apply?.Invoke(false, null);
+                presentationToRestore = _runtimePresentationId;
+                ClearState();
+                changed = true;
+            }
+            else if (!_enabled)
+            {
+                apply?.Invoke(true, colorOverride);
+                _enabled = true;
+                _ownerClientId = clientId;
+                _runtimePresentationId = runtimePresentationId;
+                _colorOverride = colorOverride;
+                changed = true;
+            }
+            else
+            {
+                var nextRuntimePresentationId = runtimePresentationId ?? _runtimePresentationId;
+                if (_colorOverride == colorOverride &&
+                    string.Equals(
+                        _runtimePresentationId,
+                        nextRuntimePresentationId,
+                        StringComparison.Ordinal))
+                {
+                    return LaserPointerChangeOutcome.Unchanged;
+                }
+
+                apply?.Invoke(true, colorOverride);
+                _runtimePresentationId = nextRuntimePresentationId;
+                _colorOverride = colorOverride;
+                changed = true;
+            }
+        }
+
+        RestorePowerPointPointer(presentationToRestore);
+        if (changed)
+        {
+            StateChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        return LaserPointerChangeOutcome.Changed;
     }
 
     private void SetEnabledWithoutPowerPointRestore(string clientId)
@@ -234,10 +260,8 @@ internal sealed class PresentationLaserPointerController(
                 return;
             }
 
-            apply?.Invoke(false);
-            _enabled = false;
-            _ownerClientId = null;
-            _runtimePresentationId = null;
+            apply?.Invoke(false, null);
+            ClearState();
             changed = true;
         }
 
@@ -246,6 +270,18 @@ internal sealed class PresentationLaserPointerController(
             StateChanged?.Invoke(this, EventArgs.Empty);
         }
     }
+
+    private void ClearState()
+    {
+        _enabled = false;
+        _ownerClientId = null;
+        _runtimePresentationId = null;
+        _colorOverride = null;
+    }
+
+    private static PresentationLaserColor ResolveColor(
+        PresentationLaserColor? colorOverride) =>
+        colorOverride ?? AppPointerSettings.GetPresentationLaserPointer().Color;
 
     private void RestorePowerPointPointer(string? runtimePresentationId)
     {

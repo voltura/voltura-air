@@ -47,6 +47,37 @@ internal static class PreferencesScrollCoordinator
             scroller.VerticalOffset + scrollDistance));
     }
 
+    internal static void RevealTarget(ScrollViewer scroller, FrameworkElement target)
+    {
+        if (target.Visibility != Visibility.Visible ||
+            target.RenderSize.Height <= 0 ||
+            scroller.ViewportHeight <= 0 ||
+            !target.IsDescendantOf(scroller))
+        {
+            return;
+        }
+
+        var targetTop = target.TransformToAncestor(scroller).Transform(new Point()).Y;
+        var targetBottom = targetTop + target.RenderSize.Height;
+        var visibleTop = AssistedScrollPadding;
+        var visibleBottom = scroller.ViewportHeight - AssistedScrollPadding;
+        var delta = targetTop < visibleTop
+            ? targetTop - visibleTop
+            : targetBottom > visibleBottom
+                ? targetBottom - visibleBottom
+                : 0;
+
+        if (!double.IsFinite(delta) || Math.Abs(delta) <= 0.5)
+        {
+            return;
+        }
+
+        scroller.ScrollToVerticalOffset(Math.Clamp(
+            scroller.VerticalOffset + delta,
+            0,
+            scroller.ScrollableHeight));
+    }
+
     private static UIElement? FindFirstFocusableVisualDescendant(DependencyObject root)
     {
         for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)

@@ -1,7 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using VolturaAir.Host.Features.Preferences;
+using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using WpfFocusManager = System.Windows.Input.FocusManager;
 
 namespace VolturaAir.Host.Tests;
@@ -240,6 +242,252 @@ public sealed partial class HostUiLayoutTests
     }
 
     [Fact]
+    public void PreferencesSearchMatchesSettingLabelsInScreenOrderWithBreadcrumbs()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            using var store = new TempPairingStore();
+            using var injector = new SendInputInjector();
+            var manager = new PairingManager(store.Store);
+            var webHost = new WebHostService(manager, new InputDispatcher(injector), isolatedTestMode: true);
+            var window = new MainWindow(manager, webHost, clientUrl: null);
+            try
+            {
+                window.Show();
+                window.ShowPage(HostPage.Preferences);
+                window.UpdateLayout();
+                var view = Assert.Single(FindWpfDescendants<PreferencesPageView>(window));
+
+                var signIn = Search(view, "SIGN IN");
+                var start = Assert.Single(signIn);
+                Assert.Equal("Start Voltura Air when I sign in to Windows", start.Label);
+                Assert.Equal("Application", start.Breadcrumb);
+
+                var duplicates = Search(view, "3D effect on controls");
+                Assert.Equal(2, duplicates.Length);
+                Assert.Equal(
+                    ["Appearance > Theme", "Appearance > Device"],
+                    duplicates.Select(result => result.Breadcrumb));
+
+                var orderedPermissions = Search(view, "Allow paired devices to");
+                Assert.True(orderedPermissions.Length > 3);
+                Assert.Equal("Allow paired devices to control Voltura Air host", orderedPermissions[0].Label);
+                Assert.Equal("Allow paired devices to control pointer and keyboard", orderedPermissions[1].Label);
+
+                Assert.Empty(Search(view, "Save URL"));
+                Assert.Empty(Search(view, "Off by default"));
+                Assert.Empty(Search(view, "setting that does not exist"));
+                Assert.Equal(Visibility.Visible, view.NoSearchResults.Visibility);
+                Assert.False(view.SearchPopup.StaysOpen);
+            }
+            finally
+            {
+                window.Close();
+                DisposeWebHost(webHost);
+            }
+        });
+    }
+
+    [Fact]
+    public void PreferencesSearchOpensRevealsAndFocusesTheSelectedSetting()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            using var store = new TempPairingStore();
+            using var injector = new SendInputInjector();
+            var manager = new PairingManager(store.Store);
+            var webHost = new WebHostService(manager, new InputDispatcher(injector), isolatedTestMode: true);
+            var window = new MainWindow(manager, webHost, clientUrl: null);
+            try
+            {
+                window.Show();
+                window.ShowPage(HostPage.Preferences);
+                window.UpdateLayout();
+                var view = Assert.Single(FindWpfDescendants<PreferencesPageView>(window));
+
+                var section = Search(view, "Application")
+                    .Single(result => string.Equals(result.Label, "Application", StringComparison.Ordinal));
+                view.ActivateSearchResult(section);
+                WaitForWpf(() => view.PendingSearchActivation.IsCompleted, "section search activation");
+                view.PendingSearchActivation.GetAwaiter().GetResult();
+                Assert.True(view.ApplicationSection.IsExpanded);
+                Assert.True(HasFocus(section.Entry.FocusTarget));
+
+                view.AppearanceSection.IsExpanded = true;
+
+                var start = Assert.Single(Search(view, "sign in"));
+                view.ActivateSearchResult(start);
+                WaitForWpf(() => view.PendingSearchActivation.IsCompleted, "preference search activation");
+                view.PendingSearchActivation.GetAwaiter().GetResult();
+                Assert.True(HasFocus(start.Entry.FocusTarget));
+                window.UpdateLayout();
+
+                Assert.Equal("sign in", view.SearchQuery);
+                Assert.False(view.SearchPopup.IsOpen);
+                Assert.True(view.ApplicationSection.IsExpanded);
+                Assert.False(view.AppearanceSection.IsExpanded);
+                AssertTargetIsVisible(view, start.Entry.RevealTarget);
+
+                var nested = Assert.Single(Search(view, "Windows locking"));
+                view.ActivateSearchResult(nested);
+                WaitForWpf(() => view.PendingSearchActivation.IsCompleted, "nested preference activation");
+                view.PendingSearchActivation.GetAwaiter().GetResult();
+                Assert.True(HasFocus(nested.Entry.FocusTarget));
+                Assert.True(view.DeveloperSection.IsExpanded);
+                Assert.True(Assert.IsType<Expander>(nested.Entry.RevealTarget).IsExpanded);
+
+                var field = Assert.Single(Search(view, "YouTube URL"));
+                view.ActivateSearchResult(field);
+                WaitForWpf(() => view.PendingSearchActivation.IsCompleted, "field preference activation");
+                view.PendingSearchActivation.GetAwaiter().GetResult();
+                Assert.True(HasFocus(field.Entry.FocusTarget));
+                Assert.True(view.RemoteSection.IsExpanded);
+
+                view.SearchInput.Text = "Developer mode";
+                view.SearchInput.Focus();
+                view.SearchInput.RaiseEvent(new KeyEventArgs(
+                    Keyboard.PrimaryDevice,
+                    Keyboard.PrimaryDevice.ActiveSource,
+                    0,
+                    Key.Down)
+                {
+                    RoutedEvent = Keyboard.PreviewKeyDownEvent
+                });
+                Assert.Equal(0, view.SearchResults.SelectedIndex);
+                view.SearchResults.RaiseEvent(new KeyEventArgs(
+                    Keyboard.PrimaryDevice,
+                    Keyboard.PrimaryDevice.ActiveSource,
+                    0,
+                    Key.Escape)
+                {
+                    RoutedEvent = Keyboard.PreviewKeyDownEvent
+                });
+                Assert.False(view.SearchPopup.IsOpen);
+                Assert.True(view.SearchInput.IsKeyboardFocused);
+
+                view.SearchInput.RaiseEvent(new KeyEventArgs(
+                    Keyboard.PrimaryDevice,
+                    Keyboard.PrimaryDevice.ActiveSource,
+                    0,
+                    Key.Up)
+                {
+                    RoutedEvent = Keyboard.PreviewKeyDownEvent
+                });
+                Assert.Equal(view.SearchResults.Items.Count - 1, view.SearchResults.SelectedIndex);
+                view.SearchInput.Focus();
+                view.SearchInput.RaiseEvent(new KeyEventArgs(
+                    Keyboard.PrimaryDevice,
+                    Keyboard.PrimaryDevice.ActiveSource,
+                    0,
+                    Key.Down)
+                {
+                    RoutedEvent = Keyboard.PreviewKeyDownEvent
+                });
+                view.SearchResults.RaiseEvent(new KeyEventArgs(
+                    Keyboard.PrimaryDevice,
+                    Keyboard.PrimaryDevice.ActiveSource,
+                    0,
+                    Key.Enter)
+                {
+                    RoutedEvent = Keyboard.PreviewKeyDownEvent
+                });
+                WaitForWpf(
+                    () => view.DeveloperSection.IsExpanded && !view.SearchPopup.IsOpen,
+                    "keyboard search activation");
+
+                view.SearchInput.Text = "sign in";
+                Assert.Equal(Visibility.Visible, view.ClearSearch.Visibility);
+                view.ClearSearch.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                Assert.Equal(string.Empty, view.SearchQuery);
+                Assert.Equal(Visibility.Collapsed, view.ClearSearch.Visibility);
+                Assert.False(view.SearchPopup.IsOpen);
+                Assert.True(view.SearchInput.IsKeyboardFocused);
+
+                view.SearchInput.Text = "sign in";
+                view.SearchInput.RaiseEvent(new KeyEventArgs(
+                    Keyboard.PrimaryDevice,
+                    Keyboard.PrimaryDevice.ActiveSource,
+                    0,
+                    Key.Escape)
+                {
+                    RoutedEvent = Keyboard.PreviewKeyDownEvent
+                });
+                Assert.False(view.SearchPopup.IsOpen);
+                Assert.Equal("sign in", view.SearchQuery);
+            }
+            finally
+            {
+                window.Close();
+                DisposeWebHost(webHost);
+            }
+        });
+    }
+
+    [Fact]
+    public void PreferencesSearchRebuildsConditionalRegistryAndRetainsQuery()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            using var store = new TempPairingStore();
+            using var injector = new SendInputInjector();
+            var powerController = new SearchPowerController { ScreenSaverAvailable = false };
+            var manager = new PairingManager(store.Store);
+            var webHost = new WebHostService(manager, new InputDispatcher(injector), isolatedTestMode: true);
+            var window = new MainWindow(
+                manager,
+                webHost,
+                clientUrl: null,
+                powerController: powerController);
+            try
+            {
+                window.Show();
+                window.ShowPage(HostPage.Preferences);
+                window.UpdateLayout();
+                var initial = Assert.Single(FindWpfDescendants<PreferencesPageView>(window));
+                var initialPermissions = initial.PermissionsSection;
+                Assert.Empty(Search(initial, "screen saver"));
+
+                powerController.ScreenSaverAvailable = true;
+                window.ShowPage(HostPage.Preferences);
+                window.UpdateLayout();
+                var rebuilt = Assert.Single(FindWpfDescendants<PreferencesPageView>(window));
+
+                Assert.Equal("screen saver", rebuilt.SearchQuery);
+                var result = Assert.Single(rebuilt.SearchResults.Items.Cast<PreferenceSearchResult>());
+                Assert.Equal("Allow paired devices to start the screen saver", result.Label);
+                Assert.NotSame(initial, rebuilt);
+                Assert.NotSame(initialPermissions, rebuilt.PermissionsSection);
+                Assert.Same(
+                    rebuilt.PermissionsSection,
+                    Assert.Single(PreferencesSearchRegistry.FindContainingExpanders(result.Entry.RevealTarget)));
+            }
+            finally
+            {
+                window.Close();
+                DisposeWebHost(webHost);
+            }
+        });
+    }
+
+    [Fact]
     public void AppLaunchPresetTestButtonUsesTheSharedLaunchService()
     {
         if (!OperatingSystem.IsWindows())
@@ -323,5 +571,43 @@ public sealed partial class HostUiLayoutTests
 
         public AppLaunchExecutionResult ExecutePowerPointFile(string path) =>
             new(true, "started", "Started PowerPoint.");
+    }
+
+    private static PreferenceSearchResult[] Search(PreferencesPageView view, string query)
+    {
+        view.SearchInput.Text = query;
+        view.UpdateLayout();
+        return view.SearchResults.Items.Cast<PreferenceSearchResult>().ToArray();
+    }
+
+    private static void AssertTargetIsVisible(PreferencesPageView view, FrameworkElement target)
+    {
+        var targetTop = target.TransformToAncestor(view.Scroller).Transform(new Point()).Y;
+        Assert.InRange(targetTop, 0, view.Scroller.ViewportHeight);
+        Assert.InRange(targetTop + target.ActualHeight, 0, view.Scroller.ViewportHeight);
+    }
+
+    private static bool HasFocus(FrameworkElement target)
+    {
+        if (target.IsKeyboardFocusWithin)
+        {
+            return true;
+        }
+
+        var focused = FocusManager.GetFocusedElement(FocusManager.GetFocusScope(target)) as DependencyObject;
+        return ReferenceEquals(focused, target) ||
+            (focused is not null && FindWpfDescendants<DependencyObject>(target).Contains(focused));
+    }
+
+    private sealed class SearchPowerController : ISystemPowerController
+    {
+        public bool ScreenSaverAvailable { get; set; }
+
+        public SystemPowerExecutionResult TryExecute(string action) => SystemPowerExecutionResult.Success;
+
+        public bool IsActionAvailable(string action) =>
+            action != SystemPowerActions.ScreenSaver || ScreenSaverAvailable;
+
+        public bool DismissBlackoutIfActive() => false;
     }
 }

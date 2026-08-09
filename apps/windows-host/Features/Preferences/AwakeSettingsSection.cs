@@ -12,6 +12,7 @@ internal sealed class AwakeSettingsSection(
     Window owner,
     IAwakeService awakeService,
     HostVisualFactory visuals,
+    PreferencesVisualFactory preferenceVisuals,
     HostToastPresenter toasts,
     Func<bool> isLoading)
 {
@@ -21,7 +22,8 @@ internal sealed class AwakeSettingsSection(
     {
         var state = awakeService.State;
         parent.Children.Add(visuals.CreateMutedText("Prevent automatic sleep without changing the Windows power plan. Manual sleep, lid close, and the lock screen still take precedence."));
-        parent.Children.Add(visuals.CreateLabel("Mode"));
+        var modeLabel = visuals.CreateLabel("Mode");
+        parent.Children.Add(modeLabel);
 
         var mode = new ComboBox
         {
@@ -34,9 +36,11 @@ internal sealed class AwakeSettingsSection(
         AddModeItem(mode, "Keep awake for an interval", AwakeMode.Timed, state.Mode);
         AddModeItem(mode, "Keep awake until a date and time", AwakeMode.Expiration, state.Mode);
         parent.Children.Add(mode);
+        preferenceVisuals.RegisterLabel(modeLabel, mode);
 
         var timedPanel = HostVisualFactory.CreateVerticalStack(UiTokens.SpaceSm);
-        timedPanel.Children.Add(visuals.CreateLabel("Interval"));
+        var intervalLabel = visuals.CreateLabel("Interval");
+        timedPanel.Children.Add(intervalLabel);
         var intervalRow = HostVisualFactory.CreateHorizontalStack(UiTokens.SpaceSm);
         var hours = CreateTextBox((state.IntervalMinutes / 60).ToString(CultureInfo.CurrentCulture), 70);
         var minutes = CreateTextBox((state.IntervalMinutes % 60).ToString(CultureInfo.CurrentCulture), 70);
@@ -46,10 +50,12 @@ internal sealed class AwakeSettingsSection(
         intervalRow.Children.Add(CreateInlineText("minutes"));
         intervalRow.Children.Add(visuals.CreateButton("Start", async (_, _) => await StartIntervalAsync(hours, minutes), primary: true));
         timedPanel.Children.Add(intervalRow);
+        preferenceVisuals.RegisterLabel(intervalLabel, hours);
         parent.Children.Add(timedPanel);
 
         var expirationPanel = HostVisualFactory.CreateVerticalStack(UiTokens.SpaceSm);
-        expirationPanel.Children.Add(visuals.CreateLabel("Expiration"));
+        var expirationLabel = visuals.CreateLabel("Expiration");
+        expirationPanel.Children.Add(expirationLabel);
         var expirationRow = HostVisualFactory.CreateHorizontalStack(UiTokens.SpaceSm);
         var suggestedExpiration = state.ExpiresAt is { } currentExpiration && currentExpiration > DateTimeOffset.Now
             ? currentExpiration.LocalDateTime
@@ -60,15 +66,16 @@ internal sealed class AwakeSettingsSection(
         expirationRow.Children.Add(time);
         expirationRow.Children.Add(visuals.CreateButton("Start", async (_, _) => await StartUntilAsync(date, time), primary: true));
         expirationPanel.Children.Add(expirationRow);
+        preferenceVisuals.RegisterLabel(expirationLabel, date);
         parent.Children.Add(expirationPanel);
 
-        var keepScreenOn = visuals.CreateCheckBox(
+        var keepScreenOn = preferenceVisuals.Register(visuals.CreateCheckBox(
             "Keep screen on while Keep awake is active",
             state.KeepScreenOn,
             showInformation: () => ThemedConfirmationDialog.ShowInformation(
                 owner,
                 "Keep the screen on",
-                "Keeping the screen on uses more power and can delay normal idle behavior. Paired devices cannot change this host setting."));
+                "Keeping the screen on uses more power and can delay normal idle behavior. Paired devices cannot change this host setting.")));
         keepScreenOn.Checked += async (_, _) => await ApplyAsync(() => awakeService.SetKeepScreenOnAsync(true));
         keepScreenOn.Unchecked += async (_, _) => await ApplyAsync(() => awakeService.SetKeepScreenOnAsync(false));
         parent.Children.Add(keepScreenOn);

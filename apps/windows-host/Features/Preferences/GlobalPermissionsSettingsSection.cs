@@ -15,13 +15,13 @@ internal sealed class GlobalPermissionsSettingsSection(
     {
         var permissions = AppPermissionSettings.Load();
         var toggles = preferenceVisuals.AddToggleGroup(parent);
-        var allowClientControl = visuals.CreateCheckBox(
+        var allowClientControl = preferenceVisuals.Register(visuals.CreateCheckBox(
             "Allow paired devices to control Voltura Air host",
             AppClientControlSettings.IsEnabled(),
             showInformation: () => ThemedConfirmationDialog.ShowInformation(
                 owner,
                 "Control of the Voltura Air host",
-                "When this setting is off, paired devices cannot inject input into Voltura Air itself. They can still control Windows and other permitted applications."));
+                "When this setting is off, paired devices cannot inject input into Voltura Air itself. They can still control Windows and other permitted applications.")));
         allowClientControl.Checked += (_, _) => AppClientControlSettings.SetEnabled(true);
         allowClientControl.Unchecked += (_, _) => AppClientControlSettings.SetEnabled(false);
         toggles.Children.Add(allowClientControl);
@@ -66,6 +66,7 @@ internal sealed class GlobalPermissionsSettingsSection(
             {
                 toggles.Children.Add(control);
             }
+            preferenceVisuals.Register(control);
         }
         parent.Children.Add(visuals.CreateMutedText("Display off and session-ending actions require hold-to-confirm on the mobile device."));
         var details = preferenceVisuals.AddNestedSection(parent, "More about global permissions");

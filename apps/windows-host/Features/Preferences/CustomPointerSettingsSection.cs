@@ -20,6 +20,7 @@ internal sealed class CustomPointerSettingsSection(
     ICursorOverrideController cursorOverrides,
     IAppLogWriter appLog,
     HostVisualFactory visuals,
+    PreferencesVisualFactory preferenceVisuals,
     HostToastPresenter toasts,
     Func<bool> isLoading)
 {
@@ -28,12 +29,14 @@ internal sealed class CustomPointerSettingsSection(
     public void AddTo(StackPanel parent)
     {
         var current = AppPointerSettings.GetCustomPointer();
-        var customPointer = visuals.CreateCheckBox("Custom pointer", current.Enabled);
+        var customPointer = preferenceVisuals.Register(
+            visuals.CreateCheckBox("Custom pointer", current.Enabled));
         parent.Children.Add(customPointer);
 
         var controls = HostVisualFactory.CreateVerticalStack(UiTokens.SpaceMd);
         controls.IsEnabled = current.Enabled;
-        controls.Children.Add(visuals.CreateLabel("Size"));
+        var sizeLabel = visuals.CreateLabel("Size");
+        controls.Children.Add(sizeLabel);
         var sizeRow = HostVisualFactory.CreateHorizontalStack(UiTokens.SpaceMd);
         var size = new Slider
         {
@@ -55,8 +58,10 @@ internal sealed class CustomPointerSettingsSection(
         sizeRow.Children.Add(size);
         sizeRow.Children.Add(sizeValue);
         controls.Children.Add(sizeRow);
+        preferenceVisuals.RegisterLabel(sizeLabel, size);
 
-        controls.Children.Add(visuals.CreateLabel("Color"));
+        var colorLabel = visuals.CreateLabel("Color");
+        controls.Children.Add(colorLabel);
         var colorRow = HostVisualFactory.CreateHorizontalStack(UiTokens.SpaceSm);
         var colorButton = visuals.CreateButton(string.Empty, (_, _) => { });
         colorButton.Width = 132;
@@ -69,6 +74,7 @@ internal sealed class CustomPointerSettingsSection(
         SetColorButton(colorButton, current.Color);
         colorRow.Children.Add(colorButton);
         controls.Children.Add(colorRow);
+        preferenceVisuals.RegisterLabel(colorLabel, colorButton);
         parent.Children.Add(controls);
 
         var sizePreviewTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };

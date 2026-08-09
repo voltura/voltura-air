@@ -60,6 +60,13 @@ toast. Initial successful connection does not show a restoration toast.
 
 ## Preferences
 
+Search stays fixed above the Preferences scroller. It matches section,
+nested-disclosure, checkbox, and field labels as the user types; help text,
+current values, option values, and action captions are not results. Selecting a
+result opens its required disclosures, scrolls the setting into view, and
+focuses its control. The query survives an in-page Preferences rebuild but is
+not persisted.
+
 Themed sections start collapsed and allow one open section. Headers are
 full-width keyboard/pointer targets; their actions remain content-sized.
 Expanded content has balanced inset on every side. Order moves from application

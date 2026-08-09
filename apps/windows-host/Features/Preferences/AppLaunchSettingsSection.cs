@@ -33,7 +33,12 @@ internal sealed class AppLaunchSettingsSection(
 
         var details = preferenceVisuals.AddNestedSection(parent, "More about app-launch buttons");
         details.Children.Add(visuals.CreateMutedText($"The global and per-device application-launch permissions still apply. Button labels are 1–{AppLaunchSettings.MaxLabelLength} characters and save automatically. Browser opens the default browser; Spotify, VLC, and PowerPoint must be installed and registered with Windows."));
-        parent.Children.Add(visuals.CreateLabel("Custom buttons"));
+        var customButtonsLabel = visuals.CreateLabel("Custom buttons");
+        parent.Children.Add(customButtonsLabel);
+        var add = visuals.CreateButton("Add custom button", (_, _) => OpenEditor(), primary: true);
+        add.IsEnabled = configured.Count < AppLaunchSettings.MaxActions;
+        add.HorizontalAlignment = HorizontalAlignment.Left;
+        preferenceVisuals.RegisterLabel(customButtonsLabel, add);
         var customActions = configured.Where(action => action.Kind == AppLaunchKind.Custom).ToArray();
         if (customActions.Length == 0)
         {
@@ -47,9 +52,6 @@ internal sealed class AppLaunchSettingsSection(
             }
         }
 
-        var add = visuals.CreateButton("Add custom button", (_, _) => OpenEditor(), primary: true);
-        add.IsEnabled = configured.Count < AppLaunchSettings.MaxActions;
-        add.HorizontalAlignment = HorizontalAlignment.Left;
         parent.Children.Add(add);
         parent.Children.Add(visuals.CreateMutedText("Custom buttons use a locally approved .exe and optional arguments; paths never leave this PC."));
     }
@@ -88,7 +90,8 @@ internal sealed class AppLaunchSettingsSection(
     {
         var presetName = AppLaunchSettings.GetPresetName(preset.Kind);
         var row = CreatePresetGrid();
-        var checkBox = visuals.CreateCheckBox($"Show {presetName}", configured is not null, minimumWidth: 180);
+        var checkBox = preferenceVisuals.Register(
+            visuals.CreateCheckBox($"Show {presetName}", configured is not null, minimumWidth: 180));
         checkBox.VerticalAlignment = VerticalAlignment.Center;
         checkBox.Checked += (_, _) => SetPreset(preset.Kind, true, checkBox);
         checkBox.Unchecked += (_, _) => SetPreset(preset.Kind, false, checkBox);

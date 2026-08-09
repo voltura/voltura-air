@@ -10,6 +10,7 @@ namespace VolturaAir.Host.Features.Preferences;
 internal sealed class PreferencesPageController
 {
     private readonly HostVisualFactory _visuals;
+    private readonly PreferencesSearchRegistry _searchRegistry;
     private readonly PreferencesVisualFactory _preferenceVisuals;
     private readonly HostToastPresenter _toasts;
     private readonly Action _requestRefresh;
@@ -25,6 +26,7 @@ internal sealed class PreferencesPageController
     private PreferencesPageView? _currentView;
     private bool _isLoading;
     private string? _sectionToOpen;
+    private string _searchQuery = string.Empty;
     private double? _scrollOffsetToRestore;
 
     public PreferencesPageController(
@@ -41,15 +43,16 @@ internal sealed class PreferencesPageController
         Action<string?> titleChanged)
     {
         _visuals = visuals;
-        _preferenceVisuals = new PreferencesVisualFactory(visuals);
+        _searchRegistry = new PreferencesSearchRegistry();
+        _preferenceVisuals = new PreferencesVisualFactory(visuals, _searchRegistry);
         _toasts = toasts;
         _requestRefresh = requestRefresh;
         _titleChanged = titleChanged;
-        _awake = new AwakeSettingsSection(owner, awakeService, visuals, toasts, () => _isLoading);
+        _awake = new AwakeSettingsSection(owner, awakeService, visuals, _preferenceVisuals, toasts, () => _isLoading);
         _appLaunch = new AppLaunchSettingsSection(owner, appLaunchService, visuals, _preferenceVisuals, toasts, () => _isLoading, RefreshPreservingState);
         _textDestination = new TextDestinationSettingsSection(owner, visuals, _preferenceVisuals, toasts, () => _isLoading);
-        _customPointer = new CustomPointerSettingsSection(cursorOverrides, appLog, visuals, toasts, () => _isLoading);
-        _presentation = new PresentationSettingsSection(cursorOverrides, appLog, visuals, toasts, () => _isLoading);
+        _customPointer = new CustomPointerSettingsSection(cursorOverrides, appLog, visuals, _preferenceVisuals, toasts, () => _isLoading);
+        _presentation = new PresentationSettingsSection(cursorOverrides, appLog, visuals, _preferenceVisuals, toasts, () => _isLoading);
         _application = new ApplicationSettingsSection(appLog, visuals, _preferenceVisuals, () => _isLoading);
         _permissions = new GlobalPermissionsSettingsSection(powerController, owner, visuals, _preferenceVisuals, () => _isLoading);
         _developer = new DeveloperSettingsSection(owner, powerController, workstationLockPolicy, appLog, visuals, _preferenceVisuals, toasts, RefreshPreservingState);
@@ -58,22 +61,38 @@ internal sealed class PreferencesPageController
     public PreferencesPageView CreateView()
     {
         _isLoading = true;
+        _searchRegistry.Clear();
         var root = new PreferencesPageView(
             _sectionToOpen,
+            _searchQuery,
+            _searchRegistry,
             _titleChanged,
-            PreferencesScrollCoordinator.RevealExpandedSection);
+            PreferencesScrollCoordinator.RevealExpandedSection,
+            query => _searchQuery = query);
         _currentView = root;
+        _searchRegistry.RegisterSection(root.ApplicationSection);
         _application.AddTo(root.ApplicationContent);
+        _searchRegistry.RegisterSection(root.AppearanceSection);
         AddAppearanceSettings(root.AppearanceContent);
+        _searchRegistry.RegisterSection(root.TrackpadSection);
         AddTrackpadSettings(root.TrackpadContent);
+        _searchRegistry.RegisterSection(root.RemoteSection);
         AddRemoteSettings(root.RemoteContent);
+        _searchRegistry.RegisterSection(root.PresentationSection);
         _presentation.AddTo(root.PresentationContent);
+        _searchRegistry.RegisterSection(root.AwakeSection);
         _awake.AddTo(root.AwakeContent);
+        _searchRegistry.RegisterSection(root.PermissionsSection);
         _permissions.AddTo(root.PermissionsContent);
+        _searchRegistry.RegisterSection(root.TextDestinationSection);
         _textDestination.AddTo(root.TextDestinationContent);
+        _searchRegistry.RegisterSection(root.AppLaunchSection);
         _appLaunch.AddTo(root.AppLaunchContent);
+        _searchRegistry.RegisterSection(root.CustomPointerSection);
         _customPointer.AddTo(root.CustomPointerContent);
+        _searchRegistry.RegisterSection(root.DeveloperSection);
         _developer.AddTo(root.DeveloperContent);
+        root.CompleteSearchRegistration();
 
         _sectionToOpen = null;
         _isLoading = false;
@@ -101,6 +120,7 @@ internal sealed class PreferencesPageController
         }
 
         _sectionToOpen = _currentView.ExpandedSectionTitle;
+        _searchQuery = _currentView.SearchQuery;
         _scrollOffsetToRestore = _currentView.Scroller.VerticalOffset;
     }
 
@@ -119,7 +139,8 @@ internal sealed class PreferencesPageController
 
     private void AddAppearanceSettings(StackPanel parent)
     {
-        parent.Children.Add(_visuals.CreateLabel("Theme"));
+        var themeLabel = _visuals.CreateLabel("Theme");
+        parent.Children.Add(themeLabel);
         var activeTheme = AppThemeSettings.GetMode();
         var systemTheme = _visuals.CreateSegmentButton("System", activeTheme == AppThemeMode.System);
         var lightTheme = _visuals.CreateSegmentButton("Light", activeTheme == AppThemeMode.Light);
@@ -129,16 +150,24 @@ internal sealed class PreferencesPageController
         lightTheme.Click += (_, _) => SetThemeMode(AppThemeMode.Light);
         darkTheme.Click += (_, _) => SetThemeMode(AppThemeMode.Dark);
         parent.Children.Add(HostVisualFactory.CreateSegmentRow(systemTheme, lightTheme, darkTheme));
-        var hostControlDepth = _visuals.CreateCheckBox("3D effect on controls", AppAppearanceSettings.HostControlDepth());
+        _preferenceVisuals.RegisterLabel(themeLabel, systemTheme);
+        var hostControlDepth = _preferenceVisuals.Register(
+            _visuals.CreateCheckBox("3D effect on controls", AppAppearanceSettings.HostControlDepth()),
+            "Theme");
         hostControlDepth.Checked += (_, _) => AppAppearanceSettings.SetHostControlDepth(true);
         hostControlDepth.Unchecked += (_, _) => AppAppearanceSettings.SetHostControlDepth(false);
         parent.Children.Add(hostControlDepth);
-        parent.Children.Add(_visuals.CreateLabel("Device"));
-        var showModeButtons = _visuals.CreateCheckBox("Show mode buttons", AppAppearanceSettings.ShowModeButtons());
+        var deviceLabel = _visuals.CreateLabel("Device");
+        parent.Children.Add(deviceLabel);
+        var showModeButtons = _preferenceVisuals.Register(
+            _visuals.CreateCheckBox("Show mode buttons", AppAppearanceSettings.ShowModeButtons()));
         showModeButtons.Checked += (_, _) => AppAppearanceSettings.SetShowModeButtons(true);
         showModeButtons.Unchecked += (_, _) => AppAppearanceSettings.SetShowModeButtons(false);
         parent.Children.Add(showModeButtons);
-        var deviceControlDepth = _visuals.CreateCheckBox("3D effect on controls", AppAppearanceSettings.DeviceControlDepth());
+        _preferenceVisuals.RegisterLabel(deviceLabel, showModeButtons);
+        var deviceControlDepth = _preferenceVisuals.Register(
+            _visuals.CreateCheckBox("3D effect on controls", AppAppearanceSettings.DeviceControlDepth()),
+            "Device");
         deviceControlDepth.Checked += (_, _) => AppAppearanceSettings.SetDeviceControlDepth(true);
         deviceControlDepth.Unchecked += (_, _) => AppAppearanceSettings.SetDeviceControlDepth(false);
         parent.Children.Add(deviceControlDepth);
@@ -147,7 +176,8 @@ internal sealed class PreferencesPageController
     private void AddTrackpadSettings(StackPanel parent)
     {
         parent.Children.Add(_visuals.CreateMutedText("Default pointer speed for paired devices. Device-specific overrides take precedence."));
-        parent.Children.Add(_visuals.CreateLabel("Default pointer speed"));
+        var speedLabel = _visuals.CreateLabel("Default pointer speed");
+        parent.Children.Add(speedLabel);
         var row = HostVisualFactory.CreateHorizontalStack(UiTokens.SpaceMd);
         var currentSpeed = AppPointerSettings.GetDefaultPointerSpeed();
         var slider = new Slider
@@ -179,6 +209,7 @@ internal sealed class PreferencesPageController
         row.Children.Add(slider);
         row.Children.Add(output);
         parent.Children.Add(row);
+        _preferenceVisuals.RegisterLabel(speedLabel, slider);
     }
 
     private void AddRemoteSettings(StackPanel parent)
@@ -192,15 +223,19 @@ internal sealed class PreferencesPageController
         standard.Click += (_, _) => SetDefaultRemoteMode(AppRemoteMode.Standard);
         youtube.Click += (_, _) => SetDefaultRemoteMode(AppRemoteMode.Youtube);
         kodi.Click += (_, _) => SetDefaultRemoteMode(AppRemoteMode.Kodi);
-        parent.Children.Add(_visuals.CreateLabel("Default remote mode"));
+        var modeLabel = _visuals.CreateLabel("Default remote mode");
+        parent.Children.Add(modeLabel);
         parent.Children.Add(HostVisualFactory.CreateSegmentRow(standard, youtube, kodi));
-        parent.Children.Add(_visuals.CreateLabel("YouTube URL"));
+        _preferenceVisuals.RegisterLabel(modeLabel, standard);
+        var urlLabel = _visuals.CreateLabel("YouTube URL");
+        parent.Children.Add(urlLabel);
         parent.Children.Add(_visuals.CreateMutedText("Used when a paired device triggers the YouTube remote launch action. The URL stays on this PC."));
         var row = HostVisualFactory.CreateHorizontalStack(UiTokens.SpaceMd);
         var input = new TextBox { Text = AppRemoteSettings.GetYoutubeUrl(), Width = 360 };
         row.Children.Add(input);
         row.Children.Add(_visuals.CreateButton("Save URL", (_, _) => SaveYoutubeUrl(input), primary: true));
         parent.Children.Add(row);
+        _preferenceVisuals.RegisterLabel(urlLabel, input);
     }
 
     private void SaveYoutubeUrl(TextBox input)

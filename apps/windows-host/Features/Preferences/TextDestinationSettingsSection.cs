@@ -19,20 +19,23 @@ internal sealed class TextDestinationSettingsSection(
     {
         var settings = AppTextDestinationSettings.Load();
         parent.Children.Add(visuals.CreateMutedText("Choose where sent text goes. App paths and window details stay on this PC."));
-        parent.Children.Add(visuals.CreateLabel("Default destination"));
+        var modeLabel = visuals.CreateLabel("Default destination");
+        parent.Children.Add(modeLabel);
         var mode = CreateComboBox(280);
         mode.Items.Add(new ComboBoxItem { Content = "Currently focused application", Tag = TextDestinationMode.Focused });
         mode.Items.Add(new ComboBoxItem { Content = "Windows clipboard", Tag = TextDestinationMode.Clipboard });
         mode.Items.Add(new ComboBoxItem { Content = "Managed application", Tag = TextDestinationMode.Managed });
         mode.SelectedItem = mode.Items.OfType<ComboBoxItem>().First(item => Equals(item.Tag, settings.Mode));
         parent.Children.Add(mode);
+        preferenceVisuals.RegisterLabel(modeLabel, mode);
 
         var destinationSummary = visuals.CreateMutedText(string.Empty);
         parent.Children.Add(destinationSummary);
         var managedSettings = HostVisualFactory.CreateVerticalStack(UiTokens.SpaceMd);
         managedSettings.Visibility = settings.Mode == TextDestinationMode.Managed ? Visibility.Visible : Visibility.Collapsed;
         parent.Children.Add(managedSettings);
-        managedSettings.Children.Add(visuals.CreateLabel("Managed application"));
+        var presetLabel = visuals.CreateLabel("Managed application");
+        managedSettings.Children.Add(presetLabel);
         var preset = CreateComboBox(280);
         foreach (var value in Enum.GetValues<TextDestinationPreset>())
         {
@@ -40,12 +43,14 @@ internal sealed class TextDestinationSettingsSection(
         }
         preset.SelectedItem = preset.Items.OfType<ComboBoxItem>().First(item => Equals(item.Tag, settings.Preset));
         managedSettings.Children.Add(preset);
+        preferenceVisuals.RegisterLabel(presetLabel, preset);
 
         var overrides = settings.ExecutableOverrides is null
             ? new Dictionary<TextDestinationPreset, string>()
             : new(settings.ExecutableOverrides);
         var overrideSettings = HostVisualFactory.CreateVerticalStack(UiTokens.SpaceSm);
-        overrideSettings.Children.Add(visuals.CreateLabel("Approved executable override"));
+        var overrideLabel = visuals.CreateLabel("Approved executable override");
+        overrideSettings.Children.Add(overrideLabel);
         var overridePath = new TextBox
         {
             Text = AppTextDestinationSettings.GetExecutableOverride(settings, settings.Preset) ?? string.Empty,
@@ -55,6 +60,7 @@ internal sealed class TextDestinationSettingsSection(
             IsReadOnly = true
         };
         overrideSettings.Children.Add(overridePath);
+        preferenceVisuals.RegisterLabel(overrideLabel, overridePath);
         var row = HostVisualFactory.CreateHorizontalStack(UiTokens.SpaceSm);
         var browse = visuals.CreateButton("Choose approved .exe", (_, _) => ChooseExecutable(mode, preset, overridePath, overrides));
         var clear = visuals.CreateButton("Clear override", (_, _) => ClearExecutable(mode, preset, overridePath, overrides));
@@ -76,7 +82,8 @@ internal sealed class TextDestinationSettingsSection(
         openDefaultApps.Visibility = Visibility.Collapsed;
         managedSettings.Children.Add(openDefaultApps);
 
-        var keepDraftFiles = visuals.CreateCheckBox("Keep generated draft files", !AppTextDestinationDraftSettings.AutomaticallyRemoveDraftFiles());
+        var keepDraftFiles = preferenceVisuals.Register(
+            visuals.CreateCheckBox("Keep generated draft files", !AppTextDestinationDraftSettings.AutomaticallyRemoveDraftFiles()));
         keepDraftFiles.Checked += (_, _) =>
         {
             AppTextDestinationDraftSettings.SetAutomaticallyRemoveDraftFiles(false);

@@ -15,22 +15,26 @@ internal sealed class ApplicationSettingsSection(
     public void AddTo(StackPanel parent)
     {
         var toggles = preferenceVisuals.AddToggleGroup(parent);
-        var start = visuals.CreateCheckBox("Start Voltura Air when I sign in to Windows", AppStartupSettings.IsEnabled());
+        var start = preferenceVisuals.Register(
+            visuals.CreateCheckBox("Start Voltura Air when I sign in to Windows", AppStartupSettings.IsEnabled()));
         start.Checked += (_, _) => AppStartupSettings.SetEnabled(true);
         start.Unchecked += (_, _) => AppStartupSettings.SetEnabled(false);
         toggles.Children.Add(start);
 
-        var startHidden = visuals.CreateCheckBox("Start Voltura Air hidden in the tray", AppWindowSettings.StartHiddenInTray());
+        var startHidden = preferenceVisuals.Register(
+            visuals.CreateCheckBox("Start Voltura Air hidden in the tray", AppWindowSettings.StartHiddenInTray()));
         startHidden.Checked += (_, _) => AppWindowSettings.SetStartHiddenInTray(true);
         startHidden.Unchecked += (_, _) => AppWindowSettings.SetStartHiddenInTray(false);
         toggles.Children.Add(startHidden);
 
-        var notify = visuals.CreateCheckBox("Show connection status notifications", AppNotificationSettings.ShowConnectionStatusNotifications());
+        var notify = preferenceVisuals.Register(
+            visuals.CreateCheckBox("Show connection status notifications", AppNotificationSettings.ShowConnectionStatusNotifications()));
         notify.Checked += (_, _) => AppNotificationSettings.SetShowConnectionStatusNotifications(true);
         notify.Unchecked += (_, _) => AppNotificationSettings.SetShowConnectionStatusNotifications(false);
         toggles.Children.Add(notify);
 
-        var showOnDisconnect = visuals.CreateCheckBox("Show Voltura Air when the last device disconnects", AppNotificationSettings.ShowPairingWindowOnDisconnect());
+        var showOnDisconnect = preferenceVisuals.Register(
+            visuals.CreateCheckBox("Show Voltura Air when the last device disconnects", AppNotificationSettings.ShowPairingWindowOnDisconnect()));
         showOnDisconnect.Checked += (_, _) => AppNotificationSettings.SetShowPairingWindowOnDisconnect(true);
         showOnDisconnect.Unchecked += (_, _) => AppNotificationSettings.SetShowPairingWindowOnDisconnect(false);
         toggles.Children.Add(showOnDisconnect);
@@ -39,7 +43,8 @@ internal sealed class ApplicationSettingsSection(
 
     private void AddLoggingSettings(StackPanel parent)
     {
-        var applicationLogging = visuals.CreateCheckBox("Write application log", AppLoggingSettings.IsEnabled());
+        var applicationLogging = preferenceVisuals.Register(
+            visuals.CreateCheckBox("Write application log", AppLoggingSettings.IsEnabled()));
         applicationLogging.Checked += (_, _) =>
         {
             AppLoggingSettings.SetEnabled(true);
@@ -55,7 +60,8 @@ internal sealed class ApplicationSettingsSection(
         var details = preferenceVisuals.AddNestedSection(parent, "More about application logs");
         details.Children.Add(visuals.CreateMutedText($"Records sanitized remote commands, host actions, outcomes, responses, and Windows errors. Daily JSON Lines files are written to {appLog.LogDirectory}."));
 
-        parent.Children.Add(visuals.CreateLabel("Keep application logs for"));
+        var retentionLabel = visuals.CreateLabel("Keep application logs for");
+        parent.Children.Add(retentionLabel);
         var retention = new ComboBox { Width = 180, HorizontalAlignment = HorizontalAlignment.Left };
         retention.SetResourceReference(FrameworkElement.StyleProperty, "ModernComboBoxStyle");
         foreach (var days in new[] { 1, 2, 7, 14, 30 })
@@ -76,5 +82,6 @@ internal sealed class ApplicationSettingsSection(
             }
         };
         parent.Children.Add(retention);
+        preferenceVisuals.RegisterLabel(retentionLabel, retention);
     }
 }

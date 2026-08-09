@@ -18,12 +18,14 @@ internal sealed class DeveloperSettingsSection(
     public void AddTo(StackPanel parent)
     {
         var toggles = preferenceVisuals.AddToggleGroup(parent);
-        var developerMode = visuals.CreateCheckBox("Developer mode", AppDeveloperSettings.DeveloperMode());
+        var developerMode = preferenceVisuals.Register(
+            visuals.CreateCheckBox("Developer mode", AppDeveloperSettings.DeveloperMode()));
         developerMode.Checked += (_, _) => AppDeveloperSettings.SetDeveloperMode(true);
         developerMode.Unchecked += (_, _) => AppDeveloperSettings.SetDeveloperMode(false);
         toggles.Children.Add(developerMode);
 
-        var gestureDebug = visuals.CreateCheckBox("Show gesture debug screen in the mobile app", AppDeveloperSettings.EnableGestureDebug());
+        var gestureDebug = preferenceVisuals.Register(
+            visuals.CreateCheckBox("Show gesture debug screen in the mobile app", AppDeveloperSettings.EnableGestureDebug()));
         gestureDebug.Checked += (_, _) => AppDeveloperSettings.SetEnableGestureDebug(true);
         gestureDebug.Unchecked += (_, _) => AppDeveloperSettings.SetEnableGestureDebug(false);
         toggles.Children.Add(gestureDebug);

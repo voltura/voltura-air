@@ -6,6 +6,12 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v0.8.11
+
+- Added **Find a setting** to Windows Preferences. Search by any part of a
+  setting name, then select a result to open its section and jump directly to
+  the control.
+
 ## v0.8.10
 
 - Added a generated official Custom Screen library with 14 Windows 11 remotes

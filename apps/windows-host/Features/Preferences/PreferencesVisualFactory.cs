@@ -4,7 +4,9 @@ using VolturaAir.Host.Ui;
 
 namespace VolturaAir.Host.Features.Preferences;
 
-internal sealed class PreferencesVisualFactory(HostVisualFactory visuals)
+internal sealed class PreferencesVisualFactory(
+    HostVisualFactory visuals,
+    PreferencesSearchRegistry searchRegistry)
 {
     public SpacingWrapPanel AddToggleGroup(StackPanel parent)
     {
@@ -17,13 +19,24 @@ internal sealed class PreferencesVisualFactory(HostVisualFactory visuals)
     public StackPanel AddNestedSection(StackPanel parent, string title)
     {
         var content = HostVisualFactory.CreateVerticalStack(UiTokens.SpaceMd);
-        parent.Children.Add(new Expander
+        var expander = new Expander
         {
             Header = title,
             Content = content,
             IsExpanded = false,
             Style = visuals.Style("PreferencesNestedAccordionStyle")
-        });
+        };
+        parent.Children.Add(expander);
+        searchRegistry.RegisterSection(expander);
         return content;
     }
+
+    public SettingsCheckBox Register(SettingsCheckBox control, string? context = null) =>
+        searchRegistry.Register(control, context);
+
+    public void RegisterLabel(
+        TextBlock label,
+        FrameworkElement focusTarget,
+        string? context = null) =>
+        searchRegistry.RegisterLabel(label, focusTarget, context);
 }

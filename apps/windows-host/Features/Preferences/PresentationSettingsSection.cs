@@ -11,6 +11,7 @@ internal sealed class PresentationSettingsSection(
     ICursorOverrideController cursorOverrides,
     IAppLogWriter appLog,
     HostVisualFactory visuals,
+    PreferencesVisualFactory preferenceVisuals,
     HostToastPresenter toasts,
     Func<bool> isLoading)
 {
@@ -19,7 +20,8 @@ internal sealed class PresentationSettingsSection(
         var current = AppPointerSettings.GetPresentationLaserPointer();
         parent.Children.Add(visuals.CreateMutedText(
             "Controls the native laser pointer used by Presentation mode on this PC."));
-        parent.Children.Add(visuals.CreateLabel("Laser pointer size"));
+        var sizeLabel = visuals.CreateLabel("Laser pointer size");
+        parent.Children.Add(sizeLabel);
 
         var sizeRow = HostVisualFactory.CreateHorizontalStack(UiTokens.SpaceMd);
         var size = new Slider
@@ -42,13 +44,16 @@ internal sealed class PresentationSettingsSection(
         sizeRow.Children.Add(size);
         sizeRow.Children.Add(sizeValue);
         parent.Children.Add(sizeRow);
+        preferenceVisuals.RegisterLabel(sizeLabel, size);
 
-        parent.Children.Add(visuals.CreateLabel("Laser pointer color"));
+        var colorLabel = visuals.CreateLabel("Laser pointer color");
+        parent.Children.Add(colorLabel);
         var red = CreateColorButton("Red", PresentationLaserColor.Red, current.Color);
         var green = CreateColorButton("Green", PresentationLaserColor.Green, current.Color);
         var blue = CreateColorButton("Blue", PresentationLaserColor.Blue, current.Color);
         HostVisualFactory.WireSegmentGroup(red, green, blue);
         parent.Children.Add(HostVisualFactory.CreateSegmentRow(red, green, blue));
+        preferenceVisuals.RegisterLabel(colorLabel, red);
 
         var sizePreviewTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
         EventHandler previewTick = (_, _) =>

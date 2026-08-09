@@ -4,7 +4,13 @@ public static class CustomScreenShortcutKeys
 {
     private static readonly string[] OtherNamedKeys =
     [
-        "BrowserBack", "BrowserForward", "+"
+        "BrowserBack", "BrowserForward", "+",
+        "MediaStop", "MediaPlayPause", "MediaPreviousTrack", "MediaNextTrack",
+        "VolumeUp", "VolumeDown", "VolumeMute",
+        "Numpad0", "Numpad1", "Numpad2", "Numpad3", "Numpad4",
+        "Numpad5", "Numpad6", "Numpad7", "Numpad8", "Numpad9",
+        "NumpadAdd", "NumpadSubtract", "NumpadMultiply", "NumpadDivide",
+        "NumpadDecimal"
     ];
 
     private static readonly string[] SymbolKeyNames =
@@ -47,6 +53,9 @@ public static class CustomScreenShortcutKeys
 
     public static IReadOnlyList<string> SymbolKeys { get; } =
         Array.AsReadOnly(SymbolKeyNames);
+
+    public static IReadOnlyList<string> NumpadAndMediaKeys { get; } =
+        Array.AsReadOnly(OtherNamedKeys[3..]);
 
     public static bool TryNormalize(string? value, out string normalized)
     {

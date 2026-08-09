@@ -139,7 +139,7 @@ function value(source: JsonObject | null, key: string): unknown {
   if (!source) {
     return undefined;
   }
-  return source[key] ?? source[key[0]!.toUpperCase() + key.slice(1)];
+  return source[key];
 }
 
 function text(source: unknown, fallback: string): string {

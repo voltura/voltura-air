@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Security;
 using System.Text;
 using System.Text.Json;
@@ -10,11 +9,13 @@ public interface ICustomScreenStore
     CustomScreenStoreLoadResult Load();
 
     bool TrySave(IReadOnlyList<CustomScreenDefinition> screens, out string failureReason);
+
+    bool TryDeleteInvalid(out string failureReason);
 }
 
 public sealed class CustomScreenStore : ICustomScreenStore
 {
-    private const int CurrentVersion = 3;
+    private const int CurrentVersion = 4;
     private readonly string _filePath;
 
     public CustomScreenStore(string? rootFolder = null)
@@ -42,13 +43,10 @@ public sealed class CustomScreenStore : ICustomScreenStore
 
             var document = JsonSerializer.Deserialize<CustomScreenDocument>(
                 File.ReadAllText(_filePath, Encoding.UTF8),
-                JsonOptions.Default);
+                CustomScreenJson.Exact);
             if (document is null || document.Version != CurrentVersion)
             {
-                return new(
-                    [],
-                    $"This Custom screens file uses unsupported format version {document?.Version.ToString(CultureInfo.InvariantCulture) ?? "unknown"}. " +
-                    "It was left unchanged so it can be recovered with a compatible Voltura Air version.");
+                return new([], "The Custom screens file is invalid. It was left unchanged.");
             }
 
             if (!CustomScreenValidator.TryValidateCollection(document.Screens, out var error))
@@ -71,7 +69,9 @@ public sealed class CustomScreenStore : ICustomScreenStore
             return false;
         }
 
-        var json = JsonSerializer.Serialize(new CustomScreenDocument(CurrentVersion, screens), JsonOptions.Default);
+        var json = JsonSerializer.Serialize(
+            new CustomScreenDocument(CurrentVersion, screens),
+            CustomScreenJson.Exact);
         if (Encoding.UTF8.GetByteCount(json) > CustomScreenLimits.MaxStoreBytes)
         {
             failureReason = "The Custom screens library is too large to save.";
@@ -94,6 +94,27 @@ public sealed class CustomScreenStore : ICustomScreenStore
         finally
         {
             TryDelete(temporaryPath);
+        }
+    }
+
+    public bool TryDeleteInvalid(out string failureReason)
+    {
+        if (Load().Succeeded)
+        {
+            failureReason = "The Custom screens file is no longer invalid and was not deleted.";
+            return false;
+        }
+
+        try
+        {
+            File.Delete(_filePath);
+            failureReason = string.Empty;
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException)
+        {
+            failureReason = $"The invalid Custom screens file could not be deleted: {ex.Message}";
+            return false;
         }
     }
 
@@ -126,6 +147,12 @@ public sealed class InMemoryCustomScreenStore : ICustomScreenStore
         failureReason = string.Empty;
         return true;
     }
+
+    public bool TryDeleteInvalid(out string failureReason)
+    {
+        failureReason = "There is no invalid Custom screens file.";
+        return false;
+    }
 }
 
 internal static class CustomScreenValidator
@@ -148,7 +175,8 @@ internal static class CustomScreenValidator
         "corner-down-left", "escape", "keyboard", "clipboard", "copy", "app-window",
         "monitor", "minimize", "square-x", "search", "refresh", "maximize", "command"
     ];
-    private static readonly HashSet<string> ActionKinds = ["text", "shortcut", "appLaunch", "builtIn"];
+    private static readonly HashSet<string> ActionKinds =
+        ["text", "shortcut", "appLaunch", "builtIn", "urlOpen", "knownApp", "hostAction"];
     private static readonly HashSet<string> Modifiers = ["Control", "Shift", "Alt", "AltGr", "Win"];
 
     public static bool TryValidateCollection(
@@ -299,17 +327,43 @@ internal static class CustomScreenValidator
 
         return action.Kind switch
         {
-            "text" => ValidText(action.Text, CustomScreenLimits.MaxTextLength),
+            "text" => ValidText(action.Text, CustomScreenLimits.MaxTextLength) &&
+                HasOnly(action, text: true),
             "shortcut" => CustomScreenShortcutKeys.TryNormalize(action.Key, out _) &&
+                action.Modifiers is not null &&
                 (action.Modifiers?.Count ?? 0) <= 5 &&
                 (action.Modifiers ?? []).Distinct(StringComparer.Ordinal).Count() ==
                     (action.Modifiers?.Count ?? 0) &&
-                (action.Modifiers ?? []).All(Modifiers.Contains),
-            "appLaunch" => ValidId(action.ActionId),
-            "builtIn" => CustomScreenBuiltIns.IsSupported(action.BuiltIn),
+                (action.Modifiers ?? []).All(Modifiers.Contains) &&
+                HasOnly(action, key: true, modifiers: true),
+            "appLaunch" => ValidId(action.ActionId) && HasOnly(action, actionId: true),
+            "builtIn" => CustomScreenBuiltIns.IsSupported(action.BuiltIn) &&
+                HasOnly(action, builtIn: true),
+            "urlOpen" => action.Url is not null &&
+                UrlOpenService.TryNormalize(action.Url, out _, out _, out _) &&
+                HasOnly(action, url: true),
+            "knownApp" => KnownAppProfiles.IsSupported(action.ActionId) &&
+                HasOnly(action, actionId: true),
+            "hostAction" => CustomScreenHostActions.IsSupported(action.ActionId) &&
+                HasOnly(action, actionId: true),
             _ => false
         };
     }
+
+    private static bool HasOnly(
+        CustomScreenAction action,
+        bool text = false,
+        bool key = false,
+        bool modifiers = false,
+        bool actionId = false,
+        bool builtIn = false,
+        bool url = false) =>
+        (text || action.Text is null) &&
+        (key || action.Key is null) &&
+        (modifiers || action.Modifiers is null) &&
+        (actionId || action.ActionId is null) &&
+        (builtIn || action.BuiltIn is null) &&
+        (url || action.Url is null);
 
     private static bool ValidOverride(CustomScreenLayoutOverride? value, bool section) =>
         value is null ||

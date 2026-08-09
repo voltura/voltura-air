@@ -22,6 +22,9 @@ CREATE TABLE air_screen_packages (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     approved_at DATETIME NULL,
+    official_id VARCHAR(64) NULL UNIQUE,
+    is_official BOOLEAN NOT NULL DEFAULT FALSE,
+    official_metadata JSON NULL,
     FOREIGN KEY (owner_id) REFERENCES air_screen_users(id),
     INDEX idx_air_screen_search (status, name),
     INDEX idx_air_screen_popularity (status, downloads)

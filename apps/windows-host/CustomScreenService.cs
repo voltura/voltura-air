@@ -9,6 +9,8 @@ public sealed class CustomScreenService
     private readonly IAppLaunchService _appLaunchService;
     private readonly CustomScreenMobileProjection _mobileProjection;
     private List<CustomScreenDefinition> _screens;
+    private readonly Dictionary<string, CustomScreenDefinition> _draftPreviews =
+        new(StringComparer.Ordinal);
     private string _catalogRevision = NewRevision();
     private string? _loadError;
 
@@ -62,6 +64,34 @@ public sealed class CustomScreenService
 
     public IReadOnlyList<AppLaunchActionSummary> GetApprovedAppActions() =>
         _appLaunchService.GetActions();
+
+    public IReadOnlyList<KnownAppProfileSummary> GetKnownAppProfiles() =>
+        _appLaunchService.GetKnownApplications();
+
+    public bool TryDeleteInvalidData(out string error)
+    {
+        lock (_gate)
+        {
+            if (_loadError is null)
+            {
+                error = "There is no invalid Custom screens file.";
+                return false;
+            }
+
+            if (!_store.TryDeleteInvalid(out error))
+            {
+                return false;
+            }
+
+            _screens = [];
+            _loadError = null;
+            _catalogRevision = NewRevision();
+        }
+
+        error = string.Empty;
+        Changed?.Invoke(this, EventArgs.Empty);
+        return true;
+    }
 
     public static CustomScreenDefinition CreateDraft() =>
         CustomScreenDraftFactory.CreateDraft();
@@ -418,7 +448,10 @@ public sealed class CustomScreenService
         string screenId,
         bool canUseRemoteInput,
         bool canLaunchApps,
-        bool canControlVolume = true)
+        bool canControlVolume = true,
+        bool canOpenUrls = false,
+        HostPermissionSet? permissions = null,
+        IReadOnlySet<string>? unavailableHostActions = null)
     {
         CustomScreenDefinition? screen;
         lock (_gate)
@@ -434,19 +467,67 @@ public sealed class CustomScreenService
                 screen,
                 canUseRemoteInput,
                 canLaunchApps,
-                canControlVolume);
+                canControlVolume,
+                canOpenUrls,
+                permissions ?? new HostPermissionSet(),
+                unavailableHostActions);
     }
 
     public CustomScreenMobileDefinition? GetPreviewDefinition(string screenId)
     {
-        var screen = Find(screenId);
+        CustomScreenDefinition? screen;
+        lock (_gate)
+        {
+            screen = _draftPreviews.GetValueOrDefault(screenId) ??
+                _screens.FirstOrDefault(candidate =>
+                    string.Equals(candidate.Id, screenId, StringComparison.Ordinal));
+        }
         return screen is null
             ? null
             : _mobileProjection.ToMobile(
                 screen,
                 canUseRemoteInput: true,
                 canLaunchApps: true,
-                canControlVolume: true);
+                canControlVolume: true,
+                canOpenUrls: true,
+                permissions: new HostPermissionSet(
+                    AllowPcSleep: true,
+                    AllowDisplayControl: true,
+                    AllowPcLock: true,
+                    AllowRestart: true,
+                    AllowShutdown: true));
+    }
+
+    internal CustomScreenDraftPreviewLease BeginDraftPreview(
+        CustomScreenDefinition draft)
+    {
+        var previewId = $"validation.{Guid.NewGuid():N}";
+        lock (_gate)
+        {
+            if (_draftPreviews.Count >= 4)
+            {
+                throw new InvalidOperationException(
+                    "Too many Custom Screen validations are already running.");
+            }
+
+            _draftPreviews.Add(previewId, draft with
+            {
+                Id = previewId,
+                AssignedClientIds = []
+            });
+        }
+
+        return new CustomScreenDraftPreviewLease(
+            previewId,
+            () => EndDraftPreview(previewId));
+    }
+
+    private void EndDraftPreview(string previewId)
+    {
+        lock (_gate)
+        {
+            _draftPreviews.Remove(previewId);
+        }
     }
 
     private static string DuplicateName(string sourceName)
@@ -473,7 +554,14 @@ public sealed class CustomScreenService
                 screen,
                 canUseRemoteInput: true,
                 canLaunchApps: true,
-                canControlVolume: true);
+                canControlVolume: true,
+                canOpenUrls: true,
+                permissions: new HostPermissionSet(
+                    AllowPcSleep: true,
+                    AllowDisplayControl: true,
+                    AllowPcLock: true,
+                    AllowRestart: true,
+                    AllowShutdown: true));
         var bytes = JsonSerializer.SerializeToUtf8Bytes(new
         {
             type = "custom.screen.get.result",
@@ -505,4 +593,15 @@ public sealed class CustomScreenService
         public AppLaunchExecutionResult ExecutePowerPointFile(string path) =>
             new(false, "not-configured", "Application action unavailable.");
     }
+}
+
+internal sealed class CustomScreenDraftPreviewLease(
+    string screenId,
+    Action release) : IDisposable
+{
+    private Action? _release = release;
+
+    public string ScreenId { get; } = screenId;
+
+    public void Dispose() => Interlocked.Exchange(ref _release, null)?.Invoke();
 }

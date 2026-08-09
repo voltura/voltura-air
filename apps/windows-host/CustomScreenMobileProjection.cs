@@ -7,8 +7,25 @@ internal sealed class CustomScreenMobileProjection(
         CustomScreenDefinition screen,
         bool canUseRemoteInput,
         bool canLaunchApps,
-        bool canControlVolume) =>
-        new(
+        bool canControlVolume,
+        bool canOpenUrls,
+        HostPermissionSet permissions,
+        IReadOnlySet<string>? unavailableHostActions = null)
+    {
+        var availableAppActions = appLaunchService.GetActions()
+            .Select(item => item.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        var availableKnownApps = appLaunchService.GetKnownApplications()
+            .Where(item => item.Available)
+            .Select(item => item.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        var requiredKnownApp = CustomScreenKnownAppDependency.Find(screen);
+        var requiredKnownAppAvailable = requiredKnownApp is null ||
+            availableKnownApps.Contains(requiredKnownApp);
+        var requiredKnownAppReason = requiredKnownApp is null || requiredKnownAppAvailable
+            ? null
+            : CustomScreenKnownAppDependency.UnavailableReason(requiredKnownApp);
+        return new(
             screen.Id,
             screen.Name,
             screen.Revision,
@@ -19,13 +36,28 @@ internal sealed class CustomScreenMobileProjection(
                     section,
                     canUseRemoteInput,
                     canLaunchApps,
-                    canControlVolume))]);
+                    canControlVolume,
+                    canOpenUrls,
+                    permissions,
+                    availableAppActions,
+                    availableKnownApps,
+                    unavailableHostActions ?? EmptyHostActions.Instance,
+                    requiredKnownAppAvailable,
+                    requiredKnownAppReason))]);
+    }
 
-    private CustomScreenMobileSection ToMobileSection(
+    private static CustomScreenMobileSection ToMobileSection(
         CustomScreenSection section,
         bool canUseRemoteInput,
         bool canLaunchApps,
-        bool canControlVolume) =>
+        bool canControlVolume,
+        bool canOpenUrls,
+        HostPermissionSet permissions,
+        IReadOnlySet<string> availableAppActions,
+        IReadOnlySet<string> availableKnownApps,
+        IReadOnlySet<string> unavailableHostActions,
+        bool requiredKnownAppAvailable,
+        string? requiredKnownAppReason) =>
         new(
             section.Id,
             section.Name,
@@ -42,7 +74,19 @@ internal sealed class CustomScreenMobileProjection(
                 var availability = ResolveAvailability(
                     button.Action,
                     canUseRemoteInput,
-                    canLaunchApps);
+                    canLaunchApps,
+                    canOpenUrls,
+                    permissions,
+                    availableAppActions,
+                    availableKnownApps,
+                    unavailableHostActions);
+                if (!requiredKnownAppAvailable)
+                {
+                    availability = (false, requiredKnownAppReason);
+                }
+                var hostAction = button.Action.Kind == "hostAction"
+                    ? CustomScreenHostActions.Find(button.Action.ActionId)
+                    : null;
                 return new CustomScreenMobileButton(
                     button.Id,
                     button.Name,
@@ -56,7 +100,9 @@ internal sealed class CustomScreenMobileProjection(
                     button.Landscape,
                     availability.Enabled,
                     availability.Reason,
-                    button.Row);
+                    button.Row,
+                    hostAction?.Confirmation == "none" ? null : hostAction?.Confirmation,
+                    hostAction?.ConfirmationMessage);
             })],
             CustomScreenSectionKinds.IsTrackpad(section.Kind)
                 ? "trackpad"
@@ -70,20 +116,29 @@ internal sealed class CustomScreenMobileProjection(
             section.TrackpadLeftClick,
             section.TrackpadRightClick,
             section.TrackpadButtonSide,
-            canUseRemoteInput,
-            canUseRemoteInput
-                ? null
-                : "Remote input is disabled for this device on the PC.",
+            requiredKnownAppAvailable && canUseRemoteInput,
+            !requiredKnownAppAvailable
+                ? requiredKnownAppReason
+                : canUseRemoteInput
+                    ? null
+                    : "Remote input is disabled for this device on the PC.",
             section.TrackpadFullscreenControl,
-            canControlVolume,
-            canControlVolume
-                ? null
-                : "Volume control is disabled for this device on the PC.");
+            requiredKnownAppAvailable && canControlVolume,
+            !requiredKnownAppAvailable
+                ? requiredKnownAppReason
+                : canControlVolume
+                    ? null
+                    : "Volume control is disabled for this device on the PC.");
 
-    private (bool Enabled, string? Reason) ResolveAvailability(
+    private static (bool Enabled, string? Reason) ResolveAvailability(
         CustomScreenAction action,
         bool canUseRemoteInput,
-        bool canLaunchApps)
+        bool canLaunchApps,
+        bool canOpenUrls,
+        HostPermissionSet permissions,
+        IReadOnlySet<string> availableAppActions,
+        IReadOnlySet<string> availableKnownApps,
+        IReadOnlySet<string> unavailableHostActions)
     {
         if (action.Kind == "appLaunch")
         {
@@ -94,15 +149,42 @@ internal sealed class CustomScreenMobileProjection(
                     "Application launch is disabled for this device on the PC.");
             }
 
-            return appLaunchService.GetActions().Any(item =>
-                string.Equals(
-                    item.Id,
-                    action.ActionId,
-                    StringComparison.Ordinal))
+            return action.ActionId is not null && availableAppActions.Contains(action.ActionId)
                 ? (true, null)
                 : (
                     false,
                     "This approved application action is no longer available.");
+        }
+
+        if (action.Kind == "knownApp")
+        {
+            if (!canLaunchApps)
+            {
+                return (false, "Application launch is disabled for this device on the PC.");
+            }
+
+            return action.ActionId is not null && availableKnownApps.Contains(action.ActionId)
+                ? (true, null)
+                : (false, "This known application is unavailable on the PC.");
+        }
+
+        if (action.Kind == "urlOpen")
+        {
+            return canOpenUrls
+                ? (true, null)
+                : (false, "Opening web addresses is disabled for this device on the PC.");
+        }
+
+        if (action.Kind == "hostAction")
+        {
+            if (action.ActionId is not null && unavailableHostActions.Contains(action.ActionId))
+            {
+                return (false, "This host or system action is unavailable on this PC.");
+            }
+
+            return CustomScreenHostActions.IsPermitted(action.ActionId, permissions)
+                ? (true, null)
+                : (false, "This host or system action is disabled for this device on the PC.");
         }
 
         return canUseRemoteInput
@@ -110,5 +192,10 @@ internal sealed class CustomScreenMobileProjection(
             : (
                 false,
                 "Remote input is disabled for this device on the PC.");
+    }
+
+    private sealed class EmptyHostActions : HashSet<string>
+    {
+        public static EmptyHostActions Instance { get; } = new();
     }
 }

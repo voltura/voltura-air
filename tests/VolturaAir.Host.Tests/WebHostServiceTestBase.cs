@@ -314,7 +314,8 @@ public abstract class WebHostServiceTestBase : IsolatedHostSettingsTest
 
     protected sealed class FakeAppLaunchService(
         IReadOnlyList<AppLaunchActionSummary> actions,
-        AppLaunchExecutionResult result) : IAppLaunchService
+        AppLaunchExecutionResult result,
+        IReadOnlyList<KnownAppProfileSummary>? knownApplications = null) : IAppLaunchService
     {
         public List<string> ActionIds { get; } = new();
 
@@ -326,7 +327,18 @@ public abstract class WebHostServiceTestBase : IsolatedHostSettingsTest
             return result;
         }
 
+        public AppLaunchExecutionResult ExecuteKnown(string profileId)
+        {
+            ActionIds.Add(profileId);
+            return result;
+        }
+
         public AppLaunchExecutionResult ExecutePowerPointFile(string path) => result;
+
+        public IReadOnlyList<KnownAppProfileSummary> GetKnownApplications() =>
+            knownApplications ??
+            [.. KnownAppProfiles.All.Select(profile =>
+                new KnownAppProfileSummary(profile.Id, profile.Label, true))];
     }
 
     protected sealed class FakeAudioController : ISystemAudioController

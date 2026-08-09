@@ -53,6 +53,10 @@
     "relay:setup": "pwsh -NoProfile -File scripts/relay-setup.ps1",
     "relay:usage": "pwsh -NoProfile -File scripts/relay-usage.ps1",
     "screenshots:site": "node scripts/capture-site-screenshots.mjs",
+    "screens:generate": "node scripts/generate-custom-screens.mjs",
+    "screens:check": "node scripts/generate-custom-screens.mjs --check && node scripts/check-custom-screen-layouts.mjs",
+    "screens:official": "node scripts/generate-custom-screens.mjs --official",
+    "screens:layout-check": "node scripts/check-custom-screen-layouts.mjs",
     "site:dev:init": "pwsh -NoProfile -File scripts/site-dev-init.ps1",
     "site:dev:admin": "pwsh -NoProfile -File scripts/site-dev-admin.ps1",
     "site:dev": "pwsh -NoProfile -File scripts/site-dev.ps1",
@@ -71,6 +75,7 @@
     "test:web": "npm run test --workspace apps/mobile-web -- --run",
     "test:host": "dotnet test VolturaAir.slnx",
     "test:scripts": "node --test tests/scripts/*.test.mjs",
+    "test:site-import-integration": "cross-env VOLTURA_AIR_SCREENS_CONFIG=.site-dev/config.php php -c .site-dev/php.ini -d extension=zip tests/site-official-import-integration.php",
     "test:ui": "node scripts/dev-ui-with-devices.mjs --smoke-test",
     "ui:tokens:check": "node scripts/generate-ui-tokens.mjs --check",
     "ui:tokens:generate": "node scripts/generate-ui-tokens.mjs"

@@ -38,6 +38,9 @@
                               Content="Confirm on hide"
                               Checked="OnConfirmHidesChanged"
                               Unchecked="OnConfirmHidesChanged" />
+                    <Button Content="Browse library"
+                            ToolTip="Open the Custom Screens community library in your browser"
+                            Click="OnBrowseLibrary" />
                     <Button Content="Import screen"
                             Click="OnImportScreen" />
                     <Button Content="New screen"
@@ -77,11 +80,18 @@
                 <ui:SpacingStackPanel Grid.Column="4" Orientation="Horizontal" Spacing="8">
                     <Button x:Name="UndoButton" Content="Undo" IsEnabled="False" Click="OnUndo" />
                     <Button x:Name="RedoButton" Content="Redo" IsEnabled="False" Click="OnRedo" />
+                    <Button x:Name="ValidateButton"
+                            Content="Validate"
+                            AutomationProperties.Name="Validate custom screen"
+                            Click="OnValidate" />
                     <Button x:Name="EditorPreviewButton"
                             Content="Preview"
                             IsEnabled="False"
                             AutomationProperties.Name="Preview saved custom screen" />
-                    <Button Content="Save" Style="{DynamicResource PrimaryButtonStyle}" Click="OnSave" />
+                    <Button x:Name="SaveButton"
+                            Content="Save"
+                            Style="{DynamicResource PrimaryButtonStyle}"
+                            Click="OnSave" />
                 </ui:SpacingStackPanel>
             </Grid>
 

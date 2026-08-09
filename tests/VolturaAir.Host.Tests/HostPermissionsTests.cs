@@ -15,7 +15,7 @@ public sealed class HostPermissionsTests
         Assert.False(HostPermissions.DefaultGlobal.AllowUrlOpen);
         Assert.True(HostPermissions.DefaultGlobal.AllowPcLock);
         Assert.True(HostPermissions.DefaultGlobal.AllowBlackoutDisplay);
-        Assert.False(HostPermissions.DefaultGlobal.AllowDisplayOff);
+        Assert.False(HostPermissions.DefaultGlobal.AllowDisplayControl);
         Assert.True(HostPermissions.DefaultGlobal.AllowScreenSaver);
         Assert.False(HostPermissions.DefaultGlobal.AllowAwakeControl);
         Assert.False(HostPermissions.DefaultGlobal.AllowSignOut);
@@ -164,7 +164,7 @@ public sealed class HostPermissionsTests
         var global = new HostPermissionSet(
             AllowPcLock: false,
             AllowBlackoutDisplay: false,
-            AllowDisplayOff: true,
+            AllowDisplayControl: true,
             AllowScreenSaver: false,
             AllowSignOut: false,
             AllowRestart: true,
@@ -172,7 +172,7 @@ public sealed class HostPermissionsTests
         var overrides = new DevicePermissionOverrides(
             AllowPcLock: true,
             AllowBlackoutDisplay: true,
-            AllowDisplayOff: false,
+            AllowDisplayControl: false,
             AllowScreenSaver: true,
             AllowAwakeControl: true,
             AllowSignOut: true,
@@ -183,7 +183,7 @@ public sealed class HostPermissionsTests
 
         Assert.True(effective.AllowPcLock);
         Assert.True(effective.AllowBlackoutDisplay);
-        Assert.False(effective.AllowDisplayOff);
+        Assert.False(effective.AllowDisplayControl);
         Assert.True(effective.AllowScreenSaver);
         Assert.True(effective.AllowSignOut);
         Assert.False(effective.AllowRestart);
@@ -208,7 +208,7 @@ public sealed class HostPermissionsTests
             AllowUrlOpen: true,
             AllowPcLock: true,
             AllowBlackoutDisplay: true,
-            AllowDisplayOff: true,
+            AllowDisplayControl: true,
             AllowScreenSaver: true,
             AllowAwakeControl: true,
             AllowSignOut: true,
@@ -223,7 +223,7 @@ public sealed class HostPermissionsTests
         Assert.True(reloaded.AllowUrlOpen);
         Assert.True(reloaded.AllowPcLock);
         Assert.True(reloaded.AllowBlackoutDisplay);
-        Assert.True(reloaded.AllowDisplayOff);
+        Assert.True(reloaded.AllowDisplayControl);
         Assert.True(reloaded.AllowScreenSaver);
         Assert.True(reloaded.AllowAwakeControl);
         Assert.True(reloaded.AllowSignOut);
@@ -237,7 +237,7 @@ public sealed class HostPermissionsTests
         Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowUrlOpen);
         Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowPcLock);
         Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowBlackoutDisplay);
-        Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowDisplayOff);
+        Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowDisplayControl);
         Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowScreenSaver);
         Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowAwakeControl);
         Assert.Null(manager.GetDevicePermissionOverrides("client-a").AllowSignOut);

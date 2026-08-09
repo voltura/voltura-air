@@ -13,7 +13,7 @@ public static class AppPermissionSettings
     private const string AllowUrlOpenValueName = "AllowUrlOpen";
     private const string AllowPcLockValueName = "AllowPcLock";
     private const string AllowBlackoutDisplayValueName = "AllowBlackoutDisplay";
-    private const string AllowDisplayOffValueName = "AllowDisplayOff";
+    private const string AllowDisplayControlValueName = "AllowDisplayControl";
     private const string AllowScreenSaverValueName = "AllowScreenSaver";
     private const string AllowAwakeControlValueName = "AllowAwakeControl";
     private const string AllowClipboardReadValueName = "AllowClipboardRead";
@@ -53,7 +53,7 @@ public static class AppPermissionSettings
         key.SetValue(AllowUrlOpenValueName, permissions.AllowUrlOpen ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowPcLockValueName, permissions.AllowPcLock ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowBlackoutDisplayValueName, permissions.AllowBlackoutDisplay ? 1 : 0, RegistryValueKind.DWord);
-        key.SetValue(AllowDisplayOffValueName, permissions.AllowDisplayOff ? 1 : 0, RegistryValueKind.DWord);
+        key.SetValue(AllowDisplayControlValueName, permissions.AllowDisplayControl ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowScreenSaverValueName, permissions.AllowScreenSaver ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowAwakeControlValueName, permissions.AllowAwakeControl ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(AllowClipboardReadValueName, permissions.AllowClipboardRead ? 1 : 0, RegistryValueKind.DWord);
@@ -91,7 +91,7 @@ public static class AppPermissionSettings
                 AllowUrlOpen: GetBooleanValue(key, AllowUrlOpenValueName, HostPermissions.DefaultGlobal.AllowUrlOpen),
                 AllowPcLock: GetBooleanValue(key, AllowPcLockValueName, HostPermissions.DefaultGlobal.AllowPcLock),
                 AllowBlackoutDisplay: GetBooleanValue(key, AllowBlackoutDisplayValueName, HostPermissions.DefaultGlobal.AllowBlackoutDisplay),
-                AllowDisplayOff: GetBooleanValue(key, AllowDisplayOffValueName, HostPermissions.DefaultGlobal.AllowDisplayOff),
+                AllowDisplayControl: GetBooleanValue(key, AllowDisplayControlValueName, HostPermissions.DefaultGlobal.AllowDisplayControl),
                 AllowScreenSaver: GetBooleanValue(key, AllowScreenSaverValueName, HostPermissions.DefaultGlobal.AllowScreenSaver),
                 AllowAwakeControl: GetBooleanValue(key, AllowAwakeControlValueName, HostPermissions.DefaultGlobal.AllowAwakeControl),
                 AllowClipboardRead: GetBooleanValue(key, AllowClipboardReadValueName, HostPermissions.DefaultGlobal.AllowClipboardRead),

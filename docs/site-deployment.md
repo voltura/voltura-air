@@ -37,6 +37,10 @@ Sites initialized before catalog ratings were added must import
 created from the current `schema.sql` already contain that table and must not
 run the migration separately.
 
+Sites initialized before official-screen bulk import was added must import
+`docs/site/screens/migration-003-official-screens.sql` once. Fresh databases
+created from the current `schema.sql` already contain those columns and index.
+
 Sites initialized before reviewer feedback was added must run this once in
 phpMyAdmin; no repository migration file is required:
 
@@ -49,6 +53,16 @@ Create the first administrator by changing the account's `role` to `admin`
 after registration. Uploads remain pending until approved. The Windows app's
 installer registers the `voltura-air://` protocol; catalog links still provide
 a normal download fallback.
+
+Generate the official collection with `npm run screens:official`. After every
+included target passes the current Windows 11 smoke matrix, an administrator
+uploads `artifacts/custom-screens/voltura-official-screens.zip` through
+**Moderate** and explicitly confirms that matrix. The importer validates the
+whole manifest and every exact-format package before one transaction; any
+failure rejects the bundle, while stable official IDs preserve ratings and
+download counters on updates. Imports are serialized with a MariaDB advisory
+lock. If commit outcome cannot be proven, content-addressed package files are
+retained so a committed row can never be left without its package.
 
 ### Local development
 
@@ -91,6 +105,11 @@ This serves `docs/site` at `http://127.0.0.1:8765/` and enables the loopback-onl
 session-cookie override needed for HTTP development. MariaDB must be running.
 Use `npm run site:dev -- -Port 8766` to select another web port. Production
 continues to require Secure session cookies and `docs/site/config.php`.
+
+After initializing the isolated local catalog, run
+`npm run test:site-import-integration`. It exercises all official-import write
+and rollback boundaries against local MariaDB, verifies stable row IDs plus
+download/rating preservation, and removes its test rows and files.
 
 ## Public-copy contract
 

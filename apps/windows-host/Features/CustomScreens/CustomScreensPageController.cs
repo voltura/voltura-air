@@ -9,7 +9,9 @@ internal sealed class CustomScreensPageController(
     Func<string, CustomScreenViewport?, bool?, string?, UrlOpenExecutionResult> openPreview,
     Action closePreviews,
     CustomScreenEditorActivityLog activityLog,
-    Action<string> showToast)
+    Action<string> showToast,
+    Func<CustomScreenDefinition, CancellationToken,
+        Task<CustomScreenValidationReport>>? validateDraft = null)
 {
     private CustomScreensPageView? _view;
 
@@ -23,7 +25,8 @@ internal sealed class CustomScreensPageController(
             screenId => openPreview(screenId, null, null, null),
             (screenId, viewport, controlDepth, clientId) =>
                 openPreview(screenId, viewport, controlDepth, clientId),
-            activityLog);
+            activityLog,
+            validateDraft: validateDraft);
         return _view;
     }
 

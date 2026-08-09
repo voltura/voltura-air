@@ -173,7 +173,7 @@ internal sealed class HostStatusPayloadFactory(
             @lock = permissions.AllowPcLock,
             lockAvailability = ToProtocolLockAvailability(lockStatus.State),
             blackoutDisplay = permissions.AllowBlackoutDisplay,
-            displayOff = permissions.AllowDisplayOff,
+            displayOff = permissions.AllowDisplayControl,
             screenSaver = permissions.AllowScreenSaver,
             screenSaverAvailable = powerController.IsActionAvailable(SystemPowerActions.ScreenSaver),
             signOut = permissions.AllowSignOut,

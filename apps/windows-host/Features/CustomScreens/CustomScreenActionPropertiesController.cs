@@ -18,10 +18,13 @@ internal sealed class CustomScreenActionPropertiesController(
             panel,
             "Action type",
             [
-                ("Built-in", "builtIn"),
-                ("Key or shortcut", "shortcut"),
+                ("Keyboard shortcut", "shortcut"),
+                ("Built-in control", "builtIn"),
+                ("Open website", "urlOpen"),
+                ("Known application", "knownApp"),
+                ("Host/system action", "hostAction"),
                 ("Text", "text"),
-                ("Approved application", "appLaunch")
+                ("Host-local application", "appLaunch")
             ],
             button.Action.Kind,
             kind =>
@@ -72,6 +75,37 @@ internal sealed class CustomScreenActionPropertiesController(
             case "appLaunch":
                 AddApprovedApplicationProperty(button, options);
                 break;
+            case "urlOpen":
+                AddTextProperty(
+                    options,
+                    "Website URL (HTTP or HTTPS)",
+                    button.Action.Url ?? "https://example.com/",
+                    value => updateButton(button with
+                    {
+                        Action = new CustomScreenAction("urlOpen", Url: value)
+                    }),
+                    UrlOpenLimits.MaxUrlLength);
+                break;
+            case "knownApp":
+                AddKnownApplicationProperty(button, options);
+                break;
+            case "hostAction":
+                AddTaggedChoiceProperty(
+                    options,
+                    "Host/system action",
+                    [.. CustomScreenHostActions.All.Select(action => (action.Label, action.Id))],
+                    button.Action.ActionId ?? "power.lock",
+                    value => updateButton(button with
+                    {
+                        Action = new CustomScreenAction("hostAction", ActionId: value)
+                    }));
+                options.Children.Add(new TextBlock
+                {
+                    Text = "Power and display actions use their dedicated host permissions. Restart and shutdown require hold-to-confirm on mobile.",
+                    TextWrapping = TextWrapping.Wrap,
+                    Foreground = brush("MutedTextBrush")
+                });
+                break;
             default:
                 AddTaggedChoiceProperty(
                     options,
@@ -87,6 +121,24 @@ internal sealed class CustomScreenActionPropertiesController(
                     }));
                 break;
         }
+    }
+
+    private void AddKnownApplicationProperty(
+        CustomScreenButton button,
+        StackPanel panel)
+    {
+        var profiles = service.GetKnownAppProfiles();
+        AddTaggedChoiceProperty(
+            panel,
+            "Known application",
+            [.. profiles.Select(profile => (
+                profile.Available ? profile.Label : $"{profile.Label} (unavailable)",
+                profile.Id))],
+            button.Action.ActionId ?? "browser",
+            value => updateButton(button with
+            {
+                Action = new CustomScreenAction("knownApp", ActionId: value)
+            }));
     }
 
     private void AddShortcutProperties(
@@ -136,6 +188,9 @@ internal sealed class CustomScreenActionPropertiesController(
             "appLaunch" => new CustomScreenAction(
                 "appLaunch",
                 ActionId: approvedActions.Count > 0 ? approvedActions[0].Id : "unavailable"),
+            "urlOpen" => new CustomScreenAction("urlOpen", Url: "https://example.com/"),
+            "knownApp" => new CustomScreenAction("knownApp", ActionId: "browser"),
+            "hostAction" => new CustomScreenAction("hostAction", ActionId: "power.lock"),
             _ => new CustomScreenAction("builtIn", BuiltIn: "media.playPause")
         };
     }
@@ -144,13 +199,14 @@ internal sealed class CustomScreenActionPropertiesController(
         StackPanel panel,
         string label,
         string value,
-        Action<string> update)
+        Action<string> update,
+        int maxLength = CustomScreenLimits.MaxTextLength)
     {
         panel.Children.Add(CreatePropertyLabel(label));
         var input = new TextBox
         {
             Text = value,
-            MaxLength = CustomScreenLimits.MaxTextLength,
+            MaxLength = maxLength,
             Padding = new Thickness(8, 5, 8, 5)
         };
         AutomationProperties.SetName(input, label);

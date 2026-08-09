@@ -311,7 +311,7 @@ internal enum DevicePermissionKind
     UrlOpen,
     PcLock,
     BlackoutDisplay,
-    DisplayOff,
+    DisplayControl,
     ScreenSaver,
     AwakeControl,
     ClipboardRead,

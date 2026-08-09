@@ -7,7 +7,9 @@ internal sealed class CustomScreenCommandHandler(
     HostStatusPayloadFactory statusFactory,
     InputDispatcher inputDispatcher,
     ISystemPowerController powerController,
+    IWorkstationLockPolicy workstationLockPolicy,
     IAppLaunchService appLaunchService,
+    IUrlOpenService urlOpenService,
     WebSocketTransport transport,
     IAppLogWriter appLog)
 {
@@ -23,7 +25,16 @@ internal sealed class CustomScreenCommandHandler(
             screenId,
             statusFactory.CanUseRemoteInput(clientId),
             statusFactory.CanLaunchRemoteApps(clientId),
-            statusFactory.CanControlVolume(clientId));
+            statusFactory.CanControlVolume(clientId),
+            statusFactory.CanOpenUrls(clientId),
+            statusFactory.GetEffectivePermissions(clientId),
+            CustomScreenHostActions.All
+                .Where(action => !CustomScreenHostActions.IsAvailable(
+                    action.Id,
+                    powerController,
+                    workstationLockPolicy))
+                .Select(action => action.Id)
+                .ToHashSet(StringComparer.Ordinal));
         return definition is null
             ? SendGetFailureAsync(
                 socket,
@@ -94,6 +105,18 @@ internal sealed class CustomScreenCommandHandler(
             return new(false, "button-not-found", "This button is no longer available.");
         }
 
+        var requiredKnownApp = CustomScreenKnownAppDependency.Find(screen);
+        if (requiredKnownApp is not null && !appLaunchService.GetKnownApplications()
+                .Any(application =>
+                    application.Available &&
+                    string.Equals(application.Id, requiredKnownApp, StringComparison.Ordinal)))
+        {
+            return new(
+                false,
+                "action-unavailable",
+                CustomScreenKnownAppDependency.UnavailableReason(requiredKnownApp));
+        }
+
         var action = button.Action;
         if (action.Kind == "appLaunch")
         {
@@ -104,6 +127,48 @@ internal sealed class CustomScreenCommandHandler(
 
             var launch = appLaunchService.Execute(action.ActionId ?? string.Empty);
             return new(launch.Succeeded, launch.Code, launch.Message);
+        }
+
+        if (action.Kind == "knownApp")
+        {
+            if (!statusFactory.CanLaunchRemoteApps(clientId))
+            {
+                return new(false, "permission-denied", "Application launch is disabled for this device on the PC.");
+            }
+
+            var launch = appLaunchService.ExecuteKnown(action.ActionId ?? string.Empty);
+            return new(launch.Succeeded, launch.Code, launch.Message);
+        }
+
+        if (action.Kind == "urlOpen")
+        {
+            if (!statusFactory.CanOpenUrls(clientId))
+            {
+                return new(false, "permission-denied", "Opening web addresses is disabled for this device on the PC.");
+            }
+
+            var opened = urlOpenService.Execute(action.Url ?? string.Empty);
+            return new(opened.Succeeded, opened.Code, opened.Message);
+        }
+
+        if (action.Kind == "hostAction")
+        {
+            var actionId = action.ActionId ?? string.Empty;
+            var permissions = statusFactory.GetEffectivePermissions(clientId);
+            if (!CustomScreenHostActions.IsPermitted(actionId, permissions))
+            {
+                return new(false, "permission-denied", "This host or system action is disabled for this device on the PC.");
+            }
+
+            if (!CustomScreenHostActions.IsAvailable(actionId, powerController, workstationLockPolicy))
+            {
+                return new(false, "action-unavailable", "This host or system action is unavailable on this PC.");
+            }
+
+            var result = CustomScreenHostActions.Execute(actionId, powerController);
+            return result.Succeeded
+                ? new(true, "executed", "System action accepted by Windows.")
+                : new(false, "dispatch-failed", "Windows did not complete this system action.");
         }
 
         if (!statusFactory.CanUseRemoteInput(clientId))

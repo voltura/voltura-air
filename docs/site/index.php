@@ -168,8 +168,7 @@
         >
           <table class="comparison-table">
             <caption>
-              Comparison of Voltura Air with Unified Remote, Remote Mouse, and
-              Monect PC Remote
+              Comparison of Voltura Air with Remote Mouse and Monect PC Remote
             </caption>
             <thead>
               <tr>
@@ -178,7 +177,6 @@
                   <span>Voltura Air</span>
                   <small>This product</small>
                 </th>
-                <th scope="col" class="comparison-product">Unified Remote</th>
                 <th scope="col" class="comparison-product">Remote Mouse</th>
                 <th scope="col" class="comparison-product">Monect PC Remote</th>
               </tr>
@@ -189,12 +187,10 @@
                 <td class="comparison-voltura"><strong class="comparison-status">Browser or installable PWA</strong>; no app-store installation</td>
                 <td><strong class="comparison-status">Native mobile app required</strong> for Android or iOS</td>
                 <td><strong class="comparison-status">Native mobile app required</strong> for Android or iOS</td>
-                <td><strong class="comparison-status">Native mobile app required</strong> for Android or iOS</td>
               </tr>
               <tr>
                 <th scope="row">Cost model</th>
                 <td class="comparison-voltura"><strong class="comparison-status">Included free</strong>; no trial, subscription, registration, or locked features</td>
-                <td><strong class="comparison-status">Free and paid versions</strong>; 18 essential remotes are free and 40+ premium remotes require Full</td>
                 <td>Free app with advertising, subscriptions, and individual feature purchases</td>
                 <td>Free app with advertising, subscriptions, and in-app purchases</td>
               </tr>
@@ -202,55 +198,47 @@
                 <th scope="row">Desktop host</th>
                 <td class="comparison-voltura">Windows 11</td>
                 <td>Windows, macOS, and Linux</td>
-                <td>Windows, macOS, and Linux</td>
                 <td>Windows</td>
               </tr>
               <tr>
                 <th scope="row">Connection scope</th>
                 <td class="comparison-voltura"><strong class="comparison-status">Direct or optional Cloud relay</strong>; both preserve pairing and per-device permissions</td>
-                <td>Wi-Fi or Bluetooth; manual internet access can be configured</td>
                 <td>Wi-Fi or Bluetooth</td>
                 <td>Local and remote Wi-Fi connections are advertised</td>
               </tr>
               <tr>
                 <th scope="row">Incoming PC firewall access</th>
                 <td class="comparison-voltura"><strong class="comparison-status">Not required in Cloud relay mode</strong>; the PC and phone both connect outward</td>
-                <td>Manual internet access uses router port forwarding and firewall configuration</td>
                 <td><strong class="comparison-status">Not documented</strong> for an equivalent outbound relay</td>
                 <td><strong class="comparison-status">Not documented</strong> for an equivalent outbound relay</td>
               </tr>
               <tr>
                 <th scope="row">Trackpad and keyboard</th>
                 <td class="comparison-voltura">Trackpad, gestures, two-axis scrolling, pinch zoom, Unicode typing, special and function keys, and shortcuts</td>
-                <td>Mouse, keyboard, and multi-touch basic input; extended keyboard is a <strong class="comparison-status">paid feature</strong></td>
                 <td>Mouse, gyro mouse, keyboard, touchpad, multi-touch gestures, voice-supported typing, and shortcuts</td>
                 <td>Mouse, keyboard, custom controls, and sensor-based input</td>
               </tr>
               <tr>
                 <th scope="row">Media and couch controls</th>
                 <td class="comparison-voltura">Media, volume, browser, YouTube, Kodi, window, desktop, and host-approved application controls</td>
-                <td>Generic media controls and application-specific remotes</td>
                 <td>Media remote, web remote, application switcher, volume, and power controls</td>
                 <td>Custom control layouts; specific media integrations are <strong class="comparison-status">not documented</strong></td>
               </tr>
               <tr>
                 <th scope="row">Presentation control</th>
                 <td class="comparison-voltura">PowerPoint, Google Slides, and PDF/browser presentations; laser pointer, timer, statistics, and optional reports</td>
-                <td>PowerPoint and presentation-oriented remotes</td>
                 <td>Presentation controls are advertised among its specialty controls</td>
                 <td>A dedicated presentation workflow is <strong class="comparison-status">not documented</strong></td>
               </tr>
               <tr>
                 <th scope="row">Text tools</th>
                 <td class="comparison-voltura">Dictation, composed text, reusable snippets, reviewed PC destinations, and host-permitted clipboard reads</td>
-                <td>Send Text remote</td>
                 <td>Voice-supported typing and cross-device text and image clipboard</td>
                 <td>Keyboard input; an equivalent text workflow is <strong class="comparison-status">not documented</strong></td>
               </tr>
               <tr>
                 <th scope="row">Custom control layouts</th>
                 <td class="comparison-voltura">Responsive visual editor with buttons, panels, trackpads, navigation rings, orientation layouts, previews, assignments, import, export, and reviewed community packages</td>
-                <td>Custom remotes are a <strong class="comparison-status">paid feature</strong> in the Full version</td>
                 <td>Interface and appearance customization; a comparable visual action-layout editor is <strong class="comparison-status">not documented</strong></td>
                 <td>Custom gaming and control layouts using buttons and device sensors</td>
               </tr>
@@ -259,40 +247,34 @@
                 <td class="comparison-voltura">Host-managed permissions and settings for each paired device</td>
                 <td><strong class="comparison-status">Not documented</strong></td>
                 <td><strong class="comparison-status">Not documented</strong></td>
-                <td><strong class="comparison-status">Not documented</strong></td>
               </tr>
               <tr>
                 <th scope="row">Application launching</th>
                 <td class="comparison-voltura">Host-approved application buttons, with paths and arguments kept on the PC</td>
-                <td>Numerous application-specific remotes</td>
                 <td>Application switcher and launcher</td>
                 <td>Custom controls and gaming layouts</td>
               </tr>
               <tr>
                 <th scope="row">PC power and session actions</th>
                 <td class="comparison-voltura">Keep awake, lock, blackout, screen saver, display off, sign out, restart, and shutdown when permitted</td>
-                <td>Power remote and Wake on LAN</td>
                 <td>Sleep, restart, shutdown, and logoff</td>
                 <td>PC control is advertised; specific power and session actions are <strong class="comparison-status">not documented</strong></td>
               </tr>
               <tr>
                 <th scope="row">Screen viewing or mirroring</th>
                 <td class="comparison-voltura"><strong class="comparison-status">Encrypted live mirror over Direct LAN or Cloud relay</strong>; one Windows display and one authorized viewer at a time, with adaptive desktop and video streaming</td>
-                <td>Screen Viewer is a <strong class="comparison-status">paid feature</strong></td>
                 <td><strong class="comparison-status">Not documented</strong> as a current core feature</td>
                 <td>Real-time PC screen sharing and remote viewing</td>
               </tr>
               <tr>
                 <th scope="row">File access or transfer</th>
                 <td class="comparison-voltura"><strong class="comparison-status">Touch-first host file manager</strong>; one or two panels, local and mapped drives, Windows clipboard operations, direct copy/move, background jobs, and host/per-device permissions. Files remain on the PC rather than transferring to the phone.</td>
-                <td>File and folder browsing remotes are available</td>
                 <td>Cross-device clipboard transfers text and images; general file transfer is <strong class="comparison-status">not documented</strong></td>
                 <td>File Explorer and file-transfer functionality are advertised</td>
               </tr>
               <tr>
                 <th scope="row">Gaming and virtual controllers</th>
                 <td class="comparison-voltura"><strong class="comparison-status">Not offered</strong></td>
-                <td>Custom remotes; a dedicated gaming-controller focus is <strong class="comparison-status">not documented</strong></td>
                 <td>Gyro mouse; a full virtual-gamepad focus is <strong class="comparison-status">not documented</strong></td>
                 <td>Gaming-focused layouts, custom buttons, and device sensors</td>
               </tr>
@@ -301,12 +283,10 @@
                 <td class="comparison-voltura">No account required for normal use</td>
                 <td><strong class="comparison-status">Not documented</strong></td>
                 <td><strong class="comparison-status">Not documented</strong></td>
-                <td><strong class="comparison-status">Not documented</strong></td>
               </tr>
               <tr>
                 <th scope="row">Open source</th>
                 <td class="comparison-voltura">MIT-licensed source available</td>
-                <td>Proprietary</td>
                 <td>Proprietary</td>
                 <td>Proprietary</td>
               </tr>
@@ -322,9 +302,6 @@
           <summary>Comparison sources</summary>
           <ul>
             <li><a href="https://github.com/voltura/voltura-air/blob/main/docs/features.md">Voltura Air implemented capabilities</a></li>
-            <li><a href="https://www.unifiedremote.com/features">Unified Remote features</a></li>
-            <li><a href="https://www.unifiedremote.com/remotes">Unified Remote remotes</a></li>
-            <li><a href="https://help.unifiedremote.com/article/31-enabling-external-connections">Unified Remote external connections</a></li>
             <li><a href="https://www.remotemouse.net/">Remote Mouse</a></li>
             <li><a href="https://apps.apple.com/us/app/remote-mouse/id385894596">Remote Mouse App Store listing</a></li>
             <li><a href="https://www.monect.com/">Monect PC Remote</a></li>

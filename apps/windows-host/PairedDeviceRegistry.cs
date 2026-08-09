@@ -389,7 +389,7 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
         AllowUrlOpen: permissionOverrides?.AllowUrlOpen,
         AllowPcLock: permissionOverrides?.AllowPcLock,
         AllowBlackoutDisplay: permissionOverrides?.AllowBlackoutDisplay,
-        AllowDisplayOff: permissionOverrides?.AllowDisplayOff,
+        AllowDisplayControl: permissionOverrides?.AllowDisplayControl,
         AllowScreenSaver: permissionOverrides?.AllowScreenSaver,
         AllowAwakeControl: permissionOverrides?.AllowAwakeControl,
         AllowClipboardRead: permissionOverrides?.AllowClipboardRead,

@@ -183,8 +183,10 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 - Buttons have separate editor names and visible labels, bundled icons,
   icon/label presentation, compact/standard/wide/fill sizing, and optional
   repeat for actions explicitly marked repeatable. Actions are short literal
-  text, a single key or modifier shortcut, an approved application action, or
-  a curated media/navigation/browser/Windows action. Literal text and custom
+  text, a single key or modifier shortcut, a host-local application action, an
+  HTTP(S) website, a portable known-application profile, an allow-listed
+  host/system action, or a curated media/navigation/browser/Windows action.
+  Literal text and custom
   key/shortcut actions are label-only; built-ins and approved applications may
   use bundled icons. Screen and button editor
   names are limited to 24 characters, panel, trackpad, and navigation-ring names to 20, and
@@ -198,7 +200,8 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   and Special key selectors provide F1-F12,
   Backspace, Delete, Enter, Insert, Page up/down, Home, End, and the four arrow
   keys. A Symbol key selector provides common punctuation including period,
-  comma, and semicolon. Reset clears the staged command, and **Save command** is
+  comma, and semicolon. A Numpad or media selector covers Numpad0-9, arithmetic
+  and decimal keys, media transport, and volume keys. Reset clears the staged command, and **Save command** is
   available once any non-modifier final key completes it; for example,
   `CTRL + ALT + Escape` and `CTRL + SHIFT + Escape` are valid while
   `CTRL + ALT` is not.
@@ -236,19 +239,37 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   belonging to the selected action type share a subtle framed background.
   Generated Name and Label groups start open, and the inspector header can
   expand or collapse every property group.
-- Definitions and assignments are stored atomically under the signed-in
+- Definitions and assignments use the exact version-4 lower-camel JSON shape. They are
+  stored atomically under the signed-in
   user's application-data folder. Invalid current-format files are preserved
-  and reported instead of replaced. Unsupported store versions are also left
-  unchanged and reported so they can be recovered with a compatible version.
-- Successful and rejected Save, assignment, duplicate, reorder, delete, and
-  preview operations use the optional Application log. Entries contain
+  and reported instead of replaced. Other versions are rejected without
+  migration or fallback. A themed recovery dialog can keep the invalid file or
+  delete it and start with an empty library.
+- The editor's **Validate** action checks the unsaved draft without changing it
+  or disabling Save. It uses the real mobile renderer at 360 x 640 and 640 x
+  360 to report clipped labels and horizontal overflow, checks shortcut and URL
+  validity, and reports unavailable applications or disabled permissions.
+  Findings explain potential resolutions and can select the affected panel or
+  button; intentional clipping and other warnings remain allowed. Validation
+  runs entirely as the signed-in user and never requests administrator rights.
+- Successful and rejected Save, assignment, duplicate, reorder, delete,
+  preview, and validation operations use the optional Application log. Entries contain
   the operation and outcome only, never screen names, labels, literal text,
   shortcuts, executable details, or drag activity.
 - Each saved screen can be exported as a versioned `.volturascreen` package to
   a local file or prepared for submission through the authenticated community
-  library upload page. Imports show panels, buttons, action types, and host-local
-  application-action warnings; they never retain device assignments and
-  generate new local IDs.
+  library upload page. Portable packages reject host-local application actions,
+  executable paths, commands, alternate JSON shapes, and device assignments;
+  known applications use fixed portable profiles. Imports show panels, buttons,
+  and action types, never retain device assignments, and generate new local IDs.
+- `npm run screens:official` deterministically generates 14 official Windows 11
+  screens plus `catalog.json` and one ZIP bundle from concise source definitions.
+  The collection covers VLC, Spotify, Web Browser, Netflix, Prime Video,
+  Disney+, Twitch, Plex, Zoom, Windows, Power, Displays, Windows Photos, and
+  Blender Numpad. A screen with exactly one known-application target disables
+  every control while that application is unavailable. Windows Photos requires
+  a usable Microsoft Photos URI handler and never falls back to File Explorer.
+  Regeneration is byte-identical when definitions do not change.
 - Reviewed community packages are available from
   `https://voltura.se/air/screens/`. Catalog installation opens the same import
   review and never executes actions automatically. The library supports search,
@@ -258,8 +279,13 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   without permanently deleting their records, receive approval or rejection
   email, read optional approval or required rejection feedback, and resubmit
   edited metadata for review. Administrators can permanently delete an
-  approved entry from the library after confirmation.
+  approved entry from the library after confirmation. Administrators can also
+  import the complete official ZIP atomically by stable official ID after
+  confirming the current Windows 11 smoke matrix; updates preserve package IDs,
+  ratings, and download counters.
 - The Windows tray menu links directly to the community library.
+  The Custom Screens library also provides a **Browse library** button beside
+  local import and creation actions.
 
 ## Mobile PWA
 

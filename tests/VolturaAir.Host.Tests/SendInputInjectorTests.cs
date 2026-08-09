@@ -52,6 +52,45 @@ public sealed class SendInputInjectorTests
             batch.Select(DescribeKeyboardInput));
     }
 
+    [Theory]
+    [InlineData("Numpad0", "60")]
+    [InlineData("Numpad1", "61")]
+    [InlineData("Numpad2", "62")]
+    [InlineData("Numpad3", "63")]
+    [InlineData("Numpad4", "64")]
+    [InlineData("Numpad5", "65")]
+    [InlineData("Numpad6", "66")]
+    [InlineData("Numpad7", "67")]
+    [InlineData("Numpad8", "68")]
+    [InlineData("Numpad9", "69")]
+    [InlineData("NumpadMultiply", "6A")]
+    [InlineData("NumpadAdd", "6B")]
+    [InlineData("NumpadSubtract", "6D")]
+    [InlineData("NumpadDecimal", "6E")]
+    [InlineData("NumpadDivide", "6F")]
+    public void SpecialKeyMapsNumpadKeys(string key, string expectedVirtualKey)
+    {
+        var native = new RecordingSendInputNative();
+        using var injector = new SendInputInjector(native);
+
+        injector.SpecialKey(key, []);
+
+        var batch = Assert.Single(native.Batches);
+        Assert.Equal(
+            [$"{expectedVirtualKey}:down", $"{expectedVirtualKey}:up"],
+            batch.Select(DescribeKeyboardInput));
+    }
+
+    [Fact]
+    public void SpecialKeyRejectsUnknownKeyInsteadOfReportingAFalseSuccess()
+    {
+        var native = new RecordingSendInputNative();
+        using var injector = new SendInputInjector(native);
+
+        _ = Assert.Throws<ArgumentException>(() => injector.SpecialKey("NotAKey", []));
+        Assert.Empty(native.Batches);
+    }
+
     [Fact]
     public void PartialSpecialKeySendReleasesChordKeysAndPreservesOriginalFailure()
     {

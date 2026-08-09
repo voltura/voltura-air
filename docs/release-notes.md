@@ -6,6 +6,34 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v0.8.10
+
+- Added a generated official Custom Screen library with 14 Windows 11 remotes
+  for media, streaming, meetings, Windows controls, displays, photos, and
+  Blender, plus a deterministic one-command catalog bundle and direct browsing
+  of the community library from the Windows Custom Screens page.
+- Added portable HTTP(S) website, known-application, and permissioned
+  host/system actions to the Custom Screen editor. Restart and shutdown retain
+  hold-to-confirm; sleep, hibernate, and display-off require confirmation.
+- Added numpad and media shortcut keys, more reusable Windows controls, and one
+  strict, exact Custom Screen JSON format. Portable packages exclude host-local
+  executable actions, arbitrary commands, and device assignments. Invalid local
+  Custom Screen data now opens a themed keep-or-delete recovery dialog, and
+  app-dependent screens disable all controls when their target is unavailable.
+- Corrected the official VLC, Plex, Zoom, Netflix, Prime Video, Disney+, and
+  Twitch control maps, made Windows Photos require a usable Microsoft Photos
+  handler without a folder fallback, and verified all 14 screens in portrait
+  and landscape with no clipped button labels or page overflow.
+- Added advisory Custom Screen validation for unsaved drafts, including real
+  compact-phone portrait and landscape rendering, clipped labels, shortcuts,
+  web addresses, application availability, and current permissions. Reports
+  suggest resolutions and select affected controls without modifying the draft
+  or preventing Save for warnings. Validation runs without administrator rights.
+- Added an administrator-only atomic official-library import that updates by
+  stable official ID and preserves ratings and download counters after the
+  Windows 11 smoke-test matrix is confirmed. Imports are serialized and retain
+  package files whenever MariaDB commit outcome is uncertain.
+
 ## v0.8.9
 
 - Added **Files on PC**, a touch-first host file manager with one panel in
@@ -103,8 +131,6 @@ create one. Keep the shared notices in
   action permissions.
 - Removed the global alpha-features switch. Future experimental features use
   explicit, feature-owned toggles under Developer tools.
-- Unsupported Custom screens store versions are now left unchanged and reported
-  for recovery instead of being deleted.
 - Improved the Custom screens community library with tag-pill editing and
   display, a clearable search field, and a custom sort picker.
 - Added report delivery to Voltura Air by email, with a confirmation toast that

@@ -118,6 +118,7 @@ public sealed partial class HostUiLayoutTests
                 var startup = Assert.Single(settings, setting => setting.Label == "Start Voltura Air when I sign in to Windows");
                 var logging = Assert.Single(settings, setting => setting.Label == "Write application log");
                 var url = Assert.Single(settings, setting => setting.Label == "Allow paired devices to open web addresses");
+                var displays = Assert.Single(settings, setting => setting.Label == "Allow paired devices to control display power and topology");
                 var shutdown = Assert.Single(settings, setting => setting.Label == "Allow paired devices to shut down the PC");
                 var presetLabels = AppLaunchSettings.GetPresets()
                     .Select(preset => $"Show {AppLaunchSettings.GetPresetName(preset.Kind)}")
@@ -128,6 +129,7 @@ public sealed partial class HostUiLayoutTests
                 Assert.Same(window.Resources["WindowBrush"], applicationGroup.Background);
                 Assert.IsNotType<SpacingWrapPanel>(WpfVisualTreeHelper.GetParent(logging));
                 Assert.IsType<SpacingWrapPanel>(WpfVisualTreeHelper.GetParent(url));
+                Assert.IsType<SpacingWrapPanel>(WpfVisualTreeHelper.GetParent(displays));
                 Assert.IsNotType<SpacingWrapPanel>(WpfVisualTreeHelper.GetParent(shutdown));
                 Assert.Equal(HorizontalAlignment.Left, logging.HorizontalAlignment);
                 Assert.Equal(presetLabels.Count, presetSettings.Length);

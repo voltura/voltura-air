@@ -101,7 +101,7 @@ public sealed class CustomScreenServiceTests
     }
 
     [Fact]
-    public void ShortcutSupportsAltGrAndPreservesLegacyCombinations()
+    public void ShortcutSupportsAltGrWithOtherCurrentModifiers()
     {
         var service = CreateService();
         var draft = WithShortcut(
@@ -110,10 +110,10 @@ public sealed class CustomScreenServiceTests
             ["Shift", "AltGr"]);
         Assert.True(service.TrySave(draft, out _, out var validError), validError);
 
-        var legacy = WithShortcut(draft, "X", ["Control", "AltGr"]);
+        var combined = WithShortcut(draft, "X", ["Control", "AltGr"]);
         Assert.True(
-            service.TrySave(legacy, out _, out var legacyError),
-            legacyError);
+            service.TrySave(combined, out _, out var combinedError),
+            combinedError);
 
         var unknown = WithShortcut(draft, "NotARealKey", ["Control"]);
         Assert.False(service.TrySave(unknown, out _, out _));
@@ -151,6 +151,232 @@ public sealed class CustomScreenServiceTests
             new CustomScreenAction("shortcut", Key: "X", Modifiers: ["Control"])));
         Assert.True(CustomScreenService.IsRepeatable(
             new CustomScreenAction("builtIn", BuiltIn: "volume.up")));
+    }
+
+    [Theory]
+    [InlineData("power.restart", "hold")]
+    [InlineData("power.shutdown", "hold")]
+    [InlineData("power.sleep", "confirm")]
+    [InlineData("power.hibernate", "confirm")]
+    [InlineData("display.off", "confirm")]
+    public void HostActionSafetyIsDerivedByTheHost(string actionId, string confirmation)
+    {
+        var service = CreateService();
+        var draft = CustomScreenService.CreateDraft();
+        var section = draft.Sections[0];
+        draft = draft with
+        {
+            AssignedClientIds = ["phone-a"],
+            Sections = [section with
+            {
+                Buttons = [section.Buttons[0] with
+                {
+                    Action = new CustomScreenAction("hostAction", ActionId: actionId)
+                }]
+            }]
+        };
+        Assert.True(service.TrySave(draft, out var saved, out var error), error);
+
+        var mobile = service.GetMobileDefinition(
+            "phone-a",
+            saved.Id,
+            canUseRemoteInput: true,
+            canLaunchApps: true,
+            canControlVolume: true,
+            canOpenUrls: true,
+            permissions: new HostPermissionSet(
+                AllowPcSleep: true,
+                AllowDisplayControl: true,
+                AllowPcLock: true,
+                AllowRestart: true,
+                AllowShutdown: true));
+
+        var button = Assert.Single(Assert.Single(mobile!.Sections).Buttons);
+        Assert.True(button.Enabled);
+        Assert.Equal(confirmation, button.Confirmation);
+        Assert.False(string.IsNullOrWhiteSpace(button.ConfirmationMessage));
+    }
+
+    [Fact]
+    public void HostActionProjectionDisablesActionsKnownToBeUnavailable()
+    {
+        var service = CreateService();
+        var draft = CustomScreenService.CreateDraft();
+        var section = draft.Sections[0];
+        draft = draft with
+        {
+            AssignedClientIds = ["phone-a"],
+            Sections = [section with
+            {
+                Buttons = [section.Buttons[0] with
+                {
+                    Action = new CustomScreenAction("hostAction", ActionId: "power.lock")
+                }]
+            }]
+        };
+        Assert.True(service.TrySave(draft, out var saved, out var error), error);
+
+        var mobile = service.GetMobileDefinition(
+            "phone-a",
+            saved.Id,
+            canUseRemoteInput: true,
+            canLaunchApps: true,
+            permissions: new HostPermissionSet(AllowPcLock: true),
+            unavailableHostActions: new HashSet<string>(StringComparer.Ordinal) { "power.lock" });
+
+        var button = Assert.Single(Assert.Single(mobile!.Sections).Buttons);
+        Assert.False(button.Enabled);
+        Assert.Contains("unavailable", button.UnavailableReason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void MobileProjectionReadsTheCachedKnownApplicationSnapshotOnce()
+    {
+        var launches = new FakeAppLaunchService
+        {
+            KnownApplications =
+            [
+                new("browser", "Browser", true),
+                new("vlc", "VLC", true)
+            ]
+        };
+        var service = new CustomScreenService(new InMemoryCustomScreenStore(), launches);
+        var draft = CustomScreenService.CreateDraft();
+        var source = draft.Sections[0].Buttons[0];
+        draft = draft with
+        {
+            AssignedClientIds = ["phone-a"],
+            Sections = [draft.Sections[0] with
+            {
+                Buttons =
+                [
+                    source with { Action = new CustomScreenAction("knownApp", ActionId: "browser") },
+                    source with { Id = "button.vlc", Action = new CustomScreenAction("knownApp", ActionId: "vlc") }
+                ]
+            }]
+        };
+        Assert.True(service.TrySave(draft, out var saved, out var error), error);
+
+        _ = service.GetMobileDefinition(
+            "phone-a",
+            saved.Id,
+            canUseRemoteInput: true,
+            canLaunchApps: true,
+            canControlVolume: true,
+            canOpenUrls: true,
+            HostPermissions.DefaultGlobal);
+
+        Assert.Equal(1, launches.KnownApplicationQueries);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SingleKnownApplicationDependencyGatesTheEntireProjectedScreen(bool available)
+    {
+        var launches = new FakeAppLaunchService
+        {
+            KnownApplications = [new("vlc", "VLC", available)]
+        };
+        var service = new CustomScreenService(new InMemoryCustomScreenStore(), launches);
+        var draft = CustomScreenService.CreateVolumeSlider(
+            CustomScreenService.CreateTrackpad(CustomScreenService.CreateDraft()));
+        var source = draft.Sections[0].Buttons[0];
+        draft = draft with
+        {
+            AssignedClientIds = ["phone-a"],
+            Sections =
+            [
+                draft.Sections[0] with
+                {
+                    Buttons =
+                    [
+                        source with
+                        {
+                            Action = new CustomScreenAction("knownApp", ActionId: "vlc")
+                        },
+                        source with
+                        {
+                            Id = "button.play",
+                            Name = "Play",
+                            Label = "Play",
+                            Presentation = "label",
+                            Action = new CustomScreenAction("shortcut", Key: "Space", Modifiers: [])
+                        }
+                    ]
+                },
+                draft.Sections[1],
+                draft.Sections[2]
+            ]
+        };
+        Assert.True(service.TrySave(draft, out var saved, out var error), error);
+
+        var mobile = service.GetMobileDefinition(
+            "phone-a",
+            saved.Id,
+            canUseRemoteInput: true,
+            canLaunchApps: true,
+            canControlVolume: true,
+            canOpenUrls: true,
+            HostPermissions.DefaultGlobal)!;
+
+        var expectedReason = available ? null : "This Custom Screen requires VLC on the PC.";
+        Assert.All(mobile.Sections[0].Buttons, button =>
+        {
+            Assert.Equal(available, button.Enabled);
+            Assert.Equal(expectedReason, button.UnavailableReason);
+        });
+        Assert.Equal(available, mobile.Sections[1].TrackpadEnabled);
+        Assert.Equal(expectedReason, mobile.Sections[1].TrackpadUnavailableReason);
+        Assert.Equal(available, mobile.Sections[2].VolumeEnabled);
+        Assert.Equal(expectedReason, mobile.Sections[2].VolumeUnavailableReason);
+    }
+
+    [Fact]
+    public void MultipleKnownApplicationTargetsRetainPerControlAvailability()
+    {
+        var launches = new FakeAppLaunchService
+        {
+            KnownApplications =
+            [
+                new("browser", "Browser", true),
+                new("vlc", "VLC", false)
+            ]
+        };
+        var service = new CustomScreenService(new InMemoryCustomScreenStore(), launches);
+        var draft = CustomScreenService.CreateDraft();
+        var source = draft.Sections[0].Buttons[0];
+        draft = draft with
+        {
+            AssignedClientIds = ["phone-a"],
+            Sections = [draft.Sections[0] with
+            {
+                Buttons =
+                [
+                    source with { Action = new CustomScreenAction("knownApp", ActionId: "browser") },
+                    source with { Id = "button.vlc", Action = new CustomScreenAction("knownApp", ActionId: "vlc") },
+                    source with
+                    {
+                        Id = "button.play",
+                        Name = "Play",
+                        Label = "Play",
+                        Presentation = "label",
+                        Action = new CustomScreenAction("shortcut", Key: "Space", Modifiers: [])
+                    }
+                ]
+            }]
+        };
+        Assert.True(service.TrySave(draft, out var saved, out var error), error);
+
+        var buttons = service.GetMobileDefinition(
+            "phone-a",
+            saved.Id,
+            canUseRemoteInput: true,
+            canLaunchApps: true)!.Sections[0].Buttons;
+
+        Assert.True(buttons[0].Enabled);
+        Assert.False(buttons[1].Enabled);
+        Assert.True(buttons[2].Enabled);
     }
 
     [Fact]
@@ -483,6 +709,10 @@ public sealed class CustomScreenServiceTests
 
 internal sealed class FakeAppLaunchService : IAppLaunchService
 {
+    public IReadOnlyList<KnownAppProfileSummary> KnownApplications { get; init; } = [];
+
+    public int KnownApplicationQueries { get; private set; }
+
     public IReadOnlyList<AppLaunchActionSummary> GetActions() =>
         [new("app.notes", "Notes", "custom")];
 
@@ -491,4 +721,10 @@ internal sealed class FakeAppLaunchService : IAppLaunchService
 
     public AppLaunchExecutionResult ExecutePowerPointFile(string path) =>
         new(false, "not-configured", "Unavailable.");
+
+    public IReadOnlyList<KnownAppProfileSummary> GetKnownApplications()
+    {
+        KnownApplicationQueries++;
+        return KnownApplications;
+    }
 }

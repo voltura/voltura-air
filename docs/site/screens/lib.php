@@ -336,7 +336,7 @@ function air_screen_toast(string $message): string
 
 function air_screen_value(array $value, string $key): mixed
 {
-    return $value[$key] ?? $value[lcfirst($key)] ?? null;
+    return $value[$key] ?? null;
 }
 
 function air_screen_layout(
@@ -369,8 +369,8 @@ function air_screen_layout(
 function air_screen_preview(string $json, string $label, bool $compact = false, ?string $packageId = null): string
 {
     $package = json_decode($json, true);
-    $screen = is_array($package) ? air_screen_value($package, 'Screen') : null;
-    $sections = is_array($screen) ? air_screen_value($screen, 'Sections') : null;
+    $screen = is_array($package) ? air_screen_value($package, 'screen') : null;
+    $sections = is_array($screen) ? air_screen_value($screen, 'sections') : null;
     if (!is_array($sections)) {
         return '<div class="screen-preview screen-preview-empty' . ($compact ? ' compact' : '') . '" aria-label="Preview unavailable"><span>Preview unavailable</span></div>';
     }
@@ -382,17 +382,17 @@ function air_screen_preview(string $json, string $label, bool $compact = false, 
     $html = '<div class="screen-preview' . ($compact ? ' compact' : '') . '" data-device="phone" data-orientation="portrait" aria-label="Preview of ' . air_screen_h($label) . '"><div class="screen-preview-toolbar"><label><span>Device</span><select class="screen-preview-device" aria-label="Preview device"><option value="phone">Generic phone</option><option value="tablet">Generic tablet</option></select></label><span class="screen-preview-size" aria-live="polite">360 &times; 640</span><button class="screen-preview-rotate" type="button" aria-label="Rotate preview" title="Rotate preview">&#8635; <span>Rotate</span></button></div><div class="screen-preview-stage"><div class="screen-preview-frame"><div class="screen-preview-bar"><i></i><i></i><i></i></div><div class="screen-preview-viewport" tabindex="0" aria-label="Scrollable screen preview"><div class="screen-preview-content">';
     foreach ($sections as $sectionIndex => $section) {
         if (!is_array($section)) { continue; }
-        $title = (string)(air_screen_value($section, 'Name') ?? '');
-        $kind = strtolower((string)(air_screen_value($section, 'Kind') ?? air_screen_value($section, 'Type') ?? 'buttons'));
-        $width = max(1, min(12, (int)(air_screen_value($section, 'WidthColumns') ?? 6)));
-        $portrait = air_screen_value($section, 'Portrait');
-        $landscape = air_screen_value($section, 'Landscape');
-        $portraitWidth = is_array($portrait) ? (air_screen_value($portrait, 'WidthColumns') ?? $width) : $width;
-        $landscapeWidth = is_array($landscape) ? (air_screen_value($landscape, 'WidthColumns') ?? $width) : $width;
-        $portraitOrder = is_array($portrait) ? (air_screen_value($portrait, 'Order') ?? $sectionIndex) : $sectionIndex;
-        $landscapeOrder = is_array($landscape) ? (air_screen_value($landscape, 'Order') ?? $sectionIndex) : $sectionIndex;
-        $hidden = (is_array($portrait) && air_screen_value($portrait, 'Visible') === false ? ' preview-hidden-portrait' : '') . (is_array($landscape) && air_screen_value($landscape, 'Visible') === false ? ' preview-hidden-landscape' : '');
-        $buttons = air_screen_value($section, 'Buttons');
+        $title = (string)(air_screen_value($section, 'name') ?? '');
+        $kind = strtolower((string)(air_screen_value($section, 'kind') ?? 'buttons'));
+        $width = max(1, min(12, (int)(air_screen_value($section, 'widthColumns') ?? 6)));
+        $portrait = air_screen_value($section, 'portrait');
+        $landscape = air_screen_value($section, 'landscape');
+        $portraitWidth = is_array($portrait) ? (air_screen_value($portrait, 'widthColumns') ?? $width) : $width;
+        $landscapeWidth = is_array($landscape) ? (air_screen_value($landscape, 'widthColumns') ?? $width) : $width;
+        $portraitOrder = is_array($portrait) ? (air_screen_value($portrait, 'order') ?? $sectionIndex) : $sectionIndex;
+        $landscapeOrder = is_array($landscape) ? (air_screen_value($landscape, 'order') ?? $sectionIndex) : $sectionIndex;
+        $hidden = (is_array($portrait) && air_screen_value($portrait, 'visible') === false ? ' preview-hidden-portrait' : '') . (is_array($landscape) && air_screen_value($landscape, 'visible') === false ? ' preview-hidden-landscape' : '');
+        $buttons = air_screen_value($section, 'buttons');
         $html .= '<section class="screen-preview-section' . $hidden . '" style="--portrait-width:' . max(1, min(12, (int)$portraitWidth)) . ';--landscape-width:' . max(1, min(12, (int)$landscapeWidth)) . ';--portrait-order:' . (int)$portraitOrder . ';--landscape-order:' . (int)$landscapeOrder . '">';
         if ($title !== '') { $html .= '<strong>' . air_screen_h($title) . '</strong>'; }
         if (str_contains($kind, 'trackpad')) {
@@ -406,12 +406,12 @@ function air_screen_preview(string $json, string $label, bool $compact = false, 
             $html .= '<div class="screen-preview-buttons">';
             foreach ($buttons as $buttonIndex => $button) {
                 if (!is_array($button)) { continue; }
-                $buttonLabel = (string)(air_screen_value($button, 'Label') ?? air_screen_value($button, 'Text') ?? 'Button');
-                $buttonPortrait = air_screen_value($button, 'Portrait');
-                $buttonLandscape = air_screen_value($button, 'Landscape');
-                $buttonPortraitOrder = is_array($buttonPortrait) ? (air_screen_value($buttonPortrait, 'Order') ?? $buttonIndex) : $buttonIndex;
-                $buttonLandscapeOrder = is_array($buttonLandscape) ? (air_screen_value($buttonLandscape, 'Order') ?? $buttonIndex) : $buttonIndex;
-                $buttonHidden = (is_array($buttonPortrait) && air_screen_value($buttonPortrait, 'Visible') === false ? ' preview-hidden-portrait' : '') . (is_array($buttonLandscape) && air_screen_value($buttonLandscape, 'Visible') === false ? ' preview-hidden-landscape' : '');
+                $buttonLabel = (string)(air_screen_value($button, 'label') ?? 'Button');
+                $buttonPortrait = air_screen_value($button, 'portrait');
+                $buttonLandscape = air_screen_value($button, 'landscape');
+                $buttonPortraitOrder = is_array($buttonPortrait) ? (air_screen_value($buttonPortrait, 'order') ?? $buttonIndex) : $buttonIndex;
+                $buttonLandscapeOrder = is_array($buttonLandscape) ? (air_screen_value($buttonLandscape, 'order') ?? $buttonIndex) : $buttonIndex;
+                $buttonHidden = (is_array($buttonPortrait) && air_screen_value($buttonPortrait, 'visible') === false ? ' preview-hidden-portrait' : '') . (is_array($buttonLandscape) && air_screen_value($buttonLandscape, 'visible') === false ? ' preview-hidden-landscape' : '');
                 $html .= '<span class="' . trim($buttonHidden) . '" style="--portrait-order:' . (int)$buttonPortraitOrder . ';--landscape-order:' . (int)$buttonLandscapeOrder . '">' . air_screen_h($buttonLabel) . '</span>';
             }
             $html .= '</div>';
@@ -439,42 +439,184 @@ function air_screen_validate_package(string $json): array
     } catch (JsonException) {
         throw new InvalidArgumentException('The package is not valid JSON.');
     }
-    if (air_screen_value($package, 'PackageVersion') !== 1 || air_screen_value($package, 'Format') !== 'voltura-air.custom-screen') {
+    air_screen_require_exact_keys($package, ['packageVersion', 'format', 'screen'], ['packageVersion', 'format', 'screen']);
+    if ($package['packageVersion'] !== 1 || $package['format'] !== 'voltura-air.custom-screen') {
         throw new InvalidArgumentException('The package version or format is unsupported.');
     }
-    $screen = air_screen_value($package, 'Screen');
-    if (!is_array($screen) || !is_string(air_screen_value($screen, 'Name')) || strlen((string)air_screen_value($screen, 'Name')) < 1 || strlen((string)air_screen_value($screen, 'Name')) > 24) {
+    $screen = $package['screen'];
+    if (!is_array($screen)) { throw new InvalidArgumentException('The package does not contain a valid screen.'); }
+    air_screen_require_exact_keys($screen, ['id', 'name', 'revision', 'assignedClientIds', 'orientationLayoutsEnabled', 'showNavigationHeader', 'sections'], ['id', 'name', 'revision', 'assignedClientIds', 'orientationLayoutsEnabled', 'showNavigationHeader', 'sections']);
+    if (!air_screen_valid_id($screen['id'] ?? null) ||
+        !air_screen_valid_text($screen['name'] ?? null, 24) ||
+        !air_screen_valid_id($screen['revision'] ?? null) ||
+        !is_bool($screen['orientationLayoutsEnabled'] ?? null) ||
+        !is_bool($screen['showNavigationHeader'] ?? null) ||
+        !is_array($screen['assignedClientIds']) || count($screen['assignedClientIds']) !== 0) {
         throw new InvalidArgumentException('The package does not contain a valid screen.');
     }
-    $sections = air_screen_value($screen, 'Sections');
+    $sections = $screen['sections'];
     if (!is_array($sections) || count($sections) > 64) {
         throw new InvalidArgumentException('The package contains too many panels.');
     }
     $buttons = 0;
+    $sectionIds = [];
+    $buttonIds = [];
     foreach ($sections as $section) {
-        $sectionButtons = is_array($section) ? air_screen_value($section, 'Buttons') : null;
+        if (is_array($section)) {
+            air_screen_require_exact_keys($section, ['id', 'name', 'showHeader', 'widthColumns', 'heightMode', 'fillWeight', 'rowLimit', 'portrait', 'landscape', 'buttons', 'kind', 'trackpadLeftClick', 'trackpadRightClick', 'trackpadButtonSide', 'initiallyExpanded', 'trackpadFullscreenControl', 'buttonAlignment'], ['id', 'name', 'showHeader', 'widthColumns', 'heightMode', 'fillWeight', 'rowLimit', 'buttons', 'kind', 'trackpadLeftClick', 'trackpadRightClick', 'trackpadButtonSide', 'initiallyExpanded', 'trackpadFullscreenControl', 'buttonAlignment']);
+        }
+        $sectionButtons = is_array($section) ? ($section['buttons'] ?? null) : null;
         if (!is_array($section) || !is_array($sectionButtons)) {
             throw new InvalidArgumentException('The package contains an invalid panel.');
         }
+        if (!air_screen_validate_section($section)) {
+            throw new InvalidArgumentException('The package contains an invalid panel.');
+        }
+        if (isset($sectionIds[$section['id']])) { throw new InvalidArgumentException('The package contains duplicate panel IDs.'); }
+        $sectionIds[$section['id']] = true;
         $buttons += count($sectionButtons);
         foreach ($sectionButtons as $button) {
-            $action = is_array($button) ? air_screen_value($button, 'Action') : null;
-            $kind = is_array($action) ? air_screen_value($action, 'Kind') : null;
-            if (!is_array($button) || !is_array($action) || !in_array($kind, ['text', 'shortcut', 'appLaunch', 'builtIn'], true)) {
+            if (is_array($button)) {
+                air_screen_require_exact_keys($button, ['id', 'name', 'label', 'icon', 'presentation', 'size', 'repeat', 'portrait', 'landscape', 'action', 'row'], ['id', 'name', 'label', 'icon', 'presentation', 'size', 'repeat', 'action', 'row']);
+            }
+            $action = is_array($button) ? ($button['action'] ?? null) : null;
+            $kind = is_array($action) ? ($action['kind'] ?? null) : null;
+            if (!is_array($button) || !is_array($action) || !in_array($kind, ['text', 'shortcut', 'builtIn', 'urlOpen', 'knownApp', 'hostAction'], true)) {
                 throw new InvalidArgumentException('The package contains an unsupported action.');
+            }
+            if (!air_screen_validate_button($button, $section)) {
+                throw new InvalidArgumentException('The package contains an invalid button.');
+            }
+            if (isset($buttonIds[$button['id']])) { throw new InvalidArgumentException('The package contains duplicate button IDs.'); }
+            $buttonIds[$button['id']] = true;
+            $actionKeys = match ($kind) {
+                'text' => ['kind', 'text'],
+                'shortcut' => ['kind', 'key', 'modifiers'],
+                'builtIn' => ['kind', 'builtIn'],
+                'urlOpen' => ['kind', 'url'],
+                'knownApp', 'hostAction' => ['kind', 'actionId'],
+            };
+            air_screen_require_exact_keys($action, $actionKeys, $actionKeys);
+            if (!air_screen_validate_action($action)) {
+                throw new InvalidArgumentException('The package contains an invalid action.');
             }
         }
     }
     if ($buttons > 256) {
         throw new InvalidArgumentException('The package contains too many buttons.');
     }
-    unset($screen['AssignedClientIds']);
-    $screen['assignedClientIds'] = [];
     return [
         'packageVersion' => 1,
         'format' => 'voltura-air.custom-screen',
         'screen' => $screen,
     ];
+}
+
+function air_screen_validate_section(array $section): bool
+{
+    $widths = [3, 4, 6, 8, 9, 12];
+    $kind = $section['kind'] ?? null;
+    $width = $section['widthColumns'] ?? null;
+    if (!air_screen_valid_id($section['id'] ?? null) ||
+        !air_screen_valid_text($section['name'] ?? null, 20) ||
+        !is_bool($section['showHeader'] ?? null) ||
+        !is_int($width) || !in_array($width, $widths, true) ||
+        !in_array($section['heightMode'] ?? null, ['content', 'fill'], true) ||
+        !is_int($section['fillWeight'] ?? null) || $section['fillWeight'] < 1 || $section['fillWeight'] > 4 ||
+        !is_int($section['rowLimit'] ?? null) || $section['rowLimit'] < 0 || $section['rowLimit'] > 3 ||
+        !in_array($kind, ['buttons', 'collapsible', 'trackpad', 'collapsibleTrackpad', 'volume', 'navigationRing', 'dpad'], true) ||
+        !in_array($section['trackpadButtonSide'] ?? null, ['left', 'right'], true) ||
+        !in_array($section['buttonAlignment'] ?? null, ['start', 'center', 'end', 'space-between', 'space-around', 'space-evenly'], true) ||
+        !is_bool($section['trackpadLeftClick'] ?? null) || !is_bool($section['trackpadRightClick'] ?? null) ||
+        !is_bool($section['initiallyExpanded'] ?? null) || !is_bool($section['trackpadFullscreenControl'] ?? null) ||
+        !air_screen_validate_layout($section['portrait'] ?? null, true) ||
+        !air_screen_validate_layout($section['landscape'] ?? null, true)) {
+        return false;
+    }
+    if ($kind === 'volume' && !in_array($width, [3, 6, 9, 12], true)) { return false; }
+    if (in_array($kind, ['navigationRing', 'dpad'], true) && !in_array($width, [6, 8, 9, 12], true)) { return false; }
+    foreach ([$section['portrait'] ?? null, $section['landscape'] ?? null] as $layout) {
+        if (is_array($layout) && isset($layout['widthColumns']) &&
+            (($kind === 'volume' && !in_array($layout['widthColumns'], [3, 6, 9, 12], true)) ||
+             (in_array($kind, ['navigationRing', 'dpad'], true) && !in_array($layout['widthColumns'], [6, 8, 9, 12], true)))) {
+            return false;
+        }
+    }
+    if (!in_array($kind, ['buttons', 'collapsible'], true) && count($section['buttons']) !== 0) { return false; }
+    return !in_array($kind, ['collapsible', 'collapsibleTrackpad'], true) || $section['showHeader'] === true;
+}
+
+function air_screen_validate_button(array $button, array $section): bool
+{
+    $row = $button['row'] ?? null;
+    $action = $button['action'] ?? null;
+    return air_screen_valid_id($button['id'] ?? null) &&
+        air_screen_valid_text($button['name'] ?? null, 24) &&
+        is_string($button['label'] ?? null) && strlen($button['label']) <= 16 &&
+        in_array($button['icon'] ?? null, ['play', 'pause', 'skip-back', 'skip-forward', 'volume-1', 'volume-2', 'volume-x', 'arrow-up', 'arrow-down', 'arrow-left', 'arrow-right', 'corner-down-left', 'escape', 'keyboard', 'clipboard', 'copy', 'app-window', 'monitor', 'minimize', 'square-x', 'search', 'refresh', 'maximize', 'command'], true) &&
+        in_array($button['presentation'] ?? null, ['iconLabel', 'icon', 'label'], true) &&
+        in_array($button['size'] ?? null, ['compact', 'standard', 'wide', 'fill'], true) &&
+        is_bool($button['repeat'] ?? null) && is_int($row) && $row >= 0 && $row <= ($section['rowLimit'] ?? -1) &&
+        air_screen_validate_layout($button['portrait'] ?? null, false) &&
+        air_screen_validate_layout($button['landscape'] ?? null, false) &&
+        is_array($action) &&
+        (!in_array($action['kind'] ?? null, ['text', 'shortcut'], true) || $button['presentation'] === 'label');
+}
+
+function air_screen_validate_layout(mixed $layout, bool $section): bool
+{
+    if ($layout === null) { return true; }
+    if (!is_array($layout)) { return false; }
+    air_screen_require_exact_keys($layout, ['order', 'visible', 'widthColumns', 'size', 'row'], ['order', 'visible']);
+    if (!is_int($layout['order']) || $layout['order'] < 0 || !is_bool($layout['visible'])) { return false; }
+    if (isset($layout['widthColumns']) && (!$section || !is_int($layout['widthColumns']) || !in_array($layout['widthColumns'], [3, 4, 6, 8, 9, 12], true))) { return false; }
+    if (isset($layout['size']) && ($section || !in_array($layout['size'], ['compact', 'standard', 'wide', 'fill'], true))) { return false; }
+    return !isset($layout['row']) || (!$section && is_int($layout['row']) && $layout['row'] >= 0 && $layout['row'] <= 3);
+}
+
+function air_screen_validate_action(array $action): bool
+{
+    $kind = $action['kind'];
+    if ($kind === 'text') { return air_screen_valid_text($action['text'], 256); }
+    if ($kind === 'shortcut') {
+        $modifiers = $action['modifiers'];
+        return air_screen_valid_shortcut_key($action['key']) && is_array($modifiers) && count($modifiers) <= 5 &&
+            count(array_unique($modifiers, SORT_STRING)) === count($modifiers) &&
+            array_diff($modifiers, ['Control', 'Shift', 'Alt', 'AltGr', 'Win']) === [];
+    }
+    if ($kind === 'builtIn') { return in_array($action['builtIn'], ['media.previous', 'media.playPause', 'media.next', 'media.stop', 'media.seekBack', 'media.seekForward', 'volume.down', 'volume.mute', 'volume.up', 'navigation.up', 'navigation.down', 'navigation.left', 'navigation.right', 'navigation.enter', 'navigation.escape', 'browser.back', 'browser.forward', 'browser.reload', 'browser.fullscreen', 'windows.start', 'windows.previousApp', 'windows.taskView', 'windows.showDesktop', 'windows.minimize', 'windows.maximize', 'windows.snapLeft', 'windows.snapRight', 'windows.explorer', 'windows.run', 'windows.close'], true); }
+    if ($kind === 'knownApp') { return in_array($action['actionId'], ['browser', 'spotify', 'vlc', 'zoom', 'plex', 'windowsPhotos', 'blender'], true); }
+    if ($kind === 'hostAction') { return in_array($action['actionId'], ['power.lock', 'power.sleep', 'power.hibernate', 'power.restart', 'power.shutdown', 'display.off', 'display.duplicate', 'display.extend', 'display.pcOnly', 'display.secondOnly'], true); }
+    if ($kind !== 'urlOpen' || !is_string($action['url']) || strlen(trim($action['url'])) < 1 || strlen(trim($action['url'])) > 2048 || preg_match('/[\x00-\x1F\x7F]/', $action['url'])) { return false; }
+    $candidate = preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', trim($action['url'])) ? trim($action['url']) : 'https://' . trim($action['url']);
+    $parts = parse_url($candidate);
+    return is_array($parts) && in_array(strtolower((string)($parts['scheme'] ?? '')), ['http', 'https'], true) && !empty($parts['host']);
+}
+
+function air_screen_valid_shortcut_key(mixed $key): bool
+{
+    if (!is_string($key)) { return false; }
+    $key = trim($key);
+    if (strlen($key) === 1 && preg_match('/^[A-Za-z0-9]$/D', $key)) { return true; }
+    return in_array(strtolower($key), array_map('strtolower', ['BrowserBack', 'BrowserForward', '+', 'MediaStop', 'MediaPlayPause', 'MediaPreviousTrack', 'MediaNextTrack', 'VolumeUp', 'VolumeDown', 'VolumeMute', 'Numpad0', 'Numpad1', 'Numpad2', 'Numpad3', 'Numpad4', 'Numpad5', 'Numpad6', 'Numpad7', 'Numpad8', 'Numpad9', 'NumpadAdd', 'NumpadSubtract', 'NumpadMultiply', 'NumpadDivide', 'NumpadDecimal', '.', ',', ';', '/', '\\', "'", '`', '[', ']', '-', '=', 'Backspace', 'Delete', 'Enter', 'Insert', 'Tab', 'Escape', 'Space', 'PageUp', 'PageDown', 'Home', 'End', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12']), true);
+}
+
+function air_screen_valid_id(mixed $value): bool
+{
+    return is_string($value) && preg_match('/^[A-Za-z0-9._-]{1,64}$/D', $value) === 1;
+}
+
+function air_screen_valid_text(mixed $value, int $maximumLength): bool
+{
+    return is_string($value) && strlen($value) > 0 && strlen($value) <= $maximumLength && trim($value) !== '' && !preg_match('/[\x00-\x1F\x7F]/', $value);
+}
+
+function air_screen_require_exact_keys(array $value, array $allowed, array $required): void
+{
+    if (array_diff(array_keys($value), $allowed) !== [] ||
+        array_diff($required, array_keys($value)) !== []) {
+        throw new InvalidArgumentException('The package uses an unsupported JSON shape.');
+    }
 }
 
 function air_screen_uuid(): string

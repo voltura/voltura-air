@@ -1,6 +1,18 @@
 using System.Text.Json.Serialization;
+using System.Text.Json;
 
 namespace VolturaAir.Host;
+
+public static class CustomScreenJson
+{
+    public static readonly JsonSerializerOptions Exact = new(JsonSerializerDefaults.Web)
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        PropertyNameCaseInsensitive = false,
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+        WriteIndented = true
+    };
+}
 
 public static class CustomScreenLimits
 {
@@ -94,7 +106,8 @@ public sealed record CustomScreenAction(
     string? Key = null,
     IReadOnlyList<string>? Modifiers = null,
     string? ActionId = null,
-    string? BuiltIn = null);
+    string? BuiltIn = null,
+    string? Url = null);
 
 public sealed record CustomScreenSummary(string Id, string Name, string Revision);
 
@@ -147,7 +160,9 @@ public sealed record CustomScreenMobileButton(
     CustomScreenLayoutOverride? Landscape,
     bool Enabled,
     string? UnavailableReason,
-    int Row);
+    int Row,
+    string? Confirmation = null,
+    string? ConfirmationMessage = null);
 
 public sealed record CustomScreenStoreLoadResult(
     IReadOnlyList<CustomScreenDefinition> Screens,

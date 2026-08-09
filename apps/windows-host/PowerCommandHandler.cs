@@ -105,7 +105,7 @@ internal sealed class PowerCommandHandler(
         {
             SystemPowerActions.Lock => permissions.AllowPcLock,
             SystemPowerActions.BlackoutDisplay => permissions.AllowBlackoutDisplay,
-            SystemPowerActions.DisplayOff => permissions.AllowDisplayOff,
+            SystemPowerActions.DisplayOff => permissions.AllowDisplayControl,
             SystemPowerActions.ScreenSaver => permissions.AllowScreenSaver,
             SystemPowerActions.SignOut => permissions.AllowSignOut,
             SystemPowerActions.Restart => permissions.AllowRestart,

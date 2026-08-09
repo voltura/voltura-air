@@ -511,8 +511,18 @@ same collapsible fields. Trackpad sections may include
 `trackpadFullscreenControl`; maximizing is local UI state and Restore returns
 the section to its saved responsive position. Buttons contain only
 visual/accessibility fields, row, repeat state, and resolved
-availability/reason. Literal text, shortcut payloads, executable details, and
-host action mappings are never sent.
+availability/reason. Buttons for protected host actions additionally receive a
+host-derived `confirmation` value (`confirm` or `hold`) and bounded warning
+text. Screen JSON cannot select or weaken that safety policy. Literal text,
+shortcut payloads, URLs, executable details, known-app mappings, and host
+action IDs are never sent.
+
+When a saved screen contains exactly one distinct `knownApp` action, that
+application is the target for the whole screen. The host projects every button,
+navigation control, trackpad, and volume section as unavailable while the
+cached target is unavailable, using one target-required explanation. It checks
+the cached target again before dispatching any button. Screens with zero or
+multiple distinct known-application actions retain per-control availability.
 
 Volume sections contain no buttons, use only 3, 6, 9, or 12 columns
 (25/50/75/100%), and publish resolved `volumeEnabled` and
@@ -529,7 +539,8 @@ visual definition.
 
 `showNavigationHeader` controls the mobile Back/title row for that screen.
 Literal-text and custom key/shortcut buttons use label-only presentation;
-built-in and approved-application buttons may also use bundled icons.
+built-in, known-application, website, host-action, and approved host-local
+application buttons may also use bundled icons.
 
 The host library's **Preview** action opens
 `/?customScreenPreview=<screenId>` against the host loopback address. That
@@ -539,13 +550,17 @@ bounded visual result envelope without assignment or action payloads. Preview
 does not establish a command channel, so its controls cannot invoke host
 actions.
 
-The current store format is version 3. It is the only accepted Custom screens
-format. The host leaves unsupported versions unchanged, reports the unsupported
-version in the Custom screens library, and starts no replacement library so the
-file can be recovered with a compatible Voltura Air version.
-`navigationRing` is a version-3 section-kind extension. An older version-3 host
-that does not recognize it reports the current-format file as invalid and
-leaves it unchanged; reopening the library with a supporting build recovers it.
+Editor validation uses the same loopback-only preview response with a bounded,
+memory-only draft lease. At most four leases may exist, each uses a fresh opaque
+preview ID, and disposal removes it whether rendering succeeds or fails. Draft
+validation never writes the store and exposes no action payload to the renderer.
+It does not elevate, invoke a privileged helper, or write protected Windows
+state.
+
+The Custom screens store uses the exact version-4 lower-camel JSON shape and
+rejects unknown fields. Version 4 is the only accepted store version; there is
+no migration, fallback, or alternate reader. Any other or invalid file is
+rejected and left unchanged with the same generic invalid-file result.
 Screen names are at most 24 characters, panel/trackpad/navigation-ring names 20, button editor
 names 24, and visible button labels 16.
 
@@ -561,13 +576,25 @@ The portable package format is JSON in a `.volturascreen` file:
 }
 ```
 
-Package version 1 contains one current-format screen definition. Export removes
-all device assignments. Import rejects unsupported, incomplete, oversized, or
-invalid packages, shows the screen and action summary before saving, generates
-new screen/section/button IDs, and leaves the imported screen unassigned.
-Application actions remain opaque host-local references and may be unavailable
-on another PC. A matching portable definition requires explicit duplicate
-confirmation.
+Package version 1 is the only package format and contains one exact current
+screen definition. JSON uses exact lower-camel field names and rejects unknown
+fields. Export removes all device assignments. Import rejects unsupported,
+incomplete, oversized, invalid, or host-local packages, shows the screen and
+action summary before saving, generates new screen/section/button IDs, and
+leaves the imported screen unassigned. Host-local `appLaunch` actions cannot be
+exported; portable packages use allow-listed `knownApp` profiles. A matching
+portable definition requires explicit duplicate confirmation.
+
+Portable button actions are `text`, `shortcut`, `builtIn`, `urlOpen`,
+`knownApp`, and `hostAction`. `urlOpen` accepts only HTTP and HTTPS and reuses
+the host URL permission and opener. `knownApp` accepts `browser`, `spotify`,
+`vlc`, `zoom`, `plex`, `windowsPhotos`, or `blender`; the host focuses an
+existing normal window when possible, otherwise launches only a fixed detected
+profile. `hostAction` accepts only `power.lock`, `power.sleep`,
+`power.hibernate`, `power.restart`, `power.shutdown`, `display.off`,
+`display.duplicate`, `display.extend`, `display.pcOnly`, or
+`display.secondOnly`. No action contains an executable path, shell command, or
+arguments.
 
 The `voltura-air://import?id=<uuid>` launch contract requests an approved
 package from `https://voltura.se/air/screens`. An optional `source` is accepted
@@ -607,15 +634,20 @@ Result:
 ```
 
 The host revalidates assignment, exact screen revision, button ID,
-effective permission, and current approved-application existence for every
+effective permission, URL/profile/host-action allow-list membership, and
+current application availability for every
 invocation. `stale-screen` executes nothing; mobile fetches the current screen
 before another invocation. Other recoverable codes include `not-assigned`,
 `button-not-found`, `permission-denied`,
 `action-unavailable`, `input-blocked`, and `dispatch-failed`.
 
 Text, key/shortcut, curated built-in, and trackpad input reuse the protected
-remote-input path. Approved application actions reuse the application-launch
-permission and service. Only catalog-marked arrows, seek, and volume actions
+remote-input path. Known and host-local application actions reuse the
+application-launch permission and service. Website actions reuse the URL-open
+permission and HTTP(S)-only service. Host/system actions reuse the matching
+sleep, lock, display, restart, or shutdown permission. Restart and shutdown use
+the same uninterrupted hold confirmation as Remote; sleep, hibernate, and
+display-off require explicit confirmation. Only catalog-marked arrows, seek, and volume actions
 may repeat. Logs may identify the opaque screen/button and outcome, but never
 literal text, shortcut payloads, executable details, or viewport history.
 

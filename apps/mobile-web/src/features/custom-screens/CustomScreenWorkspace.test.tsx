@@ -113,6 +113,8 @@ describe("CustomScreenWorkspace", () => {
     expect(screen.getAllByRole("heading", { level: 2 }).map(item => item.textContent))
       .toEqual(["Portrait only", "Transport"]);
     expect(screen.getByRole("button", { name: "Play or pause" }).textContent).toBe("");
+    expect(screen.getByRole("button", { name: "Play or pause" })
+      .getAttribute("data-custom-screen-button-id")).toBe("button.play");
     const unavailable = screen.getByRole<HTMLButtonElement>("button", { name: "Unavailable app" });
     expect(unavailable.disabled).toBe(true);
     expect(unavailable.title).toBe("Application launch is disabled.");
@@ -136,6 +138,56 @@ describe("CustomScreenWorkspace", () => {
       "screen.media",
       "revision.one",
       "button.play");
+  });
+
+  it("requires confirmation before invoking protected host actions", () => {
+    const invoke = vi.fn();
+    const protectedDefinition: CustomScreenDefinition = {
+      ...definition,
+      sections: [{
+        ...definition.sections[0]!,
+        buttons: [{
+          ...definition.sections[0]!.buttons[0]!,
+          name: "Sleep PC",
+          confirmation: "confirm",
+          confirmationMessage: "Voltura Air will disconnect."
+        }]
+      }]
+    };
+    render(<CustomScreenWorkspace {...workspace(invoke).props} definition={protectedDefinition} />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Sleep PC" }).at(-1)!);
+    expect(invoke).not.toHaveBeenCalled();
+    expect(screen.getByText("Voltura Air will disconnect.")).toBeTruthy();
+    fireEvent.click(screen.getAllByRole("button", { name: "Sleep PC" }).at(-1)!);
+    expect(invoke).toHaveBeenCalledExactlyOnceWith("screen.media", "revision.one", "button.play");
+  });
+
+  it("requires an uninterrupted hold before invoking destructive host actions", () => {
+    vi.useFakeTimers();
+    const invoke = vi.fn();
+    const protectedDefinition: CustomScreenDefinition = {
+      ...definition,
+      sections: [{
+        ...definition.sections[0]!,
+        buttons: [{
+          ...definition.sections[0]!.buttons[0]!,
+          name: "Shut down PC",
+          confirmation: "hold",
+          confirmationMessage: "Unsaved work may be lost."
+        }]
+      }]
+    };
+    render(<CustomScreenWorkspace {...workspace(invoke).props} definition={protectedDefinition} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Shut down PC" }));
+    const hold = screen.getByRole("button", { name: "Hold to shut down pc" });
+    expect(document.activeElement).toBe(hold);
+    fireEvent.pointerDown(hold, { button: 0, pointerId: 1 });
+    vi.advanceTimersByTime(1599);
+    expect(invoke).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(invoke).toHaveBeenCalledExactlyOnceWith("screen.media", "revision.one", "button.play");
   });
 
   it("removes the navigation row when the saved layout disables it", () => {

@@ -15,6 +15,7 @@ public static class CustomScreenBuiltIns
         new("media.previous", "Previous", "skip-back", "MediaPreviousTrack", [], false),
         new("media.playPause", "Play / pause", "play", "MediaPlayPause", [], false),
         new("media.next", "Next", "skip-forward", "MediaNextTrack", [], false),
+        new("media.stop", "Stop", "square-x", "MediaStop", [], false),
         new("media.seekBack", "Seek back", "arrow-left", "ArrowLeft", [], true),
         new("media.seekForward", "Seek forward", "arrow-right", "ArrowRight", [], true),
         new("volume.down", "Volume down", "volume-1", "VolumeDown", [], true),
@@ -35,6 +36,11 @@ public static class CustomScreenBuiltIns
         new("windows.taskView", "Task view", "app-window", "Tab", ["Win"], false),
         new("windows.showDesktop", "Show desktop", "monitor", "D", ["Win"], false),
         new("windows.minimize", "Minimize", "minimize", "ArrowDown", ["Win"], false),
+        new("windows.maximize", "Maximize", "maximize", "ArrowUp", ["Win"], false),
+        new("windows.snapLeft", "Snap left", "arrow-left", "ArrowLeft", ["Win"], false),
+        new("windows.snapRight", "Snap right", "arrow-right", "ArrowRight", ["Win"], false),
+        new("windows.explorer", "File Explorer", "app-window", "E", ["Win"], false),
+        new("windows.run", "Run", "command", "R", ["Win"], false),
         new("windows.close", "Close window", "square-x", "F4", ["Alt"], false)
     ];
 

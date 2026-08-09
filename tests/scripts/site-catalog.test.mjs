@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
+import { officialScreens } from "../../scripts/custom-screens/catalog.mjs";
+import { stableJson } from "../../scripts/custom-screens/builders/validation.mjs";
 
 const read = (path) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 
@@ -62,9 +66,9 @@ test("five-star picker fills the hovered star and every lower star", () => {
   assert.match(styles, /\.catalog-page \.star-picker label:hover ~ label/u);
 });
 
-test("uploads always use the screen name contained in the package", () => {
+test("uploads always use the exact current screen name field", () => {
   const upload = read("docs/site/screens/upload.php");
-  assert.match(upload, /\$name = trim\(\(string\)air_screen_value\(\$screen, 'Name'\)\)/u);
+  assert.match(upload, /\$name = trim\(\(string\)\$screen\['name'\]\)/u);
   assert.doesNotMatch(upload, /name="name"/u);
   assert.match(upload, /The screen name comes from the package\./u);
 });
@@ -82,7 +86,8 @@ test("failed upload persistence removes an uncommitted package file", () => {
       upload.indexOf("$uncommittedPackagePath = null", upload.indexOf("$stmt->execute")),
   );
   assert.match(upload, /@unlink\(\$uncommittedPackagePath\)/u);
-  assert.match(validation, /unset\(\$screen\['AssignedClientIds'\]\)/u);
+  assert.match(validation, /count\(\$screen\['assignedClientIds'\]\) !== 0/u);
+  assert.doesNotMatch(validation, /AssignedClientIds/u);
   assert.match(validation, /'packageVersion' => 1/u);
 });
 
@@ -407,6 +412,68 @@ test("full catalog previews use the real mobile custom-screen renderer", () => {
   assert.match(viteConfig, /publicDir: false/u);
   assert.match(viteConfig, /emptyOutDir: true/u);
   assert.match(packageJson.scripts["publish:site"], /site:preview:build/u);
+});
+
+test("admins can atomically bulk-import the generated official screen bundle", () => {
+  const admin = read("docs/site/screens/admin.php");
+  const importer = read("docs/site/screens/official-import.php");
+  const schema = read("docs/site/screens/schema.sql");
+  const migration = read("docs/site/screens/migration-003-official-screens.sql");
+  const library = read("docs/site/screens/lib.php");
+  assert.match(admin, /action="official-import\.php"/u);
+  assert.match(importer, /air_screen_require_admin\(\)/u);
+  assert.match(importer, /air_screen_require_csrf\(\)/u);
+  assert.match(importer, /ZipArchive::RDONLY/u);
+  assert.match(importer, /basename\(\$name\) !== \$name/u);
+  assert.match(importer, /count\(\$entries\) !== count\(\$validated\) \+ 1/u);
+  assert.match(importer, /air_screen_require_exact_keys\(\$catalog/u);
+  assert.match(importer, /air_screen_require_exact_keys\(\$metadata/u);
+  assert.doesNotMatch(importer, /researchReferences|unifiedremote/iu);
+  assert.match(importer, /beginTransaction\(\)/u);
+  assert.match(importer, /GET_LOCK\('voltura_air_official_import', 30\)/u);
+  assert.match(importer, /RELEASE_LOCK\('voltura_air_official_import'\)/u);
+  assert.match(importer, /ON DUPLICATE KEY UPDATE/u);
+  assert.doesNotMatch(importer, /downloads\s*=/u, "updates preserve download counters");
+  assert.match(importer, /\$db->commit\(\)/u);
+  assert.match(importer, /\$db->rollBack\(\)/u);
+  assert.match(importer, /air_screen_official_import_failure\('db_rollback'\)/u);
+  assert.match(importer, /\$commitAttempted && !\$rollbackConfirmed/u);
+  assert.match(importer, /\$existingPath === \$finalPath && is_file\(\$finalPath\)/u);
+  assert.match(importer, /hash_equals\(hash\('sha256', \$item\['json'\]\), hash_file\('sha256', \$finalPath\)\)/u);
+  assert.match(importer, /VOLTURA_AIR_OFFICIAL_IMPORT_FAIL/u);
+  assert.match(schema, /official_id VARCHAR\(64\) NULL UNIQUE/u);
+  assert.match(schema, /is_official BOOLEAN NOT NULL DEFAULT FALSE/u);
+  assert.match(migration, /idx_air_screen_official_id/u);
+  assert.match(library, /'urlOpen', 'knownApp', 'hostAction'/u);
+  assert.doesNotMatch(library.slice(library.indexOf("function air_screen_validate_package")), /'appLaunch'/u);
+});
+
+test("the PHP package boundary executes the current semantic contract", () => {
+  const source = officialScreens[0].screen;
+  const run = screen => {
+    const library = fileURLToPath(new URL("../../docs/site/screens/lib.php", import.meta.url)).replaceAll("\\", "/").replaceAll("'", "\\'");
+    return spawnSync("php", ["-d", "display_errors=1", "-r", `require '${library}'; try { air_screen_validate_package(file_get_contents('php://stdin')); echo 'accepted'; } catch (Throwable $error) { fwrite(STDERR, $error->getMessage()); exit(2); }`], {
+      encoding: "utf8",
+      input: stableJson({ packageVersion: 1, format: "voltura-air.custom-screen", screen })
+    });
+  };
+  assert.equal(run(source).status, 0);
+  const invalidValues = [
+    screen => { screen.sections[0].widthColumns = 5; },
+    screen => { screen.sections[0].buttons[0].action = { kind: "urlOpen", url: "file:///Windows/System32/calc.exe" }; },
+    screen => { screen.sections[0].buttons[0].action = { kind: "shortcut", key: "UnsupportedKey", modifiers: [] }; screen.sections[0].buttons[0].presentation = "label"; },
+    screen => { screen.sections[0].buttons[0].action = { kind: "builtIn", builtIn: "unknown.action" }; },
+    screen => { screen.sections[0].buttons[0].action = { kind: "knownApp", actionId: "arbitrary.exe" }; }
+  ];
+  for (const mutate of invalidValues) {
+    const invalid = structuredClone(source);
+    mutate(invalid);
+    assert.equal(run(invalid).status, 2);
+  }
+});
+
+test("the public site contains no forbidden competitor-site reference", () => {
+  assert.doesNotMatch(read("docs/site/index.php"), /unifiedremote|unified\s+remote/iu);
 });
 
 test("catalog detail launches Voltura Air directly and keeps file fallback", () => {

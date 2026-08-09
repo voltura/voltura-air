@@ -87,6 +87,11 @@ public partial class MainWindow : Window
             new CustomScreenBrowserPreviewLauncher(
                 webHost.Port,
                 pairingManager: pairingManager);
+        var customScreenValidator = new CustomScreenDraftValidator(
+            webHost.CustomScreenService,
+            new CustomScreenDraftLayoutValidator(
+                webHost.Port,
+                webHost.CustomScreenService));
         _customScreensPage = new CustomScreensPageController(
             this,
             webHost.CustomScreenService,
@@ -94,7 +99,8 @@ public partial class MainWindow : Window
             customScreenPreview.Open,
             customScreenPreview.CloseAll,
             customScreenActivityLog,
-            message => _toasts.Show(message));
+            message => _toasts.Show(message),
+            customScreenValidator.ValidateAsync);
         _presentationsPage = new PresentationsPageController(
             webHost.PresentationReportStore,
             webHost,

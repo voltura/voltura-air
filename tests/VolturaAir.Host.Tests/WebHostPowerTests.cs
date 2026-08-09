@@ -103,7 +103,7 @@ public sealed class WebHostPowerTests : IsolatedHostSettingsTest
             {
                 AllowPcLock = true,
                 AllowBlackoutDisplay = true,
-                AllowDisplayOff = true,
+                AllowDisplayControl = true,
                 AllowScreenSaver = true,
                 AllowSignOut = true,
                 AllowRestart = true,
@@ -152,7 +152,7 @@ public sealed class WebHostPowerTests : IsolatedHostSettingsTest
             {
                 AllowPcLock = false,
                 AllowBlackoutDisplay = false,
-                AllowDisplayOff = false,
+                AllowDisplayControl = false,
                 AllowScreenSaver = false,
                 AllowSignOut = false,
                 AllowRestart = false,
@@ -289,7 +289,7 @@ public sealed class WebHostPowerTests : IsolatedHostSettingsTest
 
         try
         {
-            AppPermissionSettings.Save(originalPermissions with { AllowPcLock = true, AllowDisplayOff = true });
+            AppPermissionSettings.Save(originalPermissions with { AllowPcLock = true, AllowDisplayControl = true });
             await using var fixture = await PowerHostFixture.StartAsync(powerActions, appLog: appLog);
             using var socket = await fixture.ConnectAsync();
             await fixture.PairAsync(socket);

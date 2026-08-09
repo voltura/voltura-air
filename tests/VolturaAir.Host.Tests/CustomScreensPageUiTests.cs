@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using VolturaAir.Host;
 using VolturaAir.Host.Features.CustomScreens;
@@ -83,6 +84,152 @@ public sealed partial class HostUiLayoutTests
             {
                 window.Close();
                 DisposeWebHost(webHost);
+            }
+        });
+    }
+
+    [Fact]
+    public void CustomScreenValidationIsAdvisoryAndDoesNotDisableSave()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            using var store = new TempPairingStore();
+            using var inputInjector = new SendInputInjector();
+            var manager = new PairingManager(store.Store);
+            var webHost = new WebHostService(
+                manager,
+                new InputDispatcher(inputInjector),
+                isolatedTestMode: true);
+            Assert.True(
+                webHost.CustomScreenService.TrySave(
+                    CustomScreenService.CreateDraft(),
+                    out _,
+                    out var error),
+                error);
+            var window = new MainWindow(manager, webHost, clientUrl: null);
+
+            try
+            {
+                window.ShowCustomScreenEditorForScreenshot();
+                window.UpdateLayout();
+
+                var validate = FindVisualDescendants<Button>(window)
+                    .Single(button => Equals(button.Content, "Validate"));
+                var save = FindVisualDescendants<Button>(window)
+                    .Single(button => Equals(button.Content, "Save"));
+                Assert.True(validate.IsEnabled);
+                Assert.True(save.IsEnabled);
+            }
+            finally
+            {
+                window.Close();
+                DisposeWebHost(webHost);
+            }
+        });
+    }
+
+    [Fact]
+    public void CustomScreenValidationReportUsesApplicationButtonsAndScrollBar()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            var findings = Enumerable.Range(0, 8)
+                .Select(index => new CustomScreenValidationFinding(
+                    CustomScreenValidationSeverity.Warning,
+                    $"Potential issue {index + 1}",
+                    "The validation report describes the potential issue.",
+                    "Review the affected button.",
+                    "section",
+                    $"button-{index + 1}"))
+                .ToArray();
+            var dialog = new CustomScreenValidationReportDialog(
+                new CustomScreenValidationReport(findings, ["Save contract passed."]),
+                _ => { });
+
+            try
+            {
+                dialog.Show();
+                dialog.UpdateLayout();
+
+                var selectButtons = FindVisualDescendants<Button>(dialog)
+                    .Where(button => Equals(button.Content, "Select button"))
+                    .ToArray();
+                var close = FindVisualDescendants<Button>(dialog)
+                    .Single(button => Equals(button.Content, "Close"));
+                var scrollBars = FindVisualDescendants<ScrollBar>(dialog).ToArray();
+
+                Assert.NotEmpty(selectButtons);
+                Assert.All(selectButtons, button => Assert.Same(
+                    dialog.FindResource("StandardButtonStyle"),
+                    button.Style));
+                Assert.Same(dialog.FindResource("PrimaryButtonStyle"), close.Style);
+                Assert.NotEmpty(scrollBars);
+                Assert.All(scrollBars, scrollBar => Assert.Same(
+                    dialog.FindResource(typeof(ScrollBar)),
+                    scrollBar.Style));
+            }
+            finally
+            {
+                dialog.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void CustomScreensPageOpensTheCommunityLibraryFromItsBrowseButton()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            using var pairingStore = new TempPairingStore();
+            var owner = new Window();
+            WpfTheme.Apply(owner);
+            owner.Resources.MergedDictionaries.Add(new ResourceDictionary
+            {
+                Source = new Uri(
+                    "/VolturaAir.Host;component/MainWindow.Styles.xaml",
+                    UriKind.Relative)
+            });
+            var opened = false;
+            var page = new CustomScreensPageView(
+                owner,
+                new CustomScreenService(
+                    new InMemoryCustomScreenStore(),
+                    new FakeAppLaunchService()),
+                new PairingManager(pairingStore.Store),
+                openCommunityLibrary: () => opened = true);
+            owner.Content = page;
+
+            try
+            {
+                owner.Show();
+                var browse = FindVisualDescendants<Button>(page)
+                    .Single(button => Equals(button.Content, "Browse library"));
+
+                browse.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+                Assert.True(opened);
+            }
+            finally
+            {
+                owner.Close();
             }
         });
     }

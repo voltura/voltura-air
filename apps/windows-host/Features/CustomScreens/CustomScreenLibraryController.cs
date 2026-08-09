@@ -56,7 +56,7 @@ internal sealed class CustomScreenLibraryController(
         if (screens.Count == 0)
         {
             list.Children.Add(CreateMessage(
-                "No custom screens yet. Create one to turn a paired device into a purpose-built control surface.",
+                "No custom screens yet. Create one, import a .volturascreen file, or browse the community library for ready-made controls.",
                 danger: false));
             return;
         }
@@ -197,7 +197,7 @@ internal sealed class CustomScreenLibraryController(
             activityLog.Write("export", succeeded: true);
             showToast("Custom screen exported");
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
             activityLog.Write("export", succeeded: false);
             MessageBox.Show(owner, $"The custom screen could not be exported: {ex.Message}",

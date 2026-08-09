@@ -248,7 +248,9 @@ public sealed class WebHostService : IAsyncDisposable
             statusFactory,
             inputDispatcher,
             _powerController,
+            _workstationLockPolicy,
             resolvedAppLaunchService,
+            resolvedUrlOpenService,
             _transport,
             _appLog);
         _screenView = new ScreenViewCoordinator(

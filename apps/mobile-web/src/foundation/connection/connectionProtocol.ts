@@ -517,7 +517,9 @@ function isCustomScreenButton(value: unknown): boolean {
     typeof value.enabled === "boolean" &&
     isOptional(value, "portrait", isNullableCustomScreenOverride) &&
     isOptional(value, "landscape", isNullableCustomScreenOverride) &&
-    isOptional(value, "unavailableReason", (candidate) => candidate === null || isBoundedString(candidate, 300, false));
+    isOptional(value, "unavailableReason", (candidate) => candidate === null || isBoundedString(candidate, 300, false)) &&
+    isOptional(value, "confirmation", (candidate) => candidate === null || isOneOf(candidate, ["confirm", "hold"])) &&
+    isOptional(value, "confirmationMessage", (candidate) => candidate === null || isBoundedString(candidate, 300, false));
 }
 
 function isNullableCustomScreenOverride(value: unknown): boolean {

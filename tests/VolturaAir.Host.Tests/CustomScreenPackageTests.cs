@@ -24,7 +24,7 @@ public sealed class CustomScreenPackageTests
     }
 
     [Fact]
-    public void ReadReportsHostLocalApplicationActions()
+    public void PortablePackagesRejectHostLocalApplicationActions()
     {
         var source = CustomScreenService.CreateDraft();
         var button = source.Sections[0].Buttons[0] with
@@ -36,14 +36,9 @@ public sealed class CustomScreenPackageTests
             Sections = [source.Sections[0] with { Buttons = [button] }]
         };
 
-        Assert.True(CustomScreenPackages.TryRead(
-            CustomScreenPackages.Serialize(source),
-            out var inspection,
-            out var error), error);
-        Assert.Equal(1, inspection!.HostLocalActionCount);
-        Assert.Contains("appLaunch", inspection.ActionKinds);
-        Assert.Contains("may be unavailable", CustomScreenPackages.ReviewText(inspection));
-        Assert.DoesNotContain("action(s)", CustomScreenPackages.ReviewText(inspection));
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            CustomScreenPackages.Serialize(source));
+        Assert.Contains("Host-local", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -64,6 +59,40 @@ public sealed class CustomScreenPackageTests
             out _,
             out var sizeError));
         Assert.Contains("too large", sizeError, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ReadAcceptsOnlyTheExactCurrentJsonContract()
+    {
+        var source = CustomScreenService.CreateDraft();
+        var json = JsonSerializer.Serialize(
+            new CustomScreenPackage(
+                CustomScreenPackages.CurrentPackageVersion,
+                CustomScreenPackages.Format,
+                source),
+            CustomScreenJson.Exact);
+
+        Assert.False(CustomScreenPackages.TryRead(
+            System.Text.Encoding.UTF8.GetBytes(json.Replace("\"screen\"", "\"Screen\"", StringComparison.Ordinal)),
+            out _,
+            out var casingError));
+        Assert.Contains("valid JSON", casingError, StringComparison.OrdinalIgnoreCase);
+
+        Assert.False(CustomScreenPackages.TryRead(
+            System.Text.Encoding.UTF8.GetBytes(json.Replace("\"format\":", "\"unknown\": true, \"format\":", StringComparison.Ordinal)),
+            out _,
+            out var unknownFieldError));
+        Assert.Contains("valid JSON", unknownFieldError, StringComparison.OrdinalIgnoreCase);
+
+        var assigned = source with { AssignedClientIds = ["phone-a"] };
+        var assignedBytes = JsonSerializer.SerializeToUtf8Bytes(
+            new CustomScreenPackage(
+                CustomScreenPackages.CurrentPackageVersion,
+                CustomScreenPackages.Format,
+                assigned),
+            CustomScreenJson.Exact);
+        Assert.False(CustomScreenPackages.TryRead(assignedBytes, out _, out var assignmentError));
+        Assert.Contains("cannot contain device assignments", assignmentError, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

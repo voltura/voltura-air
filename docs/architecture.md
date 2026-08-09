@@ -119,8 +119,10 @@ Custom screens cross the trust boundary as visual definitions and opaque IDs
 only. The host-owned store retains actions and assignments, the status
 broadcaster publishes assigned summaries, and the command handler rechecks
   assignment, revision, effective permission, and current approved
-application ownership before dispatching through existing input/application
-owners. Screen components and actions remain shared identities; optional
+application availability before dispatching through existing input,
+HTTP(S)-URL, known-application, or allow-listed system-action owners. Destructive
+action confirmation is host-derived visual metadata rather than package policy.
+Screen components and actions remain shared identities; optional
 portrait and landscape records are peer layout overrides for visibility, order,
 width/size, and button row rather than duplicated action definitions.
 Button and trackpad panels share the same row composer: content rows reserve
@@ -137,6 +139,14 @@ cannot invoke actions. The Custom screens page owns every preview window and
 closes them together after navigation away succeeds. Editor lifecycle outcomes
 enter the existing non-blocking `AppLog`; no custom-screen names, labels,
 action payloads, or drag events are recorded.
+
+Official screens are owned by `scripts/custom-screens`: concise definitions use
+shared action/layout builders, and `scripts/generate-custom-screens.mjs`
+deterministically emits exact package-version-1 JSON, catalog metadata, and a
+fixed-timestamp ZIP. Generated packages are artifacts, never hand-maintained.
+The catalog's admin importer validates the entire bundle before installing
+content-addressed files and committing one database transaction; stable
+official IDs preserve ratings and download counters across updates.
 
 ## Source limits
 

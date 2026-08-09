@@ -27,10 +27,15 @@ public static class CustomScreenPackages
     public static byte[] Serialize(CustomScreenDefinition screen)
     {
         ArgumentNullException.ThrowIfNull(screen);
+        if (HasHostLocalActions(screen))
+        {
+            throw new InvalidOperationException(
+                "Host-local application actions cannot be exported. Replace them with a known application profile first.");
+        }
         var portable = screen with { AssignedClientIds = [] };
         return JsonSerializer.SerializeToUtf8Bytes(
             new CustomScreenPackage(CurrentPackageVersion, Format, portable),
-            JsonOptions.Default);
+            CustomScreenJson.Exact);
     }
 
     public static bool TryRead(
@@ -47,7 +52,7 @@ public static class CustomScreenPackages
 
         try
         {
-            var package = JsonSerializer.Deserialize<CustomScreenPackage>(bytes, JsonOptions.Default);
+            var package = JsonSerializer.Deserialize<CustomScreenPackage>(bytes, CustomScreenJson.Exact);
             if (package is null ||
                 package.PackageVersion != CurrentPackageVersion ||
                 !string.Equals(package.Format, Format, StringComparison.Ordinal) ||
@@ -60,6 +65,18 @@ public static class CustomScreenPackages
             if (!CustomScreenValidator.TryValidate(package.Screen, out error))
             {
                 error = $"The custom-screen package is invalid: {error}";
+                return false;
+            }
+
+            if (package.Screen.AssignedClientIds.Count != 0)
+            {
+                error = "Portable custom-screen packages cannot contain device assignments.";
+                return false;
+            }
+
+            if (HasHostLocalActions(package.Screen))
+            {
+                error = "The custom-screen package contains a host-local application action. Portable packages must use known application profiles.";
                 return false;
             }
 
@@ -142,10 +159,10 @@ public static class CustomScreenPackages
         CustomScreenDefinition right) =>
         JsonSerializer.SerializeToUtf8Bytes(
             NormalizePortableContent(left),
-            JsonOptions.Default).AsSpan().SequenceEqual(
+            CustomScreenJson.Exact).AsSpan().SequenceEqual(
                 JsonSerializer.SerializeToUtf8Bytes(
                     NormalizePortableContent(right),
-                    JsonOptions.Default));
+                    CustomScreenJson.Exact));
 
     private static string ReviewDetails(CustomScreenPackageInspection inspection)
     {
@@ -183,4 +200,8 @@ public static class CustomScreenPackages
                 })]
             })]
         };
+
+    private static bool HasHostLocalActions(CustomScreenDefinition screen) =>
+        screen.Sections.SelectMany(section => section.Buttons)
+            .Any(button => button.Action.Kind == "appLaunch");
 }

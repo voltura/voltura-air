@@ -5,12 +5,12 @@ $stmt->execute(['id' => (string)($_GET['id'] ?? '')]);
 $item = $stmt->fetch();
 if (!$item) { http_response_code(404); exit('Screen not found.'); }
 $package = json_decode((string)$item['screen_json'], true);
-$screen = is_array($package) ? air_screen_value($package, 'Screen') : null;
+$screen = is_array($package) ? ($package['screen'] ?? null) : null;
 $actions = [];
-foreach (is_array($screen) ? (air_screen_value($screen, 'Sections') ?? []) : [] as $section) {
-    foreach (is_array($section) ? (air_screen_value($section, 'Buttons') ?? []) : [] as $button) {
-        $action = is_array($button) ? air_screen_value($button, 'Action') : null;
-        $kind = is_array($action) ? (string)air_screen_value($action, 'Kind') : '';
+foreach (is_array($screen) ? ($screen['sections'] ?? []) : [] as $section) {
+    foreach (is_array($section) ? ($section['buttons'] ?? []) : [] as $button) {
+        $action = is_array($button) ? ($button['action'] ?? null) : null;
+        $kind = is_array($action) ? (string)($action['kind'] ?? '') : '';
         if ($kind !== '') { $actions[$kind] = ($actions[$kind] ?? 0) + 1; }
     }
 }

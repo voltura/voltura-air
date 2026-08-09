@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Microsoft.Win32;
 
 namespace VolturaAir.Host;
@@ -12,11 +13,54 @@ public interface IAppLaunchService
     AppLaunchExecutionResult Execute(string actionId);
 
     AppLaunchExecutionResult ExecutePowerPointFile(string path);
+
+    IReadOnlyList<KnownAppProfileSummary> GetKnownApplications() =>
+        [.. KnownAppProfiles.All.Select(profile => new KnownAppProfileSummary(profile.Id, profile.Label, false))];
+
+    AppLaunchExecutionResult ExecuteKnown(string profileId) =>
+        new(false, "not-found", "This known application is unavailable on the PC.");
 }
 
-public sealed class AppLaunchService : IAppLaunchService
+public sealed record KnownAppProfile(string Id, string Label, string ProcessName);
+
+public sealed record KnownAppProfileSummary(string Id, string Label, bool Available);
+
+public static class KnownAppProfiles
+{
+    private static readonly KnownAppProfile[] Items =
+    [
+        new("browser", "Browser", ""),
+        new("spotify", "Spotify", "Spotify"),
+        new("vlc", "VLC", "vlc"),
+        new("zoom", "Zoom", "Zoom"),
+        new("plex", "Plex", "Plex"),
+        new("windowsPhotos", "Windows Photos", "Photos"),
+        new("blender", "Blender", "blender")
+    ];
+
+    public static IReadOnlyList<KnownAppProfile> All => Items;
+
+    public static KnownAppProfile? Find(string? id) =>
+        Items.FirstOrDefault(profile => string.Equals(profile.Id, id, StringComparison.Ordinal));
+
+    public static bool IsSupported(string? id) => Find(id) is not null;
+}
+
+public sealed partial class AppLaunchService : IAppLaunchService
 {
     private const string BrowserStartUrl = "https://www.google.com";
+    private static readonly TimeSpan KnownApplicationRefreshInterval = TimeSpan.FromSeconds(30);
+    private KnownAppProfileSummary[] _knownApplications;
+    private long _knownApplicationsRefreshedAt = Environment.TickCount64;
+    private int _knownApplicationRefreshQueued;
+
+    public AppLaunchService()
+    {
+        _knownApplications = [.. KnownAppProfiles.All.Select(profile => new KnownAppProfileSummary(
+            profile.Id,
+            profile.Label,
+            IsKnownAvailable(profile.Id)))];
+    }
 
     public IReadOnlyList<AppLaunchActionSummary> GetActions()
     {
@@ -89,6 +133,53 @@ public sealed class AppLaunchService : IAppLaunchService
         }
     }
 
+    public IReadOnlyList<KnownAppProfileSummary> GetKnownApplications()
+    {
+        QueueKnownApplicationRefreshIfStale();
+        return Volatile.Read(ref _knownApplications);
+    }
+
+    public AppLaunchExecutionResult ExecuteKnown(string profileId)
+    {
+        var profile = KnownAppProfiles.Find(profileId);
+        if (profile is null)
+        {
+            return new(false, "unsupported", "This known application profile is unsupported.");
+        }
+
+        try
+        {
+            if (TryFocusExisting(profile.ProcessName))
+            {
+                MarkKnownAvailable(profile.Id);
+                return new(true, "focused", $"Focused {profile.Label}.");
+            }
+
+            var started = profile.Id switch
+            {
+                "browser" => StartShellTarget(BrowserStartUrl),
+                "spotify" => TryStartSpotify(),
+                "vlc" => TryStartRegisteredApplication("vlc.exe", GetKnownVlcPaths()),
+                "zoom" => TryStartRegisteredApplication("Zoom.exe", GetKnownZoomPaths()),
+                "plex" => TryStartRegisteredApplication("Plex.exe", GetKnownPlexPaths()),
+                "windowsPhotos" => TryStartUriScheme("ms-photos"),
+                "blender" => TryStartRegisteredApplication("blender.exe", GetKnownBlenderPaths()),
+                _ => false
+            };
+            if (started)
+            {
+                MarkKnownAvailable(profile.Id);
+                return new(true, "started", $"Started {profile.Label}.");
+            }
+            return new(false, "not-found", $"{profile.Label} is not installed or could not be started.");
+        }
+        catch (Exception exception) when (
+            exception is InvalidOperationException or System.ComponentModel.Win32Exception or FileNotFoundException)
+        {
+            return new(false, "start-failed", $"Windows could not start {profile.Label}.");
+        }
+    }
+
     private static bool StartCustom(AppLaunchAction action)
     {
         using var process = Process.Start(new ProcessStartInfo
@@ -109,7 +200,7 @@ public sealed class AppLaunchService : IAppLaunchService
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "WindowsApps", "Spotify.exe")
         };
 
-        return TryStartRegisteredApplication("spotify.exe", paths) || StartShellTarget("spotify:");
+        return TryStartRegisteredApplication("spotify.exe", paths) || TryStartUriScheme("spotify");
     }
 
     private static bool TryStartRegisteredApplication(string executableName, IEnumerable<string> fallbackPaths)
@@ -163,6 +254,200 @@ public sealed class AppLaunchService : IAppLaunchService
         }
     }
 
+    private static IEnumerable<string> GetKnownZoomPaths()
+    {
+        yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Zoom", "bin", "Zoom.exe");
+        yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Zoom", "bin", "Zoom.exe");
+        yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Zoom", "bin", "Zoom.exe");
+    }
+
+    private static IEnumerable<string> GetKnownPlexPaths()
+    {
+        yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Plex", "Plex.exe");
+        yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Plex", "Plex.exe");
+        yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Plex", "Plex.exe");
+    }
+
+    private static List<string> GetKnownBlenderPaths()
+    {
+        var paths = new List<string>();
+        var roots = new[]
+        {
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86)
+        };
+        foreach (var root in roots)
+        {
+            try
+            {
+                var foundation = Path.Combine(root, "Blender Foundation");
+                if (!Directory.Exists(foundation))
+                {
+                    continue;
+                }
+
+                foreach (var versionFolder in Directory.EnumerateDirectories(foundation))
+                {
+                    paths.Add(Path.Combine(versionFolder, "blender.exe"));
+                }
+            }
+            catch (Exception exception) when (
+                exception is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+            {
+            }
+        }
+        return paths;
+    }
+
+    private static bool IsKnownAvailable(string id)
+    {
+        try
+        {
+            return id switch
+            {
+                "browser" => true,
+                "windowsPhotos" => IsUriSchemeRegistered("ms-photos"),
+                "spotify" => Process.GetProcessesByName("Spotify").Length > 0 ||
+                    GetKnownSpotifyPaths().Any(File.Exists) ||
+                    IsUriSchemeRegistered("spotify"),
+                "vlc" => Process.GetProcessesByName("vlc").Length > 0 ||
+                    FindRegisteredApplication("vlc.exe", GetKnownVlcPaths()) is not null,
+                "zoom" => Process.GetProcessesByName("Zoom").Length > 0 ||
+                    FindRegisteredApplication("Zoom.exe", GetKnownZoomPaths()) is not null,
+                "plex" => Process.GetProcessesByName("Plex").Length > 0 ||
+                    FindRegisteredApplication("Plex.exe", GetKnownPlexPaths()) is not null,
+                "blender" => Process.GetProcessesByName("blender").Length > 0 ||
+                    FindRegisteredApplication("blender.exe", GetKnownBlenderPaths()) is not null,
+                _ => false
+            };
+        }
+        catch (Exception exception) when (
+            exception is InvalidOperationException or System.ComponentModel.Win32Exception or
+                UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            return false;
+        }
+    }
+
+    private static IEnumerable<string> GetKnownSpotifyPaths()
+    {
+        yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Spotify", "Spotify.exe");
+        yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "WindowsApps", "Spotify.exe");
+    }
+
+    private static bool IsUriSchemeRegistered(string scheme)
+    {
+        using var key = Registry.ClassesRoot.OpenSubKey(scheme, writable: false);
+        if (key is null)
+        {
+            return false;
+        }
+
+        using var command = key.OpenSubKey(@"shell\open\command", writable: false);
+        return HasUsableUriSchemeRegistration(
+            key.GetValueNames().Contains("URL Protocol", StringComparer.OrdinalIgnoreCase),
+            command?.GetValue(null) as string,
+            command?.GetValue("DelegateExecute") as string);
+    }
+
+    internal static bool HasUsableUriSchemeRegistration(
+        bool declaresUrlProtocol,
+        string? command,
+        string? delegateExecute) =>
+        declaresUrlProtocol &&
+        (!string.IsNullOrWhiteSpace(command) || !string.IsNullOrWhiteSpace(delegateExecute));
+
+    private static bool TryStartUriScheme(string scheme) =>
+        IsUriSchemeRegistered(scheme) && StartShellTarget($"{scheme}:");
+
+    private static bool TryFocusExisting(string processName)
+    {
+        if (string.IsNullOrEmpty(processName))
+        {
+            return false;
+        }
+
+        foreach (var process in Process.GetProcessesByName(processName))
+        {
+            using (process)
+            {
+                nint handle;
+                try
+                {
+                    handle = process.MainWindowHandle;
+                }
+                catch (Exception exception) when (
+                    exception is InvalidOperationException or System.ComponentModel.Win32Exception)
+                {
+                    continue;
+                }
+                if (handle == nint.Zero)
+                {
+                    continue;
+                }
+
+                if (IsIconic(handle))
+                {
+                    _ = ShowWindowAsync(handle, 9);
+                }
+
+                if (SetForegroundWindow(handle))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private void QueueKnownApplicationRefreshIfStale()
+    {
+        if (Environment.TickCount64 - Volatile.Read(ref _knownApplicationsRefreshedAt) <
+                KnownApplicationRefreshInterval.TotalMilliseconds ||
+            Interlocked.CompareExchange(ref _knownApplicationRefreshQueued, 1, 0) != 0)
+        {
+            return;
+        }
+
+        ThreadPool.QueueUserWorkItem(_ =>
+        {
+            try
+            {
+                var refreshed = KnownAppProfiles.All.Select(profile =>
+                    new KnownAppProfileSummary(
+                        profile.Id,
+                        profile.Label,
+                        IsKnownAvailable(profile.Id))).ToArray();
+                Volatile.Write(ref _knownApplications, refreshed);
+                Volatile.Write(ref _knownApplicationsRefreshedAt, Environment.TickCount64);
+            }
+            catch (Exception exception) when (
+                exception is IOException or InvalidOperationException or
+                    System.ComponentModel.Win32Exception or UnauthorizedAccessException or
+                    System.Security.SecurityException)
+            {
+                Volatile.Write(ref _knownApplicationsRefreshedAt, Environment.TickCount64);
+            }
+            finally
+            {
+                Volatile.Write(ref _knownApplicationRefreshQueued, 0);
+            }
+        });
+    }
+
+    private void MarkKnownAvailable(string id)
+    {
+        var current = Volatile.Read(ref _knownApplications);
+        if (current.FirstOrDefault(item => item.Id == id) is not { Available: false })
+        {
+            return;
+        }
+        Volatile.Write(
+            ref _knownApplications,
+            [.. current.Select(item => item.Id == id ? item with { Available = true } : item)]);
+    }
+
     private static bool StartExecutable(string path)
     {
         using var process = Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = false });
@@ -186,4 +471,16 @@ public sealed class AppLaunchService : IAppLaunchService
             _ => "custom"
         };
     }
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool SetForegroundWindow(nint hWnd);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool IsIconic(nint hWnd);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool ShowWindowAsync(nint hWnd, int command);
 }

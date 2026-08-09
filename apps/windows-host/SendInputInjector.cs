@@ -145,7 +145,7 @@ public sealed class SendInputInjector : IInputInjector
 
         if (virtualKey == 0)
         {
-            return;
+            throw new ArgumentException("The special key is unsupported.", nameof(key));
         }
 
         var modifierKeys = modifiers.Select(GetModifierVirtualKey).Where(value => value != 0).ToArray();
@@ -366,6 +366,21 @@ public sealed class SendInputInjector : IInputInjector
         ["VolumeMute"] = 0xAD,
         ["VolumeDown"] = 0xAE,
         ["VolumeUp"] = 0xAF,
+        ["Numpad0"] = 0x60,
+        ["Numpad1"] = 0x61,
+        ["Numpad2"] = 0x62,
+        ["Numpad3"] = 0x63,
+        ["Numpad4"] = 0x64,
+        ["Numpad5"] = 0x65,
+        ["Numpad6"] = 0x66,
+        ["Numpad7"] = 0x67,
+        ["Numpad8"] = 0x68,
+        ["Numpad9"] = 0x69,
+        ["NumpadMultiply"] = 0x6A,
+        ["NumpadAdd"] = 0x6B,
+        ["NumpadSubtract"] = 0x6D,
+        ["NumpadDecimal"] = 0x6E,
+        ["NumpadDivide"] = 0x6F,
         ["F1"] = 0x70,
         ["F2"] = 0x71,
         ["F3"] = 0x72,

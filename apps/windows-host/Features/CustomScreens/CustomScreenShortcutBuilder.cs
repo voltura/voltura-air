@@ -75,6 +75,10 @@ internal sealed class CustomScreenShortcutBuilder(
             CustomScreenShortcutKeys.SymbolKeys.Contains(
                 key,
                 StringComparer.Ordinal);
+        var usesNumpadOrMediaSelector = key is not null &&
+            CustomScreenShortcutKeys.NumpadAndMediaKeys.Contains(
+                key,
+                StringComparer.Ordinal);
 
         panel.Children.Add(Label("Modifiers"));
         var availableModifiers = new WrapPanel();
@@ -91,7 +95,7 @@ internal sealed class CustomScreenShortcutBuilder(
         {
             ItemsSource = CustomScreenShortcutKeys.Suggestions,
             SelectedItem = usesFunctionSelector || usesSpecialSelector ||
-                usesSymbolSelector
+                usesSymbolSelector || usesNumpadOrMediaSelector
                 ? null
                 : key
         };
@@ -146,6 +150,18 @@ internal sealed class CustomScreenShortcutBuilder(
             FrameworkElement.StyleProperty,
             "ModernComboBoxStyle");
         panel.Children.Add(symbolInput);
+
+        panel.Children.Add(Label("Numpad or media key"));
+        var numpadAndMediaInput = new ComboBox
+        {
+            ItemsSource = CustomScreenShortcutKeys.NumpadAndMediaKeys,
+            SelectedItem = usesNumpadOrMediaSelector ? key : null
+        };
+        AutomationProperties.SetName(numpadAndMediaInput, "Numpad or media key");
+        numpadAndMediaInput.SetResourceReference(
+            FrameworkElement.StyleProperty,
+            "ModernComboBoxStyle");
+        panel.Children.Add(numpadAndMediaInput);
 
         panel.Children.Add(Label("Command"));
         var commandText = new TextBlock
@@ -235,6 +251,10 @@ internal sealed class CustomScreenShortcutBuilder(
             {
                 symbolInput.SelectedItem = null;
             }
+            if (!ReferenceEquals(sourceSelector, numpadAndMediaInput))
+            {
+                numpadAndMediaInput.SelectedItem = null;
+            }
             Refresh();
         }
 
@@ -266,6 +286,13 @@ internal sealed class CustomScreenShortcutBuilder(
                 SelectKey(selected, symbolInput);
             }
         };
+        numpadAndMediaInput.SelectionChanged += (_, _) =>
+        {
+            if (numpadAndMediaInput.SelectedItem is string selected)
+            {
+                SelectKey(selected, numpadAndMediaInput);
+            }
+        };
         reset.Click += (_, _) =>
         {
             modifiers.Clear();
@@ -274,6 +301,7 @@ internal sealed class CustomScreenShortcutBuilder(
             functionInput.SelectedItem = null;
             specialInput.SelectedItem = null;
             symbolInput.SelectedItem = null;
+            numpadAndMediaInput.SelectedItem = null;
             Refresh();
         };
         save.Click += (_, _) =>

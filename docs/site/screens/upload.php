@@ -16,8 +16,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $json = file_get_contents($_FILES['package']['tmp_name']);
         $package = air_screen_validate_package($json);
-        $screen = air_screen_value($package, 'Screen');
-        $name = trim((string)air_screen_value($screen, 'Name'));
+        $screen = $package['screen'];
+        $name = trim((string)$screen['name']);
         $description = trim((string)($_POST['description'] ?? ''));
         $tags = trim((string)($_POST['tags'] ?? ''));
         if ($name === '' || strlen($name) > 24 || strlen($description) > 1000 || strlen($tags) > 500) {

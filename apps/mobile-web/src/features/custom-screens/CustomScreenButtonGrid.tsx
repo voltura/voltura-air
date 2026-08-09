@@ -1,4 +1,4 @@
-import type { PointerEvent } from "react";
+import { useRef, useState, type PointerEvent } from "react";
 import {
   AppWindow, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Clipboard, Command,
   CornerDownLeft, Copy, Keyboard, Maximize, Minimize, Monitor, Pause, Play,
@@ -9,6 +9,9 @@ import type {
   CustomScreenLayoutOverride,
   CustomScreenSectionDefinition
 } from "../../foundation/protocol/messages";
+import { ConfirmationDialog } from "../../ui/overlays/ConfirmationDialog";
+import { ModalDialog } from "../../ui/overlays/ModalDialog";
+import { HoldToConfirmButton } from "../../ui/overlays/HoldToConfirmButton";
 
 const icons = {
   "app-window": AppWindow,
@@ -66,6 +69,8 @@ export function CustomScreenButtonGrid({
   pendingButtonIds,
   section
 }: CustomScreenButtonGridProps) {
+  const [confirmation, setConfirmation] = useState<CustomScreenButtonDefinition | null>(null);
+  const holdButtonRef = useRef<HTMLButtonElement | null>(null);
   const buttons = arrangeButtons(
     section.buttons,
     orientationLayoutsEnabled,
@@ -91,9 +96,16 @@ export function CustomScreenButtonGrid({
               <button
                 aria-label={button.name}
                 className={`custom-screen-button size-${size}`}
+                data-custom-screen-button-id={button.id}
                 disabled={!button.enabled}
                 key={button.id}
-                onClick={() => { invoke(button); }}
+                onClick={() => {
+                  if (button.confirmation) {
+                    setConfirmation(button);
+                  } else {
+                    invoke(button);
+                  }
+                }}
                 onLostPointerCapture={onLostPointerCapture}
                 onPointerCancel={onPointerCancel}
                 onPointerDown={(event) => { onPointerDown(event, button); }}
@@ -112,6 +124,44 @@ export function CustomScreenButtonGrid({
           })}
         </div>
       ))}
+      <ConfirmationDialog
+        confirmLabel={confirmation?.name ?? "Continue"}
+        description={confirmation?.confirmationMessage ?? "Continue with this system action?"}
+        isOpen={confirmation?.confirmation === "confirm"}
+        onCancel={() => { setConfirmation(null); }}
+        onConfirm={() => {
+          if (confirmation) {
+            invoke(confirmation);
+          }
+          setConfirmation(null);
+        }}
+        title={confirmation?.name ?? "Confirm system action"}
+      />
+      <ModalDialog
+        actions={confirmation?.confirmation === "hold" ? (
+          <>
+            <HoldToConfirmButton
+              disabled={false}
+              label={confirmation.name}
+              ref={holdButtonRef}
+              onConfirm={() => {
+                invoke(confirmation);
+                setConfirmation(null);
+              }}
+            />
+            <button type="button" onClick={() => { setConfirmation(null); }}>Cancel</button>
+          </>
+        ) : undefined}
+        actionsClassName="hold-confirm-actions"
+        className="confirmation-dialog"
+        dismissLabel="Cancel"
+        isOpen={confirmation?.confirmation === "hold"}
+        initialFocusRef={holdButtonRef}
+        onClose={() => { setConfirmation(null); }}
+        title={confirmation?.name ?? "Confirm system action"}
+      >
+        <p>{confirmation?.confirmationMessage ?? "Unsaved work may be lost."}</p>
+      </ModalDialog>
     </div>
   );
 }

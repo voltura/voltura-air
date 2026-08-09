@@ -296,6 +296,8 @@ export interface CustomScreenButtonDefinition {
   landscape?: CustomScreenLayoutOverride | null;
   enabled: boolean;
   unavailableReason?: string | null;
+  confirmation?: "confirm" | "hold" | null;
+  confirmationMessage?: string | null;
 }
 
 export interface CustomScreenSectionDefinition {

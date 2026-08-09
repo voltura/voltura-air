@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Diagnostics.CodeAnalysis;
 using Button = System.Windows.Controls.Button;
 using Brush = System.Windows.Media.Brush;
 using MessageBox = System.Windows.MessageBox;
@@ -12,6 +13,7 @@ public partial class CustomScreensPageView : UserControl
     private readonly Window _owner;
     private readonly CustomScreenService _service;
     private readonly Action<string> _showToast;
+    private readonly Action _openCommunityLibrary;
     private readonly CustomScreenLibraryController _libraryController;
     private readonly CustomScreenPropertiesPanelController _propertiesController;
     private readonly CustomScreenPreviewController _previewController;
@@ -24,6 +26,8 @@ public partial class CustomScreensPageView : UserControl
     private readonly CustomScreenPaletteDragController _paletteDrag;
     private readonly CustomScreenHiddenControlsController _hiddenControls;
     private readonly CustomScreenEditorPreviewController _editorPreview;
+    private readonly Func<CustomScreenDefinition, CancellationToken,
+        Task<CustomScreenValidationReport>> _validateDraft;
     private readonly Stack<CustomScreenDefinition> _undo = new();
     private readonly Stack<CustomScreenDefinition> _redo = new();
     private CustomScreenDefinition? _draft;
@@ -32,6 +36,7 @@ public partial class CustomScreensPageView : UserControl
     private int? _selectedRow;
     private bool _synchronizing;
     private bool _dirty;
+    private bool _invalidDataPromptShown;
     internal CustomScreensPageView(
         Window owner,
         CustomScreenService service,
@@ -39,12 +44,23 @@ public partial class CustomScreensPageView : UserControl
         Action<string>? showToast = null,
         Func<string, UrlOpenExecutionResult>? openPreview = null,
         Func<string, CustomScreenViewport, bool, string?, UrlOpenExecutionResult>? openSizedPreview = null,
-        CustomScreenEditorActivityLog? activityLog = null)
+        CustomScreenEditorActivityLog? activityLog = null,
+        Action? openCommunityLibrary = null,
+        Func<CustomScreenDefinition, CancellationToken,
+            Task<CustomScreenValidationReport>>? validateDraft = null)
     {
         _owner = owner;
         _service = service;
         _showToast = showToast ?? (static _ => { });
+        _openCommunityLibrary = openCommunityLibrary ?? ProductWebsite.OpenCustomScreenLibrary;
         _activityLog = activityLog ?? new CustomScreenEditorActivityLog(NullAppLog.Instance);
+        _validateDraft = validateDraft ?? ((draft, _) => Task.FromResult(
+            CustomScreenValidationAnalyzer.Analyze(
+                draft,
+                service.GetKnownAppProfiles(),
+                service.GetApprovedAppActions(),
+                layoutIssues: null,
+                layoutFailure: "The real mobile preview renderer is unavailable in this host context.")));
         var preview = openPreview ??
             (static _ => new(false, "preview-unavailable", "Preview is unavailable."));
         InitializeComponent();
@@ -154,6 +170,40 @@ public partial class CustomScreensPageView : UserControl
             _activityLog, _showToast);
         _deleteConfirmations.Synchronize();
         _previewDevices.Load();
+        RefreshLibrary();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        if (_invalidDataPromptShown || _service.LoadError is not { } loadError)
+        {
+            return;
+        }
+
+        _invalidDataPromptShown = true;
+        if (!ThemedConfirmationDialog.Show(
+                _owner,
+                "Invalid Custom Screens data",
+                $"{loadError}\n\nDelete the invalid Custom Screens file and start with an empty library?",
+                "Delete invalid file",
+                "Keep file",
+                ConfirmationTone.Warning))
+        {
+            return;
+        }
+
+        if (!_service.TryDeleteInvalidData(out var error))
+        {
+            ThemedConfirmationDialog.ShowInformation(
+                _owner,
+                "Invalid Custom Screens data",
+                error,
+                ConfirmationTone.Warning);
+            return;
+        }
+
+        _showToast("Invalid Custom Screens file deleted");
         RefreshLibrary();
     }
     internal bool TryLeave()
@@ -402,6 +452,8 @@ public partial class CustomScreensPageView : UserControl
 
     private void OnImportScreen(object sender, RoutedEventArgs e) => _libraryController.Import();
 
+    private void OnBrowseLibrary(object sender, RoutedEventArgs e) => _openCommunityLibrary();
+
     private void OnBack(object sender, RoutedEventArgs e)
     {
         if (!TryLeave())
@@ -437,6 +489,57 @@ public partial class CustomScreensPageView : UserControl
         _redo.Clear();
         SynchronizeEditor();
         _showToast("Custom screen saved");
+    }
+
+    [SuppressMessage(
+        "Design",
+        "CA1031:Do not catch general exception types",
+        Justification = "This async WPF command boundary must convert every validator failure into themed feedback instead of terminating the host.")]
+    private async void OnValidate(object sender, RoutedEventArgs e)
+    {
+        if (_draft is null || !ValidateButton.IsEnabled)
+        {
+            return;
+        }
+
+        var draft = _draft;
+        ValidateButton.IsEnabled = false;
+        ValidateButton.Content = "Validating…";
+        try
+        {
+            var report = await _validateDraft(draft, CancellationToken.None);
+            _activityLog.Write("validate", succeeded: true);
+            var dialog = new CustomScreenValidationReportDialog(
+                report,
+                finding =>
+                {
+                    if (finding.SectionId is not null)
+                    {
+                        SelectPreviewComponent(
+                            finding.SectionId,
+                            finding.ButtonId,
+                            row: null);
+                    }
+                })
+            {
+                Owner = _owner
+            };
+            _ = dialog.ShowDialog();
+        }
+        catch (Exception)
+        {
+            _activityLog.Write("validate", succeeded: false);
+            ThemedConfirmationDialog.ShowInformation(
+                _owner,
+                "Custom Screen validation",
+                "Validation could not finish. Try again; Save remains available.",
+                ConfirmationTone.Warning);
+        }
+        finally
+        {
+            ValidateButton.Content = "Validate";
+            ValidateButton.IsEnabled = true;
+        }
     }
 
     private void OnScreenNameChanged(object sender, TextChangedEventArgs e)

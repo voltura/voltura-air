@@ -109,6 +109,75 @@ describe("ScreenViewWorkspace", () => {
     expect(screen.getByRole("status").textContent).toBe("Preparing encrypted WebRTC mirror...");
   });
 
+  it("keeps the acknowledged display and direct pointer target when a display switch fails", () => {
+    vi.stubGlobal("matchMedia", vi.fn(() => ({
+      matches: true,
+      media: "(any-pointer: fine) and (any-hover: hover)",
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    } satisfies MediaQueryList)));
+    const send = vi.fn<(message: ClientMessage) => void>();
+    render(<ScreenViewWorkspace
+      activePc={{ customName: false, id: "http://192.168.1.10:51396", name: "PC", url: "http://192.168.1.10:51396" }}
+      browserPreviewState="active"
+      capability={{ ...capability, directPointer: { permissionGranted: true } }}
+      clientId="client-test"
+      onBack={vi.fn()}
+      onOpenKeyboard={vi.fn()}
+      send={send}
+      state="paired"
+      trackpadSettings={defaultTrackpadSettings}
+    />);
+    act(() => {
+      publishScreenViewResult({
+        type: "screen.view.sources.result",
+        operationId: "sources",
+        succeeded: true,
+        message: "Displays are available.",
+        sources: [
+          { id: "display-a", label: "Main display", width: 1920, height: 1080, isPrimary: true },
+          { id: "display-b", label: "Second display", width: 1920, height: 1080, isPrimary: false }
+        ]
+      });
+    });
+
+    const selector = screen.getByLabelText("Display") as HTMLSelectElement;
+    expect(selector.value).toBe("display-a");
+    fireEvent.change(selector, { target: { value: "display-b" } });
+    const switchRequest = send.mock.calls.map(([message]) => message).find((message) => message.type === "screen.view.source.set");
+    if (switchRequest?.type !== "screen.view.source.set") {throw new Error("Screen source switch was not sent.");}
+    expect(selector.value).toBe("display-a");
+
+    act(() => {
+      publishScreenViewResult({
+        type: "screen.view.source.result",
+        operationId: switchRequest.operationId,
+        displayId: "display-b",
+        succeeded: false,
+        code: "capture-unavailable",
+        message: "Windows desktop capture is unavailable."
+      });
+    });
+
+    expect(selector.value).toBe("display-a");
+    expect(screen.getByRole("status").textContent).toBe("Windows desktop capture is unavailable.");
+    fireEvent.click(screen.getByRole("button", { name: "Mouse and keyboard control" }));
+    const surface = document.querySelector<HTMLElement>(".screen-view-direct-pointer");
+    if (!surface) {throw new Error("Direct pointer surface was not rendered.");}
+    Object.defineProperty(surface, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 0, top: 0, right: 100, bottom: 100, width: 100, height: 100, x: 0, y: 0, toJSON: () => ({}) })
+    });
+    fireEvent.mouseDown(surface, { button: 0, clientX: 25, clientY: 25 });
+    expect(send.mock.calls.map(([message]) => message).find((message) =>
+      message.type === "screen.pointer.button" && message.displayId === "display-a" && message.button === "left" && message.action === "down"
+    )).toBeTruthy();
+  });
+
   it("stops locally and ignores a delayed stop reply after starting again", async () => {
     const send = vi.fn<(message: ClientMessage) => void>();
     const pcId = "http://192.168.1.10:51396";

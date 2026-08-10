@@ -29,6 +29,7 @@ interface Props {
 }
 
 interface PendingOffer { operationId: string; displayId: string; }
+interface PendingSource { operationId: string; displayId: string; previousDisplayId: string; }
 
 const disconnectedRecoveryMs = 8_000;
 
@@ -68,6 +69,7 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const eventsRef = useRef<RTCDataChannel | null>(null);
   const pendingOfferRef = useRef<PendingOffer | null>(null);
+  const pendingSourceRef = useRef<PendingSource | null>(null);
   const pendingAnswerRef = useRef<string | null>(null);
   const pendingStopRef = useRef<string | null>(null);
   const credentialRenewalRef = useRef<number | undefined>(undefined);
@@ -323,11 +325,11 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
 
   function selectSource(displayId: string) {
     disableDirectPointer();
-    setSelected(displayId);
-    if (streaming) {
-      setStatus("Switching display...");
-      send({ type: "screen.view.source.set", operationId: createLocalId(), displayId });
-    }
+    if (!streaming) {setSelected(displayId); return;}
+    const operationId = createLocalId();
+    pendingSourceRef.current = { operationId, displayId, previousDisplayId: selected };
+    setStatus("Switching display...");
+    send({ type: "screen.view.source.set", operationId, displayId });
   }
 
   function stop() {
@@ -533,6 +535,7 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
     disconnectedRecoveryRef.current = undefined;
     void exitImmersive();
     pendingOfferRef.current = null;
+    pendingSourceRef.current = null;
     pendingAnswerRef.current = null;
     eventsRef.current?.close();
     eventsRef.current = null;
@@ -581,6 +584,10 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
       pendingAnswerRef.current = null;
       if (!message.succeeded) {closeStream(); setStatus(message.message);}
     } else if (message.type === "screen.view.source.result") {
+      const pending = pendingSourceRef.current;
+      if (pending?.operationId !== message.operationId || pending?.displayId !== message.displayId) {return;}
+      pendingSourceRef.current = null;
+      setSelected(message.succeeded ? pending.displayId : pending.previousDisplayId);
       setStatus(message.message);
     } else if (message.type === "screen.view.stop.result") {
       if (pendingStopRef.current === message.operationId) {

@@ -266,8 +266,8 @@
                 <td>PC control is advertised; specific power and session actions are <strong class="comparison-status">not documented</strong></td>
               </tr>
               <tr>
-                <th scope="row">Screen viewing or mirroring</th>
-                <td class="comparison-voltura"><strong class="comparison-status">Encrypted live mirror over Direct LAN or Cloud relay</strong>; one Windows display and one authorized viewer at a time, with adaptive desktop and video streaming</td>
+                <th scope="row">Screen viewing and control</th>
+                <td class="comparison-voltura"><strong class="comparison-status">Encrypted live viewing and browser mouse/keyboard control over Direct LAN or Cloud relay</strong>; one selected Windows display and one authorized viewer at a time, with adaptive video streaming</td>
                 <td><strong class="comparison-status">Not documented</strong> as a current core feature</td>
                 <td>Real-time PC screen sharing and remote viewing</td>
               </tr>

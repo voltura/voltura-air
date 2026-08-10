@@ -66,6 +66,7 @@ export const commandDescriptions = {
   "screens:generate": "Generate the 14 official custom-screen packages and catalog metadata.",
   "screens:layout-check": "Render all 14 official custom screens at phone portrait and landscape sizes and reject overflow.",
   "screens:official": "Generate the official custom-screen packages and deterministic import bundle.",
+  "screen-view:layout-check": "Render the direct Screen View control in a real browser and verify its video hit target.",
   "size:check": "Fail if strong source-size warnings lack current review rationales.",
   "size:report": "Report source-file size and ownership signals.",
   test: "Run the full repository test gate for release or repository-wide shared-contract work.",
@@ -73,7 +74,7 @@ export const commandDescriptions = {
   "test:scripts": "Run tests for repository automation scripts.",
   "test:site-import-integration": "Exercise official-screen import success, rollback boundaries, and stable updates against isolated local MariaDB.",
   "test:ui": "Run the isolated browser device-mode smoke test through the real pairing flow.",
-  "test:web": "Run the mobile web test suite.",
+  "test:web": "Run the mobile web unit suite and real-browser Screen View layout check.",
   "ui:tokens:check": "Verify generated UI tokens are current.",
   "ui:tokens:generate": "Regenerate UI tokens from their source definitions."
 };

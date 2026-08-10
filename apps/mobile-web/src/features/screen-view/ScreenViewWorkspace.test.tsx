@@ -537,7 +537,7 @@ describe("ScreenViewWorkspace", () => {
     await waitFor(() => expect(send.mock.calls.some(([message]) => message.type === "pointer.wheel")).toBe(true));
   });
 
-  it("shows direct mouse only for a fine pointer and releases a drag at the image edge", async () => {
+  it("shows direct control only for a fine pointer and routes keyboard input while active", async () => {
     let matches = true;
     let onChange: EventListener | undefined;
     vi.stubGlobal("matchMedia", vi.fn(() => ({
@@ -589,28 +589,6 @@ describe("ScreenViewWorkspace", () => {
       { type: "keyboard.special", key: "c", modifiers: ["Control"] }
     ]);
     expect(mouse.getAttribute("aria-pressed")).toBe("true");
-
-    const surface = document.querySelector<HTMLElement>(".screen-view-direct-pointer");
-    if (!surface) {throw new Error("Direct mouse surface was not rendered.");}
-    vi.spyOn(surface, "getBoundingClientRect").mockReturnValue({ left: 100, top: 50, width: 800, height: 600, right: 900, bottom: 650, x: 100, y: 50, toJSON: vi.fn() });
-    fireEvent.mouseMove(surface, { clientX: 500, clientY: 350 });
-    await waitFor(() => expect(send.mock.calls.some(([message]) => message.type === "screen.pointer.move")).toBe(true));
-    fireEvent.mouseDown(surface, { button: 0, clientX: 500, clientY: 350 });
-    fireEvent.mouseLeave(surface, { clientX: 950, clientY: 350 });
-    expect(send.mock.calls.filter(([message]) => message.type === "screen.pointer.button").map(([message]) => message.type === "screen.pointer.button" ? message.action : null)).toEqual(["down", "up"]);
-    expect(fireEvent.contextMenu(surface, { clientX: 500, clientY: 350 })).toBe(false);
-    expect(send.mock.calls.filter(([message]) =>
-      message.type === "screen.pointer.button" && message.button === "right"
-    ).map(([message]) => message.type === "screen.pointer.button" ? message.action : null)).toEqual(["down", "up"]);
-    fireEvent.mouseDown(surface, { button: 2, clientX: 500, clientY: 350 });
-    fireEvent.mouseUp(surface, { button: 2, clientX: 500, clientY: 350 });
-    expect(send.mock.calls.filter(([message]) =>
-      message.type === "screen.pointer.button" && message.button === "right"
-    ).map(([message]) => message.type === "screen.pointer.button" ? message.action : null)).toEqual(["down", "up", "down", "up"]);
-    expect(fireEvent.contextMenu(surface, { button: 2, clientX: 500, clientY: 350 })).toBe(false);
-    expect(send.mock.calls.filter(([message]) =>
-      message.type === "screen.pointer.button" && message.button === "right"
-    ).map(([message]) => message.type === "screen.pointer.button" ? message.action : null)).toEqual(["down", "up", "down", "up"]);
 
     const keyboardMessageCount = send.mock.calls.filter(([message]) =>
       message.type === "keyboard.text" || message.type === "keyboard.special"

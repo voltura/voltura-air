@@ -33,7 +33,7 @@ export function parsePairingLink(source: string): PairingLink | null {
 
     const relay = parseRelayPairingLink(url);
     if (relay) {return relay;}
-    if (url.pathname !== pairingPath || url.hash) {return null;}
+    if ((url.pathname !== pairingPath && url.pathname !== `${pairingPath}/`) || url.hash) {return null;}
 
     const tokens = url.searchParams.getAll("t");
     const versions = url.searchParams.getAll("v");

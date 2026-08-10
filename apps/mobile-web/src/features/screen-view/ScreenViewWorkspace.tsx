@@ -179,6 +179,7 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
   function onDirectContextMenu(event: ReactMouseEvent<HTMLDivElement>) {
     if (!directPointerActiveRef.current) {return;}
     event.preventDefault();
+    if (event.button === 2) {return;}
     const point = pointFromDirectSurface(event.clientX, event.clientY);
     if (!point) {return;}
     lastDirectPointRef.current = point;
@@ -554,7 +555,7 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
     if (activePc.transportMode !== "relay" || !expiresAt) {return;}
     const expires = Date.parse(expiresAt);
     if (!Number.isFinite(expires)) {return;}
-    const delay = Math.max(5_000, expires - Date.now() - 60_000);
+    const delay = Math.max(0, expires - Date.now() - 60_000);
     credentialRenewalRef.current = window.setTimeout(() => {
       send({ type: "screen.view.stop", operationId: createLocalId() });
       closeStream();
@@ -711,7 +712,7 @@ function stopScreenGesture(event: TouchEvent<HTMLElement>) {
 }
 
 function directMouseButton(button: number): "left" | "right" | null {
-  return button === 0 ? "left" : null;
+  return button === 0 ? "left" : button === 2 ? "right" : null;
 }
 
 function useFineHoverPointer() {

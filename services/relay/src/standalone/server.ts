@@ -21,7 +21,7 @@ import {
   type RelayRateState
 } from "../core/index";
 import { verifySignature } from "../core/routing";
-import { validateOptionalTurnPublicIp } from "./configuration";
+import { parsePort, validateOptionalTurnPublicIp } from "./configuration";
 
 interface HostState {
   socket: WebSocket;
@@ -205,12 +205,6 @@ function toBytes(data: RawData): Uint8Array {
   return Uint8Array.from(data);
 }
 function key(value: Uint8Array): string { return Buffer.from(value).toString("hex"); }
-function parsePort(value: string | undefined): number {
-  const parsed = Number.parseInt(value ?? "8787", 10);
-  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) throw new Error("RELAY_PORT must be a valid port.");
-  return parsed;
-}
-
 async function issueTurn(request: import("node:http").IncomingMessage, response: import("node:http").ServerResponse, routeId: string): Promise<void> {
   const host = rooms.get(routeId)?.host;
   if (!host?.authenticated || !host.publicKey || !turnSharedSecret || turnUrls.length === 0) return json(response, 503, { code: "turn-unavailable" });

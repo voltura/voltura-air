@@ -21,6 +21,13 @@ describe("parsePairingLink", () => {
     });
   });
 
+  it("accepts a direct pairing path with an optional trailing slash", () => {
+    expect(parsePairingLink(`http://pc.local:51395/pair/?t=${pairToken}&v=${version}`)).toEqual({
+      pairToken,
+      pcUrl: "http://pc.local:51395"
+    });
+  });
+
   it("resolves a compact generated host port against the link origin", () => {
     expect(parsePairingLink(`http://phone.local:5173/pair?t=${pairToken}&v=${version}&h=51395`)).toEqual({
       pairToken,

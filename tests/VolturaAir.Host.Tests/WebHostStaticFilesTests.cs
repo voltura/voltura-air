@@ -5,6 +5,39 @@ namespace VolturaAir.Host.Tests;
 
 public sealed class WebHostStaticFilesTests
 {
+    [Theory]
+    [InlineData("br;q=0", false)]
+    [InlineData("br; q=0.5", true)]
+    [InlineData("gzip;q=0", false)]
+    [InlineData("*", true)]
+    [InlineData("*;q=0", false)]
+    [InlineData("*; q=0.5", true)]
+    [InlineData("br;q=0, gzip;q=0, *", false)]
+    public async Task CompressedJavaScriptHonorsEncodingQuality(string acceptEncoding, bool expectedCompressed)
+    {
+        var staticRoot = Path.Combine(Path.GetTempPath(), $"voltura-air-static-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(staticRoot);
+        File.WriteAllText(Path.Combine(staticRoot, "app.js.br"), "compressed");
+        File.WriteAllText(Path.Combine(staticRoot, "app.js.gz"), "compressed");
+        var context = new DefaultHttpContext();
+        context.Request.Method = HttpMethods.Get;
+        context.Request.Path = "/app.js";
+        context.Request.Headers.AcceptEncoding = acceptEncoding;
+
+        try
+        {
+            Assert.Equal(expectedCompressed, await WebHostStaticFiles.TryServeCompressedJavaScriptAsync(context, staticRoot));
+            if (expectedCompressed)
+            {
+                Assert.Equal("br", context.Response.Headers.ContentEncoding.ToString());
+            }
+        }
+        finally
+        {
+            Directory.Delete(staticRoot, recursive: true);
+        }
+    }
+
     [Fact]
     public void ResolveStaticRootSupportsStandardAndCliBuildLayouts()
     {

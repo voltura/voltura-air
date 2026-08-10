@@ -602,6 +602,15 @@ describe("ScreenViewWorkspace", () => {
     expect(send.mock.calls.filter(([message]) =>
       message.type === "screen.pointer.button" && message.button === "right"
     ).map(([message]) => message.type === "screen.pointer.button" ? message.action : null)).toEqual(["down", "up"]);
+    fireEvent.mouseDown(surface, { button: 2, clientX: 500, clientY: 350 });
+    fireEvent.mouseUp(surface, { button: 2, clientX: 500, clientY: 350 });
+    expect(send.mock.calls.filter(([message]) =>
+      message.type === "screen.pointer.button" && message.button === "right"
+    ).map(([message]) => message.type === "screen.pointer.button" ? message.action : null)).toEqual(["down", "up", "down", "up"]);
+    expect(fireEvent.contextMenu(surface, { button: 2, clientX: 500, clientY: 350 })).toBe(false);
+    expect(send.mock.calls.filter(([message]) =>
+      message.type === "screen.pointer.button" && message.button === "right"
+    ).map(([message]) => message.type === "screen.pointer.button" ? message.action : null)).toEqual(["down", "up", "down", "up"]);
 
     const keyboardMessageCount = send.mock.calls.filter(([message]) =>
       message.type === "keyboard.text" || message.type === "keyboard.special"

@@ -16,3 +16,11 @@ export function validateOptionalTurnPublicIp(value: string | undefined): void {
     throw new Error("TURN_PUBLIC_IP must be a public IPv4 address.");
   }
 }
+
+export function parsePort(value: string | undefined): number {
+  const configured = value ?? "8787";
+  if (!/^\d{1,5}$/u.test(configured)) throw new Error("RELAY_PORT must be a valid port.");
+  const parsed = Number.parseInt(configured, 10);
+  if (parsed < 1 || parsed > 65535) throw new Error("RELAY_PORT must be a valid port.");
+  return parsed;
+}

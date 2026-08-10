@@ -1,7 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { validateOptionalTurnPublicIp } from "../src/standalone/configuration";
+import { parsePort, validateOptionalTurnPublicIp } from "../src/standalone/configuration";
 
 describe("standalone configuration", () => {
+  it.each([
+    [undefined, 8787],
+    ["1", 1],
+    ["8787", 8787],
+    ["65535", 65535]
+  ])("accepts RELAY_PORT %s", (value, expected) => {
+    expect(parsePort(value)).toBe(expected);
+  });
+
+  it.each(["", "0", "65536", "8787junk", "8787.5", " 8787", "8787 ", "+8787"])(
+    "rejects malformed RELAY_PORT %s",
+    (value) => expect(() => parsePort(value)).toThrow("RELAY_PORT must be a valid port.")
+  );
+
   it("accepts a public TURN IPv4 address", () => {
     expect(() => validateOptionalTurnPublicIp("1.1.1.1")).not.toThrow();
   });

@@ -141,8 +141,39 @@ internal static class WebHostStaticFiles
     private static bool AcceptsEncoding(HttpRequest request, string expectedEncoding)
     {
         var acceptEncoding = request.Headers.AcceptEncoding.ToString();
-        return acceptEncoding
+        var encodings = acceptEncoding
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Any(encoding => encoding.Equals(expectedEncoding, StringComparison.OrdinalIgnoreCase) || encoding.StartsWith($"{expectedEncoding};", StringComparison.OrdinalIgnoreCase));
+            .ToArray();
+        var hasExplicitEncoding = encodings.Any(encoding => EncodingNameMatches(encoding, expectedEncoding));
+        return encodings.Any(encoding => EncodingIsAccepted(
+            encoding,
+            hasExplicitEncoding ? expectedEncoding : "*"));
+    }
+
+    private static bool EncodingIsAccepted(string value, string expectedEncoding)
+    {
+        var parts = value.Split(';', StringSplitOptions.TrimEntries);
+        if (parts.Length == 0 || !parts[0].Equals(expectedEncoding, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        foreach (var parameter in parts.Skip(1))
+        {
+            var nameValue = parameter.Split('=', 2, StringSplitOptions.TrimEntries);
+            if (nameValue.Length == 2 && nameValue[0].Equals("q", StringComparison.OrdinalIgnoreCase) &&
+                (!double.TryParse(nameValue[1], System.Globalization.NumberStyles.AllowDecimalPoint, System.Globalization.CultureInfo.InvariantCulture, out var quality) || quality <= 0))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool EncodingNameMatches(string value, string expectedEncoding)
+    {
+        return value.Split(';', 2, StringSplitOptions.TrimEntries)[0]
+            .Equals(expectedEncoding, StringComparison.OrdinalIgnoreCase);
     }
 }

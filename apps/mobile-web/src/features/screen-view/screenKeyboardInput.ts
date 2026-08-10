@@ -24,7 +24,7 @@ export function screenKeyboardMessage(event: Pick<KeyboardEvent,
 
   const altGraph = event.getModifierState("AltGraph");
   const hasShortcutModifier = event.metaKey || !altGraph && (event.ctrlKey || event.altKey);
-  if (event.key.length === 1 && !hasShortcutModifier) {
+  if (isPrintableText(event.key) && !hasShortcutModifier) {
     return { type: "keyboard.text", text: event.key };
   }
 
@@ -36,6 +36,10 @@ export function screenKeyboardMessage(event: Pick<KeyboardEvent,
     key,
     ...(modifiers.length > 0 ? { modifiers } : {})
   };
+}
+
+function isPrintableText(key: string) {
+  return key.length === 1 || Array.from(key).some((character) => character.codePointAt(0)! > 0x7F);
 }
 
 function screenSpecialKey(key: string, code: string) {

@@ -19,6 +19,7 @@ describe("screen keyboard input", () => {
   it("forwards resolved printable text without duplicating Shift", () => {
     expect(screenKeyboardMessage(keyEvent("A", { code: "KeyA", shiftKey: true }))).toEqual({ type: "keyboard.text", text: "A" });
     expect(screenKeyboardMessage(keyEvent("å", { code: "BracketLeft" }))).toEqual({ type: "keyboard.text", text: "å" });
+    expect(screenKeyboardMessage(keyEvent("😀", { code: "" }))).toEqual({ type: "keyboard.text", text: "😀" });
     expect(screenKeyboardMessage(keyEvent("@", {
       altKey: true,
       code: "Digit2",

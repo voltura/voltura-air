@@ -153,28 +153,6 @@
         </article>
       </section>
 
-      <section id="work-from-another-pc" class="content-section split">
-        <div>
-          <p class="eyebrow">View PC screen</p>
-          <h2>More than a screen viewer</h2>
-        </div>
-        <div>
-          <p>
-            Open Voltura Air in a browser on another computer to view a selected
-            Windows display live. Enable direct control to use that computer's
-            physical mouse, trackpad, and keyboard to move, left- or right-click,
-            drag, scroll, and type on the PC you are viewing.
-          </p>
-          <p>
-            It works over Direct LAN or the encrypted Cloud relay. The Windows
-            host chooses the <strong>Screen viewing</strong> and
-            <strong>Pointer and keyboard</strong> permissions; direct control
-            starts off, one authorized device can view one selected display at a
-            time, and browser-reserved shortcuts may remain local.
-          </p>
-        </div>
-      </section>
-
       <section id="compare" class="comparison-section">
         <div class="comparison-heading">
           <p class="eyebrow">Compare</p>

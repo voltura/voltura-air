@@ -5,6 +5,7 @@ namespace VolturaAir.Host;
 internal sealed class WpfHostRuntime : IAsyncDisposable
 {
     private readonly SendInputInjector _inputInjector;
+    private readonly IActivitySimulationService _activitySimulationService;
     private readonly CursorOverrideCoordinator _cursorOverrides;
     private readonly EventHandler _cursorOverridesRevoked;
     private readonly PointerHighlightForegroundMonitor _pointerHighlightForegroundMonitor;
@@ -18,6 +19,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
 
     private WpfHostRuntime(
         SendInputInjector inputInjector,
+        IActivitySimulationService activitySimulationService,
         CursorOverrideCoordinator cursorOverrides,
         EventHandler cursorOverridesRevoked,
         PointerHighlightForegroundMonitor pointerHighlightForegroundMonitor,
@@ -31,6 +33,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         SessionSwitchEventHandler? screenViewSessionSwitch)
     {
         _inputInjector = inputInjector;
+        _activitySimulationService = activitySimulationService;
         _cursorOverrides = cursorOverrides;
         _cursorOverridesRevoked = cursorOverridesRevoked;
         _pointerHighlightForegroundMonitor = pointerHighlightForegroundMonitor;
@@ -68,6 +71,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
 #endif
         IAppLog appLog = isolatedTestMode ? NullAppLog.Instance : new AppLog();
         SendInputInjector? inputInjector = null;
+        IActivitySimulationService? activitySimulationService = null;
         CursorWatchdogService? cursorWatchdogService = null;
         CustomPointerService? customPointerService = null;
         CursorOverrideCoordinator? cursorOverrides = null;
@@ -85,6 +89,10 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         {
             pairingManager = new PairingManager(new PairingStore(pairingStoreRoot));
             inputInjector = new SendInputInjector();
+            activitySimulationService = new ActivitySimulationService(
+                isolatedTestMode ? NoOpActivityPulseSender.Instance : inputInjector,
+                AppActivitySimulationSettings.Load(),
+                appLog: appLog);
             cursorWatchdogService = new CursorWatchdogService();
             customPointerService = new CustomPointerService();
             cursorOverrides = new CursorOverrideCoordinator(
@@ -161,15 +169,23 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 usePublicScreenshotPairingUrl,
                 workstationLockPolicy,
                 awakeService,
+                activitySimulationService: activitySimulationService,
                 cursorOverrides: cursorOverrides,
                 appLog: appLog,
                 requestRestart: requestRestart);
 #if DEBUG
             WritePairingUrlIfRequested(args, mainWindow.PairingUrl);
 #endif
-            trayContext = new WpfTrayApplicationContext(mainWindow, webHost, pairingManager, awakeService, requestShutdown);
+            trayContext = new WpfTrayApplicationContext(
+                mainWindow,
+                webHost,
+                pairingManager,
+                awakeService,
+                requestShutdown,
+                activitySimulationService: activitySimulationService);
             return new WpfHostRuntime(
                 inputInjector,
+                activitySimulationService,
                 cursorOverrides,
                 cursorOverridesRevoked,
                 pointerHighlightForegroundMonitor,
@@ -187,6 +203,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
             if (screenViewSessionSwitch is not null) SystemEvents.SessionSwitch -= screenViewSessionSwitch;
             TryDispose(trayContext, appLog, "tray_context");
             TryCloseWindow(mainWindow, appLog);
+            await TryDisposeAsync(activitySimulationService, appLog, "activity_simulation_service");
             TryDispose(pointerHighlightForegroundMonitor, appLog, "pointer_foreground_monitor");
             await TryDisposeAsync(textDestinationDraftCleanup, appLog, "text_destination_draft_cleanup");
             await TryDisposeAsync(
@@ -230,6 +247,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         if (_screenViewSessionSwitch is not null) SystemEvents.SessionSwitch -= _screenViewSessionSwitch;
         TryDispose(_trayContext, appLog, "tray_context");
         TryCloseWindow(MainWindow, appLog);
+        await TryDisposeAsync(_activitySimulationService, appLog, "activity_simulation_service");
         await TryStopWebHostAsync(_webHost, appLog);
         await TryDisposeAsync(_webHost, appLog, "web_host");
         TryDispose(_pointerHighlightForegroundMonitor, appLog, "pointer_foreground_monitor");

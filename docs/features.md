@@ -155,6 +155,10 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   local or remote input.
 - Keep awake offers Off, timed, date/time, or indefinite modes plus optional
   **Keep screen on**, without changing the selected Windows power plan.
+- The host-only **Simulate activity every 59 seconds** option is independent of
+  Keep awake modes and sends only an F15 key-up in the signed-in Windows
+  session. It never moves or clicks the pointer, and applications that handle
+  F15 or use their own presence rules can still react differently.
 - Optional JSON Lines application logging is off by default, retained 1–30 days
   (2 days by default), and omits typed text, URLs, pointer coordinates, and
   pairing credentials. Diagnostics provides filters, copy, folder, delete, and

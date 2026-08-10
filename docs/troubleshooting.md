@@ -152,3 +152,17 @@ lock-screen policy.
 **Keep screen on** is host-only and uses more power. For disabled mobile control,
 enable global/device Keep awake permission. Optional Diagnostics records
 `keep_awake`, `awake.set`, and `VAIR-AWAKE-EXECUTION-FAILED`.
+
+## Simulated activity has no effect
+
+Check **Preferences > Keep awake > Simulate activity every 59 seconds**. The
+setting is host-only and sends one F15 key-up after each full interval; it does
+not move the pointer, click, call a presence API, or override lock, sleep,
+secure-desktop, integrity-level, or application-specific idle rules. An
+application that handles F15 may react to it.
+
+If Windows rejects a pulse, Voltura Air remains enabled, shows one tray warning
+for that continuous failure streak, and retries after the next interval. Enable
+optional application logging to record the failure and later recovery. Active
+remote input takes priority: a coincident pulse is skipped without waiting or
+building a queue.

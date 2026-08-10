@@ -11,12 +11,14 @@ namespace VolturaAir.Host.Features.Preferences;
 internal sealed class AwakeSettingsSection(
     Window owner,
     IAwakeService awakeService,
+    IActivitySimulationService activitySimulationService,
     HostVisualFactory visuals,
     PreferencesVisualFactory preferenceVisuals,
     HostToastPresenter toasts,
     Func<bool> isLoading)
 {
     private int _updateRunning;
+    private int _activityUpdateRunning;
 
     public void AddTo(StackPanel parent)
     {
@@ -79,6 +81,67 @@ internal sealed class AwakeSettingsSection(
         keepScreenOn.Checked += async (_, _) => await ApplyAsync(() => awakeService.SetKeepScreenOnAsync(true));
         keepScreenOn.Unchecked += async (_, _) => await ApplyAsync(() => awakeService.SetKeepScreenOnAsync(false));
         parent.Children.Add(keepScreenOn);
+
+        var simulateActivity = preferenceVisuals.Register(visuals.CreateCheckBox(
+            "Simulate activity every 59 seconds",
+            activitySimulationService.Enabled,
+            showInformation: () => ThemedConfirmationDialog.ShowInformation(
+                owner,
+                "Simulate activity",
+                "Voltura Air sends an F15 key release every 59 seconds. Some applications may react, and presence results can vary.")));
+        var synchronizingActivity = false;
+        var subscribedToActivityState = false;
+
+        void ApplyActivityState()
+        {
+            synchronizingActivity = true;
+            try
+            {
+                simulateActivity.IsChecked = activitySimulationService.Enabled;
+            }
+            finally
+            {
+                synchronizingActivity = false;
+            }
+        }
+
+        void OnActivityStateChanged(object? sender, EventArgs eventArgs)
+        {
+            _ = simulateActivity.Dispatcher.BeginInvoke(ApplyActivityState);
+        }
+
+        simulateActivity.Loaded += (_, _) =>
+        {
+            if (!subscribedToActivityState)
+            {
+                activitySimulationService.StateChanged += OnActivityStateChanged;
+                subscribedToActivityState = true;
+            }
+            ApplyActivityState();
+        };
+        simulateActivity.Unloaded += (_, _) =>
+        {
+            if (subscribedToActivityState)
+            {
+                activitySimulationService.StateChanged -= OnActivityStateChanged;
+                subscribedToActivityState = false;
+            }
+        };
+        simulateActivity.Checked += async (_, _) =>
+        {
+            if (!synchronizingActivity && !isLoading())
+            {
+                await ApplyActivitySimulationAsync(true, ApplyActivityState);
+            }
+        };
+        simulateActivity.Unchecked += async (_, _) =>
+        {
+            if (!synchronizingActivity && !isLoading())
+            {
+                await ApplyActivitySimulationAsync(false, ApplyActivityState);
+            }
+        };
+        parent.Children.Add(simulateActivity);
 
         void UpdateModePanels()
         {
@@ -165,6 +228,36 @@ internal sealed class AwakeSettingsSection(
         finally
         {
             Volatile.Write(ref _updateRunning, 0);
+        }
+    }
+
+    private async Task ApplyActivitySimulationAsync(bool enabled, Action restoreState)
+    {
+        if (Interlocked.Exchange(ref _activityUpdateRunning, 1) != 0)
+        {
+            restoreState();
+            return;
+        }
+
+        try
+        {
+            var result = await activitySimulationService.SetEnabledAsync(enabled);
+            toasts.Show(result.Succeeded
+                ? "Simulated activity updated"
+                : result.Error ?? "Simulated activity could not be updated");
+            if (!result.Succeeded)
+            {
+                restoreState();
+            }
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            toasts.Show($"Simulated activity could not be updated: {exception.Message}");
+            restoreState();
+        }
+        finally
+        {
+            Volatile.Write(ref _activityUpdateRunning, 0);
         }
     }
 

@@ -7,7 +7,9 @@ internal sealed class TrayAwakeMenuController : IDisposable
 {
     private readonly Dispatcher _dispatcher;
     private readonly IAwakeService _awakeService;
+    private readonly IActivitySimulationService _activitySimulationService;
     private readonly Action<AwakeOperationResult> _reportFailure;
+    private readonly Action<string> _reportActivityFailure;
     // MenuItem owns and disposes these child items after the context menu is disposed.
 #pragma warning disable CA2213
     private readonly Forms.ToolStripMenuItem _offItem;
@@ -15,6 +17,7 @@ internal sealed class TrayAwakeMenuController : IDisposable
     private readonly Forms.ToolStripMenuItem _expirationItem;
     private readonly Forms.ToolStripMenuItem _indefiniteItem;
     private readonly Forms.ToolStripMenuItem _keepScreenOnItem;
+    private readonly Forms.ToolStripMenuItem _simulateActivityItem;
 #pragma warning restore CA2213
     private bool _disposed;
     private int _operationRunning;
@@ -22,12 +25,16 @@ internal sealed class TrayAwakeMenuController : IDisposable
     public TrayAwakeMenuController(
         Dispatcher dispatcher,
         IAwakeService awakeService,
+        IActivitySimulationService activitySimulationService,
         Action showPreferences,
-        Action<AwakeOperationResult> reportFailure)
+        Action<AwakeOperationResult> reportFailure,
+        Action<string> reportActivityFailure)
     {
         _dispatcher = dispatcher;
         _awakeService = awakeService;
+        _activitySimulationService = activitySimulationService;
         _reportFailure = reportFailure;
+        _reportActivityFailure = reportActivityFailure;
 
         MenuItem = new Forms.ToolStripMenuItem("Keep awake");
         _offItem = new Forms.ToolStripMenuItem(
@@ -47,6 +54,10 @@ internal sealed class TrayAwakeMenuController : IDisposable
             "Keep screen on",
             null,
             async (_, _) => await RunProtectedAsync(() => _awakeService.SetKeepScreenOnAsync(!_awakeService.State.KeepScreenOn)));
+        _simulateActivityItem = new Forms.ToolStripMenuItem(
+            "Simulate activity every 59 seconds",
+            null,
+            async (_, _) => await RunActivityProtectedAsync(!_activitySimulationService.Enabled));
 
         MenuItem.DropDownItems.Add(_offItem);
         MenuItem.DropDownItems.Add(_timedItem);
@@ -54,9 +65,12 @@ internal sealed class TrayAwakeMenuController : IDisposable
         MenuItem.DropDownItems.Add(_indefiniteItem);
         MenuItem.DropDownItems.Add(new Forms.ToolStripSeparator());
         MenuItem.DropDownItems.Add(_keepScreenOnItem);
+        MenuItem.DropDownItems.Add(_simulateActivityItem);
 
         ApplyState();
         _awakeService.StateChanged += OnStateChanged;
+        _activitySimulationService.StateChanged += OnStateChanged;
+        _activitySimulationService.FailureStreakStarted += OnActivityFailureStreakStarted;
     }
 
     public Forms.ToolStripMenuItem MenuItem { get; }
@@ -70,6 +84,8 @@ internal sealed class TrayAwakeMenuController : IDisposable
 
         _disposed = true;
         _awakeService.StateChanged -= OnStateChanged;
+        _activitySimulationService.StateChanged -= OnStateChanged;
+        _activitySimulationService.FailureStreakStarted -= OnActivityFailureStreakStarted;
     }
 
     private void AddInterval(string label, int minutes)
@@ -110,6 +126,36 @@ internal sealed class TrayAwakeMenuController : IDisposable
         }
     }
 
+    private async Task RunActivityProtectedAsync(bool enabled)
+    {
+        if (HostUiInputGuard.IsRecentProtectedClientInput() || Interlocked.Exchange(ref _operationRunning, 1) != 0)
+        {
+            return;
+        }
+
+        MenuItem.Enabled = false;
+        try
+        {
+            var result = await _activitySimulationService.SetEnabledAsync(enabled);
+            if (!result.Succeeded)
+            {
+                _reportActivityFailure(result.Error ?? "Simulated activity could not be updated.");
+            }
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            _reportActivityFailure($"Simulated activity could not be updated: {exception.Message}");
+        }
+        finally
+        {
+            Volatile.Write(ref _operationRunning, 0);
+            if (!_disposed)
+            {
+                MenuItem.Enabled = true;
+            }
+        }
+    }
+
     private void OnStateChanged(object? sender, EventArgs e)
     {
         _ = _dispatcher.BeginInvoke(() =>
@@ -117,6 +163,17 @@ internal sealed class TrayAwakeMenuController : IDisposable
             if (!_disposed)
             {
                 ApplyState();
+            }
+        });
+    }
+
+    private void OnActivityFailureStreakStarted(object? sender, ActivitySimulationFailureEventArgs e)
+    {
+        _ = _dispatcher.BeginInvoke(() =>
+        {
+            if (!_disposed)
+            {
+                _reportActivityFailure(e.Error);
             }
         });
     }
@@ -130,6 +187,7 @@ internal sealed class TrayAwakeMenuController : IDisposable
         _indefiniteItem.Checked = state.Mode == AwakeMode.Indefinite;
         _keepScreenOnItem.Checked = state.KeepScreenOn;
         _keepScreenOnItem.Enabled = state.IsActive;
+        _simulateActivityItem.Checked = _activitySimulationService.Enabled;
     }
 
     private static void RunProtected(Action action)

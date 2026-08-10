@@ -34,6 +34,7 @@ internal sealed class PreferencesPageController
         ISystemPowerController powerController,
         IWorkstationLockPolicy workstationLockPolicy,
         IAwakeService awakeService,
+        IActivitySimulationService activitySimulationService,
         ICursorOverrideController cursorOverrides,
         IAppLog appLog,
         IAppLaunchService appLaunchService,
@@ -48,7 +49,14 @@ internal sealed class PreferencesPageController
         _toasts = toasts;
         _requestRefresh = requestRefresh;
         _titleChanged = titleChanged;
-        _awake = new AwakeSettingsSection(owner, awakeService, visuals, _preferenceVisuals, toasts, () => _isLoading);
+        _awake = new AwakeSettingsSection(
+            owner,
+            awakeService,
+            activitySimulationService,
+            visuals,
+            _preferenceVisuals,
+            toasts,
+            () => _isLoading);
         _appLaunch = new AppLaunchSettingsSection(owner, appLaunchService, visuals, _preferenceVisuals, toasts, () => _isLoading, RefreshPreservingState);
         _textDestination = new TextDestinationSettingsSection(owner, visuals, _preferenceVisuals, toasts, () => _isLoading);
         _customPointer = new CustomPointerSettingsSection(cursorOverrides, appLog, visuals, _preferenceVisuals, toasts, () => _isLoading);

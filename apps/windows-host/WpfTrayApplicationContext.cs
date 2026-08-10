@@ -39,7 +39,8 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         PairingManager pairingManager,
         IAwakeService awakeService,
         Action requestShutdown,
-        Action<string, string, Forms.ToolTipIcon>? notificationSink = null)
+        Action<string, string, Forms.ToolTipIcon>? notificationSink = null,
+        IActivitySimulationService? activitySimulationService = null)
     {
         _mainWindow = mainWindow;
         _dispatcher = mainWindow.Dispatcher;
@@ -49,11 +50,16 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _notificationSink = notificationSink;
         _hadActiveController = pairingManager.HasActiveController;
         _connectionChangedAction = new OwnedDispatcherAction(_dispatcher, HandleConnectionChanged);
+#pragma warning disable CA2000 // The inert fallback owns no resources; production composition always supplies the runtime-owned service.
+        var effectiveActivitySimulationService = activitySimulationService ?? new InertActivitySimulationService();
+#pragma warning restore CA2000
         _awakeMenuController = new TrayAwakeMenuController(
             _dispatcher,
             awakeService,
+            effectiveActivitySimulationService,
             _mainWindow.ShowAwakePreferences,
-            ReportAwakeFailure);
+            ReportAwakeFailure,
+            ReportActivitySimulationFailure);
         BuildMenu();
 
         _trayIcons = LoadTrayIcons();
@@ -193,6 +199,11 @@ internal sealed class WpfTrayApplicationContext : IDisposable
             "Keep awake",
             result.Error ?? "Windows rejected the request.",
             Forms.ToolTipIcon.Warning);
+    }
+
+    private void ReportActivitySimulationFailure(string error)
+    {
+        ShowNotification("Simulated activity", error, Forms.ToolTipIcon.Warning);
     }
 
     private void OnMainWindowHiddenToTray(object? sender, EventArgs e)

@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace VolturaAir.Host;
 
-public sealed class SendInputInjector : IInputInjector
+public sealed class SendInputInjector : IInputInjector, IActivityPulseSender
 {
     private const uint InputMouse = 0;
     private const uint InputKeyboard = 1;
@@ -18,6 +18,7 @@ public sealed class SendInputInjector : IInputInjector
     private const uint KeyEventFKeyUp = 0x0002;
     private const uint KeyEventFUnicode = 0x0004;
     private const ushort ControlKey = 0x11;
+    private const ushort ActivityPulseKey = 0x7E;
     private const int WheelScale = 9;
     private const int ZoomWheelDelta = 120;
     private const int TextCodeUnitsPerBatch = 64;
@@ -25,6 +26,7 @@ public sealed class SendInputInjector : IInputInjector
     private readonly Lock _sendGate = new();
     private readonly ISendInputNative _native;
     private readonly Input[] _singleInput = new Input[1];
+    private readonly Input[] _activityPulseInput;
 
     public SendInputInjector()
         : this(new User32SendInputNative())
@@ -34,6 +36,7 @@ public sealed class SendInputInjector : IInputInjector
     internal SendInputInjector(ISendInputNative native)
     {
         _native = native;
+        _activityPulseInput = [KeyboardInput(ActivityPulseKey, 0, KeyEventFKeyUp)];
     }
 
     public void MoveMouse(int dx, int dy)
@@ -332,6 +335,27 @@ public sealed class SendInputInjector : IInputInjector
                 }
             }
         };
+    }
+
+    ActivityPulseDispatchResult IActivityPulseSender.TrySendActivityPulse()
+    {
+        if (!_sendGate.TryEnter())
+        {
+            return ActivityPulseDispatchResult.Busy;
+        }
+
+        try
+        {
+            // This is only a non-blocking busy probe. Never hold the remote-input
+            // gate across the independent activity pulse's native call.
+        }
+        finally
+        {
+            _sendGate.Exit();
+        }
+
+        SendInputsCore("activity.simulation", _activityPulseInput);
+        return ActivityPulseDispatchResult.Sent;
     }
 
     private static Input AbsoluteMouseInput(int absoluteX, int absoluteY, int mouseData, uint flags) =>

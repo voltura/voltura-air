@@ -33,6 +33,70 @@ public sealed class SendInputInjectorTests
             batch.Select(DescribeKeyboardInput));
     }
 
+    [Fact]
+    public void ActivityPulseSendsOnlyF15KeyUp()
+    {
+        var native = new RecordingSendInputNative();
+        using var injector = new SendInputInjector(native);
+
+        var result = ((IActivityPulseSender)injector).TrySendActivityPulse();
+
+        Assert.Equal(ActivityPulseDispatchResult.Sent, result);
+        var input = Assert.Single(Assert.Single(native.Batches));
+        Assert.Equal(1u, input.Type);
+        Assert.Equal(0x7E, input.Data.Keyboard.VirtualKey);
+        Assert.Equal(0, input.Data.Keyboard.ScanCode);
+        Assert.Equal(0x0002u, input.Data.Keyboard.Flags);
+    }
+
+    [Fact]
+    public void ActivityPulsePreservesNativeRejectionWithoutSendingCleanupInput()
+    {
+        var native = new RecordingSendInputNative { AcceptedCounts = new Queue<uint>([0u]) };
+        using var injector = new SendInputInjector(native);
+
+        var failure = Assert.Throws<InputDispatchException>(
+            () => ((IActivityPulseSender)injector).TrySendActivityPulse());
+
+        Assert.Equal("activity.simulation", failure.Operation);
+        Assert.Equal(1, failure.RequestedCount);
+        Assert.Equal(0, failure.AcceptedCount);
+        Assert.False(failure.CleanupAttempted);
+        _ = Assert.Single(native.Batches);
+    }
+
+    [Fact]
+    public async Task ActivityPulseSkipsWithoutCallingNativeWhileRemoteInputOwnsGate()
+    {
+        var native = new BlockingRemoteSendInputNative();
+        using var injector = new SendInputInjector(native);
+        var remote = Task.Run(() => injector.MoveMouse(1, 2));
+        Assert.True(native.RemoteEntered.Wait(TimeSpan.FromSeconds(2)));
+
+        var result = ((IActivityPulseSender)injector).TrySendActivityPulse();
+
+        Assert.Equal(ActivityPulseDispatchResult.Busy, result);
+        Assert.Equal(1, native.CallCount);
+        native.ReleaseRemote.Set();
+        await remote.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
+    public async Task BlockedActivityNativeCallDoesNotBlockRemoteInputGate()
+    {
+        var native = new BlockingActivitySendInputNative();
+        using var injector = new SendInputInjector(native);
+        var activity = Task.Run(() => ((IActivityPulseSender)injector).TrySendActivityPulse());
+        Assert.True(native.ActivityEntered.Wait(TimeSpan.FromSeconds(2)));
+
+        var remote = Task.Run(() => injector.MoveMouse(3, 4));
+
+        await remote.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(1, native.RemoteCallCount);
+        native.ReleaseActivity.Set();
+        Assert.Equal(ActivityPulseDispatchResult.Sent, await activity.WaitAsync(TimeSpan.FromSeconds(2)));
+    }
+
     [Theory]
     [InlineData(".", "BE")]
     [InlineData(",", "BC")]
@@ -242,6 +306,53 @@ public sealed class SendInputInjectorTests
             Batches.Add(inputs.ToArray());
             win32Error = 5;
             return AcceptedCounts.Count > 0 ? AcceptedCounts.Dequeue() : (uint)inputs.Length;
+        }
+    }
+
+    private sealed class BlockingRemoteSendInputNative : ISendInputNative
+    {
+        private int _callCount;
+
+        public ManualResetEventSlim RemoteEntered { get; } = new();
+
+        public ManualResetEventSlim ReleaseRemote { get; } = new();
+
+        public int CallCount => Volatile.Read(ref _callCount);
+
+        public uint Send(SendInputInjector.Input[] inputs, int size, out int win32Error)
+        {
+            Interlocked.Increment(ref _callCount);
+            RemoteEntered.Set();
+            ReleaseRemote.Wait(TimeSpan.FromSeconds(5));
+            win32Error = 0;
+            return (uint)inputs.Length;
+        }
+    }
+
+    private sealed class BlockingActivitySendInputNative : ISendInputNative
+    {
+        private int _remoteCallCount;
+
+        public ManualResetEventSlim ActivityEntered { get; } = new();
+
+        public ManualResetEventSlim ReleaseActivity { get; } = new();
+
+        public int RemoteCallCount => Volatile.Read(ref _remoteCallCount);
+
+        public uint Send(SendInputInjector.Input[] inputs, int size, out int win32Error)
+        {
+            if (inputs.Length == 1 && inputs[0].Type == 1 && inputs[0].Data.Keyboard.VirtualKey == 0x7E)
+            {
+                ActivityEntered.Set();
+                ReleaseActivity.Wait(TimeSpan.FromSeconds(5));
+            }
+            else
+            {
+                Interlocked.Increment(ref _remoteCallCount);
+            }
+
+            win32Error = 0;
+            return (uint)inputs.Length;
         }
     }
 }

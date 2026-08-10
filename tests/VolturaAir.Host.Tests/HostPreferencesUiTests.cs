@@ -242,6 +242,103 @@ public sealed partial class HostUiLayoutTests
     }
 
     [Fact]
+    public void SimulatedActivityPreferenceTracksServiceAndReleasesRebuiltViewSubscription()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            using var store = new TempPairingStore();
+            using var injector = new SendInputInjector();
+            var activity = new RecordingActivitySimulationService();
+            var manager = new PairingManager(store.Store);
+            var webHost = new WebHostService(manager, new InputDispatcher(injector), isolatedTestMode: true);
+            var window = new MainWindow(
+                manager,
+                webHost,
+                clientUrl: null,
+                activitySimulationService: activity);
+            try
+            {
+                window.Show();
+                window.ShowAwakePreferences();
+                window.UpdateLayout();
+                window.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                var checkbox = Assert.Single(
+                    FindWpfDescendants<CheckBox>(window),
+                    item => string.Equals(item.Content as string, "Simulate activity every 59 seconds", StringComparison.Ordinal));
+                Assert.False(checkbox.IsChecked);
+                Assert.Equal(1, activity.StateSubscriberCount);
+
+                activity.SetEnabledAsync(true).GetAwaiter().GetResult();
+                window.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                Assert.True(checkbox.IsChecked);
+
+                window.ShowPage(HostPage.Preferences);
+                window.UpdateLayout();
+                window.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                Assert.Equal(1, activity.StateSubscriberCount);
+                Assert.True(Assert.Single(
+                    FindWpfDescendants<CheckBox>(window),
+                    item => string.Equals(item.Content as string, "Simulate activity every 59 seconds", StringComparison.Ordinal)).IsChecked);
+            }
+            finally
+            {
+                window.AllowClose();
+                window.Close();
+                DisposeWebHost(webHost);
+            }
+
+            Assert.Equal(0, activity.StateSubscriberCount);
+        });
+    }
+
+    [Fact]
+    public void SimulatedActivityTrayItemTracksServiceState()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            var activity = new RecordingActivitySimulationService();
+            var awake = new NoOpAwakeService();
+            try
+            {
+                using var controller = new TrayAwakeMenuController(
+                    System.Windows.Threading.Dispatcher.CurrentDispatcher,
+                    awake,
+                    activity,
+                    static () => { },
+                    static _ => { },
+                    static _ => { });
+                var item = Assert.IsType<System.Windows.Forms.ToolStripMenuItem>(
+                    controller.MenuItem.DropDownItems
+                        .Cast<System.Windows.Forms.ToolStripItem>()
+                        .Single(candidate => candidate.Text == "Simulate activity every 59 seconds"));
+                Assert.False(item.Checked);
+
+                activity.SetEnabledAsync(true).GetAwaiter().GetResult();
+                System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
+                    () => { },
+                    System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+
+                Assert.True(item.Checked);
+            }
+            finally
+            {
+                awake.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        });
+    }
+
+    [Fact]
     public void PreferencesSearchMatchesSettingLabelsInScreenOrderWithBreadcrumbs()
     {
         if (!OperatingSystem.IsWindows())
@@ -571,6 +668,46 @@ public sealed partial class HostUiLayoutTests
 
         public AppLaunchExecutionResult ExecutePowerPointFile(string path) =>
             new(true, "started", "Started PowerPoint.");
+    }
+
+    private sealed class RecordingActivitySimulationService : IActivitySimulationService
+    {
+        private EventHandler? _stateChanged;
+
+        public bool Enabled { get; private set; }
+
+        public int StateSubscriberCount { get; private set; }
+
+        public event EventHandler? StateChanged
+        {
+            add
+            {
+                _stateChanged += value;
+                StateSubscriberCount++;
+            }
+            remove
+            {
+                _stateChanged -= value;
+                StateSubscriberCount--;
+            }
+        }
+
+        public event EventHandler<ActivitySimulationFailureEventArgs>? FailureStreakStarted
+        {
+            add { }
+            remove { }
+        }
+
+        public Task<ActivitySimulationOperationResult> SetEnabledAsync(
+            bool enabled,
+            CancellationToken cancellationToken = default)
+        {
+            Enabled = enabled;
+            _stateChanged?.Invoke(this, EventArgs.Empty);
+            return Task.FromResult(ActivitySimulationOperationResult.Success);
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     private static PreferenceSearchResult[] Search(PreferencesPageView view, string query)

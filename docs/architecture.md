@@ -44,6 +44,7 @@ performs startup, rollback, and shutdown.
 | Lazy mobile screen renderer and fallback crypto | `features/screen-view/` dynamic import |
 | Coalesced capability/status delivery | `HostStatusBroadcaster` and payload factory |
 | Validated input and focused Windows actions | Command handlers and platform adapters |
+| Host-local simulated activity | `ActivitySimulationService`, `AppActivitySimulationSettings`, and the narrow activity-pulse sender |
 | Custom-screen definitions, editing, assignment, and invocation | `CustomScreenStore`, `CustomScreenService`, `Features/CustomScreens`, and `CustomScreenCommandHandler` |
 | Settings and persisted data | Their focused settings/store types |
 | Logs and Diagnostics reads | `AppLog`, file store, and per-view refresh session |
@@ -65,7 +66,7 @@ rollback and shutdown release composition-owned resources in reverse order.
 | --- | --- |
 | Sockets and status | Registered sends are serialized and timed; status uses one capacity-one coalescing worker; shutdown closes and awaits owned work. |
 | Screen capture and stream | The coordinator owns one expiring WebRTC offer or active viewer. The capture source owns one DXGI duplication session, D3D11 conversion resources, and hardware Media Foundation H.264 encoder. The peer owns its RTP track, DTLS data channel, ICE state, retransmission buffer, and native libdatachannel handles. Native resources are released on stop, switch, revocation, loss, or shutdown. |
-| Native input and Awake | Input is decoded once and dispatched in order. Native calls have bounded callers; late completion reconciles before more work. Awake uses `IAwakeService`, never power-plan changes or elevation. |
+| Native input, Awake, and simulated activity | Input is decoded once and dispatched in order. Native calls have bounded callers; late completion reconciles before more work. Awake uses `IAwakeService`, never power-plan changes or elevation. Optional simulated activity owns one fixed-delay loop while enabled, probes input availability without waiting, releases the input gate before its one-event native call, and is disposed before the shared injector. |
 | Logs and files | Producers use bounded non-blocking queues. Filesystem work stays off input/UI loops. Stores validate bounds and content, replace atomically, and preserve the last complete state. |
 | WPF and tray | Dispatcher work is owned and bounded. Timers, hooks, subscriptions, icons, windows, and refresh sessions are released on unload/shutdown. |
 | Mobile effects | Each effect releases sockets, listeners, timers, pointer capture, animation frames, and speech events it acquires. |
@@ -74,6 +75,8 @@ rollback and shutdown release composition-owned resources in reverse order.
 Optional features allocate no feature-specific worker, timer, subscription,
 native resource, or network activity while disabled. Hot input/render paths use
 cached settings and event-driven updates, not registry reads or polling.
+Simulated-activity success and busy skips perform no persistence, logging, UI,
+or network work; remote input never enters its timer, state, or failure paths.
 
 Direct LAN and Relay converge on the same `WebSocketSessionHandler` and
 `PairingManager`. In Relay mode a persistent routing key derives an opaque route

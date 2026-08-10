@@ -6,6 +6,20 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v0.9.2
+
+- Added direct mouse and physical keyboard control inside **View PC screen**
+  when using a browser with a mouse or trackpad. Move, click, right-click, drag,
+  scroll, and type over the mirrored display while keeping the existing touch,
+  zoom, and pan controls. The mode respects **Pointer and keyboard** permission
+  and safely releases held buttons when viewing, permission, or display state
+  changes.
+- Added the host-only **Simulate activity every 59 seconds** option under
+  **Keep awake** in the Windows tray and Preferences. It remembers the user's
+  choice and sends only an F15 key release without moving or clicking the
+  pointer; applications may handle F15 differently, so presence results are
+  not guaranteed.
+
 ## v0.9.1
 
 - Fixed navigation from **View PC screen** so selecting a Custom Screen,

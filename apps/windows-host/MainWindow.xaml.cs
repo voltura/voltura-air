@@ -45,6 +45,7 @@ public partial class MainWindow : Window
         bool usePublicScreenshotPairingUrl = false,
         IWorkstationLockPolicy? workstationLockPolicy = null,
         IAwakeService? awakeService = null,
+        IActivitySimulationService? activitySimulationService = null,
         ISystemPowerController? powerController = null,
         ICursorOverrideController? cursorOverrides = null,
         IAppLog? appLog = null,
@@ -54,6 +55,9 @@ public partial class MainWindow : Window
         _pairingManager = pairingManager;
         _awakeService = awakeService ?? webHost.AwakeService;
         var effectiveLockPolicy = workstationLockPolicy ?? webHost.WorkstationLockPolicy;
+#pragma warning disable CA2000 // The inert fallback owns no resources; production composition always supplies the runtime-owned service.
+        var effectiveActivitySimulationService = activitySimulationService ?? new InertActivitySimulationService();
+#pragma warning restore CA2000
         var effectivePowerController = powerController ?? webHost.PowerController;
         var effectiveCursorOverrides = cursorOverrides ?? InertCursorOverrideController.Instance;
         var effectiveAppLog = appLog ?? webHost.AppLog;
@@ -117,6 +121,7 @@ public partial class MainWindow : Window
             effectivePowerController,
             effectiveLockPolicy,
             _awakeService,
+            effectiveActivitySimulationService,
             effectiveCursorOverrides,
             effectiveAppLog,
             webHost.AppLaunchService,

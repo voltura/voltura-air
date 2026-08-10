@@ -10,15 +10,28 @@ create one. Keep the shared notices in
 
 - Added direct mouse and physical keyboard control inside **View PC screen**
   when using a browser with a mouse or trackpad. Move, click, right-click, drag,
-  scroll, and type over the mirrored display while keeping the existing touch,
-  zoom, and pan controls. The mode respects **Pointer and keyboard** permission
-  and safely releases held buttons when viewing, permission, or display state
-  changes.
+  scroll, and type—including printable non-ASCII characters—anywhere on the
+  mirrored display while keeping the existing touch, zoom, and pan controls.
+  The mode respects **Pointer and keyboard** permission and safely releases
+  held buttons when viewing, permission, or display state changes.
 - Added the host-only **Simulate activity every 59 seconds** option under
   **Keep awake** in the Windows tray and Preferences. It remembers the user's
   choice and sends only an F15 key release without moving or clicking the
   pointer; applications may handle F15 differently, so presence results are
   not guaranteed.
+- Improved **View PC screen** reliability. Direct control now covers the full
+  mirrored image, a failed display switch stays on the working display, expiring
+  Relay view credentials renew promptly, and switching to another mobile mode
+  cleanly closes the mirror.
+- Fixed Direct and Relay connection edge cases. Direct pairing links with a
+  trailing slash now work, Windows-hosted web assets honor browser compression
+  settings, and Relay-connected apps remain on the hosted web version instead
+  of trying to refresh from the PC. Self-hosted Relay now rejects invalid port
+  settings at startup.
+- Improved saved-device and Custom Screen library maintenance. Duplicate saved
+  pairing records no longer displace other retained devices, failed
+  Custom Screen catalog import requests clean up temporary files, and
+  community-library sign-out is protected against cross-site requests.
 
 ## v0.9.1
 

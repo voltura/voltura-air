@@ -473,6 +473,21 @@ describe("App header and mode navigation", () => {
     expect(document.querySelector(".bottom-mode-tabs")).not.toBeNull();
   });
 
+  it("leaves third-party notices through the compact mode selector", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    const menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog")!;
+    fireEvent.click(within(menu).getByRole("button", { name: "Third-party notices" }));
+    expect(screen.getByRole("heading", { name: "Third-party notices" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Change mode" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Keyboard" }));
+
+    expect(screen.queryByRole("heading", { name: "Third-party notices" })).toBeNull();
+    expect(document.querySelector(".keyboard-mode")).not.toBeNull();
+  });
+
   async function expectSettingsToolToLeaveScreen(modeName: "Keyboard" | "Trackpad") {
     mockConnection({
       screenViewCapability: {

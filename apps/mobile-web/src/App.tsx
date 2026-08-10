@@ -245,6 +245,7 @@ export function App() {
   const selectModeTabWithPresentationGuard: typeof selectModeTab = (nextTab, source) => {
     const selectMode = () => {
       setActiveCustomScreenId(null);
+      setIsScreenViewOpen(false);
       setIsThirdPartyNoticesOpen(false);
       if (nextTab === "presentation") {
         requestPresentationActivation();

@@ -513,6 +513,84 @@ describe("App header and mode navigation", () => {
     await expectSettingsToolToLeaveScreen("Trackpad");
   });
 
+  it("navigates from Screen to a custom screen selected in the Settings drawer", async () => {
+    mockConnection({
+      screenViewCapability: {
+        enabled: true,
+        permissionGranted: true,
+        canView: true,
+        requiresRepair: false,
+        encrypted: true,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        maxFramesPerSecond: 30
+      },
+      customScreensCapability: {
+        catalogRevision: "catalog.one",
+        screens: [{
+          id: "screen.media",
+          name: "Media controls",
+          revision: "revision.one"
+        }]
+      },
+      customScreenDefinition: {
+        id: "screen.media",
+        name: "Media controls",
+        revision: "revision.one",
+        orientationLayoutsEnabled: false,
+        showNavigationHeader: true,
+        sections: []
+      }
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    let menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog")!;
+    fireEvent.click(within(menu).getByRole("button", { name: "View PC screen" }));
+    expect(await screen.findByText("Live mirror")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog")!;
+    fireEvent.click(within(menu).getByRole("button", { name: "Media controls" }));
+
+    expect(screen.queryByText("Live mirror")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Media controls" })).toBeTruthy();
+    expect(document.querySelector(".app-shell")?.classList).not.toContain("screen-view-active");
+  });
+
+  it.each(["YouTube", "Kodi"])("navigates from Screen to the %s Remote mode selected in settings", async (modeName) => {
+    mockConnection({
+      screenViewCapability: {
+        enabled: true,
+        permissionGranted: true,
+        canView: true,
+        requiresRepair: false,
+        encrypted: true,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        maxFramesPerSecond: 30
+      },
+      supportsRemoteLaunch: true
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    let menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog")!;
+    fireEvent.click(within(menu).getByRole("button", { name: "View PC screen" }));
+    expect(await screen.findByText("Live mirror")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog")!;
+    const remoteSettingsSummary = menu.querySelector<HTMLElement>("[data-settings-section=\"remote\"] > summary");
+    expect(remoteSettingsSummary).not.toBeNull();
+    fireEvent.click(remoteSettingsSummary!);
+    fireEvent.click(within(menu).getByRole("button", { name: modeName }));
+
+    expect(screen.queryByText("Live mirror")).toBeNull();
+    expect(document.querySelector(".app-shell")?.classList).not.toContain("screen-view-active");
+    expect(document.querySelector(".app-shell")?.classList).toContain("remote-active");
+  });
+
   it("opens compact mode navigation as an overlay without moving the keyboard controls", () => {
     render(<App />);
 

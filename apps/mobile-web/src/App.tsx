@@ -278,6 +278,7 @@ export function App() {
   const openGestureDebugWithPresentationGuard = () => {
     requestPresentationExit(() => {
       setActiveCustomScreenId(null);
+      setIsScreenViewOpen(false);
       setIsThirdPartyNoticesOpen(false);
       openGestureDebug();
     });
@@ -316,6 +317,7 @@ export function App() {
     if (key === "mode") {
       requestPresentationExit(() => {
         setActiveCustomScreenId(null);
+        setIsScreenViewOpen(false);
         setIsThirdPartyNoticesOpen(false);
         selectModeTab("remote", "settings");
         setIsSettingsOpen(false);
@@ -552,6 +554,7 @@ export function App() {
           onOpenCustomScreen={(screenId) => {
             requestPresentationExit(() => {
               setActiveCustomScreenId(screenId);
+              setIsScreenViewOpen(false);
               setIsThirdPartyNoticesOpen(false);
               setIsSettingsOpen(false);
             });

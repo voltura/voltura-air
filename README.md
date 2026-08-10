@@ -36,6 +36,7 @@ an optional Cloud relay is available for networks that block inbound PC connecti
   import `.volturascreen` packages, or browse the
   [community library](https://voltura.se/air/screens/).
 - Keep the PC awake, lock it, blank its displays, restart it, or shut it down.
+- Optionally simulate activity without moving or clicking the pointer.
 - Combine a keyboard and trackpad on a landscape tablet.
 
 See the [complete implemented feature list](docs/features.md).

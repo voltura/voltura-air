@@ -282,7 +282,9 @@ Authenticated metadata is not authentication state:
 - `pointerSpeed`: effective device speed. `customPointerEnabled`: host-wide.
   `showModeButtons` and `controlDepth`: effective per-device appearance values.
   `inputBlockedByElevation`: higher-integrity foreground block.
-- `webClientBuildId`: served client bundle, independent of `hostVersion`.
+- `webClientBuildId`: the client bundle served by a Direct host, independent of
+  `hostVersion`. It can refresh only a Direct host-served PWA. Relay opens the
+  public hosted PWA, so a differing PC bundle ID never triggers a refresh.
 - Developer mode adds `developerMode: true` and `developerSessionId`.
 - `screenView` is always present for a supporting host so the tool remains
   discoverable. `enabled`, `permissionGranted`, and `requiresRepair` explain

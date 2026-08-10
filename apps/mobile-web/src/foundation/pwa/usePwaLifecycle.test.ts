@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getAutoRefreshSessionKey } from "../settings/appStorage";
+import type { PcProfile } from "../connection/pcProfiles";
 import { refreshWithFreshAppUrl, type FreshAppRefreshResult } from "./freshAppRefresh";
 import { shouldRefreshWebClient, usePwaLifecycle } from "./usePwaLifecycle";
 
@@ -8,13 +9,25 @@ vi.mock("./freshAppRefresh", () => ({
   refreshWithFreshAppUrl: vi.fn()
 }));
 
-const activePc = { customName: false, id: "https://pc.local", name: "PC", url: "https://pc.local" };
+const activePc: PcProfile = { customName: false, id: "https://pc.local", name: "PC", url: "https://pc.local" };
+const relayPc: PcProfile = {
+  customName: false,
+  id: "relay:voltura-cloud-v1:abcdefghijklmnopqrstuv",
+  name: "PC",
+  url: "https://voltura.se/a/abcdefghijklmnopqrstuv",
+  transportMode: "relay",
+  relayRouteId: "abcdefghijklmnopqrstuv",
+  relayServiceId: "voltura-cloud-v1"
+};
 const successfulRefresh: FreshAppRefreshResult = { navigationStarted: true, navigationMethod: "replace", warnings: [] };
 const failedRefresh: FreshAppRefreshResult = { navigationStarted: false, navigationMethod: null, warnings: ["failed"] };
 
-function createOptions(hostStatus: { webClientBuildId?: string } | null = { webClientBuildId: "build-b" }) {
+function createOptions(
+  hostStatus: { webClientBuildId?: string } | null = { webClientBuildId: "build-b" },
+  selectedPc: PcProfile = activePc
+) {
   return {
-    activePc,
+    activePc: selectedPc,
     autoRefresh: true,
     clientId: "client-a",
     hostStatus,
@@ -40,10 +53,17 @@ beforeEach(() => {
 });
 
 describe("PWA web build refresh", () => {
-  it("refreshes only when the host serves a different compiled web build", () => {
-    expect(shouldRefreshWebClient(undefined)).toBe(false);
-    expect(shouldRefreshWebClient("build-a")).toBe(false);
-    expect(shouldRefreshWebClient("build-b")).toBe(true);
+  it("refreshes only when a direct host serves a different compiled web build", () => {
+    expect(shouldRefreshWebClient(activePc, undefined)).toBe(false);
+    expect(shouldRefreshWebClient(activePc, "build-a")).toBe(false);
+    expect(shouldRefreshWebClient(activePc, "build-b")).toBe(true);
+    expect(shouldRefreshWebClient(relayPc, "build-b")).toBe(false);
+  });
+
+  it("does not refresh a hosted relay client to the PC's direct web build", () => {
+    renderHook(() => usePwaLifecycle(createOptions({ webClientBuildId: "build-b" }, relayPc)));
+
+    expect(refreshWithFreshAppUrl).not.toHaveBeenCalled();
   });
 
   it("commits the automatic guard at navigation and suppresses a later duplicate", async () => {

@@ -133,7 +133,7 @@ export function usePwaLifecycle({ activePc, autoRefresh, clientId, hostStatus, s
     }
 
     const webClientBuildId = hostStatus?.webClientBuildId;
-    if (!shouldRefreshWebClient(webClientBuildId)) {
+    if (!shouldRefreshWebClient(activePc, webClientBuildId)) {
       return;
     }
 
@@ -152,8 +152,8 @@ export function usePwaLifecycle({ activePc, autoRefresh, clientId, hostStatus, s
   return { installApp, installPrompt, isInstalled, refreshInstalledApp, refreshMessage };
 }
 
-export function shouldRefreshWebClient(webClientBuildId: string | undefined): webClientBuildId is string {
-  return Boolean(webClientBuildId && webClientBuildId !== __WEB_BUILD_ID__);
+export function shouldRefreshWebClient(activePc: PcProfile, webClientBuildId: string | undefined): webClientBuildId is string {
+  return activePc.transportMode !== "relay" && Boolean(webClientBuildId && webClientBuildId !== __WEB_BUILD_ID__);
 }
 
 function isRunningStandalone(): boolean {

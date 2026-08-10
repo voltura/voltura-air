@@ -51,7 +51,7 @@ SDK used for that release.
 | Component | Version | Use | License/source |
 | --- | --- | --- | --- |
 | Microsoft .NET, ASP.NET Core, and Windows Desktop runtime | 10.0 release family | Self-contained Windows runtime and local web host | Microsoft .NET redistribution terms and bundled third-party notices; source at [dotnet/runtime](https://github.com/dotnet/runtime) and [dotnet/aspnetcore](https://github.com/dotnet/aspnetcore) |
-| Microsoft WebView2 SDK | 1.0.4078.44 | Host WebView integration and loader | BSD 3-Clause; included Microsoft license and NOTICE |
+| Microsoft WebView2 SDK | 1.0.4129.50 | Host WebView integration and loader | BSD 3-Clause; included Microsoft license and NOTICE |
 | QRCoder | 1.8.0 | Pairing QR generation | [MIT; codebude/QRCoder](https://github.com/codebude/QRCoder/tree/v1.8.0) |
 | Vortice.Windows | 3.8.3 | Direct3D, DXGI, D3DCompiler, and Media Foundation bindings | [MIT; amerkoleci/Vortice.Windows](https://github.com/amerkoleci/Vortice.Windows) |
 | Vortice.Mathematics | 2.1.0 | Transitive Vortice runtime support | [MIT; amerkoleci/Vortice.Mathematics](https://github.com/amerkoleci/Vortice.Mathematics) |
@@ -65,16 +65,16 @@ license text and copyright notices.
 
 | Component | Version | Use | License/source |
 | --- | --- | --- | --- |
-| noble-curves and noble-hashes | 2.2.0 | Pairing and relay-session cryptography fallback | [MIT; paulmillr/noble-curves](https://github.com/paulmillr/noble-curves) and [paulmillr/noble-hashes](https://github.com/paulmillr/noble-hashes) |
+| noble-curves and noble-hashes | 2.3.0 | Pairing and relay-session cryptography fallback | [MIT; paulmillr/noble-curves](https://github.com/paulmillr/noble-curves) and [paulmillr/noble-hashes](https://github.com/paulmillr/noble-hashes) |
 | jsQR | 1.4.0 | Pairing QR decoding | [Apache 2.0; cozmo/jsQR](https://github.com/cozmo/jsQR) |
-| Lucide React | 1.27.0 | User-interface icons | [ISC and derived Feather icons under MIT; lucide-icons/lucide](https://github.com/lucide-icons/lucide) |
+| Lucide React | 1.29.0 | User-interface icons | [ISC and derived Feather icons under MIT; lucide-icons/lucide](https://github.com/lucide-icons/lucide) |
 | React, React DOM, and Scheduler | 19.2.8 / 0.27.0 | Mobile user interface runtime | [MIT; facebook/react](https://github.com/facebook/react) |
 
 ## Relay service
 
 The Cloudflare relay implementation is Voltura Air source. Cloudflare is the
 configured hosting and TURN provider, not the author of Voltura Air. The
-advanced standalone Node.js adapter uses `ws` 8.21.1 under the MIT License;
+advanced standalone Node.js adapter uses `ws` 8.21.2 under the MIT License;
 its package distribution includes the upstream license from
 [websockets/ws](https://github.com/websockets/ws).
 

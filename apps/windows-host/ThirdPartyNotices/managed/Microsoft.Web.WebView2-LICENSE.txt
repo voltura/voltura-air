@@ -1,4 +1,4 @@
-Microsoft.Web.WebView2 1.0.4078.44
+Microsoft.Web.WebView2 1.0.4129.50
 
 Copyright (C) Microsoft Corporation. All rights reserved.
 

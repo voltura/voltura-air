@@ -7,7 +7,7 @@ with Voltura Air or Voltura AB. Each component is provided under its own
 license and warranty disclaimer.
 
 ------------------------------------------------------------------------
-@noble/curves 2.2.0
+@noble/curves 2.3.0
 License: MIT
 Source: https://github.com/paulmillr/noble-curves
 ------------------------------------------------------------------------
@@ -35,7 +35,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 ------------------------------------------------------------------------
-@noble/hashes 2.2.0
+@noble/hashes 2.3.0
 License: MIT
 Source: https://github.com/paulmillr/noble-hashes
 ------------------------------------------------------------------------
@@ -271,7 +271,7 @@ Apache License
    limitations under the License.
 
 ------------------------------------------------------------------------
-lucide-react 1.27.0
+lucide-react 1.29.0
 License: ISC and MIT
 Source: https://github.com/lucide-icons/lucide
 ------------------------------------------------------------------------

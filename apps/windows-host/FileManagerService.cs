@@ -443,11 +443,13 @@ internal sealed class FileManagerService : IAsyncDisposable
     public event EventHandler<string>? JobChanged;
     public string[] SessionClientIds => [.. _sessions.Keys];
 
-    public FileManagerSessionSnapshot OpenSession(string clientId)
+    public FileManagerSessionSnapshot OpenSession(string clientId, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var hideProtectedItems = _hideProtectedItems(clientId);
         var savedLeft = _locations.Load(clientId, "left");
         var savedRight = _locations.Load(clientId, "right");
+        cancellationToken.ThrowIfCancellationRequested();
         var leftPath = FirstValidDirectory(savedLeft, _initialLeftPath) ?? GetInitialDirectory(Environment.SpecialFolder.UserProfile, "Downloads");
         var rightPath = FirstValidDirectory(savedRight, _initialRightPath) ?? GetInitialDirectory(Environment.SpecialFolder.MyDocuments, null);
         if (hideProtectedItems && IsProtectedSystemItem(leftPath)) leftPath = GetInitialDirectory(Environment.SpecialFolder.UserProfile, "Downloads");
@@ -458,15 +460,20 @@ internal sealed class FileManagerService : IAsyncDisposable
             new PanelState("left", leftPath),
             new PanelState("right", rightPath));
         AddTargets(session);
+        cancellationToken.ThrowIfCancellationRequested();
         RefreshPanel(session.Left, hideProtectedItems);
+        cancellationToken.ThrowIfCancellationRequested();
         RefreshPanel(session.Right, hideProtectedItems);
-        _sessions[clientId] = session;
-        return new FileManagerSessionSnapshot(
+        cancellationToken.ThrowIfCancellationRequested();
+        var snapshot = new FileManagerSessionSnapshot(
             session.Id,
             GetDrives(session),
             GetShortcuts(session),
             BuildPage(session, session.Left, 0),
             BuildPage(session, session.Right, 0));
+        cancellationToken.ThrowIfCancellationRequested();
+        _sessions[clientId] = session;
+        return snapshot;
     }
 
     public bool TryGetPage(string clientId, string sessionId, string panelName, string revision, string continuation, out FileManagerPanelPage? page, out string code)

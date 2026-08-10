@@ -223,6 +223,7 @@ internal sealed class WebSocketSessionHandler(
             if (!string.IsNullOrEmpty(authenticatedClientId))
             {
                 await screenViewCommands.ClientDisconnectedAsync(authenticatedClientId);
+                fileManagerCommands.ClientDisconnected(authenticatedClientId, socket);
                 transport.Unregister(authenticatedClientId, socket);
                 presentationCommands.DisableLaserForClient(authenticatedClientId);
             }

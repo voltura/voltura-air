@@ -24,6 +24,30 @@ public sealed class FileManagerServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task CancelledSessionOpenDoesNotCommitAfterBlockedStorageReturns()
+    {
+        var left = CreateDirectory("left");
+        var right = CreateDirectory("right");
+        using var locations = new BlockingLocationStore();
+        await using var service = new FileManagerService(
+            new FakePlatform(),
+            left,
+            right,
+            locations,
+            new MemoryJobJournal());
+        using var cancellation = new CancellationTokenSource();
+
+        var open = Task.Run(() => service.OpenSession("client-a", cancellation.Token));
+        Assert.True(locations.LoadStarted.Wait(TimeSpan.FromSeconds(2)));
+
+        cancellation.Cancel();
+        locations.ReleaseLoad.Set();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => open);
+        Assert.DoesNotContain("client-a", service.SessionClientIds);
+    }
+
+    [Fact]
     public async Task PagesAreBoundedOpaqueExhaustiveAndSortedAcrossBoundaries()
     {
         var left = CreateDirectory("left");
@@ -703,6 +727,29 @@ public sealed class FileManagerServiceTests : IAsyncLifetime
         private readonly Dictionary<(string ClientId, string Panel), string> _values = [];
         public string? Load(string clientId, string panel) => _values.GetValueOrDefault((clientId, panel));
         public void Save(string clientId, string panel, string path) => _values[(clientId, panel)] = path;
+    }
+
+    private sealed class BlockingLocationStore : IFileManagerLocationStore, IDisposable
+    {
+        public ManualResetEventSlim LoadStarted { get; } = new();
+        public ManualResetEventSlim ReleaseLoad { get; } = new();
+
+        public string? Load(string clientId, string panel)
+        {
+            LoadStarted.Set();
+            ReleaseLoad.Wait();
+            return null;
+        }
+
+        public void Save(string clientId, string panel, string path)
+        {
+        }
+
+        public void Dispose()
+        {
+            LoadStarted.Dispose();
+            ReleaseLoad.Dispose();
+        }
     }
 
     private sealed class MemoryJobJournal : IFileJobJournal

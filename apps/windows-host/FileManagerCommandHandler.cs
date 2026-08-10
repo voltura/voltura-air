@@ -10,6 +10,7 @@ internal sealed class FileManagerCommandHandler : IAsyncDisposable
     private readonly HostStatusPayloadFactory _status;
     private readonly WebSocketTransport _transport;
     private readonly PairingManager _pairingManager;
+    private readonly FileManagerSessionOpenCoordinator _sessionOpens;
     private readonly Channel<string> _updates = Channel.CreateBounded<string>(new BoundedChannelOptions(64)
     {
         FullMode = BoundedChannelFullMode.DropOldest,
@@ -19,12 +20,18 @@ internal sealed class FileManagerCommandHandler : IAsyncDisposable
     private readonly CancellationTokenSource _lifetime = new();
     private readonly Task _worker;
 
-    public FileManagerCommandHandler(FileManagerService service, HostStatusPayloadFactory status, WebSocketTransport transport, PairingManager pairingManager)
+    public FileManagerCommandHandler(FileManagerService service, HostStatusPayloadFactory status, WebSocketTransport transport, PairingManager pairingManager, IAppLogWriter? appLog = null)
     {
         _service = service;
         _status = status;
         _transport = transport;
         _pairingManager = pairingManager;
+        _sessionOpens = new FileManagerSessionOpenCoordinator(
+            (clientId, cancellationToken) => Task.Run(() => service.OpenSession(clientId, cancellationToken), cancellationToken),
+            clientId => status.CanBrowseFiles(clientId),
+            clientId => service.RevokeClient(clientId, closeSession: true),
+            transport,
+            appLog);
         _service.JobChanged += OnJobChanged;
         _pairingManager.PermissionsChanged += OnPermissionsChanged;
         AppPermissionSettings.Changed += OnPermissionsChanged;
@@ -44,15 +51,7 @@ internal sealed class FileManagerCommandHandler : IAsyncDisposable
         switch (type)
         {
             case "file.session.open":
-                try
-                {
-                    var snapshot = _service.OpenSession(clientId);
-                    await _transport.SendAsync(socket, new { type = "file.session.open.result", operationId, succeeded = true, message = "Files opened.", session = snapshot }, cancellationToken);
-                }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
-                {
-                    await SendResultAsync(socket, type, operationId, false, "directory-unavailable", "The initial folders are unavailable.", cancellationToken);
-                }
+                await _sessionOpens.StartAsync(socket, clientId, operationId, cancellationToken);
                 return;
             case "file.page.get":
                 await SendPanelResultAsync(socket, type, operationId, _service.TryGetPage(
@@ -203,9 +202,12 @@ internal sealed class FileManagerCommandHandler : IAsyncDisposable
         AppPermissionSettings.Changed -= OnPermissionsChanged;
         _updates.Writer.TryComplete();
         await _lifetime.CancelAsync().ConfigureAwait(false);
+        await _sessionOpens.DisposeAsync().ConfigureAwait(false);
         try { await _worker.ConfigureAwait(false); } catch (OperationCanceledException) { }
         _lifetime.Dispose();
     }
+
+    public void ClientDisconnected(string clientId, WebSocket socket) => _sessionOpens.ClientDisconnected(clientId, socket);
 
     private void OnJobChanged(object? sender, string clientId) => _updates.Writer.TryWrite(clientId);
 

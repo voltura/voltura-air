@@ -6,6 +6,17 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v0.9.1
+
+- Fixed navigation from **View PC screen** so selecting a Custom Screen,
+  YouTube or Kodi remote, or gesture diagnostics now closes the live mirror and
+  opens the selected tool.
+- Improved the compact **View PC screen** layout by keeping the live status
+  beside the controls instead of over the mirrored screen.
+- Improved **Files on PC** when opening slow folders or network locations. File
+  loading no longer delays other controls, survives a brief reconnect, and
+  stops safely if file access is removed.
+
 ## v0.9.0
 
 - Added **Find a setting** to Windows Preferences. Search by any part of a

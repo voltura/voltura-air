@@ -15,10 +15,11 @@ an optional Cloud relay is available for networks that block inbound PC connecti
 - Use a phone or tablet as a wireless trackpad and keyboard.
 - View one selected Windows display live on a paired phone, tablet, or browser
   over Direct LAN or the optional Cloud relay, with encrypted video, responsive
-  cursor movement, scrolling, and up to 5x local zoom. From another computer,
-  enable direct physical mouse and keyboard control to move, left- or right-click,
-  drag, scroll, and type on it. Relay viewing offers Standard and Data saver
-  quality choices.
+  cursor movement, scrolling, and up to 5x local zoom. Relay viewing offers
+  Standard and Data saver quality choices.
+- From another computer, use **View PC screen** with a mouse or trackpad and
+  physical keyboard to move, left- or right-click, drag, scroll, and type on
+  the selected Windows display.
 - Browse and manage files that stay on the PC or its mapped drives. **Files on
   PC** adapts from one touch panel in narrow views to two panels whenever the
   screen is wide enough, including phones in landscape,
@@ -40,17 +41,6 @@ an optional Cloud relay is available for networks that block inbound PC connecti
 - Combine a keyboard and trackpad on a landscape tablet.
 
 See the [complete implemented feature list](docs/features.md).
-
-## Work from another computer
-
-**View PC screen** is more than a viewer. In a browser with a mouse or trackpad
-and physical keyboard, enable direct control to work on the selected Windows
-display with the computer you are using: move, click, right-click, drag, scroll,
-and type.
-
-The Windows host must allow both **Screen viewing** and **Pointer and keyboard**.
-Direct control starts off, one authorized device can view one selected display at a
-time, and browser-reserved shortcuts may remain local.
 
 ## Screenshots
 

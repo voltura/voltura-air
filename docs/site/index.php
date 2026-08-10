@@ -112,7 +112,11 @@
           <p>Move, click, scroll, zoom, type, and use common shortcuts from your mobile device.</p>
         </article>
         <article>
-          <h2>View and work from another PC</h2>
+          <h2>Control from another computer</h2>
+          <p>View one selected Windows display live, then use any browser with a mouse or trackpad and physical keyboard to click, drag, scroll, and type directly on it.</p>
+        </article>
+        <article>
+          <h2>Work from another PC</h2>
           <p>View one selected Windows display live, then use a browser with a mouse or trackpad and physical keyboard to click, drag, scroll, and type directly on it.</p>
         </article>
         <article>

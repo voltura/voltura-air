@@ -6,11 +6,12 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 
 ## Scope and guarantees
 
-- A Windows 11 host serves a phone/tablet PWA on the same Wi-Fi or LAN.
-- Direct use needs no mobile app-store install, account, subscription, trial,
-  or cloud service. Optional Relay uses Voltura's configured relay provider.
-- Voltura Air lets a paired browser view and control a selected Windows display
-  with mouse and keyboard, over local Wi‑Fi/LAN or the internet.
+- A Windows 11 host serves a paired browser-based PWA on a phone, tablet, or
+  computer over local Wi-Fi/LAN or the internet.
+- No app-store install, account, subscription, or trial is required. 
+  Direct local connections use no cloud service; the optional Cloud Relay connects over the internet without opening an inbound connection to the PC.
+- **View PC screen** lets a paired device view one selected Windows display;
+  touch devices use its touch controls, while another computer can use direct mouse and keyboard control.
 - It is not a file-sync, backup, notification-sync, or cloud clipboard service.
 - The client cannot control or wake a sleeping, shut-down, or unreachable PC.
 - One host runs per signed-in Windows user. A second launch focuses it.

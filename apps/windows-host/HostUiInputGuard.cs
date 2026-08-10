@@ -63,6 +63,36 @@ internal static partial class HostUiInputGuard
         };
     }
 
+    internal static bool ShouldBlockAbsolutePointer(ValidatedInputCommand command, int desktopX, int desktopY)
+    {
+        if (AppClientControlSettings.IsEnabled() || command.Kind == InputCommandKind.ScreenPointerMove)
+        {
+            return false;
+        }
+
+        MarkClientPointerInput();
+        if (command.Kind == InputCommandKind.ScreenPointerButton &&
+            string.Equals(command.Action, "up", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var point = new Point { X = desktopX, Y = desktopY };
+        var windowHandle = GetRootWindow(WindowFromPoint(point));
+        if (!IsVolturaHostWindow(windowHandle))
+        {
+            return false;
+        }
+
+        if (command.Kind == InputCommandKind.ScreenPointerButton && IsLeftButton(command))
+        {
+            var hitTest = unchecked((int)SendMessage(windowHandle, WmNcHitTest, nint.Zero, MakeLParam(desktopX, desktopY)));
+            TryRunWindowChromeCommand(windowHandle, hitTest);
+        }
+
+        return true;
+    }
+
     private static bool ShouldBlockSpecialKey(out bool protectedCommandExecuted)
     {
         protectedCommandExecuted = false;

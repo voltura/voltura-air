@@ -117,6 +117,9 @@ internal static class ClientMessageValidator
             ["pointer.button"] = Fields("type", "seq", "button", "action"),
             ["pointer.wheel"] = Fields("type", "seq", "dx", "dy"),
             ["pointer.zoom"] = Fields("type", "seq", "direction"),
+            ["screen.pointer.move"] = Fields("type", "seq", "displayId", "x", "y"),
+            ["screen.pointer.button"] = Fields("type", "seq", "displayId", "x", "y", "button", "action"),
+            ["screen.pointer.wheel"] = Fields("type", "seq", "displayId", "x", "y", "dx", "dy"),
             ["keyboard.text"] = Fields("type", "seq", "text"),
             ["keyboard.special"] = Fields("type", "seq", "key", "modifiers")
         }.ToFrozenDictionary(StringComparer.Ordinal);
@@ -353,13 +356,27 @@ internal static class ClientMessageValidator
                 root.TryGetProperty("applyToAll", out var applyToAll) && applyToAll.ValueKind is JsonValueKind.True or JsonValueKind.False,
             "audio.mute.toggle" => true,
             "audio.volume.set" => TryGetNumber(root, "volume", 0, 100, out _),
-            "pointer.move" or "pointer.button" or "pointer.wheel" or "pointer.zoom" or "keyboard.text" or "keyboard.special" =>
-                TryDecodeInputMessage(root, type, out _),
+            "pointer.move" or "pointer.button" or "pointer.wheel" or "pointer.zoom" or
+                "screen.pointer.move" or "screen.pointer.button" or "screen.pointer.wheel" or
+                "keyboard.text" or "keyboard.special" =>
+                TryDecodeInputMessageFields(root, type, out _),
             _ => false
         };
     }
 
     public static bool TryDecodeInputMessage(JsonElement root, string type, out ValidatedInputCommand command)
+    {
+        if (!AuthenticatedMessageProperties.TryGetValue(type, out var allowedProperties) ||
+            !HasOnlyUniqueProperties(root, allowedProperties))
+        {
+            command = default;
+            return false;
+        }
+
+        return TryDecodeInputMessageFields(root, type, out command);
+    }
+
+    private static bool TryDecodeInputMessageFields(JsonElement root, string type, out ValidatedInputCommand command)
     {
         command = default;
         if (!TryGetOptionalSequence(root, out var sequence))
@@ -406,6 +423,58 @@ internal static class ClientMessageValidator
                 }
 
                 command = new ValidatedInputCommand(InputCommandKind.PointerZoom, sequence, Action: direction);
+                return true;
+            case "screen.pointer.move":
+            case "screen.pointer.button":
+            case "screen.pointer.wheel":
+                if (!TryGetRequiredString(root, "displayId", MaxMetadataLength, allowEmpty: false, out var displayId) ||
+                    !TryGetNumber(root, "x", 0, 1, out var x) ||
+                    !TryGetNumber(root, "y", 0, 1, out var y))
+                {
+                    return false;
+                }
+
+                if (type == "screen.pointer.move")
+                {
+                    command = new ValidatedInputCommand(InputCommandKind.ScreenPointerMove, sequence, DisplayId: displayId, X: x, Y: y);
+                    return true;
+                }
+
+                if (type == "screen.pointer.button")
+                {
+                    if (!TryGetRequiredString(root, "button", 8, allowEmpty: false, out var directButton) ||
+                        directButton is not ("left" or "right") ||
+                        !TryGetRequiredString(root, "action", 8, allowEmpty: false, out var directAction) ||
+                        directAction is not ("down" or "up"))
+                    {
+                        return false;
+                    }
+
+                    command = new ValidatedInputCommand(
+                        InputCommandKind.ScreenPointerButton,
+                        sequence,
+                        Button: directButton,
+                        Action: directAction,
+                        DisplayId: displayId,
+                        X: x,
+                        Y: y);
+                    return true;
+                }
+
+                if (!TryGetPointerDelta(root, "dx", out var directWheelDx) ||
+                    !TryGetPointerDelta(root, "dy", out var directWheelDy))
+                {
+                    return false;
+                }
+
+                command = new ValidatedInputCommand(
+                    InputCommandKind.ScreenPointerWheel,
+                    sequence,
+                    Dx: directWheelDx,
+                    Dy: directWheelDy,
+                    DisplayId: displayId,
+                    X: x,
+                    Y: y);
                 return true;
             case "keyboard.text":
                 if (!TryGetRequiredString(root, "text", TextTransferLimits.MaxTextLength, allowEmpty: false, out var text))

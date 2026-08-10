@@ -13,6 +13,8 @@ public sealed class SendInputInjector : IInputInjector
     private const uint MouseEventFRightUp = 0x0010;
     private const uint MouseEventFWheel = 0x0800;
     private const uint MouseEventFHWheel = 0x01000;
+    private const uint MouseEventFVirtualDesk = 0x4000;
+    private const uint MouseEventFAbsolute = 0x8000;
     private const uint KeyEventFKeyUp = 0x0002;
     private const uint KeyEventFUnicode = 0x0004;
     private const ushort ControlKey = 0x11;
@@ -39,6 +41,11 @@ public sealed class SendInputInjector : IInputInjector
         SendMouse(dx, dy, 0, MouseEventFMove);
     }
 
+    public void MoveMouseAbsolute(int absoluteX, int absoluteY)
+    {
+        SendSingleInput("screen.pointer.move", AbsoluteMouseInput(absoluteX, absoluteY, 0, 0));
+    }
+
     public void MouseButton(string button, string action)
     {
         var (downFlag, upFlag) = button.Equals("right", StringComparison.OrdinalIgnoreCase)
@@ -62,6 +69,18 @@ public sealed class SendInputInjector : IInputInjector
         }
     }
 
+    public void MouseButtonAt(int absoluteX, int absoluteY, string button, string action)
+    {
+        var flag = (button.Equals("right", StringComparison.OrdinalIgnoreCase), action.Equals("up", StringComparison.OrdinalIgnoreCase)) switch
+        {
+            (true, true) => MouseEventFRightUp,
+            (true, false) => MouseEventFRightDown,
+            (false, true) => MouseEventFLeftUp,
+            _ => MouseEventFLeftDown
+        };
+        SendSingleInput("screen.pointer.button", AbsoluteMouseInput(absoluteX, absoluteY, 0, flag));
+    }
+
     public void Scroll(int dx, int dy)
     {
         if (dy != 0)
@@ -72,6 +91,50 @@ public sealed class SendInputInjector : IInputInjector
         if (dx != 0)
         {
             SendMouse(0, 0, Math.Clamp(dx * WheelScale, -1200, 1200), MouseEventFHWheel);
+        }
+    }
+
+    public void ScrollAt(int absoluteX, int absoluteY, int dx, int dy)
+    {
+        List<Input> inputs = [];
+        if (dy != 0)
+        {
+            inputs.Add(AbsoluteMouseInput(absoluteX, absoluteY, Math.Clamp(dy * WheelScale, -1200, 1200), MouseEventFWheel));
+        }
+        if (dx != 0)
+        {
+            inputs.Add(AbsoluteMouseInput(absoluteX, absoluteY, Math.Clamp(dx * WheelScale, -1200, 1200), MouseEventFHWheel));
+        }
+        if (inputs.Count > 0)
+        {
+            SendInputs("screen.pointer.wheel", [.. inputs]);
+        }
+    }
+
+    public void ReleaseMouseButtons()
+    {
+        Input[] releases =
+        [
+            MouseInput(0, 0, 0, MouseEventFLeftUp),
+            MouseInput(0, 0, 0, MouseEventFRightUp)
+        ];
+        try
+        {
+            SendInputs("screen.pointer.cleanup", releases);
+        }
+        catch (InputDispatchException ex)
+        {
+            bool cleanupSucceeded;
+            try
+            {
+                SendInputs("screen.pointer.cleanup.retry", releases);
+                cleanupSucceeded = true;
+            }
+            catch (InputDispatchException)
+            {
+                cleanupSucceeded = false;
+            }
+            throw ex.WithCleanup(cleanupAttempted: true, cleanupSucceeded);
         }
     }
 
@@ -270,6 +333,13 @@ public sealed class SendInputInjector : IInputInjector
             }
         };
     }
+
+    private static Input AbsoluteMouseInput(int absoluteX, int absoluteY, int mouseData, uint flags) =>
+        MouseInput(
+            Math.Clamp(absoluteX, 0, ushort.MaxValue),
+            Math.Clamp(absoluteY, 0, ushort.MaxValue),
+            mouseData,
+            flags | MouseEventFMove | MouseEventFVirtualDesk | MouseEventFAbsolute);
 
     private static Input KeyboardInput(ushort virtualKey, ushort scanCode, uint flags)
     {

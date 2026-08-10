@@ -4,6 +4,10 @@ import type { ClientMessage } from "../../foundation/protocol/messages";
 import { publishScreenViewResult } from "../../foundation/connection/screenViewResultBus";
 
 export default function ScreenViewBrowserPreviewRoot() {
+  const requestedState = new URL(window.location.href).searchParams.get("mouseState");
+  const mouseState = requestedState === "active" || requestedState === "permission-blocked"
+    ? requestedState
+    : "inactive";
   const send = (message: ClientMessage) => {
     if (message.type === "screen.view.sources.get") {
       queueMicrotask(() => publishScreenViewResult({
@@ -19,10 +23,11 @@ export default function ScreenViewBrowserPreviewRoot() {
     }
   };
 
-  return <main className="app-shell control-depth">
+  return <main className="app-shell control-depth screen-view-browser-preview">
     <ScreenViewWorkspace
       activePc={{ customName: false, id: "preview", name: "Studio PC", url: "http://127.0.0.1:51395", hostIdentityFingerprint: "AAAAAAAAAAAAAAAAAAAAAA", hostIdentityPublicKey: `B${"A".repeat(86)}` }}
-      capability={{ enabled: true, permissionGranted: true, canView: true, requiresRepair: false, encrypted: true, maxWidth: 1920, maxHeight: 1080, maxFramesPerSecond: 30 }}
+      browserPreviewState={mouseState}
+      capability={{ enabled: true, permissionGranted: true, canView: true, requiresRepair: false, encrypted: true, maxWidth: 1920, maxHeight: 1080, maxFramesPerSecond: 30, directPointer: { permissionGranted: mouseState !== "permission-blocked" } }}
       clientId="preview-client"
       onBack={() => { /* Preview only. */ }}
       onOpenKeyboard={() => { /* Preview only. */ }}

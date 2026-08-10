@@ -13,6 +13,8 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
     private readonly IScreenViewCaptureSource _capture;
     private readonly IScreenViewWebRtcPeerFactory _peerFactory;
     private readonly IAppLogWriter _appLog;
+    private readonly InputDispatcher? _inputDispatcher;
+    private readonly ISystemPowerController? _powerController;
     private PendingView? _pending;
     private ActiveView? _active;
     private int _disposed;
@@ -22,13 +24,17 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         HostStatusPayloadFactory statusFactory,
         IScreenViewCaptureSource? capture = null,
         IScreenViewWebRtcPeerFactory? peerFactory = null,
-        IAppLogWriter? appLog = null)
+        IAppLogWriter? appLog = null,
+        InputDispatcher? inputDispatcher = null,
+        ISystemPowerController? powerController = null)
     {
         _pairingManager = pairingManager;
         _statusFactory = statusFactory;
         _capture = capture ?? new DxgiScreenViewCaptureSource();
         _peerFactory = peerFactory ?? new ScreenViewWebRtcPeerFactory();
         _appLog = appLog ?? NullAppLog.Instance;
+        _inputDispatcher = inputDispatcher;
+        _powerController = powerController;
         pairingManager.PairingRevoked += OnPairingRevoked;
         pairingManager.PermissionsChanged += OnPermissionsChanged;
         AppPermissionSettings.Changed += OnPermissionsChanged;
@@ -55,8 +61,10 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         ScreenViewSourcesResult discovery = DiscoverSources(clientId);
         if (!discovery.Succeeded)
             return Failure(discovery.Code, discovery.Message);
-        if (!discovery.Sources.Any(source => string.Equals(source.Id, displayId, StringComparison.Ordinal)))
+        ScreenViewSource? source = discovery.Sources.FirstOrDefault(source => string.Equals(source.Id, displayId, StringComparison.Ordinal));
+        if (source is null)
             return Failure("display-unavailable", "The selected display is no longer available.");
+        VirtualDesktopBounds virtualDesktop = VirtualDesktopBounds.From(discovery.Sources);
 
         string clientTranscript = $"VolturaAir screen-view:start:v2:{clientId}:{operationId}:{displayId}";
         if (!_pairingManager.VerifyClientSignature(clientId, Encoding.UTF8.GetBytes(clientTranscript), clientSignature))
@@ -75,7 +83,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         }
 
         var createdAt = now ?? DateTimeOffset.UtcNow;
-        var pending = new PendingView(clientId, operationId, displayId, createdAt + SignalingLifetime, peer, relay?.MaximumBitrate ?? InitialBitrate);
+        var pending = new PendingView(clientId, operationId, source, virtualDesktop, createdAt + SignalingLifetime, peer, relay?.MaximumBitrate ?? InitialBitrate);
         PendingView? expired;
         bool busy;
         lock (_gate)
@@ -172,7 +180,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         {
             if (ReferenceEquals(_pending, pending) && _active is null)
             {
-                active = new ActiveView(pending.ClientId, pending.DisplayId, pending.Peer, pending.MaximumBitrate);
+                active = new ActiveView(pending.ClientId, pending.Source, pending.VirtualDesktop, pending.Peer, pending.MaximumBitrate);
                 _pending = null;
                 pending.DetachPeer();
                 _active = active;
@@ -198,7 +206,11 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
             if (_active?.ClientId == clientId) active = _active;
         }
         pending?.Release();
-        active?.Stop.Cancel();
+        if (active is not null)
+        {
+            ReleaseHeldButtons(active);
+            active.Stop.Cancel();
+        }
         return pending is not null || active is not null;
     }
 
@@ -209,19 +221,75 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         ScreenViewSourcesResult discovery = DiscoverSources(clientId);
         if (!discovery.Succeeded)
             return new(false, discovery.Code, discovery.Message);
-        if (!discovery.Sources.Any(source => string.Equals(source.Id, displayId, StringComparison.Ordinal)))
+        ScreenViewSource? source = discovery.Sources.FirstOrDefault(source => string.Equals(source.Id, displayId, StringComparison.Ordinal));
+        if (source is null)
             return new(false, "display-unavailable", "The selected display is no longer available.");
+        VirtualDesktopBounds virtualDesktop = VirtualDesktopBounds.From(discovery.Sources);
 
         ActiveView? active;
         lock (_gate)
         {
             active = _active?.ClientId == clientId ? _active : null;
-            active?.SetDisplay(displayId);
+            if (active is not null)
+            {
+                ReleaseHeldButtonsLocked(active);
+                active.SetSource(source, virtualDesktop);
+            }
         }
         if (active is null)
             return new(false, "not-viewing", "Start screen viewing before switching displays.");
         _capture.EndCapture();
         return new(true, "accepted", "The mirrored display was changed.");
+    }
+
+    public ScreenPointerDispatchResult DispatchPointer(string clientId, ValidatedInputCommand command)
+    {
+        if (_inputDispatcher is null)
+            return new(false, "VAIR-SCREEN-POINTER-UNAVAILABLE", "Direct mouse control is unavailable on this PC.");
+        if (!_statusFactory.CanViewScreen(clientId) || !_statusFactory.CanUseRemoteInput(clientId))
+            return new(false, "VAIR-INPUT-DENIED", "Pointer and keyboard control is disabled for this device on the PC.");
+
+        lock (_gate)
+        {
+            ActiveView? active = _active?.ClientId == clientId ? _active : null;
+            if (active is null)
+                return new(false, "VAIR-SCREEN-NOT-VIEWING", "Start screen viewing before using direct mouse control.");
+            if (!string.Equals(active.DisplayId, command.DisplayId, StringComparison.Ordinal))
+                return new(false, "VAIR-SCREEN-STALE-DISPLAY", "The direct mouse command targeted a display that is no longer selected.");
+
+            ScreenPointerPosition position = MapPointer(active.Source, active.VirtualDesktop, command.X, command.Y);
+            try
+            {
+                _ = _powerController?.DismissBlackoutIfActive();
+                if (!_inputDispatcher.DispatchScreenPointer(
+                    command,
+                    position.DesktopX,
+                    position.DesktopY,
+                    position.AbsoluteX,
+                    position.AbsoluteY,
+                    out var outcome))
+                {
+                    return new(false, "VAIR-INPUT-UNSUPPORTED", "Unsupported direct mouse command.");
+                }
+
+                if (outcome == InputDispatchOutcome.Failed)
+                    return new(false, "VAIR-INPUT-DISPATCH-FAILED", "Windows did not complete this direct mouse action.");
+
+                if (command.Kind == InputCommandKind.ScreenPointerButton)
+                {
+                    if (string.Equals(command.Action, "down", StringComparison.Ordinal)) active.Hold(command.Button!);
+                    else active.Release(command.Button!);
+                }
+
+                return new(true, "accepted", "The direct mouse command was accepted.");
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException and not ObjectDisposedException)
+            {
+                InputDispatchDiagnostics.Write(command.Type, null, string.Empty, ex);
+                ReleaseHeldButtonsLocked(active);
+                return new(false, ex is InputDispatchException ? "VAIR-INPUT-NATIVE-SEND-FAILED" : "VAIR-INPUT-DISPATCH-FAILED", "Windows did not accept this direct mouse action. Try again.");
+            }
+        }
     }
 
     private async Task RunActiveAsync(ActiveView active)
@@ -247,6 +315,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
             active.Peer.KeyFrameRequested -= active.OnKeyFrameRequested;
             active.Peer.BitrateEstimated -= active.OnBitrateEstimated;
             _capture.EndCapture();
+            ReleaseHeldButtons(active);
             lock (_gate)
             {
                 if (ReferenceEquals(_active, active)) _active = null;
@@ -256,6 +325,50 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
                 ActivityChanged?.Invoke(this, new ScreenViewActivityChangedEventArgs(false, active.ClientId));
         }
     }
+
+    private void ReleaseHeldButtons(ActiveView active)
+    {
+        lock (_gate) ReleaseHeldButtonsLocked(active);
+    }
+
+    private void ReleaseHeldButtonsLocked(ActiveView active)
+    {
+        if (!active.TakeHeldButtons() || _inputDispatcher is null) return;
+        try { _inputDispatcher.ReleaseMouseButtons(); }
+        catch (Exception ex) when (ex is not OperationCanceledException and not ObjectDisposedException)
+        {
+            InputDispatchDiagnostics.Write("screen.pointer.cleanup", null, string.Empty, ex);
+        }
+    }
+
+    internal static ScreenPointerPosition MapPointer(
+        ScreenViewSource source,
+        VirtualDesktopBounds virtualDesktop,
+        double normalizedX,
+        double normalizedY)
+    {
+        int rotatedWidth = source.Rotation is ScreenViewRotation.Rotate90 or ScreenViewRotation.Rotate270 ? source.Height : source.Width;
+        int rotatedHeight = source.Rotation is ScreenViewRotation.Rotate90 or ScreenViewRotation.Rotate270 ? source.Width : source.Height;
+        int rotatedX = (int)Math.Round(Math.Clamp(normalizedX, 0, 1) * Math.Max(0, rotatedWidth - 1), MidpointRounding.AwayFromZero);
+        int rotatedY = (int)Math.Round(Math.Clamp(normalizedY, 0, 1) * Math.Max(0, rotatedHeight - 1), MidpointRounding.AwayFromZero);
+        (int sourceX, int sourceY) = source.Rotation switch
+        {
+            ScreenViewRotation.Rotate90 => (rotatedY, source.Height - 1 - rotatedX),
+            ScreenViewRotation.Rotate180 => (source.Width - 1 - rotatedX, source.Height - 1 - rotatedY),
+            ScreenViewRotation.Rotate270 => (source.Width - 1 - rotatedY, rotatedX),
+            _ => (rotatedX, rotatedY)
+        };
+        int desktopX = source.DesktopLeft + sourceX;
+        int desktopY = source.DesktopTop + sourceY;
+        int absoluteX = NormalizeAbsolute(desktopX, virtualDesktop.Left, virtualDesktop.Width);
+        int absoluteY = NormalizeAbsolute(desktopY, virtualDesktop.Top, virtualDesktop.Height);
+        return new(desktopX, desktopY, absoluteX, absoluteY);
+    }
+
+    private static int NormalizeAbsolute(int coordinate, int origin, int extent) =>
+        extent <= 1
+            ? 0
+            : (int)Math.Round((double)(coordinate - origin) * ushort.MaxValue / (extent - 1), MidpointRounding.AwayFromZero);
 
     private async Task SendFramesAsync(ActiveView active, CancellationToken cancellationToken)
     {
@@ -332,8 +445,14 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
     private void StopUnauthorized()
     {
         string? clientId;
-        lock (_gate) clientId = _active?.ClientId ?? _pending?.ClientId;
+        ActiveView? active;
+        lock (_gate)
+        {
+            clientId = _active?.ClientId ?? _pending?.ClientId;
+            active = _active;
+        }
         if (clientId is not null && !CanStart(clientId)) Stop(clientId);
+        else if (active is not null && !_statusFactory.CanUseRemoteInput(active.ClientId)) ReleaseHeldButtons(active);
     }
 
     private void StopAll()
@@ -370,7 +489,8 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
     private sealed class PendingView(
         string clientId,
         string operationId,
-        string displayId,
+        ScreenViewSource source,
+        VirtualDesktopBounds virtualDesktop,
         DateTimeOffset expiresAt,
         IScreenViewWebRtcPeer peer,
         int maximumBitrate)
@@ -378,7 +498,9 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         private IScreenViewWebRtcPeer? _peer = peer;
         public string ClientId { get; } = clientId;
         public string OperationId { get; } = operationId;
-        public string DisplayId { get; } = displayId;
+        public ScreenViewSource Source { get; } = source;
+        public string DisplayId => Source.Id;
+        public VirtualDesktopBounds VirtualDesktop { get; } = virtualDesktop;
         public DateTimeOffset ExpiresAt { get; } = expiresAt;
         public IScreenViewWebRtcPeer Peer => _peer ?? throw new ObjectDisposedException(nameof(PendingView));
         public int MaximumBitrate { get; } = maximumBitrate;
@@ -388,19 +510,36 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         public void Release() { _peer?.Dispose(); _peer = null; }
     }
 
-    private sealed class ActiveView(string clientId, string displayId, IScreenViewWebRtcPeer peer, int maximumBitrate)
+    private sealed class ActiveView(string clientId, ScreenViewSource source, VirtualDesktopBounds virtualDesktop, IScreenViewWebRtcPeer peer, int maximumBitrate)
     {
-        private string _displayId = displayId;
+        private ScreenViewSource _source = source;
+        private VirtualDesktopBounds _virtualDesktop = virtualDesktop;
+        private readonly HashSet<string> _heldButtons = new(StringComparer.Ordinal);
         private readonly int _maximumBitrate = maximumBitrate;
         private int _targetBitrate = maximumBitrate;
         private int _forceKeyFrame = 1;
         public string ClientId { get; } = clientId;
-        public string DisplayId => Volatile.Read(ref _displayId);
+        public ScreenViewSource Source => Volatile.Read(ref _source);
+        public string DisplayId => Source.Id;
+        public VirtualDesktopBounds VirtualDesktop => Volatile.Read(ref _virtualDesktop);
         public int TargetBitrate => Volatile.Read(ref _targetBitrate);
         public IScreenViewWebRtcPeer Peer { get; } = peer;
         public CancellationTokenSource Stop { get; } = new();
         public Task? Runner { get; set; }
-        public void SetDisplay(string displayId) { Volatile.Write(ref _displayId, displayId); RequestKeyFrame(); }
+        public void SetSource(ScreenViewSource source, VirtualDesktopBounds virtualDesktop)
+        {
+            Volatile.Write(ref _source, source);
+            Volatile.Write(ref _virtualDesktop, virtualDesktop);
+            RequestKeyFrame();
+        }
+        public void Hold(string button) => _heldButtons.Add(button);
+        public void Release(string button) => _heldButtons.Remove(button);
+        public bool TakeHeldButtons()
+        {
+            bool held = _heldButtons.Count > 0;
+            _heldButtons.Clear();
+            return held;
+        }
         public bool TakeForceKeyFrame() => Interlocked.Exchange(ref _forceKeyFrame, 0) != 0;
         public void RequestKeyFrame() => Interlocked.Exchange(ref _forceKeyFrame, 1);
         public void OnPeerStopped(object? sender, EventArgs e) => Stop.Cancel();
@@ -418,6 +557,21 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
             if (Interlocked.Exchange(ref _targetBitrate, bitrate) != bitrate) RequestKeyFrame();
         }
         public void Release() { Stop.Dispose(); Peer.Dispose(); }
+    }
+}
+
+internal readonly record struct ScreenPointerPosition(int DesktopX, int DesktopY, int AbsoluteX, int AbsoluteY);
+
+internal sealed record VirtualDesktopBounds(int Left, int Top, int Width, int Height)
+{
+    public static VirtualDesktopBounds From(IReadOnlyList<ScreenViewSource> sources)
+    {
+        if (sources.Count == 0) return new(0, 0, 1, 1);
+        int left = sources.Min(source => source.DesktopLeft);
+        int top = sources.Min(source => source.DesktopTop);
+        int right = sources.Max(source => source.DesktopLeft + source.Width);
+        int bottom = sources.Max(source => source.DesktopTop + source.Height);
+        return new(left, top, Math.Max(1, right - left), Math.Max(1, bottom - top));
     }
 }
 

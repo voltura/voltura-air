@@ -1,6 +1,24 @@
+using System.Text.Json.Serialization;
+
 namespace VolturaAir.Host;
 
-public sealed record ScreenViewSource(string Id, string Label, int Width, int Height, bool IsPrimary);
+public enum ScreenViewRotation
+{
+    Identity,
+    Rotate90,
+    Rotate180,
+    Rotate270
+}
+
+public sealed record ScreenViewSource(
+    string Id,
+    string Label,
+    int Width,
+    int Height,
+    bool IsPrimary,
+    [property: JsonIgnore] int DesktopLeft = 0,
+    [property: JsonIgnore] int DesktopTop = 0,
+    [property: JsonIgnore] ScreenViewRotation Rotation = ScreenViewRotation.Identity);
 
 internal sealed record ScreenViewStartResult(
     bool Succeeded,
@@ -15,6 +33,8 @@ internal sealed record ScreenViewStartResult(
     RelayScreenQuality? RelayScreenQuality = null);
 
 internal sealed record ScreenViewOperationResult(bool Succeeded, string Code, string Message);
+
+internal sealed record ScreenPointerDispatchResult(bool Succeeded, string Code, string Message);
 
 internal sealed record ScreenViewSourcesResult(
     bool Succeeded,

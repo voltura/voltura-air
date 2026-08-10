@@ -125,6 +125,25 @@ public sealed class ClientMessageValidatorTests
         Assert.Equal("pointer.move", command.Type);
     }
 
+    [Theory]
+    [InlineData("""{ "type": "screen.pointer.move", "seq": 7, "displayId": "display-1", "x": 0.25, "y": 1 }""", true)]
+    [InlineData("""{ "type": "screen.pointer.button", "displayId": "display-1", "x": 0, "y": 0, "button": "right", "action": "down" }""", true)]
+    [InlineData("""{ "type": "screen.pointer.wheel", "displayId": "display-1", "x": 1, "y": 0.5, "dx": 0, "dy": -12 }""", true)]
+    [InlineData("""{ "type": "screen.pointer.move", "displayId": "display-1", "x": -0.01, "y": 0.5 }""", false)]
+    [InlineData("""{ "type": "screen.pointer.button", "displayId": "display-1", "x": 0.5, "y": 0.5, "button": "left", "action": "click" }""", false)]
+    [InlineData("""{ "type": "screen.pointer.wheel", "displayId": "display-1", "x": 0.5, "y": 0.5, "dx": 0, "dy": 1, "extra": true }""", false)]
+    public void StrictlyValidatesDirectScreenPointerMessages(string json, bool expected)
+    {
+        using var document = JsonDocument.Parse(json);
+        string type = document.RootElement.GetProperty("type").GetString()!;
+
+        Assert.Equal(expected, ClientMessageValidator.IsValidAuthenticatedMessage(document.RootElement, type));
+        if (expected)
+        {
+            Assert.True(ClientMessageValidator.TryDecodeInputMessage(document.RootElement, type, out _));
+        }
+    }
+
     [Fact]
     public void DecodesValidatedKeyboardModifiersWithoutASecondJsonRead()
     {

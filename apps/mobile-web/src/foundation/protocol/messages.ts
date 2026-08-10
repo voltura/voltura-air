@@ -193,6 +193,9 @@ export interface ScreenViewCapability {
   maxWidth: number;
   maxHeight: number;
   maxFramesPerSecond: number;
+  directPointer?: {
+    permissionGranted: boolean;
+  };
 }
 
 export interface ScreenViewSource {
@@ -570,6 +573,34 @@ export interface PointerWheelMessage {
   dy: number;
 }
 
+export interface ScreenPointerMoveMessage {
+  type: "screen.pointer.move";
+  seq?: number;
+  displayId: string;
+  x: number;
+  y: number;
+}
+
+export interface ScreenPointerButtonMessage {
+  type: "screen.pointer.button";
+  seq?: number;
+  displayId: string;
+  x: number;
+  y: number;
+  button: "left" | "right";
+  action: "down" | "up";
+}
+
+export interface ScreenPointerWheelMessage {
+  type: "screen.pointer.wheel";
+  seq?: number;
+  displayId: string;
+  x: number;
+  y: number;
+  dx: number;
+  dy: number;
+}
+
 export interface PointerZoomMessage {
   type: "pointer.zoom";
   seq?: number;
@@ -875,6 +906,9 @@ export type ClientMessage =
   | PointerMoveMessage
   | PointerButtonMessage
   | PointerWheelMessage
+  | ScreenPointerMoveMessage
+  | ScreenPointerButtonMessage
+  | ScreenPointerWheelMessage
   | PointerZoomMessage
   | KeyboardTextMessage
   | KeyboardSpecialMessage

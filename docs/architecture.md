@@ -92,7 +92,12 @@ Screen viewing is navigation/capability wiring in the initial PWA bundle. Its
 workspace, WebRTC video renderer, event parser, host-identity verification, and
 diagnostics stay in the Screen dynamic chunk and load only when the tool opens.
 The JSON control socket owns discovery, signed offer/answer signaling,
-source-switch, and stop commands. Screen media uses a separate H.264 RTP track;
+source-switch, stop, and optional direct-pointer commands. Direct mouse mode is
+browser-local; `ScreenViewCoordinator` authorizes the active viewer/display,
+maps normalized positions through cached host monitor rotation and virtual-
+desktop bounds, and owns held-button cleanup. The existing input dispatcher and
+`SendInputInjector` perform guarded atomic absolute position/action batches.
+Screen media uses a separate H.264 RTP track;
 cursor/status uses the `screen-events` data channel, so media backpressure cannot
 consume the command socket's serialized send queue.
 

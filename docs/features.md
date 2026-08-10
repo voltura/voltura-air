@@ -115,6 +115,21 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   Compact Click, keyboard, display, and Stop controls sit around the responsive
   canvas. V1 is video-only and excludes audio, absolute touch, windows,
   all-monitor composition, multiple viewers, and game optimization.
+- On browsers with an available fine hovering pointer, supported hosts add a
+  session-only mouse-and-keyboard icon action beside **Scroll/Zoom**. It starts
+  inactive and directly maps movement, left/right click, drag, and wheel over
+  the displayed image while excluding letterbox bars and overlay controls.
+  Local zoom and pan remain usable. While the action is active, physical-key
+  presses reuse the existing keyboard protocol; printable text, supported keys,
+  Escape, and delivered modifier shortcuts are forwarded, while browser-reserved
+  shortcuts may remain local. A second activation, navigation, reconnect,
+  display or permission change, pointer removal, and stream termination disable
+  it and release held buttons. Browser fullscreen may reserve Escape to exit
+  fullscreen; leaving fullscreen does not otherwise disable the action. The
+  local cursor is hidden only over the image while the mirrored Windows cursor
+  remains visible. **Pointer and keyboard** permission is required; a supported
+  but blocked device keeps a disabled explanatory action. Click, Keys, and all
+  touch gestures are unchanged.
 - The Windows tray shows a persistent viewing indicator with the paired device
   name and an immediate Stop action. Its submenu can stop the stream and set
   that device's **View PC screen** permission to **Block** so it cannot reconnect

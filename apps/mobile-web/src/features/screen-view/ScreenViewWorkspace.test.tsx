@@ -536,4 +536,113 @@ describe("ScreenViewWorkspace", () => {
 
     await waitFor(() => expect(send.mock.calls.some(([message]) => message.type === "pointer.wheel")).toBe(true));
   });
+
+  it("shows direct mouse only for a fine pointer and releases a drag at the image edge", async () => {
+    let matches = true;
+    let onChange: EventListener | undefined;
+    vi.stubGlobal("matchMedia", vi.fn(() => ({
+      get matches() {return matches;},
+      media: "(any-pointer: fine) and (any-hover: hover)",
+      onchange: null,
+      addEventListener: (_type: string, listener: EventListenerOrEventListenerObject) => {
+        if (typeof listener === "function") {onChange = listener;}
+      },
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    } satisfies MediaQueryList)));
+    const send = vi.fn<(message: ClientMessage) => void>();
+    render(<ScreenViewWorkspace
+      activePc={{ customName: false, id: "http://192.168.1.10:51396", name: "PC", url: "http://192.168.1.10:51396" }}
+      capability={{ ...capability, directPointer: { permissionGranted: true } }}
+      clientId="client-test"
+      onBack={vi.fn()}
+      onOpenKeyboard={vi.fn()}
+      send={send}
+      state="paired"
+      trackpadSettings={defaultTrackpadSettings}
+    />);
+    act(() => {
+      publishScreenViewResult({
+        type: "screen.view.sources.result",
+        operationId: "direct-sources",
+        succeeded: true,
+        message: "Ready",
+        sources: [{ id: "display-1", label: "Main display", width: 1920, height: 1080, isPrimary: true }]
+      });
+    });
+    fireEvent.loadedData(screen.getByLabelText("Mirrored PC display video"));
+    const mouse = await screen.findByRole("button", { name: "Mouse and keyboard control" });
+    fireEvent.click(mouse);
+    expect(mouse.getAttribute("aria-pressed")).toBe("true");
+    expect(await screen.findByText("Mouse and keyboard control the PC. Select this button to stop.")).toBeTruthy();
+
+    fireEvent.keyDown(window, { key: "a", code: "KeyA" });
+    fireEvent.keyDown(window, { key: "Escape", code: "Escape" });
+    fireEvent.keyDown(window, { key: "c", code: "KeyC", ctrlKey: true });
+    expect(send.mock.calls.map(([message]) => message).filter((message) =>
+      message.type === "keyboard.text" || message.type === "keyboard.special"
+    )).toEqual([
+      { type: "keyboard.text", text: "a" },
+      { type: "keyboard.special", key: "Escape" },
+      { type: "keyboard.special", key: "c", modifiers: ["Control"] }
+    ]);
+    expect(mouse.getAttribute("aria-pressed")).toBe("true");
+
+    const surface = document.querySelector<HTMLElement>(".screen-view-direct-pointer");
+    if (!surface) {throw new Error("Direct mouse surface was not rendered.");}
+    vi.spyOn(surface, "getBoundingClientRect").mockReturnValue({ left: 100, top: 50, width: 800, height: 600, right: 900, bottom: 650, x: 100, y: 50, toJSON: vi.fn() });
+    fireEvent.mouseMove(surface, { clientX: 500, clientY: 350 });
+    await waitFor(() => expect(send.mock.calls.some(([message]) => message.type === "screen.pointer.move")).toBe(true));
+    fireEvent.mouseDown(surface, { button: 0, clientX: 500, clientY: 350 });
+    fireEvent.mouseLeave(surface, { clientX: 950, clientY: 350 });
+    expect(send.mock.calls.filter(([message]) => message.type === "screen.pointer.button").map(([message]) => message.type === "screen.pointer.button" ? message.action : null)).toEqual(["down", "up"]);
+    expect(fireEvent.contextMenu(surface, { clientX: 500, clientY: 350 })).toBe(false);
+    expect(send.mock.calls.filter(([message]) =>
+      message.type === "screen.pointer.button" && message.button === "right"
+    ).map(([message]) => message.type === "screen.pointer.button" ? message.action : null)).toEqual(["down", "up"]);
+
+    const keyboardMessageCount = send.mock.calls.filter(([message]) =>
+      message.type === "keyboard.text" || message.type === "keyboard.special"
+    ).length;
+    fireEvent.click(mouse);
+    expect(mouse.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.keyDown(window, { key: "b", code: "KeyB" });
+    expect(send.mock.calls.filter(([message]) =>
+      message.type === "keyboard.text" || message.type === "keyboard.special"
+    )).toHaveLength(keyboardMessageCount);
+
+    matches = false;
+    act(() => onChange?.(new Event("change")));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Mouse and keyboard control" })).toBeNull());
+  });
+
+  it("keeps supported direct mouse discoverable when its permission is blocked", () => {
+    vi.stubGlobal("matchMedia", vi.fn(() => ({
+      matches: true,
+      media: "(any-pointer: fine) and (any-hover: hover)",
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    } satisfies MediaQueryList)));
+    render(<ScreenViewWorkspace
+      activePc={{ customName: false, id: "http://192.168.1.10:51396", name: "PC", url: "http://192.168.1.10:51396" }}
+      capability={{ ...capability, directPointer: { permissionGranted: false } }}
+      clientId="client-test"
+      onBack={vi.fn()}
+      onOpenKeyboard={vi.fn()}
+      send={vi.fn()}
+      state="paired"
+      trackpadSettings={defaultTrackpadSettings}
+    />);
+    fireEvent.loadedData(screen.getByLabelText("Mirrored PC display video"));
+    const mouse = screen.getByRole("button", { name: "Mouse and keyboard control" });
+    expect(mouse.getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(mouse);
+    expect(screen.getByRole("status").textContent).toContain("Allow Pointer and keyboard");
+  });
 });

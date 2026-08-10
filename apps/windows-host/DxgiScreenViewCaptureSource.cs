@@ -45,7 +45,20 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
             try
             {
                 return [.. EnumerateOutputs().Select(item => new ScreenViewSource(
-                    item.Id, item.Label, item.Width, item.Height, item.IsPrimary))];
+                    item.Id,
+                    item.Label,
+                    item.Width,
+                    item.Height,
+                    item.IsPrimary,
+                    item.Left,
+                    item.Top,
+                    item.Rotation switch
+                    {
+                        ModeRotation.Rotate90 => ScreenViewRotation.Rotate90,
+                        ModeRotation.Rotate180 => ScreenViewRotation.Rotate180,
+                        ModeRotation.Rotate270 => ScreenViewRotation.Rotate270,
+                        _ => ScreenViewRotation.Identity
+                    }))];
             }
             catch (ScreenViewCaptureException)
             {
@@ -883,38 +896,14 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
         {
             if (cursor is null || rotation is ModeRotation.Identity or ModeRotation.Unspecified) return cursor;
             byte[]? shape = cursor.PngBytes is null ? null : RotateCursorPng(cursor.PngBytes, rotation);
-            return rotation switch
+            var screenRotation = rotation switch
             {
-                ModeRotation.Rotate90 => cursor with
-                {
-                    X = sourceHeight - 1 - cursor.Y,
-                    Y = cursor.X,
-                    HotSpotX = cursor.Height - 1 - cursor.HotSpotY,
-                    HotSpotY = cursor.HotSpotX,
-                    Width = cursor.Height,
-                    Height = cursor.Width,
-                    PngBytes = shape
-                },
-                ModeRotation.Rotate180 => cursor with
-                {
-                    X = sourceWidth - 1 - cursor.X,
-                    Y = sourceHeight - 1 - cursor.Y,
-                    HotSpotX = cursor.Width - 1 - cursor.HotSpotX,
-                    HotSpotY = cursor.Height - 1 - cursor.HotSpotY,
-                    PngBytes = shape
-                },
-                ModeRotation.Rotate270 => cursor with
-                {
-                    X = cursor.Y,
-                    Y = sourceWidth - 1 - cursor.X,
-                    HotSpotX = cursor.HotSpotY,
-                    HotSpotY = cursor.Width - 1 - cursor.HotSpotX,
-                    Width = cursor.Height,
-                    Height = cursor.Width,
-                    PngBytes = shape
-                },
-                _ => cursor
+                ModeRotation.Rotate90 => ScreenViewRotation.Rotate90,
+                ModeRotation.Rotate180 => ScreenViewRotation.Rotate180,
+                ModeRotation.Rotate270 => ScreenViewRotation.Rotate270,
+                _ => ScreenViewRotation.Identity
             };
+            return TransformCursorGeometry(cursor, sourceWidth, sourceHeight, screenRotation) with { PngBytes = shape };
         }
 
         private static byte[] RotateCursorPng(byte[] png, ModeRotation rotation)
@@ -971,6 +960,40 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
         byte[]? pngBytes,
         bool shapeChanged) =>
         new(visible, x, y, hotSpotX, hotSpotY, width, height, shapeChanged ? pngBytes : null);
+
+    internal static ScreenViewCursorUpdate TransformCursorGeometry(
+        ScreenViewCursorUpdate cursor,
+        int sourceWidth,
+        int sourceHeight,
+        ScreenViewRotation rotation) => rotation switch
+        {
+            ScreenViewRotation.Rotate90 => cursor with
+            {
+                X = sourceHeight - cursor.Y - cursor.Height,
+                Y = cursor.X,
+                HotSpotX = cursor.Height - 1 - cursor.HotSpotY,
+                HotSpotY = cursor.HotSpotX,
+                Width = cursor.Height,
+                Height = cursor.Width
+            },
+            ScreenViewRotation.Rotate180 => cursor with
+            {
+                X = sourceWidth - cursor.X - cursor.Width,
+                Y = sourceHeight - cursor.Y - cursor.Height,
+                HotSpotX = cursor.Width - 1 - cursor.HotSpotX,
+                HotSpotY = cursor.Height - 1 - cursor.HotSpotY
+            },
+            ScreenViewRotation.Rotate270 => cursor with
+            {
+                X = cursor.Y,
+                Y = sourceWidth - cursor.X - cursor.Width,
+                HotSpotX = cursor.HotSpotY,
+                HotSpotY = cursor.Width - 1 - cursor.HotSpotX,
+                Width = cursor.Height,
+                Height = cursor.Width
+            },
+            _ => cursor
+        };
 
     private static partial class ScreenViewNativeMethods
     {

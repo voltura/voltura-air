@@ -6,7 +6,7 @@ import { isRemoteModeId, normalizeRemoteMode } from "../settings/remoteSettings"
 const movementAckIntervalMs = 200;
 const maxPendingInputAcks = 64;
 
-type ClientInputMessage = Extract<ClientMessage, { type: "pointer.move" | "pointer.button" | "pointer.wheel" | "pointer.zoom" | "keyboard.text" | "keyboard.special" }>;
+type ClientInputMessage = Extract<ClientMessage, { type: "pointer.move" | "pointer.button" | "pointer.wheel" | "pointer.zoom" | "screen.pointer.move" | "screen.pointer.button" | "screen.pointer.wheel" | "keyboard.text" | "keyboard.special" }>;
 
 export function getDisplayPcName(pc: PcProfile, hostName: string, screenshotMode = false): string {
   if (screenshotMode) {
@@ -404,7 +404,9 @@ function isScreenViewCapability(value: unknown): boolean {
     value.encrypted === true &&
     value.maxWidth === 1920 &&
     value.maxHeight === 1080 &&
-    value.maxFramesPerSecond === 30;
+    value.maxFramesPerSecond === 30 &&
+    isOptional(value, "directPointer", (candidate) =>
+      isRecord(candidate) && typeof candidate.permissionGranted === "boolean");
 }
 
 function isScreenViewSource(value: unknown): boolean {
@@ -844,12 +846,15 @@ function isInputMessage(payload: ClientMessage): payload is ClientInputMessage {
     payload.type === "pointer.button" ||
     payload.type === "pointer.wheel" ||
     payload.type === "pointer.zoom" ||
+    payload.type === "screen.pointer.move" ||
+    payload.type === "screen.pointer.button" ||
+    payload.type === "screen.pointer.wheel" ||
     payload.type === "keyboard.text" ||
     payload.type === "keyboard.special";
 }
 
-export function isMovementInput(payload: ClientMessage): payload is Extract<ClientInputMessage, { type: "pointer.move" | "pointer.wheel" | "pointer.zoom" }> {
-  return payload.type === "pointer.move" || payload.type === "pointer.wheel" || payload.type === "pointer.zoom";
+export function isMovementInput(payload: ClientMessage): payload is Extract<ClientInputMessage, { type: "pointer.move" | "pointer.wheel" | "pointer.zoom" | "screen.pointer.move" }> {
+  return payload.type === "pointer.move" || payload.type === "pointer.wheel" || payload.type === "pointer.zoom" || payload.type === "screen.pointer.move";
 }
 
 export function isUserActivityMessage(payload: ClientMessage): boolean {

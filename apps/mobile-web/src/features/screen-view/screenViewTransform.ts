@@ -14,6 +14,37 @@ export interface ScreenViewPinchStart {
 export const identityScreenViewTransform: ScreenViewTransform = { scale: 1, x: 0, y: 0 };
 export const maxScreenViewScale = 5;
 
+export interface NormalizedScreenPoint {
+  x: number;
+  y: number;
+}
+
+export function screenCursorImagePosition(
+  cursorX: number,
+  cursorY: number,
+  renderedLeft: number,
+  renderedTop: number,
+  scale: number
+) {
+  return {
+    left: renderedLeft + cursorX * scale,
+    top: renderedTop + cursorY * scale
+  };
+}
+
+export function normalizedScreenPoint(
+  clientX: number,
+  clientY: number,
+  bounds: Pick<DOMRect, "left" | "top" | "width" | "height">,
+  clamp = false
+): NormalizedScreenPoint | null {
+  if (bounds.width <= 0 || bounds.height <= 0) {return null;}
+  const x = (clientX - bounds.left) / bounds.width;
+  const y = (clientY - bounds.top) / bounds.height;
+  if (!clamp && (x < 0 || x > 1 || y < 0 || y > 1)) {return null;}
+  return { x: Math.min(1, Math.max(0, x)), y: Math.min(1, Math.max(0, y)) };
+}
+
 export function updateScreenViewPinch(
   start: ScreenViewPinchStart,
   distance: number,

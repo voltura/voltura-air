@@ -6,6 +6,9 @@ internal enum InputCommandKind
     PointerButton,
     PointerWheel,
     PointerZoom,
+    ScreenPointerMove,
+    ScreenPointerButton,
+    ScreenPointerWheel,
     KeyboardText,
     KeyboardSpecial
 }
@@ -17,6 +20,9 @@ internal readonly record struct ValidatedInputCommand(
     int Dy = 0,
     string? Button = null,
     string? Action = null,
+    string? DisplayId = null,
+    double X = 0,
+    double Y = 0,
     string? Text = null,
     string? Key = null,
     string[]? ModifierValues = null)
@@ -27,6 +33,9 @@ internal readonly record struct ValidatedInputCommand(
         InputCommandKind.PointerButton => "pointer.button",
         InputCommandKind.PointerWheel => "pointer.wheel",
         InputCommandKind.PointerZoom => "pointer.zoom",
+        InputCommandKind.ScreenPointerMove => "screen.pointer.move",
+        InputCommandKind.ScreenPointerButton => "screen.pointer.button",
+        InputCommandKind.ScreenPointerWheel => "screen.pointer.wheel",
         InputCommandKind.KeyboardText => "keyboard.text",
         InputCommandKind.KeyboardSpecial => "keyboard.special",
         _ => "unknown"

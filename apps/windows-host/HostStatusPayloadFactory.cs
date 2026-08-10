@@ -119,7 +119,11 @@ internal sealed class HostStatusPayloadFactory(
             encrypted = true,
             maxWidth = 1920,
             maxHeight = 1080,
-            maxFramesPerSecond = 30
+            maxFramesPerSecond = 30,
+            directPointer = new
+            {
+                permissionGranted = permissions.AllowRemoteInput
+            }
         },
         fileManager = new
         {

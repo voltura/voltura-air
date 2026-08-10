@@ -18,10 +18,13 @@ import { catalogFrames, serverFrameCatalog } from "./serverFrameCatalog.testData
 describe("connection protocol policy", () => {
   it("throttles movement acknowledgements without throttling discrete input", () => {
     const move = { type: "pointer.move", dx: 1, dy: 2 } satisfies ClientMessage;
+    const directMove = { type: "screen.pointer.move", displayId: "display-1", x: 0.25, y: 0.75 } satisfies ClientMessage;
     const key = { type: "keyboard.special", key: "Enter" } satisfies ClientMessage;
 
     expect(shouldTrackInputAck(move, 1_000, 900)).toBe(false);
     expect(shouldTrackInputAck(move, 1_100, 900)).toBe(true);
+    expect(shouldTrackInputAck(directMove, 1_000, 900)).toBe(false);
+    expect(shouldTrackInputAck(directMove, 1_100, 900)).toBe(true);
     expect(shouldTrackInputAck(key, 1_000, 999)).toBe(true);
   });
 
@@ -53,6 +56,29 @@ describe("connection protocol policy", () => {
       webClientBuildId: "build-a",
       pointerSpeed: 100
     });
+  });
+
+  it("accepts optional direct-pointer support only with a boolean permission", () => {
+    const capability = {
+      enabled: true,
+      permissionGranted: true,
+      canView: true,
+      requiresRepair: false,
+      encrypted: true,
+      maxWidth: 1920,
+      maxHeight: 1080,
+      maxFramesPerSecond: 30
+    };
+    expect(parseServerMessage(JSON.stringify({
+      type: "status",
+      connected: true,
+      capabilities: { screenView: { ...capability, directPointer: { permissionGranted: false } } }
+    }))).not.toBeNull();
+    expect(parseServerMessage(JSON.stringify({
+      type: "status",
+      connected: true,
+      capabilities: { screenView: { ...capability, directPointer: { permissionGranted: "yes" } } }
+    }))).toBeNull();
   });
 
   it("normalizes untrusted audio state without accepting coerced values", () => {

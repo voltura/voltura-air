@@ -24,6 +24,25 @@ internal sealed class ScreenViewCommandHandler(
         }
     }
 
+    public Task HandlePointerAsync(
+        WebSocket socket,
+        string clientId,
+        ValidatedInputCommand command,
+        CancellationToken cancellationToken)
+    {
+        ScreenPointerDispatchResult result = coordinator.DispatchPointer(clientId, command);
+        if (result.Succeeded)
+        {
+            return command.Sequence.HasValue
+                ? transport.SendAsync(socket, new { type = "input.ack", seq = command.Sequence.Value }, cancellationToken)
+                : Task.CompletedTask;
+        }
+
+        return command.Sequence.HasValue
+            ? transport.SendAsync(socket, new { type = "input.error", seq = command.Sequence.Value, code = result.Code, message = result.Message }, cancellationToken)
+            : transport.SendAsync(socket, new { type = "input.error", code = result.Code, message = result.Message }, cancellationToken);
+    }
+
     public Task GetSourcesAsync(WebSocket socket, string clientId, string operationId, CancellationToken cancellationToken)
     {
         ScreenViewSourcesResult result = coordinator.GetSources(clientId);

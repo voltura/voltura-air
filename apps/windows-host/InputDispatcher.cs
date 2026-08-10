@@ -81,6 +81,45 @@ public sealed class InputDispatcher(IInputInjector inputInjector)
         }
     }
 
+    internal bool DispatchScreenPointer(
+        ValidatedInputCommand command,
+        int desktopX,
+        int desktopY,
+        int absoluteX,
+        int absoluteY,
+        out InputDispatchOutcome outcome)
+    {
+        outcome = InputDispatchOutcome.Executed;
+        if (HostUiInputGuard.ShouldBlockAbsolutePointer(command, desktopX, desktopY))
+        {
+            outcome = InputDispatchOutcome.Blocked;
+            return true;
+        }
+
+        switch (command.Kind)
+        {
+            case InputCommandKind.ScreenPointerMove:
+                _inputInjector.MoveMouseAbsolute(absoluteX, absoluteY);
+                return true;
+            case InputCommandKind.ScreenPointerButton:
+                _inputInjector.MouseButtonAt(absoluteX, absoluteY, command.Button ?? string.Empty, command.Action ?? string.Empty);
+                if (string.Equals(command.Button, "left", StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(command.Action, "up", StringComparison.OrdinalIgnoreCase) &&
+                    HostUiInputGuard.IsPointerOverTaskbar())
+                {
+                    TaskbarActivated?.Invoke(this, EventArgs.Empty);
+                }
+                return true;
+            case InputCommandKind.ScreenPointerWheel:
+                _inputInjector.ScrollAt(absoluteX, absoluteY, command.Dx, command.Dy);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    internal void ReleaseMouseButtons() => _inputInjector.ReleaseMouseButtons();
+
     public InputDispatchOutcome TransferText(string text, bool sendEnter)
     {
         if (HostUiInputGuard.ShouldBlockTextTransfer())
@@ -191,9 +230,17 @@ public interface IInputInjector : IDisposable
 {
     void MoveMouse(int dx, int dy);
 
+    void MoveMouseAbsolute(int absoluteX, int absoluteY);
+
     void MouseButton(string button, string action);
 
+    void MouseButtonAt(int absoluteX, int absoluteY, string button, string action);
+
     void Scroll(int dx, int dy);
+
+    void ScrollAt(int absoluteX, int absoluteY, int dx, int dy);
+
+    void ReleaseMouseButtons();
 
     void Zoom(string direction);
 

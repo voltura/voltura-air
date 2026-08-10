@@ -636,6 +636,12 @@ internal sealed class WebSocketSessionHandler(
                 return true;
             }
 
+            if (command.Kind is InputCommandKind.ScreenPointerMove or InputCommandKind.ScreenPointerButton or InputCommandKind.ScreenPointerWheel)
+            {
+                await screenViewCommands.HandlePointerAsync(socket, clientId, command, cancellationToken);
+                return true;
+            }
+
             if (await inputCommands.HandleAsync(socket, command, clientId, cancellationToken))
             {
                 return true;
@@ -734,7 +740,9 @@ internal sealed class WebSocketSessionHandler(
         WebSocketTransport.SendUnauthenticatedAsync(socket, new { type = "pair.rejected", reason }, cancellationToken);
 
     private static bool IsInputMessage(string? type) =>
-        type is "pointer.move" or "pointer.button" or "pointer.wheel" or "pointer.zoom" or "keyboard.text" or "keyboard.special";
+        type is "pointer.move" or "pointer.button" or "pointer.wheel" or "pointer.zoom" or
+            "screen.pointer.move" or "screen.pointer.button" or "screen.pointer.wheel" or
+            "keyboard.text" or "keyboard.special";
 
     private static bool IsAudioMessage(string type) => type is "audio.mute.toggle" or "audio.volume.set";
 

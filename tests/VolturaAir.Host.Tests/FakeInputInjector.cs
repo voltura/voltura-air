@@ -14,16 +14,40 @@ public sealed class FakeInputInjector : IInputInjector
         Events.Add($"MoveMouse:{dx}:{dy}");
     }
 
+    public void MoveMouseAbsolute(int absoluteX, int absoluteY)
+    {
+        ThrowIfConfigured();
+        Events.Add($"MoveMouseAbsolute:{absoluteX}:{absoluteY}");
+    }
+
     public void MouseButton(string button, string action)
     {
         ThrowIfConfigured();
         Events.Add($"MouseButton:{button}:{action}");
     }
 
+    public void MouseButtonAt(int absoluteX, int absoluteY, string button, string action)
+    {
+        ThrowIfConfigured();
+        Events.Add($"MouseButtonAt:{absoluteX}:{absoluteY}:{button}:{action}");
+    }
+
     public void Scroll(int dx, int dy)
     {
         ThrowIfConfigured();
         Events.Add($"Scroll:{dx}:{dy}");
+    }
+
+    public void ScrollAt(int absoluteX, int absoluteY, int dx, int dy)
+    {
+        ThrowIfConfigured();
+        Events.Add($"ScrollAt:{absoluteX}:{absoluteY}:{dx}:{dy}");
+    }
+
+    public void ReleaseMouseButtons()
+    {
+        ThrowIfConfigured();
+        Events.Add("ReleaseMouseButtons");
     }
 
     public void Zoom(string direction)

@@ -229,7 +229,8 @@ Success:
       "encrypted": true,
       "maxWidth": 1920,
       "maxHeight": 1080,
-      "maxFps": 30
+      "maxFramesPerSecond": 30,
+      "directPointer": { "permissionGranted": true }
     }
   },
   "host": {
@@ -344,6 +345,30 @@ use the authenticated `/ws` session:
 { "type": "screen.view.stop", "operationId": "screen-stop-1" }
 ```
 
+`screenView.directPointer` is present when the host supports direct desktop
+mouse control. Its `permissionGranted` value is the effective **Pointer and
+keyboard** permission; Screen viewing remains independently permission-gated.
+Clients omit the control when the object is absent.
+
+While the browser-local Mouse mode is active, the client sends strict Screen-
+owned input messages on the same authenticated socket:
+
+```json
+{ "type": "screen.pointer.move", "seq": 201, "displayId": "display-1-1", "x": 0.25, "y": 0.75 }
+{ "type": "screen.pointer.button", "seq": 202, "displayId": "display-1-1", "x": 0.25, "y": 0.75, "button": "left", "action": "down" }
+{ "type": "screen.pointer.button", "seq": 203, "displayId": "display-1-1", "x": 0.4, "y": 0.8, "button": "left", "action": "up" }
+{ "type": "screen.pointer.wheel", "seq": 204, "displayId": "display-1-1", "x": 0.4, "y": 0.8, "dx": 0, "dy": -8 }
+```
+
+`x` and `y` are finite normalized coordinates from 0 through 1 over the
+displayed image, inclusive. Buttons are `left` or `right`; direct button actions
+are `down` or `up`. Wheel deltas retain the input bound of -5000 through 5000.
+The host accepts these messages only from the active viewer for its exact
+selected display and only while both Screen viewing and **Pointer and keyboard**
+are allowed. It maps against host-owned rotated monitor bounds and the complete
+virtual desktop. A stale display, missing active view, or permission denial
+returns a recoverable `input.error` without closing the socket.
+
 Source, start, answer, source-switch, and stop results echo `operationId`; start
 also echoes `displayId`. The start request signs UTF-8
 `VolturaAir screen-view:start:v2:<clientId>:<operationId>:<displayId>` with the
@@ -426,7 +451,10 @@ NACK retransmission, receiver keyframe requests, and receiver bitrate estimates;
 buffered media and event data have fixed upper bounds. Source switching resets
 the duplication/encoder session and forces a keyframe. Permission revocation,
 disconnect, lock/session loss, display removal, stop, or host shutdown releases
-the peer, encoder, capture session, and native resources.
+the peer, encoder, capture session, native resources, and any direct mouse
+buttons held by that Screen session. Source switches, permission loss, and
+native input failure also release held direct buttons. Pointer coordinates are
+never logged.
 
 ## Custom screens
 
@@ -674,6 +702,10 @@ literal text, shortcut payloads, executable details, or viewport history.
 { "type": "keyboard.text", "seq": 127, "text": "Hello" }
 { "type": "keyboard.special", "seq": 128, "key": "Enter", "modifiers": ["Control"] }
 ```
+
+The Screen-owned absolute messages above participate in the same `inputAck`
+contract. `screen.pointer.move` uses the sampled movement acknowledgement and
+bounded movement backpressure; button and wheel messages are discrete.
 
 Button actions are `click`, `down`, `up`; `click` sends press/release.
 Zoom `in` means spread/pinch-out; `out` means pinch-in. Keyboard text cannot be

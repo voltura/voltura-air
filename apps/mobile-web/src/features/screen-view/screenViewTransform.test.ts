@@ -1,7 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { identityScreenViewTransform, updateScreenViewPinch } from "./screenViewTransform";
+import { identityScreenViewTransform, normalizedScreenPoint, screenCursorImagePosition, updateScreenViewPinch } from "./screenViewTransform";
 
 describe("screen view pinch transform", () => {
+  it("normalizes only points inside the rendered screen and clamps edge releases", () => {
+    const bounds = { left: 100, top: 50, width: 800, height: 600 };
+
+    expect(normalizedScreenPoint(500, 350, bounds)).toEqual({ x: 0.5, y: 0.5 });
+    expect(normalizedScreenPoint(99, 350, bounds)).toBeNull();
+    expect(normalizedScreenPoint(950, 20, bounds, true)).toEqual({ x: 1, y: 0 });
+  });
+
+  it("draws cursor shapes from the Desktop Duplication top-left position", () => {
+    expect(screenCursorImagePosition(320, 240, 100, 50, 0.5)).toEqual({ left: 260, top: 170 });
+  });
+
   it("zooms around the midpoint and keeps the view inside its viewport", () => {
     const transformed = updateScreenViewPinch({
       distance: 100,

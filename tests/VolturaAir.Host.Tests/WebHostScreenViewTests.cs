@@ -76,6 +76,113 @@ public sealed class WebHostScreenViewTests : WebHostServiceTestBase
     }
 
     [Fact]
+    public async Task DirectPointerRequiresTheActiveSelectedDisplayAndReleasesHeldButtonsOnStop()
+    {
+        HostPermissionSet originalPermissions = AppPermissionSettings.Load();
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowScreenViewing = true, AllowRemoteInput = true });
+            await using var fixture = await WebHostFixture.StartAsync(screenViewCapture: new FakeScreenViewCaptureSource());
+            using var reconnectKey = new PairingTestKey();
+            using WebSocket control = await ConnectAsync(fixture.WebHost);
+            await PairAsync(control, fixture.Manager, reconnectKey);
+            JsonElement status = await SendUntilTypeAsync(control, new { type = "status.get" }, "status");
+            Assert.True(status.GetProperty("capabilities").GetProperty("screenView").GetProperty("directPointer").GetProperty("permissionGranted").GetBoolean());
+
+            const string operationId = "screen-direct-start";
+            const string displayId = "display-1";
+            JsonElement start = await StartAsync(control, reconnectKey, operationId, displayId);
+            string offerHash = HashSdp(start.GetProperty("offerSdp").GetString()!);
+            const string answer = "v=0\r\no=phone 1 1 IN IP4 127.0.0.1\r\ns=answer\r\nt=0 0\r\n";
+            string transcript = $"VolturaAir screen-view:answer:v2:client-screen:{operationId}:{displayId}:{offerHash}:{HashSdp(answer)}";
+            JsonElement answered = await SendUntilTypeAsync(control, new
+            {
+                type = "screen.view.answer",
+                operationId,
+                answerSdp = answer,
+                clientSignature = reconnectKey.SignPayload(transcript)
+            }, "screen.view.answer.result");
+            Assert.True(answered.GetProperty("succeeded").GetBoolean());
+
+            JsonElement moveAck = await SendUntilTypeAsync(control, new
+            {
+                type = "screen.pointer.move",
+                seq = 41,
+                displayId,
+                x = 0.5,
+                y = 0.5
+            }, "input.ack");
+            Assert.Equal(41, moveAck.GetProperty("seq").GetInt32());
+            Assert.Contains(fixture.InputInjector.Events, entry => entry.StartsWith("MoveMouseAbsolute:", StringComparison.Ordinal));
+
+            JsonElement stale = await SendUntilTypeAsync(control, new
+            {
+                type = "screen.pointer.button",
+                seq = 42,
+                displayId = "display-2",
+                x = 0.5,
+                y = 0.5,
+                button = "left",
+                action = "down"
+            }, "input.error");
+            Assert.Equal("VAIR-SCREEN-STALE-DISPLAY", stale.GetProperty("code").GetString());
+
+            _ = await SendUntilTypeAsync(control, new
+            {
+                type = "screen.pointer.button",
+                seq = 43,
+                displayId,
+                x = 0.5,
+                y = 0.5,
+                button = "left",
+                action = "down"
+            }, "input.ack");
+            _ = await SendUntilTypeAsync(control, new { type = "screen.view.stop", operationId = "screen-direct-stop" }, "screen.view.stop.result");
+            Assert.Contains("ReleaseMouseButtons", fixture.InputInjector.Events);
+
+            JsonElement finalStatus = await SendUntilTypeAsync(control, new { type = "status.get" }, "status");
+            Assert.True(finalStatus.GetProperty("connected").GetBoolean());
+        }
+        finally
+        {
+            AppPermissionSettings.Save(originalPermissions);
+        }
+    }
+
+    [Fact]
+    public async Task DirectPointerRejectsUndeclaredFieldsOnTheAuthenticatedSocket()
+    {
+        HostPermissionSet originalPermissions = AppPermissionSettings.Load();
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowScreenViewing = true, AllowRemoteInput = true });
+            await using var fixture = await WebHostFixture.StartAsync(screenViewCapture: new FakeScreenViewCaptureSource());
+            using var reconnectKey = new PairingTestKey();
+            using WebSocket control = await ConnectAsync(fixture.WebHost);
+            await PairAsync(control, fixture.Manager, reconnectKey);
+
+            await SendAsync(control, new
+            {
+                type = "screen.pointer.wheel",
+                displayId = "display-1",
+                x = 0.5,
+                y = 0.5,
+                dx = 0,
+                dy = 1,
+                extra = true
+            });
+
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            Assert.Equal(WebSocketCloseStatus.PolicyViolation, await ReceiveCloseStatusAsync(control, timeout.Token));
+            Assert.DoesNotContain(fixture.InputInjector.Events, entry => entry.StartsWith("ScrollAt:", StringComparison.Ordinal));
+        }
+        finally
+        {
+            AppPermissionSettings.Save(originalPermissions);
+        }
+    }
+
+    [Fact]
     public async Task PendingOfferKeepsTheSingleViewerSlotBusyAndInvalidAnswerReleasesIt()
     {
         HostPermissionSet originalPermissions = AppPermissionSettings.Load();

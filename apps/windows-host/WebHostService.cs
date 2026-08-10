@@ -260,7 +260,9 @@ public sealed class WebHostService : IAsyncDisposable
             statusFactory,
             screenViewCapture ?? (isolatedTestMode ? new UnavailableScreenViewCaptureSource() : null),
             isolatedTestMode ? new IsolatedScreenViewWebRtcPeerFactory() : null,
-            _appLog);
+            _appLog,
+            inputDispatcher,
+            _powerController);
         _screenViewCommands = new ScreenViewCommandHandler(_screenView, _transport, GetRelayTurnConfigurationAsync, _appLog);
         // An isolated browser may exercise the protocol, but it must never call
         // the native cursor API on the developer's Windows session.

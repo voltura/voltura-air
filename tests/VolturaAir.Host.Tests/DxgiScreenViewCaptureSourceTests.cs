@@ -73,4 +73,23 @@ public sealed class DxgiScreenViewCaptureSourceTests
         Assert.Same(shape, changedShape.PngBytes);
     }
 
+    [Theory]
+    [InlineData(ScreenViewRotation.Rotate90, 800, 100, 24, 16)]
+    [InlineData(ScreenViewRotation.Rotate180, 652, 800, 16, 24)]
+    [InlineData(ScreenViewRotation.Rotate270, 200, 652, 24, 16)]
+    public void RotatedCursorGeometryPreservesTheShapeTopLeft(
+        ScreenViewRotation rotation,
+        int expectedX,
+        int expectedY,
+        int expectedWidth,
+        int expectedHeight)
+    {
+        var cursor = new ScreenViewCursorUpdate(true, 100, 200, 3, 7, 16, 24, null);
+
+        ScreenViewCursorUpdate transformed = DxgiScreenViewCaptureSource.TransformCursorGeometry(cursor, 768, 1024, rotation);
+
+        Assert.Equal((expectedX, expectedY, expectedWidth, expectedHeight),
+            (transformed.X, transformed.Y, transformed.Width, transformed.Height));
+    }
+
 }

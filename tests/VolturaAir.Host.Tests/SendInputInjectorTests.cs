@@ -175,6 +175,52 @@ public sealed class SendInputInjectorTests
         Assert.Equal(4, native.Batches[1][0].Data.Mouse.Dy);
     }
 
+    [Fact]
+    public void DirectButtonCombinesVirtualDesktopPositionAndActionAtomically()
+    {
+        var native = new RecordingSendInputNative();
+        using var injector = new SendInputInjector(native);
+
+        injector.MouseButtonAt(1234, 5678, "left", "down");
+
+        var input = Assert.Single(Assert.Single(native.Batches));
+        Assert.Equal(1234, input.Data.Mouse.Dx);
+        Assert.Equal(5678, input.Data.Mouse.Dy);
+        Assert.Equal(0xC003u, input.Data.Mouse.Flags);
+    }
+
+    [Fact]
+    public void DirectWheelUsesOneLockedBatchAtTheRequestedPosition()
+    {
+        var native = new RecordingSendInputNative();
+        using var injector = new SendInputInjector(native);
+
+        injector.ScrollAt(100, 200, 2, -3);
+
+        var batch = Assert.Single(native.Batches);
+        Assert.Equal(2, batch.Length);
+        Assert.All(batch, input =>
+        {
+            Assert.Equal(100, input.Data.Mouse.Dx);
+            Assert.Equal(200, input.Data.Mouse.Dy);
+            Assert.Equal(0xC001u, input.Data.Mouse.Flags & 0xC001u);
+        });
+    }
+
+    [Fact]
+    public void PartialDirectButtonCleanupRetriesBothReleases()
+    {
+        var native = new RecordingSendInputNative { AcceptedCounts = new Queue<uint>([1u, 2u]) };
+        using var injector = new SendInputInjector(native);
+
+        InputDispatchException failure = Assert.Throws<InputDispatchException>(injector.ReleaseMouseButtons);
+
+        Assert.True(failure.CleanupAttempted);
+        Assert.True(failure.CleanupSucceeded);
+        Assert.Equal(2, native.Batches.Count);
+        Assert.Equal(new[] { 0x0004u, 0x0010u }, native.Batches[1].Select(input => input.Data.Mouse.Flags));
+    }
+
     private static string DescribeKeyboardInput(SendInputInjector.Input input)
     {
         var key = input.Data.Keyboard.VirtualKey.ToString("X2", CultureInfo.InvariantCulture);

@@ -64,25 +64,35 @@ internal static class CatalogImportRequestStore
         }
     }
 
-    public static void Enqueue(CatalogImportRequest request)
+    public static void Enqueue(CatalogImportRequest request) =>
+        Enqueue(request, FilePath);
+
+    internal static void Enqueue(CatalogImportRequest request, string filePath)
     {
         if (!TryCreate(request.Id, request.CatalogBaseUrl, out var normalized))
         {
             return;
         }
 
+        string? temporary = null;
         try
         {
-            var folder = Path.GetDirectoryName(FilePath)!;
+            var folder = Path.GetDirectoryName(filePath)!;
             Directory.CreateDirectory(folder);
-            var temporary = $"{FilePath}.{Guid.NewGuid():N}.tmp";
+            temporary = $"{filePath}.{Guid.NewGuid():N}.tmp";
             File.WriteAllText(temporary, JsonSerializer.Serialize(normalized));
-            File.Move(temporary, FilePath, overwrite: true);
-            TryDelete(temporary);
+            File.Move(temporary, filePath, overwrite: true);
         }
         catch (Exception ex) when (
             ex is IOException or UnauthorizedAccessException or SecurityException)
         {
+        }
+        finally
+        {
+            if (temporary is not null)
+            {
+                TryDelete(temporary);
+            }
         }
     }
 

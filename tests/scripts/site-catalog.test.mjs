@@ -104,6 +104,7 @@ test("package uploads expose a visually distinct drop target and selected state"
 
 test("catalog navigation preserves the main site links and detail pages link back to browse", () => {
   const library = read("docs/site/screens/lib.php");
+  const logout = read("docs/site/screens/logout.php");
   const index = read("docs/site/screens/index.php");
   assert.match(library, /href="\.\.\/#features">Features<\/a>/u);
   assert.match(library, /href="\.\/" aria-current="page">Custom screens<\/a>/u);
@@ -111,7 +112,11 @@ test("catalog navigation preserves the main site links and detail pages link bac
   assert.match(library, />Upload screen<\/a>/u);
   assert.match(library, /href="upload\.php#submissions"[^>]*>My submissions<\/a>/u);
   assert.match(library, />Moderate screens<\/a>/u);
-  assert.match(library, />Sign out<\/a>/u);
+  assert.match(library, /<form class="catalog-signout" method="post" action="logout\.php">/u);
+  assert.match(library, /name="csrf" value="' \. air_screen_h\(air_screen_csrf\(\)\)/u);
+  assert.match(library, />Sign out<\/button><\/form>/u);
+  assert.match(logout, /\$_SERVER\['REQUEST_METHOD'\] !== 'POST'/u);
+  assert.match(logout, /air_screen_require_csrf\(\)/u);
   assert.match(library, /href="\.\.\/sitemap\.php">Sitemap<\/a>/u);
   assert.match(
     library,

@@ -33,11 +33,8 @@ public sealed class PairingStore
             }
 
             var data = JsonSerializer.Deserialize<PairingData>(File.ReadAllText(_filePath), JsonOptions.Default);
-            return [.. (data?.Devices ?? [])
-                .Where(record => record is not null && IsValidRecord(record))
-                .Take(MaxRecords)
-                .GroupBy(record => record.ClientId, StringComparer.Ordinal)
-                .Select(group => group.Last())];
+            return [.. DeduplicateValidRecords(data?.Devices ?? [])
+                .Take(MaxRecords)];
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or JsonException)
         {
@@ -50,7 +47,9 @@ public sealed class PairingStore
         var temporaryPath = $"{_filePath}.{Guid.NewGuid():N}.tmp";
         try
         {
-            var persistedRecords = records.Where(IsValidRecord).TakeLast(MaxRecords).ToArray();
+            var persistedRecords = DeduplicateValidRecords(records)
+                .TakeLast(MaxRecords)
+                .ToArray();
             File.WriteAllText(temporaryPath, JsonSerializer.Serialize(new PairingData(persistedRecords), JsonOptions.Default));
             File.Move(temporaryPath, _filePath, overwrite: true);
         }
@@ -76,6 +75,12 @@ public sealed class PairingStore
             record.DeviceName is not null &&
             record.DeviceName.Length <= MaxDeviceNameLength;
     }
+
+    private static IEnumerable<PairingRecord> DeduplicateValidRecords(
+        IEnumerable<PairingRecord> records) => records
+            .Where(record => record is not null && IsValidRecord(record))
+            .GroupBy(record => record.ClientId, StringComparer.Ordinal)
+            .Select(group => group.Last());
 
     private static void TryDeleteTemporaryFile(string path)
     {

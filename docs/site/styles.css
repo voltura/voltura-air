@@ -680,6 +680,32 @@ footer a:hover {
   min-height: 60px;
 }
 
+.catalog-page nav form.catalog-signout {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.catalog-page nav .catalog-signout button {
+  width: auto;
+  min-height: 0;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: none;
+  font: inherit;
+  font-weight: inherit;
+  box-shadow: none;
+}
+
+.catalog-page nav .catalog-signout button:hover {
+  color: var(--text);
+  background: none;
+}
+
 .catalog-main {
   width: min(100% - 32px, 1120px);
   flex: 1;

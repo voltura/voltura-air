@@ -356,7 +356,7 @@ function air_screen_layout(
         if (($user['role'] ?? '') === 'admin') {
             echo '<a href="admin.php" aria-label="Moderate custom screens" title="Moderate custom screens">Moderate screens</a>';
         }
-        echo '<a href="logout.php" aria-label="Sign out from Voltura Air Custom Screens portal" title="Sign out from Voltura Air Custom Screens portal">Sign out</a>';
+        echo '<form class="catalog-signout" method="post" action="logout.php"><input type="hidden" name="csrf" value="' . air_screen_h(air_screen_csrf()) . '"><button type="submit" aria-label="Sign out from Voltura Air Custom Screens portal" title="Sign out from Voltura Air Custom Screens portal">Sign out</button></form>';
     } else {
         echo '<a href="login.php">Sign in</a><a href="register.php">Create account</a>';
     }

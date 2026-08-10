@@ -1,3 +1,4 @@
+using System.Text.Json;
 using VolturaAir.Host;
 
 namespace VolturaAir.Host.Tests;
@@ -48,6 +49,70 @@ public sealed class PairingStoreTests
 
             var record = Assert.Single(new PairingStore(root.FullName).Load());
             Assert.Equal("client-b", record.ClientId);
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void LoadDeduplicatesBeforeApplyingDeviceLimit()
+    {
+        var root = Directory.CreateTempSubdirectory("VolturaAir-PairingStore-");
+        try
+        {
+            _ = new PairingStore(root.FullName);
+            using var key = new PairingTestKey();
+            var pairingPath = Path.Combine(root.FullName, "Voltura Air", "pairing.json");
+            var devices = Enumerable.Range(0, 1024)
+                .Select(index => new PairingRecord("client-a", key.PublicKey, $"Phone {index}"))
+                .Append(new PairingRecord("client-b", key.PublicKey, "Tablet"))
+                .ToArray();
+            File.WriteAllText(
+                pairingPath,
+                JsonSerializer.Serialize(new { devices }, JsonOptions.Default));
+
+            var records = new PairingStore(root.FullName).Load();
+
+            Assert.Collection(
+                records,
+                record =>
+                {
+                    Assert.Equal("client-a", record.ClientId);
+                    Assert.Equal("Phone 1023", record.DeviceName);
+                },
+                record => Assert.Equal("client-b", record.ClientId));
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void SaveDeduplicatesBeforeApplyingDeviceLimit()
+    {
+        var root = Directory.CreateTempSubdirectory("VolturaAir-PairingStore-");
+        try
+        {
+            var store = new PairingStore(root.FullName);
+            using var key = new PairingTestKey();
+            var records = new[] { new PairingRecord("client-b", key.PublicKey, "Tablet") }
+                .Concat(Enumerable.Range(0, 1024)
+                    .Select(index => new PairingRecord("client-a", key.PublicKey, $"Phone {index}")))
+                .ToArray();
+
+            store.Save(records);
+
+            Assert.Collection(
+                store.Load(),
+                record => Assert.Equal("client-b", record.ClientId),
+                record =>
+                {
+                    Assert.Equal("client-a", record.ClientId);
+                    Assert.Equal("Phone 1023", record.DeviceName);
+                });
         }
         finally
         {

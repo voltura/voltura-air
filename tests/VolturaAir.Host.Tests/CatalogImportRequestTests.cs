@@ -52,4 +52,35 @@ public sealed class CatalogImportRequestTests
         Assert.Null(CatalogImportRequestStore.Find(
             [$"voltura-air://import?id={Id}&source={encodedSource}"]));
     }
+
+    [Fact]
+    public void EnqueueRemovesTemporaryFileWhenCommitFails()
+    {
+        var folder = Path.Combine(
+            Path.GetTempPath(),
+            $"voltura-air-catalog-import-{Guid.NewGuid():N}");
+        var path = Path.Combine(folder, "pending-catalog-import.txt");
+
+        Directory.CreateDirectory(folder);
+        try
+        {
+            File.WriteAllText(path, "existing request");
+            using (File.Open(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            {
+                CatalogImportRequestStore.Enqueue(
+                    new CatalogImportRequest(
+                        Id,
+                        CatalogImportRequestStore.ProductionCatalogBaseUrl),
+                    path);
+
+                Assert.Empty(Directory.EnumerateFiles(folder, "*.tmp"));
+            }
+
+            Assert.Equal("existing request", File.ReadAllText(path));
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
 }

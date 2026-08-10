@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="referrer" content="no-referrer">
+  <title>Voltura Air WebRTC feasibility spike</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">Disposable feasibility test</p>
+      <h1>Secure context → direct LAN</h1>
+      <p>This page exchanges SDP through HTTPS, then sends test and motion data directly to the Windows spike over WebRTC.</p>
+    </header>
+
+    <section class="status-card" aria-labelledby="connection-title">
+      <div class="section-heading">
+        <h2 id="connection-title">Connection</h2>
+        <span id="overall-state" class="pill pending">Starting</span>
+      </div>
+      <dl class="diagnostics">
+        <div><dt>Secure context</dt><dd id="secure-context">Checking</dd></div>
+        <div><dt>WebRTC</dt><dd id="webrtc-support">Checking</dd></div>
+        <div><dt>Motion APIs</dt><dd id="motion-support">Checking</dd></div>
+        <div><dt>Signaling</dt><dd id="signaling-state">Waiting</dd></div>
+        <div><dt>ICE</dt><dd id="ice-state">new</dd></div>
+        <div><dt>DataChannel</dt><dd id="channel-state">closed</dd></div>
+      </dl>
+    </section>
+
+    <section aria-labelledby="actions-title">
+      <h2 id="actions-title">Proof actions</h2>
+      <div class="actions">
+        <button id="send-test" type="button" disabled>Send test message</button>
+        <button id="enable-motion" type="button">Enable motion sensors</button>
+      </div>
+      <p id="permission-state" class="note">Sensor permission has not been requested.</p>
+    </section>
+
+    <section aria-labelledby="evidence-title">
+      <h2 id="evidence-title">Live evidence</h2>
+      <dl class="evidence">
+        <div><dt>Room</dt><dd id="room">—</dd></div>
+        <div><dt>Browser</dt><dd id="browser">—</dd></div>
+        <div><dt>Selected route</dt><dd id="candidate-pair">Not selected</dd></div>
+        <div><dt>Last sent</dt><dd id="last-sent">Nothing yet</dd></div>
+        <div><dt>Last received</dt><dd id="last-received">Nothing yet</dd></div>
+        <div><dt>Sensor updates sent</dt><dd id="sensor-count">0</dd></div>
+        <div><dt>Current sensor values</dt><dd id="sensor-values">No values</dd></div>
+      </dl>
+    </section>
+  </main>
+  <script src="app.js" defer></script>
+</body>
+</html>

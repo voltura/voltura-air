@@ -1,0 +1,81 @@
+:root {
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #f4f7fb;
+  background: #07111f;
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 15% 0%, rgba(30, 190, 170, .18), transparent 38rem),
+    linear-gradient(160deg, #07111f 0%, #0b1728 100%);
+}
+
+main {
+  width: min(46rem, 100%);
+  margin: 0 auto;
+  padding: max(2rem, env(safe-area-inset-top)) 1rem max(3rem, env(safe-area-inset-bottom));
+}
+
+header { padding: 1rem 0 1.5rem; }
+
+.eyebrow {
+  margin: 0 0 .4rem;
+  color: #74e6d4;
+  font-size: .78rem;
+  font-weight: 750;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+
+h1 { margin: 0; font-size: clamp(2rem, 8vw, 3.7rem); line-height: 1.02; letter-spacing: -.04em; }
+h2 { margin: 0; font-size: 1rem; letter-spacing: .01em; }
+p { color: #a9b8ca; line-height: 1.55; }
+
+section {
+  margin-top: .85rem;
+  padding: 1.05rem;
+  border: 1px solid rgba(159, 186, 211, .16);
+  border-radius: 1rem;
+  background: rgba(14, 29, 48, .82);
+  box-shadow: 0 1.2rem 4rem rgba(0, 0, 0, .18);
+}
+
+.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.pill { padding: .32rem .62rem; border-radius: 999px; font-size: .76rem; font-weight: 750; }
+.pill.pending { color: #f6d98c; background: rgba(223, 169, 52, .16); }
+.pill.good { color: #85efcf; background: rgba(37, 194, 143, .15); }
+.pill.bad { color: #ffb1b1; background: rgba(235, 73, 73, .16); }
+
+dl { margin: .8rem 0 0; }
+.diagnostics, .evidence { display: grid; gap: .55rem; }
+.diagnostics div, .evidence div { display: grid; grid-template-columns: minmax(7rem, 38%) 1fr; gap: .8rem; padding-top: .55rem; border-top: 1px solid rgba(159, 186, 211, .11); }
+dt { color: #7f92a8; font-size: .82rem; }
+dd { margin: 0; overflow-wrap: anywhere; font: 600 .84rem/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.actions { display: grid; grid-template-columns: 1fr; gap: .65rem; margin-top: .9rem; }
+button {
+  min-height: 3.15rem;
+  padding: .8rem 1rem;
+  border: 0;
+  border-radius: .8rem;
+  color: #041311;
+  background: #72e6d2;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+button:disabled { color: #748294; background: #283648; cursor: not-allowed; }
+button:focus-visible { outline: .2rem solid #fff; outline-offset: .16rem; }
+.note { margin: .7rem 0 0; font-size: .84rem; }
+
+@media (min-width: 34rem) {
+  main { padding-inline: 1.5rem; }
+  section { padding: 1.3rem; }
+  .actions { grid-template-columns: 1fr 1fr; }
+}

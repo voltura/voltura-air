@@ -4,18 +4,21 @@
   <img src="apps/windows-host/Assets/VolturaAir-256.png" alt="Voltura Air application icon" width="128">
 </p>
 
-Turn a phone, tablet, or touch browser into a wireless remote&mdash;and live screen
-viewer&mdash;for a Windows 11 PC. No app-store install or Voltura account is
-required. Direct LAN remains the default; an optional Cloud relay is available
-for networks that block inbound PC connections.
+Turn a phone, tablet, or browser into a wireless remote&mdash;and live screen
+viewer&mdash;for a Windows 11 PC. With a mouse or trackpad and physical keyboard,
+**View PC screen** also lets you work on that PC from another computer. No
+app-store install or Voltura account is required. Direct LAN remains the default;
+an optional Cloud relay is available for networks that block inbound PC connections.
 
 ## What you can do
 
 - Use a phone or tablet as a wireless trackpad and keyboard.
-- Mirror one selected Windows display live on a paired phone or tablet over
-  Direct LAN or the optional Cloud relay, with encrypted video, responsive
-  cursor movement, scrolling, and up to 5x local zoom. Relay viewing offers
-  Standard and Data saver quality choices.
+- View one selected Windows display live on a paired phone, tablet, or browser
+  over Direct LAN or the optional Cloud relay, with encrypted video, responsive
+  cursor movement, scrolling, and up to 5x local zoom. From another computer,
+  enable direct physical mouse and keyboard control to move, left- or right-click,
+  drag, scroll, and type on it. Relay viewing offers Standard and Data saver
+  quality choices.
 - Browse and manage files that stay on the PC or its mapped drives. **Files on
   PC** adapts from one touch panel in narrow views to two panels whenever the
   screen is wide enough, including phones in landscape,
@@ -36,6 +39,17 @@ for networks that block inbound PC connections.
 - Combine a keyboard and trackpad on a landscape tablet.
 
 See the [complete implemented feature list](docs/features.md).
+
+## Work from another computer
+
+**View PC screen** is more than a viewer. In a browser with a mouse or trackpad
+and physical keyboard, enable direct control to work on the selected Windows
+display with the computer you are using: move, click, right-click, drag, scroll,
+and type.
+
+The Windows host must allow both **Screen viewing** and **Pointer and keyboard**.
+Direct control starts off, one authorized device can view one selected display at a
+time, and browser-reserved shortcuts may remain local.
 
 ## Screenshots
 
@@ -122,9 +136,10 @@ network inspection can add latency without causing an early failure.
 
 Paired devices are remembered until removed or their browser data is cleared.
 The optional **View PC screen** tool requires Screen viewing permission on the
-PC before a paired phone or tablet can use it. **Files on PC** separately
-requires Browse and open files permission; file-changing actions also require
-Change files permission.
+PC before a paired phone, tablet, or browser can use it. Direct physical mouse
+and keyboard control from another computer also requires Pointer and keyboard
+permission. **Files on PC** separately requires Browse and open files permission;
+file-changing actions also require Change files permission.
 
 ## Trust, privacy, and distribution
 

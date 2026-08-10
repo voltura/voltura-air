@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Voltura Air - Use Your Phone as a Windows 11 Remote</title>
+    <title>Voltura Air - View and Control Your Windows 11 PC</title>
     <meta
       name="description"
-      content="Turn your phone or tablet into a Windows 11 remote over Direct LAN or an optional end-to-end encrypted Cloud relay. Free and no app-store download required."
+      content="Use your phone, tablet, or browser to control a Windows 11 PC. View its screen live and work from another computer with a physical mouse and keyboard over Direct LAN or an optional end-to-end encrypted Cloud relay."
     >
     <meta name="author" content="Voltura AB">
     <meta name="application-name" content="Voltura Air">
@@ -21,10 +21,10 @@
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="Voltura Air">
     <meta property="og:locale" content="en_US">
-    <meta property="og:title" content="Voltura Air - Use Your Phone as a Windows 11 Remote">
+    <meta property="og:title" content="Voltura Air - View and Control Your Windows 11 PC">
     <meta
       property="og:description"
-      content="Turn your phone or tablet into a Windows 11 remote over Direct LAN or an optional end-to-end encrypted Cloud relay. Free and no app-store download required."
+      content="Use your phone, tablet, or browser to control a Windows 11 PC. View its screen live and work from another computer with a physical mouse and keyboard over Direct LAN or an optional end-to-end encrypted Cloud relay."
     >
     <meta property="og:url" content="https://voltura.se/air/">
     <meta property="og:image" content="https://voltura.se/air/assets/voltura-air-host-dark.png">
@@ -33,10 +33,10 @@
     <meta property="og:image:alt" content="Voltura Air Windows host and mobile remote control screens">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Voltura Air - Use Your Phone as a Windows 11 Remote">
+    <meta name="twitter:title" content="Voltura Air - View and Control Your Windows 11 PC">
     <meta
       name="twitter:description"
-      content="Turn your phone or tablet into a Windows 11 remote over Direct LAN or an optional end-to-end encrypted Cloud relay. Free and no app-store download required."
+      content="Use your phone, tablet, or browser to control a Windows 11 PC. View its screen live and work from another computer with a physical mouse and keyboard over Direct LAN or an optional end-to-end encrypted Cloud relay."
     >
     <meta name="twitter:image" content="https://voltura.se/air/assets/voltura-air-host-dark.png">
     <meta name="twitter:image:alt" content="Voltura Air Windows host and mobile remote control screens">
@@ -78,7 +78,8 @@
           <p class="tagline">Turn your phone into the remote your PC is missing.</p>
           <p class="lede">
             Control your PC with a trackpad, keyboard, presentation and media
-            remotes, file and text tools, practical PC actions, and live screen mirroring.
+            remotes, file and text tools, practical PC actions, and live screen viewing
+            you can directly control from another computer with a physical mouse and keyboard.
             Pair by QR code&mdash;no account or phone app required. Connect over
             Direct LAN or an optional end-to-end encrypted Cloud relay.
           </p>
@@ -111,8 +112,8 @@
           <p>Move, click, scroll, zoom, type, and use common shortcuts from your mobile device.</p>
         </article>
         <article>
-          <h2>PC screen mirroring</h2>
-          <p>Mirror one Windows display to an authorized phone or tablet over Direct LAN or encrypted Cloud relay, with Standard and Data saver modes.</p>
+          <h2>View and work from another PC</h2>
+          <p>View one selected Windows display live, then use a browser with a mouse or trackpad and physical keyboard to click, drag, scroll, and type directly on it.</p>
         </article>
         <article>
           <h2>Files on PC</h2>
@@ -146,6 +147,28 @@
           <h2>Tablet split mode</h2>
           <p>Use a landscape tablet as a roomy keyboard and trackpad.</p>
         </article>
+      </section>
+
+      <section id="work-from-another-pc" class="content-section split">
+        <div>
+          <p class="eyebrow">View PC screen</p>
+          <h2>More than a screen viewer</h2>
+        </div>
+        <div>
+          <p>
+            Open Voltura Air in a browser on another computer to view a selected
+            Windows display live. Enable direct control to use that computer's
+            physical mouse, trackpad, and keyboard to move, left- or right-click,
+            drag, scroll, and type on the PC you are viewing.
+          </p>
+          <p>
+            It works over Direct LAN or the encrypted Cloud relay. The Windows
+            host chooses the <strong>Screen viewing</strong> and
+            <strong>Pointer and keyboard</strong> permissions; direct control
+            starts off, one authorized device can view one selected display at a
+            time, and browser-reserved shortcuts may remain local.
+          </p>
+        </div>
       </section>
 
       <section id="compare" class="comparison-section">

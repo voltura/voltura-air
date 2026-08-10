@@ -116,8 +116,8 @@
           <p>View one selected Windows display live, then use any browser with a mouse or trackpad and physical keyboard to click, drag, scroll, and type directly on it.</p>
         </article>
         <article>
-          <h2>Work from another PC</h2>
-          <p>View one selected Windows display live, then use a browser with a mouse or trackpad and physical keyboard to click, drag, scroll, and type directly on it.</p>
+          <h2>View PC screen from a touch device</h2>
+          <p>View one selected Windows display live on a phone or tablet. Use touch gestures for cursor movement, local zoom and pan, and scrolling, with a separate Click control for precise clicks.</p>
         </article>
         <article>
           <h2>Files on PC</h2>

@@ -34,7 +34,6 @@ files are rebuilt, never hand-edited.
 | Document | Role | Read/update |
 | --- | --- | --- |
 | [Architecture](architecture.md) | Target | Dependencies, owners, resources, size. |
-| [Secure-context browser spike](../apps/secure-web-spike/README.md), [WebRTC host spike](../apps/webrtc-spike-host/README.md) | Historical evidence | Real-device feasibility harnesses; production contracts remain in the owners below. |
 | [Features](features.md) | Authority | Visible capabilities, permissions, limits, states. |
 | [Protocol](protocol.md) | Authority | Wire shape, bounds, auth, capabilities, acks, errors. |
 | [UI system](ui-system.md) | Target | Product UX, tokens, layout, input, accessibility. |

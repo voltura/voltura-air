@@ -39,6 +39,30 @@ peaks, text, or audio in logs. Browser dictation must remain independent.
 
 ## Control and personalization
 
+### HTTPS-enabled controller opportunities
+
+Secure Direct and Gyro mouse provide an HTTPS controller, direct WebRTC data
+transport, motion permission handling, and bounded sensor cleanup. Treat those
+as existing owners, not as a general browser-capability framework. Feature-detect
+every browser API, require explicit user activation for sensitive access, keep
+captured data transient by default, and validate permission and lifecycle behavior
+on real target devices.
+
+| Candidate | Direction and evidence needed |
+| --- | --- |
+| Motion gestures | Extend the existing motion owner with a small set such as Shake and left/right Flick, mapped locally to existing actions. Prove useful thresholds, false-positive resistance, orientation behavior, cancellation, and real-iPhone operation before adding Tilt scroll or Custom Screen integration; do not send or persist raw sensor samples. |
+| Live pairing QR scanner | Replace or complement the current photo capture with a temporary rear-camera preview that decodes frames through the existing QR decoder and pairing-link parser. Stop the camera as soon as a valid Voltura Air code is found, the page is hidden, or the user cancels; retain photo capture as fallback and the existing device-name confirmation. Validate permission denial, browser coverage, cancellation, and immediate track cleanup. Only consider general QR-to-text/URL scanning after this pairing workflow proves useful; do not add image storage, sync, or a generic camera framework. |
+| Browser clipboard actions | Add explicit user-triggered Copy to phone and Paste phone clipboard to PC actions only where the Clipboard API permits them. Reuse Get text/Send text and their host permissions, retain the existing UI as fallback, and do not add background monitoring or synchronization. |
+| Mobile share intake | Evaluate installed-PWA share intake as an entry point to existing Send text/Open URL behavior. Confirm target-platform support, launch/session behavior, input bounds, and an understandable fallback; do not add history, inboxes, or cloud storage. |
+| Current location | Consider only a direct user action that sends the current location to an existing text or URL destination. Define a concrete workflow and validate permission, precision disclosure, cancellation, and cleanup; do not add tracking, geofencing, or background automation. |
+| Phone microphone or camera as a Windows input | Keep microphone and webcam modes as separate feasibility spikes. Prove the Windows virtual-device/media endpoint, packaging, signing, permissions, latency, disconnect cleanup, and real application compatibility before choosing product architecture; use WebRTC media tracks rather than expanding the control DataChannel. |
+
+Presentation already includes Gyro in its Trackpad, while Send text and Open URL
+already cover the basic phone-to-PC action. Any further work there needs a
+specific usability gap rather than a parallel feature or transport. Push,
+WebAuthn/passkeys, and app badging need a concrete product or security requirement
+before further design.
+
 ### Files
 
 - Consider host-defined custom Files locations below the Windows known folders after defining configuration ownership, unavailable-target behavior, ordering, and per-device visibility.
@@ -71,13 +95,10 @@ browser-local unless a cross-device workflow justifies host ownership.
 | Wake-on-LAN | An available LAN sender, hardware/network prerequisites, validated target data, and explicit confirmation. |
 | Screen preview | Consent, capture behavior, protected content, encoding, limits, authorization, and cleanup. |
 | PC/mobile file transfer | Authenticated streaming download and upload, separate permission, relay encryption, quotas, safe names, path containment, provenance, cancellation, and partial-file cleanup. |
-| Motion pointer | Browser permission behavior, calibration, sensitivity, active-session collection, and cleanup. |
 | Gamepad mode | Driver, signing, elevation, install/remove, anti-cheat behavior, neutral disconnect, and latency. |
 | Native mobile apps | Demonstrated PWA gap, platform scope, protocol parity, accessibility, privacy, distribution, and maintenance. |
 
 ## Platform and compatibility
 
-- HTTPS LAN transport needs a threat model, host identity, certificate lifecycle,
-  key custody, mobile trust, browser/discovery behavior, and recovery.
 - Any public upgrade guarantee needs an explicit compatibility policy for
   persisted settings, pairing data, protocol messages, and client formats.

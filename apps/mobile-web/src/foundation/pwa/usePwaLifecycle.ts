@@ -153,7 +153,7 @@ export function usePwaLifecycle({ activePc, autoRefresh, clientId, hostStatus, s
 }
 
 export function shouldRefreshWebClient(activePc: PcProfile, webClientBuildId: string | undefined): webClientBuildId is string {
-  return activePc.transportMode !== "relay" && Boolean(webClientBuildId && webClientBuildId !== __WEB_BUILD_ID__);
+  return activePc.transportMode === undefined && Boolean(webClientBuildId && webClientBuildId !== __WEB_BUILD_ID__);
 }
 
 function isRunningStandalone(): boolean {

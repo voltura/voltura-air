@@ -11,6 +11,8 @@ internal sealed class PairingLinkController
     private readonly ConnectionTransportMode _transportMode;
     private readonly string? _relayRouteId;
     private readonly RelayEndpointDescriptor? _relayEndpoint;
+    private readonly bool _enhancedCapabilitiesEnabled;
+    private readonly string? _secureDirectRouteId;
     private string _serverUrl;
     private string _clientUrl;
     private PairingLinkState _current;
@@ -21,19 +23,24 @@ internal sealed class PairingLinkController
         string? clientUrl,
         ConnectionTransportMode transportMode = ConnectionTransportMode.DirectLan,
         string? relayRouteId = null,
-        RelayEndpointDescriptor? relayEndpoint = null)
+        RelayEndpointDescriptor? relayEndpoint = null,
+        bool enhancedCapabilitiesEnabled = false,
+        string? secureDirectRouteId = null)
     {
         _pairingManager = pairingManager;
         _serverUrl = serverUrl;
         _transportMode = transportMode;
         _relayRouteId = relayRouteId;
         _relayEndpoint = relayEndpoint;
+        _enhancedCapabilitiesEnabled = enhancedCapabilitiesEnabled;
+        _secureDirectRouteId = secureDirectRouteId;
         _usesServerUrlAsClientUrl = string.IsNullOrWhiteSpace(clientUrl);
         _clientUrl = _usesServerUrlAsClientUrl ? serverUrl : clientUrl!.TrimEnd('/');
         _current = CreatePairingLink();
     }
 
     public string Url => _current.Url;
+    public string? StandardLocalUrl => _current.StandardLocalUrl;
 
     public DateTimeOffset RefreshAt => _current.RefreshAt;
 
@@ -98,7 +105,7 @@ internal sealed class PairingLinkController
             var relayUrl = _relayEndpoint?.IsOfficial != false
                 ? $"https://voltura.se/a/{_relayRouteId}?v={Uri.EscapeDataString(AppVersion.Display)}#{Uri.EscapeDataString(pairingCode.Value)}"
                 : CreateCustomRelayLink(_relayEndpoint.HttpsBase, _relayRouteId, pairingCode.Value);
-            return new PairingLinkState(relayUrl, pairingCode.RefreshAt);
+            return new PairingLinkState(relayUrl, pairingCode.RefreshAt, null);
         }
 
         var query = $"t={Uri.EscapeDataString(pairingCode.Value)}&v={Uri.EscapeDataString(AppVersion.Display)}";
@@ -112,7 +119,17 @@ internal sealed class PairingLinkController
             Path = PairingPath,
             Query = query
         };
-        return new PairingLinkState(url.Uri.ToString(), pairingCode.RefreshAt);
+        var standardLocalUrl = url.Uri.ToString();
+        if (!_enhancedCapabilitiesEnabled)
+        {
+            return new PairingLinkState(standardLocalUrl, pairingCode.RefreshAt, null);
+        }
+        if (string.IsNullOrWhiteSpace(_secureDirectRouteId))
+        {
+            return new PairingLinkState(standardLocalUrl, pairingCode.RefreshAt, null);
+        }
+        var secureUrl = $"https://voltura.se/s/{_secureDirectRouteId}?v={Uri.EscapeDataString(AppVersion.Display)}#{Uri.EscapeDataString(pairingCode.Value)}";
+        return new PairingLinkState(secureUrl, pairingCode.RefreshAt, standardLocalUrl);
     }
 
     private static string CreateCustomRelayLink(Uri endpoint, string routeId, string token)
@@ -122,5 +139,5 @@ internal sealed class PairingLinkController
         return $"https://voltura.se/air/app/?r={routeId}&v={Uri.EscapeDataString(AppVersion.Display)}&e={encodedEndpoint}#{Uri.EscapeDataString(token)}";
     }
 
-    private sealed record PairingLinkState(string Url, DateTimeOffset RefreshAt);
+    private sealed record PairingLinkState(string Url, DateTimeOffset RefreshAt, string? StandardLocalUrl);
 }

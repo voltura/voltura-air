@@ -59,10 +59,10 @@ describe("connection sender movement flow control", () => {
 
     expect(socket.send).toHaveBeenCalledTimes(1);
     expect(JSON.parse(vi.mocked(socket.send).mock.calls[0]![0] as string)).toMatchObject({ type: "keyboard.special", key: "Enter" });
-    expect(rescheduleHealthCheck).toHaveBeenCalledOnce();
+    expect(rescheduleHealthCheck).toHaveBeenCalledTimes(2);
   });
 
-  it("does not reset the health timer for every movement frame", () => {
+  it("notifies the health scheduler for movement activity", () => {
     vi.spyOn(Date, "now").mockReturnValue(1_000);
     const { hook, rescheduleHealthCheck } = createSender();
 
@@ -70,6 +70,6 @@ describe("connection sender movement flow control", () => {
       hook.result.current.send({ type: "pointer.move", dx: 1, dy: 1 });
     });
 
-    expect(rescheduleHealthCheck).not.toHaveBeenCalled();
+    expect(rescheduleHealthCheck).toHaveBeenCalledOnce();
   });
 });

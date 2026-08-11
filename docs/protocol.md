@@ -16,6 +16,23 @@ device sockets, 64 KiB inner frames, bounded forwarding queues, and no stored
 commands. The opaque relay payload permits only the fixed 26-byte encrypted
 frame overhead above that limit; endpoints enforce 64 KiB again after decryption.
 
+When enhanced capabilities are enabled with Direct, the hosted HTTPS PWA uses
+Secure Direct instead of `/ws`: `/v1/secure/device/<route>` and
+`/v1/secure/host/<route>` carry bounded signaling through the existing relay
+Worker, then one ordered reliable `voltura-control` DataChannel carries the
+unchanged controller JSON directly over the selected private IPv4 LAN. The
+service reuses routing-key host authentication and `RelayEnvelope` correlation,
+forwards exactly one `{ "type": "secure.offer", "sdp": "..." }` and one
+`{ "type": "secure.answer", "sdp": "..." }`, and retains no established
+controller state. SDP is limited to 32 KiB, encoded signaling to 64 KiB,
+authentication control to 4 KiB, output buffering to 256 KiB, and negotiation
+to ten seconds. Signaling loss after answer application does not close a healthy
+DataChannel. The selected local address must be the configured private IPv4
+adapter address, and the selected remote address must be private IPv4. No STUN
+or TURN server is configured. Public, loopback, wrong-interface, malformed, or
+unverifiable selected addresses remain rejected. Relay mode never uses this
+controller DataChannel.
+
 An unauthenticated relay host candidate never owns the route. It has ten
 seconds to prove the routing key and is replaced by a newer candidate; only the
 authenticated socket blocks another host. A device Connected envelope carries
@@ -76,6 +93,18 @@ secret locally and never sends it in an HTTP request. The route derives from a
 separate persistent routing public key and is not the PC name. A custom relay
 uses the longer hosted-app form with a validated Base64url HTTPS endpoint; it
 changes the saved profile, not the pairing or command protocol.
+
+Relay always reports `capabilities.enhancedCapabilities.enabled` as `true`
+because its controller already runs in the secure hosted app. Direct reports
+the saved enhanced-capabilities preference: `true` for `/s` and `false` for
+Standard Local `/pair`.
+
+Secure Direct uses `https://voltura.se/s/<22-character-route>?v=<version>#<token>`;
+`/s` redirects to `/air/app/?m=s&r=<route>&v=<version>` while preserving the
+fragment. `/a` explicitly selects Relay and `/s` explicitly selects Secure
+Direct; neither falls back or switches automatically. Both official hosted
+paths use the same hosted profile ID and reconnect-key slot. The local HTTP
+origin remains a separate device identity and storage boundary.
 
 Tokens last five minutes. Connect rotates 15 seconds before expiry and retains
 only the prior token for up to that 15-second overlap. Successful pairing
@@ -196,6 +225,7 @@ Success:
     "fingerprint": "base64url-sha256-public-key"
   },
   "capabilities": {
+    "enhancedCapabilities": { "enabled": true },
     "remoteInput": true,
     "gestureDebug": false,
     "inputAck": true,
@@ -317,6 +347,7 @@ Authenticated utility messages:
 
 ```json
 { "type": "pair.disconnect" }
+{ "type": "pair.disconnect.accepted" }
 { "type": "device.rename", "deviceName": "Joakim iPhone" }
 { "type": "pointer.speed.set", "pointerSpeed": 65 }
 { "type": "appearance.mode-buttons.set", "showModeButtons": false }
@@ -325,6 +356,11 @@ Authenticated utility messages:
 { "type": "health.ping" }
 { "type": "health.pong" }
 ```
+
+The host durably removes the paired device before sending
+`pair.disconnect.accepted`, then closes the controller transport. Secure Direct
+revocation succeeds only after this acknowledgement; a DataChannel close alone
+does not confirm the mutation.
 
 `deviceName` must contain non-whitespace text; mobile substitutes its default
 before sending a blank edit. Pointer speed and appearance changes are sent only

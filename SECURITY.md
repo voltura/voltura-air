@@ -32,6 +32,17 @@ Direct LAN is designed for trusted devices on the same local network. Optional
 Relay is an internet transport for paired devices; it does not turn the routing
 service into a trusted command endpoint.
 
+Optional Secure Direct loads the controller from the official HTTPS origin and
+uses the relay service only for bounded one-off WebRTC signaling. The host
+accepts the resulting controller channel only when libdatachannel proves that
+the selected local address is the configured private IPv4 adapter and the
+selected remote address is private IPv4. Public, loopback, wrong-interface,
+malformed, or unverifiable selections fail closed. No STUN or TURN server is
+configured for this controller transport. Existing
+pairing/reconnect proofs, the pinned host identity, and per-device permissions
+still authenticate every controller session; route possession alone grants no
+command access.
+
 The Windows host serves the mobile web app over HTTP on the local network. This
 keeps setup simple for browsers and phones on the same LAN, but it also means
 the local network is part of the trust boundary: other software or devices able

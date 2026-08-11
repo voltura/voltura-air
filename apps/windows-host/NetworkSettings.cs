@@ -38,7 +38,8 @@ internal sealed record NetworkSettingsSnapshot(
     string? LastAutomaticHostAddress,
     ConnectionTransportMode TransportMode = ConnectionTransportMode.DirectLan,
     string? CustomRelayEndpoint = null,
-    RelayScreenQuality RelayScreenQuality = RelayScreenQuality.Standard);
+    RelayScreenQuality RelayScreenQuality = RelayScreenQuality.Standard,
+    bool EnhancedCapabilitiesEnabled = false);
 
 internal static class AppNetworkSettings
 {
@@ -54,6 +55,7 @@ internal static class AppNetworkSettings
     private const string TransportModeValueName = "ConnectionTransportMode";
     private const string CustomRelayEndpointValueName = "CustomRelayEndpoint";
     private const string RelayScreenQualityValueName = "RelayScreenQuality";
+    private const string EnhancedCapabilitiesEnabledValueName = "EnhancedCapabilitiesEnabled";
 
     public static NetworkSettingsSnapshot Load()
     {
@@ -69,7 +71,8 @@ internal static class AppNetworkSettings
             key?.GetValue(LastAutomaticHostAddressValueName) as string,
             ParseEnum(key?.GetValue(TransportModeValueName) as string, ConnectionTransportMode.DirectLan),
             NormalizeRelayEndpoint(key?.GetValue(CustomRelayEndpointValueName) as string),
-            NormalizeRelayQuality(ParseEnum(key?.GetValue(RelayScreenQualityValueName) as string, RelayScreenQuality.Standard)));
+            NormalizeRelayQuality(ParseEnum(key?.GetValue(RelayScreenQualityValueName) as string, RelayScreenQuality.Standard)),
+            key?.GetValue(EnhancedCapabilitiesEnabledValueName) is int enabled && enabled == 1);
     }
 
     public static void Save(NetworkSettingsSnapshot settings)
@@ -88,6 +91,7 @@ internal static class AppNetworkSettings
         key.SetValue(TransportModeValueName, settings.TransportMode.ToString(), RegistryValueKind.String);
         SetOptionalString(key, CustomRelayEndpointValueName, NormalizeRelayEndpoint(settings.CustomRelayEndpoint));
         key.SetValue(RelayScreenQualityValueName, NormalizeRelayQuality(settings.RelayScreenQuality).ToString(), RegistryValueKind.String);
+        key.SetValue(EnhancedCapabilitiesEnabledValueName, settings.EnhancedCapabilitiesEnabled ? 1 : 0, RegistryValueKind.DWord);
     }
 
     public static void SetLastAutomaticPort(int port)

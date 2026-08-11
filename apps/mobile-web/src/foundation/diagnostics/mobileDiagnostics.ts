@@ -17,16 +17,17 @@ const sensitiveObjectKeyPattern = /(token|secret|hash|clientid|client-id|devicei
 
 export function buildMobileDiagnostics(input: MobileDiagnosticsInput): string {
   const activePcUrl = parseUrl(input.activePc?.url ?? null);
-  const fallbackWebSocketUrl = input.activePc ? getWebSocketUrl(input.activePc) : null;
-  const currentWebSocketUrl = input.hostStatus?.webSocketUrl ?? fallbackWebSocketUrl;
+  const usesSecureDirect = input.activePc?.transportMode === "secure-direct";
+  const fallbackWebSocketUrl = input.activePc && !usesSecureDirect ? getWebSocketUrl(input.activePc) : null;
+  const currentWebSocketUrl = usesSecureDirect ? null : input.hostStatus?.webSocketUrl ?? fallbackWebSocketUrl;
   const diagnostics = redactSensitiveValues({
     product: "Voltura Air",
     hostVersion: input.hostStatus?.hostVersion ?? null,
     webClientVersion: __APP_VERSION__,
     pcName: input.hostStatus?.pcName ?? (input.activePc ? getPcDisplayName(input.activePc) : null),
     selectedAdapterName: input.hostStatus?.selectedAdapterName ?? null,
-    selectedIp: input.hostStatus?.selectedIp ?? activePcUrl?.hostname ?? null,
-    selectedPort: input.hostStatus?.selectedPort ?? (activePcUrl?.port ? Number.parseInt(activePcUrl.port, 10) : defaultPortForProtocol(activePcUrl?.protocol)),
+    selectedIp: input.hostStatus?.selectedIp ?? (usesSecureDirect ? null : activePcUrl?.hostname ?? null),
+    selectedPort: usesSecureDirect ? null : input.hostStatus?.selectedPort ?? (activePcUrl?.port ? Number.parseInt(activePcUrl.port, 10) : defaultPortForProtocol(activePcUrl?.protocol)),
     activePcUrl: activePcUrl ? sanitizeUrl(activePcUrl.toString()) : null,
     currentWebSocketUrl: currentWebSocketUrl ? sanitizeUrl(currentWebSocketUrl) : null,
     pairingState: input.connectionState,

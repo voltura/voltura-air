@@ -24,6 +24,7 @@ internal static class ConnectionPagePresenter
         page.ApplyPresentation(view =>
         {
             view.TransportMode = state.PendingConfiguration.TransportMode;
+            view.EnhancedCapabilitiesEnabled = state.PendingConfiguration.EnhancedCapabilitiesEnabled;
             view.RelayScreenQuality = state.PendingConfiguration.RelayScreenQuality;
             view.CustomRelayEndpoint = state.PendingConfiguration.CustomRelayEndpoint ?? string.Empty;
             view.RelayEndpointValidation = state.IsRelayEndpointValid ? string.Empty : "Enter a complete HTTPS address without a query or fragment.";
@@ -36,10 +37,13 @@ internal static class ConnectionPagePresenter
             view.ShowsRelayRetry = state.UsesRelay && webHost.RelayState is RelayConnectionState.Failed or RelayConnectionState.Disconnected;
             view.ShowsRelayUsageRefresh = state.UsesRelay && webHost.RelayState == RelayConnectionState.Connected;
             view.ActiveAdapter = state.ActiveAdapterName;
-            view.ActiveEndpoint = $"{state.ActiveAddress}:{state.ActivePort.ToString(CultureInfo.InvariantCulture)}";
+            view.ActiveEndpoint = webHost.EnhancedCapabilitiesEnabled
+                ? $"{state.ActiveAddress} · Standard Local port {state.ActivePort.ToString(CultureInfo.InvariantCulture)}"
+                : $"{state.ActiveAddress}:{state.ActivePort.ToString(CultureInfo.InvariantCulture)}";
             view.ActiveSelectionMode = GetActiveSelectionMode(
                 webHost.IsAdapterSelectionAutomatic,
-                webHost.IsPortSelectionAutomatic);
+                webHost.IsPortSelectionAutomatic,
+                webHost.EnhancedCapabilitiesEnabled);
             view.ConnectionWarning = GetDisplayedConnectionWarning(
                 webHost.AddressSelectionWarning,
                 webHost.PortSelectionWarning);
@@ -70,8 +74,18 @@ internal static class ConnectionPagePresenter
         });
     }
 
-    internal static string GetActiveSelectionMode(bool adapterAutomatic, bool portAutomatic) =>
-        (adapterAutomatic, portAutomatic) switch
+    internal static string GetActiveSelectionMode(
+        bool adapterAutomatic,
+        bool portAutomatic,
+        bool secureDirect = false) => secureDirect
+        ? (adapterAutomatic, portAutomatic) switch
+        {
+            (true, true) => "Adapter: Automatic · Standard Local port: Automatic",
+            (false, true) => "Adapter: Custom · Standard Local port: Automatic",
+            (true, false) => "Adapter: Automatic · Standard Local port: Custom",
+            (false, false) => "Custom adapter · Standard Local port: Custom"
+        }
+        : (adapterAutomatic, portAutomatic) switch
         {
             (true, true) => "Automatic",
             (false, true) => "Adapter: Custom · Port: Automatic",

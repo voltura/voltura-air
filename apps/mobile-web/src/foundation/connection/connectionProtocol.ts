@@ -146,6 +146,8 @@ function isServerMessage(value: unknown): value is ServerMessage {
   }
 
   switch (value.type) {
+    case "pair.disconnect.accepted":
+      return hasOnlyFields(value, ["type"]);
     case "pair.accepted":
       return hasOnlyFields(value, ["type", "clientId", "pcName", "paired", "capabilities", "host", "hostIdentity"]) &&
         isBoundedString(value.clientId, 128, false) &&
@@ -295,6 +297,7 @@ function isServerCapabilities(value: unknown): boolean {
   }
 
   return isOptional(value, "awake", isAwakeCapability) &&
+    isOptional(value, "enhancedCapabilities", (candidate) => isBooleanCapability(candidate, "enabled")) &&
     isOptional(value, "gestureDebug", isBoolean) &&
     isOptional(value, "inputAck", isBoolean) &&
     isOptional(value, "remoteInput", isBoolean) &&

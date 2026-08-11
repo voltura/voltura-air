@@ -6,6 +6,21 @@ namespace VolturaAir.Host.Tests;
 
 public sealed class ConnectionPageStateTests
 {
+    [Fact]
+    public void DirectEnhancedCapabilitiesPreferenceSurvivesRelaySelection()
+    {
+        var configuration = new ConnectionConfiguration(
+            NetworkSelectionMode.Automatic, null, null, null,
+            PortSelectionMode.Automatic, null);
+        var state = new ConnectionPageState(configuration, configuration, "adapter", "192.168.1.2", 51395, []);
+
+        state.SetEnhancedCapabilitiesEnabled(true);
+        state.SetTransportMode(ConnectionTransportMode.Relay);
+        state.SetTransportMode(ConnectionTransportMode.DirectLan);
+
+        Assert.True(state.PendingConfiguration.EnhancedCapabilitiesEnabled);
+        Assert.Equal(ConnectionTransportMode.DirectLan, state.PendingConfiguration.TransportMode);
+    }
     [Theory]
     [InlineData(true, true, "Automatic")]
     [InlineData(true, false, "Adapter: Automatic · Port: Custom")]
@@ -17,6 +32,14 @@ public sealed class ConnectionPageStateTests
         string expected)
     {
         Assert.Equal(expected, ConnectionPagePresenter.GetActiveSelectionMode(adapterAutomatic, portAutomatic));
+    }
+
+    [Fact]
+    public void SecureDirectScopesTheRetainedPortToStandardLocal()
+    {
+        Assert.Equal(
+            "Custom adapter · Standard Local port: Custom",
+            ConnectionPagePresenter.GetActiveSelectionMode(false, false, secureDirect: true));
     }
 
     [Fact]

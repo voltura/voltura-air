@@ -66,6 +66,8 @@ async function validateWithHost(outputs) {
       [
         "test",
         "tests/VolturaAir.Host.Tests/VolturaAir.Host.Tests.csproj",
+        "--configuration",
+        "Release",
         "--filter",
         "FullyQualifiedName=VolturaAir.Host.Tests.OfficialCustomScreenPackageTests.GeneratedCatalogPassesTheRealPackageReaderAndPortableContract"
       ],

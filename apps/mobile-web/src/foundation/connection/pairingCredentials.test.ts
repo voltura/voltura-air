@@ -4,6 +4,9 @@ import { base64Url, createPairingKeyMaterial } from "./pairingCredentials";
 import { revokePcPairing } from "./relayPairingRevocation";
 import { RelayEncryptedChannel } from "./relaySessionCrypto";
 
+const secureDirectMock = vi.hoisted(() => ({ connect: vi.fn() }));
+vi.mock("./secureDirect", () => ({ connectSecureDirect: secureDirectMock.connect }));
+
 function decodeBase64Url(value: string): Uint8Array {
   const binary = atob(value.replace(/-/g, "+").replace(/_/g, "/").padEnd(value.length + ((4 - value.length % 4) % 4), "="));
   return Uint8Array.from(binary, (character) => character.charCodeAt(0));
@@ -53,9 +56,23 @@ class MockWebSocket {
   }
 }
 
+class MockDataChannel extends EventTarget {
+  readyState: RTCDataChannelState = "open";
+  send = vi.fn();
+  close = vi.fn(() => {
+    this.readyState = "closed";
+    this.dispatchEvent(new Event("close"));
+  });
+
+  message(data: string) {
+    this.dispatchEvent(new MessageEvent("message", { data }));
+  }
+}
+
 describe("revokePcPairing", () => {
   beforeEach(() => {
     MockWebSocket.instances = [];
+    secureDirectMock.connect.mockReset();
     const items = new Map<string, string>();
     vi.stubGlobal("localStorage", {
       clear: () => { items.clear(); },
@@ -130,6 +147,62 @@ describe("revokePcPairing", () => {
     (activeSocket as unknown as MockWebSocket).dispatch("close", { code: 1006, reason: "" });
 
     await expect(revocation).resolves.toBe(false);
+  });
+
+  it("requires a host acknowledgement before confirming active Secure Direct revocation", async () => {
+    const channel = new MockDataChannel();
+    const revocation = revokePcPairing(
+      { customName: false, id: "pc-b", name: "PC B", url: "https://voltura.se/s/rrrrrrrrrrrrrrrrrrrrrr", transportMode: "secure-direct" },
+      "client-a",
+      "Phone",
+      channel as unknown as RTCDataChannel);
+
+    expect(channel.send).toHaveBeenCalledWith(JSON.stringify({ type: "pair.disconnect" }));
+    channel.close();
+
+    await expect(revocation).resolves.toBe(false);
+  });
+
+  it("confirms active Secure Direct revocation after the host acknowledgement", async () => {
+    const channel = new MockDataChannel();
+    const revocation = revokePcPairing(
+      { customName: false, id: "pc-b", name: "PC B", url: "https://voltura.se/s/rrrrrrrrrrrrrrrrrrrrrr", transportMode: "secure-direct" },
+      "client-a",
+      "Phone",
+      channel as unknown as RTCDataChannel);
+
+    channel.message(JSON.stringify({ type: "pair.disconnect.accepted" }));
+
+    await expect(revocation).resolves.toBe(true);
+  });
+
+  it("rejects an inactive Secure Direct peer whose accepted identity does not match the saved PC", async () => {
+    const channel = new MockDataChannel();
+    const cleanup = vi.fn();
+    secureDirectMock.connect.mockResolvedValue({ channel, cleanup });
+    localStorage.setItem("voltura-air.reconnect-key.client-a.pc-b", createPairingKeyMaterial()!.privateKey);
+    const revocation = revokePcPairing({
+      customName: false,
+      hostIdentityFingerprint: "f".repeat(22),
+      id: "pc-b",
+      name: "PC B",
+      relayRouteId: "r".repeat(22),
+      transportMode: "secure-direct",
+      url: `https://voltura.se/s/${"r".repeat(22)}`
+    }, "client-a", "Phone", null);
+    await vi.waitFor(() => { expect(channel.send).toHaveBeenCalled(); });
+    channel.message(JSON.stringify({ type: "pair.challenge", clientId: "client-a", challenge: "c".repeat(43) }));
+    channel.message(JSON.stringify({
+      type: "pair.accepted",
+      clientId: "client-a",
+      pcName: "Wrong PC",
+      paired: true,
+      hostIdentity: { publicKey: "p".repeat(87), fingerprint: "g".repeat(22) }
+    }));
+
+    await expect(revocation).resolves.toBe(false);
+    expect(channel.send).not.toHaveBeenCalledWith(JSON.stringify({ type: "pair.disconnect" }));
+    expect(cleanup).toHaveBeenCalledOnce();
   });
 
   it("completes relay key exchange before revoking an inactive pairing", async () => {

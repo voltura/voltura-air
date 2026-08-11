@@ -247,7 +247,20 @@ export async function publishSite({
     const shortLinkSource = path.join(source, "a");
     if (exists(shortLinkSource)) {
       await sftp.mkdir("a", true);
+      const shortLinkAccessRules = path.join(shortLinkSource, ".htaccess");
+      if (exists(shortLinkAccessRules)) {
+        await sftp.put(shortLinkAccessRules, "a/.htaccess");
+      }
       await sftp.uploadDir(shortLinkSource, "a");
+    }
+    const secureShortLinkSource = path.join(source, "s");
+    if (exists(secureShortLinkSource)) {
+      await sftp.mkdir("s", true);
+      const secureShortLinkAccessRules = path.join(secureShortLinkSource, ".htaccess");
+      if (exists(secureShortLinkAccessRules)) {
+        await sftp.put(secureShortLinkAccessRules, "s/.htaccess");
+      }
+      await sftp.uploadDir(secureShortLinkSource, "s");
     }
     log(`Published ${path.relative(repositoryRoot, source)} to ${host}:${remoteDirectory}`);
   } finally {

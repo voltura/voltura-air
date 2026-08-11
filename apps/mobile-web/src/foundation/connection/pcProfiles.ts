@@ -1,5 +1,5 @@
 import { isIpHost } from "../pairing/pcDisplayName";
-import { normalizePcUrl } from "../pairing/pairingLink";
+import { normalizeHostedPcUrl, normalizePcUrl } from "../pairing/pairingLink";
 
 export const activePcIdKey = "voltura-air.activePcId";
 export const pcProfilesKey = "voltura-air.pcProfiles";
@@ -11,25 +11,25 @@ export interface PcProfile {
   url: string;
   hostIdentityFingerprint?: string | undefined;
   hostIdentityPublicKey?: string | undefined;
-  transportMode?: "relay" | undefined;
+  transportMode?: "relay" | "secure-direct" | undefined;
   relayRouteId?: string | undefined;
   relayServiceId?: string | undefined;
   relayEndpoint?: string | undefined;
 }
 
 export function createPcProfile(pcUrl: string, hostIdentityFingerprint?: string): PcProfile {
-  const relay = parseRelayProfileUrl(pcUrl);
-  if (relay) {
+  const hosted = normalizeHostedPcUrl(pcUrl);
+  if (hosted) {
     return {
       customName: false,
-      id: `relay:${relay.endpoint ? "custom-v1" : __RELAY_SERVICE_ID__}:${relay.routeId}`,
+      id: `relay:${hosted.endpoint ? "custom-v1" : __RELAY_SERVICE_ID__}:${hosted.routeId}`,
       name: "PC",
-      url: relay.url,
+      url: hosted.url,
       hostIdentityFingerprint,
-      transportMode: "relay",
-      relayRouteId: relay.routeId,
-      relayServiceId: relay.endpoint ? "custom-v1" : __RELAY_SERVICE_ID__,
-      ...(relay.endpoint ? { relayEndpoint: relay.endpoint } : {})
+      transportMode: hosted.mode,
+      relayRouteId: hosted.routeId,
+      relayServiceId: hosted.endpoint ? "custom-v1" : __RELAY_SERVICE_ID__,
+      ...(hosted.endpoint ? { relayEndpoint: hosted.endpoint } : {})
     };
   }
 
@@ -135,7 +135,13 @@ export function upsertPcProfile(profiles: PcProfile[], profile: PcProfile): PcPr
     return [...profiles, profile];
   }
 
-  return profiles.map((pc) => (pc.id === profile.id ? { ...profile, customName: pc.customName, name: pc.name } : pc));
+  return profiles.map((pc) => (pc.id === profile.id ? {
+    ...profile,
+    hostIdentityFingerprint: profile.hostIdentityFingerprint ?? pc.hostIdentityFingerprint,
+    hostIdentityPublicKey: profile.hostIdentityPublicKey ?? pc.hostIdentityPublicKey,
+    customName: pc.customName,
+    name: pc.name
+  } : pc));
 }
 
 export function selectPcProfile(profiles: PcProfile[], pcId: string): PcProfile | null {
@@ -190,42 +196,6 @@ export function getWebSocketUrl(pc: PcProfile): string {
   const url = new URL(pc.url);
   const protocol = url.protocol === "https:" ? "wss:" : "ws:";
   return `${protocol}//${url.host}/ws`;
-}
-
-function parseRelayProfileUrl(value: string): { routeId: string; url: string; endpoint?: string } | null {
-  try {
-    const url = new URL(value);
-    const match = url.protocol === "https:" && url.hostname === "voltura.se"
-      ? /^\/a\/([A-Za-z0-9_-]{22})\/?$/u.exec(url.pathname)
-      : null;
-    if (!match?.[1]) {return null;}
-    const endpoint = url.searchParams.get("e");
-    if ([...url.searchParams.keys()].some((key) => key !== "e") || url.searchParams.getAll("e").length > 1 || url.hash) {return null;}
-    let relayEndpoint: string | undefined;
-    if (endpoint) {
-      relayEndpoint = decodeRelayEndpoint(endpoint) ?? undefined;
-      if (!relayEndpoint) {return null;}
-    }
-    return {
-      routeId: match[1],
-      url: `https://voltura.se/a/${match[1]}${endpoint ? `?e=${encodeURIComponent(endpoint)}` : ""}`,
-      ...(relayEndpoint ? { endpoint: relayEndpoint } : {})
-    };
-  } catch {
-    return null;
-  }
-}
-
-function decodeRelayEndpoint(value: string): string | null {
-  try {
-    if (!/^[A-Za-z0-9_-]{1,683}$/u.test(value)) {return null;}
-    const binary = atob(value.replace(/-/gu, "+").replace(/_/gu, "/").padEnd(Math.ceil(value.length / 4) * 4, "="));
-    const endpoint = new URL(new TextDecoder("utf-8", { fatal: true }).decode(Uint8Array.from(binary, (character) => character.charCodeAt(0))));
-    return endpoint.protocol === "https:" && !endpoint.username && !endpoint.password && endpoint.pathname === "/" &&
-      !endpoint.search && !endpoint.hash && endpoint.toString().length <= 512 ? endpoint.origin : null;
-  } catch {
-    return null;
-  }
 }
 
 function isViteClientAddress(source: string): boolean {

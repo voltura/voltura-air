@@ -196,6 +196,10 @@ test("publishes access rules before the site directory", async () => {
     "put:air/.htaccess",
     "uploadDir",
     "mkdir",
+    "put:a/.htaccess",
+    "uploadDir",
+    "mkdir",
+    "put:s/.htaccess",
     "uploadDir",
     "end"
   ]);

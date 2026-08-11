@@ -18,7 +18,9 @@ internal sealed class ConnectPageController(
         clientUrl,
         webHost.TransportMode,
         webHost.RelayRouteId,
-        webHost.RelayEndpoint);
+        webHost.RelayEndpoint,
+        webHost.EnhancedCapabilitiesEnabled,
+        webHost.SecureDirectRouteId);
 
     public string PairingUrl => _pairingLinks.Url;
 
@@ -50,7 +52,8 @@ internal sealed class ConnectPageController(
             CreateNewCode,
             () => clipboard.Copy(GetVisiblePairingUrl(), "Link copied"),
             openConnectionPage,
-            usesRelay: webHost.TransportMode == ConnectionTransportMode.Relay);
+            usesRelay: webHost.TransportMode == ConnectionTransportMode.Relay,
+            copyStandardLocalLink: _pairingLinks.StandardLocalUrl is null ? null : () => clipboard.Copy(_pairingLinks.StandardLocalUrl, "Standard Local link copied"));
     }
 
     public void CreateNewCode()

@@ -31,7 +31,8 @@ public partial class ConnectionPageView : WpfUserControl
         Action cancelChanges,
         Action saveAndRestart,
         Action? retryRelay = null,
-        Action? refreshRelayUsage = null)
+        Action? refreshRelayUsage = null,
+        Action<bool>? setEnhancedCapabilitiesEnabled = null)
     {
         InitializeComponent();
         ChooseAdapterButton.Click += (_, _) => openAdapterChooser();
@@ -40,6 +41,8 @@ public partial class ConnectionPageView : WpfUserControl
         CancelAdapterChooserButton.Click += (_, _) => cancelAdapterChooser();
         DirectLanRadioButton.Checked += (_, _) => RunUserAction(() => setTransportMode(ConnectionTransportMode.DirectLan));
         RelayRadioButton.Checked += (_, _) => RunUserAction(() => setTransportMode(ConnectionTransportMode.Relay));
+        EnhancedCapabilitiesCheckBox.Checked += (_, _) => RunUserAction(() => setEnhancedCapabilitiesEnabled?.Invoke(true));
+        EnhancedCapabilitiesCheckBox.Unchecked += (_, _) => RunUserAction(() => setEnhancedCapabilitiesEnabled?.Invoke(false));
         RelayStandardRadioButton.Checked += (_, _) => RunUserAction(() => setRelayScreenQuality(RelayScreenQuality.Standard));
         RelayDataSaverRadioButton.Checked += (_, _) => RunUserAction(() => setRelayScreenQuality(RelayScreenQuality.DataSaver));
         RelayMaintainerRadioButton.Checked += (_, _) => RunUserAction(() => setRelayScreenQuality(RelayScreenQuality.MaintainerFull));
@@ -114,6 +117,10 @@ public partial class ConnectionPageView : WpfUserControl
             CurrentConnectionPanel.Visibility = value == ConnectionTransportMode.DirectLan ? Visibility.Visible : Visibility.Collapsed;
             ChooseAdapterButton.Visibility = value == ConnectionTransportMode.DirectLan ? Visibility.Visible : Visibility.Collapsed;
             AdvancedConnectionExpander.Visibility = value == ConnectionTransportMode.DirectLan ? Visibility.Visible : Visibility.Collapsed;
+            EnhancedCapabilitiesCheckBox.Visibility = value == ConnectionTransportMode.DirectLan ? Visibility.Visible : Visibility.Collapsed;
+            EnhancedCapabilitiesDescriptionText.Visibility = value == ConnectionTransportMode.DirectLan ? Visibility.Visible : Visibility.Collapsed;
+            RelayEnhancedCapabilitiesHeadingText.Visibility = value == ConnectionTransportMode.Relay ? Visibility.Visible : Visibility.Collapsed;
+            RelayEnhancedCapabilitiesIncludedText.Visibility = value == ConnectionTransportMode.Relay ? Visibility.Visible : Visibility.Collapsed;
             if (value == ConnectionTransportMode.Relay) AdapterChooserPanel.Visibility = Visibility.Collapsed;
         }
     }
@@ -126,6 +133,19 @@ public partial class ConnectionPageView : WpfUserControl
             RelayDataSaverRadioButton.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, value == RelayScreenQuality.DataSaver);
             RelayMaintainerRadioButton.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, value == RelayScreenQuality.MaintainerFull);
             RelayMaintainerRadioButton.Visibility = BuildFeatures.MaintainerRelayQuality ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
+    internal bool EnhancedCapabilitiesEnabled
+    {
+        set
+        {
+            EnhancedCapabilitiesCheckBox.SetCurrentValue(WpfCheckBox.IsCheckedProperty, value);
+            DirectLanDescriptionText.Text = value
+                ? "Uses Voltura Air's secure web app. Internet is required for setup; controller traffic stays on your LAN after connection."
+                : "Fastest on the same network. Windows may require an inbound firewall exception.";
+            PortSettingsTitleText.Text = value ? "Standard Local port settings" : "Port settings";
+            UpdatePortSettingsAccessibleName();
         }
     }
 
@@ -235,9 +255,13 @@ public partial class ConnectionPageView : WpfUserControl
         set
         {
             PortHeaderStatusText.Text = value;
-            AutomationProperties.SetName(AdvancedConnectionExpander, $"Port settings, {value}");
+            UpdatePortSettingsAccessibleName();
         }
     }
+
+    private void UpdatePortSettingsAccessibleName() => AutomationProperties.SetName(
+        AdvancedConnectionExpander,
+        $"{PortSettingsTitleText.Text}, {PortHeaderStatusText.Text}");
 
     internal string PortValidation
     {

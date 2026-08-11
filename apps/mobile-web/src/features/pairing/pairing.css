@@ -119,7 +119,15 @@
 .pairing-required.connection-blocking {
   bottom: 3px;
   max-height: none;
+  align-content: start;
   border-radius: clamp(32px, 9.6vw, 42px);
+}
+
+.pairing-required .pairing-message {
+  max-height: none;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .app-shell.split-mode-active .pairing-required.connection-blocking {

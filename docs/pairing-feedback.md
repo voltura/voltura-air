@@ -16,9 +16,9 @@ saved-PC, manual-host behavior:
 | `disconnected` | The user intentionally disconnected. |
 
 A valid Direct pairing link imports its token and removes `t` from the visible address.
-An official Relay link keeps the token only in the URL fragment, removes the
-fragment after import, and stores the opaque route profile.
-asks for device-name confirmation, then connects. Pairing, rejection,
+An official Relay or Secure Direct link keeps the token only in the URL
+fragment, removes the fragment after import, and stores the opaque route
+profile. It asks for device-name confirmation, then connects. Pairing, rejection,
 unavailable, and intentional-disconnect panels block inactive controls while
 keeping recovery actions usable.
 
@@ -33,7 +33,7 @@ being decoded, the primary action reads **Reading QR code...**, shows pending
 feedback, and is visibly and natively disabled; secondary photo/manual actions
 that could start a competing attempt are disabled too. Success, failure, or a
 newer attempt clears that state. Direct QR uses `t`, `v`, and optional `h`;
-Relay QR uses opaque route, `v`, and fragment token. PC identity is
+Relay `/a` and Secure Direct `/s` QR use the opaque route, `v`, and fragment token. PC identity is
 authenticated after opening rather than increasing QR density.
 
 ## Failure map
@@ -53,6 +53,9 @@ authenticated after opening rather than increasing QR density.
 | Unknown rejection | Show a `VAIR-PAIR-*` code and offer copied diagnostics. |
 | `host-unreachable` in Direct mode | The browser cannot reach the PC; reconnect, rescan, enter the current host, and check LAN/firewall. |
 | `host-unreachable` in Relay mode | The browser cannot reach the PC through the configured relay; keep the unavailable panel stable while retrying, and check the running host, PC internet access, and permitted VPN/work-network restrictions. |
+| Secure Direct signaling or capacity failure | Keep the chosen `/s` transport, retry normally, and offer explicit Standard Local or Cloud Relay recovery without activating either automatically. |
+| Secure Direct ICE/LAN validation failure | The browser did not establish the required private path on the selected adapter; check same-LAN reachability or explicitly choose Standard Local or Cloud Relay. |
+| Secure Direct signaling loss after answer | Do not mark the controller unavailable while the DataChannel remains healthy; DataChannel loss uses the normal socket-closed lifecycle. |
 | `relay-encryption-failed` or Relay identity mismatch | The encrypted session did not authenticate; reconnect, then scan a fresh QR if repeated. |
 | `turn-unavailable` | Screen relay credentials are unavailable or quota-blocked; commands remain connected and Screen can be retried later. |
 | `socket-closed` | Host/network closed an authenticated connection; show available close details and reconnect without replaying input. |

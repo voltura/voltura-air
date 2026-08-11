@@ -31,5 +31,16 @@ export function getNextHealthCheckDelay(
 ) {
   const isInteractive = pendingAckCount > 0 || now - lastUserActivityAt < passiveAfterMs;
   const interval = isInteractive ? interactiveHealthCheckMs : passiveHealthCheckMs;
-  return Math.max(1000, (lastHealthyAt || now) + interval - now);
+  const baseline = isInteractive
+    ? Math.max(lastHealthyAt || now, lastUserActivityAt)
+    : lastHealthyAt || now;
+  return Math.max(1000, baseline + interval - now);
+}
+
+export function getNextInputAckCheckDelay(pendingAcks: Iterable<number>, now = Date.now()) {
+  let delay = Number.POSITIVE_INFINITY;
+  for (const sentAt of pendingAcks) {
+    delay = Math.min(delay, Math.max(1, sentAt + inputAckTimeoutMs + 1 - now));
+  }
+  return delay;
 }

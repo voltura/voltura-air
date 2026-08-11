@@ -54,6 +54,14 @@ and pairing or reconnect proofs. Voltura's relay is designed to forward these
 frames without parsing or storing their contents. The pairing token itself is
 kept in the QR URL fragment and is not sent to the routing service.
 
+Secure Direct signaling transiently exposes the opaque route, participant
+network metadata, and offer/answer SDP containing private candidate metadata to
+the signaling service. SDP and candidates are bounded, are not stored after the
+one-off exchange, and are excluded from application logs. After answer
+forwarding, controller content travels directly over the LAN in a
+DTLS-protected WebRTC DataChannel; the signaling service does not forward or
+retain established controller traffic.
+
 ## Remote-control content
 
 In Direct mode, pointer, keyboard, text, and control commands travel directly

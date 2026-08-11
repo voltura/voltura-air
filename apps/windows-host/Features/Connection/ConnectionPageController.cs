@@ -120,7 +120,8 @@ internal sealed class ConnectionPageController : IDisposable
             CancelPendingChanges,
             SaveAndRestart,
             _webHost.RetryRelay,
-            RefreshRelayUsage);
+            RefreshRelayUsage,
+            SetEnhancedCapabilitiesEnabled);
         _page.CandidateSelected += SelectAdapter;
         _portInput.Attach(_page, _state);
         Render();
@@ -229,6 +230,12 @@ internal sealed class ConnectionPageController : IDisposable
     private void SetTransportMode(ConnectionTransportMode mode)
     {
         _state?.SetTransportMode(mode);
+        Render();
+    }
+
+    private void SetEnhancedCapabilitiesEnabled(bool enabled)
+    {
+        _state?.SetEnhancedCapabilitiesEnabled(enabled);
         Render();
     }
 

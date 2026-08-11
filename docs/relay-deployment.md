@@ -40,7 +40,9 @@ duplicate them in registry settings or application code.
    `npm run relay:health`. View current-month TURN transfer with
    `npm run relay:usage`; its token prompt is hidden.
 9. Outside a stable release, manually run `npm run publish:site` to upload the
-   hosted PWA and first-party `/a/<route>` redirect. `npm run release:full`
+   hosted PWA and first-party `/a/<route>` and `/s/<route>` redirects. Deploy
+   the Worker with the `SecureDirectRoomObject` migration before publishing
+   `/s`; deploy the default-off Windows setting last. `npm run release:full`
    deploys and verifies the official relay before publishing the site and
    Windows release; `release:draft` leaves production relay infrastructure
    unchanged.
@@ -56,6 +58,13 @@ bridge carries the existing libjuice TURN client's messages to Cloudflare's
 `turns` endpoint over certificate-validated TLS. No external UDP is required on
 the PC side. Verify the complete path from a network that blocks outbound UDP;
 an ordinary unrestricted-network test does not prove the TCP-only fallback.
+
+The same Worker owns `/v1/secure/host/<route>` and
+`/v1/secure/device/<route>` plus its separate `SECURE_DIRECT_ROOMS` Durable
+Object binding. These endpoints carry only bounded offer/answer signaling; they
+do not relay controller commands or provide TURN. Verify exact hosted Origin
+rejection, host authentication, negotiation timeout/cleanup, and continued
+DataChannel operation after signaling/WAN removal before enabling the setting.
 
 ## Advanced WSL self-hosting
 

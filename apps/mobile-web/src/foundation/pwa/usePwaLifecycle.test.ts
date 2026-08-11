@@ -19,6 +19,11 @@ const relayPc: PcProfile = {
   relayRouteId: "abcdefghijklmnopqrstuv",
   relayServiceId: "voltura-cloud-v1"
 };
+const secureDirectPc: PcProfile = {
+  ...relayPc,
+  url: "https://voltura.se/s/abcdefghijklmnopqrstuv",
+  transportMode: "secure-direct"
+};
 const successfulRefresh: FreshAppRefreshResult = { navigationStarted: true, navigationMethod: "replace", warnings: [] };
 const failedRefresh: FreshAppRefreshResult = { navigationStarted: false, navigationMethod: null, warnings: ["failed"] };
 
@@ -58,6 +63,7 @@ describe("PWA web build refresh", () => {
     expect(shouldRefreshWebClient(activePc, "build-a")).toBe(false);
     expect(shouldRefreshWebClient(activePc, "build-b")).toBe(true);
     expect(shouldRefreshWebClient(relayPc, "build-b")).toBe(false);
+    expect(shouldRefreshWebClient(secureDirectPc, "build-b")).toBe(false);
   });
 
   it("does not refresh a hosted relay client to the PC's direct web build", () => {

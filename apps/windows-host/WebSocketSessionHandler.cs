@@ -452,7 +452,10 @@ internal sealed class WebSocketSessionHandler(
         switch (type)
         {
             case "pair.disconnect":
+                transport.DetachFromRevocation(clientId, socket);
                 pairingManager.DisconnectDevice(clientId);
+                await transport.SendAsync(socket, new { type = "pair.disconnect.accepted" }, cancellationToken);
+                await WebSocketTransport.CloseAsync(socket, "Device disconnected", cancellationToken);
                 return false;
             case "device.rename":
                 pairingManager.RenameDevice(clientId, ProtocolMessageFields.GetString(root, "deviceName"));

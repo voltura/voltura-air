@@ -39,7 +39,10 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 - Relay pairing uses the short first-party `https://voltura.se/a/<route>` QR.
   Its 32-character token stays in the URL fragment. Existing pairing,
   reconnect, identity pinning, permissions, revocation, and rate limits are
-  reused inside an additional end-to-end encrypted relay session.
+  reused inside an additional end-to-end encrypted relay session. Relay always
+  includes enhanced browser capabilities because its controller already runs
+  in Voltura Air's secure hosted app; the separate opt-in applies only to
+  Direct connections using `/s`.
 - Reconnect uses proof of possession; the private reconnect key remains on the
   client. Fresh pairing uses the single short QR token to authenticate and pin
   the PC's persistent public identity after opening; no host identity or second

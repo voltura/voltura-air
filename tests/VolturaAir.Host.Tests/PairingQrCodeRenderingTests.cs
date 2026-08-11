@@ -7,7 +7,7 @@ namespace VolturaAir.Host.Tests;
 public sealed class PairingQrCodeRenderingTests
 {
     [Fact]
-    public void PairingQrCodeIncludesVolturaAirIconInCenter()
+    public void PairingQrCodeKeepsEveryModuleUnobstructed()
     {
         var source = PairingQrCodeRenderer.Create("http://192.168.1.20:51395/pair?t=redacted&v=0.6.3");
         var converted = new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
@@ -34,6 +34,6 @@ public sealed class PairingQrCodeRenderingTests
         }
 
         Assert.True(source.IsFrozen);
-        Assert.True(chromaticPixelCount > 100, $"Expected a colored Voltura Air icon in the QR center, but found {chromaticPixelCount} chromatic pixels.");
+        Assert.Equal(0, chromaticPixelCount);
     }
 }

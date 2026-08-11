@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasPairingTokenParameter, parsePairingLink, parsePcUrl, validateManualConnectionInput } from "./pairingLink";
+import { hasPairingTokenParameter, parseHostedConnectionAddress, parsePairingLink, parsePcUrl, validateManualConnectionInput } from "./pairingLink";
 
 const pairToken = "a".repeat(32);
 const version = "0.6.1";
@@ -42,6 +42,28 @@ describe("parsePairingLink", () => {
       pcUrl: `https://voltura.se/a/${route}`
     });
     expect(hasPairingTokenParameter(`https://voltura.se/a/${route}?v=${version}#${pairToken}`)).toBe(true);
+  });
+
+  it("reads Secure Direct short and redirected links", () => {
+    const route = "r".repeat(22);
+    expect(parsePairingLink(`https://voltura.se/s/${route}?v=${version}#${pairToken}`)).toEqual({
+      pairToken,
+      pcUrl: `https://voltura.se/s/${route}`
+    });
+    expect(parsePairingLink(`https://voltura.se/air/app/?m=s&r=${route}&v=${version}#${pairToken}`)).toEqual({
+      pairToken,
+      pcUrl: `https://voltura.se/s/${route}`
+    });
+  });
+
+  it("keeps tokenless hosted addresses explicit for normal reconnect", () => {
+    const route = "r".repeat(22);
+    expect(parseHostedConnectionAddress(`https://voltura.se/air/app/?m=s&r=${route}&v=${version}`)).toEqual({
+      pcUrl: `https://voltura.se/s/${route}`
+    });
+    expect(parseHostedConnectionAddress(`https://voltura.se/air/app/?r=${route}&v=${version}`)).toEqual({
+      pcUrl: `https://voltura.se/a/${route}`
+    });
   });
 
   it("reads the hosted redirect target and a bounded custom relay endpoint", () => {

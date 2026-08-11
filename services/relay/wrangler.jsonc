@@ -6,11 +6,13 @@
   "workers_dev": true,
   "durable_objects": {
     "bindings": [
-      { "name": "RELAY_ROOMS", "class_name": "RelayRoomObject" }
+      { "name": "RELAY_ROOMS", "class_name": "RelayRoomObject" },
+      { "name": "SECURE_DIRECT_ROOMS", "class_name": "SecureDirectRoomObject" }
     ]
   },
   "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["RelayRoomObject"] }
+    { "tag": "v1", "new_sqlite_classes": ["RelayRoomObject"] },
+    { "tag": "v2", "new_sqlite_classes": ["SecureDirectRoomObject"] }
   ],
   "vars": {
     "PUBLIC_SERVICE_ID": "voltura-cloud-v1",

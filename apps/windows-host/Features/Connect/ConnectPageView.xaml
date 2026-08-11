@@ -34,12 +34,16 @@
             <ui:SpacingStackPanel Spacing="{DynamicResource SpaceMd}">
                 <ui:InfoCard x:Name="PairingCodeCard" Title="Pairing code">
                     <ui:InfoCard.Actions>
-                        <ui:SpacingStackPanel Orientation="Horizontal" Spacing="{DynamicResource SpaceSm}">
+                        <ui:SpacingWrapPanel HorizontalSpacing="{DynamicResource SpaceSm}"
+                                             VerticalSpacing="{DynamicResource SpaceSm}">
                             <Button Content="Copy link"
                                     Style="{DynamicResource PrimaryButtonStyle}"
                                     Click="OnCopyLinkClicked" />
                             <Button Content="New code" Click="OnNewCodeClicked" />
-                        </ui:SpacingStackPanel>
+                            <Button Content="Copy Standard Local link"
+                                    Click="OnCopyStandardLocalClicked"
+                                    Visibility="Collapsed" />
+                        </ui:SpacingWrapPanel>
                     </ui:InfoCard.Actions>
                 </ui:InfoCard>
 

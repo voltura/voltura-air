@@ -9,7 +9,8 @@ internal sealed record ConnectionConfiguration(
     int? ManualPort,
     ConnectionTransportMode TransportMode = ConnectionTransportMode.DirectLan,
     string? CustomRelayEndpoint = null,
-    RelayScreenQuality RelayScreenQuality = RelayScreenQuality.Standard)
+    RelayScreenQuality RelayScreenQuality = RelayScreenQuality.Standard,
+    bool EnhancedCapabilitiesEnabled = false)
 {
     public static ConnectionConfiguration FromSnapshot(NetworkSettingsSnapshot snapshot) => new(
         snapshot.NetworkMode,
@@ -20,7 +21,8 @@ internal sealed record ConnectionConfiguration(
         snapshot.ManualPort,
         snapshot.TransportMode,
         snapshot.CustomRelayEndpoint,
-        snapshot.RelayScreenQuality);
+        snapshot.RelayScreenQuality,
+        snapshot.EnhancedCapabilitiesEnabled);
 
     public NetworkSettingsSnapshot ApplyTo(NetworkSettingsSnapshot snapshot) => snapshot with
     {
@@ -32,7 +34,8 @@ internal sealed record ConnectionConfiguration(
         ManualPort = ManualPort,
         TransportMode = TransportMode,
         CustomRelayEndpoint = CustomRelayEndpoint,
-        RelayScreenQuality = RelayScreenQuality
+        RelayScreenQuality = RelayScreenQuality,
+        EnhancedCapabilitiesEnabled = EnhancedCapabilitiesEnabled
     };
 }
 
@@ -160,6 +163,12 @@ internal sealed class ConnectionPageState(
     public void SetCustomRelayEndpoint(string? endpoint)
     {
         PendingConfiguration = PendingConfiguration with { CustomRelayEndpoint = endpoint };
+        ClearFeedback();
+    }
+
+    public void SetEnhancedCapabilitiesEnabled(bool enabled)
+    {
+        PendingConfiguration = PendingConfiguration with { EnhancedCapabilitiesEnabled = enabled };
         ClearFeedback();
     }
 

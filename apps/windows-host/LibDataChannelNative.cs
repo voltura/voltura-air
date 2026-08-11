@@ -171,6 +171,9 @@ internal static partial class LibDataChannelNative
     internal delegate void ErrorCallback(int id, nint message, nint userPointer);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate void MessageCallback(int id, nint message, int size, nint userPointer);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate void PliCallback(int track, nint userPointer);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -240,7 +243,13 @@ internal static partial class LibDataChannelNative
     internal static partial int rtcSetErrorCallback(int id, ErrorCallback callback);
 
     [LibraryImport(LibraryName)]
+    internal static partial int rtcSetMessageCallback(int id, MessageCallback callback);
+
+    [LibraryImport(LibraryName)]
     internal static partial int rtcSendMessage(int id, byte[] data, int size);
+
+    [LibraryImport(LibraryName, EntryPoint = "rtcSendMessage")]
+    internal static partial int rtcSendTextMessage(int id, nint data, int size);
 
     [LibraryImport(LibraryName)]
     internal static partial int rtcGetBufferedAmount(int id);
@@ -250,4 +259,11 @@ internal static partial class LibDataChannelNative
 
     [LibraryImport(LibraryName)]
     internal static partial int rtcDeleteDataChannel(int dataChannel);
+
+    [LibraryImport(LibraryName)]
+    internal static partial int rtcGetLocalAddress(int peer, nint buffer, int size);
+
+    [LibraryImport(LibraryName)]
+    internal static partial int rtcGetRemoteAddress(int peer, nint buffer, int size);
+
 }

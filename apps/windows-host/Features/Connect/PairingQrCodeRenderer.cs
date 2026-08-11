@@ -9,20 +9,10 @@ internal static partial class PairingQrCodeRenderer
 {
     public static BitmapSource Create(string url)
     {
-        var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "VolturaAir-256.png");
-        using var icon = File.Exists(iconPath) ? new System.Drawing.Bitmap(iconPath) : null;
         using var generator = new QRCodeGenerator();
-        using var data = generator.CreateQrCode(url, QRCodeGenerator.ECCLevel.Q);
+        using var data = generator.CreateQrCode(url, QRCodeGenerator.ECCLevel.M);
         using var code = new QRCode(data);
-        using var bitmap = code.GetGraphic(
-            18,
-            System.Drawing.Color.Black,
-            System.Drawing.Color.White,
-            icon,
-            iconSizePercent: 15,
-            iconBorderWidth: 6,
-            drawQuietZones: true,
-            iconBackgroundColor: System.Drawing.Color.White);
+        using var bitmap = code.GetGraphic(18, System.Drawing.Color.Black, System.Drawing.Color.White, drawQuietZones: true);
         var handle = bitmap.GetHbitmap();
         try
         {

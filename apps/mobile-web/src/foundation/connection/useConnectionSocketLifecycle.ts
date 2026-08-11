@@ -27,7 +27,7 @@ import type {
   UrlOpenResultMessage
 } from "../protocol/messages";
 import { clearPairTokenFromAddress } from "./clientIdentity";
-import { getNextHealthCheckDelay, hasExpiredInputAck, staleConnectionMs } from "./connectionHealthPolicy";
+import { getNextHealthCheckDelay, getNextInputAckCheckDelay, hasExpiredInputAck, staleConnectionMs } from "./connectionHealthPolicy";
 import {
   diagnosticCodeForPairingReason,
   getDisplayPcName,
@@ -53,10 +53,13 @@ import {
 } from "./pcProfiles";
 import { beginRelaySession, parseRelayKeyChallenge, verifyRelayHostAcceptance, type PendingRelaySession, type RelayEncryptedChannel, type RelayEncryptedSend } from "./relaySessionCrypto";
 import type { PendingMovementAck } from "./useConnectionSender";
+import { isControllerSocketClosingOrClosed, isControllerSocketConnecting, isControllerSocketOpen, type ControllerSocket } from "./controllerSocket";
+import { connectSecureDirect } from "./secureDirect";
 
 const directConnectionTimeoutMs = 3000;
 const relayConnectionTimeoutMs = 10000;
 const healthCheckTimeoutMs = 6500;
+const queuedHealthRetryMs = 5000;
 const retryDelayMs = 1200;
 const displayOffHealthCheckDelayMs = 1000;
 
@@ -106,7 +109,7 @@ interface ConnectionSocketLifecycleOptions {
   setPairingAttempt: Dispatch<SetStateAction<PairingAttempt>>;
   setPendingManualPc: Dispatch<SetStateAction<PcProfile | null>>;
   setState: Dispatch<SetStateAction<ConnectionState>>;
-  socketRef: RefObject<WebSocket | null>;
+  socketRef: RefObject<ControllerSocket | null>;
   supportsInputAckRef: RefObject<boolean>;
   supportsVolumeControlRef: RefObject<boolean>;
   updateCapabilitiesFromSocket: (capabilities: ServerCapabilities | undefined, connected?: boolean) => void;
@@ -180,6 +183,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
   const completeTextTransfer = useEffectEvent(completeTextTransferState);
   const completeUrlOpen = useEffectEvent(completeUrlOpenState);
   const getLatestConnectionPc = useEffectEvent(getLatestConnectionPcState);
+  const getPendingManualPc = useEffectEvent(() => pendingManualPc);
   const setAudioStateFromSocket = useEffectEvent(setAudioState);
   const updateCapabilitiesFromSocket = useEffectEvent(updateCapabilities);
   const updateHostStatusFromSocket = useEffectEvent(updateHostStatus);
@@ -190,8 +194,11 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     let retryTimer: number | undefined;
     let connectionTimer: number | undefined;
     let healthCheckTimer: number | undefined;
+    let healthCheckDueAt: number | undefined;
     let healthDeadlineTimer: number | undefined;
     let removeSocketListeners: (() => void) | undefined;
+    let secureDirectCleanup: (() => void) | undefined;
+    let secureSetupAbort: AbortController | undefined;
     let backgroundSuspended = document.visibilityState === "hidden";
     let hasShownUnavailable = false;
     let pendingPairingKey: PairingKeyMaterial | null = null;
@@ -212,16 +219,26 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
   
     const pc: PcProfile = { ...createPcProfile(connectionPcUrl), id: connectionPcId };
     const currentPc = () => getLatestConnectionPc(pc);
-    let commitManualPcOnAcceptance = pendingManualPc?.id === pc.id && pendingManualPc.url === pc.url;
+    const pendingPc = getPendingManualPc();
+    let commitManualPcOnAcceptance = pendingPc?.id === pc.id && pendingPc.url === pc.url;
   
     function touchHealthy() {
       lastHealthyAtRef.current = Date.now();
+      window.clearTimeout(healthDeadlineTimer);
+      healthDeadlineTimer = undefined;
+    }
+
+    function clearPendingPairingToken() {
+      if (pairingAttemptRef.current.token === undefined) {return;}
+      pairingAttemptRef.current = { ...pairingAttemptRef.current, token: undefined };
+      setPairingAttempt((current) => current.token === undefined ? current : { ...current, token: undefined });
     }
   
     function clearHealthCheck() {
       window.clearTimeout(healthCheckTimer);
       window.clearTimeout(healthDeadlineTimer);
       healthCheckTimer = undefined;
+      healthCheckDueAt = undefined;
       healthDeadlineTimer = undefined;
     }
   
@@ -236,6 +253,10 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     function releaseSocketListeners() {
       removeSocketListeners?.();
       removeSocketListeners = undefined;
+      secureSetupAbort?.abort();
+      secureSetupAbort = undefined;
+      secureDirectCleanup?.();
+      secureDirectCleanup = undefined;
     }
   
     function scheduleRetry() {
@@ -246,7 +267,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
       retryTimer = window.setTimeout(connect, retryDelayMs);
     }
   
-    function markUnavailable(socket?: WebSocket, reason?: string, code = "VAIR-PAIR-HOST-UNREACHABLE") {
+    function markUnavailable(socket?: ControllerSocket, reason?: string, code = "VAIR-PAIR-HOST-UNREACHABLE") {
       if (disposed || !shouldRetry) {
         return;
       }
@@ -268,13 +289,14 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
       if (commitManualPcOnAcceptance) {
         commitManualPcOnAcceptance = false;
         shouldRetry = false;
+        clearPendingPairingToken();
         setPendingManualPc((current) => current?.id === pc.id && current.url === pc.url ? null : current);
       }
   
       if (socket) {
         releaseSocketListeners();
       }
-      if (socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING) {
+      if (socket && (isControllerSocketOpen(socket) || isControllerSocketConnecting(socket))) {
         socket.close();
       }
   
@@ -287,14 +309,18 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
       if (backgroundSuspended) {
         return;
       }
+
+      if (secureSetupAbort) {
+        return;
+      }
   
       const socket = socketRef.current;
-      if (!socket || socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) {
+      if (!socket || isControllerSocketClosingOrClosed(socket)) {
         connect();
         return;
       }
   
-      if (socket.readyState !== WebSocket.OPEN) {
+      if (!isControllerSocketOpen(socket)) {
         return;
       }
   
@@ -315,35 +341,53 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
       scheduleHealthCheck(socket);
     }
   
-    function scheduleHealthCheck(socket: WebSocket) {
-      window.clearTimeout(healthCheckTimer);
-      healthCheckTimer = undefined;
-      if (disposed || backgroundSuspended || socket !== socketRef.current || socket.readyState !== WebSocket.OPEN) {
+    function scheduleHealthCheck(socket: ControllerSocket, onlyIfEarlier = false) {
+      if (disposed || backgroundSuspended || socket !== socketRef.current || !isControllerSocketOpen(socket)) {
         return;
       }
   
-      healthCheckTimer = window.setTimeout(
-        () => { sendHealthCheck(socket); },
+      const delay = Math.min(
         getNextHealthCheckDelay(
           pendingInputAcksRef.current.size,
           lastUserActivityAtRef.current,
           lastHealthyAtRef.current
-        )
+        ),
+        getNextInputAckCheckDelay(pendingInputAcksRef.current.values())
       );
+      const dueAt = Date.now() + delay;
+      if (onlyIfEarlier && healthCheckTimer !== undefined && healthCheckDueAt !== undefined && healthCheckDueAt <= dueAt) {
+        return;
+      }
+
+      window.clearTimeout(healthCheckTimer);
+      healthCheckDueAt = dueAt;
+      healthCheckTimer = window.setTimeout(() => {
+        healthCheckDueAt = undefined;
+        sendHealthCheck(socket);
+      }, delay);
     }
   
-    function sendHealthCheck(socket: WebSocket) {
+    function sendHealthCheck(socket: ControllerSocket) {
       healthCheckTimer = undefined;
       if (disposed || backgroundSuspended) {
         return;
       }
   
-      if (socket !== socketRef.current || socket.readyState !== WebSocket.OPEN) {
+      if (socket !== socketRef.current || !isControllerSocketOpen(socket)) {
         return;
       }
   
       if (hasExpiredInputAck(pendingInputAcksRef.current.values(), supportsInputAckRef.current)) {
         markUnavailable(socket, getInputAckTimeoutMessage(currentPc(), screenshotMode), "VAIR-PAIR-INPUT-ACK-TIMEOUT");
+        return;
+      }
+
+      if (pendingInputAcksRef.current.size > 0 || socket.bufferedAmount > 0) {
+        healthCheckDueAt = Date.now() + queuedHealthRetryMs;
+        healthCheckTimer = window.setTimeout(() => {
+          healthCheckDueAt = undefined;
+          sendHealthCheck(socket);
+        }, queuedHealthRetryMs);
         return;
       }
   
@@ -372,7 +416,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
       pendingMovementAckRef.current = null;
       const previousSocket = socketRef.current;
       releaseSocketListeners();
-      if (previousSocket?.readyState === WebSocket.OPEN || previousSocket?.readyState === WebSocket.CONNECTING) {
+      if (previousSocket && (isControllerSocketOpen(previousSocket) || isControllerSocketConnecting(previousSocket))) {
         previousSocket.close();
       }
       window.clearTimeout(retryTimer);
@@ -390,15 +434,38 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
         setMessage(`Connecting to ${getDisplayPcName(currentPc(), "", screenshotMode)}...`);
       }
   
-      const ws = new WebSocket(getWebSocketUrl(pc));
-      ws.binaryType = "arraybuffer";
-      socketRef.current = ws;
-      connectionTimer = window.setTimeout(() => { markUnavailable(ws); }, getConnectionTimeoutMs(pc.transportMode));
-  
-      function onSocketOpen() {
-        if (disposed || ws !== socketRef.current) {
+      if (pc.transportMode === "secure-direct") {
+        if (!pc.relayRouteId) {
+          markUnavailable(undefined, "This Secure Direct PC address is invalid.", "VAIR-PAIR-SECURE-DIRECT-ROUTE");
           return;
         }
+        const setupAbort = new AbortController();
+        secureSetupAbort = setupAbort;
+        void connectSecureDirect(pc.relayRouteId, setupAbort.signal).then(({ channel, cleanup }) => {
+          if (disposed || backgroundSuspended || setupAbort.signal.aborted || secureSetupAbort !== setupAbort) {cleanup(); return;}
+          secureSetupAbort = undefined;
+          attachSocket(channel, cleanup);
+        }, () => {
+          if (setupAbort.signal.aborted || secureSetupAbort !== setupAbort) {return;}
+          secureSetupAbort = undefined;
+          if (!disposed && !backgroundSuspended) {markUnavailable(undefined, "Secure Direct could not establish a private LAN connection to this PC.", "VAIR-PAIR-SECURE-DIRECT");}
+        });
+        return;
+      }
+      attachSocket(new WebSocket(getWebSocketUrl(pc)));
+
+      function attachSocket(ws: ControllerSocket, cleanup?: () => void) {
+      secureDirectCleanup = cleanup;
+      if (ws instanceof WebSocket) {ws.binaryType = "arraybuffer";}
+      socketRef.current = ws;
+      connectionTimer = window.setTimeout(() => { markUnavailable(ws); }, getConnectionTimeoutMs(pc.transportMode));
+      let socketOpened = false;
+  
+      function onSocketOpen() {
+        if (socketOpened || disposed || ws !== socketRef.current) {
+          return;
+        }
+        socketOpened = true;
   
         if (!hasShownUnavailable) {
           setState("connecting");
@@ -456,7 +523,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
             }
             handleSocketMessage(decrypted);
           });
-        } else if (pc.transportMode === "relay" && typeof messageData === "string") {
+        } else if (pc.transportMode === "relay" && ws instanceof WebSocket && typeof messageData === "string") {
           let relayMessage: unknown;
           try { relayMessage = JSON.parse(messageData); } catch { relayMessage = null; }
           const challenge = parseRelayKeyChallenge(relayMessage);
@@ -526,7 +593,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
           if (!verified) {
             pendingPairingKey = null;
             pendingPairingBootstrap = null;
-            markUnavailable(ws, "The PC could not prove the identity associated with this QR code. Scan a fresh code directly from the PC.", "VAIR-PAIR-HOST-PROOF-INVALID");
+            markUnavailable(ws, "PC identity check failed. Scan a fresh QR code from the PC.", "VAIR-PAIR-HOST-PROOF-INVALID");
             return;
           }
 
@@ -597,6 +664,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
           shouldRetry = false;
           if (commitManualPcOnAcceptance) {
             commitManualPcOnAcceptance = false;
+            clearPendingPairingToken();
             clearRuntimeStateFromSocket();
             const rejectedMessage = `Pairing rejected: ${response.reason}`;
             setLastConnectionError({ code: diagnosticCodeForPairingReason(response.reason), message: rejectedMessage });
@@ -626,10 +694,8 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
         }
   
         if (response.type === "status") {
-          touchHealthy();
           const healthProbePending = healthDeadlineTimer !== undefined;
-          window.clearTimeout(healthDeadlineTimer);
-          healthDeadlineTimer = undefined;
+          touchHealthy();
           if (response.pcName && !screenshotMode) {
             setPairedPcs((current) => applyPcNameFromHost(current, pc.id, response.pcName ?? ""));
           }
@@ -654,8 +720,6 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
   
         if (response.type === "health.pong") {
           touchHealthy();
-          window.clearTimeout(healthDeadlineTimer);
-          healthDeadlineTimer = undefined;
           hasShownUnavailable = false;
           setLastConnectionError(null);
           setState("paired");
@@ -701,7 +765,11 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
           }
           if (response.action === "displayOff" && response.succeeded) {
             window.clearTimeout(healthCheckTimer);
-            healthCheckTimer = window.setTimeout(() => { sendHealthCheck(ws); }, displayOffHealthCheckDelayMs);
+            healthCheckDueAt = Date.now() + displayOffHealthCheckDelayMs;
+            healthCheckTimer = window.setTimeout(() => {
+              healthCheckDueAt = undefined;
+              sendHealthCheck(ws);
+            }, displayOffHealthCheckDelayMs);
           } else {
             scheduleHealthCheck(ws);
           }
@@ -898,7 +966,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
       }
   
       let receiveQueue = Promise.resolve();
-      removeSocketListeners = registerWebSocketListeners(ws, {
+      removeSocketListeners = registerControllerSocketListeners(ws, {
         close: onSocketClose,
         error: onSocketError,
         message: (event) => {
@@ -910,13 +978,15 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
         },
         open: () => { void onSocketOpen(); }
       });
+      if (!(ws instanceof WebSocket) && ws.readyState === "open") {void onSocketOpen();}
+      }
     }
   
     reconnectRef.current = () => { markUnavailable(socketRef.current ?? undefined, getPcUnavailableMessage(currentPc(), screenshotMode), "VAIR-PAIR-CLIENT-SEND-FAILED"); };
     rescheduleHealthCheckRef.current = () => {
       const socket = socketRef.current;
-      if (socket?.readyState === WebSocket.OPEN) {
-        scheduleHealthCheck(socket);
+      if (isControllerSocketOpen(socket)) {
+        scheduleHealthCheck(socket, true);
       }
     };
   
@@ -927,7 +997,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
       pendingMovementAckRef.current = null;
       const socket = socketRef.current;
       releaseSocketListeners();
-      if (socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING) {
+      if (socket && (isControllerSocketOpen(socket) || isControllerSocketConnecting(socket))) {
         socket.close();
       }
     }
@@ -976,8 +1046,6 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     pairingAttemptId,
     pairingAttemptRef,
     pendingInputAcksRef,
-    pendingManualPc?.id,
-    pendingManualPc?.url,
     pendingMovementAckRef,
     reconnectRef,
     relayEncryptedSendRef,
@@ -997,22 +1065,23 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
   ]);
 }
 
-interface WebSocketListeners {
+interface ControllerSocketListeners {
   close: () => void;
   error: () => void;
   message: (event: MessageEvent) => void;
   open: () => void;
 }
 
-function registerWebSocketListeners(socket: WebSocket, listeners: WebSocketListeners): () => void {
+function registerControllerSocketListeners(socket: ControllerSocket, listeners: ControllerSocketListeners): () => void {
   socket.addEventListener("open", listeners.open);
-  socket.addEventListener("message", listeners.message);
+  const onMessage: EventListener = (event) => { listeners.message(event as MessageEvent); };
+  socket.addEventListener("message", onMessage);
   socket.addEventListener("close", listeners.close);
   socket.addEventListener("error", listeners.error);
 
   return () => {
     socket.removeEventListener("open", listeners.open);
-    socket.removeEventListener("message", listeners.message);
+    socket.removeEventListener("message", onMessage);
     socket.removeEventListener("close", listeners.close);
     socket.removeEventListener("error", listeners.error);
   };

@@ -32,7 +32,8 @@
                                      GroupName="ConnectionMethod"
                                      Foreground="{DynamicResource TextBrush}"
                                      Content="Direct local network" />
-                        <TextBlock Margin="24,0,0,0"
+                        <TextBlock x:Name="DirectLanDescriptionText"
+                                   Margin="24,0,0,0"
                                    Foreground="{DynamicResource MutedTextBrush}"
                                    Text="Fastest on the same network. Windows may require an inbound firewall exception."
                                    TextWrapping="Wrap" />
@@ -44,6 +45,34 @@
                                    Foreground="{DynamicResource MutedTextBrush}"
                                    Text="Both devices connect outward. Commands use HTTPS; screen viewing uses TURN. No inbound firewall exception is needed."
                                    TextWrapping="Wrap" />
+                    </ui:SpacingStackPanel>
+                </Border>
+
+                <Border Padding="{DynamicResource InsetMd}"
+                        Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{DynamicResource RadiusMedium}">
+                    <ui:SpacingStackPanel Spacing="{DynamicResource SpaceXs}">
+                        <CheckBox x:Name="EnhancedCapabilitiesCheckBox"
+                                  HorizontalAlignment="Left"
+                                  Foreground="{DynamicResource TextBrush}"
+                                  Content="Enable enhanced capabilities requiring connection via voltura.se" />
+                        <TextBlock x:Name="EnhancedCapabilitiesDescriptionText"
+                                   Margin="24,0,0,0"
+                                   Foreground="{DynamicResource MutedTextBrush}"
+                                   Text="Uses Voltura Air's secure web app so your browser can provide additional device capabilities."
+                                   TextWrapping="Wrap" />
+                        <TextBlock x:Name="RelayEnhancedCapabilitiesHeadingText"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   Text="Enhanced capabilities included"
+                                   Visibility="Collapsed" />
+                        <TextBlock x:Name="RelayEnhancedCapabilitiesIncludedText"
+                                   Foreground="{DynamicResource MutedTextBrush}"
+                                   Text="Relay already uses Voltura Air's secure web app, so these browser capabilities are always available."
+                                   TextWrapping="Wrap"
+                                   Visibility="Collapsed" />
                     </ui:SpacingStackPanel>
                 </Border>
 
@@ -245,7 +274,7 @@
                                 <ColumnDefinition Width="{DynamicResource GridSpaceLg}" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock FontWeight="SemiBold" Text="Port settings" />
+                            <TextBlock x:Name="PortSettingsTitleText" FontWeight="SemiBold" Text="Port settings" />
                             <TextBlock x:Name="PortHeaderStatusText"
                                        Grid.Column="2"
                                        Foreground="{DynamicResource MutedTextBrush}"

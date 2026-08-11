@@ -12,6 +12,7 @@ public partial class ConnectPageView : WpfUserControl
 {
     private readonly Action _createNewCode;
     private readonly Action _copyLink;
+    private readonly Action? _copyStandardLocalLink;
     private readonly Action _changeAdapter;
     private readonly Func<DateTimeOffset> _getCurrentTime;
     private readonly DateTimeOffset _refreshAt;
@@ -36,11 +37,13 @@ public partial class ConnectPageView : WpfUserControl
         Action copyLink,
         Action changeAdapter,
         Func<DateTimeOffset>? getCurrentTime = null,
-        bool usesRelay = false)
+        bool usesRelay = false,
+        Action? copyStandardLocalLink = null)
     {
         InitializeComponent();
         _createNewCode = createNewCode;
         _copyLink = copyLink;
+        _copyStandardLocalLink = copyStandardLocalLink;
         _changeAdapter = changeAdapter;
         _getCurrentTime = getCurrentTime ?? GetCurrentTime;
         _refreshAt = refreshAt;
@@ -53,8 +56,10 @@ public partial class ConnectPageView : WpfUserControl
         Unloaded += OnUnloaded;
         IsVisibleChanged += OnIsVisibleChanged;
         QrCodeImage.Source = qrCode;
+        StandardLocalButton.Visibility = copyStandardLocalLink is null ? Visibility.Collapsed : Visibility.Visible;
         PairingLinkCard.Value = pairingLink;
         HostUrlCard.Value = hostUrl;
+        HostUrlCard.Title = copyStandardLocalLink is null ? "Host URL" : "Standard Local host URL";
         SelectedAdapterCard.Value = selectedAdapter;
         SelectedAdapterCard.Title = usesRelay ? "Connection method" : "Network adapter";
         SelectedAdapterCard.Visibility = usesRelay || showSelectedAdapter || !string.IsNullOrWhiteSpace(addressWarning)
@@ -65,6 +70,7 @@ public partial class ConnectPageView : WpfUserControl
         SelectedIpCard.Value = selectedIp;
         SelectedIpCard.Visibility = usesRelay ? Visibility.Collapsed : Visibility.Visible;
         SelectedPortCard.Value = selectedPort;
+        SelectedPortCard.Title = copyStandardLocalLink is null ? "Selected port" : "Standard Local port";
         SelectedPortCard.Visibility = usesRelay ? Visibility.Collapsed : Visibility.Visible;
         AddressWarningNotice.SetMessage(usesRelay ? null : addressWarning, usesRelay ? null : addressWarningEmphasis);
         SetNotice(PortWarningNotice, PortWarningText, usesRelay ? null : portWarning);
@@ -105,6 +111,11 @@ public partial class ConnectPageView : WpfUserControl
         .OfType<System.Windows.Controls.Button>()
         .SingleOrDefault()
         ?? throw new InvalidOperationException("The network adapter change action is unavailable.");
+
+    private System.Windows.Controls.Button StandardLocalButton => (PairingCodeCard.Actions as System.Windows.Controls.Panel)?.Children
+        .OfType<System.Windows.Controls.Button>()
+        .Single(button => Equals(button.Content, "Copy Standard Local link"))
+        ?? throw new InvalidOperationException("The Standard Local action is unavailable.");
 
     internal TextBlock AddressWarningText => AddressWarningNotice.Text;
 
@@ -183,6 +194,11 @@ public partial class ConnectPageView : WpfUserControl
     private void OnCopyLinkClicked(object sender, RoutedEventArgs eventArgs)
     {
         _copyLink();
+    }
+
+    private void OnCopyStandardLocalClicked(object sender, RoutedEventArgs eventArgs)
+    {
+        _copyStandardLocalLink?.Invoke();
     }
 
     private void OnChangeAdapterClicked(object sender, RoutedEventArgs eventArgs)

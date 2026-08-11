@@ -17,7 +17,7 @@ internal sealed record RelayEndpointDescriptor(
     public static RelayEndpointDescriptor FromSettings(NetworkSettingsSnapshot settings)
     {
         var configured = AppNetworkSettings.NormalizeRelayEndpoint(settings.CustomRelayEndpoint);
-        var official = LoadOfficial();
+        var official = Official();
         var https = new Uri(configured ?? official.HttpsBase.ToString(), UriKind.Absolute);
         var websocket = new UriBuilder(https)
         {
@@ -27,7 +27,7 @@ internal sealed record RelayEndpointDescriptor(
         return new(configured is null ? official.ServiceId : "custom-v1", https, websocket, configured is null && official.SupportsTurn);
     }
 
-    private static RelayEndpointDescriptor LoadOfficial()
+    internal static RelayEndpointDescriptor Official()
     {
         try
         {

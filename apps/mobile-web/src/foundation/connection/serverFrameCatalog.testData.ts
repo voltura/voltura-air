@@ -47,6 +47,7 @@ export const serverFrameCatalog = {
       }
     }]
   },
+  "pair.disconnect.accepted": { required: [], frames: [{ type: "pair.disconnect.accepted" }] },
   "pair.challenge": { required: ["clientId", "challenge"], frames: [{ type: "pair.challenge", clientId: "client-a", challenge: "challenge-a" }] },
   "pair.bootstrap.challenge": {
     required: ["clientId", "clientNonce", "serverNonce", "hostIdentity", "proof"],

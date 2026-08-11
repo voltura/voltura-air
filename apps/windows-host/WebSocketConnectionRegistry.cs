@@ -56,18 +56,26 @@ internal sealed class WebSocketConnectionRegistry : IDisposable
     {
         lock (_gate)
         {
-            if (!_activeSockets.TryGetValue(clientId, out var sockets))
+            if (_activeSockets.TryGetValue(clientId, out var sockets))
             {
-                return;
-            }
-
-            sockets.Remove(socket);
-            if (sockets.Count == 0)
-            {
-                _activeSockets.Remove(clientId);
+                sockets.Remove(socket);
+                if (sockets.Count == 0)
+                {
+                    _activeSockets.Remove(clientId);
+                }
             }
 
             RemoveSendGate(socket);
+        }
+    }
+
+    public void DetachFromRevocation(string clientId, WebSocket socket)
+    {
+        lock (_gate)
+        {
+            if (!_activeSockets.TryGetValue(clientId, out var sockets)) return;
+            sockets.Remove(socket);
+            if (sockets.Count == 0) _activeSockets.Remove(clientId);
         }
     }
 

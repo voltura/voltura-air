@@ -160,6 +160,83 @@ beforeEach(() => {
 });
 
 describe("App header and mode navigation", () => {
+  it("keeps connection errors short in the header and presents the complete dismissible error once per occurrence", async () => {
+    const error = {
+      code: "VAIR-PAIR-HOST-PROOF-INVALID",
+      message: "PC identity check failed. Scan a fresh QR code from the PC."
+    };
+    mockConnection({ lastConnectionError: error });
+    const view = render(<App />);
+
+    expect(document.querySelector(".status")?.getAttribute("title")).toBe("Connection issue");
+    expect(document.querySelector(".status")?.classList.contains("error")).toBe(true);
+    const dialog = screen.getByRole("dialog", { name: "Connection issue" });
+    expect(dialog.textContent).toContain(error.message);
+    expect(dialog.textContent).toContain(`Diagnostic code: ${error.code}`);
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "OK" }));
+    expect(screen.queryByRole("dialog", { name: "Connection issue" })).toBeNull();
+
+    window.dispatchEvent(new Event("resize"));
+    view.rerender(<App />);
+    expect(screen.queryByRole("dialog", { name: "Connection issue" })).toBeNull();
+
+    mockConnection({ lastConnectionError: null });
+    view.rerender(<App />);
+    mockConnection({ lastConnectionError: error });
+    view.rerender(<App />);
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: "Connection issue" })).not.toBeNull();
+    });
+  });
+
+  it("keeps reconnect errors in the blocking recovery panel when the host becomes unavailable", () => {
+    const firstError = {
+      code: "VAIR-PAIR-HOST-UNREACHABLE",
+      message: "HTPC-BEE is currently not available. Check that Voltura Air is running on the PC. Retrying..."
+    };
+    mockConnection({
+      state: "unavailable",
+      message: firstError.message,
+      lastConnectionError: firstError,
+      activePc: {
+        customName: true,
+        id: "pc-a",
+        name: "HTPC-BEE",
+        transportMode: "secure-direct",
+        url: "https://secure-direct.invalid"
+      }
+    });
+    const view = render(<App />);
+
+    expect(screen.queryByRole("dialog", { name: "Connection issue" })).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Secure Direct unavailable" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Try reconnect" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Take photo of new QR code" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Enter host manually" })).not.toBeNull();
+
+    const nextError = {
+      code: "VAIR-PAIR-SECURE-DIRECT",
+      message: "Could not establish the secure direct connection."
+    };
+    mockConnection({
+      state: "unavailable",
+      message: nextError.message,
+      lastConnectionError: nextError,
+      activePc: {
+        customName: true,
+        id: "pc-a",
+        name: "HTPC-BEE",
+        transportMode: "secure-direct",
+        url: "https://secure-direct.invalid"
+      }
+    });
+    view.rerender(<App />);
+
+    expect(screen.queryByRole("dialog", { name: "Connection issue" })).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Secure Direct unavailable" })).not.toBeNull();
+  });
+
   it("uses the effective device control-depth preference on the app shell and bottom navigation frame", () => {
     mockConnection({ hostStatus: { controlDepth: false } });
     const view = render(<App />);

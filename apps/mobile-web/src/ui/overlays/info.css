@@ -112,6 +112,13 @@ dialog::backdrop {
   line-height: 1.5;
 }
 
+.info-dialog-error-icon {
+  width: var(--icon-small);
+  height: var(--icon-small);
+  margin-left: auto;
+  color: var(--danger);
+}
+
 .modal-dialog-header {
   flex: 0 0 auto;
   display: flex;

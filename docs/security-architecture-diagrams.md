@@ -9,6 +9,10 @@ subsystem boundaries; `docs/protocol.md` owns the wire contract.
 flowchart LR
   Client["PWA / browser client\nuntrusted UI and private-key storage"] -->|"HTTP app shell"| HostWeb["Windows host ASP.NET\nnormal mode: 0.0.0.0:selected port\ntest mode: 127.0.0.1"]
   Client -->|"WebSocket /ws\npair.hello then commands"| Session["WebSocketSessionHandler\nOrigin check, authentication,\nmessage validation"]
+  Client -->|"HTTPS /s + bounded WSS signaling"| SecureRoom["SecureDirectRoomObject\none offer/answer; no command relay"]
+  SecureRoom -->|"authenticated route envelopes"| SecureHost["SecureDirectHostConnection\npending signaling ownership"]
+  Client -->|"private direct WebRTC\nDTLS DataChannel"| SecureSocket["SecureDirectWebSocket\nLAN validation + bounded text"]
+  SecureSocket --> Session
   Client -->|"WebRTC H.264 + data channel\nDTLS-SRTP / DTLS"| ScreenStream["ScreenViewCoordinator\none viewer, bounded peer"]
   ScreenStream --> Capture["DXGI GPU frames + cursor\nD3D11 NV12 + hardware H.264\none selected display"]
   Session --> Pairing["PairingManager\nshort-lived QR tokens\npaired-device records"]

@@ -8,6 +8,8 @@ import {
   decodeBase64Url,
   maximumDevicesPerRoom,
   maximumBufferedBytes,
+  maximumControlMessageBytes,
+  maximumInnerMessageBytes,
   maximumRelayPayloadBytes,
   processHostAuthentication,
   deriveRelaySourceKey,
@@ -23,10 +25,12 @@ import {
   type RelayRateState
 } from "../core/index";
 import { createTurnResponse, type TurnEnvironment } from "./turn";
+import { parseSecureDescription } from "./secureDirectProtocol";
 import { verifySignature } from "../core/routing";
 
 interface Environment extends TurnEnvironment {
   RELAY_ROOMS: DurableObjectNamespace<RelayRoomObject>;
+  SECURE_DIRECT_ROOMS: DurableObjectNamespace<SecureDirectRoomObject>;
   PUBLIC_SERVICE_ID: string;
   ALLOWED_DEVICE_ORIGIN?: string;
 }
@@ -44,6 +48,24 @@ interface SocketAttachment {
   rate?: RelayRateState;
 }
 
+type SecureSocketRole = "secure-host" | "secure-device";
+type SecureDevicePhase = "awaiting-offer" | "awaiting-answer";
+interface SecureSocketAttachment {
+  role: SecureSocketRole;
+  routeId: string;
+  authenticated?: boolean;
+  publicKey?: string;
+  challenge?: string;
+  authenticationExpiresAt?: number;
+  sessionId?: number[];
+  sourceKey?: number[];
+  phase?: SecureDevicePhase;
+  negotiationExpiresAt?: number;
+  rate?: RelayRateState;
+}
+
+const secureNegotiationTimeoutMs = 10_000;
+
 export default {
   async fetch(request: Request, env: Environment): Promise<Response> {
     const url = new URL(request.url);
@@ -54,6 +76,22 @@ export default {
     const turnMatch = /^\/v1\/turn\/([A-Za-z0-9_-]{22})$/u.exec(url.pathname);
     if (request.method === "POST" && turnMatch) {
       return env.RELAY_ROOMS.getByName(turnMatch[1]!).fetch(`https://relay.internal/turn?route=${turnMatch[1]}`, request);
+    }
+
+    const secureMatch = /^\/v1\/secure\/(host|device)\/([A-Za-z0-9_-]{22})$/u.exec(url.pathname);
+    if (secureMatch) {
+      if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") return new Response("Not found", { status: 404 });
+      const role = secureMatch[1]!;
+      const routeId = secureMatch[2]!;
+      if (role === "device") {
+        const allowedOrigin = env.ALLOWED_DEVICE_ORIGIN ?? "https://voltura.se";
+        if (request.headers.get("Origin") !== allowedOrigin) return new Response("Origin rejected", { status: 403 });
+      }
+      const source = request.headers.get("CF-Connecting-IP") ?? `unknown:${crypto.randomUUID()}`;
+      const sourceKey = role === "device" ? encodeBase64Url(await deriveRelaySourceKey(routeId, source)) : null;
+      return env.SECURE_DIRECT_ROOMS.getByName(routeId).fetch(
+        `https://relay.internal/secure-connect?role=secure-${role}&route=${routeId}${sourceKey ? `&source=${sourceKey}` : ""}`,
+        request);
     }
 
     const match = /^\/v1\/(host|device)\/([A-Za-z0-9_-]{22})$/u.exec(url.pathname);
@@ -258,6 +296,184 @@ export class RelayRoomObject extends DurableObject<Environment> {
   private findDevice(sessionId: Uint8Array): WebSocket | null {
     const key = Array.from(sessionId).join(",");
     return this.ctx.getWebSockets("device").find((socket) => ((socket.deserializeAttachment() as SocketAttachment).sessionId ?? []).join(",") === key) ?? null;
+  }
+}
+
+export class SecureDirectRoomObject extends DurableObject<Environment> {
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    const role = url.searchParams.get("role") as SecureSocketRole | null;
+    const routeId = url.searchParams.get("route");
+    const source = url.searchParams.get("source");
+    if (url.pathname !== "/secure-connect" || (role !== "secure-host" && role !== "secure-device") ||
+        !routeId || !routeIdPattern.test(routeId)) return new Response("Invalid route", { status: 400 });
+
+    const host = this.authenticatedHost();
+    if (role === "secure-host" && !canAcceptHostCandidate(host !== null)) return new Response("Host already connected", { status: 409 });
+    if (role === "secure-device" && !host) return new Response("Host unavailable", { status: 503 });
+    if (role === "secure-device" && this.ctx.getWebSockets("secure-device").length >= maximumDevicesPerRoom) return new Response("Room full", { status: 503 });
+    if (role === "secure-device" && (!source || !/^[A-Za-z0-9_-]{22}$/u.test(source))) return new Response("Invalid source", { status: 400 });
+
+    if (role === "secure-host") {
+      for (const pending of this.ctx.getWebSockets("secure-host")) {
+        const attachment = pending.deserializeAttachment() as SecureSocketAttachment;
+        if (attachment.authenticated !== true) pending.close(relayClose.conflict, "Superseded host authentication");
+      }
+    }
+
+    const pair = new WebSocketPair();
+    const client = pair[0];
+    const server = pair[1];
+    const attachment: SecureSocketAttachment = { role, routeId };
+    if (role === "secure-host") attachment.authenticationExpiresAt = Date.now() + hostAuthenticationTimeoutMs;
+    else {
+      attachment.sessionId = Array.from(crypto.getRandomValues(new Uint8Array(16)));
+      attachment.sourceKey = Array.from(decodeBase64Url(source!));
+      attachment.phase = "awaiting-offer";
+      attachment.negotiationExpiresAt = Date.now() + secureNegotiationTimeoutMs;
+    }
+    server.serializeAttachment(attachment);
+    this.ctx.acceptWebSocket(server, [role]);
+    await this.scheduleAlarm();
+    if (role === "secure-device" && host && attachment.sessionId && attachment.sourceKey) {
+      sendBounded(host, encodeEnvelope(
+        Uint8Array.from(attachment.sessionId),
+        Uint8Array.from(attachment.sourceKey),
+        relayEnvelopeKind.connected));
+    }
+    return new Response(null, { status: 101, webSocket: client });
+  }
+
+  async webSocketMessage(socket: WebSocket, message: ArrayBuffer | string): Promise<void> {
+    const attachment = socket.deserializeAttachment() as SecureSocketAttachment;
+    if (attachment.role === "secure-host" && !attachment.authenticated) {
+      if (typeof message !== "string" || new TextEncoder().encode(message).length > maximumControlMessageBytes) {
+        return socket.close(relayClose.tooLarge, "Host authentication message is too large");
+      }
+      if (!this.canUseHostCandidate(socket, attachment)) {
+        return socket.close(relayClose.unauthorized, "Host authentication failed");
+      }
+      const result = await processHostAuthentication(
+        attachment.routeId,
+        message,
+        attachment.publicKey && attachment.challenge ? { publicKey: attachment.publicKey, challenge: attachment.challenge } : undefined);
+      if (result.kind === "rejected" || !this.canUseHostCandidate(socket, attachment)) {
+        return socket.close(relayClose.unauthorized, "Host authentication failed");
+      }
+      if (result.kind === "challenge") {
+        attachment.publicKey = result.hello.publicKey;
+        attachment.challenge = result.challenge;
+      } else {
+        attachment.authenticated = true;
+        delete attachment.challenge;
+        delete attachment.authenticationExpiresAt;
+      }
+      socket.serializeAttachment(attachment);
+      socket.send(result.response);
+      await this.scheduleAlarm();
+      return;
+    }
+
+    const bytes = typeof message === "string" ? new TextEncoder().encode(message) : new Uint8Array(message);
+    const rate = consumeRelayRate(attachment.rate, attachment.role === "secure-host" ? "host" : "device", bytes.length);
+    attachment.rate = rate.state;
+    socket.serializeAttachment(attachment);
+    if (!rate.allowed) return socket.close(relayClose.overloaded, "Signaling rate limit exceeded");
+
+    if (attachment.role === "secure-host") {
+      if (typeof message === "string") return socket.close(relayClose.invalid, "Signaling host envelopes must be binary");
+      const envelope = decodeEnvelope(bytes);
+      if (!envelope || (envelope.kind !== relayEnvelopeKind.text && envelope.kind !== relayEnvelopeKind.closeDevice)) {
+        return socket.close(relayClose.invalid, "Invalid signaling envelope");
+      }
+      const device = this.findDevice(envelope.sessionId);
+      if (!device) return;
+      if (envelope.kind === relayEnvelopeKind.closeDevice) {
+        if (envelope.payload.length !== 0) return socket.close(relayClose.invalid, "Invalid close envelope");
+        device.close(1000, "Host closed signaling session");
+        return;
+      }
+      const deviceAttachment = device.deserializeAttachment() as SecureSocketAttachment;
+      const offer = parseSecureDescription(envelope.payload, "secure.offer");
+      if (deviceAttachment.phase !== "awaiting-offer" || !offer) {
+        device.close(relayClose.invalid, "Invalid secure offer");
+        return;
+      }
+      deviceAttachment.phase = "awaiting-answer";
+      device.serializeAttachment(deviceAttachment);
+      sendBounded(device, new TextDecoder().decode(envelope.payload));
+      return;
+    }
+
+    if (typeof message !== "string" || attachment.phase !== "awaiting-answer" ||
+        !parseSecureDescription(bytes, "secure.answer") || !attachment.sessionId) {
+      return socket.close(relayClose.invalid, "Invalid secure answer");
+    }
+    const host = this.authenticatedHost();
+    if (!host) return socket.close(relayClose.unavailable, "Host unavailable");
+    sendBounded(host, encodeEnvelope(Uint8Array.from(attachment.sessionId), bytes, relayEnvelopeKind.text));
+    socket.close(1000, "Signaling complete");
+  }
+
+  async webSocketClose(socket: WebSocket): Promise<void> {
+    const attachment = socket.deserializeAttachment() as SecureSocketAttachment;
+    if (attachment.role === "secure-host") {
+      if (attachment.authenticated === true) {
+        for (const device of this.ctx.getWebSockets("secure-device")) device.close(relayClose.unavailable, "Host unavailable");
+      }
+    } else if (attachment.sessionId) {
+      const host = this.authenticatedHost();
+      if (host) sendBounded(host, encodeEnvelope(Uint8Array.from(attachment.sessionId), new Uint8Array(), relayEnvelopeKind.disconnected));
+    }
+    await this.scheduleAlarm();
+  }
+
+  async webSocketError(socket: WebSocket): Promise<void> { await this.webSocketClose(socket); }
+
+  async alarm(): Promise<void> {
+    const now = Date.now();
+    for (const host of this.ctx.getWebSockets("secure-host")) {
+      const attachment = host.deserializeAttachment() as SecureSocketAttachment;
+      if (attachment.authenticated !== true && isHostAuthenticationExpired(attachment.authenticationExpiresAt ?? 0, now)) {
+        host.close(relayClose.unauthorized, "Host authentication timed out");
+      }
+    }
+    for (const device of this.ctx.getWebSockets("secure-device")) {
+      const attachment = device.deserializeAttachment() as SecureSocketAttachment;
+      if ((attachment.negotiationExpiresAt ?? 0) <= now) device.close(relayClose.unavailable, "Signaling timed out");
+    }
+    await this.scheduleAlarm(now);
+  }
+
+  private authenticatedHost(): WebSocket | null {
+    return this.ctx.getWebSockets("secure-host").find((socket) =>
+      socket.readyState === WebSocket.OPEN && (socket.deserializeAttachment() as SecureSocketAttachment).authenticated === true) ?? null;
+  }
+
+  private canUseHostCandidate(socket: WebSocket, attachment: SecureSocketAttachment): boolean {
+    const candidates = this.ctx.getWebSockets("secure-host").filter((candidate) => {
+      const value = candidate.deserializeAttachment() as SecureSocketAttachment;
+      return candidate.readyState === WebSocket.OPEN && value.authenticated !== true;
+    });
+    return canClaimHostCandidate(this.authenticatedHost() !== null, candidates.length === 1 && candidates[0] === socket,
+      socket.readyState === WebSocket.OPEN, attachment.authenticationExpiresAt ?? 0);
+  }
+
+  private findDevice(sessionId: Uint8Array): WebSocket | null {
+    const key = Array.from(sessionId).join(",");
+    return this.ctx.getWebSockets("secure-device").find((socket) =>
+      ((socket.deserializeAttachment() as SecureSocketAttachment).sessionId ?? []).join(",") === key) ?? null;
+  }
+
+  private async scheduleAlarm(now: number = Date.now()): Promise<void> {
+    const deadlines = [
+      ...this.ctx.getWebSockets("secure-host").map((socket) => socket.deserializeAttachment() as SecureSocketAttachment)
+        .filter((attachment) => attachment.authenticated !== true).map((attachment) => attachment.authenticationExpiresAt ?? 0),
+      ...this.ctx.getWebSockets("secure-device").map((socket) =>
+        (socket.deserializeAttachment() as SecureSocketAttachment).negotiationExpiresAt ?? 0)
+    ].filter((deadline) => deadline > now);
+    if (deadlines.length === 0) await this.ctx.storage.deleteAlarm();
+    else await this.ctx.storage.setAlarm(Math.min(...deadlines));
   }
 }
 

@@ -15,7 +15,8 @@ internal sealed class HostStatusPayloadFactory(
     Func<PresentationBlankOverlaySnapshot?> getPresentationBlank,
     Func<PowerPointAutomationSnapshot> getPowerPointSnapshot,
     Func<PowerPointSessionSnapshot> getPowerPointSession,
-    PowerPointPresentationCatalog presentationCatalog)
+    PowerPointPresentationCatalog presentationCatalog,
+    Func<bool>? enhancedCapabilitiesEnabled = null)
 {
     private static readonly string DeveloperSessionId = Guid.NewGuid().ToString("N");
 
@@ -110,6 +111,7 @@ internal sealed class HostStatusPayloadFactory(
         clipboardRead = permissions.AllowClipboardRead,
         gestureDebug = AppDeveloperSettings.EnableGestureDebug(),
         inputAck = true,
+        enhancedCapabilities = new { enabled = enhancedCapabilitiesEnabled?.Invoke() == true },
         screenView = new
         {
             enabled = true,

@@ -3,6 +3,11 @@ export interface PairingLink {
   pcUrl: string;
 }
 
+export interface HostedConnectionAddress {
+  pairToken?: string;
+  pcUrl: string;
+}
+
 export type ManualConnectionTarget =
   | { kind: "host"; pcUrl: string }
   | { kind: "pairing"; pairToken: string; pcUrl: string };
@@ -56,22 +61,60 @@ export function parsePairingLink(source: string): PairingLink | null {
 }
 
 function parseRelayPairingLink(url: URL): PairingLink | null {
+  const hosted = parseHostedConnectionUrl(url);
+  return hosted?.pairToken ? { pairToken: hosted.pairToken, pcUrl: hosted.pcUrl } : null;
+}
+
+export function parseHostedConnectionAddress(source: string): HostedConnectionAddress | null {
+  try { return parseHostedConnectionUrl(new URL(source)); }
+  catch { return null; }
+}
+
+function parseHostedConnectionUrl(url: URL): HostedConnectionAddress | null {
   if (url.protocol !== "https:" || url.hostname !== "voltura.se") {return null;}
-  const shortRoute = /^\/a\/([A-Za-z0-9_-]{22})\/?$/u.exec(url.pathname)?.[1];
+  const shortMatch = /^\/(a|s)\/([A-Za-z0-9_-]{22})\/?$/u.exec(url.pathname);
+  const shortMode = shortMatch?.[1];
+  const shortRoute = shortMatch?.[2];
   const hostedRoute = url.pathname === "/air/app/" ? url.searchParams.get("r") : null;
+  const hostedMode = url.pathname === "/air/app/" && url.searchParams.get("m") === "s" ? "s" : "a";
   const route = shortRoute ?? hostedRoute;
   const token = url.hash.startsWith("#") ? url.hash.slice(1) : "";
   const versions = url.searchParams.getAll("v");
-  if (!route || !relayRoutePattern.test(route) || !pairingTokenPattern.test(token) || versions.length !== 1 ||
+  if (!route || !relayRoutePattern.test(route) || (token && !pairingTokenPattern.test(token)) || versions.length !== 1 ||
       !versionPattern.test(versions[0]!)) {return null;}
-  const allowed = shortRoute ? new Set(["v"]) : new Set(["r", "v", "e"]);
+  const allowed = shortRoute ? new Set(["v"]) : new Set(["r", "v", "e", "m"]);
   if ([...url.searchParams.keys()].some((key) => !allowed.has(key))) {return null;}
   const endpointValues = url.searchParams.getAll("e");
-  if (endpointValues.length > 1 || (shortRoute && endpointValues.length !== 0)) {return null;}
+  const mode = shortMode ?? hostedMode;
+  if (endpointValues.length > 1 || (shortRoute && endpointValues.length !== 0) || (mode === "s" && endpointValues.length !== 0) ||
+    (url.pathname === "/air/app/" && url.searchParams.getAll("m").length > 1) ||
+    (url.pathname === "/air/app/" && url.searchParams.has("m") && url.searchParams.get("m") !== "s")) {return null;}
   const endpoint = endpointValues[0] ? decodeRelayEndpoint(endpointValues[0]) : null;
   if (endpointValues.length === 1 && !endpoint) {return null;}
   const endpointParameter = endpoint ? `?e=${encodeURIComponent(encodeRelayEndpoint(endpoint))}` : "";
-  return { pairToken: token, pcUrl: `https://voltura.se/a/${route}${endpointParameter}` };
+  return { ...(token ? { pairToken: token } : {}), pcUrl: `https://voltura.se/${mode}/${route}${endpointParameter}` };
+}
+
+export function normalizeHostedPcUrl(source: string): { routeId: string; url: string; mode: "relay" | "secure-direct"; endpoint?: string } | null {
+  try {
+    const url = new URL(source);
+    const match = url.protocol === "https:" && url.hostname === "voltura.se"
+      ? /^\/(a|s)\/([A-Za-z0-9_-]{22})\/?$/u.exec(url.pathname)
+      : null;
+    if (!match?.[1] || !match[2] || url.hash) {return null;}
+    const mode = match[1] === "s" ? "secure-direct" : "relay";
+    const encodedEndpoint = url.searchParams.get("e");
+    if ([...url.searchParams.keys()].some((key) => key !== "e") || url.searchParams.getAll("e").length > 1 ||
+      (mode === "secure-direct" && encodedEndpoint !== null)) {return null;}
+    const endpoint = encodedEndpoint ? decodeRelayEndpoint(encodedEndpoint) : null;
+    if (encodedEndpoint && !endpoint) {return null;}
+    return {
+      routeId: match[2],
+      url: `https://voltura.se/${match[1]}/${match[2]}${encodedEndpoint ? `?e=${encodeURIComponent(encodeRelayEndpoint(endpoint!))}` : ""}`,
+      mode,
+      ...(endpoint ? { endpoint } : {})
+    };
+  } catch { return null; }
 }
 
 function decodeRelayEndpoint(value: string): string | null {
@@ -96,7 +139,7 @@ export function hasPairingTokenParameter(source: string): boolean {
   try {
     const url = new URL(source);
     return url.searchParams.has("t") || (url.hostname === "voltura.se" && url.hash.length > 1 &&
-      (url.pathname.startsWith("/a/") || url.pathname === "/air/app/"));
+      (url.pathname.startsWith("/a/") || url.pathname.startsWith("/s/") || url.pathname === "/air/app/"));
   } catch {
     return new URLSearchParams(source).has("t");
   }

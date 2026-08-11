@@ -7,6 +7,35 @@ namespace VolturaAir.Host.Tests;
 public sealed class WebHostConnectionTests : WebHostServiceTestBase
 {
     [Fact]
+    public async Task PairDisconnectAcknowledgesDurableRemovalBeforeClosing()
+    {
+        await using var fixture = await WebHostFixture.StartAsync();
+        using var key = new PairingTestKey();
+        using var socket = await ConnectAsync(fixture.WebHost);
+        var clientId = $"client-{Guid.NewGuid():N}";
+
+        var accepted = await SendAndReceiveAsync(socket, new
+        {
+            type = "pair.hello",
+            clientId,
+            deviceName = "Phone",
+            pairToken = fixture.Manager.CreatePairingToken(),
+            reconnectPublicKey = key.PublicKey
+        });
+        Assert.Equal("pair.accepted", accepted.GetProperty("type").GetString());
+
+        var acknowledgement = await SendAndReceiveAsync(socket, new { type = "pair.disconnect" });
+
+        ProtocolFrameAssert.Conforms(acknowledgement);
+        Assert.Equal("pair.disconnect.accepted", acknowledgement.GetProperty("type").GetString());
+        Assert.Equal(WebSocketCloseStatus.NormalClosure, await ReceiveCloseStatusAsync(socket));
+        Assert.Empty(fixture.Manager.GetDevices());
+        await WaitForConnectionCleanupAsync(fixture.WebHost);
+        Assert.Equal(0, fixture.WebHost.ActiveSocketCount);
+        Assert.Equal(0, fixture.WebHost.SendGateCount);
+    }
+
+    [Fact]
     public async Task RepeatedAuthenticatedConnectionsReleaseSocketsAndSendGates()
     {
         await using var fixture = await WebHostFixture.StartAsync();
@@ -101,6 +130,37 @@ public sealed class WebHostConnectionTests : WebHostServiceTestBase
         {
             AppDeveloperSettings.SetEnableGestureDebug(originalGestureDebug);
         }
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, true)]
+    public async Task WebSocketAdvertisesEffectiveEnhancedCapabilities(
+        bool usesRelay,
+        bool directPreferenceEnabled,
+        bool expectedEnabled)
+    {
+        AppNetworkSettings.Save(AppNetworkSettings.Load() with
+        {
+            TransportMode = usesRelay ? ConnectionTransportMode.Relay : ConnectionTransportMode.DirectLan,
+            EnhancedCapabilitiesEnabled = directPreferenceEnabled
+        });
+        await using var fixture = await WebHostFixture.StartAsync();
+        using var key = new PairingTestKey();
+
+        var paired = await SendHelloAsync(fixture.WebHost, new
+        {
+            type = "pair.hello",
+            clientId = $"client-{Guid.NewGuid():N}",
+            deviceName = "Phone",
+            pairToken = fixture.Manager.CreatePairingToken(),
+            reconnectPublicKey = key.PublicKey
+        });
+
+        Assert.Equal(
+            expectedEnabled,
+            paired.GetProperty("capabilities").GetProperty("enhancedCapabilities").GetProperty("enabled").GetBoolean());
     }
 
     [Fact]

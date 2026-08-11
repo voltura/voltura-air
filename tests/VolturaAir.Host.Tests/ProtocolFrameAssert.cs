@@ -5,6 +5,7 @@ internal static class ProtocolFrameAssert
     private static readonly Dictionary<string, string[]> RequiredFields = new()
     {
         ["pair.accepted"] = ["clientId", "pcName", "paired"],
+        ["pair.disconnect.accepted"] = [],
         ["pair.challenge"] = ["clientId", "challenge"],
         ["pair.bootstrap.challenge"] = ["clientId", "clientNonce", "serverNonce", "hostIdentity", "proof"],
         ["pair.rejected"] = ["reason"],

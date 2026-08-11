@@ -34,6 +34,7 @@ performs startup, rollback, and shutdown.
 | Mobile sockets, protocol, input, persistence, platform | `foundation/<domain>/` |
 | Host composition, rollback, shutdown | `Program` and `WpfHostRuntime` |
 | ASP.NET/static PWA and session capacity | `WebHostService` |
+| Secure Direct signaling and controller peer lifecycle | Relay Worker `SecureDirectRoomObject`; host `SecureDirectHostConnection`, `SecureDirectSessions`, and `SecureDirectWebSocket` |
 | Pairing/authenticated session state | `PairingManager`, token authority, registry, store, and session handler |
 | Persistent PC identity and fresh-pair bootstrap proofs | `ScreenViewHostIdentity`, `PairingBootstrapCrypto`, and `PairingManager` |
 | Framing, socket registration, serialized sends | `WebSocketTransport` |
@@ -85,6 +86,17 @@ virtual WebSocket. After the existing pairing or reconnect proof, P-256 ECDH,
 signed identity transcripts, HKDF-SHA256, and direction-specific AES-256-GCM
 protect every accepted-session frame. The service forwards opaque envelopes
 and does not own product pairing, permissions, commands, or device identities.
+
+Secure Direct also converges on that same session handler. `WebHostService`
+owns one non-blocking 64-session admission pool shared by local, Relay, pending
+Secure Direct, and established Secure Direct sessions. The secure host
+connection owns only authenticated outbound signaling/retry; its session owner
+holds pending IDs, source keys, admission leases, peers, timers, handlers, and
+drain. `SecureDirectWebSocket` alone owns libdatachannel handles, callbacks,
+offer/answer, the bounded text queue, and private direct-candidate validation.
+Signaling owns cancellation only until answer application; afterward the peer
+and existing controller lifecycle own the session. Disabled and Relay
+compositions allocate no Secure Direct resources.
 
 Relay preserves the root responsiveness invariant: command/input framing is
 bounded and independent from media, TURN/usage work, persistence, logging, and

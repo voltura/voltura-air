@@ -38,6 +38,7 @@ public sealed class WebHostService : IAsyncDisposable
     private readonly Action<IWebHostBuilder>? _configureWebHost;
     private readonly string _listenAddress;
     private readonly RelayHostConnection? _relay;
+    private readonly SecureDirectHostConnection? _secureDirect;
     private int _inputBlockedByElevation;
     private int _disposeState;
     private WebApplication? _app;
@@ -83,6 +84,8 @@ public sealed class WebHostService : IAsyncDisposable
 
         var settings = AppNetworkSettings.Load();
         TransportMode = settings.TransportMode;
+        EnhancedCapabilitiesEnabled =
+            TransportMode == ConnectionTransportMode.Relay || settings.EnhancedCapabilitiesEnabled;
         var usesInMemoryTestServer = isolatedTestMode && configureWebHost is not null;
         var portSelection = SelectPort(
             settings,
@@ -180,7 +183,8 @@ public sealed class WebHostService : IAsyncDisposable
             () => presentationBlankOverlay.Snapshot,
             () => _powerPoint.Snapshot,
             () => _presentationSession.Snapshot,
-            _presentationCatalog);
+            _presentationCatalog,
+            () => EnhancedCapabilitiesEnabled);
         var commandLog = new HostCommandLog(_appLog);
         var powerCommands = new PowerCommandHandler(
             _powerController,
@@ -309,6 +313,22 @@ public sealed class WebHostService : IAsyncDisposable
             _relay = new RelayHostConnection(RelayEndpoint, relayIdentity, HandleRelaySessionAsync, _appLog);
             _relay.StateChanged += OnRelayStateChanged;
         }
+        else if (SelectSecureDirectBindAddress(
+            isolatedTestMode,
+            settings.EnhancedCapabilitiesEnabled,
+            AdvertisedHostAddress) is { } secureBindAddress)
+        {
+#pragma warning disable CA2000 // SecureDirectHostConnection owns and disposes the routing identity.
+            var secureIdentity = RelayRoutingIdentity.OpenCurrentUser();
+#pragma warning restore CA2000
+            _secureDirect = new SecureDirectHostConnection(
+                RelayEndpointDescriptor.Official(),
+                secureIdentity,
+                secureBindAddress,
+                () => TryAcquireControllerSession(),
+                HandleAdmittedSessionAsync,
+                _appLog);
+        }
         _sessionHandler.StatusRefreshRequested += (_, _) => _statusBroadcaster.Queue();
         _presentationSession.StateChanged += OnPresentationSessionChanged;
         _presentationCatalog.Changed += OnPresentationCatalogChanged;
@@ -325,8 +345,20 @@ public sealed class WebHostService : IAsyncDisposable
     public string? AddressSelectionWarning { get; }
     public string? PortSelectionWarning { get; }
     internal ConnectionTransportMode TransportMode { get; }
+    internal bool EnhancedCapabilitiesEnabled { get; }
     internal RelayEndpointDescriptor? RelayEndpoint { get; }
     internal string? RelayRouteId => _relay?.RouteId;
+    internal string? SecureDirectRouteId => _secureDirect?.RouteId;
+
+    internal static IPAddress? SelectSecureDirectBindAddress(
+        bool isolatedTestMode,
+        bool enhancedCapabilitiesEnabled,
+        string advertisedHostAddress) =>
+        !isolatedTestMode && enhancedCapabilitiesEnabled &&
+        IPAddress.TryParse(advertisedHostAddress, out var address) &&
+        LanAddressSelector.IsPrivateIpv4Address(address)
+            ? address
+            : null;
     internal RelayConnectionState RelayState => _relay?.State ?? RelayConnectionState.Disabled;
     internal string? RelayFailureCode => _relay?.FailureCode;
     internal RelayUsageSnapshot? RelayUsage => _relay?.LastUsage;
@@ -439,21 +471,15 @@ public sealed class WebHostService : IAsyncDisposable
                 return;
             }
 
-            if (!_webSocketSessionSlots.Wait(0))
+            using var admission = TryAcquireControllerSession();
+            if (admission is null)
             {
                 context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
                 return;
             }
 
-            try
-            {
-                using var socket = await context.WebSockets.AcceptWebSocketAsync();
-                await _sessionHandler.HandleAsync(socket, WebHostNetwork.GetRateLimitKey(context), context.RequestAborted);
-            }
-            finally
-            {
-                _webSocketSessionSlots.Release();
-            }
+            using var socket = await context.WebSockets.AcceptWebSocketAsync();
+            await HandleAdmittedSessionAsync(socket, WebHostNetwork.GetRateLimitKey(context), context.RequestAborted);
         });
 
         MapCustomScreenPreview(app);
@@ -461,6 +487,7 @@ public sealed class WebHostService : IAsyncDisposable
         _app = app;
         await app.StartAsync();
         _relay?.Start();
+        _secureDirect?.Start();
     }
 
     public async Task StopAsync()
@@ -471,6 +498,10 @@ public sealed class WebHostService : IAsyncDisposable
         if (_relay is not null)
         {
             await _relay.DisposeAsync();
+        }
+        if (_secureDirect is not null)
+        {
+            await _secureDirect.DisposeAsync();
         }
         if (_app is null)
         {
@@ -547,6 +578,10 @@ public sealed class WebHostService : IAsyncDisposable
                 _relay.StateChanged -= OnRelayStateChanged;
                 await _relay.DisposeAsync();
             }
+            if (_secureDirect is not null)
+            {
+                await _secureDirect.DisposeAsync();
+            }
             try
             {
                 if (_powerController is IDisposable disposablePowerController)
@@ -586,7 +621,8 @@ public sealed class WebHostService : IAsyncDisposable
 
     private async Task HandleRelaySessionAsync(WebSocket socket, string rateLimitKey, CancellationToken cancellationToken)
     {
-        if (!await _webSocketSessionSlots.WaitAsync(0, cancellationToken))
+        using var admission = TryAcquireControllerSession();
+        if (admission is null)
         {
             await WebSocketTransport.CloseAsync(
                 socket,
@@ -596,13 +632,21 @@ public sealed class WebHostService : IAsyncDisposable
             return;
         }
 
-        try
+        await HandleAdmittedSessionAsync(socket, rateLimitKey, cancellationToken);
+    }
+
+    private Task HandleAdmittedSessionAsync(WebSocket socket, string rateLimitKey, CancellationToken cancellationToken) =>
+        _sessionHandler.HandleAsync(socket, rateLimitKey, cancellationToken);
+
+    private ControllerSessionLease? TryAcquireControllerSession() =>
+        _webSocketSessionSlots.Wait(0) ? new ControllerSessionLease(_webSocketSessionSlots) : null;
+
+    private sealed class ControllerSessionLease(SemaphoreSlim slots) : IDisposable
+    {
+        private int _disposed;
+        public void Dispose()
         {
-            await _sessionHandler.HandleAsync(socket, rateLimitKey, cancellationToken);
-        }
-        finally
-        {
-            _webSocketSessionSlots.Release();
+            if (Interlocked.Exchange(ref _disposed, 1) == 0) slots.Release();
         }
     }
 

@@ -11,6 +11,51 @@ namespace VolturaAir.Host.Tests;
 public sealed partial class HostUiLayoutTests
 {
     [Fact]
+    public void ConnectionDescriptionsMatchTransportAndEnhancedSetting()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            var page = new ConnectionPageView(
+                static () => { }, static () => { }, static () => { }, static () => { },
+                static _ => { }, static _ => { }, static _ => { }, static _ => { },
+                static _ => { }, static () => { }, static () => { });
+            var directDescription = FindWpfDescendants<TextBlock>(page)
+                .Single(text => text.Name == "DirectLanDescriptionText");
+            var enhancedDescription = FindWpfDescendants<TextBlock>(page)
+                .Single(text => text.Name == "EnhancedCapabilitiesDescriptionText");
+            var enhancedCheckBox = FindWpfDescendants<CheckBox>(page)
+                .Single(checkBox => checkBox.Name == "EnhancedCapabilitiesCheckBox");
+            var relayIncluded = FindWpfDescendants<TextBlock>(page)
+                .Single(text => text.Name == "RelayEnhancedCapabilitiesIncludedText");
+
+            page.TransportMode = ConnectionTransportMode.DirectLan;
+            page.EnhancedCapabilitiesEnabled = false;
+            Assert.Equal("Fastest on the same network. Windows may require an inbound firewall exception.", directDescription.Text);
+            Assert.Contains("additional device capabilities", enhancedDescription.Text, StringComparison.Ordinal);
+            Assert.Equal(Visibility.Visible, enhancedCheckBox.Visibility);
+            Assert.Equal(Visibility.Collapsed, relayIncluded.Visibility);
+
+            page.EnhancedCapabilitiesEnabled = true;
+            Assert.Contains("Internet is required for setup", directDescription.Text, StringComparison.Ordinal);
+
+            page.TransportMode = ConnectionTransportMode.Relay;
+            Assert.Equal(Visibility.Collapsed, enhancedCheckBox.Visibility);
+            Assert.Equal(Visibility.Collapsed, enhancedDescription.Visibility);
+            Assert.Equal(Visibility.Visible, relayIncluded.Visibility);
+            Assert.Contains("always available", relayIncluded.Text, StringComparison.Ordinal);
+            Assert.Contains("Internet is required for setup", directDescription.Text, StringComparison.Ordinal);
+
+            page.TransportMode = ConnectionTransportMode.DirectLan;
+            Assert.True(enhancedCheckBox.IsChecked);
+        });
+    }
+
+    [Fact]
     public void RelayUsageMeterShowsProviderSnapshotWithoutChangingPageLayoutOwnership()
     {
         if (ShouldSkipNativeUiLayoutTests())

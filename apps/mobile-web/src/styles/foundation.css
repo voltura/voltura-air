@@ -264,7 +264,7 @@ svg {
 
 .top-bar {
   display: grid;
-  grid-template-columns: minmax(0, auto) auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   min-width: 0;
 }
@@ -345,7 +345,8 @@ button span {
 
 .status.rejected svg,
 .status.disconnected svg,
-.status.unavailable svg {
+.status.unavailable svg,
+.status.error svg {
   color: var(--danger);
 }
 
@@ -466,7 +467,7 @@ button span {
   }
 
   .top-bar {
-    grid-template-columns: minmax(0, auto) auto minmax(72px, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto auto;
   }
 
   .brand-group {

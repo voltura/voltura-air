@@ -29,7 +29,7 @@ interface PairingStatusProps {
   secondaryLabel?: string | undefined;
   secondaryActionDisabled?: boolean;
   selectedSavedPcId?: string | undefined;
-  transportMode?: "relay" | undefined;
+  transportMode?: "relay" | "secure-direct" | undefined;
   onSavedPcChange?: ((pcId: string) => void) | undefined;
 }
 
@@ -211,7 +211,7 @@ export function PairingStatus({
                 : <Camera aria-hidden="true" />}
           <p className="pairing-status-label">{connectionProgress ? "Connection status" : hasSavedPcChoice ? "Connection" : feedback.severity === "info" ? "Pairing" : "Pairing feedback"}</p>
           <h1 id={headingId}>{connectionProgress ? progressTitle : displayTitle}</h1>
-          <p id={descriptionId}>{connectionProgress ? progressBody : displayBody}</p>
+          <p id={descriptionId} className="pairing-message">{connectionProgress ? progressBody : displayBody}</p>
           {!connectionProgress && feedback.diagnosticCode && <p className="pairing-diagnostic-code">{feedback.diagnosticCode}</p>}
 
           {deviceName !== undefined && onDeviceNameChange && (

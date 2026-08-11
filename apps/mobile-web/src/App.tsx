@@ -22,6 +22,7 @@ import type { AppToastMessage } from "./ui/feedback/AppToast";
 import { AnchoredHint } from "./ui/guidance/AnchoredHint";
 import { useOneShotHint } from "./ui/guidance/useOneShotHint";
 import { ConfirmationDialog } from "./ui/overlays/ConfirmationDialog";
+import { ErrorDialog } from "./ui/overlays/ErrorDialog";
 import { CustomScreenWorkspace } from "./features/custom-screens";
 import { WorkspaceErrorBoundary } from "./app/WorkspaceErrorBoundary";
 import { subscribeFileManagerResults } from "./foundation/connection/fileManagerResultBus";
@@ -99,6 +100,16 @@ export function App() {
     }
   }), []);
   const [isThirdPartyNoticesOpen, setIsThirdPartyNoticesOpen] = useState(false);
+  const connectionErrorKey = lastConnectionError
+    ? `${lastConnectionError.code}\n${lastConnectionError.message}`
+    : null;
+  const [connectionErrorDialog, setConnectionErrorDialog] = useState({
+    key: connectionErrorKey,
+    dismissed: false
+  });
+  if (connectionErrorDialog.key !== connectionErrorKey) {
+    setConnectionErrorDialog({ key: connectionErrorKey, dismissed: false });
+  }
   const inputBlockedByElevation = hostStatus?.inputBlockedByElevation === true;
   const [inputRecoveryDialog, setInputRecoveryDialog] = useState({
     blocked: inputBlockedByElevation,
@@ -374,7 +385,12 @@ export function App() {
     hostStatus
   }), [activePc, hostStatus, lastConnectionError?.code, lastConnectionError?.message, message, pairedPcs.length, state]);
 
-  const connectionPcName = state === "paired" && activePc ? getPcDisplayName(activePc) : message;
+  const connectionStatusMessage = lastConnectionError ? "Connection issue" : message;
+  const connectionPcName = lastConnectionError
+    ? connectionStatusMessage
+    : state === "paired" && activePc
+      ? getPcDisplayName(activePc)
+      : message;
   const modeSwitchHintAnchorRef = showTrackpadCompactModeSelector ? trackpadCompactModeButtonRef : headerCompactModeButtonRef;
 
   const activeCustomScreenSummary = customScreensCapability?.screens.find(
@@ -483,8 +499,9 @@ export function App() {
           connectionPcName={connectionPcName}
           developerMode={developerMode}
           isModeSelectorOpen={isModeSelectorOpen && modeSelectorAnchor === "header"}
-          message={message}
+          message={connectionStatusMessage}
           fileJobCount={activeFileJobCount}
+          hasConnectionError={lastConnectionError !== null}
           modeTabs={modeTabs}
           onCloseModeSelector={closeModeSelector}
           onOpenSettings={() => {
@@ -529,6 +546,16 @@ export function App() {
           state={state}
           tryManualReconnect={tryManualReconnect}
           tryReconnectPc={tryReconnectPc}
+        />
+
+        <ErrorDialog
+          code={lastConnectionError?.code}
+          isOpen={state === "paired" && lastConnectionError !== null && !connectionErrorDialog.dismissed}
+          message={lastConnectionError?.message ?? ""}
+          onClose={() => {
+            setConnectionErrorDialog((current) => ({ ...current, dismissed: true }));
+          }}
+          title="Connection issue"
         />
 
         <SettingsDrawer

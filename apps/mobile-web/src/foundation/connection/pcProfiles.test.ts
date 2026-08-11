@@ -48,6 +48,32 @@ describe("pcProfiles", () => {
     expect(getWebSocketUrl(profile)).toBe(`wss://voltura-air-relay.voltura-air.workers.dev/v1/device/${route}`);
   });
 
+  it("shares the hosted identity while preserving explicit Secure Direct transport", () => {
+    const route = "r".repeat(22);
+    const relay = createPcProfile(`https://voltura.se/a/${route}`);
+    const secure = createPcProfile(`https://voltura.se/s/${route}`);
+
+    expect(secure.id).toBe(relay.id);
+    expect(secure.transportMode).toBe("secure-direct");
+    expect(secure.url).toBe(`https://voltura.se/s/${route}`);
+    expect(secure.relayEndpoint).toBeUndefined();
+  });
+
+  it("keeps the hosted host pin when an explicit path changes transport", () => {
+    const route = "r".repeat(22);
+    const relay = {
+      ...createPcProfile(`https://voltura.se/a/${route}`),
+      hostIdentityFingerprint: "f".repeat(22),
+      hostIdentityPublicKey: "p".repeat(87)
+    };
+
+    const [secure] = upsertPcProfile([relay], createPcProfile(`https://voltura.se/s/${route}`));
+
+    expect(secure?.transportMode).toBe("secure-direct");
+    expect(secure?.hostIdentityFingerprint).toBe(relay.hostIdentityFingerprint);
+    expect(secure?.hostIdentityPublicKey).toBe(relay.hostIdentityPublicKey);
+  });
+
   it("preserves a validated custom relay endpoint", () => {
     const route = "r".repeat(22);
     const encoded = btoa("https://relay.example").replace(/=+$/u, "");

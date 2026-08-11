@@ -1,5 +1,6 @@
 import { useCallback, type RefObject } from "react";
 import type { ClientMessage } from "../protocol/messages";
+import { isControllerSocketOpen, type ControllerSocket } from "./controllerSocket";
 import {
   isMovementInput,
   isUserActivityMessage,
@@ -23,7 +24,7 @@ interface ConnectionSenderOptions {
   pendingMovementAckRef: RefObject<PendingMovementAck | null>;
   reconnectRef: RefObject<(() => void) | null>;
   rescheduleHealthCheckRef: RefObject<(() => void) | null>;
-  socketRef: RefObject<WebSocket | null>;
+  socketRef: RefObject<ControllerSocket | null>;
   supportsInputAckRef: RefObject<boolean>;
   supportsVolumeControlRef: RefObject<boolean>;
 }
@@ -44,7 +45,7 @@ export function useConnectionSender(options: ConnectionSenderOptions) {
 
   const send = useCallback((payload: ClientMessage) => {
     const socket = socketRef.current;
-    if (socket?.readyState !== WebSocket.OPEN) {
+    if (!isControllerSocketOpen(socket)) {
       reconnectRef.current?.();
       return;
     }
@@ -53,9 +54,7 @@ export function useConnectionSender(options: ConnectionSenderOptions) {
     const isMovement = isMovementInput(payload);
     if (isUserActivityMessage(payload)) {
       lastUserActivityAtRef.current = now;
-      if (!isMovement) {
-        rescheduleHealthCheckRef.current?.();
-      }
+      rescheduleHealthCheckRef.current?.();
     }
 
     const pendingMovementAck = pendingMovementAckRef.current;
@@ -103,7 +102,7 @@ export function useConnectionSender(options: ConnectionSenderOptions) {
 
   const requestAudioState = useCallback(() => {
     const socket = socketRef.current;
-    if (socket?.readyState !== WebSocket.OPEN || !supportsVolumeControlRef.current) {
+    if (!isControllerSocketOpen(socket) || !supportsVolumeControlRef.current) {
       return;
     }
 

@@ -104,7 +104,9 @@ public sealed class PairingLinkControllerTests
                 RelayEndpointDescriptor.OfficialServiceId,
                 new Uri("https://relay.example"),
                 new Uri("wss://relay.example"),
-                SupportsTurn: true));
+                SupportsTurn: true),
+            enhancedCapabilitiesEnabled: true,
+            secureDirectRouteId: new string('s', 22));
 
         var url = new Uri(controller.Url);
 
@@ -113,6 +115,49 @@ public sealed class PairingLinkControllerTests
         Assert.Equal(AppVersion.Display, ParseQuery(url)["v"]);
         Assert.Matches("^#[A-Za-z0-9_-]{32}$", url.Fragment);
         Assert.InRange(controller.Url.Length, 1, 128);
+    }
+
+    [Fact]
+    public void EnhancedDirectUsesSecureLinkAndKeepsSameTokenForStandardLocal()
+    {
+        using var store = new TempPairingStore();
+        var routeId = new string('s', 22);
+        var controller = new PairingLinkController(
+            new PairingManager(store.Store),
+            "http://192.168.68.51:51395",
+            clientUrl: null,
+            ConnectionTransportMode.DirectLan,
+            relayRouteId: null,
+            relayEndpoint: null,
+            enhancedCapabilitiesEnabled: true,
+            secureDirectRouteId: routeId);
+
+        var secure = new Uri(controller.Url);
+        var standard = new Uri(Assert.IsType<string>(controller.StandardLocalUrl));
+
+        Assert.Equal($"/s/{routeId}", secure.AbsolutePath);
+        Assert.Equal("/pair", standard.AbsolutePath);
+        Assert.Equal(secure.Fragment.TrimStart('#'), ParseQuery(standard)["t"]);
+        Assert.Equal(AppVersion.Display, ParseQuery(secure)["v"]);
+    }
+
+    [Fact]
+    public void EnhancedDirectWithoutAnAvailableRouteUsesStandardLocalAsThePrimaryLink()
+    {
+        using var store = new TempPairingStore();
+        var controller = new PairingLinkController(
+            new PairingManager(store.Store),
+            "http://127.0.0.1:51395",
+            clientUrl: null,
+            ConnectionTransportMode.DirectLan,
+            relayRouteId: null,
+            relayEndpoint: null,
+            enhancedCapabilitiesEnabled: true,
+            secureDirectRouteId: null);
+
+        Assert.Equal("http://127.0.0.1:51395", new Uri(controller.Url).GetLeftPart(UriPartial.Authority));
+        Assert.Equal("/pair", new Uri(controller.Url).AbsolutePath);
+        Assert.Null(controller.StandardLocalUrl);
     }
 
     [Fact]

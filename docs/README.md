@@ -24,7 +24,7 @@ files are rebuilt, never hand-edited.
 | [Third-party software notices](../THIRD-PARTY-NOTICES.md) | Legal/attribution authority | Shipped components, licenses, source availability, and distribution notices. |
 | [Brand assets](../assets/branding/README.md) | Authority | Artwork sources/consumers. |
 | [Bug form](../.github/ISSUE_TEMPLATE/bug_report.yml) | Public intake | Safe reproduction/diagnostics. |
-| [Website](site/index.php), [human sitemap](site/sitemap.php), [XML sitemap](site/sitemap.xml), [relay short redirect](site/a/index.php) | Public/service | Use cases, trust, downloads, public navigation, search discovery, and fragment-preserving Relay entry. |
+| [Website](site/index.php), [human sitemap](site/sitemap.php), [XML sitemap](site/sitemap.xml), [relay short redirect](site/a/index.php), [Secure Direct short redirect](site/s/index.php) | Public/service | Use cases, trust, downloads, public navigation, search discovery, and fragment-preserving hosted entries. |
 | [Custom-screen catalog](site/screens/index.php), [view](site/screens/view.php), [device preview](site/screens/preview-frame.php), [install](site/screens/install.php), [download](site/screens/download.php), [login](site/screens/login.php), [register](site/screens/register.php), [upload](site/screens/upload.php), [edit](site/screens/edit.php), [withdraw](site/screens/withdraw.php), [remove rejected](site/screens/remove-rejected.php), [moderation](site/screens/admin.php), [official import](site/screens/official-import.php), [deletion](site/screens/delete.php), [rating](site/screens/rate.php), [report](site/screens/report.php), [logout](site/screens/logout.php), [catalog helpers](site/screens/lib.php) | Public/service | Reviewed custom-screen sharing, account, moderation, official bulk import, deletion, rating, preview, and download surfaces. |
 | [Machine summary](site/llms.txt) | Public | Compact public facts/links. |
 | [Code statistics](site/stats.html) | Generated | Regenerate with `npm run code:statistics -- --report`. |
@@ -34,6 +34,7 @@ files are rebuilt, never hand-edited.
 | Document | Role | Read/update |
 | --- | --- | --- |
 | [Architecture](architecture.md) | Target | Dependencies, owners, resources, size. |
+| [Secure-context browser spike](../apps/secure-web-spike/README.md), [WebRTC host spike](../apps/webrtc-spike-host/README.md) | Historical evidence | Real-device feasibility harnesses; production contracts remain in the owners below. |
 | [Features](features.md) | Authority | Visible capabilities, permissions, limits, states. |
 | [Protocol](protocol.md) | Authority | Wire shape, bounds, auth, capabilities, acks, errors. |
 | [UI system](ui-system.md) | Target | Product UX, tokens, layout, input, accessibility. |

@@ -22,6 +22,7 @@ import { useCustomScreens } from "./useCustomScreens";
 import { publishScreenViewResult } from "./screenViewResultBus";
 import { publishFileManagerResult } from "./fileManagerResultBus";
 import type { RelayEncryptedSend } from "./relaySessionCrypto";
+import type { ControllerSocket } from "./controllerSocket";
 
 export type { PcProfile } from "./pcProfiles";
 export type { ConnectionError, ConnectionState } from "./connectionTypes";
@@ -54,7 +55,7 @@ export function useVolturaAirConnection() {
   const [lastConnectionError, setLastConnectionError] = useState<ConnectionError | null>(null);
   const [connectionEpoch, setConnectionEpoch] = useState(0);
   const [pairingAttempt, setPairingAttempt] = useState<PairingAttempt>(() => ({ token: undefined, id: 0 }));
-  const socketRef = useRef<WebSocket | null>(null);
+  const socketRef = useRef<ControllerSocket | null>(null);
   const deviceNameRef = useRef(deviceName);
   const pairingAttemptRef = useRef(pairingAttempt);
   const lastHealthyAtRef = useRef(0);

@@ -36,7 +36,7 @@ const defaultPairingFeedback: PairingFeedback = {
 export function getPairingFeedback(
   message: string,
   activePcUnavailable = false,
-  transportMode?: "relay"
+  transportMode?: "relay" | "secure-direct"
 ): PairingFeedback {
   const normalizedMessage = message.trim();
   if (activePcUnavailable) {
@@ -53,6 +53,23 @@ export function getPairingFeedback(
         primaryLabel: "Try reconnect",
         reason: "socket-closed",
         severity: "warning",
+        showRecoveryActions: true
+      };
+    }
+
+    if (transportMode === "secure-direct") {
+      return {
+        title: "Secure Direct unavailable",
+        body: "Could not establish the required private LAN connection to this PC. Keep both devices on the same Wi-Fi/LAN and make sure Voltura Air is running.",
+        diagnosticCode: "VAIR-PAIR-SECURE-DIRECT",
+        hints: [
+          "Try reconnecting while both devices are on the same private LAN.",
+          "Use the Standard Local link from the PC for the existing local HTTP connection.",
+          "Choose Cloud Relay in the PC connection settings if you want to connect through Voltura Cloud."
+        ],
+        primaryLabel: "Try reconnect",
+        reason: "host-unreachable",
+        severity: "error",
         showRecoveryActions: true
       };
     }
@@ -156,7 +173,7 @@ export function buildPairingDiagnostics(
   message: string,
   activePcUnavailable = false,
   diagnosticCode?: string,
-  transportMode?: "relay"
+  transportMode?: "relay" | "secure-direct"
 ): string {
   const feedback = getPairingFeedback(message, activePcUnavailable, transportMode);
   const diagnostics = {

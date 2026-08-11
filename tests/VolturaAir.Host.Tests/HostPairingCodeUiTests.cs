@@ -189,6 +189,39 @@ public sealed partial class HostUiLayoutTests
     }
 
     [Fact]
+    public void SecureDirectConnectDetailsScopeLocalListenerValues()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            var now = DateTimeOffset.UtcNow;
+            var view = new ConnectPageView(
+                CreateTestBitmap(),
+                "https://voltura.se/s/AAAAAAAAAAAAAAAAAAAAAA?v=0.9.2#redacted",
+                "http://192.168.1.10:51396",
+                "Ethernet (Test adapter)",
+                false,
+                "192.168.1.10",
+                "51396",
+                null,
+                null,
+                null,
+                now.AddMinutes(5),
+                static () => { },
+                static () => { },
+                static () => { },
+                copyStandardLocalLink: static () => { });
+
+            Assert.Equal("Standard Local host URL", view.HostUrlCard.Title);
+            Assert.Equal("Standard Local port", view.SelectedPortCard.Title);
+        });
+    }
+
+    [Fact]
     public void ConnectSubtitleMatchesTransport()
     {
         Assert.Equal(
@@ -399,11 +432,16 @@ public sealed partial class HostUiLayoutTests
                     card => card.Title == "Current status");
 
                 var codeCard = FindWpfDescendants<InfoCard>(window).Single(card => card.Title == "Pairing code");
-                var actions = Assert.IsType<SpacingStackPanel>(codeCard.Actions);
+                var actions = Assert.IsType<SpacingWrapPanel>(codeCard.Actions);
                 Assert.Collection(
                     actions.Children.OfType<Button>(),
                     button => Assert.Equal("Copy link", button.Content),
-                    button => Assert.Equal("New code", button.Content));
+                    button => Assert.Equal("New code", button.Content),
+                    button =>
+                    {
+                        Assert.Equal("Copy Standard Local link", button.Content);
+                        Assert.Equal(Visibility.Collapsed, button.Visibility);
+                    });
                 Assert.Same(window.Resources["PrimaryButtonStyle"], actions.Children.OfType<Button>().First().Style);
 
                 var details = FindWpfDescendants<Expander>(window).Single(expander => expander.Header is "Details");

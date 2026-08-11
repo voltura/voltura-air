@@ -14,6 +14,7 @@ interface AppHeaderProps {
   isModeSelectorOpen: boolean;
   message: string;
   fileJobCount?: number;
+  hasConnectionError?: boolean;
   modeTabs: ModeDefinition[];
   onCloseModeSelector: () => void;
   onOpenSettings: () => void;
@@ -34,6 +35,7 @@ export function AppHeader({
   isModeSelectorOpen,
   message,
   fileJobCount = 0,
+  hasConnectionError = false,
   modeTabs,
   onCloseModeSelector,
   onOpenSettings,
@@ -62,7 +64,7 @@ export function AppHeader({
           )}
         </div>
         {fileJobCount > 0 && onOpenFileJobs && <button className="header-file-job" type="button" onClick={onOpenFileJobs} aria-label={`Open ${fileJobCount} active file operation${fileJobCount === 1 ? "" : "s"}`}><Files aria-hidden="true" /><span>{fileJobCount}</span></button>}
-        <div className={`status ${state}`} title={message}>
+        <div className={`status ${hasConnectionError ? "error" : state}`} title={message}>
           <Circle aria-hidden="true" />
           <span className="status-full">{message}</span>
           <span className="status-compact">{connectionPcName}</span>

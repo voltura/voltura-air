@@ -66,6 +66,7 @@ export interface AudioGetMessage {
 }
 
 export interface ServerCapabilities {
+  enhancedCapabilities?: { enabled: boolean };
   remoteInput?: boolean;
   awake?: AwakeCapability;
   gestureDebug?: boolean;
@@ -493,6 +494,10 @@ export interface PairAcceptedMessage {
   capabilities?: ServerCapabilities;
   host?: HostStatusMetadata;
   hostIdentity?: { publicKey: string; fingerprint: string } | undefined;
+}
+
+export interface PairDisconnectAcceptedMessage {
+  type: "pair.disconnect.accepted";
 }
 
 export interface PairChallengeMessage {
@@ -946,4 +951,4 @@ export type ClientMessage =
   | FileJobReorderMessage
   | FileConflictResolveMessage;
 
-export type ServerMessage = PairAcceptedMessage | PairChallengeMessage | PairBootstrapChallengeMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | PresentationCommandResultMessage | PowerPointRefreshResultMessage | PowerPointLaunchResultMessage | PresentationSessionResultMessage | PresentationReportSaveResultMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | UrlOpenResultMessage | TextSendResultMessage | ClipboardGetResultMessage | AudioStateMessage | CustomScreenGetResultMessage | CustomScreenInvokeResultMessage | ScreenViewSourcesResultMessage | ScreenViewStartResultMessage | ScreenViewAnswerResultMessage | ScreenViewSourceResultMessage | ScreenViewStopResultMessage | ScreenViewEndedMessage | FileManagerServerMessage;
+export type ServerMessage = PairAcceptedMessage | PairDisconnectAcceptedMessage | PairChallengeMessage | PairBootstrapChallengeMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | PresentationCommandResultMessage | PowerPointRefreshResultMessage | PowerPointLaunchResultMessage | PresentationSessionResultMessage | PresentationReportSaveResultMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | UrlOpenResultMessage | TextSendResultMessage | ClipboardGetResultMessage | AudioStateMessage | CustomScreenGetResultMessage | CustomScreenInvokeResultMessage | ScreenViewSourcesResultMessage | ScreenViewStartResultMessage | ScreenViewAnswerResultMessage | ScreenViewSourceResultMessage | ScreenViewStopResultMessage | ScreenViewEndedMessage | FileManagerServerMessage;

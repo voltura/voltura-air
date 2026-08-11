@@ -81,6 +81,19 @@ describe("connection protocol policy", () => {
     }))).toBeNull();
   });
 
+  it("accepts enhanced capability authority only with an explicit boolean", () => {
+    expect(parseServerMessage(JSON.stringify({
+      type: "status",
+      connected: true,
+      capabilities: { enhancedCapabilities: { enabled: true } }
+    }))).not.toBeNull();
+    expect(parseServerMessage(JSON.stringify({
+      type: "status",
+      connected: true,
+      capabilities: { enhancedCapabilities: { enabled: "yes" } }
+    }))).toBeNull();
+  });
+
   it("normalizes untrusted audio state without accepting coerced values", () => {
     expect(normalizeAudioState({ muted: true, volume: 101.6 })).toEqual({ type: "audio.state", muted: true, volume: 100 });
     expect(normalizeAudioState({ muted: "true", volume: "75" })).toEqual({ type: "audio.state", muted: false, volume: 0 });

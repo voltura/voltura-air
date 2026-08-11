@@ -15,6 +15,15 @@ Wire shape: [protocol](protocol.md). Failure UX:
 - Relay retains its persistent opaque route and paired devices when disabled.
   An optional custom endpoint is HTTPS-only and bounded to 512 characters.
 - Existing settings without a connection method normalize to Direct.
+- **Enhanced capabilities** is a default-off Direct preference. With Direct, it
+  makes `/s` the primary QR while retaining the local listener, `/ws`, and a
+  Standard Local link using the same active token. Internet is required to load
+  the hosted app and finish signaling; established controller traffic stays on
+  the selected private IPv4 LAN. Relay always includes enhanced capabilities
+  because `/a` already loads the secure hosted app; the saved Direct preference
+  is retained but does not alter Relay. `/a` and the existing Relay transport
+  remain unchanged. There is no probing, fallback, or automatic transport
+  switching.
 
 ## Adapter
 
@@ -67,6 +76,12 @@ identity. The official endpoint comes from `relay-service.json`; custom
 endpoints use the same protocol. Moving service infrastructure behind the same
 hostname needs no profile change. A hostname change requires a new QR/profile
 update, not different host or mobile code.
+
+Official `/a` and `/s` profiles for the same route share the hosted profile ID,
+client ID, reconnect key, host pin, permissions, and display name; the opened
+path selects the transport. Local HTTP profiles and browser storage are not
+copied, linked, migrated, invalidated, or deleted when enhanced capabilities
+changes.
 
 Changed selection, fallback, validation, persistence, and recovery use the
 [network/boundary validation route](setup.md#validation-by-change).

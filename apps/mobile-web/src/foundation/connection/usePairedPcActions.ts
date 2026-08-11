@@ -4,9 +4,6 @@ import {
   createPcProfile,
   forgetPcProfile,
   renamePcProfile,
-  saveActivePcId,
-  savePcProfiles,
-  upsertPcProfile,
   type PcProfile
 } from "./pcProfiles";
 import type { ClientMessage, HostStatusMetadata } from "../protocol/messages";
@@ -15,6 +12,7 @@ import { getDisplayPcName, normalizePointerSpeed } from "./connectionProtocol";
 import type { ConnectionError, ConnectionState, PairingAttempt } from "./connectionTypes";
 import { clearStoredReconnectKey } from "./pairingCredentials";
 import type { RelayEncryptedSend } from "./relaySessionCrypto";
+import type { ControllerSocket } from "./controllerSocket";
 import { revokePcPairing } from "./relayPairingRevocation";
 
 interface PairedPcActionOptions {
@@ -35,7 +33,7 @@ interface PairedPcActionOptions {
   setPairingAttempt: Dispatch<SetStateAction<PairingAttempt>>;
   setPendingManualPc: Dispatch<SetStateAction<PcProfile | null>>;
   setState: Dispatch<SetStateAction<ConnectionState>>;
-  socketRef: RefObject<WebSocket | null>;
+  socketRef: RefObject<ControllerSocket | null>;
   state: ConnectionState;
 }
 
@@ -70,21 +68,14 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
     setDeviceName(nextDeviceName);
 
     const profile = createPcProfile(pcUrl);
-    setPendingManualPc(null);
+    setPendingManualPc(profile);
     clearRuntimeState();
     setLastConnectionError(null);
     setHostStatus(null);
-    setPairedPcs((current) => {
-      const next = upsertPcProfile(current, profile);
-      savePcProfiles(next);
-      return next;
-    });
-    saveActivePcId(profile.id);
-    setActivePcId(profile.id);
     setState("connecting");
     setMessage(`Pairing with ${getDisplayPcName(profile, "", screenshotMode)}...`);
     setPairingAttempt((current) => ({ token, id: current.id + 1 }));
-  }, [clearRuntimeState, deviceNameRef, screenshotMode, setActivePcId, setDeviceName, setHostStatus, setLastConnectionError, setMessage, setPairedPcs, setPairingAttempt, setPendingManualPc, setState]);
+  }, [clearRuntimeState, deviceNameRef, screenshotMode, setDeviceName, setHostStatus, setLastConnectionError, setMessage, setPairingAttempt, setPendingManualPc, setState]);
 
   const selectPc = useCallback((pcId: string) => {
     setPendingManualPc(null);

@@ -3,10 +3,14 @@ import { hmac } from "@noble/hashes/hmac.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPairingKeyMaterial } from "./pairingCredentials";
+import { createPcProfile } from "./pcProfiles";
+import { connectSecureDirect } from "./secureDirect";
 import {
   shouldClearStoredReconnectKeyForRejection,
   useVolturaAirConnection,
 } from "./useVolturaAirConnection";
+
+vi.mock("./secureDirect", () => ({ connectSecureDirect: vi.fn() }));
 
 class MockWebSocket {
   static CONNECTING = 0;
@@ -63,6 +67,17 @@ class MockWebSocket {
     for (const listener of this.listeners.get(type) ?? []) {
       listener(event);
     }
+  }
+}
+
+class MockControllerDataChannel extends EventTarget {
+  bufferedAmount = 0;
+  readyState: RTCDataChannelState = "open";
+  send = vi.fn();
+  close = vi.fn(() => { this.readyState = "closed"; });
+
+  message(data: string) {
+    this.dispatchEvent(new MessageEvent("message", { data }));
   }
 }
 
@@ -165,6 +180,7 @@ beforeEach(() => {
   );
   MockWebSocket.instances = [];
   vi.stubGlobal("WebSocket", MockWebSocket);
+  vi.mocked(connectSecureDirect).mockReset();
   window.history.pushState(null, "", "/");
 });
 describe("shouldClearStoredReconnectKeyForRejection", () => {
@@ -196,6 +212,214 @@ describe("shouldClearStoredReconnectKeyForRejection", () => {
   });
 });
 describe("useVolturaAirConnection", () => {
+  it("does not replace a saved Relay profile merely by opening a Secure Direct pairing link", () => {
+    const route = "r".repeat(22);
+    const saved = pairedPc(createPcProfile(`https://voltura.se/a/${route}`));
+    localStorage.setItem("voltura-air.clientId", "client-a");
+    localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([saved]));
+    localStorage.setItem("voltura-air.activePcId", saved.id);
+    window.history.pushState(null, "", `/air/app/?m=s&r=${route}&v=0.9.2#${"a".repeat(32)}`);
+
+    const first = renderHook(() => useVolturaAirConnection());
+
+    expect(first.result.current.pairedPcs).toEqual([saved]);
+    expect(JSON.parse(localStorage.getItem("voltura-air.pcProfiles") ?? "[]")).toEqual([saved]);
+    expect(localStorage.getItem("voltura-air.activePcId")).toBe(saved.id);
+    first.unmount();
+
+    const refreshed = renderHook(() => useVolturaAirConnection());
+    expect(refreshed.result.current.pairedPcs).toEqual([saved]);
+    expect(refreshed.result.current.activePc).toEqual(saved);
+  });
+
+  it("does not save a fresh hosted candidate when refreshed before acceptance", () => {
+    const route = "r".repeat(22);
+    window.history.pushState(null, "", `/air/app/?m=s&r=${route}&v=0.9.2#${"a".repeat(32)}`);
+
+    const first = renderHook(() => useVolturaAirConnection());
+    expect(first.result.current.pairedPcs).toEqual([]);
+    first.unmount();
+
+    const refreshed = renderHook(() => useVolturaAirConnection());
+    expect(refreshed.result.current.pairedPcs).toEqual([]);
+    expect(refreshed.result.current.activePc).toBeNull();
+  });
+
+  it("clears a failed candidate token before reconnecting the saved PC", async () => {
+    const pcUrl = "http://pc.local:51395";
+    const pc = pairedPc({ customName: false, id: pcUrl, name: "PC", url: pcUrl });
+    localStorage.setItem("voltura-air.clientId", "client-a");
+    localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
+    localStorage.setItem("voltura-air.activePcId", pc.id);
+    storeReconnectKey("client-a", pc.id);
+    const { result } = renderHook(() => useVolturaAirConnection());
+    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
+
+    act(() => { result.current.pairWithToken("a".repeat(32), "http://candidate.local:51395"); });
+    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(2); });
+    dispatchSocketEvent(getSocket(1), "error");
+    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(3); });
+
+    const fallback = getSocket(2);
+    fallback.readyState = MockWebSocket.OPEN;
+    dispatchSocketEvent(fallback, "open");
+    const hello = JSON.parse(fallback.send.mock.calls.at(-1)?.[0] as string) as Record<string, unknown>;
+    expect(hello.type).toBe("pair.hello");
+    expect(hello).not.toHaveProperty("reconnectPublicKey");
+    expect(hello).not.toHaveProperty("clientNonce");
+  });
+
+  it("does not restart an in-flight Secure Direct setup for foreground event bursts", async () => {
+    const route = "r".repeat(22);
+    vi.mocked(connectSecureDirect).mockReturnValue(new Promise(() => undefined));
+    const { result } = renderHook(() => useVolturaAirConnection());
+
+    act(() => { result.current.pairWithToken("a".repeat(32), `https://voltura.se/s/${route}`); });
+    await waitFor(() => { expect(connectSecureDirect).toHaveBeenCalledTimes(1); });
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+      window.dispatchEvent(new PageTransitionEvent("pageshow"));
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+
+    expect(connectSecureDirect).toHaveBeenCalledTimes(1);
+  });
+
+  it("starts the Secure Direct pairing handshake once when an already-open channel emits a late open event", async () => {
+    const route = "r".repeat(22);
+    const token = "a".repeat(32);
+    const channel = new MockControllerDataChannel();
+    const cleanup = vi.fn();
+    vi.mocked(connectSecureDirect).mockResolvedValue({
+      channel: channel as unknown as RTCDataChannel,
+      cleanup,
+    });
+    const { result } = renderHook(() => useVolturaAirConnection());
+
+    act(() => { result.current.pairWithToken(token, `https://voltura.se/s/${route}`); });
+    await waitFor(() => { expect(channel.send).toHaveBeenCalledTimes(1); });
+    const hello = JSON.parse(channel.send.mock.calls[0]![0] as string) as {
+      clientId: string;
+      clientNonce: string;
+      reconnectPublicKey: string;
+    };
+
+    act(() => { channel.dispatchEvent(new Event("open")); });
+    expect(channel.send).toHaveBeenCalledTimes(1);
+
+    const serverNonce = "B".repeat(43);
+    act(() => {
+      channel.message(JSON.stringify({
+        type: "pair.bootstrap.challenge",
+        clientId: hello.clientId,
+        clientNonce: hello.clientNonce,
+        serverNonce,
+        hostIdentity: testHostIdentity,
+        proof: createTestHostProof(token, hello, serverNonce),
+      }));
+    });
+    await waitFor(() => { expect(channel.send).toHaveBeenCalledTimes(2); });
+    expect(channel.send.mock.calls[1]![0]).toContain('"type":"pair.bootstrap.proof"');
+    expect(result.current.lastConnectionError).toBeNull();
+
+    act(() => {
+      channel.message(JSON.stringify({
+        type: "pair.accepted",
+        clientId: hello.clientId,
+        pcName: "Secure Direct PC",
+        paired: true,
+        hostIdentity: testHostIdentity,
+      }));
+    });
+    await waitFor(() => { expect(result.current.state).toBe("paired"); });
+    expect(connectSecureDirect).toHaveBeenCalledTimes(1);
+    expect(channel.close).not.toHaveBeenCalled();
+    expect(cleanup).not.toHaveBeenCalled();
+  });
+
+  it("keeps the passive health interval while allowing movement to bring the check forward", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const route = "r".repeat(22);
+      const token = "a".repeat(32);
+      const channel = new MockControllerDataChannel();
+      vi.mocked(connectSecureDirect).mockResolvedValue({
+        channel: channel as unknown as RTCDataChannel,
+        cleanup: vi.fn(),
+      });
+      const { result } = renderHook(() => useVolturaAirConnection());
+
+      act(() => { result.current.pairWithToken(token, `https://voltura.se/s/${route}`); });
+      await waitFor(() => { expect(channel.send).toHaveBeenCalledTimes(1); });
+      const hello = JSON.parse(channel.send.mock.calls[0]![0] as string) as {
+        clientId: string;
+        clientNonce: string;
+        reconnectPublicKey: string;
+      };
+      const serverNonce = "B".repeat(43);
+      act(() => {
+        channel.message(JSON.stringify({
+          type: "pair.bootstrap.challenge",
+          clientId: hello.clientId,
+          clientNonce: hello.clientNonce,
+          serverNonce,
+          hostIdentity: testHostIdentity,
+          proof: createTestHostProof(token, hello, serverNonce),
+        }));
+      });
+      await waitFor(() => { expect(channel.send).toHaveBeenCalledTimes(2); });
+      act(() => {
+        channel.message(JSON.stringify({
+          type: "pair.accepted",
+          clientId: hello.clientId,
+          pcName: "Secure Direct PC",
+          paired: true,
+          capabilities: { inputAck: true },
+          hostIdentity: testHostIdentity,
+        }));
+      });
+      await waitFor(() => { expect(result.current.state).toBe("paired"); });
+
+      await act(() => vi.advanceTimersByTime(10_000));
+      expect(channel.send.mock.calls.filter(([payload]) => payload === JSON.stringify({ type: "health.ping" }))).toHaveLength(1);
+      act(() => { channel.message(JSON.stringify({ type: "health.pong" })); });
+      await act(() => vi.advanceTimersByTime(10_000));
+      expect(channel.send.mock.calls.filter(([payload]) => payload === JSON.stringify({ type: "health.ping" }))).toHaveLength(2);
+      act(() => { channel.message(JSON.stringify({ type: "health.pong" })); });
+
+      await act(() => vi.advanceTimersByTime(20_000));
+      expect(channel.send.mock.calls.filter(([payload]) => payload === JSON.stringify({ type: "health.ping" }))).toHaveLength(2);
+
+      act(() => {
+        for (let index = 0; index < 5; index += 1) {
+          result.current.send({ type: "pointer.move", dx: 1, dy: 1 });
+        }
+      });
+      await act(() => vi.advanceTimersByTime(1000));
+      expect(channel.send.mock.calls.filter(([payload]) => payload === JSON.stringify({ type: "health.ping" }))).toHaveLength(2);
+      const movement = channel.send.mock.calls
+        .map(([payload]) => JSON.parse(payload as string) as { type?: string; seq?: number })
+        .find((payload) => payload.type === "pointer.move" && payload.seq !== undefined);
+      expect(movement?.seq).toBeTypeOf("number");
+      act(() => { channel.message(JSON.stringify({ type: "input.ack", seq: movement!.seq })); });
+      await act(() => vi.advanceTimersByTime(6500));
+      expect(result.current.state).toBe("paired");
+
+      channel.bufferedAmount = 128;
+      await act(() => vi.advanceTimersByTime(3500));
+      expect(channel.send.mock.calls.filter(([payload]) => payload === JSON.stringify({ type: "health.ping" }))).toHaveLength(2);
+      channel.bufferedAmount = 0;
+      await act(() => vi.advanceTimersByTime(5000));
+      expect(channel.send.mock.calls.filter(([payload]) => payload === JSON.stringify({ type: "health.ping" }))).toHaveLength(3);
+      await act(() => vi.advanceTimersByTime(6500));
+
+      expect(result.current.state).toBe("unavailable");
+      expect(result.current.lastConnectionError?.code).toBe("VAIR-PAIR-HOST-UNREACHABLE");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("recovers from an unsafe address host hint without persisting or opening it", async () => {
     window.history.pushState(null, "", "/?h=javascript:alert(1)");
 
@@ -615,12 +839,9 @@ describe("useVolturaAirConnection", () => {
 
     await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(2); });
     const candidateSocket = getSocket(1);
-    expect(result.current.activePc?.id).toBe(candidateUrl);
-    expect(result.current.pairedPcs.map((profile) => profile.id)).toEqual([
-      pc.id,
-      candidateUrl,
-    ]);
-    expect(localStorage.getItem("voltura-air.activePcId")).toBe(candidateUrl);
+    expect(result.current.activePc).toEqual(pc);
+    expect(result.current.pairedPcs).toEqual([pc]);
+    expect(localStorage.getItem("voltura-air.activePcId")).toBe(pc.id);
     expect(
       localStorage.getItem(
         `voltura-air.reconnect-key.client-a.${candidateUrl}`,

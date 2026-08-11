@@ -17,6 +17,21 @@ vi.mock("../../foundation/pairing/pairingFeedback", async (importOriginal) => {
 });
 
 describe("PairingStatus", () => {
+  it("renders the complete blocking error message without a truncating text treatment", () => {
+    const message = "PC identity check failed. Scan a fresh QR code from the PC.";
+    render(
+      <PairingStatus
+        blocksAppInteraction
+        message={message}
+        onPrimaryAction={vi.fn()}
+      />
+    );
+
+    const description = screen.getByText(message);
+    expect(description.textContent).toBe(message);
+    expect(description.classList.contains("pairing-message")).toBe(true);
+  });
+
   it("shows the detected device name as a placeholder without blocking edits", () => {
     const onDeviceNameChange = vi.fn();
     render(

@@ -6,6 +6,28 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v0.9.3
+
+- Added optional **Enhanced capabilities** for Direct connections. The primary
+  QR opens Voltura Air's secure HTTPS app, while authenticated controller
+  traffic travels directly over the selected private LAN. This provides the
+  secure browser foundation needed by more advanced device capabilities
+  without routing established controls through the cloud.
+- Updated the Windows **Connect** and **Connection** pages for the new secure
+  Direct path. The existing local HTTP connection remains available through an
+  explicit **Copy Standard Local link** action, Relay includes enhanced browser
+  capabilities automatically, and pairing QR codes remain unobstructed for
+  reliable scanning.
+- Improved connection and pairing reliability. Opening or refreshing an
+  unsuccessful hosted pairing link no longer replaces a working saved PC,
+  foreground events no longer restart an in-progress secure connection, and
+  input acknowledgement and health checks now follow their correct deadlines.
+- Improved connection issue feedback with a complete dismissible message and
+  diagnostic code while controls remain available, plus dedicated Secure
+  Direct recovery guidance when its required private-LAN path cannot be made.
+- Fixed saved-device removal so the app confirms that the PC durably revoked
+  the pairing before deleting local credentials, including over Secure Direct.
+
 ## v0.9.2
 
 - Added direct mouse and physical keyboard control inside **View PC screen**

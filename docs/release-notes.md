@@ -8,11 +8,24 @@ create one. Keep the shared notices in
 
 ## v0.9.3
 
+- Added **Gyro mouse** for supported phones and tablets using **Enhanced
+  capabilities**. Point the top of the device and hold the Trackpad surface to
+  move the PC cursor, or tap it for a one-handed left click. Existing Left and
+  Right buttons remain available for clicking and dragging, with handedness,
+  large-button, and adjustable Gyro sensitivity settings preserved.
+- Open Gyro mouse directly from **Tools**, switch between Touch and Gyro in the
+  main Trackpad, or use it from Presentation's embedded Trackpad. Motion data
+  is processed on the device and Gyro turns off automatically when its surface
+  is left, hidden, or disconnected.
 - Added optional **Enhanced capabilities** for Direct connections. The primary
   QR opens Voltura Air's secure HTTPS app, while authenticated controller
   traffic travels directly over the selected private LAN. This provides the
   secure browser foundation needed by more advanced device capabilities
   without routing established controls through the cloud.
+- Presentation mode can no longer be blocked by an unfinished session from
+  another phone. Any authorized phone can manage breaks or save and discard the
+  session; starting the same deck takes control, while starting another deck
+  automatically saves the previous presentation.
 - Updated the Windows **Connect** and **Connection** pages for the new secure
   Direct path. The existing local HTTP connection remains available through an
   explicit **Copy Standard Local link** action, Relay includes enhanced browser

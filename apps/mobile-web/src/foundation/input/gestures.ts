@@ -13,6 +13,7 @@ export interface TrackpadSettings {
   horizontalScroll: boolean;
   scrollDirection: "normal" | "inverted";
   pointerSpeed: number;
+  gyroSensitivity: number;
   pointerSmoothing: boolean;
   pointerAcceleration: boolean;
   scrollAcceleration: boolean;
@@ -44,6 +45,7 @@ export const defaultTrackpadSettings: TrackpadSettings = {
   horizontalScroll: true,
   scrollDirection: "normal",
   pointerSpeed: 100,
+  gyroSensitivity: 100,
   pointerSmoothing: false,
   pointerAcceleration: false,
   scrollAcceleration: false,
@@ -67,6 +69,7 @@ export function normalizeTrackpadSettings(value: unknown): TrackpadSettings {
     horizontalScroll: typeof candidate.horizontalScroll === "boolean" ? candidate.horizontalScroll : defaultTrackpadSettings.horizontalScroll,
     scrollDirection: candidate.scrollDirection === "inverted" ? "inverted" : "normal",
     pointerSpeed: typeof candidate.pointerSpeed === "number" ? Math.max(10, Math.min(100, candidate.pointerSpeed)) : defaultTrackpadSettings.pointerSpeed,
+    gyroSensitivity: typeof candidate.gyroSensitivity === "number" ? Math.max(25, Math.min(200, Math.round(candidate.gyroSensitivity / 5) * 5)) : defaultTrackpadSettings.gyroSensitivity,
     pointerSmoothing: typeof candidate.pointerSmoothing === "boolean" ? candidate.pointerSmoothing : defaultTrackpadSettings.pointerSmoothing,
     pointerAcceleration: typeof candidate.pointerAcceleration === "boolean" ? candidate.pointerAcceleration : defaultTrackpadSettings.pointerAcceleration,
     scrollAcceleration: typeof candidate.scrollAcceleration === "boolean" ? candidate.scrollAcceleration : defaultTrackpadSettings.scrollAcceleration,

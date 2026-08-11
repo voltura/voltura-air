@@ -109,6 +109,25 @@ internal sealed class PresentationLaserPointerController(
         }
     }
 
+    internal void DisableForTakeover()
+    {
+        string? owner;
+        lock (_gate)
+        {
+            if (_disposed || !_enabled)
+            {
+                return;
+            }
+
+            owner = _ownerClientId;
+        }
+
+        if (owner is not null)
+        {
+            _ = SetEnabled(owner, enabled: false);
+        }
+    }
+
     public void DisableIfOwnerCannotControl(Func<string, bool> canControl)
     {
         ArgumentNullException.ThrowIfNull(canControl);

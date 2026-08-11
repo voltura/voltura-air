@@ -64,21 +64,40 @@ internal sealed class PowerPointPresentationLaunchHandler(
 
         try
         {
-            if (session.Snapshot.State != "inactive")
-            {
-                return Failure("session-active", "Save or discard the current presentation before opening another.");
-            }
-
-            if (laserPointer.IsEnabled)
-            {
-                return Failure("pointer-owner-active", "Turn off the laser pointer before changing presentations.");
-            }
-
             var candidate = catalog.Resolve(presentationId);
             if (candidate is null || !File.Exists(candidate.CanonicalPath))
             {
                 return Failure("powerpoint-source-missing", "That saved PowerPoint file is no longer available. Refresh the list.");
             }
+
+            using var startLease = await session.AcquireStartAsync(cancellationToken).ConfigureAwait(false);
+            if (!statusFactory.CanControlPresentations(clientId))
+            {
+                return Failure("permission-denied", "Presentation control is disabled for this device.");
+            }
+
+            candidate = catalog.Resolve(presentationId);
+            if (candidate is null || !File.Exists(candidate.CanonicalPath))
+            {
+                return Failure("powerpoint-source-missing", "That saved PowerPoint file is no longer available. Refresh the list.");
+            }
+
+            var deviceName = pairingManager.GetDeviceName(clientId);
+            if (deviceName is null)
+            {
+                return Failure("device-revoked", "This device is no longer paired with the PC.");
+            }
+
+            var prepared = await session.PrepareForStartAsync(
+                runtimePresentationId: null,
+                candidate.CanonicalPath,
+                cancellationToken).ConfigureAwait(false);
+            if (!prepared.Succeeded)
+            {
+                return Failure(prepared.Code ?? "session-save-failed", prepared.Message);
+            }
+
+            laserPointer.DisableForTakeover();
 
             var presentation = FindOpen(candidate.CanonicalPath, powerPoint.Snapshot);
             if (presentation is null && powerPoint.Snapshot.State == PowerPointDiscoveryState.Ready)
@@ -117,7 +136,12 @@ internal sealed class PowerPointPresentationLaunchHandler(
                 return Failure(slideshow.Code ?? "powerpoint-automation-failed", slideshow.Message);
             }
 
-            var deviceName = pairingManager.GetDeviceName(clientId);
+            if (!statusFactory.CanControlPresentations(clientId))
+            {
+                return Failure("permission-denied", "Presentation control is disabled for this device.");
+            }
+
+            deviceName = pairingManager.GetDeviceName(clientId);
             if (deviceName is null)
             {
                 return Failure("device-revoked", "This device is no longer paired with the PC.");

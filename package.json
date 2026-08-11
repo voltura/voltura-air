@@ -65,7 +65,7 @@
     "site:hosted:build": "npm run build:hosted --workspace apps/mobile-web",
     "third-party:check": "node scripts/generate-third-party-notices.mjs --check",
     "third-party:generate": "node scripts/generate-third-party-notices.mjs",
-    "publish:site": "npm run site:preview:build && npm run site:hosted:build && node scripts/publish-site.mjs",
+    "publish:site": "node scripts/publish-site.mjs",
     "publish:site:prepared": "node scripts/publish-site.mjs --prepared",
     "publish:site:list": "node scripts/publish-site.mjs --list",
     "publish:site:password": "pwsh -NoProfile -File scripts/site-publish-password.ps1",

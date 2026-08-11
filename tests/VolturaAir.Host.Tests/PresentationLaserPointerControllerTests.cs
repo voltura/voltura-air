@@ -41,6 +41,20 @@ public sealed class PresentationLaserPointerControllerTests : IsolatedHostSettin
     }
 
     [Fact]
+    public void TakeoverDisablesTheActiveCursorRegardlessOfOwner()
+    {
+        var applied = new List<bool>();
+        using var controller = new PresentationLaserPointerController(
+            (enabled, _) => applied.Add(enabled));
+        controller.SetEnabled("device-a", enabled: true, runtimePresentationId: "presentation-a");
+
+        controller.DisableForTakeover();
+
+        Assert.False(controller.IsEnabled);
+        Assert.Equal([true, false], applied);
+    }
+
+    [Fact]
     public void DisposeRestoresAnActiveLaser()
     {
         var applied = new List<bool>();

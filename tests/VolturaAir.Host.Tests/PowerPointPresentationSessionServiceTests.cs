@@ -118,7 +118,6 @@ public sealed class PowerPointPresentationSessionServiceTests : WebHostServiceTe
             Assert.True(recovered.Snapshot.OwnerClientId == "client-a");
 
             var completed = await recovered.CompleteAsync(
-                "client-a",
                 save: true,
                 CancellationToken.None);
 
@@ -211,12 +210,13 @@ public sealed class PowerPointPresentationSessionServiceTests : WebHostServiceTe
     }
 
     [Fact]
-    public void PausedSessionDoesNotMatchANameWithoutRuntimeOrSourceIdentity()
+    public async Task DifferentPresentationAutomaticallySavesPausedSession()
     {
         var automation = new FakePowerPointAutomationService(Presenting(4, "running"));
+        var reportStore = new InMemoryPresentationReportStore();
         using var session = new PowerPointPresentationSessionService(
             automation,
-            new InMemoryPresentationReportStore());
+            reportStore);
         var original = Assert.Single(automation.Snapshot.Presentations);
         Assert.True(session.Start("owner", "Owner phone", original).Succeeded);
         automation.Publish(new(PowerPointDiscoveryState.Ready, []));
@@ -228,9 +228,167 @@ public sealed class PowerPointPresentationSessionServiceTests : WebHostServiceTe
         automation.Publish(new(PowerPointDiscoveryState.Ready, [sameNameOnly]));
 
         Assert.Equal("pending-review", session.Snapshot.State);
-        Assert.Equal(
-            "session-active",
-            session.CanStartOrResume(sameNameOnly).Code);
+        var prepared = await session.PrepareForStartAsync(
+            sameNameOnly.RuntimePresentationId,
+            sameNameOnly.SourcePath,
+            CancellationToken.None);
+        Assert.True(prepared.Succeeded);
+        Assert.Equal("inactive", session.Snapshot.State);
+        Assert.Equal("Owner phone", Assert.Single(reportStore.ReadAll().Reports).DeviceName);
+    }
+
+    [Fact]
+    public async Task StartingSameActivePresentationTransfersControlAndPreservesTiming()
+    {
+        var automation = new FakePowerPointAutomationService(Presenting(4, "running"));
+        var reportStore = new InMemoryPresentationReportStore();
+        var time = new ManualTimeProvider();
+        using var session = new PowerPointPresentationSessionService(
+            automation,
+            reportStore,
+            time);
+        var presentation = Assert.Single(automation.Snapshot.Presentations);
+        Assert.True(session.Start("owner", "Owner phone", presentation).Succeeded);
+        time.Advance(TimeSpan.FromSeconds(5));
+
+        var takeover = session.StartOrResume("other", "Other phone", presentation);
+        time.Advance(TimeSpan.FromSeconds(5));
+
+        Assert.True(takeover.Succeeded);
+        Assert.Equal("other", session.Snapshot.OwnerClientId);
+        Assert.Equal("Other phone", session.Snapshot.OwnerDeviceName);
+        Assert.True((await session.CompleteAsync(
+            save: true,
+            CancellationToken.None)).Succeeded);
+        var report = Assert.Single(reportStore.ReadAll().Reports);
+        Assert.Equal("Other phone", report.DeviceName);
+        Assert.Equal(10, report.PresentationDurationSeconds);
+    }
+
+    [Fact]
+    public async Task AutomaticSaveFailureLeavesDraftManageableFromMobile()
+    {
+        var automation = new FakePowerPointAutomationService(Presenting(4, "running"));
+        var reportStore = new ThrowingOnceReportStore();
+        using var session = new PowerPointPresentationSessionService(
+            automation,
+            reportStore);
+        Assert.True(session.Start(
+            "owner",
+            "Owner phone",
+            Assert.Single(automation.Snapshot.Presentations)).Succeeded);
+
+        var prepared = await session.PrepareForStartAsync(
+            "different-runtime",
+            sourcePath: null,
+            CancellationToken.None);
+
+        Assert.False(prepared.Succeeded);
+        Assert.Equal("session-save-failed", prepared.Code);
+        Assert.Equal("pending-review", session.Snapshot.State);
+        Assert.True((await session.CompleteAsync(
+            save: false,
+            CancellationToken.None)).Succeeded);
+        Assert.Equal("inactive", session.Snapshot.State);
+    }
+
+    [Fact]
+    public async Task AutomaticSaveRollsBackWhenDraftCannotBeFinalized()
+    {
+        using var directory = new TemporaryDirectory("VolturaAir-PowerPointTakeoverDraft-");
+        var reportStore = new PresentationReportStore(directory.Path);
+        var automation = new FakePowerPointAutomationService(Presenting(4, "running"));
+        using var session = new PowerPointPresentationSessionService(
+            automation,
+            reportStore);
+        Assert.True(session.Start(
+            "owner",
+            "Owner phone",
+            Assert.Single(automation.Snapshot.Presentations)).Succeeded);
+        BlockDraftDirectory(directory.Path);
+
+        var prepared = await session.PrepareForStartAsync(
+            "different-runtime",
+            sourcePath: null,
+            CancellationToken.None);
+
+        Assert.False(prepared.Succeeded);
+        Assert.Equal("session-persistence-failed", prepared.Code);
+        Assert.Equal("tracking", session.Snapshot.State);
+        Assert.Empty(reportStore.ReadAll().Reports);
+        Assert.True((await session.CompleteAsync(
+            save: false,
+            CancellationToken.None)).Succeeded);
+        Assert.Equal("inactive", session.Snapshot.State);
+    }
+
+    [Fact]
+    public async Task TakeoverAttemptsAreSerialized()
+    {
+        using var session = new PowerPointPresentationSessionService(
+            new FakePowerPointAutomationService(Presenting(1, "running")),
+            new InMemoryPresentationReportStore());
+        using var first = await session.AcquireStartAsync(CancellationToken.None);
+
+        var secondTask = session.AcquireStartAsync(CancellationToken.None);
+        await Task.Yield();
+        Assert.False(secondTask.IsCompleted);
+
+        first.Dispose();
+        using var second = await secondTask.WaitAsync(TimeSpan.FromSeconds(3));
+    }
+
+    [Fact]
+    public async Task HeldTakeoverLeaseReleasesSafelyDuringShutdown()
+    {
+        var session = new PowerPointPresentationSessionService(
+            new FakePowerPointAutomationService(Presenting(1, "running")),
+            new InMemoryPresentationReportStore());
+        var lease = await session.AcquireStartAsync(CancellationToken.None);
+
+        session.Dispose();
+        lease.Dispose();
+    }
+
+    [Fact]
+    public async Task QueuedTakeoverDoesNotStartAfterShutdown()
+    {
+        var session = new PowerPointPresentationSessionService(
+            new FakePowerPointAutomationService(Presenting(1, "running")),
+            new InMemoryPresentationReportStore());
+        var heldLease = await session.AcquireStartAsync(CancellationToken.None);
+        var queuedLease = session.AcquireStartAsync(CancellationToken.None);
+        await Task.Yield();
+        Assert.False(queuedLease.IsCompleted);
+
+        session.Dispose();
+        heldLease.Dispose();
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(async () =>
+            await queuedLease.WaitAsync(TimeSpan.FromSeconds(3)));
+    }
+
+    [Fact]
+    public async Task TakeoverCannotPrepareOrStartAfterShutdown()
+    {
+        var automation = new FakePowerPointAutomationService(Presenting(1, "running"));
+        var session = new PowerPointPresentationSessionService(
+            automation,
+            new InMemoryPresentationReportStore());
+        var presentation = Assert.Single(automation.Snapshot.Presentations);
+        session.Dispose();
+
+        var prepared = await session.PrepareForStartAsync(
+            presentation.RuntimePresentationId,
+            presentation.SourcePath,
+            CancellationToken.None);
+        var started = session.StartOrResume("client", "Phone", presentation);
+
+        Assert.False(prepared.Succeeded);
+        Assert.Equal("session-unavailable", prepared.Code);
+        Assert.False(started.Succeeded);
+        Assert.Equal("session-unavailable", started.Code);
+        Assert.Equal("inactive", session.Snapshot.State);
     }
 
     [Fact]
@@ -275,7 +433,6 @@ public sealed class PowerPointPresentationSessionServiceTests : WebHostServiceTe
         Assert.Equal("tracking", session.Snapshot.State);
         time.Advance(TimeSpan.FromSeconds(5));
         Assert.True((await session.CompleteAsync(
-            "owner",
             save: true,
             CancellationToken.None)).Succeeded);
 
@@ -327,7 +484,6 @@ public sealed class PowerPointPresentationSessionServiceTests : WebHostServiceTe
             "Owner phone",
             presentingAgain).Succeeded);
         Assert.True((await session.CompleteAsync(
-            "owner",
             save: true,
             CancellationToken.None)).Succeeded);
 
@@ -338,7 +494,7 @@ public sealed class PowerPointPresentationSessionServiceTests : WebHostServiceTe
     }
 
     [Fact]
-    public async Task OnlyOwnerCanManageBreaksOrCompleteDraft()
+    public async Task AnyAuthorizedCallerCanManageBreaksOrCompleteDraft()
     {
         using var directory = new TemporaryDirectory("VolturaAir-PowerPointOwner-");
         var reportStore = new PresentationReportStore(directory.Path);
@@ -353,11 +509,7 @@ public sealed class PowerPointPresentationSessionServiceTests : WebHostServiceTe
             "Owner phone",
             Assert.Single(automation.Snapshot.Presentations));
 
-        Assert.Equal("session-not-owner", session.SetBreak("other", true).Code);
-        Assert.Equal(
-            "session-not-owner",
-            (await session.CompleteAsync("other", save: false, CancellationToken.None)).Code);
-        Assert.True(session.SetBreak("owner", true).Succeeded);
+        Assert.True(session.SetBreak(true).Succeeded);
         Assert.True(session.Snapshot.BreakActive);
         Assert.True(overlay.IsVisible);
         Assert.InRange(
@@ -365,7 +517,6 @@ public sealed class PowerPointPresentationSessionServiceTests : WebHostServiceTe
             TimeSpan.Zero,
             TimeSpan.FromSeconds(1));
         Assert.True((await session.ResumeAsync(
-            "owner",
             CancellationToken.None)).Succeeded);
         Assert.False(session.Snapshot.BreakActive);
         Assert.False(overlay.IsVisible);
@@ -373,7 +524,6 @@ public sealed class PowerPointPresentationSessionServiceTests : WebHostServiceTe
             "activate",
             Assert.Single(automation.Commands).Action);
         Assert.True((await session.CompleteAsync(
-            "owner",
             save: false,
             CancellationToken.None)).Succeeded);
     }
@@ -392,7 +542,7 @@ public sealed class PowerPointPresentationSessionServiceTests : WebHostServiceTe
             "Owner phone",
             Assert.Single(automation.Snapshot.Presentations));
 
-        var result = session.SetBreak("owner", true);
+        var result = session.SetBreak(true);
 
         Assert.False(result.Succeeded);
         Assert.Equal("session-break-overlay-failed", result.Code);
@@ -410,7 +560,7 @@ public sealed class PowerPointPresentationSessionServiceTests : WebHostServiceTe
             "owner",
             "Owner phone",
             Assert.Single(automation.Snapshot.Presentations));
-        _ = session.SetBreak("owner", true);
+        _ = session.SetBreak(true);
         automation.Publish(new(
             PowerPointDiscoveryState.Ready,
             [new(
@@ -437,7 +587,7 @@ public sealed class PowerPointPresentationSessionServiceTests : WebHostServiceTe
         };
 
         Assert.Equal("tracking", session.Snapshot.State);
-        var result = await session.ResumeAsync("owner", CancellationToken.None);
+        var result = await session.ResumeAsync(CancellationToken.None);
 
         Assert.True(result.Succeeded);
         Assert.False(session.Snapshot.BreakActive);
@@ -459,7 +609,7 @@ public sealed class PowerPointPresentationSessionServiceTests : WebHostServiceTe
             "owner",
             "Owner phone",
             Assert.Single(presenting.Presentations));
-        _ = session.SetBreak("owner", true);
+        _ = session.SetBreak(true);
         var ready = presenting.Presentations[0] with
         {
             IsPresenting = false,
@@ -478,7 +628,7 @@ public sealed class PowerPointPresentationSessionServiceTests : WebHostServiceTe
             return new(true, null, "Done.", automation.Snapshot, ready with { IsPresenting = true });
         };
 
-        var result = await session.ResumeAsync("owner", CancellationToken.None);
+        var result = await session.ResumeAsync(CancellationToken.None);
 
         Assert.True(result.Succeeded);
         Assert.False(session.Snapshot.BreakActive);
@@ -497,7 +647,7 @@ public sealed class PowerPointPresentationSessionServiceTests : WebHostServiceTe
         var presentation = Assert.Single(automation.Snapshot.Presentations);
         Assert.True(session.Start("owner", "Owner phone", presentation).Succeeded);
 
-        var completion = session.CompleteAsync("owner", save: true, CancellationToken.None);
+        var completion = session.CompleteAsync(save: true, CancellationToken.None);
         await reportStore.SaveStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
 
         var resume = session.StartOrResume("owner", "Owner phone", presentation);
@@ -521,14 +671,13 @@ public sealed class PowerPointPresentationSessionServiceTests : WebHostServiceTe
             Assert.Single(automation.Snapshot.Presentations)).Succeeded);
         using var cancellation = new CancellationTokenSource();
 
-        var completion = session.CompleteAsync("owner", save: true, cancellation.Token);
+        var completion = session.CompleteAsync(save: true, cancellation.Token);
         await reportStore.SaveStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
         cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => completion);
 
         Assert.Equal("pending-review", session.Snapshot.State);
         Assert.True((await session.CompleteAsync(
-            "owner",
             save: false,
             CancellationToken.None)).Succeeded);
     }
@@ -547,7 +696,6 @@ public sealed class PowerPointPresentationSessionServiceTests : WebHostServiceTe
             Assert.Single(automation.Snapshot.Presentations)).Succeeded);
 
         var failed = await session.CompleteAsync(
-            "owner",
             save: true,
             CancellationToken.None);
 
@@ -555,7 +703,6 @@ public sealed class PowerPointPresentationSessionServiceTests : WebHostServiceTe
         Assert.Equal("session-save-failed", failed.Code);
         Assert.Equal("pending-review", session.Snapshot.State);
         Assert.True((await session.CompleteAsync(
-            "owner",
             save: true,
             CancellationToken.None)).Succeeded);
         Assert.Equal("inactive", session.Snapshot.State);
@@ -572,7 +719,7 @@ public sealed class PowerPointPresentationSessionServiceTests : WebHostServiceTe
             "owner",
             "Owner phone",
             Assert.Single(automation.Snapshot.Presentations)).Succeeded);
-        Assert.True(session.SetBreak("owner", true).Succeeded);
+        Assert.True(session.SetBreak(true).Succeeded);
         var activationStarted = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseActivation = new TaskCompletionSource(
@@ -584,10 +731,9 @@ public sealed class PowerPointPresentationSessionServiceTests : WebHostServiceTe
             return new(true, null, "Activated.", automation.Snapshot, automation.Snapshot.Presentations[0]);
         };
 
-        var resume = session.ResumeAsync("owner", CancellationToken.None);
+        var resume = session.ResumeAsync(CancellationToken.None);
         await activationStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
         var completion = await session.CompleteAsync(
-            "owner",
             save: false,
             CancellationToken.None);
 
@@ -610,7 +756,7 @@ public sealed class PowerPointPresentationSessionServiceTests : WebHostServiceTe
             "Owner phone",
             Assert.Single(automation.Snapshot.Presentations)).Succeeded);
 
-        var completion = session.CompleteAsync("owner", save: true, CancellationToken.None);
+        var completion = session.CompleteAsync(save: true, CancellationToken.None);
         await reportStore.SaveStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
         session.Dispose();
 
@@ -654,7 +800,7 @@ public sealed class PowerPointPresentationSessionServiceTests : WebHostServiceTe
             automation,
             new InMemoryPresentationReportStore());
         _ = session.Start("owner", "Owner phone", presenting);
-        _ = session.SetBreak("owner", true);
+        _ = session.SetBreak(true);
         automation.Publish(new(PowerPointDiscoveryState.Ready, []));
         var reopened = presenting with
         {
@@ -678,7 +824,7 @@ public sealed class PowerPointPresentationSessionServiceTests : WebHostServiceTe
         };
 
         Assert.Equal("tracking", session.Snapshot.State);
-        var result = await session.ResumeAsync("owner", CancellationToken.None);
+        var result = await session.ResumeAsync(CancellationToken.None);
 
         Assert.True(result.Succeeded);
         Assert.Equal("presentation-reopened", session.Snapshot.RuntimePresentationId);
@@ -732,12 +878,11 @@ public sealed class PowerPointPresentationSessionServiceTests : WebHostServiceTe
             Assert.Single(automation.Snapshot.Presentations));
 
         time.Advance(TimeSpan.FromSeconds(10));
-        _ = session.SetBreak("owner", true);
+        _ = session.SetBreak(true);
         time.Advance(TimeSpan.FromSeconds(20));
-        _ = session.SetBreak("owner", false);
+        _ = session.SetBreak(false);
         time.Advance(TimeSpan.FromSeconds(5));
         _ = await session.CompleteAsync(
-            "owner",
             save: true,
             CancellationToken.None);
 

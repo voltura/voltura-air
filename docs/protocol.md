@@ -1049,6 +1049,9 @@ Enabled capability:
 ```
 
 Values reflect effective device permission; laser state is host-authoritative.
+Session `ownerDeviceName` and per-connection `isOwner` describe the device that
+most recently started or took over the report; they are informational and do
+not authorize session actions.
 `laserPointerColor` is the concrete active `red`, `green`, or `blue`, or null
 when inactive. `laserPointerDefaultColor` is the current Preferences color.
 Custom screen controls resolve `default` against that value and use the same
@@ -1060,8 +1063,9 @@ PowerPoint laser activation first verifies the running runtime presentation,
 applies Voltura Air's custom cursor, and attempts to set PowerPoint's pointer to
 visible Arrow. The native adjustment and AutoArrow restoration are best-effort
 and do not turn a successful custom-laser command into a failure. A non-owner
-cannot disable or steal another owner's laser, and presentation switching is
-blocked while it is active. Owner
+cannot disable or steal another owner's laser through ordinary pointer commands.
+Explicitly starting a presentation performs host-owned laser cleanup before the
+takeover. Owner
 departure/disconnect, slideshow closure, permission/gate revocation, and
 shutdown perform mandatory cleanup.
 
@@ -1126,17 +1130,18 @@ An authorized explicit saved launch uses:
 }
 ```
 
-The host re-resolves the opaque ID, revalidates the file, rejects active
-session or laser ownership, opens the exact path in PowerPoint, waits for
-automation discovery, then starts the slideshow and host-owned session.
+The host re-resolves the opaque ID, revalidates the file, automatically saves a
+different active session, performs host-owned laser cleanup, opens the exact
+path in PowerPoint, waits for automation discovery, then starts the slideshow
+and host-owned session.
 Results use `presentation.powerpoint.launch.result` with the correlated IDs,
 `succeeded`, optional `code`, `message`, and on success the authoritative
 `runtimePresentationId` and `presentation`. Launch authorization uses effective
 Presentation control permission; the separate generic PowerPoint start button
 continues to use application-launch permission. Expected codes include
 `powerpoint-source-missing`, `powerpoint-open-failed`,
-`powerpoint-open-timeout`, `powerpoint-busy`, `session-active`, and
-`pointer-owner-active`.
+`powerpoint-open-timeout`, `powerpoint-busy`, `session-save-failed`, and
+`session-persistence-failed`.
 
 ### Host-owned PowerPoint session
 
@@ -1153,9 +1158,11 @@ automatically. An already-running show uses:
 ```
 
 `break` requires Boolean `enabled`. `save` and `discard` accept no optional
-fields. Only the starting device owns these mobile actions; other authorized
-devices may still navigate. The trusted local Presentations page can also
-complete a pending review. Results use
+fields. Any device with effective Presentation permission may manage the active
+or paused host-owned session. Explicitly starting the same presentation transfers control
+while preserving the report; starting a different presentation automatically
+saves the prior report before PowerPoint is changed. The trusted local
+Presentations page can also complete a pending review. Results use
 `presentation.session.result` with operation ID, action, succeeded, optional
 code, and message. Mobile correlates one session mutation at a time and may
 report `VAIR-PRESENTATION-SESSION-RESPONSE-TIMEOUT` locally when no matching
@@ -1180,9 +1187,10 @@ the paused session's current position without rewriting completed visits.
 Continue presentation is the primary mobile action and starts from that editor
 slide; Save/Discard remain available as secondary actions. Starting the same
 runtime presentation or exact canonical host file resumes that session
-automatically with the same report, visit timeline, and owner. Time while the
-slideshow is closed is excluded. A different presentation returns
-`session-active` and cannot inherit the paused session.
+automatically with the same report and visit timeline, transfers control to the
+requesting device, and excludes time while the slideshow is closed. Starting a
+different presentation first saves the previous report and then creates a new
+host-owned session.
 
 During a manual break, the host may show a local blackout with the authoritative
 break duration. Input may dismiss that overlay without ending the break. Resume

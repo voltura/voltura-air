@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildHostedApp,
+  buildSiteClients,
   clearStoredPassword,
   formatRemoteListing,
   generateStatisticsReport,
   listSite,
   loadPassword,
   publishSite,
+  publishHostedApp,
+  runAppPublication,
   runSitePublication,
   storePassword,
   trimClipboardPassword
@@ -15,20 +19,60 @@ import {
 test("site publication refreshes statistics before uploading", async () => {
   const operations = [];
   await runSitePublication({
+    build: () => operations.push("build"),
     generate: () => operations.push("generate"),
     publish: async () => operations.push("publish")
   });
-  assert.deepEqual(operations, ["generate", "publish"]);
+  assert.deepEqual(operations, ["build", "generate", "publish"]);
 });
 
 test("prepared site publication uploads the committed snapshot without regenerating it", async () => {
   const operations = [];
   await runSitePublication({
     generate: () => operations.push("generate"),
+    build: () => operations.push("build"),
     publish: async () => operations.push("publish"),
+    skipBuild: true,
     skipGeneration: true
   });
   assert.deepEqual(operations, ["publish"]);
+});
+
+test("app-only publication builds and uploads only the hosted app scope", async () => {
+  const operations = [];
+  await runAppPublication({
+    build: () => operations.push("build-hosted"),
+    publish: async () => operations.push("publish-app")
+  });
+  assert.deepEqual(operations, ["build-hosted", "publish-app"]);
+});
+
+test("app-only publication does not connect when its hosted build fails", async () => {
+  let published = false;
+  await assert.rejects(
+    runAppPublication({
+      build: () => { throw new Error("hosted build failed"); },
+      publish: async () => { published = true; }
+    }),
+    /hosted build failed/u
+  );
+  assert.equal(published, false);
+});
+
+test("site build modes run the expected existing npm scripts", () => {
+  const scripts = [];
+  const options = {
+    npmCliPath: "C:\\npm\\npm-cli.js",
+    run: (_executable, args) => {
+      scripts.push(args.at(-1));
+      return { status: 0 };
+    }
+  };
+  buildSiteClients(options);
+  assert.deepEqual(scripts, ["site:preview:build", "site:hosted:build"]);
+  scripts.length = 0;
+  buildHostedApp(options);
+  assert.deepEqual(scripts, ["site:hosted:build"]);
 });
 
 test("statistics generation is quiet and does not open a browser during publication", () => {
@@ -204,6 +248,88 @@ test("publishes access rules before the site directory", async () => {
     "end"
   ]);
 });
+
+test("app-only publication uploads the hosted app plus both launch redirects", async () => {
+  const operations = [];
+  await publishHostedApp({
+    paths: { hostFingerprintPath: "C:\\Local\\site-host.sha256" },
+    password: "secret",
+    createSftp: () => ({
+      async connect(options) {
+        assert.equal(options.hostVerifier("known-server"), true);
+      },
+      async mkdir(destination) {
+        operations.push(`mkdir:${destination}`);
+      },
+      async put(_source, destination) {
+        operations.push(`put:${destination}`);
+      },
+      async uploadDir(_source, destination) {
+        operations.push(`upload:${destination}`);
+      },
+      async end() {
+        operations.push("end");
+      }
+    }),
+    read: async () => "known-server\n",
+    exists: () => true,
+    appSource: process.cwd(),
+    redirects: [
+      { source: process.cwd(), destination: "a" },
+      { source: process.cwd(), destination: "s" }
+    ],
+    log: () => {}
+  });
+  assert.deepEqual(operations, [
+    "mkdir:air/app",
+    "upload:air/app",
+    "mkdir:a",
+    "put:a/.htaccess",
+    "upload:a",
+    "mkdir:s",
+    "put:s/.htaccess",
+    "upload:s",
+    "end"
+  ]);
+});
+
+for (const failedDestination of ["air/app", "s"]) {
+  test(`app-only publication closes SFTP when ${failedDestination} upload fails`, async () => {
+    const operations = [];
+    await assert.rejects(
+      publishHostedApp({
+        paths: { hostFingerprintPath: "C:\\Local\\site-host.sha256" },
+        password: "secret",
+        createSftp: () => ({
+          async connect(options) {
+            assert.equal(options.hostVerifier("known-server"), true);
+          },
+          async mkdir() {},
+          async put() {},
+          async uploadDir(_source, destination) {
+            operations.push(`upload:${destination}`);
+            if (destination === failedDestination) {
+              throw new Error(`failed ${destination}`);
+            }
+          },
+          async end() {
+            operations.push("end");
+          }
+        }),
+        read: async () => "known-server\n",
+        exists: () => true,
+        appSource: process.cwd(),
+        redirects: [
+          { source: process.cwd(), destination: "a" },
+          { source: process.cwd(), destination: "s" }
+        ],
+        log: () => {}
+      }),
+      new RegExp(`failed ${failedDestination.replace("/", "\\/")}`, "u")
+    );
+    assert.equal(operations.at(-1), "end");
+  });
+}
 
 test("lists the remote site without creating, uploading, or removing files", async () => {
   const operations = [];

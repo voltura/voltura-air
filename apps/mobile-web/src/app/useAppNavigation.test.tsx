@@ -141,6 +141,25 @@ describe("useAppNavigation remote entry ownership", () => {
 });
 
 describe("useAppNavigation split orientation", () => {
+  it("suppresses Split mode transiently without changing its saved preference", () => {
+    configureTouchScreen(1200, 800, "landscape-primary");
+    const { result, rerender } = renderHook(({ suppressSplitMode }) => useAppNavigation({
+      fourthMode: "dictation",
+      isPaired: true,
+      onEnterRemote: vi.fn(),
+      presentationAvailable: true,
+      suppressSplitMode,
+      supportsGestureDebug: false,
+      trackpadSettings: { ...trackpadSettings, enableSplitMode: true }
+    }), { initialProps: { suppressSplitMode: false } });
+
+    expect(result.current.shouldShowSplitMode).toBe(true);
+    rerender({ suppressSplitMode: true });
+    expect(result.current.shouldShowSplitMode).toBe(false);
+    rerender({ suppressSplitMode: false });
+    expect(result.current.shouldShowSplitMode).toBe(true);
+  });
+
   it("reclaims hidden split chrome and anchors its quick selector to the trackpad", () => {
     configureTouchScreen(1200, 800, "landscape-primary");
     const { result } = renderHook(() => useAppNavigation({

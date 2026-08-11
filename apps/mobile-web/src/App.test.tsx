@@ -605,6 +605,41 @@ describe("App header and mode navigation", () => {
     await expectSettingsToolToLeaveScreen("Trackpad");
   });
 
+  it("requests Gyro from Tools and replaces Screen with the Trackpad in Gyro mode", async () => {
+    const motionPermission = vi.fn(() => Promise.resolve("granted" as const));
+    const orientationPermission = vi.fn(() => Promise.resolve("granted" as const));
+    Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
+    vi.stubGlobal("DeviceMotionEvent", { requestPermission: motionPermission });
+    vi.stubGlobal("DeviceOrientationEvent", { requestPermission: orientationPermission });
+    mockConnection({
+      screenViewCapability: {
+        enabled: true,
+        permissionGranted: true,
+        canView: true,
+        requiresRepair: false,
+        encrypted: true,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        maxFramesPerSecond: 30
+      }
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    let menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog")!;
+    fireEvent.click(within(menu).getByRole("button", { name: "View PC screen" }));
+    expect(await screen.findByText("Live mirror")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog")!;
+    fireEvent.click(within(menu).getByRole("button", { name: "Gyro mouse" }));
+
+    expect(motionPermission).toHaveBeenCalledOnce();
+    expect(orientationPermission).toHaveBeenCalledOnce();
+    expect(screen.queryByText("Live mirror")).toBeNull();
+    await waitFor(() => { expect(screen.getByRole("button", { name: "Gyro" }).getAttribute("aria-pressed")).toBe("true"); });
+  });
+
   it("navigates from Screen to a custom screen selected in the Settings drawer", async () => {
     mockConnection({
       screenViewCapability: {

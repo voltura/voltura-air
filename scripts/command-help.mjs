@@ -39,7 +39,7 @@ export const commandDescriptions = {
   "package:win": "Build the full Windows installer package.",
   "package:win:small": "Build only the framework-dependent Windows installer package.",
   "package:win:test": "Build an uncompressed Windows installer for testing.",
-  "publish:site": "Build hosted/preview clients, refresh statistics, then publish the public site and short relay redirect.",
+  "publish:site": "Build hosted/preview clients, refresh statistics, then publish the public site and launch redirects; pass -- --only-app for only /air/app, /a, and /s.",
   "publish:site:prepared": "Publish the already prepared public-site snapshot without regenerating tracked files.",
   "publish:site:list": "List the public-site deployment configuration.",
   "publish:site:password": "Store the public-site deployment password securely for this user.",

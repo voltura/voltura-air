@@ -27,6 +27,7 @@ import { CustomScreenWorkspace } from "./features/custom-screens";
 import { WorkspaceErrorBoundary } from "./app/WorkspaceErrorBoundary";
 import { subscribeFileManagerResults } from "./foundation/connection/fileManagerResultBus";
 import { ThirdPartyNoticesWorkspace } from "./features/legal";
+import { requestGyroPermission, type GyroActivationRequest } from "./foundation/input/gyroMouse";
 
 const ScreenViewWorkspace = lazy(() => import("./features/screen-view"));
 const FileManagerWorkspace = lazy(() => import("./features/file-manager"));
@@ -84,6 +85,15 @@ export function App() {
   const [suppressedClipboardResultId, setSuppressedClipboardResultId] = useState<string | null>(null);
   const [activeCustomScreenId, setActiveCustomScreenId] = useState<string | null>(null);
   const [isScreenViewOpen, setIsScreenViewOpen] = useState(false);
+  const [gyroSelected, setGyroSelected] = useState(false);
+  const [gyroActivationRequest, setGyroActivationRequest] = useState<GyroActivationRequest | null>(null);
+  const gyroActivationIdRef = useRef(0);
+  const handleGyroSelectedChange = useCallback((selected: boolean) => {
+    setGyroSelected(selected);
+    if (selected) {
+      setGyroActivationRequest(null);
+    }
+  }, []);
   const [activeFileJobCount, setActiveFileJobCount] = useState(0);
   const fileJobStatesRef = useRef(new Map<string, string>());
   useEffect(() => subscribeFileManagerResults((result) => {
@@ -233,6 +243,7 @@ export function App() {
     filesAvailable,
     supportsGestureDebug,
     trackpadSettings,
+    suppressSplitMode: gyroSelected,
     showModeButtons: showModeButtons && !isThirdPartyNoticesOpen
   });
   useEffect(() => {
@@ -293,6 +304,17 @@ export function App() {
       setIsScreenViewOpen(false);
       setIsThirdPartyNoticesOpen(false);
       openGestureDebug();
+    });
+  };
+  const openGyroMouse = () => {
+    const permission = requestGyroPermission();
+    const request = { id: ++gyroActivationIdRef.current, permission };
+    requestPresentationExit(() => {
+      setActiveCustomScreenId(null);
+      setIsScreenViewOpen(false);
+      setIsThirdPartyNoticesOpen(false);
+      setGyroActivationRequest(request);
+      openModeFromMenu("trackpad");
     });
   };
   const requestPresentationConnectionChange = (
@@ -605,6 +627,7 @@ export function App() {
             setIsScreenViewOpen(false);
             setIsThirdPartyNoticesOpen(true);
           }}
+          onOpenGyroMouse={openGyroMouse}
           onPairingQrSelected={onPairingQrSelected}
           onManualHostSubmit={connectManualHost}
           pairedPcs={pairedPcs}
@@ -695,10 +718,13 @@ export function App() {
         ) : <ModeWorkspace
           appSettings={appSettings}
           connection={connection}
+          connectionEpoch={connectionEpoch}
+          gyroActivationRequest={gyroActivationRequest}
           keyboardSettings={keyboardSettings}
           onClearAfterSendingChange={(value) => { updateAppSetting("clearTextAfterSending", value); }}
           onClipboardCopyFeedback={showClipboardCopyFeedback}
           onPresentationSessionActiveChange={handlePresentationSessionActiveChange}
+          onGyroSelectedChange={handleGyroSelectedChange}
           onPresentationActivationRequestHandled={handlePresentationActivationRequestHandled}
           presentationActivationRequestId={
             state === "paired" &&

@@ -224,6 +224,7 @@ public sealed class WebHostService : IAsyncDisposable
             pairingManager,
             statusFactory,
             _presentationSession,
+            _presentationLaserPointer,
             _transport,
             _appLog);
         var externalActionCommands = new ExternalActionCommandHandler(
@@ -395,15 +396,12 @@ public sealed class WebHostService : IAsyncDisposable
     internal Task<SessionOperationResult> CompletePresentationSessionFromHostAsync(
         bool save,
         CancellationToken cancellationToken)
-    {
-        var owner = _presentationSession.Snapshot.OwnerClientId;
-        return owner is null
+        => _presentationSession.Snapshot.State == "inactive"
             ? Task.FromResult(new SessionOperationResult(
                 false,
                 "session-unavailable",
                 "There is no presentation draft to finish."))
-            : _presentationSession.CompleteAsync(owner, save, cancellationToken);
-    }
+            : _presentationSession.CompleteAsync(save, cancellationToken);
 
     internal static bool IsPortAvailable(int port) => WebHostNetwork.IsPortAvailable(port);
     internal static int FindFreePort() => WebHostNetwork.FindFreePort();

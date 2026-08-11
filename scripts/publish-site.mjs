@@ -12,6 +12,7 @@ const host = "ssh.voltura.se";
 const port = 22;
 const username = "voltura.se";
 const remoteDirectory = "air";
+const hostedAppSourceDirectory = path.join(sourceDirectory, "app");
 
 const protectPasswordCommand = `
 $request = [Console]::In.ReadToEnd() | ConvertFrom-Json
@@ -213,14 +214,57 @@ export function generateStatisticsReport({
   }
 }
 
+export function runNpmScript(script, {
+  run = spawnSync,
+  npmCliPath = process.env.npm_execpath
+} = {}) {
+  if (!npmCliPath) {
+    throw new Error("Site publishing must be run through npm: npm run publish:site");
+  }
+  const result = run(process.execPath, [npmCliPath, "run", script], {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+    stdio: "inherit",
+    windowsHide: true
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    throw new Error(`${script} failed with exit code ${result.status ?? "unknown"}.`);
+  }
+}
+
+export function buildSiteClients(options = {}) {
+  runNpmScript("site:preview:build", options);
+  runNpmScript("site:hosted:build", options);
+}
+
+export function buildHostedApp(options = {}) {
+  runNpmScript("site:hosted:build", options);
+}
+
 export async function runSitePublication({
+  build = buildSiteClients,
   generate = generateStatisticsReport,
   publish = publishSite,
+  skipBuild = false,
   skipGeneration = false
 } = {}) {
+  if (!skipBuild) {
+    build();
+  }
   if (!skipGeneration) {
     generate();
   }
+  return publish();
+}
+
+export async function runAppPublication({
+  build = buildHostedApp,
+  publish = publishHostedApp
+} = {}) {
+  build();
   return publish();
 }
 
@@ -268,6 +312,44 @@ export async function publishSite({
   }
 }
 
+export async function publishHostedApp({
+  paths = getSitePublishPaths(),
+  password = loadPassword({ paths }),
+  createSftp = () => new SftpClient(),
+  read = readFile,
+  write = writeFile,
+  makeDirectory = mkdir,
+  exists = existsSync,
+  appSource = hostedAppSourceDirectory,
+  redirects = [
+    { source: path.join(sourceDirectory, "a"), destination: "a" },
+    { source: path.join(sourceDirectory, "s"), destination: "s" }
+  ],
+  log = console.log
+} = {}) {
+  await access(appSource);
+  for (const redirect of redirects) {
+    await access(redirect.source);
+  }
+  const sftp = await connectSftp({ paths, password, createSftp, read, write, makeDirectory });
+  try {
+    const appDestination = `${remoteDirectory}/app`;
+    await sftp.mkdir(appDestination, true);
+    await sftp.uploadDir(appSource, appDestination);
+    for (const redirect of redirects) {
+      await sftp.mkdir(redirect.destination, true);
+      const accessRules = path.join(redirect.source, ".htaccess");
+      if (exists(accessRules)) {
+        await sftp.put(accessRules, `${redirect.destination}/.htaccess`);
+      }
+      await sftp.uploadDir(redirect.source, redirect.destination);
+    }
+    log(`Published hosted app and launch redirects to ${host}`);
+  } finally {
+    await sftp.end();
+  }
+}
+
 export async function listSite({
   paths = getSitePublishPaths(),
   password = loadPassword({ paths }),
@@ -300,7 +382,9 @@ async function main() {
   } else if (process.argv[2] === "--list") {
     await listSite();
   } else if (process.argv[2] === "--prepared") {
-    await runSitePublication({ skipGeneration: true });
+    await runSitePublication({ skipBuild: true, skipGeneration: true });
+  } else if (process.argv[2] === "--only-app") {
+    await runAppPublication();
   } else if (process.argv[2] === undefined) {
     await runSitePublication();
   } else {

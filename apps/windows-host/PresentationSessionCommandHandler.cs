@@ -7,6 +7,7 @@ internal sealed class PresentationSessionCommandHandler(
     PairingManager pairingManager,
     HostStatusPayloadFactory statusFactory,
     PowerPointPresentationSessionService session,
+    PresentationLaserPointerController laserPointer,
     WebSocketTransport transport,
     IAppLogWriter appLog)
 {
@@ -77,22 +78,60 @@ internal sealed class PresentationSessionCommandHandler(
             }
 
             var deviceName = pairingManager.GetDeviceName(clientId);
-            return deviceName is null
-                ? new(false, "device-revoked", "This device is no longer paired with the PC.")
-                : session.Start(clientId, deviceName, candidates[0]);
+            if (deviceName is null)
+            {
+                return new(false, "device-revoked", "This device is no longer paired with the PC.");
+            }
+
+            using var startLease = await session.AcquireStartAsync(cancellationToken).ConfigureAwait(false);
+            if (!statusFactory.CanControlPresentations(clientId))
+            {
+                return new(false, "permission-denied", "Presentation tracking is disabled for this device.");
+            }
+
+            candidates = string.IsNullOrEmpty(runtimeId)
+                ? [.. statusFactory.GetPowerPointSnapshot().Presentations.Where(item => item.IsPresenting)]
+                : [.. statusFactory.GetPowerPointSnapshot().Presentations.Where(item =>
+                    item.IsPresenting &&
+                    string.Equals(item.RuntimePresentationId, runtimeId, StringComparison.Ordinal))];
+            if (candidates.Length != 1)
+            {
+                return new(
+                    false,
+                    candidates.Length == 0 ? "powerpoint-not-presenting" : "powerpoint-selection-required",
+                    candidates.Length == 0
+                        ? "Start the selected PowerPoint slideshow before tracking it."
+                        : "Choose which running PowerPoint presentation to track.");
+            }
+
+            deviceName = pairingManager.GetDeviceName(clientId);
+            if (deviceName is null)
+            {
+                return new(false, "device-revoked", "This device is no longer paired with the PC.");
+            }
+
+            var prepared = await session.PrepareForStartAsync(
+                candidates[0].RuntimePresentationId,
+                candidates[0].SourcePath,
+                cancellationToken).ConfigureAwait(false);
+            if (!prepared.Succeeded)
+            {
+                return prepared;
+            }
+
+            laserPointer.DisableForTakeover();
+            return session.Start(clientId, deviceName, candidates[0]);
         }
 
         if (action == "break")
         {
             return message.GetProperty("enabled").GetBoolean()
-                ? session.SetBreak(clientId, enabled: true)
+                ? session.SetBreak(enabled: true)
                 : await session.ResumeAsync(
-                    clientId,
                     cancellationToken).ConfigureAwait(false);
         }
 
         return await session.CompleteAsync(
-            clientId,
             save: action == "save",
             cancellationToken).ConfigureAwait(false);
     }

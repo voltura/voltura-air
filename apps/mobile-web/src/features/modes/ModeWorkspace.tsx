@@ -5,6 +5,8 @@ import type { TrackpadSettings, TwoFingerMode } from "../../foundation/input/ges
 import { triggerHapticFeedback } from "../../foundation/input/hapticFeedback";
 import { useKeyboardInput } from "../../foundation/input/useKeyboardInput";
 import { usePointerInput } from "../../foundation/input/usePointerInput";
+import { useGyroMouse } from "../../foundation/input/useGyroMouse";
+import type { GyroActivationRequest } from "../../foundation/input/gyroMouse";
 import { useSpeechDictation } from "../../foundation/input/useSpeechDictation";
 import type { KeyboardSettings } from "../../foundation/settings/keyboardSettings";
 import { toLiveKeyboardValue } from "../../foundation/input/keyboardDelta";
@@ -68,8 +70,11 @@ type ConnectionContract = Pick<
 interface ModeWorkspaceProps {
   appSettings: AppSettings;
   connection: ConnectionContract;
+  connectionEpoch: number;
+  gyroActivationRequest: GyroActivationRequest | null;
   keyboardSettings: KeyboardSettings;
   onClearAfterSendingChange: (value: boolean) => void;
+  onGyroSelectedChange: (selected: boolean) => void;
   onClipboardCopyFeedback: (feedback: AppToastMessage) => void;
   onPresentationSessionActiveChange: (active: boolean) => void;
   onPresentationActivationRequestHandled: () => void;
@@ -87,8 +92,11 @@ interface ModeWorkspaceProps {
 export function ModeWorkspace({
   appSettings,
   connection,
+  connectionEpoch,
+  gyroActivationRequest,
   keyboardSettings,
   onClearAfterSendingChange,
+  onGyroSelectedChange,
   onClipboardCopyFeedback,
   onPresentationSessionActiveChange,
   onPresentationActivationRequestHandled,
@@ -110,14 +118,25 @@ export function ModeWorkspace({
     ? optimisticAudioState.value
     : connection.audioState;
   const [isTrackpadExpanded, setIsTrackpadExpanded] = useState(false);
+  const [isPresentationTrackpadOpen, setIsPresentationTrackpadOpen] = useState(false);
   const [trackpadTwoFingerMode, setTrackpadTwoFingerMode] = useState<TwoFingerMode>("scroll");
   const [textTransferDraft, setTextTransferDraft] = useState("");
   const effectiveTrackpadTwoFingerMode = trackpadSettings.zoomGestures ? trackpadTwoFingerMode : "scroll";
-  const { emit, onTouchCancel, onTouchEnd, onTouchMove, onTouchStart, sendSpecial, sendText, sleepPc } = usePointerInput({
+  const { cancel, emit, onTouchCancel, onTouchEnd, onTouchMove, onTouchStart, sendSpecial, sendText, sleepPc } = usePointerInput({
     send: connection.send,
     state: connection.state,
     trackpadSettings,
     twoFingerMode: effectiveTrackpadTwoFingerMode
+  });
+  const gyro = useGyroMouse({
+    activationRequest: gyroActivationRequest,
+    connected: connection.state === "paired",
+    enabledSurface: tab === "trackpad" || (tab === "presentation" && isPresentationTrackpadOpen),
+    onMove: (dx, dy) => { emit({ type: "pointer.move", dx, dy }); },
+    onSelectedChange: onGyroSelectedChange,
+    onStop: cancel,
+    sensitivity: trackpadSettings.gyroSensitivity,
+    sessionKey: connectionEpoch
   });
   const {
     committedKeyboardTextRef,
@@ -168,6 +187,7 @@ export function ModeWorkspace({
       trackpadMode={{
         audioState: displayedAudioState,
         isExpanded: isTrackpadExpanded,
+        gyro,
         onMouseButtonDown: (button) => {
           triggerHapticFeedback(trackpadSettings);
           emit({ type: "pointer.button", button, action: "down" });
@@ -237,6 +257,7 @@ export function ModeWorkspace({
         onPowerPointAppLaunch: connection.requestAppLaunch,
         onSaveReport: connection.requestPresentationReportSave,
         onSessionActiveChange: onPresentationSessionActiveChange,
+        onTrackpadOpenChange: setIsPresentationTrackpadOpen,
         onVolumeDown: () => { sendSpecial("VolumeDown"); },
         onVolumeUp: () => { sendSpecial("VolumeUp"); }
       }}

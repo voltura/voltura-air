@@ -36,6 +36,7 @@ export interface SettingsDrawerProps {
   onPairingQrSelected: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
   onManualHostSubmit: (target: ManualConnectionTarget) => void;
   onOpenGestureDebug?: (() => void) | undefined;
+  onOpenGyroMouse?: (() => void) | undefined;
   onOpenMode?: (mode: SettingsModeId) => void;
   onOpenThirdPartyNotices: () => void;
   onOpenCustomScreen?: ((screenId: string) => void) | undefined;

@@ -339,8 +339,20 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   left/right buttons; held-button drag; two-axis scroll; optional **Pinch zoom**.
   When Pinch zoom is enabled, a compact Trackpad switch chooses explicit
   **Scroll** or **Zoom** behavior so one gesture cannot be mistaken for the other.
+- The main Trackpad and Presentation's embedded Trackpad offer **Touch** and
+  **Gyro** movement. Gyro mouse uses motion sensors in a phone or tablet while
+  the user holds the trackpad surface or either mouse button. It sends ordinary
+  pointer movement, so Presentation's separately controlled laser cursor moves
+  naturally without any sensor-specific host behavior. Screen View and Custom
+  screen trackpads remain touch-only.
+- Gyro mouse requires Enhanced capabilities over HTTPS (always present for
+  Relay and available through Secure Direct). Motion permission is requested
+  from the user's Gyro action and is never remembered as an active mode. Gyro
+  stops on release and is disabled when its Trackpad closes, the page becomes
+  hidden, or the connection changes. Unsupported, denied, insecure, and
+  no-sensor-data states remain visible with recovery guidance.
 - Pointer speed, smoothing, acceleration, scroll acceleration/direction,
-  haptics, handedness, large buttons, and volume controls.
+  gyro sensitivity, haptics, handedness, large buttons, and volume controls.
 - Full-screen trackpad and an optional host-enabled gesture debug surface.
 - Touch ownership suppresses page scrolling, callouts, and accidental selection
   on the control surface.
@@ -414,10 +426,11 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   starting it. A retained saved file can be started from the main controls, and
   **Open and present** remains the chooser shortcut; either explicit start
   starts PowerPoint when necessary, opens that exact host-validated path,
-  starts its slideshow, and begins the authoritative session. Active sessions
-  and laser ownership keep the current deck selected and disable alternatives
-  until the ownership is resolved. Ordinary discovery and control commands
-  never launch a file or fall back to global input.
+  starts its slideshow, and begins the authoritative session. Starting from any
+  authorized phone takes control: the same deck continues its existing session,
+  while a different deck saves the previous session automatically before
+  starting. Ordinary discovery and control commands never launch a file or fall
+  back to global input.
 - A sole open PowerPoint presentation is selected automatically. Multiple open
   presentations require an opaque runtime selection. Direct automation supports
   Start from beginning/current, Next, Previous, First, Last, numbered slide,
@@ -437,29 +450,31 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   cleanup do not.
 - Presentation discovery and saved-file launch live in a dedicated chooser.
   The controller retains only the selected name, slide/state summary, and
-  Change action. Active sessions and laser ownership allow browsing but block
-  switching until the current ownership is completed.
+  Change action. The chooser remains available during a session and explains
+  that starting another deck saves the current session automatically.
 - Google Slides and PDF/browser retain their reviewed shortcut controls and
   local timer/report path.
 - The laser is Voltura Air's custom cursor, not PowerPoint's native laser.
   PowerPoint's arrow visibility is adjusted on a best-effort basis and restored
   to automatic on disable or mandatory cleanup; a native pointer-option failure
-  does not disable Voltura Air's cursor. An active laser prevents presentation
-  switching. Presentation mode always uses the current default Presentation
-  color. A Custom screen can temporarily request Red, Green, or Blue without
+  does not disable Voltura Air's cursor. Explicitly starting a presentation
+  disables any existing laser as part of the takeover. Presentation mode always
+  uses the current default Presentation color. A Custom screen can temporarily request Red, Green, or Blue without
   changing Preferences; its size still follows the global laser size, Default
   follows later preference changes, and an explicit color remains explicit.
 - A PowerPoint session starts when mobile starts the slideshow or explicitly
   chooses **Start tracking**. The host owns monotonic timing, manual breaks,
   current/total slide state, and a bounded ordered visit timeline. Black, white,
   and paused slideshow states do not create breaks.
-- The starting device owns mobile breaks and Save/Discard. Slideshow exit pauses
-  tracking and offers Continue presentation as the primary action, with
-  Save/Discard secondary, without blocking the same presentation from
-  restarting. When PowerPoint is in edit mode, the paused session reconciles
+- Any authorized phone may manage breaks and Save/Discard during active or
+  paused tracking. Explicitly starting
+  the same presentation transfers control while preserving the report; starting
+  another presentation saves the prior report automatically. Slideshow exit
+  pauses tracking and offers Continue presentation as the primary action, with
+  Save/Discard secondary. When PowerPoint is in edit mode, the paused session reconciles
   its current position to PowerPoint's current editor slide while preserving
   the completed visit history. Continue starts from that slide and resumes the
-  existing report, visits, ownership, and elapsed time; time with the slideshow
+  existing report, visits, and elapsed time; time with the slideshow
   closed is excluded. A different presentation never inherits the paused
   session. The trusted local Presentations page may also save or discard it,
   and the atomic local draft survives disconnect or host restart. Existing

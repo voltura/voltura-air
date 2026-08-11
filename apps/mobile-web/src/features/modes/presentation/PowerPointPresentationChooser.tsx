@@ -19,7 +19,6 @@ interface PowerPointPresentationChooserProps {
   capability: PowerPointCapability;
   launchPending: boolean;
   launchResult?: PowerPointLaunchResultMessage | null | undefined;
-  lockedMessage?: string | null | undefined;
   onBack: () => void;
   onLaunchApp?: ((actionId: string) => void) | undefined;
   onLaunchSaved: (presentationId: string) => void;
@@ -38,7 +37,6 @@ export function PowerPointPresentationChooser({
   capability,
   launchPending,
   launchResult,
-  lockedMessage,
   onBack,
   onLaunchApp,
   onLaunchSaved,
@@ -56,8 +54,9 @@ export function PowerPointPresentationChooser({
   const selectedSaved = selection?.kind === "saved"
     ? saved.find((item) => item.presentationId === selection.id)
     : undefined;
-  const commitDisabled = launchPending || lockedMessage !== null && lockedMessage !== undefined ||
-    (!selectedOpen && !selectedSaved);
+  const commitDisabled = launchPending || (!selectedOpen && !selectedSaved);
+  const replacesCurrentSession = capability.session?.state !== undefined &&
+    capability.session.state !== "inactive";
 
   return (
     <section className="presentation-chooser" aria-labelledby="presentation-chooser-title">
@@ -87,9 +86,7 @@ export function PowerPointPresentationChooser({
               detail={presentation.state === "presenting"
                 ? `Slide ${presentation.currentSlideIndex ?? "–"} of ${presentation.slideCount} · Presenting`
                 : `${presentation.slideCount} slides · Ready`}
-              disabled={launchPending ||
-                lockedMessage !== null && lockedMessage !== undefined &&
-                !(selection?.kind === "open" && selection.id === presentation.runtimePresentationId)}
+              disabled={launchPending}
               id={`open-${presentation.runtimePresentationId}`}
               key={presentation.runtimePresentationId}
               name={presentation.name}
@@ -105,9 +102,7 @@ export function PowerPointPresentationChooser({
               detail={presentation.fileName === presentation.title
                 ? "Saved presentation"
                 : presentation.fileName}
-              disabled={launchPending ||
-                lockedMessage !== null && lockedMessage !== undefined &&
-                !(selection?.kind === "saved" && selection.id === presentation.presentationId)}
+              disabled={launchPending}
               id={`saved-${presentation.presentationId}`}
               key={presentation.presentationId}
               name={presentation.title}
@@ -119,14 +114,16 @@ export function PowerPointPresentationChooser({
 
       <footer className="presentation-chooser-footer">
         <div className="presentation-chooser-feedback" aria-live="polite">
-          {lockedMessage && <p className="presentation-permission-message">{lockedMessage}</p>}
+          {replacesCurrentSession && (
+            <p>Starting another deck saves the current presentation automatically.</p>
+          )}
           {launchResult?.succeeded === false && (
             <p className="presentation-permission-message" role="alert">{launchResult.message}</p>
           )}
           {appLaunchResult?.succeeded === false && appLaunchResult.actionId === appLaunchAction?.id && (
             <p className="presentation-permission-message" role="alert">{appLaunchResult.message}</p>
           )}
-          {!lockedMessage && !launchResult && capability.state !== "ready" && (
+          {!launchResult && capability.state !== "ready" && (
             <p>PowerPoint is not running. Choose a saved deck to start it, or start PowerPoint without opening a file.</p>
           )}
         </div>

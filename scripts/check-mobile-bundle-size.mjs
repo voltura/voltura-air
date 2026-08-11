@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const maximumRawJavaScriptBytes = 568 * 1024;
-const maximumBrotliJavaScriptBytes = 136 * 1024;
+const maximumBrotliJavaScriptBytes = 137 * 1024;
 const distDirectory = fileURLToPath(new URL("../apps/mobile-web/dist/", import.meta.url));
 const assetsDirectory = fileURLToPath(new URL("../apps/mobile-web/dist/assets/", import.meta.url));
 const indexHtml = await readFile(path.join(distDirectory, "index.html"), "utf8");

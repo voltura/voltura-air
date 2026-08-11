@@ -53,6 +53,19 @@ const baseProps = {
   updateTrackpadSetting: vi.fn()
 };
 
+describe("Gyro mouse tool", () => {
+  it("stays visible and starts from its own Tools shortcut", () => {
+    vi.stubGlobal("__APP_VERSION__", "test-version");
+    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false })));
+    const onOpenGyroMouse = vi.fn();
+    render(<SettingsDrawer {...baseProps} onOpenGyroMouse={onOpenGyroMouse} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Gyro mouse" }));
+
+    expect(onOpenGyroMouse).toHaveBeenCalledOnce();
+  });
+});
+
 function createRect(top: number, bottom: number): DOMRect {
   return {
     bottom,

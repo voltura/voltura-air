@@ -12,7 +12,8 @@ an optional Cloud relay is available for networks that block inbound PC connecti
 
 ## What you can do
 
-- Use a phone or tablet as a wireless trackpad and keyboard.
+- Use a phone or tablet as a wireless touch trackpad, gyro mouse, and keyboard.
+  Gyro mouse requires Enhanced capabilities over HTTPS.
 - View one selected Windows display live on a paired phone, tablet, or browser
   over Direct LAN or the optional Cloud relay, with encrypted video, responsive
   cursor movement, scrolling, and up to 5x local zoom. Relay viewing offers

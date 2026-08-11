@@ -30,7 +30,8 @@ test("Secure Direct short redirect selects the hosted Secure Direct bootstrap wi
 test("site publication uploads the short redirect at the domain root", () => {
   const publication = read("scripts/publish-site.mjs");
   assert.match(publication, /uploadDir\(shortLinkSource, "a"\)/u);
-  assert.match(read("package.json"), /"publish:site"[^\n]+site:hosted:build/u);
+  assert.match(publication, /runNpmScript\("site:hosted:build"/u);
+  assert.match(publication, /publishHostedApp/u);
 });
 
 test("relay setup stores restricted Worker secrets and never requests a global key", () => {

@@ -51,6 +51,13 @@ export function TrackpadSettingsSection({
           <output>{trackpadSettings.pointerSpeed}%</output>
         </div>
       </label>
+      <label className="setting-group">
+        <span>Gyro sensitivity</span>
+        <div className="range-row">
+          <input type="range" min="25" max="200" step="5" value={trackpadSettings.gyroSensitivity} onChange={(event) => { updateTrackpadSetting("gyroSensitivity", Number(event.target.value)); }} />
+          <output>{trackpadSettings.gyroSensitivity}%</output>
+        </div>
+      </label>
     </>
   );
 }

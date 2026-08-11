@@ -6,7 +6,8 @@ for a Windows 11 PC.
 
 ## Core capabilities
 
-- Touch trackpad, keyboard, browser-supported dictation, media remote, and
+- Touch trackpad, Enhanced-capabilities gyro mouse on sensor-equipped phones
+  and tablets, keyboard, browser-supported dictation, media remote, and
   landscape split mode.
 - Presentation mode for PowerPoint, Google Slides, and
   PDF/browser control, with trackpad, native laser pointer, timer, statistics,

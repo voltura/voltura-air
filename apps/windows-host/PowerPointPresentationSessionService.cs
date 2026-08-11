@@ -34,6 +34,11 @@ internal sealed class PowerPointPresentationSessionService : IDisposable
     private readonly TimeProvider _timeProvider;
     private readonly string? _draftPath;
     private readonly System.Threading.Timer _statusTimer;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Usage",
+        "CA2213:Disposable fields should be disposed",
+        Justification = "SemaphoreSlim owns no OS handle because AvailableWaitHandle is never used; retaining it lets in-flight start leases release safely during shutdown.")]
+    private readonly SemaphoreSlim _startGate = new(1, 1);
     private SessionDraft? _session;
     private string? _pendingCommandOrigin;
     private string? _completionReportId;
@@ -150,11 +155,33 @@ internal sealed class PowerPointPresentationSessionService : IDisposable
         }
     }
 
-    internal SessionOperationResult CanStartOrResume(
-        PowerPointPresentationSnapshot presentation)
+    internal async Task<IDisposable> AcquireStartAsync(CancellationToken cancellationToken)
+    {
+        await _startGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        lock (_gate)
+        {
+            if (_disposed)
+            {
+                _startGate.Release();
+                throw new ObjectDisposedException(nameof(PowerPointPresentationSessionService));
+            }
+        }
+
+        return new StartLease(() => _startGate.Release());
+    }
+
+    internal async Task<SessionOperationResult> PrepareForStartAsync(
+        string? runtimePresentationId,
+        string? sourcePath,
+        CancellationToken cancellationToken)
     {
         lock (_gate)
         {
+            if (_disposed)
+            {
+                return new(false, "session-unavailable", "Presentation tracking is stopping.");
+            }
+
             if (_completionReportId is not null)
             {
                 return new(
@@ -164,16 +191,18 @@ internal sealed class PowerPointPresentationSessionService : IDisposable
             }
 
             if (_session is null ||
-                IsSamePresentation(_session, presentation))
+                IsSamePresentation(_session, runtimePresentationId, sourcePath))
             {
                 return new(true, null, "Presentation can start.");
             }
-
-            return new(
-                false,
-                "session-active",
-                "Save or discard the paused session before starting a different presentation.");
         }
+
+        var completed = await CompleteAsync(
+            save: true,
+            cancellationToken).ConfigureAwait(false);
+        return completed.Succeeded
+            ? new(true, null, "The previous presentation was saved automatically.")
+            : completed;
     }
 
     internal SessionOperationResult Start(
@@ -190,6 +219,11 @@ internal sealed class PowerPointPresentationSessionService : IDisposable
         SessionOperationResult result;
         lock (_gate)
         {
+            if (_disposed)
+            {
+                return new(false, "session-unavailable", "Presentation tracking is stopping.");
+            }
+
             if (_completionReportId is not null)
             {
                 return new(
@@ -204,13 +238,36 @@ internal sealed class PowerPointPresentationSessionService : IDisposable
                 if (_session.State == "tracking" &&
                     IsSamePresentation(_session, presentation))
                 {
-                    return new(true, null, "Presentation tracking is already active.");
+                    if (string.Equals(
+                            _session.OwnerClientId,
+                            clientId,
+                            StringComparison.Ordinal) &&
+                        string.Equals(
+                            _session.OwnerDeviceName,
+                            deviceName,
+                            StringComparison.Ordinal))
+                    {
+                        return new(true, null, "Presentation tracking is already active.");
+                    }
+
+                    _session = _session with
+                    {
+                        OwnerClientId = clientId,
+                        OwnerDeviceName = deviceName
+                    };
+                    if (!PersistLocked())
+                    {
+                        _session = previousSession;
+                        return PersistenceFailure();
+                    }
+
+                    result = new(true, null, "Presentation control transferred.");
                 }
 
-                if (_session.State == "pending-review" &&
+                else if (_session.State == "pending-review" &&
                     IsSamePresentation(_session, presentation))
                 {
-                    ResumePausedSessionLocked(presentation);
+                    ResumePausedSessionLocked(presentation, clientId, deviceName);
                     if (!PersistLocked())
                     {
                         _session = previousSession;
@@ -275,11 +332,10 @@ internal sealed class PowerPointPresentationSessionService : IDisposable
         return result;
     }
 
-    internal SessionOperationResult SetBreak(string clientId, bool enabled)
-        => SetBreakCore(clientId, enabled, resumeReportId: null);
+    internal SessionOperationResult SetBreak(bool enabled)
+        => SetBreakCore(enabled, resumeReportId: null);
 
     private SessionOperationResult SetBreakCore(
-        string clientId,
         bool enabled,
         string? resumeReportId)
     {
@@ -302,7 +358,7 @@ internal sealed class PowerPointPresentationSessionService : IDisposable
                     "The presentation session is resuming. Wait a moment.");
             }
 
-            if (!TryGetOwnedTrackingSession(clientId, out var session, out var failure))
+            if (!TryGetTrackingSession(out var session, out var failure))
             {
                 return failure;
             }
@@ -407,7 +463,6 @@ internal sealed class PowerPointPresentationSessionService : IDisposable
     }
 
     internal async Task<SessionOperationResult> ResumeAsync(
-        string clientId,
         CancellationToken cancellationToken)
     {
         string runtimePresentationId;
@@ -424,7 +479,7 @@ internal sealed class PowerPointPresentationSessionService : IDisposable
                     "The presentation session is busy. Wait a moment.");
             }
 
-            if (!TryGetOwnedTrackingSession(clientId, out var session, out var failure))
+            if (!TryGetTrackingSession(out var session, out var failure))
             {
                 return failure;
             }
@@ -447,7 +502,7 @@ internal sealed class PowerPointPresentationSessionService : IDisposable
             var activation = await _powerPoint.ExecuteAsync(
                 new("activate", runtimePresentationId),
                 cancellationToken).ConfigureAwait(false);
-            if (!IsResumeCurrent(reportId, clientId))
+            if (!IsResumeCurrent(reportId))
             {
                 return SessionChangedDuringResume();
             }
@@ -469,7 +524,7 @@ internal sealed class PowerPointPresentationSessionService : IDisposable
                 var reopened = await _powerPoint.ExecuteAsync(
                     new("open", SourcePath: sourcePath),
                     cancellationToken).ConfigureAwait(false);
-                if (!IsResumeCurrent(reportId, clientId))
+                if (!IsResumeCurrent(reportId))
                 {
                     return SessionChangedDuringResume();
                 }
@@ -485,7 +540,7 @@ internal sealed class PowerPointPresentationSessionService : IDisposable
                 runtimePresentationId = reopened.Presentation.RuntimePresentationId;
                 lock (_gate)
                 {
-                    if (IsResumeCurrentLocked(reportId, clientId))
+                    if (IsResumeCurrentLocked(reportId))
                     {
                         _session = _session! with
                         {
@@ -510,7 +565,7 @@ internal sealed class PowerPointPresentationSessionService : IDisposable
                 var started = await _powerPoint.ExecuteAsync(
                     new("start", runtimePresentationId),
                     cancellationToken).ConfigureAwait(false);
-                if (!IsResumeCurrent(reportId, clientId))
+                if (!IsResumeCurrent(reportId))
                 {
                     return SessionChangedDuringResume();
                 }
@@ -531,7 +586,7 @@ internal sealed class PowerPointPresentationSessionService : IDisposable
                             runtimePresentationId,
                             SlideNumber: currentSlideIndex),
                         cancellationToken).ConfigureAwait(false);
-                    if (!IsResumeCurrent(reportId, clientId))
+                    if (!IsResumeCurrent(reportId))
                     {
                         return SessionChangedDuringResume();
                     }
@@ -548,7 +603,7 @@ internal sealed class PowerPointPresentationSessionService : IDisposable
                 activation = await _powerPoint.ExecuteAsync(
                     new("activate", runtimePresentationId),
                     cancellationToken).ConfigureAwait(false);
-                if (!IsResumeCurrent(reportId, clientId))
+                if (!IsResumeCurrent(reportId))
                 {
                     return SessionChangedDuringResume();
                 }
@@ -562,7 +617,7 @@ internal sealed class PowerPointPresentationSessionService : IDisposable
                     "PowerPoint could not bring the slideshow back into focus.");
             }
 
-            return SetBreakCore(clientId, enabled: false, reportId);
+            return SetBreakCore(enabled: false, reportId);
         }
         finally
         {
@@ -577,10 +632,14 @@ internal sealed class PowerPointPresentationSessionService : IDisposable
     }
 
     internal async Task<SessionOperationResult> CompleteAsync(
-        string clientId,
         bool save,
         CancellationToken cancellationToken)
     {
+        if (!save)
+        {
+            return Discard();
+        }
+
         SessionDraft session;
         lock (_gate)
         {
@@ -595,11 +654,6 @@ internal sealed class PowerPointPresentationSessionService : IDisposable
             if (_session is null)
             {
                 return new(false, "session-unavailable", "There is no presentation draft to finish.");
-            }
-
-            if (!string.Equals(_session.OwnerClientId, clientId, StringComparison.Ordinal))
-            {
-                return new(false, "session-not-owner", "Only the device that started tracking can save or discard it.");
             }
 
             var previousSession = _session;
@@ -624,73 +678,70 @@ internal sealed class PowerPointPresentationSessionService : IDisposable
 
         _ = _breakOverlay.DismissPresentationBreakIfActive();
         StateChanged?.Invoke(this, EventArgs.Empty);
-        if (save)
+        PresentationReportSaveResult saveResult;
+        try
         {
-            PresentationReportSaveResult saveResult;
-            try
+            saveResult = await _reportStore.SaveAsync(
+                CreateReportRequest(session),
+                session.OwnerClientId,
+                session.OwnerDeviceName,
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException)
+        {
+            lock (_gate)
             {
-                saveResult = await _reportStore.SaveAsync(
-                    CreateReportRequest(session),
-                    session.OwnerClientId,
-                    session.OwnerDeviceName,
-                    cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception exception) when (
-                exception is IOException or UnauthorizedAccessException)
-            {
-                lock (_gate)
+                if (string.Equals(_completionReportId, session.ReportId, StringComparison.Ordinal))
                 {
-                    if (string.Equals(_completionReportId, session.ReportId, StringComparison.Ordinal))
-                    {
-                        _completionReportId = null;
-                    }
+                    _completionReportId = null;
                 }
-
-                return PersistenceFailure();
             }
-            catch (OperationCanceledException)
+
+            return PersistenceFailure();
+        }
+        catch (OperationCanceledException)
+        {
+            lock (_gate)
             {
-                lock (_gate)
+                if (string.Equals(_completionReportId, session.ReportId, StringComparison.Ordinal))
                 {
-                    if (string.Equals(_completionReportId, session.ReportId, StringComparison.Ordinal))
-                    {
-                        _completionReportId = null;
-                    }
+                    _completionReportId = null;
                 }
-
-                throw;
             }
-            catch (Exception exception) when (exception is not OutOfMemoryException)
+
+            throw;
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            lock (_gate)
             {
-                lock (_gate)
+                if (string.Equals(
+                    _completionReportId,
+                    session.ReportId,
+                    StringComparison.Ordinal))
                 {
-                    if (string.Equals(
-                        _completionReportId,
-                        session.ReportId,
-                        StringComparison.Ordinal))
-                    {
-                        _completionReportId = null;
-                    }
+                    _completionReportId = null;
                 }
-
-                return new(
-                    false,
-                    "session-save-failed",
-                    "The presentation could not be saved on the PC.");
             }
 
-            if (!saveResult.Succeeded)
+            return new(
+                false,
+                "session-save-failed",
+                "The presentation could not be saved on the PC.");
+        }
+
+        if (!saveResult.Succeeded)
+        {
+            lock (_gate)
             {
-                lock (_gate)
+                if (string.Equals(_completionReportId, session.ReportId, StringComparison.Ordinal))
                 {
-                    if (string.Equals(_completionReportId, session.ReportId, StringComparison.Ordinal))
-                    {
-                        _completionReportId = null;
-                    }
+                    _completionReportId = null;
                 }
-
-                return new(false, saveResult.Code, saveResult.Message);
             }
+
+            return new(false, saveResult.Code, saveResult.Message);
         }
 
         SessionOperationResult? cleanupFailure = null;
@@ -723,7 +774,38 @@ internal sealed class PowerPointPresentationSessionService : IDisposable
         }
 
         StateChanged?.Invoke(this, EventArgs.Empty);
-        return new(true, null, save ? "Presentation saved." : "Presentation draft discarded.");
+        return new(true, null, "Presentation saved.");
+    }
+
+    private SessionOperationResult Discard()
+    {
+        lock (_gate)
+        {
+            if (_completionReportId is not null || _resumeReportId is not null)
+            {
+                return new(
+                    false,
+                    "session-busy",
+                    "The presentation session is busy. Wait a moment.");
+            }
+
+            if (_session is null)
+            {
+                return new(false, "session-unavailable", "There is no presentation draft to finish.");
+            }
+
+            if (!DeleteDraftLocked())
+            {
+                return PersistenceFailure();
+            }
+
+            _session = null;
+            _statusTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        }
+
+        _ = _breakOverlay.DismissPresentationBreakIfActive();
+        StateChanged?.Invoke(this, EventArgs.Empty);
+        return new(true, null, "Presentation draft discarded.");
     }
 
     public void Dispose()
@@ -888,8 +970,7 @@ internal sealed class PowerPointPresentationSessionService : IDisposable
         return true;
     }
 
-    private bool TryGetOwnedTrackingSession(
-        string clientId,
+    private bool TryGetTrackingSession(
         out SessionDraft? session,
         out SessionOperationResult failure)
     {
@@ -897,12 +978,6 @@ internal sealed class PowerPointPresentationSessionService : IDisposable
         if (session?.State != "tracking")
         {
             failure = new(false, "session-unavailable", "There is no active tracked presentation.");
-            return false;
-        }
-
-        if (!string.Equals(session.OwnerClientId, clientId, StringComparison.Ordinal))
-        {
-            failure = new(false, "session-not-owner", "Only the device that started tracking can manage breaks.");
             return false;
         }
 
@@ -1026,7 +1101,9 @@ internal sealed class PowerPointPresentationSessionService : IDisposable
     }
 
     private void ResumePausedSessionLocked(
-        PowerPointPresentationSnapshot presentation)
+        PowerPointPresentationSnapshot presentation,
+        string? ownerClientId = null,
+        string? ownerDeviceName = null)
     {
         var session = _session!;
         var now = _timeProvider.GetUtcNow();
@@ -1044,6 +1121,8 @@ internal sealed class PowerPointPresentationSessionService : IDisposable
             RuntimePresentationId = presentation.RuntimePresentationId,
             PresentationName = presentation.Name,
             SourcePath = presentation.SourcePath ?? session.SourcePath,
+            OwnerClientId = ownerClientId ?? session.OwnerClientId,
+            OwnerDeviceName = ownerDeviceName ?? session.OwnerDeviceName,
             EndedAt = null,
             RunningSinceTimestamp = timestamp,
             BreakActive = false,
@@ -1063,14 +1142,23 @@ internal sealed class PowerPointPresentationSessionService : IDisposable
     private static bool IsSamePresentation(
         SessionDraft session,
         PowerPointPresentationSnapshot presentation) =>
+        IsSamePresentation(
+            session,
+            presentation.RuntimePresentationId,
+            presentation.SourcePath);
+
+    private static bool IsSamePresentation(
+        SessionDraft session,
+        string? runtimePresentationId,
+        string? sourcePath) =>
         string.Equals(
             session.RuntimePresentationId,
-            presentation.RuntimePresentationId,
+            runtimePresentationId,
             StringComparison.Ordinal) ||
-        session.SourcePath is { Length: > 0 } sourcePath &&
-        presentation.SourcePath is { Length: > 0 } presentationPath &&
+        session.SourcePath is { Length: > 0 } sessionPath &&
+        sourcePath is { Length: > 0 } presentationPath &&
         string.Equals(
-            sourcePath,
+            sessionPath,
             presentationPath,
             StringComparison.OrdinalIgnoreCase);
 
@@ -1390,20 +1478,19 @@ internal sealed class PowerPointPresentationSessionService : IDisposable
             "session-persistence-failed",
             "The presentation session could not be saved on the PC.");
 
-    private bool IsResumeCurrent(string reportId, string clientId)
+    private bool IsResumeCurrent(string reportId)
     {
         lock (_gate)
         {
-            return IsResumeCurrentLocked(reportId, clientId);
+            return IsResumeCurrentLocked(reportId);
         }
     }
 
-    private bool IsResumeCurrentLocked(string reportId, string clientId) =>
+    private bool IsResumeCurrentLocked(string reportId) =>
         !_disposed &&
         string.Equals(_resumeReportId, reportId, StringComparison.Ordinal) &&
         _session is { State: "tracking" } session &&
-        string.Equals(session.ReportId, reportId, StringComparison.Ordinal) &&
-        string.Equals(session.OwnerClientId, clientId, StringComparison.Ordinal);
+        string.Equals(session.ReportId, reportId, StringComparison.Ordinal);
 
     private static SessionOperationResult SessionChangedDuringResume() =>
         new(
@@ -1442,6 +1529,13 @@ internal sealed class PowerPointPresentationSessionService : IDisposable
         DateTimeOffset EndedAt,
         double DurationSeconds,
         int? SlideNumber);
+
+    private sealed class StartLease(Action release) : IDisposable
+    {
+        private Action? _release = release;
+
+        public void Dispose() => Interlocked.Exchange(ref _release, null)?.Invoke();
+    }
 }
 
 internal readonly record struct SessionOperationResult(

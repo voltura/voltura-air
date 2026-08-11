@@ -236,7 +236,7 @@ describe("PresentationMode", () => {
               runtimePresentationId: "presentation-1",
               presentationName: "Quarterly update.pptx",
               ownerDeviceName: "Presenter phone",
-              isOwner: true,
+              isOwner: false,
               startedAt: "2026-07-24T09:00:00.000+02:00",
               elapsedSeconds: 75,
               breakActive: false,
@@ -317,7 +317,7 @@ describe("PresentationMode", () => {
     expect(screen.getByRole<HTMLButtonElement>("button", { name: "Discard" }).disabled).toBe(false);
   });
 
-  it("lets only the authoritative session owner manage breaks", () => {
+  it("lets every authorized phone manage breaks", () => {
     const onSessionCommand = vi.fn();
     const session = {
       state: "tracking" as const,
@@ -401,9 +401,12 @@ describe("PresentationMode", () => {
         onSessionCommand={onSessionCommand}
       />
     );
-    expect(screen.queryByRole("button", { name: "Start break" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Discard" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Start break" }));
+    expect(onSessionCommand).toHaveBeenLastCalledWith("break", { enabled: true });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSessionCommand).toHaveBeenLastCalledWith("save");
+    fireEvent.click(screen.getByRole("button", { name: "Discard" }));
+    expect(onSessionCommand).toHaveBeenLastCalledWith("discard");
     expect(screen.getByText("Tracking")).toBeTruthy();
   });
 
@@ -625,7 +628,7 @@ describe("PresentationMode", () => {
       { runtimePresentationId: "runtime-2" });
   });
 
-  it("disables alternative decks while a session is unresolved and permits them after resolution", () => {
+  it("allows choosing a replacement deck while a session is unresolved", () => {
     const openPresentation = {
       runtimePresentationId: "runtime-current",
       name: "WeatherZilla_Documentation.pptx",
@@ -678,12 +681,12 @@ describe("PresentationMode", () => {
       "radio",
       { name: /California redwoods/ });
     expect(currentRadio.checked).toBe(true);
-    expect(alternativeRadio.disabled).toBe(true);
-    expect(screen.getByText(/Save or discard the current presentation/)).toBeTruthy();
+    expect(alternativeRadio.disabled).toBe(false);
+    expect(screen.getByText(/saves the current presentation automatically/)).toBeTruthy();
     fireEvent.click(alternativeRadio);
-    expect(currentRadio.checked).toBe(true);
+    expect(alternativeRadio.checked).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
-    expect(screen.getByText("WeatherZilla_Documentation.pptx")).toBeTruthy();
+    expect(screen.getByText("California redwoods")).toBeTruthy();
 
     view.rerender(
       <PresentationMode

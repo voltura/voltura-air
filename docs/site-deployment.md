@@ -22,6 +22,17 @@ redirects under the website-root `a` and `s` paths. It pins
 server identity, overwrites matching files, adds new files, and retains
 remote-only files. `publish:site:list` is read-only.
 
+For a hosted PWA test without rebuilding or publishing the public site, catalog
+preview, or statistics, run:
+
+```powershell
+npm run publish:site -- --only-app
+```
+
+This builds only the hosted PWA and uploads only `docs/site/app` to `/air/app`,
+plus the normal `/a` and Secure Direct `/s` launch redirects. It does not upload
+the rest of `/air` or change the Screens catalog and `stats.html`.
+
 ## Custom-screen catalog
 
 The catalog lives under `docs/site/screens` and requires PHP sessions plus a

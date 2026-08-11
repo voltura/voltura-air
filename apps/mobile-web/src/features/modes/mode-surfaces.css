@@ -63,6 +63,65 @@
   -webkit-user-drag: none;
 }
 
+.trackpad-movement-selector {
+  position: absolute;
+  top: 0.85rem;
+  left: 50%;
+  z-index: 3;
+  display: flex;
+  padding: 0.2rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  transform: translateX(-50%);
+}
+
+.trackpad-movement-selector button {
+  min-height: 2.25rem;
+  padding: 0.35rem 0.8rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+}
+
+.trackpad-movement-selector button.active {
+  background: var(--accent);
+  color: var(--accent-contrast, white);
+}
+
+.trackpad-mode.expanded .trackpad-movement-selector {
+  top: max(0.85rem, env(safe-area-inset-top));
+}
+
+.trackpad-surface.gyro-selected {
+  touch-action: none;
+  cursor: grab;
+}
+
+.trackpad-surface.gyro-engaged {
+  cursor: grabbing;
+  border-color: var(--accent);
+}
+
+.gyro-clutch-content {
+  display: grid;
+  place-items: center;
+  gap: 0.65rem;
+  max-width: min(24rem, 75%);
+  text-align: center;
+  pointer-events: none;
+}
+
+.gyro-clutch-content svg {
+  width: 3rem;
+  height: 3rem;
+}
+
+.gyro-clutch-content button {
+  pointer-events: auto;
+}
+
 .trackpad-mode.expanded .trackpad-surface {
   position: fixed;
   inset: 0;

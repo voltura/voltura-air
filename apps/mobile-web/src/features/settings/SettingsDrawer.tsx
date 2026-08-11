@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
-import { MonitorUp, X } from "lucide-react";
+import { MonitorUp, Orbit, X } from "lucide-react";
 import {
   CustomPointerSettingsSection,
   KeyboardSettingsSection,
@@ -127,6 +127,10 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
               <MonitorUp aria-hidden="true" />
               <span>View PC screen</span>
             </button>}
+            <button type="button" onClick={props.onOpenGyroMouse}>
+              <Orbit aria-hidden="true" />
+              <span>Gyro mouse</span>
+            </button>
             {props.toolOptions.filter(({ id }) => id !== "presentation" || props.presentationAvailable).map(({ id, Icon, label }) => {
               return (
                 <button key={id} type="button" onClick={() => props.onOpenMode?.(id)}>

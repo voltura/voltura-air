@@ -45,6 +45,7 @@ interface PresentationModeProps {
     isFullscreen: boolean;
     onToggleFullscreen: () => void;
   }) => ReactNode;
+  onTrackpadOpenChange?: (open: boolean) => void;
 }
 
 const targetOptions = [
@@ -73,6 +74,7 @@ export function PresentationMode({
   reportSaveResult = null,
   reportSavingAvailable = false,
   renderTrackpad,
+  onTrackpadOpenChange,
   result,
   onActivationRequestHandled,
   onCommand,
@@ -92,6 +94,10 @@ export function PresentationMode({
   const [isTimerExpanded, setIsTimerExpanded] = useState(true);
   const [isTrackpadExpanded, setIsTrackpadExpanded] = useState(false);
   const [isTrackpadFullscreen, setIsTrackpadFullscreen] = useState(false);
+  useEffect(() => {
+    onTrackpadOpenChange?.(isTrackpadExpanded);
+    return () => { onTrackpadOpenChange?.(false); };
+  }, [isTrackpadExpanded, onTrackpadOpenChange]);
   const [isStatisticsExpanded, setIsStatisticsExpanded] = useState(false);
   const [isNavigationOpen, setIsNavigationOpen] = useState(false);
   const [gotoSlideNumber, setGotoSlideNumber] = useState("");
@@ -184,16 +190,9 @@ export function PresentationMode({
     verifiedPowerPoint;
   const reportedSessionActive = sessionActive ||
     powerPointSession?.state === "tracking";
-  const presentationChangeLockedMessage = powerPointSession?.state !== undefined &&
-    powerPointSession.state !== "inactive"
-      ? "Save or discard the current presentation before changing decks."
-      : laserPointerActive
-        ? "Turn off the laser pointer before changing decks."
-        : null;
   const savedPowerPointStartDisabled = controlsDisabled ||
     selectedSavedPowerPoint === null ||
     pendingPowerPointLaunch !== null ||
-    presentationChangeLockedMessage !== null ||
     onPowerPointLaunch === undefined;
 
   useEffect(() => {
@@ -465,11 +464,8 @@ export function PresentationMode({
         capability={capability.powerPoint}
         launchPending={pendingPowerPointLaunch !== null}
         launchResult={powerPointLaunchResult}
-        lockedMessage={presentationChangeLockedMessage}
         onBack={() => {
-          if (presentationChangeLockedMessage === null) {
-            commitPowerPointSelection(powerPointChooserSelection);
-          }
+          commitPowerPointSelection(powerPointChooserSelection);
           setIsPowerPointChooserOpen(false);
         }}
         onLaunchApp={onPowerPointAppLaunch}
@@ -631,34 +627,40 @@ export function PresentationMode({
                     ? ` · Slide ${powerPointSession.currentSlideIndex} of ${powerPointSession.slideCount}`
                     : ""}
                 </span>
-                {powerPointSession.state === "tracking" && powerPointSession.isOwner && (
-                  <div className="presentation-tracking-actions">
-                    <button
-                      type="button"
-                      className="primary"
-                      disabled={!connected || sessionPending || onSessionCommand === undefined}
-                      onClick={() => {
-                        onSessionCommand?.("break", {
-                          enabled: !powerPointSession.breakActive
-                        });
-                      }}
-                    >
-                      {powerPointSession.breakActive ? "Resume presentation" : "Start break"}
-                    </button>
-                    {capability?.powerPoint?.foregroundActivationSupported === true &&
-                      selectedPowerPoint && (
-                        <button
-                          type="button"
-                          disabled={!connected || commandPending}
-                          title="Bring PowerPoint to the front"
-                          onClick={() => { request("activate"); }}
-                        >
-                          Focus PPT
-                        </button>
-                      )}
-                  </div>
+                {powerPointSession.state === "tracking" && (
+                  <>
+                    <div className="presentation-tracking-actions">
+                      <button
+                        type="button"
+                        className="primary"
+                        disabled={!connected || sessionPending || onSessionCommand === undefined}
+                        onClick={() => {
+                          onSessionCommand?.("break", {
+                            enabled: !powerPointSession.breakActive
+                          });
+                        }}
+                      >
+                        {powerPointSession.breakActive ? "Resume presentation" : "Start break"}
+                      </button>
+                      {capability?.powerPoint?.foregroundActivationSupported === true &&
+                        selectedPowerPoint && (
+                          <button
+                            type="button"
+                            disabled={!connected || commandPending}
+                            title="Bring PowerPoint to the front"
+                            onClick={() => { request("activate"); }}
+                          >
+                            Focus PPT
+                          </button>
+                        )}
+                    </div>
+                    <div className="presentation-session-actions">
+                      <button type="button" disabled={!connected || sessionPending || onSessionCommand === undefined} onClick={() => { onSessionCommand?.("save"); }}>Save</button>
+                      <button type="button" disabled={!connected || sessionPending || onSessionCommand === undefined} onClick={() => { onSessionCommand?.("discard"); }}>Discard</button>
+                    </div>
+                  </>
                 )}
-                {powerPointSession.state === "pending-review" && powerPointSession.isOwner && (
+                {powerPointSession.state === "pending-review" && (
                   <div className="presentation-session-actions">
                     <button
                       type="button"

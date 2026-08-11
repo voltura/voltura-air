@@ -1,4 +1,4 @@
-import { useEffect, useRef, type TouchEvent } from "react";
+import { useCallback, useEffect, useRef, type TouchEvent } from "react";
 import type { ConnectionState } from "../connection/connectionTypes";
 import { GestureRecognizer, touchesFromList, type TrackpadSettings, type TwoFingerMode } from "./gestures";
 import type { ClientMessage, KeyboardSpecialMessage } from "../protocol/messages";
@@ -19,7 +19,7 @@ export function usePointerInput({ send, state, trackpadSettings, twoFingerMode =
   const sendRef = useRef(send);
   const stateRef = useRef(state);
 
-  const cancel = () => {
+  const cancel = useCallback(() => {
     if (pointerFrameRef.current !== null) {
       window.cancelAnimationFrame(pointerFrameRef.current);
       pointerFrameRef.current = null;
@@ -27,7 +27,7 @@ export function usePointerInput({ send, state, trackpadSettings, twoFingerMode =
     pendingPointerMoveRef.current = null;
     pendingPointerWheelRef.current = null;
     recognizerRef.current.cancel();
-  };
+  }, []);
 
   useEffect(() => {
     sendRef.current = send;
@@ -36,7 +36,7 @@ export function usePointerInput({ send, state, trackpadSettings, twoFingerMode =
 
   useEffect(() => () => {
     cancel();
-  }, []);
+  }, [cancel]);
 
   const sendPendingPointerDeltas = () => {
     pointerFrameRef.current = null;

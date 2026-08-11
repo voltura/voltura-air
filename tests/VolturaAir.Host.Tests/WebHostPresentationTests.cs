@@ -145,6 +145,143 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
         }
     }
 
+    [Fact]
+    public async Task QueuedStartRechecksPermissionBeforeTakingOver()
+    {
+        var originalPermissions = AppPermissionSettings.Load();
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowPresentationControl = true });
+            var automation = CreatePresentingPowerPoint();
+            var firstEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var releaseFirst = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var presenting = Assert.Single(automation.Snapshot.Presentations);
+            automation.ExecuteAsyncHandler = async (_, _) =>
+            {
+                if (automation.Commands.Count == 1)
+                {
+                    firstEntered.TrySetResult();
+                    await releaseFirst.Task;
+                }
+
+                return new(true, null, "Done.", automation.Snapshot, presenting);
+            };
+            await using var fixture = await WebHostFixture.StartAsync(powerPointAutomation: automation);
+            using var firstSocket = await ConnectAsync(fixture.WebHost);
+            using var queuedSocket = await ConnectAsync(fixture.WebHost);
+            _ = await PairAsync(firstSocket, fixture, $"client-{Guid.NewGuid():N}");
+            _ = await PairAsync(queuedSocket, fixture, $"client-{Guid.NewGuid():N}");
+
+            var first = SendPresentationResultAsync(firstSocket, new
+            {
+                type = "presentation.command",
+                operationId = "holding-start",
+                target = "powerpoint",
+                action = "start",
+                runtimePresentationId = "presentation-a"
+            });
+            await firstEntered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            var queued = SendPresentationResultAsync(queuedSocket, new
+            {
+                type = "presentation.command",
+                operationId = "queued-start",
+                target = "powerpoint",
+                action = "start",
+                runtimePresentationId = "presentation-a"
+            });
+            await Task.Delay(100);
+            Assert.Single(automation.Commands);
+
+            AppPermissionSettings.Save(originalPermissions with { AllowPresentationControl = false });
+            releaseFirst.TrySetResult();
+
+            Assert.True((await first).GetProperty("succeeded").GetBoolean());
+            var denied = await queued;
+            Assert.False(denied.GetProperty("succeeded").GetBoolean());
+            Assert.Equal("permission-denied", denied.GetProperty("code").GetString());
+            Assert.Single(automation.Commands);
+        }
+        finally
+        {
+            AppPermissionSettings.Save(originalPermissions);
+        }
+    }
+
+    [Fact]
+    public async Task QueuedStartUsesFreshPowerPointStateAfterWaiting()
+    {
+        var originalPermissions = AppPermissionSettings.Load();
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowPresentationControl = true });
+            var automation = CreatePresentingPowerPoint();
+            var firstEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var releaseFirst = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var initiallyPresenting = Assert.Single(automation.Snapshot.Presentations);
+            var ready = initiallyPresenting with
+            {
+                IsPresenting = false,
+                CurrentSlideIndex = 4,
+                CurrentShowPosition = null,
+                SlideShowState = "ready"
+            };
+            var restarted = ready with
+            {
+                IsPresenting = true,
+                CurrentShowPosition = 4,
+                SlideShowState = "running"
+            };
+            automation.ExecuteAsyncHandler = async (_, _) =>
+            {
+                if (automation.Commands.Count == 1)
+                {
+                    firstEntered.TrySetResult();
+                    await releaseFirst.Task;
+                    return new(true, null, "Done.", automation.Snapshot, initiallyPresenting);
+                }
+
+                return new(true, null, "Done.", automation.Snapshot, restarted);
+            };
+            await using var fixture = await WebHostFixture.StartAsync(powerPointAutomation: automation);
+            using var firstSocket = await ConnectAsync(fixture.WebHost);
+            using var queuedSocket = await ConnectAsync(fixture.WebHost);
+            _ = await PairAsync(firstSocket, fixture, $"client-{Guid.NewGuid():N}");
+            _ = await PairAsync(queuedSocket, fixture, $"client-{Guid.NewGuid():N}");
+
+            var first = SendPresentationResultAsync(firstSocket, new
+            {
+                type = "presentation.command",
+                operationId = "holding-start",
+                target = "powerpoint",
+                action = "start",
+                runtimePresentationId = "presentation-a"
+            });
+            await firstEntered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            var queued = SendPresentationResultAsync(queuedSocket, new
+            {
+                type = "presentation.command",
+                operationId = "queued-start-current",
+                target = "powerpoint",
+                action = "start-current",
+                runtimePresentationId = "presentation-a"
+            });
+            await Task.Delay(100);
+            Assert.Single(automation.Commands);
+
+            automation.Publish(new(PowerPointDiscoveryState.Ready, [ready]));
+            releaseFirst.TrySetResult();
+
+            Assert.True((await first).GetProperty("succeeded").GetBoolean());
+            Assert.True((await queued).GetProperty("succeeded").GetBoolean());
+            Assert.Equal(["first", "start-current"], automation.Commands.Select(command => command.Action));
+            Assert.Equal("tracking", fixture.WebHost.PresentationSessionSnapshot.State);
+        }
+        finally
+        {
+            AppPermissionSettings.Save(originalPermissions);
+        }
+    }
+
     [Theory]
     [InlineData("black")]
     [InlineData("white")]
@@ -486,7 +623,7 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
     }
 
     [Fact]
-    public async Task PausedSessionBlocksDifferentPresentationBeforeAutomation()
+    public async Task StartingDifferentPresentationAutomaticallySavesPreviousSession()
     {
         var originalPermissions = AppPermissionSettings.Load();
         try
@@ -536,9 +673,11 @@ public sealed class WebHostPresentationTests : WebHostServiceTestBase
                 runtimePresentationId = "presentation-b"
             });
 
-            Assert.False(rejected.GetProperty("succeeded").GetBoolean());
-            Assert.Equal("session-active", rejected.GetProperty("code").GetString());
-            Assert.Equal("start", Assert.Single(automation.Commands).Action);
+            Assert.True(rejected.GetProperty("succeeded").GetBoolean());
+            Assert.Equal(
+                ["start", "start"],
+                automation.Commands.Select(command => command.Action));
+            Assert.Single(fixture.WebHost.PresentationReportStore.ReadAll().Reports);
             Assert.Empty(fixture.InputInjector.Events);
         }
         finally

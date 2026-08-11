@@ -337,6 +337,12 @@ describe("normalizeTrackpadSettings", () => {
     expect(normalizeTrackpadSettings({ enableSplitMode: true }).enableSplitMode).toBe(true);
   });
 
+  it("normalizes gyro sensitivity to its persisted range and step", () => {
+    expect(normalizeTrackpadSettings({ gyroSensitivity: 133 }).gyroSensitivity).toBe(135);
+    expect(normalizeTrackpadSettings({ gyroSensitivity: 500 }).gyroSensitivity).toBe(200);
+    expect(normalizeTrackpadSettings({ gyroSensitivity: -10 }).gyroSensitivity).toBe(25);
+  });
+
   it("preserves the current split layout preferences while discarding the replaced mode-button setting", () => {
     expect(normalizeTrackpadSettings({
       splitTrackpadPlacement: "left",

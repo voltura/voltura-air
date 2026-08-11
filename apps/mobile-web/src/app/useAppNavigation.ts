@@ -19,6 +19,7 @@ interface AppNavigationOptions {
   showModeButtons?: boolean;
   supportsGestureDebug: boolean;
   trackpadSettings: NavigationTrackpadSettings;
+  suppressSplitMode?: boolean;
 }
 
 export type ModeSelectorAnchor = "header" | "trackpad";
@@ -57,7 +58,8 @@ export function useAppNavigation({
   filesAvailable = false,
   showModeButtons = true,
   supportsGestureDebug,
-  trackpadSettings
+  trackpadSettings,
+  suppressSplitMode = false
 }: AppNavigationOptions): AppNavigation {
   const [requestedTab, setRequestedTab] = useState<AppTab>("trackpad");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -135,7 +137,7 @@ export function useAppNavigation({
     setIsSettingsOpen(false);
   };
 
-  const shouldShowSplitMode = canUseSplitMode && trackpadSettings.enableSplitMode && (tab === "trackpad" || tab === "keyboard");
+  const shouldShowSplitMode = !suppressSplitMode && canUseSplitMode && trackpadSettings.enableSplitMode && (tab === "trackpad" || tab === "keyboard");
   const canShowModeNavigation = isPaired;
   const isModeButtonsVisible = canShowModeNavigation && showModeButtons && !effectiveModeTabsCollapsed && !effectiveRemoteUtilityPanelOpen;
   const isBottomModeNavigationVisible = isModeButtonsVisible;

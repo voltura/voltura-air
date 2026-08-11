@@ -178,6 +178,7 @@ internal sealed class PresentationCommandHandler(
     {
         var selected = ResolveSelectedPresentation(runtimePresentationId);
         if (laserPointer.IsEnabled &&
+            action is not ("start" or "start-current") &&
             runtimePresentationId is not null &&
             !string.Equals(
                 laserPointer.RuntimePresentationId,
@@ -302,20 +303,67 @@ internal sealed class PresentationCommandHandler(
             "start-current" when selected is { IsPresenting: true } => "activate",
             _ => action
         };
+        if (startsSlideshow &&
+            selected is not null &&
+            action == "goto" &&
+            (slideNumber is null ||
+             slideNumber < 1 ||
+             slideNumber > selected.SlideCount))
+        {
+            return new(
+                false,
+                "powerpoint-invalid-slide",
+                $"Choose a slide from 1 to {selected.SlideCount}.",
+                selected.RuntimePresentationId,
+                ToProtocolPresentation(selected));
+        }
+
+        using var startLease = startsSlideshow && selected is not null
+            ? await presentationSession.AcquireStartAsync(cancellationToken).ConfigureAwait(false)
+            : null;
         if (startsSlideshow && selected is not null)
         {
-            var canStart = presentationSession.CanStartOrResume(selected);
-            if (!canStart.Succeeded)
+            if (!statusFactory.CanControlPresentations(clientId))
             {
                 return new(
                     false,
-                    canStart.Code,
-                    canStart.Message,
+                    "permission-denied",
+                    "Presentation control is disabled for this device on the PC.");
+            }
+
+            selected = ResolveSelectedPresentation(runtimePresentationId);
+            if (selected is null)
+            {
+                return new(
+                    false,
+                    "powerpoint-target-stale",
+                    "Choose an available PowerPoint presentation.");
+            }
+
+            if (action is "next" or "previous" &&
+                selected is { IsPresenting: false, CurrentSlideIndex: null })
+            {
+                return new(
+                    false,
+                    "powerpoint-current-slide-unavailable",
+                    "PowerPoint could not determine the current editor slide.",
                     selected.RuntimePresentationId,
                     ToProtocolPresentation(selected));
             }
 
-            if (action == "goto" &&
+            navigatesFromReady = action is "next" or "previous" &&
+                selected is { IsPresenting: false, CurrentSlideIndex: not null };
+            startsSlideshow = action is "start" or "start-current" ||
+                action == "goto" && selected is { IsPresenting: false } ||
+                navigatesFromReady;
+            automationAction = action switch
+            {
+                "start" when selected is { IsPresenting: true } => "first",
+                "start-current" when selected is { IsPresenting: true } => "activate",
+                _ => action
+            };
+            if (startsSlideshow &&
+                action == "goto" &&
                 (slideNumber is null ||
                  slideNumber < 1 ||
                  slideNumber > selected.SlideCount))
@@ -328,7 +376,33 @@ internal sealed class PresentationCommandHandler(
                     ToProtocolPresentation(selected));
             }
 
-            _ = blankOverlay.DismissPresentationBlankIfActive();
+            if (startsSlideshow)
+            {
+                if (pairingManager.GetDeviceName(clientId) is null)
+                {
+                    return new(
+                        false,
+                        "device-revoked",
+                        "This device is no longer paired with the PC.");
+                }
+
+                var prepared = await presentationSession.PrepareForStartAsync(
+                    selected.RuntimePresentationId,
+                    selected.SourcePath,
+                    cancellationToken).ConfigureAwait(false);
+                if (!prepared.Succeeded)
+                {
+                    return new(
+                        false,
+                        prepared.Code,
+                        prepared.Message,
+                        selected.RuntimePresentationId,
+                        ToProtocolPresentation(selected));
+                }
+
+                laserPointer.DisableForTakeover();
+                _ = blankOverlay.DismissPresentationBlankIfActive();
+            }
         }
 
         if (action == "end" &&

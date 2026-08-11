@@ -51,7 +51,7 @@ authenticated after opening rather than increasing QR density.
 | `rate-limited` | Too many failures; wait, create a new code, and retry. |
 | `invalid-message` or `pair-first` | Refresh the mobile app from the PC and pair again. |
 | Unknown rejection | Show a `VAIR-PAIR-*` code and offer copied diagnostics. |
-| `host-unreachable` in Direct mode | The browser cannot reach the PC; reconnect, rescan, enter the current host, and check LAN/firewall. |
+| `host-unreachable` in Standard Local mode | The browser cannot reach the PC; reconnect, rescan, enter the current host, and check LAN/firewall. |
 | `host-unreachable` in Relay mode | The browser cannot reach the PC through the configured relay; keep the unavailable panel stable while retrying, and check the running host, PC internet access, and permitted VPN/work-network restrictions. |
 | Secure Direct signaling or capacity failure | Keep the chosen `/s` transport, retry normally, and offer explicit Standard Local or Cloud Relay recovery without activating either automatically. |
 | Secure Direct ICE/LAN validation failure | The browser did not establish the required private path on the selected adapter; check same-LAN reachability or explicitly choose Standard Local or Cloud Relay. |

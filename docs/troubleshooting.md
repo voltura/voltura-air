@@ -23,6 +23,19 @@ After an address/port change, click **New code** and rescan or use
 **Enter host manually**. If a valid scan returns to unavailable, refresh the
 mobile app from the PC and scan the latest code.
 
+## Secure Direct unavailable
+
+Enhanced capabilities require internet access to load the hosted controller and
+complete setup, plus a private IPv4 path between the device and the adapter
+selected on the PC. Keep both devices on the same LAN and check captive portals,
+guest-network isolation, VPNs, and the selected adapter.
+
+Retry the current Secure Direct PC first. If setup still fails, use the recovery
+offered by the mobile app to pair explicitly through **Standard Local** or
+**Cloud relay**. Voltura Air does not switch transports automatically. A lost
+internet connection after the DataChannel is established should not end an
+otherwise healthy Secure Direct session; copy diagnostics if it does.
+
 ## QR code expired, used, or invalid
 
 Click **New code** and scan it. Codes are short-lived/single-use; avoid QR pages
@@ -84,6 +97,19 @@ Mouse settings.
 Restart the host, refresh the mobile page from that host, and check Wi-Fi,
 guest-network isolation, VPNs, and PC load. Application logging never records
 pointer movement.
+
+## Gyro mouse is unavailable or does not move
+
+Gyro requires a sensor-equipped phone or tablet using Enhanced capabilities.
+Open Gyro from its button so the browser can request motion access; on iPhone,
+approve the motion/orientation prompt. If access was denied, use the browser or
+device settings to restore it, then try again.
+
+Keep the page visible and hold the Trackpad surface or a mouse button while
+moving the device. Gyro deliberately stops on release, when the page is hidden,
+or when the connection or Trackpad changes. If the UI reports no sensor data,
+confirm behavior on a real device rather than desktop emulation and retain Touch
+as the fallback.
 
 ## Send text fails or targets the wrong place
 

@@ -6,10 +6,14 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 
 ## Scope and guarantees
 
-- A Windows 11 host serves a paired browser-based PWA on a phone, tablet, or
-  computer over local Wi-Fi/LAN or the internet.
+- A Windows 11 host accepts a paired browser-based PWA on a phone, tablet, or
+  computer over local Wi-Fi/LAN or the internet. Standard Local serves the PWA
+  from the host; Enhanced Direct and Relay use the first-party hosted PWA.
 - No app-store install, account, subscription, or trial is required. 
-  Direct local connections use no cloud service; the optional Cloud Relay connects over the internet without opening an inbound connection to the PC.
+  Standard Local connections use no cloud service. Enhanced Direct uses the
+  first-party hosted PWA and bounded setup signaling before established control
+  traffic stays on the selected private LAN. The optional Cloud Relay connects
+  over the internet without opening an inbound connection to the PC.
 - **View PC screen** lets a paired device view one selected Windows display;
   touch devices use its touch controls, while another computer can use direct mouse and keyboard control.
 - It is not a file-sync, backup, notification-sync, or cloud clipboard service.
@@ -36,6 +40,14 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   through Voltura** methods. Direct remains the default. Relay binds the local
   host to loopback and makes the PC and device connect outward without opening
   the LAN listener; it never falls back to Direct automatically.
+- Direct offers a default-off **Enhanced capabilities** preference. When
+  enabled, the primary QR opens the first-party `/s` HTTPS controller and uses
+  bounded hosted signaling to establish an authenticated WebRTC DataChannel
+  over the selected private IPv4 LAN. Established commands do not pass through
+  the hosted service. The local listener and `/ws` remain active, and Connect
+  retains an explicit **Copy Standard Local link** action. Loading the hosted
+  controller and completing setup require internet access. There is no probing,
+  silent fallback, or automatic transport switching.
 - Relay pairing uses the short first-party `https://voltura.se/a/<route>` QR.
   Its 32-character token stays in the URL fragment. Existing pairing,
   reconnect, identity pinning, permissions, revocation, and rate limits are

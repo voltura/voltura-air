@@ -64,12 +64,14 @@ retain established controller traffic.
 
 ## Remote-control content
 
-In Direct mode, pointer, keyboard, text, and control commands travel directly
-from the paired browser to the Windows host. In Relay mode, both sides connect
-outward and accepted-session commands are end-to-end encrypted with
-direction-specific AES-256-GCM keys. The routing service can observe the opaque
-route, connection timing, network delivery metadata, and encrypted frame sizes,
-but not command contents. Text, pointer coordinates,
+In Standard Local mode, pointer, keyboard, text, and control commands travel
+directly from the paired browser to the Windows host over the local HTTP/WebSocket
+connection. In Enhanced Direct mode, they travel directly over the private LAN
+in a DTLS-protected WebRTC DataChannel after the bounded hosted setup exchange.
+In Relay mode, both sides connect outward and accepted-session commands are
+end-to-end encrypted with direction-specific AES-256-GCM keys. The routing
+service can observe the opaque route, connection timing, network delivery
+metadata, and encrypted frame sizes, but not command contents. Text, pointer coordinates,
 opened web addresses, pairing tokens, private reconnect keys, and reconnect
 proofs are not included in Voltura Air application logs.
 
@@ -98,19 +100,22 @@ actions.
 Application-log entries for editor operations contain only the operation,
 outcome, and a bounded failure code.
 
-In Direct mode, because Voltura Air is a local HTTP/WebSocket app, local-network observers or
-interfering devices on an untrusted network may be able to observe HTTP and
-connection metadata or observe/disrupt existing command traffic. Screen media
-is encrypted in transit by WebRTC, but that does not hide connection timing,
-addresses, or HTTP metadata and does not change the trusted-LAN model for the
-rest of the product. Use Voltura Air only on networks you trust and remove
-paired devices that should no longer control or view the PC.
+In Standard Local mode, local-network observers or interfering devices on an
+untrusted network may be able to observe HTTP and connection metadata or
+observe/disrupt command traffic. Enhanced Direct protects established command
+content with DTLS, but it does not hide LAN addresses, connection timing, or all
+network metadata. Screen media is encrypted in transit by WebRTC in every mode.
+These protections do not change the trusted-LAN model: use Direct only on
+networks you trust and remove paired devices that should no longer control or
+view the PC.
 
-The Relay QR token is stored after `#` in the URL fragment. Browsers do not send
-that fragment to the `voltura.se` short-link redirect, hosted PWA, relay,
-analytics, or ordinary access logs. The website and Cloudflare may still
-process normal request metadata such as IP address, user agent, path, route,
-and timestamp for delivery and security.
+Relay and Secure Direct QR tokens are stored after `#` in the URL fragment.
+The hosted PWA reads the token locally, but browsers do not include the fragment
+in HTTP requests to the `voltura.se` short-link redirect or hosted-PWA server,
+and the app does not send it to the relay/signaling service, analytics, or
+ordinary access logs. The website and Cloudflare may still process normal
+request metadata such as IP address, user agent, path, opaque route, and
+timestamp for delivery and security.
 
 Typed or dictated text is delivered to Windows only when the user requests it.
 Text may become part of the Windows clipboard or the selected destination

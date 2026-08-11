@@ -43,12 +43,14 @@ pairing/reconnect proofs, the pinned host identity, and per-device permissions
 still authenticate every controller session; route possession alone grants no
 command access.
 
-The Windows host serves the mobile web app over HTTP on the local network. This
+Standard Local serves the mobile web app over HTTP on the local network. This
 keeps setup simple for browsers and phones on the same LAN, but it also means
-the local network is part of the trust boundary: other software or devices able
-to observe, interfere with, or reach local network traffic may affect pairing,
-connection, and command delivery. Pair only on networks you trust, keep stale
-devices removed, and do not use Voltura Air on hostile or untrusted Wi-Fi.
+other software or devices able to observe, interfere with, or reach local
+network traffic may affect pairing, connection, and command delivery. Enhanced
+Direct loads the official HTTPS controller and protects established commands in
+a DTLS DataChannel, but LAN reachability and network metadata remain inside the
+trusted-local-network boundary. Pair only on networks you trust, keep stale
+devices removed, and do not use Direct on hostile or untrusted Wi-Fi.
 
 Voltura Air protects access with short-lived pairing tokens, P-256
 proof-of-possession reconnects, per-device permissions, bounded protocol
@@ -81,17 +83,20 @@ Fresh pairing keeps the QR short: it contains one short-lived token, version,
 and optional routing hint, not a PC identity key or fingerprint. After opening,
 the token authenticates a challenge-response exchange that pins the host's
 persistent P-256 public identity and registers the browser's reconnect public
-key without transmitting the token on the WebSocket. A saved client without a
+key without transmitting the token on the control transport. A saved client without a
 valid PC identity pin must pair again.
 
-Optional Screen viewing negotiates a WebRTC peer through the
-authenticated `/ws` control session. The reconnect key signs the start request
-and answer; the pinned PC identity signs the exact offer hash. Invalid,
+Optional Screen viewing negotiates a WebRTC peer through the authenticated
+control session: `/ws` for Standard Local, its encrypted virtual WebSocket for
+Relay, or the DTLS DataChannel for Secure Direct. The reconnect key signs the
+start request and answer; the pinned PC identity signs the exact offer hash. Invalid,
 mismatched, or expired signaling is rejected before capture begins. Screen
 video uses DTLS-SRTP and cursor/status records use a DTLS-protected data channel,
 which provide confidentiality, integrity, and replay protection in transit.
-The HTTP app/signaling metadata and existing JSON command traffic retain the
-trusted-LAN threat model described above.
+Standard Local's HTTP app/control metadata and JSON command traffic retain the
+trusted-LAN threat model described above. Enhanced Direct protects its control
+channel with DTLS, while participant addresses, timing, and hosted setup metadata
+retain the stated local-network and signaling-service boundaries.
 
 In Relay mode the Windows host binds only to loopback and both endpoints open
 outbound connections. A separate persistent routing identity authenticates the

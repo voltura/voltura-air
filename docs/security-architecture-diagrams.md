@@ -7,8 +7,9 @@ subsystem boundaries; `docs/protocol.md` owns the wire contract.
 
 ```mermaid
 flowchart LR
-  Client["PWA / browser client\nuntrusted UI and private-key storage"] -->|"HTTP app shell"| HostWeb["Windows host ASP.NET\nnormal mode: 0.0.0.0:selected port\ntest mode: 127.0.0.1"]
-  Client -->|"WebSocket /ws\npair.hello then commands"| Session["WebSocketSessionHandler\nOrigin check, authentication,\nmessage validation"]
+  Client["PWA / browser client\nuntrusted UI and private-key storage"] -->|"Standard Local HTTP app shell"| HostWeb["Windows host ASP.NET\nnormal mode: 0.0.0.0:selected port\ntest mode: 127.0.0.1"]
+  Client -->|"Relay or Secure Direct\nHTTPS app shell"| Hosted["voltura.se hosted PWA"]
+  Client -->|"Standard Local /ws or\nRelay virtual WebSocket"| Session["WebSocketSessionHandler\nOrigin check, authentication,\nmessage validation"]
   Client -->|"HTTPS /s + bounded WSS signaling"| SecureRoom["SecureDirectRoomObject\none offer/answer; no command relay"]
   SecureRoom -->|"authenticated route envelopes"| SecureHost["SecureDirectHostConnection\npending signaling ownership"]
   Client -->|"private direct WebRTC\nDTLS DataChannel"| SecureSocket["SecureDirectWebSocket\nLAN validation + bounded text"]
@@ -44,7 +45,7 @@ sequenceDiagram
   participant Store as Pairing store
 
   Host->>QR: Create one short-lived pairToken
-  QR->>Client: /pair?t=pairToken&v=version&h=host
+  QR->>Client: Standard /pair link or hosted /a or /s link
   Note over QR: No host identity or second identifier
   Client->>Client: Generate reconnect key + nonce; hash token ID
     Client->>Host: pair.hello(clientId, pairTokenId, clientNonce, reconnectPublicKey)
@@ -64,7 +65,7 @@ sequenceDiagram
   Host->>Host: Consume challenge, then verify signature
   Host->>Client: pair.accepted (no credential)
 
-  Host-->>Client: Revocation closes active sockets
+  Host-->>Client: Revocation closes active control sessions
 ```
 
 ## Screen-stream authentication
@@ -72,8 +73,8 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
   participant Client as Paired PWA
-  participant Control as Authenticated /ws
-  participant Peer as Direct LAN WebRTC
+  participant Control as Authenticated control session
+  participant Peer as WebRTC screen peer
   participant DXGI as Desktop Duplication
 
   Client->>Control: signed screen.view.start(display)
@@ -81,7 +82,7 @@ sequenceDiagram
   Client->>Client: Verify exact offer hash and PC signature
   Client->>Control: bounded answer SDP + reconnect-key signature
   Control->>Peer: Apply authenticated answer
-  Peer->>Peer: Complete direct ICE and DTLS
+  Peer->>Peer: Complete direct ICE or Relay-only TURN, then DTLS
   Peer->>DXGI: Begin selected-display duplication
   DXGI-->>Peer: GPU frame + cursor metadata
   Peer-->>Client: DTLS-SRTP H.264 video
@@ -94,7 +95,7 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-  Frame["Authenticated WebSocket frame\nuntrusted JSON"] --> Validate["ClientMessageValidator\nknown type, bounded fields"]
+  Frame["Authenticated control frame\nuntrusted JSON"] --> Validate["ClientMessageValidator\nknown type, bounded fields"]
   Validate --> Dispatch["WebSocketSessionHandler\nsingle dispatch point"]
 
   Dispatch --> Input["pointer.* / keyboard.*"]

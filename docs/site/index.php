@@ -109,7 +109,7 @@
       <section id="features" class="feature-band" aria-label="Core features">
         <article>
           <h2>Trackpad and keyboard</h2>
-          <p>Move, click, scroll, zoom, type, and use common shortcuts from your mobile device. On a sensor-equipped phone or tablet, Enhanced capabilities also adds a hold-to-move gyro mouse.</p>
+          <p>Move, click, scroll, zoom, type, and use common shortcuts from your mobile device. On a sensor-equipped phone or tablet, Enhanced capabilities over HTTPS also add a hold-to-move gyro mouse.</p>
         </article>
         <article>
           <h2>Control from another computer</h2>
@@ -158,9 +158,9 @@
           <p class="eyebrow">Compare</p>
           <h2>How Voltura Air compares</h2>
           <p>
-            Voltura Air focuses on private Windows control without requiring a
-            mobile app, account, or paid upgrade. Use it directly on the local
-            network or through its optional encrypted outbound Cloud relay. Other
+            Voltura Air focuses on Windows control with host-managed pairing and
+            permissions, without requiring a mobile app, account, or paid upgrade.
+            Use it directly on the local network or through its optional encrypted outbound Cloud relay. Other
             products may offer broader operating-system support, remote desktop,
             file transfer, or gaming features.
           </p>
@@ -219,7 +219,7 @@
               </tr>
               <tr>
                 <th scope="row">Trackpad and keyboard</th>
-                <td class="comparison-voltura">Touch trackpad, gyro mouse on sensor-equipped phones and tablets, gestures, two-axis scrolling, pinch zoom, Unicode typing, special and function keys, and shortcuts</td>
+                <td class="comparison-voltura">Touch trackpad, Enhanced-capabilities gyro mouse on sensor-equipped phones and tablets, gestures, two-axis scrolling, pinch zoom, Unicode typing, special and function keys, and shortcuts</td>
                 <td>Mouse, gyro mouse, keyboard, touchpad, multi-touch gestures, voice-supported typing, and shortcuts</td>
                 <td>Mouse, keyboard, custom controls, and sensor-based input</td>
               </tr>
@@ -299,7 +299,7 @@
           </table>
         </div>
         <p class="comparison-note">
-          Competitor information was checked on 3 August 2026; Voltura Air
+          Competitor information was checked on 12 August 2026; Voltura Air
           capabilities were updated on 12 August 2026. Features, availability,
           and pricing models may change.
         </p>
@@ -367,7 +367,7 @@
         </div>
         <ol class="steps">
           <li>Install and start Voltura Air on the Windows 11 PC you want to control.</li>
-          <li>Scan the pairing QR code. Direct uses the same Wi-Fi/LAN; optional Cloud relay connects both devices outward.</li>
+          <li>Scan the pairing QR code. Direct uses the same Wi-Fi/LAN; Enhanced Direct also needs internet for secure setup, while optional Cloud relay connects both devices outward.</li>
           <li>Choose the control surface you need and start using the PC.</li>
           <li>Optionally add the mobile page to your home screen for faster access later.</li>
         </ol>
@@ -380,9 +380,10 @@
         </div>
         <div>
           <p>
-            Direct LAN remains the default. Optional Cloud relay avoids an
-            inbound PC firewall exception and keeps commands and screen media
-            end-to-end encrypted. No Voltura account is required.
+            Direct LAN remains the default. Enhanced Direct uses secure hosted
+            setup, then keeps established controls on the private LAN. Optional
+            Cloud relay avoids an inbound PC firewall exception and keeps commands
+            and screen media end-to-end encrypted. No Voltura account is required.
           </p>
           <ul>
             <li>Review paired devices and remove access at any time.</li>

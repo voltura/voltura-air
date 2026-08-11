@@ -8,12 +8,15 @@ Turn a phone, tablet, or browser into a wireless remote&mdash;and live screen
 viewer&mdash;for a Windows 11 PC. With a mouse or trackpad and physical keyboard,
 **View PC screen** also lets you work on that PC from another computer. No
 app-store install or Voltura account is required. Direct LAN remains the default;
-an optional Cloud relay is available for networks that block inbound PC connections.
+on Direct LAN, Enhanced capabilities can add sensor-powered controls while
+established traffic stays local. An optional Cloud relay is available for
+networks that block inbound PC connections.
 
 ## What you can do
 
-- Use a phone or tablet as a wireless touch trackpad, gyro mouse, and keyboard.
-  Gyro mouse requires Enhanced capabilities over HTTPS.
+- Use a phone or tablet as a wireless touch trackpad and keyboard—or point the
+  device itself to steer the mouse with Gyro. Enhanced capabilities over HTTPS
+  unlock Gyro on supported phones and tablets.
 - View one selected Windows display live on a paired phone, tablet, or browser
   over Direct LAN or the optional Cloud relay, with encrypted video, responsive
   cursor movement, scrolling, and up to 5x local zoom. Relay viewing offers
@@ -118,6 +121,12 @@ on uninstall. Start-at-sign-in is an in-app setting.
 2. Open **Connect**.
 3. Scan the QR code from a phone or tablet on the same Wi-Fi or LAN.
 
+For Gyro mouse and other browser features that require HTTPS, open
+**Connection**, enable **Enhanced capabilities**, then save and restart. The
+primary QR opens Voltura Air's secure hosted controller, while established
+control traffic travels directly between the device and PC over the selected
+private LAN. A Standard Local link remains available on the Connect page.
+
 For restricted company networks, open **Connection**, select **Cloud relay
 through Voltura**, then save and restart. Both devices connect outward, so the
 PC does not need an incoming firewall exception. The short QR opens the hosted
@@ -135,10 +144,13 @@ file-changing actions also require Change files permission.
 
 ## Trust, privacy, and distribution
 
-Direct LAN is intended for trusted local networks. Optional Cloud relay carries
-end-to-end encrypted command frames through a routing service and uses TURN for
-DTLS-SRTP screen media; the relay cannot read commands or screen pixels. It is
-not file sync or a remote wake solution for a sleeping or shut-down PC.
+Direct LAN is intended for trusted local networks. Standard Local needs no cloud
+service. Enhanced Direct uses `voltura.se` to load the secure controller and
+exchange connection setup; established control traffic stays on the private
+LAN. Optional Cloud relay carries end-to-end encrypted command frames through a
+routing service and uses TURN for DTLS-SRTP screen media; the relay cannot read
+commands or screen pixels. Voltura Air is not file sync or a remote wake solution
+for a sleeping or shut-down PC.
 
 Voltura Air is freeware from Voltura AB and is open source under the
 [MIT License](LICENSE). It can be used without payment, registration, trial

@@ -48,6 +48,8 @@ Run the smallest relevant checks:
 | Host source structure | Add `npm run host:ownership:check` |
 | Shared host lifecycle, native/resource, registry/persistence, network, or protocol boundary | Focused production-path boundary tests; full `npm run test:host` only when broad/shared |
 | Interaction/transport hot path | Prove delayed media, analytics, logging, persistence, and UI work cannot hold command/input processing; test bounded overload rather than latency growth |
+| Secure Direct controller transport | Focused Relay signaling/Origin tests, mobile lifecycle/parser tests, host admission/native-boundary tests, bundle/size gates, then real-device private-LAN setup and signaling-loss validation; preserve the selected transport without automatic fallback |
+| Gyro or motion input | Focused motion mapping, permission, hook cleanup, Trackpad, and app-navigation tests; mobile check/build as scoped; then real sensor, orientation, visibility, and permission validation over HTTPS |
 | Screen viewing | Fake-capture `TestServer` protocol/crypto/cleanup tests, mobile parser/renderer tests, bundle/size gates, then Windows preflight and `npm run dev:quick`; real phone/Wi-Fi viewing remains user acceptance |
 | Files on PC | Mobile pagination/selection/gesture tests, strict protocol tests, focused host file-system/clipboard/job tests, host ownership and size gates, then Windows local/mapped-drive acceptance |
 | Script | Relevant script test; full `npm run test:scripts` only for shared orchestration/root package composition |
@@ -84,17 +86,22 @@ Release builds ignore Debug-only options and `VOLTURA_AIR_CLIENT_URL`.
 
 ## Product limits
 
-The host targets Windows 11 and LAN use. Browser speech recognition depends on
-browser/origin support. Normal input cannot control UAC, secure desktop, lock
-screen, or higher-integrity apps. Firewall/network isolation can block LAN
-traffic, and an unreachable/sleeping/shut-down host cannot receive commands.
+The host targets Windows 11. Standard Local and Enhanced Direct require a
+reachable private LAN; Enhanced Direct also requires internet access to load
+the hosted controller and complete setup. Cloud Relay supports internet control
+without an inbound PC firewall exception. Browser speech recognition and motion
+input depend on browser/origin/device support. Normal input cannot control UAC,
+secure desktop, lock screen, or higher-integrity apps. Firewall/network isolation
+can block traffic, and an unreachable/sleeping/shut-down host cannot receive
+commands.
 
 Encrypted Screen viewing requires Screen viewing permission globally or for the
 intended device. A freshly paired client must have the PC identity pin.
 Desktop Duplication GPU frames and cursor metadata support one display and one
 viewer at a time, video only, up to 1920 x 1080/30 frames per second. D3D11
-conversion and a hardware Media Foundation H.264 encoder feed a direct LAN
-WebRTC stream; the browser must support H.264 WebRTC playback. Pinch/spread
+conversion and a hardware Media Foundation H.264 encoder feed a WebRTC stream
+using direct LAN ICE or Relay-only TURN; the browser must support H.264 WebRTC
+playback. Pinch/spread
 magnifies the local mirror up to 5x, and two-finger drag pans while magnified.
 UAC/secure desktop, protected content,
 lock/session loss, display removal, or duplication loss stops/pauses the

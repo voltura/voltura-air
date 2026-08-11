@@ -12,7 +12,7 @@ export default defineConfig({
   plugins: [react()],
   build: {
     emptyOutDir: true,
-    outDir: fileURLToPath(new URL("../../docs/site/screens/assets", import.meta.url)),
+    outDir: fileURLToPath(new URL("../../apps/public-site/screens/assets", import.meta.url)),
     lib: {
       entry: fileURLToPath(new URL("./src/app/catalog-preview.tsx", import.meta.url)),
       formats: ["iife"],

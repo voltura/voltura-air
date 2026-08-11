@@ -9,7 +9,7 @@ import { spawn } from "node:child_process";
 import { stopChild, stopExistingHost } from "./dev-shared.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const assetsDir = path.join(repoRoot, "docs", "site", "assets");
+const assetsDir = path.join(repoRoot, "apps", "public-site", "assets");
 const tempDir = path.join(os.tmpdir(), "voltura-air-site-screenshots");
 const tempAppDataDir = path.join(tempDir, "appdata");
 const pairingUrlFile = path.join(tempDir, "pairing-url.txt");

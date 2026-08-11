@@ -218,7 +218,7 @@ try {
     $tableResult = Invoke-MariaDb $maria $databaseArguments 'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = "air_screen_users";'
     if ($tableResult.ExitCode -ne 0) { throw 'Could not inspect the development database.' }
     if ([int]$tableResult.Output.Trim() -eq 0) {
-        $schema = Get-Content -LiteralPath (Join-Path $repoRoot 'docs\site\screens\schema.sql') -Raw
+        $schema = Get-Content -LiteralPath (Join-Path $repoRoot 'apps\public-site\screens\schema.sql') -Raw
         $schemaResult = Invoke-MariaDb $maria $databaseArguments $schema
         if ($schemaResult.ExitCode -ne 0) { throw 'Could not create the development catalog tables.' }
     }
@@ -226,7 +226,7 @@ try {
     $ratingResult = Invoke-MariaDb $maria $databaseArguments 'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = "air_screen_ratings";'
     if ($ratingResult.ExitCode -ne 0) { throw 'Could not inspect the ratings migration state.' }
     if ([int]$ratingResult.Output.Trim() -eq 0) {
-        $migration = Get-Content -LiteralPath (Join-Path $repoRoot 'docs\site\screens\migration-002-ratings.sql') -Raw
+        $migration = Get-Content -LiteralPath (Join-Path $repoRoot 'apps\public-site\screens\migration-002-ratings.sql') -Raw
         $migrationResult = Invoke-MariaDb $maria $databaseArguments $migration
         if ($migrationResult.ExitCode -ne 0) { throw 'Could not apply the ratings migration.' }
     }

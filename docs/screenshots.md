@@ -1,6 +1,6 @@
 # Screenshot and installer-art capture
 
-Public screenshots live in `docs/site/assets`; installer artwork in
+Public screenshots live in `apps/public-site/assets`; installer artwork in
 `installer/assets`.
 
 ## Commands
@@ -35,17 +35,17 @@ name or other private data out afterward; recapture safely.
 ## Public set
 
 ```text
-docs/site/assets/voltura-air-host.png
-docs/site/assets/voltura-air-host-dark.png
-docs/site/assets/voltura-air-host-custom-screens.png
-docs/site/assets/voltura-air-host-custom-screens-dark.png
-docs/site/assets/voltura-air-iphone.png
-docs/site/assets/voltura-air-iphone-dark.png
-docs/site/assets/voltura-air-iphone-kodi-dark.png
-docs/site/assets/voltura-air-iphone-kodi-dark-forum.png
-docs/site/assets/voltura-air-split.png
-docs/site/assets/voltura-air-files.png
-docs/site/assets/voltura-air-files-dark.png
+apps/public-site/assets/voltura-air-host.png
+apps/public-site/assets/voltura-air-host-dark.png
+apps/public-site/assets/voltura-air-host-custom-screens.png
+apps/public-site/assets/voltura-air-host-custom-screens-dark.png
+apps/public-site/assets/voltura-air-iphone.png
+apps/public-site/assets/voltura-air-iphone-dark.png
+apps/public-site/assets/voltura-air-iphone-kodi-dark.png
+apps/public-site/assets/voltura-air-iphone-kodi-dark-forum.png
+apps/public-site/assets/voltura-air-split.png
+apps/public-site/assets/voltura-air-files.png
+apps/public-site/assets/voltura-air-files-dark.png
 ```
 
 The set covers host pairing, the fixed-size responsive Custom screens editor,

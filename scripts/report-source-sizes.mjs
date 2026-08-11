@@ -24,13 +24,13 @@ const excludedDirectories = new Set([
 ]);
 const excludedPathPrefixes = [
   "apps/mobile-web/public/",
-  "docs/site/app/",
-  "docs/site/assets/",
-  "docs/site/screens/assets/",
+  "apps/public-site/app/",
+  "apps/public-site/assets/",
+  "apps/public-site/screens/assets/",
   "installer/assets/"
 ];
 const excludedPaths = new Set([
-  "docs/site/stats.html"
+  "apps/public-site/stats.html"
 ]);
 
 async function collect(directory) {

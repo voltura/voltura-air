@@ -11,7 +11,7 @@ const quietMode = arguments_.includes("--quiet");
 const openReport = reportMode && !arguments_.includes("--no-open");
 const supportedArguments = new Set(["--no-open", "--quiet", "--report"]);
 const unsupportedArguments = arguments_.filter((argument) => !supportedArguments.has(argument));
-const reportPath = path.join(root, "docs", "site", "stats.html");
+const reportPath = path.join(root, "apps", "public-site", "stats.html");
 
 if (unsupportedArguments.length > 0) {
   throw new Error(`Unsupported option: ${unsupportedArguments.join(", ")}. Use --report [--no-open] [--quiet].`);
@@ -67,8 +67,8 @@ const reports = [
   },
   {
     title: "Public website",
-    locations: ["docs/site"],
-    directories: ["docs/site"],
+    locations: ["apps/public-site"],
+    directories: ["apps/public-site"],
     extensions: new Set([".css", ".js", ".php", ".sql"])
   },
   {

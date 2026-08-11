@@ -27,7 +27,7 @@ regenerates public assets/statistics, runs full build/tests, commits the prepare
 sources locally, packages and audits all artifacts once from that exact commit,
 then pushes and creates/resumes the matching release. A stable `release:full`
 deploys and verifies the configured Cloudflare relay before deploying
-`docs/site` and publishing GitHub Latest. Drafts do not change the production
+`apps/public-site` and publishing GitHub Latest. Drafts do not change the production
 relay. Wrangler cache is ignored, and any other repository change during relay
 deployment fails the release before site or Latest publication. Prerelease
 versions remain drafts. Set `NO_COLOR` to disable colored output.

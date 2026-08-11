@@ -1,6 +1,6 @@
 # Site deployment
 
-Publish `docs/site` to `https://voltura.se/air/`. Claims come from
+Publish `apps/public-site` to `https://voltura.se/air/`. Claims come from
 [features](features.md), [setup](setup.md), [release](release.md), and
 [security](../SECURITY.md).
 
@@ -17,7 +17,7 @@ outside Git at `%LOCALAPPDATA%\Voltura Air`. Remove it with
 `npm run publish:site:password:clear`; never store it in files or logs.
 
 Publication rebuilds the catalog preview and hosted Relay/Secure Direct PWA, regenerates
-`stats.html`, uploads `docs/site` to `air`, and uploads the first-party short
+`stats.html`, uploads `apps/public-site` to `air`, and uploads the first-party short
 redirects under the website-root `a` and `s` paths. It pins
 server identity, overwrites matching files, adds new files, and retains
 remote-only files. `publish:site:list` is read-only.
@@ -29,27 +29,27 @@ preview, or statistics, run:
 npm run publish:site -- --only-app
 ```
 
-This builds only the hosted PWA and uploads only `docs/site/app` to `/air/app`,
+This builds only the hosted PWA and uploads only `apps/public-site/app` to `/air/app`,
 plus the normal `/a` and Secure Direct `/s` launch redirects. It does not upload
 the rest of `/air` or change the Screens catalog and `stats.html`.
 
 ## Custom-screen catalog
 
-The catalog lives under `docs/site/screens` and requires PHP sessions plus a
-MySQL database. Apply `docs/site/screens/schema.sql` once, then configure the
-ignored hosting-only `docs/site/config.php` with `dsn`, `username`, `password`,
+The catalog lives under `apps/public-site/screens` and requires PHP sessions plus a
+MySQL database. Apply `apps/public-site/screens/schema.sql` once, then configure the
+ignored hosting-only `apps/public-site/config.php` with `dsn`, `username`, `password`,
 and `storage_path`. The site `.htaccess` blocks direct access to that file, SQL
 schema and migration files, and `.volturascreen` packages. Site publication
 uploads `.htaccess` before the full directory, including the ignored config
 file. Never commit database credentials or uploaded package files.
 
 Sites initialized before catalog ratings were added must import
-`docs/site/screens/migration-002-ratings.sql` once in phpMyAdmin. Fresh databases
+`apps/public-site/screens/migration-002-ratings.sql` once in phpMyAdmin. Fresh databases
 created from the current `schema.sql` already contain that table and must not
 run the migration separately.
 
 Sites initialized before official-screen bulk import was added must import
-`docs/site/screens/migration-003-official-screens.sql` once. Fresh databases
+`apps/public-site/screens/migration-003-official-screens.sql` once. Fresh databases
 created from the current `schema.sql` already contain those columns and index.
 
 Sites initialized before reviewer feedback was added must run this once in
@@ -112,10 +112,10 @@ npm run site:dev:admin -- you@example.com
 Sign out and sign in again after promotion so the session receives the new
 role. Administrators then see the catalog's **Moderate** navigation link.
 
-This serves `docs/site` at `http://127.0.0.1:8765/` and enables the loopback-only
+This serves `apps/public-site` at `http://127.0.0.1:8765/` and enables the loopback-only
 session-cookie override needed for HTTP development. MariaDB must be running.
 Use `npm run site:dev -- -Port 8766` to select another web port. Production
-continues to require Secure session cookies and `docs/site/config.php`.
+continues to require Secure session cookies and `apps/public-site/config.php`.
 
 After initializing the isolated local catalog, run
 `npm run test:site-import-integration`. It exercises all official-import write

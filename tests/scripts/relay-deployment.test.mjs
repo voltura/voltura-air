@@ -5,8 +5,8 @@ import test from "node:test";
 const read = (path) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 
 test("first-party short redirect validates route and preserves the secret fragment client-side", () => {
-  const rewrite = read("docs/site/a/.htaccess");
-  const endpoint = read("docs/site/a/index.php");
+  const rewrite = read("apps/public-site/a/.htaccess");
+  const endpoint = read("apps/public-site/a/index.php");
   assert.match(rewrite, /\{22\}/u);
   assert.match(rewrite, /Cache-Control" "no-cache/u);
   assert.match(endpoint, /count\(\$_GET\) !== 2/u);
@@ -16,8 +16,8 @@ test("first-party short redirect validates route and preserves the secret fragme
 });
 
 test("Secure Direct short redirect selects the hosted Secure Direct bootstrap without exposing the fragment", () => {
-  const rewrite = read("docs/site/s/.htaccess");
-  const endpoint = read("docs/site/s/index.php");
+  const rewrite = read("apps/public-site/s/.htaccess");
+  const endpoint = read("apps/public-site/s/index.php");
   assert.match(rewrite, /Options -Indexes/u);
   assert.match(rewrite, /\{22\}/u);
   assert.match(rewrite, /Cache-Control" "no-cache/u);

@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import SftpClient from "ssh2-sftp-client";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const sourceDirectory = path.join(repositoryRoot, "docs", "site");
+const sourceDirectory = path.join(repositoryRoot, "apps", "public-site");
 const host = "ssh.voltura.se";
 const port = 22;
 const username = "voltura.se";

@@ -104,17 +104,17 @@ export async function checkDocumentationMap({
 }
 
 async function collectPublicDocumentationSurfaces(root) {
-  const siteRoot = path.join(root, "docs", "site");
+  const siteRoot = path.join(root, "apps", "public-site");
   if (!await exists(siteRoot)) {
     return [];
   }
 
   return (await collectFiles(siteRoot, root))
     .filter((file) => {
-      if (file.startsWith("docs/site/app/")) {
+      if (file.startsWith("apps/public-site/app/")) {
         return false;
       }
-      if (file === "docs/site/config.php") {
+      if (file === "apps/public-site/config.php") {
         return false;
       }
       const extension = path.extname(file).toLowerCase();

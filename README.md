@@ -50,8 +50,8 @@ See the [complete implemented feature list](docs/features.md).
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/site/assets/voltura-air-host-dark.png">
-    <img src="docs/site/assets/voltura-air-host.png" alt="Voltura Air Windows host pairing screen" width="900">
+    <source media="(prefers-color-scheme: dark)" srcset="apps/public-site/assets/voltura-air-host-dark.png">
+    <img src="apps/public-site/assets/voltura-air-host.png" alt="Voltura Air Windows host pairing screen" width="900">
   </picture>
   <br>
   <sub>Windows host pairing screen</sub>
@@ -59,8 +59,8 @@ See the [complete implemented feature list](docs/features.md).
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/site/assets/voltura-air-host-custom-screens-dark.png">
-    <img src="docs/site/assets/voltura-air-host-custom-screens.png" alt="Voltura Air Custom screens editor" width="900">
+    <source media="(prefers-color-scheme: dark)" srcset="apps/public-site/assets/voltura-air-host-custom-screens-dark.png">
+    <img src="apps/public-site/assets/voltura-air-host-custom-screens.png" alt="Voltura Air Custom screens editor" width="900">
   </picture>
   <br>
   <sub>Responsive Custom screens editor</sub>
@@ -70,14 +70,14 @@ See the [complete implemented feature list](docs/features.md).
   <tr>
     <td align="center" width="34%">
       <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="docs/site/assets/voltura-air-iphone-dark.png">
-        <img src="docs/site/assets/voltura-air-iphone.png" alt="Voltura Air trackpad on a phone" width="320">
+        <source media="(prefers-color-scheme: dark)" srcset="apps/public-site/assets/voltura-air-iphone-dark.png">
+        <img src="apps/public-site/assets/voltura-air-iphone.png" alt="Voltura Air trackpad on a phone" width="320">
       </picture>
       <br>
       <sub>Phone trackpad</sub>
     </td>
     <td align="center" width="66%">
-      <img src="docs/site/assets/voltura-air-split.png" alt="Voltura Air split keyboard and trackpad on a landscape tablet">
+      <img src="apps/public-site/assets/voltura-air-split.png" alt="Voltura Air split keyboard and trackpad on a landscape tablet">
       <br>
       <sub>Landscape split keyboard and trackpad</sub>
     </td>
@@ -85,15 +85,15 @@ See the [complete implemented feature list](docs/features.md).
 </table>
 
 <p align="center">
-  <img src="docs/site/assets/voltura-air-iphone-kodi-dark.png" alt="Voltura Air Kodi remote on a phone" width="320">
+  <img src="apps/public-site/assets/voltura-air-iphone-kodi-dark.png" alt="Voltura Air Kodi remote on a phone" width="320">
   <br>
   <sub>Phone Kodi remote</sub>
 </p>
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/site/assets/voltura-air-files-dark.png">
-    <img src="docs/site/assets/voltura-air-files.png" alt="Voltura Air Files on PC two-panel file manager on a tablet" width="900">
+    <source media="(prefers-color-scheme: dark)" srcset="apps/public-site/assets/voltura-air-files-dark.png">
+    <img src="apps/public-site/assets/voltura-air-files.png" alt="Voltura Air Files on PC two-panel file manager on a tablet" width="900">
   </picture>
   <br>
   <sub>Two-panel Files on PC</sub>

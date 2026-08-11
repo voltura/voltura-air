@@ -238,7 +238,7 @@ internal static class Program
     private static string ResolveSiteScreenshotOutputPath(string requestedOutputPath)
     {
         var repositoryRoot = FindRepositoryRoot();
-        var assetsDirectory = Path.Combine(repositoryRoot, "docs", "site", "assets");
+        var assetsDirectory = Path.Combine(repositoryRoot, "apps", "public-site", "assets");
         var resolvedOutputPath = Path.GetFileName(requestedOutputPath) switch
         {
             "voltura-air-host.png" => Path.Combine(assetsDirectory, "voltura-air-host.png"),
@@ -253,7 +253,7 @@ internal static class Program
             Path.GetFullPath(resolvedOutputPath),
             StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException("Site screenshots must be written to docs/site/assets.");
+            throw new InvalidOperationException("Site screenshots must be written to apps/public-site/assets.");
         }
 
         return resolvedOutputPath;

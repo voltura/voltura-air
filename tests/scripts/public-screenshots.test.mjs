@@ -43,8 +43,8 @@ test("public screenshot inventory stays curated and aligned", async () => {
     readFile(new URL("../../apps/windows-host/WpfPngRenderer.cs", import.meta.url), "utf8"),
     readFile(new URL("../../docs/screenshots.md", import.meta.url), "utf8"),
     readFile(new URL("../../README.md", import.meta.url), "utf8"),
-    readFile(new URL("../../docs/site/index.php", import.meta.url), "utf8"),
-    readdir(new URL("../../docs/site/assets/", import.meta.url))
+    readFile(new URL("../../apps/public-site/index.php", import.meta.url), "utf8"),
+    readdir(new URL("../../apps/public-site/assets/", import.meta.url))
   ]);
 
   assert.deepEqual(extractScreenshots(captureScript), expectedSiteAssets);

@@ -25,11 +25,11 @@ function Remove-BareSourceAssets {
     )
 
     $removedCount = 0
-    $docsSiteAssets = Join-Path $SourceRoot "docs\site\assets"
-    if (Test-Path $docsSiteAssets) {
+    $publicSiteAssets = Join-Path $SourceRoot "apps\public-site\assets"
+    if (Test-Path $publicSiteAssets) {
         $imageExtensions = @(".bmp", ".gif", ".ico", ".jpeg", ".jpg", ".png", ".svg", ".webp")
         $imageFiles = @(
-            Get-ChildItem -Path $docsSiteAssets -Recurse -File |
+            Get-ChildItem -Path $publicSiteAssets -Recurse -File |
                 Where-Object { $imageExtensions -contains $_.Extension.ToLowerInvariant() }
         )
 

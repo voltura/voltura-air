@@ -30,7 +30,7 @@ export default defineConfig({
   base: appBase,
   build: {
     chunkSizeWarningLimit: 750,
-    outDir: process.env.VOLTURA_AIR_HOSTED === "1" ? "../../docs/site/app" : "dist",
+    outDir: process.env.VOLTURA_AIR_HOSTED === "1" ? "../../apps/public-site/app" : "dist",
     emptyOutDir: true
   },
   define: {
@@ -76,7 +76,7 @@ function hostedManifest(base: string): Plugin {
     apply: "build",
     closeBundle() {
       if (base === "/") {return;}
-      const output = fileURLToPath(new URL("../../docs/site/app/manifest.webmanifest", import.meta.url));
+      const output = fileURLToPath(new URL("../../apps/public-site/app/manifest.webmanifest", import.meta.url));
       const manifest = JSON.parse(readFileSync(output, "utf8")) as Record<string, unknown> & { icons?: { src?: string }[] };
       manifest.id = base;
       manifest.start_url = base;
@@ -155,7 +155,7 @@ function compressedJavaScriptAssets(base: string): Plugin {
 }
 
 function outputDirectory(base: string): string {
-  return fileURLToPath(new URL(base === "/" ? "./dist" : "../../docs/site/app", import.meta.url));
+  return fileURLToPath(new URL(base === "/" ? "./dist" : "../../apps/public-site/app", import.meta.url));
 }
 
 function findJavaScriptFiles(directory: string): string[] {

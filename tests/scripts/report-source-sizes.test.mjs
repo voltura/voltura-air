@@ -43,11 +43,11 @@ test("ignores the generated code statistics report", async () => {
   await withFixture(
     { "src/large.cs": "This fixture is intentionally cohesive so the strong-warning review has a sufficiently specific rationale." },
     async (root) => {
-      await mkdir(path.join(root, "docs/site"), { recursive: true });
-      await writeFile(path.join(root, "docs/site/stats.html"), "<p>Generated report</p>\n".repeat(501), "utf8");
+      await mkdir(path.join(root, "apps/public-site"), { recursive: true });
+      await writeFile(path.join(root, "apps/public-site/stats.html"), "<p>Generated report</p>\n".repeat(501), "utf8");
 
       const result = await check(root);
-      assert.doesNotMatch(result.stdout, /docs\/site\/stats\.html/u);
+      assert.doesNotMatch(result.stdout, /apps\/public-site\/stats\.html/u);
       assert.match(result.stdout, /Every strong source-size warning has a current cohesive-ownership review/u);
     });
 });
@@ -56,7 +56,7 @@ test("ignores generated catalog preview assets", async () => {
   await withFixture(
     { "src/large.cs": "This fixture is intentionally cohesive so the strong-warning review has a sufficiently specific rationale." },
     async (root) => {
-      const assets = path.join(root, "docs/site/screens/assets");
+      const assets = path.join(root, "apps/public-site/screens/assets");
       await mkdir(assets, { recursive: true });
       await writeFile(path.join(assets, "catalog-preview.js"), "generated();\n".repeat(501), "utf8");
 

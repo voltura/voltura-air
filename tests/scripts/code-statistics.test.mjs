@@ -36,16 +36,16 @@ async function createStatisticsFixture() {
     writeFixtureFile(root, "services/relay/tests/worker.test.ts", "import { describe, it } from 'vitest';\ndescribe('worker', () => {\n  it('works', () => {});\n});\n"),
     writeFixtureFile(root, "services/relay/wrangler.jsonc", "{ \"name\": \"relay\" }\n"),
     writeFixtureFile(root, "services/relay/Dockerfile", "FROM node:22\n"),
-    writeFixtureFile(root, "docs/site/index.php", "<?php echo 'Voltura Air';\n"),
-    writeFixtureFile(root, "docs/site/styles.css", "body { color: black; }\n"),
-    writeFixtureFile(root, "docs/site/schema.sql", "CREATE TABLE screens ();\n"),
+    writeFixtureFile(root, "apps/public-site/index.php", "<?php echo 'Voltura Air';\n"),
+    writeFixtureFile(root, "apps/public-site/styles.css", "body { color: black; }\n"),
+    writeFixtureFile(root, "apps/public-site/schema.sql", "CREATE TABLE screens ();\n"),
     writeFixtureFile(root, "scripts/publish-site.mjs", "export function publishSite() {}\n"),
     writeFixtureFile(root, "scripts/run-chatgpt-codex-update-hidden.vbs", "WScript.Quit 0\n"),
     writeFixtureFile(root, "scripts/legacy/quality.yml", "name: quality\n"),
     writeFixtureFile(root, ".github/workflows/quality.yml", "name: quality\n"),
     writeFixtureFile(root, "tests/scripts/publish-site.test.mjs", "import test from 'node:test';\ntest('publishes', () => {});\ntest('lists', () => {});\n"),
     writeFixtureFile(root, "installer/VolturaAir.nsi", "Name VolturaAir\n"),
-    writeFixtureFile(root, "docs/site/index.php", "<?php echo 'Voltura Air';\n"),
+    writeFixtureFile(root, "apps/public-site/index.php", "<?php echo 'Voltura Air';\n"),
     writeFixtureFile(root, ".codex-temp/relay-build/generated.js", "// generated\n"),
     writeFixtureFile(root, ".codex-temp/relay-build/generated.png", "generated\n"),
     writeFixtureFile(root, ".codex-tmp/probe/generated.mjs", "// generated\n"),
@@ -70,7 +70,7 @@ test("code statistics covers production, test, automation, and script test cases
   assert.match(output, /Windows host tests\s+\(tests\/VolturaAir\.Host\.Tests\)\r?\n  Total: 3 files, 9 lines/u);
   assert.match(output, /Relay service\s+\(services\/relay\)\r?\n  Total: 4 files, 4 lines/u);
   assert.match(output, /Relay service tests\s+\(services\/relay\/tests\)\r?\n  Total: 1 files, 4 lines/u);
-  assert.match(output, /Public website\s+\(docs\/site\)\r?\n  Total: 3 files, 3 lines/u);
+  assert.match(output, /Public website\s+\(apps\/public-site\)\r?\n  Total: 3 files, 3 lines/u);
   assert.match(output, /Repository automation\s+\(scripts\)\r?\n  Total: 3 files, 3 lines/u);
   assert.match(output, /GitHub automation\s+\(\.github\)\r?\n  Total: 1 files, 1 lines/u);
   assert.match(output, /Repository automation tests\s+\(tests\/scripts\)\r?\n  Total: 1 files, 3 lines/u);
@@ -87,7 +87,7 @@ test("HTML statistics report uses the comprehensive statistics used by publish:s
   const root = await createStatisticsFixture();
 
   execFileSync(process.execPath, [scriptPath, "--report", "--no-open", "--quiet"], { cwd: root, encoding: "utf8" });
-  const html = await readFile(path.join(root, "docs", "site", "stats.html"), "utf8");
+  const html = await readFile(path.join(root, "apps", "public-site", "stats.html"), "utf8");
 
   assert.match(html, /<h2>Windows host tests<\/h2>/u);
   assert.match(html, /<h2>Repository automation<\/h2>/u);

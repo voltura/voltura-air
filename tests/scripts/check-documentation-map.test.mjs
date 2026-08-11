@@ -72,11 +72,11 @@ test("discovers public documentation surfaces and requires them in the catalog",
     {
       "README.md": "Root\n",
       "docs/README.md": "[Root](../README.md)\n",
-      "docs/site/index.php": "<!doctype html>\n"
+      "apps/public-site/index.php": "<!doctype html>\n"
     },
     async (root) => {
       const result = await checkDocumentationMap({ root });
-      assert.ok(result.errors.includes("Documentation map does not catalog: docs/site/index.php"));
+      assert.ok(result.errors.includes("Documentation map does not catalog: apps/public-site/index.php"));
     }
   );
 });
@@ -86,12 +86,12 @@ test("does not treat the ignored hosting config as a public documentation surfac
     {
       "README.md": "Root\n",
       "docs/README.md": "[Root](../README.md)\n",
-      "docs/site/config.php": "<?php return [];\n"
+      "apps/public-site/config.php": "<?php return [];\n"
     },
     async (root) => {
       const result = await checkDocumentationMap({ root });
       assert.deepEqual(result.errors, []);
-      assert.ok(!result.requiredFiles.includes("docs/site/config.php"));
+      assert.ok(!result.requiredFiles.includes("apps/public-site/config.php"));
     }
   );
 });

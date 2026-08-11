@@ -7,7 +7,7 @@ if (!$configPath || !is_file($configPath)) {
     fwrite(STDERR, "Set VOLTURA_AIR_SCREENS_CONFIG to an isolated MariaDB test catalog configuration.\n");
     exit(2);
 }
-require $root . '/docs/site/screens/lib.php';
+require $root . '/apps/public-site/screens/lib.php';
 if (!class_exists(ZipArchive::class)) { throw new RuntimeException('PHP ZipArchive is required.'); }
 
 $db = air_screen_db();
@@ -28,13 +28,13 @@ try {
 <?php
 putenv('VOLTURA_AIR_SITE_DEV=1');
 putenv('VOLTURA_AIR_OFFICIAL_IMPORT_FAIL=' . ($argv[2] ?? ''));
-require $argv[3] . '/docs/site/screens/lib.php';
+require $argv[3] . '/apps/public-site/screens/lib.php';
 $_SESSION['air_screen_user'] = ['id' => (int)$argv[4], 'role' => 'admin'];
 $_SESSION['air_screen_csrf'] = 'integration-csrf';
 $_SERVER['REQUEST_METHOD'] = 'POST';
 $_POST = ['smoke_confirmed' => '1', 'csrf' => 'integration-csrf'];
 $_FILES = ['bundle' => ['error' => UPLOAD_ERR_OK, 'size' => filesize($argv[1]), 'tmp_name' => $argv[1]]];
-require $argv[3] . '/docs/site/screens/official-import.php';
+require $argv[3] . '/apps/public-site/screens/official-import.php';
 PHP);
 
     foreach (['stage_write', 'install_rename', 'db_upsert', 'db_commit', 'db_upsert,db_rollback'] as $failure) {

@@ -26,4 +26,4 @@ $env:VOLTURA_AIR_SITE_DEV = '1'
 $url = "http://127.0.0.1:$Port/"
 Write-Host "Voltura Air site: $url"
 Write-Host 'Press Ctrl+C to stop.'
-& $phpPath -c $phpIniPath -S "127.0.0.1:$Port" -t (Join-Path $repoRoot 'docs\site')
+& $phpPath -c $phpIniPath -S "127.0.0.1:$Port" -t (Join-Path $repoRoot 'apps\public-site')

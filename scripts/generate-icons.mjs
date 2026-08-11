@@ -158,7 +158,7 @@ async function generateWebAssets() {
   const full = await renderSquare(512, { scale: tightArtworkScale });
   await writeSvg(createEmbeddedSvg(full.png), [
     "apps/mobile-web/public/icon.svg",
-    "docs/site/assets/voltura-air-icon.svg",
+    "apps/public-site/assets/voltura-air-icon.svg",
   ]);
 
   const cropped = await renderSquare(512, { scale: tightArtworkScale });
@@ -168,7 +168,7 @@ async function generateWebAssets() {
     const artwork = await renderSquare(size, { scale: tightArtworkScale });
     await writePng(artwork, size, size, [
       `apps/mobile-web/public/favicon-${size}.png`,
-      `docs/site/favicon-${size}.png`,
+      `apps/public-site/favicon-${size}.png`,
     ]);
   }
 
@@ -179,7 +179,7 @@ async function generateWebAssets() {
   assertOpaque(appleTouch.rgba, "Apple touch icon");
   await writePng(appleTouch, 180, 180, [
     "apps/mobile-web/public/apple-touch-icon.png",
-    "docs/site/apple-touch-icon.png",
+    "apps/public-site/apple-touch-icon.png",
   ]);
 
   for (const size of [192, 512]) {
@@ -206,7 +206,7 @@ async function generateWebAssets() {
   const favicon = await renderIco(faviconSizes, tightArtworkScale);
   await writeIco(favicon, faviconSizes, [
     "apps/mobile-web/public/favicon.ico",
-    "docs/site/favicon.ico",
+    "apps/public-site/favicon.ico",
   ]);
 }
 

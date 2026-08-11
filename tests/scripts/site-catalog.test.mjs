@@ -9,7 +9,7 @@ import { stableJson } from "../../scripts/custom-screens/builders/validation.mjs
 const read = (path) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 
 test("catalog ratings require an authenticated user and CSRF token", () => {
-  const endpoint = read("docs/site/screens/rate.php");
+  const endpoint = read("apps/public-site/screens/rate.php");
   assert.match(endpoint, /air_screen_require_user\(\)/u);
   assert.match(endpoint, /air_screen_require_csrf\(\)/u);
   assert.match(endpoint, /rating < 1 \|\| \$rating > 5/u);
@@ -18,7 +18,7 @@ test("catalog ratings require an authenticated user and CSRF token", () => {
 });
 
 test("ratings migration enforces one bounded vote per account and screen", () => {
-  const migration = read("docs/site/screens/migration-002-ratings.sql");
+  const migration = read("apps/public-site/screens/migration-002-ratings.sql");
   assert.match(migration, /PRIMARY KEY \(package_id, user_id\)/u);
   assert.match(migration, /CHECK \(rating BETWEEN 1 AND 5\)/u);
   assert.match(migration, /REFERENCES air_screen_packages\(id\) ON DELETE CASCADE/u);
@@ -26,7 +26,7 @@ test("ratings migration enforces one bounded vote per account and screen", () =>
 });
 
 test("catalog access rules deny credentials, SQL, and screen packages", () => {
-  const accessRules = read("docs/site/.htaccess");
+  const accessRules = read("apps/public-site/.htaccess");
   assert.match(accessRules, /config\\\.php/u);
   assert.match(accessRules, /\\\.sql\$/u);
   assert.match(accessRules, /\\\.volturascreen\$/u);
@@ -59,23 +59,23 @@ test("local site development is isolated from production configuration", () => {
 });
 
 test("five-star picker fills the hovered star and every lower star", () => {
-  const view = read("docs/site/screens/view.php");
-  const styles = read("docs/site/styles.css");
+  const view = read("apps/public-site/screens/view.php");
+  const styles = read("apps/public-site/styles.css");
   assert.match(view, /for \(\$rating = 5; \$rating >= 1; \$rating--\)/u);
   assert.match(view, /onchange="this\.form\.submit\(\)"/u);
   assert.match(styles, /\.catalog-page \.star-picker label:hover ~ label/u);
 });
 
 test("uploads always use the exact current screen name field", () => {
-  const upload = read("docs/site/screens/upload.php");
+  const upload = read("apps/public-site/screens/upload.php");
   assert.match(upload, /\$name = trim\(\(string\)\$screen\['name'\]\)/u);
   assert.doesNotMatch(upload, /name="name"/u);
   assert.match(upload, /The screen name comes from the package\./u);
 });
 
 test("failed upload persistence removes an uncommitted package file", () => {
-  const upload = read("docs/site/screens/upload.php");
-  const validation = read("docs/site/screens/lib.php");
+  const upload = read("apps/public-site/screens/upload.php");
+  const validation = read("apps/public-site/screens/lib.php");
   assert.match(upload, /\$uncommittedPackagePath = \$path/u);
   assert.ok(
     upload.indexOf("$uncommittedPackagePath = $path") <
@@ -92,8 +92,8 @@ test("failed upload persistence removes an uncommitted package file", () => {
 });
 
 test("package uploads expose a visually distinct drop target and selected state", () => {
-  const upload = read("docs/site/screens/upload.php");
-  const styles = read("docs/site/styles.css");
+  const upload = read("apps/public-site/screens/upload.php");
+  const styles = read("apps/public-site/styles.css");
   assert.match(upload, /catalog-package-drop-icon/u);
   assert.match(upload, /catalog-package-drop-action/u);
   assert.match(upload, /classList\.toggle\("has-package", hasPackage\)/u);
@@ -103,9 +103,9 @@ test("package uploads expose a visually distinct drop target and selected state"
 });
 
 test("catalog navigation preserves the main site links and detail pages link back to browse", () => {
-  const library = read("docs/site/screens/lib.php");
-  const logout = read("docs/site/screens/logout.php");
-  const index = read("docs/site/screens/index.php");
+  const library = read("apps/public-site/screens/lib.php");
+  const logout = read("apps/public-site/screens/logout.php");
+  const index = read("apps/public-site/screens/index.php");
   assert.match(library, /href="\.\.\/#features">Features<\/a>/u);
   assert.match(library, /href="\.\/" aria-current="page">Custom screens<\/a>/u);
   assert.match(library, /href="\.\.\/#download">Download<\/a>/u);
@@ -127,9 +127,9 @@ test("catalog navigation preserves the main site links and detail pages link bac
 });
 
 test("catalog sort options use the site color treatment when opened", () => {
-  const index = read("docs/site/screens/index.php");
-  const styles = read("docs/site/styles.css");
-  const script = read("docs/site/screens/preview.js");
+  const index = read("apps/public-site/screens/index.php");
+  const styles = read("apps/public-site/styles.css");
+  const script = read("apps/public-site/screens/preview.js");
   assert.match(index, /data-catalog-sort/u);
   assert.match(index, /role="listbox"/u);
   assert.match(styles, /\.catalog-page \.catalog-sort-option:hover,[\s\S]*background: var\(--accent-strong\);/u);
@@ -138,9 +138,9 @@ test("catalog sort options use the site color treatment when opened", () => {
 });
 
 test("catalog search reveals a tag-style clear control only for entered text", () => {
-  const index = read("docs/site/screens/index.php");
-  const script = read("docs/site/screens/preview.js");
-  const styles = read("docs/site/styles.css");
+  const index = read("apps/public-site/screens/index.php");
+  const script = read("apps/public-site/screens/preview.js");
+  const styles = read("apps/public-site/styles.css");
   assert.match(index, /data-catalog-query/u);
   assert.match(index, /class="catalog-tag-remove catalog-query-clear"/u);
   assert.match(index, /aria-label="Clear search" hidden/u);
@@ -151,11 +151,11 @@ test("catalog search reveals a tag-style clear control only for entered text", (
 });
 
 test("administrators can permanently delete a listed screen after confirmation", () => {
-  const index = read("docs/site/screens/index.php");
-  const view = read("docs/site/screens/view.php");
-  const endpoint = read("docs/site/screens/delete.php");
-  const script = read("docs/site/screens/preview.js");
-  const styles = read("docs/site/styles.css");
+  const index = read("apps/public-site/screens/index.php");
+  const view = read("apps/public-site/screens/view.php");
+  const endpoint = read("apps/public-site/screens/delete.php");
+  const script = read("apps/public-site/screens/preview.js");
+  const styles = read("apps/public-site/styles.css");
   assert.match(index, /\$isAdmin = \(\$user\['role'\] \?\? ''\) === 'admin'/u);
   assert.match(index, /data-delete-dialog-open/u);
   assert.match(index, /class="catalog-delete-dialog"/u);
@@ -179,10 +179,10 @@ test("administrators can permanently delete a listed screen after confirmation",
 });
 
 test("submission history uses linked rows, status pills, and an empty state", () => {
-  const upload = read("docs/site/screens/upload.php");
-  const endpoint = read("docs/site/screens/remove-rejected.php");
-  const script = read("docs/site/screens/preview.js");
-  const styles = read("docs/site/styles.css");
+  const upload = read("apps/public-site/screens/upload.php");
+  const endpoint = read("apps/public-site/screens/remove-rejected.php");
+  const script = read("apps/public-site/screens/preview.js");
+  const styles = read("apps/public-site/styles.css");
   assert.match(upload, /class="catalog-submissions"/u);
   assert.match(upload, /id="submissions"/u);
   assert.match(upload, /class="catalog-submission-list"/u);
@@ -212,11 +212,11 @@ test("submission history uses linked rows, status pills, and an empty state", ()
 });
 
 test("screen submission tags use an accessible removable pill editor", () => {
-  const upload = read("docs/site/screens/upload.php");
-  const edit = read("docs/site/screens/edit.php");
-  const layout = read("docs/site/screens/lib.php");
-  const script = read("docs/site/screens/tag-editor.js");
-  const styles = read("docs/site/styles.css");
+  const upload = read("apps/public-site/screens/upload.php");
+  const edit = read("apps/public-site/screens/edit.php");
+  const layout = read("apps/public-site/screens/lib.php");
+  const script = read("apps/public-site/screens/tag-editor.js");
+  const styles = read("apps/public-site/styles.css");
   assert.match(upload, /data-tag-editor/u);
   assert.match(edit, /data-tag-editor/u);
   assert.match(upload, /<label for="catalog-upload-tags">Tags<\/label>/u);
@@ -246,9 +246,9 @@ test("screen submission tags use an accessible removable pill editor", () => {
   assert.match(styles, /translate\(-50%, -50%\) rotate\(45deg\)/u);
 });
 test("published screen details render tags as safe static pills", () => {
-  const view = read("docs/site/screens/view.php");
-  const library = read("docs/site/screens/lib.php");
-  const styles = read("docs/site/styles.css");
+  const view = read("apps/public-site/screens/view.php");
+  const library = read("apps/public-site/screens/lib.php");
+  const styles = read("apps/public-site/styles.css");
   const staticTagRenderer = library.slice(
     library.indexOf("function air_screen_tag_pills"),
     library.indexOf("function air_screen_local_catalog_source"),
@@ -265,8 +265,8 @@ test("published screen details render tags as safe static pills", () => {
 });
 
 test("catalog cards render their tags with the same safe static pills", () => {
-  const index = read("docs/site/screens/index.php");
-  const styles = read("docs/site/styles.css");
+  const index = read("apps/public-site/screens/index.php");
+  const styles = read("apps/public-site/styles.css");
   assert.match(index, /class="catalog-card-tags"/u);
   assert.match(index, /air_screen_tag_pills\(\(string\)\$item\['tags'\]\)/u);
   assert.match(styles, /\.catalog-card-tags \{[\s\S]*display: flex;/u);
@@ -274,9 +274,9 @@ test("catalog cards render their tags with the same safe static pills", () => {
 });
 
 test("rejection requires feedback that the author can read and clear by resubmitting", () => {
-  const moderation = read("docs/site/screens/admin.php");
-  const upload = read("docs/site/screens/upload.php");
-  const edit = read("docs/site/screens/edit.php");
+  const moderation = read("apps/public-site/screens/admin.php");
+  const upload = read("apps/public-site/screens/upload.php");
+  const edit = read("apps/public-site/screens/edit.php");
   assert.match(moderation, /\$status === 'rejected' && \$feedback === ''/u);
   assert.match(moderation, /name="rejection_feedback" maxlength="1000"/u);
   assert.match(moderation, /in_array\(\$status, \['approved', 'rejected'\], true\) && \$feedback !== '' \? \$feedback : null/u);
@@ -287,10 +287,10 @@ test("rejection requires feedback that the author can read and clear by resubmit
 });
 
 test("successful uploads use a temporary accessible toast", () => {
-  const upload = read("docs/site/screens/upload.php");
-  const library = read("docs/site/screens/lib.php");
-  const previewScript = read("docs/site/screens/preview.js");
-  const styles = read("docs/site/styles.css");
+  const upload = read("apps/public-site/screens/upload.php");
+  const library = read("apps/public-site/screens/lib.php");
+  const previewScript = read("apps/public-site/screens/preview.js");
+  const styles = read("apps/public-site/styles.css");
   assert.match(upload, /air_screen_toast\('Screen submitted for moderation'\)/u);
   assert.match(library, /class="catalog-toast" role="status"/u);
   assert.match(library, /catalog-toast-badge/u);
@@ -301,8 +301,8 @@ test("successful uploads use a temporary accessible toast", () => {
 });
 
 test("production uploads notify catalog administrators after persistence", () => {
-  const upload = read("docs/site/screens/upload.php");
-  const library = read("docs/site/screens/lib.php");
+  const upload = read("apps/public-site/screens/upload.php");
+  const library = read("apps/public-site/screens/lib.php");
   assert.match(upload, /air_screen_notify_moderators/u);
   assert.ok(
     upload.indexOf("$stmt->execute") <
@@ -317,10 +317,10 @@ test("production uploads notify catalog administrators after persistence", () =>
 });
 
 test("screen reports are emailed to Voltura Air after persistence", () => {
-  const endpoint = read("docs/site/screens/report.php");
-  const library = read("docs/site/screens/lib.php");
-  const view = read("docs/site/screens/view.php");
-  const previewScript = read("docs/site/screens/preview.js");
+  const endpoint = read("apps/public-site/screens/report.php");
+  const library = read("apps/public-site/screens/lib.php");
+  const view = read("apps/public-site/screens/view.php");
+  const previewScript = read("apps/public-site/screens/preview.js");
   assert.match(endpoint, /INSERT INTO air_screen_reports/u);
   assert.match(endpoint, /air_screen_notify_screen_report/u);
   assert.ok(
@@ -338,8 +338,8 @@ test("screen reports are emailed to Voltura Air after persistence", () => {
 });
 
 test("moderation emails approval or rejection status to the submitter", () => {
-  const moderation = read("docs/site/screens/admin.php");
-  const library = read("docs/site/screens/lib.php");
+  const moderation = read("apps/public-site/screens/admin.php");
+  const library = read("apps/public-site/screens/lib.php");
   assert.match(moderation, /SELECT p\.name, u\.email/u);
   assert.match(moderation, /air_screen_notify_submitter_status/u);
   assert.ok(
@@ -357,7 +357,7 @@ test("moderation emails approval or rejection status to the submitter", () => {
 });
 
 test("notification emails share an Outlook-compatible presentation shell", () => {
-  const library = read("docs/site/screens/lib.php");
+  const library = read("apps/public-site/screens/lib.php");
   const shell = library.slice(
     library.indexOf("function air_screen_notification_email"),
     library.indexOf("function air_screen_notify_moderators"),
@@ -383,9 +383,9 @@ test("notification emails share an Outlook-compatible presentation shell", () =>
 });
 
 test("catalog previews expose full content through compact and interactive modes", () => {
-  const library = read("docs/site/screens/lib.php");
-  const index = read("docs/site/screens/index.php");
-  const previewScript = read("docs/site/screens/preview.js");
+  const library = read("apps/public-site/screens/lib.php");
+  const index = read("apps/public-site/screens/index.php");
+  const previewScript = read("apps/public-site/screens/preview.js");
   assert.doesNotMatch(library, /array_slice\(\$sections/u);
   assert.doesNotMatch(library, /array_slice\(\$buttons/u);
   assert.match(library, /Generic phone/u);
@@ -400,10 +400,10 @@ test("full catalog previews use the real mobile custom-screen renderer", () => {
   const packageJson = JSON.parse(read("package.json"));
   const entry = read("apps/mobile-web/src/app/catalog-preview.tsx");
   const viteConfig = read("apps/mobile-web/vite.catalog-preview.config.ts");
-  const frame = read("docs/site/screens/preview-frame.php");
-  const library = read("docs/site/screens/lib.php");
-  const previewScript = read("docs/site/screens/preview.js");
-  const styles = read("docs/site/styles.css");
+  const frame = read("apps/public-site/screens/preview-frame.php");
+  const library = read("apps/public-site/screens/lib.php");
+  const previewScript = read("apps/public-site/screens/preview.js");
+  const styles = read("apps/public-site/styles.css");
   assert.match(entry, /CustomScreenWorkspace/u);
   assert.match(entry, /actions are disabled/u);
   assert.match(frame, /\['status'\] !== 'approved'/u);
@@ -420,11 +420,11 @@ test("full catalog previews use the real mobile custom-screen renderer", () => {
 });
 
 test("admins can atomically bulk-import the generated official screen bundle", () => {
-  const admin = read("docs/site/screens/admin.php");
-  const importer = read("docs/site/screens/official-import.php");
-  const schema = read("docs/site/screens/schema.sql");
-  const migration = read("docs/site/screens/migration-003-official-screens.sql");
-  const library = read("docs/site/screens/lib.php");
+  const admin = read("apps/public-site/screens/admin.php");
+  const importer = read("apps/public-site/screens/official-import.php");
+  const schema = read("apps/public-site/screens/schema.sql");
+  const migration = read("apps/public-site/screens/migration-003-official-screens.sql");
+  const library = read("apps/public-site/screens/lib.php");
   assert.match(admin, /action="official-import\.php"/u);
   assert.match(importer, /air_screen_require_admin\(\)/u);
   assert.match(importer, /air_screen_require_csrf\(\)/u);
@@ -456,7 +456,7 @@ test("admins can atomically bulk-import the generated official screen bundle", (
 test("the PHP package boundary executes the current semantic contract", () => {
   const source = officialScreens[0].screen;
   const run = screen => {
-    const library = fileURLToPath(new URL("../../docs/site/screens/lib.php", import.meta.url)).replaceAll("\\", "/").replaceAll("'", "\\'");
+    const library = fileURLToPath(new URL("../../apps/public-site/screens/lib.php", import.meta.url)).replaceAll("\\", "/").replaceAll("'", "\\'");
     return spawnSync("php", ["-d", "display_errors=1", "-r", `require '${library}'; try { air_screen_validate_package(file_get_contents('php://stdin')); echo 'accepted'; } catch (Throwable $error) { fwrite(STDERR, $error->getMessage()); exit(2); }`], {
       encoding: "utf8",
       input: stableJson({ packageVersion: 1, format: "voltura-air.custom-screen", screen })
@@ -478,12 +478,12 @@ test("the PHP package boundary executes the current semantic contract", () => {
 });
 
 test("the public site contains no forbidden competitor-site reference", () => {
-  assert.doesNotMatch(read("docs/site/index.php"), /unifiedremote|unified\s+remote/iu);
+  assert.doesNotMatch(read("apps/public-site/index.php"), /unifiedremote|unified\s+remote/iu);
 });
 
 test("catalog detail launches Voltura Air directly and keeps file fallback", () => {
-  const view = read("docs/site/screens/view.php");
-  const library = read("docs/site/screens/lib.php");
+  const view = read("apps/public-site/screens/view.php");
+  const library = read("apps/public-site/screens/lib.php");
   assert.match(view, /href="voltura-air:\/\/import\?id=/u);
   assert.doesNotMatch(view, /href="install\.php\?id=/u);
   assert.match(view, /href="download\.php\?id=/u);
@@ -493,8 +493,8 @@ test("catalog detail launches Voltura Air directly and keeps file fallback", () 
 });
 
 test("rating action is a top-level summary that opens an implicit-save modal", () => {
-  const view = read("docs/site/screens/view.php");
-  const previewScript = read("docs/site/screens/preview.js");
+  const view = read("apps/public-site/screens/view.php");
+  const previewScript = read("apps/public-site/screens/preview.js");
   const summaryPosition = view.indexOf("$ratingSummary");
   const notesPosition = view.indexOf("<h2>Author notes</h2>");
   assert.ok(summaryPosition >= 0 && notesPosition > summaryPosition);
@@ -508,8 +508,8 @@ test("rating action is a top-level summary that opens an implicit-save modal", (
 });
 
 test("a signed-in user can remove only their own existing rating", () => {
-  const endpoint = read("docs/site/screens/rate.php");
-  const view = read("docs/site/screens/view.php");
+  const endpoint = read("apps/public-site/screens/rate.php");
+  const view = read("apps/public-site/screens/view.php");
   assert.match(endpoint, /\$remove = \(\$_POST\['action'\] \?\? ''\) === 'remove'/u);
   assert.match(endpoint, /DELETE FROM air_screen_ratings WHERE package_id = :package AND user_id = :user/u);
   assert.match(endpoint, /ratingRemoved=1/u);

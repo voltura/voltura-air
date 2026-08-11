@@ -7,7 +7,7 @@ import { chromium } from "@playwright/test";
 import { officialScreens } from "./custom-screens/catalog.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const assets = path.join(root, "docs", "site", "screens", "assets");
+const assets = path.join(root, "apps", "public-site", "screens", "assets");
 const screens = new Map(officialScreens.map(definition => [definition.screen.id, definition.screen]));
 const server = createServer(async (request, response) => {
   try {

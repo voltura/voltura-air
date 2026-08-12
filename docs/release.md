@@ -38,7 +38,10 @@ A successful release therefore leaves the Git working tree clean.
 
 ## Prerequisites
 
-- Windows, Node.js/npm, .NET 10 SDK, Git, and NSIS.
+- Windows, Node.js 24.18.1 LTS, npm 11.18.0, .NET SDK 10.0.400,
+  PowerShell 7.6 LTS, Git, and NSIS 3.12 or newer.
+- Visual Studio 2026 18.9 or newer with the Desktop development with C++ workload.
+- PHP 8.5 for the public-site validation gate.
 - Authenticated GitHub CLI with write access to `voltura/voltura-air`.
 - Authenticated Wrangler access to the production Cloudflare account for a
   stable `release:full`.

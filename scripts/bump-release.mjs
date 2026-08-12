@@ -39,10 +39,8 @@ export async function bumpRelease() {
   const currentVersion = String(packageJson.version ?? "");
   const nextVersion = getNextReleaseVersion(currentVersion);
   console.log(`Bumping Voltura Air from ${currentVersion} to ${nextVersion}.`);
-  const result = spawnSync("powershell", [
+  const result = spawnSync("pwsh", [
     "-NoProfile",
-    "-ExecutionPolicy",
-    "Bypass",
     "-File",
     path.join(repositoryRoot, "scripts", "prepare-release.ps1"),
     nextVersion

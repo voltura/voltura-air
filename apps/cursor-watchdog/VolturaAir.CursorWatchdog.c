@@ -146,7 +146,7 @@ static WatchdogResult RunMonitor(
     return WATCHDOG_SUCCESS;
 }
 
-int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previousInstance, PWSTR commandLine, int showCommand)
+int WINAPI wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE previousInstance, _In_ PWSTR commandLine, _In_ int showCommand)
 {
     (void)instance;
     (void)previousInstance;

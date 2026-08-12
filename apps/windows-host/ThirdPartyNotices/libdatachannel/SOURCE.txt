@@ -6,7 +6,7 @@ Distributed binary
 
 File: datachannel.dll
 Target: Windows x64
-SHA-256: 08810cc4dfb2086727d312b1fe0e88e9dd2bf45239559a5495dc76d3a49f9fa1
+SHA-256: 88cba93015800e9c33dd0824d68629a5ef8c1d5f50d4fdd836a2c8df69d94e1b
 
 MPL-covered source
 ------------------
@@ -32,11 +32,11 @@ recipe is scripts/build-libdatachannel.ps1.
 Build evidence
 --------------
 
-The binary was built by Voltura with Visual Studio 2022/CMake as a shared
+The binary was built by Voltura with Visual Studio 2026 18.9/CMake as a shared
 libdatachannel DLL with statically linked dependencies and static MSVC runtime.
 WebSocket, examples, and upstream tests were disabled; media remained enabled.
-OpenSSL 3.6.0 port revision 3 was built by vcpkg for x64-windows-static from
-port tree 21c1dabbf149eaa75b6c8b6ba9c3c6edb4f47ea7. Embedded source paths
+OpenSSL 3.6.3 port revision 0 was built by vcpkg for x64-windows-static from
+baseline dc597a1a553bf65d2883ac61efa5a42db41cdd51. Embedded source paths
 identify the clean libdatachannel and bundled libjuice/usrsctp trees.
 
 Replacement binaries must not be accepted without running the tracked recipe,

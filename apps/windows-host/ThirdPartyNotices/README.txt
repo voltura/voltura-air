@@ -15,7 +15,7 @@ NATIVE WEBRTC SOURCE AVAILABILITY
 The adjacent datachannel.dll was built by Voltura from libdatachannel v0.24.5.
 Its SHA-256 is:
 
-  08810cc4dfb2086727d312b1fe0e88e9dd2bf45239559a5495dc76d3a49f9fa1
+  88cba93015800e9c33dd0824d68629a5ef8c1d5f50d4fdd836a2c8df69d94e1b
 
 The corresponding MPL 2.0 source, including pinned submodules, is available at:
 

@@ -4,13 +4,13 @@ public sealed class FileManagerServiceTests : IAsyncLifetime
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "voltura-air-file-manager-tests", Guid.NewGuid().ToString("N"));
 
-    public Task InitializeAsync()
+    public ValueTask InitializeAsync()
     {
         Directory.CreateDirectory(_root);
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         if (Directory.Exists(_root))
         {
@@ -20,7 +20,7 @@ public sealed class FileManagerServiceTests : IAsyncLifetime
             }
             Directory.Delete(_root, recursive: true);
         }
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     [Fact]

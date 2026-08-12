@@ -1,3 +1,10 @@
+#requires -Version 7.6 -PSEdition Core
+
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSAvoidUsingConvertToSecureStringWithPlainText',
+    '',
+    Justification = 'Account and key identifiers are validated non-secret values; SecureString prevents Wrangler stdin from being logged.'
+)]
 [CmdletBinding()]
 param()
 

@@ -1,3 +1,5 @@
+#requires -Version 7.6 -PSEdition Core
+
 param(
     [ValidateRange(1024, 65535)]
     [int]$Port = 8765

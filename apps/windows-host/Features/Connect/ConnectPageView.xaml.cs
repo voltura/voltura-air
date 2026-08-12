@@ -18,6 +18,7 @@ public partial class ConnectPageView : WpfUserControl
     private readonly DateTimeOffset _refreshAt;
     private readonly DispatcherTimer _countdownTimer;
     private Window? _ownerWindow;
+    private bool _ownerWindowIsActive;
     private bool _refreshRequested;
     private bool _timerReleased;
 
@@ -177,9 +178,15 @@ public partial class ConnectPageView : WpfUserControl
 
     private void OnOwnerWindowStateChanged(object? sender, EventArgs eventArgs) => UpdateCountdownActivity();
 
-    private void OnOwnerWindowActivated(object? sender, EventArgs eventArgs) => UpdateCountdownActivity();
+    private void OnOwnerWindowActivated(object? sender, EventArgs eventArgs) => HandleOwnerWindowActivationChanged(true);
 
-    private void OnOwnerWindowDeactivated(object? sender, EventArgs eventArgs) => UpdateCountdownActivity();
+    private void OnOwnerWindowDeactivated(object? sender, EventArgs eventArgs) => HandleOwnerWindowActivationChanged(false);
+
+    internal void HandleOwnerWindowActivationChanged(bool isActive)
+    {
+        _ownerWindowIsActive = isActive;
+        UpdateCountdownActivity();
+    }
 
     private void OnCountdownTick(object? sender, EventArgs eventArgs)
     {
@@ -222,7 +229,7 @@ public partial class ConnectPageView : WpfUserControl
             return;
         }
 
-        if (IsLoaded && IsVisible && _ownerWindow is { IsActive: true, WindowState: not WindowState.Minimized })
+        if (IsLoaded && IsVisible && _ownerWindowIsActive && _ownerWindow is { WindowState: not WindowState.Minimized })
         {
             StartCountdown();
         }
@@ -245,6 +252,7 @@ public partial class ConnectPageView : WpfUserControl
         _ownerWindow = ownerWindow;
         if (_ownerWindow is not null)
         {
+            _ownerWindowIsActive = _ownerWindow.IsActive;
             _ownerWindow.StateChanged += OnOwnerWindowStateChanged;
             _ownerWindow.Activated += OnOwnerWindowActivated;
             _ownerWindow.Deactivated += OnOwnerWindowDeactivated;
@@ -297,5 +305,6 @@ public partial class ConnectPageView : WpfUserControl
         _ownerWindow.Activated -= OnOwnerWindowActivated;
         _ownerWindow.Deactivated -= OnOwnerWindowDeactivated;
         _ownerWindow = null;
+        _ownerWindowIsActive = false;
     }
 }

@@ -84,12 +84,14 @@ internal sealed class CustomPointerSettingsSection(
             Save(customPointer.IsChecked == true, (int)Math.Round(size.Value), GetColor(colorButton));
         };
         sizePreviewTimer.Tick += previewTick;
+        var pointerSettingsSubscribed = false;
+        parent.Loaded += (_, _) => SubscribeToPointerSettings();
         parent.Unloaded += (_, _) =>
         {
             sizePreviewTimer.Stop();
             sizePreviewTimer.Tick -= previewTick;
             colorPopup.IsOpen = false;
-            AppPointerSettings.Changed -= OnPointerSettingsChanged;
+            UnsubscribeFromPointerSettings();
         };
 
         customPointer.Checked += (_, _) =>
@@ -117,17 +119,47 @@ internal sealed class CustomPointerSettingsSection(
             }
         };
 
-        AppPointerSettings.Changed += OnPointerSettingsChanged;
+        if (parent.IsLoaded)
+        {
+            SubscribeToPointerSettings();
+        }
+
+        void SubscribeToPointerSettings()
+        {
+            if (pointerSettingsSubscribed)
+            {
+                return;
+            }
+
+            AppPointerSettings.Changed += OnPointerSettingsChanged;
+            pointerSettingsSubscribed = true;
+        }
+
+        void UnsubscribeFromPointerSettings()
+        {
+            if (!pointerSettingsSubscribed)
+            {
+                return;
+            }
+
+            AppPointerSettings.Changed -= OnPointerSettingsChanged;
+            pointerSettingsSubscribed = false;
+        }
 
         void OnPointerSettingsChanged(object? sender, EventArgs eventArgs)
         {
-            if (AppPointerSettings.GetCustomPointer().Enabled || customPointer.IsChecked != true)
+            if (AppPointerSettings.GetCustomPointer().Enabled)
             {
                 return;
             }
 
             _ = customPointer.Dispatcher.BeginInvoke(() =>
             {
+                if (customPointer.IsChecked != true)
+                {
+                    return;
+                }
+
                 customPointer.IsChecked = false;
                 controls.IsEnabled = false;
             });

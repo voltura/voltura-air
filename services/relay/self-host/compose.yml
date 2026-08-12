@@ -19,7 +19,7 @@ services:
       retries: 3
 
   coturn:
-    image: coturn/coturn:4.7.0-r0
+    image: coturn/coturn:4.15.0-r0@sha256:0feee4fc1f45c7c053c8fee3e1ab941b1a1b9a0429bc01e18126735410770bfd
     restart: unless-stopped
     depends_on:
       relay:
@@ -48,7 +48,7 @@ services:
       - "49160-49200:49160-49200/udp"
 
   edge:
-    image: nginx:1.29-alpine
+    image: nginx:1.30.4-alpine@sha256:97d490c12ba55b4946b01546d1c3ed324e8d41ab1c9fcb2a616aa470620e5b46
     restart: unless-stopped
     depends_on:
       relay:
@@ -67,7 +67,7 @@ services:
       - "443:443/tcp"
 
   duckdns:
-    image: lscr.io/linuxserver/duckdns:latest
+    image: lscr.io/linuxserver/duckdns:af6dcae5-ls86@sha256:ac65c0d1d2cdfd380ab7b450d97b8c80b2a30f2e086bd79b4cce2fc7190d33a6
     restart: unless-stopped
     environment:
       SUBDOMAINS: "${DUCKDNS_SUBDOMAINS}"

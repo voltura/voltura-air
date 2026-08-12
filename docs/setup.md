@@ -6,6 +6,15 @@ The [source quick start](../README.md#develop-from-source) owns prerequisites
 and the default launch. Browse all commands with `npm run help`. Use
 `npm install` only when changing dependency manifests.
 
+The repository pins its .NET SDK, Node/npm range, NuGet graph, and npm graph.
+Run `npm run tools:check` after installing or updating prerequisites, and
+`npm run deps:check` for the non-mutating npm, NuGet, container, and native
+dependency audit.
+
+Install the pinned PowerShell analyzer once with
+`Install-PSResource PSScriptAnalyzer -Version 1.25.0 -Scope CurrentUser`;
+`npm run powershell:check` validates every script with its declared edition.
+
 Fast real-device validation of current sources:
 
 ```powershell

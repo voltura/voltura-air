@@ -361,30 +361,24 @@ public sealed partial class HostUiLayoutTests
                 static () => { },
                 () => now);
             var owner = new Window { Content = view };
-            var other = new Window();
             try
             {
                 owner.Show();
-                owner.Activate();
                 DoWpfEvents();
+                view.HandleOwnerWindowActivationChanged(true);
                 Assert.True(view.IsCountdownActive);
 
-                other.Show();
-                other.Activate();
-                DoWpfEvents();
+                view.HandleOwnerWindowActivationChanged(false);
                 Assert.False(view.IsCountdownActive);
 
                 now = now.AddMinutes(2);
-                owner.Activate();
-                DoWpfEvents();
+                view.HandleOwnerWindowActivationChanged(true);
                 Assert.True(view.IsCountdownActive);
                 Assert.Equal("Refreshes in 3:00", view.PairingCodeCard.Value);
 
-                other.Activate();
-                DoWpfEvents();
+                view.HandleOwnerWindowActivationChanged(false);
                 now = now.AddMinutes(4);
-                owner.Activate();
-                DoWpfEvents();
+                view.HandleOwnerWindowActivationChanged(true);
 
                 Assert.False(view.IsCountdownActive);
                 Assert.Equal("Refreshing code\u2026", view.PairingCodeCard.Value);
@@ -392,7 +386,6 @@ public sealed partial class HostUiLayoutTests
             }
             finally
             {
-                other.Close();
                 owner.Close();
             }
         });

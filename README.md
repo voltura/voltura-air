@@ -175,8 +175,10 @@ Support is optional:
 
 ## Develop from source
 
-Requirements: Node.js/npm, .NET 10 SDK, and Visual Studio Build Tools with the
-**Desktop development with C++** workload.
+Requirements: Node.js 24.18.1 LTS, npm 11.18.0, the .NET 10.0.400 SDK,
+PowerShell 7.6 LTS, PHP 8.5, NSIS 3.12 or newer, and Visual Studio 2026 18.9 or newer with
+the **Desktop development with C++** workload. `npm run tools:check` verifies
+the installed toolchain before a broad build.
 
 ```powershell
 git clone https://github.com/voltura/voltura-air.git

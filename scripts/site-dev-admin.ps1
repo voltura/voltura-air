@@ -1,3 +1,5 @@
+#requires -Version 7.6 -PSEdition Core
+
 param(
     [Parameter(Position = 0)]
     [string]$Email

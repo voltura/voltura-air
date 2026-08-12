@@ -1,3 +1,5 @@
+#requires -Version 7.6 -PSEdition Core
+
 param(
     [string]$Version,
     [string]$Runtime = "win-x64",
@@ -156,7 +158,7 @@ if (-not $SkipBuild) {
                 -o $publishDir
             Assert-LastExitCode "Self-contained host publish"
 
-            powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-cursor-watchdog.ps1 `
+            & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File scripts/build-cursor-watchdog.ps1 `
                 -OutputPath (Join-Path $publishDir "VolturaAir.CursorWatchdog.exe")
             Assert-LastExitCode "Self-contained cursor watchdog build"
             Copy-DotNetRuntimeNotices -PublishDirectory $publishDir
@@ -172,7 +174,7 @@ if (-not $SkipBuild) {
 
         $frameworkDependentWatchdogPath = Join-Path $frameworkDependentPublishDir "VolturaAir.CursorWatchdog.exe"
         if ($FrameworkDependentOnly) {
-            powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-cursor-watchdog.ps1 `
+            & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File scripts/build-cursor-watchdog.ps1 `
                 -OutputPath $frameworkDependentWatchdogPath
             Assert-LastExitCode "Framework-dependent cursor watchdog build"
         }

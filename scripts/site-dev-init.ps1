@@ -1,3 +1,5 @@
+#requires -Version 7.6 -PSEdition Core
+
 param(
     [ValidateRange(1024, 65535)]
     [int]$Port = 3306,
@@ -72,7 +74,7 @@ function Find-PhpExecutable {
         "$env:ProgramFiles\PHP\php.exe"
     )
     if ($php) { return $php }
-    return Find-WingetPortableExecutable 'PHP.PHP.8.4' 'php.exe'
+    return Find-WingetPortableExecutable 'PHP.PHP.8.5' 'php.exe'
 }
 
 function Wait-ForPhpExecutable {
@@ -141,8 +143,8 @@ function Invoke-MariaDb([string]$Executable, [string[]]$Arguments, [string]$Sql)
 
 $php = Find-PhpExecutable
 if (-not $php) {
-    Write-Host 'Installing PHP 8.4...'
-    Install-WingetPackage 'PHP.PHP.8.4'
+    Write-Host 'Installing PHP 8.5...'
+    Install-WingetPackage 'PHP.PHP.8.5'
     $php = Wait-ForPhpExecutable
 }
 if (-not $php) {
@@ -179,18 +181,21 @@ $phpDirectory = Split-Path -Parent $php
 $extensionDirectory = Join-Path $phpDirectory 'ext'
 $pdoMysql = Join-Path $extensionDirectory 'php_pdo_mysql.dll'
 if (-not (Test-Path -LiteralPath $pdoMysql)) { throw "PHP's PDO MySQL extension was not found at $pdoMysql." }
+$zipExtension = Join-Path $extensionDirectory 'php_zip.dll'
+if (-not (Test-Path -LiteralPath $zipExtension)) { throw "PHP's ZIP extension was not found at $zipExtension." }
 $phpExtensionPath = Escape-PhpSingleQuoted ($extensionDirectory.Replace('\', '/'))
 $phpIni = @"
 extension_dir='$phpExtensionPath'
 extension=pdo_mysql
+extension=zip
 file_uploads=On
 upload_max_filesize=8M
 post_max_size=9M
 session.use_strict_mode=1
 "@
 [IO.File]::WriteAllText($phpIniPath, $phpIni, [Text.UTF8Encoding]::new($false))
-& $php -c $phpIniPath -r "exit(in_array('mysql', PDO::getAvailableDrivers(), true) ? 0 : 1);"
-if ($LASTEXITCODE -ne 0) { throw 'PHP could not load the PDO MySQL driver.' }
+& $php -c $phpIniPath -r "exit(in_array('mysql', PDO::getAvailableDrivers(), true) && extension_loaded('zip') ? 0 : 1);"
+if ($LASTEXITCODE -ne 0) { throw 'PHP could not load the PDO MySQL and ZIP extensions.' }
 
 $rootPassword = ConvertFrom-SecureValue (Read-Host "MariaDB root password selected in the installer" -AsSecureString)
 $devPassword = if (Test-Path -LiteralPath $configPath) {

@@ -1,0 +1,27 @@
+{
+  "windowsPowerShell51": [
+    "build-cursor-watchdog.ps1",
+    "create-chatgpt-codex-shortcut.ps1",
+    "install-chatgpt-codex-schedule.ps1",
+    "remove-chatgpt-codex-schedule.ps1",
+    "remove-chatgpt-codex-shortcut.ps1",
+    "update-chatgpt-codex.ps1"
+  ],
+  "powerShell76": [
+    "build-libdatachannel.ps1",
+    "check-powershell.ps1",
+    "check-site.ps1",
+    "host-preflight.ps1",
+    "measure-host-resources.ps1",
+    "package-win.ps1",
+    "prepare-release.ps1",
+    "relay-setup.ps1",
+    "relay-usage.ps1",
+    "site-dev-admin.ps1",
+    "site-dev-init.ps1",
+    "site-dev.ps1",
+    "site-publish-password.ps1",
+    "verify-windows-version.ps1",
+    "zip-clean-repo.ps1"
+  ]
+}

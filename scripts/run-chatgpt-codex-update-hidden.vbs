@@ -14,7 +14,8 @@ Set shell = CreateObject("WScript.Shell")
 
 scriptDirectory = fileSystem.GetParentFolderName(WScript.ScriptFullName)
 updaterScript = fileSystem.BuildPath(scriptDirectory, "update-chatgpt-codex.ps1")
-command = "powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File """ & updaterScript & """ -Scheduled"
+powerShell = shell.ExpandEnvironmentStrings("%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe")
+command = """" & powerShell & """ -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File """ & updaterScript & """ -Scheduled"
 
 exitCode = shell.Run(command, 0, True)
 WScript.Quit exitCode

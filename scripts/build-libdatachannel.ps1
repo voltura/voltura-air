@@ -1,3 +1,5 @@
+#requires -Version 7.6 -PSEdition Core
+
 param(
     [string]$OutputDirectory
 )
@@ -5,7 +7,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $libdatachannelCommit = "443f6934d9007eb7076ab7825ba330f355fcbead"
-$vcpkgCommit = "39344dff01c5a5a0134caf2624cdd492f05d30ea"
+$vcpkgCommit = "dc597a1a553bf65d2883ac61efa5a42db41cdd51"
 $expectedSubmodules = @{
     "deps/json" = "55f93686c01528224f448c19128836e7df245f72"
     "deps/libjuice" = "3c40a3545b6b1b62c7adee7f8f2bd58aa290afd6"
@@ -35,9 +37,9 @@ $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer
 if (-not (Test-Path -LiteralPath $vswhere -PathType Leaf)) {
     throw "Visual Studio Installer's vswhere.exe was not found."
 }
-$visualStudio = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+$visualStudio = & $vswhere -latest -products * -version '[18.9,19.0)' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
 if ([string]::IsNullOrWhiteSpace($visualStudio)) {
-    throw "Visual Studio with the x64 C++ build tools was not found."
+    throw "Visual Studio 2026 18.9 or newer with the x64 C++ build tools was not found."
 }
 $cmake = Join-Path $visualStudio "Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
 if (-not (Test-Path -LiteralPath $cmake -PathType Leaf)) {
@@ -56,7 +58,7 @@ $manifest = @{
     name = "voltura-libdatachannel-build"
     version = "0.24.5"
     dependencies = @("openssl")
-    overrides = @(@{ name = "openssl"; version = "3.6.0"; "port-version" = 3 })
+    overrides = @(@{ name = "openssl"; version = "3.6.3"; "port-version" = 0 })
 } | ConvertTo-Json -Depth 5
 $configuration = @{
     "default-registry" = @{
@@ -92,7 +94,7 @@ $prefixPath = Join-Path $vcpkgInstallDirectory "x64-windows-static"
 & $cmake `
     -S $sourceDirectory `
     -B $buildDirectory `
-    -G "Visual Studio 17 2022" `
+    -G "Visual Studio 18 2026" `
     -A x64 `
     -DBUILD_SHARED_LIBS=ON `
     -DBUILD_SHARED_DEPS_LIBS=OFF `

@@ -1,3 +1,5 @@
+#requires -Version 7.6 -PSEdition Core
+
 param(
     [int]$ProcessId = 0,
     [ValidateRange(10, 86400)]

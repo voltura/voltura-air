@@ -3,6 +3,11 @@
   "private": true,
   "version": "0.9.3",
   "license": "MIT",
+  "packageManager": "npm@11.18.0",
+  "engines": {
+    "node": ">=24.18.1 <25",
+    "npm": "11.18.0"
+  },
   "workspaces": [
     "apps/mobile-web",
     "services/relay"
@@ -11,19 +16,20 @@
     "actions:restore": "node scripts/restore-github-actions.mjs",
     "ai:init": "npm run ai:update && npm run ai:schedule:create && npm run ai:shortcut:create",
     "ai:schedule:create": "node scripts/ai-schedule.mjs",
-    "ai:schedule:remove": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/remove-chatgpt-codex-schedule.ps1",
-    "ai:shortcut:create": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/create-chatgpt-codex-shortcut.ps1",
-    "ai:shortcut:remove": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/remove-chatgpt-codex-shortcut.ps1",
-    "ai:update": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/update-chatgpt-codex.ps1",
+    "ai:schedule:remove": "\"%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\" -NoProfile -ExecutionPolicy Bypass -File scripts/remove-chatgpt-codex-schedule.ps1",
+    "ai:shortcut:create": "\"%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\" -NoProfile -ExecutionPolicy Bypass -File scripts/create-chatgpt-codex-shortcut.ps1",
+    "ai:shortcut:remove": "\"%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\" -NoProfile -ExecutionPolicy Bypass -File scripts/remove-chatgpt-codex-shortcut.ps1",
+    "ai:update": "\"%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\" -NoProfile -ExecutionPolicy Bypass -File scripts/update-chatgpt-codex.ps1",
     "branch:sync": "node scripts/sync-branch.mjs",
-    "build": "npm run ui:tokens:check && npm run build --workspace apps/mobile-web && dotnet build VolturaAir.slnx",
+    "build": "npm run ui:tokens:check && npm run build --workspace apps/mobile-web && dotnet build VolturaAir.slnx -p:RestoreLockedMode=true",
     "branding:generate": "npm run icons:generate && npm run screenshots:site",
     "cache:purge": "node scripts/purge-windows-icon-cache.mjs",
     "clean:git": "git gc --prune=now",
     "clean:temp": "git clean -fdX -e !/.vs/ -e !/.vs/** -e !/.vscode/settings.json",
     "clean:temp:preview": "git clean -ndX -e !/.vs/ -e !/.vs/** -e !/.vscode/settings.json",
     "code:statistics": "node scripts/code-statistics.mjs",
-    "deps:update": "npm update",
+    "deps:check": "node scripts/check-dependencies.mjs",
+    "deps:update": "npm update --workspaces --include-workspace-root",
     "docs:check": "node scripts/check-documentation-map.mjs",
     "icons:generate": "node scripts/generate-icons.mjs",
     "host:ownership:check": "node scripts/check-host-partial-ownership.mjs",
@@ -37,12 +43,13 @@
     "dev:source": "npm run package:source",
     "dev:ui": "node scripts/dev-ui-with-devices.mjs",
     "dev:web": "npm run dev --workspace apps/mobile-web",
-    "package:source": "powershell -ExecutionPolicy Bypass -File scripts/zip-clean-repo.ps1",
-    "package:source:bare": "powershell -ExecutionPolicy Bypass -File scripts/zip-clean-repo.ps1 -Bare",
-    "package:win": "powershell -ExecutionPolicy Bypass -File scripts/package-win.ps1",
-    "package:win:small": "powershell -ExecutionPolicy Bypass -File scripts/package-win.ps1 -FrameworkDependentOnly",
-    "package:win:test": "powershell -ExecutionPolicy Bypass -File scripts/package-win.ps1 -NoInstallerCompression",
-    "release": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1",
+    "package:source": "pwsh -NoProfile -File scripts/zip-clean-repo.ps1",
+    "package:source:bare": "pwsh -NoProfile -File scripts/zip-clean-repo.ps1 -Bare",
+    "package:win": "pwsh -NoProfile -File scripts/package-win.ps1",
+    "package:win:small": "pwsh -NoProfile -File scripts/package-win.ps1 -FrameworkDependentOnly",
+    "package:win:test": "pwsh -NoProfile -File scripts/package-win.ps1 -NoInstallerCompression",
+    "powershell:check": "pwsh -NoProfile -File scripts/check-powershell.ps1",
+    "release": "pwsh -NoProfile -File scripts/prepare-release.ps1",
     "release:bump": "node scripts/bump-release.mjs",
     "release:draft": "node scripts/release-publish.mjs",
     "release:full": "node scripts/release-publish.mjs --publish-latest",
@@ -60,6 +67,7 @@
     "screen-view:layout-check": "node scripts/check-screen-view-layout.mjs",
     "site:dev:init": "pwsh -NoProfile -File scripts/site-dev-init.ps1",
     "site:dev:admin": "pwsh -NoProfile -File scripts/site-dev-admin.ps1",
+    "site:check": "pwsh -NoProfile -File scripts/check-site.ps1",
     "site:dev": "pwsh -NoProfile -File scripts/site-dev.ps1",
     "site:preview:build": "npm run build:catalog-preview --workspace apps/mobile-web",
     "site:hosted:build": "npm run build:hosted --workspace apps/mobile-web",
@@ -72,7 +80,8 @@
     "publish:site:password:clear": "pwsh -NoProfile -File scripts/site-publish-password.ps1 -Clear",
     "size:report": "node scripts/report-source-sizes.mjs",
     "size:check": "node scripts/report-source-sizes.mjs --check",
-    "test": "npm run docs:check && npm run third-party:check && npm run ui:tokens:check && npm run size:check && npm run host:ownership:check && npm run relay:check && npm run test:web && npm run test:scripts && dotnet test VolturaAir.slnx",
+    "tools:check": "node scripts/check-toolchain.mjs",
+    "test": "npm run docs:check && npm run tools:check && npm run third-party:check && npm run ui:tokens:check && npm run size:check && npm run host:ownership:check && npm run powershell:check && npm run site:check && npm run relay:check && npm run test:web && npm run test:scripts && dotnet test VolturaAir.slnx -p:RestoreLockedMode=true",
     "test:web": "npm run test --workspace apps/mobile-web -- --run && npm run screen-view:layout-check",
     "test:host": "dotnet test VolturaAir.slnx",
     "test:scripts": "node --test tests/scripts/*.test.mjs",
@@ -83,10 +92,14 @@
   },
   "devDependencies": {
     "sharp": "^0.35.3",
-    "ssh2-sftp-client": "^12.1.1"
+    "ssh2-sftp-client": "^12.1.1",
+    "typescript": "npm:@typescript/typescript6@^6.0.2"
   },
   "allowScripts": {
     "ssh2@1.17.0": true,
-    "unrs-resolver@1.12.2": true
+    "unrs-resolver@1.12.2": true,
+    "esbuild@0.28.1": true,
+    "workerd@1.20260804.1": true,
+    "cpu-features": false
   }
 }

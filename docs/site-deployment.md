@@ -78,7 +78,8 @@ retained so a committed row can never be left without its package.
 ### Local development
 
 Local catalog development requires Windows Package Manager (`winget`), PHP
-8.2 or newer with PDO MySQL, and MariaDB. The hosted one.com database does not
+8.5 with PDO MySQL, and MariaDB. Production uses one.com's **Latest stable**
+PHP setting and must report PHP 8.5 before publication. The hosted one.com database does not
 accept remote connections, so local development uses a separate local database
 and never the production credentials.
 
@@ -96,6 +97,9 @@ development user, applies the catalog schema and outstanding migrations, and
 writes ignored configuration and package storage under `.site-dev`. It is safe
 to rerun. Pass a non-default MariaDB port when needed with
 `npm run site:dev:init -- -Port 3307`.
+
+Run `npm run site:check` to verify the PHP runtime, required extensions, and
+syntax of every maintained PHP entry point.
 
 Start the local site with:
 

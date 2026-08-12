@@ -42,7 +42,7 @@ test("local site development is isolated from production configuration", () => {
   assert.match(packageJson.scripts["site:dev:init"], /site-dev-init\.ps1/u);
   assert.match(packageJson.scripts["site:dev"], /site-dev\.ps1/u);
   assert.match(packageJson.scripts["site:dev:admin"], /site-dev-admin\.ps1/u);
-  assert.match(initializer, /PHP\.PHP\.8\.4/u);
+  assert.match(initializer, /PHP\.PHP\.8\.5/u);
   assert.match(initializer, /MariaDB\.Server/u);
   assert.match(initializer, /Finish the MariaDB installer completely/u);
   assert.match(initializer, /MariaDB root password selected in the installer/u);

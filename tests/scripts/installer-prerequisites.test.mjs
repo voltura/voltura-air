@@ -144,7 +144,7 @@ test("unsupported runtimes fail before creating or changing artifacts", () => {
     const before = snapshotTree(fixtureRoot);
 
     const result = spawnSync(
-      "powershell",
+      "pwsh",
       [
         "-NoProfile",
         "-ExecutionPolicy",

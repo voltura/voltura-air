@@ -1,3 +1,5 @@
+#requires -Version 5.1 -PSEdition Desktop
+
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
@@ -37,9 +39,9 @@ if (-not (Test-Path -LiteralPath $vswherePath -PathType Leaf)) {
     throw "Visual Studio Build Tools were not found. Install the Desktop development with C++ workload."
 }
 
-$visualStudioPath = (& $vswherePath -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath).Trim()
+$visualStudioPath = (& $vswherePath -latest -products * -version '[18.9,19.0)' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath).Trim()
 if ([string]::IsNullOrWhiteSpace($visualStudioPath)) {
-    throw "Visual Studio Build Tools with the x64 C++ toolset were not found. Install the Desktop development with C++ workload."
+    throw "Visual Studio 2026 18.9 or newer with the x64 C++ toolset was not found. Install the Desktop development with C++ workload."
 }
 
 $developerCommandPath = Join-Path $visualStudioPath 'Common7\Tools\VsDevCmd.bat'
@@ -96,7 +98,7 @@ END
 "@
     [System.IO.File]::WriteAllText($resourceScriptPath, $resourceText, [System.Text.UTF8Encoding]::new($false))
 
-    $compileCommand = 'call "{0}" -no_logo -arch=x64 -host_arch=x64 && rc.exe /nologo /fo"{1}" "{2}" && cl.exe /nologo /std:c17 /O2 /MT /W4 /WX /DUNICODE /D_UNICODE /Fo"{3}" "{4}" "{1}" /link /SUBSYSTEM:WINDOWS user32.lib shell32.lib /OUT:"{5}"' -f `
+    $compileCommand = 'call "{0}" -no_logo -arch=x64 -host_arch=x64 && rc.exe /nologo /fo"{1}" "{2}" && cl.exe /nologo /std:c17 /analyze /O2 /MT /W4 /WX /DUNICODE /D_UNICODE /Fo"{3}" "{4}" "{1}" /link /SUBSYSTEM:WINDOWS user32.lib shell32.lib /OUT:"{5}"' -f `
         $developerCommandPath,
         $resourceObjectPath,
         $resourceScriptPath,

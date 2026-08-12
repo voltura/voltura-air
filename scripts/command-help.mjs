@@ -20,6 +20,7 @@ export const commandDescriptions = {
   "clean:temp": "Remove ignored build and cache files while preserving local editor settings.",
   "clean:temp:preview": "Show which ignored build and cache files clean:temp would remove.",
   "code:statistics": "Print source statistics; append -- --report to refresh apps/public-site/stats.html and open it.",
+  "deps:check": "Audit npm, NuGet, container, and native dependency currency without changing files.",
   "deps:update": "Update dependencies within their declared version ranges.",
   "dev": "Start the normal checked development loop for the host and mobile client.",
   "dev:bare-source": "Create a source archive without repository metadata or development files.",
@@ -44,8 +45,10 @@ export const commandDescriptions = {
   "publish:site:list": "List the public-site deployment configuration.",
   "publish:site:password": "Store the public-site deployment password securely for this user.",
   "publish:site:password:clear": "Remove the stored public-site deployment password.",
+  "powershell:check": "Parse each script with its declared PowerShell edition and run the pinned analyzer.",
   "site:dev:init": "Install/check local PHP and MariaDB, then initialize the development catalog database.",
   "site:dev:admin": "Promote an existing local catalog account to administrator.",
+  "site:check": "Verify PHP 8.5, required extensions, and every maintained PHP entry point.",
   "site:dev": "Run the PHP public site locally against the development catalog database.",
   "site:hosted:build": "Build the separately scoped hosted Relay PWA under apps/public-site/app.",
   "site:preview:build": "Build the catalog preview from the real mobile custom-screen renderer.",
@@ -75,6 +78,7 @@ export const commandDescriptions = {
   "test:site-import-integration": "Exercise official-screen import success, rollback boundaries, and stable updates against isolated local MariaDB.",
   "test:ui": "Run the isolated browser device-mode smoke test through the real pairing flow.",
   "test:web": "Run the mobile web unit suite and real-browser Screen View layout check.",
+  "tools:check": "Verify the pinned Node, npm, .NET, PowerShell, PHP, Visual Studio, and NSIS toolchain.",
   "ui:tokens:check": "Verify generated UI tokens are current.",
   "ui:tokens:generate": "Regenerate UI tokens from their source definitions."
 };

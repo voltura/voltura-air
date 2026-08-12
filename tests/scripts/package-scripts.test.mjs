@@ -16,6 +16,7 @@ const devScript = readFileSync(new URL("../../scripts/dev.mjs", import.meta.url)
 const devHostScript = readFileSync(new URL("../../scripts/dev-host.mjs", import.meta.url), "utf8");
 const hostProject = readFileSync(new URL("../../apps/windows-host/VolturaAir.Host.csproj", import.meta.url), "utf8");
 const directoryBuildProps = readFileSync(new URL("../../Directory.Build.props", import.meta.url), "utf8");
+const inboxPowerShell = '"%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"';
 
 test("documentation coverage runs in the root and pull-request quality gates", () => {
   assert.equal(packageJson.scripts.test.split(" && ")[0], "npm run docs:check");
@@ -28,15 +29,19 @@ test("every root npm command has a current human-readable description", () => {
   assert.equal(packageJson.scripts["ai:init"], "npm run ai:update && npm run ai:schedule:create && npm run ai:shortcut:create");
   assert.equal(packageJson.scripts["ai:schedule"], undefined);
   assert.equal(packageJson.scripts["ai:schedule:create"], "node scripts/ai-schedule.mjs");
-  assert.equal(packageJson.scripts["ai:schedule:remove"], "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/remove-chatgpt-codex-schedule.ps1");
-  assert.equal(packageJson.scripts["ai:shortcut:create"], "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/create-chatgpt-codex-shortcut.ps1");
-  assert.equal(packageJson.scripts["ai:shortcut:remove"], "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/remove-chatgpt-codex-shortcut.ps1");
-  assert.equal(packageJson.scripts["ai:update"], "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/update-chatgpt-codex.ps1");
+  assert.equal(packageJson.scripts["ai:schedule:remove"], `${inboxPowerShell} -NoProfile -ExecutionPolicy Bypass -File scripts/remove-chatgpt-codex-schedule.ps1`);
+  assert.equal(packageJson.scripts["ai:shortcut:create"], `${inboxPowerShell} -NoProfile -ExecutionPolicy Bypass -File scripts/create-chatgpt-codex-shortcut.ps1`);
+  assert.equal(packageJson.scripts["ai:shortcut:remove"], `${inboxPowerShell} -NoProfile -ExecutionPolicy Bypass -File scripts/remove-chatgpt-codex-shortcut.ps1`);
+  assert.equal(packageJson.scripts["ai:update"], `${inboxPowerShell} -NoProfile -ExecutionPolicy Bypass -File scripts/update-chatgpt-codex.ps1`);
   assert.match(commandDescriptions["ai:schedule:create"], /--time HH:mm:ss/u);
   assert.match(commandDescriptions["ai:update"], /ChatGPT\/Codex/u);
   assert.deepEqual(findUndocumentedCommands(packageJson.scripts), []);
   assert.deepEqual(findStaleDescriptions(packageJson.scripts), []);
   assert.match(commandDescriptions.dev, /development loop/u);
+  assert.equal(packageJson.scripts["tools:check"], "node scripts/check-toolchain.mjs");
+  assert.equal(packageJson.scripts["deps:check"], "node scripts/check-dependencies.mjs");
+  assert.equal(packageJson.scripts["powershell:check"], "pwsh -NoProfile -File scripts/check-powershell.ps1");
+  assert.equal(packageJson.scripts["site:check"], "pwsh -NoProfile -File scripts/check-site.ps1");
 });
 
 test("GitHub Actions stay archived but can be restored deliberately", () => {
@@ -175,7 +180,8 @@ test("release packaging requires all runtime notices and the native Screen WebRT
 test("the native Screen WebRTC rebuild recipe pins source, submodules, OpenSSL, and static dependencies", () => {
   assert.match(buildLibdatachannelScript, /443f6934d9007eb7076ab7825ba330f355fcbead/u);
   assert.match(buildLibdatachannelScript, /3c40a3545b6b1b62c7adee7f8f2bd58aa290afd6/u);
-  assert.match(buildLibdatachannelScript, /openssl"; version = "3\.6\.0"; "port-version" = 3/u);
+  assert.match(buildLibdatachannelScript, /openssl"; version = "3\.6\.3"; "port-version" = 0/u);
+  assert.match(buildLibdatachannelScript, /Visual Studio 18 2026/u);
   assert.match(buildLibdatachannelScript, /-DBUILD_SHARED_DEPS_LIBS=OFF/u);
   assert.match(buildLibdatachannelScript, /-DOPENSSL_USE_STATIC_LIBS=TRUE/u);
   assert.match(buildLibdatachannelScript, /CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded/u);

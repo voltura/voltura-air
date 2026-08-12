@@ -152,6 +152,7 @@ if (-not $SkipBuild) {
             dotnet publish apps/windows-host/VolturaAir.Host.csproj `
                 -c Release `
                 -r $Runtime `
+                -p:RestoreLockedMode=true `
                 --self-contained true `
                 -p:PublishSingleFile=true `
                 -p:IncludeNativeLibrariesForSelfExtract=true `
@@ -167,6 +168,7 @@ if (-not $SkipBuild) {
         dotnet publish apps/windows-host/VolturaAir.Host.csproj `
             -c Release `
             -r $Runtime `
+            -p:RestoreLockedMode=true `
             --self-contained false `
             -p:PublishSingleFile=false `
             -o $frameworkDependentPublishDir

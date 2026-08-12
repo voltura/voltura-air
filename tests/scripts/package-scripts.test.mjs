@@ -151,6 +151,7 @@ test("release publication derives its inputs from the root package version", () 
 test("release packaging retains the standard Release build outputs", () => {
   assert.equal(packageWindowsScript.match(/dotnet publish apps\/windows-host\/VolturaAir\.Host\.csproj/gu)?.length, 2);
   assert.equal(packageWindowsScript.match(/-p:RestoreLockedMode=true/gu)?.length, 2);
+  assert.equal(packageWindowsScript.match(/-p:NuGetLockFilePath=packages\.(?:self-contained|framework-dependent)\.lock\.json/gu)?.length, 2);
   assert.equal(packageWindowsScript.match(/-c Release/gu)?.length, 2);
   assert.match(packageWindowsScript, /-o \$publishDir/u);
   assert.match(packageWindowsScript, /-o \$frameworkDependentPublishDir/u);

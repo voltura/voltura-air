@@ -153,6 +153,7 @@ if (-not $SkipBuild) {
                 -c Release `
                 -r $Runtime `
                 -p:RestoreLockedMode=true `
+                -p:NuGetLockFilePath=packages.self-contained.lock.json `
                 --self-contained true `
                 -p:PublishSingleFile=true `
                 -p:IncludeNativeLibrariesForSelfExtract=true `
@@ -169,6 +170,7 @@ if (-not $SkipBuild) {
             -c Release `
             -r $Runtime `
             -p:RestoreLockedMode=true `
+            -p:NuGetLockFilePath=packages.framework-dependent.lock.json `
             --self-contained false `
             -p:PublishSingleFile=false `
             -o $frameworkDependentPublishDir

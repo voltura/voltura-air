@@ -36,6 +36,14 @@ The catalog preview and statistics page are generated before the release commit;
 deployment uploads that prepared snapshot without regenerating tracked files.
 A successful release therefore leaves the Git working tree clean.
 
+Fast tool, publish-lock, GitHub/push, Cloudflare, NSIS, and site-credential
+preflights run before source generation and the full test suite. If a later step
+fails, the command restores tracked release changes and records an ignored local
+checkpoint tied to the exact release commit. Rerun the same command: it reuses
+only test and artifact results whose commit, filenames, sizes, and SHA-256 hashes
+still match, or resumes an audited GitHub draft, instead of repeating completed
+long-running work. A successful release removes the checkpoint.
+
 ## Prerequisites
 
 - Windows, Node.js 24.18.1 LTS, npm 11.18.0, .NET SDK 10.0.400,

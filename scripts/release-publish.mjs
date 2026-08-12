@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -16,6 +15,12 @@ import {
   resolveReleaseVersion
 } from "./release-tools.mjs";
 import { createReleaseProgress } from "./release-progress.mjs";
+import {
+  getReleaseAssetPaths,
+  getReleaseCheckpointPath,
+  readReleaseCheckpoint,
+  writeReleaseCheckpoint
+} from "./release-checkpoint.mjs";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const runtime = "win-x64";
@@ -147,11 +152,6 @@ function remoteTagExists(tag) {
   return checked("git", ["ls-remote", "--tags", "origin", `refs/tags/${tag}`], { captureOutput: true }).length > 0;
 }
 
-async function sha256(filePath) {
-  const bytes = await readFile(filePath);
-  return createHash("sha256").update(bytes).digest("hex");
-}
-
 async function assertReleaseAssets(paths) {
   for (const filePath of paths) {
     const file = await stat(filePath).catch(() => null);
@@ -159,6 +159,25 @@ async function assertReleaseAssets(paths) {
       throw new Error(`Release asset is missing or empty: ${filePath}`);
     }
   }
+}
+
+function preflightPublishRestores() {
+  const project = "apps/windows-host/VolturaAir.Host.csproj";
+  checked("dotnet", ["restore", project, "-r", runtime,
+    "-p:SelfContained=true", "-p:PublishSingleFile=true", "-p:RestoreLockedMode=true",
+    "-p:NuGetLockFilePath=packages.self-contained.lock.json"]);
+  checked("dotnet", ["restore", project, "-r", runtime,
+    "-p:SelfContained=false", "-p:PublishSingleFile=false", "-p:RestoreLockedMode=true",
+    "-p:NuGetLockFilePath=packages.framework-dependent.lock.json"]);
+}
+
+export function restoreCleanTrackedTree(commit, execute = checked) {
+  const status = execute("git", ["status", "--porcelain=v1", "--untracked-files=all"], { captureOutput: true });
+  if (!status) return;
+  execute("git", ["restore", `--source=${commit}`, "--staged", "--worktree", "--", "."]);
+  execute("git", ["clean", "-fd", "--", "."]);
+  const remaining = execute("git", ["status", "--porcelain=v1", "--untracked-files=all"], { captureOutput: true });
+  if (remaining) throw new Error(`Release cleanup could not restore a clean repository: ${remaining}`);
 }
 
 export function buildReleaseBody({ notes, notices, version, latestTag, repository }) {
@@ -180,9 +199,9 @@ ${releaseNotesEndMarker}
 `;
 }
 
-export function auditDraft(release, expectedCommit, expectedNames) {
-  if (!release?.isDraft || release.targetCommitish !== expectedCommit) {
-    throw new Error("Draft release audit failed: draft state or target commit does not match.");
+function auditReleaseArtifacts(release, expectedCommit, expectedNames, expectedDraft, expectedArtifacts = null) {
+  if (!release || release.isDraft !== expectedDraft || release.targetCommitish !== expectedCommit) {
+    throw new Error(`${expectedDraft ? "Draft" : "Published"} release audit failed: release state or target commit does not match.`);
   }
   const actualNames = release.assets.map((asset) => asset.name).sort();
   if (actualNames.join("|") !== [...expectedNames].sort().join("|")) {
@@ -192,7 +211,24 @@ export function auditDraft(release, expectedCommit, expectedNames) {
     if (asset.size <= 0 || !asset.digest) {
       throw new Error(`Release asset '${asset.name}' has invalid size or digest metadata.`);
     }
+    const expected = expectedArtifacts?.find((artifact) => artifact.name === asset.name);
+    if (expected && (asset.size !== expected.size || asset.digest !== `sha256:${expected.sha256}`)) {
+      throw new Error(`Release asset '${asset.name}' does not match the packaged checkpoint.`);
+    }
   }
+}
+
+function getReleaseHashes(release, expectedNames) {
+  const assets = new Map(release.assets.map((asset) => [asset.name, asset]));
+  return expectedNames.map((name) => {
+    const digest = assets.get(name)?.digest;
+    if (!digest?.startsWith("sha256:")) throw new Error(`Release asset '${name}' has no SHA-256 digest.`);
+    return `${name} SHA-256 ${digest.slice("sha256:".length)}`;
+  });
+}
+
+export function auditDraft(release, expectedCommit, expectedNames) {
+  auditReleaseArtifacts(release, expectedCommit, expectedNames, true);
 }
 
 async function performStep(progress, title, detail, action) {
@@ -221,8 +257,11 @@ export async function runLocalRelease(args = process.argv.slice(2), { progress, 
       throw new Error(".NET 10 SDK was not found.");
     }
     checked("gh", ["auth", "status", "--hostname", "github.com"], { captureOutput: true });
+    checked("npm", ["run", "tools:check"]);
+    preflightPublishRestores();
     if (publishLatest) {
       checked("npm", ["exec", "--workspace", "@voltura-air/relay", "--", "wrangler", "whoami"], { captureOutput: true });
+      checked("npm", ["run", "deploy:dry-run", "--workspace", "@voltura-air/relay"], { captureOutput: true });
     }
 
     const initialStatus = checked("git", ["status", "--porcelain=v1", "--untracked-files=all"], { captureOutput: true });
@@ -240,8 +279,14 @@ export async function runLocalRelease(args = process.argv.slice(2), { progress, 
     checked("git", ["remote", "get-url", "origin"], { captureOutput: true });
 
     const repository = checked("gh", ["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"], { captureOutput: true });
+    const canPush = checked("gh", ["api", `repos/${repository}`, "--jq", ".permissions.push"], { captureOutput: true });
+    if (canPush !== "true") {
+      throw new Error(`GitHub reports that the authenticated account cannot push to '${repository}'.`);
+    }
     checked("git", ["fetch", "origin", "main"]);
     checked("git", ["merge-base", "--is-ancestor", "origin/main", "HEAD"]);
+    checked("git", ["push", "--dry-run", "origin", "HEAD:main"], { captureOutput: true });
+    checked("npm", ["run", "publish:site:list"], { captureOutput: true });
     const releasePages = JSON.parse(checked("gh", [
       "api", "--paginate", "--slurp", `repos/${repository}/releases?per_page=100`
     ], { captureOutput: true }));
@@ -252,14 +297,28 @@ export async function runLocalRelease(args = process.argv.slice(2), { progress, 
     const currentTag = `v${currentVersion}`;
     const currentTagExists = remoteTagExists(currentTag);
     const currentRelease = currentTagExists ? getRelease(currentTag, repository) : null;
-    const targetVersion = resolveReleaseVersion({
-      currentVersion,
-      latestReleasedVersion: latest.version,
-      explicitVersion,
-      currentTagExists,
-      currentReleaseIsDraft: currentRelease?.isDraft === true,
-      getNextVersion: getNextReleaseVersion
+    const startingCommit = checked("git", ["rev-parse", "HEAD"], { captureOutput: true });
+    const currentAssetPaths = getReleaseAssetPaths(repositoryRoot, currentVersion, runtime);
+    const currentCheckpointMetadata = await readReleaseCheckpoint({
+      repositoryRoot, version: currentVersion, commit: startingCommit, assetPaths: currentAssetPaths, verifyArtifacts: false
     });
+    const resumePublished = currentRelease?.isDraft === false
+      && currentCheckpointMetadata?.phase === "packaged"
+      && (explicitVersion === null || explicitVersion === currentVersion);
+    if (resumePublished) {
+      auditReleaseArtifacts(currentRelease, startingCommit,
+        currentAssetPaths.map((assetPath) => path.basename(assetPath)), false, currentCheckpointMetadata.artifacts);
+    }
+    const targetVersion = resumePublished
+      ? currentVersion
+      : resolveReleaseVersion({
+        currentVersion,
+        latestReleasedVersion: latest.version,
+        explicitVersion,
+        currentTagExists,
+        currentReleaseIsDraft: currentRelease?.isDraft === true,
+        getNextVersion: getNextReleaseVersion
+      });
     const targetTag = `v${targetVersion}`;
     const targetSemver = parseSemver(targetVersion);
     if (publishLatest && targetSemver.prerelease.length > 0) {
@@ -272,19 +331,46 @@ export async function runLocalRelease(args = process.argv.slice(2), { progress, 
     const notices = getGeneralReleaseNotices(releaseNotes);
     const targetTagExists = targetTag === currentTag ? currentTagExists : remoteTagExists(targetTag);
     const targetReleaseBeforeBuild = targetTagExists ? getRelease(targetTag, repository) : null;
-    if (targetReleaseBeforeBuild && !targetReleaseBeforeBuild.isDraft) {
+    if (targetReleaseBeforeBuild && !targetReleaseBeforeBuild.isDraft && !resumePublished) {
       throw new Error(`Release '${targetTag}' is already public. Prepare a new version instead.`);
     }
-    const startingCommit = checked("git", ["rev-parse", "HEAD"], { captureOutput: true });
     if (targetReleaseBeforeBuild?.isDraft && targetReleaseBeforeBuild.targetCommitish !== startingCommit) {
       throw new Error(`Draft '${targetTag}' targets another commit and cannot be resumed from this checkout.`);
     }
 
+    const assetPaths = getReleaseAssetPaths(repositoryRoot, targetVersion, runtime);
+    const assetNames = assetPaths.map((assetPath) => path.basename(assetPath));
+    let resumePhase = null;
+    let checkpoint = null;
+    checkpoint = targetVersion === currentVersion
+      ? (resumePublished ? currentCheckpointMetadata : await readReleaseCheckpoint({
+        repositoryRoot, version: currentVersion, commit: startingCommit, assetPaths: currentAssetPaths
+      }))
+      : await readReleaseCheckpoint({ repositoryRoot, version: targetVersion, commit: startingCommit, assetPaths });
+    if (resumePublished) {
+      resumePhase = "published";
+    } else if (targetReleaseBeforeBuild?.isDraft) {
+      try {
+        auditDraft(targetReleaseBeforeBuild, startingCommit, assetNames);
+        resumePhase = "drafted";
+      } catch (error) {
+        if (checkpoint?.phase !== "packaged") throw error;
+        resumePhase = "packaged";
+      }
+    } else {
+      resumePhase = checkpoint?.phase ?? null;
+    }
+
     releaseContext = {
+      assetNames,
+      assetPaths,
+      checkpoint,
       latest,
       notes,
       notices,
       repository,
+      resumePhase,
+      startingCommit,
       targetReleaseBeforeBuild,
       targetSemver,
       targetTag,
@@ -292,111 +378,144 @@ export async function runLocalRelease(args = process.argv.slice(2), { progress, 
     };
   });
 
-  await performStep(releaseProgress, "Preparing release sources", "Checking source ownership, setting the version, and regenerating branding.", () => {
-    checked("npm", ["run", "size:check"]);
-    checked("npm", ["run", "release", "--", releaseContext.targetVersion]);
-    checked("npm", ["run", "branding:generate"]);
-    checked("npm", ["run", "site:preview:build"]);
-    checked("npm", ["run", "site:hosted:build"]);
-    checked("npm", ["run", "code:statistics", "--", "--report", "--no-open", "--quiet"]);
-  });
-
-  await performStep(releaseProgress, "Testing release sources", "Running the complete test suite before creating the release commit.", () => {
-    checked("npm", ["test"]);
-  });
-
-  let releaseCommit;
-  let assetPaths;
-  let assetNames;
+  let releaseCommit = releaseContext.resumePhase ? releaseContext.startingCommit : null;
+  const { assetPaths, assetNames } = releaseContext;
   let bodyPath;
-  await performStep(releaseProgress, "Committing and creating final artifacts", "Committing prepared sources, packaging once from that exact commit, then pushing after validation.", async () => {
-    await stageReleaseChanges();
-    const staged = runCommand("git", ["diff", "--cached", "--quiet"], { allowFailure: true });
-    if (staged.status === 1) {
-      checked("git", ["commit", "-m", `Release Voltura Air ${releaseContext.targetVersion}`]);
-    } else if (staged.status !== 0) {
-      throw new Error("Could not inspect staged release changes.");
-    }
-    releaseCommit = checked("git", ["rev-parse", "HEAD"], { captureOutput: true });
-    checked("npm", ["run", "package:win", "--", "-Version", releaseContext.targetVersion, "-Runtime", runtime]);
-    const finalStatus = checked("git", ["status", "--porcelain=v1", "--untracked-files=all"], { captureOutput: true });
-    if (finalStatus) {
-      throw new Error(`Repository is not clean after the final release build: ${finalStatus}`);
-    }
-
-    const publishRoot = path.join(repositoryRoot, "artifacts", "publish");
-    assetPaths = [
-      path.join(publishRoot, `VolturaAir-${releaseContext.targetVersion}-${runtime}.zip`),
-      path.join(publishRoot, `VolturaAir-Setup-${releaseContext.targetVersion}-${runtime}.exe`),
-      path.join(publishRoot, `VolturaAir-Setup-${releaseContext.targetVersion}-${runtime}-full.exe`)
-    ];
-    await assertReleaseAssets(assetPaths);
-    assetNames = assetPaths.map((filePath) => path.basename(filePath));
-    checked("git", ["push", "origin", "main"]);
-    bodyPath = path.join(publishRoot, `release-notes-${releaseContext.targetTag}.md`);
-    await writeFile(bodyPath, buildReleaseBody({
-      notes: releaseContext.notes,
-      notices: releaseContext.notices,
-      version: releaseContext.targetVersion,
-      latestTag: releaseContext.latest.tag,
-      repository: releaseContext.repository
-    }), "utf8");
-  });
-
-  await performStep(releaseProgress, "Creating and auditing the GitHub release", "Uploading the exact ZIP and installer set, then verifying GitHub metadata and digests.", () => {
-    const existingDraft = releaseContext.targetReleaseBeforeBuild;
-    if (existingDraft === null) {
-      const createArgs = [
-        "release", "create", releaseContext.targetTag, "--repo", releaseContext.repository,
-        "--target", releaseCommit, "--title", `Voltura Air ${releaseContext.targetTag}`,
-        "--draft", "--fail-on-no-commits", "--notes-file", bodyPath
-      ];
-      if (releaseContext.targetSemver.prerelease.length > 0) {
-        createArgs.push("--prerelease");
+  try {
+    await performStep(releaseProgress, "Preparing release sources", "Checking source ownership, setting the version, and regenerating branding.", () => {
+      if (releaseContext.resumePhase) {
+        console.log(`Resuming ${releaseContext.targetTag} from the ${releaseContext.resumePhase} checkpoint; source preparation is already complete.`);
+        return;
       }
-      createArgs.push(...assetPaths);
-      checked("gh", createArgs);
-    } else {
-      if (!existingDraft.isDraft || existingDraft.targetCommitish !== releaseCommit) {
-        throw new Error(`Existing release '${releaseContext.targetTag}' is not a matching resumable draft.`);
+      checked("npm", ["run", "size:check"]);
+      checked("npm", ["run", "release", "--", releaseContext.targetVersion]);
+      checked("npm", ["run", "branding:generate"]);
+      checked("npm", ["run", "site:preview:build"]);
+      checked("npm", ["run", "site:hosted:build"]);
+      checked("npm", ["run", "code:statistics", "--", "--report", "--no-open", "--quiet"]);
+    });
+
+    await performStep(releaseProgress, "Testing release sources", "Running the complete test suite before creating the release commit.", () => {
+      if (releaseContext.resumePhase) {
+        console.log(`Tests already passed for commit ${releaseContext.startingCommit}; not running them again.`);
+        return;
       }
-      checked("gh", ["release", "edit", releaseContext.targetTag, "--repo", releaseContext.repository, "--title", `Voltura Air ${releaseContext.targetTag}`, "--notes-file", bodyPath]);
-      checked("gh", ["release", "upload", releaseContext.targetTag, "--repo", releaseContext.repository, "--clobber", ...assetPaths]);
+      checked("npm", ["test"]);
+    });
+
+    await performStep(releaseProgress, "Committing and creating final artifacts", "Committing prepared sources, packaging once from that exact commit, then pushing after validation.", async () => {
+      if (releaseContext.resumePhase === "drafted" || releaseContext.resumePhase === "published") {
+        console.log(`The audited ${releaseContext.targetTag} release already contains the final artifacts; packaging and push are already complete.`);
+        return;
+      }
+      if (!releaseContext.resumePhase) {
+        await stageReleaseChanges();
+        const staged = runCommand("git", ["diff", "--cached", "--quiet"], { allowFailure: true });
+        if (staged.status === 1) {
+          checked("git", ["commit", "-m", `Release Voltura Air ${releaseContext.targetVersion}`]);
+        } else if (staged.status !== 0) {
+          throw new Error("Could not inspect staged release changes.");
+        }
+        releaseCommit = checked("git", ["rev-parse", "HEAD"], { captureOutput: true });
+        await writeReleaseCheckpoint({
+          repositoryRoot, version: releaseContext.targetVersion, commit: releaseCommit, phase: "tested"
+        });
+      }
+
+      if (releaseContext.resumePhase !== "packaged") {
+        checked("npm", ["run", "package:win"]);
+        const finalStatus = checked("git", ["status", "--porcelain=v1", "--untracked-files=all"], { captureOutput: true });
+        if (finalStatus) {
+          throw new Error(`Repository changed during final release packaging: ${finalStatus}`);
+        }
+        await assertReleaseAssets(assetPaths);
+        await writeReleaseCheckpoint({
+          repositoryRoot,
+          version: releaseContext.targetVersion,
+          commit: releaseCommit,
+          phase: "packaged",
+          assetPaths
+        });
+      } else {
+        console.log(`Reusing the verified artifacts already packaged from commit ${releaseCommit}.`);
+      }
+
+      checked("git", ["push", "origin", "main"]);
+      bodyPath = path.join(repositoryRoot, "artifacts", "publish", `release-notes-${releaseContext.targetTag}.md`);
+      await writeFile(bodyPath, buildReleaseBody({
+        notes: releaseContext.notes,
+        notices: releaseContext.notices,
+        version: releaseContext.targetVersion,
+        latestTag: releaseContext.latest.tag,
+        repository: releaseContext.repository
+      }), "utf8");
+    });
+
+    await performStep(releaseProgress, "Creating and auditing the GitHub release", "Uploading the exact ZIP and installer set, then verifying GitHub metadata and digests.", () => {
+      if (releaseContext.resumePhase === "published") {
+        auditReleaseArtifacts(getRelease(releaseContext.targetTag, releaseContext.repository), releaseCommit, assetNames, false);
+        return;
+      }
+      const existingDraft = releaseContext.targetReleaseBeforeBuild;
+      if (existingDraft === null) {
+        const createArgs = [
+          "release", "create", releaseContext.targetTag, "--repo", releaseContext.repository,
+          "--target", releaseCommit, "--title", `Voltura Air ${releaseContext.targetTag}`,
+          "--draft", "--fail-on-no-commits", "--notes-file", bodyPath
+        ];
+        if (releaseContext.targetSemver.prerelease.length > 0) createArgs.push("--prerelease");
+        createArgs.push(...assetPaths);
+        checked("gh", createArgs);
+      } else if (releaseContext.resumePhase !== "drafted") {
+        checked("gh", ["release", "edit", releaseContext.targetTag, "--repo", releaseContext.repository,
+          "--title", `Voltura Air ${releaseContext.targetTag}`, "--notes-file", bodyPath]);
+        checked("gh", ["release", "upload", releaseContext.targetTag, "--repo", releaseContext.repository,
+          "--clobber", ...assetPaths]);
+      }
+      const auditedDraft = getRelease(releaseContext.targetTag, releaseContext.repository);
+      auditDraft(auditedDraft, releaseCommit, assetNames);
+    });
+
+    await performStep(
+      releaseProgress,
+      publishLatest ? "Deploying the relay and website, then publishing Latest" : "Deploying the website and finalizing the draft",
+      publishLatest
+        ? "Deploying and checking the production relay, publishing the public site, then publishing GitHub Latest."
+        : "Publishing the public site while leaving production relay infrastructure unchanged.",
+      () => {
+        if (releaseContext.resumePhase !== "published") {
+          deployOfficialRelayIfRequested({ publishLatest });
+          checked("npm", ["run", "publish:site:prepared"]);
+        }
+        publishReleaseIfRequested({
+          publishLatest,
+          targetTag: releaseContext.targetTag,
+          repository: releaseContext.repository,
+          expectedCommit: releaseCommit
+        });
+      }
+    );
+
+    const finalRelease = getRelease(releaseContext.targetTag, releaseContext.repository);
+    auditReleaseArtifacts(finalRelease, releaseCommit, assetNames, !publishLatest,
+      releaseContext.checkpoint?.phase === "packaged" ? releaseContext.checkpoint.artifacts : null);
+    const hashes = getReleaseHashes(finalRelease, assetNames);
+    await rm(getReleaseCheckpointPath(repositoryRoot, releaseContext.targetVersion), { force: true });
+    const url = `https://github.com/${releaseContext.repository}/releases/tag/${releaseContext.targetTag}`;
+    return {
+      hashes,
+      publishLatest,
+      summary: `${publishLatest ? "Published as GitHub Latest" : "Created audited GitHub draft"}: ${url}`,
+      url
+    };
+  } catch (error) {
+    try {
+      restoreCleanTrackedTree(releaseCommit ?? releaseContext.startingCommit);
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], `${error.message} Release cleanup also failed: ${cleanupError.message}`);
     }
-
-    const auditedDraft = getRelease(releaseContext.targetTag, releaseContext.repository);
-    auditDraft(auditedDraft, releaseCommit, assetNames);
-  });
-
-  await performStep(
-    releaseProgress,
-    publishLatest ? "Deploying the relay and website, then publishing Latest" : "Deploying the website and finalizing the draft",
-    publishLatest
-      ? "Deploying and checking the production relay, publishing the public site, then publishing GitHub Latest."
-      : "Publishing the public site while leaving production relay infrastructure unchanged.",
-    () => {
-      deployOfficialRelayIfRequested({ publishLatest });
-      checked("npm", ["run", "publish:site:prepared"]);
-      publishReleaseIfRequested({
-        publishLatest,
-        targetTag: releaseContext.targetTag,
-        repository: releaseContext.repository,
-        expectedCommit: releaseCommit
-      });
-    }
-  );
-
-  const hashes = [];
-  for (const assetPath of assetPaths) {
-    hashes.push(`${path.basename(assetPath)} SHA-256 ${await sha256(assetPath)}`);
+    throw error;
   }
-  const url = `https://github.com/${releaseContext.repository}/releases/tag/${releaseContext.targetTag}`;
-  return {
-    hashes,
-    publishLatest,
-    summary: `${publishLatest ? "Published as GitHub Latest" : "Created audited GitHub draft"}: ${url}`,
-    url
-  };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

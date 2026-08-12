@@ -84,6 +84,11 @@ test("root validation includes the portable relay without deploying it", () => {
   assert.doesNotMatch(packageJson.scripts.test, /relay:deploy|relay:health/u);
 });
 
+test("relay dry-run keeps the flag inside its workspace script", () => {
+  const relayPackage = JSON.parse(readFileSync(new URL("../../services/relay/package.json", import.meta.url), "utf8"));
+  assert.equal(relayPackage.scripts["deploy:dry-run"], "wrangler deploy --dry-run");
+});
+
 test("the production mobile build enforces its measured JavaScript budget", () => {
   assert.match(mobilePackageJson.scripts.build, /vite build && npm run bundle:check/u);
   assert.equal(mobilePackageJson.scripts["bundle:check"], "node ../../scripts/check-mobile-bundle-size.mjs");
@@ -157,6 +162,11 @@ test("release packaging retains the standard Release build outputs", () => {
   assert.match(packageWindowsScript, /-o \$frameworkDependentPublishDir/u);
   assert.match(verifyWindowsVersionScript, /apps\\windows-host\\bin\\Release/u);
   assert.match(directoryBuildProps, /'\$\(Configuration\)' != 'Release'/u);
+});
+
+test("release packaging defaults to the prepared root version without npm argument forwarding", () => {
+  assert.match(packageWindowsScript, /IsNullOrWhiteSpace\(\$Version\)[\s\S]*Get-Content \$packageJsonPath -Raw/u);
+  assert.match(packageJson.scripts["package:win"], /scripts\/package-win\.ps1$/u);
 });
 
 test("release packaging stops immediately when a build command fails", () => {

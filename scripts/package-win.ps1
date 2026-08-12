@@ -132,6 +132,23 @@ foreach ($segment in $versionSegments) {
 }
 $appVersionQuad = "$versionCore.0"
 
+$makensis = Get-Command makensis -ErrorAction SilentlyContinue
+$makensisPath = $null
+if ($null -ne $makensis) {
+    $makensisPath = $makensis.Source
+}
+if ([string]::IsNullOrWhiteSpace($makensisPath)) {
+    $makensisCandidates = @(
+        "${env:ProgramFiles(x86)}\NSIS\makensis.exe",
+        "$env:ProgramFiles\NSIS\makensis.exe"
+    )
+    $makensisPath = $makensisCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+}
+
+if ([string]::IsNullOrWhiteSpace($makensisPath)) {
+    throw "makensis was not found. Install NSIS 3.12 or later, then run this command again."
+}
+
 New-Item -ItemType Directory -Force -Path $publishRoot | Out-Null
 New-Item -ItemType Directory -Force -Path (Split-Path $installerPath -Parent) | Out-Null
 
@@ -217,23 +234,6 @@ if (-not (Test-Path $frameworkDependentWatchdogExe)) {
     throw "Expected framework-dependent cursor watchdog executable was not found: $frameworkDependentWatchdogExe"
 }
 Assert-ScreenWebRtcPayload -PublishDirectory $frameworkDependentPublishDir
-
-$makensis = Get-Command makensis -ErrorAction SilentlyContinue
-$makensisPath = $null
-if ($null -ne $makensis) {
-    $makensisPath = $makensis.Source
-}
-if ([string]::IsNullOrWhiteSpace($makensisPath)) {
-    $makensisCandidates = @(
-        "${env:ProgramFiles(x86)}\NSIS\makensis.exe",
-        "$env:ProgramFiles\NSIS\makensis.exe"
-    )
-    $makensisPath = $makensisCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-}
-
-if ([string]::IsNullOrWhiteSpace($makensisPath)) {
-    throw "makensis was not found. Install NSIS 3.12 or later, then run this command again."
-}
 
 $frameworkDependentInstalledSizeBytes = (Get-ChildItem $frameworkDependentPublishDir -Recurse -File | Measure-Object Length -Sum).Sum
 $frameworkDependentInstalledSizeKb = [int][math]::Ceiling($frameworkDependentInstalledSizeBytes / 1KB)

@@ -5,7 +5,20 @@ import path from "node:path";
 import test from "node:test";
 
 import { getNextReleaseVersion } from "../../scripts/bump-release.mjs";
-import { auditDraft, buildReleaseBody, deployOfficialRelayIfRequested, getRelease, publishReleaseIfRequested } from "../../scripts/release-publish.mjs";
+import {
+  getReleaseAssetPaths,
+  readReleaseCheckpoint,
+  validateReleaseCheckpoint,
+  writeReleaseCheckpoint
+} from "../../scripts/release-checkpoint.mjs";
+import {
+  auditDraft,
+  buildReleaseBody,
+  deployOfficialRelayIfRequested,
+  getRelease,
+  publishReleaseIfRequested,
+  restoreCleanTrackedTree
+} from "../../scripts/release-publish.mjs";
 import {
   compareSemver,
   extractUserFacingReleaseNotes,
@@ -56,9 +69,9 @@ test("release packaging runs once from the final local commit before push", () =
   const testing = localReleaseSource.indexOf('checked("npm", ["test"])');
   const staging = localReleaseSource.indexOf("await stageReleaseChanges()");
   const commit = localReleaseSource.indexOf('checked("git", ["commit"');
-  const packaging = localReleaseSource.indexOf('checked("npm", ["run", "package:win"');
+  const packaging = localReleaseSource.indexOf('checked("npm", ["run", "package:win"]');
   const push = localReleaseSource.indexOf('checked("git", ["push", "origin", "main"])');
-  const packageCommands = localReleaseSource.match(/checked\("npm", \["run", "package:win"/gu) ?? [];
+  const packageCommands = localReleaseSource.match(/checked\("npm", \["run", "package:win"\]\)/gu) ?? [];
 
   assert.ok(testing > 0);
   assert.ok(staging > testing);
@@ -66,6 +79,89 @@ test("release packaging runs once from the final local commit before push", () =
   assert.ok(packaging > commit);
   assert.ok(push > packaging);
   assert.equal(packageCommands.length, 1);
+  assert.doesNotMatch(localReleaseSource, /"package:win", "--"/u);
+});
+
+test("release runs quick deployment and publish-lock preflights before the long test suite", () => {
+  const tools = localReleaseSource.indexOf('checked("npm", ["run", "tools:check"]');
+  const locks = localReleaseSource.indexOf("preflightPublishRestores()");
+  const push = localReleaseSource.indexOf('checked("git", ["push", "--dry-run"');
+  const site = localReleaseSource.indexOf('checked("npm", ["run", "publish:site:list"]');
+  const tests = localReleaseSource.indexOf('checked("npm", ["test"]');
+  for (const preflight of [tools, locks, push, site]) {
+    assert.ok(preflight > 0);
+    assert.ok(preflight < tests);
+  }
+  assert.match(localReleaseSource, /packages\.self-contained\.lock\.json/u);
+  assert.match(localReleaseSource, /packages\.framework-dependent\.lock\.json/u);
+});
+
+test("release checkpoints are exact to version, commit, phase, and artifact set", () => {
+  const context = { version: "0.9.5", commit: "abc123", expectedNames: ["a.zip", "b.exe"] };
+  assert.deepEqual(validateReleaseCheckpoint({
+    schema: 1, version: "0.9.5", commit: "abc123", phase: "tested", artifacts: []
+  }, context), { phase: "tested", artifacts: [] });
+  const artifacts = [
+    { name: "a.zip", size: 10, sha256: "a".repeat(64) },
+    { name: "b.exe", size: 20, sha256: "b".repeat(64) }
+  ];
+  assert.deepEqual(validateReleaseCheckpoint({
+    schema: 1, version: "0.9.5", commit: "abc123", phase: "packaged", artifacts
+  }, context), { phase: "packaged", artifacts });
+  assert.equal(validateReleaseCheckpoint({
+    schema: 1, version: "0.9.5", commit: "other", phase: "tested", artifacts: []
+  }, context), null);
+  assert.equal(validateReleaseCheckpoint({
+    schema: 1, version: "0.9.5", commit: "abc123", phase: "packaged", artifacts: artifacts.slice(1)
+  }, context), null);
+});
+
+test("packaged checkpoints verify local bytes but can audit a published release without local artifacts", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "voltura-release-checkpoint-"));
+  try {
+    const version = "0.9.5";
+    const commit = "abc123";
+    const assetPaths = getReleaseAssetPaths(root, version, "win-x64");
+    await mkdir(path.dirname(assetPaths[0]), { recursive: true });
+    await Promise.all(assetPaths.map((assetPath, index) => writeFile(assetPath, `artifact-${index}`)));
+    await writeReleaseCheckpoint({ repositoryRoot: root, version, commit, phase: "packaged", assetPaths });
+    assert.equal((await readReleaseCheckpoint({ repositoryRoot: root, version, commit, assetPaths }))?.phase, "packaged");
+
+    await rm(assetPaths[0]);
+    assert.equal(await readReleaseCheckpoint({ repositoryRoot: root, version, commit, assetPaths }), null);
+    assert.equal((await readReleaseCheckpoint({
+      repositoryRoot: root, version, commit, assetPaths, verifyArtifacts: false
+    }))?.phase, "packaged");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("release failures restore tracked release changes and checkpoints skip completed work", () => {
+  assert.match(localReleaseSource, /restoreCleanTrackedTree\(releaseCommit \?\? releaseContext\.startingCommit\)/u);
+  assert.match(localReleaseSource, /phase: "tested"/u);
+  assert.match(localReleaseSource, /phase: "packaged"/u);
+  assert.match(localReleaseSource, /Tests already passed for commit/u);
+  assert.match(localReleaseSource, /audited .* release already contains the final artifacts/u);
+  assert.match(localReleaseSource, /resumePhase !== "published"/u);
+});
+
+test("release failure cleanup restores its exact commit and removes generated untracked files", () => {
+  const commands = [];
+  const statuses = [" M package.json\n?? generated.txt", ""];
+  restoreCleanTrackedTree("abc123", (command, args) => {
+    commands.push([command, args]);
+    return args[0] === "status" ? statuses.shift() : "";
+  });
+  assert.deepEqual(commands, [
+    ["git", ["status", "--porcelain=v1", "--untracked-files=all"]],
+    ["git", ["restore", "--source=abc123", "--staged", "--worktree", "--", "."]],
+    ["git", ["clean", "-fd", "--", "."]],
+    ["git", ["status", "--porcelain=v1", "--untracked-files=all"]]
+  ]);
+
+  assert.throws(() => restoreCleanTrackedTree("abc123", (_command, args) =>
+    args[0] === "status" ? " M package.json" : ""), /could not restore a clean repository/u);
 });
 
 test("release staging only removes an old zero-byte Git index lock before one retry", () => {
@@ -116,6 +212,8 @@ test("only a stable full release deploys and verifies the official relay", () =>
   assert.ok(latestPublication > siteDeployment);
   assert.match(localReleaseSource,
     /if \(publishLatest\) \{\s+checked\("npm", \["exec", "--workspace", "@voltura-air\/relay", "--", "wrangler", "whoami"\]/u);
+  assert.match(localReleaseSource, /"run", "deploy:dry-run", "--workspace", "@voltura-air\/relay"/u);
+  assert.doesNotMatch(localReleaseSource, /"wrangler", "deploy", "--dry-run"/u);
 });
 
 test("local release does not fetch tags into the checkout", () => {

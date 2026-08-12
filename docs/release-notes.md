@@ -8,10 +8,19 @@ create one. Keep the shared notices in
 
 ## v0.9.4
 
-- Custom Screen trackpads can now include a Gyro option, so you can switch between touch and motion control directly from your custom layout.
-- Custom Screen button panels can now use up to six rows, with scrolling on smaller screens so every button remains easy to reach.
-- Gyro mouse now supports double-clicking. Double-tap the Gyro area in Trackpad or Presentation to double-click. Tapping is also more reliable, with small hand movements less likely to move the pointer by accident.
-- Fixed an issue where the Custom pointer setting could show the wrong state after the pointer had been turned off.
+- Custom Screen trackpads can now include a Gyro option, so you can switch
+  between touch and motion control directly from your custom layout.
+- Custom Screen button panels can now use up to six rows, with scrolling on
+  smaller screens so every button remains easy to reach.
+- Gyro mouse now supports double-clicking. Double-tap the Gyro area in Trackpad
+  or Presentation to double-click. Tapping is also more reliable, with small
+  hand movements less likely to move the pointer by accident.
+- Improved Gyro recovery guidance when motion access is denied, including when
+  the app must be fully reopened before trying again.
+- Custom Screens that the loaded web app cannot display now show a clear prompt
+  to refresh the app instead of remaining stuck loading.
+- Fixed an issue where the Custom pointer setting could show the wrong state
+  after the pointer had been turned off.
 - Improved updating and uninstalling Voltura Air when the app is already running.
 
 ## v0.9.3

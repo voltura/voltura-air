@@ -361,7 +361,8 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   break double-click recognition, then begins pointer movement when the surface
   is held. It sends ordinary pointer movement, so Presentation's separately
   controlled laser cursor moves naturally without any sensor-specific host
-  behavior. Screen View and Custom screen trackpads remain touch-only.
+  behavior. Custom Screen trackpads can also provide the same Touch/Gyro
+  selector. Screen View trackpads remain touch-only.
 - Gyro mouse requires Enhanced capabilities over HTTPS (always present for
   Relay and available through Secure Direct). Motion permission is requested
   from the user's Gyro action and is never remembered as an active mode. Gyro

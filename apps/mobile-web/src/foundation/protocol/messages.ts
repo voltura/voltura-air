@@ -327,6 +327,7 @@ export interface CustomScreenSectionDefinition {
   trackpadRightClick: boolean;
   trackpadButtonSide: "left" | "right";
   trackpadFullscreenControl: boolean;
+  trackpadGyroControl: boolean;
   trackpadEnabled: boolean;
   trackpadUnavailableReason?: string | null;
   volumeEnabled: boolean;

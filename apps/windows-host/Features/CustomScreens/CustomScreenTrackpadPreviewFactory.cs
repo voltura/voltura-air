@@ -53,6 +53,30 @@ internal static class CustomScreenTrackpadPreviewFactory
             root.Children.Add(fullscreen);
         }
 
+        if (section.TrackpadGyroControl)
+        {
+            var movementSelector = new Border
+            {
+                Background = brush("WindowBrush"),
+                BorderBrush = brush("BorderBrush"),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(8),
+                Margin = new Thickness(8),
+                Padding = new Thickness(4),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+                Child = new TextBlock
+                {
+                    Text = "Touch  Gyro",
+                    Foreground = brush("TextBrush")
+                }
+            };
+            AutomationProperties.SetName(
+                movementSelector,
+                "Trackpad movement selector");
+            root.Children.Add(movementSelector);
+        }
+
         var buttons = CreateClickButtons(section);
         if (buttons.Count > 0)
         {

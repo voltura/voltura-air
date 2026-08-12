@@ -243,6 +243,7 @@ export const serverFrameCatalog = {
             trackpadRightClick: true,
             trackpadButtonSide: "right",
             trackpadFullscreenControl: false,
+            trackpadGyroControl: false,
             trackpadEnabled: true,
             volumeEnabled: true,
             buttons: []

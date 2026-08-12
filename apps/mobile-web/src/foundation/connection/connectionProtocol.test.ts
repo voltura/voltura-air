@@ -283,6 +283,7 @@ describe("parseServerMessage", () => {
           trackpadRightClick: true,
           trackpadButtonSide: "right",
           trackpadFullscreenControl: true,
+          trackpadGyroControl: true,
           trackpadEnabled: true,
           volumeEnabled: true,
           portrait: { order: 1, visible: true, widthColumns: 12 },
@@ -303,7 +304,8 @@ describe("parseServerMessage", () => {
           widthColumns: 8,
           kind: "navigationRing",
           collapsible: false,
-          trackpadFullscreenControl: false
+          trackpadFullscreenControl: false,
+          trackpadGyroControl: false
         }]
       }
     };

@@ -126,6 +126,7 @@ internal sealed class CustomScreenMobileProjection(
                     ? null
                     : "Remote input is disabled for this device on the PC.",
             section.TrackpadFullscreenControl,
+            section.TrackpadGyroControl,
             requiredKnownAppAvailable && canControlVolume,
             !requiredKnownAppAvailable
                 ? requiredKnownAppReason

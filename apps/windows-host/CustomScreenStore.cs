@@ -246,7 +246,7 @@ internal static class CustomScreenValidator
                         !ValidNavigationRingOverride(section.Landscape))) ||
                 !Heights.Contains(section.HeightMode) ||
                 section.FillWeight is < 1 or > 4 ||
-                section.RowLimit is < 0 or > 3 ||
+                section.RowLimit is < 0 or > CustomScreenLimits.MaxButtonRows ||
                 !SectionKinds.Contains(section.Kind) ||
                 !TrackpadButtonSides.Contains(section.TrackpadButtonSide) ||
                 !ButtonAlignments.Contains(section.ButtonAlignment) ||
@@ -270,7 +270,8 @@ internal static class CustomScreenValidator
 
             foreach (var button in section.Buttons)
             {
-                if (button.Row is < 0 or > 3 || button.Row > section.RowLimit)
+                if (button.Row is < 0 or > CustomScreenLimits.MaxButtonRows ||
+                    button.Row > section.RowLimit)
                 {
                     error = $"Button \"{button.Name}\" row must be Auto or within the section's row limit.";
                     return false;
@@ -313,7 +314,7 @@ internal static class CustomScreenValidator
         Icons.Contains(button.Icon) &&
         Presentations.Contains(button.Presentation) &&
         Sizes.Contains(button.Size) &&
-        button.Row is >= 0 and <= 3 &&
+        button.Row is >= 0 and <= CustomScreenLimits.MaxButtonRows &&
         ValidOverride(button.Portrait, section: false) &&
         ValidOverride(button.Landscape, section: false) &&
         (button.Action.Kind != "laserPointer" || !button.Repeat) &&
@@ -378,7 +379,8 @@ internal static class CustomScreenValidator
         (value.Order >= 0 &&
          (value.WidthColumns is null || section && Widths.Contains(value.WidthColumns.Value)) &&
          (value.Size is null || !section && Sizes.Contains(value.Size)) &&
-         (value.Row is null || !section && value.Row is >= 0 and <= 3));
+         (value.Row is null ||
+          !section && value.Row is >= 0 and <= CustomScreenLimits.MaxButtonRows));
 
     private static bool ValidId(string? value) =>
         value is { Length: > 0 and <= CustomScreenLimits.MaxIdLength } &&

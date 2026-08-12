@@ -463,8 +463,21 @@ test("the PHP package boundary executes the current semantic contract", () => {
     });
   };
   assert.equal(run(source).status, 0);
+  const gyro = structuredClone(source);
+  gyro.sections[0].trackpadGyroControl = true;
+  assert.equal(run(gyro).status, 0);
+  const sixRows = structuredClone(source);
+  sixRows.sections[0].rowLimit = 6;
+  sixRows.sections[0].buttons[0].row = 6;
+  sixRows.sections[0].buttons[0].portrait = { order: 0, visible: true, row: 6 };
+  sixRows.sections[0].buttons[0].landscape = { order: 0, visible: true, row: 6 };
+  assert.equal(run(sixRows).status, 0);
   const invalidValues = [
     screen => { screen.sections[0].widthColumns = 5; },
+    screen => { screen.sections[0].trackpadGyroControl = "true"; },
+    screen => { screen.sections[0].rowLimit = 7; },
+    screen => { screen.sections[0].rowLimit = 6; screen.sections[0].buttons[0].row = 7; },
+    screen => { screen.sections[0].buttons[0].portrait = { order: 0, visible: true, row: 7 }; },
     screen => { screen.sections[0].buttons[0].action = { kind: "urlOpen", url: "file:///Windows/System32/calc.exe" }; },
     screen => { screen.sections[0].buttons[0].action = { kind: "shortcut", key: "UnsupportedKey", modifiers: [] }; screen.sections[0].buttons[0].presentation = "label"; },
     screen => { screen.sections[0].buttons[0].action = { kind: "builtIn", builtIn: "unknown.action" }; },

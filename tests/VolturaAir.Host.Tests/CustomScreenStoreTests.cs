@@ -1,5 +1,6 @@
 using System.Text.Json;
 using VolturaAir.Host;
+using VolturaAir.Host.Features.CustomScreens;
 
 namespace VolturaAir.Host.Tests;
 
@@ -154,7 +155,8 @@ public sealed class CustomScreenStoreTests
                 draft.Sections[^1] with
                 {
                     InitiallyExpanded = false,
-                    TrackpadFullscreenControl = true
+                    TrackpadFullscreenControl = true,
+                    TrackpadGyroControl = true
                 }
             ]
         };
@@ -164,6 +166,7 @@ public sealed class CustomScreenStoreTests
         Assert.Equal("collapsibleTrackpad", loaded.Kind);
         Assert.False(loaded.InitiallyExpanded);
         Assert.True(loaded.TrackpadFullscreenControl);
+        Assert.True(loaded.TrackpadGyroControl);
     }
 
     [Fact]
@@ -180,6 +183,63 @@ public sealed class CustomScreenStoreTests
         Assert.Equal("navigationRing", loaded.Kind);
         Assert.Equal(12, loaded.WidthColumns);
         Assert.Empty(loaded.Buttons);
+    }
+
+    [Fact]
+    public void SixButtonRowsRoundTripInCurrentFormat()
+    {
+        using var folder = new TemporaryFolder();
+        var store = new CustomScreenStore(folder.Path);
+        var draft = CustomScreenOrientationEditing.Enable(
+            CustomScreenService.CreateDraft());
+        var section = draft.Sections[0];
+        var button = section.Buttons[0] with
+        {
+            Row = 6,
+            Portrait = section.Buttons[0].Portrait! with { Row = 6 },
+            Landscape = section.Buttons[0].Landscape! with { Row = 6 }
+        };
+        draft = draft with
+        {
+            Sections =
+            [
+                section with
+                {
+                    RowLimit = 6,
+                    Buttons = [button]
+                }
+            ]
+        };
+
+        Assert.True(store.TrySave([draft], out var error), error);
+        var loaded = Assert.Single(store.Load().Screens).Sections[0];
+        var loadedButton = Assert.Single(loaded.Buttons);
+        Assert.Equal(6, loaded.RowLimit);
+        Assert.Equal(6, loadedButton.Row);
+        Assert.Equal(6, loadedButton.Portrait!.Row);
+        Assert.Equal(6, loadedButton.Landscape!.Row);
+    }
+
+    [Fact]
+    public void SeventhButtonRowIsRejected()
+    {
+        using var folder = new TemporaryFolder();
+        var store = new CustomScreenStore(folder.Path);
+        var draft = CustomScreenService.CreateDraft();
+        var section = draft.Sections[0];
+        draft = draft with
+        {
+            Sections =
+            [
+                section with
+                {
+                    RowLimit = 7,
+                    Buttons = [section.Buttons[0] with { Row = 7 }]
+                }
+            ]
+        };
+
+        Assert.False(store.TrySave([draft], out _));
     }
 
     private sealed class TemporaryFolder : IDisposable

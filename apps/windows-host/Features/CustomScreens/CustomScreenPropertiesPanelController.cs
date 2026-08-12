@@ -227,6 +227,14 @@ internal sealed class CustomScreenPropertiesPanelController(
                     {
                         TrackpadFullscreenControl = value
                     }));
+                AddBooleanProperty(
+                    target,
+                    "Enable Gyro",
+                    section.TrackpadGyroControl,
+                    value => updateSection(section with
+                    {
+                        TrackpadGyroControl = value
+                    }));
                 AddTaggedChoiceProperty(
                     target,
                     "Click-button order",
@@ -264,7 +272,10 @@ internal sealed class CustomScreenPropertiesPanelController(
                         ("Automatic", "0"),
                         ("1 row", "1"),
                         ("2 rows", "2"),
-                        ("3 rows", "3")
+                        ("3 rows", "3"),
+                        ("4 rows", "4"),
+                        ("5 rows", "5"),
+                        ("6 rows", "6")
                     ],
                     section.RowLimit.ToString(CultureInfo.InvariantCulture),
                     value =>

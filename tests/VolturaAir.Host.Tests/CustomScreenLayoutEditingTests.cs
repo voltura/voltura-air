@@ -360,6 +360,30 @@ public sealed class CustomScreenLayoutEditingTests
     }
 
     [Fact]
+    public void SixthRowIsPreservedAcrossSharedAndOrientationLayouts()
+    {
+        var draft = CustomScreenOrientationEditing.Enable(
+            CustomScreenService.CreateDraft());
+        var section = draft.Sections[0];
+        var button = section.Buttons[0] with
+        {
+            Row = 6,
+            Portrait = section.Buttons[0].Portrait! with { Row = 6 },
+            Landscape = section.Buttons[0].Landscape! with { Row = 6 }
+        };
+
+        var expanded = CustomScreenOrientationEditing.SetRowLimit(
+            section with { Buttons = [button] },
+            rowLimit: 6);
+        var expandedButton = Assert.Single(expanded.Buttons);
+
+        Assert.Equal(6, expanded.RowLimit);
+        Assert.Equal(6, expandedButton.Row);
+        Assert.Equal(6, expandedButton.Portrait!.Row);
+        Assert.Equal(6, expandedButton.Landscape!.Row);
+    }
+
+    [Fact]
     public void OrientationMoveChangesOnlyTheSelectedOrientation()
     {
         var first = CustomScreenService.CreateDraft();

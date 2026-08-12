@@ -5,6 +5,7 @@ import { isRemoteModeId, normalizeRemoteMode } from "../settings/remoteSettings"
 
 const movementAckIntervalMs = 200;
 const maxPendingInputAcks = 64;
+const maxCustomScreenButtonRows = 6;
 
 type ClientInputMessage = Extract<ClientMessage, { type: "pointer.move" | "pointer.button" | "pointer.wheel" | "pointer.zoom" | "screen.pointer.move" | "screen.pointer.button" | "screen.pointer.wheel" | "keyboard.text" | "keyboard.special" }>;
 
@@ -458,7 +459,7 @@ function isCustomScreenSection(value: unknown): boolean {
     typeof value.rowLimit === "number" &&
     Number.isInteger(value.rowLimit) &&
     value.rowLimit >= 0 &&
-    value.rowLimit <= 3 &&
+    value.rowLimit <= maxCustomScreenButtonRows &&
     isOneOf(value.buttonAlignment, [
       "start",
       "center",
@@ -474,6 +475,7 @@ function isCustomScreenSection(value: unknown): boolean {
     typeof value.trackpadRightClick === "boolean" &&
     isOneOf(value.trackpadButtonSide, ["left", "right"]) &&
     typeof value.trackpadFullscreenControl === "boolean" &&
+    typeof value.trackpadGyroControl === "boolean" &&
     typeof value.trackpadEnabled === "boolean" &&
     isOptional(value, "trackpadUnavailableReason", (candidate) =>
       candidate === null || isBoundedString(candidate, 300, false)) &&
@@ -518,7 +520,7 @@ function isCustomScreenButton(value: unknown): boolean {
       typeof candidate === "number" &&
       Number.isInteger(candidate) &&
       candidate >= 0 &&
-      candidate <= 3) &&
+      candidate <= maxCustomScreenButtonRows) &&
     typeof value.enabled === "boolean" &&
     isOptional(value, "portrait", isNullableCustomScreenOverride) &&
     isOptional(value, "landscape", isNullableCustomScreenOverride) &&
@@ -539,7 +541,13 @@ function isNullableCustomScreenOverride(value: unknown): boolean {
     isOptional(value, "widthColumns", (candidate) =>
       candidate === null || isOneOf(candidate, [3, 4, 6, 8, 9, 12])) &&
     isOptional(value, "size", (candidate) =>
-      candidate === null || isOneOf(candidate, ["compact", "standard", "wide", "fill"]))
+      candidate === null || isOneOf(candidate, ["compact", "standard", "wide", "fill"])) &&
+    isOptional(value, "row", (candidate) =>
+      candidate === null || (
+        typeof candidate === "number" &&
+        Number.isInteger(candidate) &&
+        candidate >= 0 &&
+        candidate <= maxCustomScreenButtonRows))
   );
 }
 

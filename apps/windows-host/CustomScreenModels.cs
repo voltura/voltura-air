@@ -20,6 +20,7 @@ public static class CustomScreenLimits
     public const int MaxScreens = 128;
     public const int MaxSectionsPerScreen = 64;
     public const int MaxButtonsPerScreen = 256;
+    public const int MaxButtonRows = 6;
     public const int MaxScreenNameLength = 24;
     public const int MaxSectionNameLength = 20;
     public const int MaxButtonNameLength = 24;
@@ -78,6 +79,7 @@ public sealed record CustomScreenSection(
     string TrackpadButtonSide = "right",
     bool InitiallyExpanded = true,
     bool TrackpadFullscreenControl = false,
+    bool TrackpadGyroControl = false,
     string ButtonAlignment = "start");
 
 public sealed record CustomScreenButton(
@@ -146,6 +148,7 @@ public sealed record CustomScreenMobileSection(
     bool TrackpadEnabled,
     string? TrackpadUnavailableReason,
     bool TrackpadFullscreenControl,
+    bool TrackpadGyroControl,
     bool VolumeEnabled,
     string? VolumeUnavailableReason);
 

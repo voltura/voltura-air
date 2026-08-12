@@ -569,6 +569,40 @@ public sealed partial class HostUiLayoutTests
                 Assert.Contains("Height", labels);
                 Assert.Contains("Button placement", labels);
                 Assert.Contains("Button rows", labels);
+                var buttonRows = FindVisualDescendants<ComboBox>(page)
+                    .Single(combo => combo.Items
+                        .OfType<ComboBoxItem>()
+                        .Any(item => Equals(item.Content, "6 rows") &&
+                            Equals(item.Tag, "6")));
+                Assert.Equal(
+                    ["Automatic", "1 row", "2 rows", "3 rows", "4 rows", "5 rows", "6 rows"],
+                    buttonRows.Items
+                        .OfType<ComboBoxItem>()
+                        .Select(item => Assert.IsType<string>(item.Content)));
+                buttonRows.SelectedItem = buttonRows.Items
+                    .OfType<ComboBoxItem>()
+                    .Single(item => Equals(item.Tag, "6"));
+                var orientation = Assert.IsType<ComboBox>(
+                    page.FindName("PreviewOrientationCombo"));
+                orientation.SelectedItem = orientation.Items
+                    .OfType<ComboBoxItem>()
+                    .Single(item => Equals(item.Tag, "landscape"));
+                owner.UpdateLayout();
+                var rowTargets = FindVisualDescendants<Border>(page)
+                    .Select(AutomationProperties.GetName)
+                    .Where(name => name.StartsWith(
+                        "Button row ",
+                        StringComparison.Ordinal))
+                    .ToArray();
+                foreach (var row in Enumerable.Range(1, 6))
+                {
+                    Assert.Contains($"Button row {row}", rowTargets);
+                }
+                var previewWorkspace = Assert.IsType<ScrollViewer>(
+                    page.FindName("PreviewWorkspace"));
+                Assert.True(
+                    previewWorkspace.ScrollableHeight > 0,
+                    $"Six landscape rows should scroll; extent {previewWorkspace.ExtentHeight}, viewport {previewWorkspace.ViewportHeight}.");
                 Assert.Contains(
                     FindVisualDescendants<CheckBox>(page),
                     checkBox => Equals(checkBox.Content, "Expanded by default") &&
@@ -595,6 +629,7 @@ public sealed partial class HostUiLayoutTests
                 var collapsible = Assert.Single(service.GetAll())
                     .Sections[^1];
                 Assert.Equal("collapsible", collapsible.Kind);
+                Assert.Equal(6, collapsible.RowLimit);
                 Assert.True(collapsible.ShowHeader);
                 Assert.False(collapsible.InitiallyExpanded);
             }

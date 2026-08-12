@@ -18,6 +18,8 @@ import type {
 } from "../../foundation/protocol/messages";
 import type { ConnectionState } from "../../foundation/connection/connectionTypes";
 import type { TrackpadSettings } from "../../foundation/input/gestures";
+import type { GyroActivationRequest, GyroAvailability } from "../../foundation/input/gyroMouse";
+import { useGyroMouse } from "../../foundation/input/useGyroMouse";
 import { usePointerInput } from "../../foundation/input/usePointerInput";
 import { CustomScreenButtonGrid } from "./CustomScreenButtonGrid";
 import { CustomScreenNavigationRing } from "./CustomScreenNavigationRing";
@@ -26,10 +28,14 @@ import "./custom-screens.css";
 
 const repeatDelayMs = 400;
 const repeatMs = 55;
+const gyroTapMaximumDurationMs = 300;
+const gyroHoldActivationDelayMs = gyroTapMaximumDurationMs + 1;
 const noExpansionOverrides: ReadonlyMap<string, boolean> = new Map();
+const ignoreGyroSelection = () => undefined;
 
 interface CustomScreenWorkspaceProps {
   audioState?: AudioStateMessage | null;
+  connectionEpoch?: number;
   definition: CustomScreenDefinition | null;
   error?: string | null;
   invoke: (
@@ -39,6 +45,8 @@ interface CustomScreenWorkspaceProps {
     enabled?: boolean,
     suppressResult?: boolean
   ) => void;
+  gyroActivationRequest?: GyroActivationRequest | null;
+  onGyroSelectedChange?: (selected: boolean) => void;
   onBack: () => void;
   pendingButtonIds: ReadonlySet<string>;
   requestedName: string;
@@ -50,9 +58,12 @@ interface CustomScreenWorkspaceProps {
 
 export function CustomScreenWorkspace({
   audioState = null,
+  connectionEpoch = 0,
   definition,
   error,
+  gyroActivationRequest = null,
   invoke,
+  onGyroSelectedChange = ignoreGyroSelection,
   onBack,
   pendingButtonIds,
   presentationCapability = null,
@@ -86,13 +97,37 @@ export function CustomScreenWorkspace({
   const ignoreClickRef = useRef(false);
   const repeatPointerReleasedRef = useRef(false);
   const pressedPointerButtonsRef = useRef(new Set<"left" | "right">());
+  const gyroClutchPointerRef = useRef<number | null>(null);
+  const gyroClutchTimerRef = useRef<number | null>(null);
+  const gyroClutchEngagedRef = useRef(false);
+  const gyroTapRef = useRef<{ pointerId: number; startedAt: number; buttonWasHeld: boolean } | null>(null);
   const {
+    cancel,
     emit,
     onTouchCancel,
     onTouchEnd,
     onTouchMove,
     onTouchStart
   } = usePointerInput({ send, state, trackpadSettings });
+  const gyroSurfaceEnabled = definition?.sections.some(section =>
+    section.kind === "trackpad" &&
+    section.trackpadGyroControl &&
+    section.trackpadEnabled &&
+    (!definition.orientationLayoutsEnabled ||
+      (orientation === "portrait" ? section.portrait : section.landscape)?.visible !== false) &&
+    (!section.collapsible ||
+      (expansionOverrides.get(section.id) ?? section.initiallyExpanded))) === true;
+  const gyro = useGyroMouse({
+    activationRequest: gyroActivationRequest,
+    connected: state === "paired",
+    enabledSurface: gyroSurfaceEnabled,
+    onMove: (dx, dy) => { emit({ type: "pointer.move", dx, dy }); },
+    onSelectedChange: onGyroSelectedChange,
+    onStop: cancel,
+    sensitivity: trackpadSettings.gyroSensitivity,
+    sessionKey: connectionEpoch
+  });
+  const setGyroEngaged = gyro.setEngaged;
   const emitRef = useRef(emit);
   useEffect(() => {
     emitRef.current = emit;
@@ -123,12 +158,79 @@ export function CustomScreenWorkspace({
     }
   }, [stopRepeat]);
 
+  const clearGyroClutchTimer = useCallback(() => {
+    if (gyroClutchTimerRef.current !== null) {
+      window.clearTimeout(gyroClutchTimerRef.current);
+      gyroClutchTimerRef.current = null;
+    }
+  }, []);
+
+  const cancelGyroClutch = useCallback(() => {
+    clearGyroClutchTimer();
+    gyroClutchPointerRef.current = null;
+    gyroClutchEngagedRef.current = false;
+    gyroTapRef.current = null;
+    setGyroEngaged(false);
+  }, [clearGyroClutchTimer, setGyroEngaged]);
+
   const releasePointerButtons = useCallback(() => {
     for (const button of pressedPointerButtonsRef.current) {
       emitRef.current({ type: "pointer.button", button, action: "up" });
     }
     pressedPointerButtonsRef.current.clear();
-  }, []);
+    cancelGyroClutch();
+  }, [cancelGyroClutch]);
+
+  const updateGyroEngagement = useCallback(() => {
+    setGyroEngaged(gyro.availability === "ready" &&
+      (gyroClutchEngagedRef.current || pressedPointerButtonsRef.current.size > 0));
+  }, [gyro.availability, setGyroEngaged]);
+
+  const startGyroClutch = useCallback((pointerId: number, startedAt: number) => {
+    gyroClutchPointerRef.current = pointerId;
+    gyroClutchEngagedRef.current = false;
+    gyroTapRef.current = {
+      pointerId,
+      startedAt,
+      buttonWasHeld: pressedPointerButtonsRef.current.size > 0
+    };
+    clearGyroClutchTimer();
+    gyroClutchTimerRef.current = window.setTimeout(() => {
+      gyroClutchTimerRef.current = null;
+      if (gyroClutchPointerRef.current !== pointerId) {
+        return;
+      }
+      gyroClutchEngagedRef.current = true;
+      updateGyroEngagement();
+    }, gyroHoldActivationDelayMs);
+  }, [clearGyroClutchTimer, updateGyroEngagement]);
+
+  const finishGyroClutch = useCallback((pointerId: number, finishedAt: number, allowClick: boolean) => {
+    if (gyroClutchPointerRef.current !== pointerId) {
+      return;
+    }
+    const tap = gyroTapRef.current;
+    const shouldClick = allowClick && tap?.pointerId === pointerId &&
+      finishedAt - tap.startedAt <= gyroTapMaximumDurationMs &&
+      !tap.buttonWasHeld && pressedPointerButtonsRef.current.size === 0;
+    clearGyroClutchTimer();
+    gyroClutchPointerRef.current = null;
+    gyroClutchEngagedRef.current = false;
+    gyroTapRef.current = null;
+    updateGyroEngagement();
+    if (shouldClick) {
+      emit({ type: "pointer.button", button: "left", action: "click" });
+    }
+  }, [clearGyroClutchTimer, emit, updateGyroEngagement]);
+
+  useEffect(() => () => { cancelGyroClutch(); }, [cancelGyroClutch]);
+
+  useEffect(() => {
+    if (gyro.selected && gyro.availability === "ready") {
+      return;
+    }
+    cancelGyroClutch();
+  }, [cancelGyroClutch, gyro.availability, gyro.selected]);
 
   useEffect(() => {
     const update = () => {
@@ -353,13 +455,47 @@ export function CustomScreenWorkspace({
                   >
                     <div
                       aria-label={section.name}
-                      className="custom-screen-trackpad"
+                      className={`custom-screen-trackpad${section.trackpadGyroControl && gyro.selected ? " gyro-selected" : ""}${section.trackpadGyroControl && gyro.engaged ? " gyro-engaged" : ""}`}
                       role="application"
-                      onTouchStart={trackpadEnabled ? onTouchStart : undefined}
-                      onTouchMove={trackpadEnabled ? onTouchMove : undefined}
-                      onTouchEnd={trackpadEnabled ? onTouchEnd : undefined}
-                      onTouchCancel={trackpadEnabled ? onTouchCancel : undefined}
+                      onPointerCancel={trackpadEnabled && section.trackpadGyroControl && gyro.selected && gyro.availability === "ready" ? (event) => {
+                        if (event.pointerType !== "touch") { finishGyroClutch(event.pointerId, event.timeStamp, false); }
+                      } : undefined}
+                      onPointerDown={trackpadEnabled && section.trackpadGyroControl && gyro.selected && gyro.availability === "ready" ? (event) => {
+                        if (event.pointerType === "touch" || (event.target as HTMLElement).closest("button") || event.button !== 0 || event.isPrimary === false) { return; }
+                        if (gyroClutchPointerRef.current !== null) { gyroTapRef.current = null; return; }
+                        event.preventDefault();
+                        startGyroClutch(event.pointerId, event.timeStamp);
+                        try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* Pointer capture is optional. */ }
+                      } : undefined}
+                      onPointerUp={trackpadEnabled && section.trackpadGyroControl && gyro.selected && gyro.availability === "ready" ? (event) => {
+                        if (event.pointerType !== "touch") { finishGyroClutch(event.pointerId, event.timeStamp, true); }
+                      } : undefined}
+                      onLostPointerCapture={trackpadEnabled && section.trackpadGyroControl && gyro.selected && gyro.availability === "ready" ? (event) => {
+                        if (event.pointerType !== "touch") { finishGyroClutch(event.pointerId, event.timeStamp, false); }
+                      } : undefined}
+                      onTouchStart={trackpadEnabled ? section.trackpadGyroControl && gyro.selected ? (event) => {
+                        if (gyro.availability !== "ready" || (event.target as HTMLElement).closest("button")) { return; }
+                        if (event.touches.length !== 1 || gyroClutchPointerRef.current !== null) { gyroTapRef.current = null; return; }
+                        event.preventDefault();
+                        const touch = event.touches[0];
+                        if (touch) { startGyroClutch(touch.identifier, event.timeStamp); }
+                      } : onTouchStart : undefined}
+                      onTouchMove={trackpadEnabled && !(section.trackpadGyroControl && gyro.selected) ? onTouchMove : undefined}
+                      onTouchEnd={trackpadEnabled ? section.trackpadGyroControl && gyro.selected ? (event) => {
+                        const touch = Array.from(event.changedTouches).find(candidate => candidate.identifier === gyroClutchPointerRef.current);
+                        if (touch) { finishGyroClutch(touch.identifier, event.timeStamp, true); }
+                      } : onTouchEnd : undefined}
+                      onTouchCancel={trackpadEnabled ? section.trackpadGyroControl && gyro.selected ? (event) => {
+                        const touch = Array.from(event.changedTouches).find(candidate => candidate.identifier === gyroClutchPointerRef.current);
+                        if (touch) { finishGyroClutch(touch.identifier, event.timeStamp, false); }
+                      } : onTouchCancel : undefined}
                     >
+                      {section.trackpadGyroControl && (
+                        <div className="custom-screen-trackpad-movement-selector" role="group" aria-label="Trackpad movement">
+                          <button type="button" disabled={!trackpadEnabled || state !== "paired"} className={!gyro.selected ? "active" : ""} aria-pressed={!gyro.selected} onClick={(event) => { event.stopPropagation(); gyro.setSelected(false); }}>Touch</button>
+                          <button type="button" disabled={!trackpadEnabled || state !== "paired"} className={gyro.selected ? "active" : ""} aria-pressed={gyro.selected} title={gyroMessage(gyro.availability)} onClick={(event) => { event.stopPropagation(); gyro.enableFromUserGesture(); }}>Gyro</button>
+                        </div>
+                      )}
                       {section.trackpadFullscreenControl && (
                         <button
                           aria-label={fullscreen ? `Restore ${section.name}` : `Expand ${section.name}`}
@@ -485,23 +621,30 @@ export function CustomScreenWorkspace({
             return;
           }
           event.preventDefault();
+          if (gyroClutchPointerRef.current !== null) {
+            gyroTapRef.current = null;
+          }
           event.currentTarget.setPointerCapture?.(event.pointerId);
           pressedPointerButtonsRef.current.add(button);
           emit({ type: "pointer.button", button, action: "down" });
+          if (gyro.selected) { updateGyroEngagement(); }
         }}
         onPointerUp={() => {
           if (pressedPointerButtonsRef.current.delete(button)) {
             emit({ type: "pointer.button", button, action: "up" });
+            if (gyro.selected) { updateGyroEngagement(); }
           }
         }}
         onPointerCancel={() => {
           if (pressedPointerButtonsRef.current.delete(button)) {
             emit({ type: "pointer.button", button, action: "up" });
+            if (gyro.selected) { updateGyroEngagement(); }
           }
         }}
         onLostPointerCapture={() => {
           if (pressedPointerButtonsRef.current.delete(button)) {
             emit({ type: "pointer.button", button, action: "up" });
+            if (gyro.selected) { updateGyroEngagement(); }
           }
         }}
         onClick={(event) => {
@@ -514,4 +657,12 @@ export function CustomScreenWorkspace({
       </button>
     );
   }
+}
+
+function gyroMessage(availability: GyroAvailability): string {
+  if (availability === "insecure") { return "Gyro requires Enhanced capabilities over HTTPS"; }
+  if (availability === "missing-api") { return "Gyro is not available on this device"; }
+  if (availability === "denied") { return "Gyro permission was denied"; }
+  if (availability === "no-data") { return "No Gyro sensor data received"; }
+  return "Use Gyro mouse";
 }

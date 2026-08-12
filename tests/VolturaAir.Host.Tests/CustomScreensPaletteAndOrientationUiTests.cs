@@ -199,6 +199,16 @@ public sealed partial class HostUiLayoutTests
                     checkBox => Equals(
                         checkBox.Content,
                         "Show fullscreen control"));
+                var enableGyro = FindVisualDescendants<CheckBox>(page)
+                    .Single(checkBox => Equals(checkBox.Content, "Enable Gyro"));
+                Assert.False(enableGyro.IsChecked);
+                enableGyro.IsChecked = true;
+                enableGyro.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                owner.UpdateLayout();
+                Assert.Contains(
+                    FindVisualDescendants<Border>(page),
+                    border => AutomationProperties.GetName(border) ==
+                        "Trackpad movement selector");
                 Assert.DoesNotContain(
                     FindVisualDescendants<TextBlock>(page),
                     text => Equals(text.Text, "Trackpad height"));

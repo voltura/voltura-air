@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CustomScreenDefinition } from "../../foundation/protocol/messages";
 import { defaultTrackpadSettings } from "../../foundation/input/gestures";
@@ -27,6 +27,7 @@ const definition: CustomScreenDefinition = {
       trackpadRightClick: true,
       trackpadButtonSide: "right",
       trackpadFullscreenControl: false,
+      trackpadGyroControl: false,
       trackpadEnabled: true,
       volumeEnabled: true,
       portrait: { order: 1, visible: true, widthColumns: 12 },
@@ -76,6 +77,7 @@ const definition: CustomScreenDefinition = {
       trackpadRightClick: true,
       trackpadButtonSide: "right",
       trackpadFullscreenControl: false,
+      trackpadGyroControl: false,
       trackpadEnabled: true,
       volumeEnabled: true,
       portrait: { order: 0, visible: true, widthColumns: 6 },
@@ -451,6 +453,7 @@ describe("CustomScreenWorkspace", () => {
         trackpadRightClick: true,
         trackpadButtonSide: "left",
         trackpadFullscreenControl: true,
+        trackpadGyroControl: true,
         trackpadEnabled: true,
         volumeEnabled: true,
         buttons: []
@@ -472,6 +475,9 @@ describe("CustomScreenWorkspace", () => {
 
     const layout = screen.getByRole("application", { name: "Pointer" }).parentElement!;
     expect(layout.classList.contains("buttons-left")).toBe(true);
+    expect(screen.getByRole("group", { name: "Trackpad movement" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Touch" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: "Gyro" })).toBeTruthy();
     expect(screen.getAllByRole("button", { name: /click/i })
       .map((button) => button.getAttribute("aria-label")))
       .toEqual(["Right click", "Left click"]);
@@ -492,6 +498,147 @@ describe("CustomScreenWorkspace", () => {
     expect(layout.classList.contains("is-fullscreen")).toBe(false);
   });
 
+  it("uses the custom trackpad as a Gyro clutch and releases it cleanly", async () => {
+    const send = vi.fn();
+    const onGyroSelectedChange = vi.fn();
+    const trackpadDefinition: CustomScreenDefinition = {
+      ...definition,
+      orientationLayoutsEnabled: false,
+      sections: [{
+        id: "section.gyro",
+        name: "Gyro pointer",
+        showHeader: true,
+        widthColumns: 12,
+        heightMode: "fill",
+        fillWeight: 1,
+        rowLimit: 0,
+        buttonAlignment: "start",
+        kind: "trackpad",
+        collapsible: false,
+        initiallyExpanded: true,
+        trackpadLeftClick: false,
+        trackpadRightClick: true,
+        trackpadButtonSide: "right",
+        trackpadFullscreenControl: true,
+        trackpadGyroControl: true,
+        trackpadEnabled: true,
+        volumeEnabled: true,
+        buttons: []
+      }]
+    };
+    const view = render(
+      <CustomScreenWorkspace
+        connectionEpoch={7}
+        definition={trackpadDefinition}
+        gyroActivationRequest={{ id: 1, permission: Promise.resolve(true) }}
+        invoke={vi.fn()}
+        onBack={vi.fn()}
+        onGyroSelectedChange={onGyroSelectedChange}
+        pendingButtonIds={new Set()}
+        requestedName="Gyro pointer"
+        send={send}
+        state="paired"
+        trackpadSettings={defaultTrackpadSettings}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Gyro" }).getAttribute("aria-pressed"))
+        .toBe("true");
+    });
+    const surface = screen.getByRole("application", { name: "Gyro pointer" });
+
+    fireEvent.pointerDown(surface, { button: 0, isPrimary: true, pointerId: 31 });
+    fireEvent.pointerUp(surface, { button: 0, isPrimary: true, pointerId: 31 });
+    expect(send).toHaveBeenCalledWith({
+      type: "pointer.button",
+      button: "left",
+      action: "click"
+    });
+    send.mockClear();
+
+    fireEvent.pointerDown(surface, { button: 0, isPrimary: true, pointerId: 32 });
+    const rightClick = screen.getByRole("button", { name: "Right click" });
+    fireEvent.pointerDown(rightClick, { button: 0, pointerId: 33 });
+    fireEvent.pointerUp(rightClick, { button: 0, pointerId: 33 });
+    fireEvent.pointerUp(surface, { button: 0, isPrimary: true, pointerId: 32 });
+    expect(send.mock.calls).toEqual([
+      [{ type: "pointer.button", button: "right", action: "down" }],
+      [{ type: "pointer.button", button: "right", action: "up" }]
+    ]);
+
+    vi.useFakeTimers();
+    fireEvent.pointerDown(surface, { button: 0, isPrimary: true, pointerId: 34 });
+    fireEvent(window, new Event("blur"));
+    act(() => { vi.advanceTimersByTime(301); });
+    expect(surface.classList.contains("gyro-engaged")).toBe(false);
+
+    fireEvent.pointerDown(surface, { button: 0, isPrimary: true, pointerId: 35 });
+    act(() => { vi.advanceTimersByTime(301); });
+    expect(surface.classList.contains("gyro-engaged")).toBe(true);
+    fireEvent(window, new Event("blur"));
+    expect(surface.classList.contains("gyro-engaged")).toBe(false);
+
+    view.unmount();
+    expect(onGyroSelectedChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it("stops Gyro when its collapsible trackpad is folded", async () => {
+    const onGyroSelectedChange = vi.fn();
+    render(
+      <CustomScreenWorkspace
+        definition={gyroTrackpadDefinition({ collapsible: true })}
+        gyroActivationRequest={{ id: 2, permission: Promise.resolve(true) }}
+        invoke={vi.fn()}
+        onBack={vi.fn()}
+        onGyroSelectedChange={onGyroSelectedChange}
+        pendingButtonIds={new Set()}
+        requestedName="Gyro pointer"
+        send={vi.fn()}
+        state="paired"
+        trackpadSettings={defaultTrackpadSettings}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Gyro" }).getAttribute("aria-pressed"))
+        .toBe("true");
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Gyro pointer" }));
+
+    await waitFor(() => { expect(onGyroSelectedChange).toHaveBeenLastCalledWith(false); });
+    expect(screen.queryByRole("group", { name: "Trackpad movement" })).toBeNull();
+  });
+
+  it("stops Gyro when orientation hides its trackpad", async () => {
+    const onGyroSelectedChange = vi.fn();
+    render(
+      <CustomScreenWorkspace
+        definition={gyroTrackpadDefinition({ orientationLayoutsEnabled: true })}
+        gyroActivationRequest={{ id: 3, permission: Promise.resolve(true) }}
+        invoke={vi.fn()}
+        onBack={vi.fn()}
+        onGyroSelectedChange={onGyroSelectedChange}
+        pendingButtonIds={new Set()}
+        requestedName="Gyro pointer"
+        send={vi.fn()}
+        state="paired"
+        trackpadSettings={defaultTrackpadSettings}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Gyro" }).getAttribute("aria-pressed"))
+        .toBe("true");
+    });
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 900 });
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 500 });
+    fireEvent(window, new Event("resize"));
+
+    await waitFor(() => { expect(onGyroSelectedChange).toHaveBeenLastCalledWith(false); });
+    expect(screen.queryByRole("application", { name: "Gyro pointer" })).toBeNull();
+  });
+
   it("folds a collapsible trackpad and restores it to its responsive row", () => {
     const trackpadDefinition: CustomScreenDefinition = {
       ...definition,
@@ -509,6 +656,7 @@ describe("CustomScreenWorkspace", () => {
         collapsible: true,
         initiallyExpanded: false,
         trackpadFullscreenControl: true,
+        trackpadGyroControl: false,
         trackpadLeftClick: true,
         trackpadRightClick: true,
         trackpadButtonSide: "right",
@@ -534,6 +682,7 @@ describe("CustomScreenWorkspace", () => {
     expect(screen.queryByRole("application", { name: "Pointer tools" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Pointer tools" }));
     expect(screen.getByRole("application", { name: "Pointer tools" })).toBeTruthy();
+    expect(screen.queryByRole("group", { name: "Trackpad movement" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Expand Pointer tools" }));
     expect(screen.getByRole("application", { name: "Pointer tools" })
       .parentElement?.classList.contains("is-fullscreen")).toBe(true);
@@ -572,6 +721,7 @@ describe("CustomScreenWorkspace", () => {
           trackpadRightClick: true,
           trackpadButtonSide: "right",
           trackpadFullscreenControl: false,
+          trackpadGyroControl: false,
           portrait: { order: 1, visible: true, widthColumns: 12 },
           landscape: { order: 1, visible: true, widthColumns: 6 },
           trackpadEnabled: true,
@@ -642,6 +792,35 @@ function withLaserButtons(): CustomScreenDefinition {
         laserButton("button.red-laser", "Red laser", "red"),
         laserButton("button.green-laser", "Green laser", "green")
       ]
+    }]
+  };
+}
+
+function gyroTrackpadDefinition({
+  collapsible = false,
+  orientationLayoutsEnabled = false
+}: {
+  collapsible?: boolean;
+  orientationLayoutsEnabled?: boolean;
+} = {}): CustomScreenDefinition {
+  return {
+    ...definition,
+    orientationLayoutsEnabled,
+    sections: [{
+      ...definition.sections[0]!,
+      id: "section.gyro",
+      name: "Gyro pointer",
+      rowLimit: 0,
+      kind: "trackpad",
+      collapsible,
+      initiallyExpanded: true,
+      trackpadLeftClick: false,
+      trackpadRightClick: false,
+      trackpadFullscreenControl: true,
+      trackpadGyroControl: true,
+      portrait: { order: 0, visible: true, widthColumns: 12 },
+      landscape: { order: 0, visible: false, widthColumns: 12 },
+      buttons: []
     }]
   };
 }

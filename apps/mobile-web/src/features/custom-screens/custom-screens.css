@@ -106,6 +106,10 @@
   min-height: 10rem;
 }
 
+.custom-screen-section.height-fill:is(.kind-buttons, .kind-collapsible) {
+  min-height: max-content;
+}
+
 .custom-screen-section.kind-volume {
   container-type: inline-size;
   padding: 0;
@@ -337,6 +341,36 @@
 .custom-screen-trackpad-expand svg {
   width: 20px;
   height: 20px;
+}
+
+.custom-screen-trackpad-movement-selector {
+  position: absolute;
+  z-index: 1;
+  top: 10px;
+  left: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-medium);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+}
+
+.custom-screen-trackpad-movement-selector button {
+  min-height: 40px;
+  padding: 0 var(--space-sm);
+  border: 0;
+  background: transparent;
+}
+
+.custom-screen-trackpad-movement-selector button.active {
+  color: var(--text);
+  background: var(--surface-raised);
+}
+
+.custom-screen-trackpad.gyro-engaged {
+  border-color: var(--accent);
 }
 
 .custom-screen-trackpad-layout.is-fullscreen .custom-screen-trackpad {

@@ -35,6 +35,7 @@ export function buttonGrid(id, name, buttons, options = {}) {
     trackpadButtonSide: "right",
     initiallyExpanded: options.initiallyExpanded ?? true,
     trackpadFullscreenControl: false,
+    trackpadGyroControl: false,
     buttonAlignment: options.buttonAlignment ?? "space-evenly"
   };
 }
@@ -62,7 +63,8 @@ export function trackpad(id, options = {}) {
     ...buttonGrid(id, options.name ?? "Trackpad", [], options),
     kind: options.collapsible ? "collapsibleTrackpad" : "trackpad",
     heightMode: options.heightMode ?? "fill",
-    trackpadFullscreenControl: options.fullscreen ?? true
+    trackpadFullscreenControl: options.fullscreen ?? true,
+    trackpadGyroControl: options.gyro ?? false
   };
 }
 

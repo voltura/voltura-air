@@ -80,6 +80,7 @@ function projectSection(source: unknown, index: number): CustomScreenSectionDefi
     trackpadRightClick: boolean(value(section, "trackpadRightClick"), true),
     trackpadButtonSide: value(section, "trackpadButtonSide") === "left" ? "left" : "right",
     trackpadFullscreenControl: boolean(value(section, "trackpadFullscreenControl"), false),
+    trackpadGyroControl: boolean(value(section, "trackpadGyroControl"), false),
     trackpadEnabled: true,
     volumeEnabled: true,
     portrait: projectLayout(value(section, "portrait")),

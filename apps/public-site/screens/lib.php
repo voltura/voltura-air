@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 const AIR_SCREEN_MAX_BYTES = 8 * 1024 * 1024;
 const AIR_SCREEN_ORIGIN = 'https://voltura.se/air';
+const AIR_SCREEN_MAX_BUTTON_ROWS = 6;
 
 session_set_cookie_params([
     'httponly' => true,
@@ -463,7 +464,7 @@ function air_screen_validate_package(string $json): array
     $buttonIds = [];
     foreach ($sections as $section) {
         if (is_array($section)) {
-            air_screen_require_exact_keys($section, ['id', 'name', 'showHeader', 'widthColumns', 'heightMode', 'fillWeight', 'rowLimit', 'portrait', 'landscape', 'buttons', 'kind', 'trackpadLeftClick', 'trackpadRightClick', 'trackpadButtonSide', 'initiallyExpanded', 'trackpadFullscreenControl', 'buttonAlignment'], ['id', 'name', 'showHeader', 'widthColumns', 'heightMode', 'fillWeight', 'rowLimit', 'buttons', 'kind', 'trackpadLeftClick', 'trackpadRightClick', 'trackpadButtonSide', 'initiallyExpanded', 'trackpadFullscreenControl', 'buttonAlignment']);
+            air_screen_require_exact_keys($section, ['id', 'name', 'showHeader', 'widthColumns', 'heightMode', 'fillWeight', 'rowLimit', 'portrait', 'landscape', 'buttons', 'kind', 'trackpadLeftClick', 'trackpadRightClick', 'trackpadButtonSide', 'initiallyExpanded', 'trackpadFullscreenControl', 'trackpadGyroControl', 'buttonAlignment'], ['id', 'name', 'showHeader', 'widthColumns', 'heightMode', 'fillWeight', 'rowLimit', 'buttons', 'kind', 'trackpadLeftClick', 'trackpadRightClick', 'trackpadButtonSide', 'initiallyExpanded', 'trackpadFullscreenControl', 'buttonAlignment']);
         }
         $sectionButtons = is_array($section) ? ($section['buttons'] ?? null) : null;
         if (!is_array($section) || !is_array($sectionButtons)) {
@@ -523,12 +524,13 @@ function air_screen_validate_section(array $section): bool
         !is_int($width) || !in_array($width, $widths, true) ||
         !in_array($section['heightMode'] ?? null, ['content', 'fill'], true) ||
         !is_int($section['fillWeight'] ?? null) || $section['fillWeight'] < 1 || $section['fillWeight'] > 4 ||
-        !is_int($section['rowLimit'] ?? null) || $section['rowLimit'] < 0 || $section['rowLimit'] > 3 ||
+        !is_int($section['rowLimit'] ?? null) || $section['rowLimit'] < 0 || $section['rowLimit'] > AIR_SCREEN_MAX_BUTTON_ROWS ||
         !in_array($kind, ['buttons', 'collapsible', 'trackpad', 'collapsibleTrackpad', 'volume', 'navigationRing', 'dpad'], true) ||
         !in_array($section['trackpadButtonSide'] ?? null, ['left', 'right'], true) ||
         !in_array($section['buttonAlignment'] ?? null, ['start', 'center', 'end', 'space-between', 'space-around', 'space-evenly'], true) ||
         !is_bool($section['trackpadLeftClick'] ?? null) || !is_bool($section['trackpadRightClick'] ?? null) ||
         !is_bool($section['initiallyExpanded'] ?? null) || !is_bool($section['trackpadFullscreenControl'] ?? null) ||
+        (array_key_exists('trackpadGyroControl', $section) && !is_bool($section['trackpadGyroControl'])) ||
         !air_screen_validate_layout($section['portrait'] ?? null, true) ||
         !air_screen_validate_layout($section['landscape'] ?? null, true)) {
         return false;
@@ -571,7 +573,7 @@ function air_screen_validate_layout(mixed $layout, bool $section): bool
     if (!is_int($layout['order']) || $layout['order'] < 0 || !is_bool($layout['visible'])) { return false; }
     if (isset($layout['widthColumns']) && (!$section || !is_int($layout['widthColumns']) || !in_array($layout['widthColumns'], [3, 4, 6, 8, 9, 12], true))) { return false; }
     if (isset($layout['size']) && ($section || !in_array($layout['size'], ['compact', 'standard', 'wide', 'fill'], true))) { return false; }
-    return !isset($layout['row']) || (!$section && is_int($layout['row']) && $layout['row'] >= 0 && $layout['row'] <= 3);
+    return !isset($layout['row']) || (!$section && is_int($layout['row']) && $layout['row'] >= 0 && $layout['row'] <= AIR_SCREEN_MAX_BUTTON_ROWS);
 }
 
 function air_screen_validate_action(array $action): bool

@@ -563,7 +563,7 @@ Success is:
 
 The complete result is bounded by the transport's 64 KiB message limit before
 the host accepts a Save. Sections contain ID, name, optional-header state,
-12-column width, `content`/`fill` height and weight, zero-to-three button rows,
+12-column width, `content`/`fill` height and weight, zero-to-six button rows,
 `buttonAlignment` (`start`, `center`, `end`, `space-between`, `space-around`, or
 `space-evenly`), optional portrait/landscape overrides, and a `buttons`,
 `trackpad`, `volume`, or `navigationRing` kind.
@@ -574,8 +574,10 @@ Collapsible panels use `kind: "buttons"` plus the optional
 name as the mobile toggle header, and may include `initiallyExpanded` for the
 host-saved default state. Collapsible trackpads use `kind: "trackpad"` with the
 same collapsible fields. Trackpad sections may include
-`trackpadFullscreenControl`; maximizing is local UI state and Restore returns
-the section to its saved responsive position. Buttons contain only
+`trackpadFullscreenControl` and `trackpadGyroControl`; maximizing is local UI
+state and Restore returns the section to its saved responsive position. When
+Gyro is enabled, the mobile trackpad exposes its Touch/Gyro movement selector;
+Gyro permission and sensor availability remain client runtime state. Buttons contain only
 visual/accessibility fields, row, repeat state, and resolved
 availability/reason. A Laser pointer button additionally receives only
 `laserPointerColor` (`default`, `red`, `green`, or `blue`); a missing field

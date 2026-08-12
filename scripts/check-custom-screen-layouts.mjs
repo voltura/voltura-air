@@ -8,7 +8,40 @@ import { officialScreens } from "./custom-screens/catalog.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const assets = path.join(root, "apps", "public-site", "screens", "assets");
-const screens = new Map(officialScreens.map(definition => [definition.screen.id, definition.screen]));
+const sixRowSource = officialScreens.find(definition =>
+  definition.screen.id === "official.windows")?.screen;
+if (!sixRowSource) {
+  throw new Error("The Windows screen fixture is unavailable.");
+}
+const sixRowScreens = [
+  { id: "layout-test.six-rows-content", heightMode: "content", collapsible: false },
+  { id: "layout-test.six-rows-fill", heightMode: "fill", collapsible: false },
+  { id: "layout-test.six-rows-collapsible-fill", heightMode: "fill", collapsible: true }
+].map(({ id, heightMode, collapsible }) => {
+  const screen = structuredClone(sixRowSource);
+  const section = structuredClone(screen.sections[0]);
+  section.id = `${id}.section`;
+  section.name = "Six rows";
+  section.heightMode = heightMode;
+  section.rowLimit = 6;
+  section.kind = collapsible ? "collapsible" : "buttons";
+  section.showHeader = true;
+  section.initiallyExpanded = true;
+  section.buttons = section.buttons.slice(0, 6).map((button, index) => ({
+    ...button,
+    row: index + 1
+  }));
+  screen.id = id;
+  screen.name = "Six rows";
+  screen.sections = [section];
+  return { screen };
+});
+const layoutCases = [
+  ...officialScreens.map(definition => ({ ...definition, expectedRows: null })),
+  ...sixRowScreens.map(definition => ({ ...definition, expectedRows: 6 }))
+];
+const screens = new Map(layoutCases.map(definition =>
+  [definition.screen.id, definition.screen]));
 const server = createServer(async (request, response) => {
   try {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
@@ -47,14 +80,15 @@ try {
 }
 try {
   const page = await browser.newPage();
-  for (const definition of officialScreens) {
+  for (const definition of layoutCases) {
     const expectedButtons = definition.screen.sections.reduce((count, section) => count + section.buttons.length, 0);
     for (const viewport of [{ width: 360, height: 640 }, { width: 640, height: 360 }]) {
       await page.setViewportSize(viewport);
       await page.goto(`${baseUrl}/preview?id=${encodeURIComponent(definition.screen.id)}`);
       await page.locator(".custom-screen-preview-notice").waitFor();
-      const result = await page.evaluate(expected => {
+      const result = await page.evaluate(({ expectedButtons, expectedRows }) => {
         const buttons = [...document.querySelectorAll(".custom-screen-button")];
+        const rows = [...document.querySelectorAll(".custom-screen-button-row")];
         const clippedButtons = buttons.filter(button => {
           const rect = button.getBoundingClientRect();
           const section = button.closest(".custom-screen-section")?.getBoundingClientRect();
@@ -73,21 +107,34 @@ try {
             clientHeight: label.clientHeight,
             scrollHeight: label.scrollHeight
           })));
+        const grid = document.querySelector(".custom-screen-grid");
+        const lastRow = rows.at(-1);
+        lastRow?.scrollIntoView({ block: "end" });
+        const gridBounds = grid?.getBoundingClientRect();
+        const lastRowBounds = lastRow?.getBoundingClientRect();
         return {
           buttonCount: buttons.length,
+          rowCount: rows.length,
           clippedButtons,
           clippedLabels,
           horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
-          expected
+          lastRowReachable: expectedRows === null || Boolean(
+            gridBounds && lastRowBounds &&
+            lastRowBounds.top >= gridBounds.top - 1 &&
+            lastRowBounds.bottom <= gridBounds.bottom + 1),
+          expectedButtons,
+          expectedRows
         };
-      }, expectedButtons);
-      if (result.buttonCount !== expectedButtons || result.clippedButtons.length > 0 ||
-          result.clippedLabels.length > 0 || result.horizontalOverflow) {
+      }, { expectedButtons, expectedRows: definition.expectedRows });
+      if (result.buttonCount !== expectedButtons ||
+          (definition.expectedRows !== null && result.rowCount !== definition.expectedRows) ||
+          result.clippedButtons.length > 0 || result.clippedLabels.length > 0 ||
+          result.horizontalOverflow || !result.lastRowReachable) {
         throw new Error(`${definition.screen.id} failed ${viewport.width}x${viewport.height}: ${JSON.stringify(result)}`);
       }
     }
   }
-  process.stdout.write(`Checked ${officialScreens.length} Custom Screens in portrait and landscape.\n`);
+  process.stdout.write(`Checked ${layoutCases.length} Custom Screens in portrait and landscape.\n`);
 } finally {
   await browser.close();
   await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));

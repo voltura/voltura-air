@@ -196,15 +196,17 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 - The editor calls its responsive containers panels and uses them rather than
   free coordinates. Regular and collapsible button panels use a 12-column outer
   grid, six snapped widths, content or weighted fill height, and automatic or
-  one-to-three explicit button rows. Each button panel places its intrinsic
+  one-to-six explicit button rows. Each button panel places its intrinsic
   button widths using Start, Center, End, Space between, Space around, or Space
-  evenly; Start is the default. A collapsible panel requires its name as a
+  evenly; Start is the default. Fill-height button panels grow to contain their
+  configured rows, and the workspace scrolls vertically when those rows exceed
+  the available client height. A collapsible panel requires its name as a
   toggle header while retaining the regular panel properties. Its folded state
   in the preview is saved as the device default. Regular and collapsible
   trackpad panels use those same snapped widths, wrapping, content/fill height,
   fill-weight, and orientation rules. They offer optional Left/Right buttons
-  beneath the surface in either order and an optional fullscreen/restore
-  control.
+  beneath the surface in either order, an optional fullscreen/restore control,
+  and an optional Touch/Gyro movement selector.
 - A standalone Volume slider component reuses the normal mobile volume control
   and existing device volume permission. It occupies 25%, 50%, 75%, or 100% of
   the custom-screen row and may use independent orientation width, order, and

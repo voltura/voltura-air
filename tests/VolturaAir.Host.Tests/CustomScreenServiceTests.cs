@@ -457,7 +457,8 @@ public sealed class CustomScreenServiceTests
             HeightMode = "fill",
             FillWeight = 3,
             TrackpadButtonSide = "left",
-            TrackpadFullscreenControl = true
+            TrackpadFullscreenControl = true,
+            TrackpadGyroControl = true
         };
         draft = draft with
         {
@@ -479,6 +480,7 @@ public sealed class CustomScreenServiceTests
         Assert.Equal(3, section.FillWeight);
         Assert.Equal("left", section.TrackpadButtonSide);
         Assert.True(section.TrackpadFullscreenControl);
+        Assert.True(section.TrackpadGyroControl);
         Assert.False(section.TrackpadEnabled);
         Assert.Contains("Remote input", section.TrackpadUnavailableReason);
     }
@@ -494,6 +496,7 @@ public sealed class CustomScreenServiceTests
             WidthColumns = 8,
             FillWeight = 2,
             InitiallyExpanded = false,
+            TrackpadGyroControl = true,
             Portrait = new CustomScreenLayoutOverride(2, true, 12),
             Landscape = new CustomScreenLayoutOverride(0, true, 6)
         };
@@ -515,6 +518,7 @@ public sealed class CustomScreenServiceTests
         Assert.Equal("trackpad", section.Kind);
         Assert.True(section.Collapsible);
         Assert.False(section.InitiallyExpanded);
+        Assert.True(section.TrackpadGyroControl);
         Assert.Equal(12, section.Portrait!.WidthColumns);
         Assert.Equal(6, section.Landscape!.WidthColumns);
         Assert.Equal(2, section.FillWeight);

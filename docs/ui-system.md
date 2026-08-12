@@ -121,10 +121,13 @@ Custom screens use a 12-column responsive outer grid. User-facing panels are
 stored as sections; they flow in saved order and wrap. Width choices map to 3,
 4, 6, 8, 9, or 12 columns. Two
 consecutive 6-column panels share one row at every preview width. Regular and
-collapsible button panels use automatic placement or one-to-three visible row
+collapsible button panels use automatic placement or one-to-six visible row
 targets. Button rows use intrinsic control widths and a saved Start, Center,
 End, Space between, Space around, or Space evenly distribution; Start is the
-default. A collapsible panel has a required full-width toggle header and,
+default. Fill-height button panels retain their intrinsic row height and make
+the workspace scroll vertically when the viewport cannot contain every row; row
+controls do not shrink below their standard touch targets. A collapsible panel
+has a required full-width toggle header and,
 when expanded, follows the same content/fill sizing and weight rules as a
 regular panel. Folding it in the preview changes the persisted default state;
 mobile starts there and permits a local fold or unfold. The Windows editor and

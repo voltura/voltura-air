@@ -689,9 +689,12 @@ export function App() {
         ) : activeCustomScreenId !== null ? (
           <CustomScreenWorkspace
             audioState={connection.audioState}
+            connectionEpoch={connectionEpoch}
             definition={customScreenDefinition?.id === activeCustomScreenId ? customScreenDefinition : null}
             error={customScreenGetResult?.succeeded === false ? customScreenGetResult.message ?? "The custom screen could not be loaded." : null}
+            gyroActivationRequest={gyroActivationRequest}
             invoke={invokeCustomScreenButton}
+            onGyroSelectedChange={handleGyroSelectedChange}
             onBack={() => { setActiveCustomScreenId(null); }}
             pendingButtonIds={pendingCustomScreenButtonIds}
             presentationCapability={presentationCapability}

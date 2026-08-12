@@ -479,6 +479,87 @@ describe("App header and mode navigation", () => {
     expect(screen.getByLabelText("Dictation text")).toBeTruthy();
   });
 
+  it("shows a dismissible error dialog when a custom-screen definition is incompatible", () => {
+    mockConnection({
+      customScreensCapability: {
+        catalogRevision: "catalog.one",
+        screens: [{
+          id: "screen.gyro",
+          name: "Gyro controls",
+          revision: "revision.one"
+        }]
+      },
+      customScreenGetResult: {
+        type: "custom.screen.get.result",
+        operationId: "operation-incompatible",
+        succeeded: false,
+        code: "VAIR-CUSTOM-SCREEN-INCOMPATIBLE",
+        message: "This custom screen uses features this version of the app cannot display. Refresh the app and try again."
+      }
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    const menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog");
+    fireEvent.click(within(menu!).getByRole("button", { name: "Gyro controls" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Custom screen unavailable" });
+    expect(dialog.textContent).toContain("Refresh the app and try again.");
+    expect(dialog.textContent).toContain("Diagnostic code: VAIR-CUSTOM-SCREEN-INCOMPATIBLE");
+    fireEvent.click(within(dialog).getByRole("button", { name: "OK" }));
+    expect(screen.queryByRole("dialog", { name: "Custom screen unavailable" })).toBeNull();
+    expect(screen.getByRole("alert").textContent).toContain("Refresh the app and try again.");
+  });
+
+  it("shows reconnect actions instead of a custom-screen error after host communication is lost", () => {
+    const connection = {
+      customScreensCapability: {
+        catalogRevision: "catalog.one",
+        screens: [{
+          id: "screen.gyro",
+          name: "Gyro controls",
+          revision: "revision.one"
+        }]
+      },
+      customScreenGetResult: {
+        type: "custom.screen.get.result" as const,
+        operationId: "operation-incompatible",
+        succeeded: false,
+        code: "VAIR-CUSTOM-SCREEN-INCOMPATIBLE",
+        message: "This custom screen uses features this version of the app cannot display. Refresh the app and try again."
+      }
+    };
+    mockConnection(connection);
+    const view = render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    const menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog");
+    fireEvent.click(within(menu!).getByRole("button", { name: "Gyro controls" }));
+    expect(screen.getByRole("dialog", { name: "Custom screen unavailable" })).not.toBeNull();
+
+    mockConnection({
+      ...connection,
+      state: "unavailable",
+      message: "HTPC-BEE is currently not available.",
+      lastConnectionError: {
+        code: "VAIR-PAIR-HOST-UNREACHABLE",
+        message: "HTPC-BEE is currently not available. Check that Voltura Air is running on the PC. Retrying..."
+      },
+      activePc: {
+        customName: true,
+        id: "pc-a",
+        name: "HTPC-BEE",
+        transportMode: "secure-direct",
+        url: "https://secure-direct.invalid"
+      }
+    });
+    view.rerender(<App />);
+
+    expect(screen.queryByRole("dialog", { name: "Custom screen unavailable" })).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Secure Direct unavailable" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Try reconnect" })).not.toBeNull();
+  });
+
   it("hides mode-button rows on a custom screen and leaves through the compact selector", () => {
     mockConnection({
       customScreensCapability: {

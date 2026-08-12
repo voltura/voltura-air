@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { parseServerMessage } from "./connectionProtocol";
+import {
+  parseRejectedCustomScreenGetResult,
+  parseServerMessage
+} from "./connectionProtocol";
 
 describe("custom-screen button-row protocol", () => {
   const frame = {
@@ -53,13 +56,44 @@ describe("custom-screen button-row protocol", () => {
   });
 
   it("rejects a seventh section row", () => {
-    expect(parseServerMessage(JSON.stringify({
+    const rejectedFrame = JSON.stringify({
       ...frame,
       screen: {
         ...frame.screen,
         sections: [{ ...frame.screen.sections[0], rowLimit: 7 }]
       }
+    });
+
+    expect(parseServerMessage(rejectedFrame)).toBeNull();
+    expect(parseRejectedCustomScreenGetResult(rejectedFrame)).toEqual({
+      type: "custom.screen.get.result",
+      operationId: frame.operationId
+    });
+  });
+
+  it("does not classify valid or uncorrelatable frames as rejected screen results", () => {
+    expect(parseRejectedCustomScreenGetResult(JSON.stringify(frame))).toBeNull();
+    expect(parseRejectedCustomScreenGetResult(JSON.stringify({
+      ...frame,
+      operationId: "invalid operation id",
+      screen: {
+        ...frame.screen,
+        sections: [{ ...frame.screen.sections[0], rowLimit: 7 }]
+      }
     }))).toBeNull();
+  });
+
+  it("does not classify unrelated malformed correlated results as rejected definitions", () => {
+    const malformedResults = [
+      { ...frame, succeeded: "yes" },
+      { type: frame.type, operationId: frame.operationId, succeeded: false },
+      { ...frame, code: 12 },
+      { type: frame.type, operationId: frame.operationId, succeeded: true }
+    ];
+
+    for (const malformedResult of malformedResults) {
+      expect(parseRejectedCustomScreenGetResult(JSON.stringify(malformedResult))).toBeNull();
+    }
   });
 
   it("rejects a seventh button row", () => {

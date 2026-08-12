@@ -36,6 +36,7 @@ import {
   getPcDisconnectedMessage,
   getPcUnavailableMessage,
   normalizeAudioState,
+  parseRejectedCustomScreenGetResult,
   parseServerMessage
 } from "./connectionProtocol";
 import { requestHostState, trySendClientMessage } from "./connectionSocketMessages";
@@ -75,6 +76,7 @@ interface ConnectionSocketLifecycleOptions {
   completeClipboardRead: (result: ClipboardGetResultMessage) => boolean;
   completeCustomScreenGet: (result: CustomScreenGetResultMessage) => boolean;
   completeCustomScreenInvoke: (result: CustomScreenInvokeResultMessage) => boolean;
+  rejectCustomScreenGet: (operationId: string) => boolean;
   completeScreenViewMessage: (result: ScreenViewSourcesResultMessage | ScreenViewStartResultMessage | ScreenViewAnswerResultMessage | ScreenViewSourceResultMessage | ScreenViewStopResultMessage | ScreenViewEndedMessage) => void;
   completeFileManagerMessage: (result: FileManagerServerMessage) => void;
   completePowerAction: (result: SystemPowerResultMessage) => boolean;
@@ -125,6 +127,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
     completeClipboardRead: completeClipboardReadState,
     completeCustomScreenGet: completeCustomScreenGetState,
     completeCustomScreenInvoke: completeCustomScreenInvokeState,
+    rejectCustomScreenGet: rejectCustomScreenGetState,
     completeScreenViewMessage: completeScreenViewMessageState,
     completeFileManagerMessage: completeFileManagerMessageState,
     completePowerAction: completePowerActionState,
@@ -172,6 +175,7 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
   const completeClipboardRead = useEffectEvent(completeClipboardReadState);
   const completeCustomScreenGet = useEffectEvent(completeCustomScreenGetState);
   const completeCustomScreenInvoke = useEffectEvent(completeCustomScreenInvokeState);
+  const rejectCustomScreenGet = useEffectEvent(rejectCustomScreenGetState);
   const completeScreenViewMessage = useEffectEvent(completeScreenViewMessageState);
   const completeFileManagerMessage = useEffectEvent(completeFileManagerMessageState);
   const completePowerAction = useEffectEvent(completePowerActionState);
@@ -570,6 +574,12 @@ export function useConnectionSocketLifecycle(options: ConnectionSocketLifecycleO
       function handleSocketMessage(messageData: unknown) {
         const response = parseServerMessage(messageData);
         if (!response) {
+          const rejectedCustomScreenResult = parseRejectedCustomScreenGetResult(messageData);
+          if (rejectedCustomScreenResult) {
+            touchHealthy();
+            rejectCustomScreenGet(rejectedCustomScreenResult.operationId);
+            scheduleHealthCheck(ws);
+          }
           return;
         }
   

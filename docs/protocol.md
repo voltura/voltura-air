@@ -587,6 +587,12 @@ text. Screen JSON cannot select or weaken that safety policy. Literal text,
 shortcut payloads, URLs, executable details, known-app mappings, and host
 action IDs are never sent.
 
+If a correlated `custom.screen.get.result` envelope is recognizable but its
+screen definition fails client protocol validation, the mobile client completes
+the pending load with a refresh-required compatibility error instead of leaving
+the screen loading. That error dialog is shown only while paired; connection-loss
+recovery and its reconnect actions take precedence.
+
 When a saved screen contains exactly one distinct `knownApp` action, that
 application is the target for the whole screen. The host projects every button,
 navigation control, trackpad, and volume section as unavailable while the

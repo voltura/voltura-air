@@ -8,6 +8,10 @@ import type {
 } from "../protocol/messages";
 import type { ConnectionState } from "./connectionTypes";
 
+export const incompatibleCustomScreenResponseCode = "VAIR-CUSTOM-SCREEN-INCOMPATIBLE";
+export const incompatibleCustomScreenResponseMessage =
+  "This custom screen uses features this version of the app cannot display. Refresh the app and try again.";
+
 export function useCustomScreens(
   state: ConnectionState,
   connectionEpoch: number,
@@ -96,6 +100,25 @@ export function useCustomScreens(
     return true;
   }, [catalogRevision, connectionEpoch]);
 
+  const rejectCustomScreenGet = useCallback((operationId: string) => {
+    if (pendingGetRef.current?.operationId !== operationId ||
+        pendingGetRef.current.connectionEpoch !== connectionEpoch) {
+      return false;
+    }
+
+    const result: CustomScreenGetResultMessage = {
+      type: "custom.screen.get.result",
+      operationId,
+      succeeded: false,
+      code: incompatibleCustomScreenResponseCode,
+      message: incompatibleCustomScreenResponseMessage
+    };
+    pendingGetRef.current = null;
+    setGetResultState({ connectionEpoch, value: result });
+    setDefinitionState({ catalogRevision, connectionEpoch, value: null });
+    return true;
+  }, [catalogRevision, connectionEpoch]);
+
   const completeCustomScreenInvoke = useCallback((result: CustomScreenInvokeResultMessage) => {
     const pending = pendingInvokesRef.current.get(result.operationId);
     if (pending?.connectionEpoch !== connectionEpoch) {
@@ -144,6 +167,7 @@ export function useCustomScreens(
       pendingButtonsState.connectionEpoch === connectionEpoch
       ? pendingButtonsState.values
       : new Set<string>(),
+    rejectCustomScreenGet,
     requestCustomScreen
   };
 }

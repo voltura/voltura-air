@@ -141,6 +141,33 @@ export function parseServerMessage(data: unknown): ServerMessage | null {
   }
 }
 
+export function parseRejectedCustomScreenGetResult(
+  data: unknown
+): { type: "custom.screen.get.result"; operationId: string } | null {
+  if (typeof data !== "string") {
+    return null;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(data);
+    if (isServerMessage(parsed) ||
+        !isRecord(parsed) ||
+        parsed.type !== "custom.screen.get.result" ||
+        !isOperationId(parsed.operationId) ||
+        parsed.succeeded !== true ||
+        !Object.hasOwn(parsed, "screen") ||
+        isCustomScreenDefinition(parsed.screen) ||
+        !isOptional(parsed, "code", isString) ||
+        !isOptional(parsed, "message", isString)) {
+      return null;
+    }
+
+    return { type: parsed.type, operationId: parsed.operationId };
+  } catch {
+    return null;
+  }
+}
+
 function isServerMessage(value: unknown): value is ServerMessage {
   if (!isRecord(value) || typeof value.type !== "string") {
     return false;

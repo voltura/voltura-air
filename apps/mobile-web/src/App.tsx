@@ -24,6 +24,7 @@ import { useOneShotHint } from "./ui/guidance/useOneShotHint";
 import { ConfirmationDialog } from "./ui/overlays/ConfirmationDialog";
 import { ErrorDialog } from "./ui/overlays/ErrorDialog";
 import { CustomScreenWorkspace } from "./features/custom-screens";
+import { incompatibleCustomScreenResponseCode } from "./foundation/connection/useCustomScreens";
 import { WorkspaceErrorBoundary } from "./app/WorkspaceErrorBoundary";
 import { subscribeFileManagerResults } from "./foundation/connection/fileManagerResultBus";
 import { ThirdPartyNoticesWorkspace } from "./features/legal";
@@ -120,6 +121,10 @@ export function App() {
   if (connectionErrorDialog.key !== connectionErrorKey) {
     setConnectionErrorDialog({ key: connectionErrorKey, dismissed: false });
   }
+  const incompatibleCustomScreenResult = customScreenGetResult?.code === incompatibleCustomScreenResponseCode
+    ? customScreenGetResult
+    : null;
+  const [dismissedCustomScreenErrorId, setDismissedCustomScreenErrorId] = useState<string | null>(null);
   const inputBlockedByElevation = hostStatus?.inputBlockedByElevation === true;
   const [inputRecoveryDialog, setInputRecoveryDialog] = useState({
     blocked: inputBlockedByElevation,
@@ -578,6 +583,19 @@ export function App() {
             setConnectionErrorDialog((current) => ({ ...current, dismissed: true }));
           }}
           title="Connection issue"
+        />
+
+        <ErrorDialog
+          code={incompatibleCustomScreenResponseCode}
+          isOpen={state === "paired" &&
+            activeCustomScreenId !== null &&
+            incompatibleCustomScreenResult !== null &&
+            dismissedCustomScreenErrorId !== incompatibleCustomScreenResult.operationId}
+          message={incompatibleCustomScreenResult?.message ?? ""}
+          onClose={() => {
+            setDismissedCustomScreenErrorId(incompatibleCustomScreenResult?.operationId ?? null);
+          }}
+          title="Custom screen unavailable"
         />
 
         <SettingsDrawer

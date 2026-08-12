@@ -1111,6 +1111,62 @@ describe("useVolturaAirConnection", () => {
     }
   });
 
+  it("keeps the connection healthy after a correlated incompatible custom-screen response", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const pcUrl = "http://pc.local:51395";
+      const pc = pairedPc({ customName: false, id: pcUrl, name: "PC", url: pcUrl });
+      localStorage.setItem("voltura-air.clientId", "client-a");
+      localStorage.setItem("voltura-air.pcProfiles", JSON.stringify([pc]));
+      localStorage.setItem("voltura-air.activePcId", pc.id);
+      storeReconnectKey("client-a", pc.id);
+
+      const { result } = renderHook(() => useVolturaAirConnection());
+      await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(1); });
+      const socket = getSocket(0);
+      socket.readyState = MockWebSocket.OPEN;
+      dispatchSocketEvent(socket, "open");
+      dispatchSocketEvent(socket, "message", {
+        data: JSON.stringify({
+          type: "pair.accepted",
+          clientId: "client-a",
+          pcName: "PC",
+          paired: true,
+        }),
+      });
+
+      act(() => { result.current.requestCustomScreen("screen.future"); });
+      const request = socket.send.mock.calls
+        .map(([payload]) => JSON.parse(payload as string) as { type?: string; operationId?: string })
+        .find((payload) => payload.type === "custom.screen.get");
+
+      await act(() => vi.advanceTimersByTime(10_000));
+      expect(socket.send).toHaveBeenCalledWith(JSON.stringify({ type: "health.ping" }));
+      dispatchSocketEvent(socket, "message", {
+        data: JSON.stringify({
+          type: "custom.screen.get.result",
+          operationId: request?.operationId,
+          succeeded: true,
+          screen: {
+            id: "screen.future",
+            name: "A custom screen name over 24 characters",
+            revision: "revision.future",
+            orientationLayoutsEnabled: false,
+            showNavigationHeader: true,
+            sections: [],
+          },
+        }),
+      });
+
+      expect(result.current.customScreenGetResult?.code).toBe("VAIR-CUSTOM-SCREEN-INCOMPATIBLE");
+      await act(() => vi.advanceTimersByTime(6500));
+      expect(result.current.state).toBe("paired");
+      expect(socket.close).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("keeps sending health pings while presentation status is pushed repeatedly", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {

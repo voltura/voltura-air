@@ -136,6 +136,7 @@ export function useVolturaAirConnection() {
     customScreenInvokeResult,
     invokeCustomScreenButton,
     pendingCustomScreenButtonIds,
+    rejectCustomScreenGet,
     requestCustomScreen
   } = useCustomScreens(state, connectionEpoch, customScreensCapability?.catalogRevision, send);
   useConnectionSocketLifecycle({
@@ -146,6 +147,7 @@ export function useVolturaAirConnection() {
     completeClipboardRead: completeClipboardReadState,
     completeCustomScreenGet,
     completeCustomScreenInvoke,
+    rejectCustomScreenGet,
     completeScreenViewMessage: publishScreenViewResult,
     completeFileManagerMessage: publishFileManagerResult,
     completePowerAction: completePowerActionState,

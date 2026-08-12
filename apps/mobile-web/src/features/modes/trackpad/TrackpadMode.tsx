@@ -410,7 +410,7 @@ const disabledGyro = {
 function gyroMessage(availability: GyroAvailability): string {
   if (availability === "insecure") {return "Gyro requires Enhanced capabilities over HTTPS";}
   if (availability === "missing-api") {return "Motion sensors are unavailable in this browser";}
-  if (availability === "denied") {return "Motion permission was denied";}
+  if (availability === "denied") {return "Motion access denied. Reopen Voltura Air or check browser permissions";}
   if (availability === "no-data") {return "No motion sensor data received";}
   return "Hold to move";
 }

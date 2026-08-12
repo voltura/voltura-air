@@ -102,8 +102,9 @@ pointer movement.
 
 Gyro requires a sensor-equipped phone or tablet using Enhanced capabilities.
 Open Gyro from its button so the browser can request motion access; on iPhone,
-approve the motion/orientation prompt. If access was denied, use the browser or
-device settings to restore it, then try again.
+approve the motion/orientation prompt. If Retry does not show the prompt again in
+a bookmarked Home Screen app, fully close and reopen Voltura Air, then try Gyro
+again. If access remains denied, use the browser or device settings to restore it.
 
 Keep the page visible and hold the Trackpad surface or a mouse button while
 moving the device. Gyro deliberately stops on release, when the page is hidden,

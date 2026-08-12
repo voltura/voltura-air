@@ -68,6 +68,20 @@ describe("TrackpadMode volume control", () => {
 });
 
 describe("TrackpadMode gyro movement", () => {
+  it("gives platform-neutral recovery guidance for a denied motion decision", () => {
+    render(<TrackpadMode {...baseProps} gyro={{
+      availability: "denied",
+      enableFromUserGesture: vi.fn(),
+      engaged: false,
+      selected: true,
+      setEngaged: vi.fn(),
+      setSelected: vi.fn()
+    }} />);
+
+    expect(screen.getByText("Motion access denied. Reopen Voltura Air or check browser permissions")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
+  });
+
   it("keeps a surface press motion-free until it becomes a hold", () => {
     vi.useFakeTimers();
     const setEngaged = vi.fn();

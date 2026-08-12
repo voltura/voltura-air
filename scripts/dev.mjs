@@ -1,6 +1,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readPreferredClientPort, stopChild, stopExistingHost, stopWindowsNodeListenersOnDevPorts } from "./dev-shared.mjs";
+import { createDevProgress } from "./dev-progress.mjs";
 
 const clientPort = readPreferredClientPort();
 const quickStart = process.argv.includes("--quick");
@@ -16,20 +17,34 @@ if (quickStart) {
 const children = [];
 const persistentChildren = [];
 let shuttingDown = false;
+const quickProgress = quickStart ? createDevProgress({ totalSteps: 3 }) : null;
+const quickStartedAt = Date.now();
 
 if (quickStart) {
-  console.log("Quick development: rebuilding current mobile sources before starting the host, without validation.");
+  quickProgress.start("Building mobile client", "Rebuilding current mobile sources without validation.");
   runCommand("npm", ["run", "build:quick", "--workspace", "apps/mobile-web"], childEnv);
+  quickProgress.complete();
 } else {
   runCommand("npm", ["run", "build", "--workspace", "apps/mobile-web"], childEnv);
 }
+if (quickStart) {
+  quickProgress.start("Preparing development ports", "Stopping stale Node listeners on the reserved development ports.");
+}
 stopWindowsNodeListenersOnDevPorts(clientPort, 20);
+if (quickStart) {
+  quickProgress.complete();
+}
 if (!quickStart) {
   persistentChildren.push(spawnCommand(
     "node",
     ["../../node_modules/vite/bin/vite.js", "--host", "0.0.0.0", "--strictPort", "--port", String(clientPort)],
     childEnv,
     { cwd: "apps/mobile-web" }));
+}
+if (quickStart) {
+  quickProgress.start("Starting Windows host", "Building and launching the host with the freshly generated mobile client.");
+  childEnv.VOLTURA_AIR_DEV_TOTAL_STARTED_AT = String(quickStartedAt);
+  childEnv.VOLTURA_AIR_DEV_HOST_STARTED_AT = String(Date.now());
 }
 persistentChildren.push(spawnCommand("npm", ["run", "dev:host"], childEnv));
 children.push(...persistentChildren);

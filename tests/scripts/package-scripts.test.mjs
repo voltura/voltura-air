@@ -97,6 +97,9 @@ test("quick development rebuilds the host-served client without validation", () 
   assert.doesNotMatch(devScript, /SKIP_CURSOR_WATCHDOG/u);
   assert.match(devScript, /delete childEnv\.VOLTURA_AIR_CLIENT_URL/u);
   assert.match(devScript, /if \(quickStart\)[\s\S]*runCommand\("npm", \["run", "build:quick"/u);
+  assert.match(devScript, /quickProgress\.start\("Building mobile client"/u);
+  assert.match(devScript, /quickProgress\.start\("Preparing development ports"/u);
+  assert.match(devScript, /quickProgress\.start\("Starting Windows host"/u);
   assert.doesNotMatch(devScript, /if \(quickStart\)[\s\S]*spawnCommand\("npm", \["run", "build:quick"/u);
   assert.match(devScript, /persistentChildren\.push\(spawnCommand\("npm", \["run", "dev:host"\]/u);
   assert.match(devScript, /if \(!quickStart\)[\s\S]*vite\.js/u);

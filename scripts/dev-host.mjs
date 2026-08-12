@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { access } from "node:fs/promises";
 import path from "node:path";
 import { getLanAddress, stopChild, stopExistingHost } from "./dev-shared.mjs";
+import { writeDevReady } from "./dev-progress.mjs";
 
 const clientEntryPath = path.resolve("apps", "mobile-web", "dist", "index.html");
 const clientFileRetryCount = 3;
@@ -10,6 +11,7 @@ const clientFileRetryDelayMs = 2000;
 const clientPort = process.env.VOLTURA_AIR_CLIENT_PORT ?? "5173";
 const restartExitCode = 23;
 let shuttingDown = false;
+let developmentReadyReported = false;
 const args = [
   "run",
   "--project",
@@ -47,7 +49,7 @@ function startHost() {
     stdio: ["inherit", "pipe", "inherit"],
     env: { ...process.env, VOLTURA_AIR_DEV_HOST: "1" }
   });
-  next.stdout.pipe(process.stdout);
+  pipeHostOutput(next);
   next.on("exit", (code, signal) => {
     if (shuttingDown) {
       return;
@@ -65,6 +67,31 @@ function startHost() {
     process.exit(code ?? 0);
   });
   return next;
+}
+
+function pipeHostOutput(host) {
+  const readyMarker = "Voltura Air phone client:";
+  let trailingOutput = "";
+
+  host.stdout.on("data", (chunk) => {
+    process.stdout.write(chunk);
+    if (developmentReadyReported || !process.env.VOLTURA_AIR_DEV_HOST_STARTED_AT) {
+      return;
+    }
+
+    const output = trailingOutput + chunk.toString();
+    if (output.includes(readyMarker)) {
+      developmentReadyReported = true;
+      const now = Date.now();
+      writeDevReady({
+        stepDurationMilliseconds: now - Number(process.env.VOLTURA_AIR_DEV_HOST_STARTED_AT),
+        totalDurationMilliseconds: now - Number(process.env.VOLTURA_AIR_DEV_TOTAL_STARTED_AT)
+      });
+      return;
+    }
+
+    trailingOutput = output.slice(-(readyMarker.length - 1));
+  });
 }
 
 function shutdown(signal) {

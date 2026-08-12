@@ -6,6 +6,12 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v0.9.4
+
+- Gyro mouse now supports double-clicking. Double-tap the Gyro area in Trackpad or Presentation to double-click. Tapping is also more reliable, with small hand movements less likely to move the pointer by accident.
+- Fixed an issue where the Custom pointer setting could show the wrong state after the pointer had been turned off.
+- Improved updating and uninstalling Voltura Air when the app is already running.
+
 ## v0.9.3
 
 - Added **Gyro mouse** for supported phones and tablets using **Enhanced

@@ -188,6 +188,10 @@ export function ModeWorkspace({
         audioState: displayedAudioState,
         isExpanded: isTrackpadExpanded,
         gyro,
+        onMouseButtonClick: (button) => {
+          triggerHapticFeedback(trackpadSettings);
+          emit({ type: "pointer.button", button, action: "click" });
+        },
         onMouseButtonDown: (button) => {
           triggerHapticFeedback(trackpadSettings);
           emit({ type: "pointer.button", button, action: "down" });

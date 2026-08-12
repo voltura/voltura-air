@@ -353,10 +353,13 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   **Scroll** or **Zoom** behavior so one gesture cannot be mistaken for the other.
 - The main Trackpad and Presentation's embedded Trackpad offer **Touch** and
   **Gyro** movement. Gyro mouse uses motion sensors in a phone or tablet while
-  the user holds the trackpad surface or either mouse button. It sends ordinary
-  pointer movement, so Presentation's separately controlled laser cursor moves
-  naturally without any sensor-specific host behavior. Screen View and Custom
-  screen trackpads remain touch-only.
+  the user holds the trackpad surface or either mouse button. A surface tap
+  clicks, and a double-tap uses the PC's configured double-click behavior. It
+  keeps the pointer still during short taps so normal hand movement does not
+  break double-click recognition, then begins pointer movement when the surface
+  is held. It sends ordinary pointer movement, so Presentation's separately
+  controlled laser cursor moves naturally without any sensor-specific host
+  behavior. Screen View and Custom screen trackpads remain touch-only.
 - Gyro mouse requires Enhanced capabilities over HTTPS (always present for
   Relay and available through Secure Direct). Motion permission is requested
   from the user's Gyro action and is never remembered as an active mode. Gyro

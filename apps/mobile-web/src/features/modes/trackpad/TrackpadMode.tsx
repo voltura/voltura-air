@@ -6,6 +6,7 @@ import type { AudioStateMessage } from "../../../foundation/protocol/messages";
 
 type MouseButtonName = "left" | "right";
 const gyroTapMaximumDurationMs = 300;
+const gyroHoldActivationDelayMs = gyroTapMaximumDurationMs + 1;
 
 interface TrackpadModeProps {
   audioState: AudioStateMessage | null;
@@ -31,6 +32,7 @@ interface TrackpadModeProps {
   onTouchEnd: (event: React.TouchEvent<HTMLDivElement>) => void;
   onTouchMove: (event: React.TouchEvent<HTMLDivElement>) => void;
   onTouchStart: (event: React.TouchEvent<HTMLDivElement>) => void;
+  onMouseButtonClick: (button: MouseButtonName) => void;
   onMouseButtonDown: (button: MouseButtonName) => void;
   onMouseButtonUp: (button: MouseButtonName) => void;
 }
@@ -52,23 +54,39 @@ export function TrackpadMode({
   onTouchEnd,
   onTouchMove,
   onTouchStart,
+  onMouseButtonClick,
   onMouseButtonDown,
   onMouseButtonUp
 }: TrackpadModeProps) {
   const activeButtonPointers = useRef(new Map<number, MouseButtonName>());
   const clutchPointerRef = useRef<number | null>(null);
+  const clutchEngagementTimerRef = useRef<number | null>(null);
+  const gyroClutchEngagedRef = useRef(false);
   const gyroTapRef = useRef<{ pointerId: number; startedAt: number; buttonWasHeld: boolean } | null>(null);
   const updateGyroEngagement = () => {
-    gyro.setEngaged(gyro.availability === "ready" && (clutchPointerRef.current !== null || activeButtonPointers.current.size > 0));
+    gyro.setEngaged(gyro.availability === "ready" && (gyroClutchEngagedRef.current || activeButtonPointers.current.size > 0));
+  };
+  const clearClutchEngagementTimer = () => {
+    if (clutchEngagementTimerRef.current !== null) {
+      window.clearTimeout(clutchEngagementTimerRef.current);
+      clutchEngagementTimerRef.current = null;
+    }
   };
   const startGyroClutch = (pointerId: number, startedAt: number) => {
     clutchPointerRef.current = pointerId;
+    gyroClutchEngagedRef.current = false;
     gyroTapRef.current = {
       pointerId,
       startedAt,
       buttonWasHeld: activeButtonPointers.current.size > 0
     };
-    updateGyroEngagement();
+    clearClutchEngagementTimer();
+    clutchEngagementTimerRef.current = window.setTimeout(() => {
+      clutchEngagementTimerRef.current = null;
+      if (clutchPointerRef.current !== pointerId) {return;}
+      gyroClutchEngagedRef.current = true;
+      updateGyroEngagement();
+    }, gyroHoldActivationDelayMs);
   };
   const finishGyroClutch = (pointerId: number, finishedAt: number, allowClick: boolean) => {
     if (clutchPointerRef.current !== pointerId) {return;}
@@ -76,18 +94,21 @@ export function TrackpadMode({
     const shouldClick = allowClick && tap?.pointerId === pointerId &&
       finishedAt - tap.startedAt <= gyroTapMaximumDurationMs &&
       !tap.buttonWasHeld && activeButtonPointers.current.size === 0;
+    clearClutchEngagementTimer();
     clutchPointerRef.current = null;
+    gyroClutchEngagedRef.current = false;
     gyroTapRef.current = null;
     updateGyroEngagement();
     if (shouldClick) {
-      onMouseButtonDown("left");
-      onMouseButtonUp("left");
+      onMouseButtonClick("left");
     }
   };
   const releaseAllMouseButtons = useEffectEvent(() => {
     const heldButtons = new Set(activeButtonPointers.current.values());
     activeButtonPointers.current.clear();
+    clearClutchEngagementTimer();
     clutchPointerRef.current = null;
+    gyroClutchEngagedRef.current = false;
     gyroTapRef.current = null;
     for (const button of heldButtons) {
       onMouseButtonUp(button);
@@ -116,7 +137,9 @@ export function TrackpadMode({
       return;
     }
     if (clutchPointerRef.current !== null || gyroTapRef.current !== null) {
+      clearClutchEngagementTimer();
       clutchPointerRef.current = null;
+      gyroClutchEngagedRef.current = false;
       gyroTapRef.current = null;
       gyro.setEngaged(false);
     }
@@ -299,7 +322,7 @@ export function TrackpadMode({
         {gyro.selected ? (
           <div
             className="gyro-clutch-content"
-            aria-label={gyro.availability === "ready" ? "Tap to click, hold to move the mouse" : undefined}
+            aria-label={gyro.availability === "ready" ? "Tap to click, double-tap to double-click, hold to move the mouse" : undefined}
             aria-live="polite"
             aria-pressed={gyro.availability === "ready" ? gyro.engaged : undefined}
             role={gyro.availability === "ready" ? "button" : undefined}
@@ -307,15 +330,13 @@ export function TrackpadMode({
             onBlur={gyro.availability === "ready" ? () => { gyro.setEngaged(false); } : undefined}
             onClick={gyro.availability === "ready" ? (event) => {
               if (event.detail === 0) {
-                onMouseButtonDown("left");
-                onMouseButtonUp("left");
+                onMouseButtonClick("left");
               }
             } : undefined}
             onKeyDown={gyro.availability === "ready" ? (event) => {
               if (event.key === "Enter" && !event.repeat) {
                 event.preventDefault();
-                onMouseButtonDown("left");
-                onMouseButtonUp("left");
+                onMouseButtonClick("left");
               } else if (event.key === " ") {
                 event.preventDefault();
                 gyro.setEngaged(true);
@@ -329,7 +350,7 @@ export function TrackpadMode({
             } : undefined}
           >
             <Orbit aria-hidden="true" />
-            <strong>{gyro.engaged ? "Moving" : gyro.availability === "ready" ? "Tap to click · Hold to move" : gyroMessage(gyro.availability)}</strong>
+            <strong>{gyro.engaged ? "Moving" : gyro.availability === "ready" ? "Tap to click · Double-tap to double-click · Hold to move" : gyroMessage(gyro.availability)}</strong>
             {gyro.availability !== "ready" && <button type="button" onClick={(event) => { event.stopPropagation(); gyro.enableFromUserGesture(); }}>Retry</button>}
           </div>
         ) : <MousePointer2 aria-hidden="true" />}

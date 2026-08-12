@@ -1,4 +1,4 @@
-import { createEvent, fireEvent, render, screen } from "@testing-library/react";
+import { act, createEvent, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { defaultTrackpadSettings } from "../../../foundation/input/gestures";
 import { TrackpadMode } from "./TrackpadMode";
@@ -9,6 +9,7 @@ const baseProps = {
   supportsVolumeControl: true,
   trackpadSettings: defaultTrackpadSettings,
   twoFingerMode: "scroll" as const,
+  onMouseButtonClick: vi.fn(),
   onMouseButtonDown: vi.fn(),
   onMouseButtonUp: vi.fn(),
   onSetVolume: vi.fn(),
@@ -23,6 +24,7 @@ const baseProps = {
 
 afterEach(() => {
   Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -66,7 +68,8 @@ describe("TrackpadMode volume control", () => {
 });
 
 describe("TrackpadMode gyro movement", () => {
-  it("disables touch gestures and uses the surface as a clutch", () => {
+  it("keeps a surface press motion-free until it becomes a hold", () => {
+    vi.useFakeTimers();
     const setEngaged = vi.fn();
     const onTouchStart = vi.fn();
     const view = render(<TrackpadMode {...baseProps} onTouchStart={onTouchStart} gyro={{
@@ -79,12 +82,15 @@ describe("TrackpadMode gyro movement", () => {
     }} />);
     const surface = view.container.querySelector(".trackpad-surface")!;
 
-    fireEvent.touchStart(surface);
     fireEvent.pointerDown(surface, { pointerId: 41, button: 0, isPrimary: true });
+    expect(setEngaged).not.toHaveBeenCalled();
+
+    act(() => { vi.advanceTimersByTime(301); });
+    expect(setEngaged).toHaveBeenLastCalledWith(true);
+
     fireEvent.pointerUp(surface, { pointerId: 41 });
 
     expect(onTouchStart).not.toHaveBeenCalled();
-    expect(setEngaged).toHaveBeenNthCalledWith(1, true);
     expect(setEngaged).toHaveBeenLastCalledWith(false);
   });
 
@@ -92,6 +98,7 @@ describe("TrackpadMode gyro movement", () => {
     const calls: string[] = [];
     const view = render(<TrackpadMode
       {...baseProps}
+      onMouseButtonClick={(button) => { calls.push(`${button}-click`); }}
       onMouseButtonDown={(button) => { calls.push(`${button}-down`); }}
       onMouseButtonUp={(button) => { calls.push(`${button}-up`); }}
       gyro={{
@@ -108,14 +115,16 @@ describe("TrackpadMode gyro movement", () => {
     fireEvent.pointerDown(surface, { pointerId: 51, button: 0, isPrimary: true });
     fireEvent.pointerUp(surface, { pointerId: 51 });
 
-    expect(calls).toEqual(["move-on", "move-off", "left-down", "left-up"]);
+    expect(calls).toEqual(["move-off", "left-click"]);
   });
 
   it("uses press duration rather than live sensor noise to recognize a tap", () => {
+    const onMouseButtonClick = vi.fn();
     const onMouseButtonDown = vi.fn();
     const onMouseButtonUp = vi.fn();
     const view = render(<TrackpadMode
       {...baseProps}
+      onMouseButtonClick={onMouseButtonClick}
       onMouseButtonDown={onMouseButtonDown}
       onMouseButtonUp={onMouseButtonUp}
       gyro={{
@@ -132,14 +141,16 @@ describe("TrackpadMode gyro movement", () => {
     fireEvent.pointerDown(surface, { pointerId: 52, button: 0, isPrimary: true });
     fireEvent.pointerUp(surface, { pointerId: 52 });
 
-    expect(onMouseButtonDown).toHaveBeenCalledWith("left");
-    expect(onMouseButtonUp).toHaveBeenCalledWith("left");
+    expect(onMouseButtonClick).toHaveBeenCalledExactlyOnceWith("left");
+    expect(onMouseButtonDown).not.toHaveBeenCalled();
+    expect(onMouseButtonUp).not.toHaveBeenCalled();
   });
 
   it("uses the touch lifecycle for a phone tap and ignores its duplicate pointer events", () => {
     const calls: string[] = [];
     const view = render(<TrackpadMode
       {...baseProps}
+      onMouseButtonClick={(button) => { calls.push(`${button}-click`); }}
       onMouseButtonDown={(button) => { calls.push(`${button}-down`); }}
       onMouseButtonUp={(button) => { calls.push(`${button}-up`); }}
       gyro={{
@@ -159,7 +170,44 @@ describe("TrackpadMode gyro movement", () => {
     fireEvent.pointerUp(surface, { pointerId: 71, pointerType: "touch", button: 0, isPrimary: true });
     fireEvent.touchEnd(surface, { touches: [], changedTouches: [touch] });
 
-    expect(calls).toEqual(["move-on", "move-off", "left-down", "left-up"]);
+    expect(calls).toEqual(["move-off", "left-click"]);
+  });
+
+  it("turns two iPhone-style taps into exactly two atomic clicks", () => {
+    const onMouseButtonClick = vi.fn();
+    const onMouseButtonDown = vi.fn();
+    const onMouseButtonUp = vi.fn();
+    const setEngaged = vi.fn();
+    const view = render(<TrackpadMode
+      {...baseProps}
+      onMouseButtonClick={onMouseButtonClick}
+      onMouseButtonDown={onMouseButtonDown}
+      onMouseButtonUp={onMouseButtonUp}
+      gyro={{
+        availability: "ready",
+        enableFromUserGesture: vi.fn(),
+        engaged: false,
+        selected: true,
+        setEngaged,
+        setSelected: vi.fn()
+      }}
+    />);
+    const surface = view.container.querySelector(".trackpad-surface")!;
+
+    for (const identifier of [72, 73]) {
+      const touch = { identifier };
+      fireEvent.pointerDown(surface, { pointerId: identifier, pointerType: "touch", button: 0, isPrimary: true });
+      fireEvent.touchStart(surface, { touches: [touch], changedTouches: [touch] });
+      fireEvent.pointerUp(surface, { pointerId: identifier, pointerType: "touch", button: 0, isPrimary: true });
+      fireEvent.touchEnd(surface, { touches: [], changedTouches: [touch] });
+    }
+
+    expect(onMouseButtonClick).toHaveBeenCalledTimes(2);
+    expect(onMouseButtonClick).toHaveBeenNthCalledWith(1, "left");
+    expect(onMouseButtonClick).toHaveBeenNthCalledWith(2, "left");
+    expect(onMouseButtonDown).not.toHaveBeenCalled();
+    expect(onMouseButtonUp).not.toHaveBeenCalled();
+    expect(setEngaged).not.toHaveBeenCalledWith(true);
   });
 
   it("does not click after a held or cancelled clutch press", () => {
@@ -198,6 +246,7 @@ describe("TrackpadMode gyro movement", () => {
     const calls: string[] = [];
     render(<TrackpadMode
       {...baseProps}
+      onMouseButtonClick={(button) => { calls.push(`${button}-click`); }}
       onMouseButtonDown={(button) => { calls.push(`${button}-down`); }}
       onMouseButtonUp={(button) => { calls.push(`${button}-up`); }}
       gyro={{
@@ -209,20 +258,22 @@ describe("TrackpadMode gyro movement", () => {
         setSelected: vi.fn()
       }}
     />);
-    const clutch = screen.getByRole("button", { name: "Tap to click, hold to move the mouse" });
+    const clutch = screen.getByRole("button", { name: "Tap to click, double-tap to double-click, hold to move the mouse" });
 
     fireEvent.keyDown(clutch, { key: "Enter" });
     fireEvent.keyDown(clutch, { key: " ", code: "Space" });
     fireEvent.keyUp(clutch, { key: " ", code: "Space" });
 
-    expect(calls).toEqual(["left-down", "left-up", "move-on", "move-off"]);
+    expect(calls).toEqual(["left-click", "move-on", "move-off"]);
   });
 
   it("supports synthetic assistive activation without doubling a physical click", () => {
+    const onMouseButtonClick = vi.fn();
     const onMouseButtonDown = vi.fn();
     const onMouseButtonUp = vi.fn();
     render(<TrackpadMode
       {...baseProps}
+      onMouseButtonClick={onMouseButtonClick}
       onMouseButtonDown={onMouseButtonDown}
       onMouseButtonUp={onMouseButtonUp}
       gyro={{
@@ -234,16 +285,18 @@ describe("TrackpadMode gyro movement", () => {
         setSelected: vi.fn()
       }}
     />);
-    const clutch = screen.getByRole("button", { name: "Tap to click, hold to move the mouse" });
+    const clutch = screen.getByRole("button", { name: "Tap to click, double-tap to double-click, hold to move the mouse" });
 
     fireEvent.click(clutch, { detail: 0 });
     fireEvent.click(clutch, { detail: 1 });
 
-    expect(onMouseButtonDown).toHaveBeenCalledExactlyOnceWith("left");
-    expect(onMouseButtonUp).toHaveBeenCalledExactlyOnceWith("left");
+    expect(onMouseButtonClick).toHaveBeenCalledExactlyOnceWith("left");
+    expect(onMouseButtonDown).not.toHaveBeenCalled();
+    expect(onMouseButtonUp).not.toHaveBeenCalled();
   });
 
   it("clears an active clutch when Gyro stops accepting input", () => {
+    vi.useFakeTimers();
     const setEngaged = vi.fn();
     const gyroBase = {
       enableFromUserGesture: vi.fn(),
@@ -261,6 +314,7 @@ describe("TrackpadMode gyro movement", () => {
 
     view.rerender(<TrackpadMode {...baseProps} gyro={{ ...gyroBase, availability: "ready" }} />);
     fireEvent.pointerDown(surface, { pointerId: 62, button: 0, isPrimary: true });
+    act(() => { vi.advanceTimersByTime(301); });
     expect(setEngaged).toHaveBeenLastCalledWith(true);
   });
 

@@ -1,4 +1,5 @@
 using Microsoft.Win32;
+using VolturaAir.Host.Features.PhoneWebcam;
 
 namespace VolturaAir.Host;
 
@@ -11,6 +12,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
     private readonly PointerHighlightForegroundMonitor _pointerHighlightForegroundMonitor;
     private readonly IAsyncDisposable _textDestinationDraftCleanup;
     private readonly IAsyncDisposable _presentationEmailDraftCleanup;
+    private readonly IAsyncDisposable? _phoneWebcamFeature;
     private readonly WebHostService _webHost;
     private readonly WpfTrayApplicationContext _trayContext;
     private readonly IAppLog _appLog;
@@ -25,6 +27,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         PointerHighlightForegroundMonitor pointerHighlightForegroundMonitor,
         IAsyncDisposable textDestinationDraftCleanup,
         IAsyncDisposable presentationEmailDraftCleanup,
+        IAsyncDisposable? phoneWebcamFeature,
         WebHostService webHost,
         PairingManager pairingManager,
         MainWindow mainWindow,
@@ -39,6 +42,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         _pointerHighlightForegroundMonitor = pointerHighlightForegroundMonitor;
         _textDestinationDraftCleanup = textDestinationDraftCleanup;
         _presentationEmailDraftCleanup = presentationEmailDraftCleanup;
+        _phoneWebcamFeature = phoneWebcamFeature;
         _webHost = webHost;
         PairingManager = pairingManager;
         MainWindow = mainWindow;
@@ -77,6 +81,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         CursorOverrideCoordinator? cursorOverrides = null;
         IAsyncDisposable? textDestinationDraftCleanup = null;
         IAsyncDisposable? presentationEmailDraftCleanup = null;
+        PhoneWebcamFeature? phoneWebcamFeature = null;
         ISystemPowerController? powerController = null;
         IAwakeService? awakeService = null;
         WebHostService? webHost = null;
@@ -103,6 +108,12 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
             textDestinationDraftCleanup = TextDestinationDraftStore.CreateCleanupService(appLog);
             presentationEmailDraftCleanup =
                 new Features.Presentations.PresentationEmailDraftCleanup(appLog);
+            IPhoneWebcamFeature phoneWebcam = PhoneWebcamFeature.CreateUnavailable();
+            if (!isolatedTestMode)
+            {
+                phoneWebcamFeature = await PhoneWebcamFeature.CreateAsync();
+                phoneWebcam = phoneWebcamFeature;
+            }
             var inputDispatcher = new InputDispatcher(inputInjector);
             var workstationLockPolicy = new WorkstationLockPolicy(appLog);
             powerController = isolatedTestMode
@@ -172,6 +183,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 activitySimulationService: activitySimulationService,
                 cursorOverrides: cursorOverrides,
                 appLog: appLog,
+                phoneWebcam: phoneWebcam,
                 requestRestart: requestRestart);
 #if DEBUG
             WritePairingUrlIfRequested(args, mainWindow.PairingUrl);
@@ -191,6 +203,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 pointerHighlightForegroundMonitor,
                 textDestinationDraftCleanup,
                 presentationEmailDraftCleanup,
+                phoneWebcamFeature,
                 webHost,
                 pairingManager,
                 mainWindow,
@@ -210,6 +223,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 presentationEmailDraftCleanup,
                 appLog,
                 "presentation_email_draft_cleanup");
+            await TryDisposeAsync(phoneWebcamFeature, appLog, "phone_webcam_feature");
             if (webHost is not null)
             {
                 await TryDisposeAsync(webHost, appLog, "web_host");
@@ -256,6 +270,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
             _presentationEmailDraftCleanup,
             appLog,
             "presentation_email_draft_cleanup");
+        await TryDisposeAsync(_phoneWebcamFeature, appLog, "phone_webcam_feature");
         _cursorOverrides.OverridesRevoked -= _cursorOverridesRevoked;
         TryDispose(_cursorOverrides, appLog, "cursor_overrides");
         TryDispose(_inputInjector, appLog, "input_injector");

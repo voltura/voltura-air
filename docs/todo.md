@@ -16,10 +16,11 @@ Remove completed items after updating their current authority.
 ### Outcome
 
 Add an opt-in, video-only **Phone webcam** feature that turns a paired phone camera
-into `Voltura Air Webcam` on Windows 11. Direct LAN is free/local. The existing
-Voltura-operated Relay path may later be subject to hosted-service entitlement or
-quality tiers, but this implementation must not add billing or imply that a paid plan
-already exists. Self-hosted Relay remains supported by the public product.
+into `Voltura Air Webcam` on Windows 11. Enhanced Direct is free and unlimited.
+Voltura-operated Relay is initially free, metered internally, and governed by the
+existing 750 GB Data Saver threshold and 850 GB global cutoff. This implementation
+adds no billing, entitlement, or quality-tier model. Self-hosted Relay remains
+supported by the public product.
 
 The feasibility spike proved live iPhone Chrome video over Direct and Relay into VLC,
 Chrome, and Teams, including explicit stop/start and live switching across every
@@ -58,8 +59,10 @@ camera, or the public protocol implementation.
 - One host owns the feature. At most one phone webcam producer is active. Consumers
   may open the Windows camera according to Windows Frame Server behavior; no custom
   multi-consumer broker is added unless compatibility evidence requires it.
-- Initial rollout is an explicit feature-owned toggle under **Developer tools**. The
-  normal host, installer, and PWA own it; no spike executable or second app remains.
+- Phone webcam is a normal app feature from its first production build. Enabling it
+  remains an explicit user action because native camera registration requires UAC,
+  but it is not hidden behind Developer mode. The normal host, installer, and PWA own
+  it; no spike executable or second app remains.
 
 ### Public implementation stages
 
@@ -117,9 +120,16 @@ camera, or the public protocol implementation.
   preview, camera selector, Direct/Relay route status, actual capture/send quality,
   **Start webcam**, and **Stop webcam**. No audio, orientation automation, quality
   settings surface, account UI, or generic media framework.
-- Add a Windows Developer-tools toggle, install/status/removal feedback, permission,
-  active-phone state, waiting/error state, and tray stop action using existing host UI
-  composition and settings ownership.
+- Add a normal Windows **Phone webcam** navigation page with install/status/removal
+  feedback and an in-app preview captured from the same virtual camera exposed to
+  Windows consumers. Add permission, active-phone state, waiting/error state, and a
+  tray stop action using existing host UI composition and settings ownership.
+- Compare the packaged and installed native camera payloads. When they differ, show
+  the existing camera as outdated and require a safe remove/re-enable cycle; never
+  silently retain the first installed media-source DLL across app upgrades.
+- Embed the native media source in the setup helper. Hold a non-replaceable read
+  handle on the running helper across UAC and let the elevated helper extract only
+  its embedded payload; never trust a sibling DLL path after elevation.
 - Treat page hidden as immediate track release. On foreground return, reconnect once
   through the existing connection/session coordinator and make the recovery state
   visible. Camera selection remains stable when the same device ID is still exposed.
@@ -129,8 +139,9 @@ camera, or the public protocol implementation.
 - Remove production dependencies on `apps/webrtc-spike-host` and
   `apps/secure-web-spike`; retain their README/evidence until the production gates
   supersede them, then delete the isolated binaries/site and update the docs map.
-- Keep the feature developer-only until every required automated and hardware gate
-  passes. Promotion to a normal feature is a separate explicit product decision.
+- Keep unfinished stages out of published builds until every required automated and
+  hardware gate passes. Phone webcam itself is already a normal product feature; no
+  separate Developer-mode promotion step exists.
 
 ### Private service stages
 

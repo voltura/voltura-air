@@ -9,6 +9,7 @@ using VolturaAir.Host.Features.CustomScreens;
 using VolturaAir.Host.Features.Devices;
 using VolturaAir.Host.Features.Diagnostics;
 using VolturaAir.Host.Features.Preferences;
+using VolturaAir.Host.Features.PhoneWebcam;
 using VolturaAir.Host.Features.Presentations;
 using VolturaAir.Host.Ui;
 using WpfSize = System.Windows.Size;
@@ -26,6 +27,7 @@ public partial class MainWindow : Window
     private readonly DevicesPageController _devicesPage;
     private readonly CustomScreensPageController _customScreensPage;
     private readonly PresentationsPageController _presentationsPage;
+    private readonly PhoneWebcamPageController _phoneWebcamPage;
     private readonly ConnectionPageController _connectionPage;
     private readonly PreferencesPageController _preferencesPage;
     private readonly DiagnosticsPageController _diagnosticsPage;
@@ -49,6 +51,7 @@ public partial class MainWindow : Window
         ISystemPowerController? powerController = null,
         ICursorOverrideController? cursorOverrides = null,
         IAppLog? appLog = null,
+        IPhoneWebcamFeature? phoneWebcam = null,
         IClipboardTextWriter? clipboardTextWriter = null,
         Action? requestRestart = null)
     {
@@ -61,6 +64,7 @@ public partial class MainWindow : Window
         var effectivePowerController = powerController ?? webHost.PowerController;
         var effectiveCursorOverrides = cursorOverrides ?? InertCursorOverrideController.Instance;
         var effectiveAppLog = appLog ?? webHost.AppLog;
+        IPhoneWebcamFeature effectivePhoneWebcam = phoneWebcam ?? PhoneWebcamFeature.CreateUnavailable();
 
         InitializeComponent();
         WindowWorkAreaPlacement.ConstrainAndCenterOnFirstLoad(this);
@@ -116,6 +120,11 @@ public partial class MainWindow : Window
             requestRestart ?? (static () => { }),
             effectiveAppLog,
             _toasts);
+        _phoneWebcamPage = new PhoneWebcamPageController(
+            this,
+            effectivePhoneWebcam,
+            _toasts,
+            () => SelectPage(HostPage.PhoneWebcam));
         _preferencesPage = new PreferencesPageController(
             this,
             effectivePowerController,
@@ -153,6 +162,7 @@ public partial class MainWindow : Window
                 [HostPage.Devices] = DevicesNavButton,
                 [HostPage.CustomScreens] = CustomScreensNavButton,
                 [HostPage.Presentations] = PresentationsNavButton,
+                [HostPage.PhoneWebcam] = PhoneWebcamNavButton,
                 [HostPage.Connection] = ConnectionNavButton,
                 [HostPage.Preferences] = PreferencesNavButton,
                 [HostPage.Diagnostics] = DiagnosticsNavButton
@@ -165,6 +175,7 @@ public partial class MainWindow : Window
             _devicesPage,
             _customScreensPage,
             _presentationsPage,
+            _phoneWebcamPage,
             _connectionPage,
             _preferencesPage,
             _diagnosticsPage,
@@ -305,6 +316,7 @@ public partial class MainWindow : Window
         _themeChangedAction.Dispose();
         _awakeStateChangedAction.Dispose();
         _connectionPage.Dispose();
+        _phoneWebcamPage.Dispose();
         _toasts.Dispose();
         base.OnClosed(e);
     }
@@ -395,6 +407,13 @@ public partial class MainWindow : Window
 
     private void OnWindowIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
+        if (!IsVisible && _navigation.ActivePage == HostPage.PhoneWebcam)
+        {
+            _phoneWebcamPage.StopPreview();
+            _pageNeedsRefresh = true;
+            return;
+        }
+
         if (IsVisible && _pageNeedsRefresh)
         {
             SelectPage(_navigation.ActivePage);
@@ -509,6 +528,9 @@ public partial class MainWindow : Window
 
     private void OnPresentationsNavClicked(object sender, RoutedEventArgs e) =>
         SelectPage(HostPage.Presentations);
+
+    private void OnPhoneWebcamNavClicked(object sender, RoutedEventArgs e) =>
+        SelectPage(HostPage.PhoneWebcam);
 
     private void OnConnectionNavClicked(object sender, RoutedEventArgs e) =>
         SelectPage(HostPage.Connection);

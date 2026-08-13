@@ -157,6 +157,14 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
                 Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "Devices");
                 Assert.Contains(FindWpfDescendants<ListBox>(window), list => Equals(list.GetValue(AutomationProperties.NameProperty), "Paired devices"));
 
+                window.ShowPage(HostPage.PhoneWebcam);
+                window.UpdateLayout();
+                Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "Phone webcam");
+                Assert.Contains(FindWpfDescendants<Button>(window), button => button.Content?.ToString() == "Enable Phone webcam");
+                Assert.Contains(
+                    FindWpfDescendants<TextBlock>(window),
+                    text => text.Text == "Enable Phone webcam to validate its Windows camera output here.");
+
                 window.ShowPage(HostPage.Preferences);
                 window.UpdateLayout();
                 var sections = FindWpfDescendants<Expander>(window).ToArray();

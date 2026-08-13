@@ -12,6 +12,8 @@
 #include <wrl/client.h>
 
 #include <filesystem>
+#include <array>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -24,8 +26,9 @@ namespace
 {
     constexpr wchar_t SourceClsid[] = L"{50AAB70E-38BA-403E-A55B-58F2BCABE4FB}";
     constexpr wchar_t FriendlyName[] = L"Voltura Air Webcam";
-    constexpr wchar_t InstalledDirectoryName[] = L"Voltura Air Webcam Spike";
+    constexpr wchar_t InstalledDirectoryName[] = L"Voltura Air Webcam";
     constexpr wchar_t SourceDllName[] = L"VirtualCameraMediaSource.dll";
+    constexpr int MediaSourceResource = 101;
     constexpr UINT32 FrameWidth = 1920;
     constexpr UINT32 FrameHeight = 1080;
     constexpr DWORD ExpectedFrameBytes = FrameWidth * FrameHeight * 3 / 2;
@@ -79,7 +82,7 @@ namespace
         static bool injected = false;
         if (injected) return false;
         wchar_t value[128]{};
-        const DWORD length = GetEnvironmentVariableW(L"VOLTURA_WEBCAM_SPIKE_FAULT", value, ARRAYSIZE(value));
+        const DWORD length = GetEnvironmentVariableW(L"VOLTURA_WEBCAM_FAULT", value, ARRAYSIZE(value));
         if (length == 0 || length >= ARRAYSIZE(value) || _wcsicmp(value, boundary) != 0) return false;
         injected = true;
         return true;
@@ -110,14 +113,19 @@ namespace
         return std::filesystem::path(buffer);
     }
 
-    std::filesystem::path BuiltSourceDll()
+    HRESULT LoadPackagedSource(std::vector<BYTE>& bytes)
     {
-        std::filesystem::path root = CurrentExecutable().parent_path();
-        for (int index = 0; index < 3; ++index)
-        {
-            root = root.parent_path();
-        }
-        return root / L"VirtualCameraMediaSource" / L"x64" / L"Release" / SourceDllName;
+        HMODULE module = GetModuleHandleW(nullptr);
+        HRSRC resource = FindResourceW(module, MAKEINTRESOURCEW(MediaSourceResource), RT_RCDATA);
+        if (resource == nullptr) return HRESULT_FROM_WIN32(GetLastError());
+        const DWORD size = SizeofResource(module, resource);
+        if (size == 0) return HRESULT_FROM_WIN32(ERROR_RESOURCE_DATA_NOT_FOUND);
+        HGLOBAL loaded = LoadResource(module, resource);
+        if (loaded == nullptr) return HRESULT_FROM_WIN32(GetLastError());
+        const BYTE* data = static_cast<const BYTE*>(LockResource(loaded));
+        if (data == nullptr) return HRESULT_FROM_WIN32(ERROR_RESOURCE_DATA_NOT_FOUND);
+        bytes.assign(data, data + size);
+        return S_OK;
     }
 
     bool IsAdministrator()
@@ -176,6 +184,14 @@ namespace
             return HRESULT_FROM_WIN32(GetLastError());
         }
 
+        HANDLE executableLock = CreateFileW(
+            executable.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (executableLock == INVALID_HANDLE_VALUE)
+        {
+            return HRESULT_FROM_WIN32(GetLastError());
+        }
+
         SHELLEXECUTEINFOW info{};
         info.cbSize = sizeof(info);
         info.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC;
@@ -185,13 +201,16 @@ namespace
         info.nShow = SW_SHOWNORMAL;
         if (!ShellExecuteExW(&info))
         {
-            return HRESULT_FROM_WIN32(GetLastError());
+            const HRESULT result = HRESULT_FROM_WIN32(GetLastError());
+            CloseHandle(executableLock);
+            return result;
         }
 
         const DWORD waitResult = WaitForSingleObject(info.hProcess, INFINITE);
         DWORD exitCode = ERROR_GEN_FAILURE;
         const BOOL gotExitCode = GetExitCodeProcess(info.hProcess, &exitCode);
         CloseHandle(info.hProcess);
+        CloseHandle(executableLock);
         if (waitResult != WAIT_OBJECT_0)
         {
             return HRESULT_FROM_WIN32(GetLastError());
@@ -255,6 +274,111 @@ namespace
         if (result != ERROR_SUCCESS) return HRESULT_FROM_WIN32(result);
         RegCloseKey(key);
         exists = true;
+        return S_OK;
+    }
+
+    HRESULT FindCamera(ComPtr<IMFActivate>& found, std::wstring& friendlyName);
+
+    HRESULT FileMatchesPackagedSource(const std::filesystem::path& file, bool& equal)
+    {
+        equal = false;
+        std::vector<BYTE> packaged;
+        HRESULT result = LoadPackagedSource(packaged);
+        if (FAILED(result)) return result;
+        std::error_code error;
+        const auto fileSize = std::filesystem::file_size(file, error);
+        if (error) return HRESULT_FROM_WIN32(error.value());
+        if (fileSize != packaged.size()) return S_OK;
+
+        std::ifstream stream(file, std::ios::binary);
+        if (!stream) return HRESULT_FROM_WIN32(ERROR_OPEN_FAILED);
+        std::array<char, 64 * 1024> buffer{};
+        size_t offset = 0;
+        while (stream)
+        {
+            stream.read(buffer.data(), buffer.size());
+            const std::streamsize read = stream.gcount();
+            if (read > 0 && memcmp(
+                    buffer.data(), packaged.data() + offset, static_cast<size_t>(read)) != 0)
+            {
+                return S_OK;
+            }
+            offset += static_cast<size_t>(read);
+        }
+        equal = stream.eof() && offset == packaged.size();
+        return S_OK;
+    }
+
+    HRESULT WritePackagedSource(const std::filesystem::path& destination)
+    {
+        std::vector<BYTE> packaged;
+        HRESULT result = LoadPackagedSource(packaged);
+        if (FAILED(result)) return result;
+        HANDLE file = CreateFileW(
+            destination.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW,
+            FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH, nullptr);
+        if (file == INVALID_HANDLE_VALUE) return HRESULT_FROM_WIN32(GetLastError());
+        DWORD written = 0;
+        const bool succeeded = WriteFile(
+                file, packaged.data(), static_cast<DWORD>(packaged.size()), &written, nullptr) != FALSE &&
+            written == packaged.size() && FlushFileBuffers(file) != FALSE;
+        const DWORD writeError = succeeded ? ERROR_SUCCESS : GetLastError();
+        CloseHandle(file);
+        if (!succeeded)
+        {
+            DeleteFileW(destination.c_str());
+            return HRESULT_FROM_WIN32(writeError);
+        }
+        bool matches = false;
+        result = FileMatchesPackagedSource(destination, matches);
+        return SUCCEEDED(result) && !matches ? HRESULT_FROM_WIN32(ERROR_FILE_CORRUPT) : result;
+    }
+
+    HRESULT ReadInstallationState(bool& installed, bool& cleanupRequired, bool& updateRequired, std::wstring& name)
+    {
+        installed = false;
+        cleanupRequired = false;
+        updateRequired = false;
+        ComPtr<IMFActivate> camera;
+        HRESULT result = FindCamera(camera, name);
+        if (result == HRESULT_FROM_WIN32(ERROR_NOT_FOUND))
+        {
+            result = S_OK;
+        }
+        else if (SUCCEEDED(result))
+        {
+            installed = true;
+            cleanupRequired = true;
+        }
+        if (FAILED(result)) return result;
+
+        bool registrationExists = false;
+        result = RegistrationExists(registrationExists);
+        if (FAILED(result)) return result;
+        cleanupRequired = cleanupRequired || registrationExists;
+
+        std::filesystem::path installDirectory;
+        result = ProgramFilesInstallDirectory(installDirectory);
+        if (FAILED(result)) return result;
+        std::error_code fileError;
+        const bool directoryExists = std::filesystem::exists(installDirectory, fileError);
+        if (fileError) return HRESULT_FROM_WIN32(fileError.value());
+        cleanupRequired = cleanupRequired || directoryExists;
+        if (installed)
+        {
+            const std::filesystem::path installedDll = installDirectory / SourceDllName;
+            if (!std::filesystem::is_regular_file(installedDll))
+            {
+                updateRequired = true;
+            }
+            else
+            {
+                bool equal = false;
+                result = FileMatchesPackagedSource(installedDll, equal);
+                if (FAILED(result)) return result;
+                updateRequired = !equal;
+            }
+        }
         return S_OK;
     }
 
@@ -492,12 +616,11 @@ namespace
         return HRESULT_FROM_WIN32(ERROR_TIMEOUT);
     }
 
-    HRESULT InstallSystemFilesElevated(const std::filesystem::path& sourceDll, const std::wstring& ownerSid)
+    HRESULT InstallSystemFilesElevated(const std::wstring& ownerSid)
     {
         if (!IsAdministrator()) return E_ACCESSDENIED;
         const HRESULT sidResult = ValidateOwnerSid(ownerSid);
         if (FAILED(sidResult)) return sidResult;
-        if (!std::filesystem::is_regular_file(sourceDll)) return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
 
         std::filesystem::path installDirectory;
         HRESULT result = ProgramFilesInstallDirectory(installDirectory);
@@ -514,11 +637,11 @@ namespace
         std::error_code error;
         std::filesystem::create_directories(installDirectory, error);
         if (error) return HRESULT_FROM_WIN32(error.value());
-        if (!CopyFileW(sourceDll.c_str(), installedDll.c_str(), TRUE))
+        result = WritePackagedSource(installedDll);
+        if (FAILED(result))
         {
-            const HRESULT copyResult = HRESULT_FROM_WIN32(GetLastError());
             RemoveDirectoryW(installDirectory.c_str());
-            return copyResult;
+            return result;
         }
         std::wcout << L"state=files-copied" << std::endl;
 
@@ -650,10 +773,10 @@ namespace
         result = VerifyComSource(installedDll, ownerSid);
         if (FAILED(result)) return result;
 
-        if (!SetEnvironmentVariableW(L"VOLTURA_WEBCAM_SPIKE_FAULT", L"unregister-after-delete"))
+        if (!SetEnvironmentVariableW(L"VOLTURA_WEBCAM_FAULT", L"unregister-after-delete"))
             return HRESULT_FROM_WIN32(GetLastError());
         const HRESULT injectedResult = UnregisterComSource();
-        SetEnvironmentVariableW(L"VOLTURA_WEBCAM_SPIKE_FAULT", nullptr);
+        SetEnvironmentVariableW(L"VOLTURA_WEBCAM_FAULT", nullptr);
         const HRESULT rollbackResult = RestoreComSource(installedDll, ownerSid);
         if (FAILED(rollbackResult))
         {
@@ -681,18 +804,17 @@ int wmain(const int argumentCount, wchar_t* arguments[])
 {
     if (argumentCount < 2)
     {
-        std::wcerr << L"Usage: VolturaAirWebcamSetup <install|remove|status|probe|test-unregister-rollback>" << std::endl;
+        std::wcerr << L"Usage: VolturaAirWebcamSetup <install|remove|status|cleanup-required|probe>" << std::endl;
         return ERROR_INVALID_PARAMETER;
     }
 
     const std::wstring command = arguments[1];
     if (command == L"install")
     {
-        const std::filesystem::path sourceDll = BuiltSourceDll();
         std::wstring ownerSid;
         HRESULT result = CurrentUserSid(ownerSid);
         if (FAILED(result)) return Finish(result);
-        result = RunElevatedAndWait(L"--elevated-install \"" + sourceDll.wstring() + L"\" \"" + ownerSid + L"\"");
+        result = RunElevatedAndWait(L"--elevated-install \"" + ownerSid + L"\"");
         if (FAILED(result)) return Finish(result);
 
         MediaFoundationScope mediaFoundation;
@@ -723,9 +845,20 @@ int wmain(const int argumentCount, wchar_t* arguments[])
         if (FAILED(result)) return Finish(result);
         MediaFoundationScope mediaFoundation;
         result = mediaFoundation.Result();
-        if (SUCCEEDED(result)) result = RemoveCamera();
+        ComPtr<IMFActivate> existingCamera;
+        std::wstring existingName;
+        if (SUCCEEDED(result)) result = FindCamera(existingCamera, existingName);
+        if (result == HRESULT_FROM_WIN32(ERROR_NOT_FOUND))
+        {
+            result = S_OK;
+            std::wcout << L"state=camera-absent" << std::endl;
+        }
+        else if (SUCCEEDED(result))
+        {
+            result = RemoveCamera();
+        }
         if (FAILED(result)) return Finish(result);
-        std::wcout << L"state=camera-removed" << std::endl;
+        if (existingCamera) std::wcout << L"state=camera-removed" << std::endl;
 
         result = RunElevatedAndWait(L"--elevated-remove \"" + ownerSid + L"\"");
         if (FAILED(result))
@@ -740,9 +873,9 @@ int wmain(const int argumentCount, wchar_t* arguments[])
         }
         return Finish(result);
     }
-    if (command == L"--elevated-install" && argumentCount == 4)
+    if (command == L"--elevated-install" && argumentCount == 3)
     {
-        return Finish(InstallSystemFilesElevated(arguments[2], arguments[3]));
+        return Finish(InstallSystemFilesElevated(arguments[2]));
     }
     if (command == L"--elevated-remove" && argumentCount == 3)
     {
@@ -759,24 +892,40 @@ int wmain(const int argumentCount, wchar_t* arguments[])
     {
         return Finish(TestUnregisterRollbackElevated(arguments[2]));
     }
+    if (command == L"verify-packaged-source" && argumentCount == 3)
+    {
+        bool matches = false;
+        const HRESULT result = FileMatchesPackagedSource(arguments[2], matches);
+        return Finish(SUCCEEDED(result) && !matches ? HRESULT_FROM_WIN32(ERROR_FILE_CORRUPT) : result);
+    }
 
     MediaFoundationScope mediaFoundation;
     if (FAILED(mediaFoundation.Result())) return Finish(mediaFoundation.Result());
     if (command == L"status")
     {
-        ComPtr<IMFActivate> camera;
+        bool installed = false;
+        bool cleanupRequired = false;
+        bool updateRequired = false;
         std::wstring name;
-        const HRESULT result = FindCamera(camera, name);
-        if (result == HRESULT_FROM_WIN32(ERROR_NOT_FOUND))
-        {
-            std::wcout << L"{\"installed\":false}" << std::endl;
-            return 1;
-        }
-        if (SUCCEEDED(result))
-        {
-            std::wcout << L"{\"installed\":true,\"name\":\"" << name << L"\"}" << std::endl;
-        }
-        return Finish(result);
+        const HRESULT result = ReadInstallationState(installed, cleanupRequired, updateRequired, name);
+        if (FAILED(result)) return Finish(result);
+        std::wcout << L"{\"installed\":" << (installed ? L"true" : L"false")
+                   << L",\"cleanupRequired\":" << (cleanupRequired ? L"true" : L"false")
+                   << L",\"updateRequired\":" << (updateRequired ? L"true" : L"false");
+        if (installed) std::wcout << L",\"name\":\"" << name << L"\"";
+        std::wcout << L"}" << std::endl;
+        return installed ? 0 : 1;
+    }
+    if (command == L"cleanup-required")
+    {
+        bool installed = false;
+        bool cleanupRequired = false;
+        bool updateRequired = false;
+        std::wstring name;
+        const HRESULT result = ReadInstallationState(installed, cleanupRequired, updateRequired, name);
+        if (FAILED(result)) return Finish(result);
+        std::wcout << L"{\"cleanupRequired\":" << (cleanupRequired ? L"true" : L"false") << L"}" << std::endl;
+        return cleanupRequired ? 0 : 1;
     }
     if (command == L"probe")
     {

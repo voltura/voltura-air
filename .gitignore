@@ -38,3 +38,11 @@ Thumbs.db
 
 ## Keep artifacts out of git
 /artifacts/*
+
+# Phone-webcam native MSBuild/NuGet outputs
+/apps/windows-host/Features/PhoneWebcam/Native/SetupHelper/SetupHelper/
+/apps/windows-host/Features/PhoneWebcam/Native/SetupHelper/x64/
+/apps/windows-host/Features/PhoneWebcam/Native/VirtualCameraMediaSource/VirtualC.*/
+/apps/windows-host/Features/PhoneWebcam/Native/VirtualCameraMediaSource/obj-package-reference-stale/
+/apps/windows-host/Features/PhoneWebcam/Native/VirtualCameraMediaSource/packages/
+/apps/windows-host/Features/PhoneWebcam/Native/VirtualCameraMediaSource/x64/

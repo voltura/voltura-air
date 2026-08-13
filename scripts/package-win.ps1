@@ -47,6 +47,8 @@ function Assert-ScreenWebRtcPayload {
         "ThirdPartyNotices\libdatachannel\plog-LICENSE.txt",
         "ThirdPartyNotices\libdatachannel\usrsctp-LICENSE.txt",
         "ThirdPartyNotices\libdatachannel\SOURCE.txt",
+        "PhoneWebcam\VolturaAir.WebcamSetup.exe",
+        "PhoneWebcam\MICROSOFT-WINDOWS-CAMERA-LICENSE.txt",
         "wwwroot\third-party-notices.txt"
     )
     if ($RequireDotNetRuntimeNotices) {
@@ -61,6 +63,23 @@ function Assert-ScreenWebRtcPayload {
             throw "Expected Screen WebRTC release file was not found: $requiredPath"
         }
     }
+}
+
+function Copy-PhoneWebcamPayload {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$NativeOutputDirectory,
+        [Parameter(Mandatory = $true)]
+        [string]$PublishDirectory
+    )
+
+    $destination = Join-Path $PublishDirectory "PhoneWebcam"
+    New-Item -ItemType Directory -Force -Path $destination | Out-Null
+    Copy-Item -LiteralPath (Join-Path $NativeOutputDirectory "VolturaAir.WebcamSetup.exe") -Destination $destination -Force
+    Copy-Item `
+        -LiteralPath (Join-Path $repoRoot "apps\windows-host\Features\PhoneWebcam\Native\MICROSOFT-WINDOWS-CAMERA-LICENSE.txt") `
+        -Destination $destination `
+        -Force
 }
 
 function Copy-DotNetRuntimeNotices {
@@ -93,6 +112,7 @@ $frameworkDependentPublishDir = Join-Path $publishRoot "VolturaAir-$Runtime-fram
 $zipPath = Join-Path $publishRoot "VolturaAir-$Version-$Runtime.zip"
 $installerPath = Join-Path $publishRoot "VolturaAir-Setup-$Version-$Runtime-full.exe"
 $frameworkDependentInstallerPath = Join-Path $publishRoot "VolturaAir-Setup-$Version-$Runtime.exe"
+$phoneWebcamNativeOutput = Join-Path $repoRoot "artifacts\native\PhoneWebcam"
 $nsisScript = Join-Path $repoRoot "installer\VolturaAir.nsi"
 $nsisCompressionArguments = @()
 if ($NoInstallerCompression) {
@@ -204,6 +224,17 @@ if (-not $SkipBuild) {
                 -Path (Join-Path $publishDir "VolturaAir.CursorWatchdog.exe") `
                 -Destination $frameworkDependentWatchdogPath `
                 -Force
+        }
+
+        & (Join-Path $repoRoot "scripts\build-phone-webcam-native.ps1") -OutputDirectory $phoneWebcamNativeOutput
+        Assert-LastExitCode "Phone webcam native build"
+        Copy-PhoneWebcamPayload `
+            -NativeOutputDirectory $phoneWebcamNativeOutput `
+            -PublishDirectory $frameworkDependentPublishDir
+        if (-not $FrameworkDependentOnly) {
+            Copy-PhoneWebcamPayload `
+                -NativeOutputDirectory $phoneWebcamNativeOutput `
+                -PublishDirectory $publishDir
         }
     }
     finally {

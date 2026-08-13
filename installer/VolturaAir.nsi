@@ -24,6 +24,7 @@
 
 !define APP_NAME "Voltura Air"
 !define EXE_NAME "VolturaAir.Host.exe"
+!define WEBCAM_SETUP "PhoneWebcam\VolturaAir.WebcamSetup.exe"
 !define PUBLISHER "Voltura AB"
 !define DEVELOPER "Joakim Skoglund"
 !define PRODUCT_URL "https://voltura.se/air"
@@ -232,6 +233,7 @@ FunctionEnd
 
 Section "Uninstall"
   Call un.PromptCloseRunningApp
+  Call un.RemovePhoneWebcam
 
   Delete "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk"
   Delete "$SMPROGRAMS\${APP_NAME}\Uninstall ${APP_NAME}.lnk"
@@ -243,6 +245,34 @@ Section "Uninstall"
 
   RMDir /r "$INSTDIR"
 SectionEnd
+
+Function un.RemovePhoneWebcam
+  IfFileExists "$INSTDIR\${WEBCAM_SETUP}" phone_webcam_helper_available 0
+  MessageBox MB_ICONSTOP "The Phone webcam cleanup component is missing. Repair or reinstall this Voltura Air version, then run uninstall again."
+  Abort "Phone webcam cleanup component is missing."
+
+phone_webcam_helper_available:
+  nsExec::ExecToStack '"$INSTDIR\${WEBCAM_SETUP}" cleanup-required'
+  Pop $0
+  Pop $1
+  ${If} $0 == 1
+    Goto phone_webcam_done
+  ${ElseIf} $0 != 0
+    MessageBox MB_ICONSTOP "Voltura Air could not determine whether Phone webcam cleanup is required. Run uninstall again."
+    Abort "Phone webcam cleanup state is unavailable."
+  ${EndIf}
+  DetailPrint "Removing Voltura Air Webcam..."
+  nsExec::ExecToStack '"$INSTDIR\${WEBCAM_SETUP}" remove'
+  Pop $0
+  Pop $1
+  ${If} $0 != 0
+    DetailPrint "Phone webcam removal retained its recoverable installation (exit code $0)."
+    MessageBox MB_ICONSTOP "Voltura Air could not safely remove Voltura Air Webcam. Close apps using the camera, approve the administrator request, and run uninstall again."
+    Abort "Phone webcam removal did not complete."
+  ${EndIf}
+
+phone_webcam_done:
+FunctionEnd
 
 !ifdef FRAMEWORK_DEPENDENT
 Function TestWindowsDesktopRuntime

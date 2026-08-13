@@ -1,7 +1,8 @@
 # Phone-as-Webcam feasibility spike
 
-Isolated Windows 11/iPhone browser spike. Nothing in this folder is referenced by the
-normal solution, host composition, installer, publisher, or production protocol.
+Isolated Windows 11/iPhone browser spike. Its reviewed virtual-camera native source
+now lives under the production Phone-webcam owner and remains usable by this spike;
+the spike executable, signaling, and web page are not referenced by production.
 
 ## Gate status
 
@@ -22,27 +23,19 @@ requirement and Edge compatibility remain unproven.
 
 ## Build
 
-Run these from the repository root in a VS 2022 developer environment:
+Run these from the repository root:
 
 ```powershell
 dotnet restore apps/webrtc-spike-host/WebRtcSpike.Host.csproj
 dotnet build apps/webrtc-spike-host/WebRtcSpike.Host.csproj -c Release --no-restore
 dotnet test apps/webrtc-spike-host/tests/WebRtcSpike.Tests.csproj -c Release
-
-& 'C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe' `
-  apps\webrtc-spike-host\native\VirtualCameraMediaSource\VirtualCameraMediaSource.vcxproj `
-  /t:restore /p:RestorePackagesConfig=true
-& 'C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe' `
-  apps\webrtc-spike-host\native\VirtualCameraMediaSource\VirtualCameraMediaSource.vcxproj `
-  /p:Configuration=Release /p:Platform=x64
-& 'C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe' `
-  apps\webrtc-spike-host\native\SetupHelper\SetupHelper.vcxproj `
-  /p:Configuration=Release /p:Platform=x64
+pwsh scripts/build-phone-webcam-native.ps1
 ```
 
 The native source is the synthetic-source portion of Microsoft's Windows Camera
 virtual-camera sample, retained under its MIT notice in
-`native/MICROSOFT-WINDOWS-CAMERA-LICENSE.txt`. It exposes only NV12 1920×1080/30.
+`../windows-host/Features/PhoneWebcam/Native/MICROSOFT-WINDOWS-CAMERA-LICENSE.txt`.
+It exposes only NV12 1920×1080/30.
 IPC version 1 carries a monotonic host frame sequence plus the source's wrapping
 90 kHz RTP timestamp; the RTP value is not an absolute capture clock and is not used
 as an end-to-end latency timestamp.
@@ -50,11 +43,13 @@ as an end-to-end latency timestamp.
 ## Install, status, probe, remove
 
 Only the helper requests elevation. Camera creation/removal runs as the current user;
-elevation is limited to copying the DLL under
-`C:\Program Files\Voltura Air Webcam Spike` and registering its COM source in HKLM.
+elevation is limited to writing the helper's embedded, verified media source under
+`C:\Program Files\Voltura Air Webcam` and registering its COM source in HKLM. The
+helper holds a non-replaceable read handle to its own executable across UAC consent;
+the elevated process never trusts a sibling DLL from the user-writable app directory.
 
 ```powershell
-$setup = 'apps\webrtc-spike-host\native\SetupHelper\x64\Release\SetupHelper.exe'
+$setup = 'artifacts\native\PhoneWebcam\VolturaAir.WebcamSetup.exe'
 & $setup install
 & $setup status
 & $setup probe
@@ -70,7 +65,9 @@ dotnet run --project apps/webrtc-spike-host/WebRtcSpike.Host.csproj -- --pipe-te
 ```
 
 Installation states are `files-copied`, `com-registered`, and `camera-created`.
-Installation refuses to overwrite any existing file or registration. Removal reverses
+Installation refuses to overwrite any existing file or registration. If `status`
+reports `update-required`, remove and enable the feature again so the new embedded
+payload is installed. Removal reverses
 the states without stopping the shared Windows Frame Server service. It first attempts
 to stage the DLL; if the DLL is in use, the complete registration and files remain.
 If a later removal step fails, the staged DLL and COM registration are restored before
@@ -80,9 +77,9 @@ Never manually delete only one of the three states.
 The removal transaction can exercise recovery immediately after the DLL is staged:
 
 ```powershell
-$env:VOLTURA_WEBCAM_SPIKE_FAULT = 'remove-after-stage'
+$env:VOLTURA_WEBCAM_FAULT = 'remove-after-stage'
 & $setup remove
-Remove-Item Env:VOLTURA_WEBCAM_SPIKE_FAULT
+Remove-Item Env:VOLTURA_WEBCAM_FAULT
 & $setup remove
 ```
 

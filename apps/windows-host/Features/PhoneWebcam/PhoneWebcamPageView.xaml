@@ -1,0 +1,56 @@
+<UserControl x:Class="VolturaAir.Host.Features.PhoneWebcam.PhoneWebcamPageView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="clr-namespace:VolturaAir.Host.Ui">
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto"
+                  CanContentScroll="False">
+        <ui:SpacingStackPanel Spacing="{DynamicResource SpaceLg}">
+            <Border Background="{DynamicResource SurfaceRaisedBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="{DynamicResource RadiusMd}"
+                    Padding="{DynamicResource InsetLg}">
+                <ui:SpacingStackPanel Spacing="{DynamicResource SpaceSm}">
+                    <TextBlock Text="Windows camera"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextBrush}" />
+                    <TextBlock x:Name="InstallationStatusText"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource MutedTextBrush}" />
+                    <ui:SpacingStackPanel Orientation="Horizontal"
+                                          Spacing="{DynamicResource SpaceSm}">
+                        <Button x:Name="InstallationActionButton" />
+                        <Button x:Name="RetryPreviewButton"
+                                Content="Retry preview"
+                                Visibility="Collapsed" />
+                    </ui:SpacingStackPanel>
+                </ui:SpacingStackPanel>
+            </Border>
+
+            <Border Background="Black"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="{DynamicResource RadiusMd}"
+                    Height="360">
+                <Grid>
+                    <Image x:Name="PreviewImage"
+                           Stretch="Uniform"
+                           SnapsToDevicePixels="True" />
+                    <TextBlock x:Name="PreviewOverlayText"
+                               Text="Enable Phone webcam to open its preview."
+                               Padding="{DynamicResource InsetLg}"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               TextAlignment="Center"
+                               TextWrapping="Wrap"
+                               Foreground="White" />
+                </Grid>
+            </Border>
+
+            <TextBlock x:Name="PreviewStatusText"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource MutedTextBrush}" />
+        </ui:SpacingStackPanel>
+    </ScrollViewer>
+</UserControl>

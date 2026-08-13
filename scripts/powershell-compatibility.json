@@ -9,6 +9,7 @@
   ],
   "powerShell76": [
     "build-libdatachannel.ps1",
+    "build-phone-webcam-native.ps1",
     "check-powershell.ps1",
     "check-site.ps1",
     "host-preflight.ps1",

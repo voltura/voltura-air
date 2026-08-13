@@ -83,7 +83,7 @@ test("code statistics covers production, test, automation, and script test cases
   assert.doesNotMatch(output, /untracked-root/u);
 });
 
-test("HTML statistics report uses the comprehensive statistics used by publish:site", async () => {
+test("HTML statistics report uses the comprehensive public source inventory", async () => {
   const root = await createStatisticsFixture();
 
   execFileSync(process.execPath, [scriptPath, "--report", "--no-open", "--quiet"], { cwd: root, encoding: "utf8" });

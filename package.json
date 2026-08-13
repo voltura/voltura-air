@@ -55,10 +55,6 @@
     "release:full": "node scripts/release-publish.mjs --publish-latest",
     "release:sync-release-notes": "node scripts/sync-release-notes.mjs",
     "relay:check": "npm run check --workspace @voltura-air/relay",
-    "relay:deploy": "npm run deploy --workspace @voltura-air/relay",
-    "relay:health": "node scripts/check-relay-health.mjs",
-    "relay:setup": "pwsh -NoProfile -File scripts/relay-setup.ps1",
-    "relay:usage": "pwsh -NoProfile -File scripts/relay-usage.ps1",
     "screenshots:site": "node scripts/capture-site-screenshots.mjs",
     "screens:generate": "node scripts/generate-custom-screens.mjs",
     "screens:check": "node scripts/generate-custom-screens.mjs --check && node scripts/check-custom-screen-layouts.mjs",
@@ -73,11 +69,6 @@
     "site:hosted:build": "npm run build:hosted --workspace apps/mobile-web",
     "third-party:check": "node scripts/generate-third-party-notices.mjs --check",
     "third-party:generate": "node scripts/generate-third-party-notices.mjs",
-    "publish:site": "node scripts/publish-site.mjs",
-    "publish:site:prepared": "node scripts/publish-site.mjs --prepared",
-    "publish:site:list": "node scripts/publish-site.mjs --list",
-    "publish:site:password": "pwsh -NoProfile -File scripts/site-publish-password.ps1",
-    "publish:site:password:clear": "pwsh -NoProfile -File scripts/site-publish-password.ps1 -Clear",
     "size:report": "node scripts/report-source-sizes.mjs",
     "size:check": "node scripts/report-source-sizes.mjs --check",
     "tools:check": "node scripts/check-toolchain.mjs",
@@ -92,14 +83,11 @@
   },
   "devDependencies": {
     "sharp": "^0.35.3",
-    "ssh2-sftp-client": "^12.1.1",
     "typescript": "npm:@typescript/typescript6@^6.0.2"
   },
   "allowScripts": {
-    "ssh2@1.17.0": true,
     "unrs-resolver@1.12.2": true,
     "esbuild@0.28.1": true,
-    "workerd@1.20260804.1": true,
-    "cpu-features": false
+    "workerd@1.20260804.1": true
   }
 }

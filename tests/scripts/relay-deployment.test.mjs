@@ -27,24 +27,6 @@ test("Secure Direct short redirect selects the hosted Secure Direct bootstrap wi
   assert.doesNotMatch(endpoint, /Location:.*#/u);
 });
 
-test("site publication uploads the short redirect at the domain root", () => {
-  const publication = read("scripts/publish-site.mjs");
-  assert.match(publication, /uploadDir\(shortLinkSource, "a"\)/u);
-  assert.match(publication, /runNpmScript\("site:hosted:build"/u);
-  assert.match(publication, /publishHostedApp/u);
-});
-
-test("relay setup stores restricted Worker secrets and never requests a global key", () => {
-  const setup = read("scripts/relay-setup.ps1");
-  for (const secret of ["TURN_KEY_ID", "TURN_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_ANALYTICS_TOKEN"]) {
-    assert.match(setup, new RegExp(`Set-WranglerSecret '${secret}'`, "u"));
-  }
-  assert.doesNotMatch(setup, /global api key/iu);
-  assert.ok(setup.indexOf("Invoke-Wrangler @('deploy')") < setup.indexOf("Set-WranglerSecret 'CLOUDFLARE_ACCOUNT_ID'"));
-  assert.match(setup, /UTF8Encoding\]::new\(\$false\)/u);
-  assert.match(setup, /Nothing was uploaded to voltura\.se and no Windows release was created\./u);
-});
-
 test("maintainer quality cannot enter a packaged build", () => {
   const project = read("apps/windows-host/VolturaAir.Host.csproj");
   assert.match(project, /RejectPublishedMaintainerRelayBuild/u);

@@ -10,8 +10,6 @@
   "scripts": {
     "build": "tsc --noEmit",
     "check": "npm run build && vitest run",
-    "deploy": "wrangler deploy",
-    "deploy:dry-run": "wrangler deploy --dry-run",
     "dev": "wrangler dev",
     "start": "tsx src/standalone/server.ts",
     "test": "vitest run"

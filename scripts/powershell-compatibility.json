@@ -15,12 +15,9 @@
     "measure-host-resources.ps1",
     "package-win.ps1",
     "prepare-release.ps1",
-    "relay-setup.ps1",
-    "relay-usage.ps1",
     "site-dev-admin.ps1",
     "site-dev-init.ps1",
     "site-dev.ps1",
-    "site-publish-password.ps1",
     "verify-windows-version.ps1",
     "zip-clean-repo.ps1"
   ]

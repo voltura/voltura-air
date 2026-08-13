@@ -4,34 +4,12 @@ Publish `apps/public-site` to `https://voltura.se/air/`. Claims come from
 [features](features.md), [setup](setup.md), [release](release.md), and
 [security](../SECURITY.md).
 
-## Publish
+## Production publication boundary
 
-```powershell
-npm run publish:site:password
-npm run publish:site:list
-npm run publish:site
-```
-
-The password prompt is hidden and DPAPI-encrypted for the current Windows user
-outside Git at `%LOCALAPPDATA%\Voltura Air`. Remove it with
-`npm run publish:site:password:clear`; never store it in files or logs.
-
-Publication rebuilds the catalog preview and hosted Relay/Secure Direct PWA, regenerates
-`stats.html`, uploads `apps/public-site` to `air`, and uploads the first-party short
-redirects under the website-root `a` and `s` paths. It pins
-server identity, overwrites matching files, adds new files, and retains
-remote-only files. `publish:site:list` is read-only.
-
-For a hosted PWA test without rebuilding or publishing the public site, catalog
-preview, or statistics, run:
-
-```powershell
-npm run publish:site -- --only-app
-```
-
-This builds only the hosted PWA and uploads only `apps/public-site/app` to `/air/app`,
-plus the normal `/a` and Secure Direct `/s` launch redirects. It does not upload
-the rest of `/air` or change the Screens catalog and `stats.html`.
+The public repository owns all website, hosted-PWA, `/a`, and `/s` source plus local
+validation and generation. The private `voltura-air-service` repository owns the
+voltura.se SFTP endpoint, pinned server identity, protected credential, upload logic,
+and release ordering. Public source commands never upload the production site.
 
 ## Custom-screen catalog
 

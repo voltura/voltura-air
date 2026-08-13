@@ -135,19 +135,6 @@ export function publishReleaseIfRequested({ publishLatest, targetTag, repository
   }
 }
 
-export function deployOfficialRelayIfRequested({ publishLatest }, execute = checked) {
-  if (!publishLatest) {
-    return;
-  }
-
-  execute("npm", ["run", "relay:deploy"]);
-  execute("npm", ["run", "relay:health"]);
-  const status = execute("git", ["status", "--porcelain=v1", "--untracked-files=all"], { captureOutput: true });
-  if (status) {
-    throw new Error(`Repository changed during relay deployment: ${status}`);
-  }
-}
-
 function remoteTagExists(tag) {
   return checked("git", ["ls-remote", "--tags", "origin", `refs/tags/${tag}`], { captureOutput: true }).length > 0;
 }
@@ -259,11 +246,6 @@ export async function runLocalRelease(args = process.argv.slice(2), { progress, 
     checked("gh", ["auth", "status", "--hostname", "github.com"], { captureOutput: true });
     checked("npm", ["run", "tools:check"]);
     preflightPublishRestores();
-    if (publishLatest) {
-      checked("npm", ["exec", "--workspace", "@voltura-air/relay", "--", "wrangler", "whoami"], { captureOutput: true });
-      checked("npm", ["run", "deploy:dry-run", "--workspace", "@voltura-air/relay"], { captureOutput: true });
-    }
-
     const initialStatus = checked("git", ["status", "--porcelain=v1", "--untracked-files=all"], { captureOutput: true });
     if (initialStatus) {
       throw new Error("Release publication requires a clean Git working tree.");
@@ -286,7 +268,6 @@ export async function runLocalRelease(args = process.argv.slice(2), { progress, 
     checked("git", ["fetch", "origin", "main"]);
     checked("git", ["merge-base", "--is-ancestor", "origin/main", "HEAD"]);
     checked("git", ["push", "--dry-run", "origin", "HEAD:main"], { captureOutput: true });
-    checked("npm", ["run", "publish:site:list"], { captureOutput: true });
     const releasePages = JSON.parse(checked("gh", [
       "api", "--paginate", "--slurp", `repos/${repository}/releases?per_page=100`
     ], { captureOutput: true }));
@@ -478,15 +459,11 @@ export async function runLocalRelease(args = process.argv.slice(2), { progress, 
 
     await performStep(
       releaseProgress,
-      publishLatest ? "Deploying the relay and website, then publishing Latest" : "Deploying the website and finalizing the draft",
+      publishLatest ? "Publishing GitHub Latest" : "Finalizing the audited draft",
       publishLatest
-        ? "Deploying and checking the production relay, publishing the public site, then publishing GitHub Latest."
-        : "Publishing the public site while leaving production relay infrastructure unchanged.",
+        ? "Publishing the already audited public release as GitHub Latest."
+        : "Leaving the audited public release as a draft.",
       () => {
-        if (releaseContext.resumePhase !== "published") {
-          deployOfficialRelayIfRequested({ publishLatest });
-          checked("npm", ["run", "publish:site:prepared"]);
-        }
         publishReleaseIfRequested({
           publishLatest,
           targetTag: releaseContext.targetTag,

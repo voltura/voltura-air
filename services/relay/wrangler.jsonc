@@ -1,9 +1,9 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "voltura-air-relay",
+  "name": "voltura-air-relay-development",
   "main": "src/cloudflare/worker.ts",
   "compatibility_date": "2026-08-03",
-  "workers_dev": true,
+  "workers_dev": false,
   "durable_objects": {
     "bindings": [
       { "name": "RELAY_ROOMS", "class_name": "RelayRoomObject" },
@@ -15,9 +15,9 @@
     { "tag": "v2", "new_sqlite_classes": ["SecureDirectRoomObject"] }
   ],
   "vars": {
-    "PUBLIC_SERVICE_ID": "voltura-cloud-v1",
-    "ALLOWED_DEVICE_ORIGIN": "https://voltura.se",
-    "USAGE_WARNING_BYTES": "750000000000",
-    "USAGE_CUTOFF_BYTES": "850000000000"
+    "PUBLIC_SERVICE_ID": "development-only",
+    "ALLOWED_DEVICE_ORIGIN": "https://example.invalid",
+    "USAGE_WARNING_BYTES": "1000000000000",
+    "USAGE_CUTOFF_BYTES": "2000000000000"
   }
 }

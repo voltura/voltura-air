@@ -1,7 +1,8 @@
 # Release
 
-Every published build uses a new semantic version. This procedure prepares,
-verifies, packages, and publishes the Windows release and public site.
+Every published build uses a new semantic version. This public procedure prepares,
+verifies, packages, and publishes the Windows/GitHub release. Voltura-operated Relay
+and website deployment is owned by the private `voltura-air-service` repository.
 
 ## Complete release
 
@@ -25,18 +26,15 @@ npm run release:draft -- 0.8.0
 The command validates prerequisites and repository state, prepares the version,
 regenerates public assets/statistics, runs full build/tests, commits the prepared
 sources locally, packages and audits all artifacts once from that exact commit,
-then pushes and creates/resumes the matching release. A stable `release:full`
-deploys and verifies the configured Cloudflare relay before deploying
-`apps/public-site` and publishing GitHub Latest. Drafts do not change the production
-relay. Wrangler cache is ignored, and any other repository change during relay
-deployment fails the release before site or Latest publication. Prerelease
-versions remain drafts. Set `NO_COLOR` to disable colored output.
+then pushes and creates/resumes the matching release. `release:full` publishes the
+audited GitHub draft as Latest; neither public command deploys hosted infrastructure.
+Prerelease versions remain drafts. Set `NO_COLOR` to disable colored output.
 
-The catalog preview and statistics page are generated before the release commit;
-deployment uploads that prepared snapshot without regenerating tracked files.
-A successful release therefore leaves the Git working tree clean.
+The catalog preview, hosted PWA, and statistics page are generated before the release
+commit so private production operations can upload that exact reviewed snapshot.
+A successful public release leaves the Git working tree clean.
 
-Fast tool, publish-lock, GitHub/push, Cloudflare, NSIS, and site-credential
+Fast tool, publish-lock, GitHub/push, and NSIS
 preflights run before source generation and the full test suite. If a later step
 fails, the command restores tracked release changes and records an ignored local
 checkpoint tied to the exact release commit. Rerun the same command: it reuses
@@ -51,9 +49,6 @@ long-running work. A successful release removes the checkpoint.
 - Visual Studio 2026 18.9 or newer with the Desktop development with C++ workload.
 - PHP 8.5 for the public-site validation gate.
 - Authenticated GitHub CLI with write access to `voltura/voltura-air`.
-- Authenticated Wrangler access to the production Cloudflare account for a
-  stable `release:full`.
-- Site SFTP password stored by `npm run publish:site:password`.
 - Clean `main`, no merge/rebase, and no divergence from `origin/main`.
 - No workflow YAML under `.github/workflows`.
 - One committed non-empty target section in `docs/release-notes.md`.

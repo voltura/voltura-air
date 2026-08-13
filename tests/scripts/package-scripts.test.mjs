@@ -48,7 +48,7 @@ test("GitHub Actions stay archived but can be restored deliberately", () => {
   assert.equal(packageJson.scripts["actions:restore"], "node scripts/restore-github-actions.mjs");
   assert.equal(packageJson.scripts["release:draft"], "node scripts/release-publish.mjs");
   assert.equal(packageJson.scripts["release:full"], "node scripts/release-publish.mjs --publish-latest");
-  assert.equal(packageJson.scripts["publish:site:prepared"], "node scripts/publish-site.mjs --prepared");
+  assert.equal(packageJson.scripts["publish:site:prepared"], undefined);
   assert.equal(packageJson.scripts["release:sync-release-notes"], "node scripts/sync-release-notes.mjs");
   assert.equal(existsSync(new URL("../../.github/workflows/release.yml", import.meta.url)), false);
   assert.equal(existsSync(new URL("../../.github/workflows/quality.yml", import.meta.url)), false);
@@ -79,14 +79,15 @@ test("host partial ownership runs in root and pull-request quality gates", () =>
 });
 
 test("root validation includes the portable relay without deploying it", () => {
-  assert.equal(packageJson.scripts["relay:health"], "node scripts/check-relay-health.mjs");
+  assert.equal(packageJson.scripts["relay:health"], undefined);
   assert.match(packageJson.scripts.test, /npm run relay:check/u);
   assert.doesNotMatch(packageJson.scripts.test, /relay:deploy|relay:health/u);
 });
 
-test("relay dry-run keeps the flag inside its workspace script", () => {
+test("public relay workspace cannot deploy the Voltura-operated service", () => {
   const relayPackage = JSON.parse(readFileSync(new URL("../../services/relay/package.json", import.meta.url), "utf8"));
-  assert.equal(relayPackage.scripts["deploy:dry-run"], "wrangler deploy --dry-run");
+  assert.equal(relayPackage.scripts.deploy, undefined);
+  assert.equal(relayPackage.scripts["deploy:dry-run"], undefined);
 });
 
 test("the production mobile build enforces its measured JavaScript budget", () => {

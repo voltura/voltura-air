@@ -416,7 +416,6 @@ test("full catalog previews use the real mobile custom-screen renderer", () => {
   assert.match(entry, /custom-screen-browser-preview control-depth/u);
   assert.match(viteConfig, /publicDir: false/u);
   assert.match(viteConfig, /emptyOutDir: true/u);
-  assert.match(read("scripts/publish-site.mjs"), /runNpmScript\("site:preview:build"/u);
 });
 
 test("admins can atomically bulk-import the generated official screen bundle", () => {

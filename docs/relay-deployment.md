@@ -4,53 +4,20 @@ Cloud Relay is optional. Direct LAN remains the default. Deployment never
 publishes the website or creates a Windows release unless those separate
 commands are run explicitly.
 
-## Cloudflare production setup
+## Voltura-operated service
 
-You need a Cloudflare account, a `workers.dev` account name, and a payment
-method for Realtime TURN. Do not use or paste a Global API Key. Cloudflare's
-TURN dashboard shows the included monthly transfer and any overage price before
-activation; billing notifications warn but do not stop charges. Voltura Air
-adds its own 750 GB warning/Data Saver threshold and 850 GB credential cutoff.
-Those values have one production authority in `services/relay/wrangler.jsonc`;
-the relay includes them with its usage snapshot, and the Windows host does not
-duplicate them in registry settings or application code.
+The public repository owns the portable Relay core, adapters, protocol, official
+client endpoint, and self-hosting path. Production Worker configuration, restricted
+credentials, quota thresholds, deployment, health/usage operations, and release
+orchestration are owned by the private `voltura-air-service` repository. Public
+`npm run relay:check` builds and tests the implementation without production access.
 
-1. Create a free [Cloudflare account](https://dash.cloudflare.com/sign-up).
-2. In **Workers & Pages**, choose the free `workers.dev` account name. No domain
-   transfer or DNS change is required.
-3. Open **Realtime → TURN Server**, add payment details, activate Realtime, and
-   create one key named `Voltura Air production`.
-4. Save its key ID and credential-generation token in a password manager.
-5. In **Manage account → Account API tokens**, create a separate token with
-   only **Account Analytics: Read**. Save it in the password manager.
-6. In **Billing → Notifications**, create a small usage/billing notification.
-   This is only a warning; it is not a spending limit.
-7. From a PowerShell terminal in the repository, run:
-
-   ```powershell
-   npm run relay:setup
-   ```
-
-   The command opens Cloudflare login, asks for the account ID, TURN key ID,
-   hidden restricted tokens, and `workers.dev` name. It validates and deploys
-   the Worker/Durable Object, checks `/v1/health`, then writes the verified
-   public address to `apps/windows-host/relay-service.json`. Secrets are stored
-   as Cloudflare Worker secrets and are not written to the repository.
-8. Recheck source with `npm run relay:check` and the deployed endpoint with
-   `npm run relay:health`. View current-month TURN transfer with
-   `npm run relay:usage`; its token prompt is hidden.
-9. Outside a stable release, manually run `npm run publish:site` to upload the
-   hosted PWA and first-party `/a/<route>` and `/s/<route>` redirects. Deploy
-   the Worker with the `SecureDirectRoomObject` migration before publishing
-   `/s`; deploy the default-off Windows setting last. `npm run release:full`
-   deploys and verifies the official relay before publishing the site and
-   Windows release; `release:draft` leaves production relay infrastructure
-   unchanged.
+This repository split changes no public endpoint, protocol, credential lifetime, or
+quota behavior. Released clients continue to use the configured official service.
 
 Cloudflare TURN credential generation and renewal follow the
 [official credential API](https://developers.cloudflare.com/realtime/turn/generate-credentials/).
-Usage is read from the
-[official TURN GraphQL analytics fields](https://developers.cloudflare.com/realtime/turn/analytics/).
+Usage is read from the official TURN analytics API by private operations.
 
 Command pairing and control use outbound HTTPS/WebSocket only. Relay screen
 viewing on Windows also leaves through TCP 443: a bounded host-owned loopback

@@ -139,6 +139,10 @@ flowchart LR
   Mode -->|"release:draft"| Draft["Audited GitHub draft"]
   Mode -->|"release:full"| Public["Published GitHub Latest release"]
 
+  Pin["Private service repo\npins exact public commit"] --> Draft
+  Draft --> Hosted["Private dry run + Relay deploy/health\nprepared site upload"]
+  Hosted --> Public
+
   GitHub["GitHub CLI and release API"] -. "publication trust" .-> Mode
   Tooling["NSIS / build tooling"] -. "release-time tool trust" .-> Package
   Maintainer["Maintainer"] --> Local

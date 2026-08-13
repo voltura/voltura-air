@@ -50,10 +50,10 @@ files are rebuilt, never hand-edited.
 | [Setup](setup.md) | Operations | Advanced development, isolation, validation routing, host options, product limits. |
 | [Troubleshooting](troubleshooting.md) | Operations | Recovery by symptom. |
 | [Screenshots](screenshots.md) | Operations | Isolated screenshot/installer-art capture. |
-| [Release](release.md) | Operations | Version, verification, package, publication. |
+| [Release](release.md) | Operations | Public version, verification, package, and GitHub publication. |
 | [Release notes](release-notes.md) | History | User-visible release changes. |
-| [Site deployment](site-deployment.md) | Operations | Website publication/hosting. |
-| [Relay deployment](relay-deployment.md) | Operations | Cloudflare setup, quota checks, and advanced WSL self-hosting. |
+| [Site deployment](site-deployment.md) | Operations | Public site source/local hosting and private production boundary. |
+| [Relay deployment](relay-deployment.md) | Operations | Public Relay boundary and advanced WSL self-hosting. |
 | [TODO](todo.md) | Approved work | Prioritized, decision-ready outcomes. |
 | [Ideas](ideas.md) | Possible work | Directions awaiting decisions/evidence. |
 

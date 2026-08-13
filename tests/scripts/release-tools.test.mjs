@@ -14,7 +14,6 @@ import {
 import {
   auditDraft,
   buildReleaseBody,
-  deployOfficialRelayIfRequested,
   getRelease,
   publishReleaseIfRequested,
   restoreCleanTrackedTree
@@ -48,21 +47,19 @@ test("release commands accept at most one explicit version", () => {
   assert.throws(() => parseReleaseArguments(["latest"]), /semantic versioning/u);
 });
 
-test("release publication prepares all site outputs before staging and deploys them unchanged", () => {
+test("release publication prepares all public site outputs before staging", () => {
   const previewBuild = localReleaseSource.indexOf('"site:preview:build"');
   const hostedBuild = localReleaseSource.indexOf('"site:hosted:build"');
   const generation = localReleaseSource.indexOf('"code:statistics"');
   const staging = localReleaseSource.indexOf("await stageReleaseChanges()");
-  const deployment = localReleaseSource.indexOf('"publish:site:prepared"');
   assert.ok(previewBuild > 0);
   assert.ok(hostedBuild > previewBuild);
   assert.ok(generation > hostedBuild);
   assert.ok(generation > 0);
   assert.ok(staging > generation);
-  assert.ok(deployment > staging);
   assert.match(localReleaseSource, /"code:statistics", "--", "--report", "--no-open", "--quiet"/u);
   assert.equal(localReleaseSource.match(/"site:hosted:build"/gu)?.length, 1);
-  assert.match(localReleaseSource, /"publish:site:prepared"/u);
+  assert.doesNotMatch(localReleaseSource, /"publish:site:prepared"/u);
 });
 
 test("release packaging runs once from the final local commit before push", () => {
@@ -82,13 +79,12 @@ test("release packaging runs once from the final local commit before push", () =
   assert.doesNotMatch(localReleaseSource, /"package:win", "--"/u);
 });
 
-test("release runs quick deployment and publish-lock preflights before the long test suite", () => {
+test("release runs source and Git preflights before the long test suite", () => {
   const tools = localReleaseSource.indexOf('checked("npm", ["run", "tools:check"]');
   const locks = localReleaseSource.indexOf("preflightPublishRestores()");
   const push = localReleaseSource.indexOf('checked("git", ["push", "--dry-run"');
-  const site = localReleaseSource.indexOf('checked("npm", ["run", "publish:site:list"]');
   const tests = localReleaseSource.indexOf('checked("npm", ["test"]');
-  for (const preflight of [tools, locks, push, site]) {
+  for (const preflight of [tools, locks, push]) {
     assert.ok(preflight > 0);
     assert.ok(preflight < tests);
   }
@@ -143,7 +139,6 @@ test("release failures restore tracked release changes and checkpoints skip comp
   assert.match(localReleaseSource, /phase: "packaged"/u);
   assert.match(localReleaseSource, /Tests already passed for commit/u);
   assert.match(localReleaseSource, /audited .* release already contains the final artifacts/u);
-  assert.match(localReleaseSource, /resumePhase !== "published"/u);
 });
 
 test("release failure cleanup restores its exact commit and removes generated untracked files", () => {
@@ -183,37 +178,11 @@ test("local draft completion does not run publication or tag commands", () => {
   assert.deepEqual(commands, []);
 });
 
-test("only a stable full release deploys and verifies the official relay", () => {
-  const draftCommands = [];
-  deployOfficialRelayIfRequested({ publishLatest: false }, (command, args) => draftCommands.push([command, args]));
-  assert.deepEqual(draftCommands, []);
-
-  const stableCommands = [];
-  deployOfficialRelayIfRequested({ publishLatest: true }, (command, args) => {
-    stableCommands.push([command, args]);
-    return "";
-  });
-  assert.deepEqual(stableCommands, [
-    ["npm", ["run", "relay:deploy"]],
-    ["npm", ["run", "relay:health"]],
-    ["git", ["status", "--porcelain=v1", "--untracked-files=all"]]
-  ]);
-
-  assert.throws(() => deployOfficialRelayIfRequested(
-    { publishLatest: true },
-    (command) => command === "git" ? "?? unexpected.tmp" : ""
-  ), /changed during relay deployment/u);
-
-  const relayDeployment = localReleaseSource.lastIndexOf("deployOfficialRelayIfRequested({ publishLatest })");
-  const siteDeployment = localReleaseSource.lastIndexOf('checked("npm", ["run", "publish:site:prepared"])');
+test("public release never deploys hosted service infrastructure", () => {
   const latestPublication = localReleaseSource.lastIndexOf("publishReleaseIfRequested({");
-  assert.ok(relayDeployment > 0);
-  assert.ok(siteDeployment > relayDeployment);
-  assert.ok(latestPublication > siteDeployment);
-  assert.match(localReleaseSource,
-    /if \(publishLatest\) \{\s+checked\("npm", \["exec", "--workspace", "@voltura-air\/relay", "--", "wrangler", "whoami"\]/u);
-  assert.match(localReleaseSource, /"run", "deploy:dry-run", "--workspace", "@voltura-air\/relay"/u);
-  assert.doesNotMatch(localReleaseSource, /"wrangler", "deploy", "--dry-run"/u);
+  assert.ok(latestPublication > 0);
+  assert.doesNotMatch(localReleaseSource, /relay:deploy|relay:health|publish:site/u);
+  assert.doesNotMatch(localReleaseSource, /wrangler/u);
 });
 
 test("local release does not fetch tags into the checkout", () => {

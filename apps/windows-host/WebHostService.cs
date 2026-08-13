@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging;
+using VolturaAir.Host.Features.PhoneWebcam;
 
 namespace VolturaAir.Host;
 
@@ -28,6 +29,7 @@ public sealed class WebHostService : IAsyncDisposable
     private readonly WebSocketSessionHandler _sessionHandler;
     private readonly ScreenViewCoordinator _screenView;
     private readonly ScreenViewCommandHandler _screenViewCommands;
+    private readonly PhoneWebcamCommandHandler _phoneWebcamCommands;
     private readonly FileManagerService _fileManager;
     private readonly FileManagerCommandHandler _fileManagerCommands;
     private readonly PresentationLaserPointerController _presentationLaserPointer;
@@ -59,6 +61,15 @@ public sealed class WebHostService : IAsyncDisposable
 
     internal void StopScreenViewing() => _screenView.Stop();
 
+    internal event EventHandler<PhoneWebcamActivityChangedEventArgs>? PhoneWebcamActivityChanged
+    {
+        add => _phoneWebcamCommands.ActivityChanged += value;
+        remove => _phoneWebcamCommands.ActivityChanged -= value;
+    }
+
+    internal Task StopPhoneWebcamFromHostAsync(string clientId) =>
+        _phoneWebcamCommands.StopFromHostAsync(clientId);
+
     public WebHostService(
         PairingManager pairingManager,
         InputDispatcher inputDispatcher,
@@ -79,6 +90,53 @@ public sealed class WebHostService : IAsyncDisposable
         bool isolatedTestMode = false,
         Action<IWebHostBuilder>? configureWebHost = null,
         IScreenViewCaptureSource? screenViewCapture = null)
+        : this(
+            pairingManager,
+            inputDispatcher,
+            audioController,
+            remoteActionExecutor,
+            powerController,
+            awakeService,
+            workstationLockPolicy,
+            appLog,
+            appLaunchService,
+            customScreenService,
+            urlOpenService,
+            textDestinationService,
+            clipboardTextReader,
+            applyCustomPointer,
+            applyPresentationLaserPointer,
+            powerPointAutomation,
+            isolatedTestMode,
+            configureWebHost,
+            screenViewCapture,
+            null,
+            null)
+    {
+    }
+
+    internal WebHostService(
+        PairingManager pairingManager,
+        InputDispatcher inputDispatcher,
+        ISystemAudioController? audioController,
+        IRemoteActionExecutor? remoteActionExecutor,
+        ISystemPowerController? powerController,
+        IAwakeService? awakeService,
+        IWorkstationLockPolicy? workstationLockPolicy,
+        IAppLog? appLog,
+        IAppLaunchService? appLaunchService,
+        CustomScreenService? customScreenService,
+        IUrlOpenService? urlOpenService,
+        ITextDestinationService? textDestinationService,
+        IClipboardTextReader? clipboardTextReader,
+        Action<CustomPointerSettings>? applyCustomPointer,
+        Action<bool, PresentationLaserColor?>? applyPresentationLaserPointer,
+        IPowerPointAutomationService? powerPointAutomation,
+        bool isolatedTestMode,
+        Action<IWebHostBuilder>? configureWebHost,
+        IScreenViewCaptureSource? screenViewCapture,
+        IPhoneWebcamFeature? phoneWebcamFeature,
+        IPhoneWebcamWebRtcPeerFactory? phoneWebcamPeerFactory)
     {
         _configureWebHost = configureWebHost;
 
@@ -184,7 +242,10 @@ public sealed class WebHostService : IAsyncDisposable
             () => _powerPoint.Snapshot,
             () => _presentationSession.Snapshot,
             _presentationCatalog,
-            () => EnhancedCapabilitiesEnabled);
+            () => EnhancedCapabilitiesEnabled,
+            () => phoneWebcamFeature?.Status ?? new PhoneWebcamFeatureStatus(
+                PhoneWebcamFeatureState.Unavailable,
+                "Phone webcam is unavailable."));
         var commandLog = new HostCommandLog(_appLog);
         var powerCommands = new PowerCommandHandler(
             _powerController,
@@ -269,6 +330,20 @@ public sealed class WebHostService : IAsyncDisposable
             inputDispatcher,
             _powerController);
         _screenViewCommands = new ScreenViewCommandHandler(_screenView, _transport, GetRelayTurnConfigurationAsync, _appLog);
+        var resolvedPhoneWebcam = phoneWebcamFeature ?? PhoneWebcamFeature.CreateUnavailable();
+        var phoneWebcamCoordinator = new PhoneWebcamCoordinator(
+            pairingManager,
+            statusFactory,
+            resolvedPhoneWebcam,
+            phoneWebcamPeerFactory);
+        if (resolvedPhoneWebcam is PhoneWebcamFeature concretePhoneWebcam)
+        {
+            concretePhoneWebcam.SetSessionStopper(() => phoneWebcamCoordinator.StopAllAsync("host-stopped"));
+        }
+        _phoneWebcamCommands = new PhoneWebcamCommandHandler(
+            phoneWebcamCoordinator,
+            _transport,
+            GetRelayTurnConfigurationAsync);
         // An isolated browser may exercise the protocol, but it must never call
         // the native cursor API on the developer's Windows session.
         var resolvedApplyCustomPointer = isolatedTestMode ? null : applyCustomPointer;
@@ -292,6 +367,7 @@ public sealed class WebHostService : IAsyncDisposable
             inputCommands,
             customScreenCommands,
             _screenViewCommands,
+            _phoneWebcamCommands,
             _appLog,
             args => ControllerSocketClosed?.Invoke(this, args));
         _statusBroadcaster = new HostStatusBroadcaster(
@@ -304,7 +380,8 @@ public sealed class WebHostService : IAsyncDisposable
             _appLog,
             _presentationLaserPointer,
             _powerPoint,
-            presentationBlankOverlay);
+            presentationBlankOverlay,
+            resolvedPhoneWebcam as PhoneWebcamFeature);
         if (TransportMode == ConnectionTransportMode.Relay)
         {
 #pragma warning disable CA2000 // RelayHostConnection owns and disposes the routing identity.
@@ -492,6 +569,7 @@ public sealed class WebHostService : IAsyncDisposable
     {
         await _screenViewCommands.DisposeAsync();
         await _screenView.DisposeAsync();
+        await _phoneWebcamCommands.DisposeAsync();
         _transport.AbortAll();
         if (_relay is not null)
         {
@@ -528,6 +606,7 @@ public sealed class WebHostService : IAsyncDisposable
         await _fileManager.DisposeAsync();
         await _screenViewCommands.DisposeAsync();
         await _screenView.DisposeAsync();
+        await _phoneWebcamCommands.DisposeAsync();
         _presentationCatalog.Changed -= OnPresentationCatalogChanged;
         _presentationCatalog.Dispose();
         _presentationSession.StateChanged -= OnPresentationSessionChanged;

@@ -53,6 +53,7 @@ function mockConnection(overrides: Partial<ReturnType<typeof useVolturaAirConnec
     message: "Connected to Very Long Living Room Editing Workstation",
     send: vi.fn(),
     screenViewCapability: undefined,
+    phoneWebcamCapability: undefined,
     fileManagerCapability: undefined,
     requestAudioState: vi.fn(),
     clientId: "client-a",
@@ -629,6 +630,87 @@ describe("App header and mode navigation", () => {
     expect(screen.queryByText("Live mirror")).toBeNull();
     expect(document.querySelector(".app-shell")?.classList).not.toContain("screen-view-active");
     expect(document.querySelector(".bottom-mode-tabs")).not.toBeNull();
+  });
+
+  it.each([
+    { label: "Enhanced Direct", transportMode: "secure-direct" as const, url: "https://secure-direct.invalid" },
+    { label: "Relay", transportMode: "relay" as const, url: "https://voltura.se/a" }
+  ])("opens Phone webcam as a normal app tool over $label", async ({ transportMode, url }) => {
+    mockConnection({
+      activePc: {
+        customName: true,
+        id: "pc-a",
+        name: "Webcam PC",
+        transportMode,
+        url
+      },
+      phoneWebcamCapability: {
+        enabled: true,
+        permissionGranted: true,
+        canUse: true,
+        requiresRepair: false,
+        videoOnly: true,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        maxFramesPerSecond: 30
+      }
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    const menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog")!;
+    fireEvent.click(within(menu).getByRole("button", { name: "Phone webcam" }));
+
+    expect(await screen.findByRole("heading", { name: "Phone webcam" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Allow camera access" })).toBeTruthy();
+    expect(document.querySelector(".app-shell")?.classList).toContain("phone-webcam-active");
+    expect(document.querySelector(".top-mode-tabs")).toBeNull();
+    expect(document.querySelector(".bottom-mode-tabs")).toBeNull();
+  });
+
+  it("refreshes the open Phone webcam workspace from live host capability changes", async () => {
+    const available = {
+      enabled: true,
+      permissionGranted: true,
+      canUse: true,
+      requiresRepair: false,
+      videoOnly: true as const,
+      maxWidth: 1920,
+      maxHeight: 1080,
+      maxFramesPerSecond: 30
+    };
+    const activePc = { customName: true, id: "pc-a", name: "Webcam PC", transportMode: "secure-direct" as const, url: "https://secure-direct.invalid" };
+    mockConnection({ activePc, phoneWebcamCapability: available });
+    const rendered = render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    fireEvent.click(within(screen.getByRole("heading", { name: "Menu" }).closest("dialog")!).getByRole("button", { name: "Phone webcam" }));
+    expect(await screen.findByRole("heading", { name: "Phone webcam" })).toBeTruthy();
+
+    mockConnection({ activePc, phoneWebcamCapability: { ...available, enabled: false, canUse: false } });
+    rendered.rerender(<App />);
+
+    expect((screen.getByRole("button", { name: "Allow camera access" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText("Enable Phone webcam in the Windows app first.")).toBeTruthy();
+  });
+
+  it("does not offer Phone webcam over Standard Local HTTP", () => {
+    mockConnection({
+      phoneWebcamCapability: {
+        enabled: true,
+        permissionGranted: true,
+        canUse: true,
+        requiresRepair: false,
+        videoOnly: true,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        maxFramesPerSecond: 30
+      }
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    const menu = screen.getByRole("heading", { name: "Menu" }).closest("dialog")!;
+    expect(within(menu).queryByRole("button", { name: "Phone webcam" })).toBeNull();
   });
 
   it("leaves third-party notices through the compact mode selector", () => {

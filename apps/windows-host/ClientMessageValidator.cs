@@ -60,6 +60,9 @@ internal static class ClientMessageValidator
             ["screen.view.answer"] = Fields("type", "operationId", "answerSdp", "clientSignature"),
             ["screen.view.source.set"] = Fields("type", "operationId", "displayId"),
             ["screen.view.stop"] = Fields("type", "operationId"),
+            ["phone.webcam.start"] = Fields("type", "operationId", "captureWidth", "captureHeight", "captureFps", "clientSignature"),
+            ["phone.webcam.answer"] = Fields("type", "operationId", "answerSdp", "clientSignature"),
+            ["phone.webcam.stop"] = Fields("type", "operationId"),
             ["audio.get"] = Fields("type"),
             ["system.sleep"] = Fields("type"),
             ["system.power"] = Fields("type", "operationId", "action"),
@@ -271,6 +274,21 @@ internal static class ClientMessageValidator
             "screen.view.stop" =>
                 TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var screenStopOperationId) &&
                 IsValidOperationId(screenStopOperationId),
+            "phone.webcam.start" =>
+                TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var webcamStartOperationId) &&
+                IsValidOperationId(webcamStartOperationId) &&
+                TryGetBoundedInt(root, "captureWidth", 1, 4096, out _) &&
+                TryGetBoundedInt(root, "captureHeight", 1, 4096, out _) &&
+                TryGetBoundedInt(root, "captureFps", 1, 60, out _) &&
+                TryGetRequiredString(root, "clientSignature", MaxCredentialLength, allowEmpty: false, out _),
+            "phone.webcam.answer" =>
+                TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var webcamAnswerOperationId) &&
+                IsValidOperationId(webcamAnswerOperationId) &&
+                TryGetRequiredString(root, "answerSdp", ScreenViewProtocol.MaxSdpLength, allowEmpty: false, out _) &&
+                TryGetRequiredString(root, "clientSignature", MaxCredentialLength, allowEmpty: false, out _),
+            "phone.webcam.stop" =>
+                TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var webcamStopOperationId) &&
+                IsValidOperationId(webcamStopOperationId),
             "audio.get" => true,
             "system.sleep" => true,
             "system.power" => TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var powerOperationId) &&
@@ -689,6 +707,16 @@ internal static class ClientMessageValidator
         return root.TryGetProperty(propertyName, out var property) &&
             property.ValueKind == JsonValueKind.Number &&
             property.TryGetDouble(out value) &&
+            value >= min &&
+            value <= max;
+    }
+
+    private static bool TryGetBoundedInt(JsonElement root, string propertyName, int min, int max, out int value)
+    {
+        value = 0;
+        return root.TryGetProperty(propertyName, out var property) &&
+            property.ValueKind == JsonValueKind.Number &&
+            property.TryGetInt32(out value) &&
             value >= min &&
             value <= max;
     }

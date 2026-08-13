@@ -1,6 +1,6 @@
 using System.Buffers.Binary;
 
-namespace WebRtcSpike.Host;
+namespace VolturaAir.Host.Features.PhoneWebcam;
 
 internal readonly record struct H264DepacketizeResult(byte[]? AccessUnit, bool RequestKeyFrame, uint? RtpTimestamp = null);
 

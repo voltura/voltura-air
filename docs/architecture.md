@@ -41,6 +41,7 @@ performs startup, rollback, and shutdown.
 | Portable relay rooms, bounds, and provider contracts | `services/relay/src/core` |
 | Cloudflare and standalone relay adapters | `services/relay/src/cloudflare` and `services/relay/src/standalone` |
 | Screen-view tickets, single-viewer arbitration, encrypted records, and capture lifecycle | `ScreenViewCoordinator`, `ScreenViewCrypto`, and `DxgiScreenViewCaptureSource` |
+| Phone-webcam producer arbitration, receive/decode pipeline, frame pipe, and virtual camera | `PhoneWebcamCoordinator`, `PhoneWebcamVideoPipeline`, `PhoneWebcamFeature`, and `Features/PhoneWebcam/Native` |
 | Opaque file navigation, Windows file clipboard/Shell actions, persisted panel locations, and serialized mutation work | `FileManagerService`, its platform/location/journal adapters, and `FileManagerCommandHandler` |
 | Lazy mobile screen renderer and fallback crypto | `features/screen-view/` dynamic import |
 | Coalesced capability/status delivery | `HostStatusBroadcaster` and payload factory |
@@ -67,6 +68,7 @@ rollback and shutdown release composition-owned resources in reverse order.
 | --- | --- |
 | Sockets and status | Registered sends are serialized and timed; status uses one capacity-one coalescing worker; shutdown closes and awaits owned work. |
 | Screen capture and stream | The coordinator owns one expiring WebRTC offer or active viewer. The capture source owns one DXGI duplication session, D3D11 conversion resources, and hardware Media Foundation H.264 encoder. The peer owns its RTP track, DTLS data channel, ICE state, retransmission buffer, and native libdatachannel handles. Native resources are released on stop, switch, revocation, loss, or shutdown. |
+| Phone webcam | The coordinator owns one expiring offer or active phone producer. The peer owns receive-only H.264 RTP and ICE/TURN resources; the capacity-one pipeline owns depacketization and Media Foundation decode; the feature owns one latest decoded frame and authenticated versioned pipe; the Frame Server media source owns fixed 1920 x 1080 NV12 consumer output. Stop, hiding, revocation, loss, removal, and shutdown release their complete ownership chains. |
 | Native input, Awake, and simulated activity | Input is decoded once and dispatched in order. Native calls have bounded callers; late completion reconciles before more work. Awake uses `IAwakeService`, never power-plan changes or elevation. Optional simulated activity owns one fixed-delay loop while enabled, probes input availability without waiting, releases the input gate before its one-event native call, and is disposed before the shared injector. |
 | Logs and files | Producers use bounded non-blocking queues. Filesystem work stays off input/UI loops. Stores validate bounds and content, replace atomically, and preserve the last complete state. |
 | WPF and tray | Dispatcher work is owned and bounded. Timers, hooks, subscriptions, icons, windows, and refresh sessions are released on unload/shutdown. |
@@ -115,6 +117,17 @@ desktop bounds, and owns held-button cleanup. The existing input dispatcher and
 Screen media uses a separate H.264 RTP track;
 cursor/status uses the `screen-events` data channel, so media backpressure cannot
 consume the command socket's serialized send queue.
+
+Phone webcam follows the same lazy mobile feature boundary and authenticated
+connection owner, with media direction reversed. The phone selects and sends one
+H.264 camera track; `PhoneWebcamCoordinator` owns the single pending or active
+producer, signed offer/answer expiry, permission and pairing revocation, Relay
+credential reuse, and terminal cleanup. `PhoneWebcamVideoPipeline` keeps one encoded
+access unit, preserves H.264 configuration through decoder recovery, and publishes
+one latest fixed-size NV12 frame to the feature-owned pipe. The native Frame Server
+media source contains no network or credential logic. The Windows page consumes the
+registered virtual camera like any other application and never becomes a second
+media broker.
 
 Files follows the same lazy feature boundary: the initial shell carries only capability/navigation wiring and loads `features/file-manager` on entry. The host resolves every opaque session, location, entry, revision, continuation, and job reference. Effective global/per-device Files policy is applied while the host constructs each directory revision, including removal of protected Hidden+System items before any client-visible count or opaque entry reference exists. `FileManagerService` intentionally validates source and destination revisions together with queue admission so a changed directory cannot redirect or partially resolve an operation. Its bounded workers own the single mutation queue, panel-location persistence, and atomic local job journal; shutdown cancels and awaits them. Every temporary, backup, or partially committed artifact remains durably owned until cleanup, commit, or rollback is confirmed. Windows clipboard, Shell, location-store, and journal behavior remain replaceable adapters so destructive transitions can be fault-injected independently.
 

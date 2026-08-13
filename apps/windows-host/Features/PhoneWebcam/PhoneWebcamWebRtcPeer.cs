@@ -1,9 +1,29 @@
 using System.Runtime.InteropServices;
 using VolturaAir.Host;
 
-namespace WebRtcSpike.Host;
+namespace VolturaAir.Host.Features.PhoneWebcam;
 
-internal sealed class WebRtcPeer : IAsyncDisposable
+internal interface IPhoneWebcamWebRtcPeer : IAsyncDisposable
+{
+    event Action<byte[], uint>? AccessUnitReceived;
+    event EventHandler? Stopped;
+    Task TrackOpen { get; }
+    Task<string> CreateOfferAsync(CancellationToken cancellationToken);
+    void ApplyAnswer(string answerSdp);
+    void RequestKeyFrame();
+}
+
+internal interface IPhoneWebcamWebRtcPeerFactory
+{
+    IPhoneWebcamWebRtcPeer Create(RelayTurnConfiguration? relay);
+}
+
+internal sealed class PhoneWebcamWebRtcPeerFactory : IPhoneWebcamWebRtcPeerFactory
+{
+    public IPhoneWebcamWebRtcPeer Create(RelayTurnConfiguration? relay) => new PhoneWebcamWebRtcPeer(relay);
+}
+
+internal sealed class PhoneWebcamWebRtcPeer : IPhoneWebcamWebRtcPeer
 {
     private const int MaximumSdpLength = 32 * 1024;
     private const int CandidateBufferLength = 4096;
@@ -19,6 +39,7 @@ internal sealed class WebRtcPeer : IAsyncDisposable
     private readonly LibDataChannelNative.ErrorCallback _errorCallback;
     private readonly LibDataChannelNative.MessageCallback _messageCallback;
     private readonly H264RtpDepacketizer _depacketizer = new();
+    private readonly bool _relayOnly;
     private readonly List<ITurnTlsBridge> _turnTlsBridges = [];
     private readonly GCHandle _selfHandle;
     private int _peer;
@@ -26,8 +47,9 @@ internal sealed class WebRtcPeer : IAsyncDisposable
     private bool _receiveFailureReported;
     private bool _disposed;
 
-    internal WebRtcPeer(RelayTurnConfiguration? relay = null)
+    internal PhoneWebcamWebRtcPeer(RelayTurnConfiguration? relay = null)
     {
+        _relayOnly = relay is not null;
         _descriptionCallback = OnDescription;
         _stateCallback = OnState;
         _gatheringCallback = OnGathering;
@@ -98,40 +120,49 @@ internal sealed class WebRtcPeer : IAsyncDisposable
         }
     }
 
-    internal event Action<byte[], uint>? AccessUnitReceived;
-    internal Task TrackOpen => _trackOpen.Task;
+    public event Action<byte[], uint>? AccessUnitReceived;
+    public event EventHandler? Stopped;
+    public Task TrackOpen => _trackOpen.Task;
 
-    internal void RequestKeyFrame()
+    public void RequestKeyFrame()
     {
         int track = Volatile.Read(ref _track);
         if (track > 0) _ = LibDataChannelNative.rtcRequestKeyframe(track);
     }
 
-    internal async Task<string> CreateOfferAsync(CancellationToken cancellationToken)
+    public async Task<string> CreateOfferAsync(CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         EnsureSuccess(LibDataChannelNative.rtcSetLocalDescription(_peer, "offer"), "create complete offer");
         return await _offer.Task.WaitAsync(TimeSpan.FromSeconds(20), cancellationToken).ConfigureAwait(false);
     }
 
-    internal void ApplyAnswer(string answerSdp)
+    public void ApplyAnswer(string answerSdp)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (string.IsNullOrWhiteSpace(answerSdp) || answerSdp.Length > MaximumSdpLength || !answerSdp.StartsWith("v=0", StringComparison.Ordinal))
             throw new InvalidOperationException("The browser answer was empty, invalid, or too large.");
+        if (_relayOnly && !HasOnlyRelayCandidates(answerSdp))
+            throw new InvalidOperationException("The browser answer was not relay-only.");
         EnsureSuccess(LibDataChannelNative.rtcSetRemoteDescription(_peer, answerSdp, "answer"), "apply browser answer");
     }
 
-    internal void PrintSelectedRoute()
+    internal string GetSelectedRouteDescription()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         nint local = Marshal.AllocHGlobal(CandidateBufferLength);
         nint remote = Marshal.AllocHGlobal(CandidateBufferLength);
         try
         {
-            int result = LibDataChannelNative.rtcGetSelectedCandidatePair(_peer, local, CandidateBufferLength, remote, CandidateBufferLength);
-            Console.WriteLine(result < 0
-                ? $"Selected candidate pair: unavailable (native error {result})"
-                : $"Selected candidate pair: local {Marshal.PtrToStringUTF8(local)}; remote {Marshal.PtrToStringUTF8(remote)}");
+            int result = LibDataChannelNative.rtcGetSelectedCandidatePair(
+                _peer,
+                local,
+                CandidateBufferLength,
+                remote,
+                CandidateBufferLength);
+            return result < 0
+                ? $"unavailable (native error {result})"
+                : $"local {Marshal.PtrToStringUTF8(local)}; remote {Marshal.PtrToStringUTF8(remote)}";
         }
         finally
         {
@@ -168,7 +199,7 @@ internal sealed class WebRtcPeer : IAsyncDisposable
     {
         if (_receiveFailureReported) return;
         _receiveFailureReported = true;
-        Console.Error.WriteLine($"RTP receive rejected a packet: {exception.Message}");
+        _ = exception;
     }
 
     private void DisposeNative()
@@ -225,52 +256,60 @@ internal sealed class WebRtcPeer : IAsyncDisposable
 
     private static bool HasOnlyRelayCandidates(string sdp)
     {
-        string[] candidates = sdp.Split('\n', StringSplitOptions.TrimEntries)
-            .Where(line => line.StartsWith("a=candidate:", StringComparison.Ordinal))
-            .ToArray();
+        string[] candidates = [.. sdp.Split('\n', StringSplitOptions.TrimEntries)
+            .Where(line => line.StartsWith("a=candidate:", StringComparison.Ordinal))];
         return candidates.Length > 0 && candidates.All(line => line.Contains(" typ relay", StringComparison.Ordinal));
     }
 
-    private static WebRtcPeer? From(nint pointer) => pointer == 0 ? null : GCHandle.FromIntPtr(pointer).Target as WebRtcPeer;
+    private static PhoneWebcamWebRtcPeer? From(nint pointer) => pointer == 0 ? null : GCHandle.FromIntPtr(pointer).Target as PhoneWebcamWebRtcPeer;
     private static void OnDescription(int peer, nint sdp, nint type, nint pointer) { _ = peer; _ = sdp; _ = type; _ = pointer; }
     private static void OnState(int peer, LibDataChannelNative.PeerState state, nint pointer)
     {
         _ = peer;
-        WebRtcPeer? owner = From(pointer);
+        PhoneWebcamWebRtcPeer? owner = From(pointer);
         if (owner is null) return;
-        Console.WriteLine($"ICE: {state.ToString().ToLowerInvariant()}");
-        if (state is LibDataChannelNative.PeerState.Failed or LibDataChannelNative.PeerState.Disconnected)
-            Console.WriteLine("Transport lost. The original peer and host remain; press Ctrl+C to stop.");
+        if (state is LibDataChannelNative.PeerState.Failed or LibDataChannelNative.PeerState.Disconnected or LibDataChannelNative.PeerState.Closed)
+        {
+            owner._trackOpen.TrySetException(new InvalidOperationException("The Phone webcam WebRTC transport stopped."));
+            owner.Stopped?.Invoke(owner, EventArgs.Empty);
+        }
     }
     private static void OnGathering(int peer, LibDataChannelNative.GatheringState state, nint pointer)
     {
         _ = peer;
-        WebRtcPeer? owner = From(pointer);
-        Console.WriteLine($"ICE gathering: {state.ToString().ToLowerInvariant()}");
+        PhoneWebcamWebRtcPeer? owner = From(pointer);
         if (owner is not null && state == LibDataChannelNative.GatheringState.Complete) owner.CompleteOffer();
     }
     private static void OnOpen(int id, nint pointer)
     {
-        WebRtcPeer? owner = From(pointer);
+        PhoneWebcamWebRtcPeer? owner = From(pointer);
         if (owner is null || id != owner._track) return;
-        Console.WriteLine("Video track: open");
         owner._trackOpen.TrySetResult();
     }
     private static void OnClosed(int id, nint pointer)
     {
-        WebRtcPeer? owner = From(pointer);
-        if (owner is not null && id == owner._track) Console.WriteLine("Video track: closed; waiting frame remains active.");
+        PhoneWebcamWebRtcPeer? owner = From(pointer);
+        if (owner is not null && id == owner._track)
+        {
+            owner.Stopped?.Invoke(owner, EventArgs.Empty);
+        }
     }
     private static void OnError(int id, nint message, nint pointer)
     {
-        WebRtcPeer? owner = From(pointer);
+        PhoneWebcamWebRtcPeer? owner = From(pointer);
         if (owner is null || id != owner._track) return;
         string detail = Marshal.PtrToStringUTF8(message) ?? "unknown native error";
-        owner._trackOpen.TrySetException(new InvalidOperationException($"Video track error: {detail}"));
+        ReportTrackError(owner._trackOpen, () => owner.Stopped?.Invoke(owner, EventArgs.Empty), detail);
+    }
+
+    internal static void ReportTrackError(TaskCompletionSource trackOpen, Action stopped, string detail)
+    {
+        trackOpen.TrySetException(new InvalidOperationException($"Video track error: {detail}"));
+        stopped();
     }
     private static void OnMessage(int id, nint message, int size, nint pointer)
     {
-        WebRtcPeer? owner = From(pointer);
+        PhoneWebcamWebRtcPeer? owner = From(pointer);
         if (owner is null || id != owner._track) return;
         try
         {

@@ -35,6 +35,11 @@ internal sealed class PhoneWebcamPageController : IDisposable
         _toasts = toasts;
         _refresh = refresh;
         _previewFactory = previewFactory ?? ((publish, failure) => new PhoneWebcamPreviewSession(publish, failure));
+        if (_phoneWebcam is PhoneWebcamFeature concrete)
+        {
+            concrete.ActivityChanged += OnActivityChanged;
+            concrete.StatusChanged += OnStatusChanged;
+        }
     }
 
     internal PhoneWebcamPageView CreateView()
@@ -44,6 +49,16 @@ internal sealed class PhoneWebcamPageController : IDisposable
         _currentView = view;
         PhoneWebcamFeatureStatus status = _phoneWebcam.Status;
         view.InstallationStatusText.Text = status.Message;
+        view.SessionStatusText.Text = DescribeActivity();
+        view.AllowPairedDevicesCheckBox.IsChecked = AppPermissionSettings.Load().AllowPhoneWebcam;
+        view.AllowPairedDevicesCheckBox.Click += (_, _) =>
+        {
+            HostPermissionSet current = AppPermissionSettings.Load();
+            AppPermissionSettings.Save(current with
+            {
+                AllowPhoneWebcam = view.AllowPairedDevicesCheckBox.IsChecked == true
+            });
+        };
         ConfigureInstallationAction(view, status);
 
         if (status.IsInstalled)
@@ -99,6 +114,11 @@ internal sealed class PhoneWebcamPageController : IDisposable
         }
 
         _disposed = true;
+        if (_phoneWebcam is PhoneWebcamFeature concrete)
+        {
+            concrete.ActivityChanged -= OnActivityChanged;
+            concrete.StatusChanged -= OnStatusChanged;
+        }
         StopPreview();
     }
 
@@ -108,9 +128,11 @@ internal sealed class PhoneWebcamPageController : IDisposable
         bool remove = status.ShouldRemove;
         action.Content = status.State == PhoneWebcamFeatureState.UpdateRequired
             ? "Remove outdated Phone webcam"
+            : status.State == PhoneWebcamFeatureState.Removing
+                ? "Removing Phone webcam…"
             : remove ? "Remove Phone webcam" : "Enable Phone webcam";
         action.Style = _owner.FindResource(remove ? "DangerButtonStyle" : "PrimaryButtonStyle") as Style;
-        action.IsEnabled = status.State != PhoneWebcamFeatureState.Unavailable;
+        action.IsEnabled = status.State is not PhoneWebcamFeatureState.Unavailable and not PhoneWebcamFeatureState.Removing;
         action.Click += async (_, _) => await ChangeInstallationAsync(remove, action);
     }
 
@@ -258,6 +280,56 @@ internal sealed class PhoneWebcamPageController : IDisposable
             _currentView.PreviewStatusText.Text = message;
             _currentView.RetryPreviewButton.Visibility = Visibility.Visible;
         });
+    }
+
+    private void OnActivityChanged(object? sender, EventArgs args)
+    {
+        if (_owner.Dispatcher.HasShutdownStarted)
+        {
+            return;
+        }
+
+        _owner.Dispatcher.BeginInvoke(() =>
+        {
+            if (_currentView is { } currentView)
+            {
+                currentView.SessionStatusText.Text = DescribeActivity();
+            }
+        });
+    }
+
+    private void OnStatusChanged(object? sender, EventArgs args)
+    {
+        if (_owner.Dispatcher.HasShutdownStarted || _currentView is null)
+        {
+            return;
+        }
+
+        _owner.Dispatcher.BeginInvoke(() =>
+        {
+            if (_currentView is not null)
+            {
+                _refresh();
+            }
+        });
+    }
+
+    private string DescribeActivity()
+    {
+        if (_phoneWebcam is not PhoneWebcamFeature concrete)
+        {
+            return "Phone webcam is idle.";
+        }
+
+        PhoneWebcamActivity activity = concrete.Activity;
+        return activity.State switch
+        {
+            "connecting" => "A paired phone is connecting.",
+            "streaming" when activity.Width.HasValue && activity.Height.HasValue =>
+                $"A paired phone is streaming {activity.Width}×{activity.Height} video.",
+            "streaming" => "A paired phone is streaming video.",
+            _ => "Phone webcam is idle."
+        };
     }
 
     private sealed record QueuedPreviewFrame(int Generation, PhoneWebcamPreviewFrame Frame) : IDisposable

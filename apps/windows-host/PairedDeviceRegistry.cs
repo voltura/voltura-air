@@ -394,6 +394,7 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
         AllowAwakeControl: permissionOverrides?.AllowAwakeControl,
         AllowClipboardRead: permissionOverrides?.AllowClipboardRead,
         AllowScreenViewing: permissionOverrides?.AllowScreenViewing,
+        AllowPhoneWebcam: permissionOverrides?.AllowPhoneWebcam,
         AllowSignOut: permissionOverrides?.AllowSignOut,
         AllowRestart: permissionOverrides?.AllowRestart,
         AllowShutdown: permissionOverrides?.AllowShutdown,

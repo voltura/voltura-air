@@ -81,6 +81,7 @@ export interface ServerCapabilities {
   volume?: boolean;
   customScreens?: CustomScreensCapability | null;
   screenView?: ScreenViewCapability | null;
+  phoneWebcam?: PhoneWebcamCapability | null;
   fileManager?: FileManagerCapability | null;
 }
 
@@ -198,6 +199,76 @@ export interface ScreenViewCapability {
     permissionGranted: boolean;
   };
 }
+
+export interface PhoneWebcamCapability {
+  enabled: boolean;
+  permissionGranted: boolean;
+  canUse: boolean;
+  requiresRepair: boolean;
+  videoOnly: true;
+  maxWidth: number;
+  maxHeight: number;
+  maxFramesPerSecond: number;
+}
+
+export interface PhoneWebcamStartMessage {
+  type: "phone.webcam.start";
+  operationId: string;
+  captureWidth: number;
+  captureHeight: number;
+  captureFps: number;
+  clientSignature: string;
+}
+
+export interface PhoneWebcamAnswerMessage {
+  type: "phone.webcam.answer";
+  operationId: string;
+  answerSdp: string;
+  clientSignature: string;
+}
+
+export interface PhoneWebcamStopMessage { type: "phone.webcam.stop"; operationId: string; }
+
+export interface PhoneWebcamStartResultMessage {
+  type: "phone.webcam.start.result";
+  operationId: string;
+  succeeded: boolean;
+  code?: string;
+  message: string;
+  offerSdp?: string | null;
+  hostSignature?: string | null;
+  iceServers?: RTCIceServer[] | null;
+  turnExpiresAt?: string | null;
+  relayUsageBytes?: number | null;
+  relayUsageCheckedAt?: string | null;
+  relayQuality?: string | null;
+  maximumBitrate?: number | null;
+}
+
+export interface PhoneWebcamAnswerResultMessage {
+  type: "phone.webcam.answer.result";
+  operationId: string;
+  succeeded: boolean;
+  code?: string;
+  message: string;
+}
+
+export interface PhoneWebcamStopResultMessage {
+  type: "phone.webcam.stop.result";
+  operationId: string;
+  succeeded: boolean;
+  code?: string;
+  message: string;
+}
+
+export interface PhoneWebcamEndedMessage {
+  type: "phone.webcam.ended";
+  operationId: string;
+  reason: "stopped" | "connection-lost" | "transport-lost" | "decoder-failed" | "permission-revoked" | "pairing-revoked" | "host-stopped" | "offer-expired";
+  message: string;
+}
+
+export type PhoneWebcamServerMessage = PhoneWebcamStartResultMessage | PhoneWebcamAnswerResultMessage | PhoneWebcamStopResultMessage | PhoneWebcamEndedMessage;
 
 export interface ScreenViewSource {
   id: string;
@@ -938,6 +1009,9 @@ export type ClientMessage =
   | ScreenViewAnswerMessage
   | ScreenViewSourceSetMessage
   | ScreenViewStopMessage
+  | PhoneWebcamStartMessage
+  | PhoneWebcamAnswerMessage
+  | PhoneWebcamStopMessage
   | FileSessionOpenMessage
   | FilePageGetMessage
   | FileNavigateMessage
@@ -952,4 +1026,4 @@ export type ClientMessage =
   | FileJobReorderMessage
   | FileConflictResolveMessage;
 
-export type ServerMessage = PairAcceptedMessage | PairDisconnectAcceptedMessage | PairChallengeMessage | PairBootstrapChallengeMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | PresentationCommandResultMessage | PowerPointRefreshResultMessage | PowerPointLaunchResultMessage | PresentationSessionResultMessage | PresentationReportSaveResultMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | UrlOpenResultMessage | TextSendResultMessage | ClipboardGetResultMessage | AudioStateMessage | CustomScreenGetResultMessage | CustomScreenInvokeResultMessage | ScreenViewSourcesResultMessage | ScreenViewStartResultMessage | ScreenViewAnswerResultMessage | ScreenViewSourceResultMessage | ScreenViewStopResultMessage | ScreenViewEndedMessage | FileManagerServerMessage;
+export type ServerMessage = PairAcceptedMessage | PairDisconnectAcceptedMessage | PairChallengeMessage | PairBootstrapChallengeMessage | PairRejectedMessage | StatusMessage | HealthPongMessage | InputAckMessage | InputErrorMessage | PresentationCommandResultMessage | PowerPointRefreshResultMessage | PowerPointLaunchResultMessage | PresentationSessionResultMessage | PresentationReportSaveResultMessage | SystemPowerResultMessage | AwakeResultMessage | AppLaunchResultMessage | UrlOpenResultMessage | TextSendResultMessage | ClipboardGetResultMessage | AudioStateMessage | CustomScreenGetResultMessage | CustomScreenInvokeResultMessage | ScreenViewSourcesResultMessage | ScreenViewStartResultMessage | ScreenViewAnswerResultMessage | ScreenViewSourceResultMessage | ScreenViewStopResultMessage | ScreenViewEndedMessage | PhoneWebcamServerMessage | FileManagerServerMessage;

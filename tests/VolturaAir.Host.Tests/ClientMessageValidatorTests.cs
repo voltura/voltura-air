@@ -58,6 +58,29 @@ public sealed class ClientMessageValidatorTests
     }
 
     [Theory]
+    [InlineData("""{ "type": "phone.webcam.start", "operationId": "webcam-1", "captureWidth": 1920, "captureHeight": 1080, "captureFps": 30, "clientSignature": "proof" }""", true)]
+    [InlineData("""{ "type": "phone.webcam.start", "operationId": "webcam-1", "captureWidth": 0, "captureHeight": 1080, "captureFps": 30, "clientSignature": "proof" }""", false)]
+    [InlineData("""{ "type": "phone.webcam.start", "operationId": "webcam-1", "captureWidth": 1920, "captureHeight": 1080, "captureFps": 61, "clientSignature": "proof" }""", false)]
+    [InlineData("""{ "type": "phone.webcam.start", "operationId": "webcam-1", "captureWidth": 1920, "captureHeight": 1080, "captureFps": 30, "clientSignature": "proof", "audio": true }""", false)]
+    public void BoundsPhoneWebcamStartRequests(string json, bool expected)
+    {
+        using var document = JsonDocument.Parse(json);
+
+        Assert.Equal(expected, ClientMessageValidator.IsValidAuthenticatedMessage(document.RootElement, "phone.webcam.start"));
+    }
+
+    [Fact]
+    public void BoundsPhoneWebcamAnswers()
+    {
+        using var valid = JsonDocument.Parse("""{ "type": "phone.webcam.answer", "operationId": "webcam-1", "answerSdp": "v=0\\r\\n", "clientSignature": "proof" }""");
+        Assert.True(ClientMessageValidator.IsValidAuthenticatedMessage(valid.RootElement, "phone.webcam.answer"));
+
+        string oversized = new('a', ScreenViewProtocol.MaxSdpLength + 1);
+        using var invalid = JsonDocument.Parse(JsonSerializer.Serialize(new { type = "phone.webcam.answer", operationId = "webcam-1", answerSdp = oversized, clientSignature = "proof" }));
+        Assert.False(ClientMessageValidator.IsValidAuthenticatedMessage(invalid.RootElement, "phone.webcam.answer"));
+    }
+
+    [Theory]
     [InlineData("""{ "type": "presentation.command", "operationId": "laser-1", "target": "powerpoint", "action": "pointer", "enabled": true }""", true)]
     [InlineData("""{ "type": "presentation.command", "operationId": "laser-1", "target": "pdf", "action": "pointer" }""", false)]
     [InlineData("""{ "type": "presentation.command", "operationId": "next-1", "target": "powerpoint", "action": "next", "enabled": false }""", false)]

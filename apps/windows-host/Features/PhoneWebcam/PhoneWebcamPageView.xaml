@@ -18,6 +18,11 @@
                     <TextBlock x:Name="InstallationStatusText"
                                TextWrapping="Wrap"
                                Foreground="{DynamicResource MutedTextBrush}" />
+                    <TextBlock x:Name="SessionStatusText"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextBrush}" />
+                    <CheckBox x:Name="AllowPairedDevicesCheckBox"
+                              Content="Allow paired devices to use Phone webcam" />
                     <ui:SpacingStackPanel Orientation="Horizontal"
                                           Spacing="{DynamicResource SpaceSm}">
                         <Button x:Name="InstallationActionButton" />

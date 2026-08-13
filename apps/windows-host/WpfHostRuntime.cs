@@ -128,14 +128,25 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
             webHost = new WebHostService(
                 pairingManager,
                 inputDispatcher,
+                audioController: null,
+                remoteActionExecutor: null,
                 powerController: powerController,
                 awakeService: awakeService,
                 workstationLockPolicy: workstationLockPolicy,
                 appLog: appLog,
+                appLaunchService: null,
+                customScreenService: null,
+                urlOpenService: null,
                 textDestinationService: new TextDestinationService(inputDispatcher, inputInjector),
+                clipboardTextReader: null,
                 applyCustomPointer: cursorOverrides.ApplyCustomPointer,
                 applyPresentationLaserPointer: cursorOverrides.SetPresentationLaserPointer,
-                isolatedTestMode: isolatedTestMode);
+                powerPointAutomation: null,
+                isolatedTestMode: isolatedTestMode,
+                configureWebHost: null,
+                screenViewCapture: null,
+                phoneWebcamFeature: phoneWebcam,
+                phoneWebcamPeerFactory: null);
             EventHandler cursorOverridesRevoked = (_, _) => webHost.RevokeCursorOverrides();
             cursorOverrides.OverridesRevoked += cursorOverridesRevoked;
 

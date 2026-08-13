@@ -1,5 +1,6 @@
 using System.Net.WebSockets;
 using System.Threading.Channels;
+using VolturaAir.Host.Features.PhoneWebcam;
 
 namespace VolturaAir.Host;
 
@@ -11,6 +12,7 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
     private readonly WebSocketTransport _transport;
     private readonly HostStatusPayloadFactory _statusFactory;
     private readonly CustomScreenService _customScreens;
+    private readonly PhoneWebcamFeature? _phoneWebcam;
     private readonly IAppLogWriter _appLog;
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly CancellationToken _lifetimeToken;
@@ -35,7 +37,8 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
         IAppLogWriter appLog,
         PresentationLaserPointerController presentationLaserPointer,
         IPowerPointAutomationService powerPoint,
-        IPresentationBlankOverlay presentationBlankOverlay)
+        IPresentationBlankOverlay presentationBlankOverlay,
+        PhoneWebcamFeature? phoneWebcam = null)
     {
         _pairingManager = pairingManager;
         _awakeService = awakeService;
@@ -43,6 +46,7 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
         _transport = transport;
         _statusFactory = statusFactory;
         _customScreens = customScreens;
+        _phoneWebcam = phoneWebcam;
         _appLog = appLog;
         _lifetimeToken = _lifetimeCancellation.Token;
 
@@ -65,6 +69,7 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
         _powerPoint = powerPoint;
         presentationBlankOverlay.StateChanged += OnStatusChanged;
         _presentationBlankOverlay = presentationBlankOverlay;
+        _phoneWebcam?.StatusChanged += OnStatusChanged;
         _worker = Task.Run(ProcessAsync);
     }
 
@@ -103,6 +108,7 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
         _presentationLaserPointer.StateChanged -= OnStatusChanged;
         _powerPoint.SnapshotChanged -= OnStatusChanged;
         _presentationBlankOverlay.StateChanged -= OnStatusChanged;
+        _phoneWebcam?.StatusChanged -= OnStatusChanged;
 
         _requests.Writer.TryComplete();
         await _lifetimeCancellation.CancelAsync().ConfigureAwait(false);

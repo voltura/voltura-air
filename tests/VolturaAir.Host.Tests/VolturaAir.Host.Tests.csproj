@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\apps\windows-host\VolturaAir.Host.csproj" />
+    <None Update="PhoneWebcamTestData\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <Target Name="CopyCursorWatchdogForTests" AfterTargets="Build">

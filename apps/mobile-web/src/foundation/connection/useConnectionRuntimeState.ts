@@ -1,11 +1,12 @@
 import { useCallback, useRef, useState, type RefObject } from "react";
-import type { AudioStateMessage, AwakeCapability, CustomScreensCapability, FileManagerCapability, HostStatusMetadata, PowerCapabilities, PresentationCapability, ScreenViewCapability, ServerCapabilities, UrlOpenCapability } from "../protocol/messages";
+import type { AudioStateMessage, AwakeCapability, CustomScreensCapability, FileManagerCapability, HostStatusMetadata, PhoneWebcamCapability, PowerCapabilities, PresentationCapability, ScreenViewCapability, ServerCapabilities, UrlOpenCapability } from "../protocol/messages";
 import {
   getPowerCapabilities,
   getAwakeCapability,
   getPresentationCapability,
   getCustomScreensCapability,
   getScreenViewCapability,
+  getPhoneWebcamCapability,
   getFileManagerCapability,
   hasGestureDebugCapability,
   getClipboardReadPermission,
@@ -36,6 +37,7 @@ export function useConnectionRuntimeState(
   const [presentationCapability, setPresentationCapability] = useState<PresentationCapability | undefined>(undefined);
   const [customScreensCapability, setCustomScreensCapability] = useState<CustomScreensCapability | undefined>(undefined);
   const [screenViewCapability, setScreenViewCapability] = useState<ScreenViewCapability | undefined>(undefined);
+  const [phoneWebcamCapability, setPhoneWebcamCapability] = useState<PhoneWebcamCapability | undefined>(undefined);
   const [fileManagerCapability, setFileManagerCapability] = useState<FileManagerCapability | undefined>(undefined);
   const [hostStatus, setHostStatus] = useState<HostStatusMetadata | null>(null);
   const supportsVolumeControlRef = useRef(false);
@@ -57,6 +59,7 @@ export function useConnectionRuntimeState(
     setPresentationCapability(undefined);
     setCustomScreensCapability(undefined);
     setScreenViewCapability(undefined);
+    setPhoneWebcamCapability(undefined);
     setFileManagerCapability(undefined);
     setHostStatus(null);
     supportsVolumeControlRef.current = false;
@@ -77,6 +80,7 @@ export function useConnectionRuntimeState(
     setPresentationCapability(connected ? getPresentationCapability(capabilities) : undefined);
     setCustomScreensCapability(connected ? getCustomScreensCapability(capabilities) : undefined);
     setScreenViewCapability(connected ? getScreenViewCapability(capabilities) : undefined);
+    setPhoneWebcamCapability(connected ? getPhoneWebcamCapability(capabilities) : undefined);
     setFileManagerCapability(connected ? getFileManagerCapability(capabilities) : undefined);
     setAwakeCapability(connected ? getAwakeCapability(capabilities) : null);
     supportsVolumeControlRef.current = nextSupportsVolumeControl;
@@ -106,6 +110,7 @@ export function useConnectionRuntimeState(
     hostStatus,
     powerCapabilities,
     presentationCapability,
+    phoneWebcamCapability,
     screenViewCapability,
     fileManagerCapability,
     setAudioState,

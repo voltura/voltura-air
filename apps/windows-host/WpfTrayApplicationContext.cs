@@ -29,8 +29,10 @@ internal sealed class WpfTrayApplicationContext : IDisposable
     private bool _hadActiveController;
     private Forms.ToolStripMenuItem? _screenViewingItem;
     private Forms.ToolStripMenuItem? _blockScreenViewingItem;
+    private Forms.ToolStripMenuItem? _phoneWebcamItem;
     private string? _screenViewingClientId;
     private string? _screenViewingDeviceName;
+    private string? _phoneWebcamClientId;
     private bool _disposed;
 
     public WpfTrayApplicationContext(
@@ -81,6 +83,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _mainWindow.HiddenToTray += OnMainWindowHiddenToTray;
         _pairingManager.ConnectionChanged += OnConnectionChanged;
         _webHost.ScreenViewActivityChanged += OnScreenViewActivityChanged;
+        _webHost.PhoneWebcamActivityChanged += OnPhoneWebcamActivityChanged;
         TrayIconVisibilityPromoter.PromoteWhenReady(_components, _trayIcon);
 
         ApplyMenuTheme();
@@ -112,6 +115,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         AppThemeSettings.Changed -= OnAppThemeChanged;
         _pairingManager.ConnectionChanged -= OnConnectionChanged;
         _webHost.ScreenViewActivityChanged -= OnScreenViewActivityChanged;
+        _webHost.PhoneWebcamActivityChanged -= OnPhoneWebcamActivityChanged;
         _mainWindow.HiddenToTray -= OnMainWindowHiddenToTray;
         _connectionChangedAction.Dispose();
         _connectionFeedbackController.Dispose();
@@ -121,6 +125,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _trayIcon.Dispose();
         _blockScreenViewingItem?.Dispose();
         _screenViewingItem?.Dispose();
+        _phoneWebcamItem?.Dispose();
         _trayMenu.Dispose();
 
         foreach (var icon in _trayIcons.Values.Distinct())
@@ -141,6 +146,10 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _screenViewingItem.DropDownItems.Add(_blockScreenViewingItem);
         _trayMenu.Items.Add(_screenViewingItem);
         _trayMenu.Items.Add(new Forms.ToolStripSeparator { Visible = false, Tag = "screen-view-separator" });
+        _phoneWebcamItem = new Forms.ToolStripMenuItem("Stop Phone webcam") { Visible = false };
+        _phoneWebcamItem.Click += async (_, _) => await RunProtectedAsync(StopPhoneWebcamFromTrayAsync);
+        _trayMenu.Items.Add(_phoneWebcamItem);
+        _trayMenu.Items.Add(new Forms.ToolStripSeparator { Visible = false, Tag = "phone-webcam-separator" });
         var showItem = _trayMenu.Items.Add(
             "Show Voltura Air",
             null,
@@ -219,6 +228,42 @@ internal sealed class WpfTrayApplicationContext : IDisposable
     private void OnScreenViewActivityChanged(object? sender, ScreenViewActivityChangedEventArgs e)
     {
         _ = _dispatcher.BeginInvoke(() => ApplyScreenViewActivity(e));
+    }
+
+    private void OnPhoneWebcamActivityChanged(object? sender, Features.PhoneWebcam.PhoneWebcamActivityChangedEventArgs e)
+    {
+        _ = _dispatcher.BeginInvoke(() =>
+        {
+            if (_disposed || _phoneWebcamItem is null)
+            {
+                return;
+            }
+
+            bool active = e.State is "connecting" or "streaming";
+            _phoneWebcamClientId = active ? e.ClientId : null;
+            string deviceName = active && e.ClientId is not null
+                ? _pairingManager.GetDeviceName(e.ClientId) ?? "paired device"
+                : "paired device";
+            _phoneWebcamItem.Text = active ? $"Stop Phone webcam - {deviceName}" : "Stop Phone webcam";
+            _phoneWebcamItem.Visible = active;
+            Forms.ToolStripItem? separator = _trayMenu.Items.Cast<Forms.ToolStripItem>()
+                .FirstOrDefault(item => item.Tag as string == "phone-webcam-separator");
+            separator?.Visible = active;
+            if (!active)
+            {
+                _trayMenu.Close(Forms.ToolStripDropDownCloseReason.ItemClicked);
+            }
+        });
+    }
+
+    private async Task StopPhoneWebcamFromTrayAsync()
+    {
+        string? clientId = _phoneWebcamClientId;
+        _trayMenu.Close(Forms.ToolStripDropDownCloseReason.ItemClicked);
+        if (clientId is not null)
+        {
+            await _webHost.StopPhoneWebcamFromHostAsync(clientId);
+        }
     }
 
     private void ApplyScreenViewActivity(ScreenViewActivityChangedEventArgs activity)

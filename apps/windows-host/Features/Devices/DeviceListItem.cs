@@ -316,6 +316,7 @@ internal enum DevicePermissionKind
     AwakeControl,
     ClipboardRead,
     ScreenViewing,
+    PhoneWebcam,
     FileBrowsing,
     FileChanges,
     HideProtectedFileSystemItems,

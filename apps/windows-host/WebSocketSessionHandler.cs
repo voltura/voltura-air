@@ -1,6 +1,7 @@
 using System.Net.WebSockets;
 using System.Security.Cryptography;
 using System.Text.Json;
+using VolturaAir.Host.Features.PhoneWebcam;
 
 namespace VolturaAir.Host;
 
@@ -24,6 +25,7 @@ internal sealed class WebSocketSessionHandler(
     InputCommandHandler inputCommands,
     CustomScreenCommandHandler customScreenCommands,
     ScreenViewCommandHandler screenViewCommands,
+    PhoneWebcamCommandHandler phoneWebcamCommands,
     IAppLogWriter appLog,
     Action<ControllerSocketClosedEventArgs> reportSocketClosed)
 {
@@ -223,6 +225,7 @@ internal sealed class WebSocketSessionHandler(
             if (!string.IsNullOrEmpty(authenticatedClientId))
             {
                 await screenViewCommands.ClientDisconnectedAsync(authenticatedClientId);
+                await phoneWebcamCommands.ClientDisconnectedAsync(authenticatedClientId, socket);
                 fileManagerCommands.ClientDisconnected(authenticatedClientId, socket);
                 transport.Unregister(authenticatedClientId, socket);
                 presentationCommands.DisableLaserForClient(authenticatedClientId);
@@ -542,6 +545,33 @@ internal sealed class WebSocketSessionHandler(
                 return true;
             case "screen.view.stop":
                 await screenViewCommands.StopAsync(
+                    socket,
+                    clientId,
+                    ProtocolMessageFields.GetString(root, "operationId"),
+                    cancellationToken);
+                return true;
+            case "phone.webcam.start":
+                await phoneWebcamCommands.StartAsync(
+                    socket,
+                    clientId,
+                    ProtocolMessageFields.GetString(root, "operationId"),
+                    root.GetProperty("captureWidth").GetInt32(),
+                    root.GetProperty("captureHeight").GetInt32(),
+                    root.GetProperty("captureFps").GetInt32(),
+                    ProtocolMessageFields.GetString(root, "clientSignature"),
+                    cancellationToken);
+                return true;
+            case "phone.webcam.answer":
+                await phoneWebcamCommands.AnswerAsync(
+                    socket,
+                    clientId,
+                    ProtocolMessageFields.GetString(root, "operationId"),
+                    ProtocolMessageFields.GetString(root, "answerSdp"),
+                    ProtocolMessageFields.GetString(root, "clientSignature"),
+                    cancellationToken);
+                return true;
+            case "phone.webcam.stop":
+                await phoneWebcamCommands.StopAsync(
                     socket,
                     clientId,
                     ProtocolMessageFields.GetString(root, "operationId"),

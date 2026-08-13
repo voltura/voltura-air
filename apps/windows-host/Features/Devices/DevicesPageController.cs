@@ -112,6 +112,7 @@ internal sealed class DevicesPageController(
             DevicePermissionKind.AwakeControl => current with { AllowAwakeControl = value },
             DevicePermissionKind.ClipboardRead => current with { AllowClipboardRead = value },
             DevicePermissionKind.ScreenViewing => current with { AllowScreenViewing = value },
+            DevicePermissionKind.PhoneWebcam => current with { AllowPhoneWebcam = value },
             DevicePermissionKind.FileBrowsing => current with { AllowFileBrowsing = value },
             DevicePermissionKind.FileChanges => current with { AllowFileChanges = value },
             DevicePermissionKind.HideProtectedFileSystemItems => current with { HideProtectedFileSystemItems = value },
@@ -232,6 +233,7 @@ internal sealed class DevicesPageController(
             CreatePermission(device.ClientId, DevicePermissionKind.AwakeControl, "Keep awake", device.PermissionOverrides.AllowAwakeControl, global.AllowAwakeControl),
             CreatePermission(device.ClientId, DevicePermissionKind.ClipboardRead, "Read PC clipboard", device.PermissionOverrides.AllowClipboardRead, global.AllowClipboardRead),
             CreatePermission(device.ClientId, DevicePermissionKind.ScreenViewing, "View PC screen", device.PermissionOverrides.AllowScreenViewing, global.AllowScreenViewing),
+            CreatePermission(device.ClientId, DevicePermissionKind.PhoneWebcam, "Use phone as webcam", device.PermissionOverrides.AllowPhoneWebcam, global.AllowPhoneWebcam),
             CreatePermission(device.ClientId, DevicePermissionKind.FileBrowsing, "Browse and open files", device.PermissionOverrides.AllowFileBrowsing, global.AllowFileBrowsing),
             CreatePermission(device.ClientId, DevicePermissionKind.FileChanges, "Change files", device.PermissionOverrides.AllowFileChanges, global.AllowFileChanges),
             CreatePermission(device.ClientId, DevicePermissionKind.HideProtectedFileSystemItems, "Protected operating system items", device.PermissionOverrides.HideProtectedFileSystemItems, global.HideProtectedFileSystemItems, "Hide", "Show")

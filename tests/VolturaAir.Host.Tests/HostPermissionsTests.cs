@@ -18,12 +18,27 @@ public sealed class HostPermissionsTests
         Assert.False(HostPermissions.DefaultGlobal.AllowDisplayControl);
         Assert.True(HostPermissions.DefaultGlobal.AllowScreenSaver);
         Assert.False(HostPermissions.DefaultGlobal.AllowAwakeControl);
+        Assert.False(HostPermissions.DefaultGlobal.AllowPhoneWebcam);
         Assert.False(HostPermissions.DefaultGlobal.AllowSignOut);
         Assert.False(HostPermissions.DefaultGlobal.AllowRestart);
         Assert.False(HostPermissions.DefaultGlobal.AllowShutdown);
         Assert.False(HostPermissions.DefaultGlobal.AllowFileBrowsing);
         Assert.False(HostPermissions.DefaultGlobal.AllowFileChanges);
         Assert.True(HostPermissions.DefaultGlobal.HideProtectedFileSystemItems);
+    }
+
+    [Fact]
+    public void DevicePhoneWebcamOverrideWinsOverGlobal()
+    {
+        var allowed = HostPermissions.Resolve(
+            new HostPermissionSet(AllowPhoneWebcam: false),
+            new DevicePermissionOverrides(AllowPhoneWebcam: true));
+        var blocked = HostPermissions.Resolve(
+            new HostPermissionSet(AllowPhoneWebcam: true),
+            new DevicePermissionOverrides(AllowPhoneWebcam: false));
+
+        Assert.True(allowed.AllowPhoneWebcam);
+        Assert.False(blocked.AllowPhoneWebcam);
     }
 
     [Fact]

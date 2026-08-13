@@ -6,6 +6,18 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v0.9.5
+
+- Added the opt-in, video-only **Phone webcam** tool. Choose a camera on a
+  paired phone and use it as `Voltura Air Webcam` in Windows applications over
+  Enhanced Direct or Relay, with live camera switching and foreground recovery.
+- Added a normal Windows **Phone webcam** page for enabling, removing, and
+  previewing the virtual camera, plus global and per-device permissions and a
+  tray action that stops the active phone immediately.
+- Phone webcam over Enhanced Direct is free and unlimited. Voltura-operated
+  Relay is initially free and uses the existing aggregate Data Saver and
+  service cutoff limits without a webcam-specific account or quality tier.
+
 ## v0.9.4
 
 - Custom Screen trackpads can now include a Gyro option, so you can switch

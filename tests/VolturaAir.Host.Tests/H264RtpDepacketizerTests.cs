@@ -1,7 +1,8 @@
 using System.Buffers.Binary;
+using VolturaAir.Host.Features.PhoneWebcam;
 using Xunit;
 
-namespace WebRtcSpike.Host.Tests;
+namespace VolturaAir.Host.Tests;
 
 public sealed class H264RtpDepacketizerTests
 {
@@ -97,8 +98,8 @@ public sealed class H264RtpDepacketizerTests
     [Fact]
     public void IdentifiesIdrAccessUnitsForDecoderRecovery()
     {
-        Assert.True(VideoPipeline.ContainsIdr([0, 0, 0, 1, 0x67, 1, 0, 0, 0, 1, 0x65, 2]));
-        Assert.False(VideoPipeline.ContainsIdr([0, 0, 0, 1, 0x67, 1, 0, 0, 0, 1, 0x61, 2]));
+        Assert.True(PhoneWebcamVideoPipeline.ContainsNalType([0, 0, 0, 1, 0x67, 1, 0, 0, 0, 1, 0x65, 2], 5));
+        Assert.False(PhoneWebcamVideoPipeline.ContainsNalType([0, 0, 0, 1, 0x67, 1, 0, 0, 0, 1, 0x61, 2], 5));
     }
 
     private static byte[] Packet(ushort sequence, uint timestamp, bool marker, byte[] payload)

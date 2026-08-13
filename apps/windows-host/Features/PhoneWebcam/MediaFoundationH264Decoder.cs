@@ -5,9 +5,9 @@ using SharpGen.Runtime;
 using Vortice.MediaFoundation;
 using static Vortice.MediaFoundation.MediaFactory;
 
-namespace WebRtcSpike.Host;
+namespace VolturaAir.Host.Features.PhoneWebcam;
 
-internal sealed class MediaFoundationH264Decoder : IDisposable
+internal sealed partial class MediaFoundationH264Decoder : IDisposable
 {
     internal const int Width = 1920;
     internal const int Height = 1080;
@@ -285,8 +285,8 @@ internal sealed class MediaFoundationH264Decoder : IDisposable
         return new IMFTransform(pointer);
     }
 
-    [DllImport("ole32.dll", ExactSpelling = true)]
-    private static extern int CoCreateInstance(
+    [LibraryImport("ole32.dll")]
+    private static partial int CoCreateInstance(
         in Guid classId,
         nint outer,
         uint context,

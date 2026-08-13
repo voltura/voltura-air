@@ -63,4 +63,4 @@ files are rebuilt, never hand-edited.
 | --- | --- | --- |
 | [Phone-as-webcam host spike](../apps/webrtc-spike-host/README.md) | Experimental evidence | Isolated Windows virtual-camera host, validation gates, and measured results. |
 | [Phone-as-webcam browser spike](../apps/secure-web-spike/README.md) | Experimental operations | Isolated HTTPS browser deployment and cleanup. |
-| [Spike test-data notice](../apps/webrtc-spike-host/tests/TestData/NOTICE.md) | Attribution | Sources and license for decoder regression fixtures. |
+| [Phone-webcam decoder test-data notice](../tests/VolturaAir.Host.Tests/PhoneWebcamTestData/NOTICE.md) | Attribution | Sources and license for decoder regression fixtures retained by the production host tests. |

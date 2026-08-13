@@ -31,6 +31,10 @@ internal static class ProtocolFrameAssert
         ["screen.view.answer.result"] = ["operationId", "succeeded", "message"],
         ["screen.view.source.result"] = ["operationId", "displayId", "succeeded", "message"],
         ["screen.view.stop.result"] = ["operationId", "succeeded", "message"],
+        ["phone.webcam.start.result"] = ["operationId", "succeeded", "message"],
+        ["phone.webcam.answer.result"] = ["operationId", "succeeded", "message"],
+        ["phone.webcam.stop.result"] = ["operationId", "succeeded", "message"],
+        ["phone.webcam.ended"] = ["operationId", "reason", "message"],
         ["audio.state"] = ["volume", "muted"]
     };
 

@@ -16,6 +16,8 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   over the internet without opening an inbound connection to the PC.
 - **View PC screen** lets a paired device view one selected Windows display;
   touch devices use its touch controls, while another computer can use direct mouse and keyboard control.
+- **Phone webcam** turns a selected paired-phone camera into the video-only
+  `Voltura Air Webcam` virtual camera for Windows applications.
 - It is not a file-sync, backup, notification-sync, or cloud clipboard service.
 - The client cannot control or wake a sleeping, shut-down, or unreachable PC.
 - One host runs per signed-in Windows user. A second launch focuses it.
@@ -70,7 +72,7 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 - The Windows host's 3D control effect is a separate appearance preference and
   defaults off. The mobile/device default is on; each paired device can inherit,
   enable, or disable it.
-- Host permissions cover sleep, volume, Screen viewing, Presentation, file browsing/opening, file changes, application launch, web
+- Host permissions cover sleep, volume, Screen viewing, Phone webcam, Presentation, file browsing/opening, file changes, application launch, web
   addresses, PC clipboard reads, Lock, Blackout, display off, screen saver,
   sign out, restart, shutdown, Keep awake, and interaction with the host UI.
 - Unsupported actions are omitted; host-disabled actions explain the relevant
@@ -155,6 +157,38 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   capture-device loss stop the stream and release native/network resources.
   Protected content and secure desktop are never replaced with another capture
   method.
+
+### Phone webcam
+
+- Phone webcam is a normal app tool and is not behind Developer mode. The Windows
+  **Phone webcam** page installs or removes the current-user virtual camera with an
+  explicit UAC boundary, reports installation and active-phone state, and previews
+  the same camera exposed to other Windows applications. Installation is optional.
+- The global **Allow paired devices to use Phone webcam** permission defaults off
+  and combines with an inheritable per-device **Use phone as webcam** override.
+  Removing a pairing, revoking permission, stopping from the tray, host shutdown,
+  capture loss, or transport loss terminates the owned session and returns the
+  virtual camera to its waiting frame.
+- The paired PWA asks for camera permission explicitly, releases the temporary
+  permission probe, lists the cameras returned by the browser, and lets the user
+  select one before **Start webcam**. It requests the best practical video up to
+  1920 x 1080 at 30 frames per second and shows actual capture and encoded quality.
+  It never requests or transports microphone audio.
+- Camera switching replaces the video track on the current healthy peer. **Stop
+  webcam** and page hiding release every phone camera track immediately. If iOS
+  closes the backgrounded peer, returning to the visible paired PWA makes one fresh
+  authenticated session; it never appends work to the dead peer.
+- Enhanced Direct sends DTLS-SRTP media on the selected private LAN and is free and
+  unlimited. Relay uses relay-only candidates, the existing 15-minute TURN
+  credentials and quota-derived 4/2 Mbps policy, and refreshes with a fresh session
+  before credentials expire. Voltura-operated Relay use is initially free, shares
+  the existing aggregate 750 GB Data Saver threshold and 850 GB cutoff, and adds no
+  webcam-specific account, billing, entitlement, or quota.
+- The host receives one H.264 track, bounds encoded and decoded work to latest-frame
+  capacity, decodes through Media Foundation, and normalizes portrait, landscape,
+  and lower-resolution input into fixed NV12 1920 x 1080 output. The native camera
+  advertises only NV12 1920 x 1080 at 30 fps and generates its waiting frame when no
+  valid frame arrives for 500 ms.
 
 ### Input and Windows actions
 

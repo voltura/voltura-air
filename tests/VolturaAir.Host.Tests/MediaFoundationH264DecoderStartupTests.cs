@@ -1,6 +1,7 @@
 using Xunit;
+using VolturaAir.Host.Features.PhoneWebcam;
 
-namespace WebRtcSpike.Host.Tests;
+namespace VolturaAir.Host.Tests;
 
 public sealed class MediaFoundationH264DecoderStartupTests
 {
@@ -72,5 +73,5 @@ public sealed class MediaFoundationH264DecoderStartupTests
     }
 
     private static byte[] ReadFixture(string name) => Convert.FromBase64String(
-        File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestData", name)));
+        File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "PhoneWebcamTestData", name)));
 }

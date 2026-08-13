@@ -2,8 +2,10 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const maximumRawJavaScriptBytes = 570 * 1024;
-const maximumBrotliJavaScriptBytes = 137 * 1024;
+// Phone webcam itself stays in a lazy chunk. The reviewed initial-shell increase
+// is the capability parser, normal Tools entry, and result routing only.
+const maximumRawJavaScriptBytes = 573 * 1024;
+const maximumBrotliJavaScriptBytes = 138 * 1024;
 const distDirectory = fileURLToPath(new URL("../apps/mobile-web/dist/", import.meta.url));
 const assetsDirectory = fileURLToPath(new URL("../apps/mobile-web/dist/assets/", import.meta.url));
 const indexHtml = await readFile(path.join(distDirectory, "index.html"), "utf8");

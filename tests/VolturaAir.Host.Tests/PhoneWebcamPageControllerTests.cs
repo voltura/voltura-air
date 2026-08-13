@@ -89,6 +89,81 @@ public sealed partial class HostUiLayoutTests
         });
     }
 
+    [Fact]
+    public void RuntimePhoneWebcamStatusChangeRefreshesAnOpenPage()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            var window = new Window();
+            WpfTheme.Apply(window);
+            AddPhoneWebcamButtonStyles(window);
+            var root = new Grid();
+            window.Content = root;
+            using var toasts = new HostToastPresenter(root, new HostVisualFactory(window.Resources), static () => "Voltura Air");
+            var refreshes = 0;
+            var feature = new PhoneWebcamFeature(new FailedPhoneWebcamSetup());
+            var controller = new PhoneWebcamPageController(
+                window,
+                feature,
+                toasts,
+                () => refreshes++);
+            try
+            {
+                _ = controller.CreateView();
+                _ = feature.EnableAsync().GetAwaiter().GetResult();
+                WaitForWpf(() => refreshes == 1, "Phone webcam status refresh");
+            }
+            finally
+            {
+                controller.Dispose();
+                feature.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        });
+    }
+
+    [Fact]
+    public void RuntimePhoneWebcamStatusChangeDoesNotReopenAClosedPage()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            var window = new Window();
+            WpfTheme.Apply(window);
+            AddPhoneWebcamButtonStyles(window);
+            var root = new Grid();
+            window.Content = root;
+            using var toasts = new HostToastPresenter(root, new HostVisualFactory(window.Resources), static () => "Voltura Air");
+            var refreshes = 0;
+            var feature = new PhoneWebcamFeature(new FailedPhoneWebcamSetup());
+            var controller = new PhoneWebcamPageController(window, feature, toasts, () => refreshes++);
+            try
+            {
+                _ = controller.CreateView();
+                controller.StopPreview();
+                _ = feature.EnableAsync().GetAwaiter().GetResult();
+                DoWpfEvents();
+
+                Assert.Equal(0, refreshes);
+            }
+            finally
+            {
+                controller.Dispose();
+                feature.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        });
+    }
+
     private sealed class InstalledPhoneWebcamFeature : IPhoneWebcamFeature
     {
         public PhoneWebcamFeatureStatus Status { get; } = new(
@@ -100,6 +175,17 @@ public sealed partial class HostUiLayoutTests
 
         public Task<PhoneWebcamFeatureStatus> RemoveAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(Status);
+    }
+
+    private sealed class FailedPhoneWebcamSetup : IPhoneWebcamSetup
+    {
+        private static readonly PhoneWebcamFeatureStatus Failed = new(
+            PhoneWebcamFeatureState.Failed,
+            "Injected failure.",
+            HasError: true);
+        public Task<PhoneWebcamFeatureStatus> GetStatusAsync(CancellationToken cancellationToken) => Task.FromResult(Failed);
+        public Task<PhoneWebcamFeatureStatus> InstallAsync(CancellationToken cancellationToken) => Task.FromResult(Failed);
+        public Task<PhoneWebcamFeatureStatus> RemoveAsync(CancellationToken cancellationToken) => Task.FromResult(Failed);
     }
 
     private static void AddPhoneWebcamButtonStyles(Window window)

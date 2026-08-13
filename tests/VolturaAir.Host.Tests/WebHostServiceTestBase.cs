@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using System.Text.Json.Nodes;
 using VolturaAir.Host;
+using VolturaAir.Host.Features.PhoneWebcam;
 
 namespace VolturaAir.Host.Tests;
 
@@ -164,7 +165,7 @@ public abstract class WebHostServiceTestBase : IsolatedHostSettingsTest
 
         public WebHostService WebHost { get; }
 
-        public static async Task<WebHostFixture> StartAsync(
+        internal static async Task<WebHostFixture> StartAsync(
             ISystemAudioController? audioController = null,
             IRemoteActionExecutor? remoteActionExecutor = null,
             IAppLaunchService? appLaunchService = null,
@@ -174,27 +175,36 @@ public abstract class WebHostServiceTestBase : IsolatedHostSettingsTest
             IClipboardTextReader? clipboardTextReader = null,
             IPowerPointAutomationService? powerPointAutomation = null,
             ISystemPowerController? powerController = null,
-            IScreenViewCaptureSource? screenViewCapture = null)
+            IScreenViewCaptureSource? screenViewCapture = null,
+            IPhoneWebcamFeature? phoneWebcamFeature = null,
+            IPhoneWebcamWebRtcPeerFactory? phoneWebcamPeerFactory = null)
         {
             var store = new TempPairingStore();
             var inputInjector = new FakeInputInjector();
             var manager = new PairingManager(store.Store);
 
             var webHost = new WebHostService(
-                manager,
-                new InputDispatcher(inputInjector),
-                audioController,
-                remoteActionExecutor,
-                powerController,
+                pairingManager: manager,
+                inputDispatcher: new InputDispatcher(inputInjector),
+                audioController: audioController,
+                remoteActionExecutor: remoteActionExecutor,
+                powerController: powerController,
+                awakeService: null,
+                workstationLockPolicy: null,
                 appLog: appLog,
                 appLaunchService: appLaunchService,
+                customScreenService: null,
                 urlOpenService: urlOpenService,
                 textDestinationService: textDestinationService,
                 clipboardTextReader: clipboardTextReader,
+                applyCustomPointer: null,
+                applyPresentationLaserPointer: null,
                 powerPointAutomation: powerPointAutomation,
                 isolatedTestMode: true,
                 configureWebHost: builder => builder.UseTestServer(),
-                screenViewCapture: screenViewCapture);
+                screenViewCapture: screenViewCapture,
+                phoneWebcamFeature: phoneWebcamFeature,
+                phoneWebcamPeerFactory: phoneWebcamPeerFactory);
             await webHost.StartAsync();
             return new WebHostFixture(store, inputInjector, manager, webHost);
         }

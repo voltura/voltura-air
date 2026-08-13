@@ -90,6 +90,16 @@ ingress and egress solely for the local usage estimate and quota cutoff. TURN
 credentials expire after 15 minutes. Command relay remains available if screen
 credentials are blocked by quota.
 
+When Phone webcam is enabled and permitted, the selected phone camera video travels
+on a WebRTC DTLS-SRTP media track to the paired Windows host. Camera frames, encoded
+access units, SDP, credentials, proofs, and decoded virtual-camera frames are not
+logged or persisted; bounded memory and the current-user Windows virtual camera hold
+them only while needed. The feature requests video only and never requests phone
+microphone audio. Enhanced Direct keeps established media on the selected private
+LAN. Relay uses the same Cloudflare TURN processing, 15-minute credentials, aggregate
+byte metering, and quota cutoff described for Screen viewing; it adds no account,
+webcam-specific usage record, or billing data.
+
 Assigned Custom screens sent to mobile contain visual definitions, opaque
 screen/button IDs, and resolved availability only. Literal text, keyboard
 shortcut payloads, executable details, and host action mappings remain on the
@@ -154,6 +164,8 @@ paths or names, file-operation conflict names, opened
 web addresses, pointer coordinates, pairing tokens or IDs, private reconnect or
 PC-identity keys, pairing/reconnect proofs, screen pixels, cursor coordinates,
 screen SDP, encoded video, or negotiated screen-session keys.
+Phone webcam camera frames, SDP, encoded or decoded video, device IDs, credentials,
+and session proofs are also excluded.
 Safe Relay entries may record the connection method, official/custom endpoint
 type, state, selected quality, automatic Data Saver, quota warning/block, and a
 bounded failure code. They never record the endpoint, route, credential, IP

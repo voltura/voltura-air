@@ -120,6 +120,10 @@
           <p>View one selected Windows display live on a phone or tablet. Use touch gestures for cursor movement, local zoom and pan, and scrolling, with a separate Click control for precise clicks.</p>
         </article>
         <article>
+          <h2>Use your phone as a webcam</h2>
+          <p>Select any camera exposed by your paired phone and use it as a video-only Windows webcam over Enhanced Direct or Cloud relay. Switch cameras live and recover cleanly after leaving the mobile app.</p>
+        </article>
+        <article>
           <h2>Files on PC</h2>
           <p>Browse files that stay on the PC or mapped drives. Use one or two touch panels for direct copy and move, Windows clipboard actions, properties, Recycle Bin deletion, and background progress.</p>
         </article>

@@ -5,7 +5,7 @@ import type { KeyboardSettings } from "../../foundation/settings/keyboardSetting
 import type { PcProfile } from "../../foundation/connection/pcProfiles";
 import type { ManualConnectionTarget } from "../../foundation/pairing/pairingLink";
 import type { RemoteSettings } from "../../foundation/settings/remoteSettings";
-import type { CustomScreenSummary, ScreenViewCapability } from "../../foundation/protocol/messages";
+import type { CustomScreenSummary, PhoneWebcamCapability, ScreenViewCapability } from "../../foundation/protocol/messages";
 
 export type ThemeMode = "system" | "light" | "dark";
 export type SettingsSection = "connection" | "custom-pointer" | "trackpad" | "keyboard" | "split" | "remote" | "appearance" | "app";
@@ -41,7 +41,9 @@ export interface SettingsDrawerProps {
   onOpenThirdPartyNotices: () => void;
   onOpenCustomScreen?: ((screenId: string) => void) | undefined;
   onOpenScreenView?: (() => void) | undefined;
+  onOpenPhoneWebcam?: (() => void) | undefined;
   screenViewCapability?: ScreenViewCapability | undefined;
+  phoneWebcamCapability?: PhoneWebcamCapability | undefined;
   pairedPcs: PcProfile[];
   pairingQrInputRef: RefObject<HTMLInputElement | null>;
   pairingScanMessage: string;

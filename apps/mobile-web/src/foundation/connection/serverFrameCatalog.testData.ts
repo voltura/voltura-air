@@ -323,6 +323,36 @@ export const serverFrameCatalog = {
       { type: "screen.view.ended", reason: "permission-revoked", message: "The PC stopped screen viewing and disallowed this device." }
     ]
   },
+  "phone.webcam.start.result": {
+    required: ["operationId", "succeeded", "message"],
+    frames: [
+      { type: "phone.webcam.start.result", operationId: "op-webcam-start", succeeded: true, code: "accepted", message: "Ready.", offerSdp: "v=0\r\n", hostSignature: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", maximumBitrate: 12000000 },
+      { type: "phone.webcam.start.result", operationId: "op-webcam-relay", succeeded: true, code: "accepted", message: "Ready.", offerSdp: "v=0\r\n", hostSignature: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", iceServers: [{ urls: ["turns:turn.voltura.se:5349?transport=tcp"], username: "1740000000:client", credential: "credential" }], turnExpiresAt: "2026-08-13T22:30:00Z", relayUsageBytes: 1234, relayUsageCheckedAt: "2026-08-13T22:15:00Z", relayQuality: "Standard", maximumBitrate: 4000000 },
+      { type: "phone.webcam.start.result", operationId: "op-webcam-busy", succeeded: false, code: "busy", message: "Another phone is active." }
+    ]
+  },
+  "phone.webcam.answer.result": {
+    required: ["operationId", "succeeded", "message"],
+    frames: [
+      { type: "phone.webcam.answer.result", operationId: "op-webcam-start", succeeded: true, code: "accepted", message: "Connecting." },
+      { type: "phone.webcam.answer.result", operationId: "op-webcam-answer-failed", succeeded: false, code: "invalid-answer", message: "Rejected." }
+    ]
+  },
+  "phone.webcam.stop.result": {
+    required: ["operationId", "succeeded", "message"],
+    frames: [
+      { type: "phone.webcam.stop.result", operationId: "op-webcam-stop", succeeded: true, code: "stopped", message: "Stopped." },
+      { type: "phone.webcam.stop.result", operationId: "op-webcam-stop-failed", succeeded: false, code: "not-owner", message: "Not active." }
+    ]
+  },
+  "phone.webcam.ended": {
+    required: ["operationId", "reason", "message"],
+    frames: [
+      { type: "phone.webcam.ended", operationId: "op-webcam-ended-transport", reason: "transport-lost", message: "The Phone webcam session ended." },
+      { type: "phone.webcam.ended", operationId: "op-webcam-ended-decoder", reason: "decoder-failed", message: "The PC video decoder stopped." },
+      { type: "phone.webcam.ended", operationId: "op-webcam-ended-offer", reason: "offer-expired", message: "The Phone webcam offer expired." }
+    ]
+  },
   "file.session.open.result": { required: ["operationId", "succeeded", "message"], frames: [
     { type: "file.session.open.result", operationId: "op-file-session-ok", succeeded: true, message: "Opened.", session: fileSession },
     { type: "file.session.open.result", operationId: "op-file-session", succeeded: false, message: "Unavailable." }

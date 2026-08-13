@@ -266,4 +266,13 @@ internal static partial class LibDataChannelNative
     [LibraryImport(LibraryName)]
     internal static partial int rtcGetRemoteAddress(int peer, nint buffer, int size);
 
+    [LibraryImport(LibraryName)]
+    internal static partial int rtcChainRtcpReceivingSession(int track);
+
+    [LibraryImport(LibraryName)]
+    internal static partial int rtcRequestKeyframe(int track);
+
+    [LibraryImport(LibraryName)]
+    internal static partial int rtcGetSelectedCandidatePair(int peer, nint local, int localSize, nint remote, int remoteSize);
+
 }

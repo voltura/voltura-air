@@ -1,3 +1,5 @@
+using VolturaAir.Host.Features.PhoneWebcam;
+
 namespace VolturaAir.Host;
 
 internal sealed class HostStatusPayloadFactory(
@@ -16,7 +18,8 @@ internal sealed class HostStatusPayloadFactory(
     Func<PowerPointAutomationSnapshot> getPowerPointSnapshot,
     Func<PowerPointSessionSnapshot> getPowerPointSession,
     PowerPointPresentationCatalog presentationCatalog,
-    Func<bool>? enhancedCapabilitiesEnabled = null)
+    Func<bool>? enhancedCapabilitiesEnabled = null,
+    Func<PhoneWebcamFeatureStatus>? getPhoneWebcamStatus = null)
 {
     private static readonly string DeveloperSessionId = Guid.NewGuid().ToString("N");
 
@@ -77,6 +80,10 @@ internal sealed class HostStatusPayloadFactory(
     public bool CanViewScreen(string clientId) =>
         pairingManager.HasCurrentHostIdentity(clientId) &&
         GetEffectivePermissions(clientId).AllowScreenViewing;
+    public bool CanUsePhoneWebcam(string clientId) =>
+        pairingManager.HasCurrentHostIdentity(clientId) &&
+        GetEffectivePermissions(clientId).AllowPhoneWebcam &&
+        getPhoneWebcamStatus?.Invoke().IsInstalled == true;
     public bool CanControlAwake(string clientId) => GetEffectivePermissions(clientId).AllowAwakeControl;
     public HostPermissionSet GetEffectivePermissions(string clientId) =>
         pairingManager.GetEffectivePermissions(clientId, AppPermissionSettings.Load());
@@ -126,6 +133,19 @@ internal sealed class HostStatusPayloadFactory(
             {
                 permissionGranted = permissions.AllowRemoteInput
             }
+        },
+        phoneWebcam = new
+        {
+            enabled = getPhoneWebcamStatus?.Invoke().IsInstalled == true,
+            permissionGranted = permissions.AllowPhoneWebcam,
+            canUse = permissions.AllowPhoneWebcam &&
+                pairingManager.HasCurrentHostIdentity(clientId) &&
+                getPhoneWebcamStatus?.Invoke().IsInstalled == true,
+            requiresRepair = !pairingManager.HasCurrentHostIdentity(clientId),
+            videoOnly = true,
+            maxWidth = 1920,
+            maxHeight = 1080,
+            maxFramesPerSecond = 30
         },
         fileManager = new
         {

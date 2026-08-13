@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
-import { MonitorUp, Orbit, X } from "lucide-react";
+import { Camera, MonitorUp, Orbit, X } from "lucide-react";
 import {
   CustomPointerSettingsSection,
   KeyboardSettingsSection,
@@ -126,6 +126,10 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
             {props.screenViewCapability && <button type="button" onClick={props.onOpenScreenView}>
               <MonitorUp aria-hidden="true" />
               <span>View PC screen</span>
+            </button>}
+            {props.phoneWebcamCapability && <button type="button" onClick={props.onOpenPhoneWebcam}>
+              <Camera aria-hidden="true" />
+              <span>Phone webcam</span>
             </button>}
             <button type="button" onClick={props.onOpenGyroMouse}>
               <Orbit aria-hidden="true" />

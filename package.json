@@ -1,7 +1,7 @@
 {
   "name": "voltura-air",
   "private": true,
-  "version": "0.9.4",
+  "version": "0.9.5",
   "license": "MIT",
   "packageManager": "npm@11.18.0",
   "engines": {
@@ -21,7 +21,7 @@
     "ai:shortcut:remove": "\"%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\" -NoProfile -ExecutionPolicy Bypass -File scripts/remove-chatgpt-codex-shortcut.ps1",
     "ai:update": "\"%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\" -NoProfile -ExecutionPolicy Bypass -File scripts/update-chatgpt-codex.ps1",
     "branch:sync": "node scripts/sync-branch.mjs",
-    "build": "npm run ui:tokens:check && npm run build --workspace apps/mobile-web && dotnet build VolturaAir.slnx -p:RestoreLockedMode=true",
+    "build": "npm run ui:tokens:check && npm run build --workspace apps/mobile-web && dotnet build VolturaAir.slnx -p:RestoreLockedMode=true && dotnet build apps/webrtc-spike-host/WebRtcSpike.Host.csproj -p:RestoreLockedMode=true",
     "branding:generate": "npm run icons:generate && npm run screenshots:site",
     "cache:purge": "node scripts/purge-windows-icon-cache.mjs",
     "clean:git": "git gc --prune=now",
@@ -72,7 +72,7 @@
     "size:report": "node scripts/report-source-sizes.mjs",
     "size:check": "node scripts/report-source-sizes.mjs --check",
     "tools:check": "node scripts/check-toolchain.mjs",
-    "test": "npm run docs:check && npm run tools:check && npm run third-party:check && npm run ui:tokens:check && npm run size:check && npm run host:ownership:check && npm run powershell:check && npm run site:check && npm run relay:check && npm run test:web && npm run test:scripts && dotnet test VolturaAir.slnx -p:RestoreLockedMode=true",
+    "test": "npm run docs:check && npm run tools:check && npm run third-party:check && npm run ui:tokens:check && npm run size:check && npm run host:ownership:check && npm run powershell:check && npm run site:check && npm run relay:check && npm run test:web && npm run test:scripts && dotnet test VolturaAir.slnx -p:RestoreLockedMode=true && dotnet test apps/webrtc-spike-host/tests/WebRtcSpike.Tests.csproj -p:RestoreLockedMode=true",
     "test:web": "npm run test --workspace apps/mobile-web -- --run && npm run screen-view:layout-check",
     "test:host": "dotnet test VolturaAir.slnx",
     "test:scripts": "node --test tests/scripts/*.test.mjs",

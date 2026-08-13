@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Security.Cryptography;
 using VolturaAir.Host;
+using VolturaAir.Host.Features.PhoneWebcam;
 
 namespace WebRtcSpike.Host;
 
@@ -70,7 +71,7 @@ internal static class Program
             Console.WriteLine($"Relay TURN expires: {relay.ExpiresAt:O}; effective maximum bitrate: {relay.MaximumBitrate}; usage bytes: {relay.UsageBytes}");
         }
         await using var pipeline = new VideoPipeline();
-        await using var peer = new WebRtcPeer(relay);
+        await using var peer = new PhoneWebcamWebRtcPeer(relay);
         peer.AccessUnitReceived += pipeline.Submit;
         pipeline.KeyFrameRequested += peer.RequestKeyFrame;
         using var signaling = new SignalingClient(options.SignalEndpoint);
@@ -122,7 +123,7 @@ internal static class Program
                 if (count == 1) Console.WriteLine($"H.264 access units received; first access unit bytes: {bytes.Length}");
             };
             await peer.TrackOpen.WaitAsync(TimeSpan.FromSeconds(30), cancellation.Token).ConfigureAwait(false);
-            peer.PrintSelectedRoute();
+            Console.WriteLine($"Selected candidate pair: {peer.GetSelectedRouteDescription()}");
             Console.WriteLine($"The {answer.Transport} H.264 receive track is connected. Press Ctrl+C to stop.");
 
             if (options.Benchmark)

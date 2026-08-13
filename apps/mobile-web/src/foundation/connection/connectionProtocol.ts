@@ -288,6 +288,26 @@ function isServerMessage(value: unknown): value is ServerMessage {
       return hasOnlyFields(value, ["type", "reason", "message"]) &&
         isOneOf(value.reason, ["host-stopped", "permission-revoked"]) &&
         isBoundedString(value.message, 240, false);
+    case "phone.webcam.start.result":
+      return hasOnlyFields(value, ["type", "operationId", "succeeded", "code", "message", "offerSdp", "hostSignature", "iceServers", "turnExpiresAt", "relayUsageBytes", "relayUsageCheckedAt", "relayQuality", "maximumBitrate"]) &&
+        isOperationId(value.operationId) && isResultBase(value) &&
+        isOptional(value, "offerSdp", (candidate) => candidate === null || isBoundedString(candidate, 32 * 1024, false)) &&
+        isOptional(value, "hostSignature", (candidate) => candidate === null || isBoundedString(candidate, 128, false)) &&
+        isOptional(value, "iceServers", (candidate) => candidate === null || isRelayIceServers(candidate)) &&
+        isOptional(value, "turnExpiresAt", (candidate) => candidate === null || isBoundedString(candidate, 40, false)) &&
+        isOptional(value, "relayUsageBytes", (candidate) => candidate === null || typeof candidate === "number" && Number.isSafeInteger(candidate) && candidate >= 0) &&
+        isOptional(value, "relayUsageCheckedAt", (candidate) => candidate === null || isBoundedString(candidate, 40, false)) &&
+        isOptional(value, "relayQuality", (candidate) => candidate === null || isOneOf(candidate, ["Standard", "DataSaver"])) &&
+        isOptional(value, "maximumBitrate", (candidate) => candidate === null || Number.isInteger(candidate) && (candidate as number) >= 100_000 && (candidate as number) <= 20_000_000);
+    case "phone.webcam.answer.result":
+    case "phone.webcam.stop.result":
+      return hasOnlyFields(value, ["type", "operationId", "succeeded", "code", "message"]) &&
+        isOperationId(value.operationId) && isResultBase(value);
+    case "phone.webcam.ended":
+      return hasOnlyFields(value, ["type", "operationId", "reason", "message"]) &&
+        isOperationId(value.operationId) &&
+        isOneOf(value.reason, ["stopped", "connection-lost", "transport-lost", "decoder-failed", "permission-revoked", "pairing-revoked", "host-stopped", "offer-expired"]) &&
+        isBoundedString(value.message, 240, false);
     case "url.open.result":
       return isOperationId(value.operationId) && isResultBase(value) &&
         isOptional(value, "normalizedUrl", isString);
@@ -337,6 +357,8 @@ function isServerCapabilities(value: unknown): boolean {
       candidate === null || isCustomScreensCapability(candidate)) &&
     isOptional(value, "screenView", (candidate) =>
       candidate === null || isScreenViewCapability(candidate)) &&
+    isOptional(value, "phoneWebcam", (candidate) =>
+      candidate === null || isPhoneWebcamCapability(candidate)) &&
     isOptional(value, "fileManager", (candidate) =>
       candidate === null || isFileManagerCapability(candidate)) &&
     isOptional(value, "urlOpen", (candidate) => isBooleanCapability(candidate, "canOpen")) &&
@@ -438,6 +460,18 @@ function isScreenViewCapability(value: unknown): boolean {
     value.maxFramesPerSecond === 30 &&
     isOptional(value, "directPointer", (candidate) =>
       isRecord(candidate) && typeof candidate.permissionGranted === "boolean");
+}
+
+function isPhoneWebcamCapability(value: unknown): boolean {
+  return isRecord(value) &&
+    typeof value.enabled === "boolean" &&
+    typeof value.permissionGranted === "boolean" &&
+    typeof value.canUse === "boolean" &&
+    typeof value.requiresRepair === "boolean" &&
+    value.videoOnly === true &&
+    value.maxWidth === 1920 &&
+    value.maxHeight === 1080 &&
+    value.maxFramesPerSecond === 30;
 }
 
 function isScreenViewSource(value: unknown): boolean {
@@ -863,6 +897,7 @@ export const getCustomScreensCapability = (capabilities: ServerCapabilities | un
     ? capabilities.customScreens
     : undefined;
 export const getScreenViewCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.screenView ?? undefined;
+export const getPhoneWebcamCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.phoneWebcam ?? undefined;
 export const getFileManagerCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.fileManager ?? undefined;
 export const hasTextTransferCapability = (capabilities: ServerCapabilities | undefined) => capabilities?.textTransfer === true;
 export const getClipboardReadPermission = (capabilities: ServerCapabilities | undefined): boolean | undefined =>

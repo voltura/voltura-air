@@ -1,6 +1,7 @@
 using Xunit;
+using VolturaAir.Host.Features.PhoneWebcam;
 
-namespace WebRtcSpike.Host.Tests;
+namespace VolturaAir.Host.Tests;
 
 public sealed class MediaFoundationH264DecoderTests
 {

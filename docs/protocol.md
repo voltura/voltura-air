@@ -261,6 +261,16 @@ Success:
       "maxHeight": 1080,
       "maxFramesPerSecond": 30,
       "directPointer": { "permissionGranted": true }
+    },
+    "phoneWebcam": {
+      "enabled": true,
+      "permissionGranted": false,
+      "canUse": false,
+      "requiresRepair": false,
+      "videoOnly": true,
+      "maxWidth": 1920,
+      "maxHeight": 1080,
+      "maxFramesPerSecond": 30
     }
   },
   "host": {
@@ -493,6 +503,73 @@ the peer, encoder, capture session, native resources, and any direct mouse
 buttons held by that Screen session. Source switches, permission loss, and
 native input failure also release held direct buttons. Pointer coordinates are
 never logged.
+
+## Phone webcam
+
+Phone webcam is available only through the HTTPS hosted PWA used by Enhanced Direct
+and Relay. Standard Local HTTP does not request camera capture. The capability is
+always present on a supporting host:
+
+- `enabled` reports an installed current native virtual camera;
+- `permissionGranted` is the effective global plus per-device Phone webcam policy;
+- `canUse` additionally requires the current pinned host identity;
+- `requiresRepair` reports a missing current host-identity pin;
+- `videoOnly` is always `true`; and
+- `maxWidth`, `maxHeight`, and `maxFramesPerSecond` describe the requested ceiling,
+  not a claim about the actual browser capture.
+
+The phone sends one bounded signed start, answer, and stop sequence on the existing
+authenticated controller connection:
+
+```json
+{ "type": "phone.webcam.start", "operationId": "webcam-start-1", "captureWidth": 1920, "captureHeight": 1080, "captureFps": 30, "clientSignature": "base64url-p1363-signature" }
+{ "type": "phone.webcam.answer", "operationId": "webcam-start-1", "answerSdp": "bounded WebRTC H.264 answer SDP", "clientSignature": "base64url-p1363-signature" }
+{ "type": "phone.webcam.stop", "operationId": "webcam-stop-1" }
+```
+
+The start signature covers UTF-8
+`VolturaAir phone-webcam:start:v1:<clientId>:<operationId>:<captureWidth>:<captureHeight>:<captureFps>`.
+A successful `phone.webcam.start.result` echoes `operationId` and contains the
+bounded H.264-only receive offer, `hostSignature`, and `maximumBitrate`. The host
+signature covers UTF-8
+`VolturaAir phone-webcam:offer:v1:<clientId>:<operationId>:<offerHash>`. The browser
+verifies it against the pinned PC identity, rejects any audio media section or offer
+without H.264, and creates one send-only video answer. Its answer signature covers
+UTF-8
+`VolturaAir phone-webcam:answer:v1:<clientId>:<operationId>:<offerHash>:<answerHash>`.
+Hashes use the same unpadded base64url SHA-256 construction as Screen viewing.
+
+Start and answer SDP are bounded to 32 KiB, dimensions to 1 through 4096, frame rate
+to 1 through 60, and operation/signature fields to the shared authenticated-message
+bounds. The current v1 shapes are exact; extra fields, including any audio request,
+are rejected. One pending or active producer exists per host. The offer expires after
+20 seconds. Busy, invalid proof, expired offer, invalid answer, permission denial,
+unavailable WebRTC/decoder, and missing TURN credentials return bounded failure
+codes without closing the command channel.
+
+Enhanced Direct uses host ICE candidates and a 12 Mbps sender ceiling without STUN
+or TURN. Relay supplies the existing `iceServers`, `turnExpiresAt`, aggregate usage
+snapshot, quota-derived quality, and 4/2 Mbps effective ceiling. Both peers reject a
+Relay answer containing an empty or non-relay candidate set. Before the 15-minute
+credential expires, the visible browser stops and disposes the old session, obtains
+fresh credentials, and creates one new signed peer. The old peer is never
+renegotiated or reused.
+
+`phone.webcam.answer.result` confirms host answer acceptance;
+`phone.webcam.stop.result` confirms idempotent client stop. The host may send a
+terminal event correlated to the started operation with one current reason:
+
+```json
+{ "type": "phone.webcam.ended", "operationId": "webcam-start-1", "reason": "transport-lost", "message": "The Phone webcam session ended." }
+```
+
+Accepted reasons are `stopped`, `connection-lost`, `transport-lost`,
+`decoder-failed`, `permission-revoked`, `pairing-revoked`, `host-stopped`, and `offer-expired`.
+Clients ignore terminal events for an older operation. Every terminal path releases the peer, decoder, bounded queues, local frame pipe input, and
+phone tracks. Camera switching is browser-local `replaceTrack` on the same healthy
+peer and adds no protocol message. Page hiding is an immediate stop; one fresh
+foreground session is the only automatic recovery attempt for that background
+transition.
 
 ## Custom screens
 

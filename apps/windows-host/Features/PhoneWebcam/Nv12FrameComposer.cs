@@ -1,4 +1,4 @@
-namespace WebRtcSpike.Host;
+namespace VolturaAir.Host.Features.PhoneWebcam;
 
 internal static class Nv12FrameComposer
 {

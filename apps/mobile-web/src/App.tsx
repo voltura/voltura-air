@@ -32,6 +32,7 @@ import { requestGyroPermission, type GyroActivationRequest } from "./foundation/
 
 const ScreenViewWorkspace = lazy(() => import("./features/screen-view"));
 const FileManagerWorkspace = lazy(() => import("./features/file-manager"));
+const PhoneWebcamWorkspace = lazy(() => import("./features/phone-webcam"));
 
 export function App() {
   const initialPairing = useMemo(() => parsePairingLink(window.location.href), []);
@@ -53,6 +54,7 @@ export function App() {
     customScreenInvokeResult,
     customScreensCapability,
     screenViewCapability,
+    phoneWebcamCapability,
     fileManagerCapability,
     invokeCustomScreenButton,
     pendingCustomScreenButtonIds,
@@ -86,6 +88,9 @@ export function App() {
   const [suppressedClipboardResultId, setSuppressedClipboardResultId] = useState<string | null>(null);
   const [activeCustomScreenId, setActiveCustomScreenId] = useState<string | null>(null);
   const [isScreenViewOpen, setIsScreenViewOpen] = useState(false);
+  const [isPhoneWebcamOpen, setIsPhoneWebcamOpen] = useState(false);
+  const [phoneWebcamCapabilitySnapshot, setPhoneWebcamCapabilitySnapshot] = useState(phoneWebcamCapability);
+  const activePhoneWebcamCapability = phoneWebcamCapability ?? phoneWebcamCapabilitySnapshot;
   const [gyroSelected, setGyroSelected] = useState(false);
   const [gyroActivationRequest, setGyroActivationRequest] = useState<GyroActivationRequest | null>(null);
   const gyroActivationIdRef = useRef(0);
@@ -188,6 +193,7 @@ export function App() {
     setActiveCustomScreenId(null);
     setIsThirdPartyNoticesOpen(false);
     setIsScreenViewOpen(true);
+    setIsPhoneWebcamOpen(false);
   }, []);
   const requestPresentationActivation = () => {
     setPresentationActivationRequest((current) => ({
@@ -273,6 +279,7 @@ export function App() {
     const selectMode = () => {
       setActiveCustomScreenId(null);
       setIsScreenViewOpen(false);
+      setIsPhoneWebcamOpen(false);
       setIsThirdPartyNoticesOpen(false);
       if (nextTab === "presentation") {
         requestPresentationActivation();
@@ -290,6 +297,7 @@ export function App() {
     const openMode = () => {
       setActiveCustomScreenId(null);
       setIsScreenViewOpen(false);
+      setIsPhoneWebcamOpen(false);
       setIsThirdPartyNoticesOpen(false);
       if (mode === "presentation") {
         requestPresentationActivation();
@@ -307,6 +315,7 @@ export function App() {
     requestPresentationExit(() => {
       setActiveCustomScreenId(null);
       setIsScreenViewOpen(false);
+      setIsPhoneWebcamOpen(false);
       setIsThirdPartyNoticesOpen(false);
       openGestureDebug();
     });
@@ -317,6 +326,7 @@ export function App() {
     requestPresentationExit(() => {
       setActiveCustomScreenId(null);
       setIsScreenViewOpen(false);
+      setIsPhoneWebcamOpen(false);
       setIsThirdPartyNoticesOpen(false);
       setGyroActivationRequest(request);
       openModeFromMenu("trackpad");
@@ -518,7 +528,7 @@ export function App() {
 
   return (
     <div className={`app-frame${controlDepth ? " control-depth" : ""}`}>
-      <main className={`${shellClassName}${controlDepth ? " control-depth" : ""}${isScreenViewOpen ? " screen-view-active" : ""}${tab === "files" ? " files-active" : ""}`}>
+      <main className={`${shellClassName}${controlDepth ? " control-depth" : ""}${isScreenViewOpen ? " screen-view-active" : ""}${isPhoneWebcamOpen ? " phone-webcam-active" : ""}${tab === "files" ? " files-active" : ""}`}>
         <AppHeader
           activeMode={activeModeTab}
           canShowModeNavigation={canShowModeNavigation}
@@ -623,6 +633,7 @@ export function App() {
             requestPresentationExit(() => {
               setActiveCustomScreenId(screenId);
               setIsScreenViewOpen(false);
+              setIsPhoneWebcamOpen(false);
               setIsThirdPartyNoticesOpen(false);
               setIsSettingsOpen(false);
             });
@@ -632,6 +643,17 @@ export function App() {
               setActiveCustomScreenId(null);
               setIsThirdPartyNoticesOpen(false);
               setIsScreenViewOpen(true);
+              setIsPhoneWebcamOpen(false);
+              setIsSettingsOpen(false);
+            });
+          }}
+          onOpenPhoneWebcam={() => {
+            requestPresentationExit(() => {
+              setPhoneWebcamCapabilitySnapshot(phoneWebcamCapability);
+              setActiveCustomScreenId(null);
+              setIsThirdPartyNoticesOpen(false);
+              setIsScreenViewOpen(false);
+              setIsPhoneWebcamOpen(true);
               setIsSettingsOpen(false);
             });
           }}
@@ -643,6 +665,7 @@ export function App() {
             closeTransientSurfaces();
             setActiveCustomScreenId(null);
             setIsScreenViewOpen(false);
+            setIsPhoneWebcamOpen(false);
             setIsThirdPartyNoticesOpen(true);
           }}
           onOpenGyroMouse={openGyroMouse}
@@ -660,6 +683,7 @@ export function App() {
           remoteSettings={remoteSettings}
           scanPairingQr={scanPairingQr}
           screenViewCapability={screenViewCapability}
+          phoneWebcamCapability={activePc?.transportMode === "secure-direct" || activePc?.transportMode === "relay" ? phoneWebcamCapability : undefined}
           selectPc={(pcId) => {
             requestPresentationConnectionChange("connect", () => { selectPc(pcId); });
           }}
@@ -685,10 +709,24 @@ export function App() {
           updateTrackpadSetting={updateTrackpadSetting}
         />
 
-        {activeCustomScreenId === null && !isScreenViewOpen && tab !== "files" && isModeButtonsVisible && <ModeNavigation className="tabs top-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTabWithPresentationGuard} />}
+        {activeCustomScreenId === null && !isScreenViewOpen && !isPhoneWebcamOpen && tab !== "files" && isModeButtonsVisible && <ModeNavigation className="tabs top-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTabWithPresentationGuard} />}
 
         {isThirdPartyNoticesOpen ? (
           <ThirdPartyNoticesWorkspace onBack={() => { setIsThirdPartyNoticesOpen(false); }} />
+        ) : isPhoneWebcamOpen && activePc && activePhoneWebcamCapability ? (
+          <WorkspaceErrorBoundary featureName="Phone webcam" onBack={() => { setIsPhoneWebcamOpen(false); }}>
+            <Suspense fallback={<div className="workspace-loading">Opening Phone webcam…</div>}>
+              <PhoneWebcamWorkspace
+                activePc={activePc}
+                capability={activePhoneWebcamCapability}
+                clientId={clientId}
+                connectionEpoch={connectionEpoch}
+                onBack={() => { setIsPhoneWebcamOpen(false); }}
+                send={send}
+                state={state}
+              />
+            </Suspense>
+          </WorkspaceErrorBoundary>
         ) : isScreenViewOpen && activePc && screenViewCapability ? (
           <WorkspaceErrorBoundary featureName="Screen" onBack={() => { setIsScreenViewOpen(false); }}>
             <Suspense fallback={<div className="workspace-loading">Opening Screen…</div>}>
@@ -859,7 +897,7 @@ export function App() {
         />
       </main>
 
-      {activeCustomScreenId === null && !isScreenViewOpen && tab !== "files" && isBottomModeNavigationVisible && <ModeNavigation className="tabs bottom-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTabWithPresentationGuard} />}
+      {activeCustomScreenId === null && !isScreenViewOpen && !isPhoneWebcamOpen && tab !== "files" && isBottomModeNavigationVisible && <ModeNavigation className="tabs bottom-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTabWithPresentationGuard} />}
     </div>
   );
 }

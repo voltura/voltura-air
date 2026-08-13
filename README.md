@@ -5,7 +5,7 @@
 </p>
 
 Turn a phone, tablet, or browser into a wireless remote&mdash;and live screen
-viewer&mdash;for a Windows 11 PC. With a mouse or trackpad and physical keyboard,
+viewer or video-only Windows webcam&mdash;for a Windows 11 PC. With a mouse or trackpad and physical keyboard,
 **View PC screen** also lets you work on that PC from another computer. No
 app-store install or Voltura account is required. Direct LAN remains the default;
 on Direct LAN, Enhanced capabilities can add sensor-powered controls while
@@ -21,6 +21,10 @@ networks that block inbound PC connections.
   over Direct LAN or the optional Cloud relay, with encrypted video, responsive
   cursor movement, scrolling, and up to 5x local zoom. Relay viewing offers
   Standard and Data saver quality choices.
+- Use a selected paired-phone camera as `Voltura Air Webcam` in Windows apps.
+  Enhanced Direct is free and unlimited; Relay initially shares the existing
+  service usage limits. Camera selection, live switching, stop, and background
+  recovery are video-only and do not request microphone audio.
 - From another computer, use **View PC screen** with a mouse or trackpad and
   physical keyboard to move, left- or right-click, drag, scroll, and type on
   the selected Windows display.
@@ -114,6 +118,9 @@ Voltura Air requires Windows 11. Choose one package from the
 Installers are per-user under `%LOCALAPPDATA%\Programs\Voltura Air`, create
 Start Menu shortcuts, and retain pairing/settings under `%APPDATA%\Voltura Air`
 on uninstall. Start-at-sign-in is an in-app setting.
+The optional Phone webcam page installs its current-user Windows virtual camera
+only after an explicit Enable action and UAC approval; uninstall removes an enabled
+camera before deleting its recovery helper.
 
 ## Connect
 
@@ -141,6 +148,8 @@ PC before a paired phone, tablet, or browser can use it. Direct physical mouse
 and keyboard control from another computer also requires Pointer and keyboard
 permission. **Files on PC** separately requires Browse and open files permission;
 file-changing actions also require Change files permission.
+**Phone webcam** requires Enhanced Direct or Relay, an enabled virtual camera, and
+the separate default-off Phone webcam permission for the paired device.
 
 ## Trust, privacy, and distribution
 

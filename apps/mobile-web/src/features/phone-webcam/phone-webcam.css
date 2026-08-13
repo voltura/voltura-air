@@ -1,0 +1,112 @@
+.phone-webcam-workspace {
+  display: grid;
+  gap: 1rem;
+  width: min(100%, 48rem);
+  margin: 0 auto;
+  padding: 0.75rem 1rem 6rem;
+}
+
+.phone-webcam-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.phone-webcam-header p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.phone-webcam-header h1 {
+  margin: 0.1rem 0 0;
+  font-size: 1.5rem;
+}
+
+.phone-webcam-preview {
+  position: relative;
+  overflow: hidden;
+  min-height: 16rem;
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  background: var(--bg);
+}
+
+.phone-webcam-preview video {
+  display: block;
+  width: 100%;
+  min-height: 16rem;
+  max-height: 55vh;
+  object-fit: contain;
+}
+
+.phone-webcam-placeholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.75rem;
+  padding: 2rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.phone-webcam-placeholder svg {
+  width: 2rem;
+  height: 2rem;
+}
+
+.phone-webcam-controls,
+.phone-webcam-status {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--surface);
+}
+
+.phone-webcam-controls label {
+  display: grid;
+  gap: 0.4rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.phone-webcam-controls select {
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+}
+
+.phone-webcam-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.phone-webcam-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 3rem;
+}
+
+.phone-webcam-status span {
+  color: var(--text-muted);
+}
+
+@media (width <= 420px) {
+  .phone-webcam-actions {
+    grid-template-columns: 1fr;
+  }
+}

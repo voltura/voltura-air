@@ -10,6 +10,7 @@ import type { ClientMessage, ScreenViewCapability, ScreenViewSource, ScreenViewS
 import { AnchoredHint } from "../../ui/guidance";
 import { subscribeScreenViewResults } from "../../foundation/connection/screenViewResultBus";
 import { hashScreenSdp, verifyHostScreenSignature } from "./screenViewCrypto";
+import { hasOnlyRelayCandidates, IceGatheringTimeoutError, isRelayCandidate, waitForIceGathering } from "../../foundation/webrtc/iceGathering";
 import { parseScreenPlaintextRecord, type ScreenCursorRecord } from "./screenViewRecords";
 import { screenKeyboardMessage } from "./screenKeyboardInput";
 import { identityScreenViewTransform, normalizedScreenPoint, screenCursorImagePosition, touchPairGeometry, updateScreenViewPinch, type NormalizedScreenPoint, type ScreenViewPinchStart, type ScreenViewTransform } from "./screenViewTransform";
@@ -33,7 +34,6 @@ interface PendingSource { operationId: string; displayId: string; previousDispla
 
 const disconnectedRecoveryMs = 8_000;
 
-class IceGatheringTimeoutError extends Error {}
 
 export default function ScreenViewWorkspace({ activePc, browserPreviewState, capability, clientId, onBack, onOpenKeyboard, send, state, trackpadSettings }: Props) {
   const [sources, setSources] = useState<ScreenViewSource[]>([]);
@@ -734,54 +734,4 @@ function useFineHoverPointer() {
     return () => media.removeEventListener("change", update);
   }, []);
   return matches;
-}
-
-function waitForIceGathering(peer: RTCPeerConnection, allowSettledRelayCandidates = false): Promise<void> {
-  if (peer.iceGatheringState === "complete") {return Promise.resolve();}
-  return new Promise((resolve, reject) => {
-    let relaySettleTimeout: number | undefined;
-    const cleanup = () => {
-      window.clearTimeout(gatheringTimeout);
-      window.clearTimeout(relaySettleTimeout);
-      peer.removeEventListener("icegatheringstatechange", onState);
-      peer.removeEventListener("icecandidate", onCandidate);
-    };
-    const finishWithRelayCandidates = () => {
-      const sdp = peer.localDescription?.sdp ?? "";
-      if (!hasOnlyRelayCandidates(sdp)) {return;}
-      cleanup();
-      resolve();
-    };
-    const scheduleRelaySettle = () => {
-      if (!allowSettledRelayCandidates) {return;}
-      window.clearTimeout(relaySettleTimeout);
-      relaySettleTimeout = window.setTimeout(finishWithRelayCandidates, 350);
-    };
-    const onState = () => {
-      if (peer.iceGatheringState === "complete") {cleanup(); resolve();}
-    };
-    const onCandidate = (event: RTCPeerConnectionIceEvent) => {
-      if (isRelayCandidate(event.candidate)) {scheduleRelaySettle();}
-    };
-    peer.addEventListener("icegatheringstatechange", onState);
-    peer.addEventListener("icecandidate", onCandidate);
-    const gatheringTimeout = window.setTimeout(() => {
-      if (allowSettledRelayCandidates && hasOnlyRelayCandidates(peer.localDescription?.sdp ?? "")) {
-        finishWithRelayCandidates();
-        return;
-      }
-      cleanup();
-      reject(new IceGatheringTimeoutError("WebRTC candidate gathering timed out."));
-    }, 10_000);
-    if (hasOnlyRelayCandidates(peer.localDescription?.sdp ?? "")) {scheduleRelaySettle();}
-  });
-}
-
-function isRelayCandidate(candidate: RTCIceCandidate | null): boolean {
-  return candidate?.type === "relay" || /\styp\s+relay(?:\s|$)/.test(candidate?.candidate ?? "");
-}
-
-function hasOnlyRelayCandidates(sdp: string): boolean {
-  const candidates = sdp.split(/\r?\n/).filter((line) => line.startsWith("a=candidate:"));
-  return candidates.length > 0 && candidates.every((line) => /\styp\s+relay(?:\s|$)/.test(line));
 }

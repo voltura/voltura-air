@@ -115,6 +115,17 @@ reject timestamp/nonce replay. Usage thresholds restrict TURN issuance without
 affecting command authentication. A self-hosted relay changes endpoint and
 deployment ownership, not these application-layer security contracts.
 
+Phone webcam reverses the authenticated Screen media direction: the paired browser's
+reconnect key signs the exact bounded start request and answer, and the pinned PC
+identity signs the offer hash. The host accepts one video-only H.264 track, rejects
+audio and stale signaling, and enforces relay-only candidates in Relay mode.
+Permission or pairing revocation disposes the peer, decoder, queued frames, and phone
+capture. The elevated native installer extracts its embedded media source from the
+locked setup executable and verifies the payload before machine-wide COM
+registration; it does not trust a replaceable sibling DLL across UAC. The Frame
+Server media source receives only authenticated, versioned, fixed-size local frames
+and owns no network credentials.
+
 Pending relay host sockets do not reserve a route before routing-key proof.
 The relay also supplies a route-scoped opaque source key so one device source
 cannot consume another source's host pairing-failure allowance; the key is not

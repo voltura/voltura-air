@@ -56,3 +56,11 @@ files are rebuilt, never hand-edited.
 | [Relay deployment](relay-deployment.md) | Operations | Cloudflare setup, quota checks, and advanced WSL self-hosting. |
 | [TODO](todo.md) | Approved work | Prioritized, decision-ready outcomes. |
 | [Ideas](ideas.md) | Possible work | Directions awaiting decisions/evidence. |
+
+## Isolated experiments
+
+| Document | Role | Read/update |
+| --- | --- | --- |
+| [Phone-as-webcam host spike](../apps/webrtc-spike-host/README.md) | Experimental evidence | Isolated Windows virtual-camera host, validation gates, and measured results. |
+| [Phone-as-webcam browser spike](../apps/secure-web-spike/README.md) | Experimental operations | Isolated HTTPS browser deployment and cleanup. |
+| [Spike test-data notice](../apps/webrtc-spike-host/tests/TestData/NOTICE.md) | Attribution | Sources and license for decoder regression fixtures. |

@@ -1,0 +1,788 @@
+#include <windows.h>
+#include <shellapi.h>
+#include <shlobj.h>
+#include <sddl.h>
+#include <mfapi.h>
+#include <mferror.h>
+#include <mfidl.h>
+#include <mfreadwrite.h>
+#include <mfvirtualcamera.h>
+#include <ks.h>
+#include <ksmedia.h>
+#include <wrl/client.h>
+
+#include <filesystem>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
+
+using Microsoft::WRL::ComPtr;
+
+namespace
+{
+    constexpr wchar_t SourceClsid[] = L"{50AAB70E-38BA-403E-A55B-58F2BCABE4FB}";
+    constexpr wchar_t FriendlyName[] = L"Voltura Air Webcam";
+    constexpr wchar_t InstalledDirectoryName[] = L"Voltura Air Webcam Spike";
+    constexpr wchar_t SourceDllName[] = L"VirtualCameraMediaSource.dll";
+    constexpr UINT32 FrameWidth = 1920;
+    constexpr UINT32 FrameHeight = 1080;
+    constexpr DWORD ExpectedFrameBytes = FrameWidth * FrameHeight * 3 / 2;
+    constexpr DWORD FirstVideoStream = static_cast<DWORD>(MF_SOURCE_READER_FIRST_VIDEO_STREAM);
+
+    class MediaFoundationScope
+    {
+    public:
+        MediaFoundationScope()
+        {
+            const HRESULT comResult = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+            m_uninitializeCom = SUCCEEDED(comResult);
+            if (FAILED(comResult) && comResult != RPC_E_CHANGED_MODE)
+            {
+                m_result = comResult;
+                return;
+            }
+
+            m_result = MFStartup(MF_VERSION, MFSTARTUP_FULL);
+        }
+
+        ~MediaFoundationScope()
+        {
+            if (SUCCEEDED(m_result))
+            {
+                MFShutdown();
+            }
+            if (m_uninitializeCom)
+            {
+                CoUninitialize();
+            }
+        }
+
+        HRESULT Result() const noexcept { return m_result; }
+
+    private:
+        HRESULT m_result = E_FAIL;
+        bool m_uninitializeCom = false;
+    };
+
+    std::wstring HResultText(const HRESULT result)
+    {
+        std::wostringstream stream;
+        stream << L"0x" << std::uppercase << std::hex << std::setw(8) << std::setfill(L'0')
+               << static_cast<unsigned long>(result);
+        return stream.str();
+    }
+
+    bool ShouldInjectFault(const wchar_t* boundary)
+    {
+        static bool injected = false;
+        if (injected) return false;
+        wchar_t value[128]{};
+        const DWORD length = GetEnvironmentVariableW(L"VOLTURA_WEBCAM_SPIKE_FAULT", value, ARRAYSIZE(value));
+        if (length == 0 || length >= ARRAYSIZE(value) || _wcsicmp(value, boundary) != 0) return false;
+        injected = true;
+        return true;
+    }
+
+    HRESULT ProgramFilesInstallDirectory(std::filesystem::path& path)
+    {
+        PWSTR rawPath = nullptr;
+        const HRESULT result = SHGetKnownFolderPath(FOLDERID_ProgramFiles, KF_FLAG_DEFAULT, nullptr, &rawPath);
+        if (FAILED(result))
+        {
+            return result;
+        }
+        path = std::filesystem::path(rawPath) / InstalledDirectoryName;
+        CoTaskMemFree(rawPath);
+        return S_OK;
+    }
+
+    std::filesystem::path CurrentExecutable()
+    {
+        std::wstring buffer(32768, L'\0');
+        const DWORD length = GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
+        if (length == 0 || length >= buffer.size())
+        {
+            return {};
+        }
+        buffer.resize(length);
+        return std::filesystem::path(buffer);
+    }
+
+    std::filesystem::path BuiltSourceDll()
+    {
+        std::filesystem::path root = CurrentExecutable().parent_path();
+        for (int index = 0; index < 3; ++index)
+        {
+            root = root.parent_path();
+        }
+        return root / L"VirtualCameraMediaSource" / L"x64" / L"Release" / SourceDllName;
+    }
+
+    bool IsAdministrator()
+    {
+        SID_IDENTIFIER_AUTHORITY authority = SECURITY_NT_AUTHORITY;
+        PSID administrators = nullptr;
+        BOOL isMember = FALSE;
+        if (!AllocateAndInitializeSid(
+                &authority, 2, SECURITY_BUILTIN_DOMAIN_RID, DOMAIN_ALIAS_RID_ADMINS,
+                0, 0, 0, 0, 0, 0, &administrators))
+        {
+            return false;
+        }
+        const BOOL checked = CheckTokenMembership(nullptr, administrators, &isMember);
+        FreeSid(administrators);
+        return checked != FALSE && isMember != FALSE;
+    }
+
+    HRESULT CurrentUserSid(std::wstring& value)
+    {
+        HANDLE token = nullptr;
+        if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) return HRESULT_FROM_WIN32(GetLastError());
+        DWORD tokenBytes = 0;
+        GetTokenInformation(token, TokenUser, nullptr, 0, &tokenBytes);
+        std::vector<BYTE> tokenBuffer(tokenBytes);
+        if (tokenBytes == 0 || !GetTokenInformation(token, TokenUser, tokenBuffer.data(), tokenBytes, &tokenBytes))
+        {
+            const HRESULT result = HRESULT_FROM_WIN32(GetLastError());
+            CloseHandle(token);
+            return result;
+        }
+        CloseHandle(token);
+
+        LPWSTR rawSid = nullptr;
+        if (!ConvertSidToStringSidW(reinterpret_cast<TOKEN_USER*>(tokenBuffer.data())->User.Sid, &rawSid))
+            return HRESULT_FROM_WIN32(GetLastError());
+        value = rawSid;
+        LocalFree(rawSid);
+        return S_OK;
+    }
+
+    HRESULT ValidateOwnerSid(const std::wstring& ownerSid)
+    {
+        PSID parsedSid = nullptr;
+        if (!ConvertStringSidToSidW(ownerSid.c_str(), &parsedSid)) return HRESULT_FROM_WIN32(GetLastError());
+        const bool validSid = IsValidSid(parsedSid) != FALSE;
+        LocalFree(parsedSid);
+        return validSid ? S_OK : E_INVALIDARG;
+    }
+
+    HRESULT RunElevatedAndWait(const std::wstring& arguments)
+    {
+        const std::filesystem::path executable = CurrentExecutable();
+        if (executable.empty())
+        {
+            return HRESULT_FROM_WIN32(GetLastError());
+        }
+
+        SHELLEXECUTEINFOW info{};
+        info.cbSize = sizeof(info);
+        info.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC;
+        info.lpVerb = L"runas";
+        info.lpFile = executable.c_str();
+        info.lpParameters = arguments.c_str();
+        info.nShow = SW_SHOWNORMAL;
+        if (!ShellExecuteExW(&info))
+        {
+            return HRESULT_FROM_WIN32(GetLastError());
+        }
+
+        const DWORD waitResult = WaitForSingleObject(info.hProcess, INFINITE);
+        DWORD exitCode = ERROR_GEN_FAILURE;
+        const BOOL gotExitCode = GetExitCodeProcess(info.hProcess, &exitCode);
+        CloseHandle(info.hProcess);
+        if (waitResult != WAIT_OBJECT_0)
+        {
+            return HRESULT_FROM_WIN32(GetLastError());
+        }
+        if (!gotExitCode)
+        {
+            return HRESULT_FROM_WIN32(GetLastError());
+        }
+        return exitCode == 0 ? S_OK : HRESULT_FROM_WIN32(exitCode);
+    }
+
+    HRESULT UnregisterComSource()
+    {
+        const std::wstring keyPath = std::wstring(L"SOFTWARE\\Classes\\CLSID\\") + SourceClsid;
+        LSTATUS result = RegDeleteTreeW(HKEY_LOCAL_MACHINE, keyPath.c_str());
+        if (result == ERROR_SUCCESS && ShouldInjectFault(L"unregister-after-delete"))
+            result = ERROR_WRITE_FAULT;
+        return result == ERROR_FILE_NOT_FOUND ? S_OK : HRESULT_FROM_WIN32(result);
+    }
+
+    HRESULT ReadRegistryString(const std::wstring& keyPath, const wchar_t* valueName, std::wstring& value)
+    {
+        DWORD bytes = 0;
+        LSTATUS result = RegGetValueW(
+            HKEY_LOCAL_MACHINE, keyPath.c_str(), valueName, RRF_RT_REG_SZ, nullptr, nullptr, &bytes);
+        if (result != ERROR_SUCCESS) return HRESULT_FROM_WIN32(result);
+        std::vector<wchar_t> buffer(bytes / sizeof(wchar_t));
+        result = RegGetValueW(
+            HKEY_LOCAL_MACHINE, keyPath.c_str(), valueName, RRF_RT_REG_SZ, nullptr, buffer.data(), &bytes);
+        if (result != ERROR_SUCCESS) return HRESULT_FROM_WIN32(result);
+        value.assign(buffer.data());
+        return S_OK;
+    }
+
+    HRESULT VerifyComSource(const std::filesystem::path& sourcePath, const std::wstring& ownerSid)
+    {
+        const std::wstring rootPath = std::wstring(L"SOFTWARE\\Classes\\CLSID\\") + SourceClsid;
+        const std::wstring inProcPath = rootPath + L"\\InProcServer32";
+        std::wstring actualOwner;
+        std::wstring actualSource;
+        std::wstring actualThreading;
+        HRESULT result = ReadRegistryString(rootPath, L"OwnerSid", actualOwner);
+        if (SUCCEEDED(result)) result = ReadRegistryString(inProcPath, nullptr, actualSource);
+        if (SUCCEEDED(result)) result = ReadRegistryString(inProcPath, L"ThreadingModel", actualThreading);
+        if (FAILED(result)) return result;
+        return actualOwner == ownerSid && actualSource == sourcePath.wstring() && actualThreading == L"Both"
+            ? S_OK
+            : HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
+    }
+
+    HRESULT RegistrationExists(bool& exists)
+    {
+        const std::wstring keyPath = std::wstring(L"SOFTWARE\\Classes\\CLSID\\") + SourceClsid;
+        HKEY key = nullptr;
+        const LSTATUS result = RegOpenKeyExW(HKEY_LOCAL_MACHINE, keyPath.c_str(), 0, KEY_QUERY_VALUE, &key);
+        if (result == ERROR_FILE_NOT_FOUND)
+        {
+            exists = false;
+            return S_OK;
+        }
+        if (result != ERROR_SUCCESS) return HRESULT_FROM_WIN32(result);
+        RegCloseKey(key);
+        exists = true;
+        return S_OK;
+    }
+
+    HRESULT RegisterComSource(
+        const std::filesystem::path& sourcePath,
+        const std::wstring& ownerSid,
+        bool* registrationCompleteOrAbsent = nullptr)
+    {
+        if (registrationCompleteOrAbsent != nullptr) *registrationCompleteOrAbsent = false;
+        const HRESULT sidResult = ValidateOwnerSid(ownerSid);
+        if (FAILED(sidResult)) return sidResult;
+
+        const std::wstring rootPath = std::wstring(L"SOFTWARE\\Classes\\CLSID\\") + SourceClsid;
+        HKEY root = nullptr;
+        HKEY inProc = nullptr;
+        DWORD disposition = 0;
+        LSTATUS result = RegCreateKeyExW(
+            HKEY_LOCAL_MACHINE, rootPath.c_str(), 0, nullptr, REG_OPTION_NON_VOLATILE,
+            KEY_SET_VALUE | KEY_CREATE_SUB_KEY, nullptr, &root, &disposition);
+        if (result == ERROR_SUCCESS && disposition == REG_OPENED_EXISTING_KEY)
+        {
+            RegCloseKey(root);
+            return HRESULT_FROM_WIN32(ERROR_ALREADY_EXISTS);
+        }
+        if (result == ERROR_SUCCESS)
+        {
+            result = RegSetValueExW(
+                root, L"OwnerSid", 0, REG_SZ, reinterpret_cast<const BYTE*>(ownerSid.c_str()),
+                static_cast<DWORD>((ownerSid.size() + 1) * sizeof(wchar_t)));
+        }
+        if (result == ERROR_SUCCESS)
+        {
+            result = RegCreateKeyExW(
+                root, L"InProcServer32", 0, nullptr, REG_OPTION_NON_VOLATILE,
+                KEY_SET_VALUE, nullptr, &inProc, nullptr);
+        }
+        const std::wstring pathValue = sourcePath.wstring();
+        if (result == ERROR_SUCCESS)
+        {
+            result = RegSetValueExW(
+                inProc, nullptr, 0, REG_SZ, reinterpret_cast<const BYTE*>(pathValue.c_str()),
+                static_cast<DWORD>((pathValue.size() + 1) * sizeof(wchar_t)));
+        }
+        if (result == ERROR_SUCCESS)
+        {
+            constexpr wchar_t threadingModel[] = L"Both";
+            result = RegSetValueExW(
+                inProc, L"ThreadingModel", 0, REG_SZ,
+                reinterpret_cast<const BYTE*>(threadingModel), sizeof(threadingModel));
+        }
+        if (inProc != nullptr) RegCloseKey(inProc);
+        if (root != nullptr) RegCloseKey(root);
+        if (result == ERROR_SUCCESS)
+        {
+            if (registrationCompleteOrAbsent != nullptr) *registrationCompleteOrAbsent = true;
+            return S_OK;
+        }
+
+        const HRESULT cleanup = UnregisterComSource();
+        if (FAILED(cleanup))
+        {
+            std::wcerr << L"register-rollback-error=" << HResultText(cleanup) << std::endl;
+            return cleanup;
+        }
+        if (registrationCompleteOrAbsent != nullptr) *registrationCompleteOrAbsent = true;
+        return HRESULT_FROM_WIN32(result);
+    }
+
+    HRESULT RestoreComSource(const std::filesystem::path& sourcePath, const std::wstring& ownerSid)
+    {
+        HRESULT result = UnregisterComSource();
+        if (SUCCEEDED(result)) result = RegisterComSource(sourcePath, ownerSid);
+        if (SUCCEEDED(result)) result = VerifyComSource(sourcePath, ownerSid);
+        return result;
+    }
+
+    HRESULT CreateCamera(ComPtr<IMFVirtualCamera>& camera, bool* safeToRollbackSystemFiles = nullptr)
+    {
+        if (safeToRollbackSystemFiles != nullptr) *safeToRollbackSystemFiles = true;
+        HRESULT result = MFCreateVirtualCamera(
+            MFVirtualCameraType_SoftwareCameraSource,
+            MFVirtualCameraLifetime_System,
+            MFVirtualCameraAccess_CurrentUser,
+            FriendlyName,
+            SourceClsid,
+            nullptr,
+            0,
+            &camera);
+        if (FAILED(result))
+        {
+            return result;
+        }
+        result = camera->Start(nullptr);
+        if (SUCCEEDED(result)) return result;
+
+        const HRESULT stopResult = camera->Stop();
+        const HRESULT removeResult = camera->Remove();
+        const HRESULT shutdownResult = camera->Shutdown();
+        const bool shutdownComplete = SUCCEEDED(shutdownResult) || shutdownResult == MF_E_SHUTDOWN;
+        if (FAILED(stopResult) && stopResult != MF_E_SHUTDOWN)
+            std::wcerr << L"camera-start-cleanup-stop-error=" << HResultText(stopResult) << std::endl;
+        if (FAILED(removeResult))
+            std::wcerr << L"camera-start-cleanup-remove-error=" << HResultText(removeResult) << std::endl;
+        if (!shutdownComplete)
+            std::wcerr << L"camera-start-cleanup-shutdown-error=" << HResultText(shutdownResult) << std::endl;
+        if (safeToRollbackSystemFiles != nullptr)
+            *safeToRollbackSystemFiles = SUCCEEDED(removeResult) && shutdownComplete;
+        camera.Reset();
+        return result;
+    }
+
+    HRESULT RemoveCamera()
+    {
+        ComPtr<IMFVirtualCamera> camera;
+        HRESULT result = MFCreateVirtualCamera(
+            MFVirtualCameraType_SoftwareCameraSource,
+            MFVirtualCameraLifetime_System,
+            MFVirtualCameraAccess_CurrentUser,
+            FriendlyName,
+            SourceClsid,
+            nullptr,
+            0,
+            &camera);
+        if (FAILED(result))
+        {
+            return result;
+        }
+        const HRESULT stopResult = camera->Stop();
+        if (FAILED(stopResult) && stopResult != MF_E_SHUTDOWN)
+        {
+            const HRESULT shutdownResult = camera->Shutdown();
+            if (FAILED(shutdownResult) && shutdownResult != MF_E_SHUTDOWN)
+                std::wcerr << L"camera-remove-stop-cleanup-error=" << HResultText(shutdownResult) << std::endl;
+            return stopResult;
+        }
+        result = camera->Remove();
+        HRESULT shutdownResult = camera->Shutdown();
+        if (FAILED(result)) return result;
+        if (ShouldInjectFault(L"remove-after-camera-remove")) shutdownResult = E_FAIL;
+        if (FAILED(shutdownResult) && shutdownResult != MF_E_SHUTDOWN)
+            std::wcerr << L"camera-remove-shutdown-warning=" << HResultText(shutdownResult) << std::endl;
+        return S_OK;
+    }
+
+    HRESULT FindCamera(ComPtr<IMFActivate>& found, std::wstring& friendlyName)
+    {
+        ComPtr<IMFAttributes> attributes;
+        HRESULT result = MFCreateAttributes(&attributes, 2);
+        if (SUCCEEDED(result)) result = attributes->SetGUID(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE, MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID);
+        if (SUCCEEDED(result)) result = attributes->SetGUID(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_CATEGORY, KSCATEGORY_VIDEO_CAMERA);
+        if (FAILED(result)) return result;
+
+        IMFActivate** devices = nullptr;
+        UINT32 count = 0;
+        result = MFEnumDeviceSources(attributes.Get(), &devices, &count);
+        if (FAILED(result)) return result;
+
+        for (UINT32 index = 0; index < count; ++index)
+        {
+            wchar_t* value = nullptr;
+            UINT32 valueLength = 0;
+            const HRESULT nameResult = devices[index]->GetAllocatedString(MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME, &value, &valueLength);
+            if (SUCCEEDED(nameResult) && value != nullptr)
+            {
+                const std::wstring name(value, valueLength);
+                if (name.rfind(FriendlyName, 0) == 0)
+                {
+                    found = devices[index];
+                    friendlyName = name;
+                }
+            }
+            CoTaskMemFree(value);
+            devices[index]->Release();
+        }
+        CoTaskMemFree(devices);
+        return found ? S_OK : HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
+    }
+
+    HRESULT ProbeCamera()
+    {
+        ComPtr<IMFActivate> activate;
+        std::wstring name;
+        HRESULT result = FindCamera(activate, name);
+        if (FAILED(result)) return result;
+
+        ComPtr<IMFMediaSource> source;
+        result = activate->ActivateObject(IID_PPV_ARGS(&source));
+        if (FAILED(result)) return result;
+
+        ComPtr<IMFAttributes> readerAttributes;
+        result = MFCreateAttributes(&readerAttributes, 1);
+        if (SUCCEEDED(result)) result = readerAttributes->SetUINT32(MF_SOURCE_READER_ENABLE_VIDEO_PROCESSING, FALSE);
+        if (FAILED(result)) return result;
+
+        ComPtr<IMFSourceReader> reader;
+        result = MFCreateSourceReaderFromMediaSource(source.Get(), readerAttributes.Get(), &reader);
+        if (FAILED(result)) return result;
+
+        ComPtr<IMFMediaType> requestedType;
+        result = MFCreateMediaType(&requestedType);
+        if (SUCCEEDED(result)) result = requestedType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
+        if (SUCCEEDED(result)) result = requestedType->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_NV12);
+        if (SUCCEEDED(result)) result = MFSetAttributeSize(requestedType.Get(), MF_MT_FRAME_SIZE, FrameWidth, FrameHeight);
+        if (SUCCEEDED(result)) result = MFSetAttributeRatio(requestedType.Get(), MF_MT_FRAME_RATE, 30, 1);
+        if (SUCCEEDED(result)) result = reader->SetCurrentMediaType(FirstVideoStream, nullptr, requestedType.Get());
+        if (FAILED(result)) return result;
+
+        for (int attempt = 0; attempt < 30; ++attempt)
+        {
+            DWORD streamIndex = 0;
+            DWORD flags = 0;
+            LONGLONG timestamp = 0;
+            ComPtr<IMFSample> sample;
+            result = reader->ReadSample(FirstVideoStream, 0, &streamIndex, &flags, &timestamp, &sample);
+            if (FAILED(result)) return result;
+            if ((flags & MF_SOURCE_READERF_ERROR) != 0) return E_FAIL;
+            if (!sample) continue;
+
+            ComPtr<IMFMediaBuffer> buffer;
+            result = sample->ConvertToContiguousBuffer(&buffer);
+            if (FAILED(result)) return result;
+            DWORD length = 0;
+            result = buffer->GetCurrentLength(&length);
+            if (FAILED(result)) return result;
+            if (length != ExpectedFrameBytes) return MF_E_INVALIDMEDIATYPE;
+
+            std::wcout << L"{\"probe\":\"ok\",\"name\":\"" << name
+                       << L"\",\"width\":1920,\"height\":1080,\"format\":\"NV12\",\"bytes\":"
+                       << length << L",\"timestamp\":" << timestamp << L"}" << std::endl;
+            source->Shutdown();
+            activate->ShutdownObject();
+            return S_OK;
+        }
+        source->Shutdown();
+        return HRESULT_FROM_WIN32(ERROR_TIMEOUT);
+    }
+
+    HRESULT InstallSystemFilesElevated(const std::filesystem::path& sourceDll, const std::wstring& ownerSid)
+    {
+        if (!IsAdministrator()) return E_ACCESSDENIED;
+        const HRESULT sidResult = ValidateOwnerSid(ownerSid);
+        if (FAILED(sidResult)) return sidResult;
+        if (!std::filesystem::is_regular_file(sourceDll)) return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
+
+        std::filesystem::path installDirectory;
+        HRESULT result = ProgramFilesInstallDirectory(installDirectory);
+        if (FAILED(result)) return result;
+        const std::filesystem::path installedDll = installDirectory / SourceDllName;
+        const std::filesystem::path stagedDll = installDirectory / L"VirtualCameraMediaSource.removing";
+
+        bool registrationExists = false;
+        result = RegistrationExists(registrationExists);
+        if (FAILED(result)) return result;
+        if (registrationExists || std::filesystem::exists(installedDll) || std::filesystem::exists(stagedDll))
+            return HRESULT_FROM_WIN32(ERROR_ALREADY_EXISTS);
+
+        std::error_code error;
+        std::filesystem::create_directories(installDirectory, error);
+        if (error) return HRESULT_FROM_WIN32(error.value());
+        if (!CopyFileW(sourceDll.c_str(), installedDll.c_str(), TRUE))
+        {
+            const HRESULT copyResult = HRESULT_FROM_WIN32(GetLastError());
+            RemoveDirectoryW(installDirectory.c_str());
+            return copyResult;
+        }
+        std::wcout << L"state=files-copied" << std::endl;
+
+        bool registrationCompleteOrAbsent = false;
+        result = RegisterComSource(installedDll, ownerSid, &registrationCompleteOrAbsent);
+        if (FAILED(result))
+        {
+            if (!registrationCompleteOrAbsent)
+            {
+                std::wcerr << L"Installation retained the DLL because registry rollback was incomplete." << std::endl;
+                return result;
+            }
+            HRESULT rollback = S_OK;
+            if (!DeleteFileW(installedDll.c_str())) rollback = HRESULT_FROM_WIN32(GetLastError());
+            if (!RemoveDirectoryW(installDirectory.c_str()) && GetLastError() != ERROR_PATH_NOT_FOUND && SUCCEEDED(rollback))
+                rollback = HRESULT_FROM_WIN32(GetLastError());
+            if (FAILED(rollback))
+            {
+                std::wcerr << L"install-rollback-error=" << HResultText(rollback) << std::endl;
+                return rollback;
+            }
+            return result;
+        }
+        std::wcout << L"state=com-registered" << std::endl;
+
+        return S_OK;
+    }
+
+    HRESULT RemoveSystemFilesElevated(const std::wstring& ownerSid)
+    {
+        if (!IsAdministrator()) return E_ACCESSDENIED;
+        const HRESULT sidResult = ValidateOwnerSid(ownerSid);
+        if (FAILED(sidResult)) return sidResult;
+
+        std::filesystem::path installDirectory;
+        HRESULT result = ProgramFilesInstallDirectory(installDirectory);
+        if (FAILED(result)) return result;
+        const std::filesystem::path installedDll = installDirectory / SourceDllName;
+        const std::filesystem::path stagedDll = installDirectory / L"VirtualCameraMediaSource.removing";
+
+        bool hasInstalledDll = std::filesystem::exists(installedDll);
+        bool hasStagedDll = std::filesystem::exists(stagedDll);
+        if (hasInstalledDll && hasStagedDll)
+        {
+            std::wcerr << L"Removal found both installed and staged DLLs; no state was changed." << std::endl;
+            return HRESULT_FROM_WIN32(ERROR_ALREADY_EXISTS);
+        }
+        if (!hasInstalledDll && hasStagedDll)
+        {
+            if (!MoveFileExW(stagedDll.c_str(), installedDll.c_str(), MOVEFILE_WRITE_THROUGH))
+                return HRESULT_FROM_WIN32(GetLastError());
+            hasInstalledDll = true;
+            hasStagedDll = false;
+            std::wcout << L"state=staged-file-recovered" << std::endl;
+        }
+        if (hasInstalledDll)
+        {
+            if (!MoveFileExW(installedDll.c_str(), stagedDll.c_str(), MOVEFILE_WRITE_THROUGH))
+            {
+                const HRESULT moveResult = HRESULT_FROM_WIN32(GetLastError());
+                std::wcerr << L"Removal kept the complete recoverable installation because the DLL is in use. move="
+                           << HResultText(moveResult) << std::endl;
+                return moveResult;
+            }
+            if (ShouldInjectFault(L"remove-after-stage"))
+            {
+                std::wcerr << L"fault-injected=remove-after-stage" << std::endl;
+                return HRESULT_FROM_WIN32(ERROR_CANCELLED);
+            }
+        }
+
+        result = UnregisterComSource();
+        if (FAILED(result))
+        {
+            HRESULT rollback = S_OK;
+            if (hasInstalledDll && !MoveFileExW(stagedDll.c_str(), installedDll.c_str(), MOVEFILE_WRITE_THROUGH))
+                rollback = HRESULT_FROM_WIN32(GetLastError());
+            if (SUCCEEDED(rollback) && hasInstalledDll)
+                rollback = RestoreComSource(installedDll, ownerSid);
+            std::wcerr << L"unregister-error=" << HResultText(result) << std::endl;
+            if (FAILED(rollback))
+            {
+                std::wcerr << L"remove-rollback-error=" << HResultText(rollback) << std::endl;
+                return rollback;
+            }
+            return result;
+        }
+        std::wcout << L"state=com-unregistered" << std::endl;
+
+        if (hasInstalledDll && !DeleteFileW(stagedDll.c_str()))
+        {
+            const HRESULT deleteResult = HRESULT_FROM_WIN32(GetLastError());
+            HRESULT rollback = S_OK;
+            if (!MoveFileExW(stagedDll.c_str(), installedDll.c_str(), MOVEFILE_WRITE_THROUGH))
+            {
+                rollback = HRESULT_FROM_WIN32(GetLastError());
+            }
+            else
+            {
+                rollback = RegisterComSource(installedDll, ownerSid);
+            }
+            std::wcerr << L"Removal kept the complete recoverable installation because the staged DLL could not be deleted. delete="
+                       << HResultText(deleteResult) << L" rollback=" << HResultText(rollback) << std::endl;
+            return FAILED(rollback) ? rollback : deleteResult;
+        }
+        if (!RemoveDirectoryW(installDirectory.c_str()))
+        {
+            const DWORD removeError = GetLastError();
+            if (removeError != ERROR_FILE_NOT_FOUND && removeError != ERROR_PATH_NOT_FOUND)
+                std::wcerr << L"directory-cleanup-warning=" << HResultText(HRESULT_FROM_WIN32(removeError)) << std::endl;
+        }
+        if (std::filesystem::exists(installedDll) || std::filesystem::exists(stagedDll))
+            return HRESULT_FROM_WIN32(ERROR_FILE_EXISTS);
+        std::wcout << L"state=files-removed" << std::endl;
+        return S_OK;
+    }
+
+    HRESULT TestUnregisterRollbackElevated(const std::wstring& ownerSid)
+    {
+        if (!IsAdministrator()) return E_ACCESSDENIED;
+        HRESULT result = ValidateOwnerSid(ownerSid);
+        if (FAILED(result)) return result;
+
+        std::filesystem::path installDirectory;
+        result = ProgramFilesInstallDirectory(installDirectory);
+        if (FAILED(result)) return result;
+        const std::filesystem::path installedDll = installDirectory / SourceDllName;
+        if (!std::filesystem::exists(installedDll)) return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
+        result = VerifyComSource(installedDll, ownerSid);
+        if (FAILED(result)) return result;
+
+        if (!SetEnvironmentVariableW(L"VOLTURA_WEBCAM_SPIKE_FAULT", L"unregister-after-delete"))
+            return HRESULT_FROM_WIN32(GetLastError());
+        const HRESULT injectedResult = UnregisterComSource();
+        SetEnvironmentVariableW(L"VOLTURA_WEBCAM_SPIKE_FAULT", nullptr);
+        const HRESULT rollbackResult = RestoreComSource(installedDll, ownerSid);
+        if (FAILED(rollbackResult))
+        {
+            std::wcerr << L"unregister-test-rollback-error=" << HResultText(rollbackResult) << std::endl;
+            return rollbackResult;
+        }
+        if (SUCCEEDED(injectedResult)) return HRESULT_FROM_WIN32(ERROR_INVALID_STATE);
+        result = VerifyComSource(installedDll, ownerSid);
+        if (SUCCEEDED(result)) std::wcout << L"state=unregister-rollback-verified" << std::endl;
+        return result;
+    }
+
+    int Finish(const HRESULT result)
+    {
+        if (FAILED(result))
+        {
+            std::wcerr << L"error=" << HResultText(result) << std::endl;
+            return static_cast<int>(HRESULT_CODE(result) == 0 ? ERROR_GEN_FAILURE : HRESULT_CODE(result));
+        }
+        return 0;
+    }
+}
+
+int wmain(const int argumentCount, wchar_t* arguments[])
+{
+    if (argumentCount < 2)
+    {
+        std::wcerr << L"Usage: VolturaAirWebcamSetup <install|remove|status|probe|test-unregister-rollback>" << std::endl;
+        return ERROR_INVALID_PARAMETER;
+    }
+
+    const std::wstring command = arguments[1];
+    if (command == L"install")
+    {
+        const std::filesystem::path sourceDll = BuiltSourceDll();
+        std::wstring ownerSid;
+        HRESULT result = CurrentUserSid(ownerSid);
+        if (FAILED(result)) return Finish(result);
+        result = RunElevatedAndWait(L"--elevated-install \"" + sourceDll.wstring() + L"\" \"" + ownerSid + L"\"");
+        if (FAILED(result)) return Finish(result);
+
+        MediaFoundationScope mediaFoundation;
+        result = mediaFoundation.Result();
+        ComPtr<IMFVirtualCamera> camera;
+        bool safeToRollbackSystemFiles = true;
+        if (SUCCEEDED(result)) result = CreateCamera(camera, &safeToRollbackSystemFiles);
+        if (FAILED(result))
+        {
+            if (safeToRollbackSystemFiles)
+            {
+                const HRESULT rollbackResult = RunElevatedAndWait(L"--elevated-remove \"" + ownerSid + L"\"");
+                if (FAILED(rollbackResult))
+                    std::wcerr << L"install-rollback-error=" << HResultText(rollbackResult) << std::endl;
+            }
+            else
+                std::wcerr << L"Installation retained system files because failed camera-start cleanup was incomplete." << std::endl;
+            return Finish(result);
+        }
+        std::wcout << L"state=camera-created" << std::endl;
+        camera->Shutdown();
+        return 0;
+    }
+    if (command == L"remove")
+    {
+        std::wstring ownerSid;
+        HRESULT result = CurrentUserSid(ownerSid);
+        if (FAILED(result)) return Finish(result);
+        MediaFoundationScope mediaFoundation;
+        result = mediaFoundation.Result();
+        if (SUCCEEDED(result)) result = RemoveCamera();
+        if (FAILED(result)) return Finish(result);
+        std::wcout << L"state=camera-removed" << std::endl;
+
+        result = RunElevatedAndWait(L"--elevated-remove \"" + ownerSid + L"\"");
+        if (FAILED(result))
+        {
+            ComPtr<IMFVirtualCamera> camera;
+            const HRESULT rollbackResult = CreateCamera(camera);
+            if (camera) camera->Shutdown();
+            if (SUCCEEDED(rollbackResult))
+                std::wcerr << L"state=remove-rolled-back" << std::endl;
+            else
+                std::wcerr << L"remove-rollback-error=" << HResultText(rollbackResult) << std::endl;
+        }
+        return Finish(result);
+    }
+    if (command == L"--elevated-install" && argumentCount == 4)
+    {
+        return Finish(InstallSystemFilesElevated(arguments[2], arguments[3]));
+    }
+    if (command == L"--elevated-remove" && argumentCount == 3)
+    {
+        return Finish(RemoveSystemFilesElevated(arguments[2]));
+    }
+    if (command == L"test-unregister-rollback")
+    {
+        std::wstring ownerSid;
+        HRESULT result = CurrentUserSid(ownerSid);
+        if (FAILED(result)) return Finish(result);
+        return Finish(RunElevatedAndWait(L"--elevated-test-unregister-rollback \"" + ownerSid + L"\""));
+    }
+    if (command == L"--elevated-test-unregister-rollback" && argumentCount == 3)
+    {
+        return Finish(TestUnregisterRollbackElevated(arguments[2]));
+    }
+
+    MediaFoundationScope mediaFoundation;
+    if (FAILED(mediaFoundation.Result())) return Finish(mediaFoundation.Result());
+    if (command == L"status")
+    {
+        ComPtr<IMFActivate> camera;
+        std::wstring name;
+        const HRESULT result = FindCamera(camera, name);
+        if (result == HRESULT_FROM_WIN32(ERROR_NOT_FOUND))
+        {
+            std::wcout << L"{\"installed\":false}" << std::endl;
+            return 1;
+        }
+        if (SUCCEEDED(result))
+        {
+            std::wcout << L"{\"installed\":true,\"name\":\"" << name << L"\"}" << std::endl;
+        }
+        return Finish(result);
+    }
+    if (command == L"probe")
+    {
+        return Finish(ProbeCamera());
+    }
+
+    std::wcerr << L"Unknown command." << std::endl;
+    return ERROR_INVALID_PARAMETER;
+}

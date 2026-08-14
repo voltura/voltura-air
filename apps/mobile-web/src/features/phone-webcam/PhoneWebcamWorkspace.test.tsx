@@ -493,6 +493,8 @@ describe("PhoneWebcamWorkspace", () => {
     await act(async () => {await vi.advanceTimersByTimeAsync(200);});
 
     await waitFor(() => expect(sender.replaceTrack).toHaveBeenCalledWith(replacementTrack));
+    expect(sender.replaceTrack).toHaveBeenCalledWith(null);
+    expect(firstTrack.stop).toHaveBeenCalledOnce();
     expect((screen.getByLabelText("Camera") as HTMLSelectElement).value).toBe("front");
     expect(screen.getByText("Streaming through Enhanced Direct")).toBeTruthy();
     expect(send.mock.calls.filter(([message]) => message.type === "phone.webcam.start")).toHaveLength(1);
@@ -538,7 +540,7 @@ describe("PhoneWebcamWorkspace", () => {
     fireEvent.change(screen.getByLabelText("Camera"), { target: { value: "back" } });
     act(() => {firstTrack.end();});
     fireEvent.change(screen.getByLabelText("Camera"), { target: { value: "front" } });
-    await act(async () => {newestCamera.reject(new DOMException("Unavailable", "NotReadableError")); await Promise.resolve();});
+    await act(async () => {newestCamera.reject(new DOMException("Unavailable", "OverconstrainedError")); await Promise.resolve();});
 
     await waitFor(() => expect(screen.getByText("The active camera stopped while switching cameras.")).toBeTruthy());
     expect(send.mock.calls.filter(([message]) => message.type === "phone.webcam.stop")).toHaveLength(1);
@@ -580,7 +582,7 @@ describe("PhoneWebcamWorkspace", () => {
     const getUserMedia = vi.fn()
       .mockResolvedValueOnce(createStream(permissionTrack))
       .mockResolvedValueOnce(createStream(firstTrack))
-      .mockRejectedValueOnce(new DOMException("Unavailable", "NotReadableError"));
+      .mockRejectedValueOnce(new DOMException("Unavailable", "OverconstrainedError"));
     await establishStreamingSession(getUserMedia, sender);
 
     fireEvent.change(screen.getByLabelText("Camera"), { target: { value: "back" } });
@@ -588,6 +590,262 @@ describe("PhoneWebcamWorkspace", () => {
     expect(await screen.findByText("The selected camera could not replace the active camera.")).toBeTruthy();
     expect((screen.getByLabelText("Camera") as HTMLSelectElement).value).toBe("front");
     expect(firstTrack.stop).not.toHaveBeenCalled();
+  });
+
+  it("refreshes the selected camera on the existing peer after orientation changes", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const permissionTrack = createTrack("permission", 640, 480);
+    const firstTrack = createTrack("front", 1080, 1920);
+    const refreshedTrack = createTrack("front", 1920, 1080);
+    const sender = new FakeSender();
+    const getUserMedia = vi.fn()
+      .mockResolvedValueOnce(createStream(permissionTrack))
+      .mockResolvedValueOnce(createStream(firstTrack))
+      .mockResolvedValueOnce(createStream(refreshedTrack));
+    const send = await establishStreamingSession(getUserMedia, sender);
+
+    act(() => {window.dispatchEvent(new Event("orientationchange"));});
+    await act(async () => {await vi.advanceTimersByTimeAsync(500);});
+
+    await waitFor(() => expect(sender.replaceTrack).toHaveBeenCalledWith(refreshedTrack));
+    expect(firstTrack.stop).toHaveBeenCalledOnce();
+    expect(send.mock.calls.filter(([message]) => message.type === "phone.webcam.start")).toHaveLength(1);
+    expect(send.mock.calls.filter(([message]) => message.type === "phone.webcam.stop")).toHaveLength(0);
+    vi.useRealTimers();
+  });
+
+  it("does not let a queued orientation refresh override a newer camera selection", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const permissionTrack = createTrack("permission", 640, 480);
+    const firstTrack = createTrack("front", 1080, 1920);
+    const replacementTrack = createTrack("back", 1920, 1080);
+    const replacementCamera = createDeferred<MediaStream>();
+    const sender = new FakeSender();
+    const getUserMedia = vi.fn()
+      .mockResolvedValueOnce(createStream(permissionTrack))
+      .mockResolvedValueOnce(createStream(firstTrack))
+      .mockReturnValueOnce(replacementCamera.promise);
+    await establishStreamingSession(getUserMedia, sender);
+
+    act(() => {window.dispatchEvent(new Event("orientationchange"));});
+    fireEvent.change(screen.getByLabelText("Camera"), { target: { value: "back" } });
+    await act(async () => {await vi.advanceTimersByTimeAsync(500);});
+
+    expect(getUserMedia).toHaveBeenCalledTimes(3);
+    await act(async () => {replacementCamera.resolve(createStream(replacementTrack)); await replacementCamera.promise;});
+    await waitFor(() => expect(sender.replaceTrack).toHaveBeenCalledWith(replacementTrack));
+    expect((screen.getByLabelText("Camera") as HTMLSelectElement).value).toBe("back");
+    vi.useRealTimers();
+  });
+
+  it("restores a stalled outbound camera track on the existing peer", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const permissionTrack = createTrack("permission", 640, 480);
+    const firstTrack = createTrack("front", 1080, 1920);
+    const restoredTrack = createTrack("front", 1080, 1920);
+    const sender = new FakeSender();
+    const getStats = vi.fn(() => Promise.resolve(new Map([["video", {
+      type: "outbound-rtp",
+      kind: "video",
+      bytesSent: 10_000,
+      framesEncoded: 300
+    }]])));
+    const getUserMedia = vi.fn()
+      .mockResolvedValueOnce(createStream(permissionTrack))
+      .mockResolvedValueOnce(createStream(firstTrack))
+      .mockResolvedValueOnce(createStream(restoredTrack));
+    const send = await establishStreamingSession(getUserMedia, sender, getStats);
+
+    await act(async () => {await vi.advanceTimersByTimeAsync(4_000);});
+
+    await waitFor(() => expect(sender.replaceTrack).toHaveBeenCalledWith(restoredTrack));
+    expect(firstTrack.stop).toHaveBeenCalledOnce();
+    expect(send.mock.calls.filter(([message]) => message.type === "phone.webcam.start")).toHaveLength(1);
+    expect(send.mock.calls.filter(([message]) => message.type === "phone.webcam.stop")).toHaveLength(0);
+    vi.useRealTimers();
+  });
+
+  it("does not refresh a camera whose encoded frames keep advancing", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const permissionTrack = createTrack("permission", 640, 480);
+    const firstTrack = createTrack("front", 1080, 1920);
+    const sender = new FakeSender();
+    let sample = 0;
+    const getStats = vi.fn(() => {
+      sample += 1;
+      return Promise.resolve(new Map([["video", {
+        type: "outbound-rtp",
+        kind: "video",
+        bytesSent: 10_000 + sample * 1_000,
+        framesEncoded: 300 + sample * 30
+      }]]));
+    });
+    const getUserMedia = vi.fn()
+      .mockResolvedValueOnce(createStream(permissionTrack))
+      .mockResolvedValueOnce(createStream(firstTrack));
+    await establishStreamingSession(getUserMedia, sender, getStats);
+
+    await act(async () => {await vi.advanceTimersByTimeAsync(12_000);});
+
+    expect(getUserMedia).toHaveBeenCalledTimes(2);
+    expect(firstTrack.stop).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it("treats multiple outbound RTP rows as one stalled report sample", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const permissionTrack = createTrack("permission", 640, 480);
+    const firstTrack = createTrack("front", 1080, 1920);
+    const restoredTrack = createTrack("front", 1080, 1920);
+    const sender = new FakeSender();
+    const getStats = vi.fn(() => Promise.resolve(new Map([
+      ["primary", { type: "outbound-rtp", kind: "video", active: true, bytesSent: 10_000, framesEncoded: 300 }],
+      ["secondary", { type: "outbound-rtp", kind: "video", active: true, bytesSent: 5_000, framesEncoded: 150 }]
+    ])));
+    const getUserMedia = vi.fn()
+      .mockResolvedValueOnce(createStream(permissionTrack))
+      .mockResolvedValueOnce(createStream(firstTrack))
+      .mockResolvedValueOnce(createStream(restoredTrack));
+    await establishStreamingSession(getUserMedia, sender, getStats);
+
+    await act(async () => {await vi.advanceTimersByTimeAsync(4_000);});
+
+    await waitFor(() => expect(sender.replaceTrack).toHaveBeenCalledWith(restoredTrack));
+    expect(getStats).toHaveBeenCalledTimes(4);
+    vi.useRealTimers();
+  });
+
+  it("serializes stats polls and ignores a poll completed after camera replacement", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const permissionTrack = createTrack("permission", 640, 480);
+    const firstTrack = createTrack("front", 1080, 1920);
+    const replacementTrack = createTrack("back", 1920, 1080);
+    const deferredStats = createDeferred<Map<string, unknown>>();
+    const sender = new FakeSender();
+    let laterSample = 0;
+    const getStats = vi.fn()
+      .mockReturnValueOnce(deferredStats.promise)
+      .mockImplementation(() => {
+        laterSample += 1;
+        return Promise.resolve(new Map<string, unknown>([["video", {
+          type: "outbound-rtp",
+          kind: "video",
+          bytesSent: 10_000 + laterSample * 1_000,
+          framesEncoded: 300 + laterSample * 30
+        }]]));
+      });
+    const getUserMedia = vi.fn()
+      .mockResolvedValueOnce(createStream(permissionTrack))
+      .mockResolvedValueOnce(createStream(firstTrack))
+      .mockResolvedValueOnce(createStream(replacementTrack));
+    await establishStreamingSession(getUserMedia, sender, getStats);
+
+    await act(async () => {await vi.advanceTimersByTimeAsync(5_000);});
+    expect(getStats).toHaveBeenCalledOnce();
+    fireEvent.change(screen.getByLabelText("Camera"), { target: { value: "back" } });
+    await waitFor(() => expect(sender.replaceTrack).toHaveBeenCalledWith(replacementTrack));
+    await act(async () => {
+      deferredStats.resolve(new Map<string, unknown>([["video", {
+        type: "outbound-rtp", kind: "video", bytesSent: 9_000_000, framesEncoded: 90_000
+      }]]));
+      await deferredStats.promise;
+      await vi.advanceTimersByTimeAsync(12_000);
+    });
+
+    expect(getUserMedia).toHaveBeenCalledTimes(3);
+    expect(replacementTrack.stop).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it("ignores a stats poll completed after stopping and starting a new session", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const deferredStats = createDeferred<Map<string, unknown>>();
+    const peers: RestartPeerConnection[] = [];
+    let currentSample = 0;
+    class RestartPeerConnection {
+      readonly iceGatheringState: RTCIceGatheringState = "complete";
+      readonly listeners = new Map<string, (() => void)[]>();
+      readonly sender = new FakeSender();
+      readonly sessionIndex: number;
+      connectionState: RTCPeerConnectionState = "new";
+      localDescription: RTCSessionDescriptionInit | null = null;
+      constructor() {this.sessionIndex = peers.length; peers.push(this);}
+      addEventListener(type: string, listener: () => void) {this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);}
+      setRemoteDescription() {return Promise.resolve();}
+      getTransceivers() {return [{ receiver: { track: { kind: "video" } }, sender: this.sender, direction: "recvonly" }];}
+      createAnswer() {return Promise.resolve({ type: "answer" as RTCSdpType, sdp: "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 102\r\na=rtpmap:102 H264/90000\r\na=candidate:1 1 udp 1 192.0.2.20 5000 typ host\r\n" });}
+      setLocalDescription(description: RTCSessionDescriptionInit) {this.localDescription = description; return Promise.resolve();}
+      getStats() {
+        if (this.sessionIndex === 0) {return deferredStats.promise;}
+        currentSample += 1;
+        return Promise.resolve(new Map<string, unknown>([["video", {
+          type: "outbound-rtp", kind: "video", bytesSent: currentSample * 1_000, framesEncoded: currentSample * 30
+        }]]));
+      }
+      close() {this.connectionState = "closed";}
+      connect() {this.connectionState = "connected"; for (const listener of this.listeners.get("connectionstatechange") ?? []) {listener();}}
+    }
+    vi.stubGlobal("RTCPeerConnection", RestartPeerConnection as unknown as typeof RTCPeerConnection);
+    const permissionTrack = createTrack("permission", 640, 480);
+    const firstTrack = createTrack("front", 1080, 1920);
+    const restartedTrack = createTrack("front", 1080, 1920);
+    stubMediaDevices(vi.fn()
+      .mockResolvedValueOnce(createStream(permissionTrack))
+      .mockResolvedValueOnce(createStream(firstTrack))
+      .mockResolvedValueOnce(createStream(restartedTrack)));
+    const send = vi.fn<(message: ClientMessage) => void>();
+    storeReconnectKey();
+    const hostKey = createPairingKeyMaterial();
+    if (!hostKey) {throw new Error("Host test key is unavailable.");}
+    renderWorkspace(send, hostKey.reconnectPublicKey);
+    fireEvent.click(screen.getByRole("button", { name: "Allow camera access" }));
+    await screen.findByLabelText("Camera");
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    const firstStart = await findStart(send, 1);
+    publishSignedOffer(firstStart.operationId, hostKey.privateKey);
+    await waitFor(() => expect(peers).toHaveLength(1));
+    act(() => {peers[0]?.connect();});
+    await act(async () => {await vi.advanceTimersByTimeAsync(1_000);});
+
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    const secondStart = await findStart(send, 2);
+    publishSignedOffer(secondStart.operationId, hostKey.privateKey);
+    await waitFor(() => expect(peers).toHaveLength(2));
+    act(() => {peers[1]?.connect();});
+    await act(async () => {
+      deferredStats.resolve(new Map<string, unknown>([["video", {
+        type: "outbound-rtp", kind: "video", bytesSent: 9_000_000, framesEncoded: 90_000
+      }]]));
+      await deferredStats.promise;
+      await vi.advanceTimersByTimeAsync(12_000);
+    });
+
+    expect(restartedTrack.stop).not.toHaveBeenCalled();
+    expect(send.mock.calls.filter(([message]) => message.type === "phone.webcam.start")).toHaveLength(2);
+    vi.useRealTimers();
+  });
+
+  it("ends the webcam session when a superseding switch fails after the active camera was released", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const permissionTrack = createTrack("permission", 640, 480);
+    const firstTrack = createTrack("front", 1920, 1080);
+    const sender = new FakeSender();
+    const getUserMedia = vi.fn()
+      .mockResolvedValueOnce(createStream(permissionTrack))
+      .mockResolvedValueOnce(createStream(firstTrack))
+      .mockRejectedValueOnce(new DOMException("Camera busy", "NotReadableError"))
+      .mockRejectedValueOnce(new DOMException("Unavailable", "OverconstrainedError"));
+    const send = await establishStreamingSession(getUserMedia, sender);
+
+    fireEvent.change(screen.getByLabelText("Camera"), { target: { value: "back" } });
+    await waitFor(() => expect(sender.replaceTrack).toHaveBeenCalledWith(null));
+    fireEvent.change(screen.getByLabelText("Camera"), { target: { value: "front" } });
+
+    await waitFor(() => expect(screen.getByText("The selected camera could not be opened after releasing the previous camera.")).toBeTruthy());
+    expect(send.mock.calls.filter(([message]) => message.type === "phone.webcam.stop")).toHaveLength(1);
+    expect((screen.getByRole("button", { name: "Start" }) as HTMLButtonElement).disabled).toBe(false);
+    vi.useRealTimers();
   });
 
   it("ignores a terminal event for an older operation", async () => {
@@ -668,7 +926,11 @@ function workspace(
   />;
 }
 
-async function establishStreamingSession(getUserMedia: ReturnType<typeof vi.fn>, sender: FakeSender) {
+async function establishStreamingSession(
+  getUserMedia: ReturnType<typeof vi.fn>,
+  sender: FakeSender,
+  getStats: () => Promise<Map<string, unknown>> = () => Promise.resolve(new Map<string, unknown>())
+) {
   const peers: StreamingPeerConnection[] = [];
   class StreamingPeerConnection {
     readonly iceGatheringState: RTCIceGatheringState = "complete";
@@ -681,7 +943,7 @@ async function establishStreamingSession(getUserMedia: ReturnType<typeof vi.fn>,
     getTransceivers() {return [{ receiver: { track: { kind: "video" } }, sender, direction: "recvonly" }];}
     createAnswer() {return Promise.resolve({ type: "answer" as RTCSdpType, sdp: "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 102\r\na=rtpmap:102 H264/90000\r\na=candidate:1 1 udp 1 192.0.2.20 5000 typ host\r\n" });}
     setLocalDescription(description: RTCSessionDescriptionInit) {this.localDescription = description; return Promise.resolve();}
-    getStats() {return Promise.resolve(new Map());}
+    getStats() {return getStats();}
     close() {this.connectionState = "closed";}
     connect() {this.connectionState = "connected"; for (const listener of this.listeners.get("connectionstatechange") ?? []) {listener();}}
   }

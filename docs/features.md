@@ -174,7 +174,10 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   select one before **Start webcam**. It requests the best practical video up to
   1920 x 1080 at 30 frames per second and shows actual capture and encoded quality.
   It never requests or transports microphone audio.
-- Camera switching replaces the video track on the current healthy peer. **Stop
+- Camera switching replaces the video track on the current healthy peer. After a
+  device rotation, or when outbound encoded frames stop advancing while local
+  capture remains live, the selected camera track is refreshed on that same peer
+  so the Windows consumer does not remain frozen. **Stop
   webcam** and page hiding release every phone camera track immediately. If iOS
   closes the backgrounded peer, returning to the visible paired PWA makes one fresh
   authenticated session; it never appends work to the dead peer.

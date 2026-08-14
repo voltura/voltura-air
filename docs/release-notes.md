@@ -6,6 +6,14 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v0.9.7
+
+- Improved Phone webcam camera switching so changing between available phone
+  cameras keeps the active webcam session connected.
+- Fixed cases where the Windows webcam video could freeze while the camera view
+  continued moving on the phone, including after rotating the phone. Voltura Air
+  now refreshes the active camera automatically without replacing the connection.
+
 ## v0.9.6
 
 - Fixed an issue that could send Relay and Enhanced Direct pairing links to the

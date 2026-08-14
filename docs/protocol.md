@@ -566,8 +566,9 @@ terminal event correlated to the started operation with one current reason:
 Accepted reasons are `stopped`, `connection-lost`, `transport-lost`,
 `decoder-failed`, `permission-revoked`, `pairing-revoked`, `host-stopped`, and `offer-expired`.
 Clients ignore terminal events for an older operation. Every terminal path releases the peer, decoder, bounded queues, local frame pipe input, and
-phone tracks. Camera switching is browser-local `replaceTrack` on the same healthy
-peer and adds no protocol message. Page hiding is an immediate stop; one fresh
+phone tracks. Camera switching, rotation recovery, and bounded outbound-stall
+recovery are browser-local `replaceTrack` operations on the same healthy peer and
+add no protocol message. Page hiding is an immediate stop; one fresh
 foreground session is the only automatic recovery attempt for that background
 transition.
 

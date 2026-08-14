@@ -24,10 +24,13 @@ interface CameraChoice { deviceId: string; label: string; }
 interface PendingStart { operationId: string; stream: MediaStream; settings: MediaTrackSettings; }
 interface PendingReplacement { generation: number; stream: MediaStream; stop: () => void; }
 interface SendQuality { width?: number; height?: number; fps?: number; bitrateMbps?: number; }
+type CameraChangeReason = "selection" | "orientation" | "stalled";
 
 const preferredWidth = 1920;
 const preferredHeight = 1080;
 const preferredFps = 30;
+const stalledStatsSampleLimit = 3;
+const stalledRecoveryCooldownMs = 10_000;
 
 export default function PhoneWebcamWorkspace({ activePc, capability, clientId, connectionEpoch, onBack, send, state }: PhoneWebcamWorkspaceProps) {
   const supportedTransport = activePc.transportMode === "secure-direct" || activePc.transportMode === "relay";
@@ -54,9 +57,14 @@ export default function PhoneWebcamWorkspace({ activePc, capability, clientId, c
   const renewalTimerRef = useRef<number | undefined>(undefined);
   const statsTimerRef = useRef<number | undefined>(undefined);
   const restartTimerRef = useRef<number | undefined>(undefined);
-  const lastStatsRef = useRef<{ bytes: number; at: number } | null>(null);
+  const orientationTimerRef = useRef<number | undefined>(undefined);
+  const lastStatsRef = useRef<{ bytes: number; framesEncoded?: number; at: number } | null>(null);
+  const stalledStatsSamplesRef = useRef(0);
+  const stalledRecoveryAfterRef = useRef(0);
+  const statsGenerationRef = useRef(0);
   const generationRef = useRef(0);
   const releaseRef = useRef<(notifyHost: boolean, message: string) => void>(() => undefined);
+  const changeCameraRef = useRef<(deviceId: string, reason?: CameraChangeReason) => Promise<void>>(() => Promise.resolve());
 
   const releaseLocal = useCallback((notifyHost: boolean, message: string) => {
     generationRef.current += 1;
@@ -64,9 +72,13 @@ export default function PhoneWebcamWorkspace({ activePc, capability, clientId, c
     window.clearTimeout(renewalTimerRef.current);
     window.clearInterval(statsTimerRef.current);
     window.clearTimeout(restartTimerRef.current);
+    window.clearTimeout(orientationTimerRef.current);
     renewalTimerRef.current = undefined;
     statsTimerRef.current = undefined;
     lastStatsRef.current = null;
+    stalledStatsSamplesRef.current = 0;
+    stalledRecoveryAfterRef.current = 0;
+    statsGenerationRef.current += 1;
     acquiringGenerationRef.current = null;
     acquiringReplacementGenerationRef.current = null;
     activeStreamEndedRef.current = false;
@@ -198,17 +210,38 @@ export default function PhoneWebcamWorkspace({ activePc, capability, clientId, c
 
   const beginStats = useCallback((peer: RTCPeerConnection) => {
     window.clearInterval(statsTimerRef.current);
+    statsGenerationRef.current += 1;
+    lastStatsRef.current = null;
+    stalledStatsSamplesRef.current = 0;
+    let pollPending = false;
     statsTimerRef.current = window.setInterval(() => {void (async () => {
-      if (peerRef.current !== peer) {return;}
-      const report = await peer.getStats(senderRef.current?.track ?? null).catch(() => null);
-      if (!report) {return;}
-      report.forEach((entry: unknown) => {
-        const outbound = readOutboundVideoStats(entry);
-        if (!outbound) {return;}
+      if (pollPending || peerRef.current !== peer) {return;}
+      const sender = senderRef.current;
+      const track = sender?.track ?? null;
+      const statsGeneration = statsGenerationRef.current;
+      pollPending = true;
+      let report: RTCStatsReport | null;
+      try {
+        report = await peer.getStats(track).catch(() => null);
+      } finally {
+        pollPending = false;
+      }
+      if (!report || peerRef.current !== peer || senderRef.current !== sender ||
+          sender?.track !== track || statsGenerationRef.current !== statsGeneration) {return;}
+      const outbound = readOutboundVideoReport(report);
+      if (outbound) {
         const now = performance.now();
         const previous = lastStatsRef.current;
         const bitrateMbps = previous && now > previous.at ? ((outbound.bytesSent - previous.bytes) * 8) / ((now - previous.at) * 1000) : undefined;
-        lastStatsRef.current = { bytes: outbound.bytesSent, at: now };
+        const progressed = !previous || (outbound.framesEncoded !== undefined && previous.framesEncoded !== undefined
+          ? outbound.framesEncoded > previous.framesEncoded
+          : outbound.bytesSent > previous.bytes);
+        stalledStatsSamplesRef.current = progressed ? 0 : stalledStatsSamplesRef.current + 1;
+        lastStatsRef.current = {
+          bytes: outbound.bytesSent,
+          ...(outbound.framesEncoded === undefined ? {} : { framesEncoded: outbound.framesEncoded }),
+          at: now
+        };
         setQuality((current) => ({
           ...current,
           ...(outbound.frameWidth === undefined ? {} : { width: outbound.frameWidth }),
@@ -216,7 +249,17 @@ export default function PhoneWebcamWorkspace({ activePc, capability, clientId, c
           ...(outbound.framesPerSecond === undefined ? {} : { fps: outbound.framesPerSecond }),
           ...(bitrateMbps === undefined ? {} : { bitrateMbps: Math.max(0, bitrateMbps) })
         }));
-      });
+        if (stalledStatsSamplesRef.current >= stalledStatsSampleLimit &&
+            now >= stalledRecoveryAfterRef.current &&
+            acquiringReplacementGenerationRef.current === null) {
+          const deviceId = streamRef.current?.getVideoTracks()[0]?.getSettings().deviceId;
+          if (deviceId) {
+            stalledStatsSamplesRef.current = 0;
+            stalledRecoveryAfterRef.current = now + stalledRecoveryCooldownMs;
+            void changeCameraRef.current(deviceId, "stalled");
+          }
+        }
+      }
     })();}, 1000);
   }, []);
 
@@ -332,12 +375,17 @@ export default function PhoneWebcamWorkspace({ activePc, capability, clientId, c
 
   useEffect(() => subscribePhoneWebcamResults(handleResult), [handleResult]);
 
-  const changeCamera = useCallback(async (deviceId: string) => {
+  const changeCamera = useCallback(async (deviceId: string, reason: CameraChangeReason = "selection") => {
+    if (reason === "selection") {window.clearTimeout(orientationTimerRef.current);}
     if (!senderRef.current || phase !== "streaming") {
       setSelectedCameraId(deviceId);
       return;
     }
-    setStatus("Switching camera…");
+    const previousCameraId = streamRef.current?.getVideoTracks()[0]?.getSettings().deviceId ?? selectedCameraId;
+    setSelectedCameraId(deviceId);
+    setStatus(reason === "orientation"
+      ? "Refreshing camera after rotation…"
+      : reason === "stalled" ? "Restoring camera video…" : "Switching camera…");
     const generation = generationRef.current;
     const replacementGeneration = ++replacementGenerationRef.current;
     acquiringReplacementGenerationRef.current = replacementGeneration;
@@ -363,6 +411,17 @@ export default function PhoneWebcamWorkspace({ activePc, capability, clientId, c
           const denied = error instanceof DOMException &&
             (error.name === "NotAllowedError" || error.name === "SecurityError");
           if (!ownsReplacement() || denied || attempt === 1) {throw error;}
+          const requiresExclusiveCapture = error instanceof DOMException &&
+            (error.name === "NotReadableError" || error.name === "AbortError");
+          if (requiresExclusiveCapture) {
+            const activeStream = streamRef.current;
+            streamRef.current = null;
+            if (videoRef.current) {videoRef.current.srcObject = null;}
+            activeStream?.getTracks().forEach((track) => track.stop());
+            activeStreamEndedRef.current = false;
+            await sender.replaceTrack(null);
+            if (!ownsReplacement()) {return;}
+          }
           await new Promise<void>((resolve) => {window.setTimeout(resolve, 200);});
         }
       }
@@ -408,6 +467,9 @@ export default function PhoneWebcamWorkspace({ activePc, capability, clientId, c
       }
       const previous = streamRef.current;
       streamRef.current = replacement;
+      statsGenerationRef.current += 1;
+      lastStatsRef.current = null;
+      stalledStatsSamplesRef.current = 0;
       replacementRef.current = null;
       if (acquiringReplacementGenerationRef.current === replacementGeneration) {acquiringReplacementGenerationRef.current = null;}
       activeStreamEndedRef.current = false;
@@ -433,11 +495,37 @@ export default function PhoneWebcamWorkspace({ activePc, capability, clientId, c
         releaseLocal(true, "The active camera stopped while switching cameras.");
         return;
       }
+      if (!streamRef.current && replacementGenerationRef.current === replacementGeneration &&
+          generationRef.current === generation && senderRef.current === sender) {
+        releaseLocal(true, "The selected camera could not be opened after releasing the previous camera.");
+        return;
+      }
       if (replacementGenerationRef.current === replacementGeneration && generationRef.current === generation && senderRef.current === sender) {
+        setSelectedCameraId(previousCameraId);
         setStatus("The selected camera could not replace the active camera.");
       }
     }
-  }, [activePc.transportMode, phase, releaseLocal]);
+  }, [activePc.transportMode, phase, releaseLocal, selectedCameraId]);
+
+  useEffect(() => {changeCameraRef.current = changeCamera;}, [changeCamera]);
+  useEffect(() => {
+    const refreshAfterRotation = () => {
+      window.clearTimeout(orientationTimerRef.current);
+      orientationTimerRef.current = window.setTimeout(() => {
+        const deviceId = streamRef.current?.getVideoTracks()[0]?.getSettings().deviceId;
+        if (deviceId && peerRef.current && senderRef.current) {
+          void changeCameraRef.current(deviceId, "orientation");
+        }
+      }, 500);
+    };
+    window.addEventListener("orientationchange", refreshAfterRotation);
+    screen.orientation?.addEventListener("change", refreshAfterRotation);
+    return () => {
+      window.removeEventListener("orientationchange", refreshAfterRotation);
+      screen.orientation?.removeEventListener("change", refreshAfterRotation);
+      window.clearTimeout(orientationTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     let resumeTimer: number | undefined;
@@ -536,17 +624,46 @@ function initialStatus(capability: PhoneWebcamCapability): string {
   return "Allow camera access to choose a camera.";
 }
 
-function readOutboundVideoStats(value: unknown): {
+interface OutboundVideoStats {
   bytesSent: number;
+  framesEncoded?: number;
   frameWidth?: number;
   frameHeight?: number;
   framesPerSecond?: number;
-} | null {
+}
+
+function readOutboundVideoReport(report: RTCStatsReport): OutboundVideoStats | null {
+  const rows: OutboundVideoStats[] = [];
+  report.forEach((value: unknown) => {
+    const row = readOutboundVideoStats(value);
+    if (row) {rows.push(row);}
+  });
+  if (rows.length === 0) {return null;}
+  const allExposeFramesEncoded = rows.every((row) => row.framesEncoded !== undefined);
+  return {
+    bytesSent: rows.reduce((total, row) => total + row.bytesSent, 0),
+    ...(allExposeFramesEncoded ? { framesEncoded: rows.reduce((total, row) => total + (row.framesEncoded ?? 0), 0) } : {}),
+    ...maximumDefined(rows, "frameWidth"),
+    ...maximumDefined(rows, "frameHeight"),
+    ...maximumDefined(rows, "framesPerSecond")
+  };
+}
+
+function maximumDefined<Key extends "frameWidth" | "frameHeight" | "framesPerSecond">(
+  rows: OutboundVideoStats[],
+  key: Key
+): Pick<OutboundVideoStats, Key> | object {
+  const values = rows.map((row) => row[key]).filter((value): value is number => value !== undefined);
+  return values.length === 0 ? {} : { [key]: Math.max(...values) };
+}
+
+function readOutboundVideoStats(value: unknown): OutboundVideoStats | null {
   if (typeof value !== "object" || value === null) {return null;}
   const record = value as Record<string, unknown>;
-  if (record.type !== "outbound-rtp" || record.kind !== "video" || typeof record.bytesSent !== "number") {return null;}
+  if (record.type !== "outbound-rtp" || record.kind !== "video" || record.active === false || typeof record.bytesSent !== "number") {return null;}
   return {
     bytesSent: record.bytesSent,
+    ...(typeof record.framesEncoded === "number" ? { framesEncoded: record.framesEncoded } : {}),
     ...(typeof record.frameWidth === "number" ? { frameWidth: record.frameWidth } : {}),
     ...(typeof record.frameHeight === "number" ? { frameHeight: record.frameHeight } : {}),
     ...(typeof record.framesPerSecond === "number" ? { framesPerSecond: record.framesPerSecond } : {})

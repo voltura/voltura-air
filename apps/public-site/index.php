@@ -276,6 +276,12 @@
                 <td>Real-time PC screen sharing and remote viewing</td>
               </tr>
               <tr>
+                <th scope="row">Phone as webcam</th>
+                <td class="comparison-voltura"><strong class="comparison-status">Included video-only Windows webcam</strong>; choose any camera exposed by the paired phone, switch cameras live, and stream over Enhanced Direct or Cloud relay</td>
+                <td><strong class="comparison-status">Not documented</strong> as a current feature</td>
+                <td>Virtual camera with custom names and high-resolution streaming is listed as a Premium feature</td>
+              </tr>
+              <tr>
                 <th scope="row">File access or transfer</th>
                 <td class="comparison-voltura"><strong class="comparison-status">Touch-first host file manager</strong>; one or two panels, local and mapped drives, Windows clipboard operations, direct copy/move, background jobs, and host/per-device permissions. Files remain on the PC rather than transferring to the phone.</td>
                 <td>Cross-device clipboard transfers text and images; general file transfer is <strong class="comparison-status">not documented</strong></td>
@@ -303,8 +309,8 @@
           </table>
         </div>
         <p class="comparison-note">
-          Competitor information was checked on 12 August 2026; Voltura Air
-          capabilities were updated on 12 August 2026. Features, availability,
+          Competitor information was checked on 14 August 2026; Voltura Air
+          capabilities were updated on 14 August 2026. Features, availability,
           and pricing models may change.
         </p>
         <details class="comparison-sources">
@@ -314,6 +320,7 @@
             <li><a href="https://www.remotemouse.net/">Remote Mouse</a></li>
             <li><a href="https://apps.apple.com/us/app/remote-mouse/id385894596">Remote Mouse App Store listing</a></li>
             <li><a href="https://www.monect.com/">Monect PC Remote</a></li>
+            <li><a href="https://www.monect.com/subscription">Monect Premium comparison</a></li>
             <li><a href="https://apps.apple.com/us/app/pc-remote/id919061355">Monect PC Remote App Store listing</a></li>
           </ul>
         </details>

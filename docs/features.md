@@ -187,8 +187,9 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 - The host receives one H.264 track, bounds encoded and decoded work to latest-frame
   capacity, decodes through Media Foundation, and normalizes portrait, landscape,
   and lower-resolution input into fixed NV12 1920 x 1080 output. The native camera
-  advertises only NV12 1920 x 1080 at 30 fps and generates its waiting frame when no
-  valid frame arrives for 500 ms.
+  advertises only NV12 1920 x 1080 at 30 fps. A transient camera handoff retains the
+  last valid frame; explicit stop, session loss, removal, and shutdown clear it
+  immediately to the waiting frame.
 
 ### Input and Windows actions
 

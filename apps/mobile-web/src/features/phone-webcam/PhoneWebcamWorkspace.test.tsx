@@ -40,6 +40,24 @@ afterEach(() => {
 });
 
 describe("PhoneWebcamWorkspace", () => {
+  it("expands and restores the camera view without ending its session", () => {
+    const send = vi.fn<(message: ClientMessage) => void>();
+    renderWorkspace(send);
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand camera view" }));
+
+    expect(screen.getByLabelText("Camera view").closest(".phone-webcam-workspace")?.className)
+      .toContain("camera-view-expanded");
+    fireEvent(window, new Event("resize"));
+    expect(screen.getByRole("button", { name: "Restore camera view" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Restore camera view" }));
+
+    expect(screen.getByLabelText("Camera view").closest(".phone-webcam-workspace")?.className)
+      .not.toContain("camera-view-expanded");
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it("releases the permission probe and lets the user choose a camera before capture starts", async () => {
     const permissionTrack = createTrack("permission", 640, 480);
     const selectedTrack = createTrack("back", 1920, 1080);
@@ -58,7 +76,7 @@ describe("PhoneWebcamWorkspace", () => {
     expect(send).not.toHaveBeenCalled();
 
     fireEvent.change(screen.getByLabelText("Camera"), { target: { value: "back" } });
-    fireEvent.click(screen.getByRole("button", { name: "Start webcam" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(send).toHaveBeenCalledOnce());
     expect(getUserMedia.mock.calls[1]?.[0]).toMatchObject({ audio: false, video: { deviceId: { exact: "back" } } });
     const start = send.mock.calls[0]?.[0];
@@ -68,7 +86,7 @@ describe("PhoneWebcamWorkspace", () => {
     }
   });
 
-  it("stops the camera immediately when Stop webcam is pressed during signaling", async () => {
+  it("stops the camera immediately when Stop is pressed during signaling", async () => {
     const permissionTrack = createTrack("permission", 640, 480);
     const selectedTrack = createTrack("front", 1920, 1080);
     const getUserMedia = vi.fn()
@@ -80,14 +98,14 @@ describe("PhoneWebcamWorkspace", () => {
     renderWorkspace(send);
     fireEvent.click(screen.getByRole("button", { name: "Allow camera access" }));
     await screen.findByLabelText("Camera");
-    fireEvent.click(screen.getByRole("button", { name: "Start webcam" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(send).toHaveBeenCalledOnce());
 
-    fireEvent.click(screen.getByRole("button", { name: "Stop webcam" }));
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
 
     expect(selectedTrack.stop).toHaveBeenCalledOnce();
     expect(send.mock.calls.some(([message]) => message.type === "phone.webcam.stop")).toBe(true);
-    expect(screen.getByText("Phone webcam stopped.")).toBeTruthy();
+    expect(screen.getByText("Ready to start.")).toBeTruthy();
   });
 
   it("invalidates a pending camera acquisition when the page is hidden", async () => {
@@ -103,7 +121,7 @@ describe("PhoneWebcamWorkspace", () => {
     renderWorkspace(send);
     fireEvent.click(screen.getByRole("button", { name: "Allow camera access" }));
     await screen.findByLabelText("Camera");
-    fireEvent.click(screen.getByRole("button", { name: "Start webcam" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(2));
 
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
@@ -129,7 +147,7 @@ describe("PhoneWebcamWorkspace", () => {
     renderWorkspace(send);
     fireEvent.click(screen.getByRole("button", { name: "Allow camera access" }));
     await screen.findByLabelText("Camera");
-    fireEvent.click(screen.getByRole("button", { name: "Start webcam" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(2));
 
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
@@ -154,7 +172,7 @@ describe("PhoneWebcamWorkspace", () => {
     const rendered = renderWorkspace(send);
     fireEvent.click(screen.getByRole("button", { name: "Allow camera access" }));
     await screen.findByLabelText("Camera");
-    fireEvent.click(screen.getByRole("button", { name: "Start webcam" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(2));
 
     rendered.rerender(workspace(send, undefined, "secure-direct", "connecting", 2));
@@ -177,7 +195,7 @@ describe("PhoneWebcamWorkspace", () => {
     renderWorkspace(send);
     fireEvent.click(screen.getByRole("button", { name: "Allow camera access" }));
     await screen.findByLabelText("Camera");
-    fireEvent.click(screen.getByRole("button", { name: "Start webcam" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(send).toHaveBeenCalledOnce());
 
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
@@ -198,7 +216,7 @@ describe("PhoneWebcamWorkspace", () => {
     renderWorkspace(send);
     fireEvent.click(screen.getByRole("button", { name: "Allow camera access" }));
     await screen.findByLabelText("Camera");
-    fireEvent.click(screen.getByRole("button", { name: "Start webcam" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(send).toHaveBeenCalledOnce());
 
     act(() => {selectedTrack.end();});
@@ -222,7 +240,7 @@ describe("PhoneWebcamWorkspace", () => {
     renderWorkspace(send);
     fireEvent.click(screen.getByRole("button", { name: "Allow camera access" }));
     await screen.findByLabelText("Camera");
-    fireEvent.click(screen.getByRole("button", { name: "Start webcam" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(send.mock.calls.filter(([message]) => message.type === "phone.webcam.start")).toHaveLength(1));
 
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
@@ -258,7 +276,7 @@ describe("PhoneWebcamWorkspace", () => {
     renderWorkspace(send);
     fireEvent.click(screen.getByRole("button", { name: "Allow camera access" }));
     await screen.findByLabelText("Camera");
-    fireEvent.click(screen.getByRole("button", { name: "Start webcam" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
     const start = await waitFor(() => {
       const message = send.mock.calls.map(([entry]) => entry).find((entry) => entry.type === "phone.webcam.start");
       if (message?.type !== "phone.webcam.start") {throw new Error("Start was not sent.");}
@@ -320,7 +338,7 @@ describe("PhoneWebcamWorkspace", () => {
     renderWorkspace(send, hostKey.reconnectPublicKey, transportMode);
     fireEvent.click(screen.getByRole("button", { name: "Allow camera access" }));
     await screen.findByLabelText("Camera");
-    fireEvent.click(screen.getByRole("button", { name: "Start webcam" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
     const start = await waitFor(() => {
       const message = send.mock.calls.map(([entry]) => entry).find((entry) => entry.type === "phone.webcam.start");
       if (message?.type !== "phone.webcam.start") {throw new Error("Start was not sent.");}
@@ -392,14 +410,14 @@ describe("PhoneWebcamWorkspace", () => {
     renderWorkspace(send, hostKey.reconnectPublicKey);
     fireEvent.click(screen.getByRole("button", { name: "Allow camera access" }));
     await screen.findByLabelText("Camera");
-    fireEvent.click(screen.getByRole("button", { name: "Start webcam" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
     const firstStart = await findStart(send, 1);
     publishSignedOffer(firstStart.operationId, hostKey.privateKey);
     await waitFor(() => expect(peers).toHaveLength(1));
 
-    fireEvent.click(screen.getByRole("button", { name: "Stop webcam" }));
-    await waitFor(() => expect((screen.getByRole("button", { name: "Start webcam" }) as HTMLButtonElement).disabled).toBe(false));
-    fireEvent.click(screen.getByRole("button", { name: "Start webcam" }));
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    await waitFor(() => expect((screen.getByRole("button", { name: "Start" }) as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
     const secondStart = await findStart(send, 2);
     publishSignedOffer(secondStart.operationId, hostKey.privateKey);
     await waitFor(() => expect(send.mock.calls.filter(([message]) => message.type === "phone.webcam.answer")).toHaveLength(1));
@@ -433,6 +451,101 @@ describe("PhoneWebcamWorkspace", () => {
     expect(replacementTrack.stop).toHaveBeenCalledOnce();
     await act(async () => {replacementApplied.resolve(); await replacementApplied.promise;});
     expect(replacementTrack.stop).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the existing peer when iOS ends the old track while opening a replacement camera", async () => {
+    const permissionTrack = createTrack("permission", 640, 480);
+    const firstTrack = createTrack("front", 1920, 1080);
+    const replacementTrack = createTrack("back", 1920, 1080);
+    const replacementCamera = createDeferred<MediaStream>();
+    const sender = new FakeSender();
+    const getUserMedia = vi.fn()
+      .mockResolvedValueOnce(createStream(permissionTrack))
+      .mockResolvedValueOnce(createStream(firstTrack))
+      .mockReturnValueOnce(replacementCamera.promise);
+    const send = await establishStreamingSession(getUserMedia, sender);
+
+    fireEvent.change(screen.getByLabelText("Camera"), { target: { value: "back" } });
+    act(() => {firstTrack.end();});
+
+    expect(screen.queryByText("The selected camera stopped.")).toBeNull();
+    expect(send.mock.calls.filter(([message]) => message.type === "phone.webcam.stop")).toHaveLength(0);
+    await act(async () => {replacementCamera.resolve(createStream(replacementTrack)); await replacementCamera.promise;});
+    await waitFor(() => expect(sender.replaceTrack).toHaveBeenCalledWith(replacementTrack));
+    expect(screen.getByText("Streaming through Enhanced Direct")).toBeTruthy();
+  });
+
+  it("retries the requested iOS camera on the existing peer after the handoff temporarily fails", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const permissionTrack = createTrack("permission", 640, 480);
+    const firstTrack = createTrack("back", 1920, 1080);
+    const replacementTrack = createTrack("front", 1920, 1080);
+    const sender = new FakeSender();
+    const getUserMedia = vi.fn()
+      .mockResolvedValueOnce(createStream(permissionTrack))
+      .mockResolvedValueOnce(createStream(firstTrack))
+      .mockRejectedValueOnce(new DOMException("Camera busy", "NotReadableError"))
+      .mockResolvedValueOnce(createStream(replacementTrack));
+    const send = await establishStreamingSession(getUserMedia, sender);
+
+    fireEvent.change(screen.getByLabelText("Camera"), { target: { value: "front" } });
+    act(() => {firstTrack.end();});
+    await act(async () => {await vi.advanceTimersByTimeAsync(200);});
+
+    await waitFor(() => expect(sender.replaceTrack).toHaveBeenCalledWith(replacementTrack));
+    expect((screen.getByLabelText("Camera") as HTMLSelectElement).value).toBe("front");
+    expect(screen.getByText("Streaming through Enhanced Direct")).toBeTruthy();
+    expect(send.mock.calls.filter(([message]) => message.type === "phone.webcam.start")).toHaveLength(1);
+    expect(send.mock.calls.filter(([message]) => message.type === "phone.webcam.stop")).toHaveLength(0);
+    vi.useRealTimers();
+  });
+
+  it("does not reopen a replacement camera after Stop during the iOS retry delay", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const permissionTrack = createTrack("permission", 640, 480);
+    const firstTrack = createTrack("back", 1920, 1080);
+    const sender = new FakeSender();
+    const getUserMedia = vi.fn()
+      .mockResolvedValueOnce(createStream(permissionTrack))
+      .mockResolvedValueOnce(createStream(firstTrack))
+      .mockRejectedValueOnce(new DOMException("Camera busy", "NotReadableError"));
+    await establishStreamingSession(getUserMedia, sender);
+
+    fireEvent.change(screen.getByLabelText("Camera"), { target: { value: "front" } });
+    await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(3));
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    await act(async () => {await vi.advanceTimersByTimeAsync(200);});
+
+    expect(getUserMedia).toHaveBeenCalledTimes(3);
+    expect(screen.getByText("Ready to start.")).toBeTruthy();
+    vi.useRealTimers();
+  });
+
+  it("stops a dead active camera when a newer concurrent replacement fails", async () => {
+    const permissionTrack = createTrack("permission", 640, 480);
+    const firstTrack = createTrack("front", 1920, 1080);
+    const staleTrack = createTrack("back", 1920, 1080);
+    const staleCamera = createDeferred<MediaStream>();
+    const newestCamera = createDeferred<MediaStream>();
+    const sender = new FakeSender();
+    const getUserMedia = vi.fn()
+      .mockResolvedValueOnce(createStream(permissionTrack))
+      .mockResolvedValueOnce(createStream(firstTrack))
+      .mockReturnValueOnce(staleCamera.promise)
+      .mockReturnValueOnce(newestCamera.promise);
+    const send = await establishStreamingSession(getUserMedia, sender);
+
+    fireEvent.change(screen.getByLabelText("Camera"), { target: { value: "back" } });
+    act(() => {firstTrack.end();});
+    fireEvent.change(screen.getByLabelText("Camera"), { target: { value: "front" } });
+    await act(async () => {newestCamera.reject(new DOMException("Unavailable", "NotReadableError")); await Promise.resolve();});
+
+    await waitFor(() => expect(screen.getByText("The active camera stopped while switching cameras.")).toBeTruthy());
+    expect(send.mock.calls.filter(([message]) => message.type === "phone.webcam.stop")).toHaveLength(1);
+    expect((screen.getByRole("button", { name: "Start" }) as HTMLButtonElement).disabled).toBe(false);
+
+    await act(async () => {staleCamera.resolve(createStream(staleTrack)); await staleCamera.promise;});
+    expect(staleTrack.stop).toHaveBeenCalledOnce();
   });
 
   it("keeps the newest camera when concurrent replacements complete in reverse order", async () => {
@@ -488,7 +601,7 @@ describe("PhoneWebcamWorkspace", () => {
     renderWorkspace(send);
     fireEvent.click(screen.getByRole("button", { name: "Allow camera access" }));
     await screen.findByLabelText("Camera");
-    fireEvent.click(screen.getByRole("button", { name: "Start webcam" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
     await findStart(send, 1);
 
     act(() => {publishPhoneWebcamResult({
@@ -513,14 +626,14 @@ describe("PhoneWebcamWorkspace", () => {
     const rendered = renderWorkspace(send);
     fireEvent.click(screen.getByRole("button", { name: "Allow camera access" }));
     await screen.findByLabelText("Camera");
-    fireEvent.click(screen.getByRole("button", { name: "Start webcam" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
     await findStart(send, 1);
 
     const unavailable = { ...capability, enabled: false, canUse: false };
     rendered.rerender(workspace(send, undefined, "secure-direct", "paired", 1, unavailable));
 
     await waitFor(() => expect(selectedTrack.stop).toHaveBeenCalledOnce());
-    expect((screen.getByRole("button", { name: "Start webcam" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Start" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText("Enable Phone webcam in the Windows app first.")).toBeTruthy();
   });
 });
@@ -581,12 +694,13 @@ async function establishStreamingSession(getUserMedia: ReturnType<typeof vi.fn>,
   renderWorkspace(send, hostKey.reconnectPublicKey);
   fireEvent.click(screen.getByRole("button", { name: "Allow camera access" }));
   await screen.findByLabelText("Camera");
-  fireEvent.click(screen.getByRole("button", { name: "Start webcam" }));
+  fireEvent.click(screen.getByRole("button", { name: "Start" }));
   const start = await findStart(send, 1);
   publishSignedOffer(start.operationId, hostKey.privateKey);
   await waitFor(() => expect(send.mock.calls.some(([message]) => message.type === "phone.webcam.answer")).toBe(true));
   act(() => {peers[0]?.connect();});
   await screen.findByText("Streaming through Enhanced Direct");
+  return send;
 }
 
 async function findStart(send: ReturnType<typeof vi.fn>, count: number) {

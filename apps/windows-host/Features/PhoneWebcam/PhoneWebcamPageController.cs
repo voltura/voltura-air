@@ -35,11 +35,8 @@ internal sealed class PhoneWebcamPageController : IDisposable
         _toasts = toasts;
         _refresh = refresh;
         _previewFactory = previewFactory ?? ((publish, failure) => new PhoneWebcamPreviewSession(publish, failure));
-        if (_phoneWebcam is PhoneWebcamFeature concrete)
-        {
-            concrete.ActivityChanged += OnActivityChanged;
-            concrete.StatusChanged += OnStatusChanged;
-        }
+        _phoneWebcam.ActivityChanged += OnActivityChanged;
+        _phoneWebcam.StatusChanged += OnStatusChanged;
     }
 
     internal PhoneWebcamPageView CreateView()
@@ -48,8 +45,12 @@ internal sealed class PhoneWebcamPageController : IDisposable
         var view = new PhoneWebcamPageView();
         _currentView = view;
         PhoneWebcamFeatureStatus status = _phoneWebcam.Status;
-        view.InstallationStatusText.Text = status.Message;
-        view.SessionStatusText.Text = DescribeActivity();
+        view.InstallationStatusText.Text = DescribeInstallation(status);
+        string sessionStatus = status.HasError ? status.Message : DescribeActivity();
+        view.SessionStatusText.Text = sessionStatus;
+        view.SessionStatusText.Visibility = string.IsNullOrWhiteSpace(sessionStatus)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
         view.AllowPairedDevicesCheckBox.IsChecked = AppPermissionSettings.Load().AllowPhoneWebcam;
         view.AllowPairedDevicesCheckBox.Click += (_, _) =>
         {
@@ -63,16 +64,34 @@ internal sealed class PhoneWebcamPageController : IDisposable
 
         if (status.IsInstalled)
         {
-            view.PreviewOverlayText.Text = "Opening Voltura Air Webcam…";
-            view.PreviewStatusText.Text = "This preview is captured from the same Windows virtual camera used by Teams and browsers.";
-            view.RetryPreviewButton.Click += (_, _) => RestartPreview();
-            StartPreview();
+            switch (_phoneWebcam.Activity.State)
+            {
+                case "streaming":
+                    view.ShowOpeningPreview();
+                    view.RetryPreviewButton.Click += (_, _) => RestartPreview();
+                    StartPreview();
+                    break;
+                case "connecting":
+                    view.ShowEmptyState(
+                        "Connecting to your phone",
+                        "The live preview will appear when the phone starts sending video.");
+                    break;
+                default:
+                    view.ShowEmptyState(
+                        "Start from your phone",
+                        "Connect to Voltura Air, then open Settings → Tools → Phone webcam.");
+                    break;
+            }
         }
         else
         {
-            view.PreviewStatusText.Text = status.State == PhoneWebcamFeatureState.NeedsCleanup
-                ? "Remove the incomplete installation before enabling Phone webcam again."
-                : "Enable Phone webcam to validate its Windows camera output here.";
+            view.ShowEmptyState(
+                status.State == PhoneWebcamFeatureState.NeedsCleanup
+                    ? "Finish setup"
+                    : "Enable in Windows",
+                status.State == PhoneWebcamFeatureState.NeedsCleanup
+                    ? "Remove the incomplete installation before enabling it again."
+                    : "Enable the camera before using it in Windows apps.");
         }
 
         return view;
@@ -114,11 +133,8 @@ internal sealed class PhoneWebcamPageController : IDisposable
         }
 
         _disposed = true;
-        if (_phoneWebcam is PhoneWebcamFeature concrete)
-        {
-            concrete.ActivityChanged -= OnActivityChanged;
-            concrete.StatusChanged -= OnStatusChanged;
-        }
+        _phoneWebcam.ActivityChanged -= OnActivityChanged;
+        _phoneWebcam.StatusChanged -= OnStatusChanged;
         StopPreview();
     }
 
@@ -127,10 +143,10 @@ internal sealed class PhoneWebcamPageController : IDisposable
         Button action = view.InstallationActionButton;
         bool remove = status.ShouldRemove;
         action.Content = status.State == PhoneWebcamFeatureState.UpdateRequired
-            ? "Remove outdated Phone webcam"
+            ? "Remove old version"
             : status.State == PhoneWebcamFeatureState.Removing
-                ? "Removing Phone webcam…"
-            : remove ? "Remove Phone webcam" : "Enable Phone webcam";
+                ? "Removing…"
+            : remove ? "Remove from Windows" : "Enable in Windows";
         action.Style = _owner.FindResource(remove ? "DangerButtonStyle" : "PrimaryButtonStyle") as Style;
         action.IsEnabled = status.State is not PhoneWebcamFeatureState.Unavailable and not PhoneWebcamFeatureState.Removing;
         action.Click += async (_, _) => await ChangeInstallationAsync(remove, action);
@@ -140,7 +156,7 @@ internal sealed class PhoneWebcamPageController : IDisposable
     {
         if (remove && !ThemedConfirmationDialog.Show(
                 _owner,
-                "Remove Phone webcam",
+                "Remove from Windows",
                 "Windows apps will no longer be able to select Voltura Air Webcam. You can enable it again later.",
                 "Remove",
                 "Cancel",
@@ -237,7 +253,6 @@ internal sealed class PhoneWebcamPageController : IDisposable
                 _currentView is not null)
             {
                 _currentView.SetPreviewFrame(queued.Frame);
-                _currentView.PreviewStatusText.Text = "Live preview from Voltura Air Webcam.";
             }
         }
         finally
@@ -275,10 +290,7 @@ internal sealed class PhoneWebcamPageController : IDisposable
                 return;
             }
 
-            _currentView.PreviewOverlayText.Text = "Preview unavailable";
-            _currentView.PreviewOverlayText.Visibility = Visibility.Visible;
-            _currentView.PreviewStatusText.Text = message;
-            _currentView.RetryPreviewButton.Visibility = Visibility.Visible;
+            _currentView.ShowPreviewFailure(message);
         });
     }
 
@@ -291,9 +303,9 @@ internal sealed class PhoneWebcamPageController : IDisposable
 
         _owner.Dispatcher.BeginInvoke(() =>
         {
-            if (_currentView is { } currentView)
+            if (_currentView is not null)
             {
-                currentView.SessionStatusText.Text = DescribeActivity();
+                _refresh();
             }
         });
     }
@@ -316,21 +328,28 @@ internal sealed class PhoneWebcamPageController : IDisposable
 
     private string DescribeActivity()
     {
-        if (_phoneWebcam is not PhoneWebcamFeature concrete)
-        {
-            return "Phone webcam is idle.";
-        }
-
-        PhoneWebcamActivity activity = concrete.Activity;
+        PhoneWebcamActivity activity = _phoneWebcam.Activity;
         return activity.State switch
         {
-            "connecting" => "A paired phone is connecting.",
+            "connecting" => "Connecting",
             "streaming" when activity.Width.HasValue && activity.Height.HasValue =>
-                $"A paired phone is streaming {activity.Width}×{activity.Height} video.",
-            "streaming" => "A paired phone is streaming video.",
-            _ => "Phone webcam is idle."
+                $"Streaming · {activity.Width}×{activity.Height}",
+            "streaming" => "Streaming",
+            _ => string.Empty
         };
     }
+
+    private static string DescribeInstallation(PhoneWebcamFeatureStatus status) => status.State switch
+    {
+        PhoneWebcamFeatureState.Installed when status.HasError => "Needs attention",
+        PhoneWebcamFeatureState.Installed => "Ready",
+        PhoneWebcamFeatureState.NotInstalled => "Not enabled",
+        PhoneWebcamFeatureState.NeedsCleanup => "Needs attention",
+        PhoneWebcamFeatureState.UpdateRequired => "Update available",
+        PhoneWebcamFeatureState.Removing => "Removing…",
+        PhoneWebcamFeatureState.Failed => "Needs attention",
+        _ => "Unavailable"
+    };
 
     private sealed record QueuedPreviewFrame(int Generation, PhoneWebcamPreviewFrame Frame) : IDisposable
     {

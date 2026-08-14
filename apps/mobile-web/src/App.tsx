@@ -528,7 +528,7 @@ export function App() {
 
   return (
     <div className={`app-frame${controlDepth ? " control-depth" : ""}`}>
-      <main className={`${shellClassName}${controlDepth ? " control-depth" : ""}${isScreenViewOpen ? " screen-view-active" : ""}${isPhoneWebcamOpen ? " phone-webcam-active" : ""}${tab === "files" ? " files-active" : ""}`}>
+      <main className={`${shellClassName}${controlDepth ? " control-depth" : ""}${isScreenViewOpen ? " screen-view-active" : ""}${tab === "files" ? " files-active" : ""}`}>
         <AppHeader
           activeMode={activeModeTab}
           canShowModeNavigation={canShowModeNavigation}
@@ -564,7 +564,7 @@ export function App() {
           tab={tab}
         />
 
-        <PairingGate
+        {!isPhoneWebcamOpen && <PairingGate
           activePc={activePc}
           connectManualHost={connectManualHost}
           confirmPendingPairing={confirmPendingPairing}
@@ -583,7 +583,7 @@ export function App() {
           state={state}
           tryManualReconnect={tryManualReconnect}
           tryReconnectPc={tryReconnectPc}
-        />
+        />}
 
         <ErrorDialog
           code={lastConnectionError?.code}

@@ -77,6 +77,11 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
     returnFocusRef.current?.focus();
   };
 
+  const closeThen = (action: (() => void) | undefined) => {
+    closeDialog();
+    action?.();
+  };
+
   return (
     <dialog
       ref={dialogRef}
@@ -123,21 +128,21 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
         <section className="drawer-group" aria-labelledby="drawer-tools-title">
           <h3 id="drawer-tools-title">Tools</h3>
           <div className="drawer-tool-list">
-            {props.screenViewCapability && <button type="button" onClick={props.onOpenScreenView}>
+            {props.screenViewCapability && <button type="button" onClick={() => {closeThen(props.onOpenScreenView);}}>
               <MonitorUp aria-hidden="true" />
               <span>View PC screen</span>
             </button>}
-            {props.phoneWebcamCapability && <button type="button" onClick={props.onOpenPhoneWebcam}>
+            {props.phoneWebcamCapability && <button type="button" onClick={() => {closeThen(props.onOpenPhoneWebcam);}}>
               <Camera aria-hidden="true" />
               <span>Phone webcam</span>
             </button>}
-            <button type="button" onClick={props.onOpenGyroMouse}>
+            <button type="button" onClick={() => {closeThen(props.onOpenGyroMouse);}}>
               <Orbit aria-hidden="true" />
               <span>Gyro mouse</span>
             </button>
             {props.toolOptions.filter(({ id }) => id !== "presentation" || props.presentationAvailable).map(({ id, Icon, label }) => {
               return (
-                <button key={id} type="button" onClick={() => props.onOpenMode?.(id)}>
+                <button key={id} type="button" onClick={() => {closeThen(() => props.onOpenMode?.(id));}}>
                   <Icon aria-hidden="true" />
                   <span>{label}</span>
                 </button>
@@ -151,7 +156,7 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
             <h3 id="drawer-custom-screens-title">Custom screens</h3>
             <div className="drawer-tool-list">
               {props.customScreens?.map((screen) => (
-                <button key={screen.id} type="button" onClick={() => { props.onOpenCustomScreen?.(screen.id); }}>
+              <button key={screen.id} type="button" onClick={() => {closeThen(() => props.onOpenCustomScreen?.(screen.id));}}>
                   <span aria-hidden="true">▦</span>
                   <span>{screen.name}</span>
                 </button>

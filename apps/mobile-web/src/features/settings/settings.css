@@ -20,6 +20,7 @@
 
 .settings-drawer::backdrop {
   background: var(--scrim);
+  backdrop-filter: none;
 }
 
 .settings-drawer-light-dismiss,

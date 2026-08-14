@@ -9,6 +9,69 @@ namespace VolturaAir.Host.Tests;
 public sealed partial class HostUiLayoutTests
 {
     [Fact]
+    public void PhoneWebcamPageKeepsAFixedPreviewWithoutAnInnerScrollbar()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            var view = new PhoneWebcamPageView();
+
+            Assert.IsType<Grid>(view.Content);
+            Assert.Equal(3, ((Grid)view.Content).RowDefinitions.Count);
+            Assert.Equal(360, view.PreviewSurface.Height);
+            Assert.Equal(VerticalAlignment.Top, view.PreviewSurface.VerticalAlignment);
+        });
+    }
+
+    [Fact]
+    public void IdlePhoneWebcamShowsConnectionInstructionsWithoutOpeningPreview()
+    {
+        if (ShouldSkipNativeUiLayoutTests())
+        {
+            return;
+        }
+
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            var window = new Window();
+            WpfTheme.Apply(window);
+            AddPhoneWebcamButtonStyles(window);
+            var root = new Grid();
+            window.Content = root;
+            using var toasts = new HostToastPresenter(root, new HostVisualFactory(window.Resources), static () => "Voltura Air");
+            var previewStarts = 0;
+            using var controller = new PhoneWebcamPageController(
+                window,
+                new InstalledPhoneWebcamFeature("idle"),
+                toasts,
+                static () => { },
+                (_, _) =>
+                {
+                    previewStarts++;
+                    return new ControlledPreviewSession();
+                });
+
+            PhoneWebcamPageView view = controller.CreateView();
+
+            Assert.Equal(0, previewStarts);
+            Assert.Equal("Start from your phone", view.PreviewEmptyTitle.Text);
+            Assert.Contains("Settings → Tools → Phone webcam", view.PreviewEmptyMessage.Text, StringComparison.Ordinal);
+            Assert.Equal(Visibility.Collapsed, view.PreviewImage.Visibility);
+            Assert.Equal("Allow paired devices", view.AllowPairedDevicesCheckBox.Content);
+            Assert.Equal("Remove from Windows", view.InstallationActionButton.Content);
+            Assert.Same(
+                view.AllowPairedDevicesCheckBox.Parent,
+                ((FrameworkElement)view.InstallationActionButton.Parent).Parent);
+        });
+    }
+
+    [Fact]
     public void PhoneWebcamPreviewShutdownCompletesBeforeItsCallerContinues()
     {
         if (ShouldSkipNativeUiLayoutTests())
@@ -163,12 +226,15 @@ public sealed partial class HostUiLayoutTests
             }
         });
     }
-
-    private sealed class InstalledPhoneWebcamFeature : IPhoneWebcamFeature
+    private sealed class InstalledPhoneWebcamFeature(string activityState = "streaming") : IPhoneWebcamFeature
     {
         public PhoneWebcamFeatureStatus Status { get; } = new(
             PhoneWebcamFeatureState.Installed,
             "Voltura Air Webcam is installed and ready.");
+
+        public PhoneWebcamActivity Activity { get; } = new(activityState);
+        public event EventHandler? ActivityChanged { add { } remove { } }
+        public event EventHandler? StatusChanged { add { } remove { } }
 
         public Task<PhoneWebcamFeatureStatus> EnableAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(Status);

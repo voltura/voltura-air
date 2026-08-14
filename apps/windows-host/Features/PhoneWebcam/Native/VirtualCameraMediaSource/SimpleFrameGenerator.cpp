@@ -86,7 +86,6 @@ void SimpleFrameGenerator::RunPipeReader()
                 std::lock_guard guard(m_frameLock);
                 m_latestFrame.clear();
                 m_latestSequence = 0;
-                m_latestArrival = 0;
             }
             const BYTE handshake[8] = { 'V', 'A', 'W', 'H', 1, 0, 0, 0 };
             DWORD written = 0;
@@ -103,7 +102,14 @@ bool SimpleFrameGenerator::ReadFrame(HANDLE pipe)
 {
     BYTE header[HeaderBytes]{};
     if (!ReadExact(pipe, header, HeaderBytes)) return false;
-    if (memcmp(header, "VAWF", 4) != 0 || ReadUInt32(header + 4) != ProtocolVersion ||
+    if (ReadUInt32(header + 4) != ProtocolVersion) return false;
+    if (memcmp(header, "VAWC", 4) == 0)
+    {
+        std::lock_guard guard(m_frameLock);
+        m_latestFrame.clear();
+        return true;
+    }
+    if (memcmp(header, "VAWF", 4) != 0 ||
         ReadUInt32(header + 24) != FrameWidth || ReadUInt32(header + 28) != FrameHeight ||
         ReadUInt32(header + 32) != Nv12Format || ReadUInt32(header + 36) != FrameBytes)
     {
@@ -117,7 +123,6 @@ bool SimpleFrameGenerator::ReadFrame(HANDLE pipe)
         std::lock_guard guard(m_frameLock);
         m_latestFrame.swap(frame);
         m_latestSequence = sequence;
-        m_latestArrival = GetTickCount64();
     }
     return true;
 }
@@ -172,7 +177,7 @@ bool SimpleFrameGenerator::ReadExact(HANDLE pipe, BYTE* destination, DWORD lengt
 bool SimpleFrameGenerator::CopyLatestFrame(BYTE* buffer, DWORD length, LONG pitch)
 {
     std::lock_guard guard(m_frameLock);
-    if (m_latestFrame.size() != FrameBytes || GetTickCount64() - m_latestArrival > 500) return false;
+    if (m_latestFrame.size() != FrameBytes) return false;
     const DWORD required = static_cast<DWORD>(pitch) * FrameHeight * 3 / 2;
     if (length < required) return false;
     for (DWORD row = 0; row < FrameHeight; ++row)

@@ -29,6 +29,12 @@ internal interface IPhoneWebcamFeature
 {
     PhoneWebcamFeatureStatus Status { get; }
 
+    PhoneWebcamActivity Activity { get; }
+
+    event EventHandler? ActivityChanged;
+
+    event EventHandler? StatusChanged;
+
     Task<PhoneWebcamFeatureStatus> EnableAsync(CancellationToken cancellationToken = default);
 
     Task<PhoneWebcamFeatureStatus> RemoveAsync(CancellationToken cancellationToken = default);
@@ -67,22 +73,38 @@ internal sealed class PhoneWebcamFeature : IPhoneWebcamFeature, IAsyncDisposable
     }
 
     public PhoneWebcamFeatureStatus Status { get; private set; }
-    internal PhoneWebcamActivity Activity { get; private set; } = new("idle");
-    internal event EventHandler? ActivityChanged;
-    internal event EventHandler? StatusChanged;
+    public PhoneWebcamActivity Activity { get; private set; } = new("idle");
+    public event EventHandler? ActivityChanged;
+    public event EventHandler? StatusChanged;
 
     internal void SetSessionStopper(Func<Task> stopSessionsAsync) => _stopSessionsAsync = stopSessionsAsync;
 
     internal void ReportActivity(string state, int? width = null, int? height = null)
     {
+        if (!string.Equals(state, "streaming", StringComparison.Ordinal))
+        {
+            Volatile.Read(ref _pipe)?.Clear();
+        }
+
         Activity = new PhoneWebcamActivity(state, width, height);
         ActivityChanged?.Invoke(this, EventArgs.Empty);
     }
 
     internal static async Task<PhoneWebcamFeature> CreateAsync(CancellationToken cancellationToken = default)
+        => await CreateAsync(new PhoneWebcamSetup(), cancellationToken).ConfigureAwait(false);
+
+    internal static async Task<PhoneWebcamFeature> CreateAsync(
+        IPhoneWebcamSetup setup,
+        CancellationToken cancellationToken = default)
     {
-        var feature = new PhoneWebcamFeature(new PhoneWebcamSetup());
+        var feature = new PhoneWebcamFeature(setup);
         feature.SetStatus(await feature._setup.GetStatusAsync(cancellationToken).ConfigureAwait(false));
+        if (feature.Status.State == PhoneWebcamFeatureState.Unavailable)
+        {
+            string message = feature.Status.Message;
+            await feature.DisposeAsync().ConfigureAwait(false);
+            throw new InvalidOperationException(message);
+        }
         if (feature.Status.IsInstalled)
         {
             feature.TryStartPipe();
@@ -294,6 +316,20 @@ internal sealed class PhoneWebcamFeature : IPhoneWebcamFeature, IAsyncDisposable
         public PhoneWebcamFeatureStatus Status { get; } = new(
             PhoneWebcamFeatureState.Unavailable,
             "Phone webcam is unavailable in this host mode.");
+
+        public PhoneWebcamActivity Activity { get; } = new("idle");
+
+        public event EventHandler? ActivityChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public event EventHandler? StatusChanged
+        {
+            add { }
+            remove { }
+        }
 
         public Task<PhoneWebcamFeatureStatus> EnableAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(Status);

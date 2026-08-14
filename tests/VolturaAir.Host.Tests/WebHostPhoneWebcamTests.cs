@@ -114,9 +114,58 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
             }, "phone.webcam.stop.result");
             Assert.True(stopped.GetProperty("succeeded").GetBoolean());
             Assert.True(peer.Disposed);
+
+            JsonElement statusAfterStop = await SendUntilTypeAsync(control, new { type = "status.get" }, "status");
+            Assert.True(statusAfterStop.GetProperty("connected").GetBoolean());
+            Assert.True(statusAfterStop.GetProperty("capabilities").GetProperty("phoneWebcam").GetProperty("canUse").GetBoolean());
         }
         finally
         {
+            AppPermissionSettings.Save(originalPermissions);
+        }
+    }
+
+    [Fact]
+    public async Task StopKeepsTheAuthenticatedControlPathResponsiveWhileMediaCleanupCompletes()
+    {
+        HostPermissionSet originalPermissions = AppPermissionSettings.Load();
+        var disposeEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseDispose = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowPhoneWebcam = true });
+            var peer = new FakePhoneWebcamPeer(dispose: async () =>
+            {
+                disposeEntered.TrySetResult();
+                await releaseDispose.Task;
+            });
+            await using var fixture = await WebHostFixture.StartAsync(
+                phoneWebcamFeature: new InstalledPhoneWebcamFeature(),
+                phoneWebcamPeerFactory: new FakePhoneWebcamPeerFactory(peer));
+            using var reconnectKey = new PairingTestKey();
+            using WebSocket control = await ConnectAsync(fixture.WebHost);
+            await PairAsync(control, fixture.Manager, reconnectKey);
+            await CompleteSessionAsync(control, reconnectKey, "webcam-nonblocking-stop");
+
+            await SendAsync(control, new
+            {
+                type = "phone.webcam.stop",
+                operationId = "webcam-nonblocking-stop-request"
+            });
+            await disposeEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+            JsonElement status = await SendUntilTypeAsync(control, new { type = "status.get" }, "status");
+            Assert.True(status.GetProperty("connected").GetBoolean());
+            Assert.False(peer.Disposed);
+
+            releaseDispose.TrySetResult();
+            JsonElement stopped = await ReceiveUntilTypeAsync(control, "phone.webcam.stop.result");
+            Assert.True(stopped.GetProperty("succeeded").GetBoolean());
+            Assert.True(peer.Disposed);
+        }
+        finally
+        {
+            releaseDispose.TrySetResult();
             AppPermissionSettings.Save(originalPermissions);
         }
     }
@@ -532,6 +581,9 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
     private sealed class InstalledPhoneWebcamFeature : IPhoneWebcamFeature
     {
         public PhoneWebcamFeatureStatus Status { get; } = new(PhoneWebcamFeatureState.Installed, "Installed.");
+        public PhoneWebcamActivity Activity { get; } = new("idle");
+        public event EventHandler? ActivityChanged { add { } remove { } }
+        public event EventHandler? StatusChanged { add { } remove { } }
         public Task<PhoneWebcamFeatureStatus> EnableAsync(CancellationToken cancellationToken = default) => Task.FromResult(Status);
         public Task<PhoneWebcamFeatureStatus> RemoveAsync(CancellationToken cancellationToken = default) => Task.FromResult(Status);
         public void Publish(PhoneWebcamFrame frame) => frame.Dispose();

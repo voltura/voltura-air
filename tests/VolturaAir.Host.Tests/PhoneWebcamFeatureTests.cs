@@ -30,9 +30,22 @@ public sealed class PhoneWebcamFeatureTests
 
         Assert.True(firstOwner.IsDisposed);
         Assert.False(secondOwner.IsDisposed);
-        using PhoneWebcamFrame latest = await queue.TakeAsync(CancellationToken.None);
+        using PhoneWebcamFrame latest = Assert.IsType<PhoneWebcamFrame>(await queue.TakeAsync(CancellationToken.None));
         Assert.Equal((ulong)2, latest.Sequence);
         Assert.Equal((ulong)20, latest.SourceTimestamp90Khz);
+    }
+
+    [Fact]
+    public async Task ExplicitClearDisplacesTheLastFrameAndProducesAWaitingRecord()
+    {
+        using var queue = new PhoneWebcamLatestFrameQueue();
+        var owner = new TrackingMemoryOwner(PhoneWebcamFrameContract.FrameBytes);
+        queue.Publish(new PhoneWebcamFrame(1, 10, owner));
+
+        queue.Clear();
+
+        Assert.True(owner.IsDisposed);
+        Assert.Null(await queue.TakeAsync(CancellationToken.None));
     }
 
     [Fact]
@@ -139,6 +152,15 @@ public sealed class PhoneWebcamFeatureTests
     }
 
     [Fact]
+    public async Task MissingRequiredNativePayloadFailsProductionFeatureComposition()
+    {
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            PhoneWebcamFeature.CreateAsync(new UnavailableSetup()));
+
+        Assert.Equal("Required Phone webcam payload is missing.", exception.Message);
+    }
+
+    [Fact]
     public async Task FrameSequenceRemainsMonotonicAcrossProducerPipelines()
     {
         var feature = new RecordingPhoneWebcamFeature();
@@ -155,7 +177,7 @@ public sealed class PhoneWebcamFeatureTests
             20,
             new TrackingMemoryOwner(PhoneWebcamFrameContract.FrameBytes)));
 
-        using PhoneWebcamFrame latest = await queue.TakeAsync(CancellationToken.None);
+        using PhoneWebcamFrame latest = Assert.IsType<PhoneWebcamFrame>(await queue.TakeAsync(CancellationToken.None));
         Assert.Equal((ulong)2, latest.Sequence);
     }
 
@@ -229,6 +251,17 @@ public sealed class PhoneWebcamFeatureTests
         public Task<PhoneWebcamFeatureStatus> RemoveAsync(CancellationToken cancellationToken) => Task.FromResult(Failed);
     }
 
+    private sealed class UnavailableSetup : IPhoneWebcamSetup
+    {
+        private static readonly PhoneWebcamFeatureStatus Unavailable = new(
+            PhoneWebcamFeatureState.Unavailable,
+            "Required Phone webcam payload is missing.");
+
+        public Task<PhoneWebcamFeatureStatus> GetStatusAsync(CancellationToken cancellationToken) => Task.FromResult(Unavailable);
+        public Task<PhoneWebcamFeatureStatus> InstallAsync(CancellationToken cancellationToken) => Task.FromResult(Unavailable);
+        public Task<PhoneWebcamFeatureStatus> RemoveAsync(CancellationToken cancellationToken) => Task.FromResult(Unavailable);
+    }
+
     private sealed class SuccessfulInstallSetup : IPhoneWebcamSetup
     {
         private static readonly PhoneWebcamFeatureStatus NotInstalled = new(PhoneWebcamFeatureState.NotInstalled, "Not installed.");
@@ -250,6 +283,9 @@ public sealed class PhoneWebcamFeatureTests
     private sealed class RecordingPhoneWebcamFeature : IPhoneWebcamFeature
     {
         public PhoneWebcamFeatureStatus Status { get; } = new(PhoneWebcamFeatureState.Installed, "Installed.");
+        public PhoneWebcamActivity Activity { get; } = new("idle");
+        public event EventHandler? ActivityChanged { add { } remove { } }
+        public event EventHandler? StatusChanged { add { } remove { } }
         public Task<PhoneWebcamFeatureStatus> EnableAsync(CancellationToken cancellationToken = default) => Task.FromResult(Status);
         public Task<PhoneWebcamFeatureStatus> RemoveAsync(CancellationToken cancellationToken = default) => Task.FromResult(Status);
         public void Publish(PhoneWebcamFrame frame) => frame.Dispose();

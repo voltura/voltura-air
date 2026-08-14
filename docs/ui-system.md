@@ -193,6 +193,14 @@ Files uses one panel below 640 CSS pixels and two equal panels at or above that 
 
 Files distinguishes **Open** (launch on the PC and remain in Files) from **View** (launch, then enter PC Screen after host success). This reuses the existing toolbar space and avoids a hidden long-press action competing with Properties. Permission or trust failures remain in Files with direct guidance; Screen Back restores Files.
 
+Phone webcam keeps its header, camera controls, and current status fixed and
+assigns remaining height to the camera view without making the workspace scroll.
+The camera view contains one expand/restore action. Expanded mode uses the whole
+application viewport, survives rotation, and restores into the same workspace;
+it does not stop or renegotiate the webcam session. The phone camera view mirrors
+the local track being sent and is not presented as proof of the decoded Windows
+virtual-camera output.
+
 ## Interaction states
 
 | State | Required outcome |

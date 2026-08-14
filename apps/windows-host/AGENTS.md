@@ -17,6 +17,11 @@ Inherits root; read relevant architecture/host-quality and WPF UI guidance.
 - Use `IAwakeService`; never edit power plans or require elevation.
 - `MainWindow` is shell; features own behavior; no feature partials; use
   declarative WPF/shared spacing.
+- This project mixes a Windows Forms tray with WPF windows. In WPF source,
+  alias or fully qualify UI types and dependency properties; never rely on an
+  unqualified type when both `System.Windows.Forms` and `System.Windows`
+  provide that name (for example `Control`, `Brush`, `Brushes`, `Image`,
+  `Point`, or `Size`).
 
 Verify with warning-free `dotnet build VolturaAir.slnx`; focused
 `dotnet test --filter` for changed behavior. Structural changes add

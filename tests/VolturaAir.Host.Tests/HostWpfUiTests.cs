@@ -160,10 +160,10 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
                 window.ShowPage(HostPage.PhoneWebcam);
                 window.UpdateLayout();
                 Assert.Contains(FindWpfDescendants<TextBlock>(window), text => text.Text == "Phone webcam");
-                Assert.Contains(FindWpfDescendants<Button>(window), button => button.Content?.ToString() == "Enable Phone webcam");
+                Assert.Contains(FindWpfDescendants<Button>(window), button => button.Content?.ToString() == "Enable in Windows");
                 Assert.Contains(
                     FindWpfDescendants<TextBlock>(window),
-                    text => text.Text == "Enable Phone webcam to validate its Windows camera output here.");
+                    text => text.Text == "Use your phone as a camera in Windows apps.");
 
                 window.ShowPage(HostPage.Preferences);
                 window.UpdateLayout();

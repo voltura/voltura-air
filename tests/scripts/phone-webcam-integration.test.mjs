@@ -9,6 +9,7 @@ const [
   frameGenerator,
   nativeBuild,
   packaging,
+  hostProject,
   installer,
   preferences,
   mainWindow,
@@ -18,6 +19,7 @@ const [
   read("apps/windows-host/Features/PhoneWebcam/Native/VirtualCameraMediaSource/SimpleFrameGenerator.cpp"),
   read("scripts/build-phone-webcam-native.ps1"),
   read("scripts/package-win.ps1"),
+  read("apps/windows-host/VolturaAir.Host.csproj"),
   read("installer/VolturaAir.nsi"),
   read("apps/windows-host/Features/Preferences/PreferencesPageView.xaml"),
   read("apps/windows-host/MainWindow.xaml"),
@@ -34,7 +36,8 @@ test("Phone webcam is a normal app setting and not a Developer-mode gate", () =>
 test("native camera keeps the reviewed bounded version-one frame contract", () => {
   assert.match(frameGenerator, /VolturaAirWebcam-v1/u);
   assert.match(frameGenerator, /sequence == 0 \|\| sequence <= m_latestSequence/u);
-  assert.match(frameGenerator, /GetTickCount64\(\) - m_latestArrival > 500/u);
+  assert.match(frameGenerator, /memcmp\(header, "VAWC", 4\) == 0/u);
+  assert.doesNotMatch(frameGenerator, /m_latestArrival/u);
   assert.match(frameGenerator, /FrameWidth = 1920/u);
   assert.match(frameGenerator, /FrameHeight = 1080/u);
 });
@@ -66,6 +69,16 @@ test("Windows packages require the complete Phone webcam payload", () => {
   assert.match(packaging, /PhoneWebcam\\VolturaAir\.WebcamSetup\.exe/u);
   assert.match(packaging, /PhoneWebcam\\MICROSOFT-WINDOWS-CAMERA-LICENSE\.txt/u);
   assert.doesNotMatch(packaging, /Copy-Item[^\n]+VirtualCameraMediaSource\.dll/u);
+});
+
+test("development host builds include the embedded Phone webcam setup helper", () => {
+  assert.match(hostProject, /BuildPhoneWebcamDevelopmentPayload/u);
+  assert.match(hostProject, /'\$\(Configuration\)' != 'Release'/u);
+  assert.match(hostProject, /Inputs="[^"]*build-phone-webcam-native\.ps1;@\(PhoneWebcamNativeBuildInput\)"/u);
+  assert.match(hostProject, /Outputs="\$\(OutDir\)PhoneWebcam\\VolturaAir\.WebcamSetup\.exe"/u);
+  assert.match(hostProject, /build-phone-webcam-native\.ps1/u);
+  assert.match(nativeBuild, /MediaSourceOutput/u);
+  assert.match(nativeBuild, /legacyExternalPayload/u);
 });
 
 test("uninstall removes Phone webcam before deleting its recovery helper", () => {

@@ -23,7 +23,7 @@ WPF-only composition; shared tokens, states, accessibility, and layout remain in
 ## Shell, startup, and tray
 
 One `Voltura Air` window navigates Connect, Devices, Custom screens,
-Presentations, Connection, Preferences, and Diagnostics. Closing hides the
+Presentations, Phone webcam, Connection, Preferences, and Diagnostics. Closing hides the
 window to the notification area. The first close explains that paired devices
 remain active and that the tray icon reopens or exits.
 
@@ -57,6 +57,16 @@ show the local-only maintainer 8 Mbps choice. Relay failure never silently opens
 Direct. The first failed connection in an outage shows one danger-tone host
 toast while retries remain automatic and quiet; restoration shows one success
 toast. Initial successful connection does not show a restoration toast.
+
+## Phone webcam
+
+Phone webcam shows one compact Windows-camera state surface and one fixed-height
+camera-output area. Permission and remove actions share one stable action row.
+When no phone is streaming, the output area shows concise start guidance and
+does not open the virtual camera merely to display its waiting frame. While
+streaming, it consumes the registered virtual camera exactly like another
+Windows application and stops that preview on navigation, removal, or shutdown.
+No inner scroller, repeated explanatory footer, or second media path is used.
 
 ## Preferences
 

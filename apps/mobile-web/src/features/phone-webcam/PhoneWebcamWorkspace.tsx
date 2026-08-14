@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, Camera, CameraOff } from "lucide-react";
+import { ArrowLeft, Camera, CameraOff, Maximize2, Minimize2 } from "lucide-react";
 import type { PcProfile } from "../../foundation/connection/pcProfiles";
 import { signClientPayload } from "../../foundation/connection/pairingCredentials";
 import { subscribePhoneWebcamResults } from "../../foundation/connection/phoneWebcamResultBus";
@@ -35,6 +35,7 @@ export default function PhoneWebcamWorkspace({ activePc, capability, clientId, c
   const [selectedCameraId, setSelectedCameraId] = useState("");
   const [permissionGranted, setPermissionGranted] = useState(false);
   const [phase, setPhase] = useState<"idle" | "connecting" | "streaming">("idle");
+  const [isCameraViewExpanded, setIsCameraViewExpanded] = useState(false);
   const [status, setStatus] = useState(initialStatus(capability));
   const [quality, setQuality] = useState<SendQuality>({});
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -44,6 +45,8 @@ export default function PhoneWebcamWorkspace({ activePc, capability, clientId, c
   const pendingRef = useRef<PendingStart | null>(null);
   const replacementRef = useRef<PendingReplacement | null>(null);
   const replacementGenerationRef = useRef(0);
+  const acquiringReplacementGenerationRef = useRef<number | null>(null);
+  const activeStreamEndedRef = useRef(false);
   const acquiringGenerationRef = useRef<number | null>(null);
   const operationIdRef = useRef<string | null>(null);
   const resumeRef = useRef(false);
@@ -65,6 +68,8 @@ export default function PhoneWebcamWorkspace({ activePc, capability, clientId, c
     statsTimerRef.current = undefined;
     lastStatsRef.current = null;
     acquiringGenerationRef.current = null;
+    acquiringReplacementGenerationRef.current = null;
+    activeStreamEndedRef.current = false;
     const operationId = operationIdRef.current;
     operationIdRef.current = null;
     pendingRef.current = null;
@@ -157,10 +162,13 @@ export default function PhoneWebcamWorkspace({ activePc, capability, clientId, c
       if (!signature) {opened.stream.getTracks().forEach((track) => track.stop()); throw new Error("Reconnect key unavailable.");}
       streamRef.current = opened.stream;
       opened.stream.getVideoTracks()[0]?.addEventListener("ended", () => {
-        if (generationRef.current === generation && streamRef.current === opened.stream) {
-          resumeRef.current = false;
-          releaseRef.current(true, "The selected camera stopped.");
+        if (generationRef.current !== generation || streamRef.current !== opened.stream) {return;}
+        if (acquiringReplacementGenerationRef.current !== null) {
+          activeStreamEndedRef.current = true;
+          return;
         }
+        resumeRef.current = false;
+        releaseRef.current(true, "The selected camera stopped.");
       }, { once: true });
       pendingRef.current = { operationId, stream: opened.stream, settings: opened.settings };
       operationIdRef.current = operationId;
@@ -332,18 +340,35 @@ export default function PhoneWebcamWorkspace({ activePc, capability, clientId, c
     setStatus("Switching camera…");
     const generation = generationRef.current;
     const replacementGeneration = ++replacementGenerationRef.current;
+    acquiringReplacementGenerationRef.current = replacementGeneration;
     const sender = senderRef.current;
     const previousReplacement = replacementRef.current;
     replacementRef.current = null;
     previousReplacement?.stop();
+    const ownsReplacement = () => replacementGenerationRef.current === replacementGeneration &&
+      generationRef.current === generation && senderRef.current === sender;
     let replacement: MediaStream | null = null;
     let ownedReplacement: PendingReplacement | null = null;
     try {
-      replacement = await navigator.mediaDevices.getUserMedia({
+      const constraints: MediaStreamConstraints = {
         audio: false,
         video: { deviceId: { exact: deviceId }, width: { ideal: preferredWidth, max: preferredWidth }, height: { ideal: preferredHeight, max: preferredHeight }, frameRate: { ideal: preferredFps, max: preferredFps } }
-      });
+      };
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        if (!ownsReplacement()) {return;}
+        try {
+          replacement = await navigator.mediaDevices.getUserMedia(constraints);
+          break;
+        } catch (error) {
+          const denied = error instanceof DOMException &&
+            (error.name === "NotAllowedError" || error.name === "SecurityError");
+          if (!ownsReplacement() || denied || attempt === 1) {throw error;}
+          await new Promise<void>((resolve) => {window.setTimeout(resolve, 200);});
+        }
+      }
+      if (!replacement) {throw new Error("Camera replacement did not open a video stream.");}
       if (replacementGenerationRef.current !== replacementGeneration || generationRef.current !== generation || senderRef.current !== sender) {
+        if (acquiringReplacementGenerationRef.current === replacementGeneration) {acquiringReplacementGenerationRef.current = null;}
         replacement.getTracks().forEach((track) => track.stop());
         return;
       }
@@ -366,7 +391,8 @@ export default function PhoneWebcamWorkspace({ activePc, capability, clientId, c
       }
       nextTrack.contentHint = "motion";
       nextTrack.addEventListener("ended", () => {
-        if (generationRef.current === generation && streamRef.current === replacement) {
+        if (generationRef.current === generation &&
+            streamRef.current === replacement) {
           resumeRef.current = false;
           releaseRef.current(true, "The selected camera stopped.");
         }
@@ -383,6 +409,8 @@ export default function PhoneWebcamWorkspace({ activePc, capability, clientId, c
       const previous = streamRef.current;
       streamRef.current = replacement;
       replacementRef.current = null;
+      if (acquiringReplacementGenerationRef.current === replacementGeneration) {acquiringReplacementGenerationRef.current = null;}
+      activeStreamEndedRef.current = false;
       setSelectedCameraId(deviceId);
       if (videoRef.current) {videoRef.current.srcObject = replacement; void videoRef.current.play().catch(() => undefined);}
       previous?.getTracks().forEach((track) => track.stop());
@@ -395,14 +423,21 @@ export default function PhoneWebcamWorkspace({ activePc, capability, clientId, c
       }));
       setStatus(activePc.transportMode === "relay" ? "Streaming through Relay" : "Streaming through Enhanced Direct");
     } catch {
+      if (acquiringReplacementGenerationRef.current === replacementGeneration) {acquiringReplacementGenerationRef.current = null;}
       if (replacementRef.current?.stream === replacement) {replacementRef.current = null;}
       if (ownedReplacement) {ownedReplacement.stop();}
       else {replacement?.getTracks().forEach((track) => track.stop());}
+      if (activeStreamEndedRef.current && replacementGenerationRef.current === replacementGeneration &&
+          generationRef.current === generation && senderRef.current === sender) {
+        setSelectedCameraId(deviceId);
+        releaseLocal(true, "The active camera stopped while switching cameras.");
+        return;
+      }
       if (replacementGenerationRef.current === replacementGeneration && generationRef.current === generation && senderRef.current === sender) {
         setStatus("The selected camera could not replace the active camera.");
       }
     }
-  }, [activePc.transportMode, phase]);
+  }, [activePc.transportMode, phase, releaseLocal]);
 
   useEffect(() => {
     let resumeTimer: number | undefined;
@@ -455,23 +490,32 @@ export default function PhoneWebcamWorkspace({ activePc, capability, clientId, c
 
   const canStart = supportedTransport && permissionGranted && selectedCameraId && capability.canUse && state === "paired" && phase === "idle";
   return (
-    <section className="phone-webcam-workspace" aria-labelledby="phone-webcam-title">
+    <section className={`phone-webcam-workspace${isCameraViewExpanded ? " camera-view-expanded" : ""}`} aria-labelledby="phone-webcam-title">
       <header className="phone-webcam-header">
         <button type="button" className="icon-button" aria-label="Back" onClick={() => {releaseLocal(true, "Phone webcam stopped."); onBack();}}><ArrowLeft aria-hidden="true" /></button>
         <div><p>Video only</p><h1 id="phone-webcam-title">Phone webcam</h1></div>
       </header>
 
-      <div className="phone-webcam-preview">
-        <video ref={videoRef} muted playsInline autoPlay aria-label="Selected phone camera preview" />
-        {phase === "idle" && <div className="phone-webcam-placeholder"><Camera aria-hidden="true" /><span>Camera preview appears when streaming starts</span></div>}
+      <div className="phone-webcam-preview" aria-label="Camera view">
+        <video ref={videoRef} muted playsInline autoPlay aria-label="Selected phone camera view" />
+        <button
+          type="button"
+          className="phone-webcam-expand"
+          aria-label={isCameraViewExpanded ? "Restore camera view" : "Expand camera view"}
+          title={isCameraViewExpanded ? "Restore camera view" : "Expand camera view"}
+          onClick={() => {setIsCameraViewExpanded((current) => !current);}}
+        >
+          {isCameraViewExpanded ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
+        </button>
+        {phase === "idle" && <div className="phone-webcam-placeholder"><Camera aria-hidden="true" /><span>Camera view appears when streaming starts</span></div>}
       </div>
 
       <div className="phone-webcam-controls">
         {!permissionGranted && <button type="button" className="primary-button" disabled={!supportedTransport || !capability.canUse || state !== "paired"} onClick={() => {void loadCameras();}}>Allow camera access</button>}
         {permissionGranted && <label>Camera<select value={selectedCameraId} disabled={phase === "connecting"} onChange={(event) => {void changeCamera(event.target.value);}}>{cameras.map((camera) => <option key={camera.deviceId} value={camera.deviceId}>{camera.label}</option>)}</select></label>}
         <div className="phone-webcam-actions">
-          <button type="button" className="primary-button" disabled={!canStart} onClick={() => {void start();}}><Camera aria-hidden="true" />Start webcam</button>
-          <button type="button" disabled={phase === "idle"} onClick={() => {resumeRef.current = false; releaseLocal(true, "Phone webcam stopped.");}}><CameraOff aria-hidden="true" />Stop webcam</button>
+          <button type="button" className="primary-button" disabled={!canStart} onClick={() => {void start();}}><Camera aria-hidden="true" />Start</button>
+          <button type="button" disabled={phase === "idle"} onClick={() => {resumeRef.current = false; releaseLocal(true, "Ready to start.");}}><CameraOff aria-hidden="true" />Stop</button>
         </div>
       </div>
 

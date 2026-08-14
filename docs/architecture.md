@@ -127,7 +127,15 @@ access unit, preserves H.264 configuration through decoder recovery, and publish
 one latest fixed-size NV12 frame to the feature-owned pipe. The native Frame Server
 media source contains no network or credential logic. The Windows page consumes the
 registered virtual camera like any other application and never becomes a second
-media broker.
+media broker. Switching phone cameras replaces the sender track on the active peer;
+it does not replace the peer or command connection. A phone-webcam stop releases
+only feature-owned camera/media resources. Native cleanup runs outside the
+authenticated command receive loop, and neither stop nor camera switching closes or
+marks the paired device connection unavailable.
+The pipe carries capacity-one frame or clear records. A camera handoff therefore
+holds the last valid frame instead of flashing the synthetic waiting image, while a
+terminal session transition sends an explicit clear record after media ownership is
+released.
 
 Files follows the same lazy feature boundary: the initial shell carries only capability/navigation wiring and loads `features/file-manager` on entry. The host resolves every opaque session, location, entry, revision, continuation, and job reference. Effective global/per-device Files policy is applied while the host constructs each directory revision, including removal of protected Hidden+System items before any client-visible count or opaque entry reference exists. `FileManagerService` intentionally validates source and destination revisions together with queue admission so a changed directory cannot redirect or partially resolve an operation. Its bounded workers own the single mutation queue, panel-location persistence, and atomic local job journal; shutdown cancels and awaits them. Every temporary, backup, or partially committed artifact remains durably owned until cleanup, commit, or rollback is confirmed. Windows clipboard, Shell, location-store, and journal behavior remain replaceable adapters so destructive transitions can be fault-injected independently.
 

@@ -663,7 +663,7 @@ describe("App header and mode navigation", () => {
 
     expect(await screen.findByRole("heading", { name: "Phone webcam" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Allow camera access" })).toBeTruthy();
-    expect(document.querySelector(".app-shell")?.classList).toContain("phone-webcam-active");
+    expect(screen.queryByRole("dialog", { name: "Menu" })).toBeNull();
     expect(document.querySelector(".top-mode-tabs")).toBeNull();
     expect(document.querySelector(".bottom-mode-tabs")).toBeNull();
   });
@@ -691,6 +691,31 @@ describe("App header and mode navigation", () => {
 
     expect((screen.getByRole("button", { name: "Allow camera access" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText("Enable Phone webcam in the Windows app first.")).toBeTruthy();
+  });
+
+  it("keeps Phone webcam visible instead of showing the generic disconnected takeover", async () => {
+    const capability = {
+      enabled: true,
+      permissionGranted: true,
+      canUse: true,
+      requiresRepair: false,
+      videoOnly: true as const,
+      maxWidth: 1920,
+      maxHeight: 1080,
+      maxFramesPerSecond: 30
+    };
+    const activePc = { customName: true, id: "pc-a", name: "Webcam PC", transportMode: "secure-direct" as const, url: "https://secure-direct.invalid" };
+    mockConnection({ activePc, phoneWebcamCapability: capability });
+    const rendered = render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    fireEvent.click(within(screen.getByRole("heading", { name: "Menu" }).closest("dialog")!).getByRole("button", { name: "Phone webcam" }));
+    expect(await screen.findByRole("heading", { name: "Phone webcam" })).toBeTruthy();
+
+    mockConnection({ activePc, phoneWebcamCapability: capability, state: "disconnected", message: "PC disconnected" });
+    rendered.rerender(<App />);
+
+    expect(screen.getByRole("heading", { name: "Phone webcam" })).toBeTruthy();
+    expect(document.querySelector(".pairing-status.blocking")).toBeNull();
   });
 
   it("does not offer Phone webcam over Standard Local HTTP", () => {

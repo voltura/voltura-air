@@ -1,9 +1,15 @@
 .phone-webcam-workspace {
+  position: relative;
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
   gap: 1rem;
   width: min(100%, 48rem);
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
   margin: 0 auto;
-  padding: 0.75rem 1rem 6rem;
+  padding: 0.75rem 1rem 1rem;
+  overflow: hidden;
 }
 
 .phone-webcam-header {
@@ -28,17 +34,54 @@
 .phone-webcam-preview {
   position: relative;
   overflow: hidden;
-  min-height: 16rem;
+  min-height: 0;
   border: 1px solid var(--border);
   border-radius: 1.25rem;
   background: var(--bg);
 }
 
+.phone-webcam-expand {
+  position: absolute;
+  z-index: 2;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  place-items: center;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface-raised) 88%, transparent);
+  touch-action: manipulation;
+}
+
+.phone-webcam-expand svg {
+  width: 20px;
+  height: 20px;
+}
+
+.phone-webcam-workspace.camera-view-expanded .phone-webcam-preview {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  width: 100vw;
+  height: var(--app-viewport-height);
+  min-height: var(--app-viewport-height);
+  border: 0;
+  border-radius: 0;
+  background: var(--bg);
+}
+
+.phone-webcam-workspace.camera-view-expanded .phone-webcam-expand {
+  top: max(10px, env(safe-area-inset-top));
+  right: max(10px, env(safe-area-inset-right));
+}
+
 .phone-webcam-preview video {
   display: block;
   width: 100%;
-  min-height: 16rem;
-  max-height: 55vh;
+  height: 100%;
   object-fit: contain;
 }
 
@@ -105,8 +148,51 @@
   color: var(--text-muted);
 }
 
-@media (width <= 420px) {
-  .phone-webcam-actions {
-    grid-template-columns: 1fr;
+@media (orientation: landscape) and (height <= 500px) {
+  .phone-webcam-workspace:not(.camera-view-expanded) {
+    grid-template-columns: minmax(0, 1fr) minmax(17rem, 22rem);
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.5rem 0.75rem 0.75rem;
   }
+
+  .phone-webcam-workspace:not(.camera-view-expanded) .phone-webcam-header {
+    position: absolute;
+    z-index: 3;
+    top: 1rem;
+    left: 1.25rem;
+  }
+
+  .phone-webcam-workspace:not(.camera-view-expanded) .phone-webcam-header > div {
+    display: none;
+  }
+
+  .phone-webcam-workspace:not(.camera-view-expanded) .phone-webcam-preview {
+    grid-row: 1 / 3;
+    grid-column: 1;
+  }
+
+  .phone-webcam-workspace:not(.camera-view-expanded) .phone-webcam-controls {
+    grid-row: 1;
+    grid-column: 2;
+  }
+
+  .phone-webcam-workspace:not(.camera-view-expanded) .phone-webcam-status {
+    grid-row: 2;
+    grid-column: 2;
+    font-size: 0.85rem;
+  }
+
+  .phone-webcam-workspace:not(.camera-view-expanded) .phone-webcam-controls,
+  .phone-webcam-workspace:not(.camera-view-expanded) .phone-webcam-status {
+    gap: 0.5rem;
+    padding: 0.75rem;
+  }
+
+  .phone-webcam-workspace:not(.camera-view-expanded) .phone-webcam-controls select,
+  .phone-webcam-workspace:not(.camera-view-expanded) .phone-webcam-actions button {
+    min-height: 2.5rem;
+  }
+
 }

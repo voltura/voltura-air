@@ -172,6 +172,32 @@ describe("SettingsDrawer", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  it("closes the native drawer before opening a tool", () => {
+    const onClose = vi.fn();
+    const onOpenPhoneWebcam = vi.fn();
+    render(<SettingsDrawer
+      {...baseProps}
+      onClose={onClose}
+      onOpenPhoneWebcam={onOpenPhoneWebcam}
+      phoneWebcamCapability={{
+        enabled: true,
+        permissionGranted: true,
+        canUse: true,
+        requiresRepair: false,
+        videoOnly: true,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        maxFramesPerSecond: 30
+      }}
+    />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Phone webcam" }));
+
+    expect(screen.queryByRole("dialog", { name: "Menu" })).toBeNull();
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(onOpenPhoneWebcam).toHaveBeenCalledOnce();
+  });
+
   it("hides Presentation entry points and falls back from a stale fourth-mode choice when its capability is unavailable", () => {
     render(
       <SettingsDrawer

@@ -123,7 +123,7 @@ internal sealed class MainWindowNavigationController(
                 break;
             case HostPage.PhoneWebcam:
                 pageTitle.Text = "Phone webcam";
-                pageSubtitle.Text = "Enable and validate Voltura Air Webcam before selecting it in another Windows app.";
+                pageSubtitle.Text = "Use your phone as a camera in Windows apps.";
                 pageContent.Content = phoneWebcamPage.CreateView();
                 break;
             case HostPage.Connection:

@@ -48,6 +48,7 @@ internal sealed class PhoneWebcamLatestFrameQueue : IDisposable
     private readonly Lock _frameLock = new();
     private readonly SemaphoreSlim _frameReady = new(0, 1);
     private PhoneWebcamFrame? _latestFrame;
+    private bool _hasLatestRecord;
     private ulong _latestSequence;
     private bool _disposed;
 
@@ -68,10 +69,12 @@ internal sealed class PhoneWebcamLatestFrameQueue : IDisposable
                 throw new InvalidDataException("Phone-webcam frame sequences must be nonzero and strictly monotonic.");
             }
 
+            bool hadPendingRecord = _hasLatestRecord;
             displaced = _latestFrame;
             _latestFrame = frame;
+            _hasLatestRecord = true;
             _latestSequence = frame.Sequence;
-            if (displaced is null)
+            if (!hadPendingRecord)
             {
                 _frameReady.Release();
             }
@@ -80,14 +83,42 @@ internal sealed class PhoneWebcamLatestFrameQueue : IDisposable
         displaced?.Dispose();
     }
 
-    internal async Task<PhoneWebcamFrame> TakeAsync(CancellationToken cancellationToken)
+    internal void Clear()
+    {
+        PhoneWebcamFrame? displaced;
+        lock (_frameLock)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            bool hadPendingRecord = _hasLatestRecord;
+            displaced = _latestFrame;
+            _latestFrame = null;
+            _hasLatestRecord = true;
+            if (!hadPendingRecord)
+            {
+                _frameReady.Release();
+            }
+        }
+
+        displaced?.Dispose();
+    }
+
+    internal async Task<PhoneWebcamFrame?> TakeAsync(CancellationToken cancellationToken)
     {
         await _frameReady.WaitAsync(cancellationToken).ConfigureAwait(false);
         lock (_frameLock)
         {
-            PhoneWebcamFrame frame = _latestFrame
-                ?? throw new InvalidOperationException("The latest-frame signal had no frame.");
+            if (!_hasLatestRecord)
+            {
+                throw new InvalidOperationException("The latest-record signal had no record.");
+            }
+
+            PhoneWebcamFrame? frame = _latestFrame;
             _latestFrame = null;
+            _hasLatestRecord = false;
             return frame;
         }
     }
@@ -104,6 +135,7 @@ internal sealed class PhoneWebcamLatestFrameQueue : IDisposable
             _disposed = true;
             _latestFrame?.Dispose();
             _latestFrame = null;
+            _hasLatestRecord = false;
         }
 
         _frameReady.Dispose();
@@ -114,6 +146,7 @@ internal sealed class PhoneWebcamFramePipeServer : IAsyncDisposable
 {
     private static readonly byte[] Handshake = "VAWH"u8.ToArray();
     private static readonly byte[] RecordMagic = "VAWF"u8.ToArray();
+    private static readonly byte[] ClearMagic = "VAWC"u8.ToArray();
     private readonly SecurityIdentifier _userSid = WindowsIdentity.GetCurrent().User
         ?? throw new InvalidOperationException("The current Windows user has no SID.");
     private readonly SecurityIdentifier _frameServerSid = (SecurityIdentifier)new NTAccount("NT SERVICE", "FrameServer")
@@ -144,6 +177,8 @@ internal sealed class PhoneWebcamFramePipeServer : IAsyncDisposable
 
         _frames.Publish(frame);
     }
+
+    internal void Clear() => _frames.Clear();
 
     public async ValueTask DisposeAsync()
     {
@@ -194,19 +229,31 @@ internal sealed class PhoneWebcamFramePipeServer : IAsyncDisposable
                     byte[] header = new byte[40];
                     while (!cancellationToken.IsCancellationRequested)
                     {
-                        using PhoneWebcamFrame frame = await _frames.TakeAsync(cancellationToken).ConfigureAwait(false);
-                        RecordMagic.CopyTo(header, 0);
-                        BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(4), PhoneWebcamFrameContract.ProtocolVersion);
-                        BinaryPrimitives.WriteUInt64LittleEndian(header.AsSpan(8), frame.Sequence);
-                        BinaryPrimitives.WriteUInt64LittleEndian(header.AsSpan(16), frame.SourceTimestamp90Khz);
-                        BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(24), PhoneWebcamFrameContract.Width);
-                        BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(28), PhoneWebcamFrameContract.Height);
-                        BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(32), PhoneWebcamFrameContract.Nv12Format);
-                        BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(36), PhoneWebcamFrameContract.FrameBytes);
-                        await pipe.WriteAsync(header, cancellationToken).ConfigureAwait(false);
-                        await pipe.WriteAsync(
-                            frame.Payload[..PhoneWebcamFrameContract.FrameBytes],
-                            cancellationToken).ConfigureAwait(false);
+                        PhoneWebcamFrame? frame = await _frames.TakeAsync(cancellationToken).ConfigureAwait(false);
+                        Array.Clear(header);
+                        if (frame is null)
+                        {
+                            ClearMagic.CopyTo(header, 0);
+                            BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(4), PhoneWebcamFrameContract.ProtocolVersion);
+                            await pipe.WriteAsync(header, cancellationToken).ConfigureAwait(false);
+                            continue;
+                        }
+
+                        using (frame)
+                        {
+                            RecordMagic.CopyTo(header, 0);
+                            BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(4), PhoneWebcamFrameContract.ProtocolVersion);
+                            BinaryPrimitives.WriteUInt64LittleEndian(header.AsSpan(8), frame.Sequence);
+                            BinaryPrimitives.WriteUInt64LittleEndian(header.AsSpan(16), frame.SourceTimestamp90Khz);
+                            BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(24), PhoneWebcamFrameContract.Width);
+                            BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(28), PhoneWebcamFrameContract.Height);
+                            BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(32), PhoneWebcamFrameContract.Nv12Format);
+                            BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(36), PhoneWebcamFrameContract.FrameBytes);
+                            await pipe.WriteAsync(header, cancellationToken).ConfigureAwait(false);
+                            await pipe.WriteAsync(
+                                frame.Payload[..PhoneWebcamFrameContract.FrameBytes],
+                                cancellationToken).ConfigureAwait(false);
+                        }
                     }
                 }
                 catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException)

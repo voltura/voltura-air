@@ -30,6 +30,5 @@ private:
     std::atomic<bool> m_stop = false;
     std::mutex m_frameLock;
     std::vector<BYTE> m_latestFrame;
-    ULONGLONG m_latestArrival = 0;
     uint64_t m_latestSequence = 0;
 };

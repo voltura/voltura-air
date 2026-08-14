@@ -102,6 +102,22 @@
     <Exec Command="&quot;$(SystemRoot)\System32\WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\..\scripts\build-cursor-watchdog.ps1&quot; -OutputPath &quot;$(OutDir)VolturaAir.CursorWatchdog.exe&quot;" />
   </Target>
 
+  <ItemGroup>
+    <PhoneWebcamNativeBuildInput Include="$(MSBuildThisFileDirectory)Features\PhoneWebcam\Native\**\*"
+                                        Exclude="$(MSBuildThisFileDirectory)Features\PhoneWebcam\Native\**\bin\**;$(MSBuildThisFileDirectory)Features\PhoneWebcam\Native\**\obj\**" />
+  </ItemGroup>
+
+  <Target Name="BuildPhoneWebcamDevelopmentPayload"
+          AfterTargets="Build"
+          Inputs="$(MSBuildThisFileDirectory)..\..\scripts\build-phone-webcam-native.ps1;@(PhoneWebcamNativeBuildInput)"
+          Outputs="$(OutDir)PhoneWebcam\VolturaAir.WebcamSetup.exe"
+          Condition="'$(DesignTimeBuild)' != 'true' AND
+                     '$(Configuration)' != 'Release' AND
+                     '$(PublishSingleFile)' == '' AND
+                     !$(MSBuildProjectFile.EndsWith('_wpftmp.csproj'))">
+    <Exec Command="pwsh -NoProfile -File &quot;$(MSBuildThisFileDirectory)..\..\scripts\build-phone-webcam-native.ps1&quot; -OutputDirectory &quot;$(OutDir)PhoneWebcam&quot;" />
+  </Target>
+
   <!-- Build the React client automatically when building inside Visual Studio. -->
   <Target Name="BuildClient" BeforeTargets="Build" Condition=" '$(BuildingInsideVisualStudio)' == 'true' AND Exists('$(MSBuildThisFileDirectory)..\mobile-web\package.json') ">
     <Message Text="Building mobile-web client (npm) as part of Visual Studio build..." Importance="high" />

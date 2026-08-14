@@ -6,6 +6,12 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v0.9.6
+
+- Fixed an issue that could send Relay and Enhanced Direct pairing links to the
+  Voltura website instead of opening Voltura Air.
+- Added Phone webcam to the website feature comparison.
+
 ## v0.9.5
 
 - Added the opt-in, video-only **Phone webcam** tool. Choose a camera on a

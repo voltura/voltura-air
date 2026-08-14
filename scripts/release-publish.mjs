@@ -116,11 +116,30 @@ async function assertGitStatePathAbsent(name) {
   }
 }
 
-export function getRelease(tag, repository, lookup = checked) {
-  return JSON.parse(lookup("gh", [
+function getReleaseArguments(tag, repository) {
+  return [
     "release", "view", tag, "--repo", repository,
     "--json", "tagName,isDraft,isPrerelease,targetCommitish,url,assets"
-  ], { captureOutput: true }));
+  ];
+}
+
+export function getRelease(tag, repository, lookup = checked) {
+  return JSON.parse(lookup("gh", getReleaseArguments(tag, repository), { captureOutput: true }));
+}
+
+export function getReleaseIfExists(tag, repository, execute = runCommand) {
+  const result = execute("gh", getReleaseArguments(tag, repository), {
+    captureOutput: true,
+    allowFailure: true
+  });
+  if (result.status === 0) {
+    return JSON.parse(result.stdout);
+  }
+  const details = `${result.stderr}\n${result.stdout}`.trim();
+  if (/release not found|HTTP 404/iu.test(details)) {
+    return null;
+  }
+  throw new Error(`Could not inspect release '${tag}'.${details ? ` ${details}` : ""}`);
 }
 
 export function publishReleaseIfRequested({ publishLatest, targetTag, repository, expectedCommit }, execute = checked) {
@@ -214,8 +233,8 @@ function getReleaseHashes(release, expectedNames) {
   });
 }
 
-export function auditDraft(release, expectedCommit, expectedNames) {
-  auditReleaseArtifacts(release, expectedCommit, expectedNames, true);
+export function auditDraft(release, expectedCommit, expectedNames, expectedArtifacts = null) {
+  auditReleaseArtifacts(release, expectedCommit, expectedNames, true, expectedArtifacts);
 }
 
 async function performStep(progress, title, detail, action) {
@@ -277,7 +296,7 @@ export async function runLocalRelease(args = process.argv.slice(2), { progress, 
     const currentVersion = String(JSON.parse(await readFile(packagePath, "utf8")).version ?? "");
     const currentTag = `v${currentVersion}`;
     const currentTagExists = remoteTagExists(currentTag);
-    const currentRelease = currentTagExists ? getRelease(currentTag, repository) : null;
+    const currentRelease = getReleaseIfExists(currentTag, repository);
     const startingCommit = checked("git", ["rev-parse", "HEAD"], { captureOutput: true });
     const currentAssetPaths = getReleaseAssetPaths(repositoryRoot, currentVersion, runtime);
     const currentCheckpointMetadata = await readReleaseCheckpoint({
@@ -311,7 +330,9 @@ export async function runLocalRelease(args = process.argv.slice(2), { progress, 
     const notes = getReleaseNotesSection(releaseNotes, targetVersion);
     const notices = getGeneralReleaseNotices(releaseNotes);
     const targetTagExists = targetTag === currentTag ? currentTagExists : remoteTagExists(targetTag);
-    const targetReleaseBeforeBuild = targetTagExists ? getRelease(targetTag, repository) : null;
+    const targetReleaseBeforeBuild = targetTag === currentTag
+      ? currentRelease
+      : getReleaseIfExists(targetTag, repository);
     if (targetReleaseBeforeBuild && !targetReleaseBeforeBuild.isDraft && !resumePublished) {
       throw new Error(`Release '${targetTag}' is already public. Prepare a new version instead.`);
     }
@@ -331,11 +352,13 @@ export async function runLocalRelease(args = process.argv.slice(2), { progress, 
     if (resumePublished) {
       resumePhase = "published";
     } else if (targetReleaseBeforeBuild?.isDraft) {
+      if (checkpoint?.phase !== "packaged") {
+        throw new Error(`Draft '${targetTag}' cannot be resumed without its verified packaged checkpoint.`);
+      }
       try {
-        auditDraft(targetReleaseBeforeBuild, startingCommit, assetNames);
+        auditDraft(targetReleaseBeforeBuild, startingCommit, assetNames, checkpoint.artifacts);
         resumePhase = "drafted";
       } catch (error) {
-        if (checkpoint?.phase !== "packaged") throw error;
         resumePhase = "packaged";
       }
     } else {
@@ -477,7 +500,9 @@ export async function runLocalRelease(args = process.argv.slice(2), { progress, 
     auditReleaseArtifacts(finalRelease, releaseCommit, assetNames, !publishLatest,
       releaseContext.checkpoint?.phase === "packaged" ? releaseContext.checkpoint.artifacts : null);
     const hashes = getReleaseHashes(finalRelease, assetNames);
-    await rm(getReleaseCheckpointPath(repositoryRoot, releaseContext.targetVersion), { force: true });
+    if (publishLatest) {
+      await rm(getReleaseCheckpointPath(repositoryRoot, releaseContext.targetVersion), { force: true });
+    }
     const url = `https://github.com/${releaseContext.repository}/releases/tag/${releaseContext.targetTag}`;
     return {
       hashes,

@@ -15,6 +15,7 @@ import {
   auditDraft,
   buildReleaseBody,
   getRelease,
+  getReleaseIfExists,
   publishReleaseIfRequested,
   restoreCleanTrackedTree
 } from "../../scripts/release-publish.mjs";
@@ -275,6 +276,25 @@ test("release lookup propagates GitHub failures instead of reporting absence", (
   })), { tagName: "v0.8.0", isDraft: true });
 });
 
+test("release discovery finds drafts without remote tags and only treats not-found as absence", () => {
+  const draft = { tagName: "v0.8.0", isDraft: true, targetCommitish: "abc123" };
+  assert.deepEqual(getReleaseIfExists("v0.8.0", "voltura/voltura-air", () => ({
+    status: 0,
+    stdout: JSON.stringify(draft),
+    stderr: ""
+  })), draft);
+  assert.equal(getReleaseIfExists("v0.8.0", "voltura/voltura-air", () => ({
+    status: 1,
+    stdout: "",
+    stderr: "release not found"
+  })), null);
+  assert.throws(() => getReleaseIfExists("v0.8.0", "voltura/voltura-air", () => ({
+    status: 1,
+    stdout: "",
+    stderr: "authentication failed"
+  })), /authentication failed/u);
+});
+
 test("release-note synchronization selects Latest by default or one explicit version", () => {
   assert.deepEqual(parseSyncReleaseArguments([]), { version: null });
   assert.deepEqual(parseSyncReleaseArguments(["0.8.0"]), { version: "0.8.0" });
@@ -416,7 +436,12 @@ test("release body and draft audit require the exact local artifact set", () => 
     targetCommitish: "abc123",
     assets: names.map((name) => ({ name, size: 10, digest: "sha256:valid" }))
   };
-  assert.doesNotThrow(() => auditDraft(release, "abc123", names));
+  const expectedArtifacts = names.map((name) => ({ name, size: 10, sha256: "valid" }));
+  assert.doesNotThrow(() => auditDraft(release, "abc123", names, expectedArtifacts));
   assert.throws(() => auditDraft({ ...release, targetCommitish: "other" }, "abc123", names), /target commit/u);
   assert.throws(() => auditDraft({ ...release, assets: release.assets.slice(1) }, "abc123", names), /expected set/u);
+  assert.throws(() => auditDraft({
+    ...release,
+    assets: release.assets.map((asset, index) => index === 0 ? { ...asset, digest: "sha256:substituted" } : asset)
+  }, "abc123", names, expectedArtifacts), /packaged checkpoint/u);
 });

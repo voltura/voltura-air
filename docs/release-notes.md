@@ -6,6 +6,50 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v0.9.8
+
+- Reworked Windows setup and uninstall recovery. Setup verifies the complete new
+  app before replacement, failed upgrades preserve a recoverable installation,
+  and interrupted uninstalls can be retried safely. Setup now also reliably
+  closes a running 64-bit Voltura Air host before updating it.
+- Moved **Phone Webcam** installation, repair, and removal into an optional
+  installer component with an explicit administrator prompt. The Windows Phone
+  webcam page now reports component status without showing a disabled
+  maintenance button when the camera is ready.
+- Improved Phone webcam reliability when camera permission is still opening, the
+  PC does not answer a start request, or a selected replacement camera fails.
+- Improved **View PC screen** startup, failure recovery, display validation, and
+  mouse-wheel scrolling. A delayed stop from an earlier viewing session can no
+  longer close a newer active session.
+- Improved **Files on PC** so delayed pages and properties cannot replace newer
+  results, and Delete or Rename always applies to the items shown when its
+  confirmation dialog opened.
+- Fixed held Keyboard, Remote, and Custom Screen navigation controls so repeating
+  actions stop when the app loses focus without swallowing the next tap. Keyboard
+  Backspace and Delete now remove complete emoji and combined characters.
+- Added confirmation before forgetting a saved PC, and improved mobile behavior
+  when browser storage is unavailable or full so current preferences remain usable
+  for the open session.
+- Strengthened the Presentation archive so saves, renames, links, and deletions
+  recover safely after interruption. Corrupt, replaced, or unrelated files are
+  never silently imported or deleted.
+- Improved Application Log maintenance so oversized damaged records are skipped,
+  partial deletion is reported accurately, and failed automatic cleanup can retry.
+- Community Custom Screen accounts now require email verification with expiring
+  links and resend support. Login, registration, and resend limits provide more
+  consistent abuse protection without revealing whether an account exists.
+- Improved Community Custom Screen upload, download, deletion, and official-library
+  updates so completed downloads are counted accurately, retained ratings stay
+  attached to official screens, and uncertain cleanup never guesses which file to
+  delete.
+- **Compatibility:** Windows permissions return to their secure defaults, network
+  selection returns to automatic Direct, and Keep awake returns to Off because
+  v0.9.8 uses one new atomic settings format. Review these settings after updating.
+  Earlier Presentation report files are not imported into the new archive.
+- **Catalog compatibility:** deploying the v0.9.8 Community Custom Screen catalog
+  requires a fresh database. Existing catalog accounts, submissions, ratings, and
+  reports are not migrated, so catalog users must register again after deployment.
+
 ## v0.9.7
 
 - Improved Phone webcam camera switching so changing between available phone

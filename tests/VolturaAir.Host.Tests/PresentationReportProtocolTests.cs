@@ -133,7 +133,7 @@ public sealed class PresentationReportProtocolTests
 
         var result = await store.SaveAsync(request, "device-a", "Joakim's phone", CancellationToken.None);
 
-        Assert.True(result.Succeeded);
+        Assert.True(result.Succeeded, result.Message);
         Assert.Single(Directory.EnumerateFiles(directory.Path, "*.json", SearchOption.AllDirectories));
         Assert.Empty(Directory.EnumerateFiles(directory.Path, "*.tmp", SearchOption.AllDirectories));
 
@@ -187,6 +187,264 @@ public sealed class PresentationReportProtocolTests
         Assert.True(read.Succeeded);
         Assert.Single(read.Reports);
         Assert.Equal("report-1", read.Reports[0].ReportId);
+    }
+
+    [Fact]
+    public void DeleteAllIgnoresForeignFilesBecauseTheManifestIsTheSoleInventory()
+    {
+        using var directory = new TemporaryReportDirectory();
+        var foreignDirectory = System.IO.Path.Combine(directory.Path, "foreign");
+        Directory.CreateDirectory(foreignDirectory);
+        for (var index = 0; index <= PresentationReportStore.MaximumScannedFiles; index++)
+        {
+            File.WriteAllText(
+                System.IO.Path.Combine(foreignDirectory, $"foreign-{index:D5}.json"),
+                "{}",
+                Encoding.UTF8);
+        }
+        var store = new PresentationReportStore(directory.Path);
+
+        PresentationReportMutationResult result = store.DeleteAll();
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(
+            PresentationReportStore.MaximumScannedFiles + 1,
+            Directory.EnumerateFiles(foreignDirectory, "*.json", SearchOption.AllDirectories).Count());
+    }
+
+    [Fact]
+    public async Task CorruptManifestMakesTheArchiveUnavailableWithoutDeletingArtifacts()
+    {
+        using var directory = new TemporaryReportDirectory();
+        var store = new PresentationReportStore(directory.Path);
+        Assert.True((await store.SaveAsync(
+            CreateRequest("operation-1", "report-1"),
+            "device-a",
+            "Device A",
+            CancellationToken.None)).Succeeded);
+        var manifestPath = Assert.Single(Directory.EnumerateFiles(directory.Path, "manifest.json"));
+        var artifactPath = Assert.Single(Directory.EnumerateFiles(directory.Path, "*.report"));
+        File.WriteAllText(manifestPath, "{ corrupt", Encoding.UTF8);
+
+        PresentationReportMutationResult result = store.DeleteAll();
+
+        Assert.False(result.Succeeded);
+        Assert.True(File.Exists(artifactPath));
+    }
+
+    [Fact]
+    public void ManifestWithMissingRequiredFieldsMakesTheArchiveUnavailable()
+    {
+        using var directory = new TemporaryReportDirectory();
+        File.WriteAllText(System.IO.Path.Combine(directory.Path, "manifest.json"), "{}", Encoding.UTF8);
+        var store = new PresentationReportStore(directory.Path);
+
+        PresentationReportReadResult result = store.ReadAll();
+
+        Assert.False(result.Succeeded);
+    }
+
+    [Fact]
+    public void DeleteAllDoesNotTraverseAnOwnedLookingDirectoryLink()
+    {
+        using var directory = new TemporaryReportDirectory();
+        using var external = new TemporaryReportDirectory();
+        var externalReport = System.IO.Path.Combine(external.Path, "outside.json");
+        File.WriteAllText(externalReport, "{ corrupt", Encoding.UTF8);
+        var linkedDeviceDirectory = System.IO.Path.Combine(directory.Path, new string('a', 32));
+        try
+        {
+            Directory.CreateSymbolicLink(linkedDeviceDirectory, external.Path);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+        {
+            return;
+        }
+        var store = new PresentationReportStore(directory.Path);
+
+        PresentationReportMutationResult result = store.DeleteAll();
+
+        Assert.True(result.Succeeded);
+        Assert.True(File.Exists(externalReport));
+    }
+
+    [Fact]
+    public void DeleteAllRejectsALinkedArchiveRootWithoutDeletingItsTarget()
+    {
+        using var directory = new TemporaryReportDirectory();
+        using var external = new TemporaryReportDirectory();
+        var externalDeviceDirectory = System.IO.Path.Combine(external.Path, new string('a', 32));
+        Directory.CreateDirectory(externalDeviceDirectory);
+        var externalReport = System.IO.Path.Combine(externalDeviceDirectory, "outside.json");
+        File.WriteAllText(externalReport, "{ corrupt", Encoding.UTF8);
+        var linkedRoot = System.IO.Path.Combine(directory.Path, "linked-archive");
+        try
+        {
+            Directory.CreateSymbolicLink(linkedRoot, external.Path);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+        {
+            return;
+        }
+        var store = new PresentationReportStore(linkedRoot);
+
+        PresentationReportMutationResult result = store.DeleteAll();
+
+        Assert.False(result.Succeeded);
+        Assert.True(File.Exists(externalReport));
+    }
+
+    [Fact]
+    public async Task DeleteAllNeverDeletesAHashMismatchedArtifact()
+    {
+        using var directory = new TemporaryReportDirectory();
+        string? artifactPath = null;
+        var store = new PresentationReportStore(
+            directory.Path,
+            beforeDeleteArtifact: path =>
+            {
+                artifactPath = path;
+                File.WriteAllText(path, "substituted", Encoding.UTF8);
+            });
+        Assert.True((await store.SaveAsync(
+            CreateRequest("operation-1", "report-1"),
+            "device-a",
+            "Device A",
+            CancellationToken.None)).Succeeded);
+
+        PresentationReportMutationResult result = store.DeleteAll();
+
+        Assert.True(result.Succeeded);
+        Assert.NotNull(artifactPath);
+        Assert.Equal("substituted", File.ReadAllText(artifactPath, Encoding.UTF8));
+        Assert.Empty(store.ReadAll().Reports);
+    }
+
+    [Fact]
+    public async Task DeletePreservesForeignFilesBesideOwnedArtifacts()
+    {
+        using var directory = new TemporaryReportDirectory();
+        var store = new PresentationReportStore(directory.Path);
+        Assert.True((await store.SaveAsync(
+            CreateRequest("operation-1", "report-1"),
+            "device-a",
+            "Device A",
+            CancellationToken.None)).Succeeded);
+
+        var foreignPath = System.IO.Path.Combine(directory.Path, "foreign.bin");
+        File.WriteAllText(foreignPath, "foreign", Encoding.UTF8);
+
+        PresentationReportMutationResult result = store.Delete("report-1");
+
+        Assert.True(result.Succeeded);
+        Assert.True(File.Exists(foreignPath));
+    }
+
+    [Fact]
+    public async Task RenameReconcilesAReplacementThatSucceedsBeforeReportingFailure()
+    {
+        using var directory = new TemporaryReportDirectory();
+        var store = new PresentationReportStore(
+            directory.Path,
+            reportReplaceFailureAfterSuccess: true);
+        Assert.True((await store.SaveAsync(
+            CreateRequest("operation-1", "report-1"),
+            "device-a",
+            "Device A",
+            CancellationToken.None)).Succeeded);
+
+        PresentationReportMutationResult result = store.Rename("report-1", "Committed title");
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.Equal("Committed title", Assert.Single(store.ReadAll().Reports).Title);
+        Assert.Empty(Directory.EnumerateFiles(directory.Path, "*.tmp", SearchOption.AllDirectories));
+
+        PresentationReportMutationResult deleted = store.DeleteAll();
+
+        Assert.True(deleted.Succeeded);
+        Assert.Empty(Directory.EnumerateFiles(directory.Path, "*.report", SearchOption.AllDirectories));
+        Assert.Empty(store.ReadAll().Reports);
+    }
+
+    [Fact]
+    public async Task RenameDoesNotReplaceAnArtifactThatChangedAfterValidation()
+    {
+        using var directory = new TemporaryReportDirectory();
+        string? movedArtifact = null;
+        string? replacementArtifact = null;
+        var store = new PresentationReportStore(
+            directory.Path,
+            beforeReplaceArtifact: path =>
+            {
+                movedArtifact = $"{path}.moved";
+                replacementArtifact = path;
+                File.Move(path, movedArtifact);
+                File.WriteAllText(path, "replacement", Encoding.UTF8);
+            });
+        Assert.True((await store.SaveAsync(
+            CreateRequest("operation-1", "report-1"),
+            "device-a",
+            "Device A",
+            CancellationToken.None)).Succeeded);
+
+        PresentationReportMutationResult result = store.Rename("report-1", "Must not be written");
+
+        Assert.False(result.Succeeded);
+        Assert.NotNull(movedArtifact);
+        Assert.True(File.Exists(movedArtifact));
+        Assert.NotNull(replacementArtifact);
+        Assert.Equal("replacement", File.ReadAllText(replacementArtifact, Encoding.UTF8));
+        Assert.Empty(Directory.EnumerateFiles(directory.Path, "*.tmp", SearchOption.AllDirectories));
+    }
+
+    [Fact]
+    public async Task RenamePreservesAnEntryCreatedAfterTheValidatedTargetIsStaged()
+    {
+        using var directory = new TemporaryReportDirectory();
+        string? finalPath = null;
+        var store = new PresentationReportStore(
+            directory.Path,
+            beforeReplaceCommit: path =>
+            {
+                finalPath = path;
+                File.WriteAllText(path, "external replacement", Encoding.UTF8);
+            });
+        Assert.True((await store.SaveAsync(
+            CreateRequest("operation-1", "report-1"),
+            "device-a",
+            "Device A",
+            CancellationToken.None)).Succeeded);
+
+        PresentationReportMutationResult result = store.Rename("report-1", "Must not be written");
+
+        Assert.False(result.Succeeded);
+        Assert.NotNull(finalPath);
+        Assert.Equal("external replacement", File.ReadAllText(finalPath, Encoding.UTF8));
+        Assert.Empty(Directory.EnumerateFiles(directory.Path, ".manifest.backup"));
+        Assert.Single(Directory.EnumerateFiles(directory.Path, ".manifest.staged"));
+        Assert.Single(Directory.EnumerateFiles(directory.Path, "transaction.json"));
+        Assert.False(store.ReadAll().Succeeded);
+    }
+
+    [Fact]
+    public async Task RenameFailureDeletesOnlyItsConfirmedOpenTemporaryArtifact()
+    {
+        using var directory = new TemporaryReportDirectory();
+        var store = new PresentationReportStore(
+            directory.Path,
+            reportReplaceFailureBeforeSuccess: true);
+        Assert.True((await store.SaveAsync(
+            CreateRequest("operation-1", "report-1"),
+            "device-a",
+            "Device A",
+            CancellationToken.None)).Succeeded);
+
+        PresentationReportMutationResult result = store.Rename("report-1", "Uncommitted title");
+
+        Assert.False(result.Succeeded);
+        Assert.NotEqual("Uncommitted title", Assert.Single(store.ReadAll().Reports).Title);
+        Assert.Empty(Directory.EnumerateFiles(directory.Path, ".manifest.staged"));
+        Assert.Empty(Directory.EnumerateFiles(directory.Path, "transaction.json"));
     }
 
     [Fact]

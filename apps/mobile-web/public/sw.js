@@ -21,7 +21,7 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== cacheName).map((key) => caches.delete(key))))
+      .then((keys) => Promise.all(keys.filter((key) => key.startsWith("voltura-air-") && key !== cacheName).map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
   );
 });
@@ -32,14 +32,22 @@ self.addEventListener("fetch", (event) => {
   }
 
   const isNavigationRequest = event.request.mode === "navigate";
+  const requestUrl = new URL(event.request.url);
+  const cacheableStaticRequest = requestUrl.origin === self.location.origin &&
+    ["script", "style", "image", "font", "manifest"].includes(event.request.destination);
 
   event.respondWith(
     fetch(event.request)
-      .then((response) => {
-        if (response.ok) {
+      .then(async (response) => {
+        if (response.ok && (isNavigationRequest || cacheableStaticRequest)) {
           const copy = response.clone();
           const cacheKey = isNavigationRequest ? appBase : event.request;
-          caches.open(cacheName).then((cache) => cache.put(cacheKey, copy));
+          try {
+            const cache = await caches.open(cacheName);
+            await cache.put(cacheKey, copy);
+          } catch {
+            // A failed cache write must not fail the live network response.
+          }
         }
         return response;
       })

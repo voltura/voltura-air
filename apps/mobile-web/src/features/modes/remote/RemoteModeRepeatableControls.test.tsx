@@ -80,4 +80,18 @@ describe("RemoteMode repeatable controls", () => {
     expect(sendSpecial).toHaveBeenNthCalledWith(2, "ArrowDown");
     expect(sendSpecial).toHaveBeenNthCalledWith(3, "ArrowDown");
   });
+
+  it("stops repeating on focus loss and does not swallow the next click", () => {
+    const sendSpecial = vi.fn();
+    renderRemote({ sendSpecial });
+    const button = screen.getByRole("button", { name: "Seek forward" });
+    fireEvent.pointerDown(button, { button: 0, pointerId: 1 });
+    act(() => {vi.advanceTimersByTime(repeatStartDelayMs + repeatIntervalMs);});
+    fireEvent.blur(window);
+    const countAfterBlur = sendSpecial.mock.calls.length;
+    act(() => {vi.advanceTimersByTime(repeatIntervalMs * 4);});
+    expect(sendSpecial).toHaveBeenCalledTimes(countAfterBlur);
+    fireEvent.click(button);
+    expect(sendSpecial).toHaveBeenCalledTimes(countAfterBlur + 1);
+  });
 });

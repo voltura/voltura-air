@@ -2,6 +2,7 @@ import { defaultAppSettings, normalizeAppSettings, type AppSettings } from "./ap
 import { defaultKeyboardSettings, normalizeKeyboardSettings, type KeyboardSettings } from "./keyboardSettings";
 import { defaultTrackpadSettings, normalizeTrackpadSettings, type TrackpadSettings } from "../input/gestures";
 import { resolveRemoteSettings, type RemoteModeId, type RemoteSettings } from "./remoteSettings";
+import { readLocalStorage, removeLocalStorage, writeLocalStorage } from "../platform/browserStorage";
 
 export type ThemeMode = "system" | "light" | "dark";
 
@@ -26,20 +27,20 @@ export function keyboardSettingsKey(clientId: string): string {
 }
 
 export function loadLiveKeyboardDefault(): boolean {
-  return localStorage.getItem(liveKeyboardKey) !== "false";
+  return readLocalStorage(liveKeyboardKey) !== "false";
 }
 
 export function saveLiveKeyboardPreference(enabled: boolean): void {
-  localStorage.setItem(liveKeyboardKey, String(enabled));
+  writeLocalStorage(liveKeyboardKey, String(enabled));
 }
 
 export function loadThemeMode(): ThemeMode {
-  const stored = localStorage.getItem(themeModeKey);
+  const stored = readLocalStorage(themeModeKey);
   return stored === "light" || stored === "dark" ? stored : "system";
 }
 
 export function saveThemeMode(themeMode: ThemeMode): void {
-  localStorage.setItem(themeModeKey, themeMode);
+  writeLocalStorage(themeModeKey, themeMode);
 }
 
 export function resolveTheme(themeMode: ThemeMode, systemPrefersDark: boolean): "light" | "dark" {
@@ -47,7 +48,7 @@ export function resolveTheme(themeMode: ThemeMode, systemPrefersDark: boolean): 
 }
 
 export function loadTrackpadSettings(clientId: string, pcId: string | null): TrackpadSettings {
-  const stored = localStorage.getItem(trackpadSettingsKey(clientId, pcId));
+  const stored = readLocalStorage(trackpadSettingsKey(clientId, pcId));
   if (!stored) {
     return defaultTrackpadSettings;
   }
@@ -60,19 +61,19 @@ export function loadTrackpadSettings(clientId: string, pcId: string | null): Tra
 }
 
 export function clearTrackpadSettings(clientId: string, pcId: string): void {
-  localStorage.removeItem(trackpadSettingsKey(clientId, pcId));
+  removeLocalStorage(trackpadSettingsKey(clientId, pcId));
 }
 
 export function loadRemoteSettings(clientId: string, pcId: string | null, hostDefaultMode?: RemoteModeId): { settings: RemoteSettings; isStored: boolean } {
-  return resolveRemoteSettings(localStorage.getItem(remoteSettingsKey(clientId, pcId)), hostDefaultMode);
+  return resolveRemoteSettings(readLocalStorage(remoteSettingsKey(clientId, pcId)), hostDefaultMode);
 }
 
 export function clearRemoteSettings(clientId: string, pcId: string): void {
-  localStorage.removeItem(remoteSettingsKey(clientId, pcId));
+  removeLocalStorage(remoteSettingsKey(clientId, pcId));
 }
 
 export function loadAppSettings(clientId: string, pcId: string | null): AppSettings {
-  const stored = localStorage.getItem(appSettingsKey(clientId, pcId));
+  const stored = readLocalStorage(appSettingsKey(clientId, pcId));
   if (!stored) {
     return defaultAppSettings;
   }
@@ -85,11 +86,11 @@ export function loadAppSettings(clientId: string, pcId: string | null): AppSetti
 }
 
 export function clearAppSettings(clientId: string, pcId: string): void {
-  localStorage.removeItem(appSettingsKey(clientId, pcId));
+  removeLocalStorage(appSettingsKey(clientId, pcId));
 }
 
 export function loadKeyboardSettings(clientId: string): KeyboardSettings {
-  const stored = localStorage.getItem(keyboardSettingsKey(clientId));
+  const stored = readLocalStorage(keyboardSettingsKey(clientId));
   if (!stored) {
     return defaultKeyboardSettings;
   }

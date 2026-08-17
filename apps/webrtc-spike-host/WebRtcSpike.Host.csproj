@@ -25,6 +25,8 @@
     <Compile Include="..\windows-host\BuildFeatures.cs" Link="Reused\BuildFeatures.cs" />
     <Compile Include="..\windows-host\JsonOptions.cs" Link="Reused\JsonOptions.cs" />
     <Compile Include="..\windows-host\HostSettingsRegistry.cs" Link="Reused\HostSettingsRegistry.cs" />
+    <Compile Include="..\windows-host\HostSettingsJsonValue.cs" Link="Reused\HostSettingsJsonValue.cs" />
+    <Compile Include="..\windows-host\ProtocolStringLimits.cs" Link="Reused\ProtocolStringLimits.cs" />
     <Compile Include="..\windows-host\NetworkSettings.cs" Link="Reused\NetworkSettings.cs" />
     <Compile Include="..\windows-host\PortSelector.cs" Link="Reused\PortSelector.cs" />
     <Compile Include="..\windows-host\RelayDeviceSessions.cs" Link="Reused\RelayDeviceSessions.cs" />

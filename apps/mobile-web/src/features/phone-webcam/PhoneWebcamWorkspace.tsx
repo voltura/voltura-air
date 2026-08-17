@@ -31,17 +31,20 @@ const preferredHeight = 1080;
 const preferredFps = 30;
 const stalledStatsSampleLimit = 3;
 const stalledRecoveryCooldownMs = 10_000;
+const startResponseTimeoutMs = 10_000;
 
 export default function PhoneWebcamWorkspace({ activePc, capability, clientId, connectionEpoch, onBack, send, state }: PhoneWebcamWorkspaceProps) {
   const supportedTransport = activePc.transportMode === "secure-direct" || activePc.transportMode === "relay";
   const [cameras, setCameras] = useState<CameraChoice[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState("");
   const [permissionGranted, setPermissionGranted] = useState(false);
+  const [permissionLoading, setPermissionLoading] = useState(false);
   const [phase, setPhase] = useState<"idle" | "connecting" | "streaming">("idle");
   const [isCameraViewExpanded, setIsCameraViewExpanded] = useState(false);
   const [status, setStatus] = useState(initialStatus(capability));
   const [quality, setQuality] = useState<SendQuality>({});
   const videoRef = useRef<HTMLVideoElement>(null);
+  const permissionLoadingRef = useRef(false);
   const streamRef = useRef<MediaStream | null>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const senderRef = useRef<RTCRtpSender | null>(null);
@@ -58,6 +61,7 @@ export default function PhoneWebcamWorkspace({ activePc, capability, clientId, c
   const statsTimerRef = useRef<number | undefined>(undefined);
   const restartTimerRef = useRef<number | undefined>(undefined);
   const orientationTimerRef = useRef<number | undefined>(undefined);
+  const startResponseTimerRef = useRef<number | undefined>(undefined);
   const lastStatsRef = useRef<{ bytes: number; framesEncoded?: number; at: number } | null>(null);
   const stalledStatsSamplesRef = useRef(0);
   const stalledRecoveryAfterRef = useRef(0);
@@ -73,6 +77,7 @@ export default function PhoneWebcamWorkspace({ activePc, capability, clientId, c
     window.clearInterval(statsTimerRef.current);
     window.clearTimeout(restartTimerRef.current);
     window.clearTimeout(orientationTimerRef.current);
+    window.clearTimeout(startResponseTimerRef.current);
     renewalTimerRef.current = undefined;
     statsTimerRef.current = undefined;
     lastStatsRef.current = null;
@@ -105,11 +110,14 @@ export default function PhoneWebcamWorkspace({ activePc, capability, clientId, c
   useEffect(() => {releaseRef.current = releaseLocal;}, [releaseLocal]);
 
   const loadCameras = useCallback(async () => {
+    if (permissionLoadingRef.current) {return;}
     if (!navigator.mediaDevices?.getUserMedia || !navigator.mediaDevices.enumerateDevices) {
       setStatus("This browser does not provide camera capture.");
       return;
     }
     let permissionStream: MediaStream | null = null;
+    permissionLoadingRef.current = true;
+    setPermissionLoading(true);
     try {
       permissionStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
       if (document.visibilityState !== "visible") {
@@ -132,6 +140,8 @@ export default function PhoneWebcamWorkspace({ activePc, capability, clientId, c
         : "The phone camera could not be opened.");
     } finally {
       for (const track of permissionStream?.getTracks() ?? []) {track.stop();}
+      permissionLoadingRef.current = false;
+      setPermissionLoading(false);
     }
   }, []);
 
@@ -198,6 +208,11 @@ export default function PhoneWebcamWorkspace({ activePc, capability, clientId, c
       setQuality({ width, height, fps });
       setStatus("Preparing encrypted webcam video…");
       send({ type: "phone.webcam.start", operationId, captureWidth: width, captureHeight: height, captureFps: fps, clientSignature: signature });
+      window.clearTimeout(startResponseTimerRef.current);
+      startResponseTimerRef.current = window.setTimeout(() => {
+        if (operationIdRef.current !== operationId || pendingRef.current?.operationId !== operationId) {return;}
+        releaseRef.current(true, "The PC did not respond to the webcam request.");
+      }, startResponseTimeoutMs);
     } catch (error) {
       if (generationRef.current === generation) {
         releaseLocal(true, error instanceof DOMException && error.name === "NotAllowedError"
@@ -266,7 +281,9 @@ export default function PhoneWebcamWorkspace({ activePc, capability, clientId, c
   const scheduleCredentialRenewal = useCallback((expiresAt?: string | null) => {
     window.clearTimeout(renewalTimerRef.current);
     if (!expiresAt || activePc.transportMode !== "relay") {return;}
-    const delay = new Date(expiresAt).getTime() - Date.now() - 60_000;
+    const expiry = Date.parse(expiresAt);
+    if (!Number.isFinite(expiry)) {return;}
+    const delay = expiry - Date.now() - 60_000;
     renewalTimerRef.current = window.setTimeout(() => {
       if (document.visibilityState !== "visible" || !streamRef.current) {resumeRef.current = true; return;}
       releaseLocal(true, "Refreshing Relay credentials…");
@@ -277,6 +294,8 @@ export default function PhoneWebcamWorkspace({ activePc, capability, clientId, c
   const acceptOffer = useCallback(async (message: Extract<PhoneWebcamServerMessage, { type: "phone.webcam.start.result" }>) => {
     const pending = pendingRef.current;
     if (pending?.operationId !== message.operationId) {return;}
+    window.clearTimeout(startResponseTimerRef.current);
+    startResponseTimerRef.current = undefined;
     const generation = generationRef.current;
     const isCurrent = () => generationRef.current === generation &&
       pendingRef.current === pending &&
@@ -300,12 +319,18 @@ export default function PhoneWebcamWorkspace({ activePc, capability, clientId, c
       releaseLocal(true, "Relay credentials are temporarily unavailable.");
       return;
     }
-    const peer = new RTCPeerConnection({
-      iceServers: message.iceServers ?? [],
-      iceTransportPolicy: relayMode ? "relay" : "all",
-      bundlePolicy: "max-bundle",
-      rtcpMuxPolicy: "require"
-    });
+    let peer: RTCPeerConnection;
+    try {
+      peer = new RTCPeerConnection({
+        iceServers: message.iceServers ?? [],
+        iceTransportPolicy: relayMode ? "relay" : "all",
+        bundlePolicy: "max-bundle",
+        rtcpMuxPolicy: "require"
+      });
+    } catch {
+      releaseLocal(true, "This browser could not create the encrypted webcam connection.");
+      return;
+    }
     peerRef.current = peer;
     peer.addEventListener("connectionstatechange", () => {
       if (peerRef.current !== peer) {return;}
@@ -444,8 +469,11 @@ export default function PhoneWebcamWorkspace({ activePc, capability, clientId, c
       replacementRef.current = ownedReplacement;
       const nextTrack = replacement.getVideoTracks()[0];
       if (!nextTrack) {
+        if (acquiringReplacementGenerationRef.current === replacementGeneration) {acquiringReplacementGenerationRef.current = null;}
         replacementRef.current = null;
         ownedReplacement.stop();
+        if (activeStreamEndedRef.current) {releaseLocal(true, "The active camera stopped while switching cameras.");}
+        else {setSelectedCameraId(previousCameraId); setStatus("The selected camera did not provide video.");}
         return;
       }
       nextTrack.contentHint = "motion";
@@ -599,7 +627,7 @@ export default function PhoneWebcamWorkspace({ activePc, capability, clientId, c
       </div>
 
       <div className="phone-webcam-controls">
-        {!permissionGranted && <button type="button" className="primary-button" disabled={!supportedTransport || !capability.canUse || state !== "paired"} onClick={() => {void loadCameras();}}>Allow camera access</button>}
+        {!permissionGranted && <button type="button" className="primary-button" disabled={permissionLoading || !supportedTransport || !capability.canUse || state !== "paired"} onClick={() => {void loadCameras();}}>{permissionLoading ? "Opening camera…" : "Allow camera access"}</button>}
         {permissionGranted && <label>Camera<select value={selectedCameraId} disabled={phase === "connecting"} onChange={(event) => {void changeCamera(event.target.value);}}>{cameras.map((camera) => <option key={camera.deviceId} value={camera.deviceId}>{camera.label}</option>)}</select></label>}
         <div className="phone-webcam-actions">
           <button type="button" className="primary-button" disabled={!canStart} onClick={() => {void start();}}><Camera aria-hidden="true" />Start</button>

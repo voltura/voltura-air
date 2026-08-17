@@ -41,8 +41,9 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
 
     public void UpsertAndSave(PairingRecord record)
     {
-        Upsert(record);
-        _store.Save(_records);
+        var next = Snapshot();
+        Upsert(next, record);
+        PersistAndPublish(next);
     }
 
     public bool UpdateDeviceDetails(
@@ -78,15 +79,16 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
             return false;
         }
 
-        _records[index] = next;
-        _store.Save(_records);
+        var records = Snapshot();
+        records[index] = next;
+        PersistAndPublish(records);
         return true;
     }
 
     public void AddConnection(string clientId, DateTimeOffset connectedAt)
     {
-        _activeConnections[clientId] = _activeConnections.GetValueOrDefault(clientId) + 1;
         UpdateConnectionTimestamp(clientId, connectedAt);
+        _activeConnections[clientId] = _activeConnections.GetValueOrDefault(clientId) + 1;
     }
 
     public void RemoveConnection(string clientId, DateTimeOffset disconnectedAt)
@@ -97,15 +99,15 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
             return;
         }
 
-        _activeConnections.Remove(clientId);
         UpdateDisconnectionTimestamp(clientId, disconnectedAt);
+        _activeConnections.Remove(clientId);
     }
 
     public void Clear()
     {
+        _store.Clear();
         _records.Clear();
         _activeConnections.Clear();
-        _store.Clear();
     }
 
     public bool SetPointerSpeedOverride(string clientId, int? pointerSpeed)
@@ -123,8 +125,9 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
             return false;
         }
 
-        _records[index] = existing with { PointerSpeedOverride = normalized };
-        _store.Save(_records);
+        var next = Snapshot();
+        next[index] = existing with { PointerSpeedOverride = normalized };
+        PersistAndPublish(next);
         return true;
     }
 
@@ -142,8 +145,9 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
             return false;
         }
 
-        _records[index] = existing with { ShowModeButtonsOverride = showModeButtons };
-        _store.Save(_records);
+        var next = Snapshot();
+        next[index] = existing with { ShowModeButtonsOverride = showModeButtons };
+        PersistAndPublish(next);
         return true;
     }
 
@@ -161,8 +165,9 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
             return false;
         }
 
-        _records[index] = existing with { ControlDepthOverride = controlDepth };
-        _store.Save(_records);
+        var next = Snapshot();
+        next[index] = existing with { ControlDepthOverride = controlDepth };
+        PersistAndPublish(next);
         return true;
     }
 
@@ -180,8 +185,9 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
             return false;
         }
 
-        _records[index] = existing with { CustomScreenViewport = viewport };
-        _store.Save(_records);
+        var next = Snapshot();
+        next[index] = existing with { CustomScreenViewport = viewport };
+        PersistAndPublish(next);
         return true;
     }
 
@@ -200,8 +206,9 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
             return false;
         }
 
-        _records[index] = existing with { PermissionOverrides = normalized };
-        _store.Save(_records);
+        var next = Snapshot();
+        next[index] = existing with { PermissionOverrides = normalized };
+        PersistAndPublish(next);
         return true;
     }
 
@@ -214,13 +221,13 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
         }
 
         var removedClientIds = candidates.Select(device => device.ClientId).ToArray();
-        _records.RemoveAll(record => removedClientIds.Contains(record.ClientId, StringComparer.Ordinal));
+        var next = Snapshot();
+        next.RemoveAll(record => removedClientIds.Contains(record.ClientId, StringComparer.Ordinal));
+        PersistAndPublish(next);
         foreach (var clientId in removedClientIds)
         {
             _activeConnections.Remove(clientId);
         }
-
-        SaveOrClear();
         return removedClientIds;
     }
 
@@ -232,9 +239,10 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
             return false;
         }
 
-        _records.RemoveAt(index);
+        var next = Snapshot();
+        next.RemoveAt(index);
+        PersistAndPublish(next);
         _activeConnections.Remove(clientId);
-        SaveOrClear();
         return true;
     }
 
@@ -313,17 +321,18 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
         })
         .OrderByDescending(device => device.LatestActivityAt)];
 
-    private void Upsert(PairingRecord record)
+    private static void Upsert(List<PairingRecord> records, PairingRecord record)
     {
-        var index = FindIndex(record.ClientId);
+        var index = records.FindIndex(existing =>
+            string.Equals(existing.ClientId, record.ClientId, StringComparison.Ordinal));
         if (index < 0)
         {
-            _records.Add(record);
+            records.Add(record);
             return;
         }
 
-        var existing = _records[index];
-        _records[index] = record with
+        var existing = records[index];
+        records[index] = record with
         {
             AddedAt = existing.AddedAt == default ? record.AddedAt : existing.AddedAt,
             LastConnectedAt = existing.LastConnectedAt,
@@ -349,8 +358,9 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
             return;
         }
 
-        _records[index] = _records[index] with { LastConnectedAt = connectedAt };
-        _store.Save(_records);
+        var next = Snapshot();
+        next[index] = next[index] with { LastConnectedAt = connectedAt };
+        PersistAndPublish(next);
     }
 
     private void UpdateDisconnectionTimestamp(string clientId, DateTimeOffset disconnectedAt)
@@ -361,20 +371,26 @@ internal sealed class PairedDeviceRegistry(PairingStore store)
             return;
         }
 
-        _records[index] = _records[index] with { LastDisconnectedAt = disconnectedAt };
-        _store.Save(_records);
+        var next = Snapshot();
+        next[index] = next[index] with { LastDisconnectedAt = disconnectedAt };
+        PersistAndPublish(next);
     }
 
-    private void SaveOrClear()
+    private List<PairingRecord> Snapshot() => [.. _records];
+
+    private void PersistAndPublish(List<PairingRecord> next)
     {
-        if (_records.Count > 0)
+        if (next.Count > 0)
         {
-            _store.Save(_records);
+            _store.Save(next);
         }
         else
         {
             _store.Clear();
         }
+
+        _records.Clear();
+        _records.AddRange(next);
     }
 
     private int FindIndex(string clientId) =>

@@ -79,6 +79,86 @@ public sealed class HostSettingsRegistryTests : IsolatedHostSettingsTest
     }
 
     [Fact]
+    public void PermissionSaveUsesOneExactJsonValueAndIgnoresLegacyFields()
+    {
+        var expected = HostPermissions.DefaultGlobal with { AllowRemoteInput = false, AllowPhoneWebcam = true };
+        AppPermissionSettings.Save(expected);
+        using var key = Registry.CurrentUser.OpenSubKey(HostSettingsRegistry.SettingsKeyPath, writable: true);
+        Assert.NotNull(key);
+        Assert.IsType<string>(key.GetValue(AppPermissionSettings.ValueName));
+        key.SetValue("AllowRemoteInput", 1, RegistryValueKind.DWord);
+        AppPermissionSettings.RefreshForTests();
+        Assert.Equal(expected, AppPermissionSettings.Load());
+    }
+
+    [Fact]
+    public void MalformedPermissionJsonFailsClosed()
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(HostSettingsRegistry.SettingsKeyPath, writable: true);
+        Assert.NotNull(key);
+        key.SetValue(AppPermissionSettings.ValueName, "{\"allowRemoteInput\":true}", RegistryValueKind.String);
+        AppPermissionSettings.RefreshForTests();
+        HostPermissionSet permissions = AppPermissionSettings.Load();
+        Assert.False(permissions.AllowRemoteInput);
+        Assert.False(permissions.AllowPhoneWebcam);
+        Assert.True(permissions.HideProtectedFileSystemItems);
+    }
+
+    [Fact]
+    public void FailedAtomicPermissionWritePreservesRegistryAndCache()
+    {
+        var original = HostPermissions.DefaultGlobal with { AllowRemoteInput = false };
+        AppPermissionSettings.Save(original);
+        HostSettingsJsonValue.BeforeWriteForTests = (_, _) => throw new IOException("injected write failure");
+        try
+        {
+            Assert.Throws<IOException>(() => AppPermissionSettings.Save(original with { AllowRemoteInput = true }));
+        }
+        finally
+        {
+            HostSettingsJsonValue.BeforeWriteForTests = null;
+        }
+        AppPermissionSettings.RefreshForTests();
+        Assert.Equal(original, AppPermissionSettings.Load());
+    }
+
+    [Fact]
+    public void AwakeStateUsesOneAtomicJsonValueAndMalformedStateIsOff()
+    {
+        var expected = new AwakeState(AwakeMode.Timed, true, 30, DateTimeOffset.Now.AddMinutes(30));
+        AppAwakeSettings.Save(expected);
+        Assert.Equal(expected, AppAwakeSettings.Load());
+        using var key = Registry.CurrentUser.OpenSubKey(HostSettingsRegistry.SettingsKeyPath, writable: true);
+        Assert.NotNull(key);
+        Assert.IsType<string>(key.GetValue(AppAwakeSettings.ValueName));
+        key.SetValue(AppAwakeSettings.ValueName, "{\"mode\":2}", RegistryValueKind.String);
+        Assert.Equal(AwakeMode.Off, AppAwakeSettings.Load().Mode);
+    }
+
+    [Fact]
+    public void PermissionChangeNotifiesEverySubscriberWhenOneFails()
+    {
+        var original = AppPermissionSettings.Load();
+        var laterSubscriberCalled = false;
+        EventHandler failing = (_, _) => throw new InvalidOperationException("injected observer failure");
+        EventHandler later = (_, _) => laterSubscriberCalled = true;
+        AppPermissionSettings.Changed += failing;
+        AppPermissionSettings.Changed += later;
+
+        try
+        {
+            AppPermissionSettings.Save(original with { AllowRemoteInput = !original.AllowRemoteInput });
+            Assert.True(laterSubscriberCalled);
+        }
+        finally
+        {
+            AppPermissionSettings.Changed -= failing;
+            AppPermissionSettings.Changed -= later;
+            AppPermissionSettings.Save(original);
+        }
+    }
+
+    [Fact]
     public void LegacyCursorRecoverySettingIsRemoved()
     {
         using (var key = Registry.CurrentUser.OpenSubKey(HostSettingsRegistry.SettingsKeyPath, writable: true))

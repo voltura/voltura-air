@@ -182,6 +182,9 @@ export class RelayRoomObject extends DurableObject<Environment> {
     if (attachment.role === "host" && !attachment.authenticated) {
       if (!this.canUseHostCandidate(socket, attachment)) return socket.close(relayClose.conflict, "Host authentication superseded or expired");
       if (typeof message !== "string") return socket.close(relayClose.invalid, "Host authentication requires text");
+      if (new TextEncoder().encode(message).length > maximumControlMessageBytes) {
+        return socket.close(relayClose.tooLarge, "Host authentication message is too large");
+      }
       const result = await processHostAuthentication(
         attachment.routeId,
         message,
@@ -375,6 +378,9 @@ export class SecureDirectRoomObject extends DurableObject<Environment> {
     }
 
     const bytes = typeof message === "string" ? new TextEncoder().encode(message) : new Uint8Array(message);
+    if (attachment.role === "secure-device" && bytes.length > maximumInnerMessageBytes) {
+      return socket.close(relayClose.tooLarge, "Secure answer is too large");
+    }
     const rate = consumeRelayRate(attachment.rate, attachment.role === "secure-host" ? "host" : "device", bytes.length);
     attachment.rate = rate.state;
     socket.serializeAttachment(attachment);
@@ -482,7 +488,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function sendBounded(socket: WebSocket, value: string | ArrayBuffer | Uint8Array): boolean {
-  if (socket.bufferedAmount > maximumBufferedBytes) {
+  const byteLength = typeof value === "string"
+    ? new TextEncoder().encode(value).length
+    : value.byteLength;
+  if (socket.bufferedAmount + byteLength > maximumBufferedBytes) {
     socket.close(relayClose.overloaded, "Relay backpressure limit exceeded");
     return false;
   }

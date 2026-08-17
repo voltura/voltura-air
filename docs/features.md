@@ -72,6 +72,12 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 - The Windows host's 3D control effect is a separate appearance preference and
   defaults off. The mobile/device default is on; each paired device can inherit,
   enable, or disable it.
+- Host permissions, network selection, and Awake state each persist as one
+  bounded exact-shape registry JSON value. A failed write leaves the last cached
+  state unchanged. Missing values use defaults; malformed permissions deny
+  remote capabilities, malformed network state returns to automatic Direct,
+  and malformed Awake state is Off. Superseded individual registry fields are
+  not read.
 - Host permissions cover sleep, volume, Screen viewing, Phone webcam, Presentation, file browsing/opening, file changes, application launch, web
   addresses, PC clipboard reads, Lock, Blackout, display off, screen saver,
   sign out, restart, shutdown, Keep awake, and interaction with the host UI.
@@ -161,9 +167,11 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 ### Phone webcam
 
 - Phone webcam is a normal app tool and is not behind Developer mode. The Windows
-  **Phone webcam** page installs or removes the current-user virtual camera with an
-  explicit UAC boundary, reports installation and active-phone state, and previews
-  the same camera exposed to other Windows applications. Installation is optional.
+  **Phone webcam** page reports protected-component status and active-phone state,
+  previews the same camera exposed to other Windows applications, and directs
+  unavailable or mismatched installations to installer maintenance. The optional
+  installer component owns install, repair, and removal through an explicit UAC
+  boundary; the per-user host never elevates its LocalAppData executable.
 - The global **Allow paired devices to use Phone webcam** permission defaults off
   and combines with an inheritable per-device **Use phone as webcam** override.
   Removing a pairing, revoking permission, stopping from the tray, host shutdown,
@@ -547,6 +555,11 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   from authoritative PowerPoint sessions use the selected presentation's
   PowerPoint name and retain its host-only canonical file link.
 - Saved reports stay in the signed-in user's local application data.
+  A bounded manifest is the sole archive inventory: at most 1,000 report entries
+  name content-addressed files and record their length and SHA-256. Store mutations
+  are serialized and journaled across artifact and atomic-manifest replacement;
+  recovery touches only recorded paths. Unknown files are never imported, shown,
+  or deleted, and an unrecognized recovery state leaves the archive unavailable.
   Effective global and per-device Presentation permission gates control,
   session tracking, saved-file launch, and report saves.
 

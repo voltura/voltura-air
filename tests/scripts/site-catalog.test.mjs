@@ -17,12 +17,12 @@ test("catalog ratings require an authenticated user and CSRF token", () => {
   assert.match(endpoint, /ON DUPLICATE KEY UPDATE rating = VALUES\(rating\)/u);
 });
 
-test("ratings migration enforces one bounded vote per account and screen", () => {
-  const migration = read("apps/public-site/screens/migration-002-ratings.sql");
-  assert.match(migration, /PRIMARY KEY \(package_id, user_id\)/u);
-  assert.match(migration, /CHECK \(rating BETWEEN 1 AND 5\)/u);
-  assert.match(migration, /REFERENCES air_screen_packages\(id\) ON DELETE CASCADE/u);
-  assert.match(migration, /REFERENCES air_screen_users\(id\) ON DELETE CASCADE/u);
+test("fresh schema enforces one bounded vote per account and screen", () => {
+  const schema = read("apps/public-site/screens/schema.sql");
+  assert.match(schema, /PRIMARY KEY \(package_id, user_id\)/u);
+  assert.match(schema, /CHECK \(rating BETWEEN 1 AND 5\)/u);
+  assert.match(schema, /REFERENCES air_screen_packages\(id\) ON DELETE CASCADE/u);
+  assert.match(schema, /REFERENCES air_screen_users\(id\) ON DELETE CASCADE/u);
 });
 
 test("catalog access rules deny credentials, SQL, and screen packages", () => {
@@ -30,6 +30,14 @@ test("catalog access rules deny credentials, SQL, and screen packages", () => {
   assert.match(accessRules, /config\\\.php/u);
   assert.match(accessRules, /\\\.sql\$/u);
   assert.match(accessRules, /\\\.volturascreen\$/u);
+});
+
+test("catalog downloads stay inside configured package storage and count completed streams", () => {
+  const endpoint = read("apps/public-site/screens/download.php");
+  assert.match(endpoint, /air_screen_package_path\(\(string\)\$item\['storage_basename'\]\)/u);
+  assert.match(endpoint, /is_file\(\$packagePath\)/u);
+  assert.match(endpoint, /fpassthru\(\$package\)/u);
+  assert.ok(endpoint.indexOf("fpassthru") < endpoint.indexOf("downloads = downloads + 1"));
 });
 
 test("local site development is isolated from production configuration", () => {
@@ -73,19 +81,16 @@ test("uploads always use the exact current screen name field", () => {
   assert.match(upload, /The screen name comes from the package\./u);
 });
 
-test("failed upload persistence removes an uncommitted package file", () => {
+test("upload commit ambiguity is owned by a durable content cleanup job", () => {
   const upload = read("apps/public-site/screens/upload.php");
   const validation = read("apps/public-site/screens/lib.php");
-  assert.match(upload, /\$uncommittedPackagePath = \$path/u);
-  assert.ok(
-    upload.indexOf("$uncommittedPackagePath = $path") <
-      upload.indexOf("$stmt->execute"),
-  );
-  assert.ok(
-    upload.indexOf("$stmt->execute") <
-      upload.indexOf("$uncommittedPackagePath = null", upload.indexOf("$stmt->execute")),
-  );
-  assert.match(upload, /@unlink\(\$uncommittedPackagePath\)/u);
+  assert.match(upload, /air_screen_enqueue_cleanup\(\$database, \$basename, \$sha256\)/u);
+  assert.ok(upload.indexOf("air_screen_enqueue_cleanup") < upload.indexOf("fopen($path, 'x+b')"));
+  assert.match(upload, /DELETE FROM air_screen_cleanup_jobs/u);
+  assert.doesNotMatch(upload, /unlink\(/u);
+  assert.match(validation, /function air_screen_drain_cleanup_jobs/u);
+  assert.match(validation, /hash_mismatch/u);
+  assert.match(validation, /referenced/u);
   assert.match(validation, /count\(\$screen\['assignedClientIds'\]\) !== 0/u);
   assert.doesNotMatch(validation, /AssignedClientIds/u);
   assert.match(validation, /'packageVersion' => 1/u);
@@ -171,7 +176,11 @@ test("administrators can permanently delete a listed screen after confirmation",
   assert.match(endpoint, /DELETE FROM air_screen_reports/u);
   assert.match(endpoint, /DELETE FROM air_screen_ratings/u);
   assert.match(endpoint, /DELETE FROM air_screen_packages/u);
-  assert.match(endpoint, /@rename\(\$stagedPath, \$packagePath\)/u);
+  assert.match(endpoint, /air_screen_enqueue_cleanup\(\$database, \$basename, \$sha256\)/u);
+  assert.match(endpoint, /air_screen_drain_cleanup_jobs\(\)/u);
+  assert.doesNotMatch(endpoint, /rename\(|unlink\(/u);
+  assert.match(endpoint, /air_screen_acquire_advisory_lock\(\$database, 'delete'/u);
+  assert.match(endpoint, /air_screen_release_advisory_lock\(\$database, \$lockName\)/u);
   assert.match(script, /data-delete-dialog-open/u);
   assert.match(script, /data-delete-dialog-close/u);
   assert.match(styles, /button\.catalog-delete-button/u);
@@ -316,6 +325,29 @@ test("production uploads notify catalog administrators after persistence", () =>
   assert.match(library, /@mail\(/u);
 });
 
+test("catalog sessions and daily abuse limits are enforced by current database owners", () => {
+  const library = read("apps/public-site/screens/lib.php");
+  const upload = read("apps/public-site/screens/upload.php");
+  const report = read("apps/public-site/screens/report.php");
+  const login = read("apps/public-site/screens/login.php");
+  const register = read("apps/public-site/screens/register.php");
+  assert.match(library, /session\.use_only_cookies/u);
+  assert.match(library, /session\.use_strict_mode/u);
+  assert.match(library, /SELECT GET_LOCK\(:name, :timeout\)/u);
+  assert.match(library, /SELECT RELEASE_LOCK\(:name\)/u);
+  assert.match(upload, /air_screen_acquire_advisory_lock\(\$database, 'upload'/u);
+  assert.match(upload, /finally/u);
+  assert.match(report, /strtolower\(trim/u);
+  assert.match(report, /air_screen_acquire_advisory_lock\(\$database, 'report'/u);
+  assert.match(report, /finally/u);
+  assert.match(login, /session_regenerate_id\(true\)/u);
+  assert.match(login, /air_screen_rate_consume\('login_email'/u);
+  assert.match(login, /verified_at/u);
+  assert.match(register, /air_screen_rate_consume\('register_email'/u);
+  assert.match(register, /air_screen_verification_tokens/u);
+  assert.match(register, /If that address can be registered/u);
+});
+
 test("screen reports are emailed to Voltura Air after persistence", () => {
   const endpoint = read("apps/public-site/screens/report.php");
   const library = read("apps/public-site/screens/lib.php");
@@ -422,7 +454,6 @@ test("admins can atomically bulk-import the generated official screen bundle", (
   const admin = read("apps/public-site/screens/admin.php");
   const importer = read("apps/public-site/screens/official-import.php");
   const schema = read("apps/public-site/screens/schema.sql");
-  const migration = read("apps/public-site/screens/migration-003-official-screens.sql");
   const library = read("apps/public-site/screens/lib.php");
   assert.match(admin, /action="official-import\.php"/u);
   assert.match(importer, /air_screen_require_admin\(\)/u);
@@ -441,13 +472,19 @@ test("admins can atomically bulk-import the generated official screen bundle", (
   assert.match(importer, /\$db->commit\(\)/u);
   assert.match(importer, /\$db->rollBack\(\)/u);
   assert.match(importer, /air_screen_official_import_failure\('db_rollback'\)/u);
-  assert.match(importer, /\$commitAttempted && !\$rollbackConfirmed/u);
-  assert.match(importer, /\$existingPath === \$finalPath && is_file\(\$finalPath\)/u);
-  assert.match(importer, /hash_equals\(hash\('sha256', \$item\['json'\]\), hash_file\('sha256', \$finalPath\)\)/u);
+  assert.match(importer, /official_source = 'voltura'/u);
+  assert.match(importer, /screen_id = :screenId/u);
+  assert.match(importer, /air_screen_enqueue_cleanup/u);
+  assert.match(importer, /DELETE FROM air_screen_packages WHERE id = :id AND official_source = 'voltura'/u);
+  assert.match(importer, /air_screen_write_content_file\(\$item\['finalPath'\], \$item\['json'\]\)/u);
+  assert.ok(importer.indexOf("air_screen_official_import_failure('stage_write')") < importer.indexOf("SELECT GET_LOCK('voltura_air_official_import', 30)"));
+  assert.match(importer, /hash_equals\(\$item\['hash'\], \(string\)hash_file\('sha256', \$item\['finalPath'\]\)\)/u);
+  assert.match(importer, /air_screen_official_import_failure\('db_committed'\)/u);
   assert.match(importer, /VOLTURA_AIR_OFFICIAL_IMPORT_FAIL/u);
-  assert.match(schema, /official_id VARCHAR\(64\) NULL UNIQUE/u);
+  assert.match(schema, /official_source VARCHAR\(64\) NULL/u);
+  assert.match(schema, /UNIQUE KEY uq_air_screen_official \(official_source, official_id\)/u);
+  assert.match(schema, /screen_id VARCHAR\(64\) NOT NULL/u);
   assert.match(schema, /is_official BOOLEAN NOT NULL DEFAULT FALSE/u);
-  assert.match(migration, /idx_air_screen_official_id/u);
   assert.match(library, /'urlOpen', 'knownApp', 'hostAction'/u);
   assert.doesNotMatch(library.slice(library.indexOf("function air_screen_validate_package")), /'appLaunch'/u);
 });

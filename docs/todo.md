@@ -120,16 +120,16 @@ camera, or the public protocol implementation.
   preview, camera selector, Direct/Relay route status, actual capture/send quality,
   **Start webcam**, and **Stop webcam**. No audio, orientation automation, quality
   settings surface, account UI, or generic media framework.
-- Add a normal Windows **Phone webcam** navigation page with install/status/removal
-  feedback and an in-app preview captured from the same virtual camera exposed to
-  Windows consumers. Add permission, active-phone state, waiting/error state, and a
-  tray stop action using existing host UI composition and settings ownership.
+- Complete representative hardware validation for the normal Windows **Phone
+  webcam** page, its installer-maintenance guidance, the in-app preview captured
+  from the same virtual camera exposed to Windows consumers, permission and
+  active-phone states, and the tray stop action.
 - Compare the packaged and installed native camera payloads. When they differ, show
   the existing camera as outdated and require a safe remove/re-enable cycle; never
   silently retain the first installed media-source DLL across app upgrades.
-- Embed the native media source in the setup helper. Hold a non-replaceable read
-  handle on the running helper across UAC and let the elevated helper extract only
-  its embedded payload; never trust a sibling DLL path after elevation.
+- Retain the embedded, hash-verified media source and fixed protected setup-helper
+  boundary through packaged install/repair/remove validation; never elevate a
+  helper or DLL from the per-user application directory.
 - Treat page hidden as immediate track release. On foreground return, reconnect once
   through the existing connection/session coordinator and make the recovery state
   visible. Camera selection remains stable when the same device ID is still exposed.

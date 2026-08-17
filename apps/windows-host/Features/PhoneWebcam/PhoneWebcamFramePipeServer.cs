@@ -47,10 +47,14 @@ internal sealed class PhoneWebcamLatestFrameQueue : IDisposable
 {
     private readonly Lock _frameLock = new();
     private readonly SemaphoreSlim _frameReady = new(0, 1);
+    private readonly CancellationTokenSource _disposedSignal = new();
     private PhoneWebcamFrame? _latestFrame;
     private bool _hasLatestRecord;
     private ulong _latestSequence;
     private bool _disposed;
+    private int _activeWaiters;
+    private bool _waitResourcesDisposed;
+    private bool _disposeCancellationCompleted;
 
     internal void Publish(PhoneWebcamFrame frame)
     {
@@ -108,23 +112,41 @@ internal sealed class PhoneWebcamLatestFrameQueue : IDisposable
 
     internal async Task<PhoneWebcamFrame?> TakeAsync(CancellationToken cancellationToken)
     {
-        await _frameReady.WaitAsync(cancellationToken).ConfigureAwait(false);
         lock (_frameLock)
         {
-            if (!_hasLatestRecord)
-            {
-                throw new InvalidOperationException("The latest-record signal had no record.");
-            }
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            _activeWaiters += 1;
+        }
 
-            PhoneWebcamFrame? frame = _latestFrame;
-            _latestFrame = null;
-            _hasLatestRecord = false;
-            return frame;
+        CancellationTokenSource? wait = null;
+        try
+        {
+            wait = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposedSignal.Token);
+            await _frameReady.WaitAsync(wait.Token).ConfigureAwait(false);
+            lock (_frameLock)
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                if (!_hasLatestRecord)
+                {
+                    throw new InvalidOperationException("The latest-record signal had no record.");
+                }
+
+                PhoneWebcamFrame? frame = _latestFrame;
+                _latestFrame = null;
+                _hasLatestRecord = false;
+                return frame;
+            }
+        }
+        finally
+        {
+            wait?.Dispose();
+            ReleaseWaiter();
         }
     }
 
     public void Dispose()
     {
+        PhoneWebcamFrame? pending;
         lock (_frameLock)
         {
             if (_disposed)
@@ -133,12 +155,42 @@ internal sealed class PhoneWebcamLatestFrameQueue : IDisposable
             }
 
             _disposed = true;
-            _latestFrame?.Dispose();
+            pending = _latestFrame;
             _latestFrame = null;
             _hasLatestRecord = false;
         }
 
+        pending?.Dispose();
+        _disposedSignal.Cancel();
+        lock (_frameLock)
+        {
+            _disposeCancellationCompleted = true;
+        }
+        DisposeWaitResourcesIfIdle();
+    }
+
+    private void ReleaseWaiter()
+    {
+        lock (_frameLock)
+        {
+            _activeWaiters -= 1;
+        }
+        DisposeWaitResourcesIfIdle();
+    }
+
+    private void DisposeWaitResourcesIfIdle()
+    {
+        lock (_frameLock)
+        {
+            if (!_disposed || !_disposeCancellationCompleted || _activeWaiters != 0 || _waitResourcesDisposed)
+            {
+                return;
+            }
+            _waitResourcesDisposed = true;
+        }
+
         _frameReady.Dispose();
+        _disposedSignal.Dispose();
     }
 }
 
@@ -155,13 +207,26 @@ internal sealed class PhoneWebcamFramePipeServer : IAsyncDisposable
     private readonly CancellationTokenSource _shutdown = new();
     private readonly Task _worker;
     private readonly Func<NamedPipeServerStream> _createPipe;
+    private readonly IDisposable _tokenAccessLease;
+    private readonly Lock _disposeGate = new();
+    private Task? _disposal;
 
     internal PhoneWebcamFramePipeServer(Func<NamedPipeServerStream>? createPipe = null)
     {
-        PhoneWebcamProcessTokenAccess.Grant(_frameServerSid);
-        _createPipe = createPipe ?? CreatePipe;
-        NamedPipeServerStream initialPipe = _createPipe();
-        _worker = RunAsync(initialPipe, _shutdown.Token);
+        _tokenAccessLease = PhoneWebcamProcessTokenAccess.Grant(_frameServerSid);
+        try
+        {
+            _createPipe = createPipe ?? CreatePipe;
+            NamedPipeServerStream initialPipe = _createPipe();
+            _worker = RunAsync(initialPipe, _shutdown.Token);
+        }
+        catch
+        {
+            _frames.Dispose();
+            _shutdown.Dispose();
+            _tokenAccessLease.Dispose();
+            throw;
+        }
     }
 
     internal event Action<PhoneWebcamFramePipeServer, Exception>? Failed;
@@ -180,19 +245,33 @@ internal sealed class PhoneWebcamFramePipeServer : IAsyncDisposable
 
     internal void Clear() => _frames.Clear();
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        await _shutdown.CancelAsync().ConfigureAwait(false);
+        lock (_disposeGate)
+        {
+            return new ValueTask(_disposal ??= DisposeCoreAsync());
+        }
+    }
+
+    private async Task DisposeCoreAsync()
+    {
         try
         {
-            await _worker.ConfigureAwait(false);
+            await _shutdown.CancelAsync().ConfigureAwait(false);
+            try
+            {
+                await _worker.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+            }
         }
-        catch (OperationCanceledException)
+        finally
         {
+            _frames.Dispose();
+            _shutdown.Dispose();
+            _tokenAccessLease.Dispose();
         }
-
-        _frames.Dispose();
-        _shutdown.Dispose();
     }
 
     private async Task RunAsync(NamedPipeServerStream initialPipe, CancellationToken cancellationToken)
@@ -208,15 +287,17 @@ internal sealed class PhoneWebcamFramePipeServer : IAsyncDisposable
                 {
                     await pipe.WaitForConnectionAsync(cancellationToken).ConfigureAwait(false);
                     byte[] handshake = new byte[8];
-                    using var handshakeTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                    handshakeTimeout.CancelAfter(TimeSpan.FromSeconds(2));
-                    try
+                    using (var handshakeTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
                     {
-                        await pipe.ReadExactlyAsync(handshake, handshakeTimeout.Token).ConfigureAwait(false);
-                    }
-                    catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-                    {
-                        throw new InvalidDataException("The virtual camera pipe handshake timed out.");
+                        handshakeTimeout.CancelAfter(TimeSpan.FromSeconds(2));
+                        try
+                        {
+                            await pipe.ReadExactlyAsync(handshake, handshakeTimeout.Token).ConfigureAwait(false);
+                        }
+                        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                        {
+                            throw new InvalidDataException("The virtual camera pipe handshake timed out.");
+                        }
                     }
 
                     AuthenticateClient(pipe);

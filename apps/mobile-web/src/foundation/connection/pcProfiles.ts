@@ -1,5 +1,6 @@
 import { isIpHost } from "../pairing/pcDisplayName";
 import { normalizeHostedPcUrl, normalizePcUrl } from "../pairing/pairingLink";
+import { readLocalStorage, removeLocalStorage, writeLocalStorage } from "../platform/browserStorage";
 
 export const activePcIdKey = "voltura-air.activePcId";
 export const pcProfilesKey = "voltura-air.pcProfiles";
@@ -78,8 +79,8 @@ export function normalizePcProfile(value: unknown): PcProfile | null {
   }
 }
 
-export function loadPcProfiles(storage: Storage = localStorage): PcProfile[] {
-  const stored = storage.getItem(pcProfilesKey);
+export function loadPcProfiles(storage?: Storage): PcProfile[] {
+  const stored = readLocalStorage(pcProfilesKey, storage);
   if (!stored) {
     return [];
   }
@@ -92,12 +93,13 @@ export function loadPcProfiles(storage: Storage = localStorage): PcProfile[] {
   }
 }
 
-export function savePcProfiles(profiles: PcProfile[], storage: Storage = localStorage): void {
-  storage.setItem(pcProfilesKey, JSON.stringify(profiles));
+export function savePcProfiles(profiles: PcProfile[], storage?: Storage): void {
+  const serialized = JSON.stringify(profiles);
+  writeLocalStorage(pcProfilesKey, serialized, storage);
 }
 
-export function loadActivePcId(storage: Storage = localStorage): string | null {
-  const stored = storage.getItem(activePcIdKey);
+export function loadActivePcId(storage?: Storage): string | null {
+  const stored = readLocalStorage(activePcIdKey, storage);
   if (!stored) {
     return null;
   }
@@ -109,11 +111,11 @@ export function applyHostIdentityFromAcceptance(profiles: PcProfile[], pcId: str
   return profiles.map((pc) => pc.id === pcId ? { ...pc, hostIdentityFingerprint: fingerprint, hostIdentityPublicKey: publicKey } : pc);
 }
 
-export function saveActivePcId(pcId: string | null, storage: Storage = localStorage): void {
+export function saveActivePcId(pcId: string | null, storage?: Storage): void {
   if (pcId) {
-    storage.setItem(activePcIdKey, pcId);
+    writeLocalStorage(activePcIdKey, pcId, storage);
   } else {
-    storage.removeItem(activePcIdKey);
+    removeLocalStorage(activePcIdKey, storage);
   }
 }
 

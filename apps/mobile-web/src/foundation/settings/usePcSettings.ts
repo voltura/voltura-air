@@ -10,6 +10,7 @@ import {
   trackpadSettingsKey
 } from "./appStorage";
 import { defaultRemoteSettings, type RemoteModeId } from "./remoteSettings";
+import { writeLocalStorage } from "../platform/browserStorage";
 
 export function usePcSettings(
   clientId: string,
@@ -31,7 +32,7 @@ export function usePcSettings(
 
   useEffect(() => {
     if (trackpadState.storageKey === trackpadStorageKey) {
-      localStorage.setItem(trackpadStorageKey, JSON.stringify(trackpadState.settings));
+      writeLocalStorage(trackpadStorageKey, JSON.stringify(trackpadState.settings));
     }
   }, [trackpadState, trackpadStorageKey]);
 
@@ -41,7 +42,7 @@ export function usePcSettings(
 
   useEffect(() => {
     if (remoteState.storageKey === remoteStorageKey && remoteState.isStored) {
-      localStorage.setItem(remoteStorageKey, JSON.stringify(remoteState.settings));
+      writeLocalStorage(remoteStorageKey, JSON.stringify(remoteState.settings));
     }
   }, [remoteState, remoteStorageKey]);
 
@@ -51,12 +52,12 @@ export function usePcSettings(
 
   useEffect(() => {
     if (appState.storageKey === appStorageKey) {
-      localStorage.setItem(appStorageKey, JSON.stringify(appState.settings));
+      writeLocalStorage(appStorageKey, JSON.stringify(appState.settings));
     }
   }, [appState, appStorageKey]);
 
   useEffect(() => {
-    localStorage.setItem(keyboardSettingsKey(clientId), JSON.stringify(keyboardSettings));
+    writeLocalStorage(keyboardSettingsKey(clientId), JSON.stringify(keyboardSettings));
   }, [clientId, keyboardSettings]);
 
   const trackpadSettings = trackpadState.settings;

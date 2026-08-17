@@ -14,29 +14,23 @@ and release ordering. Public source commands never upload the production site.
 ## Custom-screen catalog
 
 The catalog lives under `apps/public-site/screens` and requires PHP sessions plus a
-MySQL database. Apply `apps/public-site/screens/schema.sql` once, then configure the
-ignored hosting-only `apps/public-site/config.php` with `dsn`, `username`, `password`,
-and `storage_path`. The site `.htaccess` blocks direct access to that file, SQL
-schema and migration files, and `.volturascreen` packages. Site publication
+MySQL database. This release requires a fresh database created from
+`apps/public-site/screens/schema.sql`; application code has no schema migration
+or legacy-format reader. Configure the ignored hosting-only
+`apps/public-site/config.php` with `dsn`, `username`, `password`, `storage_path`,
+and a high-entropy `catalog_secret`. The secret HMACs persistent email/source
+rate-bucket keys and must remain stable. The site `.htaccess` blocks direct access
+to that file, SQL schema files, and `.volturascreen` packages. Site publication
 uploads `.htaccess` before the full directory, including the ignored config
 file. Never commit database credentials or uploaded package files.
 
-Sites initialized before catalog ratings were added must import
-`apps/public-site/screens/migration-002-ratings.sql` once in phpMyAdmin. Fresh databases
-created from the current `schema.sql` already contain that table and must not
-run the migration separately.
-
-Sites initialized before official-screen bulk import was added must import
-`apps/public-site/screens/migration-003-official-screens.sql` once. Fresh databases
-created from the current `schema.sql` already contain those columns and index.
-
-Sites initialized before reviewer feedback was added must run this once in
-phpMyAdmin; no repository migration file is required:
-
-```sql
-ALTER TABLE air_screen_packages
-ADD COLUMN rejection_feedback VARCHAR(1000) NULL AFTER status;
-```
+Accounts require email verification through one hashed 24-hour pending token.
+Login, registration, and resend limits use persistent HMAC-keyed buckets and
+`REMOTE_ADDR`; forwarded headers are not trusted. Catalog package files are
+content-addressed. Upload/delete/import transactions enqueue exact-basename and
+SHA-256 cleanup jobs; ordinary mutations drain a bounded number. Schedule or run
+`php apps/public-site/screens/maintenance.php` for larger idempotent drains.
+Missing files complete a job; referenced or hash-mismatched files remain intact.
 
 Create the first administrator by changing the account's `role` to `admin`
 after registration. Uploads remain pending until approved. The Windows app's
@@ -47,11 +41,11 @@ Generate the official collection with `npm run screens:official`. After every
 included target passes the current Windows 11 smoke matrix, an administrator
 uploads `artifacts/custom-screens/voltura-official-screens.zip` through
 **Moderate** and explicitly confirms that matrix. The importer validates the
-whole manifest and every exact-format package before one transaction; any
-failure rejects the bundle, while stable official IDs preserve ratings and
-download counters on updates. Imports are serialized with a MariaDB advisory
-lock. If commit outcome cannot be proven, content-addressed package files are
-retained so a committed row can never be left without its package.
+whole manifest and every exact-format package before one locked reconciliation;
+any failure rejects the bundle. Provenance is unique by source/official ID,
+user-owned screen-ID collisions reject the import, and stable official rows
+preserve package IDs, ratings, and download counters. Only absent rows carrying
+Voltura provenance are removed, with superseded files passed to the cleanup queue.
 
 ### Local development
 
@@ -71,7 +65,7 @@ The initializer installs missing PHP and MariaDB packages through `winget`.
 MariaDB installation is interactive so the developer controls its local root
 password. Finish that installer before returning to the initializer, then enter
 the same root password when prompted. The command creates the `voltura_air_dev` database and restricted
-development user, applies the catalog schema and outstanding migrations, and
+development user, verifies or applies the current fresh catalog schema, and
 writes ignored configuration and package storage under `.site-dev`. It is safe
 to rerun. Pass a non-default MariaDB port when needed with
 `npm run site:dev:init -- -Port 3307`.

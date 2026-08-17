@@ -74,23 +74,9 @@ If a later removal step fails, the staged DLL and COM registration are restored 
 the current-user camera is recreated. Close all camera consumers before retrying.
 Never manually delete only one of the three states.
 
-The removal transaction can exercise recovery immediately after the DLL is staged:
-
-```powershell
-$env:VOLTURA_WEBCAM_FAULT = 'remove-after-stage'
-& $setup remove
-Remove-Item Env:VOLTURA_WEBCAM_FAULT
-& $setup remove
-```
-
-The first command must fail without deleting the staged DLL; the second removal must
-recover that staged-only state and finish with neither installed nor staged file left.
-`remove-after-camera-remove` simulates a cleanup-only shutdown failure after the
-current-user camera has already been removed; system-file removal must still finish.
-`unregister-after-delete` simulates an unregister failure after deleting the COM tree;
-the helper must restore and verify the complete registration and installed DLL.
-The bounded helper-level assertion runs that exact delete/fail/restore/verify sequence
-against an installed spike camera:
+Production install and remove commands ignore inherited fault-injection environment
+variables. The explicit bounded helper-level assertion exercises the reviewed
+delete/fail/restore/verify sequence against an installed spike camera:
 
 ```powershell
 & $setup test-unregister-rollback

@@ -5,7 +5,7 @@ namespace VolturaAir.Host;
 
 public sealed class PairingStore
 {
-    private const long MaxStoreBytes = 1024 * 1024;
+    private const int MaxStoreBytes = 1024 * 1024;
     private const int MaxRecords = 1024;
     private const int MaxClientIdLength = 128;
     private const int MaxDeviceNameLength = 120;
@@ -27,12 +27,37 @@ public sealed class PairingStore
 
         try
         {
-            if (new FileInfo(_filePath).Length > MaxStoreBytes)
+            using var stream = new FileStream(
+                _filePath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                bufferSize: 4096,
+                FileOptions.SequentialScan);
+            if (stream.Length > MaxStoreBytes)
             {
                 return [];
             }
 
-            var data = JsonSerializer.Deserialize<PairingData>(File.ReadAllText(_filePath), JsonOptions.Default);
+            var buffer = new byte[MaxStoreBytes + 1];
+            var totalRead = 0;
+            while (totalRead < buffer.Length)
+            {
+                var read = stream.Read(buffer, totalRead, buffer.Length - totalRead);
+                if (read == 0)
+                {
+                    break;
+                }
+
+                totalRead += read;
+            }
+
+            if (totalRead > MaxStoreBytes || stream.ReadByte() != -1)
+            {
+                return [];
+            }
+
+            var data = JsonSerializer.Deserialize<PairingData>(buffer.AsSpan(0, totalRead), JsonOptions.Default);
             return [.. DeduplicateValidRecords(data?.Devices ?? [])
                 .Take(MaxRecords)];
         }
@@ -50,7 +75,24 @@ public sealed class PairingStore
             var persistedRecords = DeduplicateValidRecords(records)
                 .TakeLast(MaxRecords)
                 .ToArray();
-            File.WriteAllText(temporaryPath, JsonSerializer.Serialize(new PairingData(persistedRecords), JsonOptions.Default));
+            var data = JsonSerializer.SerializeToUtf8Bytes(new PairingData(persistedRecords), JsonOptions.Default);
+            if (data.Length > MaxStoreBytes)
+            {
+                throw new InvalidDataException($"Pairing data exceeds the {MaxStoreBytes}-byte storage limit.");
+            }
+
+            using (var stream = new FileStream(
+                temporaryPath,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None,
+                bufferSize: 4096,
+                FileOptions.WriteThrough))
+            {
+                stream.Write(data);
+                stream.Flush(flushToDisk: true);
+            }
+
             File.Move(temporaryPath, _filePath, overwrite: true);
         }
         finally

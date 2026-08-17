@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPairingKeyMaterial, signPrivateKeyPayload } from "../../foundation/connection/pairingCredentials";
 import { publishScreenViewResult } from "../../foundation/connection/screenViewResultBus";
@@ -32,10 +33,44 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
+function sourceRequestId(send: ReturnType<typeof vi.fn<(message: ClientMessage) => void>>): string {
+  const request = [...send.mock.calls].reverse().find(([message]) => message.type === "screen.view.sources.get")?.[0];
+  if (request?.type !== "screen.view.sources.get") {throw new Error("Screen source request was not sent.");}
+  return request.operationId;
+}
+
 describe("ScreenViewWorkspace", () => {
+  it("keeps the active pointer overlay in the StrictMode browser preview", () => {
+    vi.stubGlobal("matchMedia", vi.fn(() => ({
+      matches: true,
+      media: "(any-pointer: fine) and (any-hover: hover)",
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    } satisfies MediaQueryList)));
+
+    const { container } = render(<StrictMode><ScreenViewWorkspace
+      activePc={{ customName: false, id: "preview", name: "PC", url: "http://127.0.0.1" }}
+      browserPreviewState="active"
+      capability={{ ...capability, directPointer: { permissionGranted: true } }}
+      clientId="preview-client"
+      onBack={vi.fn()}
+      onOpenKeyboard={vi.fn()}
+      send={vi.fn()}
+      state="paired"
+      trackpadSettings={defaultTrackpadSettings}
+    /></StrictMode>);
+
+    expect(container.querySelector(".screen-view-direct-pointer.active")).not.toBeNull();
+  });
+
   it("opens and requests sources without requiring secure-context randomUUID", async () => {
     const send = vi.fn<(message: ClientMessage) => void>();
     const originalRandomUuid = crypto.randomUUID;
@@ -90,7 +125,7 @@ describe("ScreenViewWorkspace", () => {
     act(() => {
       publishScreenViewResult({
         type: "screen.view.sources.result",
-        operationId: "sources",
+        operationId: sourceRequestId(send),
         succeeded: true,
         message: "Displays are available.",
         sources: [{ id: "display-1", label: "Main display", width: 1920, height: 1080, isPrimary: true }]
@@ -107,6 +142,84 @@ describe("ScreenViewWorkspace", () => {
     }
     expect(startRequest.displayId).toBe("display-1");
     expect(screen.getByRole("status").textContent).toBe("Preparing encrypted WebRTC mirror...");
+  });
+
+  it("stops a host-owned pending capture before allowing a retry after start response timeout", async () => {
+    vi.useFakeTimers();
+    const send = vi.fn<(message: ClientMessage) => void>();
+    const pcId = "http://192.168.1.10:51396";
+    const key = createPairingKeyMaterial();
+    if (!key) {throw new Error("Test key generation is unavailable.");}
+    localStorage.setItem(`voltura-air.reconnect-key.client-test.${pcId}`, key.privateKey);
+    render(<ScreenViewWorkspace
+      activePc={{ customName: false, id: pcId, name: "PC", url: pcId, hostIdentityPublicKey: key.reconnectPublicKey }}
+      capability={capability}
+      clientId="client-test"
+      onBack={vi.fn()}
+      onOpenKeyboard={vi.fn()}
+      send={send}
+      state="paired"
+      trackpadSettings={defaultTrackpadSettings}
+    />);
+    act(() => {
+      publishScreenViewResult({
+        type: "screen.view.sources.result",
+        operationId: sourceRequestId(send),
+        succeeded: true,
+        message: "Displays are available.",
+        sources: [{ id: "display-1", label: "Main display", width: 1920, height: 1080, isPrimary: true }]
+      });
+    });
+
+    await act(() => vi.advanceTimersByTime(10_000));
+
+    const stopRequest = [...send.mock.calls].reverse().find(([message]) => message.type === "screen.view.stop")?.[0];
+    if (stopRequest?.type !== "screen.view.stop") {throw new Error("Timed-out capture was not stopped.");}
+    expect((screen.getByRole("button", { name: /Start/u }) as HTMLButtonElement).disabled).toBe(true);
+    act(() => publishScreenViewResult({
+      type: "screen.view.stop.result",
+      operationId: stopRequest.operationId,
+      succeeded: true,
+      message: "Screen viewing stopped."
+    }));
+    expect((screen.getByRole("button", { name: /Start/u }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("stops the host capture before allowing retry when a successful offer is rejected", () => {
+    const send = vi.fn<(message: ClientMessage) => void>();
+    const pcId = "http://192.168.1.10:51396";
+    const key = createPairingKeyMaterial();
+    if (!key) {throw new Error("Test key generation is unavailable.");}
+    localStorage.setItem(`voltura-air.reconnect-key.client-test.${pcId}`, key.privateKey);
+    render(<ScreenViewWorkspace
+      activePc={{ customName: false, id: pcId, name: "PC", url: pcId, hostIdentityPublicKey: key.reconnectPublicKey }}
+      capability={capability}
+      clientId="client-test"
+      onBack={vi.fn()}
+      onOpenKeyboard={vi.fn()}
+      send={send}
+      state="paired"
+      trackpadSettings={defaultTrackpadSettings}
+    />);
+    act(() => publishScreenViewResult({
+      type: "screen.view.sources.result", operationId: sourceRequestId(send), succeeded: true, message: "Displays are available.",
+      sources: [{ id: "display-1", label: "Main display", width: 1920, height: 1080, isPrimary: true }]
+    }));
+    const startRequest = [...send.mock.calls].reverse().find(([message]) => message.type === "screen.view.start")?.[0];
+    if (startRequest?.type !== "screen.view.start") {throw new Error("Screen start request was not sent.");}
+
+    act(() => publishScreenViewResult({
+      type: "screen.view.start.result", operationId: startRequest.operationId, succeeded: true, message: "Started.",
+      displayId: "display-1", offerSdp: "m=video 9 UDP/TLS/RTP/SAVPF 96\r\na=rtpmap:96 VP8/90000\r\n", hostSignature: "invalid"
+    }));
+
+    const stopRequest = [...send.mock.calls].reverse().find(([message]) => message.type === "screen.view.stop")?.[0];
+    if (stopRequest?.type !== "screen.view.stop") {throw new Error("Rejected host capture was not stopped.");}
+    expect((screen.getByRole("button", { name: /Start/u }) as HTMLButtonElement).disabled).toBe(true);
+    act(() => publishScreenViewResult({
+      type: "screen.view.stop.result", operationId: stopRequest.operationId, succeeded: true, message: "Capture ended."
+    }));
+    expect((screen.getByRole("button", { name: /Start/u }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("keeps the acknowledged display and direct pointer target when a display switch fails", () => {
@@ -135,7 +248,7 @@ describe("ScreenViewWorkspace", () => {
     act(() => {
       publishScreenViewResult({
         type: "screen.view.sources.result",
-        operationId: "sources",
+        operationId: sourceRequestId(send),
         succeeded: true,
         message: "Displays are available.",
         sources: [
@@ -199,7 +312,7 @@ describe("ScreenViewWorkspace", () => {
     act(() => {
       publishScreenViewResult({
         type: "screen.view.sources.result",
-        operationId: "sources",
+        operationId: sourceRequestId(send),
         succeeded: true,
         message: "Displays are available.",
         sources: [{ id: "display-1", label: "Main display", width: 1920, height: 1080, isPrimary: true }]
@@ -228,7 +341,67 @@ describe("ScreenViewWorkspace", () => {
     expect(screen.getByRole("status").textContent).toBe("Preparing encrypted WebRTC mirror...");
   });
 
-  it("clears stale video and input when the PC stops or disallows viewing", () => {
+  it("ignores a failed negotiation after that peer was stopped and a new start began", async () => {
+    let rejectRemoteDescription: ((reason: Error) => void) | null = null;
+    class FailingStalePeerConnection {
+      readonly connectionState: RTCPeerConnectionState = "new";
+      readonly iceGatheringState: RTCIceGatheringState = "new";
+      localDescription: RTCSessionDescriptionInit | null = null;
+      addEventListener() {return undefined;}
+      setRemoteDescription() {
+        return new Promise<void>((_resolve, reject) => {rejectRemoteDescription = reject;});
+      }
+      createAnswer(): Promise<RTCSessionDescriptionInit> {return Promise.resolve({ type: "answer" });}
+      setLocalDescription(description: RTCSessionDescriptionInit) {this.localDescription = description; return Promise.resolve();}
+      close() {return undefined;}
+    }
+    vi.stubGlobal("RTCPeerConnection", FailingStalePeerConnection as unknown as typeof RTCPeerConnection);
+    const send = vi.fn<(message: ClientMessage) => void>();
+    const pcId = "http://192.168.1.10:51396";
+    const clientKey = createPairingKeyMaterial();
+    const hostKey = createPairingKeyMaterial();
+    if (!clientKey || !hostKey) {throw new Error("Test key generation is unavailable.");}
+    localStorage.setItem(`voltura-air.reconnect-key.client-test.${pcId}`, clientKey.privateKey);
+    render(<ScreenViewWorkspace
+      activePc={{ customName: false, id: pcId, name: "PC", url: pcId, hostIdentityPublicKey: hostKey.reconnectPublicKey }}
+      capability={capability}
+      clientId="client-test"
+      onBack={vi.fn()}
+      onOpenKeyboard={vi.fn()}
+      send={send}
+      state="paired"
+      trackpadSettings={defaultTrackpadSettings}
+    />);
+    act(() => publishScreenViewResult({
+      type: "screen.view.sources.result", operationId: sourceRequestId(send), succeeded: true, message: "Displays are available.",
+      sources: [{ id: "display-1", label: "Main display", width: 1920, height: 1080, isPrimary: true }]
+    }));
+    const firstStart = [...send.mock.calls].reverse().find(([message]) => message.type === "screen.view.start")?.[0];
+    if (firstStart?.type !== "screen.view.start") {throw new Error("Screen start request was not sent.");}
+    const offerSdp = "m=video 9 UDP/TLS/RTP/SAVPF 96\r\na=rtpmap:96 H264/90000\r\n";
+    const offerHash = hashScreenSdp(offerSdp);
+    const transcript = `VolturaAir screen-view:offer:v2:client-test:${firstStart.operationId}:display-1:${offerHash}`;
+    const hostSignature = signPrivateKeyPayload(hostKey.privateKey, new TextEncoder().encode(transcript));
+    act(() => publishScreenViewResult({
+      type: "screen.view.start.result", operationId: firstStart.operationId, displayId: "display-1", succeeded: true,
+      message: "Started.", offerSdp, hostSignature
+    }));
+    await waitFor(() => expect(rejectRemoteDescription).not.toBeNull());
+
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    const stopCount = send.mock.calls.filter(([message]) => message.type === "screen.view.stop").length;
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    await act(async () => {
+      rejectRemoteDescription?.(new Error("The stopped peer failed."));
+      await Promise.resolve();
+    });
+
+    expect(send.mock.calls.filter(([message]) => message.type === "screen.view.stop")).toHaveLength(stopCount);
+    expect(screen.getByRole("button", { name: "Stop" })).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toBe("Preparing encrypted WebRTC mirror...");
+  });
+
+  it("ignores a host-ended event that does not own the current view", () => {
     const send = vi.fn<(message: ClientMessage) => void>();
     render(<ScreenViewWorkspace
       activePc={{ customName: false, id: "http://192.168.1.10:51396", name: "PC", url: "http://192.168.1.10:51396" }}
@@ -261,18 +434,14 @@ describe("ScreenViewWorkspace", () => {
     act(() => {
       publishScreenViewResult({
         type: "screen.view.ended",
+        operationId: "stale-operation",
         reason: "permission-revoked",
         message: "The PC stopped screen viewing and disallowed this device."
       });
     });
 
-    expect(screen.getByText("Your PC display appears here")).toBeTruthy();
-    expect(screen.getByRole("status").textContent).toBe("The PC stopped screen viewing and disallowed this device.");
-    expect(screen.getByRole("button", { name: "Click" }).hasAttribute("disabled")).toBe(true);
-    expect(screen.getByRole("button", { name: "Keys" }).hasAttribute("disabled")).toBe(true);
-    expect(document.querySelector(".screen-view-content")?.classList).not.toContain("zoomed");
-    expect(document.querySelector<HTMLElement>(".screen-view-content")?.style.transform).toBe("");
-    expect(screen.queryByRole("button", { name: "Reset screen zoom" })).toBeNull();
+    expect(document.querySelector(".screen-view-content")?.classList).toContain("zoomed");
+    expect(screen.getByRole("button", { name: "Click" }).hasAttribute("disabled")).toBe(false);
   });
 
   it("offers a working user-gesture playback retry when autoplay is blocked", async () => {
@@ -295,7 +464,7 @@ describe("ScreenViewWorkspace", () => {
         this.remoteDescription = description;
         return Promise.resolve();
       }
-      createAnswer(): Promise<RTCSessionDescriptionInit> {return Promise.resolve({ type: "answer", sdp: "answer-sdp" });}
+      createAnswer(): Promise<RTCSessionDescriptionInit> {return Promise.resolve({ type: "answer", sdp: "m=video 9 UDP/TLS/RTP/SAVPF 96\r\na=rtpmap:96 H264/90000\r\n" });}
       setLocalDescription(description: RTCSessionDescriptionInit) {
         this.localDescription = description;
         return Promise.resolve();
@@ -338,7 +507,7 @@ describe("ScreenViewWorkspace", () => {
     act(() => {
       publishScreenViewResult({
         type: "screen.view.sources.result",
-        operationId: "sources",
+        operationId: sourceRequestId(send),
         succeeded: true,
         message: "Displays are available.",
         sources: [{ id: "display-1", label: "Main display", width: 1920, height: 1080, isPrimary: true }]
@@ -349,7 +518,7 @@ describe("ScreenViewWorkspace", () => {
       if (request?.type !== "screen.view.start") {throw new Error("Screen start request was not sent.");}
       return request;
     });
-    const offerSdp = "offer-sdp";
+    const offerSdp = "m=video 9 UDP/TLS/RTP/SAVPF 96\r\na=rtpmap:96 H264/90000\r\n";
     const offerHash = hashScreenSdp(offerSdp);
     const transcript = `VolturaAir screen-view:offer:v2:client-test:${startRequest.operationId}:display-1:${offerHash}`;
     const hostSignature = signPrivateKeyPayload(hostKey.privateKey, new TextEncoder().encode(transcript));
@@ -376,6 +545,28 @@ describe("ScreenViewWorkspace", () => {
       expect(send.mock.calls.some(([message]) => message.type === "screen.view.answer")).toBe(true);
     });
     expect(FakePeerConnection.instance?.iceGatheringState).toBe("gathering");
+    let staleMessageListener: ((event: MessageEvent) => void) | null = null;
+    const staleChannel = {
+      label: "screen-events",
+      binaryType: "blob",
+      close: vi.fn(),
+      addEventListener: (type: string, listener: (event: MessageEvent) => void) => {
+        if (type === "message") {staleMessageListener = listener;}
+      }
+    };
+    act(() => {
+      FakePeerConnection.instance?.emit("datachannel", { channel: staleChannel });
+    });
+    const duplicateChannel = {
+      label: "screen-events",
+      close: vi.fn(),
+      addEventListener: vi.fn()
+    };
+    act(() => {
+      FakePeerConnection.instance?.emit("datachannel", { channel: duplicateChannel });
+    });
+    expect(duplicateChannel.close).toHaveBeenCalledOnce();
+    expect(duplicateChannel.addEventListener).not.toHaveBeenCalled();
     const video = screen.getByLabelText("Mirrored PC display video") as HTMLVideoElement;
     Object.defineProperty(video, "srcObject", { configurable: true, writable: true, value: null });
     act(() => {
@@ -411,6 +602,10 @@ describe("ScreenViewWorkspace", () => {
     });
     expect(screen.queryByRole("button", { name: "Show video" })).toBeNull();
     expect(screen.getByText("Your PC display appears here")).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toBe("Screen video connection was lost. Tap Start to reconnect.");
+    act(() => {
+      staleMessageListener?.(new MessageEvent("message", { data: "stale invalid record" }));
+    });
     expect(screen.getByRole("status").textContent).toBe("Screen video connection was lost. Tap Start to reconnect.");
   });
 

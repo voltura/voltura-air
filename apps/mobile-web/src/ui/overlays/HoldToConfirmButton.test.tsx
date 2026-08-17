@@ -28,4 +28,30 @@ describe("HoldToConfirmButton", () => {
 
     expect(confirm).not.toHaveBeenCalled();
   });
+
+  it("can confirm again after the parent completes a disabled pending cycle", () => {
+    const confirm = vi.fn();
+    const view = render(<HoldToConfirmButton disabled={false} label="shut down PC" onConfirm={confirm} />);
+    const button = screen.getByRole("button", { name: "Hold to shut down pc" });
+    fireEvent.keyDown(button, { key: "Enter" });
+    vi.advanceTimersByTime(1600);
+    expect(confirm).toHaveBeenCalledTimes(1);
+
+    view.rerender(<HoldToConfirmButton disabled label="shut down PC" onConfirm={confirm} />);
+    view.rerender(<HoldToConfirmButton disabled={false} label="shut down PC" onConfirm={confirm} />);
+    fireEvent.keyDown(button, { key: "Enter" });
+    vi.advanceTimersByTime(1600);
+    expect(confirm).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not complete a hold after becoming disabled", () => {
+    const confirm = vi.fn();
+    const view = render(<HoldToConfirmButton disabled={false} label="shut down PC" onConfirm={confirm} />);
+    const button = screen.getByRole("button", { name: "Hold to shut down pc" });
+    fireEvent.keyDown(button, { key: "Enter" });
+    vi.advanceTimersByTime(800);
+    view.rerender(<HoldToConfirmButton disabled label="shut down PC" onConfirm={confirm} />);
+    vi.advanceTimersByTime(1600);
+    expect(confirm).not.toHaveBeenCalled();
+  });
 });

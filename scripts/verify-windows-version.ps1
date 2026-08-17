@@ -135,9 +135,9 @@ Assert-VersionMetadata `
     -ExpectedOriginalFilename 'VolturaAir.CursorWatchdog.exe'
 
 $hostDllCandidates = @(
+    (Join-Path $resolvedPublishDir 'VolturaAir.Host.dll'),
     (Join-Path $repoRoot "apps\windows-host\bin\Release\net10.0-windows\$Runtime\VolturaAir.Host.dll"),
-    (Join-Path $repoRoot "apps\windows-host\bin\Release\net10.0-windows\VolturaAir.Host.dll"),
-    (Join-Path $resolvedPublishDir 'VolturaAir.Host.dll')
+    (Join-Path $repoRoot "apps\windows-host\bin\Release\net10.0-windows\VolturaAir.Host.dll")
 ) | Select-Object -Unique
 
 $hostDllPath = $hostDllCandidates |

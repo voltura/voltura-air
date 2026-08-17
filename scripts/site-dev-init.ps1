@@ -205,6 +205,13 @@ $devPassword = if (Test-Path -LiteralPath $configPath) {
 } else {
     New-DevelopmentPassword
 }
+$catalogSecret = if (Test-Path -LiteralPath $configPath) {
+    $existing = Get-Content -LiteralPath $configPath -Raw
+    $match = [regex]::Match($existing, "'catalog_secret'\s*=>\s*'([a-f0-9]{96})'")
+    if ($match.Success) { $match.Groups[1].Value } else { (New-DevelopmentPassword) + (New-DevelopmentPassword) }
+} else {
+    (New-DevelopmentPassword) + (New-DevelopmentPassword)
+}
 
 $clientArguments = @("--port=$Port", "--user=$RootUser", '--batch', '--skip-column-names')
 $previousPassword = $env:MYSQL_PWD
@@ -228,12 +235,10 @@ try {
         if ($schemaResult.ExitCode -ne 0) { throw 'Could not create the development catalog tables.' }
     }
 
-    $ratingResult = Invoke-MariaDb $maria $databaseArguments 'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = "air_screen_ratings";'
-    if ($ratingResult.ExitCode -ne 0) { throw 'Could not inspect the ratings migration state.' }
-    if ([int]$ratingResult.Output.Trim() -eq 0) {
-        $migration = Get-Content -LiteralPath (Join-Path $repoRoot 'apps\public-site\screens\migration-002-ratings.sql') -Raw
-        $migrationResult = Invoke-MariaDb $maria $databaseArguments $migration
-        if ($migrationResult.ExitCode -ne 0) { throw 'Could not apply the ratings migration.' }
+    $currentSchemaResult = Invoke-MariaDb $maria $databaseArguments 'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN ("air_screen_users", "air_screen_packages", "air_screen_reports", "air_screen_ratings", "air_screen_verification_tokens", "air_screen_rate_buckets", "air_screen_cleanup_jobs");'
+    if ($currentSchemaResult.ExitCode -ne 0) { throw 'Could not inspect the development catalog schema.' }
+    if ([int]$currentSchemaResult.Output.Trim() -ne 7) {
+        throw 'The development catalog uses a superseded schema. Clear the development database explicitly, then rerun site:dev:init.'
     }
 
 } finally {
@@ -249,6 +254,7 @@ return [
     'username' => '$databaseUser',
     'password' => '$devPassword',
     'storage_path' => '$escapedStorage',
+    'catalog_secret' => '$catalogSecret',
 ];
 "@
 [IO.File]::WriteAllText($configPath, $config, [Text.UTF8Encoding]::new($false))

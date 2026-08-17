@@ -5,17 +5,10 @@ air_screen_require_csrf();
 
 const AIR_SCREEN_OFFICIAL_MAX_BUNDLE_BYTES = 128 * 1024 * 1024;
 
-$stagedPaths = [];
-$installedPaths = [];
 $oldPaths = [];
 $db = air_screen_db();
 $lockAcquired = false;
-$commitAttempted = false;
-$rollbackConfirmed = false;
 try {
-    $lockStatement = $db->query("SELECT GET_LOCK('voltura_air_official_import', 30)");
-    $lockAcquired = (int)$lockStatement->fetchColumn() === 1;
-    if (!$lockAcquired) { throw new RuntimeException('Another official import is still running.'); }
     if (($_POST['smoke_confirmed'] ?? '') !== '1') {
         throw new InvalidArgumentException('Confirm the current Windows 11 smoke-test matrix before publishing official screens.');
     }
@@ -119,66 +112,77 @@ try {
         throw new InvalidArgumentException('The bundle contains files not declared by catalog.json.');
     }
 
-    $existingStatement = $db->query("SELECT id, official_id, storage_path FROM air_screen_packages WHERE is_official = TRUE AND official_id IS NOT NULL");
-    $existing = [];
-    foreach ($existingStatement->fetchAll() as $row) { $existing[(string)$row['official_id']] = $row; }
-    $storage = air_screen_storage_path();
-    $storageRoot = realpath($storage);
-    if ($storageRoot === false) { throw new RuntimeException('The official package storage is unavailable.'); }
     foreach ($validated as &$item) {
-        $item['id'] = isset($existing[$item['officialId']]) ? (string)$existing[$item['officialId']]['id'] : air_screen_uuid();
-        $hash = substr(hash('sha256', $item['json']), 0, 16);
-        $finalPath = $storage . DIRECTORY_SEPARATOR . $item['id'] . '.official.' . $hash . '.volturascreen';
-        $existingPath = isset($existing[$item['officialId']])
-            ? (string)$existing[$item['officialId']]['storage_path']
-            : null;
-        if ($existingPath === $finalPath && is_file($finalPath)) {
-            $resolvedFinalPath = realpath($finalPath);
-            if ($resolvedFinalPath === false || dirname($resolvedFinalPath) !== $storageRoot) {
-                throw new RuntimeException('An existing official package path is invalid.');
+        $item['hash'] = hash('sha256', $item['json']);
+        $item['basename'] = $item['hash'] . '.volturascreen';
+        $item['finalPath'] = air_screen_package_path($item['basename']);
+        if (is_file($item['finalPath'])) {
+            $existingHash = hash_file('sha256', $item['finalPath']);
+            if (!is_string($existingHash) || !hash_equals($item['hash'], $existingHash)) {
+                throw new RuntimeException('An official package content address is occupied by different bytes.');
             }
-            if (!hash_equals(hash('sha256', $item['json']), hash_file('sha256', $finalPath))) {
-                throw new RuntimeException('An existing official package file failed its content check.');
-            }
-            $item['path'] = $finalPath;
             continue;
         }
-        if (is_file($finalPath)) {
-            throw new RuntimeException('An official package file already exists outside the current catalog record.');
-        }
-        $stagedPath = $finalPath . '.' . bin2hex(random_bytes(8)) . '.tmp';
-        if (file_put_contents($stagedPath, $item['json'], LOCK_EX) === false) { throw new RuntimeException('An official package could not be staged.'); }
-        $stagedPaths[] = $stagedPath;
+        $db->beginTransaction();
+        air_screen_enqueue_cleanup($db, $item['basename'], $item['hash']);
+        $db->commit();
+        air_screen_write_content_file($item['finalPath'], $item['json']);
         air_screen_official_import_failure('stage_write');
-        if (!rename($stagedPath, $finalPath)) { throw new RuntimeException('An official package could not be installed.'); }
-        $stagedPaths = array_values(array_diff($stagedPaths, [$stagedPath]));
-        $installedPaths[] = $finalPath;
-        $item['path'] = $finalPath;
-        if ($existingPath !== null && $existingPath !== $finalPath) {
-            $resolvedOldPath = realpath($existingPath);
-            $expectedName = '/^' . preg_quote($item['id'], '/') . '\.official\.[a-f0-9]{16}\.volturascreen$/D';
-            if ($resolvedOldPath === false || dirname($resolvedOldPath) !== $storageRoot || !preg_match($expectedName, basename($resolvedOldPath))) {
-                throw new RuntimeException('An existing official package path is invalid.');
-            }
-            $oldPaths[] = $resolvedOldPath;
+    }
+    unset($item);
+
+    $lockStatement = $db->query("SELECT GET_LOCK('voltura_air_official_import', 30)");
+    $lockAcquired = (int)$lockStatement->fetchColumn() === 1;
+    if (!$lockAcquired) { throw new RuntimeException('Another official import is still running.'); }
+
+    $existingStatement = $db->query("SELECT id, official_id, storage_basename FROM air_screen_packages WHERE official_source = 'voltura' AND official_id IS NOT NULL");
+    $existing = [];
+    foreach ($existingStatement->fetchAll() as $row) { $existing[(string)$row['official_id']] = $row; }
+    $collision = $db->prepare("SELECT id FROM air_screen_packages WHERE screen_id = :screenId AND (official_source IS NULL OR official_source <> 'voltura') LIMIT 1");
+    foreach ($validated as &$item) {
+        $collision->execute(['screenId' => $item['officialId']]);
+        if ($collision->fetchColumn() !== false) {
+            throw new RuntimeException('An official screen identifier collides with a user-owned package.');
+        }
+        $item['id'] = isset($existing[$item['officialId']]) ? (string)$existing[$item['officialId']]['id'] : air_screen_uuid();
+        $existingBasename = isset($existing[$item['officialId']])
+            ? (string)$existing[$item['officialId']]['storage_basename']
+            : null;
+        if (is_file($item['finalPath'])) {
+            if (!hash_equals($item['hash'], (string)hash_file('sha256', $item['finalPath'])))
+                throw new RuntimeException('An official package content address is occupied by different bytes.');
+        } else {
+            throw new RuntimeException('A staged official package is missing.');
+        }
+        if ($existingBasename !== null && $existingBasename !== $item['basename']) {
+            $oldPaths[$existingBasename] = substr($existingBasename, 0, 64);
         }
         air_screen_official_import_failure('install_rename');
     }
     unset($item);
 
     $db->beginTransaction();
-    $statement = $db->prepare('INSERT INTO air_screen_packages (id, owner_id, name, description, tags, package_version, screen_json, storage_path, status, approved_at, official_id, is_official, official_metadata) VALUES (:id, :owner, :name, :description, :tags, 1, :json, :path, \'approved\', CURRENT_TIMESTAMP, :officialId, TRUE, :metadata) ON DUPLICATE KEY UPDATE owner_id = VALUES(owner_id), name = VALUES(name), description = VALUES(description), tags = VALUES(tags), package_version = 1, screen_json = VALUES(screen_json), storage_path = VALUES(storage_path), status = \'approved\', rejection_feedback = NULL, approved_at = CURRENT_TIMESTAMP, is_official = TRUE, official_metadata = VALUES(official_metadata)');
+    $statement = $db->prepare('INSERT INTO air_screen_packages (id, owner_id, name, description, tags, package_version, screen_json, storage_basename, status, approved_at, screen_id, official_source, official_id, is_official, official_metadata) VALUES (:id, :owner, :name, :description, :tags, 1, :json, :basename, \'approved\', CURRENT_TIMESTAMP, :screenId, \'voltura\', :officialId, TRUE, :metadata) ON DUPLICATE KEY UPDATE owner_id = VALUES(owner_id), name = VALUES(name), description = VALUES(description), tags = VALUES(tags), package_version = 1, screen_json = VALUES(screen_json), storage_basename = VALUES(storage_basename), status = \'approved\', rejection_feedback = NULL, approved_at = CURRENT_TIMESTAMP, screen_id = VALUES(screen_id), official_source = \'voltura\', is_official = TRUE, official_metadata = VALUES(official_metadata)');
     foreach ($validated as $item) {
-        $statement->execute(['id' => $item['id'], 'owner' => $admin['id'], 'name' => $item['name'], 'description' => $item['description'], 'tags' => $item['tags'], 'json' => $item['json'], 'path' => $item['path'], 'officialId' => $item['officialId'], 'metadata' => $item['metadata']]);
+        $statement->execute(['id' => $item['id'], 'owner' => $admin['id'], 'name' => $item['name'], 'description' => $item['description'], 'tags' => $item['tags'], 'json' => $item['json'], 'basename' => $item['basename'], 'screenId' => $item['officialId'], 'officialId' => $item['officialId'], 'metadata' => $item['metadata']]);
+        $db->prepare('DELETE FROM air_screen_cleanup_jobs WHERE storage_basename = :basename AND expected_sha256 = :hash')
+            ->execute(['basename' => $item['basename'], 'hash' => substr($item['basename'], 0, 64)]);
         air_screen_official_import_failure('db_upsert');
     }
-    air_screen_official_import_failure('db_commit');
-    $commitAttempted = true;
-    $db->commit();
-
-    foreach (array_unique($oldPaths) as $oldPath) {
-        if (is_file($oldPath) && !unlink($oldPath)) { error_log('Voltura Air official import left an obsolete package file: ' . $oldPath); }
+    $suppliedIds = array_column($validated, 'officialId');
+    foreach ($existing as $officialId => $row) {
+        if (in_array($officialId, $suppliedIds, true)) continue;
+        $db->prepare('DELETE FROM air_screen_reports WHERE package_id = :id')->execute(['id' => $row['id']]);
+        $db->prepare("DELETE FROM air_screen_packages WHERE id = :id AND official_source = 'voltura' AND official_id = :officialId")
+            ->execute(['id' => $row['id'], 'officialId' => $officialId]);
+        $oldPaths[(string)$row['storage_basename']] = substr((string)$row['storage_basename'], 0, 64);
     }
+    foreach ($oldPaths as $basename => $hash) air_screen_enqueue_cleanup($db, $basename, $hash);
+    air_screen_official_import_failure('db_commit');
+    $db->commit();
+    air_screen_official_import_failure('db_committed');
+
+    air_screen_drain_cleanup_jobs();
     $db->query("SELECT RELEASE_LOCK('voltura_air_official_import')");
     $lockAcquired = false;
     air_screen_redirect('admin.php?officialImported=' . count($validated));
@@ -187,15 +191,12 @@ try {
         try {
             air_screen_official_import_failure('db_rollback');
             $db->rollBack();
-            $rollbackConfirmed = true;
         } catch (Throwable $rollbackException) {
             error_log('Voltura Air official import rollback failed: ' . $rollbackException->getMessage());
         }
     }
-    $cleanupPaths = $commitAttempted && !$rollbackConfirmed ? $stagedPaths : array_merge($stagedPaths, $installedPaths);
-    foreach ($cleanupPaths as $path) {
-        if (is_file($path) && !@unlink($path)) { error_log('Voltura Air official import cleanup failed: ' . $path); }
-    }
+    try { air_screen_drain_cleanup_jobs(); }
+    catch (Throwable $cleanupException) { error_log('Voltura Air official import cleanup drain failed: ' . $cleanupException::class); }
     if ($lockAcquired) {
         try { $db->query("SELECT RELEASE_LOCK('voltura_air_official_import')"); $lockAcquired = false; }
         catch (Throwable $lockException) { error_log('Voltura Air official import lock release failed: ' . $lockException->getMessage()); }
@@ -214,6 +215,19 @@ function air_screen_official_import_failure(string $boundary): void
     $failures = array_filter(array_map('trim', explode(',', (string)getenv('VOLTURA_AIR_OFFICIAL_IMPORT_FAIL'))));
     if (getenv('VOLTURA_AIR_SITE_DEV') && in_array($boundary, $failures, true)) {
         throw new RuntimeException('Injected official import failure at ' . $boundary . '.');
+    }
+}
+
+function air_screen_write_content_file(string $path, string $contents): void
+{
+    $stream = fopen($path, 'x+b');
+    if ($stream === false) throw new RuntimeException('An official package could not be staged.');
+    try {
+        if (fwrite($stream, $contents) !== strlen($contents) || !fflush($stream) || (function_exists('fsync') && !fsync($stream))) {
+            throw new RuntimeException('An official package could not be staged.');
+        }
+    } finally {
+        fclose($stream);
     }
 }
 

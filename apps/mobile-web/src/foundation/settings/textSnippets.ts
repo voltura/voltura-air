@@ -1,3 +1,5 @@
+import { readLocalStorage, writeLocalStorage } from "../platform/browserStorage";
+
 export const maxSavedSnippets = 20;
 export const maxSnippetLength = 4096;
 const maxSnippetNameLength = 60;
@@ -14,7 +16,7 @@ export function textSnippetsKey(clientId: string): string {
 
 export function loadTextSnippets(clientId: string): SavedTextSnippet[] {
   try {
-    const value: unknown = JSON.parse(localStorage.getItem(textSnippetsKey(clientId)) ?? "[]");
+    const value: unknown = JSON.parse(readLocalStorage(textSnippetsKey(clientId)) ?? "[]");
     if (!Array.isArray(value)) {
       return [];
     }
@@ -41,7 +43,7 @@ export function loadTextSnippets(clientId: string): SavedTextSnippet[] {
 }
 
 export function saveTextSnippets(clientId: string, snippets: SavedTextSnippet[]): void {
-  localStorage.setItem(textSnippetsKey(clientId), JSON.stringify(snippets.slice(0, maxSavedSnippets)));
+  writeLocalStorage(textSnippetsKey(clientId), JSON.stringify(snippets.slice(0, maxSavedSnippets)));
 }
 
 export function normalizeSnippetName(value: string): string {

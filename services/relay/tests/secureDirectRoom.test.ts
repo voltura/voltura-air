@@ -5,6 +5,8 @@ import {
   deriveRouteId,
   encodeBase64Url,
   encodeEnvelope,
+  maximumControlMessageBytes,
+  maximumInnerMessageBytes,
   maximumDevicesPerRoom,
   relayClose,
   relayEnvelopeKind
@@ -143,6 +145,23 @@ describe("Secure Direct room", () => {
     expect(context.getWebSockets("secure-device")).toHaveLength(maximumDevicesPerRoom);
   });
 
+  it("rejects oversized authentication and answer messages at the room boundary", async () => {
+    const context = new TestContext();
+    const room = new worker.SecureDirectRoomObject(context as never, {} as never);
+    await room.fetch(internalRequest("secure-host", "A".repeat(22)));
+    const host = context.getWebSockets("secure-host")[0]!;
+    await room.webSocketMessage(host as unknown as WebSocket, "x".repeat(maximumControlMessageBytes + 1));
+    expect(host.closeCode).toBe(relayClose.tooLarge);
+
+    const authenticated = await authenticatedRoom();
+    await authenticated.room.fetch(internalRequest("secure-device", authenticated.routeId));
+    const device = authenticated.context.getWebSockets("secure-device")[0]!;
+    await authenticated.room.webSocketMessage(
+      device as unknown as WebSocket,
+      "x".repeat(maximumInnerMessageBytes + 1));
+    expect(device.closeCode).toBe(relayClose.tooLarge);
+  });
+
   it("expires pending devices and closes only pending devices when the host disconnects", async () => {
     const { room, context, host, routeId } = await authenticatedRoom();
     await room.fetch(internalRequest("secure-device", routeId));
@@ -165,6 +184,19 @@ describe("Secure Direct room", () => {
 });
 
 describe("Worker route isolation", () => {
+  it("rejects oversized Relay host authentication before parsing", async () => {
+    const context = new TestContext();
+    const room = new worker.RelayRoomObject(context as never, {} as never);
+    const routeId = "A".repeat(22);
+    const response = await room.fetch({ url: `https://relay.internal/connect?role=host&route=${routeId}` } as Request);
+    expect(response.status).toBe(101);
+    const host = context.getWebSockets("host")[0]!;
+
+    await room.webSocketMessage(host as unknown as WebSocket, "x".repeat(maximumControlMessageBytes + 1));
+
+    expect(host.closeCode).toBe(relayClose.tooLarge);
+  });
+
   it("keeps the existing Relay route on RELAY_ROOMS", async () => {
     const relayFetch = vi.fn(async () => new TestResponse(null, { status: 101 }) as unknown as Response);
     const secureFetch = vi.fn(async () => new TestResponse(null, { status: 101 }) as unknown as Response);

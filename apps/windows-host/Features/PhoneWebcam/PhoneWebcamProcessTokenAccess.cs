@@ -11,34 +11,79 @@ internal static partial class PhoneWebcamProcessTokenAccess
     private const int TokenQuery = 0x00000008;
     private const int ReadControl = 0x00020000;
     private const int WriteDac = 0x00040000;
+    private static readonly Lock LeaseGate = new();
+    private static SecurityIdentifier? _leasedServiceSid;
+    private static byte[]? _processDescriptor;
+    private static byte[]? _tokenDescriptor;
+    private static nint _token;
+    private static int _leaseCount;
+    private static readonly AsyncLocal<Func<string, Exception?>?> RestoreFailureForTests = new();
 
-    internal static void Grant(SecurityIdentifier serviceSid)
+    internal static IDisposable Grant(SecurityIdentifier serviceSid)
     {
         ArgumentNullException.ThrowIfNull(serviceSid);
-        nint process = GetCurrentProcess();
-        Grant(process, serviceSid, ProcessQueryLimitedInformation, "host process");
+        lock (LeaseGate)
+        {
+            if (_leaseCount > 0)
+            {
+                if (_leasedServiceSid != serviceSid)
+                {
+                    throw new InvalidOperationException("The host token-access lease is already owned by another service SID.");
+                }
 
-        if (!OpenProcessToken(process, TokenQuery | ReadControl | WriteDac, out nint token))
-        {
-            throw new InvalidOperationException($"Could not open the host token security descriptor ({Marshal.GetLastPInvokeError()}).");
-        }
+                _leaseCount += 1;
+                return new AccessLease();
+            }
 
-        try
-        {
-            Grant(token, serviceSid, TokenQuery, "host token");
-        }
-        finally
-        {
-            CloseHandle(token);
+            if (_leasedServiceSid is not null)
+            {
+                RestorePendingLease();
+            }
+
+            nint process = GetCurrentProcess();
+            byte[] processDescriptor = ReadDescriptor(process, "host process");
+            _leasedServiceSid = serviceSid;
+            _processDescriptor = processDescriptor;
+            try
+            {
+                Grant(process, processDescriptor, serviceSid, ProcessQueryLimitedInformation, "host process");
+                if (!OpenProcessToken(process, TokenQuery | ReadControl | WriteDac, out nint token))
+                {
+                    throw new InvalidOperationException($"Could not open the host token security descriptor ({Marshal.GetLastPInvokeError()}).");
+                }
+
+                _token = token;
+                byte[] tokenDescriptor = ReadDescriptor(token, "host token");
+                _tokenDescriptor = tokenDescriptor;
+                Grant(token, tokenDescriptor, serviceSid, TokenQuery, "host token");
+                _leaseCount = 1;
+                return new AccessLease();
+            }
+            catch (Exception grantFailure)
+            {
+                try
+                {
+                    RestorePendingLease();
+                }
+                catch (Exception restoreFailure)
+                {
+                    throw new AggregateException(
+                        "Phone webcam token access failed and its ACL rollback also failed.",
+                        grantFailure,
+                        restoreFailure);
+                }
+
+                throw;
+            }
         }
     }
 
-    private static void Grant(nint handle, SecurityIdentifier serviceSid, int accessMask, string objectName)
+    private static byte[] ReadDescriptor(nint handle, string objectName)
     {
         GetKernelObjectSecurity(handle, DaclSecurityInformation, null, 0, out uint required);
         if (required == 0)
         {
-            throw new InvalidOperationException("The host process security descriptor is unavailable.");
+            throw new InvalidOperationException($"The {objectName} security descriptor is unavailable.");
         }
 
         byte[] descriptorBytes = new byte[required];
@@ -47,8 +92,25 @@ internal static partial class PhoneWebcamProcessTokenAccess
             throw new InvalidOperationException($"Could not read the {objectName} security descriptor ({Marshal.GetLastPInvokeError()}).");
         }
 
+        return descriptorBytes;
+    }
+
+    private static void Grant(
+        nint handle,
+        byte[] descriptorBytes,
+        SecurityIdentifier serviceSid,
+        int accessMask,
+        string objectName)
+    {
         var descriptor = new RawSecurityDescriptor(descriptorBytes, 0);
-        RawAcl dacl = descriptor.DiscretionaryAcl ?? new RawAcl(GenericAcl.AclRevision, 1);
+        // A null DACL intentionally grants everyone full access. Replacing it with
+        // an ACL containing only the Frame Server ACE would revoke every other
+        // caller and is unnecessary because the requested access is already granted.
+        if (descriptor.DiscretionaryAcl is null)
+        {
+            return;
+        }
+        RawAcl dacl = descriptor.DiscretionaryAcl;
         for (int index = 0; index < dacl.Count; index += 1)
         {
             if (dacl[index] is CommonAce existing &&
@@ -73,6 +135,108 @@ internal static partial class PhoneWebcamProcessTokenAccess
         if (!SetKernelObjectSecurity(handle, DaclSecurityInformation, updated))
         {
             throw new InvalidOperationException($"Could not authorize Frame Server to query the {objectName} ({Marshal.GetLastPInvokeError()}).");
+        }
+    }
+
+    private static void Restore(nint handle, byte[] descriptor, string objectName)
+    {
+        if (RestoreFailureForTests.Value?.Invoke(objectName) is { } injectedFailure)
+        {
+            throw injectedFailure;
+        }
+        if (!SetKernelObjectSecurity(handle, DaclSecurityInformation, descriptor))
+        {
+            throw new InvalidOperationException($"Could not restore the {objectName} security descriptor ({Marshal.GetLastPInvokeError()}).");
+        }
+    }
+
+    private static void Release()
+    {
+        lock (LeaseGate)
+        {
+            if (_leaseCount <= 0)
+            {
+                return;
+            }
+            if (_leaseCount > 1)
+            {
+                _leaseCount -= 1;
+                return;
+            }
+
+            RestorePendingLease();
+            _leaseCount = 0;
+        }
+    }
+
+    private static void RestorePendingLease()
+    {
+        byte[] processDescriptor = _processDescriptor
+            ?? throw new InvalidOperationException("The host token-access lease lost its process descriptor.");
+        nint token = _token;
+        byte[]? tokenDescriptor = _tokenDescriptor;
+
+        List<Exception>? failures = null;
+        if (token != 0 && tokenDescriptor is not null)
+        {
+            try
+            {
+                Restore(token, tokenDescriptor, "host token");
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+            }
+        }
+
+        try
+        {
+            Restore(GetCurrentProcess(), processDescriptor, "host process");
+        }
+        catch (Exception exception)
+        {
+            (failures ??= []).Add(exception);
+        }
+
+        if (failures is not null)
+        {
+            throw new AggregateException("Could not restore the host token-access ACL lease.", failures);
+        }
+
+        _leasedServiceSid = null;
+        _processDescriptor = null;
+        _tokenDescriptor = null;
+        _token = 0;
+        if (token != 0) CloseHandle(token);
+    }
+
+    internal static int ActiveLeaseCountForTests
+    {
+        get { lock (LeaseGate) return _leaseCount; }
+    }
+
+    internal static void SetRestoreFailureForTests(Func<string, Exception?>? failure)
+    {
+        RestoreFailureForTests.Value = failure;
+    }
+
+    private sealed class AccessLease : IDisposable
+    {
+        private readonly Lock _disposeGate = new();
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            lock (_disposeGate)
+            {
+                if (_disposed)
+                {
+                    return;
+                }
+
+                Release();
+                _disposed = true;
+            }
         }
     }
 

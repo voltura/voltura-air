@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type React from "react";
 import { liveKeyboardSentinel } from "../../../foundation/input/keyboardDelta";
 import type { KeyboardInputMode } from "./KeyboardInputModeButtons";
@@ -27,12 +27,13 @@ export function useKeyboardModeController({
   const repeatTimeoutRef = useRef<number | null>(null);
   const repeatIntervalRef = useRef<number | null>(null);
   const ignoreNextClickRef = useRef(false);
+  const repeatPointerActiveRef = useRef(false);
   const liveKeyboardRef = useRef(liveKeyboard);
   const sendSpecialRef = useRef(sendSpecial);
   const [keyboardInputMode, setKeyboardInputMode] = useState<KeyboardInputMode>("text");
   const liveTypingId = useId();
 
-  const stopRepeatingKey = () => {
+  const stopRepeatingKey = useCallback(() => {
     if (repeatTimeoutRef.current !== null) {
       window.clearTimeout(repeatTimeoutRef.current);
       repeatTimeoutRef.current = null;
@@ -42,27 +43,32 @@ export function useKeyboardModeController({
       window.clearInterval(repeatIntervalRef.current);
       repeatIntervalRef.current = null;
     }
-  };
+  }, []);
+
+  const cancelRepeatingKey = useCallback(() => {
+    stopRepeatingKey();
+    ignoreNextClickRef.current = false;
+  }, [stopRepeatingKey]);
 
   useEffect(() => {
     const stopOnVisibilityLoss = () => {
       if (document.visibilityState === "hidden") {
-        stopRepeatingKey();
+        cancelRepeatingKey();
       }
     };
-    window.addEventListener("blur", stopRepeatingKey);
+    window.addEventListener("blur", cancelRepeatingKey);
     document.addEventListener("visibilitychange", stopOnVisibilityLoss);
     return () => {
-      window.removeEventListener("blur", stopRepeatingKey);
+      window.removeEventListener("blur", cancelRepeatingKey);
       document.removeEventListener("visibilitychange", stopOnVisibilityLoss);
       stopRepeatingKey();
     };
-  }, []);
+  }, [cancelRepeatingKey, stopRepeatingKey]);
 
   useEffect(() => {
     liveKeyboardRef.current = liveKeyboard;
     stopRepeatingKey();
-  }, [liveKeyboard]);
+  }, [liveKeyboard, stopRepeatingKey]);
 
   useEffect(() => {
     sendSpecialRef.current = sendSpecial;
@@ -177,7 +183,7 @@ export function useKeyboardModeController({
       }
 
       if (start > 0) {
-        const nextCaret = start - 1;
+        const nextCaret = previousTextBoundary(currentText, start);
         setLiveKeyboardText(`${currentText.slice(0, nextCaret)}${currentText.slice(end)}`, nextCaret);
       }
       return;
@@ -190,7 +196,7 @@ export function useKeyboardModeController({
       }
 
       if (end < currentText.length) {
-        setLiveKeyboardText(`${currentText.slice(0, start)}${currentText.slice(end + 1)}`, start);
+        setLiveKeyboardText(`${currentText.slice(0, start)}${currentText.slice(nextTextBoundary(currentText, end))}`, start);
       }
       return;
     }
@@ -248,7 +254,7 @@ export function useKeyboardModeController({
       }
 
       if (start > 0) {
-        const nextCaret = start - 1;
+        const nextCaret = previousTextBoundary(value, start);
         setBufferedKeyboardText(`${value.slice(0, nextCaret)}${value.slice(end)}`, nextCaret);
       }
       return;
@@ -261,7 +267,7 @@ export function useKeyboardModeController({
       }
 
       if (end < value.length) {
-        setBufferedKeyboardText(`${value.slice(0, start)}${value.slice(end + 1)}`, start);
+        setBufferedKeyboardText(`${value.slice(0, start)}${value.slice(nextTextBoundary(value, end))}`, start);
       }
       return;
     }
@@ -353,6 +359,7 @@ export function useKeyboardModeController({
       }
 
       event.preventDefault();
+      repeatPointerActiveRef.current = true;
       ignoreNextClickRef.current = true;
       event.currentTarget.setPointerCapture?.(event.pointerId);
       stopRepeatingKey();
@@ -362,10 +369,17 @@ export function useKeyboardModeController({
         repeatIntervalRef.current = window.setInterval(() => { pressRepeatableKey(key); }, repeatIntervalMs);
       }, repeatStartDelayMs);
     },
-    onPointerUp: stopRepeatingKey,
-    onPointerCancel: stopRepeatingKey,
-    onPointerLeave: stopRepeatingKey,
-    onLostPointerCapture: stopRepeatingKey,
+    onPointerUp: () => {repeatPointerActiveRef.current = false; stopRepeatingKey();},
+    onPointerCancel: () => {repeatPointerActiveRef.current = false; cancelRepeatingKey();},
+    onPointerLeave: () => {repeatPointerActiveRef.current = false; cancelRepeatingKey();},
+    onLostPointerCapture: () => {
+      if (repeatPointerActiveRef.current) {
+        repeatPointerActiveRef.current = false;
+        cancelRepeatingKey();
+      } else {
+        stopRepeatingKey();
+      }
+    },
     onClick: () => {
       if (ignoreNextClickRef.current) {
         ignoreNextClickRef.current = false;
@@ -418,4 +432,26 @@ function getVerticalCaretPosition(value: string, caret: number, direction: -1 | 
   const nextLineEndIndex = value.indexOf("\n", nextLineStart);
   const nextLineEnd = nextLineEndIndex === -1 ? value.length : nextLineEndIndex;
   return Math.min(nextLineStart + currentColumn, nextLineEnd);
+}
+
+function textBoundaries(value: string): number[] {
+  if (typeof Intl.Segmenter === "function") {
+    return [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(value)]
+      .map((part) => part.index);
+  }
+  const boundaries = [0];
+  let offset = 0;
+  for (const point of value) {
+    offset += point.length;
+    boundaries.push(offset);
+  }
+  return boundaries;
+}
+
+function previousTextBoundary(value: string, caret: number): number {
+  return textBoundaries(value).filter((boundary) => boundary < caret).at(-1) ?? 0;
+}
+
+function nextTextBoundary(value: string, caret: number): number {
+  return textBoundaries(value).find((boundary) => boundary > caret) ?? value.length;
 }

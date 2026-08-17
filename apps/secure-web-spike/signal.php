@@ -4,6 +4,7 @@ declare(strict_types=1);
 const MAX_REQUEST_BYTES = 64 * 1024;
 const MAX_CIPHERTEXT_CHARS = 56 * 1024;
 const ROOM_TTL_SECONDS = 300;
+const MAX_ACTIVE_ROOMS = 256;
 const ROOM_PATTERN = '/\A[A-Za-z0-9_-]{43}\z/D';
 const BASE64URL_PATTERN = '/\A[A-Za-z0-9_-]+\z/D';
 
@@ -82,19 +83,31 @@ function write_state($handle, array $state): void
 {
     $json = json_encode($state, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
     rewind($handle);
-    if (!ftruncate($handle, 0) || fwrite($handle, $json) !== strlen($json) || !fflush($handle)) {
+    $original = stream_get_contents($handle, MAX_REQUEST_BYTES);
+    if (!is_string($original)) $original = '';
+    rewind($handle);
+    $written = 0;
+    $success = ftruncate($handle, 0);
+    while ($success && $written < strlen($json)) {
+        $count = fwrite($handle, substr($json, $written));
+        if ($count === false || $count === 0) { $success = false; break; }
+        $written += $count;
+    }
+    $success = $success && $written === strlen($json) && fflush($handle);
+    if (!$success) {
+        rewind($handle);
+        if (ftruncate($handle, 0) && $original !== '') {
+            fwrite($handle, $original);
+            fflush($handle);
+        }
         fail_request(500, 'Could not update temporary signaling state.');
     }
 }
 
-function consume_answer($handle, string $path, array $state): ?array
+function read_answer(array $state): ?array
 {
     if (!is_array($state['answer'])) return null;
-    $answer = $state['answer'];
-    $state['answer'] = null;
-    write_state($handle, $state);
-    @unlink($path);
-    return $answer;
+    return $state['answer'];
 }
 
 function envelopes_equal(array $left, array $right): bool
@@ -127,22 +140,53 @@ $path = room_path($room);
 
 if ($operation === 'create') {
     $offer = validate_envelope($request['payload'] ?? null);
+    $quotaPath = $directory . DIRECTORY_SEPARATOR . '.rooms.lock';
+    $quotaHandle = @fopen($quotaPath, 'c+b');
+    if ($quotaHandle === false || !flock($quotaHandle, LOCK_EX)) {
+        if (is_resource($quotaHandle)) fclose($quotaHandle);
+        fail_request(500, 'Could not lock temporary signaling storage.');
+    }
+    expire_stale_rooms($directory);
+    if (count(glob($directory . DIRECTORY_SEPARATOR . '*.json') ?: []) >= MAX_ACTIVE_ROOMS) {
+        flock($quotaHandle, LOCK_UN);
+        fclose($quotaHandle);
+        fail_request(429, 'Temporary signaling capacity is full.');
+    }
     $handle = @fopen($path, 'x+b');
-    if ($handle === false) fail_request(409, 'Room already exists.');
+    if ($handle === false) {
+        flock($quotaHandle, LOCK_UN);
+        fclose($quotaHandle);
+        fail_request(409, 'Room already exists.');
+    }
     @chmod($path, 0600);
     if (!flock($handle, LOCK_EX)) {
         fclose($handle);
-        @unlink($path);
+        $removed = @unlink($path) || !is_file($path);
+        flock($quotaHandle, LOCK_UN);
+        fclose($quotaHandle);
+        if (!$removed) fail_request(500, 'Could not remove temporary signaling state.');
         fail_request(500, 'Could not lock temporary signaling state.');
     }
     write_state($handle, ['createdAt' => time(), 'offer' => $offer, 'answer' => null]);
     flock($handle, LOCK_UN);
     fclose($handle);
+    flock($quotaHandle, LOCK_UN);
+    fclose($quotaHandle);
     respond(201, ['ok' => true]);
 }
 
 if ($operation === 'delete') {
-    if (is_file($path)) @unlink($path);
+    $deleteHandle = @fopen($path, 'r+b');
+    if ($deleteHandle !== false) {
+        if (!flock($deleteHandle, LOCK_EX)) {
+            fclose($deleteHandle);
+            fail_request(500, 'Could not lock temporary signaling state.');
+        }
+        $removed = @unlink($path) || !is_file($path);
+        flock($deleteHandle, LOCK_UN);
+        fclose($deleteHandle);
+        if (!$removed) fail_request(500, 'Could not remove temporary signaling state.');
+    }
     respond(200, ['ok' => true]);
 }
 
@@ -161,19 +205,12 @@ if ($operation === 'get_offer') {
         fail_request(404, 'Offer already consumed.');
     }
     $offer = $state['offer'];
-    $state['offer'] = null;
-    write_state($handle, $state);
     flock($handle, LOCK_UN);
     fclose($handle);
     respond(200, ['ok' => true, 'payload' => $offer]);
 }
 
 if ($operation === 'set_answer') {
-    if (is_array($state['offer'])) {
-        flock($handle, LOCK_UN);
-        fclose($handle);
-        fail_request(409, 'Offer has not been consumed.');
-    }
     $answer = validate_envelope($request['payload'] ?? null);
     if (is_array($state['answer']) && envelopes_equal($state['answer'], $answer)) {
         flock($handle, LOCK_UN);
@@ -185,6 +222,7 @@ if ($operation === 'set_answer') {
         fclose($handle);
         fail_request(409, 'Answer already exists.');
     }
+    $state['offer'] = null;
     $state['answer'] = $answer;
     write_state($handle, $state);
     flock($handle, LOCK_UN);
@@ -193,7 +231,7 @@ if ($operation === 'set_answer') {
 }
 
 if ($operation === 'get_answer') {
-    $answer = consume_answer($handle, $path, $state);
+    $answer = read_answer($state);
     if ($answer === null) {
         flock($handle, LOCK_UN);
         fclose($handle);

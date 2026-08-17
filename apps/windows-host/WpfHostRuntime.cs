@@ -228,15 +228,9 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
             TryDispose(trayContext, appLog, "tray_context");
             TryCloseWindow(mainWindow, appLog);
             await TryDisposeAsync(activitySimulationService, appLog, "activity_simulation_service");
-            TryDispose(pointerHighlightForegroundMonitor, appLog, "pointer_foreground_monitor");
-            await TryDisposeAsync(textDestinationDraftCleanup, appLog, "text_destination_draft_cleanup");
-            await TryDisposeAsync(
-                presentationEmailDraftCleanup,
-                appLog,
-                "presentation_email_draft_cleanup");
-            await TryDisposeAsync(phoneWebcamFeature, appLog, "phone_webcam_feature");
             if (webHost is not null)
             {
+                await TryStopWebHostAsync(webHost, appLog);
                 await TryDisposeAsync(webHost, appLog, "web_host");
             }
             else
@@ -244,6 +238,14 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 TryDispose(powerController as IDisposable, appLog, "power_controller");
                 await TryDisposeAsync(awakeService, appLog, "awake_service");
             }
+
+            TryDispose(pointerHighlightForegroundMonitor, appLog, "pointer_foreground_monitor");
+            await TryDisposeAsync(textDestinationDraftCleanup, appLog, "text_destination_draft_cleanup");
+            await TryDisposeAsync(
+                presentationEmailDraftCleanup,
+                appLog,
+                "presentation_email_draft_cleanup");
+            await TryDisposeAsync(phoneWebcamFeature, appLog, "phone_webcam_feature");
 
             if (cursorOverrides is not null)
             {

@@ -8,11 +8,15 @@ internal sealed class AppLogFileStore(
     string logDirectory,
     Func<int> maxAgeDays,
     Func<DateTimeOffset> now,
-    Action<string, string>? appendLine = null)
+    Action<string, string>? appendLine = null,
+    Action<string>? deleteFile = null)
 {
+    private const int MaximumCandidateFiles = 400;
+    private const int MaximumLineCharacters = 64 * 1024;
     private static readonly JsonSerializerOptions ReadOptions = new() { PropertyNameCaseInsensitive = true };
     private readonly Lock _gate = new();
     private readonly Action<string, string> _appendLine = appendLine ?? AppendLine;
+    private readonly Action<string> _deleteFile = deleteFile ?? File.Delete;
     private DateOnly? _lastPruneUtcDate;
 
     public string LogDirectory { get; } = logDirectory;
@@ -61,7 +65,8 @@ internal sealed class AppLogFileStore(
 
                 files = [.. Directory.EnumerateFiles(LogDirectory, "app-log-*.jsonl")
                     .Where(path => IsCandidateFile(path, query))
-                    .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)];
+                    .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                    .Take(MaximumCandidateFiles)];
             }
 
             var limit = Math.Clamp(query.MaxEntries, 1, 5000);
@@ -106,6 +111,7 @@ internal sealed class AppLogFileStore(
 
     public AppLogDeleteResult DeleteAll()
     {
+        var deleted = 0;
         try
         {
             lock (_gate)
@@ -115,10 +121,9 @@ internal sealed class AppLogFileStore(
                     return new AppLogDeleteResult(true, 0);
                 }
 
-                var deleted = 0;
                 foreach (var path in Directory.EnumerateFiles(LogDirectory, "app-log-*.jsonl"))
                 {
-                    File.Delete(path);
+                    _deleteFile(path);
                     deleted++;
                 }
 
@@ -127,7 +132,7 @@ internal sealed class AppLogFileStore(
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            return new AppLogDeleteResult(false, 0, exception.Message);
+            return new AppLogDeleteResult(false, deleted, exception.Message);
         }
     }
 
@@ -139,7 +144,6 @@ internal sealed class AppLogFileStore(
             return;
         }
 
-        _lastPruneUtcDate = utcDate;
         try
         {
             if (!Directory.Exists(LogDirectory))
@@ -159,6 +163,8 @@ internal sealed class AppLogFileStore(
                     File.Delete(path);
                 }
             }
+
+            _lastPruneUtcDate = utcDate;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
@@ -176,9 +182,44 @@ internal sealed class AppLogFileStore(
             bufferSize: 4096,
             FileOptions.SequentialScan);
         using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
-        while (reader.ReadLine() is { } line)
+        var line = new StringBuilder(Math.Min(MaximumLineCharacters, 4096));
+        var oversized = false;
+        var buffer = new char[4096];
+        int count;
+        while ((count = reader.Read(buffer, 0, buffer.Length)) > 0)
         {
-            yield return line;
+            for (var index = 0; index < count; index += 1)
+            {
+                char value = buffer[index];
+                if (value == '\n')
+                {
+                    if (!oversized)
+                    {
+                        if (line.Length > 0 && line[^1] == '\r') line.Length -= 1;
+                        yield return line.ToString();
+                    }
+                    line.Clear();
+                    oversized = false;
+                }
+                else if (!oversized)
+                {
+                    if (line.Length == MaximumLineCharacters)
+                    {
+                        line.Clear();
+                        oversized = true;
+                    }
+                    else
+                    {
+                        line.Append(value);
+                    }
+                }
+            }
+        }
+
+        if (!oversized && line.Length > 0)
+        {
+            if (line[^1] == '\r') line.Length -= 1;
+            yield return line.ToString();
         }
     }
 

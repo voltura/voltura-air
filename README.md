@@ -118,9 +118,10 @@ Voltura Air requires Windows 11. Choose one package from the
 Installers are per-user under `%LOCALAPPDATA%\Programs\Voltura Air`, create
 Start Menu shortcuts, and retain pairing/settings under `%APPDATA%\Voltura Air`
 on uninstall. Start-at-sign-in is an in-app setting.
-The optional Phone webcam page installs its current-user Windows virtual camera
-only after an explicit Enable action and UAC approval; uninstall removes an enabled
-camera before deleting its recovery helper.
+The optional **Phone Webcam** installer component installs the protected Windows
+virtual camera only after explicit selection and UAC approval. The in-app page
+reports component state and directs repair to installer maintenance; uninstall
+removes the component before deleting the per-user app.
 
 ## Connect
 

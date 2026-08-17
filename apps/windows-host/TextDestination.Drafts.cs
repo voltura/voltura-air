@@ -30,6 +30,7 @@ internal static class ExcelDraftWorkbook
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>
             """);
         Write(archive, "xl/worksheets/sheet1.xml", BuildWorksheet(text, sendEnter, draft));
+        TextDestinationDraftStore.MarkForAutomaticRemoval(draft);
         return draft.Path;
     }
 
@@ -87,6 +88,7 @@ internal static class PlainTextDraft
     {
         var draft = TextDestinationDraftStore.CreateDraft(".txt");
         File.WriteAllText(draft.Path, PrepareContents(text, sendEnter, draft), new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+        TextDestinationDraftStore.MarkForAutomaticRemoval(draft);
         return draft.Path;
     }
 
@@ -125,6 +127,7 @@ internal static class WordDraftDocument
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>
             """);
         ExcelDraftWorkbook.Write(archive, "word/document.xml", BuildDocument(text, sendEnter, draft));
+        TextDestinationDraftStore.MarkForAutomaticRemoval(draft);
         return draft.Path;
     }
 

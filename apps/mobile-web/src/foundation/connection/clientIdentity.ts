@@ -1,4 +1,5 @@
 import { getDefaultDeviceName } from "../platform/clientEnvironment";
+import { readLocalStorage, writeLocalStorage } from "../platform/browserStorage";
 
 const clientIdKey = "voltura-air.clientId";
 const clientIdQueryParam = "d";
@@ -6,13 +7,13 @@ export const deviceNameKey = "voltura-air.deviceName";
 const deviceNameQueryParam = "n";
 
 export function getOrCreateClientId(source: string): string {
-  const existing = localStorage.getItem(clientIdKey);
+  const existing = readLocalStorage(clientIdKey);
   if (existing) {
     return existing;
   }
 
   const created = getClientIdFromAddress(source) ?? createClientId();
-  localStorage.setItem(clientIdKey, created);
+  writeLocalStorage(clientIdKey, created);
   return created;
 }
 
@@ -94,14 +95,14 @@ function createClientId(): string {
 }
 
 export function loadDeviceName(source: string): string {
-  const existing = normalizeDeviceNameInput(localStorage.getItem(deviceNameKey));
+  const existing = normalizeDeviceNameInput(readLocalStorage(deviceNameKey));
   if (existing) {
     return existing;
   }
 
   const fromAddress = getDeviceNameFromAddress(source);
   if (fromAddress) {
-    localStorage.setItem(deviceNameKey, fromAddress);
+    writeLocalStorage(deviceNameKey, fromAddress);
     return fromAddress;
   }
 

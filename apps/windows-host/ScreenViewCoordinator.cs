@@ -16,6 +16,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
     private readonly InputDispatcher? _inputDispatcher;
     private readonly ISystemPowerController? _powerController;
     private PendingView? _pending;
+    private PendingView? _answering;
     private ActiveView? _active;
     private int _disposed;
 
@@ -90,7 +91,12 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         {
             expired = TakeExpiredPending(createdAt);
             busy = _active is not null || _pending is not null;
-            if (!busy) _pending = pending;
+            busy = busy || _answering is not null;
+            if (!busy)
+            {
+                _pending = pending;
+                pending.ExpiryTask = ExpirePendingAsync(pending);
+            }
         }
         expired?.Release();
         if (busy)
@@ -104,6 +110,16 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
             string offerSdp = await peer.CreateOfferAsync(cancellationToken).ConfigureAwait(false);
             string offerHash = HashSdp(offerSdp);
             pending.SetOffer(offerHash);
+            bool offerStillPending;
+            lock (_gate)
+            {
+                offerStillPending = ReferenceEquals(_pending, pending);
+            }
+            if (!offerStillPending)
+            {
+                pending.Release();
+                return Failure("offer-expired", "The WebRTC screen offer expired. Start again.");
+            }
             string hostTranscript = $"VolturaAir screen-view:offer:v2:{clientId}:{operationId}:{displayId}:{offerHash}";
             return new ScreenViewStartResult(
                 true,
@@ -150,68 +166,108 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
                 _pending.OfferHash is not null
                 ? _pending
                 : null;
+            if (pending is not null)
+            {
+                _pending = null;
+                _answering = pending;
+            }
         }
         expired?.Release();
         if (pending is null)
             return new(false, "offer-expired", "The WebRTC screen offer expired. Start again.");
 
-        string answerHash = HashSdp(answerSdp);
-        string transcript = $"VolturaAir screen-view:answer:v2:{clientId}:{operationId}:{pending.DisplayId}:{pending.OfferHash}:{answerHash}";
-        if (!_pairingManager.VerifyClientSignature(clientId, Encoding.UTF8.GetBytes(transcript), clientSignature))
-        {
-            RemovePending(pending);
-            pending.Release();
-            return new(false, "invalid-proof", "The WebRTC screen answer could not be authenticated.");
-        }
-
         try
         {
-            pending.Peer.ApplyAnswer(answerSdp);
-        }
-        catch (Exception ex) when (ex is ScreenViewWebRtcException or ObjectDisposedException)
-        {
-            RemovePending(pending);
-            pending.Release();
-            return new(false, "invalid-answer", "The PC rejected the WebRTC screen answer.");
-        }
-
-        ActiveView? active = null;
-        lock (_gate)
-        {
-            if (ReferenceEquals(_pending, pending) && _active is null)
+            string answerHash = HashSdp(answerSdp);
+            string transcript = $"VolturaAir screen-view:answer:v2:{clientId}:{operationId}:{pending.DisplayId}:{pending.OfferHash}:{answerHash}";
+            if (!_pairingManager.VerifyClientSignature(clientId, Encoding.UTF8.GetBytes(transcript), clientSignature))
             {
-                active = new ActiveView(pending.ClientId, pending.Source, pending.VirtualDesktop, pending.Peer, pending.MaximumBitrate);
-                _pending = null;
-                pending.DetachPeer();
-                _active = active;
+                RemoveAnswering(pending);
+                pending.Release();
+                return new(false, "invalid-proof", "The WebRTC screen answer could not be authenticated.");
             }
+
+            try
+            {
+                pending.Peer.ApplyAnswer(answerSdp);
+            }
+            catch (Exception ex) when (ex is ScreenViewWebRtcException or ObjectDisposedException)
+            {
+                RemoveAnswering(pending);
+                pending.Release();
+                return new(false, "invalid-answer", "The PC rejected the WebRTC screen answer.");
+            }
+
+            ActiveView? active = null;
+            lock (_gate)
+            {
+                if (ReferenceEquals(_answering, pending) && !pending.StopRequested && _active is null)
+                {
+                    active = new ActiveView(pending.ClientId, pending.OperationId, pending.Source, pending.VirtualDesktop, pending.Peer, pending.MaximumBitrate);
+                    _answering = null;
+                    pending.DetachPeer();
+                    _active = active;
+                }
+                else if (ReferenceEquals(_answering, pending))
+                {
+                    _answering = null;
+                }
+            }
+            if (active is null)
+            {
+                pending.Release();
+                return new(false, "offer-expired", "The WebRTC screen offer is no longer active.");
+            }
+            active.Runner = Task.Run(() => RunActiveAsync(active));
+            return new(true, "accepted", "The encrypted WebRTC screen connection is opening.");
         }
-        if (active is null)
-            return new(false, "offer-expired", "The WebRTC screen offer is no longer active.");
-        active.Runner = Task.Run(() => RunActiveAsync(active));
-        return new(true, "accepted", "The encrypted WebRTC screen connection is opening.");
+        finally
+        {
+            pending.CompleteAnswerProcessing();
+        }
     }
 
     public bool Stop(string clientId)
     {
         PendingView? pending = null;
         ActiveView? active = null;
+        bool releasePending = false;
+        bool answering = false;
         lock (_gate)
         {
             if (_pending?.ClientId == clientId)
             {
                 pending = _pending;
                 _pending = null;
+                releasePending = true;
+            }
+            if (_answering?.ClientId == clientId)
+            {
+                _answering.StopRequested = true;
+                answering = true;
             }
             if (_active?.ClientId == clientId) active = _active;
         }
-        pending?.Release();
+        if (releasePending) pending!.Release();
         if (active is not null)
         {
             ReleaseHeldButtons(active);
             active.Stop.Cancel();
         }
-        return pending is not null || active is not null;
+        return releasePending || answering || active is not null;
+    }
+
+    public ScreenViewStoppedSession? StopActive()
+    {
+        ActiveView? active;
+        lock (_gate)
+        {
+            active = _active is not null && _active.TryClaimHostStop() ? _active : null;
+        }
+        if (active is null) return null;
+        ReleaseHeldButtons(active);
+        active.Stop.Cancel();
+        return new(active.ClientId, active.OperationId);
     }
 
     public ScreenViewOperationResult SetSource(string clientId, string displayId)
@@ -303,7 +359,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
             await active.Peer.Connected.WaitAsync(SignalingLifetime, active.Stop.Token).ConfigureAwait(false);
             if (!CanStart(active.ClientId)) return;
             activityStarted = true;
-            ActivityChanged?.Invoke(this, new ScreenViewActivityChangedEventArgs(true, active.ClientId));
+            NotifyActivityChanged(true, active.ClientId, active.OperationId);
             await SendFramesAsync(active, active.Stop.Token).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is OperationCanceledException or ScreenViewWebRtcException or ObjectDisposedException)
@@ -322,7 +378,29 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
             }
             active.Release();
             if (activityStarted)
-                ActivityChanged?.Invoke(this, new ScreenViewActivityChangedEventArgs(false, active.ClientId));
+                NotifyActivityChanged(false, active.ClientId, active.OperationId);
+        }
+    }
+
+    private void NotifyActivityChanged(bool isActive, string clientId, string operationId)
+    {
+        var eventArgs = new ScreenViewActivityChangedEventArgs(isActive, clientId, operationId);
+        foreach (EventHandler<ScreenViewActivityChangedEventArgs> subscriber in
+            ActivityChanged?.GetInvocationList().Cast<EventHandler<ScreenViewActivityChangedEventArgs>>() ?? [])
+        {
+            try
+            {
+                subscriber(this, eventArgs);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                _appLog.Write(new AppLogEntry(
+                    "screen_view",
+                    "windows_host",
+                    Action: "activity_observer_failed",
+                    Outcome: "failed",
+                    Code: ex.GetType().Name));
+            }
         }
     }
 
@@ -434,6 +512,32 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         lock (_gate) if (ReferenceEquals(_pending, pending)) _pending = null;
     }
 
+    private void RemoveAnswering(PendingView pending)
+    {
+        lock (_gate) if (ReferenceEquals(_answering, pending)) _answering = null;
+    }
+
+    private async Task ExpirePendingAsync(PendingView pending)
+    {
+        CancellationToken expiry = pending.ExpiryCancellation.Token;
+        try
+        {
+            await Task.Delay(SignalingLifetime, expiry).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (expiry.IsCancellationRequested)
+        {
+            return;
+        }
+
+        bool release;
+        lock (_gate)
+        {
+            release = ReferenceEquals(_pending, pending);
+            if (release) _pending = null;
+        }
+        if (release) pending.Release();
+    }
+
     private void OnPairingRevoked(object? sender, PairingRevokedEventArgs e)
     {
         if (e.ClientId is null) StopAll(); else Stop(e.ClientId);
@@ -448,7 +552,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         ActiveView? active;
         lock (_gate)
         {
-            clientId = _active?.ClientId ?? _pending?.ClientId;
+            clientId = _active?.ClientId ?? _pending?.ClientId ?? _answering?.ClientId;
             active = _active;
         }
         if (clientId is not null && !CanStart(clientId)) Stop(clientId);
@@ -460,7 +564,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         string[] clientIds;
         lock (_gate)
         {
-            clientIds = [.. new[] { _active?.ClientId, _pending?.ClientId }.OfType<string>().Distinct()];
+            clientIds = [.. new[] { _active?.ClientId, _pending?.ClientId, _answering?.ClientId }.OfType<string>().Distinct()];
         }
         foreach (string clientId in clientIds) Stop(clientId);
     }
@@ -473,14 +577,51 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         AppPermissionSettings.Changed -= OnPermissionsChanged;
         AppDeveloperSettings.Changed -= OnDeveloperSettingsChanged;
         ActiveView? active;
-        lock (_gate) active = _active;
+        PendingView? answering;
+        lock (_gate)
+        {
+            active = _active;
+            answering = _answering;
+        }
         StopAll();
         if (active?.Runner is not null)
         {
-            try { await active.Runner.WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false); }
-            catch (Exception ex) when (ex is OperationCanceledException or TimeoutException) { }
+            try
+            {
+                await active.Runner.WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+                _capture.EndCapture();
+                active.Release();
+                _ = ObserveLateCleanupAsync(active.Runner);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+        if (answering is not null)
+        {
+            try
+            {
+                await answering.AnswerCompletion.WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+                answering.Release();
+                _ = ObserveLateCleanupAsync(answering.AnswerCompletion);
+            }
+            catch (OperationCanceledException)
+            {
+            }
         }
         _capture.EndCapture();
+    }
+
+    private static async Task ObserveLateCleanupAsync(Task cleanup)
+    {
+        try { await cleanup.ConfigureAwait(false); }
+        catch (Exception ex) when (ex is not OutOfMemoryException) { }
     }
 
     private static string HashSdp(string sdp) => ScreenViewHostIdentity.Base64Url(SHA256.HashData(Encoding.UTF8.GetBytes(sdp)));
@@ -502,15 +643,32 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         public string DisplayId => Source.Id;
         public VirtualDesktopBounds VirtualDesktop { get; } = virtualDesktop;
         public DateTimeOffset ExpiresAt { get; } = expiresAt;
-        public IScreenViewWebRtcPeer Peer => _peer ?? throw new ObjectDisposedException(nameof(PendingView));
+        public IScreenViewWebRtcPeer Peer => Volatile.Read(ref _peer) ?? throw new ObjectDisposedException(nameof(PendingView));
         public int MaximumBitrate { get; } = maximumBitrate;
         public string? OfferHash { get; private set; }
+        public bool StopRequested { get; set; }
+        public CancellationTokenSource ExpiryCancellation { get; } = new();
+        public Task? ExpiryTask { get; set; }
+        private readonly TaskCompletionSource _answerCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task AnswerCompletion => _answerCompletion.Task;
+        private int _expiryClosed;
         public void SetOffer(string offerHash) => OfferHash = offerHash;
-        public void DetachPeer() => _peer = null;
-        public void Release() { _peer?.Dispose(); _peer = null; }
+        public void CompleteAnswerProcessing() => _answerCompletion.TrySetResult();
+        public void DetachPeer() { CloseExpiry(); _peer = null; }
+        public void Release()
+        {
+            CloseExpiry();
+            Interlocked.Exchange(ref _peer, null)?.Dispose();
+        }
+        private void CloseExpiry()
+        {
+            if (Interlocked.Exchange(ref _expiryClosed, 1) != 0) return;
+            ExpiryCancellation.Cancel();
+            ExpiryCancellation.Dispose();
+        }
     }
 
-    private sealed class ActiveView(string clientId, ScreenViewSource source, VirtualDesktopBounds virtualDesktop, IScreenViewWebRtcPeer peer, int maximumBitrate)
+    private sealed class ActiveView(string clientId, string operationId, ScreenViewSource source, VirtualDesktopBounds virtualDesktop, IScreenViewWebRtcPeer peer, int maximumBitrate)
     {
         private ScreenViewSource _source = source;
         private VirtualDesktopBounds _virtualDesktop = virtualDesktop;
@@ -518,7 +676,10 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         private readonly int _maximumBitrate = maximumBitrate;
         private int _targetBitrate = maximumBitrate;
         private int _forceKeyFrame = 1;
+        private int _released;
+        private bool _hostStopClaimed;
         public string ClientId { get; } = clientId;
+        public string OperationId { get; } = operationId;
         public ScreenViewSource Source => Volatile.Read(ref _source);
         public string DisplayId => Source.Id;
         public VirtualDesktopBounds VirtualDesktop => Volatile.Read(ref _virtualDesktop);
@@ -534,6 +695,12 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         }
         public void Hold(string button) => _heldButtons.Add(button);
         public void Release(string button) => _heldButtons.Remove(button);
+        public bool TryClaimHostStop()
+        {
+            if (_hostStopClaimed) return false;
+            _hostStopClaimed = true;
+            return true;
+        }
         public bool TakeHeldButtons()
         {
             bool held = _heldButtons.Count > 0;
@@ -556,7 +723,12 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
             bitrate = Math.Min(bitrate, _maximumBitrate);
             if (Interlocked.Exchange(ref _targetBitrate, bitrate) != bitrate) RequestKeyFrame();
         }
-        public void Release() { Stop.Dispose(); Peer.Dispose(); }
+        public void Release()
+        {
+            if (Interlocked.Exchange(ref _released, 1) != 0) return;
+            Stop.Dispose();
+            Peer.Dispose();
+        }
     }
 }
 
@@ -575,8 +747,11 @@ internal sealed record VirtualDesktopBounds(int Left, int Top, int Width, int He
     }
 }
 
-internal sealed class ScreenViewActivityChangedEventArgs(bool active, string clientId) : EventArgs
+internal sealed class ScreenViewActivityChangedEventArgs(bool active, string clientId, string operationId) : EventArgs
 {
     public bool Active { get; } = active;
     public string ClientId { get; } = clientId;
+    public string OperationId { get; } = operationId;
 }
+
+internal sealed record ScreenViewStoppedSession(string ClientId, string OperationId);

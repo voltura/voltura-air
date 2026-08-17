@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -90,7 +90,13 @@ async function writeIfChanged(filePath, bytes) {
   } catch {
     // The output does not exist yet.
   }
-  await writeFile(filePath, bytes);
+  const pendingPath = `${filePath}.${process.pid}.${Date.now()}.pending`;
+  try {
+    await writeFile(pendingPath, bytes, { flag: "wx" });
+    await rename(pendingPath, filePath);
+  } finally {
+    await rm(pendingPath, { force: true });
+  }
 }
 
 function createZip(entries) {

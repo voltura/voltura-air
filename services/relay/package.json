@@ -18,12 +18,12 @@
     "ws": "^8.21.3"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20260811.1",
-    "@types/node": "^24.13.3",
+    "@types/node": "^26.2.0",
+    "@cloudflare/workers-types": "5.20260814.1",
     "@types/ws": "^8.18.1",
     "tsx": "^4.23.12",
     "typescript": "^7.0.2",
     "vitest": "^4.0.0",
-    "wrangler": "^4.121.0"
+    "wrangler": "^4.123.0"
   }
 }

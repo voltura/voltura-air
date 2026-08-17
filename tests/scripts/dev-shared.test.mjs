@@ -15,6 +15,10 @@ test("stops and waits only for the host", () => {
   stopExistingHost({
     platform: "win32",
     run,
+    listHostProcesses: () => [{
+      pid: 123,
+      executablePath: new URL("../../apps/windows-host/bin/Debug/net10.0-windows/VolturaAir.Host.exe", import.meta.url).pathname.slice(1)
+    }],
     waitForProcessExit: (imageName, options) => {
       operations.push({ waitFor: imageName, run: options.run });
       return true;
@@ -23,7 +27,7 @@ test("stops and waits only for the host", () => {
 
   assert.deepEqual(operations[0], {
     command: "taskkill",
-    args: ["/IM", "VolturaAir.Host.exe", "/F"]
+    args: ["/PID", "123", "/T", "/F"]
   });
   assert.equal(operations[1].waitFor, "VolturaAir.Host.exe");
   assert.equal(operations[1].run, run);
@@ -36,9 +40,18 @@ test("refuses to continue when the existing host does not exit", () => {
     () => stopExistingHost({
       platform: "win32",
       run: () => ({ stdout: "" }),
+      listHostProcesses: () => [],
       waitForProcessExit: (imageName) => imageName !== "VolturaAir.Host.exe"
     }),
     /existing Voltura Air host/i);
+});
+
+test("refuses to stop a same-named executable outside verified Voltura Air locations", () => {
+  assert.throws(() => stopExistingHost({
+    platform: "win32",
+    run: () => assert.fail("An unverified process must not be terminated"),
+    listHostProcesses: () => [{ pid: 999, executablePath: "C:\\Temp\\VolturaAir.Host.exe" }]
+  }), /unverified VolturaAir\.Host\.exe/u);
 });
 
 test("waits until the named Windows process exits", () => {
@@ -72,4 +85,10 @@ test("treats an absent process as already stopped", () => {
 
   assert.equal(exited, true);
   assert.equal(checks, 1);
+});
+
+test("does not treat a failed process inventory as an absent host", () => {
+  assert.throws(() => waitForWindowsProcessExit("VolturaAir.Host.exe", {
+    run: () => ({ status: 1, stdout: "" })
+  }), /Could not inspect/u);
 });

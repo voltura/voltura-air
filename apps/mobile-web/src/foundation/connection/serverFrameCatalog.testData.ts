@@ -319,8 +319,8 @@ export const serverFrameCatalog = {
   "screen.view.ended": {
     required: ["reason", "message"],
     frames: [
-      { type: "screen.view.ended", reason: "host-stopped", message: "The PC stopped screen viewing." },
-      { type: "screen.view.ended", reason: "permission-revoked", message: "The PC stopped screen viewing and disallowed this device." }
+      { type: "screen.view.ended", operationId: "screen-operation", reason: "host-stopped", message: "The PC stopped screen viewing." },
+      { type: "screen.view.ended", operationId: "screen-operation", reason: "permission-revoked", message: "The PC stopped screen viewing and disallowed this device." }
     ]
   },
   "phone.webcam.start.result": {

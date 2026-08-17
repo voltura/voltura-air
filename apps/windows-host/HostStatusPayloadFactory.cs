@@ -31,7 +31,7 @@ internal sealed class HostStatusPayloadFactory(
             type = "status",
             connected = true,
             message = "Connected",
-            pcName = Environment.MachineName,
+            pcName = ProtocolStringLimits.Limit(Environment.MachineName, ProtocolStringLimits.PcName),
             capabilities = CreateCapabilities(clientId, permissions),
             host = CreateHostStatus(clientId, permissions)
         };
@@ -44,7 +44,7 @@ internal sealed class HostStatusPayloadFactory(
         {
             type = "pair.accepted",
             clientId,
-            pcName = Environment.MachineName,
+            pcName = ProtocolStringLimits.Limit(Environment.MachineName, ProtocolStringLimits.PcName),
             paired = true,
             hostIdentity = new { publicKey = pairingManager.HostIdentity.PublicKey, fingerprint = pairingManager.HostIdentity.Fingerprint },
             capabilities = CreateCapabilities(clientId, permissions),
@@ -59,8 +59,8 @@ internal sealed class HostStatusPayloadFactory(
         {
             type = "status",
             connected = false,
-            message,
-            pcName = Environment.MachineName,
+            message = ProtocolStringLimits.Limit(message, ProtocolStringLimits.HumanMessage),
+            pcName = ProtocolStringLimits.Limit(Environment.MachineName, ProtocolStringLimits.PcName),
             capabilities = CreateCapabilities(clientId, permissions),
             host = CreateHostStatus(clientId, permissions)
         };
@@ -245,13 +245,13 @@ internal sealed class HostStatusPayloadFactory(
         var webClientBuildId = WebHostStaticFiles.ReadWebClientBuildId(WebHostStaticFiles.ResolveStaticRoot());
         var textDestination = textDestinationService.GetMetadata();
         return new HostStatusMetadata(
-            AppVersion.Display,
-            webClientBuildId,
-            Environment.MachineName,
-            network.SelectedAdapterName,
-            network.AdvertisedHostAddress,
+            ProtocolStringLimits.Limit(AppVersion.Display, ProtocolStringLimits.BuildOrSessionId),
+            ProtocolStringLimits.LimitOptional(webClientBuildId, ProtocolStringLimits.BuildOrSessionId),
+            ProtocolStringLimits.Limit(Environment.MachineName, ProtocolStringLimits.PcName),
+            ProtocolStringLimits.Limit(network.SelectedAdapterName, ProtocolStringLimits.AdapterName),
+            ProtocolStringLimits.Limit(network.AdvertisedHostAddress, ProtocolStringLimits.IpAddress),
             network.Port,
-            network.WebSocketUrl,
+            ProtocolStringLimits.Limit(network.WebSocketUrl, ProtocolStringLimits.Url),
             AppRemoteSettings.ToProtocolId(AppRemoteSettings.GetDefaultRemoteMode()),
             permissions.AllowRemoteAppLaunch ? appLaunchService.GetActions() : [],
             new TextTransferTargetMetadata(textDestination.Mode, textDestination.DisplayName, textDestination.Available),

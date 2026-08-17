@@ -24,11 +24,12 @@ public sealed class ScreenViewCommandHandlerTests
         transport.Register("client-b", otherSocket);
         await using var handler = new ScreenViewCommandHandler(null!, transport);
 
-        await handler.NotifyHostStoppedAsync("client-a", disallowed);
+        await handler.NotifyHostStoppedAsync("client-a", "operation-a", disallowed);
         RelayEnvelope envelope = await sent.Task.WaitAsync(TimeSpan.FromSeconds(2));
         using var document = JsonDocument.Parse(envelope.Payload);
 
         Assert.Equal("screen.view.ended", document.RootElement.GetProperty("type").GetString());
+        Assert.Equal("operation-a", document.RootElement.GetProperty("operationId").GetString());
         Assert.Equal(reason, document.RootElement.GetProperty("reason").GetString());
         Assert.Equal(message, document.RootElement.GetProperty("message").GetString());
         transport.Unregister("client-a", targetSocket);

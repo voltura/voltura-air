@@ -10,6 +10,8 @@ session_set_cookie_params([
     'secure' => getenv('VOLTURA_AIR_SITE_DEV') !== '1',
     'samesite' => 'Lax',
 ]);
+ini_set('session.use_only_cookies', '1');
+ini_set('session.use_strict_mode', '1');
 session_start();
 
 function air_screen_config(): array
@@ -43,16 +45,196 @@ function air_screen_db(): PDO
     return $pdo;
 }
 
+function air_screen_acquire_advisory_lock(PDO $database, string $scope, string $key, int $timeoutSeconds = 5): string
+{
+    if (!preg_match('/^[a-z_]{1,20}$/D', $scope) || $key === '' || $timeoutSeconds < 0 || $timeoutSeconds > 30) {
+        throw new InvalidArgumentException('Invalid catalog lock request.');
+    }
+    $name = 'voltura_air_' . $scope . '_' . substr(hash('sha256', $key), 0, 32);
+    $statement = $database->prepare('SELECT GET_LOCK(:name, :timeout)');
+    $statement->bindValue('name', $name, PDO::PARAM_STR);
+    $statement->bindValue('timeout', $timeoutSeconds, PDO::PARAM_INT);
+    $statement->execute();
+    if ((int)$statement->fetchColumn() !== 1) {
+        throw new RuntimeException('The catalog is busy. Try again.');
+    }
+    return $name;
+}
+
+function air_screen_release_advisory_lock(PDO $database, string $name): void
+{
+    try {
+        $statement = $database->prepare('SELECT RELEASE_LOCK(:name)');
+        $statement->execute(['name' => $name]);
+        if ((int)$statement->fetchColumn() !== 1) {
+            error_log('Custom-screen catalog advisory lock was not owned at release.');
+        }
+    } catch (Throwable $error) {
+        error_log('Custom-screen catalog advisory lock release failed: ' . $error::class);
+    }
+}
+
 function air_screen_storage_path(): string
 {
     $path = (string)(air_screen_config()['storage_path'] ?? '');
-    if ($path === '' || str_starts_with(realpath(dirname($path)) ?: '', realpath(__DIR__) ?: '')) {
-        throw new RuntimeException('Catalog storage must be outside the public catalog code directory.');
+    if ($path === '') {
+        throw new RuntimeException('Catalog storage must be configured.');
     }
     if (!is_dir($path) && !mkdir($path, 0700, true) && !is_dir($path)) {
         throw new RuntimeException('Catalog storage could not be created.');
     }
-    return $path;
+    $resolvedPath = realpath($path);
+    $publicPath = realpath(__DIR__);
+    if ($resolvedPath === false || $publicPath === false) {
+        throw new RuntimeException('Catalog storage could not be resolved.');
+    }
+    $publicPrefix = rtrim($publicPath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+    if ($resolvedPath === $publicPath || str_starts_with($resolvedPath . DIRECTORY_SEPARATOR, $publicPrefix)) {
+        throw new RuntimeException('Catalog storage must be outside the public catalog code directory.');
+    }
+    return $resolvedPath;
+}
+
+function air_screen_catalog_secret(): string
+{
+    $secret = (string)(air_screen_config()['catalog_secret'] ?? getenv('VOLTURA_AIR_CATALOG_SECRET') ?: '');
+    if (strlen($secret) < 32) {
+        throw new RuntimeException('Catalog secret must contain at least 32 bytes.');
+    }
+    return $secret;
+}
+
+function air_screen_bucket_key(string $value): string
+{
+    return hash_hmac('sha256', $value, air_screen_catalog_secret());
+}
+
+function air_screen_source_bucket_key(): string
+{
+    return air_screen_bucket_key((string)($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
+}
+
+function air_screen_email_bucket_key(string $email): string
+{
+    return air_screen_bucket_key(strtolower(trim($email)));
+}
+
+function air_screen_storage_basename(string $basename): string
+{
+    if (!preg_match('/^[a-f0-9]{64}\.volturascreen$/D', $basename)) {
+        throw new RuntimeException('The catalog storage name is invalid.');
+    }
+    return $basename;
+}
+
+function air_screen_package_path(string $basename): string
+{
+    return air_screen_storage_path() . DIRECTORY_SEPARATOR . air_screen_storage_basename($basename);
+}
+
+function air_screen_enqueue_cleanup(PDO $database, string $basename, string $sha256): void
+{
+    air_screen_storage_basename($basename);
+    if (!preg_match('/^[a-f0-9]{64}$/D', $sha256)) {
+        throw new RuntimeException('The cleanup hash is invalid.');
+    }
+    $statement = $database->prepare(
+        'INSERT INTO air_screen_cleanup_jobs (storage_basename, expected_sha256) VALUES (:basename, :hash) '
+        . 'ON DUPLICATE KEY UPDATE expected_sha256 = VALUES(expected_sha256), retry_at = CURRENT_TIMESTAMP, attempts = 0, last_error_code = NULL');
+    $statement->execute(['basename' => $basename, 'hash' => $sha256]);
+}
+
+function air_screen_drain_cleanup_jobs(int $limit = 3): int
+{
+    $limit = max(1, min(100, $limit));
+    $database = air_screen_db();
+    $jobs = $database->query(
+        'SELECT storage_basename, expected_sha256, attempts FROM air_screen_cleanup_jobs '
+        . 'WHERE retry_at <= CURRENT_TIMESTAMP ORDER BY retry_at LIMIT ' . $limit)->fetchAll();
+    $completed = 0;
+    foreach ($jobs as $job) {
+        $basename = (string)$job['storage_basename'];
+        try {
+            $references = $database->prepare('SELECT COUNT(*) FROM air_screen_packages WHERE storage_basename = :basename');
+            $references->execute(['basename' => $basename]);
+            if ((int)$references->fetchColumn() !== 0) {
+                throw new RuntimeException('referenced');
+            }
+            $path = air_screen_package_path($basename);
+            if (is_file($path)) {
+                $actual = hash_file('sha256', $path);
+                if (!is_string($actual) || !hash_equals((string)$job['expected_sha256'], $actual)) {
+                    throw new RuntimeException('hash_mismatch');
+                }
+                if (!unlink($path)) throw new RuntimeException('delete_failed');
+            }
+            $delete = $database->prepare('DELETE FROM air_screen_cleanup_jobs WHERE storage_basename = :basename AND expected_sha256 = :hash');
+            $delete->execute(['basename' => $basename, 'hash' => $job['expected_sha256']]);
+            $completed++;
+        } catch (Throwable $error) {
+            $code = in_array($error->getMessage(), ['referenced', 'hash_mismatch', 'delete_failed'], true)
+                ? $error->getMessage() : 'storage_error';
+            $attempts = min(20, (int)$job['attempts'] + 1);
+            $delay = min(86400, 60 * (2 ** min(10, $attempts - 1)));
+            $update = $database->prepare(
+                'UPDATE air_screen_cleanup_jobs SET attempts = :attempts, last_error_code = :code, '
+                . 'retry_at = TIMESTAMPADD(SECOND, ' . $delay . ', CURRENT_TIMESTAMP) WHERE storage_basename = :basename');
+            $update->execute(['attempts' => $attempts, 'code' => $code, 'basename' => $basename]);
+        }
+    }
+    return $completed;
+}
+
+function air_screen_rate_consume(
+    string $scope, string $bucketKey, int $limit, int $windowSeconds, int $blockSeconds = 0): bool
+{
+    if (!preg_match('/^[a-z_]{1,40}$/D', $scope) || !preg_match('/^[a-f0-9]{64}$/D', $bucketKey)) {
+        throw new InvalidArgumentException('Invalid rate bucket.');
+    }
+    if ($limit < 1 || $windowSeconds < 1 || $windowSeconds > 86400 || $blockSeconds < 0 || $blockSeconds > 86400) {
+        throw new InvalidArgumentException('Invalid rate limits.');
+    }
+    $database = air_screen_db();
+    $statement = $database->prepare(
+        'INSERT INTO air_screen_rate_buckets (scope, bucket_key, window_started, attempts) VALUES (:scope, :key, CURRENT_TIMESTAMP, 1) '
+        . 'ON DUPLICATE KEY UPDATE attempts = IF(window_started <= TIMESTAMPADD(SECOND, -' . $windowSeconds . ', CURRENT_TIMESTAMP), 1, attempts + 1), '
+        . 'window_started = IF(window_started <= TIMESTAMPADD(SECOND, -' . $windowSeconds . ', CURRENT_TIMESTAMP), CURRENT_TIMESTAMP, window_started), '
+        . 'blocked_until = IF(blocked_until IS NOT NULL AND blocked_until > CURRENT_TIMESTAMP, blocked_until, NULL)');
+    $statement->execute(['scope' => $scope, 'key' => $bucketKey]);
+    $read = $database->prepare('SELECT attempts, blocked_until > CURRENT_TIMESTAMP FROM air_screen_rate_buckets WHERE scope = :scope AND bucket_key = :key');
+    $read->execute(['scope' => $scope, 'key' => $bucketKey]);
+    $row = $read->fetch(PDO::FETCH_NUM);
+    $allowed = is_array($row) && (int)$row[0] <= $limit && (int)$row[1] === 0;
+    if (!$allowed && $blockSeconds > 0) {
+        $block = $database->prepare('UPDATE air_screen_rate_buckets SET blocked_until = TIMESTAMPADD(SECOND, ' . $blockSeconds . ', CURRENT_TIMESTAMP) WHERE scope = :scope AND bucket_key = :key');
+        $block->execute(['scope' => $scope, 'key' => $bucketKey]);
+    }
+    return $allowed;
+}
+
+function air_screen_rate_is_blocked(string $scope, string $bucketKey): bool
+{
+    $statement = air_screen_db()->prepare(
+        'SELECT blocked_until > CURRENT_TIMESTAMP FROM air_screen_rate_buckets WHERE scope = :scope AND bucket_key = :key');
+    $statement->execute(['scope' => $scope, 'key' => $bucketKey]);
+    return (int)$statement->fetchColumn() === 1;
+}
+
+function air_screen_rate_clear(string $scope, string $bucketKey): void
+{
+    $statement = air_screen_db()->prepare('DELETE FROM air_screen_rate_buckets WHERE scope = :scope AND bucket_key = :key');
+    $statement->execute(['scope' => $scope, 'key' => $bucketKey]);
+}
+
+function air_screen_send_verification(string $email, string $displayName, string $token): void
+{
+    $url = AIR_SCREEN_ORIGIN . '/screens/verify.php?token=' . rawurlencode($token);
+    $content = '<p style="font-size:15px;line-height:23px;color:#172027;">Hello '
+        . air_screen_h($displayName) . ', verify this address within 24 hours to activate your catalog account.</p>';
+    $body = air_screen_notification_email('Verify your catalog account', $content, 'Verify email', $url);
+    if (!@mail($email, air_screen_notification_subject('Verify email', 'Catalog account'), $body, air_screen_html_mail_headers())) {
+        error_log('Custom-screen verification email could not be sent.');
+    }
 }
 
 function air_screen_csrf(): string
@@ -62,7 +244,10 @@ function air_screen_csrf(): string
 
 function air_screen_require_csrf(): void
 {
-    if (!hash_equals((string)($_SESSION['air_screen_csrf'] ?? ''), (string)($_POST['csrf'] ?? ''))) {
+    $expected = $_SESSION['air_screen_csrf'] ?? null;
+    $provided = $_POST['csrf'] ?? null;
+    if (!is_string($expected) || $expected === '' || !is_string($provided) || $provided === '' ||
+        !hash_equals($expected, $provided)) {
         http_response_code(403);
         exit('Invalid request token.');
     }
@@ -70,7 +255,22 @@ function air_screen_require_csrf(): void
 
 function air_screen_user(): ?array
 {
-    return $_SESSION['air_screen_user'] ?? null;
+    $sessionUser = $_SESSION['air_screen_user'] ?? null;
+    if (!is_array($sessionUser) || !isset($sessionUser['id'])) {
+        return null;
+    }
+
+    $statement = air_screen_db()->prepare(
+        'SELECT id, email, display_name, role FROM air_screen_users WHERE id = :id');
+    $statement->execute(['id' => $sessionUser['id']]);
+    $currentUser = $statement->fetch();
+    if (!is_array($currentUser)) {
+        unset($_SESSION['air_screen_user']);
+        return null;
+    }
+
+    $_SESSION['air_screen_user'] = $currentUser;
+    return $currentUser;
 }
 
 function air_screen_require_user(): array

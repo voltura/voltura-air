@@ -240,11 +240,12 @@ internal sealed class ScreenViewCommandHandler(
         }, cancellationToken);
     }
 
-    public async Task NotifyHostStoppedAsync(string clientId, bool disallowed, CancellationToken cancellationToken = default)
+    public async Task NotifyHostStoppedAsync(string clientId, string operationId, bool disallowed, CancellationToken cancellationToken = default)
     {
         var payload = new
         {
             type = "screen.view.ended",
+            operationId,
             reason = disallowed ? "permission-revoked" : "host-stopped",
             message = disallowed
                 ? "The PC stopped screen viewing and disallowed this device."

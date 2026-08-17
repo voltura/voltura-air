@@ -1,30 +1,29 @@
-using Microsoft.Win32;
-
 namespace VolturaAir.Host;
 
 public static class AppPermissionSettings
 {
-    private static string SettingsKeyPath => HostSettingsRegistry.SettingsKeyPath;
-    private const string AllowRemoteInputValueName = "AllowRemoteInput";
-    private const string AllowPcSleepValueName = "AllowPcSleep";
-    private const string AllowVolumeControlValueName = "AllowVolumeControl";
-    private const string AllowPresentationControlValueName = "AllowPresentationControl";
-    private const string AllowRemoteAppLaunchValueName = "AllowRemoteAppLaunch";
-    private const string AllowUrlOpenValueName = "AllowUrlOpen";
-    private const string AllowPcLockValueName = "AllowPcLock";
-    private const string AllowBlackoutDisplayValueName = "AllowBlackoutDisplay";
-    private const string AllowDisplayControlValueName = "AllowDisplayControl";
-    private const string AllowScreenSaverValueName = "AllowScreenSaver";
-    private const string AllowAwakeControlValueName = "AllowAwakeControl";
-    private const string AllowClipboardReadValueName = "AllowClipboardRead";
-    private const string AllowScreenViewingValueName = "AllowScreenViewing";
-    private const string AllowPhoneWebcamValueName = "AllowPhoneWebcam";
-    private const string AllowSignOutValueName = "AllowSignOut";
-    private const string AllowRestartValueName = "AllowRestart";
-    private const string AllowShutdownValueName = "AllowShutdown";
-    private const string AllowFileBrowsingValueName = "AllowFileBrowsing";
-    private const string AllowFileChangesValueName = "AllowFileChanges";
-    private const string HideProtectedFileSystemItemsValueName = "HideProtectedFileSystemItems";
+    internal const string ValueName = "PermissionsJson";
+    private static HostPermissionSet MalformedPermissions { get; } = new(
+        AllowRemoteInput: false,
+        AllowPcSleep: false,
+        AllowVolumeControl: false,
+        AllowPresentationControl: false,
+        AllowRemoteAppLaunch: false,
+        AllowUrlOpen: false,
+        AllowPcLock: false,
+        AllowBlackoutDisplay: false,
+        AllowDisplayControl: false,
+        AllowScreenSaver: false,
+        AllowAwakeControl: false,
+        AllowClipboardRead: false,
+        AllowScreenViewing: false,
+        AllowPhoneWebcam: false,
+        AllowSignOut: false,
+        AllowRestart: false,
+        AllowShutdown: false,
+        AllowFileBrowsing: false,
+        AllowFileChanges: false,
+        HideProtectedFileSystemItems: true);
     private static HostPermissionSet _cachedPermissions = HostPermissions.DefaultGlobal;
 
     static AppPermissionSettings()
@@ -43,77 +42,42 @@ public static class AppPermissionSettings
     public static void Save(HostPermissionSet permissions)
     {
         var current = Load();
-        using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: true) ??
-            Registry.CurrentUser.CreateSubKey(SettingsKeyPath, writable: true);
-
-        key.SetValue(AllowRemoteInputValueName, permissions.AllowRemoteInput ? 1 : 0, RegistryValueKind.DWord);
-        key.SetValue(AllowPcSleepValueName, permissions.AllowPcSleep ? 1 : 0, RegistryValueKind.DWord);
-        key.SetValue(AllowVolumeControlValueName, permissions.AllowVolumeControl ? 1 : 0, RegistryValueKind.DWord);
-        key.SetValue(AllowPresentationControlValueName, permissions.AllowPresentationControl ? 1 : 0, RegistryValueKind.DWord);
-        key.SetValue(AllowRemoteAppLaunchValueName, permissions.AllowRemoteAppLaunch ? 1 : 0, RegistryValueKind.DWord);
-        key.SetValue(AllowUrlOpenValueName, permissions.AllowUrlOpen ? 1 : 0, RegistryValueKind.DWord);
-        key.SetValue(AllowPcLockValueName, permissions.AllowPcLock ? 1 : 0, RegistryValueKind.DWord);
-        key.SetValue(AllowBlackoutDisplayValueName, permissions.AllowBlackoutDisplay ? 1 : 0, RegistryValueKind.DWord);
-        key.SetValue(AllowDisplayControlValueName, permissions.AllowDisplayControl ? 1 : 0, RegistryValueKind.DWord);
-        key.SetValue(AllowScreenSaverValueName, permissions.AllowScreenSaver ? 1 : 0, RegistryValueKind.DWord);
-        key.SetValue(AllowAwakeControlValueName, permissions.AllowAwakeControl ? 1 : 0, RegistryValueKind.DWord);
-        key.SetValue(AllowClipboardReadValueName, permissions.AllowClipboardRead ? 1 : 0, RegistryValueKind.DWord);
-        key.SetValue(AllowScreenViewingValueName, permissions.AllowScreenViewing ? 1 : 0, RegistryValueKind.DWord);
-        key.SetValue(AllowPhoneWebcamValueName, permissions.AllowPhoneWebcam ? 1 : 0, RegistryValueKind.DWord);
-        key.SetValue(AllowSignOutValueName, permissions.AllowSignOut ? 1 : 0, RegistryValueKind.DWord);
-        key.SetValue(AllowRestartValueName, permissions.AllowRestart ? 1 : 0, RegistryValueKind.DWord);
-        key.SetValue(AllowShutdownValueName, permissions.AllowShutdown ? 1 : 0, RegistryValueKind.DWord);
-        key.SetValue(AllowFileBrowsingValueName, permissions.AllowFileBrowsing ? 1 : 0, RegistryValueKind.DWord);
-        key.SetValue(AllowFileChangesValueName, permissions.AllowFileChanges ? 1 : 0, RegistryValueKind.DWord);
-        key.SetValue(HideProtectedFileSystemItemsValueName, permissions.HideProtectedFileSystemItems ? 1 : 0, RegistryValueKind.DWord);
+        HostSettingsJsonValue.Save(ValueName, permissions);
         Volatile.Write(ref _cachedPermissions, permissions);
 
         if (current != permissions)
         {
-            Changed?.Invoke(null, EventArgs.Empty);
+            NotifyChanged();
         }
     }
 
-    private static bool GetBooleanValue(RegistryKey? key, string valueName, bool defaultValue)
-    {
-        return key?.GetValue(valueName) is int value ? value != 0 : defaultValue;
-    }
-
-    private static HostPermissionSet ReadPermissions()
-    {
-        try
-        {
-            using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: false);
-            return new HostPermissionSet(
-                AllowRemoteInput: GetBooleanValue(key, AllowRemoteInputValueName, HostPermissions.DefaultGlobal.AllowRemoteInput),
-                AllowPcSleep: GetBooleanValue(key, AllowPcSleepValueName, HostPermissions.DefaultGlobal.AllowPcSleep),
-                AllowVolumeControl: GetBooleanValue(key, AllowVolumeControlValueName, HostPermissions.DefaultGlobal.AllowVolumeControl),
-                AllowPresentationControl: GetBooleanValue(key, AllowPresentationControlValueName, HostPermissions.DefaultGlobal.AllowPresentationControl),
-                AllowRemoteAppLaunch: GetBooleanValue(key, AllowRemoteAppLaunchValueName, HostPermissions.DefaultGlobal.AllowRemoteAppLaunch),
-                AllowUrlOpen: GetBooleanValue(key, AllowUrlOpenValueName, HostPermissions.DefaultGlobal.AllowUrlOpen),
-                AllowPcLock: GetBooleanValue(key, AllowPcLockValueName, HostPermissions.DefaultGlobal.AllowPcLock),
-                AllowBlackoutDisplay: GetBooleanValue(key, AllowBlackoutDisplayValueName, HostPermissions.DefaultGlobal.AllowBlackoutDisplay),
-                AllowDisplayControl: GetBooleanValue(key, AllowDisplayControlValueName, HostPermissions.DefaultGlobal.AllowDisplayControl),
-                AllowScreenSaver: GetBooleanValue(key, AllowScreenSaverValueName, HostPermissions.DefaultGlobal.AllowScreenSaver),
-                AllowAwakeControl: GetBooleanValue(key, AllowAwakeControlValueName, HostPermissions.DefaultGlobal.AllowAwakeControl),
-                AllowClipboardRead: GetBooleanValue(key, AllowClipboardReadValueName, HostPermissions.DefaultGlobal.AllowClipboardRead),
-                AllowScreenViewing: GetBooleanValue(key, AllowScreenViewingValueName, HostPermissions.DefaultGlobal.AllowScreenViewing),
-                AllowPhoneWebcam: GetBooleanValue(key, AllowPhoneWebcamValueName, HostPermissions.DefaultGlobal.AllowPhoneWebcam),
-                AllowSignOut: GetBooleanValue(key, AllowSignOutValueName, HostPermissions.DefaultGlobal.AllowSignOut),
-                AllowRestart: GetBooleanValue(key, AllowRestartValueName, HostPermissions.DefaultGlobal.AllowRestart),
-                AllowShutdown: GetBooleanValue(key, AllowShutdownValueName, HostPermissions.DefaultGlobal.AllowShutdown),
-                AllowFileBrowsing: GetBooleanValue(key, AllowFileBrowsingValueName, HostPermissions.DefaultGlobal.AllowFileBrowsing),
-                AllowFileChanges: GetBooleanValue(key, AllowFileChangesValueName, HostPermissions.DefaultGlobal.AllowFileChanges),
-                HideProtectedFileSystemItems: GetBooleanValue(key, HideProtectedFileSystemItemsValueName, HostPermissions.DefaultGlobal.HideProtectedFileSystemItems));
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
-        {
-            return HostPermissions.DefaultGlobal;
-        }
-    }
+    private static HostPermissionSet ReadPermissions() =>
+        HostSettingsJsonValue.Load(ValueName, HostPermissions.DefaultGlobal, MalformedPermissions);
 
     private static void RefreshCachedPermissions()
     {
         Volatile.Write(ref _cachedPermissions, ReadPermissions());
     }
+
+    internal static void RefreshForTests() => RefreshCachedPermissions();
+
+    private static void NotifyChanged()
+    {
+        foreach (EventHandler subscriber in Changed?.GetInvocationList().Cast<EventHandler>() ?? [])
+        {
+            try
+            {
+                subscriber(null, EventArgs.Empty);
+            }
+            catch (Exception ex) when (!IsFatal(ex))
+            {
+                System.Diagnostics.Trace.TraceError(
+                    "A permission-settings change subscriber failed: {0}",
+                    ex.GetType().Name);
+            }
+        }
+    }
+
+    private static bool IsFatal(Exception exception) =>
+        exception is OutOfMemoryException or StackOverflowException or AccessViolationException;
 }

@@ -30,7 +30,9 @@ export function ThirdPartyNoticesWorkspace({ onBack }: ThirdPartyNoticesWorkspac
       })
       .then((source) => {
         if (!cancelled) {
-          setNotices(parseThirdPartyNotices(source));
+          const parsed = parseThirdPartyNotices(source);
+          if (parsed.length === 0) {throw new Error("No valid third-party notices were found.");}
+          setNotices(parsed);
         }
       })
       .catch(() => {

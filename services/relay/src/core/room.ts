@@ -54,21 +54,23 @@ export class RelayRoom {
       return false;
     }
     const device = Array.from(this.devices.values()).find((candidate) => candidate.socket === socket);
-    if (!device || !this.host || !this.consumeRate(socket, "device", payload.length) || !this.canSend(this.host)) return false;
-    this.host.send(encodeEnvelope(device.sessionId, payload, 3));
+    if (!device || !this.host || !this.consumeRate(socket, "device", payload.length)) return false;
+    const envelope = encodeEnvelope(device.sessionId, payload, 3);
+    if (!this.canSend(this.host, envelope.length)) return false;
+    this.host.send(envelope);
     return true;
   }
 
   forwardHostPayload(sessionId: Uint8Array, payload: Uint8Array): boolean {
     if (payload.length > maximumRelayPayloadBytes) return false;
     const device = this.devices.get(sessionIdKey(sessionId));
-    if (!device || !this.host || !this.consumeRate(this.host, "host", payload.length) || !this.canSend(device.socket)) return false;
+    if (!device || !this.host || !this.consumeRate(this.host, "host", payload.length) || !this.canSend(device.socket, payload.length)) return false;
     device.socket.send(payload);
     return true;
   }
 
-  private canSend(socket: RelaySocket): boolean {
-    if (socket.bufferedAmount <= maximumBufferedBytes) return true;
+  private canSend(socket: RelaySocket, outgoingBytes: number): boolean {
+    if (socket.bufferedAmount + outgoingBytes <= maximumBufferedBytes) return true;
     socket.close(relayClose.overloaded, "Relay backpressure limit exceeded");
     this.detachDevice(socket);
     if (this.host === socket) this.detachHost(socket);

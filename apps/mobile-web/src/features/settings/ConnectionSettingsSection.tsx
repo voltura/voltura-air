@@ -4,6 +4,7 @@ import { copyTextToClipboard } from "../../foundation/diagnostics/mobileDiagnost
 import { validateManualConnectionInput } from "../../foundation/pairing/pairingLink";
 import { getPcDisplayName } from "../../foundation/pairing/pcDisplayName";
 import { InfoButton } from "../../ui/overlays/InfoButton";
+import { ConfirmationDialog } from "../../ui/overlays/ConfirmationDialog";
 import type { SettingsDrawerProps } from "./SettingsDrawerTypes";
 
 type ConnectionSettingsProps = Pick<
@@ -47,6 +48,7 @@ export function ConnectionSettingsSection({
   const manualHostErrorId = useId();
   const [copyDiagnosticsStatus, setCopyDiagnosticsStatus] = useState("");
   const [manualDiagnostics, setManualDiagnostics] = useState("");
+  const [forgetTarget, setForgetTarget] = useState<{ id: string; name: string } | null>(null);
 
   const copyDiagnostics = async () => {
     setCopyDiagnosticsStatus("");
@@ -78,7 +80,7 @@ export function ConnectionSettingsSection({
     <>
       <label className="setting-group">
         <span>This device name</span>
-        <input className="text-input" type="text" value={deviceName} onChange={(event) => { renameDevice(event.target.value); }} placeholder="Joakim's iPhone" />
+        <input className="text-input" type="text" maxLength={80} value={deviceName} onChange={(event) => { renameDevice(event.target.value); }} placeholder="Joakim's iPhone" />
       </label>
 
       <div className="install-card">
@@ -90,18 +92,26 @@ export function ConnectionSettingsSection({
             {pairedPcs.map((pc) => (
               <div className={`pc-row ${pc.id === activePc?.id ? "active" : ""}`} key={pc.id}>
                 <div className="pc-meta">
-                  <input aria-label="PC name" className="pc-name-input" type="text" value={pc.name} onChange={(event) => { renamePc(pc.id, event.target.value); }} />
+                  <input aria-label="PC name" className="pc-name-input" type="text" maxLength={120} value={pc.name} onChange={(event) => { renamePc(pc.id, event.target.value); }} />
                   <small>{pc.id === activePc?.id ? "Active" : "Saved"} &middot; {pc.url}</small>
                 </div>
                 <div className="pc-actions">
                   {pc.id !== activePc?.id && <button type="button" onClick={() => { selectPc(pc.id); }}><RefreshCw aria-hidden="true" /><span>Connect</span></button>}
-                  <button type="button" className="danger-button" onClick={() => { forgetPc(pc.id); }}><X aria-hidden="true" /><span>Forget</span></button>
+                  <button type="button" className="danger-button" onClick={() => { setForgetTarget({ id: pc.id, name: getPcDisplayName(pc) }); }}><X aria-hidden="true" /><span>Forget</span></button>
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
+      <ConfirmationDialog
+        confirmLabel="Forget PC"
+        description={`Forget ${forgetTarget?.name ?? "this PC"}? You will need to scan its pairing QR code again, and this device's saved settings for it will be removed.`}
+        isOpen={forgetTarget !== null}
+        onCancel={() => { setForgetTarget(null); }}
+        onConfirm={() => { const target = forgetTarget; setForgetTarget(null); if (target) {forgetPc(target.id);} }}
+        title="Forget this PC?"
+      />
 
       <div className="install-card">
         <div className="install-title"><Camera aria-hidden="true" /><span>Pair from QR code</span></div>

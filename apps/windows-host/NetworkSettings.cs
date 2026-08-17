@@ -1,5 +1,3 @@
-using Microsoft.Win32;
-
 namespace VolturaAir.Host;
 
 internal enum NetworkSelectionMode
@@ -43,55 +41,30 @@ internal sealed record NetworkSettingsSnapshot(
 
 internal static class AppNetworkSettings
 {
-    private static string SettingsKeyPath => HostSettingsRegistry.SettingsKeyPath;
-    private const string NetworkModeValueName = "NetworkMode";
-    private const string ManualHostAddressValueName = "ManualHostAddress";
-    private const string ManualAdapterIdValueName = "ManualAdapterId";
-    private const string ManualAdapterNameValueName = "ManualAdapterName";
-    private const string PortModeValueName = "PortMode";
-    private const string ManualPortValueName = "ManualPort";
-    private const string LastAutomaticPortValueName = "LastAutomaticPort";
-    private const string LastAutomaticHostAddressValueName = "LastAutomaticHostAddress";
-    private const string TransportModeValueName = "ConnectionTransportMode";
-    private const string CustomRelayEndpointValueName = "CustomRelayEndpoint";
-    private const string RelayScreenQualityValueName = "RelayScreenQuality";
-    private const string EnhancedCapabilitiesEnabledValueName = "EnhancedCapabilitiesEnabled";
+    internal const string ValueName = "NetworkSettingsJson";
+    internal static NetworkSettingsSnapshot Default { get; } = new(
+        NetworkSelectionMode.Automatic,
+        null,
+        null,
+        null,
+        PortSelectionMode.Automatic,
+        null,
+        null,
+        null,
+        ConnectionTransportMode.DirectLan,
+        null,
+        RelayScreenQuality.Standard,
+        false);
 
     public static NetworkSettingsSnapshot Load()
     {
-        using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: false);
-        return new NetworkSettingsSnapshot(
-            ParseEnum(key?.GetValue(NetworkModeValueName) as string, NetworkSelectionMode.Automatic),
-            key?.GetValue(ManualHostAddressValueName) as string,
-            key?.GetValue(ManualAdapterIdValueName) as string,
-            key?.GetValue(ManualAdapterNameValueName) as string,
-            ParseEnum(key?.GetValue(PortModeValueName) as string, PortSelectionMode.Automatic),
-            ReadPort(key, ManualPortValueName),
-            ReadPort(key, LastAutomaticPortValueName),
-            key?.GetValue(LastAutomaticHostAddressValueName) as string,
-            ParseEnum(key?.GetValue(TransportModeValueName) as string, ConnectionTransportMode.DirectLan),
-            NormalizeRelayEndpoint(key?.GetValue(CustomRelayEndpointValueName) as string),
-            NormalizeRelayQuality(ParseEnum(key?.GetValue(RelayScreenQualityValueName) as string, RelayScreenQuality.Standard)),
-            key?.GetValue(EnhancedCapabilitiesEnabledValueName) is int enabled && enabled == 1);
+        return HostSettingsJsonValue.Load(ValueName, Default, Default, IsValid);
     }
 
     public static void Save(NetworkSettingsSnapshot settings)
     {
-        using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: true) ??
-            Registry.CurrentUser.CreateSubKey(SettingsKeyPath, writable: true);
-
-        key.SetValue(NetworkModeValueName, settings.NetworkMode.ToString(), RegistryValueKind.String);
-        SetOptionalString(key, ManualHostAddressValueName, settings.ManualHostAddress);
-        SetOptionalString(key, ManualAdapterIdValueName, settings.ManualAdapterId);
-        SetOptionalString(key, ManualAdapterNameValueName, settings.ManualAdapterName);
-        key.SetValue(PortModeValueName, settings.PortMode.ToString(), RegistryValueKind.String);
-        SetOptionalPort(key, ManualPortValueName, settings.ManualPort);
-        SetOptionalPort(key, LastAutomaticPortValueName, settings.LastAutomaticPort);
-        SetOptionalString(key, LastAutomaticHostAddressValueName, settings.LastAutomaticHostAddress);
-        key.SetValue(TransportModeValueName, settings.TransportMode.ToString(), RegistryValueKind.String);
-        SetOptionalString(key, CustomRelayEndpointValueName, NormalizeRelayEndpoint(settings.CustomRelayEndpoint));
-        key.SetValue(RelayScreenQualityValueName, NormalizeRelayQuality(settings.RelayScreenQuality).ToString(), RegistryValueKind.String);
-        key.SetValue(EnhancedCapabilitiesEnabledValueName, settings.EnhancedCapabilitiesEnabled ? 1 : 0, RegistryValueKind.DWord);
+        if (!IsValid(settings)) throw new ArgumentException("The network settings are invalid.", nameof(settings));
+        HostSettingsJsonValue.Save(ValueName, settings);
     }
 
     public static void SetLastAutomaticPort(int port)
@@ -111,40 +84,25 @@ internal static class AppNetworkSettings
         Save(settings with { LastAutomaticHostAddress = hostAddress });
     }
 
-    private static TEnum ParseEnum<TEnum>(string? value, TEnum fallback)
-        where TEnum : struct
-    {
-        return Enum.TryParse<TEnum>(value, ignoreCase: true, out var parsed) ? parsed : fallback;
-    }
+    private static bool IsValid(NetworkSettingsSnapshot settings) =>
+        Enum.IsDefined(settings.NetworkMode) &&
+        Enum.IsDefined(settings.PortMode) &&
+        Enum.IsDefined(settings.TransportMode) &&
+        Enum.IsDefined(settings.RelayScreenQuality) &&
+        settings.RelayScreenQuality == NormalizeRelayQuality(settings.RelayScreenQuality) &&
+        IsOptionalBounded(settings.ManualHostAddress, ProtocolStringLimits.IpAddress) &&
+        IsOptionalBounded(settings.ManualAdapterId, ProtocolStringLimits.AdapterName) &&
+        IsOptionalBounded(settings.ManualAdapterName, ProtocolStringLimits.AdapterName) &&
+        IsOptionalBounded(settings.LastAutomaticHostAddress, ProtocolStringLimits.IpAddress) &&
+        (settings.ManualPort is null || PortSelector.IsValidPort(settings.ManualPort.Value)) &&
+        (settings.LastAutomaticPort is null || PortSelector.IsValidPort(settings.LastAutomaticPort.Value)) &&
+        (settings.CustomRelayEndpoint is null || string.Equals(
+            settings.CustomRelayEndpoint,
+            NormalizeRelayEndpoint(settings.CustomRelayEndpoint),
+            StringComparison.Ordinal));
 
-    private static int? ReadPort(RegistryKey? key, string valueName)
-    {
-        return key?.GetValue(valueName) is int value && PortSelector.IsValidPort(value)
-            ? value
-            : null;
-    }
-
-    private static void SetOptionalString(RegistryKey key, string valueName, string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            key.DeleteValue(valueName, throwOnMissingValue: false);
-            return;
-        }
-
-        key.SetValue(valueName, value, RegistryValueKind.String);
-    }
-
-    private static void SetOptionalPort(RegistryKey key, string valueName, int? port)
-    {
-        if (port is null || !PortSelector.IsValidPort(port.Value))
-        {
-            key.DeleteValue(valueName, throwOnMissingValue: false);
-            return;
-        }
-
-        key.SetValue(valueName, port.Value, RegistryValueKind.DWord);
-    }
+    private static bool IsOptionalBounded(string? value, int maximumLength) =>
+        value is null || value.Length is > 0 && value.Length <= maximumLength;
 
     internal static string? NormalizeRelayEndpoint(string? value)
     {

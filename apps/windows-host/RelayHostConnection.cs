@@ -4,7 +4,6 @@ using System.Net.Http.Json;
 using System.Net.WebSockets;
 using System.Text.Json;
 using System.Globalization;
-using System.Collections.Concurrent;
 using System.Threading.Channels;
 
 namespace VolturaAir.Host;
@@ -30,6 +29,8 @@ internal sealed class RelayStatusChangedEventArgs(
 internal sealed class RelayHostConnection : IAsyncDisposable
 {
     private const int MaximumTurnResponseBytes = 64 * 1024;
+    private const int MaximumTurnServers = 8;
+    private const int MaximumUrlsPerTurnServer = 8;
     private const int MaximumPendingDeviceCloses = 64;
     private const int MaximumRelayEnvelopeBytes = RelayEnvelope.MaximumEncodedBytes;
     private static readonly HttpClient HttpClient = new() { Timeout = TimeSpan.FromSeconds(10) };
@@ -40,32 +41,38 @@ internal sealed class RelayHostConnection : IAsyncDisposable
     ];
     private readonly RelayEndpointDescriptor _endpoint;
     private readonly RelayRoutingIdentity _identity;
+    private readonly TimeProvider _timeProvider;
     private readonly IAppLogWriter _log;
     private readonly RelayDeviceSessions _devices;
     private readonly SemaphoreSlim _sendGate = new(1, 1);
     private readonly SemaphoreSlim _manualRetry = new(0, 1);
+    private readonly Lock _lifecycleGate = new();
+    private readonly Lock _deviceCloseGate = new();
     private readonly CancellationTokenSource _shutdown = new();
-    private readonly ConcurrentDictionary<Guid, byte> _pendingDeviceCloses = new();
+    private readonly Dictionary<Guid, bool> _pendingDeviceCloses = [];
     private readonly Channel<Guid> _deviceCloseQueue = Channel.CreateBounded<Guid>(new BoundedChannelOptions(MaximumPendingDeviceCloses)
     {
         SingleReader = true,
         SingleWriter = false,
         FullMode = BoundedChannelFullMode.Wait
     });
-    private ClientWebSocket? _socket;
+    private RelayRuntimeState _runtime = new(RelayConnectionState.Disabled, null, null);
     private Task? _runTask;
     private Task? _deviceCloseTask;
     private RelayUsageSnapshot? _lastUsage;
     private int _disposeState;
+    private int _startState;
 
     public RelayHostConnection(
         RelayEndpointDescriptor endpoint,
         RelayRoutingIdentity identity,
         Func<WebSocket, string, CancellationToken, Task> handleSession,
-        IAppLogWriter log)
+        IAppLogWriter log,
+        TimeProvider? timeProvider = null)
     {
         _endpoint = endpoint;
         _identity = identity;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _log = log;
         _devices = new RelayDeviceSessions(
             handleSession,
@@ -73,12 +80,15 @@ internal sealed class RelayHostConnection : IAsyncDisposable
             QueueDeviceClose);
     }
 
-    public RelayConnectionState State { get; private set; } = RelayConnectionState.Disabled;
+    public RelayConnectionState State => Volatile.Read(ref _runtime).State;
     public string RouteId => _identity.RouteId;
-    public string? FailureCode { get; private set; }
+    public string? FailureCode => Volatile.Read(ref _runtime).FailureCode;
     public RelayUsageSnapshot? LastUsage => Volatile.Read(ref _lastUsage);
-    internal int PendingDeviceCloseCount => _pendingDeviceCloses.Count;
-    public event EventHandler? StateChanged;
+    internal int PendingDeviceCloseCount
+    {
+        get { lock (_deviceCloseGate) return _pendingDeviceCloses.Count; }
+    }
+    public event EventHandler<RelayStatusChangedEventArgs>? StateChanged;
 
     public async Task<RelayTurnConfiguration?> GetTurnConfigurationAsync(
         RelayScreenQuality requestedQuality,
@@ -121,11 +131,14 @@ internal sealed class RelayHostConnection : IAsyncDisposable
             !root.TryGetProperty("allowed", out var allowed) || allowed.ValueKind != JsonValueKind.True || usage is null ||
             !root.TryGetProperty("expiresAt", out var expiresValue) || expiresValue.ValueKind != JsonValueKind.String ||
             !DateTimeOffset.TryParse(expiresValue.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var expiresAt) ||
+            expiresAt <= _timeProvider.GetUtcNow().AddSeconds(30) ||
+            expiresAt > _timeProvider.GetUtcNow().AddHours(24) ||
             !root.TryGetProperty("iceServers", out var servers) || servers.ValueKind != JsonValueKind.Array)
             return null;
         var parsed = new List<RelayIceServer>();
         foreach (var server in servers.EnumerateArray())
         {
+            if (parsed.Count >= MaximumTurnServers) return null;
             if (server.ValueKind != JsonValueKind.Object ||
                 !server.TryGetProperty("username", out var usernameValue) || usernameValue.ValueKind != JsonValueKind.String ||
                 usernameValue.GetString() is not { Length: > 0 and <= 512 } username ||
@@ -133,8 +146,10 @@ internal sealed class RelayHostConnection : IAsyncDisposable
                 credentialValue.GetString() is not { Length: > 0 and <= 512 } credential ||
                 !server.TryGetProperty("urls", out var urlsValue) || urlsValue.ValueKind != JsonValueKind.Array) return null;
             var urls = new List<string>();
+            var urlEntryCount = 0;
             foreach (var urlValue in urlsValue.EnumerateArray())
             {
+                if (++urlEntryCount > MaximumUrlsPerTurnServer) return null;
                 if (urlValue.ValueKind != JsonValueKind.String || urlValue.GetString() is not { } url) return null;
                 if (IsAllowedTurnUrl(url)) urls.Add(url);
             }
@@ -154,7 +169,6 @@ internal sealed class RelayHostConnection : IAsyncDisposable
         {
             _log.Write(new AppLogEntry("relay_turn", "windows_host", Action: "automatic_data_saver", Outcome: "enabled", Code: "quota-warning"));
         }
-        StateChanged?.Invoke(this, EventArgs.Empty);
         var hostUris = parsed.SelectMany(server => server.Urls.Select(url =>
             $"{url[..url.IndexOf(':')]}:{Uri.EscapeDataString(server.Username)}:{Uri.EscapeDataString(server.Credential)}@{url[(url.IndexOf(':') + 1)..]}"))
             .ToArray();
@@ -204,7 +218,8 @@ internal sealed class RelayHostConnection : IAsyncDisposable
     private void StoreUsageSnapshot(RelayUsageSnapshot usage)
     {
         Volatile.Write(ref _lastUsage, usage);
-        StateChanged?.Invoke(this, EventArgs.Empty);
+        RelayRuntimeState runtime = Volatile.Read(ref _runtime);
+        NotifyStateChanged(runtime.State, runtime.FailureCode);
     }
 
     internal static async Task<JsonDocument> ReadBoundedJsonAsync(HttpContent content, CancellationToken cancellationToken)
@@ -241,15 +256,27 @@ internal sealed class RelayHostConnection : IAsyncDisposable
 
     public void Retry()
     {
-        _socket?.Abort();
-        if (_manualRetry.CurrentCount == 0) _manualRetry.Release();
+        if (Volatile.Read(ref _disposeState) != 0) return;
+        try
+        {
+            Volatile.Read(ref _runtime).Socket?.Abort();
+            if (_manualRetry.CurrentCount == 0) _manualRetry.Release();
+        }
+        catch (Exception exception) when (exception is ObjectDisposedException or SemaphoreFullException)
+        {
+            // Retry raced another retry or connection disposal.
+        }
     }
 
     public void Start()
     {
-        if (_runTask is not null) return;
-        _deviceCloseTask = RunDeviceCloseSenderAsync(_shutdown.Token);
-        _runTask = RunAsync(_shutdown.Token);
+        lock (_lifecycleGate)
+        {
+            if (_disposeState != 0 || _startState != 0) return;
+            _startState = 1;
+            _deviceCloseTask = Task.Run(() => RunDeviceCloseSenderAsync(_shutdown.Token));
+            _runTask = Task.Run(() => RunAsync(_shutdown.Token));
+        }
     }
 
     private async Task RunAsync(CancellationToken cancellationToken)
@@ -257,38 +284,44 @@ internal sealed class RelayHostConnection : IAsyncDisposable
         var attempt = 0;
         while (!cancellationToken.IsCancellationRequested)
         {
-            SetState(attempt == 0 ? RelayConnectionState.Connecting : RelayConnectionState.Retrying);
             using var socket = new ClientWebSocket();
             socket.Options.KeepAliveInterval = TimeSpan.FromSeconds(20);
-            _socket = socket;
+            SetState(
+                attempt == 0 ? RelayConnectionState.Connecting : RelayConnectionState.Retrying,
+                FailureCode,
+                socket);
             try
             {
                 await socket.ConnectAsync(CreateHostUri(), cancellationToken);
                 await AuthenticateAsync(socket, cancellationToken);
                 attempt = 0;
-                FailureCode = null;
-                SetState(RelayConnectionState.Connected);
+                SetState(RelayConnectionState.Connected, null, socket);
+                RequeuePendingDeviceCloses();
                 await ReceiveLoopAsync(socket, cancellationToken);
-                FailureCode = "connection-closed";
+                SetState(RelayConnectionState.Retrying, "connection-closed", socket);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 break;
             }
+            catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
             catch (Exception exception) when (exception is WebSocketException or HttpRequestException or JsonException or InvalidDataException)
             {
-                FailureCode = exception switch
+                string failureCode = exception switch
                 {
                     WebSocketException => "websocket",
                     HttpRequestException => "https",
                     JsonException => "protocol",
                     _ => "authentication"
                 };
-                SetState(RelayConnectionState.Failed);
+                SetState(RelayConnectionState.Failed, failureCode, socket);
             }
             finally
             {
-                _socket = null;
+                ClearSocket(socket);
                 await _devices.CloseAndDrainAsync();
             }
 
@@ -304,7 +337,7 @@ internal sealed class RelayHostConnection : IAsyncDisposable
             catch (OperationCanceledException) { break; }
         }
 
-        SetState(RelayConnectionState.Disconnected);
+        SetState(RelayConnectionState.Disconnected, FailureCode, null);
     }
 
     private async Task AuthenticateAsync(ClientWebSocket socket, CancellationToken cancellationToken)
@@ -380,10 +413,22 @@ internal sealed class RelayHostConnection : IAsyncDisposable
 
     private void QueueDeviceClose(Guid sessionId)
     {
-        if (!_pendingDeviceCloses.TryAdd(sessionId, 0)) return;
-        if (_deviceCloseQueue.Writer.TryWrite(sessionId)) return;
-        _pendingDeviceCloses.TryRemove(sessionId, out _);
-        _socket?.Abort();
+        bool abort;
+        lock (_deviceCloseGate)
+        {
+            if (_pendingDeviceCloses.ContainsKey(sessionId)) return;
+            if (_pendingDeviceCloses.Count >= MaximumPendingDeviceCloses)
+            {
+                abort = true;
+            }
+            else
+            {
+                bool queued = _deviceCloseQueue.Writer.TryWrite(sessionId);
+                _pendingDeviceCloses.Add(sessionId, queued);
+                abort = !queued;
+            }
+        }
+        if (abort) Volatile.Read(ref _runtime).Socket?.Abort();
     }
 
     private async Task RunDeviceCloseSenderAsync(CancellationToken cancellationToken)
@@ -397,14 +442,16 @@ internal sealed class RelayHostConnection : IAsyncDisposable
                     await SendEnvelopeAsync(
                         new RelayEnvelope(RelayEnvelopeKind.CloseDevice, sessionId, []),
                         cancellationToken);
+                    lock (_deviceCloseGate) _pendingDeviceCloses.Remove(sessionId);
+                    RequeuePendingDeviceCloses();
                 }
                 catch (Exception exception) when (exception is OperationCanceledException or WebSocketException or ObjectDisposedException)
                 {
-                    _socket?.Abort();
-                }
-                finally
-                {
-                    _pendingDeviceCloses.TryRemove(sessionId, out _);
+                    lock (_deviceCloseGate)
+                    {
+                        if (_pendingDeviceCloses.ContainsKey(sessionId)) _pendingDeviceCloses[sessionId] = false;
+                    }
+                    Volatile.Read(ref _runtime).Socket?.Abort();
                 }
             }
         }
@@ -415,7 +462,7 @@ internal sealed class RelayHostConnection : IAsyncDisposable
 
     private async Task SendEnvelopeAsync(RelayEnvelope envelope, CancellationToken cancellationToken)
     {
-        var socket = _socket;
+        var socket = Volatile.Read(ref _runtime).Socket;
         if (socket?.State != WebSocketState.Open) throw new WebSocketException(WebSocketError.ConnectionClosedPrematurely);
         var bytes = envelope.Encode();
         await _sendGate.WaitAsync(cancellationToken);
@@ -470,21 +517,65 @@ internal sealed class RelayHostConnection : IAsyncDisposable
         return envelope;
     }
 
-    private void SetState(RelayConnectionState state)
+    private void SetState(RelayConnectionState state, string? failureCode, ClientWebSocket? socket)
     {
-        if (State == state) return;
-        State = state;
+        RelayRuntimeState previous = Volatile.Read(ref _runtime);
+        var next = new RelayRuntimeState(state, failureCode, socket);
+        Volatile.Write(ref _runtime, next);
+        if (previous.State == state && previous.FailureCode == failureCode) return;
         _log.Write(new AppLogEntry("relay_state", "windows_host", Action: state.ToString().ToLowerInvariant(), Outcome: "ok", Code: _endpoint.IsOfficial ? "official" : "custom"));
-        StateChanged?.Invoke(this, EventArgs.Empty);
+        NotifyStateChanged(state, failureCode);
+    }
+
+    private void NotifyStateChanged(RelayConnectionState state, string? failureCode)
+    {
+        var eventArgs = new RelayStatusChangedEventArgs(state, failureCode);
+        foreach (EventHandler<RelayStatusChangedEventArgs> subscriber in
+            StateChanged?.GetInvocationList().Cast<EventHandler<RelayStatusChangedEventArgs>>() ?? [])
+        {
+            try { subscriber(this, eventArgs); }
+            catch (Exception exception) when (exception is not OutOfMemoryException) { }
+        }
+    }
+
+    private void ClearSocket(ClientWebSocket socket)
+    {
+        while (true)
+        {
+            RelayRuntimeState current = Volatile.Read(ref _runtime);
+            if (!ReferenceEquals(current.Socket, socket)) return;
+            var next = current with { Socket = null };
+            if (ReferenceEquals(Interlocked.CompareExchange(ref _runtime, next, current), current)) return;
+        }
+    }
+
+    private void RequeuePendingDeviceCloses()
+    {
+        lock (_deviceCloseGate)
+        {
+            foreach (Guid sessionId in _pendingDeviceCloses
+                .Where(item => !item.Value)
+                .Select(item => item.Key)
+                .ToArray())
+            {
+                if (!_deviceCloseQueue.Writer.TryWrite(sessionId)) break;
+                _pendingDeviceCloses[sessionId] = true;
+            }
+        }
     }
 
     public async ValueTask DisposeAsync()
     {
-        if (Interlocked.Exchange(ref _disposeState, 1) != 0) return;
+        lock (_lifecycleGate)
+        {
+            if (_disposeState != 0) return;
+            _disposeState = 1;
+        }
         await _shutdown.CancelAsync();
         _deviceCloseQueue.Writer.TryComplete();
-        _socket?.Abort();
-        _socket?.Dispose();
+        ClientWebSocket? socket = Volatile.Read(ref _runtime).Socket;
+        socket?.Abort();
+        socket?.Dispose();
         if (_runTask is not null)
         {
             try { await _runTask; }
@@ -500,4 +591,9 @@ internal sealed class RelayHostConnection : IAsyncDisposable
         _shutdown.Dispose();
         _identity.Dispose();
     }
+
+    private sealed record RelayRuntimeState(
+        RelayConnectionState State,
+        string? FailureCode,
+        ClientWebSocket? Socket);
 }

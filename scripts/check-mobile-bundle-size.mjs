@@ -2,9 +2,9 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Phone webcam itself stays in a lazy chunk. The reviewed initial-shell increase
-// is the capability parser, normal Tools entry, and result routing only.
-const maximumRawJavaScriptBytes = 573 * 1024;
+// Media workspaces stay in lazy chunks. The reviewed initial shell includes
+// guarded browser storage, destructive-action confirmation, and result routing.
+const maximumRawJavaScriptBytes = 574 * 1024;
 const maximumBrotliJavaScriptBytes = 138 * 1024;
 const distDirectory = fileURLToPath(new URL("../apps/mobile-web/dist/", import.meta.url));
 const assetsDirectory = fileURLToPath(new URL("../apps/mobile-web/dist/assets/", import.meta.url));

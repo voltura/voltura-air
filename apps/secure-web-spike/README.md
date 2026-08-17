@@ -13,8 +13,9 @@ secure browser context.
 The printed URL fragment is `room.key`: both are independent 256-bit random values.
 The page AES-GCM decrypts the host offer and encrypts its answer with the room as
 authenticated data. PHP validates only bounded envelope fields, stores only
-ciphertext, expires rooms after five minutes, consumes the offer once, and deletes the
-room when the host consumes the answer.
+ciphertext, bounds active rooms, and expires rooms after five minutes. Offer and answer
+reads are idempotent so a lost HTTP response does not discard the original peer; the
+host deletes the room only after it has decrypted and applied the answer.
 
 The page contains only camera selection, preview, transport selection, and explicit
 **Start webcam**/**Stop webcam** controls. It requests exact 1920×1080 and approximately
@@ -22,8 +23,8 @@ The page contains only camera selection, preview, transport selection, and expli
 peer. Stop, page hiding, and track loss release capture. Transport failure is reported
 without reconnect, renegotiation, a new peer, or a new room.
 
-Run `php tests/signal-store-test.php` to verify that an answer cannot be consumed
-twice even when a second reader opened the state file before the first consumption.
+Run `php tests/signal-store-test.php` to verify that an answer remains available to an
+idempotent retry even when a second reader opened the state file before the first read.
 Run `node tests/capture-generation.test.js` to verify that hiding the page invalidates
 an in-flight capture start before it can activate a camera.
 Run `node tests/submitted-peer.test.js` to verify that a hidden page retains an answer

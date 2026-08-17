@@ -131,7 +131,8 @@ flowchart TD
 ```mermaid
 flowchart LR
   Source["Clean main checkout\nrelease notes prepared"] --> Local["npm run release:draft\nor npm run release:full\nmaintainer Windows PC"]
-  Local --> Guard["Resolve new version\nor matching resumable draft"]
+  Local --> Prepare["One release lock\nhash-journaled source preparation"]
+  Prepare --> Guard["Resolve new version\nor matching resumable draft"]
   Guard --> Test["npm test\nhost tests\nscript/doc checks"]
   Test --> Package["package-win.ps1\nmobile build\n.NET publish\nNSIS installers"]
   Package --> Artifacts["ZIP + installers\nartifacts/publish"]
@@ -146,4 +147,21 @@ flowchart LR
   GitHub["GitHub CLI and release API"] -. "publication trust" .-> Mode
   Tooling["NSIS / build tooling"] -. "release-time tool trust" .-> Package
   Maintainer["Maintainer"] --> Local
+```
+
+## Windows installer promotion boundary
+
+```mermaid
+flowchart LR
+  Payload["Complete embedded payload\nSHA-256 manifest"] --> Stage["Unique sibling staging\nextract + verify"]
+  Stage --> Stop["Stop only installed-path\nVolturaAir.Host.exe"]
+  Stop --> Journal["Installer journal outside\ninstallation directory"]
+  Journal --> Promote["Current to owned backup\nstaging to current"]
+  Promote --> Health["Bounded isolated\nhost health check"]
+  Health -->|"pass"| Register["Shortcuts and uninstall metadata\nthen delete backup"]
+  Health -->|"fail"| Restore["Verify and restore backup"]
+
+  Uninstall["Uninstall"] --> Webcam["Remove fixed protected\nPhone Webcam component"]
+  Webcam --> Removal["Register recovery copy\njournal + rename to owned removal"]
+  Removal --> Cleanup["Delete exact owned removal\nthen user registrations"]
 ```

@@ -65,4 +65,18 @@ describe("appStorage", () => {
   it("scopes auto refresh by web build ID", () => {
     expect(getAutoRefreshSessionKey("client-a", "pc-a", "build-a")).toBe("voltura-air.autoRefresh.client-a.pc-a.build.build-a");
   });
+
+  it("continues with in-memory preferences when browser storage throws", () => {
+    expect(loadThemeMode()).toBe("system");
+    vi.stubGlobal("localStorage", {
+      get length(): number { throw new DOMException("Blocked", "SecurityError"); },
+      clear(): void { throw new DOMException("Blocked", "SecurityError"); },
+      getItem(): string | null { throw new DOMException("Blocked", "SecurityError"); },
+      key(): string | null { throw new DOMException("Blocked", "SecurityError"); },
+      removeItem(): void { throw new DOMException("Blocked", "SecurityError"); },
+      setItem(): void { throw new DOMException("Blocked", "SecurityError"); }
+    } satisfies Storage);
+    saveThemeMode("dark");
+    expect(loadThemeMode()).toBe("dark");
+  });
 });

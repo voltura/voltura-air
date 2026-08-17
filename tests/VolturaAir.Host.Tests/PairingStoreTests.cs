@@ -156,4 +156,30 @@ public sealed class PairingStoreTests
             root.Delete(recursive: true);
         }
     }
+
+    [Fact]
+    public void OversizedSaveDoesNotReplaceTheLastReadablePairingData()
+    {
+        var root = Directory.CreateTempSubdirectory("VolturaAir-PairingStore-");
+        try
+        {
+            var store = new PairingStore(root.FullName);
+            using var key = new PairingTestKey();
+            store.Save([new PairingRecord("client-a", key.PublicKey, "Phone")]);
+            var oversized = new PairingRecord(
+                "client-b",
+                key.PublicKey,
+                "Tablet",
+                Browser: new string('x', 1024 * 1024));
+
+            Assert.Throws<InvalidDataException>(() => store.Save([oversized]));
+
+            var persisted = Assert.Single(store.Load());
+            Assert.Equal("client-a", persisted.ClientId);
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
 }

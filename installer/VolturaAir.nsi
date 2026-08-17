@@ -25,6 +25,10 @@
 !define APP_NAME "Voltura Air"
 !define EXE_NAME "VolturaAir.Host.exe"
 !define WEBCAM_SETUP "PhoneWebcam\VolturaAir.WebcamSetup.exe"
+!define WEBCAM_PROTECTED_SETUP "$PROGRAMFILES64\Voltura Air Webcam\VolturaAir.WebcamSetup.exe"
+!define INSTALL_TRANSACTION_SCRIPT "VolturaAir.InstallTransaction.ps1"
+!define INSTALL_TRANSACTION_JOURNAL "$LOCALAPPDATA\Voltura Air\installer-transaction.json"
+!define RECOVERY_UNINSTALLER "$LOCALAPPDATA\Voltura Air\Uninstall-Recovery.exe"
 !define PUBLISHER "Voltura AB"
 !define DEVELOPER "Joakim Skoglund"
 !define PRODUCT_URL "https://voltura.se/air"
@@ -98,6 +102,7 @@ VIAddVersionKey "Comments" "Developer: ${DEVELOPER}; Website: ${PRODUCT_URL}; Em
 
 !define MUI_PAGE_CUSTOMFUNCTION_SHOW FinishInstallerWindowActivation
 !insertmacro MUI_PAGE_WELCOME
+!insertmacro MUI_PAGE_COMPONENTS
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
 !insertmacro MUI_UNPAGE_CONFIRM
@@ -108,6 +113,9 @@ VIAddVersionKey "Comments" "Developer: ${DEVELOPER}; Website: ${PRODUCT_URL}; Em
 !ifdef FRAMEWORK_DEPENDENT
 Var PrerequisiteRebootRequired
 !endif
+Var StagingDirectory
+Var WebcamRemovedForUpdate
+Var WebcamRollbackHelper
 
 !macro ExecCheckedToStack COMMAND_VAR TOO_LONG_LABEL
   StrLen $3 ${COMMAND_VAR}
@@ -165,7 +173,41 @@ Function FinishInstallerWindowActivation
   System::Call 'user32::SetWindowPos(p $HWNDPARENT, p -2, i 0, i 0, i 0, i 0, i 0x43) i .r0'
 FunctionEnd
 
-Section "Install"
+Function .onInit
+  InitPluginsDir
+  SetOutPath "$PLUGINSDIR"
+  File /oname=${INSTALL_TRANSACTION_SCRIPT} "${__FILEDIR__}\InstallTransaction.ps1"
+  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action Recover -InstallDirectory "$INSTDIR" -JournalPath "${INSTALL_TRANSACTION_JOURNAL}"'
+  Pop $0
+  Pop $1
+  ${If} $0 != 0
+    MessageBox MB_ICONSTOP "Voltura Air setup found an installation transaction it could not safely recover. No unexpected directory was overwritten."
+    Abort "Installer transaction recovery failed."
+  ${EndIf}
+FunctionEnd
+
+Function un.onInit
+  InitPluginsDir
+  SetOutPath "$PLUGINSDIR"
+  File /oname=${INSTALL_TRANSACTION_SCRIPT} "${__FILEDIR__}\InstallTransaction.ps1"
+  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action PrepareUninstall -InstallDirectory "$INSTDIR" -JournalPath "${INSTALL_TRANSACTION_JOURNAL}"'
+  Pop $0
+  Pop $1
+  ${If} $0 != 0
+    MessageBox MB_ICONSTOP "Voltura Air uninstall found a transaction it could not safely resume."
+    Abort "Uninstall transaction recovery failed."
+  ${EndIf}
+FunctionEnd
+
+Function RollbackPromotedInstall
+  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action Rollback -InstallDirectory "$INSTDIR" -JournalPath "${INSTALL_TRANSACTION_JOURNAL}"'
+  Pop $0
+  Pop $1
+  Push $0
+FunctionEnd
+
+Section "Voltura Air (required)" SEC_CORE
+  SectionIn RO
   !ifdef FRAMEWORK_DEPENDENT
   StrCpy $PrerequisiteRebootRequired 0
 
@@ -190,13 +232,39 @@ Section "Install"
   ${EndIf}
   !endif
 
-  Call PromptCloseRunningApp
-
-  RMDir /r "$INSTDIR"
-  SetOutPath "$INSTDIR"
+  System::Call 'kernel32::GetCurrentProcessId()i.r0'
+  StrCpy $StagingDirectory "$INSTDIR.staging-$0"
+  IfFileExists "$StagingDirectory\*" 0 install_staging_ready
+  MessageBox MB_ICONSTOP "Voltura Air setup found an unexpected staging directory and will not overwrite it."
+  Abort "Installer staging directory already exists."
+install_staging_ready:
+  SetOutPath "$StagingDirectory"
   File /r "${PUBLISH_DIR}\*.*"
+  WriteUninstaller "$StagingDirectory\Uninstall.exe"
+  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action Verify -InstallDirectory "$INSTDIR" -StagingDirectory "$StagingDirectory"'
+  Pop $0
+  Pop $1
+  ${If} $0 != 0
+    MessageBox MB_ICONSTOP "Voltura Air setup could not verify the complete staged payload."
+    Abort "Installer payload verification failed."
+  ${EndIf}
 
-  WriteUninstaller "$INSTDIR\Uninstall.exe"
+  Call PromptCloseRunningApp
+  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action Promote -InstallDirectory "$INSTDIR" -StagingDirectory "$StagingDirectory" -JournalPath "${INSTALL_TRANSACTION_JOURNAL}"'
+  Pop $0
+  Pop $1
+  ${If} $0 != 0
+    MessageBox MB_ICONSTOP "Voltura Air setup could not promote the staged installation. Its verified recovery state was retained."
+    Abort "Installer promotion failed."
+  ${EndIf}
+  nsExec::ExecToStack '"$INSTDIR\${EXE_NAME}" --installer-health-check --isolated-test-mode'
+  Pop $0
+  Pop $1
+  ${If} $0 != 0
+    nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action Rollback -InstallDirectory "$INSTDIR" -JournalPath "${INSTALL_TRANSACTION_JOURNAL}"'
+    MessageBox MB_ICONSTOP "The updated host failed its isolated health check. Setup restored the verified previous installation."
+    Abort "Installed host health check failed."
+  ${EndIf}
 
   CreateDirectory "$SMPROGRAMS\${APP_NAME}"
   CreateShortcut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\${EXE_NAME}" "" "$INSTDIR\${EXE_NAME}" 0
@@ -214,12 +282,82 @@ Section "Install"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "UninstallString" "$\"$INSTDIR\Uninstall.exe$\""
   WriteRegStr HKCU "${UNINSTALL_KEY}" "QuietUninstallString" "$\"$INSTDIR\Uninstall.exe$\" /S"
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "EstimatedSize" ${APP_ESTIMATED_SIZE_KB}
-  WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoModify" 1
-  WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoRepair" 1
+  WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoModify" 0
+  WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoRepair" 0
   WriteRegStr HKCU "Software\Classes\voltura-air" "" "URL:Voltura Air custom screen"
   WriteRegStr HKCU "Software\Classes\voltura-air" "URL Protocol" ""
   WriteRegStr HKCU "Software\Classes\voltura-air\DefaultIcon" "" "$INSTDIR\${EXE_NAME},0"
   WriteRegStr HKCU "Software\Classes\voltura-air\shell\open\command" "" "$\"$INSTDIR\${EXE_NAME}$\" $\"%1$\""
+SectionEnd
+
+Section /o "Phone Webcam" SEC_PHONE_WEBCAM
+  DetailPrint "Preparing the optional protected Phone Webcam component..."
+  StrCpy $WebcamRemovedForUpdate 0
+  StrCpy $WebcamRollbackHelper "$PLUGINSDIR\VolturaAir.WebcamSetup.Rollback.exe"
+  IfFileExists "${WEBCAM_PROTECTED_SETUP}" 0 phone_webcam_install_packaged
+  ClearErrors
+  CopyFiles /SILENT "${WEBCAM_PROTECTED_SETUP}" "$WebcamRollbackHelper"
+  IfErrors 0 phone_webcam_check_existing
+  Call RollbackPromotedInstall
+  Pop $2
+  MessageBox MB_ICONSTOP "Voltura Air could not preserve the installed Phone Webcam component before maintenance."
+  Abort "Phone Webcam rollback helper could not be prepared."
+phone_webcam_check_existing:
+  nsExec::ExecToStack '"${WEBCAM_PROTECTED_SETUP}" cleanup-required'
+  Pop $0
+  Pop $1
+  ${If} $0 == 0
+    nsExec::ExecToStack '"${WEBCAM_PROTECTED_SETUP}" remove'
+    Pop $0
+    Pop $1
+    ${If} $0 != 0
+      Call RollbackPromotedInstall
+      Pop $2
+      MessageBox MB_ICONSTOP "Voltura Air could not safely remove the existing Phone Webcam component. Approve the administrator request and run setup again."
+      Abort "Phone Webcam maintenance removal did not complete."
+    ${EndIf}
+    StrCpy $WebcamRemovedForUpdate 1
+  ${ElseIf} $0 != 1
+    Call RollbackPromotedInstall
+    Pop $2
+    MessageBox MB_ICONSTOP "Voltura Air could not verify the existing Phone Webcam component."
+    Abort "Phone Webcam component state is unavailable."
+  ${EndIf}
+phone_webcam_install_packaged:
+  SetOutPath "$PLUGINSDIR"
+  File /oname=VolturaAir.WebcamSetup.exe "${PUBLISH_DIR}\${WEBCAM_SETUP}"
+  nsExec::ExecToStack '"$PLUGINSDIR\VolturaAir.WebcamSetup.exe" install'
+  Pop $0
+  Pop $1
+  ${If} $0 != 0
+    ${If} $WebcamRemovedForUpdate == 1
+      nsExec::ExecToStack '"$WebcamRollbackHelper" install'
+      Pop $2
+      Pop $3
+      ${If} $2 != 0
+        MessageBox MB_ICONSTOP "Phone Webcam installation and restoration did not complete. Setup retained its recovery journal; approve the administrator request and run setup again."
+        Abort "Phone Webcam component restoration did not complete."
+      ${EndIf}
+    ${EndIf}
+    Call RollbackPromotedInstall
+    Pop $2
+    ${If} $2 != 0
+      MessageBox MB_ICONSTOP "Phone Webcam installation did not complete and the previous app could not be restored. Setup retained its recovery journal; run setup again."
+      Abort "Phone Webcam installation and app rollback did not complete."
+    ${EndIf}
+    MessageBox MB_ICONSTOP "Phone Webcam installation did not complete. The previous app and component were restored. Approve the administrator request and run setup again."
+    Abort "Phone Webcam component installation failed."
+  ${EndIf}
+SectionEnd
+
+Section -FinalizeInstall
+  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action Commit -InstallDirectory "$INSTDIR" -JournalPath "${INSTALL_TRANSACTION_JOURNAL}"'
+  Pop $0
+  Pop $1
+  ${If} $0 != 0
+    MessageBox MB_ICONSTOP "Voltura Air was installed, but setup could not finish transaction cleanup. Run setup again to recover it."
+    Abort "Installer transaction cleanup failed."
+  ${EndIf}
 SectionEnd
 
 Function .onInstSuccess
@@ -235,6 +373,31 @@ Section "Uninstall"
   Call un.PromptCloseRunningApp
   Call un.RemovePhoneWebcam
 
+  IfFileExists "${RECOVERY_UNINSTALLER}" uninstall_recovery_ready 0
+  CreateDirectory "$LOCALAPPDATA\Voltura Air"
+  CopyFiles /SILENT "$EXEPATH" "${RECOVERY_UNINSTALLER}"
+  IfErrors 0 uninstall_recovery_ready
+  MessageBox MB_ICONSTOP "Voltura Air could not prepare its uninstall recovery entry."
+  Abort "The recovery uninstaller could not be created."
+uninstall_recovery_ready:
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "UninstallString" "$\"${RECOVERY_UNINSTALLER}$\""
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "QuietUninstallString" "$\"${RECOVERY_UNINSTALLER}$\" /S"
+
+  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action StageRemoval -InstallDirectory "$INSTDIR" -JournalPath "${INSTALL_TRANSACTION_JOURNAL}"'
+  Pop $0
+  Pop $1
+  ${If} $0 != 0
+    MessageBox MB_ICONSTOP "Voltura Air could not stage its verified installation for removal."
+    Abort "The installation directory could not be staged for removal."
+  ${EndIf}
+  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action CompleteRemoval -InstallDirectory "$INSTDIR" -JournalPath "${INSTALL_TRANSACTION_JOURNAL}"'
+  Pop $0
+  Pop $1
+  ${If} $0 != 0
+    MessageBox MB_ICONSTOP "Voltura Air cleanup did not finish. The uninstall entry and recovery journal were retained; run uninstall again."
+    Abort "The owned removal directory could not be deleted."
+  ${EndIf}
+
   Delete "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk"
   Delete "$SMPROGRAMS\${APP_NAME}\Uninstall ${APP_NAME}.lnk"
   RMDir "$SMPROGRAMS\${APP_NAME}"
@@ -242,17 +405,15 @@ Section "Uninstall"
   DeleteRegKey HKCU "${UNINSTALL_KEY}"
   DeleteRegKey HKCU "Software\Classes\voltura-air"
   DeleteRegValue HKCU "${RUN_KEY}" "${APP_NAME}"
+  Delete "${RECOVERY_UNINSTALLER}"
 
-  RMDir /r "$INSTDIR"
 SectionEnd
 
 Function un.RemovePhoneWebcam
-  IfFileExists "$INSTDIR\${WEBCAM_SETUP}" phone_webcam_helper_available 0
-  MessageBox MB_ICONSTOP "The Phone webcam cleanup component is missing. Repair or reinstall this Voltura Air version, then run uninstall again."
-  Abort "Phone webcam cleanup component is missing."
+  IfFileExists "${WEBCAM_PROTECTED_SETUP}" phone_webcam_helper_available phone_webcam_done
 
 phone_webcam_helper_available:
-  nsExec::ExecToStack '"$INSTDIR\${WEBCAM_SETUP}" cleanup-required'
+  nsExec::ExecToStack '"${WEBCAM_PROTECTED_SETUP}" cleanup-required'
   Pop $0
   Pop $1
   ${If} $0 == 1
@@ -262,7 +423,7 @@ phone_webcam_helper_available:
     Abort "Phone webcam cleanup state is unavailable."
   ${EndIf}
   DetailPrint "Removing Voltura Air Webcam..."
-  nsExec::ExecToStack '"$INSTDIR\${WEBCAM_SETUP}" remove'
+  nsExec::ExecToStack '"${WEBCAM_PROTECTED_SETUP}" remove'
   Pop $0
   Pop $1
   ${If} $0 != 0
@@ -495,7 +656,7 @@ FunctionEnd
 !endif
 
 Function PromptCloseRunningApp
-  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "if (Get-Process -Name VolturaAir.Host -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }"'
+  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action HostRunning -InstallDirectory "$INSTDIR"'
   Pop $0
   Pop $1
 
@@ -506,14 +667,11 @@ Function PromptCloseRunningApp
   MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "${APP_NAME} is currently running. Setup needs to close it before continuing." IDOK install_close IDCANCEL install_cancel
 
 install_close:
-  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "Stop-Process -Name VolturaAir.Host -Force -ErrorAction SilentlyContinue"'
-  Sleep 1000
-
-  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "if (Get-Process -Name VolturaAir.Host -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }"'
+  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action StopHost -InstallDirectory "$INSTDIR"'
   Pop $0
   Pop $1
 
-  ${If} $0 == 0
+  ${If} $0 != 0
     MessageBox MB_ICONSTOP|MB_RETRYCANCEL "${APP_NAME} is still running. Close it manually, then retry." IDRETRY install_close IDCANCEL install_cancel
   ${EndIf}
 
@@ -524,7 +682,7 @@ install_cancel:
 FunctionEnd
 
 Function un.PromptCloseRunningApp
-  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "if (Get-Process -Name VolturaAir.Host -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }"'
+  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action HostRunning -InstallDirectory "$INSTDIR"'
   Pop $0
   Pop $1
 
@@ -535,14 +693,11 @@ Function un.PromptCloseRunningApp
   MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "${APP_NAME} is currently running. Uninstall needs to close it before continuing." IDOK uninstall_close IDCANCEL uninstall_cancel
 
 uninstall_close:
-  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "Stop-Process -Name VolturaAir.Host -Force -ErrorAction SilentlyContinue"'
-  Sleep 1000
-
-  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "if (Get-Process -Name VolturaAir.Host -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }"'
+  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action StopHost -InstallDirectory "$INSTDIR"'
   Pop $0
   Pop $1
 
-  ${If} $0 == 0
+  ${If} $0 != 0
     MessageBox MB_ICONSTOP|MB_RETRYCANCEL "${APP_NAME} is still running. Close it manually, then retry." IDRETRY uninstall_close IDCANCEL uninstall_cancel
   ${EndIf}
 

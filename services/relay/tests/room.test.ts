@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { consumeRelayRate, decodeEnvelope, maximumDevicesPerRoom, maximumRelayPayloadBytes, relayEnvelopeKind, RelayRoom, type RelayRateState, type RelaySocket } from "../src/core/index";
+import { consumeRelayRate, decodeEnvelope, maximumBufferedBytes, maximumDevicesPerRoom, maximumRelayPayloadBytes, relayEnvelopeKind, RelayRoom, type RelayRateState, type RelaySocket } from "../src/core/index";
 
 class FakeSocket implements RelaySocket {
   bufferedAmount = 0;
@@ -71,6 +71,19 @@ describe("RelayRoom", () => {
     device.bufferedAmount = Number.MAX_SAFE_INTEGER;
 
     expect(room.forwardHostPayload(sessionId, new Uint8Array([1]))).toBe(false);
+    expect(device.closed?.reason).toBe("Relay backpressure limit exceeded");
+  });
+
+  it("includes the outgoing frame when enforcing the backpressure bound", () => {
+    const room = new RelayRoom();
+    const host = new FakeSocket();
+    const device = new FakeSocket();
+    const sessionId = new Uint8Array(16);
+    room.attachHost(host);
+    room.attachDevice(device, sessionId);
+    device.bufferedAmount = maximumBufferedBytes - 1;
+
+    expect(room.forwardHostPayload(sessionId, new Uint8Array([1, 2]))).toBe(false);
     expect(device.closed?.reason).toBe("Relay backpressure limit exceeded");
   });
 

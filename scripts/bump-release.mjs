@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { prepareRelease } from "./prepare-release.mjs";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const odometerVersionPattern = /^(0|[1-9]\d*)\.(\d)\.(\d)$/u;
@@ -39,22 +39,7 @@ export async function bumpRelease() {
   const currentVersion = String(packageJson.version ?? "");
   const nextVersion = getNextReleaseVersion(currentVersion);
   console.log(`Bumping Voltura Air from ${currentVersion} to ${nextVersion}.`);
-  const result = spawnSync("pwsh", [
-    "-NoProfile",
-    "-File",
-    path.join(repositoryRoot, "scripts", "prepare-release.ps1"),
-    nextVersion
-  ], {
-    cwd: repositoryRoot,
-    stdio: "inherit"
-  });
-
-  if (result.error) {
-    throw result.error;
-  }
-  if (result.status !== 0) {
-    throw new Error(`Release preparation failed with exit code ${result.status ?? "unknown"}.`);
-  }
+  await prepareRelease(nextVersion);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

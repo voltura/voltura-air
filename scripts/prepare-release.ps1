@@ -25,8 +25,124 @@ foreach ($part in $versionParts) {
 
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+$gitJournalRelative = (& git -C $repoRoot rev-parse --git-path 'voltura-air-release-preparation.json').Trim()
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($gitJournalRelative)) {
+    throw 'Git could not resolve the release-preparation journal path.'
+}
+$journalPath = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $gitJournalRelative))
+$releaseOwnedPaths = @(
+    'package.json',
+    'apps\mobile-web\package.json',
+    'services\relay\package.json',
+    'package-lock.json',
+    'apps\windows-host\VolturaAir.Host.csproj'
+)
 $originals = [ordered]@{}
 $updates = [ordered]@{}
+
+function Get-FileSha256 {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
+    return [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([IO.File]::ReadAllBytes($Path)))
+}
+
+function Write-FlushedNewFile {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][byte[]]$Bytes
+    )
+    $stream = $null
+    try {
+        $stream = [IO.FileStream]::new($Path, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None, 16384, [IO.FileOptions]::WriteThrough)
+        $stream.Write($Bytes, 0, $Bytes.Length)
+        $stream.Flush($true)
+    } catch {
+        if ($null -ne $stream) { $stream.Dispose(); $stream = $null }
+        Remove-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+        throw
+    } finally {
+        if ($null -ne $stream) { $stream.Dispose() }
+    }
+}
+
+function Remove-ReleaseTransactionArtifacts {
+    param([Parameter(Mandatory = $true)]$Journal)
+    foreach ($entry in $Journal.entries) {
+        Remove-Item -LiteralPath ([string]$entry.stagedPath) -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath ([string]$entry.backupPath) -Force -ErrorAction SilentlyContinue
+    }
+    Remove-Item -LiteralPath $journalPath -Force -ErrorAction SilentlyContinue
+}
+
+function Complete-ReleaseTransaction {
+    param([Parameter(Mandatory = $true)]$Journal)
+    foreach ($entry in $Journal.entries) {
+        $target = [string]$entry.targetPath
+        $staged = [string]$entry.stagedPath
+        $backup = [string]$entry.backupPath
+        $currentHash = Get-FileSha256 $target
+        if ($currentHash -eq [string]$entry.stagedHash) { continue }
+        if ($currentHash -ne [string]$entry.originalHash) {
+            throw "Release recovery stopped because '$target' contains unexpected content."
+        }
+        if ((Get-FileSha256 $staged) -ne [string]$entry.stagedHash) {
+            throw "Release recovery stopped because its staged file for '$target' is missing or changed."
+        }
+        [IO.File]::Replace($staged, $target, $backup, $true)
+        if ((Get-FileSha256 $target) -ne [string]$entry.stagedHash) {
+            throw "Release recovery could not verify '$target' after replacement."
+        }
+    }
+    Remove-ReleaseTransactionArtifacts $Journal
+}
+
+function Rollback-ReleaseTransaction {
+    param([Parameter(Mandatory = $true)]$Journal)
+    foreach ($entry in @($Journal.entries)[-1..-$Journal.entries.Count]) {
+        $target = [string]$entry.targetPath
+        $backup = [string]$entry.backupPath
+        $currentHash = Get-FileSha256 $target
+        if ($currentHash -eq [string]$entry.originalHash) { continue }
+        if ($currentHash -ne [string]$entry.stagedHash -or (Get-FileSha256 $backup) -ne [string]$entry.originalHash) {
+            throw "Release rollback stopped because '$target' or its transaction backup contains unexpected content."
+        }
+        [IO.File]::Replace($backup, $target, $null, $true)
+        if ((Get-FileSha256 $target) -ne [string]$entry.originalHash) {
+            throw "Release rollback could not verify '$target'."
+        }
+    }
+    Remove-ReleaseTransactionArtifacts $Journal
+}
+
+if (Test-Path -LiteralPath $journalPath -PathType Leaf) {
+    try {
+        $pendingJournal = [IO.File]::ReadAllText($journalPath) | ConvertFrom-Json -Depth 8
+        if ($pendingJournal.kind -ne 'voltura-air-release-preparation' -or -not $pendingJournal.entries) {
+            throw 'The release-preparation journal is invalid.'
+        }
+        if ([string]$pendingJournal.transactionId -notmatch '^[a-f0-9]{32}$') {
+            throw 'The release-preparation transaction identifier is invalid.'
+        }
+        foreach ($entry in $pendingJournal.entries) {
+            if ([string]$entry.relativePath -notin $releaseOwnedPaths) {
+                throw 'The release-preparation journal contains an unowned target.'
+            }
+            $expectedTarget = [IO.Path]::GetFullPath((Join-Path $repoRoot ([string]$entry.relativePath)))
+            $suffix = ".voltura-release-$($pendingJournal.transactionId)"
+            if ([string]$entry.targetPath -ne $expectedTarget -or
+                [string]$entry.stagedPath -ne "$expectedTarget$suffix.staged" -or
+                [string]$entry.backupPath -ne "$expectedTarget$suffix.backup" -or
+                [string]$entry.originalHash -notmatch '^[A-F0-9]{64}$' -or
+                [string]$entry.stagedHash -notmatch '^[A-F0-9]{64}$') {
+                throw 'The release-preparation journal contains invalid transaction ownership data.'
+            }
+        }
+        Complete-ReleaseTransaction $pendingJournal
+        Write-Host "Recovered release preparation for version $($pendingJournal.version)."
+    } catch {
+        throw "Release preparation recovery failed. No unexpected content was overwritten. $($_.Exception.Message)"
+    }
+}
 
 function Get-RepoPath {
     param([Parameter(Mandatory = $true)][string]$RelativePath)
@@ -288,29 +404,56 @@ if ([string]$updatedHostProject.Project.PropertyGroup.InformationalVersion -ne $
     throw "VolturaAir.Host.csproj did not validate with informational version '$Version'."
 }
 
-$writtenPaths = New-Object System.Collections.Generic.List[string]
+$transactionId = [guid]::NewGuid().ToString('N')
+$entries = [Collections.Generic.List[object]]::new()
 try {
     foreach ($relativePath in $updates.Keys) {
         $updatedText = [string]$updates[$relativePath]
         $originalText = [string]$originals[$relativePath]
-        if ($updatedText -eq $originalText) {
-            continue
-        }
-
-        $writtenPaths.Add($relativePath)
-        [System.IO.File]::WriteAllText((Get-RepoPath $relativePath), $updatedText, $utf8NoBom)
+        if ($updatedText -eq $originalText) { continue }
+        $targetPath = Get-RepoPath $relativePath
+        $stagedPath = "$targetPath.voltura-release-$transactionId.staged"
+        $backupPath = "$targetPath.voltura-release-$transactionId.backup"
+        Write-FlushedNewFile $stagedPath ($utf8NoBom.GetBytes($updatedText))
+        $entries.Add([pscustomobject]@{
+            relativePath = $relativePath
+            targetPath = $targetPath
+            stagedPath = $stagedPath
+            backupPath = $backupPath
+            originalHash = Get-FileSha256 $targetPath
+            stagedHash = Get-FileSha256 $stagedPath
+        })
     }
-}
-catch {
-    foreach ($relativePath in $writtenPaths) {
-        [System.IO.File]::WriteAllText(
-            (Get-RepoPath $relativePath),
-            [string]$originals[$relativePath],
-            $utf8NoBom
-        )
+} catch {
+    foreach ($entry in $entries) {
+        Remove-Item -LiteralPath ([string]$entry.stagedPath) -Force -ErrorAction SilentlyContinue
     }
-
     throw
+}
+
+$writtenPaths = @($entries | ForEach-Object { $_.relativePath })
+if ($entries.Count -gt 0) {
+    $journal = [pscustomobject]@{
+        kind = 'voltura-air-release-preparation'
+        version = $Version
+        transactionId = $transactionId
+        entries = @($entries)
+    }
+    $journalBytes = $utf8NoBom.GetBytes(($journal | ConvertTo-Json -Depth 8))
+    try {
+        Write-FlushedNewFile $journalPath $journalBytes
+        Complete-ReleaseTransaction $journal
+    } catch {
+        $commitFailure = $_
+        try {
+            Rollback-ReleaseTransaction $journal
+        } catch {
+            throw [AggregateException]::new(
+                'Release preparation failed and rollback was incomplete. The verified journal and transaction artifacts were retained for retry.',
+                @($commitFailure.Exception, $_.Exception))
+        }
+        throw $commitFailure
+    }
 }
 
 Write-Host "Prepared Voltura Air version $Version (previously $currentVersion)."

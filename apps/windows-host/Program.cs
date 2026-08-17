@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Runtime.InteropServices;
 using Forms = System.Windows.Forms;
 using WpfApplication = System.Windows.Application;
 
@@ -16,6 +17,11 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        if (args.Contains("--installer-health-check", StringComparer.OrdinalIgnoreCase))
+        {
+            RunInstallerHealthCheck(args);
+            return;
+        }
         CatalogImportRequestStore.EnqueueIfPresent(args);
         SingleInstanceCoordinator? singleInstance = null;
         try
@@ -77,6 +83,27 @@ internal static class Program
         {
             RestartCurrentProcess();
         }
+    }
+
+    private static void RunInstallerHealthCheck(string[] args)
+    {
+        if (!args.Contains("--isolated-test-mode", StringComparer.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Installer health checks require isolated test mode.");
+        foreach (var relativePath in new[]
+        {
+            "installer-payload.sha256",
+            "datachannel.dll",
+            Path.Combine("PhoneWebcam", "VolturaAir.WebcamSetup.exe"),
+            Path.Combine("wwwroot", "index.html")
+        })
+        {
+            if (!File.Exists(Path.Combine(AppContext.BaseDirectory, relativePath)))
+                throw new FileNotFoundException("The installed payload is incomplete.", relativePath);
+        }
+        var nativePath = Path.Combine(AppContext.BaseDirectory, "datachannel.dll");
+        if (!NativeLibrary.TryLoad(nativePath, out var handle))
+            throw new DllNotFoundException("The installed Screen View native dependency could not be loaded.");
+        NativeLibrary.Free(handle);
     }
 
     private static async Task InitializeAsync(

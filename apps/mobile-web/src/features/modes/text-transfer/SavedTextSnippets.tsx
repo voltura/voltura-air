@@ -27,6 +27,7 @@ export function SavedTextSnippets({ clientId, draft, initiallyOpen, onLoadSnippe
   const [snippets, setSnippets] = useState(() => loadTextSnippets(clientId));
   const [snippetName, setSnippetName] = useState("");
   const [snippetAction, setSnippetAction] = useState<SnippetAction | null>(null);
+  const [snippetsOpen, setSnippetsOpen] = useState(initiallyOpen ?? false);
   const normalizedSnippetName = normalizeSnippetName(snippetName);
   const snippetNameTaken = normalizedSnippetName.length > 0 && snippets.some((snippet) => snippetNamesMatch(snippet.name, normalizedSnippetName));
   const {
@@ -78,7 +79,7 @@ export function SavedTextSnippets({ clientId, draft, initiallyOpen, onLoadSnippe
 
   return (
     <>
-      <details className="saved-snippets" open={initiallyOpen}>
+      <details className="saved-snippets" open={snippetsOpen} onToggle={(event) => {setSnippetsOpen(event.currentTarget.open);}}>
         <summary className="saved-snippets-heading">
           <div>
             <h2 id="saved-snippets-title">Saved snippets</h2>

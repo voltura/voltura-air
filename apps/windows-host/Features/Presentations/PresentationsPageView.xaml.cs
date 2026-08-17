@@ -26,6 +26,7 @@ public partial class PresentationsPageView : WpfUserControl
     private PresentationReport? _currentReport;
     private bool _updatingFilters;
     private bool _sessionEventsSubscribed;
+    private int _sessionEventGeneration;
     private int _visibleArchiveSummaryCardCount = -1;
 
     internal event Action<PresentationReport?>? DetailChanged;
@@ -69,6 +70,7 @@ public partial class PresentationsPageView : WpfUserControl
 
         _webHost.PresentationSessionChanged += OnPresentationSessionChanged;
         _sessionEventsSubscribed = true;
+        _sessionEventGeneration += 1;
         RefreshPendingReview();
     }
 
@@ -81,11 +83,31 @@ public partial class PresentationsPageView : WpfUserControl
 
         _webHost.PresentationSessionChanged -= OnPresentationSessionChanged;
         _sessionEventsSubscribed = false;
+        _sessionEventGeneration += 1;
     }
 
     private void OnPresentationSessionChanged(object? sender, EventArgs eventArgs)
     {
-        _ = Dispatcher.BeginInvoke(RefreshPendingReview);
+        if (!_sessionEventsSubscribed || Dispatcher.HasShutdownStarted)
+        {
+            return;
+        }
+
+        int generation = _sessionEventGeneration;
+        try
+        {
+            _ = Dispatcher.BeginInvoke(() =>
+            {
+                if (_sessionEventsSubscribed && generation == _sessionEventGeneration)
+                {
+                    RefreshPendingReview();
+                }
+            });
+        }
+        catch (InvalidOperationException) when (Dispatcher.HasShutdownStarted)
+        {
+            // The application dispatcher shut down after the initial guard.
+        }
     }
 
     private void RefreshPendingReview()
@@ -132,6 +154,12 @@ public partial class PresentationsPageView : WpfUserControl
 
             Refresh();
             RefreshPendingReview();
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            PendingReviewSummary.Text = save
+                ? "The presentation report could not be saved. Try again."
+                : "The presentation report could not be discarded. Try again.";
         }
         finally
         {

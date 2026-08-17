@@ -24,14 +24,14 @@ if ($second === false) throw new RuntimeException('Could not open the concurrent
 
 try {
     if (!flock($first, LOCK_EX)) throw new RuntimeException('Could not lock the first signaling test handle.');
-    $consumed = consume_answer($first, $path, read_state($first));
+    $consumed = read_answer(read_state($first));
     flock($first, LOCK_UN);
-    if (!is_array($consumed)) throw new RuntimeException('The first reader did not consume the answer.');
+    if (!is_array($consumed)) throw new RuntimeException('The first reader did not retrieve the answer.');
 
     if (!flock($second, LOCK_EX)) throw new RuntimeException('Could not lock the second signaling test handle.');
     $remaining = read_state($second);
     flock($second, LOCK_UN);
-    if ($remaining['answer'] !== null) throw new RuntimeException('A concurrent reader could consume the answer twice.');
+    if (!envelopes_equal($remaining['answer'], $answer)) throw new RuntimeException('The answer was not retained for an idempotent retry.');
 } finally {
     fclose($second);
     fclose($first);

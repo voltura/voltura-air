@@ -44,6 +44,15 @@ export const HoldToConfirmButton = forwardRef<HTMLButtonElement, { disabled: boo
     };
   }, []);
 
+  useEffect(() => {
+    if (disabled) {
+      clearHold();
+      return;
+    }
+    completedRef.current = false;
+    setProgress(0);
+  }, [disabled]);
+
   const beginHold = () => {
     if (disabled || timeoutRef.current !== null || completedRef.current) {
       return;

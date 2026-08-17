@@ -12,7 +12,6 @@ internal sealed class PhoneWebcamPageController : IDisposable
 {
     private readonly Window _owner;
     private readonly IPhoneWebcamFeature _phoneWebcam;
-    private readonly HostToastPresenter _toasts;
     private readonly Action _refresh;
     private readonly Func<Action<PhoneWebcamPreviewFrame>, Action<string>, IPhoneWebcamPreviewSession> _previewFactory;
     private readonly Lock _previewLock = new();
@@ -26,13 +25,11 @@ internal sealed class PhoneWebcamPageController : IDisposable
     internal PhoneWebcamPageController(
         Window owner,
         IPhoneWebcamFeature phoneWebcam,
-        HostToastPresenter toasts,
         Action refresh,
         Func<Action<PhoneWebcamPreviewFrame>, Action<string>, IPhoneWebcamPreviewSession>? previewFactory = null)
     {
         _owner = owner;
         _phoneWebcam = phoneWebcam;
-        _toasts = toasts;
         _refresh = refresh;
         _previewFactory = previewFactory ?? ((publish, failure) => new PhoneWebcamPreviewSession(publish, failure));
         _phoneWebcam.ActivityChanged += OnActivityChanged;
@@ -142,41 +139,9 @@ internal sealed class PhoneWebcamPageController : IDisposable
     {
         Button action = view.InstallationActionButton;
         bool remove = status.ShouldRemove;
-        action.Content = status.State == PhoneWebcamFeatureState.UpdateRequired
-            ? "Remove old version"
-            : status.State == PhoneWebcamFeatureState.Removing
-                ? "Removing…"
-            : remove ? "Remove from Windows" : "Enable in Windows";
+        action.Content = "Use installer maintenance";
         action.Style = _owner.FindResource(remove ? "DangerButtonStyle" : "PrimaryButtonStyle") as Style;
-        action.IsEnabled = status.State is not PhoneWebcamFeatureState.Unavailable and not PhoneWebcamFeatureState.Removing;
-        action.Click += async (_, _) => await ChangeInstallationAsync(remove, action);
-    }
-
-    private async Task ChangeInstallationAsync(bool remove, Button action)
-    {
-        if (remove && !ThemedConfirmationDialog.Show(
-                _owner,
-                "Remove from Windows",
-                "Windows apps will no longer be able to select Voltura Air Webcam. You can enable it again later.",
-                "Remove",
-                "Cancel",
-                ConfirmationTone.Warning))
-        {
-            return;
-        }
-
         action.IsEnabled = false;
-        await StopPreviewAsync();
-        PhoneWebcamFeatureStatus result = remove
-            ? await _phoneWebcam.RemoveAsync()
-            : await _phoneWebcam.EnableAsync();
-        _toasts.Show(
-            result.Message,
-            "Phone webcam",
-            result.HasError || result.State is PhoneWebcamFeatureState.Failed or PhoneWebcamFeatureState.Unavailable
-                ? HostToastTone.Failure
-                : HostToastTone.Success);
-        _refresh();
     }
 
     private void RestartPreview()

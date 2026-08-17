@@ -49,6 +49,11 @@ export function CustomScreenNavigationRing({
   }, []);
 
   useEffect(() => {
+    const stopWhenBlurred = () => {
+      ignoreClickRef.current = false;
+      repeatPointerReleasedRef.current = false;
+      stopRepeat();
+    };
     const stopWhenHidden = () => {
       if (document.visibilityState === "hidden") {
         ignoreClickRef.current = false;
@@ -56,8 +61,10 @@ export function CustomScreenNavigationRing({
         stopRepeat();
       }
     };
+    window.addEventListener("blur", stopWhenBlurred);
     document.addEventListener("visibilitychange", stopWhenHidden);
     return () => {
+      window.removeEventListener("blur", stopWhenBlurred);
       document.removeEventListener("visibilitychange", stopWhenHidden);
       stopRepeat();
     };

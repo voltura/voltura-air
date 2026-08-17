@@ -86,6 +86,7 @@ $outputParent = Split-Path -Parent $OutputZip
 if (-not [string]::IsNullOrWhiteSpace($outputParent)) {
     New-Item -ItemType Directory -Force -Path $outputParent | Out-Null
 }
+$pendingOutputZip = Join-Path $outputParent (".{0}.{1}.pending" -f ([System.IO.Path]::GetFileName($OutputZip)), [guid]::NewGuid().ToString('N'))
 
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) "$repoName-source-export-$([guid]::NewGuid())"
 $tempClone = Join-Path $tempRoot $repoName
@@ -121,23 +122,23 @@ try {
         Write-Host "Bare source exclusions removed $removedCount committed asset file(s)."
     }
 
-    if (Test-Path $OutputZip) {
-        Remove-Item $OutputZip -Force
-    }
-
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     [System.IO.Compression.ZipFile]::CreateFromDirectory(
         $tempClone,
-        $OutputZip,
+        $pendingOutputZip,
         [System.IO.Compression.CompressionLevel]::Optimal,
         $false
     )
+    Move-Item -LiteralPath $pendingOutputZip -Destination $OutputZip -Force
 
     Write-Host ""
     Write-Host "Created clean repository zip:"
     Write-Host $OutputZip
 }
 finally {
+    if (Test-Path -LiteralPath $pendingOutputZip) {
+        Remove-Item -LiteralPath $pendingOutputZip -Force -ErrorAction SilentlyContinue
+    }
     if (Test-Path $tempRoot) {
         Remove-Item $tempRoot -Recurse -Force
     }

@@ -327,6 +327,7 @@ export interface ScreenViewStopResultMessage {
 }
 export interface ScreenViewEndedMessage {
   type: "screen.view.ended";
+  operationId: string;
   reason: "host-stopped" | "permission-revoked";
   message: string;
 }

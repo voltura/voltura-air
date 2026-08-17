@@ -7,7 +7,7 @@ namespace VolturaAir.Host.Tests;
 public sealed class NetworkSettingsTests : IsolatedHostSettingsTest
 {
     [Fact]
-    public void EnhancedCapabilitiesDefaultOffAndRoundTripAsDword()
+    public void EnhancedCapabilitiesDefaultOffAndRoundTripInOneJsonValue()
     {
         Assert.False(AppNetworkSettings.Load().EnhancedCapabilitiesEnabled);
 
@@ -15,21 +15,42 @@ public sealed class NetworkSettingsTests : IsolatedHostSettingsTest
         AppNetworkSettings.Save(settings);
         Assert.True(AppNetworkSettings.Load().EnhancedCapabilitiesEnabled);
         using var key = Registry.CurrentUser.OpenSubKey(HostSettingsRegistry.SettingsKeyPath, writable: false);
-        Assert.Equal(1, key?.GetValue("EnhancedCapabilitiesEnabled"));
+        string json = Assert.IsType<string>(key?.GetValue(AppNetworkSettings.ValueName));
+        Assert.Contains("\"enhancedCapabilitiesEnabled\":true", json, StringComparison.Ordinal);
+        Assert.Null(key?.GetValue("EnhancedCapabilitiesEnabled"));
 
         AppNetworkSettings.Save(settings with { EnhancedCapabilitiesEnabled = false });
         Assert.False(AppNetworkSettings.Load().EnhancedCapabilitiesEnabled);
     }
 
-    [Theory]
-    [InlineData("true", RegistryValueKind.String)]
-    [InlineData(2, RegistryValueKind.DWord)]
-    [InlineData(-1, RegistryValueKind.DWord)]
-    public void InvalidEnhancedCapabilitiesValuesNormalizeOff(object value, RegistryValueKind kind)
+    [Fact]
+    public void MalformedOrLegacyNetworkValuesUseCurrentDefaults()
     {
         using var key = Registry.CurrentUser.CreateSubKey(HostSettingsRegistry.SettingsKeyPath, writable: true);
-        key.SetValue("EnhancedCapabilitiesEnabled", value, kind);
+        key.SetValue("EnhancedCapabilitiesEnabled", 1, RegistryValueKind.DWord);
+        key.SetValue(AppNetworkSettings.ValueName, "{\"enhancedCapabilitiesEnabled\":true}", RegistryValueKind.String);
 
         Assert.False(AppNetworkSettings.Load().EnhancedCapabilitiesEnabled);
+    }
+
+    [Fact]
+    public void FailedAtomicNetworkWritePreservesTheCompletePreviousValue()
+    {
+        var original = AppNetworkSettings.Load() with { EnhancedCapabilitiesEnabled = true };
+        AppNetworkSettings.Save(original);
+        HostSettingsJsonValue.BeforeWriteForTests = (_, _) => throw new IOException("injected write failure");
+        try
+        {
+            Assert.Throws<IOException>(() => AppNetworkSettings.Save(original with
+            {
+                EnhancedCapabilitiesEnabled = false,
+                TransportMode = ConnectionTransportMode.Relay
+            }));
+        }
+        finally
+        {
+            HostSettingsJsonValue.BeforeWriteForTests = null;
+        }
+        Assert.Equal(original, AppNetworkSettings.Load());
     }
 }

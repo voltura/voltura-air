@@ -94,6 +94,34 @@ describe("FileManagerWorkspace pagination and selection", () => {
     expect(clipboard).toMatchObject({ type: "file.clipboard.set", selectionAll: true, entryIds: [], excludedEntryIds: ["entry-100"] });
   });
 
+  it.each([
+    ["overlaps the existing entries", page("left", entries(99, 1), null)],
+    ["changes the panel revision", { ...page("left", entries(100, 1), null), revision: "changed-revision" }]
+  ])("rejects a successful continuation page that %s", async (_caseName, returnedPage) => {
+    const sent: ClientMessage[] = [];
+    renderWorkspace(sent);
+    const open = sent.find((message) => message.type === "file.session.open");
+    if (open?.type !== "file.session.open") {throw new Error("Expected Files to open a session.");}
+    act(() => publishFileManagerResult({
+      type: "file.session.open.result", operationId: open.operationId, succeeded: true, message: "Opened.",
+      session: {
+        sessionId: "session-a", drives: [{ id: "drive-a", label: "C:", driveType: "fixed" }], shortcuts: [],
+        left: page("left", entries(0, 100), "continuation-a"), right: page("right", [], null)
+      }
+    }));
+
+    fireEvent.scroll(document.querySelector(".file-panel:first-child .file-list")!, { target: { scrollTop: 4300 } });
+    await waitFor(() => expect(sent.some((message) => message.type === "file.page.get")).toBe(true));
+    const request = [...sent].reverse().find((message) => message.type === "file.page.get");
+    if (request?.type !== "file.page.get") {throw new Error("Expected a continuation request.");}
+    act(() => publishFileManagerResult({
+      type: "file.page.get.result", operationId: request.operationId, succeeded: true, message: "Loaded.", page: returnedPage
+    }));
+
+    expect(screen.getByRole("alert").textContent).toContain("invalid file page");
+    expect(screen.getByRole("button", { name: "Retry loading more" })).toBeTruthy();
+  });
+
   it("uses Copy for the other panel in a wide layout and dismisses transient menus on other interactions", () => {
     vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(800);
     vi.stubGlobal("ResizeObserver", class {

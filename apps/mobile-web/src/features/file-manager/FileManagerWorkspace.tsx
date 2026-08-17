@@ -21,6 +21,8 @@ interface SelectionState { all: boolean; ids: Set<string>; excluded: Set<string>
 interface PanelView { page: FileManagerPanelPage; entries: FileManagerEntry[]; loadingMore: boolean; pageError: string; }
 interface PendingPanelRequest { panel: PanelName; kind: "page" | "replace"; revision: string; }
 interface TrackedJob { operation: "copy" | "move" | "paste" | "rename" | "delete"; sourcePanel: PanelName; destinationPanel?: PanelName; }
+interface ConfirmedSelection { sessionId: string; panel: PanelName; revision: string; fields: FileSelectionMessageFields; count: number; }
+interface RenameTarget extends ConfirmedSelection { entryId: string; originalName: string; name: string; }
 
 interface Props {
   capability: FileManagerCapability;
@@ -46,8 +48,8 @@ export default function FileManagerWorkspace({ capability, canMirrorView, connec
   const [operationsOpen, setOperationsOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [clipboardOpen, setClipboardOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [renameDraft, setRenameDraft] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ConfirmedSelection | null>(null);
+  const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
   const [dualPanel, setDualPanel] = useState(false);
   const stageRef = useRef<HTMLDivElement>(null);
   const sessionRequestRef = useRef("");
@@ -57,6 +59,7 @@ export default function FileManagerWorkspace({ capability, canMirrorView, connec
   const latestReplacementRequest = useRef<Record<PanelName, string>>({ left: "", right: "" });
   const pendingJobRequests = useRef(new Map<string, TrackedJob>());
   const pendingMirrorOpenRef = useRef("");
+  const pendingPropertiesRef = useRef("");
   const trackedJobs = useRef(new Map<string, TrackedJob>());
   const terminalJobEffects = useRef(new Set<string>());
   const jobsRef = useRef<FileJobSnapshot[]>([]);
@@ -79,9 +82,33 @@ export default function FileManagerWorkspace({ capability, canMirrorView, connec
   useEffect(() => {
     if (state !== "paired" || !capability.canBrowse) {return;}
     const operationId = createLocalId();
+    const panelRequests = pendingPanelRequests.current;
+    const jobRequests = pendingJobRequests.current;
+    const currentTrackedJobs = trackedJobs.current;
+    const currentTerminalJobEffects = terminalJobEffects.current;
     sessionRequestRef.current = operationId;
     send({ type: "file.session.open", operationId });
     send({ type: "file.jobs.get", operationId: createLocalId() });
+    return () => {
+      sessionRef.current = null;
+      panelsRef.current = null;
+      panelRequests.clear();
+      pendingPropertiesRef.current = "";
+      pendingMirrorOpenRef.current = "";
+      jobRequests.clear();
+      currentTrackedJobs.clear();
+      currentTerminalJobEffects.clear();
+      jobsRef.current = [];
+      queueMicrotask(() => {
+        setSession(null);
+        setPanels(null);
+        setSelections({ left: emptySelection(), right: emptySelection() });
+        setProperties(null);
+        setDeleteTarget(null);
+        setRenameTarget(null);
+        setJobs([]);
+      });
+    };
   }, [capability.canBrowse, connectionEpoch, send, state]);
 
   useEffect(() => {
@@ -118,11 +145,18 @@ export default function FileManagerWorkspace({ capability, canMirrorView, connec
     if (message.type === "file.session.open.result") {
       if (message.operationId !== sessionRequestRef.current) {return;}
       if (!message.succeeded || !message.session) { setStatus(message.message); setStatusTone("error"); return; }
-      setSession(message.session);
-      setPanels({
+      if (!isSemanticallyValidSession(message.session)) {
+        setStatus("The PC returned an invalid file session.");
+        setStatusTone("error");
+        return;
+      }
+      const openedPanels = {
         left: { page: message.session.left, entries: message.session.left.entries, loadingMore: false, pageError: "" },
         right: { page: message.session.right, entries: message.session.right.entries, loadingMore: false, pageError: "" }
-      });
+      };
+      setSession(message.session);
+      panelsRef.current = openedPanels;
+      setPanels(openedPanels);
       setStatus("Files ready.");
       setStatusTone("neutral");
       return;
@@ -151,6 +185,18 @@ export default function FileManagerWorkspace({ capability, canMirrorView, connec
         return;
       }
       const page = message.page;
+      const currentPanel = panelsRef.current?.[pending.panel];
+      const currentRevision = currentPanel?.page.revision;
+      const invalidAppend = pending.kind === "page" && (
+        currentRevision === undefined || pending.revision !== currentRevision || page.revision !== currentRevision ||
+        hasOverlappingIds(currentPanel?.entries ?? [], page.entries)
+      );
+      if (page.panel !== pending.panel || !hasUniqueIds(page.entries) || invalidAppend) {
+        setStatus("The PC returned an invalid file page.");
+        setStatusTone("error");
+        setPanels((current) => current ? { ...current, [pending.panel]: { ...current[pending.panel], loadingMore: false, pageError: "Invalid file page." } } : current);
+        return;
+      }
       setPanels((current) => {
         if (!current) {return current;}
         const existing = current[page.panel];
@@ -169,6 +215,8 @@ export default function FileManagerWorkspace({ capability, canMirrorView, connec
       return;
     }
     if (message.type === "file.properties.get.result") {
+      if (message.operationId !== pendingPropertiesRef.current) {return;}
+      pendingPropertiesRef.current = "";
       if (message.succeeded && message.properties) {setProperties(message.properties);}
       setStatus(message.message);
       setStatusTone(message.succeeded ? "success" : "error");
@@ -272,11 +320,18 @@ export default function FileManagerWorkspace({ capability, canMirrorView, connec
     if (!session || !panels || selectedCount(activePanel) === 0) {return;}
     send({ type: "file.clipboard.set", operationId: createLocalId(), sessionId: session.sessionId, panel: activePanel, revision: panels[activePanel].page.revision, effect, ...selectionFields(activePanel) });
   };
-  const createJob = (operation: "copy" | "move" | "paste" | "rename" | "delete", newName?: string) => {
+  const createJob = (operation: "copy" | "move" | "paste" | "rename" | "delete", newName?: string, confirmed?: ConfirmedSelection) => {
     if (!session || !panels) {return;}
+    if (confirmed && confirmed.sessionId !== session.sessionId) {
+      setStatus("The file session changed. Select the item again.");
+      setStatusTone("error");
+      return;
+    }
+    const sourcePanel = confirmed?.panel ?? activePanel;
+    const sourceRevision = confirmed?.revision ?? panels[sourcePanel].page.revision;
     const destination = operation === "copy" || operation === "move"
       ? (() => {
-          const destinationPanel = activePanel === "left" ? "right" as const : "left" as const;
+          const destinationPanel = sourcePanel === "left" ? "right" as const : "left" as const;
           return { destinationPanel, destinationRevision: panels[destinationPanel].page.revision };
         })()
       : {};
@@ -284,15 +339,15 @@ export default function FileManagerWorkspace({ capability, canMirrorView, connec
     const operationId = createLocalId();
     pendingJobRequests.current.set(operationId, {
       operation,
-      sourcePanel: activePanel,
-      ...(operation === "copy" || operation === "move" ? { destinationPanel: activePanel === "left" ? "right" as const : "left" as const } : {})
+      sourcePanel,
+      ...(operation === "copy" || operation === "move" ? { destinationPanel: sourcePanel === "left" ? "right" as const : "left" as const } : {})
     });
     send({
-      type: "file.job.create", operationId, sessionId: session.sessionId, panel: activePanel,
-      revision: panels[activePanel].page.revision, operation,
+      type: "file.job.create", operationId, sessionId: session.sessionId, panel: sourcePanel,
+      revision: sourceRevision, operation,
       ...destination,
       ...rename,
-      ...(operation === "paste" ? { selectionAll: true, entryIds: [], excludedEntryIds: [] } : selectionFields(activePanel))
+      ...(operation === "paste" ? { selectionAll: true, entryIds: [], excludedEntryIds: [] } : confirmed?.fields ?? selectionFields(sourcePanel))
     });
   };
   const openSelected = () => {
@@ -317,7 +372,9 @@ export default function FileManagerWorkspace({ capability, canMirrorView, connec
   const getProperties = (panel = activePanel, entryId = singleSelected(panel)?.id) => {
     if (!entryId || !session || !panels) {return;}
     setActivePanel(panel);
-    send({ type: "file.properties.get", operationId: createLocalId(), sessionId: session.sessionId, panel, revision: panels[panel].page.revision, entryId });
+    const operationId = createLocalId();
+    pendingPropertiesRef.current = operationId;
+    send({ type: "file.properties.get", operationId, sessionId: session.sessionId, panel, revision: panels[panel].page.revision, entryId });
   };
 
   if (!capability.canBrowse) {
@@ -345,8 +402,8 @@ export default function FileManagerWorkspace({ capability, canMirrorView, connec
             onSelectAll={() => setSelections((current) => ({ ...current, [activePanel]: { all: true, ids: new Set(), excluded: new Set() } }))}
             onUnselectAll={() => setSelections((current) => ({ ...current, [activePanel]: emptySelection() }))}
             onCut={() => setClipboard("move")} onCopyClipboard={() => setClipboard("copy")} onPaste={() => createJob("paste")}
-            onProperties={() => getProperties()} onDelete={() => setDeleteOpen(true)}
-            onRename={() => { if (single) {setRenameDraft(single.name);} }}
+            onProperties={() => getProperties()} onDelete={() => setDeleteTarget({ sessionId: session.sessionId, panel: activePanel, revision: panels[activePanel].page.revision, fields: selectionFields(activePanel), count: selected })}
+            onRename={() => { if (single) {setRenameTarget({ sessionId: session.sessionId, panel: activePanel, revision: panels[activePanel].page.revision, fields: { selectionAll: false, entryIds: [single.id], excludedEntryIds: [] }, count: 1, entryId: single.id, originalName: single.name, name: single.name });} }}
             onView={viewSelected} onOpen={openSelected} onCopy={() => createJob("copy")} onMove={() => createJob("move")}
             onClipboard={() => { setClipboardOpen((open) => !open); setShortcutsOpen(false); }}
             onShortcuts={() => { setShortcutsOpen((open) => !open); setClipboardOpen(false); }} onRefresh={() => {
@@ -379,16 +436,17 @@ export default function FileManagerWorkspace({ capability, canMirrorView, connec
       {!leadingJob && terminalJobCount > 0 && <button className="file-job-minimized file-job-history" onClick={() => setOperationsOpen(true)}><span>File operations · {terminalJobCount} in history</span></button>}
       {operationsOpen && <OperationCenter jobs={jobs} onClose={() => setOperationsOpen(false)} send={send} />}
       {properties && <PropertiesDialog value={properties} onClose={() => setProperties(null)} />}
-      <ConfirmationDialog confirmLabel="Move to Recycle Bin" description={`Move ${selected} selected item${selected === 1 ? "" : "s"} to the Windows Recycle Bin? The PC rejects the operation if every item cannot be recycled.`} isOpen={deleteOpen} onCancel={() => setDeleteOpen(false)} onConfirm={() => { setDeleteOpen(false); createJob("delete"); }} title="Delete selected items?" />
-      <ModalDialog dismissLabel="Cancel" isOpen={renameDraft !== null} onClose={() => setRenameDraft(null)} onSubmit={(event) => {
+      <ConfirmationDialog confirmLabel="Move to Recycle Bin" description={`Move ${deleteTarget?.count ?? 0} selected item${deleteTarget?.count === 1 ? "" : "s"} to the Windows Recycle Bin? The PC rejects the operation if every item cannot be recycled.`} isOpen={deleteTarget !== null} onCancel={() => setDeleteTarget(null)} onConfirm={() => { const target = deleteTarget; setDeleteTarget(null); if (target) {createJob("delete", undefined, target);} }} title="Delete selected items?" />
+      <ModalDialog dismissLabel="Cancel" isOpen={renameTarget !== null} onClose={() => setRenameTarget(null)} onSubmit={(event) => {
         event.preventDefault();
-        const nextName = renameDraft?.trim();
-        if (!nextName || nextName === single?.name) {return false;}
-        createJob("rename", nextName);
-        setRenameDraft(null);
+        const nextName = renameTarget?.name.trim();
+        if (!nextName || !renameTarget) {return false;}
+        if (nextName === renameTarget.originalName) {return false;}
+        createJob("rename", nextName, renameTarget);
+        setRenameTarget(null);
         return true;
       }} submitLabel="Rename" title="Rename item">
-        <label className="file-rename-field">New name<input className="text-input" value={renameDraft ?? ""} maxLength={255} onChange={(event) => setRenameDraft(event.target.value)} /></label>
+        <label className="file-rename-field">New name<input className="text-input" value={renameTarget?.name ?? ""} maxLength={255} onChange={(event) => setRenameTarget((current) => current ? { ...current, name: event.target.value } : current)} /></label>
       </ModalDialog>
     </section>
   );
@@ -476,6 +534,12 @@ function FilePanel({ active, drives, panel, selection, onActivate, onDrive, onLo
   const endLongPress = (event: ReactPointerEvent<HTMLElement>) => {
     if (longPressRef.current?.pointerId === event.pointerId) {cancelLongPress();}
   };
+  const cancelLongPressGesture = (event: ReactPointerEvent<HTMLElement>) => {
+    if (longPressRef.current?.pointerId === event.pointerId) {
+      cancelLongPress();
+      suppressClickRef.current = false;
+    }
+  };
   const suppressLongPressClick = (event: ReactMouseEvent<HTMLElement>) => {
     if (!suppressClickRef.current) {return;}
     suppressClickRef.current = false;
@@ -483,7 +547,7 @@ function FilePanel({ active, drives, panel, selection, onActivate, onDrive, onLo
     event.stopPropagation();
   };
   const heading = (label: string, sortBy: "name" | "size" | "type" | "modified") => <button type="button" onClick={() => onSort(sortBy)}>{label}{panel.page.sortBy === sortBy ? panel.page.descending ? " ↓" : " ↑" : ""}</button>;
-  return <section className={`file-panel ${active ? "active" : ""}`} onPointerDown={onActivate} onPointerDownCapture={beginLongPress} onPointerMoveCapture={moveLongPress} onPointerUpCapture={endLongPress} onPointerCancelCapture={endLongPress} onClickCapture={suppressLongPressClick} onContextMenuCapture={(event) => { if ((event.target as HTMLElement).closest("[data-properties-entry]")) {event.preventDefault();} }} aria-label={`${panel.page.panel} file panel`}>
+  return <section className={`file-panel ${active ? "active" : ""}`} onPointerDown={onActivate} onPointerDownCapture={beginLongPress} onPointerMoveCapture={moveLongPress} onPointerUpCapture={endLongPress} onPointerCancelCapture={cancelLongPressGesture} onClickCapture={suppressLongPressClick} onContextMenuCapture={(event) => { if ((event.target as HTMLElement).closest("[data-properties-entry]")) {event.preventDefault();} }} aria-label={`${panel.page.panel} file panel`}>
     <div className="file-panel-location">
       <select aria-label={`${panel.page.panel} drive`} value={panel.page.driveId ?? ""} onChange={(event) => onDrive(event.target.value)}><option value="" disabled>Drive</option>{drives.map((drive) => <option key={drive.id} value={drive.id}>{drive.label}</option>)}</select>
       <div data-properties-entry="current" title={`${panel.page.displayPath} — long press for properties`}>{panel.page.displayPath}</div>
@@ -562,6 +626,23 @@ function formatDuration(seconds: number): string {
 
 function isTerminalJob(state: string): boolean {
   return state === "completed" || state === "failed" || state === "canceled" || state === "interrupted";
+}
+
+function hasUniqueIds(items: readonly { id: string }[]): boolean {
+  return new Set(items.map((item) => item.id)).size === items.length;
+}
+
+function hasOverlappingIds(existing: readonly { id: string }[], incoming: readonly { id: string }[]): boolean {
+  const existingIds = new Set(existing.map((item) => item.id));
+  return incoming.some((item) => existingIds.has(item.id));
+}
+
+function isSemanticallyValidSession(session: FileManagerSession): boolean {
+  return session.left.panel === "left" && session.right.panel === "right" &&
+    hasUniqueIds(session.drives) && hasUniqueIds(session.shortcuts) &&
+    hasUniqueIds(session.left.entries) && hasUniqueIds(session.right.entries) &&
+    session.left.totalCount >= session.left.entries.length &&
+    session.right.totalCount >= session.right.entries.length;
 }
 
 function formatModified(value: string): { date: string; time: string } {

@@ -37,6 +37,7 @@ try {
     $body .= '</section>';
     air_screen_layout('Custom screens', $body, false);
 } catch (Throwable $error) {
+    error_log('Custom-screen catalog load failed: ' . $error::class);
     http_response_code(503);
-    air_screen_layout('Catalog unavailable', '<p>' . air_screen_h($error->getMessage()) . '</p>', false);
+    air_screen_layout('Catalog unavailable', '<p>The catalog is temporarily unavailable.</p>', false);
 }

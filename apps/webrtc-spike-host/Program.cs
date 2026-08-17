@@ -43,7 +43,9 @@ internal static class Program
 
         string room = CreateRoomToken();
         byte[] signalingKey = RandomNumberGenerator.GetBytes(32);
-        using RelayRoutingIdentity? relayIdentity = options.Relay ? RelayRoutingIdentity.OpenCurrentUser() : null;
+        try
+        {
+            using RelayRoutingIdentity? relayIdentity = options.Relay ? RelayRoutingIdentity.OpenCurrentUser() : null;
         await using RelayHostConnection? relayConnection = relayIdentity is null
             ? null
             : new RelayHostConnection(
@@ -63,7 +65,6 @@ internal static class Program
         if (options.Relay && relay is null)
         {
             Console.Error.WriteLine("Spike failed: the existing Relay route did not return usable TURN credentials.");
-            CryptographicOperations.ZeroMemory(signalingKey);
             return 1;
         }
         if (relay is not null)
@@ -105,7 +106,6 @@ internal static class Program
             Console.WriteLine("Waiting for the browser answer (up to 5 minutes)...");
 
             EncryptedEnvelope encryptedAnswer = await signaling.WaitForAnswerAsync(room, AnswerWait, cancellation.Token).ConfigureAwait(false);
-            roomCreated = false; // get_answer consumes the temporary room state.
             AnswerPayload answer = SignalingCrypto.Decrypt<AnswerPayload>(signalingKey, room, encryptedAnswer);
             if (!string.Equals(answer.Type, "answer", StringComparison.Ordinal) ||
                 answer.Transport is not ("direct" or "relay") ||
@@ -115,6 +115,15 @@ internal static class Program
                 throw new InvalidOperationException("The browser returned an invalid transport answer.");
             }
             peer.ApplyAnswer(answer.Sdp);
+            try
+            {
+                await signaling.DeleteAsync(room, cancellation.Token).ConfigureAwait(false);
+                roomCreated = false;
+            }
+            catch (Exception exception) when (!cancellation.IsCancellationRequested)
+            {
+                Console.Error.WriteLine($"Could not acknowledge temporary signaling cleanup; it will expire automatically: {exception.Message}");
+            }
 
             int accessUnits = 0;
             peer.AccessUnitReceived += (bytes, _) =>
@@ -159,7 +168,6 @@ internal static class Program
         }
         finally
         {
-            CryptographicOperations.ZeroMemory(signalingKey);
             if (roomCreated)
             {
                 try
@@ -171,6 +179,21 @@ internal static class Program
                     Console.Error.WriteLine($"Could not remove the temporary signaling room: {exception.Message}");
                 }
             }
+        }
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+            Console.WriteLine("Stopped.");
+            return 0;
+        }
+        catch (Exception exception)
+        {
+            Console.Error.WriteLine($"Spike failed: {exception.Message}");
+            return 1;
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(signalingKey);
         }
     }
 

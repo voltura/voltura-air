@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, link, mkdtemp, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -17,7 +17,8 @@ import {
   getRelease,
   getReleaseIfExists,
   publishReleaseIfRequested,
-  restoreCleanTrackedTree
+  restoreCleanTrackedTree,
+  withReleaseLock
 } from "../../scripts/release-publish.mjs";
 import {
   compareSemver,
@@ -38,6 +39,9 @@ import {
 
 const requiredNotices = `${freewareNotice}\n\n${unsignedReleaseNotice}`;
 const localReleaseSource = await readFile(new URL("../../scripts/release-publish.mjs", import.meta.url), "utf8");
+const prepareReleaseSource = await readFile(new URL("../../scripts/prepare-release.ps1", import.meta.url), "utf8");
+const prepareReleaseWrapperSource = await readFile(new URL("../../scripts/prepare-release.mjs", import.meta.url), "utf8");
+const releaseLockSource = await readFile(new URL("../../scripts/release-lock.mjs", import.meta.url), "utf8");
 import { restoreGithubActions } from "../../scripts/restore-github-actions.mjs";
 import { resolveSynchronizedRelease } from "../../scripts/sync-release-notes.mjs";
 
@@ -160,11 +164,40 @@ test("release failure cleanup restores its exact commit and removes generated un
     args[0] === "status" ? " M package.json" : ""), /could not restore a clean repository/u);
 });
 
-test("release staging only removes an old zero-byte Git index lock before one retry", () => {
-  assert.match(localReleaseSource, /lock\.size !== 0/u);
-  assert.match(localReleaseSource, /minimumStaleAgeMs = 30_000/u);
-  assert.match(localReleaseSource, /Removed a stale zero-byte Git index lock/u);
-  assert.match(localReleaseSource, /failed after stale-lock recovery/u);
+test("release staging never removes a Git index lock owned by another operation", () => {
+  assert.doesNotMatch(localReleaseSource, /await rm\(lockPath\)/u);
+  assert.doesNotMatch(localReleaseSource, /minimumStaleAgeMs/u);
+  assert.match(localReleaseSource, /Resolve any active Git operation or lock before retrying/u);
+});
+
+test("release execution is exclusive and always removes its own lock", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "voltura-release-lock-"));
+  const lockPath = path.join(root, "release.lock");
+  try {
+    await mkdir(lockPath);
+    await assert.rejects(() => withReleaseLock(async () => assert.fail("a competing release must not start"), { lockPath }), /already running/u);
+    await rm(lockPath, { recursive: true });
+
+    await assert.rejects(() => withReleaseLock(async () => { throw new Error("injected release failure"); }, { lockPath }), /injected release failure/u);
+    await assert.rejects(() => readFile(lockPath), /ENOENT/u);
+    assert.equal(await withReleaseLock(async () => "complete", { lockPath }), "complete");
+    await assert.rejects(() => readFile(lockPath), /ENOENT/u);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("standalone and full release preparation share one focused transactional owner", () => {
+  assert.match(prepareReleaseWrapperSource, /withReleaseLock/u);
+  assert.match(localReleaseSource, /prepareReleaseUnlocked/u);
+  assert.match(localReleaseSource, /withSharedReleaseLock/u);
+  assert.match(releaseLockSource, /voltura-air-release\.lock/u);
+  assert.match(prepareReleaseSource, /voltura-air-release-preparation\.json/u);
+  assert.match(prepareReleaseSource, /FileOptions\]::WriteThrough/u);
+  assert.match(prepareReleaseSource, /\[IO\.File\]::Replace/u);
+  assert.match(prepareReleaseSource, /contains unexpected content/u);
+  assert.match(prepareReleaseSource, /Rollback-ReleaseTransaction/u);
+  assert.match(prepareReleaseSource, /AggregateException/u);
 });
 
 test("local draft completion does not run publication or tag commands", () => {
@@ -409,6 +442,251 @@ test("workflow restoration copies archived YAML without overwriting existing fil
     assert.deepEqual(await restoreGithubActions({ sourceDirectory, targetDirectory }), ["quality.yaml", "release.yml"]);
     assert.equal(await readFile(path.join(targetDirectory, "release.yml"), "utf8"), "name: Release\n");
     await assert.rejects(() => restoreGithubActions({ sourceDirectory, targetDirectory }), /Refusing to overwrite/u);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("workflow restoration rolls back files copied before a later failure", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "voltura-air-actions-rollback-"));
+  const sourceDirectory = path.join(root, "legacy");
+  const targetDirectory = path.join(root, "workflows");
+  try {
+    await mkdir(sourceDirectory);
+    await writeFile(path.join(sourceDirectory, "quality.yaml"), "name: Quality\n", "utf8");
+    await writeFile(path.join(sourceDirectory, "release.yml"), "name: Release\n", "utf8");
+    let copies = 0;
+    await assert.rejects(() => restoreGithubActions({
+      sourceDirectory,
+      targetDirectory,
+      copy: async (source, target) => {
+        copies += 1;
+        if (copies === 2) throw new Error("injected copy failure");
+        await copyFile(source, target);
+      }
+    }), /injected copy failure/u);
+    assert.deepEqual(await readdir(targetDirectory), []);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("workflow restoration rolls back a published file when post-publication inspection fails", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "voltura-air-actions-publish-inspection-"));
+  const sourceDirectory = path.join(root, "legacy");
+  const targetDirectory = path.join(root, "workflows");
+  try {
+    await mkdir(sourceDirectory);
+    await writeFile(path.join(sourceDirectory, "quality.yaml"), "name: Quality\n", "utf8");
+    let inspections = 0;
+    await assert.rejects(() => restoreGithubActions({
+      sourceDirectory,
+      targetDirectory,
+      inspect: async (target) => {
+        inspections += 1;
+        if (inspections === 2) {throw new Error("injected published-file inspection failure");}
+        return stat(target);
+      }
+    }), /injected published-file inspection failure/u);
+    assert.deepEqual(await readdir(targetDirectory), []);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("workflow restoration rolls back a hard link published before its call reports failure", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "voltura-air-actions-publish-ambiguous-"));
+  const sourceDirectory = path.join(root, "legacy");
+  const targetDirectory = path.join(root, "workflows");
+  try {
+    await mkdir(sourceDirectory);
+    await writeFile(path.join(sourceDirectory, "quality.yaml"), "name: Quality\n", "utf8");
+    await assert.rejects(() => restoreGithubActions({
+      sourceDirectory,
+      targetDirectory,
+      publish: async (source, target) => {
+        await link(source, target);
+        throw new Error("injected post-publish failure");
+      }
+    }), /injected post-publish failure/u);
+    assert.deepEqual(await readdir(targetDirectory), []);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("workflow restoration does not overwrite a workflow created after its preflight", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "voltura-air-actions-race-"));
+  const sourceDirectory = path.join(root, "legacy");
+  const targetDirectory = path.join(root, "workflows");
+  try {
+    await mkdir(sourceDirectory);
+    await writeFile(path.join(sourceDirectory, "quality.yaml"), "name: Archived\n", "utf8");
+    let reads = 0;
+    await assert.rejects(() => restoreGithubActions({
+      sourceDirectory,
+      targetDirectory,
+      readDirectory: async (directory) => {
+        reads += 1;
+        if (reads === 2) {
+          await writeFile(path.join(targetDirectory, "quality.yaml"), "name: Concurrent\n", "utf8");
+          return [];
+        }
+        return readdir(directory);
+      }
+    }), /EEXIST/u);
+    assert.equal(await readFile(path.join(targetDirectory, "quality.yaml"), "utf8"), "name: Concurrent\n");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("workflow restoration rollback preserves a workflow changed after it was copied", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "voltura-air-actions-rollback-race-"));
+  const sourceDirectory = path.join(root, "legacy");
+  const targetDirectory = path.join(root, "workflows");
+  try {
+    await mkdir(sourceDirectory);
+    await writeFile(path.join(sourceDirectory, "quality.yaml"), "name: Archived\n", "utf8");
+    await writeFile(path.join(sourceDirectory, "release.yml"), "name: Release\n", "utf8");
+    let copies = 0;
+    await assert.rejects(() => restoreGithubActions({
+      sourceDirectory,
+      targetDirectory,
+      copy: async (source, target) => {
+        copies += 1;
+        if (copies === 2) {
+          await writeFile(path.join(targetDirectory, "quality.yaml"), "name: Concurrent\n", "utf8");
+          throw new Error("injected copy failure");
+        }
+        await copyFile(source, target);
+      }
+    }), /rollback both failed/u);
+    assert.equal(await readFile(path.join(targetDirectory, "quality.yaml"), "utf8"), "name: Concurrent\n");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("workflow restoration rollback preserves an identical concurrent replacement", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "voltura-air-actions-rollback-identical-race-"));
+  const sourceDirectory = path.join(root, "legacy");
+  const targetDirectory = path.join(root, "workflows");
+  try {
+    await mkdir(sourceDirectory);
+    await writeFile(path.join(sourceDirectory, "quality.yaml"), "name: Archived\n", "utf8");
+    await writeFile(path.join(sourceDirectory, "release.yml"), "name: Release\n", "utf8");
+    let copies = 0;
+    await assert.rejects(() => restoreGithubActions({
+      sourceDirectory,
+      targetDirectory,
+      copy: async (source, target) => {
+        copies += 1;
+        if (copies === 2) {
+          await rm(path.join(targetDirectory, "quality.yaml"));
+          await writeFile(path.join(targetDirectory, "quality.yaml"), "name: Archived\n", "utf8");
+          throw new Error("injected copy failure");
+        }
+        await copyFile(source, target);
+      }
+    }), /rollback both failed/u);
+    assert.equal(await readFile(path.join(targetDirectory, "quality.yaml"), "utf8"), "name: Archived\n");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("workflow restoration rollback cannot delete a replacement created as rollback begins", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "voltura-air-actions-rollback-atomic-race-"));
+  const sourceDirectory = path.join(root, "legacy");
+  const targetDirectory = path.join(root, "workflows");
+  try {
+    await mkdir(sourceDirectory);
+    await writeFile(path.join(sourceDirectory, "quality.yaml"), "name: Archived\n", "utf8");
+    await writeFile(path.join(sourceDirectory, "release.yml"), "name: Release\n", "utf8");
+    let copies = 0;
+    let replacedDuringRollback = false;
+    await assert.rejects(() => restoreGithubActions({
+      sourceDirectory,
+      targetDirectory,
+      copy: async (source, target) => {
+        copies += 1;
+        if (copies === 2) {throw new Error("injected copy failure");}
+        await copyFile(source, target);
+      },
+      move: async (source, target) => {
+        await rename(source, target);
+        if (!replacedDuringRollback && source === path.join(targetDirectory, "quality.yaml")) {
+          replacedDuringRollback = true;
+          await writeFile(source, "name: Concurrent\n", "utf8");
+        }
+      }
+    }), /injected copy failure/u);
+    assert.equal(await readFile(path.join(targetDirectory, "quality.yaml"), "utf8"), "name: Concurrent\n");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("workflow restoration reconciles a quarantine move that succeeds before reporting failure", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "voltura-air-actions-rollback-move-failure-"));
+  const sourceDirectory = path.join(root, "legacy");
+  const targetDirectory = path.join(root, "workflows");
+  try {
+    await mkdir(sourceDirectory);
+    await writeFile(path.join(sourceDirectory, "quality.yaml"), "name: Archived\n", "utf8");
+    await writeFile(path.join(sourceDirectory, "release.yml"), "name: Release\n", "utf8");
+    let copies = 0;
+    let injected = false;
+    await assert.rejects(() => restoreGithubActions({
+      sourceDirectory,
+      targetDirectory,
+      copy: async (source, target) => {
+        copies += 1;
+        if (copies === 2) {throw new Error("injected copy failure");}
+        await copyFile(source, target);
+      },
+      move: async (source, target) => {
+        await rename(source, target);
+        if (!injected && source === path.join(targetDirectory, "quality.yaml")) {
+          injected = true;
+          throw new Error("injected post-move failure");
+        }
+      }
+    }), /injected copy failure/u);
+    await assert.rejects(() => readFile(path.join(targetDirectory, "quality.yaml")), /ENOENT/u);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("workflow restoration accepts a quarantine removal that succeeds before reporting failure", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "voltura-air-actions-rollback-remove-failure-"));
+  const sourceDirectory = path.join(root, "legacy");
+  const targetDirectory = path.join(root, "workflows");
+  try {
+    await mkdir(sourceDirectory);
+    await writeFile(path.join(sourceDirectory, "quality.yaml"), "name: Archived\n", "utf8");
+    await writeFile(path.join(sourceDirectory, "release.yml"), "name: Release\n", "utf8");
+    let copies = 0;
+    let injected = false;
+    await assert.rejects(() => restoreGithubActions({
+      sourceDirectory,
+      targetDirectory,
+      copy: async (source, target) => {
+        copies += 1;
+        if (copies === 2) {throw new Error("injected copy failure");}
+        await copyFile(source, target);
+      },
+      remove: async (target, options) => {
+        await rm(target, options);
+        if (!injected && target.includes("quality.yaml.voltura-owned-") && !target.includes(".tmp.")) {
+          injected = true;
+          throw new Error("injected post-remove failure");
+        }
+      }
+    }), /injected copy failure/u);
+    await assert.rejects(() => readFile(path.join(targetDirectory, "quality.yaml")), /ENOENT/u);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

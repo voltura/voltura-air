@@ -81,7 +81,12 @@ Preparation synchronizes:
   `InformationalVersion`.
 
 Vite, host assemblies, packaging, NSIS, filenames, and displayed versions read
-those values. Review the diff; preparation does not commit or publish.
+those values. Standalone preparation and the complete release share one release
+lock. Preparation calculates all target text before writing, stages files beside
+their targets, and journals target/original/staged hashes under Git metadata.
+Retry completes only recognized transaction-owned states; unexpected content is
+left untouched for manual inspection. Review the diff; preparation does not
+commit or publish.
 
 ## Standalone package checks
 
@@ -194,3 +199,10 @@ Before announcement, confirm:
 
 Installer choices and requirements are owned by the
 [README](../README.md#download-and-install).
+
+Both installers verify a generated SHA-256 payload manifest in a unique sibling
+staging directory before stopping the path-verified installed host. Promotion,
+isolated health check, registration, rollback, and cleanup use one journal outside
+the install directory. Uninstall removes Phone Webcam first, then journals and
+renames the verified installation; a recovery uninstaller remains registered until
+the exact owned removal completes.

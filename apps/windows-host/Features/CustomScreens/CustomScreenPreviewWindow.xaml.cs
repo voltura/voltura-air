@@ -60,11 +60,7 @@ public partial class CustomScreenPreviewWindow : Window
             PreviewBrowser.Source = _request.Uri;
             ApplyViewport();
         }
-        catch (Exception exception) when (
-            exception is WebView2RuntimeNotFoundException or
-            InvalidOperationException or
-            UnauthorizedAccessException or
-            IOException)
+        catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             if (!_closed)
             {
@@ -100,7 +96,7 @@ public partial class CustomScreenPreviewWindow : Window
     {
         if (e.IsSuccess)
         {
-            await ApplyControlDepthAsync();
+            await ApplyControlDepthSafelyAsync();
         }
     }
 
@@ -111,7 +107,7 @@ public partial class CustomScreenPreviewWindow : Window
         if (!_synchronizing)
         {
             ApplyViewport();
-            await ApplyControlDepthAsync();
+            await ApplyControlDepthSafelyAsync();
         }
     }
 
@@ -232,7 +228,7 @@ public partial class CustomScreenPreviewWindow : Window
         }, DispatcherPriority.Loaded);
     }
 
-    private async Task ApplyControlDepthAsync()
+    private async Task ApplyControlDepthSafelyAsync()
     {
         if (_closed || PreviewBrowser.CoreWebView2 is null)
         {
@@ -248,9 +244,12 @@ public partial class CustomScreenPreviewWindow : Window
                 "document.querySelector('.custom-screen-browser-preview')" +
                 $"?.classList.toggle('control-depth', {enabled.ToString().ToLowerInvariant()});");
         }
-        catch (InvalidOperationException) when (_closed)
+        catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            // The preview closed while the appearance update was queued.
+            if (!_closed)
+            {
+                ShowInitializationError();
+            }
         }
     }
 

@@ -33,6 +33,7 @@ interface PendingOffer { operationId: string; displayId: string; }
 interface PendingSource { operationId: string; displayId: string; previousDisplayId: string; }
 
 const disconnectedRecoveryMs = 8_000;
+const startResponseTimeoutMs = 10_000;
 
 
 export default function ScreenViewWorkspace({ activePc, browserPreviewState, capability, clientId, onBack, onOpenKeyboard, send, state, trackpadSettings }: Props) {
@@ -69,9 +70,14 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const eventsRef = useRef<RTCDataChannel | null>(null);
   const pendingOfferRef = useRef<PendingOffer | null>(null);
+  const activeOperationRef = useRef<string | null>(null);
+  const sourcesRequestRef = useRef<string | null>(null);
   const pendingSourceRef = useRef<PendingSource | null>(null);
   const pendingAnswerRef = useRef<string | null>(null);
   const pendingStopRef = useRef<string | null>(null);
+  const blockingStopRef = useRef<string | null>(null);
+  const startResponseTimeoutRef = useRef<number | undefined>(undefined);
+  const negotiationGenerationRef = useRef(0);
   const credentialRenewalRef = useRef<number | undefined>(undefined);
   const renewalRestartRef = useRef<number | undefined>(undefined);
   const disconnectedRecoveryRef = useRef<number | undefined>(undefined);
@@ -85,6 +91,7 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
   const pendingDirectMoveRef = useRef<NormalizedScreenPoint | null>(null);
   const directMoveFrameRef = useRef<number | undefined>(undefined);
   const directGuidanceTimeoutRef = useRef<number | undefined>(undefined);
+  const directWheelRemainderRef = useRef({ dx: 0, dy: 0 });
 
   function applyViewTransform(next: ScreenViewTransform) {
     viewTransformRef.current = next;
@@ -173,8 +180,11 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
     event.preventDefault();
     lastDirectPointRef.current = point;
     const scale = event.deltaMode === 0 ? 1 / 12 : event.deltaMode === 1 ? 3 : 20;
-    const dx = Math.round(event.deltaX * scale);
-    const dy = Math.round(event.deltaY * scale);
+    const accumulatedX = directWheelRemainderRef.current.dx + event.deltaX * scale;
+    const accumulatedY = directWheelRemainderRef.current.dy + event.deltaY * scale;
+    const dx = Math.trunc(accumulatedX);
+    const dy = Math.trunc(accumulatedY);
+    directWheelRemainderRef.current = { dx: accumulatedX - dx, dy: accumulatedY - dy };
     if (dx !== 0 || dy !== 0) {send({ type: "screen.pointer.wheel", displayId: selected, ...point, dx, dy });}
   }
 
@@ -311,7 +321,7 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
   }
 
   function start(displayId = selected) {
-    if (!displayId || !activePc.hostIdentityPublicKey || capability.requiresRepair || !capability.canView || pendingOfferRef.current || peerRef.current) {return;}
+    if (!displayId || !activePc.hostIdentityPublicKey || capability.requiresRepair || !capability.canView || pendingOfferRef.current || blockingStopRef.current || peerRef.current) {return;}
     if (typeof RTCPeerConnection === "undefined") {setStatus("This browser does not provide WebRTC screen playback."); return;}
     const operationId = createLocalId();
     const transcript = `VolturaAir screen-view:start:v2:${clientId}:${operationId}:${displayId}`;
@@ -321,6 +331,21 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
     setStreaming(true);
     setStatus("Preparing encrypted WebRTC mirror...");
     send({ type: "screen.view.start", operationId, displayId, clientSignature: signature });
+    window.clearTimeout(startResponseTimeoutRef.current);
+    startResponseTimeoutRef.current = window.setTimeout(() => {
+      if (pendingOfferRef.current?.operationId !== operationId) {return;}
+      pendingOfferRef.current = null;
+      cancelHostCapture("The PC did not respond to the screen-view request. Canceling the pending capture...");
+    }, startResponseTimeoutMs);
+  }
+
+  function cancelHostCapture(message: string) {
+    const operationId = createLocalId();
+    pendingStopRef.current = operationId;
+    blockingStopRef.current = operationId;
+    send({ type: "screen.view.stop", operationId });
+    closeStream();
+    setStatus(message);
   }
 
   function selectSource(displayId: string) {
@@ -368,55 +393,82 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
     const pending = pendingOfferRef.current;
     if (pending?.operationId !== message.operationId) {return;}
     pendingOfferRef.current = null;
+    window.clearTimeout(startResponseTimeoutRef.current);
+    startResponseTimeoutRef.current = undefined;
+    if (message.displayId !== pending.displayId) {
+      if (message.succeeded) {cancelHostCapture("The PC returned a screen offer for the wrong display. Canceling the PC capture...");}
+      else {setStatus("The PC returned a mismatched screen-view response."); setStreaming(false);}
+      return;
+    }
     if (!message.succeeded || !message.offerSdp || !message.hostSignature || !activePc.hostIdentityPublicKey) {
-      setStatus(message.message);
-      setStreaming(false);
+      if (message.succeeded) {cancelHostCapture(message.message);}
+      else {setStatus(message.message); setStreaming(false);}
+      return;
+    }
+    if (!/a=rtpmap:\d+ H264\/90000/i.test(message.offerSdp) || /^m=audio\s/im.test(message.offerSdp)) {
+      cancelHostCapture("The PC did not offer a video-only H.264 screen connection. Canceling the PC capture...");
       return;
     }
     const offerHash = hashScreenSdp(message.offerSdp);
     const hostTranscript = `VolturaAir screen-view:offer:v2:${clientId}:${message.operationId}:${pending.displayId}:${offerHash}`;
     if (!verifyHostScreenSignature(activePc.hostIdentityPublicKey, message.hostSignature, hostTranscript)) {
-      setStatus("The PC identity signature was invalid. No pixels were rendered.");
-      setStreaming(false);
+      cancelHostCapture("The PC identity signature was invalid. Canceling the PC capture; no pixels were rendered.");
       return;
     }
+    activeOperationRef.current = message.operationId;
 
     const relayMode = activePc.transportMode === "relay";
     if (relayMode && (!message.iceServers || message.iceServers.length === 0)) {
-      setStatus("TURN credentials were unavailable. Commands remain connected.");
-      setStreaming(false);
+      cancelHostCapture("TURN credentials were unavailable. Canceling the PC capture; commands remain connected.");
       return;
     }
-    const peer = new RTCPeerConnection({
-      iceServers: message.iceServers ?? [],
-      iceTransportPolicy: relayMode ? "relay" : "all",
-      bundlePolicy: "max-bundle",
-      rtcpMuxPolicy: "require"
-    });
+    let peer: RTCPeerConnection;
+    try {
+      peer = new RTCPeerConnection({
+        iceServers: message.iceServers ?? [],
+        iceTransportPolicy: relayMode ? "relay" : "all",
+        bundlePolicy: "max-bundle",
+        rtcpMuxPolicy: "require"
+      });
+    } catch {
+      cancelHostCapture("This browser could not create the encrypted screen connection. Canceling the PC capture...");
+      return;
+    }
+    const negotiationGeneration = ++negotiationGenerationRef.current;
+    const isCurrentNegotiation = () => peerRef.current === peer && negotiationGenerationRef.current === negotiationGeneration;
     let relayCandidateCount = 0;
     let lastIceErrorCode: number | null = null;
     peerRef.current = peer;
-    scheduleCredentialRenewal(message.turnExpiresAt, pending.displayId);
     peer.addEventListener("icecandidate", (event) => {
+      if (!isCurrentNegotiation()) {return;}
       if (isRelayCandidate(event.candidate)) {
         relayCandidateCount += 1;
       }
     });
     peer.addEventListener("icecandidateerror", (event) => {
+      if (!isCurrentNegotiation()) {return;}
       lastIceErrorCode = event.errorCode;
     });
     peer.addEventListener("track", (event) => {
+      if (!isCurrentNegotiation()) {return;}
       if (event.track.kind !== "video" || !videoRef.current) {return;}
       videoRef.current.srcObject = event.streams[0] ?? new MediaStream([event.track]);
       void playVideo();
     });
     peer.addEventListener("datachannel", (event) => {
+      if (!isCurrentNegotiation()) {event.channel.close(); return;}
       if (event.channel.label !== "screen-events") {event.channel.close(); return;}
-      eventsRef.current = event.channel;
-      event.channel.binaryType = "arraybuffer";
-      event.channel.addEventListener("message", handleScreenEvent);
+      const channel = event.channel;
+      if (eventsRef.current) {channel.close(); return;}
+      eventsRef.current = channel;
+      channel.binaryType = "arraybuffer";
+      channel.addEventListener("message", (messageEvent) => {
+        if (!isCurrentNegotiation() || eventsRef.current !== channel) {return;}
+        handleScreenEvent(messageEvent);
+      });
     });
     peer.addEventListener("connectionstatechange", () => {
+      if (!isCurrentNegotiation()) {return;}
       if (peer.connectionState === "connected") {
         window.clearTimeout(disconnectedRecoveryRef.current);
         disconnectedRecoveryRef.current = undefined;
@@ -444,11 +496,15 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
 
     try {
       await peer.setRemoteDescription({ type: "offer", sdp: message.offerSdp });
+      if (!isCurrentNegotiation()) {peer.close(); return;}
       const answer = await peer.createAnswer();
+      if (!isCurrentNegotiation()) {peer.close(); return;}
       await peer.setLocalDescription(answer);
+      if (!isCurrentNegotiation()) {peer.close(); return;}
       await waitForIceGathering(peer, relayMode);
+      if (!isCurrentNegotiation()) {peer.close(); return;}
       const answerSdp = peer.localDescription?.sdp;
-      if (!answerSdp || answerSdp.length > 32 * 1024) {throw new Error("Invalid WebRTC answer.");}
+      if (!answerSdp || answerSdp.length > 32 * 1024 || !/a=rtpmap:\d+ H264\/90000/i.test(answerSdp) || /^m=audio\s/im.test(answerSdp)) {throw new Error("Invalid WebRTC answer.");}
       if (relayMode && !hasOnlyRelayCandidates(answerSdp)) {throw new Error("The WebRTC answer did not contain relay-only candidates.");}
       const answerHash = hashScreenSdp(answerSdp);
       const answerTranscript = `VolturaAir screen-view:answer:v2:${clientId}:${message.operationId}:${pending.displayId}:${offerHash}:${answerHash}`;
@@ -456,13 +512,14 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
       if (!clientSignature) {throw new Error("The reconnect key is unavailable.");}
       pendingAnswerRef.current = message.operationId;
       send({ type: "screen.view.answer", operationId: message.operationId, answerSdp, clientSignature });
+      scheduleCredentialRenewal(message.turnExpiresAt, pending.displayId);
       setStatus("Connecting encrypted WebRTC mirror...");
     } catch (error) {
-      closeStream();
+      if (!isCurrentNegotiation()) {peer.close(); return;}
       if (error instanceof IceGatheringTimeoutError) {
-        setStatus(`Relay candidate gathering timed out (relay candidates: ${relayCandidateCount}, ICE error: ${lastIceErrorCode ?? "none"}).`);
+        cancelHostCapture(`Relay candidate gathering timed out (relay candidates: ${relayCandidateCount}, ICE error: ${lastIceErrorCode ?? "none"}). Canceling the PC capture...`);
       } else {
-        setStatus("This browser could not negotiate the PC's H.264 WebRTC stream.");
+        cancelHostCapture("This browser could not negotiate the PC's H.264 WebRTC stream. Canceling the PC capture...");
       }
     }
   }
@@ -523,6 +580,8 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
   }
 
   function closeStream() {
+    activeOperationRef.current = null;
+    negotiationGenerationRef.current += 1;
     disableDirectPointer();
     cancelScreenGesture();
     applyViewTransform(identityScreenViewTransform);
@@ -533,6 +592,8 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
     renewalRestartRef.current = undefined;
     window.clearTimeout(disconnectedRecoveryRef.current);
     disconnectedRecoveryRef.current = undefined;
+    window.clearTimeout(startResponseTimeoutRef.current);
+    startResponseTimeoutRef.current = undefined;
     void exitImmersive();
     pendingOfferRef.current = null;
     pendingSourceRef.current = null;
@@ -569,7 +630,13 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
 
   const onControlResult = useEffectEvent((message: Parameters<Parameters<typeof subscribeScreenViewResults>[0]>[0]) => {
     if (message.type === "screen.view.sources.result") {
+      if (message.operationId !== sourcesRequestRef.current) {return;}
+      sourcesRequestRef.current = null;
       if (!message.succeeded) {setStatus(message.message); return;}
+      if (new Set(message.sources.map((source) => source.id)).size !== message.sources.length) {
+        setStatus("The PC returned an invalid display list.");
+        return;
+      }
       setSources(message.sources);
       const preferredSource = message.sources.find((source) => source.isPrimary) ?? message.sources[0];
       setSelected((current) => current.length > 0 ? current : (preferredSource?.id ?? ""));
@@ -591,9 +658,21 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
       setStatus(message.message);
     } else if (message.type === "screen.view.stop.result") {
       if (pendingStopRef.current === message.operationId) {
-        pendingStopRef.current = null;
+        const wasBlocking = blockingStopRef.current === message.operationId;
+        if (message.succeeded) {
+          pendingStopRef.current = null;
+          if (wasBlocking) {
+            blockingStopRef.current = null;
+            setStatus("The pending screen capture was stopped. Tap Start to try again.");
+          }
+        } else if (wasBlocking) {
+          setStatus("The PC could not confirm that screen capture stopped. Reconnect before trying again.");
+        }
       }
     } else if (message.type === "screen.view.ended") {
+      if (activeOperationRef.current !== message.operationId) {return;}
+      pendingStopRef.current = null;
+      blockingStopRef.current = null;
       closeStream();
       setStatus(message.message);
     }
@@ -601,9 +680,25 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
   const stopLocalStream = useEffectEvent(closeStream);
 
   useEffect(() => {
-    if (capability.canView) {send({ type: "screen.view.sources.get", operationId: createLocalId() });}
-    return subscribeScreenViewResults(onControlResult);
-  }, [capability.canView, send]);
+    const unsubscribe = subscribeScreenViewResults(onControlResult);
+    if (state === "paired" && capability.canView) {
+      const operationId = createLocalId();
+      sourcesRequestRef.current = operationId;
+      send({ type: "screen.view.sources.get", operationId });
+    }
+    return () => {
+      sourcesRequestRef.current = null;
+      pendingStopRef.current = null;
+      blockingStopRef.current = null;
+      unsubscribe();
+    };
+  }, [activePc.id, capability.canView, send, state]);
+
+  useEffect(() => {
+    if (browserPreviewState) {return;}
+    if (state !== "paired" || !capability.canView) {stopLocalStream();}
+    return () => {stopLocalStream();};
+  }, [activePc.id, browserPreviewState, capability.canView, state]);
 
   useEffect(() => () => {
     if (browserPreviewState) {return;}
@@ -708,7 +803,7 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
       <div className="screen-view-actions">
         <button type="button" disabled={!viewing} onClick={() => send({ type: "pointer.button", button: "left", action: "click" })}><MousePointer2 /> Click</button>
         <button type="button" disabled={!viewing} onClick={onOpenKeyboard}><Keyboard /> Keys</button>
-        {streaming ? <button type="button" className="danger" onClick={stop}><Square /> Stop</button> : <button type="button" className="primary" disabled={!selected || !capability.canView || capability.requiresRepair} onClick={() => start()}><MonitorUp /> Start</button>}
+        {streaming ? <button type="button" className="danger" onClick={stop}><Square /> Stop</button> : <button type="button" className="primary" disabled={!selected || !capability.canView || capability.requiresRepair || blockingStopRef.current !== null} onClick={() => start()}><MonitorUp /> Start</button>}
       </div>
     </div>
   </section>;

@@ -36,7 +36,8 @@ export async function refreshWithFreshAppUrl(
   if (environment.getCacheNames && environment.deleteCache) {
     try {
       const cacheNames = await environment.getCacheNames();
-      const results = await Promise.allSettled(cacheNames.map(async (cacheName) => environment.deleteCache?.(cacheName)));
+      const ownedCacheNames = cacheNames.filter((cacheName) => cacheName.startsWith("voltura-air-"));
+      const results = await Promise.allSettled(ownedCacheNames.map(async (cacheName) => environment.deleteCache?.(cacheName)));
       addRejectedWarnings(results, "cache deletion", warnings);
     } catch (error) {
       warnings.push(formatWarning("cache lookup", error));

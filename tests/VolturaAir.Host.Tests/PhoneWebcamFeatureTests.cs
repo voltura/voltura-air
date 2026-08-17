@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.IO.Pipes;
+using System.Security.Principal;
 using System.Text;
 using VolturaAir.Host.Features.PhoneWebcam;
 
@@ -8,6 +9,88 @@ namespace VolturaAir.Host.Tests;
 
 public sealed class PhoneWebcamFeatureTests
 {
+    [Fact]
+    public void ProcessTokenAccessRemainsGrantedUntilTheLastOverlappingLeaseEnds()
+    {
+        var frameServerSid = (SecurityIdentifier)new NTAccount("NT SERVICE", "FrameServer")
+            .Translate(typeof(SecurityIdentifier));
+        Assert.Equal(0, PhoneWebcamProcessTokenAccess.ActiveLeaseCountForTests);
+
+        using IDisposable first = PhoneWebcamProcessTokenAccess.Grant(frameServerSid);
+        Assert.Equal(1, PhoneWebcamProcessTokenAccess.ActiveLeaseCountForTests);
+        IDisposable second = PhoneWebcamProcessTokenAccess.Grant(frameServerSid);
+        Assert.Equal(2, PhoneWebcamProcessTokenAccess.ActiveLeaseCountForTests);
+
+        first.Dispose();
+        Assert.Equal(1, PhoneWebcamProcessTokenAccess.ActiveLeaseCountForTests);
+        second.Dispose();
+        Assert.Equal(0, PhoneWebcamProcessTokenAccess.ActiveLeaseCountForTests);
+    }
+
+    [Fact]
+    public void ProcessTokenAccessRetainsAReleaseOwnerAndRetriesAfterEveryAclRestoreFails()
+    {
+        var frameServerSid = (SecurityIdentifier)new NTAccount("NT SERVICE", "FrameServer")
+            .Translate(typeof(SecurityIdentifier));
+        Assert.Equal(0, PhoneWebcamProcessTokenAccess.ActiveLeaseCountForTests);
+        IDisposable lease = PhoneWebcamProcessTokenAccess.Grant(frameServerSid);
+        try
+        {
+            PhoneWebcamProcessTokenAccess.SetRestoreFailureForTests(
+                objectName => new IOException($"Injected {objectName} restore failure."));
+
+            AggregateException failure = Assert.Throws<AggregateException>(() => lease.Dispose());
+
+            Assert.Equal(2, failure.InnerExceptions.Count);
+            Assert.Equal(1, PhoneWebcamProcessTokenAccess.ActiveLeaseCountForTests);
+            PhoneWebcamProcessTokenAccess.SetRestoreFailureForTests(null);
+            lease.Dispose();
+            Assert.Equal(0, PhoneWebcamProcessTokenAccess.ActiveLeaseCountForTests);
+        }
+        finally
+        {
+            PhoneWebcamProcessTokenAccess.SetRestoreFailureForTests(null);
+            if (PhoneWebcamProcessTokenAccess.ActiveLeaseCountForTests > 0) lease.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task ConcurrentLeaseDisposerRetriesAfterTheFirstAclRestoreFails()
+    {
+        var frameServerSid = (SecurityIdentifier)new NTAccount("NT SERVICE", "FrameServer")
+            .Translate(typeof(SecurityIdentifier));
+        Assert.Equal(0, PhoneWebcamProcessTokenAccess.ActiveLeaseCountForTests);
+        IDisposable lease = PhoneWebcamProcessTokenAccess.Grant(frameServerSid);
+        using var firstRestoreEntered = new ManualResetEventSlim();
+        using var allowFirstRestore = new ManualResetEventSlim();
+        var injected = 0;
+        try
+        {
+            PhoneWebcamProcessTokenAccess.SetRestoreFailureForTests(objectName =>
+            {
+                if (objectName != "host token" || Interlocked.Exchange(ref injected, 1) != 0) return null;
+                firstRestoreEntered.Set();
+                allowFirstRestore.Wait(TimeSpan.FromSeconds(5));
+                return new IOException("Injected first token restore failure.");
+            });
+
+            Task first = Task.Run(lease.Dispose);
+            Assert.True(firstRestoreEntered.Wait(TimeSpan.FromSeconds(5)));
+            Task second = Task.Run(lease.Dispose);
+            allowFirstRestore.Set();
+
+            await Assert.ThrowsAsync<AggregateException>(() => first);
+            await second.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(0, PhoneWebcamProcessTokenAccess.ActiveLeaseCountForTests);
+        }
+        finally
+        {
+            allowFirstRestore.Set();
+            PhoneWebcamProcessTokenAccess.SetRestoreFailureForTests(null);
+            if (PhoneWebcamProcessTokenAccess.ActiveLeaseCountForTests > 0) lease.Dispose();
+        }
+    }
+
     [Fact]
     public void FrameContractRemainsFixedAtNv12FullHd()
     {
@@ -58,6 +141,19 @@ public sealed class PhoneWebcamFeatureTests
         queue.Dispose();
 
         Assert.True(owner.IsDisposed);
+    }
+
+    [Fact]
+    public async Task LatestFrameQueueDisposalReleasesAnActiveWaiterAndIsIdempotent()
+    {
+        var queue = new PhoneWebcamLatestFrameQueue();
+        Task<PhoneWebcamFrame?> waiting = queue.TakeAsync(CancellationToken.None);
+
+        queue.Dispose();
+        queue.Dispose();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            await waiting.WaitAsync(TimeSpan.FromSeconds(2)));
     }
 
     [Theory]
@@ -234,6 +330,41 @@ public sealed class PhoneWebcamFeatureTests
         await AssertEventuallyAsync(() => feature.Status.HasError);
         Assert.False(feature.Status.IsInstalled);
         Assert.Equal(2, pipeCreations);
+    }
+
+    [Fact]
+    public async Task FeatureDisposalWaitsForFailedPipeRetirement()
+    {
+        string pipeName = $"voltura-air-webcam-test-{Guid.NewGuid():N}";
+        var pipeCreations = 0;
+        var retirementStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseRetirement = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var feature = new PhoneWebcamFeature(
+            new SuccessfulInstallSetup(),
+            () => new PhoneWebcamFramePipeServer(() =>
+            {
+                if (Interlocked.Increment(ref pipeCreations) > 1)
+                    throw new IOException("Injected replacement pipe failure.");
+                return new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+            }));
+        feature.SetSessionStopper(async () =>
+        {
+            retirementStarted.TrySetResult();
+            await releaseRetirement.Task;
+        });
+        _ = await feature.EnableAsync();
+        await using (var client = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous))
+        {
+            await client.ConnectAsync(2000);
+            await client.WriteAsync(new byte[8]);
+        }
+        await retirementStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Task disposal = feature.DisposeAsync().AsTask();
+
+        Assert.False(disposal.IsCompleted);
+        releaseRetirement.TrySetResult();
+        await disposal.WaitAsync(TimeSpan.FromSeconds(2));
     }
 
     private sealed class FailedInstallSetup : IPhoneWebcamSetup

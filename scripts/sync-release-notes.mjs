@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -78,7 +78,16 @@ export async function syncReleaseNotes(args = process.argv.slice(2)) {
     console.log(`Release notes for ${release.tag} already match ${release.url}.`);
     return false;
   }
-  await writeFile(notesPath, updatedNotes, "utf8");
+  const pendingPath = `${notesPath}.${process.pid}.${Date.now()}.pending`;
+  try {
+    await writeFile(pendingPath, updatedNotes, { encoding: "utf8", flag: "wx" });
+    if (await readFile(notesPath, "utf8") !== currentNotes) {
+      throw new Error("Release notes changed while synchronization was running; no file was replaced.");
+    }
+    await rename(pendingPath, notesPath);
+  } finally {
+    await rm(pendingPath, { force: true });
+  }
   console.log(`Synchronized ${release.tag} from ${release.url} into docs/release-notes.md.`);
   return true;
 }

@@ -195,6 +195,28 @@ describe("connection protocol policy", () => {
 });
 
 describe("parseServerMessage", () => {
+  it("accepts exact protocol string limits and rejects one character over", () => {
+    const cases = [
+      [{ type: "screen.view.ended", operationId: "o".repeat(64), reason: "host-stopped", message: "m".repeat(240) }, "operationId", 64],
+      [{ type: "input.error", message: "m".repeat(240), code: "c".repeat(80) }, "message", 240],
+      [{ type: "pair.rejected", reason: "r".repeat(80) }, "reason", 80],
+      [{ type: "pair.accepted", clientId: "i".repeat(128), pcName: "p".repeat(120), paired: true }, "pcName", 120],
+      [{ type: "status", connected: true, host: { selectedAdapterName: "a".repeat(256) } }, "selectedAdapterName", 256],
+      [{ type: "status", connected: true, host: { selectedIp: "i".repeat(64) } }, "selectedIp", 64],
+      [{ type: "url.open.result", operationId: "op", succeeded: true, message: "ok", normalizedUrl: "u".repeat(512) }, "normalizedUrl", 512],
+      [{ type: "status", connected: true, host: { webClientBuildId: "b".repeat(128) } }, "webClientBuildId", 128]
+    ] as const;
+    for (const [frame, field, limit] of cases) {
+      expect(parseServerMessage(JSON.stringify(frame)), field).not.toBeNull();
+      const over = structuredClone(frame) as Record<string, unknown>;
+      if ("host" in over) {
+        over.host = { ...(over.host as Record<string, unknown>), [field]: "x".repeat(limit + 1) };
+      } else {
+        over[field] = "x".repeat(limit + 1);
+      }
+      expect(parseServerMessage(JSON.stringify(over)), field).toBeNull();
+    }
+  });
   it.each(Object.entries(serverFrameCatalog).filter(([type]) => type.endsWith(".result")))(
     "covers both outcomes for acknowledged $0 frames",
     (_type, contract) => {
@@ -218,11 +240,18 @@ describe("parseServerMessage", () => {
   it("accepts only the current host-ended screen-view reasons", () => {
     const frame = {
       type: "screen.view.ended",
+      operationId: "screen-operation",
       reason: "host-stopped",
       message: "The PC stopped screen viewing."
     };
 
     expect(parseServerMessage(JSON.stringify(frame))).toEqual(frame);
+    const missingOperationId = {
+      type: frame.type,
+      reason: frame.reason,
+      message: frame.message
+    };
+    expect(parseServerMessage(JSON.stringify(missingOperationId))).toBeNull();
     expect(parseServerMessage(JSON.stringify({ ...frame, reason: "legacy-stop" }))).toBeNull();
   });
 

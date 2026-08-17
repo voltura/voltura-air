@@ -104,6 +104,20 @@ function Copy-DotNetRuntimeNotices {
     Copy-Item -LiteralPath $noticesPath -Destination (Join-Path $noticeDirectory "dotnet-ThirdPartyNotices.txt") -Force
 }
 
+function Write-InstallerPayloadManifest {
+    param([Parameter(Mandatory = $true)][string]$PublishDirectory)
+    $manifestPath = Join-Path $PublishDirectory 'installer-payload.sha256'
+    $lines = Get-ChildItem -LiteralPath $PublishDirectory -File -Recurse |
+        Where-Object { $_.FullName -ne $manifestPath } |
+        Sort-Object FullName |
+        ForEach-Object {
+            $relative = [IO.Path]::GetRelativePath($PublishDirectory, $_.FullName).Replace('\', '/')
+            $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash *$relative"
+        }
+    [IO.File]::WriteAllLines($manifestPath, $lines, [Text.UTF8Encoding]::new($false))
+}
+
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $packageJsonPath = Join-Path $repoRoot "package.json"
 $publishRoot = Join-Path $repoRoot "artifacts\publish"
@@ -265,6 +279,10 @@ if (-not (Test-Path $frameworkDependentWatchdogExe)) {
     throw "Expected framework-dependent cursor watchdog executable was not found: $frameworkDependentWatchdogExe"
 }
 Assert-ScreenWebRtcPayload -PublishDirectory $frameworkDependentPublishDir
+Write-InstallerPayloadManifest -PublishDirectory $frameworkDependentPublishDir
+if (-not $FrameworkDependentOnly) {
+    Write-InstallerPayloadManifest -PublishDirectory $publishDir
+}
 
 $frameworkDependentInstalledSizeBytes = (Get-ChildItem $frameworkDependentPublishDir -Recurse -File | Measure-Object Length -Sum).Sum
 $frameworkDependentInstalledSizeKb = [int][math]::Ceiling($frameworkDependentInstalledSizeBytes / 1KB)

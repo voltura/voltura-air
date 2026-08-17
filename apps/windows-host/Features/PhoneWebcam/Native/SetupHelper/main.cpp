@@ -24,15 +24,66 @@ using Microsoft::WRL::ComPtr;
 
 namespace
 {
+    bool g_allowFaultInjection = false;
     constexpr wchar_t SourceClsid[] = L"{50AAB70E-38BA-403E-A55B-58F2BCABE4FB}";
     constexpr wchar_t FriendlyName[] = L"Voltura Air Webcam";
     constexpr wchar_t InstalledDirectoryName[] = L"Voltura Air Webcam";
     constexpr wchar_t SourceDllName[] = L"VirtualCameraMediaSource.dll";
+    constexpr wchar_t SetupHelperName[] = L"VolturaAir.WebcamSetup.exe";
     constexpr int MediaSourceResource = 101;
     constexpr UINT32 FrameWidth = 1920;
     constexpr UINT32 FrameHeight = 1080;
     constexpr DWORD ExpectedFrameBytes = FrameWidth * FrameHeight * 3 / 2;
     constexpr DWORD FirstVideoStream = static_cast<DWORD>(MF_SOURCE_READER_FIRST_VIDEO_STREAM);
+    constexpr DWORD ElevatedOperationTimeoutMilliseconds = 10 * 60 * 1000;
+    constexpr DWORD ElevatedWrapperTimeoutMilliseconds = ElevatedOperationTimeoutMilliseconds + 30 * 1000;
+
+    class ElevatedOperationTimeoutScope
+    {
+    public:
+        ElevatedOperationTimeoutScope()
+        {
+            m_completed = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+            if (m_completed == nullptr)
+            {
+                m_result = HRESULT_FROM_WIN32(GetLastError());
+                return;
+            }
+            m_watchdog = CreateThread(nullptr, 0, Watch, this, 0, nullptr);
+            if (m_watchdog == nullptr)
+            {
+                m_result = HRESULT_FROM_WIN32(GetLastError());
+                CloseHandle(m_completed);
+                m_completed = nullptr;
+            }
+        }
+
+        ~ElevatedOperationTimeoutScope()
+        {
+            if (m_completed != nullptr) SetEvent(m_completed);
+            if (m_watchdog != nullptr)
+            {
+                WaitForSingleObject(m_watchdog, INFINITE);
+                CloseHandle(m_watchdog);
+            }
+            if (m_completed != nullptr) CloseHandle(m_completed);
+        }
+
+        HRESULT Result() const noexcept { return m_result; }
+
+    private:
+        static DWORD WINAPI Watch(LPVOID context)
+        {
+            auto* owner = static_cast<ElevatedOperationTimeoutScope*>(context);
+            if (WaitForSingleObject(owner->m_completed, ElevatedOperationTimeoutMilliseconds) == WAIT_TIMEOUT)
+                TerminateProcess(GetCurrentProcess(), ERROR_TIMEOUT);
+            return 0;
+        }
+
+        HANDLE m_completed = nullptr;
+        HANDLE m_watchdog = nullptr;
+        HRESULT m_result = S_OK;
+    };
 
     class MediaFoundationScope
     {
@@ -79,6 +130,7 @@ namespace
 
     bool ShouldInjectFault(const wchar_t* boundary)
     {
+        if (!g_allowFaultInjection) return false;
         static bool injected = false;
         if (injected) return false;
         wchar_t value[128]{};
@@ -111,6 +163,49 @@ namespace
         }
         buffer.resize(length);
         return std::filesystem::path(buffer);
+    }
+
+    HRESULT RejectReparsePointIfPresent(const std::filesystem::path& path)
+    {
+        const DWORD attributes = GetFileAttributesW(path.c_str());
+        if (attributes == INVALID_FILE_ATTRIBUTES)
+        {
+            const DWORD error = GetLastError();
+            return error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND
+                ? S_OK
+                : HRESULT_FROM_WIN32(error);
+        }
+        return (attributes & FILE_ATTRIBUTE_REPARSE_POINT) == 0
+            ? S_OK
+            : HRESULT_FROM_WIN32(ERROR_REPARSE_TAG_INVALID);
+    }
+
+    HRESULT FilesEqual(
+        const std::filesystem::path& left,
+        const std::filesystem::path& right,
+        bool& equal)
+    {
+        equal = false;
+        std::error_code error;
+        if (!std::filesystem::is_regular_file(left, error) || error) return HRESULT_FROM_WIN32(error ? error.value() : ERROR_FILE_NOT_FOUND);
+        if (!std::filesystem::is_regular_file(right, error) || error) return HRESULT_FROM_WIN32(error ? error.value() : ERROR_FILE_NOT_FOUND);
+        if (std::filesystem::file_size(left, error) != std::filesystem::file_size(right, error) || error)
+            return error ? HRESULT_FROM_WIN32(error.value()) : S_OK;
+        std::ifstream leftStream(left, std::ios::binary);
+        std::ifstream rightStream(right, std::ios::binary);
+        if (!leftStream || !rightStream) return HRESULT_FROM_WIN32(ERROR_OPEN_FAILED);
+        std::array<char, 64 * 1024> leftBuffer{};
+        std::array<char, 64 * 1024> rightBuffer{};
+        do
+        {
+            leftStream.read(leftBuffer.data(), leftBuffer.size());
+            rightStream.read(rightBuffer.data(), rightBuffer.size());
+            if (leftStream.gcount() != rightStream.gcount() ||
+                !std::equal(leftBuffer.begin(), leftBuffer.begin() + leftStream.gcount(), rightBuffer.begin()))
+                return S_OK;
+        } while (leftStream.gcount() > 0);
+        equal = true;
+        return S_OK;
     }
 
     HRESULT LoadPackagedSource(std::vector<BYTE>& bytes)
@@ -206,7 +301,19 @@ namespace
             return result;
         }
 
-        const DWORD waitResult = WaitForSingleObject(info.hProcess, INFINITE);
+        const DWORD waitResult = WaitForSingleObject(
+            info.hProcess,
+            ElevatedWrapperTimeoutMilliseconds);
+        if (waitResult == WAIT_TIMEOUT)
+        {
+            // The elevated transaction is expected to finish or roll back in seconds.
+            // Bound a wedged helper and request termination before releasing ownership.
+            TerminateProcess(info.hProcess, ERROR_TIMEOUT);
+            WaitForSingleObject(info.hProcess, 30 * 1000);
+            CloseHandle(info.hProcess);
+            CloseHandle(executableLock);
+            return HRESULT_FROM_WIN32(ERROR_TIMEOUT);
+        }
         DWORD exitCode = ERROR_GEN_FAILURE;
         const BOOL gotExitCode = GetExitCodeProcess(info.hProcess, &exitCode);
         CloseHandle(info.hProcess);
@@ -275,6 +382,19 @@ namespace
         RegCloseKey(key);
         exists = true;
         return S_OK;
+    }
+
+    HRESULT VerifyRegisteredOwner(const std::wstring& ownerSid)
+    {
+        bool registrationExists = false;
+        HRESULT result = RegistrationExists(registrationExists);
+        if (FAILED(result) || !registrationExists) return result;
+
+        std::wstring storedOwnerSid;
+        const std::wstring rootPath = std::wstring(L"SOFTWARE\\Classes\\CLSID\\") + SourceClsid;
+        result = ReadRegistryString(rootPath, L"OwnerSid", storedOwnerSid);
+        if (FAILED(result)) return result;
+        return storedOwnerSid == ownerSid ? S_OK : E_ACCESSDENIED;
     }
 
     HRESULT FindCamera(ComPtr<IMFActivate>& found, std::wstring& friendlyName);
@@ -363,11 +483,18 @@ namespace
         std::error_code fileError;
         const bool directoryExists = std::filesystem::exists(installDirectory, fileError);
         if (fileError) return HRESULT_FROM_WIN32(fileError.value());
+        result = RejectReparsePointIfPresent(installDirectory);
+        if (FAILED(result)) return result;
         cleanupRequired = cleanupRequired || directoryExists;
         if (installed)
         {
             const std::filesystem::path installedDll = installDirectory / SourceDllName;
-            if (!std::filesystem::is_regular_file(installedDll))
+            const std::filesystem::path installedHelper = installDirectory / SetupHelperName;
+            result = RejectReparsePointIfPresent(installedDll);
+            if (SUCCEEDED(result)) result = RejectReparsePointIfPresent(installedHelper);
+            if (FAILED(result)) return result;
+            if (!std::filesystem::is_regular_file(installedDll) ||
+                !std::filesystem::is_regular_file(installedHelper))
             {
                 updateRequired = true;
             }
@@ -377,6 +504,12 @@ namespace
                 result = FileMatchesPackagedSource(installedDll, equal);
                 if (FAILED(result)) return result;
                 updateRequired = !equal;
+                if (!updateRequired)
+                {
+                    result = FilesEqual(CurrentExecutable(), installedHelper, equal);
+                    if (FAILED(result)) return result;
+                    updateRequired = !equal;
+                }
             }
         }
         return S_OK;
@@ -626,20 +759,44 @@ namespace
         HRESULT result = ProgramFilesInstallDirectory(installDirectory);
         if (FAILED(result)) return result;
         const std::filesystem::path installedDll = installDirectory / SourceDllName;
+        const std::filesystem::path installedHelper = installDirectory / SetupHelperName;
         const std::filesystem::path stagedDll = installDirectory / L"VirtualCameraMediaSource.removing";
+
+        result = RejectReparsePointIfPresent(installDirectory);
+        if (SUCCEEDED(result)) result = RejectReparsePointIfPresent(installedDll);
+        if (SUCCEEDED(result)) result = RejectReparsePointIfPresent(installedHelper);
+        if (SUCCEEDED(result)) result = RejectReparsePointIfPresent(stagedDll);
+        if (FAILED(result)) return result;
 
         bool registrationExists = false;
         result = RegistrationExists(registrationExists);
         if (FAILED(result)) return result;
-        if (registrationExists || std::filesystem::exists(installedDll) || std::filesystem::exists(stagedDll))
+        if (registrationExists || std::filesystem::exists(installedDll) ||
+            std::filesystem::exists(installedHelper) || std::filesystem::exists(stagedDll))
             return HRESULT_FROM_WIN32(ERROR_ALREADY_EXISTS);
 
         std::error_code error;
         std::filesystem::create_directories(installDirectory, error);
         if (error) return HRESULT_FROM_WIN32(error.value());
+        result = RejectReparsePointIfPresent(installDirectory);
+        if (FAILED(result)) return result;
+        if (!CopyFileW(CurrentExecutable().c_str(), installedHelper.c_str(), TRUE))
+        {
+            RemoveDirectoryW(installDirectory.c_str());
+            return HRESULT_FROM_WIN32(GetLastError());
+        }
+        bool helperMatches = false;
+        result = FilesEqual(CurrentExecutable(), installedHelper, helperMatches);
+        if (FAILED(result) || !helperMatches)
+        {
+            DeleteFileW(installedHelper.c_str());
+            RemoveDirectoryW(installDirectory.c_str());
+            return FAILED(result) ? result : HRESULT_FROM_WIN32(ERROR_FILE_CORRUPT);
+        }
         result = WritePackagedSource(installedDll);
         if (FAILED(result))
         {
+            DeleteFileW(installedHelper.c_str());
             RemoveDirectoryW(installDirectory.c_str());
             return result;
         }
@@ -656,6 +813,7 @@ namespace
             }
             HRESULT rollback = S_OK;
             if (!DeleteFileW(installedDll.c_str())) rollback = HRESULT_FROM_WIN32(GetLastError());
+            if (!DeleteFileW(installedHelper.c_str()) && SUCCEEDED(rollback)) rollback = HRESULT_FROM_WIN32(GetLastError());
             if (!RemoveDirectoryW(installDirectory.c_str()) && GetLastError() != ERROR_PATH_NOT_FOUND && SUCCEEDED(rollback))
                 rollback = HRESULT_FROM_WIN32(GetLastError());
             if (FAILED(rollback))
@@ -675,12 +833,21 @@ namespace
         if (!IsAdministrator()) return E_ACCESSDENIED;
         const HRESULT sidResult = ValidateOwnerSid(ownerSid);
         if (FAILED(sidResult)) return sidResult;
+        const HRESULT ownerResult = VerifyRegisteredOwner(ownerSid);
+        if (FAILED(ownerResult)) return ownerResult;
 
         std::filesystem::path installDirectory;
         HRESULT result = ProgramFilesInstallDirectory(installDirectory);
         if (FAILED(result)) return result;
         const std::filesystem::path installedDll = installDirectory / SourceDllName;
+        const std::filesystem::path installedHelper = installDirectory / SetupHelperName;
         const std::filesystem::path stagedDll = installDirectory / L"VirtualCameraMediaSource.removing";
+
+        result = RejectReparsePointIfPresent(installDirectory);
+        if (SUCCEEDED(result)) result = RejectReparsePointIfPresent(installedDll);
+        if (SUCCEEDED(result)) result = RejectReparsePointIfPresent(installedHelper);
+        if (SUCCEEDED(result)) result = RejectReparsePointIfPresent(stagedDll);
+        if (FAILED(result)) return result;
 
         bool hasInstalledDll = std::filesystem::exists(installedDll);
         bool hasStagedDll = std::filesystem::exists(stagedDll);
@@ -747,6 +914,8 @@ namespace
                        << HResultText(deleteResult) << L" rollback=" << HResultText(rollback) << std::endl;
             return FAILED(rollback) ? rollback : deleteResult;
         }
+        if (std::filesystem::exists(installedHelper) && !DeleteFileW(installedHelper.c_str()))
+            return HRESULT_FROM_WIN32(GetLastError());
         if (!RemoveDirectoryW(installDirectory.c_str()))
         {
             const DWORD removeError = GetLastError();
@@ -875,14 +1044,19 @@ int wmain(const int argumentCount, wchar_t* arguments[])
     }
     if (command == L"--elevated-install" && argumentCount == 3)
     {
+        ElevatedOperationTimeoutScope timeout;
+        if (FAILED(timeout.Result())) return Finish(timeout.Result());
         return Finish(InstallSystemFilesElevated(arguments[2]));
     }
     if (command == L"--elevated-remove" && argumentCount == 3)
     {
+        ElevatedOperationTimeoutScope timeout;
+        if (FAILED(timeout.Result())) return Finish(timeout.Result());
         return Finish(RemoveSystemFilesElevated(arguments[2]));
     }
     if (command == L"test-unregister-rollback")
     {
+        g_allowFaultInjection = true;
         std::wstring ownerSid;
         HRESULT result = CurrentUserSid(ownerSid);
         if (FAILED(result)) return Finish(result);
@@ -890,6 +1064,9 @@ int wmain(const int argumentCount, wchar_t* arguments[])
     }
     if (command == L"--elevated-test-unregister-rollback" && argumentCount == 3)
     {
+        g_allowFaultInjection = true;
+        ElevatedOperationTimeoutScope timeout;
+        if (FAILED(timeout.Result())) return Finish(timeout.Result());
         return Finish(TestUnregisterRollbackElevated(arguments[2]));
     }
     if (command == L"verify-packaged-source" && argumentCount == 3)

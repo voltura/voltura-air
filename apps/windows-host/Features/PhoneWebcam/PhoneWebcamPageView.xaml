@@ -41,14 +41,10 @@
                         </Grid.ColumnDefinitions>
                         <CheckBox x:Name="AllowPairedDevicesCheckBox"
                                   Content="Allow paired devices" />
-                        <ui:SpacingStackPanel Grid.Column="2"
-                                              Orientation="Horizontal"
-                                              Spacing="{DynamicResource SpaceSm}">
-                            <Button x:Name="RetryPreviewButton"
-                                    Content="Retry preview"
-                                    Visibility="Collapsed" />
-                            <Button x:Name="InstallationActionButton" />
-                        </ui:SpacingStackPanel>
+                        <Button x:Name="RetryPreviewButton"
+                                Grid.Column="2"
+                                Content="Retry preview"
+                                Visibility="Collapsed" />
                     </Grid>
                 </ui:SpacingStackPanel>
             </Border>

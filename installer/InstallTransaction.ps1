@@ -2,7 +2,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('Recover', 'PrepareUninstall', 'Verify', 'Promote', 'Commit', 'Rollback', 'HostRunning', 'StopHost', 'StageRemoval', 'CompleteRemoval')]
+    [ValidateSet('Recover', 'PrepareUninstall', 'Verify', 'Promote', 'Commit', 'Rollback', 'StopHost', 'StageRemoval', 'CompleteRemoval')]
     [string]$Action,
     [Parameter(Mandatory = $true)][string]$InstallDirectory,
     [string]$StagingDirectory,
@@ -76,7 +76,8 @@ function Assert-OwnedSibling([string]$Path, [string]$Kind) {
     $parent = Split-Path -Parent (Get-Full $InstallDirectory)
     $name = Split-Path -Leaf $Path
     $installName = Split-Path -Leaf (Get-Full $InstallDirectory)
-    if ((Split-Path -Parent (Get-Full $Path)) -ne $parent -or $name -notmatch ('^' + [regex]::Escape($installName) + '\.' + $Kind + '-[a-f0-9]{8,32}$')) {
+    $suffixPattern = if ($Kind -eq 'staging') { '[0-9]{1,10}' } else { '[a-f0-9]{8,32}' }
+    if ((Split-Path -Parent (Get-Full $Path)) -ne $parent -or $name -notmatch ('^' + [regex]::Escape($installName) + '\.' + $Kind + '-' + $suffixPattern + '$')) {
         throw 'Installer journal references an unowned sibling directory.'
     }
 }
@@ -102,14 +103,24 @@ function Recover-Transaction {
     $currentValid = (Test-Path -LiteralPath $InstallDirectory) -and (Test-Manifest $InstallDirectory)
     $stagingValid = (Test-Path -LiteralPath $journal.stagingDirectory) -and (Test-Manifest $journal.stagingDirectory)
     $backupValid = (Test-Path -LiteralPath $journal.backupDirectory) -and (Test-Manifest $journal.backupDirectory)
-    if ($currentValid -and (Get-Hash (Join-Path $InstallDirectory $manifestName)) -eq $journal.newManifestHash) {
+    $currentHash = if ($currentValid) { Get-Hash (Join-Path $InstallDirectory $manifestName) } else { $null }
+    $stagingHash = if ($stagingValid) { Get-Hash (Join-Path $journal.stagingDirectory $manifestName) } else { $null }
+    if ($currentHash -eq $journal.newManifestHash) {
         if (Test-Path -LiteralPath $journal.backupDirectory) { Remove-Item -LiteralPath $journal.backupDirectory -Recurse -Force }
         if (Test-Path -LiteralPath $journal.stagingDirectory) { Remove-Item -LiteralPath $journal.stagingDirectory -Recurse -Force }
         Remove-Item -LiteralPath $JournalPath -Force
         return
     }
+    if ($currentHash -eq $journal.oldManifestHash -and $stagingHash -eq $journal.newManifestHash -and
+        -not (Test-Path -LiteralPath $journal.backupDirectory)) {
+        [IO.Directory]::Move($InstallDirectory, $journal.backupDirectory)
+        [IO.Directory]::Move($journal.stagingDirectory, $InstallDirectory)
+        Remove-Item -LiteralPath $journal.backupDirectory -Recurse -Force
+        Remove-Item -LiteralPath $JournalPath -Force
+        return
+    }
     if (Test-Path -LiteralPath $InstallDirectory) { throw 'Installer recovery will not overwrite an unexpected installation directory.' }
-    if ($stagingValid -and (Get-Hash (Join-Path $journal.stagingDirectory $manifestName)) -eq $journal.newManifestHash) {
+    if ($stagingHash -eq $journal.newManifestHash) {
         [IO.Directory]::Move($journal.stagingDirectory, $InstallDirectory)
         if (Test-Path -LiteralPath $journal.backupDirectory) { Remove-Item -LiteralPath $journal.backupDirectory -Recurse -Force }
         Remove-Item -LiteralPath $JournalPath -Force
@@ -129,9 +140,8 @@ if ($StagingDirectory) { $StagingDirectory = Get-Full $StagingDirectory }
 
 switch ($Action) {
     'Verify' { if (-not (Test-Manifest $StagingDirectory)) { throw 'Installer payload verification failed.' }; break }
-    'HostRunning' { if ((Get-OwnedHostProcesses).Count -eq 0) { exit 1 }; break }
     'StopHost' {
-        $processes = Get-OwnedHostProcesses
+        $processes = @(Get-OwnedHostProcesses)
         foreach ($process in $processes) { $process.Kill() }
         foreach ($process in $processes) { if (-not $process.WaitForExit(10000)) { throw 'The installed Voltura Air host did not stop.' } }
         break
@@ -182,6 +192,13 @@ switch ($Action) {
         if ($journal.oldManifestHash) {
             if (-not (Test-Manifest $journal.backupDirectory) -or (Get-Hash (Join-Path $journal.backupDirectory $manifestName)) -ne $journal.oldManifestHash) { throw 'Rollback backup verification failed.' }
             [IO.Directory]::Move($journal.backupDirectory, $InstallDirectory)
+        }
+        elseif (Test-Path -LiteralPath $journal.stagingDirectory) {
+            if (-not (Test-Manifest $journal.stagingDirectory) -or
+                (Get-Hash (Join-Path $journal.stagingDirectory $manifestName)) -ne $journal.newManifestHash) {
+                throw 'Clean-install rollback will not remove unexpected staging content.'
+            }
+            Remove-Item -LiteralPath $journal.stagingDirectory -Recurse -Force
         }
         Remove-Item -LiteralPath $JournalPath -Force
         break

@@ -177,7 +177,7 @@ Function .onInit
   InitPluginsDir
   SetOutPath "$PLUGINSDIR"
   File /oname=${INSTALL_TRANSACTION_SCRIPT} "${__FILEDIR__}\InstallTransaction.ps1"
-  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action Recover -InstallDirectory "$INSTDIR" -JournalPath "${INSTALL_TRANSACTION_JOURNAL}"'
+  nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action Recover -InstallDirectory "$INSTDIR" -JournalPath "${INSTALL_TRANSACTION_JOURNAL}"'
   Pop $0
   Pop $1
   ${If} $0 != 0
@@ -190,7 +190,7 @@ Function un.onInit
   InitPluginsDir
   SetOutPath "$PLUGINSDIR"
   File /oname=${INSTALL_TRANSACTION_SCRIPT} "${__FILEDIR__}\InstallTransaction.ps1"
-  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action PrepareUninstall -InstallDirectory "$INSTDIR" -JournalPath "${INSTALL_TRANSACTION_JOURNAL}"'
+  nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action PrepareUninstall -InstallDirectory "$INSTDIR" -JournalPath "${INSTALL_TRANSACTION_JOURNAL}"'
   Pop $0
   Pop $1
   ${If} $0 != 0
@@ -200,7 +200,7 @@ Function un.onInit
 FunctionEnd
 
 Function RollbackPromotedInstall
-  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action Rollback -InstallDirectory "$INSTDIR" -JournalPath "${INSTALL_TRANSACTION_JOURNAL}"'
+  nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action Rollback -InstallDirectory "$INSTDIR" -JournalPath "${INSTALL_TRANSACTION_JOURNAL}"'
   Pop $0
   Pop $1
   Push $0
@@ -241,7 +241,7 @@ install_staging_ready:
   SetOutPath "$StagingDirectory"
   File /r "${PUBLISH_DIR}\*.*"
   WriteUninstaller "$StagingDirectory\Uninstall.exe"
-  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action Verify -InstallDirectory "$INSTDIR" -StagingDirectory "$StagingDirectory"'
+  nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action Verify -InstallDirectory "$INSTDIR" -StagingDirectory "$StagingDirectory"'
   Pop $0
   Pop $1
   ${If} $0 != 0
@@ -249,8 +249,11 @@ install_staging_ready:
     Abort "Installer payload verification failed."
   ${EndIf}
 
-  Call PromptCloseRunningApp
-  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action Promote -InstallDirectory "$INSTDIR" -StagingDirectory "$StagingDirectory" -JournalPath "${INSTALL_TRANSACTION_JOURNAL}"'
+  ; Windows cannot rename a directory while this installer still uses it as
+  ; the process working directory. Leave staging before transactional promotion.
+  SetOutPath "$PLUGINSDIR"
+  Call StopRunningApp
+  nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action Promote -InstallDirectory "$INSTDIR" -StagingDirectory "$StagingDirectory" -JournalPath "${INSTALL_TRANSACTION_JOURNAL}"'
   Pop $0
   Pop $1
   ${If} $0 != 0
@@ -261,7 +264,7 @@ install_staging_ready:
   Pop $0
   Pop $1
   ${If} $0 != 0
-    nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action Rollback -InstallDirectory "$INSTDIR" -JournalPath "${INSTALL_TRANSACTION_JOURNAL}"'
+    nsExec::ExecToLog '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action Rollback -InstallDirectory "$INSTDIR" -JournalPath "${INSTALL_TRANSACTION_JOURNAL}"'
     MessageBox MB_ICONSTOP "The updated host failed its isolated health check. Setup restored the verified previous installation."
     Abort "Installed host health check failed."
   ${EndIf}
@@ -351,7 +354,7 @@ phone_webcam_install_packaged:
 SectionEnd
 
 Section -FinalizeInstall
-  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action Commit -InstallDirectory "$INSTDIR" -JournalPath "${INSTALL_TRANSACTION_JOURNAL}"'
+  nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action Commit -InstallDirectory "$INSTDIR" -JournalPath "${INSTALL_TRANSACTION_JOURNAL}"'
   Pop $0
   Pop $1
   ${If} $0 != 0
@@ -370,7 +373,7 @@ success_without_reboot:
 FunctionEnd
 
 Section "Uninstall"
-  Call un.PromptCloseRunningApp
+  Call un.StopRunningApp
   Call un.RemovePhoneWebcam
 
   IfFileExists "${RECOVERY_UNINSTALLER}" uninstall_recovery_ready 0
@@ -383,14 +386,14 @@ uninstall_recovery_ready:
   WriteRegStr HKCU "${UNINSTALL_KEY}" "UninstallString" "$\"${RECOVERY_UNINSTALLER}$\""
   WriteRegStr HKCU "${UNINSTALL_KEY}" "QuietUninstallString" "$\"${RECOVERY_UNINSTALLER}$\" /S"
 
-  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action StageRemoval -InstallDirectory "$INSTDIR" -JournalPath "${INSTALL_TRANSACTION_JOURNAL}"'
+  nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action StageRemoval -InstallDirectory "$INSTDIR" -JournalPath "${INSTALL_TRANSACTION_JOURNAL}"'
   Pop $0
   Pop $1
   ${If} $0 != 0
     MessageBox MB_ICONSTOP "Voltura Air could not stage its verified installation for removal."
     Abort "The installation directory could not be staged for removal."
   ${EndIf}
-  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action CompleteRemoval -InstallDirectory "$INSTDIR" -JournalPath "${INSTALL_TRANSACTION_JOURNAL}"'
+  nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action CompleteRemoval -InstallDirectory "$INSTDIR" -JournalPath "${INSTALL_TRANSACTION_JOURNAL}"'
   Pop $0
   Pop $1
   ${If} $0 != 0
@@ -655,19 +658,9 @@ Function CleanupAspNetCoreRuntime
 FunctionEnd
 !endif
 
-Function PromptCloseRunningApp
-  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action HostRunning -InstallDirectory "$INSTDIR"'
-  Pop $0
-  Pop $1
-
-  ${If} $0 != 0
-    Return
-  ${EndIf}
-
-  MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "${APP_NAME} is currently running. Setup needs to close it before continuing." IDOK install_close IDCANCEL install_cancel
-
+Function StopRunningApp
 install_close:
-  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action StopHost -InstallDirectory "$INSTDIR"'
+  nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action StopHost -InstallDirectory "$INSTDIR"'
   Pop $0
   Pop $1
 
@@ -681,19 +674,9 @@ install_cancel:
   Abort "Setup was canceled because ${APP_NAME} is still running."
 FunctionEnd
 
-Function un.PromptCloseRunningApp
-  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action HostRunning -InstallDirectory "$INSTDIR"'
-  Pop $0
-  Pop $1
-
-  ${If} $0 != 0
-    Return
-  ${EndIf}
-
-  MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "${APP_NAME} is currently running. Uninstall needs to close it before continuing." IDOK uninstall_close IDCANCEL uninstall_cancel
-
+Function un.StopRunningApp
 uninstall_close:
-  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action StopHost -InstallDirectory "$INSTDIR"'
+  nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action StopHost -InstallDirectory "$INSTDIR"'
   Pop $0
   Pop $1
 

@@ -21,6 +21,13 @@ const packageScriptPath = new URL("../../scripts/package-win.ps1", import.meta.u
 const installer = readFileSync(installerPath, "utf8");
 const packageScript = readFileSync(packageScriptPath, "utf8");
 
+test("installer transactions use native 64-bit Windows PowerShell", () => {
+  const transactionCalls = installer.match(/nsExec::ExecTo(?:Stack|Log) .*INSTALL_TRANSACTION_SCRIPT.*$/gm) ?? [];
+  assert.ok(transactionCalls.length > 0);
+  assert.ok(transactionCalls.every((call) => call.includes("$WINDIR\\Sysnative\\WindowsPowerShell")));
+  assert.ok(transactionCalls.every((call) => !call.includes("$SYSDIR\\WindowsPowerShell")));
+});
+
 function findMakensis() {
   const candidates = [
     "makensis.exe",
@@ -377,7 +384,7 @@ test("prerequisites finish before the running app or installation is changed", (
     "Call InstallAspNetCoreRuntime"
   );
   assert.ok(prerequisitesComplete >= 0);
-  assert.ok(prerequisitesComplete < installSection.indexOf("Call PromptCloseRunningApp"));
+  assert.ok(prerequisitesComplete < installSection.indexOf("Call StopRunningApp"));
   assert.ok(prerequisitesComplete < installSection.indexOf('SetOutPath "$StagingDirectory"'));
   assert.ok(prerequisitesComplete < installSection.indexOf("CreateShortcut"));
   assert.ok(prerequisitesComplete < installSection.indexOf("WriteRegStr"));
@@ -387,6 +394,7 @@ test("installer journals promotion and removal before changing registration", ()
   const installSection = installer.match(/Section "Voltura Air \(required\)" SEC_CORE([\s\S]*?)SectionEnd/u)?.[1] ?? "";
   const uninstallSection = installer.match(/Section "Uninstall"([\s\S]*?)SectionEnd/u)?.[1] ?? "";
   assert.match(installSection, /-Action Verify[\s\S]*-Action Promote[\s\S]*--installer-health-check/u);
+  assert.match(installSection, /-Action Verify[\s\S]*SetOutPath "\$PLUGINSDIR"[\s\S]*-Action Promote/u);
   assert.doesNotMatch(installSection, /RMDir \/r "\$INSTDIR"/u);
   assert.ok(uninstallSection.indexOf("-Action StageRemoval") < uninstallSection.indexOf("DeleteRegKey HKCU"));
   assert.ok(uninstallSection.indexOf("-Action CompleteRemoval") < uninstallSection.indexOf("DeleteRegKey HKCU"));

@@ -37,6 +37,8 @@ namespace
     constexpr DWORD FirstVideoStream = static_cast<DWORD>(MF_SOURCE_READER_FIRST_VIDEO_STREAM);
     constexpr DWORD ElevatedOperationTimeoutMilliseconds = 10 * 60 * 1000;
     constexpr DWORD ElevatedWrapperTimeoutMilliseconds = ElevatedOperationTimeoutMilliseconds + 30 * 1000;
+    constexpr DWORD FileReleaseRetryMilliseconds = 10 * 1000;
+    constexpr DWORD FileReleaseRetryIntervalMilliseconds = 100;
 
     class ElevatedOperationTimeoutScope
     {
@@ -180,6 +182,37 @@ namespace
             : HRESULT_FROM_WIN32(ERROR_REPARSE_TAG_INVALID);
     }
 
+    bool IsTransientFileReleaseError(const DWORD error)
+    {
+        return error == ERROR_ACCESS_DENIED || error == ERROR_SHARING_VIOLATION || error == ERROR_LOCK_VIOLATION;
+    }
+
+    HRESULT MoveReleasedFile(const std::filesystem::path& source, const std::filesystem::path& destination)
+    {
+        DWORD error = ERROR_GEN_FAILURE;
+        for (DWORD elapsed = 0; elapsed <= FileReleaseRetryMilliseconds; elapsed += FileReleaseRetryIntervalMilliseconds)
+        {
+            if (MoveFileExW(source.c_str(), destination.c_str(), MOVEFILE_WRITE_THROUGH)) return S_OK;
+            error = GetLastError();
+            if (!IsTransientFileReleaseError(error) || elapsed == FileReleaseRetryMilliseconds) break;
+            Sleep(FileReleaseRetryIntervalMilliseconds);
+        }
+        return HRESULT_FROM_WIN32(error);
+    }
+
+    HRESULT DeleteReleasedFile(const std::filesystem::path& path)
+    {
+        DWORD error = ERROR_GEN_FAILURE;
+        for (DWORD elapsed = 0; elapsed <= FileReleaseRetryMilliseconds; elapsed += FileReleaseRetryIntervalMilliseconds)
+        {
+            if (DeleteFileW(path.c_str())) return S_OK;
+            error = GetLastError();
+            if (!IsTransientFileReleaseError(error) || elapsed == FileReleaseRetryMilliseconds) break;
+            Sleep(FileReleaseRetryIntervalMilliseconds);
+        }
+        return HRESULT_FROM_WIN32(error);
+    }
+
     HRESULT FilesEqual(
         const std::filesystem::path& left,
         const std::filesystem::path& right,
@@ -280,7 +313,7 @@ namespace
         }
 
         HANDLE executableLock = CreateFileW(
-            executable.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+            executable.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
             FILE_ATTRIBUTE_NORMAL, nullptr);
         if (executableLock == INVALID_HANDLE_VALUE)
         {
@@ -858,17 +891,17 @@ namespace
         }
         if (!hasInstalledDll && hasStagedDll)
         {
-            if (!MoveFileExW(stagedDll.c_str(), installedDll.c_str(), MOVEFILE_WRITE_THROUGH))
-                return HRESULT_FROM_WIN32(GetLastError());
+            const HRESULT recoverResult = MoveReleasedFile(stagedDll, installedDll);
+            if (FAILED(recoverResult)) return recoverResult;
             hasInstalledDll = true;
             hasStagedDll = false;
             std::wcout << L"state=staged-file-recovered" << std::endl;
         }
         if (hasInstalledDll)
         {
-            if (!MoveFileExW(installedDll.c_str(), stagedDll.c_str(), MOVEFILE_WRITE_THROUGH))
+            const HRESULT moveResult = MoveReleasedFile(installedDll, stagedDll);
+            if (FAILED(moveResult))
             {
-                const HRESULT moveResult = HRESULT_FROM_WIN32(GetLastError());
                 std::wcerr << L"Removal kept the complete recoverable installation because the DLL is in use. move="
                            << HResultText(moveResult) << std::endl;
                 return moveResult;
@@ -898,9 +931,9 @@ namespace
         }
         std::wcout << L"state=com-unregistered" << std::endl;
 
-        if (hasInstalledDll && !DeleteFileW(stagedDll.c_str()))
+        const HRESULT deleteResult = hasInstalledDll ? DeleteReleasedFile(stagedDll) : S_OK;
+        if (FAILED(deleteResult))
         {
-            const HRESULT deleteResult = HRESULT_FROM_WIN32(GetLastError());
             HRESULT rollback = S_OK;
             if (!MoveFileExW(stagedDll.c_str(), installedDll.c_str(), MOVEFILE_WRITE_THROUGH))
             {
@@ -914,11 +947,23 @@ namespace
                        << HResultText(deleteResult) << L" rollback=" << HResultText(rollback) << std::endl;
             return FAILED(rollback) ? rollback : deleteResult;
         }
-        if (std::filesystem::exists(installedHelper) && !DeleteFileW(installedHelper.c_str()))
-            return HRESULT_FROM_WIN32(GetLastError());
+        bool helperRemovalDeferred = false;
+        if (std::filesystem::exists(installedHelper))
+        {
+            const HRESULT helperDeleteResult = DeleteReleasedFile(installedHelper);
+            if (FAILED(helperDeleteResult))
+            {
+                if (!MoveFileExW(installedHelper.c_str(), nullptr, MOVEFILE_DELAY_UNTIL_REBOOT))
+                    return helperDeleteResult;
+                helperRemovalDeferred = true;
+                std::wcout << L"state=helper-removal-deferred" << std::endl;
+            }
+        }
         if (!RemoveDirectoryW(installDirectory.c_str()))
         {
             const DWORD removeError = GetLastError();
+            if (helperRemovalDeferred)
+                MoveFileExW(installDirectory.c_str(), nullptr, MOVEFILE_DELAY_UNTIL_REBOOT);
             if (removeError != ERROR_FILE_NOT_FOUND && removeError != ERROR_PATH_NOT_FOUND)
                 std::wcerr << L"directory-cleanup-warning=" << HResultText(HRESULT_FROM_WIN32(removeError)) << std::endl;
         }

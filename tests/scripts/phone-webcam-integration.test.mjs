@@ -59,7 +59,12 @@ test("production setup is idempotent on removal and retains transactional fault 
   assert.match(setup, /InstallSystemFilesElevated\(arguments\[2\]\)/u);
   assert.doesNotMatch(setup, /BuiltSourceDll/u);
   assert.match(setup, /FindResourceW[\s\S]+RT_RCDATA/u);
-  assert.match(setup, /CreateFileW\([\s\S]+executable\.c_str\(\), GENERIC_READ, FILE_SHARE_READ/u);
+  assert.match(setup, /executable\.c_str\(\), GENERIC_READ, FILE_SHARE_READ \| FILE_SHARE_DELETE/u);
+  assert.match(setup, /FileReleaseRetryMilliseconds = 10 \* 1000/u);
+  assert.match(setup, /MoveReleasedFile\(installedDll, stagedDll\)/u);
+  assert.match(setup, /DeleteReleasedFile\(stagedDll\)/u);
+  assert.match(setup, /MOVEFILE_DELAY_UNTIL_REBOOT/u);
+  assert.match(setup, /state=helper-removal-deferred/u);
   assert.match(setup, /WritePackagedSource\(installedDll\)/u);
   assert.match(setup, /RejectReparsePointIfPresent\(installDirectory\)/u);
   assert.match(setup, /FILE_ATTRIBUTE_REPARSE_POINT/u);

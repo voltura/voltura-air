@@ -41,7 +41,6 @@ public sealed partial class HostUiLayoutTests
             using var appScope = new WpfApplicationScope();
             var window = new Window();
             WpfTheme.Apply(window);
-            AddPhoneWebcamButtonStyles(window);
             var root = new Grid();
             window.Content = root;
             var previewStarts = 0;
@@ -62,11 +61,7 @@ public sealed partial class HostUiLayoutTests
             Assert.Contains("Settings → Tools → Phone webcam", view.PreviewEmptyMessage.Text, StringComparison.Ordinal);
             Assert.Equal(Visibility.Collapsed, view.PreviewImage.Visibility);
             Assert.Equal("Allow paired devices", view.AllowPairedDevicesCheckBox.Content);
-            Assert.Equal("Use installer maintenance", view.InstallationActionButton.Content);
-            Assert.False(view.InstallationActionButton.IsEnabled);
-            Assert.Same(
-                view.AllowPairedDevicesCheckBox.Parent,
-                ((FrameworkElement)view.InstallationActionButton.Parent).Parent);
+            Assert.Equal(Visibility.Collapsed, view.SessionStatusText.Visibility);
         });
     }
 
@@ -83,7 +78,6 @@ public sealed partial class HostUiLayoutTests
             using var appScope = new WpfApplicationScope();
             var window = new Window();
             WpfTheme.Apply(window);
-            AddPhoneWebcamButtonStyles(window);
             var root = new Grid();
             window.Content = root;
             var preview = new ControlledPreviewSession();
@@ -117,7 +111,6 @@ public sealed partial class HostUiLayoutTests
             using var appScope = new WpfApplicationScope();
             var window = new Window();
             WpfTheme.Apply(window);
-            AddPhoneWebcamButtonStyles(window);
             var root = new Grid();
             window.Content = root;
             var previews = new Queue<ControlledPreviewSession>();
@@ -160,7 +153,6 @@ public sealed partial class HostUiLayoutTests
             using var appScope = new WpfApplicationScope();
             var window = new Window();
             WpfTheme.Apply(window);
-            AddPhoneWebcamButtonStyles(window);
             var root = new Grid();
             window.Content = root;
             var refreshes = 0;
@@ -196,7 +188,6 @@ public sealed partial class HostUiLayoutTests
             using var appScope = new WpfApplicationScope();
             var window = new Window();
             WpfTheme.Apply(window);
-            AddPhoneWebcamButtonStyles(window);
             var root = new Grid();
             window.Content = root;
             var refreshes = 0;
@@ -220,7 +211,7 @@ public sealed partial class HostUiLayoutTests
     }
 
     [Fact]
-    public void PhoneWebcamSetupChangesStayOutsideTheWpfCommandBoundary()
+    public void MissingPhoneWebcamShowsInstallerGuidanceAsPlainText()
     {
         if (ShouldSkipNativeUiLayoutTests()) return;
         RunOnStaThread(() =>
@@ -228,18 +219,18 @@ public sealed partial class HostUiLayoutTests
             using var appScope = new WpfApplicationScope();
             var window = new Window();
             WpfTheme.Apply(window);
-            AddPhoneWebcamButtonStyles(window);
             var root = new Grid();
             window.Content = root;
-            var refreshes = 0;
-            using var controller = new PhoneWebcamPageController(window, new ThrowingPhoneWebcamFeature(), () => refreshes++);
+            using var controller = new PhoneWebcamPageController(window, new MissingPhoneWebcamFeature(), static () => { });
             PhoneWebcamPageView view = controller.CreateView();
 
-            view.InstallationActionButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
-            DoWpfEvents();
-
-            Assert.Equal(0, refreshes);
-            Assert.False(view.InstallationActionButton.IsEnabled);
+            Assert.Equal(Visibility.Visible, view.SessionStatusText.Visibility);
+            Assert.Equal(
+                "Phone Webcam is not installed. Run Voltura Air installer maintenance to add it.",
+                view.SessionStatusText.Text);
+            Assert.DoesNotContain(
+                FindWpfDescendants<Button>(view),
+                button => button.Content?.ToString() == "Use installer maintenance");
         });
     }
     private sealed class InstalledPhoneWebcamFeature(string activityState = "streaming") : IPhoneWebcamFeature
@@ -259,15 +250,16 @@ public sealed partial class HostUiLayoutTests
             Task.FromResult(Status);
     }
 
-    private sealed class ThrowingPhoneWebcamFeature : IPhoneWebcamFeature
+    private sealed class MissingPhoneWebcamFeature : IPhoneWebcamFeature
     {
-        public PhoneWebcamFeatureStatus Status { get; } = new(PhoneWebcamFeatureState.NotInstalled, "Not installed.");
+        public PhoneWebcamFeatureStatus Status { get; } = new(
+            PhoneWebcamFeatureState.NotInstalled,
+            "Phone Webcam is not installed. Run Voltura Air installer maintenance to add it.");
         public PhoneWebcamActivity Activity { get; } = new("idle");
         public event EventHandler? ActivityChanged { add { } remove { } }
         public event EventHandler? StatusChanged { add { } remove { } }
-        public Task<PhoneWebcamFeatureStatus> EnableAsync(CancellationToken cancellationToken = default) =>
-            Task.FromException<PhoneWebcamFeatureStatus>(new IOException("Injected setup failure."));
-        public Task<PhoneWebcamFeatureStatus> RemoveAsync(CancellationToken cancellationToken = default) => EnableAsync(cancellationToken);
+        public Task<PhoneWebcamFeatureStatus> EnableAsync(CancellationToken cancellationToken = default) => Task.FromResult(Status);
+        public Task<PhoneWebcamFeatureStatus> RemoveAsync(CancellationToken cancellationToken = default) => Task.FromResult(Status);
     }
 
     private sealed class FailedPhoneWebcamSetup : IPhoneWebcamSetup
@@ -279,12 +271,6 @@ public sealed partial class HostUiLayoutTests
         public Task<PhoneWebcamFeatureStatus> GetStatusAsync(CancellationToken cancellationToken) => Task.FromResult(Failed);
         public Task<PhoneWebcamFeatureStatus> InstallAsync(CancellationToken cancellationToken) => Task.FromResult(Failed);
         public Task<PhoneWebcamFeatureStatus> RemoveAsync(CancellationToken cancellationToken) => Task.FromResult(Failed);
-    }
-
-    private static void AddPhoneWebcamButtonStyles(Window window)
-    {
-        window.Resources["PrimaryButtonStyle"] = new Style(typeof(Button));
-        window.Resources["DangerButtonStyle"] = new Style(typeof(Button));
     }
 
     private sealed class ControlledPreviewSession(Action<PhoneWebcamPreviewFrame>? publish = null) : IPhoneWebcamPreviewSession

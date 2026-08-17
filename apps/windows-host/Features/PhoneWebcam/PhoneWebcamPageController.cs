@@ -1,9 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Threading;
-using VolturaAir.Host.Ui;
-using Button = System.Windows.Controls.Button;
 
 namespace VolturaAir.Host.Features.PhoneWebcam;
 
@@ -43,7 +40,7 @@ internal sealed class PhoneWebcamPageController : IDisposable
         _currentView = view;
         PhoneWebcamFeatureStatus status = _phoneWebcam.Status;
         view.InstallationStatusText.Text = DescribeInstallation(status);
-        string sessionStatus = status.HasError ? status.Message : DescribeActivity();
+        string sessionStatus = status.IsInstalled ? DescribeActivity() : status.Message;
         view.SessionStatusText.Text = sessionStatus;
         view.SessionStatusText.Visibility = string.IsNullOrWhiteSpace(sessionStatus)
             ? Visibility.Collapsed
@@ -57,8 +54,6 @@ internal sealed class PhoneWebcamPageController : IDisposable
                 AllowPhoneWebcam = view.AllowPairedDevicesCheckBox.IsChecked == true
             });
         };
-        ConfigureInstallationAction(view, status);
-
         if (status.IsInstalled)
         {
             switch (_phoneWebcam.Activity.State)
@@ -133,15 +128,6 @@ internal sealed class PhoneWebcamPageController : IDisposable
         _phoneWebcam.ActivityChanged -= OnActivityChanged;
         _phoneWebcam.StatusChanged -= OnStatusChanged;
         StopPreview();
-    }
-
-    private void ConfigureInstallationAction(PhoneWebcamPageView view, PhoneWebcamFeatureStatus status)
-    {
-        Button action = view.InstallationActionButton;
-        bool remove = status.ShouldRemove;
-        action.Content = "Use installer maintenance";
-        action.Style = _owner.FindResource(remove ? "DangerButtonStyle" : "PrimaryButtonStyle") as Style;
-        action.IsEnabled = false;
     }
 
     private void RestartPreview()

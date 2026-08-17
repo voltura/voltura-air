@@ -1,6 +1,7 @@
 using System.Net.Http;
 using System.Net.WebSockets;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using VolturaAir.Host;
 
 namespace VolturaAir.Host.Tests;
@@ -46,6 +47,38 @@ public sealed class RelayHostConnectionTests
         Assert.Single(configuration.IceServers);
     }
 
+    [Theory]
+    [InlineData("2026-08-03T19:59:59Z")]
+    [InlineData("2026-08-05T20:00:01Z")]
+    public async Task RejectsExpiredOrUnreasonablyLongTurnCredentials(string expiresAt)
+    {
+        await using var connection = CreateConnection();
+        using var document = JsonDocument.Parse(
+            ValidTurnResponse.Replace("2026-08-04T20:00:00Z", expiresAt, StringComparison.Ordinal));
+
+        Assert.Null(connection.ParseTurnConfiguration(document.RootElement, RelayScreenQuality.Standard));
+    }
+
+    [Fact]
+    public async Task RejectsUnboundedTurnServerAndUrlCollections()
+    {
+        await using var connection = CreateConnection();
+        var server = """{"urls":["turns:turn.example.com:443?transport=tcp"],"username":"user","credential":"secret"}""";
+        var serversRoot = JsonNode.Parse(ValidTurnResponse)!.AsObject();
+        var servers = new JsonArray();
+        for (var index = 0; index < 9; index++) servers.Add(JsonNode.Parse(server));
+        serversRoot["iceServers"] = servers;
+        var urlsRoot = JsonNode.Parse(ValidTurnResponse)!.AsObject();
+        var urls = new JsonArray();
+        for (var index = 0; index < 9; index++) urls.Add("turns:turn.example.com:443?transport=tcp");
+        urlsRoot["iceServers"]![0]!["urls"] = urls;
+
+        using var serversDocument = JsonDocument.Parse(serversRoot.ToJsonString());
+        using var urlsDocument = JsonDocument.Parse(urlsRoot.ToJsonString());
+        Assert.Null(connection.ParseTurnConfiguration(serversDocument.RootElement, RelayScreenQuality.Standard));
+        Assert.Null(connection.ParseTurnConfiguration(urlsDocument.RootElement, RelayScreenQuality.Standard));
+    }
+
     [Fact]
     public async Task RejectsTurnResponsesAboveTheBoundBeforeParsing()
     {
@@ -53,6 +86,40 @@ public sealed class RelayHostConnectionTests
 
         await Assert.ThrowsAsync<InvalidDataException>(() =>
             RelayHostConnection.ReadBoundedJsonAsync(content, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task RetryAndStartAreHarmlessAfterDisposal()
+    {
+        var connection = CreateConnection();
+        await connection.DisposeAsync();
+
+        Exception? exception = Record.Exception(() =>
+        {
+            connection.Retry();
+            connection.Start();
+        });
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public async Task StateSubscriberCanDisposeDuringInitialConnectionNotification()
+    {
+        var connection = CreateConnection();
+        var disposalStarted = new TaskCompletionSource<Task>(TaskCreationOptions.RunContinuationsAsynchronously);
+        connection.StateChanged += (_, args) =>
+        {
+            if (args.State == RelayConnectionState.Connecting)
+            {
+                disposalStarted.TrySetResult(connection.DisposeAsync().AsTask());
+            }
+        };
+
+        connection.Start();
+
+        Task disposal = await disposalStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await disposal.WaitAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -133,6 +200,21 @@ public sealed class RelayHostConnectionTests
         Assert.Equal(1, connection.PendingDeviceCloseCount);
     }
 
+    [Fact]
+    public async Task UnknownDeviceCloseIntentsRemainMemoryBoundedWhenTheSenderCannotDrain()
+    {
+        await using var connection = CreateConnection();
+
+        for (var index = 0; index < 256; index++)
+        {
+            connection.ProcessRelayEnvelope(
+                new RelayEnvelope(RelayEnvelopeKind.Text, Guid.NewGuid(), [1]),
+                CancellationToken.None);
+        }
+
+        Assert.Equal(64, connection.PendingDeviceCloseCount);
+    }
+
     private static RelayHostConnection CreateConnection() => new(
         new RelayEndpointDescriptor(
             "custom-v1",
@@ -141,7 +223,13 @@ public sealed class RelayHostConnectionTests
             SupportsTurn: true),
         RelayRoutingIdentity.CreateEphemeral(),
         (_, _, _) => Task.CompletedTask,
-        NullAppLog.Instance);
+        NullAppLog.Instance,
+        new FixedTimeProvider(new DateTimeOffset(2026, 8, 3, 20, 0, 0, TimeSpan.Zero)));
+
+    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
+    }
 
     private const string ValidTurnResponse = """
         {

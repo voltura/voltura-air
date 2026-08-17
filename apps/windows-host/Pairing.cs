@@ -365,8 +365,8 @@ public sealed class PairingManager
     {
         lock (_gate)
         {
-            _tokens.Invalidate();
             _devices.Clear();
+            _tokens.Invalidate();
         }
 
         PairingRevoked?.Invoke(this, new PairingRevokedEventArgs(null));
@@ -666,10 +666,26 @@ public sealed class PairingManager
     private sealed class ConnectionScope(PairingManager manager, string clientId) : IDisposable
     {
         private PairingManager? _manager = manager;
+        private int _disposeState;
 
         public void Dispose()
         {
-            Interlocked.Exchange(ref _manager, null)?.ReleaseConnection(clientId);
+            if (Interlocked.CompareExchange(ref _disposeState, 1, 0) != 0)
+            {
+                return;
+            }
+
+            try
+            {
+                _manager?.ReleaseConnection(clientId);
+                _manager = null;
+                Volatile.Write(ref _disposeState, 2);
+            }
+            catch
+            {
+                Volatile.Write(ref _disposeState, 0);
+                throw;
+            }
         }
     }
 

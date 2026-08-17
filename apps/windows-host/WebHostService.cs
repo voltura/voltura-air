@@ -52,11 +52,13 @@ public sealed class WebHostService : IAsyncDisposable
         remove => _screenView.ActivityChanged -= value;
     }
 
-    internal Task StopScreenViewingFromHostAsync(string clientId, bool disallowed)
+    internal async Task<ScreenViewStoppedSession?> StopScreenViewingFromHostAsync(bool disallowed)
     {
-        Task notification = _screenViewCommands.NotifyHostStoppedAsync(clientId, disallowed);
-        _screenView.Stop(clientId);
-        return notification;
+        ScreenViewStoppedSession? session = _screenView.StopActive();
+        if (session is null) return null;
+        await _screenViewCommands.NotifyHostStoppedAsync(
+            session.ClientId, session.OperationId, disallowed).ConfigureAwait(false);
+        return session;
     }
 
     internal void StopScreenViewing() => _screenView.Stop();
@@ -727,10 +729,15 @@ public sealed class WebHostService : IAsyncDisposable
         }
     }
 
-    private void OnRelayStateChanged(object? sender, EventArgs e)
+    private void OnRelayStateChanged(object? sender, RelayStatusChangedEventArgs e)
     {
         _statusBroadcaster.Queue();
-        RelayStatusChanged?.Invoke(this, new RelayStatusChangedEventArgs(RelayState, RelayFailureCode));
+        foreach (EventHandler<RelayStatusChangedEventArgs> subscriber in
+            RelayStatusChanged?.GetInvocationList().Cast<EventHandler<RelayStatusChangedEventArgs>>() ?? [])
+        {
+            try { subscriber(this, e); }
+            catch (Exception exception) when (exception is not OutOfMemoryException) { }
+        }
     }
 
     private Task<RelayTurnConfiguration?> GetRelayTurnConfigurationAsync(CancellationToken cancellationToken)

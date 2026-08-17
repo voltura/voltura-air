@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $submissionStatement = air_screen_db()->prepare('SELECT p.name, u.email FROM air_screen_packages p JOIN air_screen_users u ON u.id = p.owner_id WHERE p.id = :id');
         $submissionStatement->execute(['id' => $packageId]);
         $submission = $submissionStatement->fetch();
-        $stmt = air_screen_db()->prepare('UPDATE air_screen_packages SET status = :status, rejection_feedback = :feedback, approved_at = CASE WHEN :status = \'approved\' THEN CURRENT_TIMESTAMP ELSE approved_at END WHERE id = :id');
+        $stmt = air_screen_db()->prepare('UPDATE air_screen_packages SET status = :status, rejection_feedback = :feedback, approved_at = CASE WHEN :status = \'approved\' THEN CURRENT_TIMESTAMP ELSE approved_at END WHERE id = :id AND status = \'pending\'');
         $stmt->execute([
             'status' => $status,
             'feedback' => in_array($status, ['approved', 'rejected'], true) && $feedback !== '' ? $feedback : null,
@@ -31,6 +31,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 (string)$submission['email'],
                 $status,
                 $feedback);
+        } elseif ($stmt->rowCount() !== 1) {
+            http_response_code(409);
+            $moderationError = 'This submission is no longer waiting for moderation. Refresh the page.';
         }
     }
 }

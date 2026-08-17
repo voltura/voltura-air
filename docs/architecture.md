@@ -48,7 +48,7 @@ performs startup, rollback, and shutdown.
 | Validated input and focused Windows actions | Command handlers and platform adapters |
 | Host-local simulated activity | `ActivitySimulationService`, `AppActivitySimulationSettings`, and the narrow activity-pulse sender |
 | Custom-screen definitions, editing, assignment, and invocation | `CustomScreenStore`, `CustomScreenService`, `Features/CustomScreens`, and `CustomScreenCommandHandler` |
-| Settings and persisted data | Their focused settings/store types |
+| Settings and persisted data | Their focused settings/store types; `HostSettingsJsonValue` supplies only the shared bounded exact-shape registry-JSON boundary |
 | Logs and Diagnostics reads | `AppLog`, file store, and per-view refresh session |
 | Tray, main window, and WPF pages | Tray context, `MainWindow`, and `Features/<feature>` |
 
@@ -185,9 +185,13 @@ Official screens are owned by `scripts/custom-screens`: concise definitions use
 shared action/layout builders, and `scripts/generate-custom-screens.mjs`
 deterministically emits exact package-version-1 JSON, catalog metadata, and a
 fixed-timestamp ZIP. Generated packages are artifacts, never hand-maintained.
-The catalog's admin importer validates the entire bundle before installing
-content-addressed files and committing one database transaction; stable
-official IDs preserve ratings and download counters across updates.
+The catalog stages and validates a complete official bundle before its locked
+database reconciliation. Provenance-keyed official rows retain stable package
+IDs, ratings, and download counters; only absent rows with Voltura provenance
+are removed. Upload/delete/import database transactions enqueue narrowly owned
+content-file cleanup jobs. Mutating requests drain a bounded number and the same
+idempotent owner is available through the catalog maintenance CLI; referenced,
+missing, or hash-mismatched files are never destructively guessed.
 
 ## Source limits
 

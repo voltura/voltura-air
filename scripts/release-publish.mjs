@@ -15,6 +15,8 @@ import {
   resolveReleaseVersion
 } from "./release-tools.mjs";
 import { createReleaseProgress } from "./release-progress.mjs";
+import { withReleaseLock as withSharedReleaseLock } from "./release-lock.mjs";
+import { prepareReleaseUnlocked } from "./prepare-release.mjs";
 import {
   getReleaseAssetPaths,
   getReleaseCheckpointPath,
@@ -60,30 +62,10 @@ function checked(command, args = [], options = {}) {
 }
 
 async function stageReleaseChanges() {
-  const add = () => runCommand("git", ["add", "--all"], { captureOutput: true, allowFailure: true });
-  let result = add();
-  if (result.status === 0) {
-    return;
-  }
-
-  const details = `${result.stderr}\n${result.stdout}`.trim();
-  if (!/index\.lock/u.test(details)) {
-    throw new Error(`git add --all failed with exit code ${result.status}.${details ? ` ${details}` : ""}`);
-  }
-
-  const lockPath = path.resolve(repositoryRoot, checked("git", ["rev-parse", "--git-path", "index.lock"], { captureOutput: true }));
-  const lock = await stat(lockPath).catch(() => null);
-  const minimumStaleAgeMs = 30_000;
-  if (!lock?.isFile() || lock.size !== 0 || Date.now() - lock.mtimeMs < minimumStaleAgeMs) {
-    throw new Error(`git add --all was blocked by a Git index lock that is not safely stale. ${details}`);
-  }
-
-  await rm(lockPath);
-  console.log("Removed a stale zero-byte Git index lock and retrying release staging.");
-  result = add();
+  const result = runCommand("git", ["add", "--all"], { captureOutput: true, allowFailure: true });
   if (result.status !== 0) {
-    const retryDetails = `${result.stderr}\n${result.stdout}`.trim();
-    throw new Error(`git add --all failed after stale-lock recovery with exit code ${result.status}.${retryDetails ? ` ${retryDetails}` : ""}`);
+    const details = `${result.stderr}\n${result.stdout}`.trim();
+    throw new Error(`git add --all failed with exit code ${result.status}.${details ? ` ${details}` : ""} Resolve any active Git operation or lock before retrying.`);
   }
 }
 
@@ -244,7 +226,19 @@ async function performStep(progress, title, detail, action) {
   return result;
 }
 
-export async function runLocalRelease(args = process.argv.slice(2), { progress, publishLatest = false } = {}) {
+export async function withReleaseLock(action, {
+  lockPath,
+  makeDirectory,
+  remove
+} = {}) {
+  return withSharedReleaseLock(action, { repositoryRoot, lockPath, makeDirectory, remove });
+}
+
+export async function runLocalRelease(args = process.argv.slice(2), options = {}) {
+  return withReleaseLock(() => runLocalReleaseUnlocked(args, options));
+}
+
+async function runLocalReleaseUnlocked(args = process.argv.slice(2), { progress, publishLatest = false } = {}) {
   const releaseProgress = progress ?? createReleaseProgress({ totalSteps: 6 });
   const { version: explicitVersion } = parseReleaseArguments(args);
   let releaseContext;
@@ -392,7 +386,7 @@ export async function runLocalRelease(args = process.argv.slice(2), { progress, 
         return;
       }
       checked("npm", ["run", "size:check"]);
-      checked("npm", ["run", "release", "--", releaseContext.targetVersion]);
+      prepareReleaseUnlocked(releaseContext.targetVersion);
       checked("npm", ["run", "branding:generate"]);
       checked("npm", ["run", "site:preview:build"]);
       checked("npm", ["run", "site:hosted:build"]);

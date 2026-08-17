@@ -15,7 +15,7 @@ describe("refreshWithFreshAppUrl", () => {
     ["service-worker lookup", { getRegistrations: vi.fn(() => Promise.reject(new Error("lookup"))) }],
     ["service-worker unregister", { getRegistrations: vi.fn(() => Promise.resolve([{ unregister: () => { throw new Error("unregister"); } }])) }],
     ["cache lookup", { getCacheNames: vi.fn(() => Promise.reject(new Error("keys"))), deleteCache: vi.fn() }],
-    ["cache deletion", { getCacheNames: vi.fn(() => Promise.resolve(["cache-a"])), deleteCache: () => { throw new Error("delete"); } }]
+    ["cache deletion", { getCacheNames: vi.fn(() => Promise.resolve(["voltura-air-cache-a"])), deleteCache: () => { throw new Error("delete"); } }]
   ])("continues to navigation after a %s failure", async (_name, overrides) => {
     const environment = createEnvironment(overrides);
 
@@ -25,6 +25,18 @@ describe("refreshWithFreshAppUrl", () => {
     expect(result.navigationMethod).toBe("replace");
     expect(result.warnings).toHaveLength(1);
     expect(environment.replace).toHaveBeenCalledExactlyOnceWith("https://phone.local/?refresh=1");
+  });
+
+  it("leaves caches owned by other origin applications untouched", async () => {
+    const deleteCache = vi.fn(() => true);
+    const environment = createEnvironment({
+      getCacheNames: vi.fn(() => Promise.resolve(["other-app", "voltura-air-old"])),
+      deleteCache
+    });
+
+    await refreshWithFreshAppUrl(environment);
+
+    expect(deleteCache).toHaveBeenCalledExactlyOnceWith("voltura-air-old");
   });
 
   it("falls back to reload when fresh URL creation fails", async () => {

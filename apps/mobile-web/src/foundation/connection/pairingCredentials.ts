@@ -2,6 +2,7 @@ import { p256 } from "@noble/curves/nist.js";
 import { hmac } from "@noble/hashes/hmac.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import type { PairAcceptedMessage, PairBootstrapChallengeMessage } from "../protocol/messages";
+import { readLocalStorage, removeLocalStorage, writeLocalStorage } from "../platform/browserStorage";
 
 const reconnectSigningPrefix = "VolturaAir reconnect:v1";
 const pairingHostProofPrefix = "VolturaAir pairing host:v1";
@@ -93,7 +94,7 @@ export function handlePairAccepted(message: PairAcceptedMessage, pcId: string, p
     return;
   }
 
-  localStorage.setItem(privateKeyStoreKey(message.clientId, pcId), pendingKey);
+  writeLocalStorage(privateKeyStoreKey(message.clientId, pcId), pendingKey);
 }
 
 export function isExpectedHostIdentity(message: PairAcceptedMessage, expectedFingerprint: string | undefined): boolean {
@@ -160,7 +161,7 @@ function constantTimeEqual(left: string, right: string): boolean {
 }
 
 export function hasStoredReconnectKey(clientId: string, pcId: string): boolean {
-  return localStorage.getItem(privateKeyStoreKey(clientId, pcId)) !== null;
+  return readLocalStorage(privateKeyStoreKey(clientId, pcId)) !== null;
 }
 
 export function signReconnectChallenge(clientId: string, pcId: string, challenge: string): string | null {
@@ -192,7 +193,7 @@ export function signPrivateKeyPayload(privateKey: string, payload: Uint8Array): 
 export { base64Url, decodeBase64Url };
 
 export function clearStoredReconnectKey(clientId: string, pcId: string): void {
-  localStorage.removeItem(privateKeyStoreKey(clientId, pcId));
+  removeLocalStorage(privateKeyStoreKey(clientId, pcId));
 }
 
 export function shouldClearStoredReconnectKeyForRejection(reason: string): boolean {
@@ -200,7 +201,7 @@ export function shouldClearStoredReconnectKeyForRejection(reason: string): boole
 }
 
 function getStoredPrivateKey(clientId: string, pcId: string): Uint8Array | null {
-  const raw = localStorage.getItem(privateKeyStoreKey(clientId, pcId));
+  const raw = readLocalStorage(privateKeyStoreKey(clientId, pcId));
   if (!raw) {
     return null;
   }

@@ -2,6 +2,7 @@ import { useEffect, useRef, type RefObject } from "react";
 import { saveActivePcId, savePcProfiles, type PcProfile } from "./pcProfiles";
 import { clearPairTokenFromAddress, deviceNameKey, ensureClientMetadataInAddress } from "./clientIdentity";
 import type { PairingAttempt } from "./connectionTypes";
+import { writeLocalStorage } from "../platform/browserStorage";
 
 interface ConnectionPersistenceOptions {
   activePcId: string | null;
@@ -30,7 +31,7 @@ export function useConnectionPersistence(options: ConnectionPersistenceOptions):
 
   useEffect(() => {
     deviceNameRef.current = deviceName;
-    localStorage.setItem(deviceNameKey, deviceName);
+    writeLocalStorage(deviceNameKey, deviceName);
   }, [deviceName, deviceNameRef]);
 
   useEffect(() => {

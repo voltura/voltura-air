@@ -21,6 +21,7 @@ internal sealed class ConnectionPageController : IDisposable
     private bool _disposed;
     private ConnectionPageState? _state;
     private ConnectionPageView? _page;
+    private Task _relayUsageRefresh = Task.CompletedTask;
 
     public ConnectionPageController(
         Window owner,
@@ -189,13 +190,45 @@ internal sealed class ConnectionPageController : IDisposable
 
     private void RefreshRelayUsage()
     {
-        _ = RefreshRelayUsageAsync();
+        if (!_relayUsageRefresh.IsCompleted)
+        {
+            return;
+        }
+
+        _relayUsageRefresh = RefreshRelayUsageAsync();
     }
 
     private async Task RefreshRelayUsageAsync()
     {
-        await _webHost.RefreshRelayUsageAsync();
-        if (_page is not null) Render();
+        try
+        {
+            await _webHost.RefreshRelayUsageAsync();
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            _appLog.Write(new AppLogEntry(
+                "relay_state",
+                "windows_host",
+                Action: "usage_refresh_failed",
+                Outcome: "failed"));
+        }
+
+        if (_disposed || _owner.Dispatcher.HasShutdownStarted)
+        {
+            return;
+        }
+
+        if (_owner.Dispatcher.CheckAccess())
+        {
+            if (_page is not null) Render();
+        }
+        else
+        {
+            await _owner.Dispatcher.InvokeAsync(() =>
+            {
+                if (!_disposed && _page is not null) Render();
+            });
+        }
     }
 
     internal void SelectAdapter(ConnectionCandidateItem item)

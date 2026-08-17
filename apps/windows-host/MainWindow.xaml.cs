@@ -123,7 +123,6 @@ public partial class MainWindow : Window
         _phoneWebcamPage = new PhoneWebcamPageController(
             this,
             effectivePhoneWebcam,
-            _toasts,
             () => SelectPage(HostPage.PhoneWebcam));
         _preferencesPage = new PreferencesPageController(
             this,

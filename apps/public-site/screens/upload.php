@@ -4,9 +4,11 @@ $user = air_screen_require_user();
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     air_screen_require_csrf();
-    $uncommittedPackagePath = null;
+    $database = air_screen_db();
+    $lockName = null;
     try {
-        $quota = air_screen_db()->prepare('SELECT COUNT(*) FROM air_screen_packages WHERE owner_id = :owner AND created_at > DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 DAY)');
+        $lockName = air_screen_acquire_advisory_lock($database, 'upload', (string)$user['id']);
+        $quota = $database->prepare('SELECT COUNT(*) FROM air_screen_packages WHERE owner_id = :owner AND created_at > DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 DAY)');
         $quota->execute(['owner' => $user['id']]);
         if ((int)$quota->fetchColumn() >= 10) {
             throw new RuntimeException('The daily upload limit has been reached.');
@@ -24,15 +26,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new InvalidArgumentException('Metadata exceeds the allowed length.');
         }
         $id = air_screen_uuid();
-        $path = air_screen_storage_path() . DIRECTORY_SEPARATOR . $id . '.volturascreen';
         $storedJson = json_encode($package, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
-        $uncommittedPackagePath = $path;
-        if (file_put_contents($path, $storedJson, LOCK_EX) === false) {
-            throw new RuntimeException('The package could not be stored.');
+        $sha256 = hash('sha256', $storedJson);
+        $basename = $sha256 . '.volturascreen';
+        $path = air_screen_package_path($basename);
+
+        $database->beginTransaction();
+        air_screen_enqueue_cleanup($database, $basename, $sha256);
+        $database->commit();
+
+        if (is_file($path)) {
+            $existingHash = hash_file('sha256', $path);
+            if (!is_string($existingHash) || !hash_equals($sha256, $existingHash)) {
+                throw new RuntimeException('The package storage hash is already occupied.');
+            }
+        } else {
+            $stream = fopen($path, 'x+b');
+            if ($stream === false) throw new RuntimeException('The package could not be stored.');
+            try {
+                if (fwrite($stream, $storedJson) !== strlen($storedJson) || !fflush($stream)) {
+                    throw new RuntimeException('The package could not be stored.');
+                }
+            } finally {
+                fclose($stream);
+            }
         }
-        $stmt = air_screen_db()->prepare('INSERT INTO air_screen_packages (id, owner_id, name, description, tags, package_version, screen_json, storage_path) VALUES (:id, :owner, :name, :description, :tags, 1, :json, :path)');
-        $stmt->execute(['id' => $id, 'owner' => $user['id'], 'name' => $name, 'description' => $description, 'tags' => $tags, 'json' => $storedJson, 'path' => $path]);
-        $uncommittedPackagePath = null;
+        $database->beginTransaction();
+        $stmt = $database->prepare('INSERT INTO air_screen_packages (id, owner_id, name, description, tags, package_version, screen_json, storage_basename, screen_id) VALUES (:id, :owner, :name, :description, :tags, 1, :json, :basename, :screenId)');
+        $stmt->execute(['id' => $id, 'owner' => $user['id'], 'name' => $name, 'description' => $description, 'tags' => $tags, 'json' => $storedJson, 'basename' => $basename, 'screenId' => (string)$screen['id']]);
+        $database->prepare('DELETE FROM air_screen_cleanup_jobs WHERE storage_basename = :basename AND expected_sha256 = :hash')
+            ->execute(['basename' => $basename, 'hash' => $sha256]);
+        $database->commit();
+        air_screen_drain_cleanup_jobs();
+        air_screen_release_advisory_lock($database, $lockName);
+        $lockName = null;
         air_screen_notify_moderators(
             $id,
             $name,
@@ -41,10 +68,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $tags);
         air_screen_redirect('upload.php?submitted=1');
     } catch (Throwable $exception) {
-        if ($uncommittedPackagePath !== null && is_file($uncommittedPackagePath)) {
-            @unlink($uncommittedPackagePath);
+        if ($database->inTransaction()) {
+            try { $database->rollBack(); }
+            catch (Throwable $rollbackError) { error_log('Custom-screen upload rollback failed: ' . $rollbackError::class); }
         }
-        $error = $exception->getMessage();
+        if ($exception instanceof InvalidArgumentException ||
+            ($exception instanceof RuntimeException && in_array($exception->getMessage(), [
+                'The daily upload limit has been reached.',
+                'The package could not be stored.'
+            ], true))) {
+            $error = $exception->getMessage();
+        } else {
+            error_log('Custom-screen upload failed: ' . $exception::class);
+            $error = 'The screen could not be submitted. Try again later.';
+        }
+    } finally {
+        if ($lockName !== null) {
+            air_screen_release_advisory_lock($database, $lockName);
+        }
     }
 }
 $message = isset($_GET['submitted'])

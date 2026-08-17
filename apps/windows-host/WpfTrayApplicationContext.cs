@@ -30,7 +30,6 @@ internal sealed class WpfTrayApplicationContext : IDisposable
     private Forms.ToolStripMenuItem? _screenViewingItem;
     private Forms.ToolStripMenuItem? _blockScreenViewingItem;
     private Forms.ToolStripMenuItem? _phoneWebcamItem;
-    private string? _screenViewingClientId;
     private string? _screenViewingDeviceName;
     private string? _phoneWebcamClientId;
     private bool _disposed;
@@ -273,7 +272,6 @@ internal sealed class WpfTrayApplicationContext : IDisposable
             return;
         }
 
-        _screenViewingClientId = activity.Active ? activity.ClientId : null;
         _screenViewingDeviceName = activity.Active
             ? _pairingManager.GetDeviceName(activity.ClientId) ?? "paired device"
             : null;
@@ -307,19 +305,12 @@ internal sealed class WpfTrayApplicationContext : IDisposable
 
     private async Task StopScreenViewingFromTrayAsync(bool disallow)
     {
-        var clientId = _screenViewingClientId;
         CloseScreenViewingMenus();
-        if (clientId is null)
+        ScreenViewStoppedSession? session = await _webHost.StopScreenViewingFromHostAsync(disallow);
+        if (disallow && session is not null)
         {
-            return;
+            BlockScreenViewingPermission(_pairingManager, session.ClientId);
         }
-
-        Task notification = _webHost.StopScreenViewingFromHostAsync(clientId, disallow);
-        if (disallow)
-        {
-            BlockScreenViewingPermission(_pairingManager, clientId);
-        }
-        await notification;
     }
 
     private void CloseScreenViewingMenus()

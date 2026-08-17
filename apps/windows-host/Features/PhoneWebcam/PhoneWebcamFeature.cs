@@ -59,6 +59,8 @@ internal sealed class PhoneWebcamFeature : IPhoneWebcamFeature, IAsyncDisposable
     private readonly SemaphoreSlim _operation = new(1, 1);
     private PhoneWebcamFramePipeServer? _pipe;
     private Func<Task>? _stopSessionsAsync;
+    private readonly Lock _retirementGate = new();
+    private Task _pipeRetirement = Task.CompletedTask;
     private int _disposeState;
 
     internal PhoneWebcamFeature(
@@ -220,6 +222,12 @@ internal sealed class PhoneWebcamFeature : IPhoneWebcamFeature, IAsyncDisposable
         try
         {
             await StopPipeAsync().ConfigureAwait(false);
+            Task retirement;
+            lock (_retirementGate)
+            {
+                retirement = _pipeRetirement;
+            }
+            await retirement.ConfigureAwait(false);
         }
         finally
         {
@@ -252,17 +260,25 @@ internal sealed class PhoneWebcamFeature : IPhoneWebcamFeature, IAsyncDisposable
 
     private void OnPipeFailed(PhoneWebcamFramePipeServer pipe, Exception exception)
     {
-        if (!ReferenceEquals(Interlocked.CompareExchange(ref _pipe, null, pipe), pipe))
+        lock (_retirementGate)
         {
-            return;
+            if (!ReferenceEquals(Interlocked.CompareExchange(ref _pipe, null, pipe), pipe))
+            {
+                return;
+            }
+
+            pipe.Failed -= OnPipeFailed;
+            _pipeRetirement = _pipeRetirement.ContinueWith(
+                _ => RetireFailedPipeAsync(pipe),
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default).Unwrap();
         }
 
-        pipe.Failed -= OnPipeFailed;
         SetStatus(new PhoneWebcamFeatureStatus(
             PhoneWebcamFeatureState.Installed,
             $"Voltura Air Webcam is installed, but its frame connection stopped: {exception.Message}",
             HasError: true));
-        _ = RetireFailedPipeAsync(pipe);
     }
 
     private async Task RetireFailedPipeAsync(PhoneWebcamFramePipeServer pipe)

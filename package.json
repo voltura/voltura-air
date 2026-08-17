@@ -49,7 +49,7 @@
     "package:win:small": "pwsh -NoProfile -File scripts/package-win.ps1 -FrameworkDependentOnly",
     "package:win:test": "pwsh -NoProfile -File scripts/package-win.ps1 -NoInstallerCompression",
     "powershell:check": "pwsh -NoProfile -File scripts/check-powershell.ps1",
-    "release": "pwsh -NoProfile -File scripts/prepare-release.ps1",
+    "release": "node scripts/prepare-release.mjs",
     "release:bump": "node scripts/bump-release.mjs",
     "release:draft": "node scripts/release-publish.mjs",
     "release:full": "node scripts/release-publish.mjs --publish-latest",

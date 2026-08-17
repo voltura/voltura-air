@@ -4,6 +4,7 @@ CREATE TABLE air_screen_users (
     password_hash VARCHAR(255) NOT NULL,
     display_name VARCHAR(80) NOT NULL,
     role ENUM('user', 'admin') NOT NULL DEFAULT 'user',
+    verified_at DATETIME NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -15,19 +16,47 @@ CREATE TABLE air_screen_packages (
     tags VARCHAR(500) NOT NULL DEFAULT '',
     package_version INT NOT NULL,
     screen_json JSON NOT NULL,
-    storage_path VARCHAR(500) NOT NULL,
+    storage_basename VARCHAR(80) NOT NULL,
     status ENUM('pending', 'approved', 'rejected', 'hidden', 'removed') NOT NULL DEFAULT 'pending',
     rejection_feedback VARCHAR(1000) NULL,
     downloads INT UNSIGNED NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     approved_at DATETIME NULL,
-    official_id VARCHAR(64) NULL UNIQUE,
+    screen_id VARCHAR(64) NOT NULL,
+    official_source VARCHAR(64) NULL,
+    official_id VARCHAR(64) NULL,
     is_official BOOLEAN NOT NULL DEFAULT FALSE,
     official_metadata JSON NULL,
     FOREIGN KEY (owner_id) REFERENCES air_screen_users(id),
     INDEX idx_air_screen_search (status, name),
-    INDEX idx_air_screen_popularity (status, downloads)
+    INDEX idx_air_screen_popularity (status, downloads),
+    UNIQUE KEY uq_air_screen_official (official_source, official_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE air_screen_verification_tokens (
+    user_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+    token_hash CHAR(64) NOT NULL UNIQUE,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES air_screen_users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE air_screen_rate_buckets (
+    scope VARCHAR(40) NOT NULL,
+    bucket_key CHAR(64) NOT NULL,
+    window_started DATETIME NOT NULL,
+    attempts INT UNSIGNED NOT NULL,
+    blocked_until DATETIME NULL,
+    PRIMARY KEY (scope, bucket_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE air_screen_cleanup_jobs (
+    storage_basename VARCHAR(80) NOT NULL PRIMARY KEY,
+    expected_sha256 CHAR(64) NOT NULL,
+    retry_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    attempts INT UNSIGNED NOT NULL DEFAULT 0,
+    last_error_code VARCHAR(40) NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE air_screen_reports (

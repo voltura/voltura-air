@@ -27,6 +27,7 @@ internal sealed record TextDestinationDraft(string Path, DateTime DeleteAfterLoc
 internal static class TextDestinationDraftStore
 {
     private static readonly TimeSpan CleanupAge = TimeSpan.FromDays(1);
+    private const string AutomaticRemovalMarkerExtension = ".voltura-auto-remove";
     private static readonly HashSet<string> DraftExtensions = new(StringComparer.OrdinalIgnoreCase) { ".docx", ".txt", ".xlsx" };
 
     public static TextDestinationDraft CreateDraft(string extension)
@@ -40,6 +41,16 @@ internal static class TextDestinationDraftStore
     }
 
     public static IAsyncDisposable CreateCleanupService(IAppLogWriter appLog) => new TextDestinationDraftCleanup(appLog);
+
+    internal static void MarkForAutomaticRemoval(TextDestinationDraft draft)
+    {
+        if (!draft.AutomaticallyRemove)
+        {
+            return;
+        }
+
+        File.WriteAllText(draft.Path + AutomaticRemovalMarkerExtension, string.Empty);
+    }
 
     public static bool TryOpenFolder()
     {
@@ -75,21 +86,33 @@ internal static class TextDestinationDraftStore
 
     internal static void DeleteExpiredIfEnabled()
     {
-        if (!AppTextDestinationDraftSettings.AutomaticallyRemoveDraftFiles()) return;
+        // Retention is captured for each draft when it is created. A later preference
+        // change must not reclassify already-created retained or auto-remove drafts.
         DeleteExpired(GetDirectory(), DateTime.UtcNow - CleanupAge);
     }
 
     internal static void DeleteExpired(string directory, DateTime cutoffUtc)
     {
         if (!Directory.Exists(directory)) return;
-        foreach (var path in Directory.EnumerateFiles(directory, "Untitled-*.*", SearchOption.TopDirectoryOnly))
+        foreach (var markerPath in Directory.EnumerateFiles(
+                     directory,
+                     $"Untitled-*.*{AutomaticRemovalMarkerExtension}",
+                     SearchOption.TopDirectoryOnly))
         {
             try
             {
+                var path = markerPath[..^AutomaticRemovalMarkerExtension.Length];
+                if (!File.Exists(path))
+                {
+                    File.Delete(markerPath);
+                    continue;
+                }
+
                 var draft = new FileInfo(path);
                 if (!DraftExtensions.Contains(draft.Extension) || draft.CreationTimeUtc > cutoffUtc) continue;
                 using (File.Open(path, FileMode.Open, FileAccess.Read, FileShare.None)) { }
                 File.Delete(path);
+                File.Delete(markerPath);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {

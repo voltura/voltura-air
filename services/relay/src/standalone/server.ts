@@ -11,6 +11,7 @@ import {
   hostAuthenticationTimeoutMs,
   maximumDevicesPerRoom,
   maximumBufferedBytes,
+  maximumControlMessageBytes,
   maximumRelayPayloadBytes,
   isTurnRequestTimestampFresh,
   processHostAuthentication,
@@ -122,7 +123,10 @@ function attach(
       if (device && device.socket.readyState === NodeWebSocket.OPEN) {
         if (envelope.kind === relayEnvelopeKind.closeDevice) {
           device.socket.close(1000, "Host closed session");
-        } else if (envelope.kind === relayEnvelopeKind.text) sendBoundedText(device.socket, new TextDecoder().decode(envelope.payload));
+        } else if (envelope.kind === relayEnvelopeKind.text) {
+          try { sendBoundedText(device.socket, new TextDecoder("utf-8", { fatal: true }).decode(envelope.payload)); }
+          catch { socket.close(relayClose.invalid, "Invalid relay text"); }
+        }
         else sendBounded(device.socket, envelope.payload);
       }
     });
@@ -170,6 +174,9 @@ async function authenticateHost(
 ): Promise<void> {
   if (!canUseHostCandidate(room, host)) return host.socket.close(relayClose.conflict, "Host authentication superseded or expired");
   if (binary) return host.socket.close(relayClose.invalid, "Host authentication requires text");
+  if (toBytes(data).length > maximumControlMessageBytes) {
+    return host.socket.close(relayClose.tooLarge, "Host authentication message is too large");
+  }
   const result = await processHostAuthentication(routeId, data.toString(), host.publicKey && host.challenge ? { publicKey: host.publicKey, challenge: host.challenge } : undefined);
   if (result.kind === "rejected") return host.socket.close(relayClose.unauthorized, "Host authentication failed");
   if (!canUseHostCandidate(room, host)) return host.socket.close(relayClose.conflict, "Host authentication superseded or expired");
@@ -258,7 +265,7 @@ function json(response: import("node:http").ServerResponse, status: number, payl
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
 function isTurnUrl(value: string): boolean { return /^turns?:[^\s,]{1,500}$/u.test(value); }
 function sendBounded(socket: WebSocket, value: Uint8Array): boolean {
-  if (socket.bufferedAmount > maximumBufferedBytes) {
+  if (socket.bufferedAmount + value.byteLength > maximumBufferedBytes) {
     socket.close(relayClose.overloaded, "Relay backpressure limit exceeded");
     return false;
   }
@@ -266,7 +273,7 @@ function sendBounded(socket: WebSocket, value: Uint8Array): boolean {
   return true;
 }
 function sendBoundedText(socket: WebSocket, value: string): boolean {
-  if (socket.bufferedAmount > maximumBufferedBytes) {
+  if (socket.bufferedAmount + Buffer.byteLength(value, "utf8") > maximumBufferedBytes) {
     socket.close(relayClose.overloaded, "Relay backpressure limit exceeded");
     return false;
   }

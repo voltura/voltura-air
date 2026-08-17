@@ -1,3 +1,5 @@
+import { readLocalStorage } from "./browserStorage";
+
 const screenshotModeKey = "voltura-air.screenshotMode";
 
 export function isScreenshotMode(source: string): boolean {
@@ -11,7 +13,7 @@ export function isScreenshotMode(source: string): boolean {
     // Ignore malformed launch URLs and use persisted mode instead.
   }
 
-  return localStorage.getItem(screenshotModeKey) === "true";
+  return readLocalStorage(screenshotModeKey) === "true";
 }
 
 export function getDefaultDeviceName(): string {

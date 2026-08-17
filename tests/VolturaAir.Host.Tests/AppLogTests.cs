@@ -107,6 +107,34 @@ public sealed class AppLogTests
     }
 
     [Fact]
+    public void DeleteAllReportsFilesRemovedBeforeADeleteFailure()
+    {
+        using var folder = new TemporaryFolder();
+        File.WriteAllText(Path.Combine(folder.Path, "app-log-2026-07-12.jsonl"), "{}");
+        File.WriteAllText(Path.Combine(folder.Path, "app-log-2026-07-13.jsonl"), "{}");
+        var deleteAttempts = 0;
+        var store = new AppLogFileStore(
+            folder.Path,
+            () => 30,
+            () => TestNow,
+            deleteFile: path =>
+            {
+                if (Interlocked.Increment(ref deleteAttempts) == 2)
+                {
+                    throw new IOException("Injected delete failure.");
+                }
+
+                File.Delete(path);
+            });
+
+        AppLogDeleteResult result = store.DeleteAll();
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(1, result.DeletedFiles);
+        Assert.Single(Directory.EnumerateFiles(folder.Path));
+    }
+
+    [Fact]
     public async Task KeepsNewEntriesReadableAfterQueries()
     {
         using var folder = new TemporaryFolder();
@@ -120,6 +148,37 @@ public sealed class AppLogTests
 
         Assert.Single(firstRead.Entries);
         Assert.Equal(["first", "second"], secondRead.Entries.Select(entry => entry.Action));
+    }
+
+    [Fact]
+    public async Task ReadSkipsOversizedLinesWithoutAllocatingThemAsRecords()
+    {
+        using var folder = new TemporaryFolder();
+        var path = Path.Combine(folder.Path, "app-log-2026-07-13.jsonl");
+        File.WriteAllText(path, new string('x', 70 * 1024) + Environment.NewLine +
+            "{\"timestampUtc\":\"2026-07-13T10:00:00Z\",\"event\":\"host_action\",\"source\":\"windows_host\",\"action\":\"valid\"}" + Environment.NewLine);
+        await using var log = CreateLog(folder);
+        var localDate = DateOnly.FromDateTime(TestNow.LocalDateTime);
+
+        AppLogReadResult result = log.Read(new AppLogQuery(localDate, localDate));
+
+        Assert.Equal("valid", Assert.Single(result.Entries).Action);
+    }
+
+    [Fact]
+    public void PruneRetriesWhenTheLogDirectoryDidNotExistOnTheFirstAttempt()
+    {
+        using var folder = new TemporaryFolder();
+        var nested = Path.Combine(folder.Path, "new-log-directory");
+        var store = new AppLogFileStore(nested, () => 2, () => TestNow);
+        store.Append(TestNow, new AppLogEntry("host_action", "windows_host", Action: "first"));
+        var oldPath = Path.Combine(nested, "app-log-2026-07-01.jsonl");
+        File.WriteAllText(oldPath, "{}" + Environment.NewLine);
+        File.SetLastWriteTimeUtc(oldPath, TestNow.UtcDateTime.AddDays(-3));
+
+        store.Append(TestNow, new AppLogEntry("host_action", "windows_host", Action: "second"));
+
+        Assert.False(File.Exists(oldPath));
     }
 
     [Fact]

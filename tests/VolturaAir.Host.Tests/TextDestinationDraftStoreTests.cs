@@ -79,6 +79,8 @@ public sealed class TextDestinationDraftStoreTests
             File.SetLastWriteTimeUtc(oldDraft, old);
             File.SetCreationTimeUtc(lockedDraft, old);
             File.SetLastWriteTimeUtc(lockedDraft, old);
+            TextDestinationDraftStore.MarkForAutomaticRemoval(new TextDestinationDraft(oldDraft, old, true));
+            TextDestinationDraftStore.MarkForAutomaticRemoval(new TextDestinationDraft(lockedDraft, old, true));
 
             using (File.Open(lockedDraft, FileMode.Open, FileAccess.Read, FileShare.Read))
             {
@@ -89,6 +91,27 @@ public sealed class TextDestinationDraftStoreTests
             Assert.True(File.Exists(lockedDraft));
             Assert.True(File.Exists(recentDraft));
             Assert.True(File.Exists(unrelatedFile));
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void CleanupPreservesExpiredDraftsWithoutAnAutomaticRemovalMarker()
+    {
+        var directory = Directory.CreateTempSubdirectory("VolturaAir-DraftStore-");
+        try
+        {
+            var retainedDraft = Path.Combine(directory.FullName, "Untitled-retained.txt");
+            File.WriteAllText(retainedDraft, "keep");
+            var old = DateTime.UtcNow - TimeSpan.FromDays(31);
+            File.SetCreationTimeUtc(retainedDraft, old);
+
+            TextDestinationDraftStore.DeleteExpired(directory.FullName, DateTime.UtcNow - TimeSpan.FromDays(30));
+
+            Assert.True(File.Exists(retainedDraft));
         }
         finally
         {

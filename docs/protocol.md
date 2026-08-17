@@ -64,6 +64,13 @@ its separate WebRTC transport and can fail while commands remain connected.
 - After authentication, unknown message types, malformed JSON shapes, duplicate
   or undeclared fields close with policy violation.
 
+Server-originated dynamic strings use these current maxima unless a feature
+declares a smaller bound: `operationId` 64, human-readable `message` 240,
+`code`/`reason` 80, PC name 120, adapter description 256, IP address 64, URL
+512, and build/session identifiers 128 characters. Mobile rejects an entire
+server frame that exceeds its applicable bound; producers also bound dynamic
+status values before sending them.
+
 Wire changes update the test server-frame catalog and follow
 [risk-based validation](setup.md#validation-by-change).
 
@@ -431,13 +438,15 @@ When the PC owner uses the tray Stop action, the host sends the current viewer
 one terminal command-channel event as it ends the media session:
 
 ```json
-{ "type": "screen.view.ended", "reason": "host-stopped", "message": "The PC stopped screen viewing." }
-{ "type": "screen.view.ended", "reason": "permission-revoked", "message": "The PC stopped screen viewing and disallowed this device." }
+{ "type": "screen.view.ended", "operationId": "screen-start-1", "reason": "host-stopped", "message": "The PC stopped screen viewing." }
+{ "type": "screen.view.ended", "operationId": "screen-start-1", "reason": "permission-revoked", "message": "The PC stopped screen viewing and disallowed this device." }
 ```
 
-The client clears the video and disables stage input immediately. The two
-listed reasons are the complete current contract; other reason values are
-rejected rather than interpreted as a legacy variant.
+The terminal event carries the accepted start operation. The client clears the
+video and disables stage input only when that ID still owns its active session;
+a delayed event from an earlier session is ignored. The two listed reasons are
+the complete current contract. Missing operation IDs, other reasons, and the
+old event shape are rejected rather than interpreted as legacy variants.
 
 An authorized source request succeeds with code `accepted` even when its
 `sources` array is empty, allowing the client to report that no connected

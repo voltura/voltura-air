@@ -332,6 +332,141 @@ public sealed class PairingManagerTests
         Assert.Equal("Joakim iPhone", manager.ActiveDeviceSummary);
     }
 
+    [Fact]
+    public void FailedPairingPersistenceDoesNotAuthorizeTheNewReconnectKey()
+    {
+        var root = Directory.CreateTempSubdirectory("VolturaAir-PairingFailure-");
+        try
+        {
+            using var key = new PairingTestKey();
+            var store = new PairingStore(root.FullName);
+            store.Save([]);
+            var manager = new PairingManager(store);
+            var token = manager.CreatePairingToken();
+            var pairingPath = Path.Combine(root.FullName, "Voltura Air", "pairing.json");
+
+            using (File.Open(pairingPath, FileMode.Open, FileAccess.Read, FileShare.None))
+            {
+                Assert.ThrowsAny<SystemException>(() =>
+                    manager.AcceptPairing("client-a", "Phone", token, reconnectPublicKey: key.PublicKey));
+                Assert.Equal(0, manager.PairedDeviceCount);
+                Assert.Null(manager.CreateReconnectChallenge("client-a"));
+            }
+
+            Assert.True(manager.AcceptPairing(
+                "client-a",
+                "Phone",
+                token,
+                reconnectPublicKey: key.PublicKey).Accepted);
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void FailedRevocationPersistenceKeepsTheDeviceAuthorizedAndActive()
+    {
+        var root = Directory.CreateTempSubdirectory("VolturaAir-RevocationFailure-");
+        try
+        {
+            using var key = new PairingTestKey();
+            var store = new PairingStore(root.FullName);
+            var manager = new PairingManager(store);
+            manager.AcceptPairing(
+                "client-a",
+                "Phone",
+                manager.CreatePairingToken(),
+                reconnectPublicKey: key.PublicKey);
+            using var connection = manager.TrackConnection("client-a");
+            var pairingPath = Path.Combine(root.FullName, "Voltura Air", "pairing.json");
+
+            using (File.Open(pairingPath, FileMode.Open, FileAccess.Read, FileShare.None))
+            {
+                Assert.ThrowsAny<SystemException>(() => manager.DisconnectDevice("client-a"));
+                Assert.Equal(1, manager.PairedDeviceCount);
+                Assert.Equal(1, manager.ActiveControllerCount);
+                Assert.NotNull(manager.CreateReconnectChallenge("client-a"));
+            }
+
+            Assert.True(manager.DisconnectDevice("client-a"));
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void FailedClearPersistenceKeepsPairingAndCurrentTokenState()
+    {
+        var root = Directory.CreateTempSubdirectory("VolturaAir-ClearFailure-");
+        try
+        {
+            using var key = new PairingTestKey();
+            var store = new PairingStore(root.FullName);
+            var manager = new PairingManager(store);
+            manager.AcceptPairing(
+                "client-a",
+                "Phone",
+                manager.CreatePairingToken(),
+                reconnectPublicKey: key.PublicKey);
+            var nextToken = manager.CreatePairingToken();
+            var pairingPath = Path.Combine(root.FullName, "Voltura Air", "pairing.json");
+
+            using (File.Open(pairingPath, FileMode.Open, FileAccess.Read, FileShare.None))
+            {
+                Assert.ThrowsAny<SystemException>(manager.ClearPairing);
+                Assert.Equal(1, manager.PairedDeviceCount);
+                Assert.NotNull(manager.CreateReconnectChallenge("client-a"));
+            }
+
+            using var secondKey = new PairingTestKey();
+            Assert.True(manager.AcceptPairing(
+                "client-b",
+                "Tablet",
+                nextToken,
+                reconnectPublicKey: secondKey.PublicKey).Accepted);
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void FailedDisconnectTimestampPersistenceKeepsTheConnectionActive()
+    {
+        var root = Directory.CreateTempSubdirectory("VolturaAir-DisconnectTimestampFailure-");
+        try
+        {
+            using var key = new PairingTestKey();
+            var store = new PairingStore(root.FullName);
+            var manager = new PairingManager(store);
+            manager.AcceptPairing(
+                "client-a",
+                "Phone",
+                manager.CreatePairingToken(),
+                reconnectPublicKey: key.PublicKey);
+            var connection = manager.TrackConnection("client-a");
+            var pairingPath = Path.Combine(root.FullName, "Voltura Air", "pairing.json");
+
+            using (File.Open(pairingPath, FileMode.Open, FileAccess.Read, FileShare.None))
+            {
+                Assert.ThrowsAny<SystemException>(connection.Dispose);
+                Assert.Equal(1, manager.ActiveControllerCount);
+            }
+
+            connection.Dispose();
+            Assert.Equal(0, manager.ActiveControllerCount);
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
     private static PairingResult CompleteReconnect(
         PairingManager manager,
         PairingTestKey key,

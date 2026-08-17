@@ -1,6 +1,9 @@
 import { getPcDisplayName } from "../pairing/pcDisplayName";
 import type { PcProfile } from "./pcProfiles";
 import type { AppLaunchActionSummary, AudioStateMessage, AwakeCapability, ClientMessage, HostStatusMetadata, PowerCapabilities, PresentationCapability, ServerCapabilities, ServerMessage, TextTransferTarget, UrlOpenCapability } from "../protocol/messages";
+
+// Current server-string limits: operation 64, message 240, code/reason 80,
+// PC 120, adapter 256, IP 64, URL 512, and build/session identifiers 128.
 import { isRemoteModeId, normalizeRemoteMode } from "../settings/remoteSettings";
 
 const movementAckIntervalMs = 200;
@@ -179,7 +182,7 @@ function isServerMessage(value: unknown): value is ServerMessage {
     case "pair.accepted":
       return hasOnlyFields(value, ["type", "clientId", "pcName", "paired", "capabilities", "host", "hostIdentity"]) &&
         isBoundedString(value.clientId, 128, false) &&
-        isBoundedString(value.pcName, 120, false) &&
+        isProtocolString(value.pcName, 120) &&
         value.paired === true &&
         isOptional(value, "capabilities", isServerCapabilities) &&
         isOptional(value, "host", isHostStatusMetadata) &&
@@ -197,11 +200,11 @@ function isServerMessage(value: unknown): value is ServerMessage {
         isBoundedString(value.proof, 43, false);
     case "pair.rejected":
       return hasOnlyFields(value, ["type", "reason"]) &&
-        isBoundedString(value.reason, 120, false);
+        isProtocolString(value.reason, 80);
     case "status":
       return typeof value.connected === "boolean" &&
-        isOptional(value, "message", isString) &&
-        isOptional(value, "pcName", isString) &&
+        isOptional(value, "message", (candidate) => isProtocolString(candidate, 240)) &&
+        isOptional(value, "pcName", (candidate) => isProtocolString(candidate, 120)) &&
         isOptional(value, "capabilities", isServerCapabilities) &&
         isOptional(value, "host", isHostStatusMetadata);
     case "health.pong":
@@ -209,9 +212,9 @@ function isServerMessage(value: unknown): value is ServerMessage {
     case "input.ack":
       return isOptional(value, "seq", isInputSequence);
     case "input.error":
-      return isString(value.message) &&
+      return isProtocolString(value.message, 240) &&
         isOptional(value, "seq", isInputSequence) &&
-        isOptional(value, "code", isString);
+        isOptional(value, "code", (candidate) => isProtocolString(candidate, 80));
     case "presentation.command.result":
       return isOperationId(value.operationId) &&
         isOneOf(value.target, ["powerpoint", "google-slides", "pdf"]) &&
@@ -253,9 +256,9 @@ function isServerMessage(value: unknown): value is ServerMessage {
       return isOperationId(value.operationId) &&
         typeof value.succeeded === "boolean" &&
         isOptional(value, "screen", isCustomScreenDefinition) &&
-        isOptional(value, "code", isString) &&
-        isOptional(value, "message", isString) &&
-        (value.succeeded ? isCustomScreenDefinition(value.screen) : isString(value.message));
+        isOptional(value, "code", (candidate) => isProtocolString(candidate, 80)) &&
+        isOptional(value, "message", (candidate) => isProtocolString(candidate, 240)) &&
+        (value.succeeded ? isCustomScreenDefinition(value.screen) : isProtocolString(value.message, 240));
     case "custom.screen.invoke.result":
       return isOperationId(value.operationId) &&
         isCustomScreenId(value.screenId) &&
@@ -285,9 +288,10 @@ function isServerMessage(value: unknown): value is ServerMessage {
       return hasOnlyFields(value, ["type", "operationId", "succeeded", "code", "message"]) &&
         isOperationId(value.operationId) && isResultBase(value);
     case "screen.view.ended":
-      return hasOnlyFields(value, ["type", "reason", "message"]) &&
+      return hasOnlyFields(value, ["type", "operationId", "reason", "message"]) &&
+        isOperationId(value.operationId) &&
         isOneOf(value.reason, ["host-stopped", "permission-revoked"]) &&
-        isBoundedString(value.message, 240, false);
+        isProtocolString(value.message, 240);
     case "phone.webcam.start.result":
       return hasOnlyFields(value, ["type", "operationId", "succeeded", "code", "message", "offerSdp", "hostSignature", "iceServers", "turnExpiresAt", "relayUsageBytes", "relayUsageCheckedAt", "relayQuality", "maximumBitrate"]) &&
         isOperationId(value.operationId) && isResultBase(value) &&
@@ -307,10 +311,10 @@ function isServerMessage(value: unknown): value is ServerMessage {
       return hasOnlyFields(value, ["type", "operationId", "reason", "message"]) &&
         isOperationId(value.operationId) &&
         isOneOf(value.reason, ["stopped", "connection-lost", "transport-lost", "decoder-failed", "permission-revoked", "pairing-revoked", "host-stopped", "offer-expired"]) &&
-        isBoundedString(value.message, 240, false);
+        isProtocolString(value.message, 240);
     case "url.open.result":
       return isOperationId(value.operationId) && isResultBase(value) &&
-        isOptional(value, "normalizedUrl", isString);
+        isOptional(value, "normalizedUrl", (candidate) => isProtocolString(candidate, 512));
     case "text.send.result":
       return isOperationId(value.operationId) && isResultBase(value) &&
         isOptional(value, "deliveryKind", (candidate) => isOneOf(candidate, ["typed", "pasted", "clipboard"]));
@@ -397,7 +401,7 @@ function isFileManagerServerMessage(value: Record<string, unknown>): boolean {
 }
 
 function isFileSession(value: unknown): boolean {
-  return isRecord(value) && isBoundedString(value.sessionId, 512, false) &&
+  return isRecord(value) && isBoundedString(value.sessionId, 128, false) &&
     Array.isArray(value.drives) && value.drives.length <= 64 && value.drives.every((item) =>
       isRecord(item) && isBoundedString(item.id, 512, false) && isBoundedString(item.label, 260, false) && isBoundedString(item.driveType, 32, false)) &&
     Array.isArray(value.shortcuts) && value.shortcuts.length <= 16 && value.shortcuts.every((item) =>
@@ -636,11 +640,16 @@ function isHostStatusMetadata(value: unknown): boolean {
     return false;
   }
 
-  const stringFields = ["developerSessionId", "hostVersion", "webClientBuildId", "pcName", "selectedAdapterName", "selectedIp", "webSocketUrl"];
   const booleanFields = ["developerMode", "customPointerEnabled", "inputBlockedByElevation", "showModeButtons", "controlDepth"];
   return isOptional(value, "appLaunchActions", isAppLaunchActions) &&
     isOptional(value, "defaultRemoteMode", isRemoteModeId) &&
-    stringFields.every((field) => isOptional(value, field, isString)) &&
+    isOptional(value, "developerSessionId", (candidate) => isProtocolString(candidate, 128)) &&
+    isOptional(value, "hostVersion", (candidate) => isProtocolString(candidate, 128)) &&
+    isOptional(value, "webClientBuildId", (candidate) => isProtocolString(candidate, 128)) &&
+    isOptional(value, "pcName", (candidate) => isProtocolString(candidate, 120)) &&
+    isOptional(value, "selectedAdapterName", (candidate) => isBoundedString(candidate, 256, false)) &&
+    isOptional(value, "selectedIp", (candidate) => isBoundedString(candidate, 64, false)) &&
+    isOptional(value, "webSocketUrl", (candidate) => isProtocolString(candidate, 512)) &&
     booleanFields.every((field) => isOptional(value, field, isBoolean)) &&
     isOptional(value, "pointerSpeed", (candidate) =>
       typeof candidate === "number" && Number.isFinite(candidate) && candidate >= 10 && candidate <= 100) &&
@@ -668,7 +677,9 @@ function isAppLaunchActions(value: unknown): boolean {
 }
 
 function isResultBase(value: Record<string, unknown>): boolean {
-  return typeof value.succeeded === "boolean" && isString(value.message) && isOptional(value, "code", isString);
+  return typeof value.succeeded === "boolean" &&
+    isProtocolString(value.message, 240) &&
+    isOptional(value, "code", (candidate) => isProtocolString(candidate, 80));
 }
 
 function isBooleanCapability(value: unknown, field: string): boolean {
@@ -721,7 +732,7 @@ function isPowerPointSession(value: unknown): boolean {
     isOptional(value, "ownerDeviceName", (candidate) =>
       candidate === null || isBoundedString(candidate, 120, false)) &&
     typeof value.isOwner === "boolean" &&
-    isOptional(value, "startedAt", (candidate) => candidate === null || isString(candidate)) &&
+    isOptional(value, "startedAt", (candidate) => candidate === null || isProtocolString(candidate, 128)) &&
     isNonNegativeNumber(value.elapsedSeconds) &&
     typeof value.breakActive === "boolean" &&
     isNonNegativeNumber(value.breakElapsedSeconds) &&
@@ -804,6 +815,10 @@ function isBoundedString(value: unknown, maxLength: number, allowEmpty: boolean)
 
 function isOperationId(value: unknown): value is string {
   return isBoundedString(value, 64, false) && /^[A-Za-z0-9-]+$/.test(value);
+}
+
+function isProtocolString(value: unknown, maximumLength: number): value is string {
+  return isBoundedString(value, maximumLength, false);
 }
 
 function isAppLaunchActionId(value: unknown): value is string {

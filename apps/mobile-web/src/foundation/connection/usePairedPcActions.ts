@@ -14,6 +14,7 @@ import { clearStoredReconnectKey } from "./pairingCredentials";
 import type { RelayEncryptedSend } from "./relaySessionCrypto";
 import type { ControllerSocket } from "./controllerSocket";
 import { revokePcPairing } from "./relayPairingRevocation";
+import { writeLocalStorage } from "../platform/browserStorage";
 
 interface PairedPcActionOptions {
   activePcId: string | null;
@@ -64,7 +65,7 @@ export function usePairedPcActions(options: PairedPcActionOptions) {
   const pairWithToken = useCallback((token: string, pcUrl = window.location.origin, requestedDeviceName?: string) => {
     const nextDeviceName = normalizeDeviceNameInput(requestedDeviceName ?? deviceNameRef.current) ?? getDefaultDeviceName();
     deviceNameRef.current = nextDeviceName;
-    localStorage.setItem(deviceNameKey, nextDeviceName);
+    writeLocalStorage(deviceNameKey, nextDeviceName);
     setDeviceName(nextDeviceName);
 
     const profile = createPcProfile(pcUrl);

@@ -84,6 +84,12 @@ test("root validation includes the portable relay without deploying it", () => {
   assert.doesNotMatch(packageJson.scripts.test, /relay:deploy|relay:health/u);
 });
 
+test("release metadata validation prefers the DLL from the actual publish directory", () => {
+  const candidates = verifyWindowsVersionScript.match(/\$hostDllCandidates = @\(([\s\S]*?)\) \| Select-Object -Unique/u)?.[1] ?? "";
+  assert.ok(candidates.indexOf("$resolvedPublishDir") >= 0);
+  assert.ok(candidates.indexOf("$resolvedPublishDir") < candidates.indexOf("apps\\windows-host\\bin\\Release"));
+});
+
 test("public relay workspace cannot deploy the Voltura-operated service", () => {
   const relayPackage = JSON.parse(readFileSync(new URL("../../services/relay/package.json", import.meta.url), "utf8"));
   assert.equal(relayPackage.scripts.deploy, undefined);

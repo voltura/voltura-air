@@ -51,8 +51,16 @@ export function ModalDialog({
 
   const finishClosing = useCallback(() => {
     invokingElementRef.current?.focus();
+    invokingElementRef.current = null;
     onClose();
   }, [onClose]);
+
+  useEffect(() => {
+    if (!isOpen && invokingElementRef.current) {
+      invokingElementRef.current.focus();
+      invokingElementRef.current = null;
+    }
+  }, [isOpen]);
 
   const closeDialog = useCallback(() => {
     const dialog = dialogRef.current;

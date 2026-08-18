@@ -38,8 +38,6 @@ export function CustomScreenNavigationRing({
 }: CustomScreenNavigationRingProps) {
   const repeatTimeoutRef = useRef<number | null>(null);
   const repeatIntervalRef = useRef<number | null>(null);
-  const ignoreClickRef = useRef(false);
-  const repeatPointerReleasedRef = useRef(false);
 
   const stopRepeat = useCallback(() => {
     window.clearTimeout(repeatTimeoutRef.current ?? undefined);
@@ -50,14 +48,10 @@ export function CustomScreenNavigationRing({
 
   useEffect(() => {
     const stopWhenBlurred = () => {
-      ignoreClickRef.current = false;
-      repeatPointerReleasedRef.current = false;
       stopRepeat();
     };
     const stopWhenHidden = () => {
       if (document.visibilityState === "hidden") {
-        ignoreClickRef.current = false;
-        repeatPointerReleasedRef.current = false;
         stopRepeat();
       }
     };
@@ -72,8 +66,6 @@ export function CustomScreenNavigationRing({
 
   useEffect(() => {
     if (!enabled) {
-      ignoreClickRef.current = false;
-      repeatPointerReleasedRef.current = false;
       stopRepeat();
     }
   }, [enabled, stopRepeat]);
@@ -84,8 +76,6 @@ export function CustomScreenNavigationRing({
     }
     const key = event.currentTarget.dataset.key as NavigationKey;
     event.preventDefault();
-    ignoreClickRef.current = true;
-    repeatPointerReleasedRef.current = false;
     event.currentTarget.setPointerCapture?.(event.pointerId);
     stopRepeat();
     sendSpecial(key);
@@ -98,32 +88,9 @@ export function CustomScreenNavigationRing({
   };
 
   const click = (event: MouseEvent<HTMLButtonElement>) => {
-    if (ignoreClickRef.current) {
-      ignoreClickRef.current = false;
-      repeatPointerReleasedRef.current = false;
-      return;
-    }
-    if (enabled) {
+    if (enabled && event.detail === 0) {
       const key = event.currentTarget.dataset.key as NavigationKey;
       sendSpecial(key);
-    }
-  };
-
-  const cancelRepeat = () => {
-    ignoreClickRef.current = false;
-    repeatPointerReleasedRef.current = false;
-    stopRepeat();
-  };
-
-  const completeRepeat = () => {
-    repeatPointerReleasedRef.current = true;
-    stopRepeat();
-  };
-
-  const stopRepeatOnLostCapture = () => {
-    stopRepeat();
-    if (!repeatPointerReleasedRef.current) {
-      ignoreClickRef.current = false;
     }
   };
 
@@ -151,10 +118,10 @@ export function CustomScreenNavigationRing({
       onTouchStart={enabled ? onTouchStart : undefined}
     >
       <div aria-label={name} className="custom-screen-navigation-ring" role="group">
-        <button type="button" className="custom-screen-ring-zone custom-screen-ring-up" data-key="ArrowUp" disabled={!enabled} aria-label="D-pad up" onClick={click} onLostPointerCapture={stopRepeatOnLostCapture} onPointerCancel={cancelRepeat} onPointerDown={startRepeat} onPointerUp={completeRepeat} onTouchCancel={stopTouchPropagation} onTouchEnd={stopTouchPropagation} onTouchMove={stopTouchPropagation} onTouchStart={stopTouchPropagation}><ArrowUp aria-hidden="true" /></button>
-        <button type="button" className="custom-screen-ring-zone custom-screen-ring-left" data-key="ArrowLeft" disabled={!enabled} aria-label="D-pad left" onClick={click} onLostPointerCapture={stopRepeatOnLostCapture} onPointerCancel={cancelRepeat} onPointerDown={startRepeat} onPointerUp={completeRepeat} onTouchCancel={stopTouchPropagation} onTouchEnd={stopTouchPropagation} onTouchMove={stopTouchPropagation} onTouchStart={stopTouchPropagation}><ArrowLeft aria-hidden="true" /></button>
-        <button type="button" className="custom-screen-ring-zone custom-screen-ring-right" data-key="ArrowRight" disabled={!enabled} aria-label="D-pad right" onClick={click} onLostPointerCapture={stopRepeatOnLostCapture} onPointerCancel={cancelRepeat} onPointerDown={startRepeat} onPointerUp={completeRepeat} onTouchCancel={stopTouchPropagation} onTouchEnd={stopTouchPropagation} onTouchMove={stopTouchPropagation} onTouchStart={stopTouchPropagation}><ArrowRight aria-hidden="true" /></button>
-        <button type="button" className="custom-screen-ring-zone custom-screen-ring-down" data-key="ArrowDown" disabled={!enabled} aria-label="D-pad down" onClick={click} onLostPointerCapture={stopRepeatOnLostCapture} onPointerCancel={cancelRepeat} onPointerDown={startRepeat} onPointerUp={completeRepeat} onTouchCancel={stopTouchPropagation} onTouchEnd={stopTouchPropagation} onTouchMove={stopTouchPropagation} onTouchStart={stopTouchPropagation}><ArrowDown aria-hidden="true" /></button>
+        <button type="button" className="custom-screen-ring-zone custom-screen-ring-up" data-key="ArrowUp" disabled={!enabled} aria-label="D-pad up" onClick={click} onLostPointerCapture={stopRepeat} onPointerCancel={stopRepeat} onPointerDown={startRepeat} onPointerUp={stopRepeat} onTouchCancel={stopTouchPropagation} onTouchEnd={stopTouchPropagation} onTouchMove={stopTouchPropagation} onTouchStart={stopTouchPropagation}><ArrowUp aria-hidden="true" /></button>
+        <button type="button" className="custom-screen-ring-zone custom-screen-ring-left" data-key="ArrowLeft" disabled={!enabled} aria-label="D-pad left" onClick={click} onLostPointerCapture={stopRepeat} onPointerCancel={stopRepeat} onPointerDown={startRepeat} onPointerUp={stopRepeat} onTouchCancel={stopTouchPropagation} onTouchEnd={stopTouchPropagation} onTouchMove={stopTouchPropagation} onTouchStart={stopTouchPropagation}><ArrowLeft aria-hidden="true" /></button>
+        <button type="button" className="custom-screen-ring-zone custom-screen-ring-right" data-key="ArrowRight" disabled={!enabled} aria-label="D-pad right" onClick={click} onLostPointerCapture={stopRepeat} onPointerCancel={stopRepeat} onPointerDown={startRepeat} onPointerUp={stopRepeat} onTouchCancel={stopTouchPropagation} onTouchEnd={stopTouchPropagation} onTouchMove={stopTouchPropagation} onTouchStart={stopTouchPropagation}><ArrowRight aria-hidden="true" /></button>
+        <button type="button" className="custom-screen-ring-zone custom-screen-ring-down" data-key="ArrowDown" disabled={!enabled} aria-label="D-pad down" onClick={click} onLostPointerCapture={stopRepeat} onPointerCancel={stopRepeat} onPointerDown={startRepeat} onPointerUp={stopRepeat} onTouchCancel={stopTouchPropagation} onTouchEnd={stopTouchPropagation} onTouchMove={stopTouchPropagation} onTouchStart={stopTouchPropagation}><ArrowDown aria-hidden="true" /></button>
         <div
           aria-disabled={!enabled}
           aria-label="Mini trackpad"

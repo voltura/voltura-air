@@ -26,8 +26,6 @@ export function useKeyboardModeController({
 }: KeyboardModeControllerOptions) {
   const repeatTimeoutRef = useRef<number | null>(null);
   const repeatIntervalRef = useRef<number | null>(null);
-  const ignoreNextClickRef = useRef(false);
-  const repeatPointerActiveRef = useRef(false);
   const liveKeyboardRef = useRef(liveKeyboard);
   const sendSpecialRef = useRef(sendSpecial);
   const [keyboardInputMode, setKeyboardInputMode] = useState<KeyboardInputMode>("text");
@@ -45,25 +43,20 @@ export function useKeyboardModeController({
     }
   }, []);
 
-  const cancelRepeatingKey = useCallback(() => {
-    stopRepeatingKey();
-    ignoreNextClickRef.current = false;
-  }, [stopRepeatingKey]);
-
   useEffect(() => {
     const stopOnVisibilityLoss = () => {
       if (document.visibilityState === "hidden") {
-        cancelRepeatingKey();
+        stopRepeatingKey();
       }
     };
-    window.addEventListener("blur", cancelRepeatingKey);
+    window.addEventListener("blur", stopRepeatingKey);
     document.addEventListener("visibilitychange", stopOnVisibilityLoss);
     return () => {
-      window.removeEventListener("blur", cancelRepeatingKey);
+      window.removeEventListener("blur", stopRepeatingKey);
       document.removeEventListener("visibilitychange", stopOnVisibilityLoss);
       stopRepeatingKey();
     };
-  }, [cancelRepeatingKey, stopRepeatingKey]);
+  }, [stopRepeatingKey]);
 
   useEffect(() => {
     liveKeyboardRef.current = liveKeyboard;
@@ -359,8 +352,6 @@ export function useKeyboardModeController({
       }
 
       event.preventDefault();
-      repeatPointerActiveRef.current = true;
-      ignoreNextClickRef.current = true;
       event.currentTarget.setPointerCapture?.(event.pointerId);
       stopRepeatingKey();
       pressRepeatableKey(key);
@@ -369,24 +360,12 @@ export function useKeyboardModeController({
         repeatIntervalRef.current = window.setInterval(() => { pressRepeatableKey(key); }, repeatIntervalMs);
       }, repeatStartDelayMs);
     },
-    onPointerUp: () => {repeatPointerActiveRef.current = false; stopRepeatingKey();},
-    onPointerCancel: () => {repeatPointerActiveRef.current = false; cancelRepeatingKey();},
-    onPointerLeave: () => {repeatPointerActiveRef.current = false; cancelRepeatingKey();},
-    onLostPointerCapture: () => {
-      if (repeatPointerActiveRef.current) {
-        repeatPointerActiveRef.current = false;
-        cancelRepeatingKey();
-      } else {
-        stopRepeatingKey();
-      }
-    },
-    onClick: () => {
-      if (ignoreNextClickRef.current) {
-        ignoreNextClickRef.current = false;
-        return;
-      }
-
-      pressRepeatableKey(key);
+    onPointerUp: stopRepeatingKey,
+    onPointerCancel: stopRepeatingKey,
+    onPointerLeave: stopRepeatingKey,
+    onLostPointerCapture: stopRepeatingKey,
+    onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
+      if (event.detail === 0) { pressRepeatableKey(key); }
     }
   });
 

@@ -118,7 +118,10 @@ export function CustomScreenButtonGrid({
                 data-custom-screen-button-id={button.id}
                 disabled={!button.enabled || laserDisabled}
                 key={button.id}
-                onClick={() => {
+                onClick={(event) => {
+                  if (button.repeat && event.detail > 0) {
+                    return;
+                  }
                   if (button.confirmation) {
                     setConfirmation(button);
                   } else {

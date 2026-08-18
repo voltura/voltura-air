@@ -216,10 +216,25 @@ describe("KeyboardMode repeatable keys", () => {
     const backspaceButton = screen.getByRole("button", { name: "Backspace" });
     fireEvent.pointerDown(backspaceButton, { button: 0, pointerId: 1 });
     fireEvent.pointerUp(backspaceButton, { pointerId: 1 });
-    fireEvent.click(backspaceButton);
+    fireEvent.click(backspaceButton, { detail: 1 });
 
     expect(sendSpecial).toHaveBeenCalledExactlyOnceWith("Backspace");
   });
+
+  it.each(["pointerCancel", "pointerLeave", "lostPointerCapture"] as const)(
+    "does not duplicate a repeatable key after %s",
+    (boundary) => {
+      const sendSpecial = vi.fn();
+      render(<KeyboardModeHarness sendSpecial={sendSpecial} />);
+      const backspaceButton = screen.getByRole("button", { name: "Backspace" });
+
+      fireEvent.pointerDown(backspaceButton, { button: 0, pointerId: 1 });
+      fireEvent[boundary](backspaceButton, { pointerId: 1 });
+      fireEvent.click(backspaceButton, { detail: 1 });
+
+      expect(sendSpecial).toHaveBeenCalledExactlyOnceWith("Backspace");
+    }
+  );
 
   it("repeats Backspace in live typing mode until release", () => {
     const sendSpecial = vi.fn();

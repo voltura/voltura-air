@@ -345,6 +345,21 @@ describe("CustomScreenWorkspace", () => {
       "button.play");
   });
 
+  it("does not duplicate a canceled repeat press when its pointer click follows", () => {
+    const invoke = vi.fn();
+    renderWorkspace(invoke);
+    const repeating = screen.getByRole("button", { name: "Volume up" });
+
+    fireEvent.pointerDown(repeating, { button: 0, pointerId: 4 });
+    fireEvent.pointerCancel(repeating, { pointerId: 4 });
+    fireEvent.click(repeating, { detail: 1 });
+
+    expect(invoke).toHaveBeenCalledExactlyOnceWith(
+      "screen.media",
+      "revision.one",
+      "button.volume");
+  });
+
   it("renders a standalone volume slider and reuses the audio protocol", () => {
     const send = vi.fn();
     const volumeDefinition: CustomScreenDefinition = {

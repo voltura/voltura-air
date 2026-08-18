@@ -33,7 +33,7 @@ describe("RemoteMode repeatable controls", () => {
     });
 
     fireEvent.pointerUp(button, { pointerId: 1 });
-    fireEvent.click(button);
+    fireEvent.click(button, { detail: 1 });
 
     expect(sendSpecial).toHaveBeenCalledTimes(3);
     expect(sendSpecial).toHaveBeenNthCalledWith(1, key);
@@ -53,7 +53,7 @@ describe("RemoteMode repeatable controls", () => {
     });
 
     fireEvent.pointerUp(button, { pointerId: 1 });
-    fireEvent.click(button);
+    fireEvent.click(button, { detail: 1 });
 
     expect(sendSpecial).toHaveBeenCalledTimes(3);
     expect(sendSpecial).toHaveBeenNthCalledWith(1, "VolumeUp");
@@ -73,7 +73,7 @@ describe("RemoteMode repeatable controls", () => {
     });
 
     fireEvent.pointerUp(button, { pointerId: 1 });
-    fireEvent.click(button);
+    fireEvent.click(button, { detail: 1 });
 
     expect(sendSpecial).toHaveBeenCalledTimes(3);
     expect(sendSpecial).toHaveBeenNthCalledWith(1, "ArrowDown");
@@ -93,5 +93,32 @@ describe("RemoteMode repeatable controls", () => {
     expect(sendSpecial).toHaveBeenCalledTimes(countAfterBlur);
     fireEvent.click(button);
     expect(sendSpecial).toHaveBeenCalledTimes(countAfterBlur + 1);
+  });
+
+  it.each(["pointerCancel", "pointerLeave", "lostPointerCapture"] as const)(
+    "does not duplicate a pointer press after %s",
+    (boundary) => {
+      const sendSpecial = vi.fn();
+      renderRemote({ sendSpecial });
+      const button = screen.getByRole("button", { name: "D-pad up" });
+
+      fireEvent.pointerDown(button, { button: 0, pointerId: 1 });
+      fireEvent[boundary](button, { pointerId: 1 });
+      fireEvent.click(button, { detail: 1 });
+
+      expect(sendSpecial).toHaveBeenCalledExactlyOnceWith("ArrowUp");
+    }
+  );
+
+  it("sends an ordinary Remote button once for a complete pointer sequence", () => {
+    const sendSpecial = vi.fn();
+    renderRemote({ sendSpecial });
+    const button = screen.getByRole("button", { name: "Play or pause" });
+
+    fireEvent.pointerDown(button, { button: 0, pointerId: 1 });
+    fireEvent.pointerUp(button, { pointerId: 1 });
+    fireEvent.click(button, { detail: 1 });
+
+    expect(sendSpecial).toHaveBeenCalledExactlyOnceWith("MediaPlayPause");
   });
 });

@@ -42,8 +42,6 @@ export function useRemoteInteractions({
 }: RemoteInteractionOptions) {
   const repeatTimeoutRef = useRef<number | null>(null);
   const repeatIntervalRef = useRef<number | null>(null);
-  const ignoreNextClickRef = useRef(false);
-  const repeatPointerActiveRef = useRef(false);
   const miniTrackpadPointerRef = useRef<PointerState | null>(null);
   const navigationPanelPointerRef = useRef<PointerState | null>(null);
   const pendingTapRef = useRef<PendingTap | null>(null);
@@ -60,11 +58,6 @@ export function useRemoteInteractions({
     }
   }, []);
 
-  const cancelRepeatingPress = useCallback(() => {
-    stopRepeatingPress();
-    ignoreNextClickRef.current = false;
-  }, [stopRepeatingPress]);
-
   const clearPendingTap = useCallback(() => {
     if (pendingTapRef.current !== null) {
       window.clearTimeout(pendingTapRef.current.timeout);
@@ -74,17 +67,17 @@ export function useRemoteInteractions({
 
   useEffect(() => {
     const stopWhenHidden = () => {
-      if (document.visibilityState === "hidden") { cancelRepeatingPress(); }
+      if (document.visibilityState === "hidden") { stopRepeatingPress(); }
     };
-    window.addEventListener("blur", cancelRepeatingPress);
+    window.addEventListener("blur", stopRepeatingPress);
     document.addEventListener("visibilitychange", stopWhenHidden);
     return () => {
-      window.removeEventListener("blur", cancelRepeatingPress);
+      window.removeEventListener("blur", stopRepeatingPress);
       document.removeEventListener("visibilitychange", stopWhenHidden);
       stopRepeatingPress();
       clearPendingTap();
     };
-  }, [cancelRepeatingPress, clearPendingTap, stopRepeatingPress]);
+  }, [clearPendingTap, stopRepeatingPress]);
 
   const getRepeatablePressProps = (action: () => void): RepeatablePressProps => ({
     onPointerDown: (event) => {
@@ -93,8 +86,6 @@ export function useRemoteInteractions({
       }
 
       event.preventDefault();
-      repeatPointerActiveRef.current = true;
-      ignoreNextClickRef.current = true;
       event.currentTarget.setPointerCapture?.(event.pointerId);
       stopRepeatingPress();
       action();
@@ -103,24 +94,12 @@ export function useRemoteInteractions({
         repeatIntervalRef.current = window.setInterval(action, repeatMs);
       }, repeatDelayMs);
     },
-    onPointerUp: () => {repeatPointerActiveRef.current = false; stopRepeatingPress();},
-    onPointerCancel: () => {repeatPointerActiveRef.current = false; cancelRepeatingPress();},
-    onPointerLeave: () => {repeatPointerActiveRef.current = false; cancelRepeatingPress();},
-    onLostPointerCapture: () => {
-      if (repeatPointerActiveRef.current) {
-        repeatPointerActiveRef.current = false;
-        cancelRepeatingPress();
-      } else {
-        stopRepeatingPress();
-      }
-    },
-    onClick: () => {
-      if (ignoreNextClickRef.current) {
-        ignoreNextClickRef.current = false;
-        return;
-      }
-
-      action();
+    onPointerUp: stopRepeatingPress,
+    onPointerCancel: stopRepeatingPress,
+    onPointerLeave: stopRepeatingPress,
+    onLostPointerCapture: stopRepeatingPress,
+    onClick: (event) => {
+      if (event.detail === 0) { action(); }
     }
   });
 

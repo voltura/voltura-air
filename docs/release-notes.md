@@ -6,6 +6,11 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v0.9.9
+
+- Fixed Remote, Kodi, Keyboard, and Custom Screen controls sending the same
+  command twice from a single tap.
+
 ## v0.9.8
 
 - Reworked Windows setup and uninstall recovery. Setup verifies the complete new

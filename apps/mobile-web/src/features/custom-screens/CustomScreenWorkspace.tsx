@@ -94,8 +94,6 @@ export function CustomScreenWorkspace({
     : noExpansionOverrides;
   const repeatTimeoutRef = useRef<number | null>(null);
   const repeatIntervalRef = useRef<number | null>(null);
-  const ignoreClickRef = useRef(false);
-  const repeatPointerReleasedRef = useRef(false);
   const pressedPointerButtonsRef = useRef(new Set<"left" | "right">());
   const gyroClutchPointerRef = useRef<number | null>(null);
   const gyroClutchTimerRef = useRef<number | null>(null);
@@ -139,24 +137,6 @@ export function CustomScreenWorkspace({
     repeatTimeoutRef.current = null;
     repeatIntervalRef.current = null;
   }, []);
-
-  const completeRepeatPress = useCallback(() => {
-    repeatPointerReleasedRef.current = true;
-    stopRepeat();
-  }, [stopRepeat]);
-
-  const cancelRepeatPress = useCallback(() => {
-    ignoreClickRef.current = false;
-    repeatPointerReleasedRef.current = false;
-    stopRepeat();
-  }, [stopRepeat]);
-
-  const stopRepeatOnLostCapture = useCallback(() => {
-    stopRepeat();
-    if (!repeatPointerReleasedRef.current) {
-      ignoreClickRef.current = false;
-    }
-  }, [stopRepeat]);
 
   const clearGyroClutchTimer = useCallback(() => {
     if (gyroClutchTimerRef.current !== null) {
@@ -238,25 +218,25 @@ export function CustomScreenWorkspace({
     };
     const stopWhenHidden = () => {
       if (document.visibilityState === "hidden") {
-        cancelRepeatPress();
+        stopRepeat();
         releasePointerButtons();
       }
     };
     const releaseOnBlur = () => {
-      cancelRepeatPress();
+      stopRepeat();
       releasePointerButtons();
     };
     window.addEventListener("resize", update);
     window.addEventListener("blur", releaseOnBlur);
     document.addEventListener("visibilitychange", stopWhenHidden);
     return () => {
-      cancelRepeatPress();
+      stopRepeat();
       releasePointerButtons();
       window.removeEventListener("resize", update);
       window.removeEventListener("blur", releaseOnBlur);
       document.removeEventListener("visibilitychange", stopWhenHidden);
     };
-  }, [cancelRepeatPress, releasePointerButtons]);
+  }, [releasePointerButtons, stopRepeat]);
 
   useEffect(() => {
     if (state !== "paired") {
@@ -346,8 +326,6 @@ export function CustomScreenWorkspace({
       return;
     }
     event.preventDefault();
-    ignoreClickRef.current = true;
-    repeatPointerReleasedRef.current = false;
     event.currentTarget.setPointerCapture?.(event.pointerId);
     stopRepeat();
     invoke(definition.id, definition.revision, button.id);
@@ -571,11 +549,6 @@ export function CustomScreenWorkspace({
                     collapsible={collapsible}
                     contentId={contentId}
                     invoke={(button, enabled) => {
-                      if (ignoreClickRef.current) {
-                        ignoreClickRef.current = false;
-                        repeatPointerReleasedRef.current = false;
-                        return;
-                      }
                       if (enabled === undefined) {
                         invoke(definition.id, definition.revision, button.id);
                       } else {
@@ -587,9 +560,9 @@ export function CustomScreenWorkspace({
                     laserPointerDefaultColor={laserPointerDefaultColor}
                     laserPointerPending={laserPointerPending}
                     onPointerDown={press}
-                    onPointerCancel={cancelRepeatPress}
-                    onPointerUp={completeRepeatPress}
-                    onLostPointerCapture={stopRepeatOnLostCapture}
+                    onPointerCancel={stopRepeat}
+                    onPointerUp={stopRepeat}
+                    onLostPointerCapture={stopRepeat}
                     orientation={orientation}
                     orientationLayoutsEnabled={definition.orientationLayoutsEnabled}
                     pendingButtonIds={pendingButtonIds}

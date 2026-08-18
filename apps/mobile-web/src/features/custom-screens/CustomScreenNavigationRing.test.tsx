@@ -42,6 +42,21 @@ describe("CustomScreenNavigationRing", () => {
     expect(onCenterKey).not.toHaveBeenCalled();
   });
 
+  it.each(["pointerCancel", "lostPointerCapture"] as const)(
+    "does not duplicate a direction after %s",
+    (boundary) => {
+      const sendSpecial = vi.fn();
+      renderRing({ sendSpecial });
+      const up = screen.getByRole("button", { name: "D-pad up" });
+
+      fireEvent.pointerDown(up, { button: 0, pointerId: 7 });
+      fireEvent[boundary](up, { pointerId: 7 });
+      fireEvent.click(up, { detail: 1 });
+
+      expect(sendSpecial).toHaveBeenCalledExactlyOnceWith("ArrowUp");
+    }
+  );
+
   it("uses the surrounding regular trackpad surface without treating directions as pointer input", () => {
     const onTouchStart = vi.fn();
     renderRing({ onTouchStart });

@@ -23,7 +23,6 @@ export function validateReleaseCheckpoint(checkpoint, { version, commit, expecte
   if (!checkpoint || checkpoint.schema !== 1 || checkpoint.version !== version || checkpoint.commit !== commit) {
     return null;
   }
-  if (checkpoint.phase === "tested") return { phase: "tested", artifacts: [] };
   if (checkpoint.phase !== "packaged" || !Array.isArray(checkpoint.artifacts)) return null;
 
   const actualNames = checkpoint.artifacts.map((artifact) => artifact?.name).sort();

@@ -24,21 +24,25 @@ npm run release:draft -- 0.8.0
 ```
 
 The command validates prerequisites and repository state, prepares the version,
-regenerates public assets/statistics, runs full build/tests, commits the prepared
+regenerates the hosted app, catalog preview, and statistics, commits the prepared
 sources locally, packages and audits all artifacts once from that exact commit,
 then pushes and creates/resumes the matching release. `release:full` publishes the
 audited GitHub draft as Latest; neither public command deploys hosted infrastructure.
 Prerelease versions remain drafts. Set `NO_COLOR` to disable colored output.
+
+Run the full build and aggregate test gate when product changes are made, before
+pushing `main`. Release commands package and publish that already validated code;
+they do not rerun the development test suite or recapture screenshots.
 
 The catalog preview, hosted PWA, and statistics page are generated before the release
 commit so private production operations can upload that exact reviewed snapshot.
 A successful public release leaves the Git working tree clean.
 
 Fast tool, publish-lock, GitHub/push, and NSIS
-preflights run before source generation and the full test suite. If a later step
+preflights run before source generation. If a later step
 fails, the command restores tracked release changes and records an ignored local
 checkpoint tied to the exact release commit. Rerun the same command: it reuses
-only test and artifact results whose commit, filenames, sizes, and SHA-256 hashes
+only artifact results whose commit, filenames, sizes, and SHA-256 hashes
 still match, or resumes an audited GitHub draft, instead of repeating completed
 long-running work. A successful release removes the checkpoint.
 

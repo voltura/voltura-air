@@ -239,7 +239,7 @@ export async function runLocalRelease(args = process.argv.slice(2), options = {}
 }
 
 async function runLocalReleaseUnlocked(args = process.argv.slice(2), { progress, publishLatest = false } = {}) {
-  const releaseProgress = progress ?? createReleaseProgress({ totalSteps: 6 });
+  const releaseProgress = progress ?? createReleaseProgress({ totalSteps: 5 });
   const { version: explicitVersion } = parseReleaseArguments(args);
   let releaseContext;
 
@@ -380,25 +380,16 @@ async function runLocalReleaseUnlocked(args = process.argv.slice(2), { progress,
   const { assetPaths, assetNames } = releaseContext;
   let bodyPath;
   try {
-    await performStep(releaseProgress, "Preparing release sources", "Checking source ownership, setting the version, and regenerating branding.", () => {
+    await performStep(releaseProgress, "Preparing release sources", "Checking source ownership, setting the version, and generating hosted outputs.", () => {
       if (releaseContext.resumePhase) {
         console.log(`Resuming ${releaseContext.targetTag} from the ${releaseContext.resumePhase} checkpoint; source preparation is already complete.`);
         return;
       }
       checked("npm", ["run", "size:check"]);
       prepareReleaseUnlocked(releaseContext.targetVersion);
-      checked("npm", ["run", "branding:generate"]);
       checked("npm", ["run", "site:preview:build"]);
       checked("npm", ["run", "site:hosted:build"]);
       checked("npm", ["run", "code:statistics", "--", "--report", "--no-open", "--quiet"]);
-    });
-
-    await performStep(releaseProgress, "Testing release sources", "Running the complete test suite before creating the release commit.", () => {
-      if (releaseContext.resumePhase) {
-        console.log(`Tests already passed for commit ${releaseContext.startingCommit}; not running them again.`);
-        return;
-      }
-      checked("npm", ["test"]);
     });
 
     await performStep(releaseProgress, "Committing and creating final artifacts", "Committing prepared sources, packaging once from that exact commit, then pushing after validation.", async () => {
@@ -415,9 +406,6 @@ async function runLocalReleaseUnlocked(args = process.argv.slice(2), { progress,
           throw new Error("Could not inspect staged release changes.");
         }
         releaseCommit = checked("git", ["rev-parse", "HEAD"], { captureOutput: true });
-        await writeReleaseCheckpoint({
-          repositoryRoot, version: releaseContext.targetVersion, commit: releaseCommit, phase: "tested"
-        });
       }
 
       if (releaseContext.resumePhase !== "packaged") {
@@ -518,7 +506,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const cliArgs = process.argv.slice(2);
   const publishLatest = cliArgs[0] === "--publish-latest";
   const releaseArgs = publishLatest ? cliArgs.slice(1) : cliArgs;
-  const progress = createReleaseProgress({ totalSteps: 6 });
+  const progress = createReleaseProgress({ totalSteps: 5 });
   runLocalRelease(releaseArgs, { progress, publishLatest }).then((result) => {
     for (const hash of result.hashes) {
       console.log(hash);

@@ -68,15 +68,13 @@ test("release publication prepares all public site outputs before staging", () =
 });
 
 test("release packaging runs once from the final local commit before push", () => {
-  const testing = localReleaseSource.indexOf('checked("npm", ["test"])');
   const staging = localReleaseSource.indexOf("await stageReleaseChanges()");
   const commit = localReleaseSource.indexOf('checked("git", ["commit"');
   const packaging = localReleaseSource.indexOf('checked("npm", ["run", "package:win"]');
   const push = localReleaseSource.indexOf('checked("git", ["push", "origin", "main"])');
   const packageCommands = localReleaseSource.match(/checked\("npm", \["run", "package:win"\]\)/gu) ?? [];
 
-  assert.ok(testing > 0);
-  assert.ok(staging > testing);
+  assert.ok(staging > 0);
   assert.ok(commit > staging);
   assert.ok(packaging > commit);
   assert.ok(push > packaging);
@@ -84,24 +82,21 @@ test("release packaging runs once from the final local commit before push", () =
   assert.doesNotMatch(localReleaseSource, /"package:win", "--"/u);
 });
 
-test("release runs source and Git preflights before the long test suite", () => {
+test("release validates source and Git without rerunning the development test suite", () => {
   const tools = localReleaseSource.indexOf('checked("npm", ["run", "tools:check"]');
   const locks = localReleaseSource.indexOf("preflightPublishRestores()");
   const push = localReleaseSource.indexOf('checked("git", ["push", "--dry-run"');
-  const tests = localReleaseSource.indexOf('checked("npm", ["test"]');
   for (const preflight of [tools, locks, push]) {
     assert.ok(preflight > 0);
-    assert.ok(preflight < tests);
   }
+  assert.doesNotMatch(localReleaseSource, /checked\("npm", \["test"\]\)/u);
+  assert.doesNotMatch(localReleaseSource, /"branding:generate"/u);
   assert.match(localReleaseSource, /packages\.self-contained\.lock\.json/u);
   assert.match(localReleaseSource, /packages\.framework-dependent\.lock\.json/u);
 });
 
 test("release checkpoints are exact to version, commit, phase, and artifact set", () => {
   const context = { version: "0.9.5", commit: "abc123", expectedNames: ["a.zip", "b.exe"] };
-  assert.deepEqual(validateReleaseCheckpoint({
-    schema: 1, version: "0.9.5", commit: "abc123", phase: "tested", artifacts: []
-  }, context), { phase: "tested", artifacts: [] });
   const artifacts = [
     { name: "a.zip", size: 10, sha256: "a".repeat(64) },
     { name: "b.exe", size: 20, sha256: "b".repeat(64) }
@@ -110,7 +105,7 @@ test("release checkpoints are exact to version, commit, phase, and artifact set"
     schema: 1, version: "0.9.5", commit: "abc123", phase: "packaged", artifacts
   }, context), { phase: "packaged", artifacts });
   assert.equal(validateReleaseCheckpoint({
-    schema: 1, version: "0.9.5", commit: "other", phase: "tested", artifacts: []
+    schema: 1, version: "0.9.5", commit: "other", phase: "packaged", artifacts
   }, context), null);
   assert.equal(validateReleaseCheckpoint({
     schema: 1, version: "0.9.5", commit: "abc123", phase: "packaged", artifacts: artifacts.slice(1)
@@ -140,9 +135,7 @@ test("packaged checkpoints verify local bytes but can audit a published release 
 
 test("release failures restore tracked release changes and checkpoints skip completed work", () => {
   assert.match(localReleaseSource, /restoreCleanTrackedTree\(releaseCommit \?\? releaseContext\.startingCommit\)/u);
-  assert.match(localReleaseSource, /phase: "tested"/u);
   assert.match(localReleaseSource, /phase: "packaged"/u);
-  assert.match(localReleaseSource, /Tests already passed for commit/u);
   assert.match(localReleaseSource, /audited .* release already contains the final artifacts/u);
 });
 

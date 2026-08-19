@@ -8,6 +8,39 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+function Invoke-WindowlessSetupHelper {
+    param(
+        [Parameter(Mandatory)]
+        [string]$FilePath,
+        [string[]]$Arguments = @()
+    )
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $process.StartInfo.FileName = $FilePath
+    foreach ($argument in $Arguments) { $process.StartInfo.ArgumentList.Add($argument) }
+    $process.StartInfo.UseShellExecute = $false
+    $process.StartInfo.CreateNoWindow = $true
+    $process.StartInfo.RedirectStandardOutput = $true
+    $process.StartInfo.RedirectStandardError = $true
+    try {
+        if (-not $process.Start()) {
+            throw "The windowless Phone webcam setup helper could not be started for verification."
+        }
+        $output = $process.StandardOutput.ReadToEndAsync()
+        $errorOutput = $process.StandardError.ReadToEndAsync()
+        $process.WaitForExit()
+        return [pscustomobject]@{
+            ExitCode = $process.ExitCode
+            Output = $output.GetAwaiter().GetResult()
+            ErrorOutput = $errorOutput.GetAwaiter().GetResult()
+        }
+    }
+    finally {
+        $process.Dispose()
+    }
+}
+
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $nativeRoot = Join-Path $repoRoot "apps\windows-host\Features\PhoneWebcam\Native"
 $mediaSourceProject = Join-Path $nativeRoot "VirtualCameraMediaSource\VirtualCameraMediaSource.vcxproj"
@@ -70,12 +103,24 @@ foreach ($path in $required) {
 
 $setupHelper = Join-Path $OutputDirectory "VolturaAir.WebcamSetup.exe"
 [System.IO.File]::Copy($builtSetupHelper, $setupHelper, $true)
+$setupBytes = [System.IO.File]::ReadAllBytes($setupHelper)
+$peOffset = [BitConverter]::ToInt32($setupBytes, 0x3c)
+$subsystem = [BitConverter]::ToUInt16($setupBytes, $peOffset + 24 + 68)
+if ($subsystem -ne 2) {
+    throw "The Phone webcam setup helper must use the Windows GUI subsystem so setup and uninstall never open a terminal window."
+}
+$status = Invoke-WindowlessSetupHelper -FilePath $setupHelper -Arguments @("status")
+if ($status.ExitCode -notin 0, 1 -or $status.Output -notmatch '^\{"installed":') {
+    throw "The windowless Phone webcam setup helper did not preserve its status output contract."
+}
 $replacementBackup = Join-Path $setupIntermediate "VirtualCameraMediaSource.security-test-backup.dll"
 try {
     [System.IO.File]::Move($mediaSourcePath, $replacementBackup, $true)
     [System.IO.File]::WriteAllBytes($mediaSourcePath, [byte[]](0x4d, 0x5a, 0x00, 0x00))
-    & $setupHelper verify-packaged-source $replacementBackup
-    if ($LASTEXITCODE -ne 0) {
+    $verification = Invoke-WindowlessSetupHelper `
+        -FilePath $setupHelper `
+        -Arguments @("verify-packaged-source", $replacementBackup)
+    if ($verification.ExitCode -ne 0) {
         throw "The embedded Phone webcam payload changed after the replaceable sibling DLL was substituted."
     }
 }

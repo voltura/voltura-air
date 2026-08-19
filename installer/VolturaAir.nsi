@@ -190,6 +190,7 @@ Function un.onInit
   InitPluginsDir
   SetOutPath "$PLUGINSDIR"
   File /oname=${INSTALL_TRANSACTION_SCRIPT} "${__FILEDIR__}\InstallTransaction.ps1"
+  File /oname=VolturaAir.WebcamSetup.exe "${PUBLISH_DIR}\${WEBCAM_SETUP}"
   nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action PrepareUninstall -InstallDirectory "$INSTDIR" -JournalPath "${INSTALL_TRANSACTION_JOURNAL}"'
   Pop $0
   Pop $1
@@ -297,6 +298,8 @@ Section /o "Phone Webcam" SEC_PHONE_WEBCAM
   DetailPrint "Preparing the optional protected Phone Webcam component..."
   StrCpy $WebcamRemovedForUpdate 0
   StrCpy $WebcamRollbackHelper "$PLUGINSDIR\VolturaAir.WebcamSetup.Rollback.exe"
+  SetOutPath "$PLUGINSDIR"
+  File /oname=VolturaAir.WebcamSetup.exe "${PUBLISH_DIR}\${WEBCAM_SETUP}"
   IfFileExists "${WEBCAM_PROTECTED_SETUP}" 0 phone_webcam_install_packaged
   ClearErrors
   CopyFiles /SILENT "${WEBCAM_PROTECTED_SETUP}" "$WebcamRollbackHelper"
@@ -306,11 +309,11 @@ Section /o "Phone Webcam" SEC_PHONE_WEBCAM
   MessageBox MB_ICONSTOP "Voltura Air could not preserve the installed Phone Webcam component before maintenance."
   Abort "Phone Webcam rollback helper could not be prepared."
 phone_webcam_check_existing:
-  nsExec::ExecToStack '"${WEBCAM_PROTECTED_SETUP}" cleanup-required'
+  nsExec::ExecToStack '"$PLUGINSDIR\VolturaAir.WebcamSetup.exe" cleanup-required'
   Pop $0
   Pop $1
   ${If} $0 == 0
-    nsExec::ExecToStack '"${WEBCAM_PROTECTED_SETUP}" remove'
+    nsExec::ExecToStack '"$PLUGINSDIR\VolturaAir.WebcamSetup.exe" remove'
     Pop $0
     Pop $1
     ${If} $0 != 0
@@ -327,8 +330,6 @@ phone_webcam_check_existing:
     Abort "Phone Webcam component state is unavailable."
   ${EndIf}
 phone_webcam_install_packaged:
-  SetOutPath "$PLUGINSDIR"
-  File /oname=VolturaAir.WebcamSetup.exe "${PUBLISH_DIR}\${WEBCAM_SETUP}"
   nsExec::ExecToStack '"$PLUGINSDIR\VolturaAir.WebcamSetup.exe" install'
   Pop $0
   Pop $1
@@ -416,7 +417,7 @@ Function un.RemovePhoneWebcam
   IfFileExists "${WEBCAM_PROTECTED_SETUP}" phone_webcam_helper_available phone_webcam_done
 
 phone_webcam_helper_available:
-  nsExec::ExecToStack '"${WEBCAM_PROTECTED_SETUP}" cleanup-required'
+  nsExec::ExecToStack '"$PLUGINSDIR\VolturaAir.WebcamSetup.exe" cleanup-required'
   Pop $0
   Pop $1
   ${If} $0 == 1
@@ -426,7 +427,7 @@ phone_webcam_helper_available:
     Abort "Phone webcam cleanup state is unavailable."
   ${EndIf}
   DetailPrint "Removing Voltura Air Webcam..."
-  nsExec::ExecToStack '"${WEBCAM_PROTECTED_SETUP}" remove'
+  nsExec::ExecToStack '"$PLUGINSDIR\VolturaAir.WebcamSetup.exe" remove'
   Pop $0
   Pop $1
   ${If} $0 != 0

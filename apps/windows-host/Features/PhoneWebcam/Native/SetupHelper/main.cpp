@@ -24,6 +24,62 @@ using Microsoft::WRL::ComPtr;
 
 namespace
 {
+    class HiddenProcessStream
+    {
+    public:
+        explicit HiddenProcessStream(const DWORD standardHandle) : m_standardHandle(standardHandle) {}
+
+        template<typename T>
+        HiddenProcessStream& operator<<(const T& value)
+        {
+            m_stream << value;
+            return *this;
+        }
+
+        HiddenProcessStream& operator<<(std::wostream& (*manipulator)(std::wostream&))
+        {
+            manipulator(m_stream);
+            Flush();
+            return *this;
+        }
+
+    private:
+        void Flush()
+        {
+            const std::wstring value = m_stream.str();
+            m_stream.str(L"");
+            m_stream.clear();
+            if (value.empty()) return;
+            const HANDLE handle = GetStdHandle(m_standardHandle);
+            if (handle == nullptr || handle == INVALID_HANDLE_VALUE) return;
+            const int byteCount = WideCharToMultiByte(
+                CP_UTF8, 0, value.data(), static_cast<int>(value.size()), nullptr, 0, nullptr, nullptr);
+            if (byteCount <= 0) return;
+            std::string encoded(static_cast<size_t>(byteCount), '\0');
+            if (WideCharToMultiByte(
+                    CP_UTF8, 0, value.data(), static_cast<int>(value.size()), encoded.data(), byteCount, nullptr, nullptr) <= 0)
+                return;
+            size_t offset = 0;
+            while (offset < encoded.size())
+            {
+                DWORD written = 0;
+                if (!WriteFile(
+                        handle,
+                        encoded.data() + offset,
+                        static_cast<DWORD>(encoded.size() - offset),
+                        &written,
+                        nullptr) || written == 0)
+                    return;
+                offset += written;
+            }
+        }
+
+        DWORD m_standardHandle;
+        std::wostringstream m_stream;
+    };
+
+    HiddenProcessStream g_output(STD_OUTPUT_HANDLE);
+    HiddenProcessStream g_error(STD_ERROR_HANDLE);
     bool g_allowFaultInjection = false;
     constexpr wchar_t SourceClsid[] = L"{50AAB70E-38BA-403E-A55B-58F2BCABE4FB}";
     constexpr wchar_t FriendlyName[] = L"Voltura Air Webcam";
@@ -39,6 +95,8 @@ namespace
     constexpr DWORD ElevatedWrapperTimeoutMilliseconds = ElevatedOperationTimeoutMilliseconds + 30 * 1000;
     constexpr DWORD FileReleaseRetryMilliseconds = 10 * 1000;
     constexpr DWORD FileReleaseRetryIntervalMilliseconds = 100;
+    constexpr DWORD ServiceStopTimeoutMilliseconds = 30 * 1000;
+    constexpr DWORD ServiceStopPollMilliseconds = 100;
 
     class ElevatedOperationTimeoutScope
     {
@@ -213,6 +271,76 @@ namespace
         return HRESULT_FROM_WIN32(error);
     }
 
+    HRESULT StopServiceForRemoval(SC_HANDLE manager, const wchar_t* serviceName)
+    {
+        SC_HANDLE service = OpenServiceW(manager, serviceName, SERVICE_QUERY_STATUS | SERVICE_STOP);
+        if (service == nullptr)
+        {
+            const DWORD error = GetLastError();
+            return error == ERROR_SERVICE_DOES_NOT_EXIST ? S_OK : HRESULT_FROM_WIN32(error);
+        }
+
+        SERVICE_STATUS_PROCESS status{};
+        DWORD bytesNeeded = 0;
+        auto queryStatus = [&]()
+        {
+            return QueryServiceStatusEx(
+                service,
+                SC_STATUS_PROCESS_INFO,
+                reinterpret_cast<BYTE*>(&status),
+                sizeof(status),
+                &bytesNeeded) != FALSE;
+        };
+
+        HRESULT result = S_OK;
+        if (!queryStatus())
+        {
+            result = HRESULT_FROM_WIN32(GetLastError());
+        }
+        else if (status.dwCurrentState != SERVICE_STOPPED)
+        {
+            if (status.dwCurrentState != SERVICE_STOP_PENDING)
+            {
+                SERVICE_STATUS controlStatus{};
+                if (!ControlService(service, SERVICE_CONTROL_STOP, &controlStatus))
+                {
+                    const DWORD error = GetLastError();
+                    if (error != ERROR_SERVICE_NOT_ACTIVE) result = HRESULT_FROM_WIN32(error);
+                }
+            }
+
+            for (DWORD elapsed = 0; SUCCEEDED(result) && elapsed <= ServiceStopTimeoutMilliseconds;
+                 elapsed += ServiceStopPollMilliseconds)
+            {
+                if (!queryStatus())
+                {
+                    result = HRESULT_FROM_WIN32(GetLastError());
+                    break;
+                }
+                if (status.dwCurrentState == SERVICE_STOPPED) break;
+                if (elapsed == ServiceStopTimeoutMilliseconds)
+                {
+                    result = HRESULT_FROM_WIN32(ERROR_TIMEOUT);
+                    break;
+                }
+                Sleep(ServiceStopPollMilliseconds);
+            }
+        }
+
+        CloseServiceHandle(service);
+        return result;
+    }
+
+    HRESULT StopCameraServicesForRemoval()
+    {
+        SC_HANDLE manager = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT);
+        if (manager == nullptr) return HRESULT_FROM_WIN32(GetLastError());
+        HRESULT result = StopServiceForRemoval(manager, L"FrameServerMonitor");
+        if (SUCCEEDED(result)) result = StopServiceForRemoval(manager, L"FrameServer");
+        CloseServiceHandle(manager);
+        return result;
+    }
+
     HRESULT FilesEqual(
         const std::filesystem::path& left,
         const std::filesystem::path& right,
@@ -326,7 +454,7 @@ namespace
         info.lpVerb = L"runas";
         info.lpFile = executable.c_str();
         info.lpParameters = arguments.c_str();
-        info.nShow = SW_SHOWNORMAL;
+        info.nShow = SW_HIDE;
         if (!ShellExecuteExW(&info))
         {
             const HRESULT result = HRESULT_FROM_WIN32(GetLastError());
@@ -606,7 +734,7 @@ namespace
         const HRESULT cleanup = UnregisterComSource();
         if (FAILED(cleanup))
         {
-            std::wcerr << L"register-rollback-error=" << HResultText(cleanup) << std::endl;
+            g_error << L"register-rollback-error=" << HResultText(cleanup) << std::endl;
             return cleanup;
         }
         if (registrationCompleteOrAbsent != nullptr) *registrationCompleteOrAbsent = true;
@@ -645,11 +773,11 @@ namespace
         const HRESULT shutdownResult = camera->Shutdown();
         const bool shutdownComplete = SUCCEEDED(shutdownResult) || shutdownResult == MF_E_SHUTDOWN;
         if (FAILED(stopResult) && stopResult != MF_E_SHUTDOWN)
-            std::wcerr << L"camera-start-cleanup-stop-error=" << HResultText(stopResult) << std::endl;
+            g_error << L"camera-start-cleanup-stop-error=" << HResultText(stopResult) << std::endl;
         if (FAILED(removeResult))
-            std::wcerr << L"camera-start-cleanup-remove-error=" << HResultText(removeResult) << std::endl;
+            g_error << L"camera-start-cleanup-remove-error=" << HResultText(removeResult) << std::endl;
         if (!shutdownComplete)
-            std::wcerr << L"camera-start-cleanup-shutdown-error=" << HResultText(shutdownResult) << std::endl;
+            g_error << L"camera-start-cleanup-shutdown-error=" << HResultText(shutdownResult) << std::endl;
         if (safeToRollbackSystemFiles != nullptr)
             *safeToRollbackSystemFiles = SUCCEEDED(removeResult) && shutdownComplete;
         camera.Reset();
@@ -677,7 +805,7 @@ namespace
         {
             const HRESULT shutdownResult = camera->Shutdown();
             if (FAILED(shutdownResult) && shutdownResult != MF_E_SHUTDOWN)
-                std::wcerr << L"camera-remove-stop-cleanup-error=" << HResultText(shutdownResult) << std::endl;
+                g_error << L"camera-remove-stop-cleanup-error=" << HResultText(shutdownResult) << std::endl;
             return stopResult;
         }
         result = camera->Remove();
@@ -685,7 +813,7 @@ namespace
         if (FAILED(result)) return result;
         if (ShouldInjectFault(L"remove-after-camera-remove")) shutdownResult = E_FAIL;
         if (FAILED(shutdownResult) && shutdownResult != MF_E_SHUTDOWN)
-            std::wcerr << L"camera-remove-shutdown-warning=" << HResultText(shutdownResult) << std::endl;
+            g_error << L"camera-remove-shutdown-warning=" << HResultText(shutdownResult) << std::endl;
         return S_OK;
     }
 
@@ -771,7 +899,7 @@ namespace
             if (FAILED(result)) return result;
             if (length != ExpectedFrameBytes) return MF_E_INVALIDMEDIATYPE;
 
-            std::wcout << L"{\"probe\":\"ok\",\"name\":\"" << name
+            g_output << L"{\"probe\":\"ok\",\"name\":\"" << name
                        << L"\",\"width\":1920,\"height\":1080,\"format\":\"NV12\",\"bytes\":"
                        << length << L",\"timestamp\":" << timestamp << L"}" << std::endl;
             source->Shutdown();
@@ -833,7 +961,7 @@ namespace
             RemoveDirectoryW(installDirectory.c_str());
             return result;
         }
-        std::wcout << L"state=files-copied" << std::endl;
+        g_output << L"state=files-copied" << std::endl;
 
         bool registrationCompleteOrAbsent = false;
         result = RegisterComSource(installedDll, ownerSid, &registrationCompleteOrAbsent);
@@ -841,7 +969,7 @@ namespace
         {
             if (!registrationCompleteOrAbsent)
             {
-                std::wcerr << L"Installation retained the DLL because registry rollback was incomplete." << std::endl;
+                g_error << L"Installation retained the DLL because registry rollback was incomplete." << std::endl;
                 return result;
             }
             HRESULT rollback = S_OK;
@@ -851,12 +979,12 @@ namespace
                 rollback = HRESULT_FROM_WIN32(GetLastError());
             if (FAILED(rollback))
             {
-                std::wcerr << L"install-rollback-error=" << HResultText(rollback) << std::endl;
+                g_error << L"install-rollback-error=" << HResultText(rollback) << std::endl;
                 return rollback;
             }
             return result;
         }
-        std::wcout << L"state=com-registered" << std::endl;
+        g_output << L"state=com-registered" << std::endl;
 
         return S_OK;
     }
@@ -886,7 +1014,7 @@ namespace
         bool hasStagedDll = std::filesystem::exists(stagedDll);
         if (hasInstalledDll && hasStagedDll)
         {
-            std::wcerr << L"Removal found both installed and staged DLLs; no state was changed." << std::endl;
+            g_error << L"Removal found both installed and staged DLLs; no state was changed." << std::endl;
             return HRESULT_FROM_WIN32(ERROR_ALREADY_EXISTS);
         }
         if (!hasInstalledDll && hasStagedDll)
@@ -895,20 +1023,22 @@ namespace
             if (FAILED(recoverResult)) return recoverResult;
             hasInstalledDll = true;
             hasStagedDll = false;
-            std::wcout << L"state=staged-file-recovered" << std::endl;
+            g_output << L"state=staged-file-recovered" << std::endl;
         }
         if (hasInstalledDll)
         {
+            result = StopCameraServicesForRemoval();
+            if (FAILED(result)) return result;
             const HRESULT moveResult = MoveReleasedFile(installedDll, stagedDll);
             if (FAILED(moveResult))
             {
-                std::wcerr << L"Removal kept the complete recoverable installation because the DLL is in use. move="
+                g_error << L"Removal kept the complete recoverable installation because the DLL is in use. move="
                            << HResultText(moveResult) << std::endl;
                 return moveResult;
             }
             if (ShouldInjectFault(L"remove-after-stage"))
             {
-                std::wcerr << L"fault-injected=remove-after-stage" << std::endl;
+                g_error << L"fault-injected=remove-after-stage" << std::endl;
                 return HRESULT_FROM_WIN32(ERROR_CANCELLED);
             }
         }
@@ -921,15 +1051,15 @@ namespace
                 rollback = HRESULT_FROM_WIN32(GetLastError());
             if (SUCCEEDED(rollback) && hasInstalledDll)
                 rollback = RestoreComSource(installedDll, ownerSid);
-            std::wcerr << L"unregister-error=" << HResultText(result) << std::endl;
+            g_error << L"unregister-error=" << HResultText(result) << std::endl;
             if (FAILED(rollback))
             {
-                std::wcerr << L"remove-rollback-error=" << HResultText(rollback) << std::endl;
+                g_error << L"remove-rollback-error=" << HResultText(rollback) << std::endl;
                 return rollback;
             }
             return result;
         }
-        std::wcout << L"state=com-unregistered" << std::endl;
+        g_output << L"state=com-unregistered" << std::endl;
 
         const HRESULT deleteResult = hasInstalledDll ? DeleteReleasedFile(stagedDll) : S_OK;
         if (FAILED(deleteResult))
@@ -943,7 +1073,7 @@ namespace
             {
                 rollback = RegisterComSource(installedDll, ownerSid);
             }
-            std::wcerr << L"Removal kept the complete recoverable installation because the staged DLL could not be deleted. delete="
+            g_error << L"Removal kept the complete recoverable installation because the staged DLL could not be deleted. delete="
                        << HResultText(deleteResult) << L" rollback=" << HResultText(rollback) << std::endl;
             return FAILED(rollback) ? rollback : deleteResult;
         }
@@ -956,7 +1086,7 @@ namespace
                 if (!MoveFileExW(installedHelper.c_str(), nullptr, MOVEFILE_DELAY_UNTIL_REBOOT))
                     return helperDeleteResult;
                 helperRemovalDeferred = true;
-                std::wcout << L"state=helper-removal-deferred" << std::endl;
+                g_output << L"state=helper-removal-deferred" << std::endl;
             }
         }
         if (!RemoveDirectoryW(installDirectory.c_str()))
@@ -965,11 +1095,11 @@ namespace
             if (helperRemovalDeferred)
                 MoveFileExW(installDirectory.c_str(), nullptr, MOVEFILE_DELAY_UNTIL_REBOOT);
             if (removeError != ERROR_FILE_NOT_FOUND && removeError != ERROR_PATH_NOT_FOUND)
-                std::wcerr << L"directory-cleanup-warning=" << HResultText(HRESULT_FROM_WIN32(removeError)) << std::endl;
+                g_error << L"directory-cleanup-warning=" << HResultText(HRESULT_FROM_WIN32(removeError)) << std::endl;
         }
         if (std::filesystem::exists(installedDll) || std::filesystem::exists(stagedDll))
             return HRESULT_FROM_WIN32(ERROR_FILE_EXISTS);
-        std::wcout << L"state=files-removed" << std::endl;
+        g_output << L"state=files-removed" << std::endl;
         return S_OK;
     }
 
@@ -994,12 +1124,12 @@ namespace
         const HRESULT rollbackResult = RestoreComSource(installedDll, ownerSid);
         if (FAILED(rollbackResult))
         {
-            std::wcerr << L"unregister-test-rollback-error=" << HResultText(rollbackResult) << std::endl;
+            g_error << L"unregister-test-rollback-error=" << HResultText(rollbackResult) << std::endl;
             return rollbackResult;
         }
         if (SUCCEEDED(injectedResult)) return HRESULT_FROM_WIN32(ERROR_INVALID_STATE);
         result = VerifyComSource(installedDll, ownerSid);
-        if (SUCCEEDED(result)) std::wcout << L"state=unregister-rollback-verified" << std::endl;
+        if (SUCCEEDED(result)) g_output << L"state=unregister-rollback-verified" << std::endl;
         return result;
     }
 
@@ -1007,7 +1137,7 @@ namespace
     {
         if (FAILED(result))
         {
-            std::wcerr << L"error=" << HResultText(result) << std::endl;
+            g_error << L"error=" << HResultText(result) << std::endl;
             return static_cast<int>(HRESULT_CODE(result) == 0 ? ERROR_GEN_FAILURE : HRESULT_CODE(result));
         }
         return 0;
@@ -1018,7 +1148,7 @@ int wmain(const int argumentCount, wchar_t* arguments[])
 {
     if (argumentCount < 2)
     {
-        std::wcerr << L"Usage: VolturaAirWebcamSetup <install|remove|status|cleanup-required|probe>" << std::endl;
+        g_error << L"Usage: VolturaAirWebcamSetup <install|remove|status|cleanup-required|probe>" << std::endl;
         return ERROR_INVALID_PARAMETER;
     }
 
@@ -1042,13 +1172,13 @@ int wmain(const int argumentCount, wchar_t* arguments[])
             {
                 const HRESULT rollbackResult = RunElevatedAndWait(L"--elevated-remove \"" + ownerSid + L"\"");
                 if (FAILED(rollbackResult))
-                    std::wcerr << L"install-rollback-error=" << HResultText(rollbackResult) << std::endl;
+                    g_error << L"install-rollback-error=" << HResultText(rollbackResult) << std::endl;
             }
             else
-                std::wcerr << L"Installation retained system files because failed camera-start cleanup was incomplete." << std::endl;
+                g_error << L"Installation retained system files because failed camera-start cleanup was incomplete." << std::endl;
             return Finish(result);
         }
-        std::wcout << L"state=camera-created" << std::endl;
+        g_output << L"state=camera-created" << std::endl;
         camera->Shutdown();
         return 0;
     }
@@ -1065,14 +1195,14 @@ int wmain(const int argumentCount, wchar_t* arguments[])
         if (result == HRESULT_FROM_WIN32(ERROR_NOT_FOUND))
         {
             result = S_OK;
-            std::wcout << L"state=camera-absent" << std::endl;
+            g_output << L"state=camera-absent" << std::endl;
         }
         else if (SUCCEEDED(result))
         {
             result = RemoveCamera();
         }
         if (FAILED(result)) return Finish(result);
-        if (existingCamera) std::wcout << L"state=camera-removed" << std::endl;
+        if (existingCamera) g_output << L"state=camera-removed" << std::endl;
 
         result = RunElevatedAndWait(L"--elevated-remove \"" + ownerSid + L"\"");
         if (FAILED(result))
@@ -1081,9 +1211,9 @@ int wmain(const int argumentCount, wchar_t* arguments[])
             const HRESULT rollbackResult = CreateCamera(camera);
             if (camera) camera->Shutdown();
             if (SUCCEEDED(rollbackResult))
-                std::wcerr << L"state=remove-rolled-back" << std::endl;
+                g_error << L"state=remove-rolled-back" << std::endl;
             else
-                std::wcerr << L"remove-rollback-error=" << HResultText(rollbackResult) << std::endl;
+                g_error << L"remove-rollback-error=" << HResultText(rollbackResult) << std::endl;
         }
         return Finish(result);
     }
@@ -1131,11 +1261,11 @@ int wmain(const int argumentCount, wchar_t* arguments[])
         std::wstring name;
         const HRESULT result = ReadInstallationState(installed, cleanupRequired, updateRequired, name);
         if (FAILED(result)) return Finish(result);
-        std::wcout << L"{\"installed\":" << (installed ? L"true" : L"false")
+        g_output << L"{\"installed\":" << (installed ? L"true" : L"false")
                    << L",\"cleanupRequired\":" << (cleanupRequired ? L"true" : L"false")
                    << L",\"updateRequired\":" << (updateRequired ? L"true" : L"false");
-        if (installed) std::wcout << L",\"name\":\"" << name << L"\"";
-        std::wcout << L"}" << std::endl;
+        if (installed) g_output << L",\"name\":\"" << name << L"\"";
+        g_output << L"}" << std::endl;
         return installed ? 0 : 1;
     }
     if (command == L"cleanup-required")
@@ -1146,7 +1276,7 @@ int wmain(const int argumentCount, wchar_t* arguments[])
         std::wstring name;
         const HRESULT result = ReadInstallationState(installed, cleanupRequired, updateRequired, name);
         if (FAILED(result)) return Finish(result);
-        std::wcout << L"{\"cleanupRequired\":" << (cleanupRequired ? L"true" : L"false") << L"}" << std::endl;
+        g_output << L"{\"cleanupRequired\":" << (cleanupRequired ? L"true" : L"false") << L"}" << std::endl;
         return cleanupRequired ? 0 : 1;
     }
     if (command == L"probe")
@@ -1154,6 +1284,6 @@ int wmain(const int argumentCount, wchar_t* arguments[])
         return Finish(ProbeCamera());
     }
 
-    std::wcerr << L"Unknown command." << std::endl;
+    g_error << L"Unknown command." << std::endl;
     return ERROR_INVALID_PARAMETER;
 }

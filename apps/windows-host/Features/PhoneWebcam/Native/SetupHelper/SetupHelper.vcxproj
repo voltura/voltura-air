@@ -28,7 +28,11 @@
       <PreprocessorDefinitions>UNICODE;_UNICODE;WIN32_LEAN_AND_MEAN;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
-    <Link><AdditionalDependencies>advapi32.lib;mf.lib;mfplat.lib;mfreadwrite.lib;mfsensorgroup.lib;mfuuid.lib;ole32.lib;shell32.lib;%(AdditionalDependencies)</AdditionalDependencies></Link>
+    <Link>
+      <AdditionalDependencies>advapi32.lib;mf.lib;mfplat.lib;mfreadwrite.lib;mfsensorgroup.lib;mfuuid.lib;ole32.lib;shell32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <SubSystem>Windows</SubSystem>
+      <EntryPointSymbol>wmainCRTStartup</EntryPointSymbol>
+    </Link>
   </ItemDefinitionGroup>
   <ItemGroup><ClCompile Include="main.cpp" /></ItemGroup>
   <ItemGroup><ResourceCompile Include="$(PhoneWebcamResourceFile)" /></ItemGroup>

@@ -6,6 +6,12 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.0.0
+
+- Fixed uninstall and upgrade failing when Windows camera services were using
+  Phone Webcam. Setup now asks for administrator approval only when needed and
+  no longer opens a terminal window for Phone Webcam maintenance.
+
 ## v0.9.9
 
 - Fixed Remote, Kodi, Keyboard, and Custom Screen controls sending the same

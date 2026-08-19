@@ -209,4 +209,11 @@ staging directory before stopping the path-verified installed host. Promotion,
 isolated health check, registration, rollback, and cleanup use one journal outside
 the install directory. Uninstall removes Phone Webcam first, then journals and
 renames the verified installation; a recovery uninstaller remains registered until
-the exact owned removal completes.
+the exact owned removal completes. The per-user uninstaller starts without elevation
+and requests UAC only when the protected Phone Webcam component must be removed. Its
+windowless helper stops the Windows camera services before removing the in-use media
+source, without opening a terminal window.
+Installer maintenance uses the newly packaged helper for this cleanup, so an
+upgrade does not depend on the behavior of the previously installed helper. The
+uninstaller likewise runs a temporary packaged copy, allowing the protected helper
+and its directory to be removed immediately.

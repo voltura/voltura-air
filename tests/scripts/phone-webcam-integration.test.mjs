@@ -6,6 +6,7 @@ const read = async (path) => readFile(new URL(`../../${path}`, import.meta.url),
 
 const [
   setup,
+  setupProject,
   frameGenerator,
   nativeBuild,
   packaging,
@@ -16,6 +17,7 @@ const [
   todo
 ] = await Promise.all([
   read("apps/windows-host/Features/PhoneWebcam/Native/SetupHelper/main.cpp"),
+  read("apps/windows-host/Features/PhoneWebcam/Native/SetupHelper/SetupHelper.vcxproj"),
   read("apps/windows-host/Features/PhoneWebcam/Native/VirtualCameraMediaSource/SimpleFrameGenerator.cpp"),
   read("scripts/build-phone-webcam-native.ps1"),
   read("scripts/package-win.ps1"),
@@ -62,6 +64,11 @@ test("production setup is idempotent on removal and retains transactional fault 
   assert.match(setup, /executable\.c_str\(\), GENERIC_READ, FILE_SHARE_READ \| FILE_SHARE_DELETE/u);
   assert.match(setup, /FileReleaseRetryMilliseconds = 10 \* 1000/u);
   assert.match(setup, /MoveReleasedFile\(installedDll, stagedDll\)/u);
+  assert.match(setup, /StopCameraServicesForRemoval\(\)/u);
+  assert.match(setup, /L"FrameServerMonitor"/u);
+  assert.match(setup, /L"FrameServer"/u);
+  assert.match(setup, /ControlService\(service, SERVICE_CONTROL_STOP/u);
+  assert.match(setup, /ServiceStopTimeoutMilliseconds/u);
   assert.match(setup, /DeleteReleasedFile\(stagedDll\)/u);
   assert.match(setup, /MOVEFILE_DELAY_UNTIL_REBOOT/u);
   assert.match(setup, /state=helper-removal-deferred/u);
@@ -72,7 +79,16 @@ test("production setup is idempotent on removal and retains transactional fault 
   assert.match(setup, /verify-packaged-source/u);
   assert.match(nativeBuild, /security-test-backup/u);
   assert.match(nativeBuild, /WriteAllBytes\(\$mediaSourcePath/u);
-  assert.doesNotMatch(setup, /StopService|FrameServer.*Stop/u);
+  assert.match(setupProject, /<SubSystem>Windows<\/SubSystem>/u);
+  assert.match(setupProject, /<EntryPointSymbol>wmainCRTStartup<\/EntryPointSymbol>/u);
+  assert.match(nativeBuild, /setup helper must use the Windows GUI subsystem/u);
+  assert.match(nativeBuild, /windowless Phone webcam setup helper/u);
+  assert.match(nativeBuild, /function Invoke-WindowlessSetupHelper/u);
+  assert.match(nativeBuild, /UseShellExecute = \$false/u);
+  assert.match(nativeBuild, /CreateNoWindow = \$true/u);
+  assert.match(nativeBuild, /RedirectStandardOutput = \$true/u);
+  assert.match(nativeBuild, /Invoke-WindowlessSetupHelper[\s\S]*verify-packaged-source/u);
+  assert.match(setup, /info\.nShow = SW_HIDE/u);
 });
 
 test("Windows packages require the complete Phone webcam payload", () => {
@@ -97,9 +113,14 @@ test("uninstall removes Phone webcam before deleting its recovery helper", () =>
   assert.match(uninstall, /Call un\.RemovePhoneWebcam/u);
   assert.ok(uninstall.indexOf("Call un.RemovePhoneWebcam") < uninstall.indexOf("-Action StageRemoval"));
   const removal = installer.match(/Function un\.RemovePhoneWebcam(?<body>[\s\S]*?)FunctionEnd/u)?.groups?.body ?? "";
+  const uninstallInit = installer.match(/Function un\.onInit(?<body>[\s\S]*?)FunctionEnd/u)?.groups?.body ?? "";
   assert.match(installer, /!define WEBCAM_PROTECTED_SETUP "\$PROGRAMFILES64\\Voltura Air Webcam\\VolturaAir\.WebcamSetup\.exe"/u);
   assert.doesNotMatch(removal, /\$INSTDIR\\\$\{WEBCAM_SETUP\}/u);
-  assert.match(removal, /\$\{WEBCAM_PROTECTED_SETUP\}/u);
+  assert.match(uninstallInit, /File \/oname=VolturaAir\.WebcamSetup\.exe/u);
+  assert.match(removal, /IfFileExists "\$\{WEBCAM_PROTECTED_SETUP\}"/u);
+  assert.match(removal, /"\$PLUGINSDIR\\VolturaAir\.WebcamSetup\.exe" cleanup-required/u);
+  assert.match(removal, /"\$PLUGINSDIR\\VolturaAir\.WebcamSetup\.exe" remove/u);
+  assert.doesNotMatch(removal, /"\$\{WEBCAM_PROTECTED_SETUP\}" (?:cleanup-required|remove)/u);
   assert.match(removal, /cleanup-required/u);
   assert.match(removal, /IfFileExists[^\n]+phone_webcam_helper_available phone_webcam_done/u);
   assert.ok(removal.indexOf("cleanup-required") < removal.indexOf('remove\''));
@@ -108,6 +129,13 @@ test("uninstall removes Phone webcam before deleting its recovery helper", () =>
 
 test("installer-owned Phone Webcam maintenance restores the prior component and app on failure", () => {
   const install = installer.match(/Section \/o "Phone Webcam"(?<body>[\s\S]*?)SectionEnd/u)?.groups?.body ?? "";
+  assert.ok(
+    install.indexOf("File /oname=VolturaAir.WebcamSetup.exe") <
+      install.indexOf('"$PLUGINSDIR\\VolturaAir.WebcamSetup.exe" cleanup-required')
+  );
+  assert.match(install, /"\$PLUGINSDIR\\VolturaAir\.WebcamSetup\.exe" cleanup-required/u);
+  assert.match(install, /"\$PLUGINSDIR\\VolturaAir\.WebcamSetup\.exe" remove/u);
+  assert.doesNotMatch(install, /"\$\{WEBCAM_PROTECTED_SETUP\}" (?:cleanup-required|remove)/u);
   assert.match(install, /CopyFiles \/SILENT "\$\{WEBCAM_PROTECTED_SETUP\}" "\$WebcamRollbackHelper"/u);
   assert.match(install, /"\$WebcamRollbackHelper" install/u);
   assert.match(install, /Call RollbackPromotedInstall/u);

@@ -9,7 +9,7 @@ import type { RemoteSettings } from "./foundation/settings/remoteSettings";
 import { useVolturaAirConnection } from "./foundation/connection/useVolturaAirConnection";
 import { usePcSettings } from "./foundation/settings/usePcSettings";
 import { usePwaLifecycle } from "./foundation/pwa/usePwaLifecycle";
-import { PairingGate, usePairingController } from "./features/pairing";
+import { loadPairingQrScannerDialog, PairingGate, usePairingController } from "./features/pairing";
 import { useManualReconnectFeedback } from "./foundation/connection/useManualReconnectFeedback";
 import { AppHeader } from "./app/AppHeader";
 import { GlobalOperationFeedback } from "./app/GlobalOperationFeedback";
@@ -33,6 +33,7 @@ import { requestGyroPermission, type GyroActivationRequest } from "./foundation/
 const ScreenViewWorkspace = lazy(() => import("./features/screen-view"));
 const FileManagerWorkspace = lazy(() => import("./features/file-manager"));
 const PhoneWebcamWorkspace = lazy(() => import("./features/phone-webcam"));
+const PairingQrScannerDialog = lazy(loadPairingQrScannerDialog);
 
 export function App() {
   const initialPairing = useMemo(() => parsePairingLink(window.location.href), []);
@@ -384,9 +385,12 @@ export function App() {
     state
   });
   const {
+    acceptLivePairingQr,
     confirmPendingPairing,
     connectManualHost,
+    fallbackFromLivePairingQr,
     isPairingQrReading,
+    livePairingScannerAttempt,
     onPairingQrSelected,
     pairingDeviceName,
     pairingDeviceNamePlaceholder,
@@ -395,7 +399,8 @@ export function App() {
     pairingStatusMessage,
     pendingPairing,
     scanPairingQr,
-    setPairingDeviceName
+    setPairingDeviceName,
+    usesLivePairingQr
   } = usePairingController({
     beginNewPairing: () => { requestPresentationConnectionChange("connect", beginNewPairing); },
     connectManualPc: (target) => {
@@ -583,6 +588,7 @@ export function App() {
           state={state}
           tryManualReconnect={tryManualReconnect}
           tryReconnectPc={tryReconnectPc}
+          usesLivePairingQr={usesLivePairingQr}
         />}
 
         <ErrorDialog
@@ -707,7 +713,19 @@ export function App() {
           updateRemoteSetting={updateRemoteSetting}
           updateAppSetting={updateAppSetting}
           updateTrackpadSetting={updateTrackpadSetting}
+          usesLivePairingQr={usesLivePairingQr}
         />
+
+        {livePairingScannerAttempt !== null && (
+          <Suspense fallback={null}>
+            <PairingQrScannerDialog
+              key={livePairingScannerAttempt}
+              attemptId={livePairingScannerAttempt}
+              onAccept={acceptLivePairingQr}
+              onFallback={fallbackFromLivePairingQr}
+            />
+          </Suspense>
+        )}
 
         {activeCustomScreenId === null && !isScreenViewOpen && !isPhoneWebcamOpen && tab !== "files" && isModeButtonsVisible && <ModeNavigation className="tabs top-mode-tabs" modeTabs={modeTabs} tab={tab} onSelect={selectModeTabWithPresentationGuard} />}
 

@@ -28,11 +28,22 @@ WebSocket inspection can add material startup latency. The longer Relay window
 does not change pairing, identity verification, encryption, retry behavior, or
 Direct-mode responsiveness.
 
-Photo decoding is one bounded attempt at a time. While the selected photo is
-being decoded, the primary action reads **Reading QR code...**, shows pending
-feedback, and is visibly and natively disabled; secondary photo/manual actions
-that could start a competing attempt are disabled too. Success, failure, or a
-newer attempt clears that state. Direct QR uses `t`, `v`, and optional `h`;
+On HTTPS with browser camera access, **Scan QR code** opens one temporary
+rear-camera-preferred preview after explicit user activation. A capacity-one
+worker decodes bounded centered frames without blocking the command/UI loop.
+The camera, timer, listeners, and worker stop on a valid pairing code, cancel,
+photo fallback, hiding, track loss, replacement, or unmount. Declined,
+cancelled, unavailable, or interrupted camera access changes the current page
+session to **Take photo of QR code**; HTTP and unsupported browsers use that
+photo action immediately. Camera frames and unrelated decoded QR contents are
+not retained, logged, transmitted, or opened as URLs.
+
+Live and photo results use the same pairing-link parser and device-name
+confirmation. Photo decoding remains one bounded attempt at a time. While the
+selected photo is being decoded, the action reads **Reading QR code...**, shows
+pending feedback, and is visibly and natively disabled; competing attempts are
+disabled too. Success, failure, or a newer live/photo attempt clears that state.
+Direct QR uses `t`, `v`, and optional `h`;
 Relay `/a` and Secure Direct `/s` QR use the opaque route, `v`, and fragment token. PC identity is
 authenticated after opening rather than increasing QR density.
 
@@ -72,7 +83,8 @@ connection failure.
 
 Expose only relevant actions near the error:
 
-- **Take photo of QR code** for first pairing and QR/token failures.
+- **Scan QR code** on supported HTTPS pages, or **Take photo of QR code** after
+  camera fallback and on HTTP, for first pairing and QR/token failures.
 - **Try reconnect** for unreachable hosts.
 - **Enter host manually** for address/port recovery.
 - **Open troubleshooting help** for transport-specific LAN/firewall or

@@ -30,6 +30,7 @@ interface PairingStatusProps {
   secondaryActionDisabled?: boolean;
   selectedSavedPcId?: string | undefined;
   transportMode?: "relay" | "secure-direct" | undefined;
+  usesLivePairingQr?: boolean;
   onSavedPcChange?: ((pcId: string) => void) | undefined;
 }
 
@@ -54,6 +55,7 @@ export function PairingStatus({
   secondaryActionDisabled = false,
   selectedSavedPcId,
   transportMode,
+  usesLivePairingQr = false,
   onSavedPcChange
 }: PairingStatusProps) {
   const feedback = useMemo(
@@ -183,8 +185,8 @@ export function PairingStatus({
   const displayTitle = heading ?? (hasSavedPcChoice ? "Connect to a PC" : feedback.title);
   const displayBody = hasSavedPcChoice
     ? savedPcOptions.length === 1
-      ? `Reconnect to ${savedPcOptions[0]!.label}, or pair another PC by taking a photo of its QR code.`
-      : "Choose a saved PC to reconnect, or pair another PC by taking a photo of its QR code."
+      ? `Reconnect to ${savedPcOptions[0]!.label}, or pair another PC by ${usesLivePairingQr ? "scanning" : "taking a photo of"} its QR code.`
+      : `Choose a saved PC to reconnect, or pair another PC by ${usesLivePairingQr ? "scanning" : "taking a photo of"} its QR code.`
     : feedback.body;
 
   return (

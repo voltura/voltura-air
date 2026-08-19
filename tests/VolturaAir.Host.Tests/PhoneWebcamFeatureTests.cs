@@ -191,6 +191,18 @@ public sealed class PhoneWebcamFeatureTests
     }
 
     [Fact]
+    public async Task MissingOptionalSetupHelperKeepsTheProductionFeatureAvailableForMaintenanceGuidance()
+    {
+        var setup = new PhoneWebcamSetup(Path.Combine(Path.GetTempPath(), $"missing-webcam-{Guid.NewGuid():N}.exe"));
+
+        PhoneWebcamFeatureStatus status = await setup.GetStatusAsync(CancellationToken.None);
+        await using PhoneWebcamFeature feature = await PhoneWebcamFeature.CreateAsync(setup);
+
+        Assert.Equal(PhoneWebcamFeatureState.NotInstalled, status.State);
+        Assert.Equal(status, feature.Status);
+    }
+
+    [Fact]
     public void LatestFrameQueueDisposesFramesPublishedAfterShutdown()
     {
         var owner = new TrackingMemoryOwner(PhoneWebcamFrameContract.FrameBytes);
@@ -248,12 +260,13 @@ public sealed class PhoneWebcamFeatureTests
     }
 
     [Fact]
-    public async Task MissingRequiredNativePayloadFailsProductionFeatureComposition()
+    public async Task UnverifiableNativeInstallationDisablesOnlyPhoneWebcam()
     {
-        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            PhoneWebcamFeature.CreateAsync(new UnavailableSetup()));
+        await using PhoneWebcamFeature feature = await PhoneWebcamFeature.CreateAsync(new UnverifiableSetup());
 
-        Assert.Equal("Required Phone webcam payload is missing.", exception.Message);
+        Assert.Equal(PhoneWebcamFeatureState.Unavailable, feature.Status.State);
+        Assert.Equal("The Phone webcam installation could not be verified.", feature.Status.Message);
+        Assert.False(feature.Status.IsInstalled);
     }
 
     [Fact]
@@ -382,11 +395,11 @@ public sealed class PhoneWebcamFeatureTests
         public Task<PhoneWebcamFeatureStatus> RemoveAsync(CancellationToken cancellationToken) => Task.FromResult(Failed);
     }
 
-    private sealed class UnavailableSetup : IPhoneWebcamSetup
+    private sealed class UnverifiableSetup : IPhoneWebcamSetup
     {
         private static readonly PhoneWebcamFeatureStatus Unavailable = new(
             PhoneWebcamFeatureState.Unavailable,
-            "Required Phone webcam payload is missing.");
+            "The Phone webcam installation could not be verified.");
 
         public Task<PhoneWebcamFeatureStatus> GetStatusAsync(CancellationToken cancellationToken) => Task.FromResult(Unavailable);
         public Task<PhoneWebcamFeatureStatus> InstallAsync(CancellationToken cancellationToken) => Task.FromResult(Unavailable);

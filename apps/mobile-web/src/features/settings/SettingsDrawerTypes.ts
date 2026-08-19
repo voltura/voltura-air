@@ -71,4 +71,5 @@ export interface SettingsDrawerProps {
   updateKeyboardSetting: <Key extends keyof KeyboardSettings>(key: Key, value: KeyboardSettings[Key]) => void;
   updateRemoteSetting: <Key extends keyof RemoteSettings>(key: Key, value: RemoteSettings[Key]) => void;
   updateTrackpadSetting: <Key extends keyof TrackpadSettings>(key: Key, value: TrackpadSettings[Key]) => void;
+  usesLivePairingQr: boolean;
 }

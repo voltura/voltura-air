@@ -27,7 +27,7 @@ const baseProps = {
   onOpenThirdPartyNotices: vi.fn(),
   pairedPcs: [],
   pairingQrInputRef: { current: null },
-  pairingScanMessage: "Scan the QR code shown on your PC.",
+  pairingScanMessage: "Scan.",
   presentationAvailable: true,
   refreshInstalledApp: vi.fn(),
   refreshMessage: "Reload from the PC if the home screen app looks stale.",
@@ -50,7 +50,8 @@ const baseProps = {
   updateAppSetting: vi.fn(),
   updateKeyboardSetting: vi.fn(),
   updateRemoteSetting: vi.fn(),
-  updateTrackpadSetting: vi.fn()
+  updateTrackpadSetting: vi.fn(),
+  usesLivePairingQr: false
 };
 
 describe("Gyro mouse tool", () => {

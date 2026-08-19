@@ -24,11 +24,18 @@ internal sealed class PhoneWebcamSetup : IPhoneWebcamSetup
 
     public async Task<PhoneWebcamFeatureStatus> GetStatusAsync(CancellationToken cancellationToken)
     {
-        if (!File.Exists(_setupPath) || _validateProtectedPath && !IsProtectedHelperPath())
+        if (!File.Exists(_setupPath))
+        {
+            return new PhoneWebcamFeatureStatus(
+                PhoneWebcamFeatureState.NotInstalled,
+                "Phone Webcam is not installed. Run Voltura Air installer maintenance to add it.");
+        }
+
+        if (_validateProtectedPath && !IsProtectedHelperPath())
         {
             return new PhoneWebcamFeatureStatus(
                 PhoneWebcamFeatureState.Unavailable,
-                "Phone Webcam is not installed. Run Voltura Air installer maintenance to add it.");
+                "Voltura Air could not verify the Phone Webcam installation. Run installer maintenance to repair it.");
         }
 
         if (_validateProtectedPath && !MatchesPackagedHelper())

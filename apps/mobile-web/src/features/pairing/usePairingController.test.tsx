@@ -1,15 +1,17 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ChangeEvent } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { decodeQrImage } from "../../foundation/pairing/qrCode";
+import { canUseLivePairingQrScanner, decodePairingQrImage } from "./pairingQrCapability";
 import { usePairingController } from "./usePairingController";
 
-vi.mock("../../foundation/pairing/qrCode", () => ({
-  decodeQrImage: vi.fn()
+vi.mock("./pairingQrCapability", () => ({
+  canUseLivePairingQrScanner: vi.fn(),
+  decodePairingQrImage: vi.fn()
 }));
 
 const pairToken = "a".repeat(32);
 const secondPairToken = "b".repeat(32);
+const relayRoute = "r".repeat(22);
 
 function createOptions() {
   return {
@@ -49,7 +51,8 @@ function pairingUrl(token: string, host: string): string {
 
 describe("usePairingController", () => {
   beforeEach(() => {
-    vi.mocked(decodeQrImage).mockReset();
+    vi.mocked(decodePairingQrImage).mockReset();
+    vi.mocked(canUseLivePairingQrScanner).mockReturnValue(false);
   });
 
   afterEach(() => { vi.restoreAllMocks(); });
@@ -129,9 +132,69 @@ describe("usePairingController", () => {
     expect(result.current.pairingStatusMessage).toBe("Connecting to PC...");
   });
 
+  it("uses live scanning as the HTTPS-capable default and falls back to the photo input for the page session", () => {
+    vi.mocked(canUseLivePairingQrScanner).mockReturnValue(true);
+    const inputClick = vi.fn();
+    const { result } = renderHook(() => usePairingController(createOptions()));
+    result.current.pairingQrInputRef.current = { click: inputClick } as unknown as HTMLInputElement;
+
+    act(() => { result.current.scanPairingQr(); });
+    const attemptId = result.current.livePairingScannerAttempt;
+    expect(attemptId).toBeTypeOf("number");
+    expect(result.current.usesLivePairingQr).toBe(true);
+    expect(inputClick).not.toHaveBeenCalled();
+
+    act(() => {
+      result.current.fallbackFromLivePairingQr(attemptId!, "Camera access was not allowed.", false);
+    });
+    expect(result.current.livePairingScannerAttempt).toBeNull();
+    expect(result.current.usesLivePairingQr).toBe(false);
+
+    act(() => { result.current.scanPairingQr(); });
+    expect(inputClick).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["Direct", pairingUrl(pairToken, "http://pc-live.local:51395"), "http://pc-live.local:51395"],
+    ["Relay", `https://voltura.se/a/${relayRoute}?v=1.0.0#${pairToken}`, `https://voltura.se/a/${relayRoute}`],
+    ["Secure Direct", `https://voltura.se/s/${relayRoute}?v=1.0.0#${pairToken}`, `https://voltura.se/s/${relayRoute}`]
+  ])("routes a %s live QR result through the existing parser and confirmation", (_mode, scannedText, pcUrl) => {
+    vi.mocked(canUseLivePairingQrScanner).mockReturnValue(true);
+    const options = createOptions();
+    const { result } = renderHook(() => usePairingController(options));
+
+    act(() => { result.current.scanPairingQr(); });
+    const attemptId = result.current.livePairingScannerAttempt!;
+    let accepted = false;
+    act(() => {
+      accepted = result.current.acceptLivePairingQr(attemptId, scannedText);
+    });
+
+    expect(accepted).toBe(true);
+    expect(options.beginNewPairing).toHaveBeenCalledOnce();
+    expect(result.current.pendingPairing).toEqual({ pairToken, pcUrl });
+    expect(result.current.livePairingScannerAttempt).toBeNull();
+  });
+
+  it("keeps live scanning open for a non-Voltura QR code", () => {
+    vi.mocked(canUseLivePairingQrScanner).mockReturnValue(true);
+    const options = createOptions();
+    const { result } = renderHook(() => usePairingController(options));
+
+    act(() => { result.current.scanPairingQr(); });
+    const attemptId = result.current.livePairingScannerAttempt!;
+    let accepted = true;
+    act(() => { accepted = result.current.acceptLivePairingQr(attemptId, "https://example.com/"); });
+
+    expect(accepted).toBe(false);
+    expect(result.current.livePairingScannerAttempt).toBe(attemptId);
+    expect(result.current.pairingScanMessage).toBe("No Voltura Air pairing link found in that QR code.");
+    expect(options.beginNewPairing).not.toHaveBeenCalled();
+  });
+
   it("reports a bounded reading state until the selected image finishes", async () => {
     const pending = deferred<string>();
-    vi.mocked(decodeQrImage).mockReturnValueOnce(pending.promise);
+    vi.mocked(decodePairingQrImage).mockReturnValueOnce(pending.promise);
     const { result } = renderHook(() => usePairingController(createOptions()));
 
     let scan!: Promise<void>;
@@ -147,7 +210,7 @@ describe("usePairingController", () => {
   });
 
   it("leaves an unavailable PC retry before confirming a newly scanned QR code", async () => {
-    vi.mocked(decodeQrImage).mockResolvedValue(`http://phone.local:5173/pair?t=${pairToken}&v=0.6.1&h=http%3A%2F%2Fpc-two.local%3A51395`);
+    vi.mocked(decodePairingQrImage).mockResolvedValue(`http://phone.local:5173/pair?t=${pairToken}&v=0.6.1&h=http%3A%2F%2Fpc-two.local%3A51395`);
     const options = createOptions();
     const { result } = renderHook(() => usePairingController(options));
 
@@ -165,7 +228,7 @@ describe("usePairingController", () => {
   });
 
   it("keeps the current PC retry when the selected image is not a pairing QR code", async () => {
-    vi.mocked(decodeQrImage).mockResolvedValue("https://example.com/not-a-pairing-link");
+    vi.mocked(decodePairingQrImage).mockResolvedValue("https://example.com/not-a-pairing-link");
     const options = createOptions();
     const { result } = renderHook(() => usePairingController(options));
 
@@ -209,7 +272,7 @@ describe("usePairingController", () => {
   it("keeps a faster newer QR result authoritative over an older scan", async () => {
     const first = deferred<string>();
     const second = deferred<string>();
-    vi.mocked(decodeQrImage).mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    vi.mocked(decodePairingQrImage).mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
     const options = createOptions();
     const { result } = renderHook(() => usePairingController(options));
 
@@ -236,7 +299,7 @@ describe("usePairingController", () => {
   it("ignores an older decode error after a newer scan succeeds", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => { /* Expected boundary is asserted below. */ });
     const first = deferred<string>();
-    vi.mocked(decodeQrImage).mockReturnValueOnce(first.promise).mockResolvedValueOnce(pairingUrl(secondPairToken, "http://pc-new.local:51395"));
+    vi.mocked(decodePairingQrImage).mockReturnValueOnce(first.promise).mockResolvedValueOnce(pairingUrl(secondPairToken, "http://pc-new.local:51395"));
     const options = createOptions();
     const { result } = renderHook(() => usePairingController(options));
 
@@ -257,7 +320,7 @@ describe("usePairingController", () => {
   it("keeps the latest failure when an older scan later succeeds", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => { /* Expected current failure. */ });
     const first = deferred<string>();
-    vi.mocked(decodeQrImage).mockReturnValueOnce(first.promise).mockRejectedValueOnce(new Error("current decode"));
+    vi.mocked(decodePairingQrImage).mockReturnValueOnce(first.promise).mockRejectedValueOnce(new Error("current decode"));
     const options = createOptions();
     const { result } = renderHook(() => usePairingController(options));
 
@@ -279,7 +342,7 @@ describe("usePairingController", () => {
   it.each(["success", "failure"] as const)("invalidates a pending scan on unmount before %s", async (outcome) => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => { /* Stale work must stay silent. */ });
     const pending = deferred<string>();
-    vi.mocked(decodeQrImage).mockReturnValueOnce(pending.promise);
+    vi.mocked(decodePairingQrImage).mockReturnValueOnce(pending.promise);
     const options = createOptions();
     const { result, unmount } = renderHook(() => usePairingController(options));
     let scan!: Promise<void>;
@@ -302,7 +365,7 @@ describe("usePairingController", () => {
   it("treats repeated selection of the same file as a newer generation", async () => {
     const first = deferred<string>();
     const second = deferred<string>();
-    vi.mocked(decodeQrImage).mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    vi.mocked(decodePairingQrImage).mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
     const options = createOptions();
     const { result } = renderHook(() => usePairingController(options));
     const file = new File(["same"], "same.png", { type: "image/png" });
@@ -324,7 +387,7 @@ describe("usePairingController", () => {
       await firstScan;
     });
 
-    expect(decodeQrImage).toHaveBeenCalledTimes(2);
+    expect(decodePairingQrImage).toHaveBeenCalledTimes(2);
     expect(result.current.pendingPairing?.pairToken).toBe(secondPairToken);
   });
 });

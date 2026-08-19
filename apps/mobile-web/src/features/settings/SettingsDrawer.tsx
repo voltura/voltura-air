@@ -184,6 +184,7 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
             renamePc={props.renamePc}
             scanPairingQr={props.scanPairingQr}
             selectPc={props.selectPc}
+            usesLivePairingQr={props.usesLivePairingQr}
           />
         </SettingsSectionDetails>
 

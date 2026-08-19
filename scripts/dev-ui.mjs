@@ -146,7 +146,6 @@ async function ensureDebugDependencies() {
 
 async function launchBrowser(chromium, qrCode, pairingUrl) {
   const url = new URL(pairingUrl);
-  url.searchParams.set("debug", "1");
 
   browserContext = await launchPersistentContext(chromium);
   const page = browserContext.pages()[0] ?? await browserContext.newPage();
@@ -662,7 +661,7 @@ async function verifyResponsiveTextTransferLayout(page) {
 async function verifyResponsiveUrlOpenLayout(page) {
   await page.setViewportSize({ width: 393, height: 852 });
   await page.getByRole("button", { name: "Remote", exact: true }).click();
-  await page.getByRole("button", { name: "Fn", exact: true }).click();
+  await page.getByRole("button", { name: "Functions", exact: true }).click();
   await page.getByRole("button", { name: "Open URL", exact: true }).click();
   const urlDialog = page.getByRole("dialog", { name: "Open URL on PC", exact: true });
   const input = urlDialog.getByRole("textbox", { name: "Web address", exact: true });

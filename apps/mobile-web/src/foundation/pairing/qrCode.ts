@@ -1,28 +1,94 @@
-import type jsQrDecoder from "jsqr";
+export interface QrDecoderSession {
+  decode: (imageData: ImageData, inversionAttempts?: "dontInvert" | "onlyInvert") => Promise<string | null>;
+  dispose: () => void;
+}
 
-type QrDecoder = typeof jsQrDecoder;
+interface QrDecodeResponse {
+  id: number;
+  data?: string;
+  error?: string;
+}
 
-let qrDecoderPromise: Promise<QrDecoder> | null = null;
+export function createQrDecoderSession(): QrDecoderSession {
+  const worker = new Worker(new URL("./qrDecoder.worker.ts", import.meta.url), { type: "module" });
+  let nextId = 0;
+  let pending: { id: number; reject: (error: Error) => void; resolve: (data: string | null) => void } | null = null;
+  let disposed = false;
+
+  worker.onmessage = (event: MessageEvent<QrDecodeResponse>) => {
+    if (pending?.id !== event.data.id) {
+      return;
+    }
+
+    const current = pending;
+    pending = null;
+    if (event.data.error) {
+      current.reject(new Error(event.data.error));
+    } else {
+      current.resolve(event.data.data ?? null);
+    }
+  };
+  worker.onerror = () => {
+    const current = pending;
+    pending = null;
+    current?.reject(new Error("QR decoder worker failed."));
+  };
+
+  return {
+    decode(imageData, inversionAttempts = "dontInvert") {
+      if (disposed) {
+        return Promise.reject(new Error("QR decoder is disposed."));
+      }
+      if (pending) {
+        return Promise.reject(new Error("QR decoder is busy."));
+      }
+
+      const id = ++nextId;
+      const pixels = new Uint8ClampedArray(imageData.data);
+      return new Promise<string | null>((resolve, reject) => {
+        pending = { id, reject, resolve };
+        worker.postMessage({
+          id,
+          height: imageData.height,
+          inversionAttempts,
+          pixels: pixels.buffer,
+          width: imageData.width
+        }, [pixels.buffer]);
+      });
+    },
+    dispose() {
+      if (disposed) {
+        return;
+      }
+      disposed = true;
+      worker.terminate();
+      const current = pending;
+      pending = null;
+      current?.reject(new Error("QR decoder was cancelled."));
+    }
+  };
+}
 
 export async function decodeQrImage(file: File): Promise<string> {
-  const imageUrl = URL.createObjectURL(file);
+  const decoder = createQrDecoderSession();
+  let imageUrl: string | null = null;
   try {
-    const jsQR = await loadQrDecoder();
+    imageUrl = URL.createObjectURL(file);
     const image = await loadImage(imageUrl);
     const imageData = drawImageToCanvas(image, 1600);
-    const code = scanImageData(imageData, jsQR, "dontInvert");
-    if (code?.data) {
-      return code.data;
+    const code = await decoder.decode(imageData);
+    if (code) {
+      return code;
     }
 
-    const centerCode = scanCenterCrop(imageData, jsQR);
-    if (centerCode?.data) {
-      return centerCode.data;
+    const centerCode = await decoder.decode(cropCenter(imageData, 0.8));
+    if (centerCode) {
+      return centerCode;
     }
 
-    const invertedCode = scanImageData(imageData, jsQR, "onlyInvert");
-    if (invertedCode?.data) {
-      return invertedCode.data;
+    const invertedCode = await decoder.decode(imageData, "onlyInvert");
+    if (invertedCode) {
+      return invertedCode;
     }
 
     throw new Error("QR code not found in image");
@@ -33,13 +99,11 @@ export async function decodeQrImage(file: File): Promise<string> {
 
     throw new Error(`Failed to decode QR code: ${String(error)}`, { cause: error });
   } finally {
-    URL.revokeObjectURL(imageUrl);
+    decoder.dispose();
+    if (imageUrl) {
+      URL.revokeObjectURL(imageUrl);
+    }
   }
-}
-
-function loadQrDecoder(): Promise<QrDecoder> {
-  qrDecoderPromise ??= import("jsqr").then((module) => module.default);
-  return qrDecoderPromise;
 }
 
 function drawImageToCanvas(image: HTMLImageElement, maxDimension: number): ImageData {
@@ -56,15 +120,6 @@ function drawImageToCanvas(image: HTMLImageElement, maxDimension: number): Image
 
   context.drawImage(image, 0, 0, width, height);
   return context.getImageData(0, 0, width, height);
-}
-
-function scanImageData(imageData: ImageData, jsQR: QrDecoder, inversionAttempts: "dontInvert" | "onlyInvert") {
-  return jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts });
-}
-
-function scanCenterCrop(imageData: ImageData, jsQR: QrDecoder) {
-  const centerCrop = cropCenter(imageData, 0.8);
-  return scanImageData(centerCrop, jsQR, "dontInvert");
 }
 
 function cropCenter(imageData: ImageData, ratio: number): ImageData {

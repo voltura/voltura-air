@@ -24,6 +24,7 @@ type ConnectionSettingsProps = Pick<
   | "renamePc"
   | "scanPairingQr"
   | "selectPc"
+  | "usesLivePairingQr"
 >;
 
 export function ConnectionSettingsSection({
@@ -41,8 +42,10 @@ export function ConnectionSettingsSection({
   renameDevice,
   renamePc,
   scanPairingQr,
-  selectPc
+  selectPc,
+  usesLivePairingQr
 }: ConnectionSettingsProps) {
+  const pairingQrActionLabel = usesLivePairingQr ? "Scan QR code" : "Take photo of QR code";
   const [manualHost, setManualHost] = useState("");
   const [manualHostError, setManualHostError] = useState("");
   const manualHostErrorId = useId();
@@ -117,7 +120,7 @@ export function ConnectionSettingsSection({
         <div className="install-title"><Camera aria-hidden="true" /><span>Pair from QR code</span></div>
         <p>{pairingScanMessage}</p>
         <input ref={pairingQrInputRef} className="visually-hidden" type="file" accept="image/*" capture="environment" disabled={isPairingQrReading} onChange={(event) => { void onPairingQrSelected(event); }} />
-        <button type="button" disabled={isPairingQrReading} aria-busy={isPairingQrReading || undefined} onClick={scanPairingQr}><Camera aria-hidden="true" /><span>{isPairingQrReading ? "Reading QR code…" : "Take photo of QR code"}</span></button>
+        <button type="button" disabled={isPairingQrReading} aria-busy={isPairingQrReading || undefined} onClick={scanPairingQr}><Camera aria-hidden="true" /><span>{isPairingQrReading ? "Reading QR code…" : pairingQrActionLabel}</span></button>
       </div>
 
       <div className="install-card">

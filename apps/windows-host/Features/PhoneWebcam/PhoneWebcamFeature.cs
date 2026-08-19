@@ -101,12 +101,6 @@ internal sealed class PhoneWebcamFeature : IPhoneWebcamFeature, IAsyncDisposable
     {
         var feature = new PhoneWebcamFeature(setup);
         feature.SetStatus(await feature._setup.GetStatusAsync(cancellationToken).ConfigureAwait(false));
-        if (feature.Status.State == PhoneWebcamFeatureState.Unavailable)
-        {
-            string message = feature.Status.Message;
-            await feature.DisposeAsync().ConfigureAwait(false);
-            throw new InvalidOperationException(message);
-        }
         if (feature.Status.IsInstalled)
         {
             feature.TryStartPipe();

@@ -118,6 +118,23 @@ describe("PairingStatus", () => {
     expect(primaryAction).toBe(document.activeElement);
   });
 
+  it("describes live scanning without changing the saved-PC recovery structure", () => {
+    render(
+      <PairingStatus
+        blocksAppInteraction
+        message="Choose a saved PC"
+        onPrimaryAction={vi.fn()}
+        onSavedPcChange={vi.fn()}
+        savedPcOptions={[{ id: "pc-a", label: "Office PC" }]}
+        secondaryLabel="Scan QR code"
+        selectedSavedPcId="pc-a"
+        usesLivePairingQr
+      />
+    );
+
+    expect(screen.getByText("Reconnect to Office PC, or pair another PC by scanning its QR code.")).toBeTruthy();
+  });
+
   it("keeps the primary action focused and bounded through reconnect progress", () => {
     const onPrimaryAction = vi.fn();
     const view = render(

@@ -386,8 +386,12 @@ refresh its installed shell once after reconnect.
 
 ### Pairing and connection states
 
-QR open/photo scanning, device-name confirmation, saved-PC reconnect, and manual
-origin/address/port/link entry are supported. The UI distinguishes needs
+QR open/photo scanning, HTTPS live camera scanning, device-name confirmation,
+saved-PC reconnect, and manual origin/address/port/link entry are supported.
+Live scanning starts only after the user requests it, prefers the rear camera,
+decodes transient frames locally, and returns to photo capture when camera
+access is declined, cancelled, unavailable, or interrupted. HTTP keeps photo
+capture as the QR option. The UI distinguishes needs
 pairing, connecting, paired, rejected, unavailable/retrying, and disconnected.
 It explains unreadable/non-Voltura QR codes, expired codes, revoked devices,
 invalid reconnect proof, unreachable hosts, and input acknowledgement failures.

@@ -127,6 +127,14 @@ ordinary access logs. The website and Cloudflare may still process normal
 request metadata such as IP address, user agent, path, opaque route, and
 timestamp for delivery and security.
 
+When the user starts live pairing QR scanning on the HTTPS PWA, the browser
+requests video-only camera access and Voltura Air decodes bounded camera frames
+locally in a temporary browser worker. Camera frames and unrelated QR contents
+are not transmitted, logged, or persisted. The camera stream, decoder worker,
+and frames are released after a valid pairing code, cancellation, fallback,
+page hiding, camera loss, or leaving the scanner. Photo QR decoding follows the
+same local-only handling.
+
 Typed or dictated text is delivered to Windows only when the user requests it.
 Text may become part of the Windows clipboard or the selected destination
 application as requested by the user. PC clipboard text is returned to a paired

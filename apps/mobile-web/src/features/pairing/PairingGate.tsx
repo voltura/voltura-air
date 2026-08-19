@@ -24,6 +24,7 @@ interface PairingGateProps {
   state: ConnectionState;
   tryManualReconnect: () => void;
   tryReconnectPc: (pcId: string) => void;
+  usesLivePairingQr: boolean;
 }
 
 export function PairingGate({
@@ -44,8 +45,11 @@ export function PairingGate({
   setPairingDeviceName,
   state,
   tryManualReconnect,
-  tryReconnectPc
+  tryReconnectPc,
+  usesLivePairingQr
 }: PairingGateProps) {
+  const pairingQrActionLabel = usesLivePairingQr ? "Scan QR code" : "Take photo of QR code";
+  const newPairingQrActionLabel = usesLivePairingQr ? "Scan new QR code" : "Take photo of new QR code";
   const [selectedReconnectPcId, setSelectedReconnectPcId] = useState("");
   const selectedReconnectPc = reconnectablePcs.find((pc) => pc.id === selectedReconnectPcId) ?? reconnectablePcs[0] ?? null;
 
@@ -87,12 +91,13 @@ export function PairingGate({
         onSecondaryAction={canReconnectSavedPc ? scanPairingQr : undefined}
         secondaryActionDisabled={isPairingQrReading}
         onManualHostSubmit={connectManualHost}
-        primaryLabel={pendingPairing ? "Pair" : canReconnectSavedPc ? "Try reconnect" : undefined}
+        primaryLabel={pendingPairing ? "Pair" : canReconnectSavedPc ? "Try reconnect" : pairingQrActionLabel}
         savedPcOptions={canReconnectSavedPc
           ? reconnectablePcs.map((pc) => ({ id: pc.id, label: getPcDisplayName(pc) }))
           : undefined}
-        secondaryLabel={canReconnectSavedPc ? "Take photo of QR code" : undefined}
+        secondaryLabel={canReconnectSavedPc ? pairingQrActionLabel : undefined}
         selectedSavedPcId={selectedReconnectPc?.id}
+        usesLivePairingQr={usesLivePairingQr}
         onSavedPcChange={setSelectedReconnectPcId}
       />
     );
@@ -106,7 +111,7 @@ export function PairingGate({
         message={message}
         onPrimaryAction={scanPairingQr}
         onManualHostSubmit={connectManualHost}
-        primaryLabel="Take photo of new QR code"
+        primaryLabel={newPairingQrActionLabel}
         primaryActionPending={isPairingQrReading}
       />
     );
@@ -130,7 +135,9 @@ export function PairingGate({
       onSecondaryAction={scanPairingQr}
       secondaryActionDisabled={isPairingQrReading}
       onManualHostSubmit={connectManualHost}
+      secondaryLabel={newPairingQrActionLabel}
       transportMode={activePc.transportMode}
+      usesLivePairingQr={usesLivePairingQr}
     />
   );
 }

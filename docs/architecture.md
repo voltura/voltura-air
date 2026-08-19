@@ -73,6 +73,7 @@ rollback and shutdown release composition-owned resources in reverse order.
 | Logs and files | Producers use bounded non-blocking queues. Filesystem work stays off input/UI loops. Stores validate bounds and content, replace atomically, and preserve the last complete state. |
 | WPF and tray | Dispatcher work is owned and bounded. Timers, hooks, subscriptions, icons, windows, and refresh sessions are released on unload/shutdown. |
 | Mobile effects | Each effect releases sockets, listeners, timers, pointer capture, animation frames, and speech events it acquires. |
+| Mobile pairing QR capture | The pairing feature owns one temporary camera stream and one lazy decoder worker per active scan. Live input is a centered capacity-one frame at a bounded cadence; cancellation, success, hiding, track loss, replacement, or unmount stops every track, timer, listener, and worker. Photo capture uses the same worker and pairing-link parser without retaining frames. |
 | Cursor recovery | Cursor overrides require an independent recovery process. Host exit cannot terminate it. If either process exits, the remaining process restores the Windows cursor scheme. |
 
 Optional features allocate no feature-specific worker, timer, subscription,

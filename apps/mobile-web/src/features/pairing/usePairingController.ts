@@ -4,8 +4,8 @@ import {
   type ManualConnectionTarget,
   type PairingLink
 } from "../../foundation/pairing/pairingLink";
-import { decodeQrImage } from "../../foundation/pairing/qrCode";
 import { getDefaultDeviceName } from "../../foundation/platform/clientEnvironment";
+import { canUseLivePairingQrScanner, decodePairingQrImage } from "./pairingQrCapability";
 
 interface PairingControllerOptions {
   beginNewPairing: () => void;
@@ -39,8 +39,30 @@ export function usePairingController(options: PairingControllerOptions) {
   const scanGenerationRef = useRef(0);
   const readingQrRef = useRef(false);
   const [isPairingQrReading, setIsPairingQrReading] = useState(false);
+  const [livePairingScannerAttempt, setLivePairingScannerAttempt] = useState<number | null | false>(null);
+  const usesLivePairingQr = canUseLivePairingQrScanner() && livePairingScannerAttempt !== false;
 
   useEffect(() => () => { scanGenerationRef.current += 1; }, []);
+
+  const acceptScannedPairingText = (scannedText: string, scanGeneration: number): boolean => {
+    if (scanGenerationRef.current !== scanGeneration) {
+      return false;
+    }
+
+    const pairingInfo = parsePairingLink(scannedText);
+    if (!pairingInfo) {
+      setPairingScanMessage("No Voltura Air pairing link found in that QR code.");
+      return false;
+    }
+
+    beginNewPairing();
+    setLivePairingScannerAttempt(null);
+    setPendingPairing(pairingInfo);
+    setPairingDeviceName(deviceName === pairingDeviceNamePlaceholder ? "" : deviceName);
+    setPairingScanMessage("Confirm the device name shown on the PC, or change it before pairing.");
+    setIsSettingsOpen(false);
+    return true;
+  };
 
   const confirmPendingPairing = () => {
     if (!pendingPairing) {
@@ -71,7 +93,32 @@ export function usePairingController(options: PairingControllerOptions) {
   };
 
   const scanPairingQr = () => {
-    if (!readingQrRef.current) {
+    if (readingQrRef.current || typeof livePairingScannerAttempt === "number") {
+      return;
+    }
+    if (usesLivePairingQr) {
+      const scanGeneration = scanGenerationRef.current + 1;
+      scanGenerationRef.current = scanGeneration;
+      setPairingScanMessage("Allow camera access to scan the QR code shown on the PC.");
+      setLivePairingScannerAttempt(scanGeneration);
+      return;
+    }
+
+    pairingQrInputRef.current?.click();
+  };
+
+  const acceptLivePairingQr = (attemptId: number, scannedText: string): boolean =>
+    acceptScannedPairingText(scannedText, attemptId);
+
+  const fallbackFromLivePairingQr = (attemptId: number, scanMessage: string, openPhoto: boolean) => {
+    if (scanGenerationRef.current !== attemptId) {
+      return;
+    }
+
+    scanGenerationRef.current += 1;
+    setLivePairingScannerAttempt(false);
+    setPairingScanMessage(scanMessage);
+    if (openPhoto) {
       pairingQrInputRef.current?.click();
     }
   };
@@ -92,7 +139,7 @@ export function usePairingController(options: PairingControllerOptions) {
 
       let scannedText: string;
       try {
-        scannedText = await decodeQrImage(file);
+        scannedText = await decodePairingQrImage(file);
       } catch (decodeError) {
         if (scanGenerationRef.current !== scanGeneration) {
           return;
@@ -111,17 +158,7 @@ export function usePairingController(options: PairingControllerOptions) {
         return;
       }
 
-      const pairingInfo = parsePairingLink(scannedText);
-      if (!pairingInfo) {
-        setPairingScanMessage("No Voltura Air pairing link found in that QR code.");
-        return;
-      }
-
-      beginNewPairing();
-      setPendingPairing(pairingInfo);
-      setPairingDeviceName(deviceName === pairingDeviceNamePlaceholder ? "" : deviceName);
-      setPairingScanMessage("Confirm the device name shown on the PC, or change it before pairing.");
-      setIsSettingsOpen(false);
+      acceptScannedPairingText(scannedText, scanGeneration);
     } catch (error) {
       if (scanGenerationRef.current !== scanGeneration) {
         return;
@@ -137,10 +174,13 @@ export function usePairingController(options: PairingControllerOptions) {
   };
 
   return {
+    acceptLivePairingQr,
     confirmPendingPairing,
     connectManualHost,
+    fallbackFromLivePairingQr,
     onPairingQrSelected,
     isPairingQrReading,
+    livePairingScannerAttempt: typeof livePairingScannerAttempt === "number" ? livePairingScannerAttempt : null,
     pairingDeviceName,
     pairingDeviceNamePlaceholder,
     pairingQrInputRef,
@@ -148,6 +188,7 @@ export function usePairingController(options: PairingControllerOptions) {
     pairingStatusMessage,
     pendingPairing,
     scanPairingQr,
-    setPairingDeviceName
+    setPairingDeviceName,
+    usesLivePairingQr
   };
 }

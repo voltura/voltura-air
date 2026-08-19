@@ -6,6 +6,16 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.0.1
+
+- Fixed Voltura Air failing to start when the optional **Phone Webcam** feature
+  was not installed or had been removed. Voltura Air now starts normally and
+  keeps Phone Webcam disabled until it is added through installer maintenance.
+- Pairing through Voltura Air's secure web app can now scan the PC pairing QR
+  code directly with the phone camera, without taking a photo first. If camera
+  access is declined, cancelled, or unavailable, pairing automatically falls
+  back to the existing photo option.
+
 ## v1.0.0
 
 - Fixed uninstall and upgrade failing when Windows camera services were using

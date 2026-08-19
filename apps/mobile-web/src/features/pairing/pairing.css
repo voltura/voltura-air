@@ -255,6 +255,94 @@
   color: var(--muted);
 }
 
+.modal-dialog.pairing-qr-scanner-dialog {
+  width: min(520px, calc(var(--modal-visual-viewport-width, 100vw) - var(--space-2xl)));
+}
+
+.pairing-qr-scanner {
+  display: grid;
+  gap: var(--space-md);
+  justify-items: center;
+  width: 100%;
+}
+
+.pairing-qr-preview {
+  position: relative;
+  width: min(100%, 420px);
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-medium);
+  background: var(--bg);
+}
+
+.pairing-qr-preview video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pairing-qr-guide {
+  position: absolute;
+  inset: 14%;
+  border: 3px solid var(--on-action);
+  border-radius: var(--radius-small);
+  box-shadow: 0 0 0 999px color-mix(in srgb, black 28%, transparent);
+  pointer-events: none;
+}
+
+.pairing-qr-waiting {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+.pairing-qr-waiting svg {
+  width: 48px;
+  height: 48px;
+}
+
+.pairing-qr-scanner p {
+  margin: 0;
+  color: var(--muted);
+  text-align: center;
+}
+
+.pairing-qr-scanner-actions .pairing-qr-photo-action {
+  --control-background: var(--action);
+
+  border-color: var(--accent);
+  color: var(--on-action);
+}
+
+@media (orientation: landscape) and (height <= 560px) {
+  .modal-dialog.pairing-qr-scanner-dialog {
+    width: min(720px, calc(var(--modal-visual-viewport-width, 100vw) - var(--space-2xl)));
+  }
+
+  .pairing-qr-scanner-dialog > .modal-dialog-body {
+    flex-basis: 0;
+    min-height: 0;
+  }
+
+  .pairing-qr-preview {
+    width: min(100%, 220px);
+  }
+
+  .pairing-qr-scanner-actions {
+    min-width: 188px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-sm);
+  }
+
+  .pairing-qr-scanner-actions button {
+    width: 100%;
+  }
+}
+
 @media (width >= 560px) {
   .pairing-required:not(.connection-blocking) .pairing-secondary-actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -16,6 +16,8 @@ Read only task-relevant sections unless changing broad contracts.
 
 ## Work
 
+- Follow the documented workflow. Ask about missing required steps. Do not invent
+  extra work; diagnose workflow failures.
 - Prefer the simplest design that fits existing architecture. Reuse/extend existing
   owners, logic, protocols, and models before adding services/messages/state/storage/
   frameworks; new abstractions require a concrete gap.

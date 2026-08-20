@@ -2,12 +2,14 @@ using System.Windows;
 using System.Runtime.InteropServices;
 using Forms = System.Windows.Forms;
 using WpfApplication = System.Windows.Application;
+using VolturaAir.Host.Features.PhoneWebcam;
 
 namespace VolturaAir.Host;
 
 internal static class Program
 {
     private const int DevelopmentRestartExitCode = 23;
+    private static readonly TimeSpan PhoneMicrophoneProbeTimeout = TimeSpan.FromSeconds(5);
     private static WpfHostRuntime? s_runtime;
     private static IDisposable? s_isolatedSettingsScope;
     private static int s_activationRequested;
@@ -17,6 +19,13 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        if (args.Contains("--phone-microphone-status", StringComparer.OrdinalIgnoreCase))
+        {
+            Environment.ExitCode = GetPhoneMicrophoneStatusExitCodeAsync(
+                static () => Task.Run(() => new PhoneWebcamAudioTarget().Refresh().State),
+                PhoneMicrophoneProbeTimeout).GetAwaiter().GetResult();
+            return;
+        }
         if (args.Contains("--installer-health-check", StringComparer.OrdinalIgnoreCase))
         {
             RunInstallerHealthCheck(args);
@@ -82,6 +91,26 @@ internal static class Program
         if (Interlocked.Exchange(ref s_restartRequested, 0) != 0 && !IsDevelopmentHostSupervisor())
         {
             RestartCurrentProcess();
+        }
+    }
+
+    internal static async Task<int> GetPhoneMicrophoneStatusExitCodeAsync(
+        Func<Task<PhoneWebcamAudioTargetState>> probe,
+        TimeSpan timeout)
+    {
+        try
+        {
+            return await probe().WaitAsync(timeout).ConfigureAwait(false) switch
+            {
+                PhoneWebcamAudioTargetState.Ready => 0,
+                PhoneWebcamAudioTargetState.InstalledButUnavailable => 10,
+                PhoneWebcamAudioTargetState.NotInstalled => 20,
+                _ => 30
+            };
+        }
+        catch (Exception)
+        {
+            return 30;
         }
     }
 

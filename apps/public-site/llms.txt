@@ -22,9 +22,11 @@ for a Windows 11 PC.
 - A touch-first Files on PC tool for browsing and managing files that remain on
   the Windows host or mapped drives, with one/two-panel layouts, background
   operations, Windows clipboard integration, and separate host permissions.
-- An optional video-only Phone webcam tool that exposes a selected paired-phone
-  camera as a current-user Windows virtual camera over Enhanced Direct or Relay,
-  with pre-start selection, live camera switching, and immediate track cleanup.
+- An optional Phone webcam tool with default-off audio that exposes a selected
+  paired-phone camera over Enhanced Direct or Relay. Active audio can be muted from
+  the phone and tested through the Windows page. Audio requires user-installed
+  VB-CABLE from VB-Audio; it is third-party donationware, Voltura Air does not include
+  or distribute it, and the user is responsible for the applicable licence.
 - Keep Windows awake while Voltura Air runs, with an optional Keep screen on
   setting.
 - Host-controlled permissions for paired devices and disruptive PC actions.

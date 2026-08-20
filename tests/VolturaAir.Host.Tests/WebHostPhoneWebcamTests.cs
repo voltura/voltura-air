@@ -38,7 +38,7 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
             Assert.False(capability.GetProperty("canUse").GetBoolean());
 
             const string operationId = "pipe-failure-start";
-            string transcript = PhoneWebcamCoordinator.StartTranscript("client-webcam", operationId, 1920, 1080, 30);
+            string transcript = PhoneWebcamCoordinator.StartTranscript("client-webcam", operationId, 1920, 1080, 30, false);
             JsonElement start = await SendUntilTypeAsync(control, new
             {
                 type = "phone.webcam.start",
@@ -46,6 +46,7 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
                 captureWidth = 1920,
                 captureHeight = 1080,
                 captureFps = 30,
+                useMicrophone = false,
                 clientSignature = reconnectKey.SignPayload(transcript)
             }, "phone.webcam.start.result");
             Assert.False(start.GetProperty("succeeded").GetBoolean());
@@ -78,10 +79,10 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
             Assert.True(capability.GetProperty("enabled").GetBoolean());
             Assert.True(capability.GetProperty("permissionGranted").GetBoolean());
             Assert.True(capability.GetProperty("canUse").GetBoolean());
-            Assert.True(capability.GetProperty("videoOnly").GetBoolean());
+            Assert.False(capability.GetProperty("microphoneAvailable").GetBoolean());
 
             const string operationId = "webcam-start-1";
-            string startTranscript = PhoneWebcamCoordinator.StartTranscript("client-webcam", operationId, 1920, 1080, 30);
+            string startTranscript = PhoneWebcamCoordinator.StartTranscript("client-webcam", operationId, 1920, 1080, 30, false);
             JsonElement start = await SendUntilTypeAsync(control, new
             {
                 type = "phone.webcam.start",
@@ -89,6 +90,7 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
                 captureWidth = 1920,
                 captureHeight = 1080,
                 captureFps = 30,
+                useMicrophone = false,
                 clientSignature = reconnectKey.SignPayload(startTranscript)
             }, "phone.webcam.start.result");
             Assert.True(start.GetProperty("succeeded").GetBoolean());
@@ -118,6 +120,46 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
             JsonElement statusAfterStop = await SendUntilTypeAsync(control, new { type = "status.get" }, "status");
             Assert.True(statusAfterStop.GetProperty("connected").GetBoolean());
             Assert.True(statusAfterStop.GetProperty("capabilities").GetProperty("phoneWebcam").GetProperty("canUse").GetBoolean());
+        }
+        finally
+        {
+            AppPermissionSettings.Save(originalPermissions);
+        }
+    }
+
+    [Fact]
+    public async Task FailureBeforeActivePublicationRejectsTheAnswerAndReleasesTheSession()
+    {
+        HostPermissionSet originalPermissions = AppPermissionSettings.Load();
+        try
+        {
+            AppPermissionSettings.Save(originalPermissions with { AllowPhoneWebcam = true });
+            var failedPeer = new FakePhoneWebcamPeer(stopWhenSubscribed: true);
+            var replacementPeer = new FakePhoneWebcamPeer();
+            await using var fixture = await WebHostFixture.StartAsync(
+                phoneWebcamFeature: new InstalledPhoneWebcamFeature(),
+                phoneWebcamPeerFactory: new QueuePhoneWebcamPeerFactory(failedPeer, replacementPeer));
+            using var reconnectKey = new PairingTestKey();
+            using WebSocket control = await ConnectAsync(fixture.WebHost);
+            await PairAsync(control, fixture.Manager, reconnectKey);
+
+            const string operationId = "webcam-startup-failure";
+            JsonElement start = await StartAsync(control, reconnectKey, operationId);
+            string offerHash = HashSdp(start.GetProperty("offerSdp").GetString()!);
+            JsonElement answer = await SendUntilTypeAsync(control, new
+            {
+                type = "phone.webcam.answer",
+                operationId,
+                answerSdp = FakePhoneWebcamPeer.Answer,
+                clientSignature = reconnectKey.SignPayload(PhoneWebcamCoordinator.AnswerTranscript(
+                    "client-webcam", operationId, offerHash, HashSdp(FakePhoneWebcamPeer.Answer)))
+            }, "phone.webcam.answer.result");
+
+            Assert.False(answer.GetProperty("succeeded").GetBoolean());
+            Assert.Equal("invalid-answer", answer.GetProperty("code").GetString());
+            Assert.True(failedPeer.Disposed);
+            Assert.True((await StartAsync(control, reconnectKey, "webcam-after-startup-failure"))
+                .GetProperty("succeeded").GetBoolean());
         }
         finally
         {
@@ -192,7 +234,8 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
                 captureWidth = 1920,
                 captureHeight = 1080,
                 captureFps = 30,
-                clientSignature = reconnectKey.SignPayload(PhoneWebcamCoordinator.StartTranscript("client-webcam", operationId, 1920, 1080, 30))
+                useMicrophone = false,
+                clientSignature = reconnectKey.SignPayload(PhoneWebcamCoordinator.StartTranscript("client-webcam", operationId, 1920, 1080, 30, false))
             }, "phone.webcam.start.result");
             string offerHash = HashSdp(start.GetProperty("offerSdp").GetString()!);
             _ = await SendUntilTypeAsync(control, new
@@ -236,6 +279,7 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
                 captureWidth = 1920,
                 captureHeight = 1080,
                 captureFps = 30,
+                useMicrophone = false,
                 clientSignature = "invalid"
             }, "phone.webcam.start.result");
 
@@ -496,7 +540,8 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
             captureWidth = 1920,
             captureHeight = 1080,
             captureFps = 30,
-            clientSignature = reconnectKey.SignPayload(PhoneWebcamCoordinator.StartTranscript("client-webcam", operationId, 1920, 1080, 30))
+            useMicrophone = false,
+            clientSignature = reconnectKey.SignPayload(PhoneWebcamCoordinator.StartTranscript("client-webcam", operationId, 1920, 1080, 30, false))
         }, "phone.webcam.start.result");
 
     private static async Task CompleteSessionAsync(WebSocket control, PairingTestKey reconnectKey, string operationId)
@@ -656,19 +701,29 @@ public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
 
     private sealed class FakePhoneWebcamPeer(
         Action<string>? applyAnswer = null,
-        Func<ValueTask>? dispose = null) : IPhoneWebcamWebRtcPeer
+        Func<ValueTask>? dispose = null,
+        bool stopWhenSubscribed = false) : IPhoneWebcamWebRtcPeer
     {
         internal const string Offer = "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\na=rtpmap:96 H264/90000\r\n";
         internal const string Answer = "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\na=rtpmap:96 H264/90000\r\n";
         public event Action<byte[], uint>? AccessUnitReceived { add { } remove { } }
-        public event EventHandler? Stopped;
+        private EventHandler? _stopped;
+        public event EventHandler? Stopped
+        {
+            add
+            {
+                _stopped += value;
+                if (stopWhenSubscribed) value?.Invoke(this, EventArgs.Empty);
+            }
+            remove => _stopped -= value;
+        }
         public Task TrackOpen => Task.CompletedTask;
         internal bool Disposed { get; private set; }
         internal string? AppliedAnswer { get; private set; }
         public Task<string> CreateOfferAsync(CancellationToken cancellationToken) => Task.FromResult(Offer);
         public void ApplyAnswer(string answerSdp) { applyAnswer?.Invoke(answerSdp); AppliedAnswer = answerSdp; }
         public void RequestKeyFrame() { }
-        internal void Stop() => Stopped?.Invoke(this, EventArgs.Empty);
+        internal void Stop() => _stopped?.Invoke(this, EventArgs.Empty);
         public async ValueTask DisposeAsync()
         {
             if (dispose is not null)

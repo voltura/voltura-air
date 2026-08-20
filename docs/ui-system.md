@@ -199,7 +199,10 @@ The camera view contains one expand/restore action. Expanded mode uses the whole
 application viewport, survives rotation, and restores into the same workspace;
 it does not stop or renegotiate the webcam session. The phone camera view mirrors
 the local track being sent and is not presented as proof of the decoded Windows
-virtual-camera output.
+virtual-camera output. **Use microphone** is an unchecked capability-gated control;
+selecting it requests browser permission from that gesture. **Mute** appears only
+after the permitted audio track is active and does not add another negotiation or
+control-message state.
 
 ## Interaction states
 

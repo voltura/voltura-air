@@ -57,10 +57,8 @@ files are rebuilt, never hand-edited.
 | [TODO](todo.md) | Approved work | Prioritized, decision-ready outcomes. |
 | [Ideas](ideas.md) | Possible work | Directions awaiting decisions/evidence. |
 
-## Isolated experiments
+## Test evidence
 
 | Document | Role | Read/update |
 | --- | --- | --- |
-| [Phone-as-webcam host spike](../apps/webrtc-spike-host/README.md) | Experimental evidence | Isolated Windows virtual-camera host, validation gates, and measured results. |
-| [Phone-as-webcam browser spike](../apps/secure-web-spike/README.md) | Experimental operations | Isolated HTTPS browser deployment and cleanup. |
 | [Phone-webcam decoder test-data notice](../tests/VolturaAir.Host.Tests/PhoneWebcamTestData/NOTICE.md) | Attribution | Sources and license for decoder regression fixtures retained by the production host tests. |

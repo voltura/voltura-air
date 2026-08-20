@@ -60,7 +60,7 @@ internal static class ClientMessageValidator
             ["screen.view.answer"] = Fields("type", "operationId", "answerSdp", "clientSignature"),
             ["screen.view.source.set"] = Fields("type", "operationId", "displayId"),
             ["screen.view.stop"] = Fields("type", "operationId"),
-            ["phone.webcam.start"] = Fields("type", "operationId", "captureWidth", "captureHeight", "captureFps", "clientSignature"),
+            ["phone.webcam.start"] = Fields("type", "operationId", "captureWidth", "captureHeight", "captureFps", "useMicrophone", "clientSignature"),
             ["phone.webcam.answer"] = Fields("type", "operationId", "answerSdp", "clientSignature"),
             ["phone.webcam.stop"] = Fields("type", "operationId"),
             ["audio.get"] = Fields("type"),
@@ -280,6 +280,8 @@ internal static class ClientMessageValidator
                 TryGetBoundedInt(root, "captureWidth", 1, 4096, out _) &&
                 TryGetBoundedInt(root, "captureHeight", 1, 4096, out _) &&
                 TryGetBoundedInt(root, "captureFps", 1, 60, out _) &&
+                root.TryGetProperty("useMicrophone", out var useMicrophone) &&
+                useMicrophone.ValueKind is JsonValueKind.True or JsonValueKind.False &&
                 TryGetRequiredString(root, "clientSignature", MaxCredentialLength, allowEmpty: false, out _),
             "phone.webcam.answer" =>
                 TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var webcamAnswerOperationId) &&

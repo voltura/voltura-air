@@ -247,7 +247,8 @@ public sealed class WebHostService : IAsyncDisposable
             () => EnhancedCapabilitiesEnabled,
             () => phoneWebcamFeature?.Status ?? new PhoneWebcamFeatureStatus(
                 PhoneWebcamFeatureState.Unavailable,
-                "Phone webcam is unavailable."));
+                "Phone webcam is unavailable."),
+            () => phoneWebcamFeature?.AudioTargetStatus.IsReady == true);
         var commandLog = new HostCommandLog(_appLog);
         var powerCommands = new PowerCommandHandler(
             _powerController,
@@ -337,7 +338,10 @@ public sealed class WebHostService : IAsyncDisposable
             pairingManager,
             statusFactory,
             resolvedPhoneWebcam,
-            phoneWebcamPeerFactory);
+            phoneWebcamPeerFactory,
+            resolvedPhoneWebcam is PhoneWebcamFeature phoneWebcamWithAudio
+                ? phoneWebcamWithAudio.AudioTarget
+                : null);
         if (resolvedPhoneWebcam is PhoneWebcamFeature concretePhoneWebcam)
         {
             concretePhoneWebcam.SetSessionStopper(() => phoneWebcamCoordinator.StopAllAsync("host-stopped"));

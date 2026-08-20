@@ -117,9 +117,14 @@ deployment ownership, not these application-layer security contracts.
 
 Phone webcam reverses the authenticated Screen media direction: the paired browser's
 reconnect key signs the exact bounded start request and answer, and the pinned PC
-identity signs the offer hash. The host accepts one video-only H.264 track, rejects
-audio and stale signaling, and enforces relay-only candidates in Relay mode.
-Permission or pairing revocation disposes the peer, decoder, queued frames, and phone
+identity signs the offer hash. The host accepts one H.264 track and, only when
+explicitly requested and locally available, one Opus track; it rejects mismatched
+media and stale signaling and enforces relay-only candidates in Relay mode. Opus
+processing is duration-bounded and writes only to the verified local VB-CABLE endpoint.
+The host page's explicit audio test opens the corresponding base `CABLE Output`
+capture endpoint with a duration-bounded buffer, rejects VB-CABLE itself as the
+default playback target, and releases capture/playback on page or session teardown.
+Permission or pairing revocation disposes the peer, decoders, bounded queues, output, and phone
 capture. The elevated native installer extracts its embedded media source from the
 locked setup executable and verifies the payload before machine-wide COM
 registration; it does not trust a replaceable sibling DLL across UAC. The Frame

@@ -38,6 +38,7 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
         int captureWidth,
         int captureHeight,
         int captureFps,
+        bool useMicrophone,
         string clientSignature,
         CancellationToken cancellationToken)
     {
@@ -67,6 +68,7 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
                     captureWidth,
                     captureHeight,
                     captureFps,
+                    useMicrophone,
                     clientSignature);
             }
         }
@@ -88,6 +90,7 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
         int captureWidth,
         int captureHeight,
         int captureFps,
+        bool useMicrophone,
         string clientSignature)
     {
         await Task.Yield();
@@ -100,6 +103,7 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
                 captureWidth,
                 captureHeight,
                 captureFps,
+                useMicrophone,
                 clientSignature,
                 pending.Token).ConfigureAwait(false);
         }
@@ -141,6 +145,7 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
         int captureWidth,
         int captureHeight,
         int captureFps,
+        bool useMicrophone,
         string clientSignature,
         CancellationToken cancellationToken)
     {
@@ -166,6 +171,7 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
             captureWidth,
             captureHeight,
             captureFps,
+            useMicrophone,
             clientSignature,
             relay,
             cancellationToken).ConfigureAwait(false);
@@ -186,6 +192,10 @@ internal sealed class PhoneWebcamCommandHandler : IAsyncDisposable
             operationId,
             answerSdp,
             clientSignature).ConfigureAwait(false);
+        if (!result.Succeeded)
+        {
+            await Console.Error.WriteLineAsync($"Voltura Air Phone webcam answer rejected: {result.Code}.");
+        }
         await _transport.SendAsync(socket, new
         {
             type = "phone.webcam.answer.result",

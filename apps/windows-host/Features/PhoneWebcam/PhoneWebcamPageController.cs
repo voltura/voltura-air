@@ -11,24 +11,35 @@ internal sealed class PhoneWebcamPageController : IDisposable
     private readonly IPhoneWebcamFeature _phoneWebcam;
     private readonly Action _refresh;
     private readonly Func<Action<PhoneWebcamPreviewFrame>, Action<string>, IPhoneWebcamPreviewSession> _previewFactory;
+    private readonly UrlOpenService _urlOpenService;
+    private readonly Func<Action<string>, IPhoneWebcamAudioMonitor> _audioMonitorFactory;
     private readonly Lock _previewLock = new();
+    private readonly Lock _audioWorkLock = new();
     private IPhoneWebcamPreviewSession? _preview;
+    private IPhoneWebcamAudioMonitor? _audioMonitor;
     private QueuedPreviewFrame? _pendingFrame;
     private PhoneWebcamPageView? _currentView;
     private int _renderQueued;
     private int _previewGeneration;
+    private int _audioMonitorGeneration;
+    private readonly HashSet<Task> _audioOperations = [];
+    private Task _audioRetirement = Task.CompletedTask;
     private bool _disposed;
 
     internal PhoneWebcamPageController(
         Window owner,
         IPhoneWebcamFeature phoneWebcam,
         Action refresh,
-        Func<Action<PhoneWebcamPreviewFrame>, Action<string>, IPhoneWebcamPreviewSession>? previewFactory = null)
+        Func<Action<PhoneWebcamPreviewFrame>, Action<string>, IPhoneWebcamPreviewSession>? previewFactory = null,
+        IUrlShellLauncher? urlLauncher = null,
+        Func<Action<string>, IPhoneWebcamAudioMonitor>? audioMonitorFactory = null)
     {
         _owner = owner;
         _phoneWebcam = phoneWebcam;
         _refresh = refresh;
         _previewFactory = previewFactory ?? ((publish, failure) => new PhoneWebcamPreviewSession(publish, failure));
+        _urlOpenService = new UrlOpenService(urlLauncher);
+        _audioMonitorFactory = audioMonitorFactory ?? (failure => new PhoneWebcamAudioMonitor(failure));
         _phoneWebcam.ActivityChanged += OnActivityChanged;
         _phoneWebcam.StatusChanged += OnStatusChanged;
     }
@@ -54,6 +65,27 @@ internal sealed class PhoneWebcamPageController : IDisposable
                 AllowPhoneWebcam = view.AllowPairedDevicesCheckBox.IsChecked == true
             });
         };
+        RenderMicrophoneSetup(view);
+        view.GetVbCableButton.Click += (_, _) =>
+        {
+            UrlOpenExecutionResult result = _urlOpenService.Execute("https://vb-audio.com/Cable/");
+            if (!result.Succeeded)
+            {
+                view.AudioTestStatusText.Text = result.Message;
+                view.AudioTestStatusText.Visibility = Visibility.Visible;
+            }
+        };
+        view.CheckMicrophoneAgainButton.Click += async (_, _) =>
+        {
+            view.CheckMicrophoneAgainButton.IsEnabled = false;
+            await _phoneWebcam.RefreshAudioTargetAsync();
+            if (_currentView == view)
+            {
+                RenderMicrophoneSetup(view);
+                view.CheckMicrophoneAgainButton.IsEnabled = true;
+            }
+        };
+        view.AudioTestButton.Click += (_, _) => TrackAudioOperation(ToggleAudioMonitorAsync(view));
         if (status.IsInstalled)
         {
             switch (_phoneWebcam.Activity.State)
@@ -89,19 +121,282 @@ internal sealed class PhoneWebcamPageController : IDisposable
         return view;
     }
 
+    private void RenderMicrophoneSetup(PhoneWebcamPageView view)
+    {
+        PhoneWebcamAudioTargetStatus status = _phoneWebcam.AudioTargetStatus;
+        view.MicrophoneSetupText.Text = status.State switch
+        {
+            PhoneWebcamAudioTargetState.Ready =>
+                "Optional phone microphone is ready. Select CABLE Output as the microphone in the receiving app.",
+            PhoneWebcamAudioTargetState.InstalledButUnavailable =>
+                "VB-CABLE is installed but unavailable. Enable its CABLE Input endpoint in Windows Sound settings or restart Windows.",
+            PhoneWebcamAudioTargetState.NotInstalled =>
+                "Optional phone microphone requires VB-CABLE, third-party donationware not included with Voltura Air. Obtain it directly from VB-Audio and follow the licence applicable to your use.",
+            _ => "Voltura Air could not check optional phone microphone support. Check again or review troubleshooting guidance."
+        };
+        view.GetVbCableButton.Visibility = status.State == PhoneWebcamAudioTargetState.NotInstalled
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        bool canTestAudio = CanTestAudio();
+        bool audioOperationPending = HasPendingAudioOperation();
+        view.AudioTestButton.Visibility = canTestAudio ? Visibility.Visible : Visibility.Collapsed;
+        view.AudioTestHintText.Visibility = canTestAudio ? Visibility.Visible : Visibility.Collapsed;
+        view.AudioTestButton.IsEnabled = !audioOperationPending;
+        view.AudioTestButton.Content = _audioMonitor is not null
+            ? "Stop audio test"
+            : audioOperationPending
+                ? "Opening audio…"
+                : "Test audio";
+        if (canTestAudio && audioOperationPending)
+        {
+            view.AudioTestStatusText.Text = "Windows is still opening the audio devices. Another audio test cannot start yet.";
+            view.AudioTestStatusText.Visibility = Visibility.Visible;
+        }
+    }
+
     internal void StopPreview()
     {
+        StopAudioMonitor();
         IPhoneWebcamPreviewSession? preview = DetachPreview();
         preview?.Dispose();
     }
 
     internal async Task StopPreviewAsync()
     {
+        StopAudioMonitor();
         IPhoneWebcamPreviewSession? preview = DetachPreview();
         if (preview is not null)
         {
             await preview.StopAsync();
         }
+        await AwaitAudioQuiescenceAsync();
+    }
+
+    private async Task ToggleAudioMonitorAsync(PhoneWebcamPageView view)
+    {
+        view.AudioTestButton.IsEnabled = false;
+        int generation = Volatile.Read(ref _audioMonitorGeneration);
+        try
+        {
+            if (_audioMonitor is null && HasPendingAudioOperation())
+            {
+                RenderMicrophoneSetup(view);
+                return;
+            }
+
+            if (_audioMonitor is not null)
+            {
+                StopAudioMonitor();
+                if (_currentView == view)
+                {
+                    view.AudioTestButton.Content = "Test audio";
+                    view.AudioTestStatusText.Visibility = Visibility.Collapsed;
+                }
+                return;
+            }
+
+            if (!CanTestAudio())
+            {
+                RenderMicrophoneSetup(view);
+                view.AudioTestStatusText.Text = "Audio testing is available only while the active phone session is streaming microphone audio.";
+                view.AudioTestStatusText.Visibility = Visibility.Visible;
+                return;
+            }
+
+            generation = Interlocked.Increment(ref _audioMonitorGeneration);
+            Task priorRetirement = GetAudioRetirement();
+            IPhoneWebcamAudioMonitor monitor = await Task.Run(async () =>
+            {
+                await priorRetirement.ConfigureAwait(false);
+                IPhoneWebcamAudioMonitor created = _audioMonitorFactory(
+                    message => ReportAudioMonitorFailure(generation, message));
+                try
+                {
+                    created.Start();
+                    return created;
+                }
+                catch
+                {
+                    await created.DisposeAsync();
+                    throw;
+                }
+            });
+
+            if (generation != Volatile.Read(ref _audioMonitorGeneration) ||
+                _currentView != view ||
+                !CanTestAudio())
+            {
+                RetireAudioMonitor(monitor);
+                return;
+            }
+
+            _audioMonitor = monitor;
+            view.AudioTestButton.Content = "Stop audio test";
+            view.AudioTestStatusText.Text = "Playing CABLE Output through the default Windows speakers.";
+            view.AudioTestStatusText.Visibility = Visibility.Visible;
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            if (generation == Volatile.Read(ref _audioMonitorGeneration) && _currentView == view)
+            {
+                view.AudioTestStatusText.Text = exception.Message;
+                view.AudioTestStatusText.Visibility = Visibility.Visible;
+            }
+        }
+        finally
+        {
+            if (_currentView == view)
+            {
+                view.AudioTestButton.IsEnabled = true;
+            }
+        }
+    }
+
+    private bool CanTestAudio() =>
+        _phoneWebcam.AudioTargetStatus.IsReady &&
+        string.Equals(_phoneWebcam.Activity.State, "streaming", StringComparison.Ordinal) &&
+        _phoneWebcam.Activity.HasMicrophone;
+
+    private bool HasPendingAudioOperation()
+    {
+        lock (_audioWorkLock)
+        {
+            return _audioOperations.Count > 0;
+        }
+    }
+
+    private Task GetAudioRetirement()
+    {
+        lock (_audioWorkLock)
+        {
+            return _audioRetirement;
+        }
+    }
+
+    private void StopAudioMonitor()
+    {
+        Interlocked.Increment(ref _audioMonitorGeneration);
+        IPhoneWebcamAudioMonitor? monitor = Interlocked.Exchange(ref _audioMonitor, null);
+        if (monitor is not null)
+        {
+            RetireAudioMonitor(monitor);
+        }
+    }
+
+    private void RetireAudioMonitor(IPhoneWebcamAudioMonitor monitor)
+    {
+        lock (_audioWorkLock)
+        {
+            _audioRetirement = RetireAudioMonitorAsync(_audioRetirement, monitor);
+        }
+    }
+
+    private static async Task RetireAudioMonitorAsync(
+        Task previous,
+        IPhoneWebcamAudioMonitor monitor)
+    {
+        try
+        {
+            await previous.ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+        }
+
+        await Task.Run(async () => await monitor.DisposeAsync()).ConfigureAwait(false);
+    }
+
+    private void TrackAudioOperation(Task operation)
+    {
+        lock (_audioWorkLock)
+        {
+            _audioOperations.Add(operation);
+        }
+        _ = ClearAudioOperationAsync(operation);
+    }
+
+    private async Task ClearAudioOperationAsync(Task operation)
+    {
+        try
+        {
+            await operation.ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+        }
+
+        lock (_audioWorkLock)
+        {
+            _audioOperations.Remove(operation);
+        }
+
+        if (!_owner.Dispatcher.HasShutdownStarted)
+        {
+            _ = _owner.Dispatcher.BeginInvoke(() =>
+            {
+                if (_currentView is not null)
+                {
+                    RenderMicrophoneSetup(_currentView);
+                }
+            });
+        }
+    }
+
+    private async Task AwaitAudioQuiescenceAsync()
+    {
+        while (true)
+        {
+            Task[] operations;
+            Task retirement;
+            lock (_audioWorkLock)
+            {
+                operations = [.. _audioOperations];
+                retirement = _audioRetirement;
+            }
+
+            try
+            {
+                await Task.WhenAll([.. operations, retirement]).ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+            }
+            lock (_audioWorkLock)
+            {
+                if (_audioOperations.Count == 0 && _audioRetirement.IsCompleted)
+                {
+                    return;
+                }
+            }
+        }
+    }
+
+    private void ReportAudioMonitorFailure(int generation, string message)
+    {
+        if (_owner.Dispatcher.HasShutdownStarted)
+        {
+            return;
+        }
+
+        _owner.Dispatcher.BeginInvoke(async () =>
+        {
+            if (generation != Volatile.Read(ref _audioMonitorGeneration))
+            {
+                return;
+            }
+
+            PhoneWebcamPageView? failedView = _currentView;
+            StopAudioMonitor();
+            await AwaitAudioQuiescenceAsync();
+            if (failedView is not null &&
+                ReferenceEquals(_currentView, failedView) &&
+                generation + 1 == Volatile.Read(ref _audioMonitorGeneration))
+            {
+                failedView.AudioTestButton.Content = "Test audio";
+                failedView.AudioTestStatusText.Text = message;
+                failedView.AudioTestStatusText.Visibility = Visibility.Visible;
+            }
+        });
     }
 
     private IPhoneWebcamPreviewSession? DetachPreview()

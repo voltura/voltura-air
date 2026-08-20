@@ -37,6 +37,8 @@
     <None Update="relay-service.json" CopyToOutputDirectory="PreserveNewest" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.Web.WebView2" />
+    <PackageReference Include="Concentus" />
+    <PackageReference Include="NAudio.Wasapi" />
     <PackageReference Include="QRCoder" />
     <PackageReference Include="Vortice.Direct3D11" />
     <PackageReference Include="Vortice.D3DCompiler" />

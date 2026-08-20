@@ -61,11 +61,17 @@ toast. Initial successful connection does not show a restoration toast.
 ## Phone webcam
 
 Phone webcam shows one compact Windows-camera state surface and one fixed-height
-camera-output area. Permission and remove actions share one stable action row.
+camera-output area. The state surface reports optional VB-CABLE readiness without
+implying that third-party software is bundled. Permission and remove actions share
+one stable action row.
 When no phone is streaming, the output area shows concise start guidance and
 does not open the virtual camera merely to display its waiting frame. While
 streaming, it consumes the registered virtual camera exactly like another
 Windows application and stops that preview on navigation, removal, or shutdown.
+An active microphone-enabled session exposes one explicit **Test audio** action;
+starting it monitors `CABLE Output` through the default speakers, and stopping,
+navigation, or session teardown releases it. The page warns that audible speakers
+near the phone can cause echo or feedback.
 No inner scroller, repeated explanatory footer, or second media path is used.
 
 ## Preferences

@@ -76,6 +76,8 @@ async function verifyMaintainedInventory() {
     "Vortice.Windows | 3.8.3",
     "Vortice.Mathematics | 2.1.1",
     "SharpGen.Runtime and SharpGen.Runtime.COM | 2.4.2-beta",
+    "Concentus | 2.2.2",
+    "NAudio.Wasapi and NAudio.Core | 2.3.0",
     "`ws` 8.21.3"
   ];
   for (const expected of requiredInventoryText) {
@@ -90,7 +92,9 @@ async function verifyMaintainedInventory() {
     ["Vortice.Direct3D11", "3.8.3"],
     ["Vortice.D3DCompiler", "3.8.3"],
     ["Vortice.MediaFoundation", "3.8.3"],
-    ["Vortice.Mathematics", "2.1.1"]
+    ["Vortice.Mathematics", "2.1.1"],
+    ["Concentus", "2.2.2"],
+    ["NAudio.Wasapi", "2.3.0"]
   ];
   for (const [name, version] of directHostPackages) {
     const escapedName = name.replaceAll(".", "\\.");
@@ -118,7 +122,9 @@ async function verifyMaintainedInventory() {
     ["apps", "windows-host", "ThirdPartyNotices", "managed", "Microsoft.Web.WebView2-LICENSE.txt"],
     ["apps", "windows-host", "ThirdPartyNotices", "managed", "Microsoft.Web.WebView2-NOTICE.txt"],
     ["apps", "windows-host", "ThirdPartyNotices", "managed", "QRCoder-LICENSE.txt"],
-    ["apps", "windows-host", "ThirdPartyNotices", "managed", "Vortice-SharpGen-LICENSE.txt"]
+    ["apps", "windows-host", "ThirdPartyNotices", "managed", "Vortice-SharpGen-LICENSE.txt"],
+    ["apps", "windows-host", "ThirdPartyNotices", "managed", "Concentus-LICENSE.txt"],
+    ["apps", "windows-host", "ThirdPartyNotices", "managed", "NAudio-LICENSE.txt"]
   ];
   for (const segments of requiredNoticePaths) {
     const contents = await readFile(path.join(repoRoot, ...segments), "utf8");

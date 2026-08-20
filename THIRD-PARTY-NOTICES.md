@@ -56,6 +56,8 @@ SDK used for that release.
 | Vortice.Windows | 3.8.3 | Direct3D, DXGI, D3DCompiler, and Media Foundation bindings | [MIT; amerkoleci/Vortice.Windows](https://github.com/amerkoleci/Vortice.Windows) |
 | Vortice.Mathematics | 2.1.1 | Pinned Vortice runtime support | [MIT; amerkoleci/Vortice.Mathematics](https://github.com/amerkoleci/Vortice.Mathematics) |
 | SharpGen.Runtime and SharpGen.Runtime.COM | 2.4.2-beta | Transitive native interop support | [MIT; SharpGenTools/SharpGenTools](https://github.com/SharpGenTools/SharpGenTools) |
+| Concentus | 2.2.2 | Managed Opus decoding for optional Phone webcam audio | [BSD-style Opus licence; lostromb/concentus](https://github.com/lostromb/concentus/tree/6c2328dc19044601e33a9c11628b8d60e1f3011c) |
+| NAudio.Wasapi and NAudio.Core | 2.3.0 | Windows Core Audio endpoint discovery and PCM output | [MIT; naudio/NAudio](https://github.com/naudio/NAudio/tree/c89fee940ee6f8d7374d18714a6b85d8b7a18ab0) |
 
 ## Mobile web application
 

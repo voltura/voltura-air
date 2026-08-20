@@ -116,3 +116,9 @@ UAC/secure desktop, protected content,
 lock/session loss, display removal, or duplication loss stops/pauses the
 mirror; development and tests never substitute a real capture source in
 isolated mode.
+
+Phone webcam audio is optional and off by default. It requires the base VB-CABLE
+device installed separately by the user from [VB-Audio](https://vb-audio.com/Cable/).
+VB-CABLE is third-party donationware and is not included, installed, updated,
+licensed, or removed by Voltura Air. After detection succeeds, select `CABLE Output`
+as the microphone in the receiving Windows application.

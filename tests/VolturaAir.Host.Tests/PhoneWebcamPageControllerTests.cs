@@ -233,13 +233,357 @@ public sealed partial class HostUiLayoutTests
                 button => button.Content?.ToString() == "Use installer maintenance");
         });
     }
-    private sealed class InstalledPhoneWebcamFeature(string activityState = "streaming") : IPhoneWebcamFeature
+
+    [Fact]
+    public void PhoneMicrophoneWebsiteAppearsOnlyForConfirmedAbsence()
+    {
+        if (ShouldSkipNativeUiLayoutTests()) return;
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            var window = new Window();
+            WpfTheme.Apply(window);
+            var launcher = new RecordingUrlLauncher();
+            var absent = new PhoneWebcamAudioTargetStatus(PhoneWebcamAudioTargetState.NotInstalled, "Absent.");
+            using var controller = new PhoneWebcamPageController(
+                window,
+                new InstalledPhoneWebcamFeature("idle", absent),
+                static () => { },
+                urlLauncher: launcher);
+
+            PhoneWebcamPageView view = controller.CreateView();
+            Assert.Equal(Visibility.Visible, view.GetVbCableButton.Visibility);
+            view.GetVbCableButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal("https://vb-audio.com/Cable/", launcher.Opened?.AbsoluteUri);
+        });
+    }
+
+    [Fact]
+    public void ReadyPhoneMicrophoneHidesWebsiteAndNamesReceivingEndpoint()
+    {
+        if (ShouldSkipNativeUiLayoutTests()) return;
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            var window = new Window();
+            WpfTheme.Apply(window);
+            var ready = new PhoneWebcamAudioTargetStatus(PhoneWebcamAudioTargetState.Ready, "Ready.", "endpoint");
+            using var controller = new PhoneWebcamPageController(
+                window,
+                new InstalledPhoneWebcamFeature("idle", ready),
+                static () => { });
+
+            PhoneWebcamPageView view = controller.CreateView();
+            Assert.Equal(Visibility.Collapsed, view.GetVbCableButton.Visibility);
+            Assert.Contains("CABLE Output", view.MicrophoneSetupText.Text, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
+    public void ActivePhoneMicrophoneCanBeMonitoredAndStopsWithThePage()
+    {
+        if (ShouldSkipNativeUiLayoutTests()) return;
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            var window = new Window();
+            WpfTheme.Apply(window);
+            var ready = new PhoneWebcamAudioTargetStatus(PhoneWebcamAudioTargetState.Ready, "Ready.", "endpoint");
+            var monitor = new ControlledAudioMonitor();
+            using var controller = new PhoneWebcamPageController(
+                window,
+                new InstalledPhoneWebcamFeature("streaming", ready, hasMicrophone: true),
+                static () => { },
+                audioMonitorFactory: _ => monitor);
+
+            PhoneWebcamPageView view = controller.CreateView();
+            Assert.Equal(Visibility.Visible, view.AudioTestButton.Visibility);
+            Assert.Equal(Visibility.Visible, view.AudioTestHintText.Visibility);
+
+            view.AudioTestButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            WaitForWpf(() => monitor.Started && Equals("Stop audio test", view.AudioTestButton.Content), "audio monitor start");
+            Assert.Equal("Stop audio test", view.AudioTestButton.Content);
+            Assert.Equal(Visibility.Visible, view.AudioTestStatusText.Visibility);
+
+            controller.StopPreview();
+            WaitForWpf(() => monitor.Disposed, "audio monitor disposal");
+        });
+    }
+
+    [Fact]
+    public void AudioTestIsHiddenWithoutAnActivePhoneMicrophoneTrack()
+    {
+        if (ShouldSkipNativeUiLayoutTests()) return;
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            var window = new Window();
+            WpfTheme.Apply(window);
+            var ready = new PhoneWebcamAudioTargetStatus(PhoneWebcamAudioTargetState.Ready, "Ready.", "endpoint");
+            using var controller = new PhoneWebcamPageController(
+                window,
+                new InstalledPhoneWebcamFeature("streaming", ready),
+                static () => { });
+
+            PhoneWebcamPageView view = controller.CreateView();
+            Assert.Equal(Visibility.Collapsed, view.AudioTestButton.Visibility);
+            Assert.Equal(Visibility.Collapsed, view.AudioTestHintText.Visibility);
+        });
+    }
+
+    [Fact]
+    public void AudioTestStartFailureIsReportedAndReleasesTheMonitor()
+    {
+        if (ShouldSkipNativeUiLayoutTests()) return;
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            var window = new Window();
+            WpfTheme.Apply(window);
+            var ready = new PhoneWebcamAudioTargetStatus(PhoneWebcamAudioTargetState.Ready, "Ready.", "endpoint");
+            var monitor = new ControlledAudioMonitor(throwOnStart: true);
+            using var controller = new PhoneWebcamPageController(
+                window,
+                new InstalledPhoneWebcamFeature("streaming", ready, hasMicrophone: true),
+                static () => { },
+                audioMonitorFactory: _ => monitor);
+
+            PhoneWebcamPageView view = controller.CreateView();
+            view.AudioTestButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+            WaitForWpf(() => monitor.Disposed && view.AudioTestButton.IsEnabled, "failed audio monitor cleanup");
+            Assert.Equal("Test audio", view.AudioTestButton.Content);
+            Assert.Contains("Injected audio monitor failure", view.AudioTestStatusText.Text, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
+    public void AudioTestRevalidatesTheActiveMicrophoneAtClickTime()
+    {
+        if (ShouldSkipNativeUiLayoutTests()) return;
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            var window = new Window();
+            WpfTheme.Apply(window);
+            var ready = new PhoneWebcamAudioTargetStatus(PhoneWebcamAudioTargetState.Ready, "Ready.", "endpoint");
+            var feature = new InstalledPhoneWebcamFeature("streaming", ready, hasMicrophone: true);
+            var monitorCreates = 0;
+            using var controller = new PhoneWebcamPageController(
+                window,
+                feature,
+                static () => { },
+                audioMonitorFactory: _ =>
+                {
+                    monitorCreates++;
+                    return new ControlledAudioMonitor();
+                });
+
+            PhoneWebcamPageView view = controller.CreateView();
+            feature.Activity = new PhoneWebcamActivity("idle");
+            view.AudioTestButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+            WaitForWpf(() => view.AudioTestButton.IsEnabled, "stale audio test rejection");
+            Assert.Equal(0, monitorCreates);
+            Assert.Equal(Visibility.Collapsed, view.AudioTestButton.Visibility);
+            Assert.Contains("only while", view.AudioTestStatusText.Text, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
+    public void FailureFromAnOldAudioMonitorDoesNotStopItsReplacement()
+    {
+        if (ShouldSkipNativeUiLayoutTests()) return;
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            var window = new Window();
+            WpfTheme.Apply(window);
+            var ready = new PhoneWebcamAudioTargetStatus(PhoneWebcamAudioTargetState.Ready, "Ready.", "endpoint");
+            var monitors = new List<ControlledAudioMonitor>();
+            using var controller = new PhoneWebcamPageController(
+                window,
+                new InstalledPhoneWebcamFeature("streaming", ready, hasMicrophone: true),
+                static () => { },
+                audioMonitorFactory: failure =>
+                {
+                    var monitor = new ControlledAudioMonitor(failure: failure);
+                    monitors.Add(monitor);
+                    return monitor;
+                });
+
+            PhoneWebcamPageView view = controller.CreateView();
+            view.AudioTestButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            WaitForWpf(
+                () => monitors.Count == 1 &&
+                    monitors[0].Started &&
+                    view.AudioTestButton.IsEnabled &&
+                    Equals("Stop audio test", view.AudioTestButton.Content),
+                "first audio monitor start");
+            view.AudioTestButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            WaitForWpf(() => monitors[0].Disposed && Equals("Test audio", view.AudioTestButton.Content), "first audio monitor stop");
+            view.AudioTestButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            WaitForWpf(
+                () => monitors.Count == 2 &&
+                    monitors[1].Started &&
+                    view.AudioTestButton.IsEnabled &&
+                    Equals("Stop audio test", view.AudioTestButton.Content),
+                "replacement audio monitor start");
+
+            monitors[0].Fail("Stale monitor failure.");
+            DoWpfEvents();
+
+            Assert.False(monitors[1].Disposed);
+            Assert.Equal("Stop audio test", view.AudioTestButton.Content);
+            Assert.DoesNotContain("Stale", view.AudioTestStatusText.Text, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
+    public void SlowAudioDriverStartupDoesNotBlockPageShutdown()
+    {
+        if (ShouldSkipNativeUiLayoutTests()) return;
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            var window = new Window();
+            WpfTheme.Apply(window);
+            var ready = new PhoneWebcamAudioTargetStatus(PhoneWebcamAudioTargetState.Ready, "Ready.", "endpoint");
+            using var startGate = new ManualResetEventSlim();
+            var monitor = new ControlledAudioMonitor(startGate: startGate);
+            using var controller = new PhoneWebcamPageController(
+                window,
+                new InstalledPhoneWebcamFeature("streaming", ready, hasMicrophone: true),
+                static () => { },
+                audioMonitorFactory: _ => monitor);
+
+            PhoneWebcamPageView view = controller.CreateView();
+            view.AudioTestButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.True(monitor.StartEntered.Wait(TimeSpan.FromSeconds(2)));
+
+            Task stop = controller.StopPreviewAsync();
+            Assert.False(stop.IsCompleted);
+            startGate.Set();
+            WaitForWpf(() => stop.IsCompleted, "slow audio startup shutdown");
+            stop.GetAwaiter().GetResult();
+            Assert.True(monitor.Disposed);
+        });
+    }
+
+    [Fact]
+    public void AudioMonitorRestartWaitsForPriorMonitorDisposal()
+    {
+        if (ShouldSkipNativeUiLayoutTests()) return;
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            var window = new Window();
+            WpfTheme.Apply(window);
+            var ready = new PhoneWebcamAudioTargetStatus(PhoneWebcamAudioTargetState.Ready, "Ready.", "endpoint");
+            var disposeGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var monitors = new List<ControlledAudioMonitor>();
+            using var controller = new PhoneWebcamPageController(
+                window,
+                new InstalledPhoneWebcamFeature("streaming", ready, hasMicrophone: true),
+                static () => { },
+                audioMonitorFactory: _ =>
+                {
+                    var monitor = new ControlledAudioMonitor(
+                        disposeGate: monitors.Count == 0 ? disposeGate.Task : null);
+                    monitors.Add(monitor);
+                    return monitor;
+                });
+
+            PhoneWebcamPageView view = controller.CreateView();
+            view.AudioTestButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            WaitForWpf(() => view.AudioTestButton.IsEnabled && monitors.Count == 1, "initial audio monitor start");
+            view.AudioTestButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            WaitForWpf(() => monitors[0].DisposeEntered.IsSet, "initial audio monitor retirement");
+            view.AudioTestButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            DoWpfEvents();
+            Assert.Single(monitors);
+
+            disposeGate.SetResult();
+            WaitForWpf(() => monitors.Count == 2 && monitors[1].Started, "audio monitor restart after retirement");
+        });
+    }
+
+    [Fact]
+    public void PendingAudioDriverStartPreventsAnotherStartAfterPageRecreation()
+    {
+        if (ShouldSkipNativeUiLayoutTests()) return;
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            var window = new Window();
+            WpfTheme.Apply(window);
+            var ready = new PhoneWebcamAudioTargetStatus(PhoneWebcamAudioTargetState.Ready, "Ready.", "endpoint");
+            using var startGate = new ManualResetEventSlim();
+            var monitorCreates = 0;
+            var monitor = new ControlledAudioMonitor(startGate: startGate);
+            using var controller = new PhoneWebcamPageController(
+                window,
+                new InstalledPhoneWebcamFeature("streaming", ready, hasMicrophone: true),
+                static () => { },
+                audioMonitorFactory: _ =>
+                {
+                    monitorCreates++;
+                    return monitor;
+                });
+
+            PhoneWebcamPageView first = controller.CreateView();
+            first.AudioTestButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.True(monitor.StartEntered.Wait(TimeSpan.FromSeconds(2)));
+
+            PhoneWebcamPageView replacement = controller.CreateView();
+            Assert.False(replacement.AudioTestButton.IsEnabled);
+            Assert.Equal("Opening audio…", replacement.AudioTestButton.Content);
+            replacement.AudioTestButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            DoWpfEvents();
+            Assert.Equal(1, monitorCreates);
+
+            startGate.Set();
+            WaitForWpf(() => monitor.Disposed, "stale pending audio monitor cleanup");
+        });
+    }
+
+    [Fact]
+    public void PhoneMicrophoneWebsiteLaunchFailureIsReportedWithoutEscapingTheClick()
+    {
+        if (ShouldSkipNativeUiLayoutTests()) return;
+        RunOnStaThread(() =>
+        {
+            using var appScope = new WpfApplicationScope();
+            var window = new Window();
+            WpfTheme.Apply(window);
+            var absent = new PhoneWebcamAudioTargetStatus(PhoneWebcamAudioTargetState.NotInstalled, "Absent.");
+            using var controller = new PhoneWebcamPageController(
+                window,
+                new InstalledPhoneWebcamFeature("idle", absent),
+                static () => { },
+                urlLauncher: new ThrowingUrlLauncher());
+
+            PhoneWebcamPageView view = controller.CreateView();
+            view.GetVbCableButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+            Assert.Equal(Visibility.Visible, view.AudioTestStatusText.Visibility);
+            Assert.Contains("default browser", view.AudioTestStatusText.Text, StringComparison.Ordinal);
+        });
+    }
+
+    private sealed class InstalledPhoneWebcamFeature(
+        string activityState = "streaming",
+        PhoneWebcamAudioTargetStatus? audioStatus = null,
+        bool hasMicrophone = false) : IPhoneWebcamFeature
     {
         public PhoneWebcamFeatureStatus Status { get; } = new(
             PhoneWebcamFeatureState.Installed,
             "Voltura Air Webcam is installed and ready.");
 
-        public PhoneWebcamActivity Activity { get; } = new(activityState);
+        public PhoneWebcamActivity Activity { get; set; } = new(activityState, HasMicrophone: hasMicrophone);
+        public PhoneWebcamAudioTargetStatus AudioTargetStatus { get; } = audioStatus ?? new(
+            PhoneWebcamAudioTargetState.DetectionFailed,
+            "Unavailable.");
         public event EventHandler? ActivityChanged { add { } remove { } }
         public event EventHandler? StatusChanged { add { } remove { } }
 
@@ -248,6 +592,17 @@ public sealed partial class HostUiLayoutTests
 
         public Task<PhoneWebcamFeatureStatus> RemoveAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(Status);
+    }
+
+    private sealed class RecordingUrlLauncher : IUrlShellLauncher
+    {
+        internal Uri? Opened { get; private set; }
+        public void Open(Uri uri) => Opened = uri;
+    }
+
+    private sealed class ThrowingUrlLauncher : IUrlShellLauncher
+    {
+        public void Open(Uri uri) => throw new System.ComponentModel.Win32Exception("Injected URL launch failure.");
     }
 
     private sealed class MissingPhoneWebcamFeature : IPhoneWebcamFeature
@@ -295,5 +650,41 @@ public sealed partial class HostUiLayoutTests
             StopStarted = true;
             _stopped.TrySetResult();
         }
+    }
+
+    private sealed class ControlledAudioMonitor(
+        bool throwOnStart = false,
+        Action<string>? failure = null,
+        ManualResetEventSlim? startGate = null,
+        Task? disposeGate = null) : IPhoneWebcamAudioMonitor
+    {
+        internal ManualResetEventSlim StartEntered { get; } = new();
+        internal ManualResetEventSlim DisposeEntered { get; } = new();
+        internal bool Started { get; private set; }
+        internal bool Disposed { get; private set; }
+
+        public void Start()
+        {
+            StartEntered.Set();
+            startGate?.Wait();
+            Started = true;
+            if (throwOnStart)
+            {
+                throw new InvalidOperationException("Injected audio monitor failure.");
+            }
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            DisposeEntered.Set();
+            if (disposeGate is not null)
+            {
+                await disposeGate;
+            }
+            Disposed = true;
+        }
+
+        internal void Fail(string message) =>
+            (failure ?? throw new InvalidOperationException("This monitor has no failure callback."))(message);
     }
 }

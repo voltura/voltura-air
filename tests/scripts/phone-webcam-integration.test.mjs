@@ -31,8 +31,49 @@ const [
 test("Phone webcam is a normal app setting and not a Developer-mode gate", () => {
   assert.match(mainWindow, /Content="Phone webcam"/u);
   assert.doesNotMatch(preferences, /Header="Phone webcam"/u);
-  assert.match(todo, /normal app feature from its first production build/u);
+  assert.match(todo, /Phone webcam physical acceptance/u);
   assert.doesNotMatch(todo, /feature-owned toggle under \*\*Developer tools\*\*/u);
+});
+
+test("installer offers the official VB-CABLE page only after confirmed absence", () => {
+  const finish = installer.match(/Function ConfigureVbCableFinishOption(?<body>[\s\S]*?)FunctionEnd/u)?.groups?.body ?? "";
+  assert.match(installer, /!define VB_CABLE_URL "https:\/\/vb-audio\.com\/Cable\/"/u);
+  assert.match(installer, /MUI_FINISHPAGE_SHOWREADME_NOTCHECKED/u);
+  assert.match(finish, /SectionGetFlags \$\{SEC_PHONE_WEBCAM\}/u);
+  assert.ok(
+    installer.indexOf("Section /o \"Phone Webcam\" SEC_PHONE_WEBCAM") < installer.indexOf("Function ConfigureVbCableFinishOption"),
+    "the section index must be declared before the finish-page function uses it"
+  );
+  assert.match(finish, /--phone-microphone-status/u);
+  assert.match(finish, /ExecToStack \/TIMEOUT=8000/u);
+  assert.match(finish, /\$0 != 20/u);
+  assert.match(finish, /ShowWindow \$mui\.FinishPage\.ShowReadme \$\{SW_HIDE\}/u);
+  assert.doesNotMatch(installer, /File[^\n]+VB-CABLE/iu);
+  assert.doesNotMatch(installer, /URLDownloadToFile[^\n]+vb-audio/iu);
+});
+
+test("Windows Modify reuses the existing installer for Phone Webcam on and off", () => {
+  const init = installer.match(/Function \.onInit(?<body>[\s\S]*?)FunctionEnd/u)?.groups?.body ?? "";
+  const finalize = installer.match(/Section -FinalizeInstall(?<body>[\s\S]*?)SectionEnd/u)?.groups?.body ?? "";
+  const removal = installer.match(/Section -ApplyPhoneWebcamRemoval(?<body>[\s\S]*?)SectionEnd/u)?.groups?.body ?? "";
+  const uninstall = installer.match(/Section "Uninstall"(?<body>[\s\S]*?)SectionEnd/u)?.groups?.body ?? "";
+  assert.match(installer, /!define MAINTENANCE_INSTALLER "\$LOCALAPPDATA\\Voltura Air\\VolturaAir-Modify\.exe"/u);
+  assert.match(init, /Call ConfigureInstalledWebcamSelection/u);
+  assert.match(installer, /Function ConfigureInstalledWebcamSelection[\s\S]*SectionSetFlags \$\{SEC_PHONE_WEBCAM\} \$\{SF_SELECTED\}[\s\S]*SectionSetFlags \$\{SEC_PHONE_WEBCAM\} 0/u);
+  assert.match(installer, /Section -PrepareMaintenanceEntry[\s\S]*Call PrepareMaintenanceInstaller/u);
+  assert.match(installer, /CopyFiles \/SILENT "\$EXEPATH" "\$MaintenanceInstallerPending"/u);
+  assert.match(installer, /MoveFileExW\(w "\$MaintenanceInstallerPending", w "\$\{MAINTENANCE_INSTALLER\}", i 9\)/u);
+  assert.match(finalize, /Call PromoteMaintenanceInstaller[\s\S]*WriteRegStr HKCU "\$\{UNINSTALL_KEY\}" "ModifyPath" "\$\\"\$\{MAINTENANCE_INSTALLER\}\$\\""/u);
+  assert.match(finalize, /Call DeletePreparedMaintenanceArtifacts[\s\S]*Call RestorePhoneWebcamAfterFailure[\s\S]*Call RollbackPromotedInstall/u);
+  assert.match(finalize, /Call RestorePhoneWebcamAfterFailure[\s\S]*Call RollbackPromotedInstall/u);
+  assert.match(finalize, /WriteRegDWORD HKCU "\$\{UNINSTALL_KEY\}" "NoModify" 0/u);
+  assert.match(finalize, /WriteRegDWORD HKCU "\$\{UNINSTALL_KEY\}" "NoRepair" 1/u);
+  assert.match(removal, /SectionGetFlags \$\{SEC_PHONE_WEBCAM\}[\s\S]*cleanup-required[\s\S]*VolturaAir\.WebcamSetup\.exe" remove/u);
+  assert.match(uninstall, /\.removing-main[\s\S]*Rename "\$\{MAINTENANCE_INSTALLER\}" "\$4"[\s\S]*Delete \/REBOOTOK "\$4"/u);
+  assert.match(uninstall, /\.removing-main[\s\S]*\.removing-pending[\s\S]*\.removing-rollback/u);
+  assert.match(uninstall, /uninstall_drain_maintenance:[\s\S]*Delete \/REBOOTOK "\$4"[\s\S]*IfFileExists "\$\{MAINTENANCE_INSTALLER\}" uninstall_maintenance_cleanup_failed/u);
+  assert.ok(uninstall.indexOf("uninstall_maintenance_cleanup_ready:") < uninstall.indexOf("-Action CompleteRemoval"));
+  assert.ok(uninstall.indexOf("-Action CompleteRemoval") < uninstall.indexOf('DeleteRegKey HKCU "${UNINSTALL_KEY}"'));
 });
 
 test("native camera keeps the reviewed bounded version-one frame contract", () => {
@@ -117,18 +158,18 @@ test("uninstall removes Phone webcam before deleting its recovery helper", () =>
   assert.match(installer, /!define WEBCAM_PROTECTED_SETUP "\$PROGRAMFILES64\\Voltura Air Webcam\\VolturaAir\.WebcamSetup\.exe"/u);
   assert.doesNotMatch(removal, /\$INSTDIR\\\$\{WEBCAM_SETUP\}/u);
   assert.match(uninstallInit, /File \/oname=VolturaAir\.WebcamSetup\.exe/u);
-  assert.match(removal, /IfFileExists "\$\{WEBCAM_PROTECTED_SETUP\}"/u);
   assert.match(removal, /"\$PLUGINSDIR\\VolturaAir\.WebcamSetup\.exe" cleanup-required/u);
   assert.match(removal, /"\$PLUGINSDIR\\VolturaAir\.WebcamSetup\.exe" remove/u);
   assert.doesNotMatch(removal, /"\$\{WEBCAM_PROTECTED_SETUP\}" (?:cleanup-required|remove)/u);
   assert.match(removal, /cleanup-required/u);
-  assert.match(removal, /IfFileExists[^\n]+phone_webcam_helper_available phone_webcam_done/u);
+  assert.doesNotMatch(removal, /IfFileExists "\$\{WEBCAM_PROTECTED_SETUP\}"/u);
   assert.ok(removal.indexOf("cleanup-required") < removal.indexOf('remove\''));
   assert.match(removal, /Abort "Phone webcam removal did not complete\."/u);
 });
 
 test("installer-owned Phone Webcam maintenance restores the prior component and app on failure", () => {
   const install = installer.match(/Section \/o "Phone Webcam"(?<body>[\s\S]*?)SectionEnd/u)?.groups?.body ?? "";
+  const restore = installer.match(/Function RestorePhoneWebcamAfterFailure(?<body>[\s\S]*?)FunctionEnd/u)?.groups?.body ?? "";
   assert.ok(
     install.indexOf("File /oname=VolturaAir.WebcamSetup.exe") <
       install.indexOf('"$PLUGINSDIR\\VolturaAir.WebcamSetup.exe" cleanup-required')
@@ -137,7 +178,8 @@ test("installer-owned Phone Webcam maintenance restores the prior component and 
   assert.match(install, /"\$PLUGINSDIR\\VolturaAir\.WebcamSetup\.exe" remove/u);
   assert.doesNotMatch(install, /"\$\{WEBCAM_PROTECTED_SETUP\}" (?:cleanup-required|remove)/u);
   assert.match(install, /CopyFiles \/SILENT "\$\{WEBCAM_PROTECTED_SETUP\}" "\$WebcamRollbackHelper"/u);
-  assert.match(install, /"\$WebcamRollbackHelper" install/u);
+  assert.match(install, /Call RestorePhoneWebcamAfterFailure/u);
+  assert.match(restore, /\$WebcamRollbackAvailable == 1[\s\S]*"\$WebcamRollbackHelper" install/u);
   assert.match(install, /Call RollbackPromotedInstall/u);
-  assert.ok(install.indexOf('"$WebcamRollbackHelper" install') < install.lastIndexOf("Call RollbackPromotedInstall"));
+  assert.ok(install.indexOf("Call RestorePhoneWebcamAfterFailure") < install.lastIndexOf("Call RollbackPromotedInstall"));
 });

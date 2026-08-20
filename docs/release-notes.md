@@ -6,6 +6,22 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.0.2
+
+- Added optional microphone audio to **Phone Webcam**. Microphone use is off by
+  default, requires permission on the phone, and includes a Mute control while
+  streaming.
+- Phone audio uses a separately installed copy of VB-CABLE. Voltura Air detects
+  whether it is available, links to the official VB-Audio website only when
+  needed, and can test active phone audio from the Windows Phone webcam page.
+  VB-CABLE remains third-party donationware and is not included with Voltura Air.
+- Added installer maintenance support for turning **Phone Webcam** on or off
+  after Voltura Air is installed. Administrator approval is requested only when
+  the Windows webcam component is being added, updated, repaired, or removed.
+- Fixed microphone-enabled Phone Webcam sessions ending immediately on iPhone
+  and Safari, and improved recovery when audio devices, permissions, or media
+  negotiation fail.
+
 ## v1.0.1
 
 - Fixed Voltura Air failing to start when the optional **Phone Webcam** feature

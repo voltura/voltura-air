@@ -558,6 +558,7 @@ internal sealed class WebSocketSessionHandler(
                     root.GetProperty("captureWidth").GetInt32(),
                     root.GetProperty("captureHeight").GetInt32(),
                     root.GetProperty("captureFps").GetInt32(),
+                    root.GetProperty("useMicrophone").GetBoolean(),
                     ProtocolMessageFields.GetString(root, "clientSignature"),
                     cancellationToken);
                 return true;

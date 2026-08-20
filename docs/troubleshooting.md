@@ -10,6 +10,31 @@ adapter details, and browser information; review before sharing publicly.
 
 Choose **Copy details** before closing.
 
+## Add, repair, or remove Phone Webcam
+
+Open Windows **Installed apps**, choose **Voltura Air → Modify**, then check Phone
+Webcam to install or repair it, or uncheck it to remove it. This reuses the retained
+Voltura Air installer and leaves the main application installed.
+
+## Phone microphone is unavailable
+
+Open **Phone webcam** in the Windows app and select **Check again**. Optional phone
+audio requires the base VB-CABLE device. VB-CABLE is third-party donationware, is
+not included or distributed with Voltura Air, and must be obtained directly from
+[VB-Audio](https://vb-audio.com/Cable/) under the licence applicable to your use.
+
+If Voltura Air reports that VB-CABLE is installed but unavailable, enable `CABLE
+Input` in Windows Sound settings or restart Windows, then check again. In Teams or
+the receiving browser/app, choose `CABLE Output` as the microphone. Detection
+failure does not prove absence and does not open a website automatically.
+
+During an active Phone webcam session started with **Use microphone**, choose
+**Test audio** on the Windows Phone webcam page to monitor `CABLE Output` through
+the default speakers. Keep the phone away from the speakers to avoid feedback.
+If the button is absent, confirm the phone session is actively streaming with its
+microphone enabled. If testing reports that the default output is VB-CABLE, choose
+speakers or headphones as the default Windows output and try again.
+
 ## Device cannot reach the PC
 
 Confirm:

@@ -65,7 +65,8 @@ internal static partial class LibDataChannelNative
 
     internal enum Codec
     {
-        H264 = 0
+        H264 = 0,
+        Opus = 128
     }
 
     internal enum NalUnitSeparator

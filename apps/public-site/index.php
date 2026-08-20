@@ -121,7 +121,7 @@
         </article>
         <article>
           <h2>Use your phone as a webcam</h2>
-          <p>Select any camera exposed by your paired phone and use it as a video-only Windows webcam over Enhanced Direct or Cloud relay. Switch cameras live and recover cleanly after leaving the mobile app.</p>
+          <p>Select any camera exposed by your paired phone and use it as a Windows webcam over Enhanced Direct or Cloud relay. Optional phone audio is off by default, can be muted from the phone, and requires user-installed <a href="https://vb-audio.com/Cable/">VB-CABLE from VB-Audio</a>. It is third-party donationware, is not included with Voltura Air, and users are responsible for the licence applicable to their use. During an active microphone session, the Windows page can test the audio through the default speakers.</p>
         </article>
         <article>
           <h2>Files on PC</h2>
@@ -277,7 +277,7 @@
               </tr>
               <tr>
                 <th scope="row">Phone as webcam</th>
-                <td class="comparison-voltura"><strong class="comparison-status">Included video-only Windows webcam</strong>; choose any camera exposed by the paired phone, switch cameras live, and stream over Enhanced Direct or Cloud relay</td>
+                <td class="comparison-voltura"><strong class="comparison-status">Included Windows webcam with optional audio</strong>; choose a phone camera, mute default-off microphone audio from the phone, and test user-installed VB-CABLE audio from the Windows page</td>
                 <td><strong class="comparison-status">Not documented</strong> as a current feature</td>
                 <td>Virtual camera with custom names and high-resolution streaming is listed as a Premium feature</td>
               </tr>

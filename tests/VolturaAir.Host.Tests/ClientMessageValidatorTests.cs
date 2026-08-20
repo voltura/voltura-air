@@ -58,10 +58,11 @@ public sealed class ClientMessageValidatorTests
     }
 
     [Theory]
-    [InlineData("""{ "type": "phone.webcam.start", "operationId": "webcam-1", "captureWidth": 1920, "captureHeight": 1080, "captureFps": 30, "clientSignature": "proof" }""", true)]
-    [InlineData("""{ "type": "phone.webcam.start", "operationId": "webcam-1", "captureWidth": 0, "captureHeight": 1080, "captureFps": 30, "clientSignature": "proof" }""", false)]
-    [InlineData("""{ "type": "phone.webcam.start", "operationId": "webcam-1", "captureWidth": 1920, "captureHeight": 1080, "captureFps": 61, "clientSignature": "proof" }""", false)]
-    [InlineData("""{ "type": "phone.webcam.start", "operationId": "webcam-1", "captureWidth": 1920, "captureHeight": 1080, "captureFps": 30, "clientSignature": "proof", "audio": true }""", false)]
+    [InlineData("""{ "type": "phone.webcam.start", "operationId": "webcam-1", "captureWidth": 1920, "captureHeight": 1080, "captureFps": 30, "useMicrophone": false, "clientSignature": "proof" }""", true)]
+    [InlineData("""{ "type": "phone.webcam.start", "operationId": "webcam-1", "captureWidth": 0, "captureHeight": 1080, "captureFps": 30, "useMicrophone": false, "clientSignature": "proof" }""", false)]
+    [InlineData("""{ "type": "phone.webcam.start", "operationId": "webcam-1", "captureWidth": 1920, "captureHeight": 1080, "captureFps": 61, "useMicrophone": false, "clientSignature": "proof" }""", false)]
+    [InlineData("""{ "type": "phone.webcam.start", "operationId": "webcam-1", "captureWidth": 1920, "captureHeight": 1080, "captureFps": 30, "useMicrophone": false, "clientSignature": "proof", "audio": true }""", false)]
+    [InlineData("""{ "type": "phone.webcam.start", "operationId": "webcam-1", "captureWidth": 1920, "captureHeight": 1080, "captureFps": 30, "clientSignature": "proof" }""", false)]
     public void BoundsPhoneWebcamStartRequests(string json, bool expected)
     {
         using var document = JsonDocument.Parse(json);

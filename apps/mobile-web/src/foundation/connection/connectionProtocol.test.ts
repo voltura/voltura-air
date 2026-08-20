@@ -255,6 +255,17 @@ describe("parseServerMessage", () => {
     expect(parseServerMessage(JSON.stringify({ ...frame, reason: "legacy-stop" }))).toBeNull();
   });
 
+  it("accepts the audio failure terminal reason for Phone webcam", () => {
+    const frame = {
+      type: "phone.webcam.ended",
+      operationId: "phone-webcam-operation",
+      reason: "audio-failed",
+      message: "Phone microphone audio stopped on the PC."
+    };
+
+    expect(parseServerMessage(JSON.stringify(frame))).toEqual(frame);
+  });
+
   it("accepts bounded self-hosted TURN URLs and rejects unsafe forms", () => {
     const frame = {
       type: "screen.view.start.result",

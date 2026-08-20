@@ -185,7 +185,7 @@ describe("SettingsDrawer", () => {
         permissionGranted: true,
         canUse: true,
         requiresRepair: false,
-        videoOnly: true,
+        microphoneAvailable: false,
         maxWidth: 1920,
         maxHeight: 1080,
         maxFramesPerSecond: 30
@@ -199,7 +199,7 @@ describe("SettingsDrawer", () => {
     expect(onOpenPhoneWebcam).toHaveBeenCalledOnce();
   });
 
-  it("hides Presentation entry points and falls back from a stale fourth-mode choice when its capability is unavailable", () => {
+  it("hides Presentation and rejects a stale fourth-mode choice when unavailable", () => {
     render(
       <SettingsDrawer
         {...baseProps}

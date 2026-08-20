@@ -29,9 +29,11 @@
 !define INSTALL_TRANSACTION_SCRIPT "VolturaAir.InstallTransaction.ps1"
 !define INSTALL_TRANSACTION_JOURNAL "$LOCALAPPDATA\Voltura Air\installer-transaction.json"
 !define RECOVERY_UNINSTALLER "$LOCALAPPDATA\Voltura Air\Uninstall-Recovery.exe"
+!define MAINTENANCE_INSTALLER "$LOCALAPPDATA\Voltura Air\VolturaAir-Modify.exe"
 !define PUBLISHER "Voltura AB"
 !define DEVELOPER "Joakim Skoglund"
 !define PRODUCT_URL "https://voltura.se/air"
+!define VB_CABLE_URL "https://vb-audio.com/Cable/"
 !define SUPPORT_EMAIL "air@voltura.se"
 !define POSTAL_ADDRESS "Voltura AB, H${U+00E4}stholmsv${U+00E4}gen 33, SE-131 71 Nacka, Sweden"
 !define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\Voltura Air"
@@ -97,6 +99,10 @@ VIAddVersionKey "Comments" "Developer: ${DEVELOPER}; Website: ${PRODUCT_URL}; Em
 !define MUI_FINISHPAGE_TEXT "Start ${APP_NAME}, scan the pairing code from your phone or tablet, and control your PC from the sofa."
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${EXE_NAME}"
 !define MUI_FINISHPAGE_RUN_TEXT "Start ${APP_NAME}"
+!define MUI_FINISHPAGE_SHOWREADME
+!define MUI_FINISHPAGE_SHOWREADME_TEXT "Open VB-Audio to get VB-CABLE for optional phone audio (third-party donationware, not included; your licence applies)"
+!define MUI_FINISHPAGE_SHOWREADME_FUNCTION OpenVbCableWebsite
+!define MUI_FINISHPAGE_SHOWREADME_NOTCHECKED
 !define MUI_FINISHPAGE_REBOOTLATER_DEFAULT
 !define MUI_CUSTOMFUNCTION_GUIINIT RestoreInstallerWindow
 
@@ -104,6 +110,7 @@ VIAddVersionKey "Comments" "Developer: ${DEVELOPER}; Website: ${PRODUCT_URL}; Em
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_COMPONENTS
 !insertmacro MUI_PAGE_INSTFILES
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW ConfigureVbCableFinishOption
 !insertmacro MUI_PAGE_FINISH
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
@@ -116,6 +123,17 @@ Var PrerequisiteRebootRequired
 Var StagingDirectory
 Var WebcamRemovedForUpdate
 Var WebcamRollbackHelper
+Var WebcamCleanupRequired
+Var WebcamRollbackAvailable
+Var MaintenanceInstallerPending
+Var MaintenanceInstallerRollback
+Var MaintenanceInstallerPrepared
+Var MaintenanceInstallerHadPrevious
+Var MaintenanceInstallerSizeKb
+
+Function OpenVbCableWebsite
+  ExecShell "open" "${VB_CABLE_URL}"
+FunctionEnd
 
 !macro ExecCheckedToStack COMMAND_VAR TOO_LONG_LABEL
   StrLen $3 ${COMMAND_VAR}
@@ -177,6 +195,7 @@ Function .onInit
   InitPluginsDir
   SetOutPath "$PLUGINSDIR"
   File /oname=${INSTALL_TRANSACTION_SCRIPT} "${__FILEDIR__}\InstallTransaction.ps1"
+  File /oname=VolturaAir.WebcamSetup.exe "${PUBLISH_DIR}\${WEBCAM_SETUP}"
   nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action Recover -InstallDirectory "$INSTDIR" -JournalPath "${INSTALL_TRANSACTION_JOURNAL}"'
   Pop $0
   Pop $1
@@ -184,6 +203,7 @@ Function .onInit
     MessageBox MB_ICONSTOP "Voltura Air setup found an installation transaction it could not safely recover. No unexpected directory was overwritten."
     Abort "Installer transaction recovery failed."
   ${EndIf}
+  Call ConfigureInstalledWebcamSelection
 FunctionEnd
 
 Function un.onInit
@@ -270,37 +290,34 @@ install_staging_ready:
     Abort "Installed host health check failed."
   ${EndIf}
 
-  CreateDirectory "$SMPROGRAMS\${APP_NAME}"
-  CreateShortcut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\${EXE_NAME}" "" "$INSTDIR\${EXE_NAME}" 0
-  CreateShortcut "$SMPROGRAMS\${APP_NAME}\Uninstall ${APP_NAME}.lnk" "$INSTDIR\Uninstall.exe"
+SectionEnd
 
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayName" "${APP_NAME}"
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayVersion" "${APP_VERSION}"
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "Publisher" "${PUBLISHER}"
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "URLInfoAbout" "${PRODUCT_URL}"
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "HelpLink" "${PRODUCT_URL}"
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "Contact" "${SUPPORT_EMAIL}"
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "Comments" "${INSTALLER_KIND} installer. Developer: ${DEVELOPER}; Address: ${POSTAL_ADDRESS}"
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\${EXE_NAME}"
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "UninstallString" "$\"$INSTDIR\Uninstall.exe$\""
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "QuietUninstallString" "$\"$INSTDIR\Uninstall.exe$\" /S"
-  WriteRegDWORD HKCU "${UNINSTALL_KEY}" "EstimatedSize" ${APP_ESTIMATED_SIZE_KB}
-  WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoModify" 0
-  WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoRepair" 0
-  WriteRegStr HKCU "Software\Classes\voltura-air" "" "URL:Voltura Air custom screen"
-  WriteRegStr HKCU "Software\Classes\voltura-air" "URL Protocol" ""
-  WriteRegStr HKCU "Software\Classes\voltura-air\DefaultIcon" "" "$INSTDIR\${EXE_NAME},0"
-  WriteRegStr HKCU "Software\Classes\voltura-air\shell\open\command" "" "$\"$INSTDIR\${EXE_NAME}$\" $\"%1$\""
+Section -PrepareMaintenanceEntry
+  Call PrepareMaintenanceInstaller
+  Pop $0
+  ${If} $0 != 0
+    Call RollbackPromotedInstall
+    Pop $1
+    ${If} $1 != 0
+      MessageBox MB_ICONSTOP "Voltura Air setup could not prepare its component maintenance entry or restore the previous app. The recovery journal was retained; run setup again."
+      Abort "Installer maintenance preparation and app rollback failed."
+    ${EndIf}
+    MessageBox MB_ICONSTOP "Voltura Air setup could not safely prepare its component maintenance entry. The previous installation was restored."
+    Abort "Installer maintenance entry could not be prepared."
+  ${EndIf}
 SectionEnd
 
 Section /o "Phone Webcam" SEC_PHONE_WEBCAM
   DetailPrint "Preparing the optional protected Phone Webcam component..."
   StrCpy $WebcamRemovedForUpdate 0
+  StrCpy $WebcamRollbackAvailable 0
   StrCpy $WebcamRollbackHelper "$PLUGINSDIR\VolturaAir.WebcamSetup.Rollback.exe"
   SetOutPath "$PLUGINSDIR"
-  File /oname=VolturaAir.WebcamSetup.exe "${PUBLISH_DIR}\${WEBCAM_SETUP}"
-  IfFileExists "${WEBCAM_PROTECTED_SETUP}" 0 phone_webcam_install_packaged
+  ${If} $WebcamCleanupRequired != 1
+    Goto phone_webcam_install_packaged
+  ${EndIf}
+  IfFileExists "${WEBCAM_PROTECTED_SETUP}" phone_webcam_preserve_existing phone_webcam_check_existing
+phone_webcam_preserve_existing:
   ClearErrors
   CopyFiles /SILENT "${WEBCAM_PROTECTED_SETUP}" "$WebcamRollbackHelper"
   IfErrors 0 phone_webcam_check_existing
@@ -309,6 +326,9 @@ Section /o "Phone Webcam" SEC_PHONE_WEBCAM
   MessageBox MB_ICONSTOP "Voltura Air could not preserve the installed Phone Webcam component before maintenance."
   Abort "Phone Webcam rollback helper could not be prepared."
 phone_webcam_check_existing:
+  IfFileExists "$WebcamRollbackHelper" 0 phone_webcam_remove_existing
+  StrCpy $WebcamRollbackAvailable 1
+phone_webcam_remove_existing:
   nsExec::ExecToStack '"$PLUGINSDIR\VolturaAir.WebcamSetup.exe" cleanup-required'
   Pop $0
   Pop $1
@@ -330,31 +350,257 @@ phone_webcam_check_existing:
     Abort "Phone Webcam component state is unavailable."
   ${EndIf}
 phone_webcam_install_packaged:
+  ; From this point, a failure must remove any partial packaged install and,
+  ; when available, reinstall the preserved prior valid component.
+  StrCpy $WebcamRemovedForUpdate 1
   nsExec::ExecToStack '"$PLUGINSDIR\VolturaAir.WebcamSetup.exe" install'
   Pop $0
   Pop $1
   ${If} $0 != 0
-    ${If} $WebcamRemovedForUpdate == 1
-      nsExec::ExecToStack '"$WebcamRollbackHelper" install'
-      Pop $2
-      Pop $3
-      ${If} $2 != 0
-        MessageBox MB_ICONSTOP "Phone Webcam installation and restoration did not complete. Setup retained its recovery journal; approve the administrator request and run setup again."
-        Abort "Phone Webcam component restoration did not complete."
-      ${EndIf}
-    ${EndIf}
+    Call RestorePhoneWebcamAfterFailure
+    Pop $3
     Call RollbackPromotedInstall
     Pop $2
+    ${If} $3 != 0
+      MessageBox MB_ICONSTOP "Phone Webcam installation and component cleanup/restoration did not complete. The recovery journal was retained; approve the administrator request and run setup again."
+      Abort "Phone Webcam component restoration did not complete."
+    ${EndIf}
     ${If} $2 != 0
       MessageBox MB_ICONSTOP "Phone Webcam installation did not complete and the previous app could not be restored. Setup retained its recovery journal; run setup again."
       Abort "Phone Webcam installation and app rollback did not complete."
     ${EndIf}
-    MessageBox MB_ICONSTOP "Phone Webcam installation did not complete. The previous app and component were restored. Approve the administrator request and run setup again."
+    MessageBox MB_ICONSTOP "Phone Webcam installation did not complete. The previous app and any prior valid component were restored; incomplete webcam state was safely removed. Approve the administrator request and run setup again."
     Abort "Phone Webcam component installation failed."
   ${EndIf}
 SectionEnd
 
+Section -ApplyPhoneWebcamRemoval
+  SectionGetFlags ${SEC_PHONE_WEBCAM} $0
+  IntOp $0 $0 & ${SF_SELECTED}
+  ${If} $0 != 0
+    Goto phone_webcam_selection_done
+  ${EndIf}
+  ${If} $WebcamCleanupRequired != 1
+    Goto phone_webcam_selection_done
+  ${EndIf}
+  DetailPrint "Removing the optional Phone Webcam component..."
+  StrCpy $WebcamRemovedForUpdate 0
+  StrCpy $WebcamRollbackAvailable 0
+  StrCpy $WebcamRollbackHelper "$PLUGINSDIR\VolturaAir.WebcamSetup.Rollback.exe"
+  IfFileExists "${WEBCAM_PROTECTED_SETUP}" 0 phone_webcam_removal_check
+  ClearErrors
+  CopyFiles /SILENT "${WEBCAM_PROTECTED_SETUP}" "$WebcamRollbackHelper"
+  ${If} ${Errors}
+    Call RollbackPromotedInstall
+    Pop $2
+    MessageBox MB_ICONSTOP "Voltura Air could not preserve the installed Phone Webcam component before removal."
+    Abort "Phone Webcam rollback helper could not be prepared."
+  ${EndIf}
+  StrCpy $WebcamRollbackAvailable 1
+phone_webcam_removal_check:
+  nsExec::ExecToStack '"$PLUGINSDIR\VolturaAir.WebcamSetup.exe" cleanup-required'
+  Pop $0
+  Pop $1
+  ${If} $0 == 1
+    Goto phone_webcam_selection_done
+  ${ElseIf} $0 != 0
+    Call RollbackPromotedInstall
+    Pop $2
+    MessageBox MB_ICONSTOP "Voltura Air could not verify the Phone Webcam component before removing it."
+    Abort "Phone Webcam component state is unavailable."
+  ${EndIf}
+  nsExec::ExecToStack '"$PLUGINSDIR\VolturaAir.WebcamSetup.exe" remove'
+  Pop $0
+  Pop $1
+  ${If} $0 != 0
+    Call RollbackPromotedInstall
+    Pop $2
+    MessageBox MB_ICONSTOP "Voltura Air could not safely remove Phone Webcam. Close apps using the camera, approve the administrator request, and run Modify again."
+    Abort "Phone Webcam component removal did not complete."
+  ${EndIf}
+  StrCpy $WebcamRemovedForUpdate 1
+phone_webcam_selection_done:
+SectionEnd
+
+Function ConfigureInstalledWebcamSelection
+  StrCpy $WebcamCleanupRequired 0
+  nsExec::ExecToStack '"$PLUGINSDIR\VolturaAir.WebcamSetup.exe" cleanup-required'
+  Pop $0
+  Pop $1
+  ${If} $0 == 0
+    StrCpy $WebcamCleanupRequired 1
+    Goto phone_webcam_select
+  ${ElseIf} $0 == 1
+    Goto phone_webcam_clear
+  ${Else}
+    MessageBox MB_ICONSTOP "Voltura Air setup could not determine the current Phone Webcam component state."
+    Abort "Phone Webcam component state is unavailable."
+  ${EndIf}
+phone_webcam_select:
+  SectionSetFlags ${SEC_PHONE_WEBCAM} ${SF_SELECTED}
+  Return
+phone_webcam_clear:
+  SectionSetFlags ${SEC_PHONE_WEBCAM} 0
+FunctionEnd
+
+Function ConfigureVbCableFinishOption
+  SectionGetFlags ${SEC_PHONE_WEBCAM} $0
+  IntOp $0 $0 & ${SF_SELECTED}
+  ${If} $0 == 0
+    ShowWindow $mui.FinishPage.ShowReadme ${SW_HIDE}
+    Return
+  ${EndIf}
+  nsExec::ExecToStack /TIMEOUT=8000 '"$INSTDIR\${EXE_NAME}" --phone-microphone-status'
+  Pop $0
+  Pop $1
+  ${If} $0 != 20
+    ShowWindow $mui.FinishPage.ShowReadme ${SW_HIDE}
+  ${EndIf}
+FunctionEnd
+
+Function PrepareMaintenanceInstaller
+  StrCpy $MaintenanceInstallerPending "${MAINTENANCE_INSTALLER}.pending"
+  StrCpy $MaintenanceInstallerRollback "${MAINTENANCE_INSTALLER}.rollback"
+  StrCpy $MaintenanceInstallerPrepared 0
+  StrCpy $MaintenanceInstallerHadPrevious 0
+  CreateDirectory "$LOCALAPPDATA\Voltura Air"
+  Delete "$MaintenanceInstallerPending"
+  Delete "$MaintenanceInstallerRollback"
+  IfFileExists "${MAINTENANCE_INSTALLER}" 0 maintenance_installer_previous_checked
+  StrCpy $MaintenanceInstallerHadPrevious 1
+maintenance_installer_previous_checked:
+  StrCmp $EXEPATH "${MAINTENANCE_INSTALLER}" maintenance_installer_measure_current
+  ClearErrors
+  CopyFiles /SILENT "$EXEPATH" "$MaintenanceInstallerPending"
+  IfErrors maintenance_installer_failed
+  StrCpy $MaintenanceInstallerPrepared 1
+  StrCpy $0 "$MaintenanceInstallerPending"
+  Goto maintenance_installer_measure
+maintenance_installer_measure_current:
+  StrCpy $0 "${MAINTENANCE_INSTALLER}"
+maintenance_installer_measure:
+  ClearErrors
+  FileOpen $1 "$0" r
+  IfErrors maintenance_installer_failed
+  FileSeek $1 0 END $MaintenanceInstallerSizeKb
+  FileClose $1
+  IntOp $MaintenanceInstallerSizeKb $MaintenanceInstallerSizeKb >> 10
+  Push 0
+  Return
+maintenance_installer_failed:
+  Delete "$MaintenanceInstallerPending"
+  Push 1
+  Return
+FunctionEnd
+
+Function PromoteMaintenanceInstaller
+  ${If} $MaintenanceInstallerPrepared != 1
+    Push 0
+    Return
+  ${EndIf}
+  ${If} $MaintenanceInstallerHadPrevious == 1
+    ClearErrors
+    CopyFiles /SILENT "${MAINTENANCE_INSTALLER}" "$MaintenanceInstallerRollback"
+    IfErrors maintenance_installer_promote_failed
+  ${EndIf}
+  ; Replace the retained installer in one same-volume operation. If this fails,
+  ; the previous target remains intact and the verified pending copy is retained.
+  System::Call 'kernel32::MoveFileExW(w "$MaintenanceInstallerPending", w "${MAINTENANCE_INSTALLER}", i 9)i.r0'
+  ${If} $0 != 0
+    Goto maintenance_installer_promote_ready
+  ${EndIf}
+maintenance_installer_promote_failed:
+  Push 1
+  Return
+maintenance_installer_promote_ready:
+  Push 0
+FunctionEnd
+
+Function RestorePhoneWebcamAfterFailure
+  ${If} $WebcamRemovedForUpdate != 1
+    Push 0
+    Return
+  ${EndIf}
+  nsExec::ExecToStack '"$PLUGINSDIR\VolturaAir.WebcamSetup.exe" remove'
+  Pop $0
+  Pop $1
+  ${If} $0 != 0
+    Push $0
+    Return
+  ${EndIf}
+  ${If} $WebcamRollbackAvailable == 1
+    nsExec::ExecToStack '"$WebcamRollbackHelper" install'
+    Pop $0
+    Pop $1
+    Push $0
+    Return
+  ${EndIf}
+  Push 0
+FunctionEnd
+
+Function DeletePreparedMaintenanceArtifacts
+  ClearErrors
+  Delete /REBOOTOK "${MAINTENANCE_INSTALLER}.pending"
+  IfErrors maintenance_artifact_delete_failed
+  ClearErrors
+  Delete /REBOOTOK "${MAINTENANCE_INSTALLER}.rollback"
+  IfErrors maintenance_artifact_delete_failed
+  Push 0
+  Return
+maintenance_artifact_delete_failed:
+  Push 1
+FunctionEnd
+
 Section -FinalizeInstall
+  Call PromoteMaintenanceInstaller
+  Pop $0
+  ${If} $0 != 0
+    ; Promotion failure leaves the prior Modify target intact. Dispose of only
+    ; the staged copies before removing the app recovery journal.
+    Call DeletePreparedMaintenanceArtifacts
+    Pop $3
+    ${If} $3 != 0
+      MessageBox MB_ICONSTOP "Voltura Air setup could not retain or clean up its staged Modify entry. The installed recovery journal was retained; run setup again."
+      Abort "Installer maintenance promotion cleanup failed."
+    ${EndIf}
+    Call RestorePhoneWebcamAfterFailure
+    Pop $2
+    Call RollbackPromotedInstall
+    Pop $1
+    ${If} $2 != 0
+      MessageBox MB_ICONSTOP "Voltura Air setup could not retain its Modify entry or restore Phone Webcam. The recovery artifacts and journal were retained; approve the administrator request and run setup again."
+      Abort "Installer maintenance promotion and Phone Webcam restoration failed."
+    ${EndIf}
+    ${If} $1 != 0
+      MessageBox MB_ICONSTOP "Voltura Air setup could not retain its Modify entry or restore the previous app. The recovery artifacts and journal were retained; run setup again."
+      Abort "Installer maintenance promotion and app rollback failed."
+    ${EndIf}
+    MessageBox MB_ICONSTOP "Voltura Air setup could not retain its component maintenance entry. The prior valid app and Phone Webcam state were restored; any incomplete webcam state was safely removed."
+    Abort "Installer maintenance entry could not be retained."
+  ${EndIf}
+  CreateDirectory "$SMPROGRAMS\${APP_NAME}"
+  CreateShortcut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\${EXE_NAME}" "" "$INSTDIR\${EXE_NAME}" 0
+  CreateShortcut "$SMPROGRAMS\${APP_NAME}\Uninstall ${APP_NAME}.lnk" "$INSTDIR\Uninstall.exe"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayName" "${APP_NAME}"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayVersion" "${APP_VERSION}"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "Publisher" "${PUBLISHER}"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "URLInfoAbout" "${PRODUCT_URL}"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "HelpLink" "${PRODUCT_URL}"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "Contact" "${SUPPORT_EMAIL}"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "Comments" "${INSTALLER_KIND} installer. Developer: ${DEVELOPER}; Address: ${POSTAL_ADDRESS}"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\${EXE_NAME}"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "UninstallString" "$\"$INSTDIR\Uninstall.exe$\""
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "QuietUninstallString" "$\"$INSTDIR\Uninstall.exe$\" /S"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "ModifyPath" "$\"${MAINTENANCE_INSTALLER}$\""
+  IntOp $0 $MaintenanceInstallerSizeKb + ${APP_ESTIMATED_SIZE_KB}
+  WriteRegDWORD HKCU "${UNINSTALL_KEY}" "EstimatedSize" $0
+  WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoModify" 0
+  WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoRepair" 1
+  WriteRegStr HKCU "Software\Classes\voltura-air" "" "URL:Voltura Air custom screen"
+  WriteRegStr HKCU "Software\Classes\voltura-air" "URL Protocol" ""
+  WriteRegStr HKCU "Software\Classes\voltura-air\DefaultIcon" "" "$INSTDIR\${EXE_NAME},0"
+  WriteRegStr HKCU "Software\Classes\voltura-air\shell\open\command" "" "$\"$INSTDIR\${EXE_NAME}$\" $\"%1$\""
   nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action Commit -InstallDirectory "$INSTDIR" -JournalPath "${INSTALL_TRANSACTION_JOURNAL}"'
   Pop $0
   Pop $1
@@ -362,6 +608,7 @@ Section -FinalizeInstall
     MessageBox MB_ICONSTOP "Voltura Air was installed, but setup could not finish transaction cleanup. Run setup again to recover it."
     Abort "Installer transaction cleanup failed."
   ${EndIf}
+  Delete "$MaintenanceInstallerRollback"
 SectionEnd
 
 Function .onInstSuccess
@@ -394,6 +641,67 @@ uninstall_recovery_ready:
     MessageBox MB_ICONSTOP "Voltura Air could not stage its verified installation for removal."
     Abort "The installation directory could not be staged for removal."
   ${EndIf}
+
+  ; Deterministic removal names are durable owners across interruption/retry.
+  ; A reboot deletes only old renamed files, never a same-path installer from
+  ; a later reinstall. A retry drains each owned removal path first.
+  StrCpy $4 "${MAINTENANCE_INSTALLER}.removing-main"
+  IfFileExists "$4" uninstall_drain_maintenance uninstall_move_maintenance
+uninstall_drain_maintenance:
+  ClearErrors
+  Delete /REBOOTOK "$4"
+  IfErrors uninstall_maintenance_cleanup_failed
+  IfFileExists "$4" 0 uninstall_move_maintenance
+  IfFileExists "${MAINTENANCE_INSTALLER}" uninstall_maintenance_cleanup_failed uninstall_move_pending
+uninstall_move_maintenance:
+  IfFileExists "${MAINTENANCE_INSTALLER}" 0 uninstall_move_pending
+  ClearErrors
+  Rename "${MAINTENANCE_INSTALLER}" "$4"
+  IfErrors uninstall_maintenance_cleanup_failed
+  ClearErrors
+  Delete /REBOOTOK "$4"
+  IfErrors uninstall_maintenance_cleanup_failed
+uninstall_move_pending:
+  StrCpy $4 "${MAINTENANCE_INSTALLER}.removing-pending"
+  IfFileExists "$4" uninstall_drain_pending uninstall_rename_pending
+uninstall_drain_pending:
+  ClearErrors
+  Delete /REBOOTOK "$4"
+  IfErrors uninstall_maintenance_cleanup_failed
+  IfFileExists "$4" 0 uninstall_rename_pending
+  IfFileExists "${MAINTENANCE_INSTALLER}.pending" uninstall_maintenance_cleanup_failed uninstall_move_rollback
+uninstall_rename_pending:
+  IfFileExists "${MAINTENANCE_INSTALLER}.pending" 0 uninstall_move_rollback
+  ClearErrors
+  Rename "${MAINTENANCE_INSTALLER}.pending" "$4"
+  IfErrors uninstall_maintenance_cleanup_failed
+  ClearErrors
+  Delete /REBOOTOK "$4"
+  IfErrors uninstall_maintenance_cleanup_failed
+uninstall_move_rollback:
+  StrCpy $4 "${MAINTENANCE_INSTALLER}.removing-rollback"
+  IfFileExists "$4" uninstall_drain_rollback uninstall_rename_rollback
+uninstall_drain_rollback:
+  ClearErrors
+  Delete /REBOOTOK "$4"
+  IfErrors uninstall_maintenance_cleanup_failed
+  IfFileExists "$4" 0 uninstall_rename_rollback
+  IfFileExists "${MAINTENANCE_INSTALLER}.rollback" uninstall_maintenance_cleanup_failed uninstall_maintenance_cleanup_ready
+uninstall_rename_rollback:
+  IfFileExists "${MAINTENANCE_INSTALLER}.rollback" 0 uninstall_maintenance_cleanup_ready
+  ClearErrors
+  Rename "${MAINTENANCE_INSTALLER}.rollback" "$4"
+  IfErrors uninstall_maintenance_cleanup_failed
+  ClearErrors
+  Delete /REBOOTOK "$4"
+  IfErrors uninstall_maintenance_cleanup_failed
+uninstall_maintenance_cleanup_ready:
+  Goto uninstall_complete_app_removal
+uninstall_maintenance_cleanup_failed:
+  MessageBox MB_ICONSTOP "Voltura Air could not safely stage all retained Modify installer artifacts for removal. The staged app, recovery journal, and uninstall entry were retained; run uninstall again."
+  Abort "Retained Modify installer artifact cleanup failed."
+
+uninstall_complete_app_removal:
   nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\${INSTALL_TRANSACTION_SCRIPT}" -Action CompleteRemoval -InstallDirectory "$INSTDIR" -JournalPath "${INSTALL_TRANSACTION_JOURNAL}"'
   Pop $0
   Pop $1
@@ -409,14 +717,11 @@ uninstall_recovery_ready:
   DeleteRegKey HKCU "${UNINSTALL_KEY}"
   DeleteRegKey HKCU "Software\Classes\voltura-air"
   DeleteRegValue HKCU "${RUN_KEY}" "${APP_NAME}"
-  Delete "${RECOVERY_UNINSTALLER}"
+  Delete /REBOOTOK "${RECOVERY_UNINSTALLER}"
 
 SectionEnd
 
 Function un.RemovePhoneWebcam
-  IfFileExists "${WEBCAM_PROTECTED_SETUP}" phone_webcam_helper_available phone_webcam_done
-
-phone_webcam_helper_available:
   nsExec::ExecToStack '"$PLUGINSDIR\VolturaAir.WebcamSetup.exe" cleanup-required'
   Pop $0
   Pop $1

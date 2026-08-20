@@ -5,7 +5,7 @@
 </p>
 
 Turn a phone, tablet, or browser into a wireless remote&mdash;and live screen
-viewer or video-only Windows webcam&mdash;for a Windows 11 PC. With a mouse or trackpad and physical keyboard,
+viewer or Windows webcam with optional phone audio&mdash;for a Windows 11 PC. With a mouse or trackpad and physical keyboard,
 **View PC screen** also lets you work on that PC from another computer. No
 app-store install or Voltura account is required. Direct LAN remains the default;
 on Direct LAN, Enhanced capabilities can add sensor-powered controls while
@@ -23,8 +23,8 @@ networks that block inbound PC connections.
   Standard and Data saver quality choices.
 - Use a selected paired-phone camera as `Voltura Air Webcam` in Windows apps.
   Enhanced Direct is free and unlimited; Relay initially shares the existing
-  service usage limits. Camera selection, live switching, stop, and background
-  recovery are video-only and do not request microphone audio.
+  service usage limits. Optional microphone audio is off by default, can be muted
+  from the phone, and leaves camera switching and recovery on the existing video track.
 - From another computer, use **View PC screen** with a mouse or trackpad and
   physical keyboard to move, left- or right-click, drag, scroll, and type on
   the selected Windows display.
@@ -120,8 +120,16 @@ Start Menu shortcuts, and retain pairing/settings under `%APPDATA%\Voltura Air`
 on uninstall. Start-at-sign-in is an in-app setting.
 The optional **Phone Webcam** installer component installs the protected Windows
 virtual camera only after explicit selection and UAC approval. The in-app page
-reports component state and directs repair to installer maintenance; uninstall
-removes the component before deleting the per-user app.
+reports component state. Windows **Installed apps → Voltura Air → Modify** reopens
+the same installer component page so Phone Webcam can be added, repaired, or removed;
+uninstall removes the component before deleting the per-user app.
+Optional microphone output requires user-installed [VB-CABLE](https://vb-audio.com/Cable/).
+VB-CABLE is third-party donationware, is not included or distributed with Voltura Air,
+and is obtained directly from VB-Audio under the licence applicable to the user's use.
+During an active microphone-enabled Phone Webcam session, the Windows page can
+explicitly monitor `CABLE Output` through the default speakers for end-to-end testing.
+Use headphones or keep the phone away from the speakers while testing to avoid
+acoustic echo or feedback.
 
 ## Connect
 

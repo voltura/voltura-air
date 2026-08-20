@@ -205,7 +205,7 @@ export interface PhoneWebcamCapability {
   permissionGranted: boolean;
   canUse: boolean;
   requiresRepair: boolean;
-  videoOnly: true;
+  microphoneAvailable: boolean;
   maxWidth: number;
   maxHeight: number;
   maxFramesPerSecond: number;
@@ -217,6 +217,7 @@ export interface PhoneWebcamStartMessage {
   captureWidth: number;
   captureHeight: number;
   captureFps: number;
+  useMicrophone: boolean;
   clientSignature: string;
 }
 
@@ -264,7 +265,7 @@ export interface PhoneWebcamStopResultMessage {
 export interface PhoneWebcamEndedMessage {
   type: "phone.webcam.ended";
   operationId: string;
-  reason: "stopped" | "connection-lost" | "transport-lost" | "decoder-failed" | "permission-revoked" | "pairing-revoked" | "host-stopped" | "offer-expired";
+  reason: "stopped" | "connection-lost" | "transport-lost" | "decoder-failed" | "audio-failed" | "permission-revoked" | "pairing-revoked" | "host-stopped" | "offer-expired";
   message: string;
 }
 

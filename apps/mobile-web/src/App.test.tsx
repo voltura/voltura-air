@@ -649,7 +649,7 @@ describe("App header and mode navigation", () => {
         permissionGranted: true,
         canUse: true,
         requiresRepair: false,
-        videoOnly: true,
+        microphoneAvailable: false,
         maxWidth: 1920,
         maxHeight: 1080,
         maxFramesPerSecond: 30
@@ -674,7 +674,7 @@ describe("App header and mode navigation", () => {
       permissionGranted: true,
       canUse: true,
       requiresRepair: false,
-      videoOnly: true as const,
+      microphoneAvailable: false,
       maxWidth: 1920,
       maxHeight: 1080,
       maxFramesPerSecond: 30
@@ -699,7 +699,7 @@ describe("App header and mode navigation", () => {
       permissionGranted: true,
       canUse: true,
       requiresRepair: false,
-      videoOnly: true as const,
+      microphoneAvailable: false,
       maxWidth: 1920,
       maxHeight: 1080,
       maxFramesPerSecond: 30
@@ -725,7 +725,7 @@ describe("App header and mode navigation", () => {
         permissionGranted: true,
         canUse: true,
         requiresRepair: false,
-        videoOnly: true,
+        microphoneAvailable: false,
         maxWidth: 1920,
         maxHeight: 1080,
         maxFramesPerSecond: 30

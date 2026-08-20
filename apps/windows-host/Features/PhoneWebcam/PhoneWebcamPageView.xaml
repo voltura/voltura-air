@@ -33,6 +33,41 @@
                                Visibility="Collapsed"
                                TextWrapping="Wrap"
                                Foreground="{DynamicResource TextBrush}" />
+                    <Grid x:Name="MicrophoneSetupPanel">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="{DynamicResource GridSpaceMd}" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="{DynamicResource GridSpaceSm}" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="{DynamicResource GridSpaceSm}" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="MicrophoneSetupText"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource MutedTextBrush}" />
+                        <Button x:Name="GetVbCableButton"
+                                Grid.Column="2"
+                                Content="Get VB-CABLE"
+                                Visibility="Collapsed" />
+                        <Button x:Name="CheckMicrophoneAgainButton"
+                                Grid.Column="4"
+                                Content="Check again" />
+                        <Button x:Name="AudioTestButton"
+                                Grid.Column="6"
+                                Content="Test audio"
+                                Visibility="Collapsed" />
+                    </Grid>
+                    <TextBlock x:Name="AudioTestHintText"
+                               Text="Plays CABLE Output through the default speakers. Keep the phone away from the speakers to avoid feedback."
+                               TextWrapping="Wrap"
+                               Visibility="Collapsed"
+                               Foreground="{DynamicResource MutedTextBrush}" />
+                    <TextBlock x:Name="AudioTestStatusText"
+                               TextWrapping="Wrap"
+                               Visibility="Collapsed"
+                               Foreground="{DynamicResource TextBrush}" />
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />

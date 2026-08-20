@@ -47,6 +47,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
     private readonly HostStatusPayloadFactory _statusFactory;
     private readonly IPhoneWebcamFeature _feature;
     private readonly IPhoneWebcamWebRtcPeerFactory _peerFactory;
+    private readonly IPhoneWebcamAudioTarget _audioTarget;
     private readonly PhoneWebcamFrameSequence _frameSequence = new();
     private PendingSession? _pending;
     private PendingSession? _answering;
@@ -58,12 +59,14 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         PairingManager pairingManager,
         HostStatusPayloadFactory statusFactory,
         IPhoneWebcamFeature feature,
-        IPhoneWebcamWebRtcPeerFactory? peerFactory = null)
+        IPhoneWebcamWebRtcPeerFactory? peerFactory = null,
+        IPhoneWebcamAudioTarget? audioTarget = null)
     {
         _pairingManager = pairingManager;
         _statusFactory = statusFactory;
         _feature = feature;
         _peerFactory = peerFactory ?? new PhoneWebcamWebRtcPeerFactory();
+        _audioTarget = audioTarget ?? new PhoneWebcamAudioTarget();
         pairingManager.PairingRevoked += OnPairingRevoked;
         pairingManager.PermissionsChanged += OnPermissionsChanged;
         AppPermissionSettings.Changed += OnPermissionsChanged;
@@ -79,6 +82,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         int captureWidth,
         int captureHeight,
         int captureFps,
+        bool useMicrophone,
         string clientSignature,
         RelayTurnConfiguration? relay,
         CancellationToken cancellationToken,
@@ -94,7 +98,12 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
             return Failure("invalid-capture", "The phone reported invalid camera settings.");
         }
 
-        string startTranscript = StartTranscript(clientId, operationId, captureWidth, captureHeight, captureFps);
+        if (useMicrophone && !_audioTarget.Status.IsReady)
+        {
+            return Failure("microphone-unavailable", "VB-CABLE is not ready on this PC.");
+        }
+
+        string startTranscript = StartTranscript(clientId, operationId, captureWidth, captureHeight, captureFps, useMicrophone);
         if (!_pairingManager.VerifyClientSignature(clientId, Encoding.UTF8.GetBytes(startTranscript), clientSignature))
         {
             return Failure("invalid-proof", "The Phone webcam request could not be authenticated.");
@@ -103,7 +112,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         IPhoneWebcamWebRtcPeer peer;
         try
         {
-            peer = _peerFactory.Create(relay);
+            peer = _peerFactory.Create(relay, useMicrophone);
         }
         catch (Exception exception) when (exception is InvalidOperationException or DllNotFoundException or BadImageFormatException or EntryPointNotFoundException)
         {
@@ -118,6 +127,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
             captureWidth,
             captureHeight,
             captureFps,
+            useMicrophone,
             createdAt + SignalingLifetime,
             peer,
             relay is not null);
@@ -243,32 +253,70 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         ActiveSession createdActive;
         try
         {
-            createdActive = new ActiveSession(pending, _feature, _frameSequence);
+            createdActive = await ActiveSession.CreateAsync(pending, _feature, _frameSequence, _audioTarget).ConfigureAwait(false);
             pending.DetachPeer();
         }
-        catch (Exception exception) when (exception is InvalidOperationException or ObjectDisposedException or SharpGen.Runtime.SharpGenException)
+        catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             await RejectAnsweringAsync(pending).ConfigureAwait(false);
-            return new(false, "decoder-unavailable", "The PC could not start its H.264 Phone webcam decoder.");
+            return pending.UseMicrophone
+                ? new(false, "microphone-unavailable", "The PC could not open the VB-CABLE audio endpoint.")
+                : new(false, "decoder-unavailable", "The PC could not start its H.264 Phone webcam decoder.");
         }
 
         ActiveSession active = createdActive;
         active.Pipeline.QualityChanged += quality =>
-            ReportSessionActivity(active.Generation, clientId, "streaming", quality.Width, quality.Height);
-        active.PipelineFailed += (_, _) => _ = StopSpecificAsync(active, "decoder-failed");
-        active.PeerStopped += (_, _) => _ = StopSpecificAsync(active, "transport-lost");
+            ReportSessionActivity(
+                active.Generation,
+                clientId,
+                "streaming",
+                quality.Width,
+                quality.Height,
+                active.HasMicrophone);
+        active.PipelineFailed += (_, _) => OnActiveFailure(active, "decoder-failed");
+        active.AudioPipelineFailed += (_, _) => OnActiveFailure(active, "audio-failed");
+        active.PeerStopped += (_, _) => OnActiveFailure(active, "transport-lost");
+
+        try
+        {
+            createdActive.StartPipeline();
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            lock (_gate)
+            {
+                if (ReferenceEquals(_answering, pending))
+                {
+                    _answering = null;
+                }
+            }
+
+            try
+            {
+                await createdActive.DisposeAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                pending.CompleteAnswering();
+            }
+
+            return pending.UseMicrophone
+                ? new(false, "microphone-unavailable", "The PC could not start the VB-CABLE audio endpoint.")
+                : new(false, "decoder-unavailable", "The PC could not start its H.264 Phone webcam decoder.");
+        }
 
         var accepted = false;
+        string? startupFailure;
         lock (_gate)
         {
-            if (!ReferenceEquals(_answering, pending) || pending.StopRequested || _active is not null)
+            startupFailure = createdActive.FailureReason;
+            if (!ReferenceEquals(_answering, pending) || pending.StopRequested || _active is not null || startupFailure is not null)
             {
             }
             else
             {
                 _answering = null;
                 _active = createdActive;
-                createdActive.StartPipeline();
                 accepted = true;
             }
         }
@@ -289,7 +337,13 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
             {
                 pending.CompleteAnswering();
             }
-            return new(false, "offer-expired", "The Phone webcam offer is no longer active.");
+            return startupFailure switch
+            {
+                "audio-failed" => new(false, "microphone-unavailable", "The PC could not start the VB-CABLE audio endpoint."),
+                "decoder-failed" => new(false, "decoder-unavailable", "The PC could not start its H.264 Phone webcam decoder."),
+                "transport-lost" => new(false, "invalid-answer", "The Phone webcam transport stopped while starting."),
+                _ => new(false, "offer-expired", "The Phone webcam offer is no longer active.")
+            };
         }
 
         pending.CompleteAnswering();
@@ -323,7 +377,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
     {
         try
         {
-            await active.TrackOpen.WaitAsync(TransportOpenLifetime).ConfigureAwait(false);
+            await active.MediaOpen.WaitAsync(TransportOpenLifetime).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is TimeoutException or OperationCanceledException or ObjectDisposedException or InvalidOperationException)
         {
@@ -440,6 +494,13 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
             operationId: active.OperationId));
     }
 
+    private void OnActiveFailure(ActiveSession active, string reason)
+    {
+        Console.Error.WriteLine("Voltura Air Phone webcam media stopped: {0}.", reason);
+        active.RecordFailure(reason);
+        _ = StopSpecificAsync(active, reason);
+    }
+
     private bool CanStart(string clientId) =>
         Volatile.Read(ref _disposed) == 0 && _statusFactory.CanUsePhoneWebcam(clientId);
 
@@ -523,17 +584,23 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         await StopAllAsync("host-stopped").ConfigureAwait(false);
     }
 
-    internal static string StartTranscript(string clientId, string operationId, int width, int height, int fps) =>
-        $"VolturaAir phone-webcam:start:v1:{clientId}:{operationId}:{width}:{height}:{fps}";
+    internal static string StartTranscript(string clientId, string operationId, int width, int height, int fps, bool useMicrophone) =>
+        $"VolturaAir phone-webcam:start:v2:{clientId}:{operationId}:{width}:{height}:{fps}:{useMicrophone.ToString().ToLowerInvariant()}";
     internal static string OfferTranscript(string clientId, string operationId, string offerHash) =>
-        $"VolturaAir phone-webcam:offer:v1:{clientId}:{operationId}:{offerHash}";
+        $"VolturaAir phone-webcam:offer:v2:{clientId}:{operationId}:{offerHash}";
     internal static string AnswerTranscript(string clientId, string operationId, string offerHash, string answerHash) =>
-        $"VolturaAir phone-webcam:answer:v1:{clientId}:{operationId}:{offerHash}:{answerHash}";
+        $"VolturaAir phone-webcam:answer:v2:{clientId}:{operationId}:{offerHash}:{answerHash}";
     internal static string HashSdp(string sdp) =>
         ScreenViewHostIdentity.Base64Url(SHA256.HashData(Encoding.UTF8.GetBytes(sdp)));
     private static PhoneWebcamStartResult Failure(string code, string message) => new(false, code, message);
 
-    private void ReportSessionActivity(long generation, string clientId, string state, int? width = null, int? height = null)
+    private void ReportSessionActivity(
+        long generation,
+        string clientId,
+        string state,
+        int? width = null,
+        int? height = null,
+        bool hasMicrophone = false)
     {
         lock (_gate)
         {
@@ -545,7 +612,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
                 return;
             }
 
-            ReportActivityCore(clientId, state, width, height);
+            ReportActivityCore(clientId, state, width, height, hasMicrophone);
         }
     }
 
@@ -562,11 +629,16 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         }
     }
 
-    private void ReportActivityCore(string clientId, string state, int? width = null, int? height = null)
+    private void ReportActivityCore(
+        string clientId,
+        string state,
+        int? width = null,
+        int? height = null,
+        bool hasMicrophone = false)
     {
         if (_feature is PhoneWebcamFeature feature)
         {
-            feature.ReportActivity(state, width, height);
+            feature.ReportActivity(state, width, height, hasMicrophone);
         }
         ActivityChanged?.Invoke(this, new PhoneWebcamActivityChangedEventArgs(clientId, state, width, height));
     }
@@ -579,6 +651,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         int captureWidth,
         int captureHeight,
         int captureFps,
+        bool useMicrophone,
         DateTimeOffset expiresAt,
         IPhoneWebcamWebRtcPeer peer,
         bool relayOnly) : IAsyncDisposable
@@ -590,6 +663,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
         internal int CaptureWidth { get; } = captureWidth;
         internal int CaptureHeight { get; } = captureHeight;
         internal int CaptureFps { get; } = captureFps;
+        internal bool UseMicrophone { get; } = useMicrophone;
         internal DateTimeOffset ExpiresAt { get; } = expiresAt;
         internal bool RelayOnly { get; } = relayOnly;
         internal string? OfferHash { get; set; }
@@ -624,39 +698,93 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
     {
         private readonly IPhoneWebcamWebRtcPeer _peer;
         private readonly EventHandler _stopped;
+        private readonly PhoneWebcamAudioPipeline? _audioPipeline;
+        private string? _failureReason;
         private int _disposed;
 
-        internal ActiveSession(
+        private ActiveSession(
             PendingSession pending,
-            IPhoneWebcamFeature feature,
-            PhoneWebcamFrameSequence frameSequence)
+            PhoneWebcamVideoPipeline pipeline,
+            PhoneWebcamAudioPipeline? audioPipeline)
         {
             Owner = pending.Owner;
             ClientId = pending.ClientId;
             OperationId = pending.OperationId;
             Generation = pending.Generation;
             _peer = pending.Peer;
-            Pipeline = new PhoneWebcamVideoPipeline(feature, frameSequence);
+            Pipeline = pipeline;
             _peer.AccessUnitReceived += Pipeline.Submit;
             Pipeline.KeyFrameRequested += OnKeyFrameRequested;
             Pipeline.Failed += OnPipelineFailed;
-            _stopped = (_, _) => PeerStopped?.Invoke(this, EventArgs.Empty);
+            _audioPipeline = audioPipeline;
+            if (_audioPipeline is not null)
+            {
+                _peer.OpusPacketReceived += _audioPipeline.Submit;
+                _audioPipeline.Failed += OnAudioPipelineFailed;
+            }
+            _stopped = (_, _) =>
+            {
+                RecordFailure("transport-lost");
+                PeerStopped?.Invoke(this, EventArgs.Empty);
+            };
             _peer.Stopped += _stopped;
+        }
+
+        internal static async Task<ActiveSession> CreateAsync(
+            PendingSession pending,
+            IPhoneWebcamFeature feature,
+            PhoneWebcamFrameSequence frameSequence,
+            IPhoneWebcamAudioTarget audioTarget)
+        {
+            PhoneWebcamAudioPipeline? audio = null;
+            PhoneWebcamVideoPipeline? video = null;
+            try
+            {
+                if (pending.UseMicrophone) audio = new PhoneWebcamAudioPipeline(audioTarget);
+                video = new PhoneWebcamVideoPipeline(feature, frameSequence);
+                return new ActiveSession(pending, video, audio);
+            }
+            catch
+            {
+                if (video is not null) await video.DisposeAsync().ConfigureAwait(false);
+                if (audio is not null) await audio.DisposeAsync().ConfigureAwait(false);
+                throw;
+            }
         }
 
         internal string ClientId { get; }
         internal string OperationId { get; }
         internal long Generation { get; }
         internal object Owner { get; }
-        internal Task TrackOpen => _peer.TrackOpen;
+        internal Task MediaOpen => _peer.MediaOpen;
         internal PhoneWebcamVideoPipeline Pipeline { get; }
+        internal bool HasMicrophone => _audioPipeline is not null;
+        internal string? FailureReason => Volatile.Read(ref _failureReason);
         internal event EventHandler? PeerStopped;
         internal event EventHandler? PipelineFailed;
+        internal event EventHandler? AudioPipelineFailed;
 
-        internal void StartPipeline() => Pipeline.Start();
+        internal void StartPipeline()
+        {
+            Pipeline.Start();
+            _audioPipeline?.Start();
+        }
+
+        internal void RecordFailure(string reason) =>
+            Interlocked.CompareExchange(ref _failureReason, reason, null);
 
         private void OnKeyFrameRequested(object? sender, EventArgs args) => _peer.RequestKeyFrame();
-        private void OnPipelineFailed(object? sender, EventArgs args) => PipelineFailed?.Invoke(this, EventArgs.Empty);
+        private void OnPipelineFailed(object? sender, EventArgs args)
+        {
+            RecordFailure("decoder-failed");
+            PipelineFailed?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void OnAudioPipelineFailed(object? sender, EventArgs args)
+        {
+            RecordFailure("audio-failed");
+            AudioPipelineFailed?.Invoke(this, EventArgs.Empty);
+        }
 
         public async ValueTask DisposeAsync()
         {
@@ -667,10 +795,16 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
 
             _peer.Stopped -= _stopped;
             _peer.AccessUnitReceived -= Pipeline.Submit;
+            if (_audioPipeline is not null)
+            {
+                _peer.OpusPacketReceived -= _audioPipeline.Submit;
+                _audioPipeline.Failed -= OnAudioPipelineFailed;
+            }
             Pipeline.KeyFrameRequested -= OnKeyFrameRequested;
             Pipeline.Failed -= OnPipelineFailed;
             await _peer.DisposeAsync().ConfigureAwait(false);
             await Pipeline.DisposeAsync().ConfigureAwait(false);
+            if (_audioPipeline is not null) await _audioPipeline.DisposeAsync().ConfigureAwait(false);
         }
     }
 }

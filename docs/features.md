@@ -16,7 +16,7 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   over the internet without opening an inbound connection to the PC.
 - **View PC screen** lets a paired device view one selected Windows display;
   touch devices use its touch controls, while another computer can use direct mouse and keyboard control.
-- **Phone webcam** turns a selected paired-phone camera into the video-only
+- **Phone webcam** turns a selected paired-phone camera into an optional-audio
   `Voltura Air Webcam` virtual camera for Windows applications.
 - It is not a file-sync, backup, notification-sync, or cloud clipboard service.
 - The client cannot control or wake a sleeping, shut-down, or unreachable PC.
@@ -169,9 +169,12 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
 - Phone webcam is a normal app tool and is not behind Developer mode. The Windows
   **Phone webcam** page reports protected-component status and active-phone state,
   previews the same camera exposed to other Windows applications, and directs
-  unavailable or mismatched installations to installer maintenance. The optional
-  installer component owns install, repair, and removal through an explicit UAC
-  boundary; the per-user host never elevates its LocalAppData executable.
+  unavailable or mismatched installations to installer maintenance. Windows
+  **Installed apps → Voltura Air → Modify** reopens that same retained installer,
+  preselects Phone Webcam from its protected installation state, and applies checking
+  or unchecking through the existing install/repair/removal transaction. The optional
+  installer component owns those changes through an explicit UAC boundary; the
+  per-user host never elevates its LocalAppData executable.
 - The global **Allow paired devices to use Phone webcam** permission defaults off
   and combines with an inheritable per-device **Use phone as webcam** override.
   Removing a pairing, revoking permission, stopping from the tray, host shutdown,
@@ -181,7 +184,15 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   permission probe, lists the cameras returned by the browser, and lets the user
   select one before **Start webcam**. It requests the best practical video up to
   1920 x 1080 at 30 frames per second and shows actual capture and encoded quality.
-  It never requests or transports microphone audio.
+  **Use microphone** is off by default and appears only when the PC has a ready
+  base VB-CABLE endpoint. Selecting it requests microphone permission from that
+  gesture. Mute appears only after permission and an audio track are available.
+  While that audio track is actively streaming, the Windows page exposes an
+  explicit **Test audio** monitor that reads the same `CABLE Output` capture endpoint
+  used by receiving apps and plays it through the default Windows speakers. The
+  monitor is never automatic and stops with the page or session. Because it plays
+  the phone microphone locally, use headphones or keep the phone away from the
+  speakers during the test to avoid acoustic echo or feedback.
 - Camera switching replaces the video track on the current healthy peer. After a
   device rotation, or when outbound encoded frames stop advancing while local
   capture remains live, the selected camera track is refreshed on that same peer
@@ -201,6 +212,10 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   advertises only NV12 1920 x 1080 at 30 fps. A transient camera handoff retains the
   last valid frame; explicit stop, session loss, removal, and shutdown clear it
   immediately to the waiting frame.
+- Optional audio adds one bounded Opus track, decoded in managed code and written
+  to the exact detected VB-CABLE endpoint. VB-CABLE is third-party donationware,
+  is not included or distributed with Voltura Air, and must be obtained directly
+  from VB-Audio under the licence applicable to the user's use.
 
 ### Input and Windows actions
 

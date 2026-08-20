@@ -19,7 +19,8 @@ internal sealed class HostStatusPayloadFactory(
     Func<PowerPointSessionSnapshot> getPowerPointSession,
     PowerPointPresentationCatalog presentationCatalog,
     Func<bool>? enhancedCapabilitiesEnabled = null,
-    Func<PhoneWebcamFeatureStatus>? getPhoneWebcamStatus = null)
+    Func<PhoneWebcamFeatureStatus>? getPhoneWebcamStatus = null,
+    Func<bool>? isPhoneMicrophoneAvailable = null)
 {
     private static readonly string DeveloperSessionId = Guid.NewGuid().ToString("N");
 
@@ -142,7 +143,7 @@ internal sealed class HostStatusPayloadFactory(
                 pairingManager.HasCurrentHostIdentity(clientId) &&
                 getPhoneWebcamStatus?.Invoke().IsInstalled == true,
             requiresRepair = !pairingManager.HasCurrentHostIdentity(clientId),
-            videoOnly = true,
+            microphoneAvailable = isPhoneMicrophoneAvailable?.Invoke() == true,
             maxWidth = 1920,
             maxHeight = 1080,
             maxFramesPerSecond = 30

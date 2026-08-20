@@ -310,7 +310,7 @@ function isServerMessage(value: unknown): value is ServerMessage {
     case "phone.webcam.ended":
       return hasOnlyFields(value, ["type", "operationId", "reason", "message"]) &&
         isOperationId(value.operationId) &&
-        isOneOf(value.reason, ["stopped", "connection-lost", "transport-lost", "decoder-failed", "permission-revoked", "pairing-revoked", "host-stopped", "offer-expired"]) &&
+        isOneOf(value.reason, ["stopped", "connection-lost", "transport-lost", "decoder-failed", "audio-failed", "permission-revoked", "pairing-revoked", "host-stopped", "offer-expired"]) &&
         isProtocolString(value.message, 240);
     case "url.open.result":
       return isOperationId(value.operationId) && isResultBase(value) &&
@@ -472,7 +472,7 @@ function isPhoneWebcamCapability(value: unknown): boolean {
     typeof value.permissionGranted === "boolean" &&
     typeof value.canUse === "boolean" &&
     typeof value.requiresRepair === "boolean" &&
-    value.videoOnly === true &&
+    typeof value.microphoneAvailable === "boolean" &&
     value.maxWidth === 1920 &&
     value.maxHeight === 1080 &&
     value.maxFramesPerSecond === 30;

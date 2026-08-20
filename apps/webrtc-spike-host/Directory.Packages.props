@@ -1,7 +1,0 @@
-<Project>
-  <Import Project="..\..\Directory.Packages.props" />
-
-  <ItemGroup>
-    <PackageVersion Include="ZXing.Net" Version="0.16.11" />
-  </ItemGroup>
-</Project>

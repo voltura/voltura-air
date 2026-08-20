@@ -11,7 +11,7 @@ const capability: PhoneWebcamCapability = {
   permissionGranted: true,
   canUse: true,
   requiresRepair: false,
-  videoOnly: true,
+  microphoneAvailable: false,
   maxWidth: 1920,
   maxHeight: 1080,
   maxFramesPerSecond: 30
@@ -40,6 +40,36 @@ afterEach(() => {
 });
 
 describe("PhoneWebcamWorkspace", () => {
+  it("reports a bounded browser negotiation error without exposing SDP", async () => {
+    class RejectingPeerConnection {
+      readonly iceGatheringState: RTCIceGatheringState = "new";
+      connectionState: RTCPeerConnectionState = "new";
+      addEventListener() { /* This rejection-only peer emits no events. */ }
+      setRemoteDescription() {return Promise.reject(new DOMException("Unsupported bundled audio offer.\n", "OperationError"));}
+      close() {this.connectionState = "closed";}
+    }
+    vi.stubGlobal("RTCPeerConnection", RejectingPeerConnection as unknown as typeof RTCPeerConnection);
+    const permissionTrack = createTrack("permission", 640, 480);
+    const selectedTrack = createTrack("front", 1920, 1080);
+    stubMediaDevices(vi.fn()
+      .mockResolvedValueOnce(createStream(permissionTrack))
+      .mockResolvedValueOnce(createStream(selectedTrack)));
+    const send = vi.fn<(message: ClientMessage) => void>();
+    storeReconnectKey();
+    const hostKey = createPairingKeyMaterial();
+    if (!hostKey) {throw new Error("Host test key is unavailable.");}
+    renderWorkspace(send, hostKey.reconnectPublicKey);
+    fireEvent.click(screen.getByRole("button", { name: "Allow camera access" }));
+    await screen.findByLabelText("Camera");
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    const start = await findStart(send, 1);
+    publishSignedOffer(start.operationId, hostKey.privateKey);
+
+    expect(await screen.findByText(
+      "This browser could not finish Phone webcam while applying the PC media offer (OperationError: Unsupported bundled audio offer.)."
+    )).toBeTruthy();
+  });
+
   it("expands and restores the camera view without ending its session", () => {
     const send = vi.fn<(message: ClientMessage) => void>();
     renderWorkspace(send);
@@ -82,8 +112,109 @@ describe("PhoneWebcamWorkspace", () => {
     const start = send.mock.calls[0]?.[0];
     expect(start?.type).toBe("phone.webcam.start");
     if (start?.type === "phone.webcam.start") {
-      expect(start).toMatchObject({ captureWidth: 1920, captureHeight: 1080, captureFps: 30 });
+      expect(start).toMatchObject({ captureWidth: 1920, captureHeight: 1080, captureFps: 30, useMicrophone: false });
     }
+  });
+
+  it("keeps microphone off by default and exposes Mute only after permission and capture", async () => {
+    const cameraProbe = createTrack("permission", 640, 480);
+    const microphoneProbe = createAudioTrack();
+    const camera = createTrack("front", 1920, 1080);
+    const microphone = createAudioTrack();
+    const getUserMedia = vi.fn()
+      .mockResolvedValueOnce(createStream(cameraProbe))
+      .mockResolvedValueOnce(createAudioStream(microphoneProbe))
+      .mockResolvedValueOnce(createAvStream(camera, microphone));
+    stubMediaDevices(getUserMedia);
+    const send = vi.fn<(message: ClientMessage) => void>();
+    storeReconnectKey();
+    const rendered = renderWorkspace(send, undefined, "secure-direct", "paired", 1, { ...capability, microphoneAvailable: true });
+
+    fireEvent.click(screen.getByRole("button", { name: "Allow camera access" }));
+    await screen.findByLabelText("Camera");
+    expect((screen.getByLabelText("Use microphone") as HTMLInputElement).checked).toBe(false);
+    expect(screen.queryByRole("button", { name: "Mute" })).toBeNull();
+
+    fireEvent.click(screen.getByLabelText("Use microphone"));
+    await waitFor(() => expect((screen.getByLabelText("Use microphone") as HTMLInputElement).checked).toBe(true));
+    expect(microphoneProbe.stop).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    await waitFor(() => expect(send).toHaveBeenCalledOnce());
+    expect(send.mock.calls[0]?.[0]).toMatchObject({ type: "phone.webcam.start", useMicrophone: true });
+    rendered.rerender(workspace(send, undefined, "secure-direct", "paired", 1, { ...capability, microphoneAvailable: false }));
+    expect(screen.getByRole("button", { name: "Mute" })).toBeTruthy();
+    expect(screen.queryByLabelText("Use microphone")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Mute" }));
+    expect(microphone.enabled).toBe(false);
+    expect(screen.getByRole("button", { name: "Unmute" })).toBeTruthy();
+  });
+
+  it("resets microphone off after permission denial", async () => {
+    const cameraProbe = createTrack("permission", 640, 480);
+    const getUserMedia = vi.fn()
+      .mockResolvedValueOnce(createStream(cameraProbe))
+      .mockRejectedValueOnce(new DOMException("denied", "NotAllowedError"));
+    stubMediaDevices(getUserMedia);
+    renderWorkspace(vi.fn(), undefined, "secure-direct", "paired", 1, { ...capability, microphoneAvailable: true });
+
+    fireEvent.click(screen.getByRole("button", { name: "Allow camera access" }));
+    await screen.findByLabelText("Camera");
+    fireEvent.click(screen.getByLabelText("Use microphone"));
+
+    await screen.findByText("Microphone access was not allowed or no microphone is available.");
+    expect((screen.getByLabelText("Use microphone") as HTMLInputElement).checked).toBe(false);
+    expect(screen.queryByRole("button", { name: "Mute" })).toBeNull();
+  });
+
+  it("reports microphone capture fallback while starting video only", async () => {
+    const cameraProbe = createTrack("permission", 640, 480);
+    const microphoneProbe = createAudioTrack();
+    const camera = createTrack("front", 1920, 1080);
+    const getUserMedia = vi.fn()
+      .mockResolvedValueOnce(createStream(cameraProbe))
+      .mockResolvedValueOnce(createAudioStream(microphoneProbe))
+      .mockRejectedValueOnce(new DOMException("busy", "NotReadableError"))
+      .mockResolvedValueOnce(createStream(camera));
+    stubMediaDevices(getUserMedia);
+    const send = vi.fn<(message: ClientMessage) => void>();
+    storeReconnectKey();
+    renderWorkspace(send, undefined, "secure-direct", "paired", 1, { ...capability, microphoneAvailable: true });
+
+    fireEvent.click(screen.getByRole("button", { name: "Allow camera access" }));
+    await screen.findByLabelText("Camera");
+    fireEvent.click(screen.getByLabelText("Use microphone"));
+    await waitFor(() => expect((screen.getByLabelText("Use microphone") as HTMLInputElement).checked).toBe(true));
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+
+    expect(await screen.findByText("The microphone could not be opened. Starting encrypted video only…")).toBeTruthy();
+    await waitFor(() => expect(send).toHaveBeenCalledOnce());
+    expect(send.mock.calls[0]?.[0]).toMatchObject({ type: "phone.webcam.start", useMicrophone: false });
+  });
+
+  it("clears an idle microphone selection when the host target becomes unavailable", async () => {
+    const cameraProbe = createTrack("permission", 640, 480);
+    const microphoneProbe = createAudioTrack();
+    const camera = createTrack("front", 1920, 1080);
+    const getUserMedia = vi.fn()
+      .mockResolvedValueOnce(createStream(cameraProbe))
+      .mockResolvedValueOnce(createAudioStream(microphoneProbe))
+      .mockResolvedValueOnce(createStream(camera));
+    stubMediaDevices(getUserMedia);
+    const send = vi.fn<(message: ClientMessage) => void>();
+    storeReconnectKey();
+    const rendered = renderWorkspace(send, undefined, "secure-direct", "paired", 1, { ...capability, microphoneAvailable: true });
+    fireEvent.click(screen.getByRole("button", { name: "Allow camera access" }));
+    await screen.findByLabelText("Camera");
+    fireEvent.click(screen.getByLabelText("Use microphone"));
+    await waitFor(() => expect((screen.getByLabelText("Use microphone") as HTMLInputElement).checked).toBe(true));
+
+    rendered.rerender(workspace(send, undefined, "secure-direct", "paired", 1, { ...capability, microphoneAvailable: false }));
+    await waitFor(() => expect(screen.queryByLabelText("Use microphone")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+
+    await waitFor(() => expect(send).toHaveBeenCalledOnce());
+    expect(getUserMedia.mock.calls[2]?.[0]).toMatchObject({ audio: false });
+    expect(send.mock.calls[0]?.[0]).toMatchObject({ type: "phone.webcam.start", useMicrophone: false });
   });
 
   it("stops the camera immediately when Stop is pressed during signaling", async () => {
@@ -265,7 +396,7 @@ describe("PhoneWebcamWorkspace", () => {
     expect(send).not.toHaveBeenCalled();
   });
 
-  it("stops capture when the host does not offer video-only H.264", async () => {
+  it("stops capture when the host offers unexpected media", async () => {
     const permissionTrack = createTrack("permission", 640, 480);
     const selectedTrack = createTrack("front", 1920, 1080);
     stubMediaDevices(vi.fn()
@@ -289,11 +420,44 @@ describe("PhoneWebcamWorkspace", () => {
       succeeded: true,
       code: "accepted",
       message: "ready",
-      offerSdp: "v=0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\na=rtpmap:111 opus/48000/2\r\n",
+      offerSdp: "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\na=rtpmap:102 H264/90000\r\na=recvonly\r\n",
       hostSignature: "unused"
     });});
 
-    expect(await screen.findByText("The PC did not offer a video-only H.264 webcam connection.")).toBeTruthy();
+    expect(await screen.findByText("The PC offered unexpected Phone webcam media.")).toBeTruthy();
+    expect(selectedTrack.stop).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    "v=0\r\nm=video 0 UDP/TLS/RTP/SAVPF 102\r\na=rtpmap:102 H264/90000\r\na=recvonly\r\n",
+    "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 102\r\na=rtpmap:102 H264/90000\r\na=inactive\r\n",
+    "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 102\r\na=rtpmap:102 H264/90000\r\na=recvonly\r\na=inactive\r\n",
+    "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 102\r\na=rtpmap:102 H264/90000\r\na=recvonly\r\na=sendonly\r\n"
+  ])("rejects a host offer that does not send the requested video", async (offerSdp) => {
+    const permissionTrack = createTrack("permission", 640, 480);
+    const selectedTrack = createTrack("front", 1920, 1080);
+    stubMediaDevices(vi.fn()
+      .mockResolvedValueOnce(createStream(permissionTrack))
+      .mockResolvedValueOnce(createStream(selectedTrack)));
+    const send = vi.fn<(message: ClientMessage) => void>();
+    storeReconnectKey();
+    renderWorkspace(send);
+    fireEvent.click(screen.getByRole("button", { name: "Allow camera access" }));
+    await screen.findByLabelText("Camera");
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    const start = await findStart(send, 1);
+
+    act(() => {publishPhoneWebcamResult({
+      type: "phone.webcam.start.result",
+      operationId: start.operationId,
+      succeeded: true,
+      code: "accepted",
+      message: "ready",
+      offerSdp,
+      hostSignature: "unused"
+    });});
+
+    expect(await screen.findByText("The PC offered unexpected Phone webcam media.")).toBeTruthy();
     expect(selectedTrack.stop).toHaveBeenCalledOnce();
   });
 
@@ -317,7 +481,7 @@ describe("PhoneWebcamWorkspace", () => {
       addEventListener(type: string, listener: () => void) {this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);}
       setRemoteDescription(description: RTCSessionDescriptionInit) {this.remoteDescription = description; return Promise.resolve();}
       getTransceivers() {return [{ receiver: { track: { kind: "video" } }, sender, direction: "recvonly" }];}
-      createAnswer() {return Promise.resolve({ type: "answer" as RTCSdpType, sdp: `v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 102\r\na=rtpmap:102 H264/90000\r\na=candidate:1 1 udp 1 192.0.2.20 5000 typ ${candidate}\r\n` });}
+      createAnswer() {return Promise.resolve({ type: "answer" as RTCSdpType, sdp: `v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 102\r\na=rtpmap:102 H264/90000\r\na=sendonly\r\na=candidate:1 1 udp 1 192.0.2.20 5000 typ ${candidate}\r\n` });}
       setLocalDescription(description: RTCSessionDescriptionInit) {this.localDescription = description; return Promise.resolve();}
       getStats() {return Promise.resolve(new Map());}
       close() {this.connectionState = "closed";}
@@ -344,9 +508,9 @@ describe("PhoneWebcamWorkspace", () => {
       if (message?.type !== "phone.webcam.start") {throw new Error("Start was not sent.");}
       return message;
     });
-    const offerSdp = "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 102\r\na=rtpmap:102 H264/90000\r\n";
+    const offerSdp = "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 102\r\na=rtpmap:102 H264/90000\r\na=recvonly\r\n";
     const offerHash = hashSessionDescription(offerSdp);
-    const transcript = `VolturaAir phone-webcam:offer:v1:client-test:${start.operationId}:${offerHash}`;
+    const transcript = `VolturaAir phone-webcam:offer:v2:client-test:${start.operationId}:${offerHash}`;
     const hostSignature = signPrivateKeyPayload(hostKey.privateKey, new TextEncoder().encode(transcript));
     act(() => {publishPhoneWebcamResult({
       type: "phone.webcam.start.result",
@@ -391,7 +555,7 @@ describe("PhoneWebcamWorkspace", () => {
         return peers.length === 1 ? firstNegotiation.promise : Promise.resolve();
       }
       getTransceivers() {return [{ receiver: { track: { kind: "video" } }, sender: this.sender, direction: "recvonly" }];}
-      createAnswer() {return Promise.resolve({ type: "answer" as RTCSdpType, sdp: "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 102\r\na=rtpmap:102 H264/90000\r\na=candidate:1 1 udp 1 192.0.2.20 5000 typ host\r\n" });}
+      createAnswer() {return Promise.resolve({ type: "answer" as RTCSdpType, sdp: "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 102\r\na=rtpmap:102 H264/90000\r\na=sendonly\r\na=candidate:1 1 udp 1 192.0.2.20 5000 typ host\r\n" });}
       setLocalDescription(description: RTCSessionDescriptionInit) {this.localDescription = description; return Promise.resolve();}
       getStats() {return Promise.resolve(new Map());}
     }
@@ -499,6 +663,32 @@ describe("PhoneWebcamWorkspace", () => {
     expect(screen.getByText("Streaming through Enhanced Direct")).toBeTruthy();
     expect(send.mock.calls.filter(([message]) => message.type === "phone.webcam.start")).toHaveLength(1);
     expect(send.mock.calls.filter(([message]) => message.type === "phone.webcam.stop")).toHaveLength(0);
+    vi.useRealTimers();
+  });
+
+  it("ends microphone capture when an exclusive camera handoff cannot recover", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const permissionTrack = createTrack("permission", 640, 480);
+    const microphoneProbe = createAudioTrack();
+    const firstTrack = createTrack("back", 1920, 1080);
+    const microphone = createAudioTrack();
+    const replacementAudio = createAudioTrack();
+    const sender = new FakeSender();
+    const getUserMedia = vi.fn()
+      .mockResolvedValueOnce(createStream(permissionTrack))
+      .mockResolvedValueOnce(createAudioStream(microphoneProbe))
+      .mockResolvedValueOnce(createAvStream(firstTrack, microphone))
+      .mockRejectedValueOnce(new DOMException("Camera busy", "NotReadableError"))
+      .mockResolvedValueOnce(createAudioStream(replacementAudio));
+    const send = await establishStreamingSession(getUserMedia, sender, undefined, true);
+
+    fireEvent.change(screen.getByLabelText("Camera"), { target: { value: "front" } });
+    await act(async () => {await vi.advanceTimersByTimeAsync(200);});
+
+    await waitFor(() => expect(screen.getByText("The active camera stopped while switching cameras.")).toBeTruthy());
+    expect(microphone.stop).toHaveBeenCalledOnce();
+    expect(replacementAudio.stop).toHaveBeenCalledOnce();
+    expect(send.mock.calls.filter(([message]) => message.type === "phone.webcam.stop")).toHaveLength(1);
     vi.useRealTimers();
   });
 
@@ -773,7 +963,7 @@ describe("PhoneWebcamWorkspace", () => {
       addEventListener(type: string, listener: () => void) {this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);}
       setRemoteDescription() {return Promise.resolve();}
       getTransceivers() {return [{ receiver: { track: { kind: "video" } }, sender: this.sender, direction: "recvonly" }];}
-      createAnswer() {return Promise.resolve({ type: "answer" as RTCSdpType, sdp: "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 102\r\na=rtpmap:102 H264/90000\r\na=candidate:1 1 udp 1 192.0.2.20 5000 typ host\r\n" });}
+      createAnswer() {return Promise.resolve({ type: "answer" as RTCSdpType, sdp: "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 102\r\na=rtpmap:102 H264/90000\r\na=sendonly\r\na=candidate:1 1 udp 1 192.0.2.20 5000 typ host\r\n" });}
       setLocalDescription(description: RTCSessionDescriptionInit) {this.localDescription = description; return Promise.resolve();}
       getStats() {
         if (this.sessionIndex === 0) {return deferredStats.promise;}
@@ -929,9 +1119,13 @@ function workspace(
 async function establishStreamingSession(
   getUserMedia: ReturnType<typeof vi.fn>,
   sender: FakeSender,
-  getStats: () => Promise<Map<string, unknown>> = () => Promise.resolve(new Map<string, unknown>())
+  getStats: (() => Promise<Map<string, unknown>>) | undefined = undefined,
+  useMicrophone = false
 ) {
+  const readStats = getStats ?? (() => Promise.resolve(new Map<string, unknown>()));
   const peers: StreamingPeerConnection[] = [];
+  const audioSender = new FakeSender();
+  const addAudioTrack = vi.fn(() => audioSender as unknown as RTCRtpSender);
   class StreamingPeerConnection {
     readonly iceGatheringState: RTCIceGatheringState = "complete";
     readonly listeners = new Map<string, (() => void)[]>();
@@ -940,10 +1134,19 @@ async function establishStreamingSession(
     constructor() {peers.push(this);}
     addEventListener(type: string, listener: () => void) {this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);}
     setRemoteDescription() {return Promise.resolve();}
-    getTransceivers() {return [{ receiver: { track: { kind: "video" } }, sender, direction: "recvonly" }];}
-    createAnswer() {return Promise.resolve({ type: "answer" as RTCSdpType, sdp: "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 102\r\na=rtpmap:102 H264/90000\r\na=candidate:1 1 udp 1 192.0.2.20 5000 typ host\r\n" });}
+    getTransceivers() {return [
+      { receiver: { track: { kind: "video" } }, sender, direction: "recvonly" },
+      ...(useMicrophone ? [{ receiver: { track: { kind: "audio" } }, sender: audioSender, direction: "recvonly" }] : [])
+    ];}
+    addTrack = addAudioTrack;
+    createAnswer() {return Promise.resolve({
+      type: "answer" as RTCSdpType,
+      sdp: "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 102\r\na=rtpmap:102 H264/90000\r\na=sendonly\r\n" +
+        (useMicrophone ? "m=audio 9 UDP/TLS/RTP/SAVPF 111\r\na=rtpmap:111 opus/48000/2\r\na=sendonly\r\n" : "") +
+        "a=candidate:1 1 udp 1 192.0.2.20 5000 typ host\r\n"
+    });}
     setLocalDescription(description: RTCSessionDescriptionInit) {this.localDescription = description; return Promise.resolve();}
-    getStats() {return getStats();}
+    getStats() {return readStats();}
     close() {this.connectionState = "closed";}
     connect() {this.connectionState = "connected"; for (const listener of this.listeners.get("connectionstatechange") ?? []) {listener();}}
   }
@@ -953,13 +1156,23 @@ async function establishStreamingSession(
   storeReconnectKey();
   const hostKey = createPairingKeyMaterial();
   if (!hostKey) {throw new Error("Host test key is unavailable.");}
-  renderWorkspace(send, hostKey.reconnectPublicKey);
+  renderWorkspace(send, hostKey.reconnectPublicKey, "secure-direct", "paired", 1,
+    useMicrophone ? { ...capability, microphoneAvailable: true } : capability);
   fireEvent.click(screen.getByRole("button", { name: "Allow camera access" }));
   await screen.findByLabelText("Camera");
+  if (useMicrophone) {
+    fireEvent.click(screen.getByLabelText("Use microphone"));
+    await waitFor(() => expect((screen.getByLabelText("Use microphone") as HTMLInputElement).checked).toBe(true));
+  }
   fireEvent.click(screen.getByRole("button", { name: "Start" }));
   const start = await findStart(send, 1);
-  publishSignedOffer(start.operationId, hostKey.privateKey);
+  publishSignedOffer(start.operationId, hostKey.privateKey, useMicrophone);
   await waitFor(() => expect(send.mock.calls.some(([message]) => message.type === "phone.webcam.answer")).toBe(true));
+  if (useMicrophone) {
+    expect(addAudioTrack).toHaveBeenCalledOnce();
+    expect(addAudioTrack).toHaveBeenCalledWith(expect.objectContaining({ enabled: true }), expect.anything());
+    expect(audioSender.replaceTrack).not.toHaveBeenCalled();
+  }
   act(() => {peers[0]?.connect();});
   await screen.findByText("Streaming through Enhanced Direct");
   return send;
@@ -975,10 +1188,11 @@ async function findStart(send: ReturnType<typeof vi.fn>, count: number) {
   });
 }
 
-function publishSignedOffer(operationId: string, hostPrivateKey: string) {
-  const offerSdp = "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 102\r\na=rtpmap:102 H264/90000\r\n";
+function publishSignedOffer(operationId: string, hostPrivateKey: string, useMicrophone = false) {
+  const offerSdp = "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 102\r\na=rtpmap:102 H264/90000\r\na=recvonly\r\n" +
+    (useMicrophone ? "m=audio 9 UDP/TLS/RTP/SAVPF 111\r\na=rtpmap:111 opus/48000/2\r\na=recvonly\r\n" : "");
   const offerHash = hashSessionDescription(offerSdp);
-  const transcript = `VolturaAir phone-webcam:offer:v1:client-test:${operationId}:${offerHash}`;
+  const transcript = `VolturaAir phone-webcam:offer:v2:client-test:${operationId}:${offerHash}`;
   const hostSignature = signPrivateKeyPayload(hostPrivateKey, new TextEncoder().encode(transcript));
   act(() => {publishPhoneWebcamResult({
     type: "phone.webcam.start.result",
@@ -1047,6 +1261,29 @@ function createTrack(deviceId: string, width: number, height: number) {
 function createStream(track: ReturnType<typeof createTrack>): MediaStream {
   return {
     getTracks: () => [track],
-    getVideoTracks: () => [track]
+    getVideoTracks: () => [track],
+    getAudioTracks: () => [],
+    addTrack: vi.fn()
+  } as unknown as MediaStream;
+}
+
+function createAudioTrack() {
+  return { ...createTrack("microphone", 0, 0), enabled: true };
+}
+
+function createAudioStream(track: ReturnType<typeof createAudioTrack>): MediaStream {
+  return {
+    getTracks: () => [track],
+    getVideoTracks: () => [],
+    getAudioTracks: () => [track]
+  } as unknown as MediaStream;
+}
+
+function createAvStream(video: ReturnType<typeof createTrack>, audio: ReturnType<typeof createAudioTrack>): MediaStream {
+  return {
+    getTracks: () => [video, audio],
+    getVideoTracks: () => [video],
+    getAudioTracks: () => [audio],
+    addTrack: vi.fn()
   } as unknown as MediaStream;
 }

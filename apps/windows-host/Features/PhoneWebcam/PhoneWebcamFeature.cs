@@ -23,13 +23,21 @@ internal sealed record PhoneWebcamFeatureStatus(PhoneWebcamFeatureState State, s
         PhoneWebcamFeatureState.Removing;
 }
 
-internal sealed record PhoneWebcamActivity(string State, int? Width = null, int? Height = null);
+internal sealed record PhoneWebcamActivity(
+    string State,
+    int? Width = null,
+    int? Height = null,
+    bool HasMicrophone = false);
 
 internal interface IPhoneWebcamFeature
 {
     PhoneWebcamFeatureStatus Status { get; }
 
     PhoneWebcamActivity Activity { get; }
+
+    PhoneWebcamAudioTargetStatus AudioTargetStatus => new(
+        PhoneWebcamAudioTargetState.DetectionFailed,
+        "Phone microphone support is unavailable.");
 
     event EventHandler? ActivityChanged;
 
@@ -38,6 +46,9 @@ internal interface IPhoneWebcamFeature
     Task<PhoneWebcamFeatureStatus> EnableAsync(CancellationToken cancellationToken = default);
 
     Task<PhoneWebcamFeatureStatus> RemoveAsync(CancellationToken cancellationToken = default);
+
+    Task<PhoneWebcamAudioTargetStatus> RefreshAudioTargetAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(AudioTargetStatus);
 
     void Publish(PhoneWebcamFrame frame) => frame.Dispose();
 }
@@ -54,10 +65,15 @@ internal interface IPhoneWebcamSetup
 [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "The dynamically replaceable pipe is exchanged and disposed by StopPipeAsync during removal and feature disposal.")]
 internal sealed class PhoneWebcamFeature : IPhoneWebcamFeature, IAsyncDisposable
 {
+    private static readonly TimeSpan DefaultAudioTargetRefreshTimeout = TimeSpan.FromSeconds(5);
     private readonly IPhoneWebcamSetup _setup;
+    private readonly IPhoneWebcamAudioTarget _audioTarget;
     private readonly Func<PhoneWebcamFramePipeServer> _createPipe;
+    private readonly TimeSpan _audioTargetRefreshTimeout;
     private readonly SemaphoreSlim _operation = new(1, 1);
+    private readonly Lock _audioTargetRefreshGate = new();
     private PhoneWebcamFramePipeServer? _pipe;
+    private Task<PhoneWebcamAudioTargetStatus>? _audioTargetRefresh;
     private Func<Task>? _stopSessionsAsync;
     private readonly Lock _retirementGate = new();
     private Task _pipeRetirement = Task.CompletedTask;
@@ -65,9 +81,14 @@ internal sealed class PhoneWebcamFeature : IPhoneWebcamFeature, IAsyncDisposable
 
     internal PhoneWebcamFeature(
         IPhoneWebcamSetup setup,
-        Func<PhoneWebcamFramePipeServer>? createPipe = null)
+        Func<PhoneWebcamFramePipeServer>? createPipe = null,
+        IPhoneWebcamAudioTarget? audioTarget = null,
+        TimeSpan? audioTargetRefreshTimeout = null)
     {
         _setup = setup;
+        _audioTarget = audioTarget ?? new PhoneWebcamAudioTarget();
+        _audioTargetRefreshTimeout = audioTargetRefreshTimeout ?? DefaultAudioTargetRefreshTimeout;
+        _audioTarget.StatusChanged += OnAudioTargetStatusChanged;
         _createPipe = createPipe ?? (() => new PhoneWebcamFramePipeServer());
         Status = new PhoneWebcamFeatureStatus(
             PhoneWebcamFeatureState.Unavailable,
@@ -76,19 +97,20 @@ internal sealed class PhoneWebcamFeature : IPhoneWebcamFeature, IAsyncDisposable
 
     public PhoneWebcamFeatureStatus Status { get; private set; }
     public PhoneWebcamActivity Activity { get; private set; } = new("idle");
+    public PhoneWebcamAudioTargetStatus AudioTargetStatus => _audioTarget.Status;
     public event EventHandler? ActivityChanged;
     public event EventHandler? StatusChanged;
 
     internal void SetSessionStopper(Func<Task> stopSessionsAsync) => _stopSessionsAsync = stopSessionsAsync;
 
-    internal void ReportActivity(string state, int? width = null, int? height = null)
+    internal void ReportActivity(string state, int? width = null, int? height = null, bool hasMicrophone = false)
     {
         if (!string.Equals(state, "streaming", StringComparison.Ordinal))
         {
             Volatile.Read(ref _pipe)?.Clear();
         }
 
-        Activity = new PhoneWebcamActivity(state, width, height);
+        Activity = new PhoneWebcamActivity(state, width, height, hasMicrophone);
         ActivityChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -101,6 +123,7 @@ internal sealed class PhoneWebcamFeature : IPhoneWebcamFeature, IAsyncDisposable
     {
         var feature = new PhoneWebcamFeature(setup);
         feature.SetStatus(await feature._setup.GetStatusAsync(cancellationToken).ConfigureAwait(false));
+        await feature.RefreshAudioTargetAsync(cancellationToken).ConfigureAwait(false);
         if (feature.Status.IsInstalled)
         {
             feature.TryStartPipe();
@@ -185,6 +208,38 @@ internal sealed class PhoneWebcamFeature : IPhoneWebcamFeature, IAsyncDisposable
         }
     }
 
+    public async Task<PhoneWebcamAudioTargetStatus> RefreshAudioTargetAsync(CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposeState) != 0, this);
+        Task<PhoneWebcamAudioTargetStatus> refresh;
+        lock (_audioTargetRefreshGate)
+        {
+            if (_audioTargetRefresh is null || _audioTargetRefresh.IsCompleted)
+            {
+                _audioTargetRefresh = Task.Run(_audioTarget.Refresh, CancellationToken.None);
+            }
+            refresh = _audioTargetRefresh;
+        }
+        try
+        {
+            return await refresh.WaitAsync(_audioTargetRefreshTimeout, cancellationToken).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            return _audioTarget.ReportDetectionFailure();
+        }
+        catch (OperationCanceledException)
+        {
+            _audioTarget.InvalidateRefresh();
+            throw;
+        }
+    }
+
+    internal IPhoneWebcamAudioTarget AudioTarget => _audioTarget;
+
+    private void OnAudioTargetStatusChanged(object? sender, EventArgs args) =>
+        StatusChanged?.Invoke(this, EventArgs.Empty);
+
     private async Task RecoverStatusAfterInterruptedRemovalAsync()
     {
         try
@@ -211,6 +266,8 @@ internal sealed class PhoneWebcamFeature : IPhoneWebcamFeature, IAsyncDisposable
         {
             return;
         }
+
+        _audioTarget.StatusChanged -= OnAudioTargetStatusChanged;
 
         await _operation.WaitAsync().ConfigureAwait(false);
         try
@@ -328,6 +385,9 @@ internal sealed class PhoneWebcamFeature : IPhoneWebcamFeature, IAsyncDisposable
             "Phone webcam is unavailable in this host mode.");
 
         public PhoneWebcamActivity Activity { get; } = new("idle");
+        public PhoneWebcamAudioTargetStatus AudioTargetStatus { get; } = new(
+            PhoneWebcamAudioTargetState.DetectionFailed,
+            "Phone microphone support is unavailable in this host mode.");
 
         public event EventHandler? ActivityChanged
         {
@@ -346,6 +406,9 @@ internal sealed class PhoneWebcamFeature : IPhoneWebcamFeature, IAsyncDisposable
 
         public Task<PhoneWebcamFeatureStatus> RemoveAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(Status);
+
+        public Task<PhoneWebcamAudioTargetStatus> RefreshAudioTargetAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(AudioTargetStatus);
 
         public void Publish(PhoneWebcamFrame frame) => frame.Dispose();
     }

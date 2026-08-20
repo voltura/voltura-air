@@ -386,8 +386,9 @@ test("prerequisites finish before the running app or installation is changed", (
   assert.ok(prerequisitesComplete >= 0);
   assert.ok(prerequisitesComplete < installSection.indexOf("Call StopRunningApp"));
   assert.ok(prerequisitesComplete < installSection.indexOf('SetOutPath "$StagingDirectory"'));
-  assert.ok(prerequisitesComplete < installSection.indexOf("CreateShortcut"));
-  assert.ok(prerequisitesComplete < installSection.indexOf("WriteRegStr"));
+  const prerequisitesCompleteInInstaller = installer.indexOf("Call InstallAspNetCoreRuntime");
+  assert.ok(prerequisitesCompleteInInstaller < installer.indexOf("CreateShortcut"));
+  assert.ok(prerequisitesCompleteInInstaller < installer.indexOf("WriteRegStr"));
 });
 
 test("installer journals promotion and removal before changing registration", () => {

@@ -90,12 +90,16 @@ ingress and egress solely for the local usage estimate and quota cutoff. TURN
 credentials expire after 15 minutes. Command relay remains available if screen
 credentials are blocked by quota.
 
-When Phone webcam is enabled and permitted, the selected phone camera video travels
-on a WebRTC DTLS-SRTP media track to the paired Windows host. Camera frames, encoded
-access units, SDP, credentials, proofs, and decoded virtual-camera frames are not
-logged or persisted; bounded memory and the current-user Windows virtual camera hold
-them only while needed. The feature requests video only and never requests phone
-microphone audio. Enhanced Direct keeps established media on the selected private
+When Phone webcam is enabled and permitted, selected phone camera video and optional,
+explicitly enabled microphone audio travel on WebRTC DTLS-SRTP media tracks to the
+paired Windows host. Camera frames, audio samples, encoded media, SDP, credentials,
+proofs, and decoded output are not logged or persisted; bounded memory holds them
+only while needed. Audio is sent only to the exact locally detected VB-CABLE endpoint.
+If the user explicitly starts **Test audio** during an active microphone session, the
+Windows host holds a duration-bounded `CABLE Output` buffer and plays it through the
+default local speakers; leaving the page, ending the session, or stopping the test
+releases that monitor. Monitored audio is not logged or persisted.
+Enhanced Direct keeps established media on the selected private
 LAN. Relay uses the same Cloudflare TURN processing, 15-minute credentials, aggregate
 byte metering, and quota cutoff described for Screen viewing; it adds no account,
 webcam-specific usage record, or billing data.

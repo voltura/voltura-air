@@ -277,7 +277,7 @@
               </tr>
               <tr>
                 <th scope="row">Phone as webcam</th>
-                <td class="comparison-voltura"><strong class="comparison-status">Included Windows webcam with optional audio</strong>; choose a phone camera, mute default-off microphone audio from the phone, and test user-installed VB-CABLE audio from the Windows page</td>
+                <td class="comparison-voltura"><strong class="comparison-status">Included Windows webcam with optional audio</strong>; choose a phone camera, enable or mute the default-off microphone from the phone, and test VB-CABLE audio from the Phone webcam screen in the Windows host app</td>
                 <td><strong class="comparison-status">Not documented</strong> as a current feature</td>
                 <td>Virtual camera with custom names and high-resolution streaming is listed as a Premium feature</td>
               </tr>

@@ -73,15 +73,15 @@
           <img class="hero-phone" src="./assets/voltura-air-iphone-dark.png" alt="">
         </div>
         <div class="hero-copy">
-          <p class="eyebrow">Free Windows 11 remote - local or cloud relay</p>
+          <p class="eyebrow">Free Windows 11 remote and webcam &mdash; local or cloud relay</p>
           <h1>Voltura Air</h1>
-          <p class="tagline">Turn your phone into the remote your PC is missing.</p>
+          <p class="tagline">Turn your phone into the remote and webcam your PC is missing.</p>
           <p class="lede">
-            Control your PC with a trackpad, keyboard, presentation and media
-            remotes, file and text tools, practical PC actions, and live screen viewing
-            you can directly control from another computer with a physical mouse and keyboard.
-            Pair by QR code&mdash;no account or phone app required. Connect over
-            Direct LAN or an optional end-to-end encrypted Cloud relay.
+            Control your PC with trackpad, keyboard, presentation and media remotes,
+            file and text tools, practical PC actions, and live screen viewing with direct
+            control from another computer. Use your phone as a Windows webcam with optional
+            audio. Pair by QR code&mdash;no account or phone app required. Connect over Direct
+            LAN or an optional end-to-end encrypted Cloud relay.
           </p>
           <div class="actions">
             <a class="button primary" href="https://github.com/voltura/voltura-air/releases/latest">Download for Windows</a>
@@ -121,7 +121,7 @@
         </article>
         <article>
           <h2>Use your phone as a webcam</h2>
-          <p>Select any camera exposed by your paired phone and use it as a Windows webcam over Enhanced Direct or Cloud relay. Optional phone audio is off by default, can be muted from the phone, and requires user-installed <a href="https://vb-audio.com/Cable/">VB-CABLE from VB-Audio</a>. It is third-party donationware, is not included with Voltura Air, and users are responsible for the licence applicable to their use. During an active microphone session, the Windows page can test the audio through the default speakers.</p>
+          <p>Use any paired-phone camera as a Windows webcam over Enhanced Direct or Cloud relay. Optional audio is off by default and supports mute and testing. It requires separately installed <a href="https://vb-audio.com/Cable/">VB-CABLE</a>, third-party donationware from VB-Audio that is not included with Voltura Air and is used under its own licence.</p>
         </article>
         <article>
           <h2>Files on PC</h2>

@@ -452,6 +452,7 @@ function isHostIdentity(value: unknown): boolean {
     /^[A-Za-z0-9_-]{22}$/.test(value.fingerprint);
 }
 
+// These values are frozen compatibility markers, not adaptive Screen View ceilings.
 function isScreenViewCapability(value: unknown): boolean {
   return isRecord(value) &&
     typeof value.enabled === "boolean" &&
@@ -462,6 +463,7 @@ function isScreenViewCapability(value: unknown): boolean {
     value.maxWidth === 1920 &&
     value.maxHeight === 1080 &&
     value.maxFramesPerSecond === 30 &&
+    isOptional(value, "receiverQualityFeedback", (candidate) => candidate === true) &&
     isOptional(value, "directPointer", (candidate) =>
       isRecord(candidate) && typeof candidate.permissionGranted === "boolean");
 }

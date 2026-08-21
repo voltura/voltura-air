@@ -107,10 +107,11 @@ commands.
 Encrypted Screen viewing requires Screen viewing permission globally or for the
 intended device. A freshly paired client must have the PC identity pin.
 Desktop Duplication GPU frames and cursor metadata support one display and one
-viewer at a time, video only, up to 1920 x 1080/30 frames per second. D3D11
-conversion and a hardware Media Foundation H.264 encoder feed a WebRTC stream
-using direct LAN ICE or Relay-only TURN; the browser must support H.264 WebRTC
-playback. Pinch/spread
+viewer at a time, video only. D3D11 conversion and a hardware Media Foundation
+H.264 encoder feed an aspect-preserving adaptive WebRTC stream using direct LAN
+ICE or Relay-only TURN, up to 60 frames per second within the negotiated codec,
+hardware, receiver, and network capabilities. The browser must support H.264
+WebRTC playback. Pinch/spread
 magnifies the local mirror up to 5x, and two-finger drag pans while magnified.
 UAC/secure desktop, protected content,
 lock/session loss, display removal, or duplication loss stops/pauses the

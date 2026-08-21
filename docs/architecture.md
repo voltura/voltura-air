@@ -144,8 +144,9 @@ The capture owner uses Desktop Duplication GPU frames and cursor metadata. A
 D3D11 conversion stage supplies NV12 GPU surfaces to a capability-selected
 hardware Media Foundation H.264 transform. A bundled libdatachannel peer sends
 the Annex-B access units as H.264 RTP and owns DTLS-SRTP, direct or relay-only ICE,
-sender reports, NACK retransmission, keyframe requests, and receiver bitrate
-feedback. Relay sessions receive short-lived TURN credentials through the
+sender reports, NACK retransmission, and keyframe requests. The controller sends
+bounded aggregate receiver-health counters over the authenticated command path.
+Relay sessions receive short-lived TURN credentials through the
 authenticated routing identity. The Windows peer keeps libjuice as the ICE/TURN
 owner and supplies it a loopback-only TURN endpoint. A host-owned bounded bridge
 connects that endpoint to the issued `turns` service with certificate-validated

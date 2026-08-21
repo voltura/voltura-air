@@ -45,7 +45,7 @@ public partial class ConnectionPageView : WpfUserControl
         EnhancedCapabilitiesCheckBox.Unchecked += (_, _) => RunUserAction(() => setEnhancedCapabilitiesEnabled?.Invoke(false));
         RelayStandardRadioButton.Checked += (_, _) => RunUserAction(() => setRelayScreenQuality(RelayScreenQuality.Standard));
         RelayDataSaverRadioButton.Checked += (_, _) => RunUserAction(() => setRelayScreenQuality(RelayScreenQuality.DataSaver));
-        RelayMaintainerRadioButton.Checked += (_, _) => RunUserAction(() => setRelayScreenQuality(RelayScreenQuality.MaintainerFull));
+        RelayHighRadioButton.Checked += (_, _) => RunUserAction(() => setRelayScreenQuality(RelayScreenQuality.High));
         CustomRelayEndpointTextBox.TextChanged += (_, _) => RunUserAction(() => setCustomRelayEndpoint(CustomRelayEndpointTextBox.Text));
         UseSpecificPortCheckBox.Checked += (_, _) => RunUserAction(() => setUseCustomPort(true));
         UseSpecificPortCheckBox.Unchecked += (_, _) => RunUserAction(() => setUseCustomPort(false));
@@ -131,8 +131,7 @@ public partial class ConnectionPageView : WpfUserControl
         {
             RelayStandardRadioButton.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, value == RelayScreenQuality.Standard);
             RelayDataSaverRadioButton.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, value == RelayScreenQuality.DataSaver);
-            RelayMaintainerRadioButton.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, value == RelayScreenQuality.MaintainerFull);
-            RelayMaintainerRadioButton.Visibility = BuildFeatures.MaintainerRelayQuality ? Visibility.Visible : Visibility.Collapsed;
+            RelayHighRadioButton.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, value == RelayScreenQuality.High);
         }
     }
 

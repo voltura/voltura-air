@@ -8,6 +8,7 @@ internal sealed class ConnectPageController(
     WebHostService webHost,
     string? clientUrl,
     bool usePublicScreenshotPairingUrl,
+    bool useDevelopmentHostedApp,
     HostClipboardFeedback clipboard,
     Action requestViewRefresh,
     Action openConnectionPage)
@@ -20,7 +21,8 @@ internal sealed class ConnectPageController(
         webHost.RelayRouteId,
         webHost.RelayEndpoint,
         webHost.EnhancedCapabilitiesEnabled,
-        webHost.SecureDirectRouteId);
+        webHost.SecureDirectRouteId,
+        useDevelopmentHostedApp);
 
     public string PairingUrl => _pairingLinks.Url;
 

@@ -48,6 +48,18 @@ public sealed class RelayHostConnectionTests
     }
 
     [Theory]
+    [InlineData((int)RelayScreenQuality.DataSaver, 2_000_000)]
+    [InlineData((int)RelayScreenQuality.Standard, 4_000_000)]
+    [InlineData((int)RelayScreenQuality.High, 8_000_000)]
+    public void RelayQualityHasTheExpectedSenderCeiling(int qualityValue, int expectedBitrate)
+    {
+        var quality = (RelayScreenQuality)qualityValue;
+        var configuration = new RelayTurnConfiguration([], [], DateTimeOffset.UtcNow.AddMinutes(15), 0, DateTimeOffset.UtcNow, quality);
+
+        Assert.Equal(expectedBitrate, configuration.MaximumBitrate);
+    }
+
+    [Theory]
     [InlineData("2026-08-03T19:59:59Z")]
     [InlineData("2026-08-05T20:00:01Z")]
     public async Task RejectsExpiredOrUnreasonablyLongTurnCredentials(string expiresAt)

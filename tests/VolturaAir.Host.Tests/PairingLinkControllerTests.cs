@@ -142,6 +142,29 @@ public sealed class PairingLinkControllerTests
     }
 
     [Fact]
+    public void DevelopmentHostUsesDevelopmentEntryWithoutChangingSecureDirectIdentity()
+    {
+        using var store = new TempPairingStore();
+        var routeId = new string('s', 22);
+        var controller = new PairingLinkController(
+            new PairingManager(store.Store),
+            "http://192.168.68.51:51395",
+            clientUrl: null,
+            ConnectionTransportMode.DirectLan,
+            relayRouteId: null,
+            relayEndpoint: null,
+            enhancedCapabilitiesEnabled: true,
+            secureDirectRouteId: routeId,
+            useDevelopmentHostedApp: true);
+
+        var development = new Uri(controller.Url);
+
+        Assert.Equal($"/d/{routeId}", development.AbsolutePath);
+        Assert.Equal(AppVersion.Display, ParseQuery(development)["v"]);
+        Assert.Equal("/pair", new Uri(Assert.IsType<string>(controller.StandardLocalUrl)).AbsolutePath);
+    }
+
+    [Fact]
     public void EnhancedDirectWithoutAnAvailableRouteUsesStandardLocalAsThePrimaryLink()
     {
         using var store = new TempPairingStore();

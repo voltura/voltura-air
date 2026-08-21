@@ -113,6 +113,11 @@ Direct; neither falls back or switches automatically. Both official hosted
 paths use the same hosted profile ID and reconnect-key slot. The local HTTP
 origin remains a separate device identity and storage boundary.
 
+Debug host runs use `https://voltura.se/d/<route>?v=<version>#<token>` instead
+of `/s`. `/d` redirects to the separately built `/air/dev-app/` scope and then
+normalizes to the same Secure Direct connection identity and unchanged protocol.
+Packaged hosts never generate `/d` links.
+
 Tokens last five minutes. Connect rotates 15 seconds before expiry and retains
 only the prior token for up to that 15-second overlap. Successful pairing
 consumes both slots and creates a new visible token.
@@ -335,7 +340,12 @@ Authenticated metadata is not authentication state:
 - Developer mode adds `developerMode: true` and `developerSessionId`.
 - `screenView` is always present for a supporting host so the tool remains
   discoverable. `enabled`, `permissionGranted`, and `requiresRepair` explain
-  why `canView` is false.
+  why `canView` is false. Its `maxWidth: 1920`, `maxHeight: 1080`, and
+  `maxFramesPerSecond: 30` members are frozen legacy capability markers retained
+  for already-published clients; they are not adaptive stream ceilings. The
+  selected adaptive profile bounds the actual stream. Supporting hosts also set
+  `receiverQualityFeedback: true` so current controllers can report aggregate
+  WebRTC decoder health.
 
 Adapter metadata may reveal local hardware and appears only in explicit redacted
 diagnostics.
@@ -388,17 +398,24 @@ Any valid client message resets the receive timeout.
 
 ## Encrypted screen viewing
 
-Screen viewing is video-only, one display and one viewer at a time, and capped
-at 1920 x 1080 and 30 capture cycles per second. These bounded control messages
+Screen viewing is video-only, one display and one viewer at a time. Its adaptive
+capture profiles retain the display aspect ratio and stay within the sender's
+advertised H.264 frame-size and frame-rate limits. These bounded control messages
 use the authenticated `/ws` session:
 
 ```json
 { "type": "screen.view.sources.get", "operationId": "screen-sources-1" }
 { "type": "screen.view.start", "operationId": "screen-start-1", "displayId": "display-1-1", "clientSignature": "base64url-p1363-signature" }
 { "type": "screen.view.answer", "operationId": "screen-start-1", "answerSdp": "bounded WebRTC answer SDP", "clientSignature": "base64url-p1363-signature" }
+{ "type": "screen.view.quality", "operationId": "screen-start-1", "width": 3840, "height": 2160, "framesPerSecond": 30, "framesDecoded": 60, "framesDropped": 0, "freezeCount": 0, "packetsLost": 0 }
 { "type": "screen.view.source.set", "operationId": "screen-source-1", "displayId": "display-1-2" }
 { "type": "screen.view.stop", "operationId": "screen-stop-1" }
 ```
+
+The quality message is sent only while its exact operation is active. Counts are
+non-negative interval deltas bounded to 1,000,000; dimensions are 0..16384 and
+frame rate is 0..240. It contains no screen content, cursor coordinates, typed
+text, or persistent data.
 
 `screenView.directPointer` is present when the host supports direct desktop
 mouse control. Its `permissionGranted` value is the effective **Pointer and
@@ -468,6 +485,9 @@ relay-only ICE. Mobile renews before expiry by stopping the old peer and
 performing a fresh signed WebRTC negotiation. The start result may include
 bounded `iceServers`, `turnExpiresAt`, `relayUsageBytes`,
 `relayUsageCheckedAt`, and `relayScreenQuality`; direct results omit them.
+`relayScreenQuality` is `High`, `Standard`, or `DataSaver`, representing an
+8, 4, or 2 Mbps sender ceiling respectively. A provider-forced Data saver result
+continues to override the locally selected quality.
 Some browsers can gather usable relay candidates without changing their ICE
 gathering state to `complete`. In Relay mode the browser may therefore send its
 answer after at least one relay candidate is present in `localDescription` and
@@ -502,11 +522,24 @@ video track, and event channel are connected. The data channel record types are:
   permission, or capture-device loss.
 
 Desktop Duplication supplies the selected GPU frame and cursor metadata. A
-hardware Media Foundation transform converts the frame to baseline H.264 at up
-to 1920 x 1080 and 30 frames per second. The RTP sender supports sender reports,
-NACK retransmission, receiver keyframe requests, and receiver bitrate estimates;
-buffered media and event data have fixed upper bounds. Source switching resets
-the duplication/encoder session and forces a keyframe. Permission revocation,
+hardware Media Foundation transform converts the frame to baseline H.264. The
+offer advertises level 5.2 with level asymmetry enabled; the profile ladder keeps
+each encoded frame and its macroblocks per second within that level, preserves
+the source aspect ratio, and permits up to 60 frames per second. With level
+asymmetry enabled, the answer's receive level is not used as a sender-resolution
+ceiling. Direct starts at native resolution and 30 fps.
+Automatic derives its minimum readable dimensions from physical display pixels
+and effective Windows DPI; Quality keeps native dimensions; Data saver may use
+smaller dimensions. Relay uses Automatic or Data saver within its 8/4/2 Mbps
+ceiling. The RTP sender supports sender reports, NACK retransmission, and receiver
+keyframe requests. A monotonic capture pacer
+drops desktop presents that arrive before the selected profile's next frame slot.
+Receiver-health reports and sustained sender backpressure move one profile at a
+time; healthy decoding permits reversible upward probes. Buffered media and event
+data have fixed upper bounds. An encoder-rejected profile becomes eligible again
+after its cooldown.
+Source switching resets the duplication/encoder session and forces a keyframe.
+Permission revocation,
 disconnect, lock/session loss, display removal, stop, or host shutdown releases
 the peer, encoder, capture session, native resources, and any direct mouse
 buttons held by that Screen session. Source switches, permission loss, and
@@ -559,7 +592,10 @@ codes without closing the command channel.
 
 Enhanced Direct uses host ICE candidates and a 12 Mbps sender ceiling without STUN
 or TURN. Relay supplies the existing `iceServers`, `turnExpiresAt`, aggregate usage
-snapshot, quota-derived quality, and 4/2 Mbps effective ceiling. Both peers reject a
+snapshot, quota-derived quality, and an 8/4/2 Mbps effective ceiling in
+`maximumBitrate`. `relayQuality` remains `Standard` or `DataSaver`; it is omitted
+for High so previously published clients can consume the existing result shape.
+Both peers reject a
 Relay answer containing an empty or non-relay candidate set. Before the 15-minute
 credential expires, the visible browser stops and disposes the old session, obtains
 fresh credentials, and creates one new signed peer. The old peer is never

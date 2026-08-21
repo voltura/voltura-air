@@ -24,14 +24,7 @@
     <Authors>Voltura AB</Authors>
     <Copyright>Copyright (c) Voltura AB</Copyright>
     <Description>Voltura Air Windows host</Description>
-    <MaintainerRelayQuality Condition="'$(MaintainerRelayQuality)' == ''">false</MaintainerRelayQuality>
-    <DefineConstants Condition="'$(MaintainerRelayQuality)' == 'true'">$(DefineConstants);VOLTURA_MAINTAINER_RELAY</DefineConstants>
   </PropertyGroup>
-
-  <Target Name="RejectPublishedMaintainerRelayBuild" BeforeTargets="Publish"
-          Condition="'$(MaintainerRelayQuality)' == 'true'">
-    <Error Text="Maintainer relay quality is local-only and cannot be published." />
-  </Target>
 
   <ItemGroup>
     <None Update="relay-service.json" CopyToOutputDirectory="PreserveNewest" />

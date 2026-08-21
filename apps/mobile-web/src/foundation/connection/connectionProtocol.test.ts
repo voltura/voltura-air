@@ -81,6 +81,31 @@ describe("connection protocol policy", () => {
     }))).toBeNull();
   });
 
+  it("accepts receiver-quality feedback only as the optional true capability", () => {
+    const capability = {
+      enabled: true,
+      permissionGranted: true,
+      canView: true,
+      requiresRepair: false,
+      encrypted: true,
+      maxWidth: 1920,
+      maxHeight: 1080,
+      maxFramesPerSecond: 30
+    };
+    for (const receiverQualityFeedback of [undefined, true]) {
+      expect(parseServerMessage(JSON.stringify({
+        type: "status",
+        connected: true,
+        capabilities: { screenView: { ...capability, receiverQualityFeedback } }
+      }))).not.toBeNull();
+    }
+    expect(parseServerMessage(JSON.stringify({
+      type: "status",
+      connected: true,
+      capabilities: { screenView: { ...capability, receiverQualityFeedback: false } }
+    }))).toBeNull();
+  });
+
   it("accepts enhanced capability authority only with an explicit boolean", () => {
     expect(parseServerMessage(JSON.stringify({
       type: "status",

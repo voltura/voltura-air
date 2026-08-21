@@ -113,6 +113,7 @@ public sealed class WebHostService : IAsyncDisposable
             configureWebHost,
             screenViewCapture,
             null,
+            null,
             null)
     {
     }
@@ -138,7 +139,8 @@ public sealed class WebHostService : IAsyncDisposable
         Action<IWebHostBuilder>? configureWebHost,
         IScreenViewCaptureSource? screenViewCapture,
         IPhoneWebcamFeature? phoneWebcamFeature,
-        IPhoneWebcamWebRtcPeerFactory? phoneWebcamPeerFactory)
+        IPhoneWebcamWebRtcPeerFactory? phoneWebcamPeerFactory,
+        IScreenViewWebRtcPeerFactory? screenViewPeerFactory)
     {
         _configureWebHost = configureWebHost;
 
@@ -328,7 +330,7 @@ public sealed class WebHostService : IAsyncDisposable
             pairingManager,
             statusFactory,
             screenViewCapture ?? (isolatedTestMode ? new UnavailableScreenViewCaptureSource() : null),
-            isolatedTestMode ? new IsolatedScreenViewWebRtcPeerFactory() : null,
+            screenViewPeerFactory ?? (isolatedTestMode ? new IsolatedScreenViewWebRtcPeerFactory() : null),
             _appLog,
             inputDispatcher,
             _powerController);

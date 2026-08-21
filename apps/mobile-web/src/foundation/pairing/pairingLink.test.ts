@@ -54,6 +54,14 @@ describe("parsePairingLink", () => {
       pairToken,
       pcUrl: `https://voltura.se/s/${route}`
     });
+    expect(parsePairingLink(`https://voltura.se/d/${route}?v=${version}#${pairToken}`)).toEqual({
+      pairToken,
+      pcUrl: `https://voltura.se/s/${route}`
+    });
+    expect(parsePairingLink(`https://voltura.se/air/dev-app/?m=s&r=${route}&v=${version}#${pairToken}`)).toEqual({
+      pairToken,
+      pcUrl: `https://voltura.se/s/${route}`
+    });
   });
 
   it("keeps tokenless hosted addresses explicit for normal reconnect", () => {

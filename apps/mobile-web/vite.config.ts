@@ -12,7 +12,14 @@ const appleStartupDevices = JSON.parse(
 ) as AppleStartupDevice[];
 const configuredWebBuildId = process.env.VOLTURA_AIR_WEB_BUILD_ID?.trim();
 const webBuildId = configuredWebBuildId && configuredWebBuildId.length > 0 ? configuredWebBuildId : randomUUID();
-const appBase = process.env.VOLTURA_AIR_HOSTED === "1" ? "/air/app/" : "/";
+const isHosted = process.env.VOLTURA_AIR_HOSTED === "1";
+const hostedChannel = process.env.VOLTURA_AIR_HOSTED_CHANNEL === "development" ? "development" : "stable";
+const hostedDirectory = hostedChannel === "development" ? "dev-app" : "app";
+const appBase = isHosted ? `/air/${hostedDirectory}/` : "/";
+const buildOutputDirectory = fileURLToPath(new URL(
+  isHosted ? `../../apps/public-site/${hostedDirectory}` : "./dist",
+  import.meta.url
+));
 const relayService = JSON.parse(
   readFileSync(new URL("../windows-host/relay-service.json", import.meta.url), "utf8").replace(/^\uFEFF/u, "")
 ) as { serviceId: string; httpsBase: string };
@@ -30,7 +37,7 @@ export default defineConfig({
   base: appBase,
   build: {
     chunkSizeWarningLimit: 750,
-    outDir: process.env.VOLTURA_AIR_HOSTED === "1" ? "../../apps/public-site/app" : "dist",
+    outDir: buildOutputDirectory,
     emptyOutDir: true
   },
   define: {
@@ -39,7 +46,7 @@ export default defineConfig({
     __RELAY_SERVICE_ID__: JSON.stringify(relayService.serviceId),
     __RELAY_HTTPS_BASE__: JSON.stringify(relayService.httpsBase)
   },
-  plugins: [react(), appleStartupImages(appBase), webBuildIdFile(webBuildId, appBase), hostedManifest(appBase), compressedJavaScriptAssets(appBase)]
+  plugins: [react(), appleStartupImages(appBase), webBuildIdFile(webBuildId, buildOutputDirectory), hostedManifest(appBase, buildOutputDirectory), compressedJavaScriptAssets(buildOutputDirectory)]
 });
 
 function appleStartupImages(base: string): Plugin {
@@ -70,13 +77,13 @@ function appleStartupImages(base: string): Plugin {
   };
 }
 
-function hostedManifest(base: string): Plugin {
+function hostedManifest(base: string, outputDirectory: string): Plugin {
   return {
     name: "hosted-manifest",
     apply: "build",
     closeBundle() {
       if (base === "/") {return;}
-      const output = fileURLToPath(new URL("../../apps/public-site/app/manifest.webmanifest", import.meta.url));
+      const output = join(outputDirectory, "manifest.webmanifest");
       const manifest = JSON.parse(readFileSync(output, "utf8")) as Record<string, unknown> & { icons?: { src?: string }[] };
       manifest.id = base;
       manifest.start_url = base;
@@ -111,11 +118,10 @@ function ignoreDevSocketResets(): void {
   });
 }
 
-function webBuildIdFile(buildId: string, base: string): Plugin {
+function webBuildIdFile(buildId: string, outputDirectory: string): Plugin {
   const writeBuildId = () => {
-    const distDir = outputDirectory(base);
-    mkdirSync(distDir, { recursive: true });
-    writeFileSync(join(distDir, "web-build-id.txt"), `${buildId}\n`);
+    mkdirSync(outputDirectory, { recursive: true });
+    writeFileSync(join(outputDirectory, "web-build-id.txt"), `${buildId}\n`);
   };
 
   return {
@@ -129,17 +135,16 @@ function webBuildIdFile(buildId: string, base: string): Plugin {
   };
 }
 
-function compressedJavaScriptAssets(base: string): Plugin {
+function compressedJavaScriptAssets(outputDirectory: string): Plugin {
   return {
     name: "compressed-javascript-assets",
     apply: "build",
     closeBundle() {
-      const distDir = outputDirectory(base);
-      if (!existsSync(distDir)) {
+      if (!existsSync(outputDirectory)) {
         return;
       }
 
-      for (const file of findJavaScriptFiles(distDir)) {
+      for (const file of findJavaScriptFiles(outputDirectory)) {
         const source = readFileSync(file);
         const brotli = brotliCompressSync(source, {
           params: {
@@ -152,10 +157,6 @@ function compressedJavaScriptAssets(base: string): Plugin {
       }
     }
   };
-}
-
-function outputDirectory(base: string): string {
-  return fileURLToPath(new URL(base === "/" ? "./dist" : "../../apps/public-site/app", import.meta.url));
 }
 
 function findJavaScriptFiles(directory: string): string[] {

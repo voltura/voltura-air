@@ -240,6 +240,9 @@ internal sealed class ScreenViewCommandHandler(
         }, cancellationToken);
     }
 
+    public void ReportQuality(string clientId, string operationId, ScreenViewReceiverQuality quality) =>
+        coordinator.ReportQuality(clientId, operationId, quality);
+
     public async Task NotifyHostStoppedAsync(string clientId, string operationId, bool disallowed, CancellationToken cancellationToken = default)
     {
         var payload = new

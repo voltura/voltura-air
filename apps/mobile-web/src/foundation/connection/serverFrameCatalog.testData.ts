@@ -65,7 +65,18 @@ export const serverFrameCatalog = {
     required: ["connected"],
     frames: [
       { type: "status", connected: true, message: "Connected", pcName: "Office PC" },
-      { type: "status", connected: true, host: { appLaunchActions: [] } }
+      { type: "status", connected: true, host: { appLaunchActions: [] } },
+      {
+        type: "status",
+        connected: true,
+        capabilities: {
+          screenView: {
+            enabled: true, permissionGranted: true, canView: true, requiresRepair: false,
+            encrypted: true, maxWidth: 1920, maxHeight: 1080, maxFramesPerSecond: 30,
+            receiverQualityFeedback: true
+          }
+        }
+      }
     ]
   },
   "health.pong": { required: [], frames: [{ type: "health.pong" }] },

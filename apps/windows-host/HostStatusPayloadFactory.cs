@@ -23,6 +23,9 @@ internal sealed class HostStatusPayloadFactory(
     Func<bool>? isPhoneMicrophoneAvailable = null)
 {
     private static readonly string DeveloperSessionId = Guid.NewGuid().ToString("N");
+    private const int LegacyScreenViewWidthMarker = 1920;
+    private const int LegacyScreenViewHeightMarker = 1080;
+    private const int LegacyScreenViewFrameRateMarker = 30;
 
     public object CreateConnectedStatus(string clientId)
     {
@@ -127,9 +130,10 @@ internal sealed class HostStatusPayloadFactory(
             canView = permissions.AllowScreenViewing && pairingManager.HasCurrentHostIdentity(clientId),
             requiresRepair = !pairingManager.HasCurrentHostIdentity(clientId),
             encrypted = true,
-            maxWidth = 1920,
-            maxHeight = 1080,
-            maxFramesPerSecond = 30,
+            maxWidth = LegacyScreenViewWidthMarker,
+            maxHeight = LegacyScreenViewHeightMarker,
+            maxFramesPerSecond = LegacyScreenViewFrameRateMarker,
+            receiverQualityFeedback = true,
             directPointer = new
             {
                 permissionGranted = permissions.AllowRemoteInput

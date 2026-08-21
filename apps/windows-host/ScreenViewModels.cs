@@ -18,7 +18,9 @@ public sealed record ScreenViewSource(
     bool IsPrimary,
     [property: JsonIgnore] int DesktopLeft = 0,
     [property: JsonIgnore] int DesktopTop = 0,
-    [property: JsonIgnore] ScreenViewRotation Rotation = ScreenViewRotation.Identity);
+    [property: JsonIgnore] ScreenViewRotation Rotation = ScreenViewRotation.Identity,
+    [property: JsonIgnore] int EffectiveDpiX = 96,
+    [property: JsonIgnore] int EffectiveDpiY = 96);
 
 internal sealed record ScreenViewStartResult(
     bool Succeeded,

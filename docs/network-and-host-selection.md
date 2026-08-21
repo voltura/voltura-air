@@ -83,5 +83,10 @@ path selects the transport. Local HTTP profiles and browser storage are not
 copied, linked, migrated, invalidated, or deleted when enhanced capabilities
 changes.
 
+`npm run dev` and `npm run dev:quick` use `/d` for Enhanced Direct pairing.
+This loads independently built `/air/dev-app/` assets while normalizing the
+connection to the same Secure Direct profile identity. Packaged hosts continue
+to use `/s`; `/a` remains Relay.
+
 Changed selection, fallback, validation, persistence, and recovery use the
 [network/boundary validation route](setup.md#validation-by-change).

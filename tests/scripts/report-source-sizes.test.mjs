@@ -66,6 +66,21 @@ test("ignores generated catalog preview assets", async () => {
     });
 });
 
+test("ignores generated development hosted-app assets", async () => {
+  await withFixture(
+    { "src/large.cs": "This fixture is intentionally cohesive so the strong-warning review has a sufficiently specific rationale." },
+    async (root) => {
+      const assets = path.join(root, "apps/public-site/dev-app/assets");
+      await mkdir(assets, { recursive: true });
+      await writeFile(path.join(assets, "app.js"), "generated();\n".repeat(501), "utf8");
+
+      const result = await check(root);
+      assert.doesNotMatch(result.stdout, /apps\/public-site\/dev-app/u);
+      assert.match(result.stdout, /Every strong source-size warning has a current cohesive-ownership review/u);
+    }
+  );
+});
+
 test("ignores local Codex build probes", async () => {
   await withFixture(
     { "src/large.cs": "This fixture is intentionally cohesive so the strong-warning review has a sufficiently specific rationale." },

@@ -19,7 +19,7 @@ internal sealed record RelayTurnConfiguration(
     public int MaximumBitrate => EffectiveQuality switch
     {
         RelayScreenQuality.DataSaver => 2_000_000,
-        RelayScreenQuality.MaintainerFull when BuildFeatures.MaintainerRelayQuality => 8_000_000,
+        RelayScreenQuality.High => 8_000_000,
         _ => 4_000_000
     };
 }

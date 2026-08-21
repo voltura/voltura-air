@@ -45,6 +45,7 @@ public partial class MainWindow : Window
         WebHostService webHost,
         string? clientUrl,
         bool usePublicScreenshotPairingUrl = false,
+        bool useDevelopmentHostedApp = false,
         IWorkstationLockPolicy? workstationLockPolicy = null,
         IAwakeService? awakeService = null,
         IActivitySimulationService? activitySimulationService = null,
@@ -81,6 +82,7 @@ public partial class MainWindow : Window
             webHost,
             clientUrl,
             usePublicScreenshotPairingUrl,
+            useDevelopmentHostedApp,
             clipboard,
             RefreshConnectPagePresentation,
             () => SelectPage(HostPage.Connection));

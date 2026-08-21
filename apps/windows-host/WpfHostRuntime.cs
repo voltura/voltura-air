@@ -68,10 +68,15 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 "appdata");
         var clientUrl = GetOption(args, "--client-url") ?? Environment.GetEnvironmentVariable("VOLTURA_AIR_CLIENT_URL");
         var usePublicScreenshotPairingUrl = HasOption(args, "--site-screenshot-mode");
+        var useDevelopmentHostedApp = string.Equals(
+            Environment.GetEnvironmentVariable("VOLTURA_AIR_DEV_HOST"),
+            "1",
+            StringComparison.Ordinal);
 #else
         string? pairingStoreRoot = null;
         string? clientUrl = null;
         const bool usePublicScreenshotPairingUrl = false;
+        const bool useDevelopmentHostedApp = false;
 #endif
         IAppLog appLog = isolatedTestMode ? NullAppLog.Instance : new AppLog();
         SendInputInjector? inputInjector = null;
@@ -146,7 +151,8 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 configureWebHost: null,
                 screenViewCapture: null,
                 phoneWebcamFeature: phoneWebcam,
-                phoneWebcamPeerFactory: null);
+                phoneWebcamPeerFactory: null,
+                screenViewPeerFactory: null);
             EventHandler cursorOverridesRevoked = (_, _) => webHost.RevokeCursorOverrides();
             cursorOverrides.OverridesRevoked += cursorOverridesRevoked;
 
@@ -189,6 +195,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 webHost,
                 clientUrl,
                 usePublicScreenshotPairingUrl,
+                useDevelopmentHostedApp,
                 workstationLockPolicy,
                 awakeService,
                 activitySimulationService: activitySimulationService,

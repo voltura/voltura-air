@@ -170,7 +170,7 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
                 window.ShowPage(HostPage.Preferences);
                 window.UpdateLayout();
                 var sections = FindWpfDescendants<Expander>(window).ToArray();
-                Assert.Equal(16, sections.Length);
+                Assert.Equal(17, sections.Length);
                 var scroller = FindWpfDescendants<ScrollViewer>(window)
                     .Single(viewer => viewer.Name == "PreferencesScroller");
                 Assert.False(scroller.CanContentScroll);

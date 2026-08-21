@@ -192,9 +192,11 @@ export interface ScreenViewCapability {
   canView: boolean;
   requiresRepair: boolean;
   encrypted: true;
+  /** Frozen compatibility markers. Adaptive stream limits come from WebRTC negotiation. */
   maxWidth: number;
   maxHeight: number;
   maxFramesPerSecond: number;
+  receiverQualityFeedback?: true;
   directPointer?: {
     permissionGranted: boolean;
   };
@@ -287,6 +289,17 @@ export interface ScreenViewStartMessage {
   clientSignature: string;
 }
 export interface ScreenViewAnswerMessage { type: "screen.view.answer"; operationId: string; answerSdp: string; clientSignature: string; }
+export interface ScreenViewQualityMessage {
+  type: "screen.view.quality";
+  operationId: string;
+  width: number;
+  height: number;
+  framesPerSecond: number;
+  framesDecoded: number;
+  framesDropped: number;
+  freezeCount: number;
+  packetsLost: number;
+}
 export interface ScreenViewStopMessage { type: "screen.view.stop"; operationId: string; }
 export interface ScreenViewSourceSetMessage { type: "screen.view.source.set"; operationId: string; displayId: string; }
 export interface ScreenViewSourcesResultMessage {
@@ -1009,6 +1022,7 @@ export type ClientMessage =
   | ScreenViewSourcesGetMessage
   | ScreenViewStartMessage
   | ScreenViewAnswerMessage
+  | ScreenViewQualityMessage
   | ScreenViewSourceSetMessage
   | ScreenViewStopMessage
   | PhoneWebcamStartMessage

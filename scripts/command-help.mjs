@@ -46,6 +46,7 @@ export const commandDescriptions = {
   "site:check": "Verify PHP 8.5, required extensions, and every maintained PHP entry point.",
   "site:dev": "Run the PHP public site locally against the development catalog database.",
   "site:hosted:build": "Build the separately scoped hosted Relay PWA under apps/public-site/app.",
+  "site:hosted:dev-build": "Build the isolated HTTPS development PWA under apps/public-site/dev-app.",
   "site:preview:build": "Build the catalog preview from the real mobile custom-screen renderer.",
   "third-party:check": "Verify shipped dependency versions, native provenance, and generated browser notices.",
   "third-party:generate": "Regenerate the mobile PWA's complete third-party license notice from installed production packages.",

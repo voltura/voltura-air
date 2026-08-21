@@ -15,6 +15,7 @@ import { parseScreenPlaintextRecord, type ScreenCursorRecord } from "./screenVie
 import { screenKeyboardMessage } from "./screenKeyboardInput";
 import { identityScreenViewTransform, normalizedScreenPoint, screenCursorImagePosition, touchPairGeometry, updateScreenViewPinch, type NormalizedScreenPoint, type ScreenViewPinchStart, type ScreenViewTransform } from "./screenViewTransform";
 import { useScreenViewFullscreen } from "./useScreenViewFullscreen";
+import { screenViewQualityFromStats, startScreenViewQualityMonitor, type ScreenViewQualitySample } from "./screenViewQuality";
 import "./screen-view.css";
 
 interface Props {
@@ -53,6 +54,7 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
   const [viewing, setViewing] = useState(browserPreviewState !== undefined);
   const [streaming, setStreaming] = useState(browserPreviewState !== undefined);
   const [playbackBlocked, setPlaybackBlocked] = useState(false);
+  const [qualityText, setQualityText] = useState("");
   const [viewTransform, setViewTransform] = useState<ScreenViewTransform>(identityScreenViewTransform);
   const [twoFingerMode, setTwoFingerMode] = useState<TwoFingerMode>("zoom");
   const [directPointerActive, setDirectPointerActive] = useState(browserPreviewState === "active");
@@ -81,6 +83,8 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
   const credentialRenewalRef = useRef<number | undefined>(undefined);
   const renewalRestartRef = useRef<number | undefined>(undefined);
   const disconnectedRecoveryRef = useRef<number | undefined>(undefined);
+  const stopQualityMonitorRef = useRef<(() => void) | null>(null);
+  const qualitySampleRef = useRef<ScreenViewQualitySample | null>(null);
   const pointerInput = usePointerInput({ send, state, trackpadSettings, twoFingerMode: "scroll" });
   const viewTransformRef = useRef(viewTransform);
   const pinchRef = useRef<(ScreenViewPinchStart & { mode: "local" | "remote" }) | null>(null);
@@ -439,6 +443,7 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
     let relayCandidateCount = 0;
     let lastIceErrorCode: number | null = null;
     peerRef.current = peer;
+    startQualityMonitor(peer);
     peer.addEventListener("icecandidate", (event) => {
       if (!isCurrentNegotiation()) {return;}
       if (isRelayCandidate(event.candidate)) {
@@ -594,6 +599,10 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
     disconnectedRecoveryRef.current = undefined;
     window.clearTimeout(startResponseTimeoutRef.current);
     startResponseTimeoutRef.current = undefined;
+    stopQualityMonitorRef.current?.();
+    stopQualityMonitorRef.current = null;
+    qualitySampleRef.current = null;
+    setQualityText("");
     void exitImmersive();
     pendingOfferRef.current = null;
     pendingSourceRef.current = null;
@@ -611,6 +620,25 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
     cursorStateRef.current = null;
     if (cursorUrlRef.current) {URL.revokeObjectURL(cursorUrlRef.current); cursorUrlRef.current = null;}
     if (cursorRef.current) {cursorRef.current.hidden = true;}
+  }
+
+  function startQualityMonitor(peer: RTCPeerConnection) {
+    stopQualityMonitorRef.current?.();
+    stopQualityMonitorRef.current = null;
+    qualitySampleRef.current = null;
+    setQualityText("");
+    if (typeof peer.getStats !== "function") {return;}
+    stopQualityMonitorRef.current = startScreenViewQualityMonitor(peer, (report) => {
+      if (peerRef.current !== peer) {return;}
+      const result = screenViewQualityFromStats(report, videoRef.current, qualitySampleRef.current, performance.now());
+      if (!result || peerRef.current !== peer) {return;}
+      qualitySampleRef.current = result.sample;
+      setQualityText(result.text);
+      const operationId = activeOperationRef.current;
+      if (operationId && capability.receiverQualityFeedback && result.feedback) {
+        send({ type: "screen.view.quality", operationId, ...result.feedback });
+      }
+    });
   }
 
   function scheduleCredentialRenewal(expiresAt: string | null | undefined, displayId: string) {
@@ -799,7 +827,10 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
     </div>
     <div className="screen-view-controls">
       {sources.length > 1 && <label>Display<select value={selected} onChange={(event) => selectSource(event.target.value)}>{sources.map((source) => <option key={source.id} value={source.id}>{source.label} - {source.width}x{source.height}</option>)}</select></label>}
-      <p role="status">{status}</p>
+      <div className="screen-view-status-block">
+        <p role="status">{status}</p>
+        {qualityText && <p className="screen-view-quality" aria-hidden="true">{qualityText}</p>}
+      </div>
       <div className="screen-view-actions">
         <button type="button" disabled={!viewing} onClick={() => send({ type: "pointer.button", button: "left", action: "click" })}><MousePointer2 /> Click</button>
         <button type="button" disabled={!viewing} onClick={onOpenKeyboard}><Keyboard /> Keys</button>

@@ -58,6 +58,7 @@ internal static class ClientMessageValidator
             ["screen.view.sources.get"] = Fields("type", "operationId"),
             ["screen.view.start"] = Fields("type", "operationId", "displayId", "clientSignature"),
             ["screen.view.answer"] = Fields("type", "operationId", "answerSdp", "clientSignature"),
+            ["screen.view.quality"] = Fields("type", "operationId", "width", "height", "framesPerSecond", "framesDecoded", "framesDropped", "freezeCount", "packetsLost"),
             ["screen.view.source.set"] = Fields("type", "operationId", "displayId"),
             ["screen.view.stop"] = Fields("type", "operationId"),
             ["phone.webcam.start"] = Fields("type", "operationId", "captureWidth", "captureHeight", "captureFps", "useMicrophone", "clientSignature"),
@@ -267,6 +268,16 @@ internal static class ClientMessageValidator
                 IsValidOperationId(screenAnswerOperationId) &&
                 TryGetRequiredString(root, "answerSdp", ScreenViewProtocol.MaxSdpLength, allowEmpty: false, out _) &&
                 TryGetRequiredString(root, "clientSignature", MaxCredentialLength, allowEmpty: false, out _),
+            "screen.view.quality" =>
+                TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var screenQualityOperationId) &&
+                IsValidOperationId(screenQualityOperationId) &&
+                TryGetBoundedInt(root, "width", 0, 16384, out _) &&
+                TryGetBoundedInt(root, "height", 0, 16384, out _) &&
+                TryGetNumber(root, "framesPerSecond", 0, 240, out _) &&
+                TryGetBoundedInt(root, "framesDecoded", 0, 1_000_000, out _) &&
+                TryGetBoundedInt(root, "framesDropped", 0, 1_000_000, out _) &&
+                TryGetBoundedInt(root, "freezeCount", 0, 1_000_000, out _) &&
+                TryGetBoundedInt(root, "packetsLost", 0, 1_000_000, out _),
             "screen.view.source.set" =>
                 TryGetRequiredString(root, "operationId", MaxOperationIdLength, allowEmpty: false, out var screenSourceOperationId) &&
                 IsValidOperationId(screenSourceOperationId) &&

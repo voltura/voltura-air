@@ -58,7 +58,9 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
                         ModeRotation.Rotate180 => ScreenViewRotation.Rotate180,
                         ModeRotation.Rotate270 => ScreenViewRotation.Rotate270,
                         _ => ScreenViewRotation.Identity
-                    }))];
+                    },
+                    item.EffectiveDpiX,
+                    item.EffectiveDpiY))];
             }
             catch (ScreenViewCaptureException)
             {
@@ -184,6 +186,7 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
                         if (!description.AttachedToDesktop) continue;
                         int width = description.DesktopCoordinates.Right - description.DesktopCoordinates.Left;
                         int height = description.DesktopCoordinates.Bottom - description.DesktopCoordinates.Top;
+                        (int dpiX, int dpiY) = GetEffectiveDpi(description.Monitor);
                         int ordinal = outputs.Count + 1;
                         outputs.Add(new OutputLocation(
                             $"display-{adapterIndex + 1}-{outputIndex + 1}",
@@ -195,7 +198,9 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
                             width,
                             height,
                             description.DesktopCoordinates.Left == 0 && description.DesktopCoordinates.Top == 0,
-                            description.Rotation));
+                            description.Rotation,
+                            dpiX,
+                            dpiY));
                     }
                 }
             }
@@ -214,6 +219,16 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
     {
         if (result.Failure)
             throw new ScreenViewCaptureException(code, "Windows desktop capture is unavailable.", new SharpGenException(result));
+    }
+
+    private static (int X, int Y) GetEffectiveDpi(nint monitor)
+    {
+        if (monitor == 0 || GetDpiForMonitor(monitor, MonitorDpiType.Effective, out uint x, out uint y) < 0 ||
+            x is < 96 or > 960 || y is < 96 or > 960)
+        {
+            return (96, 96);
+        }
+        return ((int)x, (int)y);
     }
 
     private sealed class CaptureSession(
@@ -237,12 +252,13 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
         private ScreenViewHardwareH264Encoder? _webRtcEncoder;
         private ScreenViewCaptureProfile? _webRtcProfile;
         private int _webRtcBitrate;
+        private readonly ScreenViewFramePacer _webRtcFramePacer = new(TimeProvider.System.TimestampFrequency);
 
         public string SourceId => _output.Id;
 
         public ScreenViewEncodedFrame? CaptureVideo(ScreenViewCaptureProfile profile, int bitrate, bool forceKeyFrame)
         {
-            if (profile.FramesPerSecond is < 1 or > 30 || bitrate is < 250_000 or > 16_000_000)
+            if (profile.FramesPerSecond is < 1 or > 60 || bitrate is < 1 or > 100_000_000)
                 throw new ArgumentOutOfRangeException(nameof(profile));
             bool swapsDimensions = _output.Rotation is ModeRotation.Rotate90 or ModeRotation.Rotate270;
             int rotatedWidth = swapsDimensions ? _output.Height : _output.Width;
@@ -250,16 +266,26 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
             double scale = Math.Min(1d, Math.Min((double)profile.MaxWidth / rotatedWidth, (double)profile.MaxHeight / rotatedHeight));
             int width = Math.Max(2, (int)Math.Round(rotatedWidth * scale)) & ~1;
             int height = Math.Max(2, (int)Math.Round(rotatedHeight * scale)) & ~1;
-            if (_webRtcProfile != profile || _webRtcBitrate != bitrate || forceKeyFrame)
+            bool profileChanged = _webRtcProfile != profile;
+            bool frameRateChanged = _webRtcProfile?.FramesPerSecond != profile.FramesPerSecond;
+            if (profileChanged || _webRtcBitrate != bitrate || forceKeyFrame)
             {
                 _webRtcEncoder?.Dispose();
                 _webRtcEncoder = null;
+                if (profileChanged && _gpuFrameConversionUnavailable)
+                {
+                    _gpuFrameConverter?.Dispose();
+                    _gpuFrameConverter = null;
+                    _gpuFrameConversionUnavailable = false;
+                }
                 _webRtcProfile = profile;
                 _webRtcBitrate = bitrate;
+                if (frameRateChanged) _webRtcFramePacer.Reset();
             }
 
 #pragma warning disable CA2000 // desktopResource is disposed in the finally block for every successful acquisition.
-            Result acquire = _duplication.AcquireNextFrame(_webRtcEncoder is null ? 250u : 34u, out OutduplFrameInfo frameInfo, out IDXGIResource desktopResource);
+            uint frameWait = (uint)Math.Clamp((int)Math.Ceiling(1000d / profile.FramesPerSecond), 1, 250);
+            Result acquire = _duplication.AcquireNextFrame(_webRtcEncoder is null ? 250u : frameWait, out OutduplFrameInfo frameInfo, out IDXGIResource desktopResource);
 #pragma warning restore CA2000
             if (acquire == DxgiResultCode.WaitTimeout)
             {
@@ -284,10 +310,27 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
                 bool visualChanged = frameInfo.LastPresentTime != 0 || _webRtcEncoder is null;
                 if (!visualChanged)
                     return cursor is null ? null : new ScreenViewEncodedFrame([], width, height, profile.FramesPerSecond, false, cursor);
+                if (!_webRtcFramePacer.ShouldEncode(TimeProvider.System.GetTimestamp(), profile.FramesPerSecond))
+                    return cursor is null ? null : new ScreenViewEncodedFrame([], width, height, profile.FramesPerSecond, false, cursor);
                 if (!TryRenderGpuFrame(desktopTexture, width, height, out ID3D11Texture2D? surface))
                     throw new ScreenViewCaptureException("encoder-unavailable", "This graphics adapter cannot prepare the PC display for WebRTC video.");
-                _webRtcEncoder ??= new ScreenViewHardwareH264Encoder(_device, width, height, profile.FramesPerSecond, bitrate);
-                ScreenViewEncodedFrame encoded = _webRtcEncoder.Encode(surface!);
+                ScreenViewEncodedFrame encoded;
+                try
+                {
+                    _webRtcEncoder ??= new ScreenViewHardwareH264Encoder(_device, width, height, profile.FramesPerSecond, bitrate);
+                    encoded = _webRtcEncoder.Encode(surface!);
+                }
+                catch (ScreenViewCaptureException)
+                {
+                    throw;
+                }
+                catch (Exception ex) when (ex is SharpGenException or ExternalException or InvalidOperationException or NotSupportedException)
+                {
+                    throw new ScreenViewCaptureException(
+                        "encoder-failed",
+                        "The Windows H.264 encoder could not encode this screen profile.",
+                        ex);
+                }
                 return encoded with { Cursor = cursor };
             }
             finally
@@ -1022,7 +1065,27 @@ internal sealed partial class DxgiScreenViewCaptureSource : IScreenViewCaptureSo
             uint operation);
     }
 
-    private sealed record OutputLocation(string Id, string Label, int AdapterIndex, int OutputIndex, int Left, int Top, int Width, int Height, bool IsPrimary, ModeRotation Rotation);
+    private sealed record OutputLocation(
+        string Id,
+        string Label,
+        int AdapterIndex,
+        int OutputIndex,
+        int Left,
+        int Top,
+        int Width,
+        int Height,
+        bool IsPrimary,
+        ModeRotation Rotation,
+        int EffectiveDpiX,
+        int EffectiveDpiY);
+
+    private enum MonitorDpiType
+    {
+        Effective = 0
+    }
+
+    [LibraryImport("shcore.dll")]
+    private static partial int GetDpiForMonitor(nint monitor, MonitorDpiType dpiType, out uint dpiX, out uint dpiY);
 
     private sealed record CursorSnapshot(bool Visible, int X, int Y, int HotSpotX, int HotSpotY, int Width, int Height, byte[]? PngBytes)
     {

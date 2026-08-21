@@ -177,7 +177,8 @@ public abstract class WebHostServiceTestBase : IsolatedHostSettingsTest
             ISystemPowerController? powerController = null,
             IScreenViewCaptureSource? screenViewCapture = null,
             IPhoneWebcamFeature? phoneWebcamFeature = null,
-            IPhoneWebcamWebRtcPeerFactory? phoneWebcamPeerFactory = null)
+            IPhoneWebcamWebRtcPeerFactory? phoneWebcamPeerFactory = null,
+            IScreenViewWebRtcPeerFactory? screenViewPeerFactory = null)
         {
             var store = new TempPairingStore();
             var inputInjector = new FakeInputInjector();
@@ -204,7 +205,8 @@ public abstract class WebHostServiceTestBase : IsolatedHostSettingsTest
                 configureWebHost: builder => builder.UseTestServer(),
                 screenViewCapture: screenViewCapture,
                 phoneWebcamFeature: phoneWebcamFeature,
-                phoneWebcamPeerFactory: phoneWebcamPeerFactory);
+                phoneWebcamPeerFactory: phoneWebcamPeerFactory,
+                screenViewPeerFactory: screenViewPeerFactory);
             await webHost.StartAsync();
             return new WebHostFixture(store, inputInjector, manager, webHost);
         }

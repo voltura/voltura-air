@@ -535,6 +535,19 @@ internal sealed class WebSocketSessionHandler(
                     ProtocolMessageFields.GetString(root, "clientSignature"),
                     cancellationToken);
                 return true;
+            case "screen.view.quality":
+                screenViewCommands.ReportQuality(
+                    clientId,
+                    ProtocolMessageFields.GetString(root, "operationId"),
+                    new ScreenViewReceiverQuality(
+                        root.GetProperty("width").GetInt32(),
+                        root.GetProperty("height").GetInt32(),
+                        root.GetProperty("framesPerSecond").GetDouble(),
+                        root.GetProperty("framesDecoded").GetInt32(),
+                        root.GetProperty("framesDropped").GetInt32(),
+                        root.GetProperty("freezeCount").GetInt32(),
+                        root.GetProperty("packetsLost").GetInt32()));
+                return true;
             case "screen.view.source.set":
                 await screenViewCommands.SetSourceAsync(
                     socket,

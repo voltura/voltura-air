@@ -13,6 +13,7 @@ internal sealed class PairingLinkController
     private readonly RelayEndpointDescriptor? _relayEndpoint;
     private readonly bool _enhancedCapabilitiesEnabled;
     private readonly string? _secureDirectRouteId;
+    private readonly bool _useDevelopmentHostedApp;
     private string _serverUrl;
     private string _clientUrl;
     private PairingLinkState _current;
@@ -25,7 +26,8 @@ internal sealed class PairingLinkController
         string? relayRouteId = null,
         RelayEndpointDescriptor? relayEndpoint = null,
         bool enhancedCapabilitiesEnabled = false,
-        string? secureDirectRouteId = null)
+        string? secureDirectRouteId = null,
+        bool useDevelopmentHostedApp = false)
     {
         _pairingManager = pairingManager;
         _serverUrl = serverUrl;
@@ -34,6 +36,7 @@ internal sealed class PairingLinkController
         _relayEndpoint = relayEndpoint;
         _enhancedCapabilitiesEnabled = enhancedCapabilitiesEnabled;
         _secureDirectRouteId = secureDirectRouteId;
+        _useDevelopmentHostedApp = useDevelopmentHostedApp;
         _usesServerUrlAsClientUrl = string.IsNullOrWhiteSpace(clientUrl);
         _clientUrl = _usesServerUrlAsClientUrl ? serverUrl : clientUrl!.TrimEnd('/');
         _current = CreatePairingLink();
@@ -128,7 +131,8 @@ internal sealed class PairingLinkController
         {
             return new PairingLinkState(standardLocalUrl, pairingCode.RefreshAt, null);
         }
-        var secureUrl = $"https://voltura.se/s/{_secureDirectRouteId}?v={Uri.EscapeDataString(AppVersion.Display)}#{Uri.EscapeDataString(pairingCode.Value)}";
+        var hostedEntry = _useDevelopmentHostedApp ? "d" : "s";
+        var secureUrl = $"https://voltura.se/{hostedEntry}/{_secureDirectRouteId}?v={Uri.EscapeDataString(AppVersion.Display)}#{Uri.EscapeDataString(pairingCode.Value)}";
         return new PairingLinkState(secureUrl, pairingCode.RefreshAt, standardLocalUrl);
     }
 

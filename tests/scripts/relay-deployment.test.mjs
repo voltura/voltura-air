@@ -27,11 +27,23 @@ test("Secure Direct short redirect selects the hosted Secure Direct bootstrap wi
   assert.doesNotMatch(endpoint, /Location:.*#/u);
 });
 
-test("maintainer quality cannot enter a packaged build", () => {
+test("development short redirect selects isolated hosted assets without exposing the fragment", () => {
+  const rewrite = read("apps/public-site/d/.htaccess");
+  const endpoint = read("apps/public-site/d/index.php");
+  assert.match(rewrite, /Options -Indexes/u);
+  assert.match(rewrite, /\{22\}/u);
+  assert.match(rewrite, /Cache-Control" "no-cache/u);
+  assert.match(endpoint, /count\(\$_GET\) !== 2/u);
+  assert.match(endpoint, /\$location = '\/air\/dev-app\/\?m=s&r='/u);
+  assert.doesNotMatch(endpoint, /pairToken|token=/u);
+  assert.doesNotMatch(endpoint, /Location:.*#/u);
+});
+
+test("High relay quality is part of normal packaged builds", () => {
   const project = read("apps/windows-host/VolturaAir.Host.csproj");
-  assert.match(project, /RejectPublishedMaintainerRelayBuild/u);
-  assert.match(project, /BeforeTargets="Publish"/u);
-  assert.match(project, /Maintainer relay quality is local-only and cannot be published/u);
+  const connectionView = read("apps/windows-host/Features/Connection/ConnectionPageView.xaml");
+  assert.doesNotMatch(project, /MaintainerRelayQuality|RejectPublishedMaintainerRelayBuild/u);
+  assert.match(connectionView, /High quality · up to 8 Mbps/u);
 });
 
 test("standalone composition builds from the workspace and exposes only bounded public ports", () => {

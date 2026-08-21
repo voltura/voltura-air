@@ -15,9 +15,9 @@ public sealed class ScreenViewWebRtcTests
     }
 
     [Fact]
-    public void AdvertisesABaselineLevelThatSupportsTheMaximum1080p30Stream()
+    public void AdvertisesABaselineLevelThatSupportsTheMaximum4k60Stream()
     {
-        Assert.Contains("profile-level-id=42e028", ScreenViewWebRtcPeer.H264FormatParameters, StringComparison.Ordinal);
+        Assert.Contains("profile-level-id=42e034", ScreenViewWebRtcPeer.H264FormatParameters, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -218,6 +218,13 @@
                 <ui:SpacingStackPanel x:Name="PermissionsContent"
                                       Spacing="{DynamicResource SpaceMd}" />
             </Expander>
+            <Expander x:Name="ScreenViewSection"
+                      Header="Screen viewing"
+                      IsExpanded="False"
+                      Style="{DynamicResource PreferencesAccordionStyle}">
+                <ui:SpacingStackPanel x:Name="ScreenViewContent"
+                                      Spacing="{DynamicResource SpaceSm}" />
+            </Expander>
             <Expander x:Name="TextDestinationSection"
                       Header="Text destination"
                       IsExpanded="False"

@@ -360,4 +360,5 @@ public sealed class WebHostScreenViewTests : WebHostServiceTestBase
         }
         public void EndCapture() => EndCaptureCalls++;
     }
+
 }

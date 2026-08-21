@@ -128,7 +128,7 @@ public sealed partial class HostUiLayoutTests
 
                 var sections = FindWpfDescendants<Expander>(window).ToArray();
                 Assert.Equal(
-                    "Application|More about application logs|Appearance|Trackpad defaults|Remote defaults|Presentation|Keep awake|Global permissions|More about global permissions|Text destination|More about text destinations|Application launch buttons|More about app-launch buttons|Custom pointer|Developer tools|Windows locking",
+                    "Application|More about application logs|Appearance|Trackpad defaults|Remote defaults|Presentation|Keep awake|Global permissions|More about global permissions|Screen viewing|Text destination|More about text destinations|Application launch buttons|More about app-launch buttons|Custom pointer|Developer tools|Windows locking",
                     string.Join('|', sections.Select(section => section.Header)));
                 var presentation = Assert.Single(
                     sections,
@@ -144,6 +144,12 @@ public sealed partial class HostUiLayoutTests
                     string.Equals(checkbox.Content?.ToString(), "Enable alpha features", StringComparison.Ordinal));
                 Assert.DoesNotContain(FindWpfDescendants<CheckBox>(window), checkbox =>
                     checkbox.Content?.ToString()?.Contains("Screen viewing", StringComparison.OrdinalIgnoreCase) == true);
+                Assert.Equal(
+                    ["Automatic (recommended)", "Quality", "Data saver"],
+                    FindWpfDescendants<RadioButton>(window)
+                        .Where(choice => Equals(choice.GroupName, "DirectScreenQuality"))
+                        .Select(choice => choice.Content?.ToString())
+                        .ToArray());
             }
             finally
             {

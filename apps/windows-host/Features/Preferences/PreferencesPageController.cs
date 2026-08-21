@@ -12,6 +12,7 @@ internal sealed class PreferencesPageController
     private readonly HostVisualFactory _visuals;
     private readonly PreferencesSearchRegistry _searchRegistry;
     private readonly PreferencesVisualFactory _preferenceVisuals;
+    private readonly ScreenViewSettingsSection _screenView;
     private readonly HostToastPresenter _toasts;
     private readonly Action _requestRefresh;
     private readonly Action<string?> _titleChanged;
@@ -63,6 +64,7 @@ internal sealed class PreferencesPageController
         _presentation = new PresentationSettingsSection(cursorOverrides, appLog, visuals, _preferenceVisuals, toasts, () => _isLoading);
         _application = new ApplicationSettingsSection(appLog, visuals, _preferenceVisuals, () => _isLoading);
         _permissions = new GlobalPermissionsSettingsSection(powerController, owner, visuals, _preferenceVisuals, () => _isLoading);
+        _screenView = new ScreenViewSettingsSection(visuals, _preferenceVisuals, () => _isLoading);
         _developer = new DeveloperSettingsSection(owner, powerController, workstationLockPolicy, appLog, visuals, _preferenceVisuals, toasts, RefreshPreservingState);
     }
 
@@ -92,6 +94,8 @@ internal sealed class PreferencesPageController
         _awake.AddTo(root.AwakeContent);
         _searchRegistry.RegisterSection(root.PermissionsSection);
         _permissions.AddTo(root.PermissionsContent);
+        _searchRegistry.RegisterSection(root.ScreenViewSection);
+        _screenView.AddTo(root.ScreenViewContent);
         _searchRegistry.RegisterSection(root.TextDestinationSection);
         _textDestination.AddTo(root.TextDestinationContent);
         _searchRegistry.RegisterSection(root.AppLaunchSection);

@@ -100,12 +100,11 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   that support it and explains whether the effective Screen viewing permission
   or a fresh identity-pinning pairing is required.
 - Direct viewing uses LAN ICE. Relay viewing uses relay-only TURN candidates,
-  15-minute credentials renewed with a fresh negotiation, and **Standard**
-  (4 Mbps) or **Data saver** (2 Mbps). At 750 GB estimated monthly TURN transfer
-  the service forces Data saver; at 850 GB it stops issuing credentials while
-  command relay remains available. Local maintainer builds may expose 8 Mbps;
-  normal and packaged builds cannot. The host shows the provider's current
-  used-versus-remaining allowance and thresholds on Connection.
+  15-minute credentials renewed with a fresh negotiation, and **High** (8 Mbps),
+  **Standard** (4 Mbps), or **Data saver** (2 Mbps). At 750 GB estimated monthly
+  TURN transfer the service forces Data saver; at 850 GB it stops issuing
+  credentials while command relay remains available. The host shows the
+  provider's current used-versus-remaining allowance and thresholds on Connection.
 - The bundled Windows libdatachannel peer retains libjuice as its ICE and TURN
   owner. In relay mode a bounded loopback bridge carries libjuice's TURN
   messages over certificate-validated TLS/TCP 443, including the stream framing
@@ -118,10 +117,28 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   busy result. Leaving the workspace stops viewing.
 - Windows Desktop Duplication supplies GPU display frames and cursor metadata.
   D3D11 converts frames to NV12 and a capability-selected hardware Media
-  Foundation transform encodes baseline H.264 at up to 1920 x 1080 and 30
-  frames per second. A direct LAN WebRTC peer sends video over DTLS-SRTP and
-  cursor/status over a DTLS data channel. Receiver bandwidth estimates adjust
-  the bounded bitrate automatically; v1 exposes no quality control.
+  Foundation transform encodes baseline H.264 using the selected display's
+  native aspect ratio and resolution/frame-rate combinations within the sender's
+  advertised H.264 level, up to 60 frames per second. A direct LAN WebRTC peer
+  sends video over DTLS-SRTP and cursor/status over a DTLS data channel.
+  Monotonic capture pacing drops early frames from higher-refresh desktops before
+  GPU conversion and encoding, so the selected profile's frame rate is a real
+  wall-clock ceiling rather than only an encoder timestamp.
+  Direct starts at the selected display's native resolution at 30 fps. Automatic
+  derives a readable resolution floor from that display's physical pixels and
+  effective Windows scaling; it reduces frame rate and generated intermediate
+  resolutions without crossing that floor. Three bounded sender-pressure events
+  or sustained receiver decoder loss can lower one profile. Fifteen seconds of
+  healthy receiver decoding probes one profile upward, and a failed probe rolls
+  back and cools down before retry. An encoder-rejected profile uses the same
+  bounded fallback and later becomes eligible again.
+- Direct Screen View has **Automatic**, **Quality**, and **Data saver** host
+  settings. Quality retains the full selected-display resolution while adapting
+  frame rate. Data saver is limited to 4 Mbps and starts within 1920 x 1080; it is
+  the explicit mode allowed to cross the readability floor. Relay uses the same
+  adaptive engine within the selected 8/4/2 Mbps ceiling. The mobile view shows
+  its actual received resolution, frame rate, and bitrate from WebRTC statistics
+  and sends bounded aggregate decoder-health counters while viewing.
 - Screen media is independent of the JSON command socket, so a slow viewer
   cannot delay trackpad or keyboard commands. The WebRTC sender bounds queued
   media, supports packet retransmission and receiver keyframe requests, and
@@ -202,10 +219,10 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   authenticated session; it never appends work to the dead peer.
 - Enhanced Direct sends DTLS-SRTP media on the selected private LAN and is free and
   unlimited. Relay uses relay-only candidates, the existing 15-minute TURN
-  credentials and quota-derived 4/2 Mbps policy, and refreshes with a fresh session
-  before credentials expire. Voltura-operated Relay use is initially free, shares
-  the existing aggregate 750 GB Data Saver threshold and 850 GB cutoff, and adds no
-  webcam-specific account, billing, entitlement, or quota.
+  credentials and quota-derived 8/4/2 Mbps policy, and refreshes with a fresh
+  session before credentials expire. Voltura-operated Relay use is initially free,
+  shares the existing aggregate 750 GB Data Saver threshold and 850 GB cutoff, and
+  adds no webcam-specific account, billing, entitlement, or quota.
 - The host receives one H.264 track, bounds encoded and decoded work to latest-frame
   capacity, decodes through Media Foundation, and normalizes portrait, landscape,
   and lower-resolution input into fixed NV12 1920 x 1080 output. The native camera

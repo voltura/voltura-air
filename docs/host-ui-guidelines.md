@@ -52,11 +52,16 @@ change summary lists only changed values and provides **Discard changes** and
 Connection begins with exclusive Direct LAN and Cloud relay choices. Direct
 shows the adapter and port surfaces above. Relay replaces them with safe
 connection state, retry, a used-versus-remaining monthly screen-transfer bar,
-2/4 Mbps quality, and a collapsed custom HTTPS endpoint. Normal builds never
-show the local-only maintainer 8 Mbps choice. Relay failure never silently opens
-Direct. The first failed connection in an outage shows one danger-tone host
+2/4/8 Mbps quality, and a collapsed custom HTTPS endpoint. Relay failure never
+silently opens Direct. The first failed connection in an outage shows one danger-tone host
 toast while retries remain automatic and quiet; restoration shows one success
 toast. Initial successful connection does not show a restoration toast.
+
+Preferences owns Direct Screen View quality. Automatic is the recommended
+adaptive default and preserves the Windows-scaling-derived readability floor.
+Quality keeps the selected display's full resolution while adapting frame rate.
+Data saver provides the explicit 4 Mbps mode and may use dimensions below the
+readability floor. Changes apply to newly started views without a host restart.
 
 ## Phone webcam
 

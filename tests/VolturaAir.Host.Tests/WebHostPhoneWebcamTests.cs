@@ -11,6 +11,14 @@ namespace VolturaAir.Host.Tests;
 public sealed class WebHostPhoneWebcamTests : WebHostServiceTestBase
 {
     [Fact]
+    public void HighRelayCeilingDoesNotExtendThePublishedPhoneWebcamQualityEnum()
+    {
+        Assert.Null(PhoneWebcamCoordinator.ToWireRelayQuality(RelayScreenQuality.High));
+        Assert.Equal(RelayScreenQuality.Standard, PhoneWebcamCoordinator.ToWireRelayQuality(RelayScreenQuality.Standard));
+        Assert.Equal(RelayScreenQuality.DataSaver, PhoneWebcamCoordinator.ToWireRelayQuality(RelayScreenQuality.DataSaver));
+    }
+
+    [Fact]
     public async Task FramePipeStartupFailureDisablesCapabilityAndSessionAdmission()
     {
         HostPermissionSet originalPermissions = AppPermissionSettings.Load();

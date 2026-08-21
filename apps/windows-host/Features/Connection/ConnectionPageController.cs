@@ -434,10 +434,7 @@ internal sealed class ConnectionPageController : IDisposable
         {
             pending = pending with
             {
-                CustomRelayEndpoint = AppNetworkSettings.NormalizeRelayEndpoint(pending.CustomRelayEndpoint),
-                RelayScreenQuality = pending.RelayScreenQuality == RelayScreenQuality.MaintainerFull && !BuildFeatures.MaintainerRelayQuality
-                    ? RelayScreenQuality.Standard
-                    : pending.RelayScreenQuality
+                CustomRelayEndpoint = AppNetworkSettings.NormalizeRelayEndpoint(pending.CustomRelayEndpoint)
             };
         }
 

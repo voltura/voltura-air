@@ -67,6 +67,7 @@
     "site:dev": "pwsh -NoProfile -File scripts/site-dev.ps1",
     "site:preview:build": "npm run build:catalog-preview --workspace apps/mobile-web",
     "site:hosted:build": "npm run build:hosted --workspace apps/mobile-web",
+    "site:hosted:dev-build": "npm run build:hosted:dev --workspace apps/mobile-web",
     "third-party:check": "node scripts/generate-third-party-notices.mjs --check",
     "third-party:generate": "node scripts/generate-third-party-notices.mjs",
     "size:report": "node scripts/report-source-sizes.mjs",

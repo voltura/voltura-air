@@ -19,8 +19,10 @@ networks that block inbound PC connections.
   unlock Gyro on supported phones and tablets.
 - View one selected Windows display live on a paired phone, tablet, or browser
   over Direct LAN or the optional Cloud relay, with encrypted video, responsive
-  cursor movement, scrolling, and up to 5x local zoom. Relay viewing offers
-  Standard and Data saver quality choices.
+  cursor movement, scrolling, and up to 5x local zoom. Direct viewing adapts up
+  to the display, hardware, receiving device, and network capabilities; Relay
+  offers High, Standard, and Data saver quality choices under the existing usage
+  protections.
 - Use a selected paired-phone camera as `Voltura Air Webcam` in Windows apps.
   Enhanced Direct is free and unlimited; Relay initially shares the existing
   service usage limits. Optional microphone audio is off by default, can be muted

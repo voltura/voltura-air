@@ -298,6 +298,16 @@
   margin: 0;
 }
 
+.screen-view-status-block {
+  display: grid;
+  min-width: 0;
+  gap: 0.15rem;
+}
+
+.screen-view-quality {
+  font-variant-numeric: tabular-nums;
+}
+
 .screen-view-actions {
   display: flex;
   gap: 0.45rem;
@@ -400,9 +410,12 @@
     padding: 0.4rem;
   }
 
-  .screen-view-controls p {
+  .screen-view-status-block {
     flex: 1;
     min-width: 0;
+  }
+
+  .screen-view-controls p {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

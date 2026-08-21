@@ -6,6 +6,12 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.0.4
+
+- Improved **View PC screen** quality. It now keeps Windows text clearer on
+  high-resolution displays and adapts as the connection changes. Relay users
+  can choose High, Standard, or Data saver quality.
+
 ## v1.0.3
 
 - Added clipboard actions for text transfer. You can paste text from your device into Send text to PC. In Get text from PC, you can either show the PC clipboard text on your device or copy it directly to your device’s clipboard. Each press retrieves the latest text from the PC.

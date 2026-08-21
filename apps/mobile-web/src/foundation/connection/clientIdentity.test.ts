@@ -26,4 +26,16 @@ describe("ensureClientMetadataInAddress", () => {
     expect(address.searchParams.has("d")).toBe(false);
     expect(address.searchParams.has("n")).toBe(false);
   });
+
+  it("clears the token and keeps identity metadata out of the development hosted URL", () => {
+    window.history.replaceState(null, "", `/air/dev-app/?m=s&r=${"r".repeat(22)}&v=0.8.5#${"t".repeat(32)}`);
+
+    ensureClientMetadataInAddress("client-private", "Private phone");
+    clearPairTokenFromAddress();
+
+    const address = new URL(window.location.href);
+    expect(address.hash).toBe("");
+    expect(address.searchParams.has("d")).toBe(false);
+    expect(address.searchParams.has("n")).toBe(false);
+  });
 });

@@ -6,7 +6,6 @@ namespace VolturaAir.Host;
 internal sealed class ScreenViewCoordinator : IAsyncDisposable
 {
     private static readonly TimeSpan SignalingLifetime = TimeSpan.FromSeconds(15);
-    private const int InitialBitrate = 6_000_000;
     private readonly Lock _gate = new();
     private readonly PairingManager _pairingManager;
     private readonly HostStatusPayloadFactory _statusFactory;
@@ -84,7 +83,20 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         }
 
         var createdAt = now ?? DateTimeOffset.UtcNow;
-        var pending = new PendingView(clientId, operationId, source, virtualDesktop, createdAt + SignalingLifetime, peer, relay?.MaximumBitrate ?? InitialBitrate);
+        DirectScreenQualityMode directQuality = relay is null
+            ? AppScreenViewSettings.Load().DirectQuality
+            : relay.EffectiveQuality == RelayScreenQuality.DataSaver
+                ? DirectScreenQualityMode.DataSaver
+                : DirectScreenQualityMode.Automatic;
+        var pending = new PendingView(
+            clientId,
+            operationId,
+            source,
+            virtualDesktop,
+            createdAt + SignalingLifetime,
+            peer,
+            directQuality,
+            relay?.MaximumBitrate);
         PendingView? expired;
         bool busy;
         lock (_gate)
@@ -203,7 +215,14 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
             {
                 if (ReferenceEquals(_answering, pending) && !pending.StopRequested && _active is null)
                 {
-                    active = new ActiveView(pending.ClientId, pending.OperationId, pending.Source, pending.VirtualDesktop, pending.Peer, pending.MaximumBitrate);
+                    active = new ActiveView(
+                        pending.ClientId,
+                        pending.OperationId,
+                        pending.Source,
+                        pending.VirtualDesktop,
+                        pending.Peer,
+                        pending.DirectQuality,
+                        pending.MaximumBitrate);
                     _answering = null;
                     pending.DetachPeer();
                     _active = active;
@@ -298,6 +317,27 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         return new(true, "accepted", "The mirrored display was changed.");
     }
 
+    public void ReportQuality(string clientId, string operationId, ScreenViewReceiverQuality quality)
+    {
+        ActiveView? active;
+        ScreenViewQualityProfile previous;
+        lock (_gate)
+        {
+            active = _active?.ClientId == clientId && _active.OperationId == operationId ? _active : null;
+            if (active is null) return;
+            previous = active.Quality;
+            if (!active.ReportReceiverQuality(quality)) return;
+            active.RequestKeyFrame();
+        }
+        ScreenViewQualityProfile current = active.Quality;
+        _appLog.Write(new AppLogEntry(
+            "screen_view",
+            "windows_host",
+            Action: current.RequiredBitrate < previous.RequiredBitrate ? "quality_reduced" : "quality_increased",
+            Outcome: "accepted",
+            Code: $"{current.Width}x{current.Height}@{current.FramesPerSecond}"));
+    }
+
     public ScreenPointerDispatchResult DispatchPointer(string clientId, ValidatedInputCommand command)
     {
         if (_inputDispatcher is null)
@@ -353,7 +393,6 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         bool activityStarted = false;
         active.Peer.Stopped += active.OnPeerStopped;
         active.Peer.KeyFrameRequested += active.OnKeyFrameRequested;
-        active.Peer.BitrateEstimated += active.OnBitrateEstimated;
         try
         {
             await active.Peer.Connected.WaitAsync(SignalingLifetime, active.Stop.Token).ConfigureAwait(false);
@@ -369,7 +408,6 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         {
             active.Peer.Stopped -= active.OnPeerStopped;
             active.Peer.KeyFrameRequested -= active.OnKeyFrameRequested;
-            active.Peer.BitrateEstimated -= active.OnBitrateEstimated;
             _capture.EndCapture();
             ReleaseHeldButtons(active);
             lock (_gate)
@@ -451,26 +489,36 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
     private async Task SendFramesAsync(ActiveView active, CancellationToken cancellationToken)
     {
         long eventSequence = 0;
-        var profile = new ScreenViewCaptureProfile(1920, 1080, true, 30);
         while (!cancellationToken.IsCancellationRequested)
         {
             string displayId = active.DisplayId;
+            ScreenViewQualityProfile quality = active.Quality;
             try
             {
                 ScreenViewEncodedFrame? frame = await _capture.CaptureVideoAsync(
                     displayId,
-                    profile,
-                    active.TargetBitrate,
+                    quality.CaptureProfile,
+                    quality.TargetBitrate,
                     active.TakeForceKeyFrame(),
                     cancellationToken).ConfigureAwait(false);
                 if (!string.Equals(displayId, active.DisplayId, StringComparison.Ordinal)) continue;
                 if (frame?.Cursor is not null)
                     active.Peer.TrySendEvent(ScreenViewRecordEncoder.EncodeCursor(++eventSequence, frame.Cursor));
                 if (frame is { Bytes.Length: > 0 } && !active.Peer.TrySendH264(frame.Bytes, frame.FramesPerSecond))
+                {
                     active.RequestKeyFrame();
+                    active.ReportBackpressure();
+                }
             }
             catch (ScreenViewCaptureException ex)
             {
+                if ((string.Equals(ex.Code, "encoder-unavailable", StringComparison.Ordinal) ||
+                    string.Equals(ex.Code, "encoder-failed", StringComparison.Ordinal)) &&
+                    active.ReportProfileUnsupported())
+                {
+                    active.RequestKeyFrame();
+                    continue;
+                }
                 active.Peer.TrySendEvent(ScreenViewRecordEncoder.EncodeStatus(ex.Code, ex.Message));
                 return;
             }
@@ -634,7 +682,8 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         VirtualDesktopBounds virtualDesktop,
         DateTimeOffset expiresAt,
         IScreenViewWebRtcPeer peer,
-        int maximumBitrate)
+        DirectScreenQualityMode directQuality,
+        int? maximumBitrate)
     {
         private IScreenViewWebRtcPeer? _peer = peer;
         public string ClientId { get; } = clientId;
@@ -644,7 +693,8 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         public VirtualDesktopBounds VirtualDesktop { get; } = virtualDesktop;
         public DateTimeOffset ExpiresAt { get; } = expiresAt;
         public IScreenViewWebRtcPeer Peer => Volatile.Read(ref _peer) ?? throw new ObjectDisposedException(nameof(PendingView));
-        public int MaximumBitrate { get; } = maximumBitrate;
+        public DirectScreenQualityMode DirectQuality { get; } = directQuality;
+        public int? MaximumBitrate { get; } = maximumBitrate;
         public string? OfferHash { get; private set; }
         public bool StopRequested { get; set; }
         public CancellationTokenSource ExpiryCancellation { get; } = new();
@@ -668,13 +718,19 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         }
     }
 
-    private sealed class ActiveView(string clientId, string operationId, ScreenViewSource source, VirtualDesktopBounds virtualDesktop, IScreenViewWebRtcPeer peer, int maximumBitrate)
+    private sealed class ActiveView(
+        string clientId,
+        string operationId,
+        ScreenViewSource source,
+        VirtualDesktopBounds virtualDesktop,
+        IScreenViewWebRtcPeer peer,
+        DirectScreenQualityMode directQuality,
+        int? maximumBitrate)
     {
         private ScreenViewSource _source = source;
         private VirtualDesktopBounds _virtualDesktop = virtualDesktop;
         private readonly HashSet<string> _heldButtons = new(StringComparer.Ordinal);
-        private readonly int _maximumBitrate = maximumBitrate;
-        private int _targetBitrate = maximumBitrate;
+        private readonly ScreenViewQualityController _quality = new(source, directQuality, maximumBitrate);
         private int _forceKeyFrame = 1;
         private int _released;
         private bool _hostStopClaimed;
@@ -683,7 +739,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         public ScreenViewSource Source => Volatile.Read(ref _source);
         public string DisplayId => Source.Id;
         public VirtualDesktopBounds VirtualDesktop => Volatile.Read(ref _virtualDesktop);
-        public int TargetBitrate => Volatile.Read(ref _targetBitrate);
+        public ScreenViewQualityProfile Quality => _quality.Current;
         public IScreenViewWebRtcPeer Peer { get; } = peer;
         public CancellationTokenSource Stop { get; } = new();
         public Task? Runner { get; set; }
@@ -691,6 +747,7 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         {
             Volatile.Write(ref _source, source);
             Volatile.Write(ref _virtualDesktop, virtualDesktop);
+            _quality.SetSource(source);
             RequestKeyFrame();
         }
         public void Hold(string button) => _heldButtons.Add(button);
@@ -711,18 +768,10 @@ internal sealed class ScreenViewCoordinator : IAsyncDisposable
         public void RequestKeyFrame() => Interlocked.Exchange(ref _forceKeyFrame, 1);
         public void OnPeerStopped(object? sender, EventArgs e) => Stop.Cancel();
         public void OnKeyFrameRequested(object? sender, EventArgs e) => RequestKeyFrame();
-        public void OnBitrateEstimated(object? sender, ScreenViewBitrateEventArgs e)
-        {
-            int bitrate = e.Bitrate switch
-            {
-                < 2_500_000 => 2_000_000,
-                < 4_500_000 => 4_000_000,
-                < 7_000_000 => 6_000_000,
-                _ => 8_000_000
-            };
-            bitrate = Math.Min(bitrate, _maximumBitrate);
-            if (Interlocked.Exchange(ref _targetBitrate, bitrate) != bitrate) RequestKeyFrame();
-        }
+        public bool ReportBackpressure() => _quality.ReportBackpressure(DateTimeOffset.UtcNow);
+        public bool ReportReceiverQuality(ScreenViewReceiverQuality quality) =>
+            _quality.ReportReceiverQuality(quality, DateTimeOffset.UtcNow);
+        public bool ReportProfileUnsupported() => _quality.ReportProfileUnsupported(DateTimeOffset.UtcNow);
         public void Release()
         {
             if (Interlocked.Exchange(ref _released, 1) != 0) return;

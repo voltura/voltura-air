@@ -6,10 +6,16 @@ Publish `apps/public-site` to `https://voltura.se/air/`. Claims come from
 
 ## Production publication boundary
 
-The public repository owns all website, hosted-PWA, `/a`, and `/s` source plus local
+The public repository owns all website, hosted-PWA, `/a`, `/s`, and `/d` source plus local
 validation and generation. The private `voltura-air-service` repository owns the
 voltura.se SFTP endpoint, pinned server identity, protected credential, upload logic,
 and release ordering. Public source commands never upload the production site.
+
+`/a` and `/s` load the release-owned `/air/app/` build. Development host runs
+use `/d`, which loads `/air/dev-app/`; building or publishing that scope must not
+replace `/air/app/`, `/a`, or `/s`. Build it with
+`npm run site:hosted:dev-build`. The private service repository owns its
+credentialed `/d`-only publication command.
 
 ## Custom-screen catalog
 

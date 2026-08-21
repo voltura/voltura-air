@@ -111,7 +111,7 @@ async function collectPublicDocumentationSurfaces(root) {
 
   return (await collectFiles(siteRoot, root))
     .filter((file) => {
-      if (file.startsWith("apps/public-site/app/")) {
+      if (file.startsWith("apps/public-site/app/") || file.startsWith("apps/public-site/dev-app/")) {
         return false;
       }
       if (file === "apps/public-site/config.php") {

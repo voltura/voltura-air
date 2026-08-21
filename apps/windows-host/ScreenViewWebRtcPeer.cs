@@ -7,7 +7,6 @@ internal interface IScreenViewWebRtcPeer : IDisposable
 {
     event EventHandler? Stopped;
     event EventHandler? KeyFrameRequested;
-    event EventHandler<ScreenViewBitrateEventArgs>? BitrateEstimated;
     Task Connected { get; }
     Task<string> CreateOfferAsync(CancellationToken cancellationToken);
     void ApplyAnswer(string answerSdp);
@@ -39,7 +38,6 @@ internal sealed class IsolatedScreenViewWebRtcPeerFactory : IScreenViewWebRtcPee
         private bool _disposed;
         public event EventHandler? Stopped;
         public event EventHandler? KeyFrameRequested;
-        public event EventHandler<ScreenViewBitrateEventArgs>? BitrateEstimated;
         public Task Connected => _connected.Task;
         public Task<string> CreateOfferAsync(CancellationToken cancellationToken)
         {
@@ -62,7 +60,6 @@ internal sealed class IsolatedScreenViewWebRtcPeerFactory : IScreenViewWebRtcPee
             _connected.TrySetCanceled();
             _ = Stopped;
             _ = KeyFrameRequested;
-            _ = BitrateEstimated;
         }
     }
 }
@@ -70,7 +67,7 @@ internal sealed class IsolatedScreenViewWebRtcPeerFactory : IScreenViewWebRtcPee
 internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
 {
     private const int H264PayloadType = 102;
-    internal const string H264FormatParameters = "profile-level-id=42e028;packetization-mode=1;level-asymmetry-allowed=1";
+    internal const string H264FormatParameters = "profile-level-id=42e034;packetization-mode=1;level-asymmetry-allowed=1";
     private const uint H264ClockRate = 90_000;
     private const uint MaximumStoredRtpPackets = 256;
     private static readonly TimeSpan OfferTimeout = TimeSpan.FromSeconds(10);
@@ -85,7 +82,6 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
     private readonly LibDataChannelNative.ClosedCallback _closedCallback;
     private readonly LibDataChannelNative.ErrorCallback _errorCallback;
     private readonly LibDataChannelNative.PliCallback _pliCallback;
-    private readonly LibDataChannelNative.RembCallback _rembCallback;
     private readonly List<ITurnTlsBridge> _turnTlsBridges = [];
     private int _peer;
     private int _track;
@@ -114,7 +110,6 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
         _closedCallback = OnClosed;
         _errorCallback = OnError;
         _pliCallback = OnPictureLoss;
-        _rembCallback = OnBitrateEstimate;
         _selfHandle = GCHandle.Alloc(this, GCHandleType.Normal);
         nint pointer = GCHandle.ToIntPtr(_selfHandle);
         try
@@ -189,7 +184,6 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
             EnsureSuccess(LibDataChannelNative.rtcChainRtcpSrReporter(_track), "configure WebRTC sender reports");
             EnsureSuccess(LibDataChannelNative.rtcChainRtcpNackResponder(_track, MaximumStoredRtpPackets), "configure WebRTC retransmission");
             EnsureSuccess(LibDataChannelNative.rtcChainPliHandler(_track, _pliCallback), "listen for keyframe requests");
-            EnsureSuccess(LibDataChannelNative.rtcChainRembHandler(_track, _rembCallback), "listen for bandwidth estimates");
 
             _eventsChannel = EnsureCreated(LibDataChannelNative.rtcCreateDataChannel(_peer, "screen-events"), "create the screen event channel");
             LibDataChannelNative.rtcSetUserPointer(_eventsChannel, pointer);
@@ -206,7 +200,6 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
 
     public event EventHandler? Stopped;
     public event EventHandler? KeyFrameRequested;
-    public event EventHandler<ScreenViewBitrateEventArgs>? BitrateEstimated;
 
     public Task Connected => _connected.Task;
 
@@ -408,12 +401,6 @@ internal sealed class ScreenViewWebRtcPeer : IScreenViewWebRtcPeer
         owner?.KeyFrameRequested?.Invoke(owner, EventArgs.Empty);
     }
 
-    private static void OnBitrateEstimate(int track, uint bitrate, nint pointer)
-    {
-        _ = track;
-        ScreenViewWebRtcPeer? owner = From(pointer);
-        owner?.BitrateEstimated?.Invoke(owner, new ScreenViewBitrateEventArgs(bitrate));
-    }
 
     private static int EnsureCreated(int result, string operation)
     {
@@ -442,8 +429,3 @@ internal static class ScreenViewProtocol
 }
 
 internal sealed class ScreenViewWebRtcException(string message, Exception? innerException = null) : Exception(message, innerException);
-
-internal sealed class ScreenViewBitrateEventArgs(uint bitrate) : EventArgs
-{
-    public uint Bitrate { get; } = bitrate;
-}

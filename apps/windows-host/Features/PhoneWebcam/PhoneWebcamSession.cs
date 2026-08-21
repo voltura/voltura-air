@@ -173,7 +173,7 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
                 relay?.ExpiresAt,
                 relay?.UsageBytes,
                 relay?.CheckedAt,
-                relay?.EffectiveQuality,
+                ToWireRelayQuality(relay?.EffectiveQuality),
                 relay?.MaximumBitrate ?? DirectMaximumBitrate);
         }
         catch (Exception exception) when (exception is OperationCanceledException or InvalidOperationException or ObjectDisposedException)
@@ -183,6 +183,9 @@ internal sealed class PhoneWebcamCoordinator : IAsyncDisposable
             return Failure("webrtc-unavailable", "The PC could not create a Phone webcam offer.");
         }
     }
+
+    internal static RelayScreenQuality? ToWireRelayQuality(RelayScreenQuality? quality) =>
+        quality == RelayScreenQuality.High ? null : quality;
 
     internal async Task<PhoneWebcamOperationResult> CompleteAnswerAsync(
         object owner,

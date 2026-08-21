@@ -22,7 +22,7 @@ internal enum RelayScreenQuality
 {
     DataSaver,
     Standard,
-    MaintainerFull
+    High
 }
 
 internal sealed record NetworkSettingsSnapshot(
@@ -89,7 +89,6 @@ internal static class AppNetworkSettings
         Enum.IsDefined(settings.PortMode) &&
         Enum.IsDefined(settings.TransportMode) &&
         Enum.IsDefined(settings.RelayScreenQuality) &&
-        settings.RelayScreenQuality == NormalizeRelayQuality(settings.RelayScreenQuality) &&
         IsOptionalBounded(settings.ManualHostAddress, ProtocolStringLimits.IpAddress) &&
         IsOptionalBounded(settings.ManualAdapterId, ProtocolStringLimits.AdapterName) &&
         IsOptionalBounded(settings.ManualAdapterName, ProtocolStringLimits.AdapterName) &&
@@ -118,8 +117,4 @@ internal static class AppNetworkSettings
         return endpoint.GetLeftPart(UriPartial.Authority);
     }
 
-    private static RelayScreenQuality NormalizeRelayQuality(RelayScreenQuality value) =>
-        value == RelayScreenQuality.MaintainerFull && !BuildFeatures.MaintainerRelayQuality
-            ? RelayScreenQuality.Standard
-            : value;
 }

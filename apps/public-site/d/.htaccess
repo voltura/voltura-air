@@ -1,0 +1,4 @@
+Options -Indexes
+Header add "Cache-Control" "no-cache"
+RewriteEngine On
+RewriteRule ^([A-Za-z0-9_-]{22})/?$ index.php?r=$1 [L,QSA]

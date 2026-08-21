@@ -43,6 +43,7 @@ public partial class PreferencesPageView : WpfUserControl
             PresentationSection,
             AwakeSection,
             PermissionsSection,
+            ScreenViewSection,
             TextDestinationSection,
             AppLaunchSection,
             CustomPointerSection,

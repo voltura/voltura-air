@@ -46,6 +46,17 @@ public sealed class ClientMessageValidatorTests
         Assert.Equal(expected, ClientMessageValidator.IsValidAuthenticatedMessage(document.RootElement, "screen.view.start"));
     }
 
+    [Theory]
+    [InlineData("""{ "type": "screen.view.quality", "operationId": "screen-1", "width": 3840, "height": 2160, "framesPerSecond": 29.97, "framesDecoded": 60, "framesDropped": 1, "freezeCount": 0, "packetsLost": 0 }""", true)]
+    [InlineData("""{ "type": "screen.view.quality", "operationId": "screen-1", "width": 3840, "height": 2160, "framesPerSecond": 29.97, "framesDecoded": 60, "framesDropped": 1, "freezeCount": 0, "packetsLost": 0, "detail": "forbidden" }""", false)]
+    [InlineData("""{ "type": "screen.view.quality", "operationId": "screen-1", "width": 3840, "height": 2160, "framesPerSecond": 29.97, "framesDecoded": -1, "framesDropped": 1, "freezeCount": 0, "packetsLost": 0 }""", false)]
+    public void BoundsScreenViewQualityReports(string json, bool expected)
+    {
+        using var document = JsonDocument.Parse(json);
+
+        Assert.Equal(expected, ClientMessageValidator.IsValidAuthenticatedMessage(document.RootElement, "screen.view.quality"));
+    }
+
     [Fact]
     public void BoundsScreenViewAnswers()
     {

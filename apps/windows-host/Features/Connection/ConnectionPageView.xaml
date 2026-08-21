@@ -87,7 +87,7 @@
                         <TextBlock FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" Text="Relay screen quality" />
                         <RadioButton x:Name="RelayStandardRadioButton" GroupName="RelayQuality" Foreground="{DynamicResource TextBrush}" Content="Standard · up to 4 Mbps · about 1.8 GB/hour" />
                         <RadioButton x:Name="RelayDataSaverRadioButton" GroupName="RelayQuality" Foreground="{DynamicResource TextBrush}" Content="Data saver · up to 2 Mbps · about 0.9 GB/hour" />
-                        <RadioButton x:Name="RelayMaintainerRadioButton" GroupName="RelayQuality" Foreground="{DynamicResource TextBrush}" Content="Full throttle · up to 8 Mbps" Visibility="Collapsed" />
+                        <RadioButton x:Name="RelayHighRadioButton" GroupName="RelayQuality" Foreground="{DynamicResource TextBrush}" Content="High quality · up to 8 Mbps · about 3.6 GB/hour" />
                         <Border Padding="{DynamicResource InsetSm}"
                                 Background="{DynamicResource SubtleSurfaceBrush}"
                                 CornerRadius="{DynamicResource RadiusSmall}">

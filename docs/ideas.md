@@ -51,8 +51,88 @@ on real target devices.
 | Candidate | Direction and evidence needed |
 | --- | --- |
 | Motion gestures | Extend the existing motion owner with a small set such as Shake and left/right Flick, mapped locally to existing actions. Prove useful thresholds, false-positive resistance, orientation behavior, cancellation, and real-iPhone operation before adding Tilt scroll or Custom Screen integration; do not send or persist raw sensor samples. |
-| Mobile share intake | Evaluate installed-PWA share intake as an entry point to existing Send text/Open URL behavior. Confirm target-platform support, launch/session behavior, input bounds, and an understandable fallback; do not add history, inboxes, or cloud storage. |
+| Share to Voltura Air | Evaluate installed-PWA share intake as an entry point to existing Send text/Open URL behavior. Confirm target-platform support, launch/session behavior, input bounds, and an understandable fallback; do not add history, inboxes, or cloud storage. |
+| PC/device file transfer | Extend Files with one-file-at-a-time authenticated download first, then upload. Define a bounded payload transport separate from interactive commands, permissions, progress, cancellation, Relay quotas, safe names, path containment, partial-file cleanup, and reconnect behavior before considering batches or archives. |
+| Capture or scan directly to PC | After upload exists, reuse its destination, progress, cancellation, and cleanup while the existing camera owner supplies one transient photo or document capture. Prove real-device capture, review, retake, page lifecycle, and camera-track cleanup before considering multi-page scanning, correction, or OCR. |
 | Current location | Consider only a direct user action that sends the current location to an existing text or URL destination. Define a concrete workflow and validate permission, precision disclosure, cancellation, and cleanup; do not add tracking, geofencing, or background automation. |
+
+#### Share to Voltura Air
+
+- Accept shared text and one HTTP(S) address only after proving installed-PWA share
+  target support on the intended devices. Files belong to the separate file-transfer
+  candidate.
+- Route an address to the existing Open URL review flow and other text to the
+  existing Send text draft. Never open or send shared content automatically.
+- Keep one bounded transient pending share across PWA launch and connection setup,
+  let the user choose the PC destination, and discard it after use or cancellation.
+  Define replacement behavior when another share arrives before the first is used.
+- Preserve ordinary in-app controls as the fallback when the browser or installation
+  mode cannot register Voltura Air in the device share sheet. Validate cold launch,
+  already-open app, unpaired/disconnected state, malformed input, and navigation
+  cleanup without adding a new host message.
+
+#### PC and device file transfer
+
+- Start with **Download to this device** for one selected PC file. Add one-file
+  upload into the current Files folder only after download ownership, cancellation,
+  and cleanup are proven. Defer directory transfer, multiple selection, archives,
+  background continuation, and synchronization.
+- Keep Files as the UI/session owner and add a separate default-off transfer
+  permission with global and per-device policy. Existing PC-side Copy and Move
+  remain distinct and must not imply permission to move bytes onto another device.
+- Do not carry large payloads on the authenticated interactive command queue. Choose
+  a bounded authenticated streaming path that preserves low-latency control traffic
+  and works deliberately across Enhanced Direct and Relay.
+- Define size limits, confirmation, progress, cancellation, timeout, reconnect,
+  Relay accounting/quotas, safe download names, upload path containment, conflict
+  handling, and durable ownership of every partial destination before protocol work.
+  Test interruption and cleanup at each external read, write, network, and commit
+  boundary.
+
+#### Motion gesture shortcuts
+
+- Extend the current gyro/motion owner rather than creating another sensor service.
+  Classify a deliberately small vocabulary locally, beginning with Shake and
+  left/right Flick, and emit only an existing Voltura Air action.
+- Require an explicit enable or armed interaction so normal device handling cannot
+  trigger PC input. Start with reversible actions and avoid destructive or
+  hold-to-repeat mappings.
+- Calibrate thresholds against false positives, different devices, portrait and
+  landscape orientation, and accessibility needs. Stop observation on disable,
+  navigation, page hiding, disconnect, or permission loss.
+- Do not transmit, log, retain, or synchronize raw sensor samples. Add a protocol
+  action only if no existing bounded action represents the chosen behavior.
+
+#### Capture or scan directly to PC
+
+- Treat this as a focused Files upload entry point, not a new transfer service.
+  The user chooses or confirms the PC folder, captures one image, reviews or retakes
+  it, and explicitly uploads it through the same permission and transfer owner.
+- Reuse the existing camera permission and lifecycle mechanisms, while keeping
+  capture state separate from Phone webcam streaming and QR pairing. Release every
+  track on retake replacement, completion, cancellation, navigation, page hiding,
+  disconnect, or failure; do not retain an unsubmitted image.
+- Preserve the original capture first. Consider crop, perspective correction,
+  compression choice, multi-page documents, PDF generation, or OCR only after the
+  one-image workflow has real-device evidence and explicit quality, memory, and
+  temporary-data limits.
+- Use the transfer candidate's safe names, conflicts, progress, cancellation,
+  reconnect behavior, Relay quotas, partial-file cleanup, and failure testing.
+
+#### Send current location to the PC
+
+- Provide one explicit action that requests the current location, shows the
+  returned accuracy and proposed text/map address, and requires review before the
+  user chooses Open URL, Send text, or PC clipboard destination.
+- Reuse the existing Open URL and Send text owners and permissions; no host protocol
+  extension is needed unless a later workflow cannot be represented by their
+  current bounded inputs.
+- Make unsupported, denied, unavailable, timed-out, and canceled results clear and
+  retryable. Cancel or ignore stale requests on navigation, page hiding,
+  disconnect, or a newer activation.
+- Never watch location, run in the background, build history, infer places, geofence,
+  or log/persist coordinates. Decide whether the disclosed accuracy is acceptable
+  before allowing the reviewed value to leave the device.
 
 Presentation already includes Gyro in its Trackpad, while Send text and Open URL
 already cover the basic phone-to-PC action. Any further work there needs a
@@ -64,7 +144,8 @@ before further design.
 
 - Consider host-defined custom Files locations below the Windows known folders after defining configuration ownership, unavailable-target behavior, ordering, and per-device visibility.
 - Consider an internal read-only file viewer after defining supported formats, bounded decoding/rendering, privacy, temporary-data cleanup, large-file behavior, and fallback to the Windows default application.
-- Consider transferring files between the PC and mobile device as a separate extension to Files on PC. Start with one-file-at-a-time authenticated streaming downloads, then evaluate uploads and multi-file archives. Keep host-side Copy and Move distinct, require a separate global permission with per-device overrides, and define large-file confirmation, progress, cancellation, relay encryption, quotas, safe names, path containment, partial-file cleanup, and short-lived download authorization before implementation.
+- Treat the detailed **PC and device file transfer** candidate above as the sole
+  transfer direction; do not create a parallel Files transport or permission model.
 
 ### Additional device preferences
 
@@ -91,7 +172,6 @@ browser-local unless a cross-device workflow justifies host ownership.
 | --- | --- |
 | Wake-on-LAN | An available LAN sender, hardware/network prerequisites, validated target data, and explicit confirmation. |
 | Screen preview | Consent, capture behavior, protected content, encoding, limits, authorization, and cleanup. |
-| PC/mobile file transfer | Authenticated streaming download and upload, separate permission, relay encryption, quotas, safe names, path containment, provenance, cancellation, and partial-file cleanup. |
 | Gamepad mode | Driver, signing, elevation, install/remove, anti-cheat behavior, neutral disconnect, and latency. |
 | Native mobile apps | Demonstrated PWA gap, platform scope, protocol parity, accessibility, privacy, distribution, and maintenance. |
 

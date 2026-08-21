@@ -8,13 +8,7 @@ create one. Keep the shared notices in
 
 ## v1.0.3
 
-- Added explicit **Paste from this device's clipboard** to **Send text to PC**.
-  **Get text from PC** now has separate actions to get fresh PC clipboard text
-  into the visible box or directly into this phone, tablet, or computer's
-  clipboard. Each direct copy fetches the current PC clipboard again, remains
-  reusable, and does not change the visible box. Clipboard access is requested
-  only from the chosen action, and existing text fields remain available when
-  the browser does not support secure clipboard actions.
+- Added clipboard actions for text transfer. You can paste text from your device into Send text to PC. In Get text from PC, you can either show the PC clipboard text on your device or copy it directly to your device’s clipboard. Each press retrieves the latest text from the PC.
 
 ## v1.0.2
 

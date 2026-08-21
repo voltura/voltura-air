@@ -36,6 +36,9 @@ networks that block inbound PC connections.
 - Control presentations, use a laser pointer, track time, and review saved
   reports on the PC.
 - Dictate, reuse snippets, and send text to a PC app, document, email draft, or
+  clipboard. Supporting HTTPS browsers can paste from the current device's
+  clipboard, get PC clipboard text into a visible box, or fetch fresh PC
+  clipboard text directly into the current phone, tablet, or computer's
   clipboard.
 - Control media, volume, browser tabs, windows, and applications selected on
   the PC.

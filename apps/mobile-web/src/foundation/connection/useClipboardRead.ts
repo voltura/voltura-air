@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createLocalId } from "../identity/localId";
 import type { ClipboardGetResultMessage, ClientMessage } from "../protocol/messages";
 import type { ConnectionState } from "./connectionTypes";
@@ -11,6 +11,32 @@ export function useClipboardRead(state: ConnectionState, send: (payload: ClientM
   const [clipboardReadResult, setClipboardReadResult] = useState<ClipboardGetResultMessage | null>(null);
   const [pendingClipboardRead, setPendingClipboardRead] = useState(false);
   const pendingOperationRef = useRef<string | null>(null);
+  const pendingDeviceClipboardOperationRef = useRef<{
+    operationId: string;
+    resolve: (result: ClipboardGetResultMessage) => void;
+    timeout: number;
+  } | null>(null);
+
+  const settlePendingDeviceClipboardRead = useCallback((code: string, message: string) => {
+    const pendingDeviceOperation = pendingDeviceClipboardOperationRef.current;
+    if (!pendingDeviceOperation) {
+      return;
+    }
+
+    window.clearTimeout(pendingDeviceOperation.timeout);
+    pendingDeviceClipboardOperationRef.current = null;
+    pendingDeviceOperation.resolve({
+      type: "clipboard.get.result",
+      operationId: pendingDeviceOperation.operationId,
+      succeeded: false,
+      code,
+      message
+    });
+  }, []);
+
+  const cancelClipboardReadForDevice = useCallback(() => {
+    settlePendingDeviceClipboardRead("VAIR-CLIPBOARD-CANCELED", "The clipboard request was canceled.");
+  }, [settlePendingDeviceClipboardRead]);
 
   useEffect(() => {
     if (!pendingClipboardRead || pendingOperationRef.current === null) {
@@ -35,11 +61,16 @@ export function useClipboardRead(state: ConnectionState, send: (payload: ClientM
       return;
     }
 
+    settlePendingDeviceClipboardRead("VAIR-CLIPBOARD-DISCONNECTED", "The PC disconnected before returning clipboard text.");
     pendingOperationRef.current = null;
     setClipboardText("");
     setClipboardReadResult(null);
     setPendingClipboardRead(false);
-  }, [state]);
+  }, [settlePendingDeviceClipboardRead, state]);
+
+  useEffect(() => () => {
+    cancelClipboardReadForDevice();
+  }, [cancelClipboardReadForDevice]);
 
   useEffect(() => {
     if (!clipboardReadResult?.succeeded) {
@@ -63,7 +94,54 @@ export function useClipboardRead(state: ConnectionState, send: (payload: ClientM
     return operationId;
   };
 
+  const requestClipboardReadForDevice = (): Promise<ClipboardGetResultMessage> | null => {
+    if (state !== "paired") {
+      return null;
+    }
+
+    const previousOperation = pendingDeviceClipboardOperationRef.current;
+    if (previousOperation) {
+      window.clearTimeout(previousOperation.timeout);
+      previousOperation.resolve({
+        type: "clipboard.get.result",
+        operationId: previousOperation.operationId,
+        succeeded: false,
+        code: "VAIR-CLIPBOARD-SUPERSEDED",
+        message: "A newer device clipboard request replaced this request."
+      });
+    }
+
+    const operationId = createLocalId();
+    const result = new Promise<ClipboardGetResultMessage>((resolve) => {
+      const timeout = window.setTimeout(() => {
+        if (pendingDeviceClipboardOperationRef.current?.operationId !== operationId) {
+          return;
+        }
+
+        pendingDeviceClipboardOperationRef.current = null;
+        resolve({
+          type: "clipboard.get.result",
+          operationId,
+          succeeded: false,
+          code: "VAIR-CLIPBOARD-RESPONSE-TIMEOUT",
+          message: "The PC did not confirm the clipboard request."
+        });
+      }, responseTimeoutMs);
+      pendingDeviceClipboardOperationRef.current = { operationId, resolve, timeout };
+    });
+    send({ type: "clipboard.get", operationId });
+    return result;
+  };
+
   const completeClipboardRead = (result: ClipboardGetResultMessage) => {
+    const pendingDeviceOperation = pendingDeviceClipboardOperationRef.current;
+    if (pendingDeviceOperation?.operationId === result.operationId) {
+      window.clearTimeout(pendingDeviceOperation.timeout);
+      pendingDeviceClipboardOperationRef.current = null;
+      pendingDeviceOperation.resolve(result);
+      return true;
+    }
+
     if (pendingOperationRef.current !== result.operationId) {
       return false;
     }
@@ -77,5 +155,5 @@ export function useClipboardRead(state: ConnectionState, send: (payload: ClientM
     return true;
   };
 
-  return { clipboardReadResult, clipboardText, completeClipboardRead, pendingClipboardRead, requestClipboardRead, setClipboardText };
+  return { cancelClipboardReadForDevice, clipboardReadResult, clipboardText, completeClipboardRead, pendingClipboardRead, requestClipboardRead, requestClipboardReadForDevice, setClipboardText };
 }

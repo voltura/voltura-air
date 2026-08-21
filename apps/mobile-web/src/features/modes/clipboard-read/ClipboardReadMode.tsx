@@ -1,7 +1,8 @@
 import { ClipboardPaste, Copy, Scissors } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./clipboard-read.css";
 import { canCopyTextToClipboard, copyTextToClipboard } from "../../../foundation/diagnostics/mobileDiagnostics";
+import { canWriteDeferredTextToDeviceClipboard, writeDeferredTextToDeviceClipboard } from "../../../foundation/platform/deviceClipboard";
 import type { ClipboardGetResultMessage } from "../../../foundation/protocol/messages";
 import type { SavedTextSnippet } from "../../../foundation/settings/textSnippets";
 import type { AppToastMessage } from "../../../ui/feedback/AppToast";
@@ -15,8 +16,10 @@ interface ClipboardReadModeProps {
   pending: boolean;
   result: ClipboardGetResultMessage | null;
   text: string;
+  onCancelGetTextForDevice: () => void;
   onCopyFeedback: (feedback: AppToastMessage) => void;
   onGetText: () => void;
+  onGetTextForDevice: () => Promise<ClipboardGetResultMessage> | null;
   onLoadSnippet: (snippet: SavedTextSnippet) => void;
   onTextChange: (text: string) => void;
 }
@@ -27,12 +30,16 @@ interface TextSelection {
   start: number;
 }
 
-export function ClipboardReadMode({ clientId, permission, pending, result, text, onCopyFeedback, onGetText, onLoadSnippet, onTextChange }: ClipboardReadModeProps) {
+export function ClipboardReadMode({ clientId, permission, pending, result, text, onCancelGetTextForDevice, onCopyFeedback, onGetText, onGetTextForDevice, onLoadSnippet, onTextChange }: ClipboardReadModeProps) {
   const getButtonRef = useRef<HTMLButtonElement>(null);
+  const hiddenDeviceClipboardTextRef = useRef<HTMLTextAreaElement>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const [dismissedErrorResult, setDismissedErrorResult] = useState<ClipboardGetResultMessage | null>(null);
   const [areSnippetsVisible, setAreSnippetsVisible] = useState(false);
   const [isCopyAvailable] = useState(canCopyTextToClipboard);
+  const [isDeviceCopyAvailable] = useState(canWriteDeferredTextToDeviceClipboard);
+  const deviceCopyGenerationRef = useRef(0);
+  const mountedRef = useRef(true);
   const [textSelection, setTextSelection] = useState<TextSelection | null>(null);
   const isAllowed = permission === true;
   const hasTextSelection = textSelection !== null
@@ -40,6 +47,19 @@ export function ClipboardReadMode({ clientId, permission, pending, result, text,
     && textSelection.end > textSelection.start;
 
   const isErrorDialogOpen = result !== null && !result.succeeded && result !== dismissedErrorResult;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    const hiddenDeviceClipboardText = hiddenDeviceClipboardTextRef.current;
+    return () => {
+      mountedRef.current = false;
+      deviceCopyGenerationRef.current += 1;
+      if (hiddenDeviceClipboardText) {
+        hiddenDeviceClipboardText.value = "";
+      }
+      onCancelGetTextForDevice();
+    };
+  }, [onCancelGetTextForDevice]);
 
   const closeErrorDialog = () => {
     setDismissedErrorResult(result);
@@ -117,6 +137,60 @@ export function ClipboardReadMode({ clientId, permission, pending, result, text,
     textArea.setSelectionRange(selectionStart, selectionEnd);
   };
 
+  const copyPcClipboardToDevice = () => {
+    const pcClipboardResult = onGetTextForDevice();
+    if (!pcClipboardResult) {
+      onCopyFeedback({ message: "Could not request PC clipboard text. Reconnect and try again.", tone: "error" });
+      return;
+    }
+
+    const generation = ++deviceCopyGenerationRef.current;
+    if (hiddenDeviceClipboardTextRef.current) {
+      hiddenDeviceClipboardTextRef.current.value = "";
+    }
+    const clipboardItemText = pcClipboardResult.then((pcResult) => {
+      if (deviceCopyGenerationRef.current !== generation) {
+        throw new Error("A newer device clipboard request replaced this request.");
+      }
+
+      if (!pcResult.succeeded || typeof pcResult.text !== "string") {
+        throw new Error("PC clipboard text was unavailable.");
+      }
+
+      const hiddenText = hiddenDeviceClipboardTextRef.current;
+      if (!hiddenText) {
+        throw new Error("The device clipboard text boundary is unavailable.");
+      }
+
+      hiddenText.value = pcResult.text;
+      return new Blob([hiddenText.value], { type: "text/plain" });
+    });
+    void clipboardItemText.catch(() => undefined);
+    const deviceWrite = writeDeferredTextToDeviceClipboard(clipboardItemText);
+    void Promise.all([deviceWrite, pcClipboardResult]).then(([copyResult, pcResult]) => {
+      if (!mountedRef.current || deviceCopyGenerationRef.current !== generation) {
+        return;
+      }
+
+      if (hiddenDeviceClipboardTextRef.current) {
+        hiddenDeviceClipboardTextRef.current.value = "";
+      }
+
+      if (!pcResult.succeeded || typeof pcResult.text !== "string") {
+        onCopyFeedback({ message: `Could not get PC clipboard text. ${pcResult.message}`, tone: "error" });
+      } else if (copyResult.status === "copied") {
+        onCopyFeedback({ message: "PC clipboard text is now in this device's clipboard.", tone: "success" });
+      } else {
+        onCopyFeedback({
+          message: copyResult.status === "denied"
+            ? "This device did not allow clipboard writing. Try again or use the visible text box."
+            : "Could not write PC clipboard text to this device's clipboard. Try again or use the visible text box.",
+          tone: "error"
+        });
+      }
+    });
+  };
+
   return (
     <section className={`clipboard-read-mode${areSnippetsVisible ? " snippets-visible" : ""}`}>
       <div className="clipboard-read-main">
@@ -125,8 +199,8 @@ export function ClipboardReadMode({ clientId, permission, pending, result, text,
             <div className="clipboard-read-title-row">
               <h1>Get text from PC</h1>
               <InfoButton
-                description={isCopyAvailable
-                  ? "Press the button to fetch the PC's current clipboard text. Voltura Air writes to this device's clipboard only when you choose Copy."
+                description={isDeviceCopyAvailable
+                  ? "Get PC clipboard text into the visible box, or explicitly get fresh PC clipboard text directly into this device's clipboard."
                   : "Press the button to fetch the PC's current clipboard text. Voltura Air does not write to this device's clipboard."}
                 size="detailed"
                 title="Get text from PC"
@@ -145,8 +219,14 @@ export function ClipboardReadMode({ clientId, permission, pending, result, text,
         <div className="clipboard-read-actions">
           <button ref={getButtonRef} type="button" className="clipboard-read-button" disabled={!isAllowed || pending} onClick={onGetText}>
             <ClipboardPaste aria-hidden="true" />
-            <span>{pending ? "Getting text from PC…" : "Get text from PC"}</span>
+            <span>{pending ? "Getting PC clipboard text…" : "Get PC clipboard text into this box"}</span>
           </button>
+          {isDeviceCopyAvailable && (
+            <button type="button" className="clipboard-read-button" disabled={!isAllowed} onClick={copyPcClipboardToDevice}>
+              <Copy aria-hidden="true" />
+              <span>Get PC clipboard text into this device's clipboard</span>
+            </button>
+          )}
           <button
             type="button"
             className="clipboard-read-button"
@@ -170,7 +250,7 @@ export function ClipboardReadMode({ clientId, permission, pending, result, text,
               {isCopyAvailable && (
                 <button type="button" disabled={!hasTextSelection} onClick={() => { void copySelectedText(); }}>
                   <Copy aria-hidden="true" />
-                  <span>Copy</span>
+                  <span>Copy selected text</span>
                 </button>
               )}
             </div>
@@ -186,6 +266,8 @@ export function ClipboardReadMode({ clientId, permission, pending, result, text,
           />
         </div>
       </div>
+
+      <textarea ref={hiddenDeviceClipboardTextRef} className="visually-hidden" aria-hidden="true" tabIndex={-1} readOnly defaultValue="" />
 
       {areSnippetsVisible && (
         <SavedTextSnippets key={clientId} clientId={clientId} draft={text} initiallyOpen onLoadSnippet={onLoadSnippet} />

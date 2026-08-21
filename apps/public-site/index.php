@@ -137,7 +137,7 @@
         </article>
         <article>
           <h2>Text and dictation</h2>
-          <p>Dictate, reuse snippets, or compose text, then send it to a PC app or clipboard.</p>
+          <p>Dictate, reuse snippets, or compose text, then send it to a PC app or clipboard. Supporting HTTPS browsers can paste from this device's clipboard, get PC clipboard text into a visible box, or fetch fresh PC clipboard text directly into the current phone, tablet, or computer's clipboard.</p>
         </article>
         <article>
           <h2>Couch remote</h2>
@@ -241,7 +241,7 @@
               </tr>
               <tr>
                 <th scope="row">Text tools</th>
-                <td class="comparison-voltura">Dictation, composed text, reusable snippets, reviewed PC destinations, and host-permitted clipboard reads</td>
+                <td class="comparison-voltura">Dictation, composed text, reusable snippets, reviewed PC destinations, host-permitted clipboard reads, and explicit device clipboard paste/copy actions in supporting HTTPS browsers</td>
                 <td>Voice-supported typing and cross-device text and image clipboard</td>
                 <td>Keyboard input; an equivalent text workflow is <strong class="comparison-status">not documented</strong></td>
               </tr>

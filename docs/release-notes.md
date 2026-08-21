@@ -6,6 +6,16 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.0.3
+
+- Added explicit **Paste from this device's clipboard** to **Send text to PC**.
+  **Get text from PC** now has separate actions to get fresh PC clipboard text
+  into the visible box or directly into this phone, tablet, or computer's
+  clipboard. Each direct copy fetches the current PC clipboard again, remains
+  reusable, and does not change the visible box. Clipboard access is requested
+  only from the chosen action, and existing text fields remain available when
+  the browser does not support secure clipboard actions.
+
 ## v1.0.2
 
 - Added optional microphone audio to **Phone Webcam**. Microphone use is off by

@@ -24,6 +24,7 @@ type ConnectionContract = Pick<
   | "clipboardReadPermission"
   | "clipboardReadResult"
   | "clipboardText"
+  | "cancelClipboardReadForDevice"
   | "clientId"
   | "hostStatus"
   | "pendingAppLaunchId"
@@ -47,6 +48,7 @@ type ConnectionContract = Pick<
   | "requestAudioState"
   | "requestAwakeChange"
   | "requestClipboardRead"
+  | "requestClipboardReadForDevice"
   | "requestPowerAction"
   | "requestPowerPointRefresh"
   | "requestPowerPointLaunch"
@@ -317,7 +319,9 @@ export function ModeWorkspace({
         result: connection.clipboardReadResult,
         text: connection.clipboardText,
         onCopyFeedback: onClipboardCopyFeedback,
+        onCancelGetTextForDevice: connection.cancelClipboardReadForDevice,
         onGetText: connection.requestClipboardRead,
+        onGetTextForDevice: connection.requestClipboardReadForDevice,
         onLoadSnippet: (snippet) => { connection.setClipboardText(snippet.text); },
         onTextChange: connection.setClipboardText
       }}

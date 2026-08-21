@@ -1,6 +1,7 @@
-import { Keyboard, MousePointer2, Send } from "lucide-react";
+import { ClipboardPaste, Keyboard, MousePointer2, Send } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import "./text-transfer.css";
+import { canReadTextFromDeviceClipboard, readTextFromDeviceClipboard } from "../../../foundation/platform/deviceClipboard";
 import type { TextSendResultMessage, TextTransferTarget } from "../../../foundation/protocol/messages";
 import { maxSnippetLength, type SavedTextSnippet } from "../../../foundation/settings/textSnippets";
 import { InfoButton } from "../../../ui/overlays/InfoButton";
@@ -31,10 +32,16 @@ interface TextTransferModeProps {
 export function TextTransferMode(props: TextTransferModeProps) {
   const { clearAfterSending, onDraftChange, result } = props;
   const [snippetCopyFeedback, setSnippetCopyFeedback] = useState<{ name: string } | null>(null);
+  const [phoneClipboardFeedback, setPhoneClipboardFeedback] = useState<{ message: string; tone: "error" | "success" } | null>(null);
+  const [phoneClipboardPending, setPhoneClipboardPending] = useState(false);
+  const [canPasteFromPhone] = useState(canReadTextFromDeviceClipboard);
   const [isEditing, setIsEditing] = useState(true);
   const [keyboardInputMode, setKeyboardInputMode] = useState<KeyboardInputMode>("text");
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const draftRevision = useRef(0);
+  const draftRef = useRef(props.draft);
+  const mountedRef = useRef(true);
+  const phoneClipboardPendingRef = useRef(false);
   const pendingClearOperation = useRef<{
     operationId: string;
     submittedText: string;
@@ -71,6 +78,15 @@ export function TextTransferMode(props: TextTransferModeProps) {
         };
 
   useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      phoneClipboardPendingRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    draftRef.current = props.draft;
     draftRevision.current += 1;
   }, [props.draft]);
 
@@ -120,6 +136,62 @@ export function TextTransferMode(props: TextTransferModeProps) {
     setSnippetCopyFeedback({ name: snippet.name });
   };
 
+  const pasteFromPhone = async () => {
+    const editor = editorRef.current;
+    if (!editor || phoneClipboardPendingRef.current) {
+      return;
+    }
+
+    const sourceText = props.draft;
+    const sourceRevision = draftRevision.current;
+    const selectionStart = editor.selectionStart;
+    const selectionEnd = editor.selectionEnd;
+    phoneClipboardPendingRef.current = true;
+    setPhoneClipboardPending(true);
+    setPhoneClipboardFeedback(null);
+
+    const result = await readTextFromDeviceClipboard();
+    if (!mountedRef.current) {
+      return;
+    }
+
+    phoneClipboardPendingRef.current = false;
+    setPhoneClipboardPending(false);
+
+    if (result.status !== "success") {
+      const message = result.status === "empty"
+        ? "This device's clipboard has no text."
+        : result.status === "denied"
+          ? "This device did not allow clipboard reading. Try again or use the browser's paste action."
+          : "Could not read this device's clipboard. Try again or use the browser's paste action.";
+      setPhoneClipboardFeedback({ message, tone: "error" });
+      return;
+    }
+
+    if (draftRevision.current !== sourceRevision || draftRef.current !== sourceText) {
+      setPhoneClipboardFeedback({ message: "The draft changed. Paste from this device's clipboard again.", tone: "error" });
+      return;
+    }
+
+    const nextText = sourceText.slice(0, selectionStart) + result.text + sourceText.slice(selectionEnd);
+    if (nextText.length > maxSnippetLength) {
+      setPhoneClipboardFeedback({ message: `Pasting would exceed the ${maxSnippetLength.toLocaleString()} character limit.`, tone: "error" });
+      return;
+    }
+
+    const nextCaret = selectionStart + result.text.length;
+    props.onDraftChange(nextText);
+    setPhoneClipboardFeedback({ message: "Text from this device's clipboard pasted.", tone: "success" });
+    window.requestAnimationFrame(() => {
+      const nextEditor = editorRef.current;
+      if (!nextEditor || !mountedRef.current) {
+        return;
+      }
+      nextEditor.focus({ preventScroll: true });
+      nextEditor.setSelectionRange(nextCaret, nextCaret);
+    });
+  };
+
   const focusEditor = (inputMode = keyboardInputMode) => {
     setKeyboardInputMode(inputMode);
     setIsEditing(true);
@@ -164,7 +236,15 @@ export function TextTransferMode(props: TextTransferModeProps) {
       </div>
 
       <div className="text-transfer-editor">
-        <label htmlFor="text-transfer-draft">Text to send</label>
+        <div className="text-transfer-editor-heading">
+          <label htmlFor="text-transfer-draft">Text to send</label>
+          {isEditing && canPasteFromPhone && (
+            <button type="button" disabled={phoneClipboardPending} onClick={() => { void pasteFromPhone(); }}>
+              <ClipboardPaste aria-hidden="true" />
+              <span>{phoneClipboardPending ? "Reading this device's clipboard…" : "Paste from this device's clipboard"}</span>
+            </button>
+          )}
+        </div>
         <div
           className={`text-transfer-editor-surface${isEditing ? " is-editing" : ""}${snippetCopyFeedback ? " snippet-copied" : ""}`}
           onContextMenu={(event) => {
@@ -241,6 +321,11 @@ export function TextTransferMode(props: TextTransferModeProps) {
           />
         </div>
         {snippetCopyFeedback && <span className="visually-hidden" role="status">{snippetCopyFeedback.name} copied to the text box.</span>}
+        {phoneClipboardFeedback && (
+          <p className={`text-transfer-clipboard-feedback ${phoneClipboardFeedback.tone}`} role={phoneClipboardFeedback.tone === "success" ? "status" : "alert"}>
+            {phoneClipboardFeedback.message}
+          </p>
+        )}
       </div>
 
       {isEditing ? (

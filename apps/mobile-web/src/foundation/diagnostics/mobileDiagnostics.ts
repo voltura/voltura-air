@@ -1,6 +1,7 @@
 import { getPcDisplayName } from "../pairing/pcDisplayName";
 import { getWebSocketUrl, type PcProfile } from "../connection/pcProfiles";
 import type { HostStatusMetadata } from "../protocol/messages";
+import { canWriteTextToDeviceClipboard, writeTextToDeviceClipboard } from "../platform/deviceClipboard";
 
 interface MobileDiagnosticsInput {
   activePc: PcProfile | null;
@@ -45,12 +46,10 @@ export function buildMobileDiagnostics(input: MobileDiagnosticsInput): string {
 
 
 export async function copyTextToClipboard(value: string): Promise<"copied" | "manual"> {
-  if (navigator.clipboard?.writeText && window.isSecureContext) {
-    try {
-      await navigator.clipboard.writeText(value);
+  if (canWriteTextToDeviceClipboard()) {
+    const result = await writeTextToDeviceClipboard(value);
+    if (result.status === "copied") {
       return "copied";
-    } catch {
-      // Continue to the HTTP-compatible local copy fallback.
     }
   }
 
@@ -62,7 +61,7 @@ export async function copyTextToClipboard(value: string): Promise<"copied" | "ma
 }
 
 export function canCopyTextToClipboard(): boolean {
-  if (typeof navigator.clipboard?.writeText === "function" && window.isSecureContext) {
+  if (canWriteTextToDeviceClipboard()) {
     return true;
   }
 

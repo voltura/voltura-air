@@ -601,7 +601,11 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
 - **Send text to PC** handles up to 4,096 characters. Destinations include the
   focused app, clipboard only, configured fresh document/app targets, a new
   text draft, or an email draft. Windows focus determines the target; delivery
-  to the protected host UI is refused.
+  to the protected host UI is refused. On a supporting HTTPS controller,
+  explicit **Paste from this device's clipboard** reads plain text from the device clipboard and
+  inserts it at the current selection without changing the configured PC
+  destination. Denial, failure, empty text, or an oversized result preserves
+  the current draft.
 - Multiline input preserves line breaks. **Send text + Enter** adds Enter only
   after complete delivery. Sending 2,000+ characters requires confirmation.
 - Pending, success, timeout, and delivery failure are explicit. Drafts remain
@@ -610,9 +614,15 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
   case-insensitive names and can be loaded, reordered, renamed, updated, or
   deleted. Loading never sends automatically.
 - **Get text from PC** requests at most 4,096 clipboard characters only after
-  explicit activation and requires the default-off host permission. Copy,
-  select, cut, clear, and local snippets operate on the returned field; failed
-  fetch/copy keeps retryable text.
+  explicit activation and requires the default-off host permission. **Get PC
+  clipboard text into this box** updates the visible field; copy selected text,
+  select, cut, clear, and local snippets operate on that field. On a supporting
+  HTTPS controller, **Get PC clipboard text into this device's clipboard**
+  requests fresh Windows clipboard text on every press and writes it directly
+  to the current phone, tablet, or computer clipboard without changing the
+  visible field. Both actions remain independently reusable, and failed reads
+  or copies keep existing visible text. Voltura Air never monitors or
+  synchronizes either clipboard.
 - Managed destinations never expose executable paths, process/window IDs,
   matching rules, or clipboard content to mobile. Generated drafts expire after
   24 hours unless **Keep generated draft files** is enabled.

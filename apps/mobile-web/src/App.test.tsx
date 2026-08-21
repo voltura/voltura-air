@@ -101,6 +101,8 @@ function mockConnection(overrides: Partial<ReturnType<typeof useVolturaAirConnec
     pendingTextTransfer: false,
     requestTextTransfer: vi.fn(() => "operation-a"),
     requestClipboardRead: vi.fn(() => "clipboard-operation-a"),
+    requestClipboardReadForDevice: vi.fn(() => null),
+    cancelClipboardReadForDevice: vi.fn(),
     customScreensCapability: undefined,
     customScreenDefinition: null,
     customScreenGetResult: null,

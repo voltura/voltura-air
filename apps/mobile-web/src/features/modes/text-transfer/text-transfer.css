@@ -65,8 +65,35 @@
   font-weight: 700;
 }
 
-.text-transfer-editor > label {
+.text-transfer-editor-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.text-transfer-editor-heading > label {
   line-height: 1.2;
+}
+
+.text-transfer-editor-heading button {
+  min-width: 0;
+  min-height: var(--control-min-height);
+  gap: 6px;
+  padding: 6px 10px;
+}
+
+.text-transfer-editor-heading button svg {
+  flex: 0 0 auto;
+  width: var(--icon-small);
+  height: var(--icon-small);
+}
+
+.text-transfer-editor-heading button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .text-transfer-editor textarea,
@@ -245,6 +272,23 @@
   font-weight: 400;
   padding: 60px 12px 12px;
   touch-action: inherit;
+}
+
+.text-transfer-clipboard-feedback {
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 8px 10px;
+  font-weight: 400;
+}
+
+.text-transfer-clipboard-feedback.success {
+  border-color: var(--success);
+}
+
+.text-transfer-clipboard-feedback.error {
+  border-color: var(--danger);
 }
 
 @media (width <= 400px) {
@@ -534,7 +578,7 @@
 }
 
 @media (height <= 720px) {
-  .text-transfer-active .text-transfer-editor > label {
+  .text-transfer-active .text-transfer-editor-heading > label {
     display: none;
   }
 }

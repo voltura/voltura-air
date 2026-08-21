@@ -3,9 +3,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Media workspaces stay in lazy chunks. The reviewed initial shell includes
-// guarded browser storage, destructive-action confirmation, and result routing.
-const maximumRawJavaScriptBytes = 574 * 1024;
-const maximumBrotliJavaScriptBytes = 138 * 1024;
+// guarded browser storage, destructive-action confirmation, result routing,
+// and the explicit secure-context clipboard actions.
+const maximumRawJavaScriptBytes = 580 * 1024;
+const maximumBrotliJavaScriptBytes = 139 * 1024;
 const distDirectory = fileURLToPath(new URL("../apps/mobile-web/dist/", import.meta.url));
 const assetsDirectory = fileURLToPath(new URL("../apps/mobile-web/dist/assets/", import.meta.url));
 const indexHtml = await readFile(path.join(distDirectory, "index.html"), "utf8");

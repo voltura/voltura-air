@@ -80,7 +80,7 @@
             Control your PC with trackpad, keyboard, media and presentation remotes, file/text tools, and live screen control.
             Use your phone as a Windows webcam with optional audio.
             Pair by QR code&mdash;no account or phone app required.
-            Connect over LAN or optional end-to-end encrypted cloud relay."
+            Connect over LAN or optional end-to-end encrypted cloud relay.
           </p>
           <div class="actions">
             <a class="button primary" href="https://github.com/voltura/voltura-air/releases/latest">Download for Windows</a>

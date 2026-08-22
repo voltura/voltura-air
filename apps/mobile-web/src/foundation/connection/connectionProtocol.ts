@@ -352,6 +352,7 @@ function isServerCapabilities(value: unknown): boolean {
     isOptional(value, "enhancedCapabilities", (candidate) => isBooleanCapability(candidate, "enabled")) &&
     isOptional(value, "gestureDebug", isBoolean) &&
     isOptional(value, "inputAck", isBoolean) &&
+    isOptional(value, "inputContextV1", isBoolean) &&
     isOptional(value, "remoteInput", isBoolean) &&
     isOptional(value, "clipboardRead", isBoolean) &&
     isOptional(value, "presentation", isPresentationCapability) &&

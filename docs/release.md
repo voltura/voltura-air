@@ -42,9 +42,14 @@ Fast tool, publish-lock, GitHub/push, and NSIS
 preflights run before source generation. If a later step
 fails, the command restores tracked release changes and records an ignored local
 checkpoint tied to the exact release commit. Rerun the same command: it reuses
-only artifact results whose commit, filenames, sizes, and SHA-256 hashes
-still match, or resumes an audited GitHub draft, instead of repeating completed
-long-running work. A successful release removes the checkpoint.
+only artifact results whose commit, filenames, sizes, SHA-256 hashes, release title,
+and release-body hash still match, or resumes an audited GitHub draft, instead of repeating completed
+long-running work. A standalone successful publication removes the checkpoint so
+the next parameterless release advances normally. The private production workflow
+uses `npm run release:publish-audited` after its production gates. That strict path
+re-audits and publishes only the existing exact draft; it cannot create or repair a
+release or upload assets. The private workflow then removes the checkpoint only
+after final published-release verification succeeds.
 
 ## Prerequisites
 

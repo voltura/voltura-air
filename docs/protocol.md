@@ -74,6 +74,88 @@ status values before sending them.
 Wire changes update the test server-frame catalog and follow
 [risk-based validation](setup.md#validation-by-change).
 
+## Optional usage-statistics HTTPS contract
+
+This first-party contract is independent of pairing and controller transport.
+It is active only in the Windows host after explicit persisted Allow. The PWA
+never calls it. The fixed endpoint is:
+
+```text
+POST https://voltura.se/air/telemetry/v1/ingest.php
+Content-Type: application/json[; charset=utf-8]
+```
+
+The request body is at most 4,096 bytes. There are no CORS headers and no
+configurable destination. Version 1 has this exact object and no unknown or
+missing members:
+
+```json
+{
+  "schemaVersion": 1,
+  "installationId": "0c99c983-09f8-42af-879c-42b51d625c69",
+  "batchId": "1f2e0a85-4115-40f2-b8cc-e46160186cb3",
+  "hostVersion": "1.0.5",
+  "hostStarts": 1,
+  "connections": {
+    "standardLocal": 0,
+    "enhancedDirect": 0,
+    "relay": 0
+  },
+  "features": {
+    "trackpad": 0,
+    "keyboard": 0,
+    "dictation": 0,
+    "mediaControls": 0,
+    "presentation": 0,
+    "customScreens": 0,
+    "files": 0,
+    "screenViewing": 0,
+    "phoneWebcam": 0,
+    "gyroMouse": 0
+  }
+}
+```
+
+`schemaVersion` is integer `1`. Both IDs are canonical lowercase hyphenated
+UUIDs. `hostVersion` is the repository SemVer form, ASCII, and at most 32
+characters. `hostStarts` is integer 0–1; every other count is integer 0–65,535;
+at least one count is positive. There is no client timestamp: the successful
+MariaDB UTC receipt date owns daily attribution. Retrying across midnight moves
+that batch to its successful receipt day.
+
+The server derives separate HMAC-SHA-256 installation, installation-rate, and
+source-rate keys. It permits 24 requests per installation UUID per UTC day, 240
+per source HMAC per UTC hour, and at most 50,000 accepted new batches per UTC
+day. Deduplication by installation pseudonym and batch UUID and the daily
+counter upsert occur in one transaction. The source IP is used only to derive
+the short-lived rate HMAC; User-Agent is ignored. The endpoint stores no raw
+UUID, IP address, request JSON, or event history.
+
+Responses are fixed and smaller than 1 KiB:
+
+| Status | Contract |
+| --- | --- |
+| `202` | New or duplicate accepted; exact body `{"schemaVersion":1,"status":"accepted"}`. |
+| `400` | Invalid JSON/schema/version/value; fixed generic invalid body. |
+| `405` | Wrong method; `Allow: POST`. |
+| `413` | Body exceeds 4,096 bytes. |
+| `415` | Unsupported media type. |
+| `429` | Installation, source, or service-wide bound reached; bounded `Retry-After`. |
+| `503` | Configuration/database unavailable; no internal detail. |
+
+The host seals first after a random 5–15 minutes and every six hours thereafter.
+It reuses one batch UUID for the initial attempt and retries after 1, 5, and 15
+minutes. Each HTTPS attempt has a five-second timeout and reads at most 1 KiB.
+Only `202` with the exact accepted body completes the batch. `429`, transport
+errors, timeouts, malformed success, and `5xx` use the remaining schedule;
+other `4xx` responses permanently reject that batch. Disable and shutdown
+cancel requests and backoff without a flush.
+
+`GET https://voltura.se/air/telemetry/v1/health.php` returns `204` only when the
+configuration, PDO connection, required telemetry columns, and maintenance row
+are readable. It otherwise returns a generic `503` and never exposes counts,
+schema, credentials, or identifiers.
+
 ## Pairing link
 
 The host creates an absolute HTTP/HTTPS `/pair` URL containing one short-lived
@@ -241,6 +323,7 @@ Success:
     "remoteInput": true,
     "gestureDebug": false,
     "inputAck": true,
+    "inputContextV1": true,
     "power": {
       "lock": true,
       "lockAvailability": "notExplicitlyDisabled",
@@ -863,13 +946,13 @@ literal text, shortcut payloads, executable details, or viewport history.
 ## Input
 
 ```json
-{ "type": "pointer.move", "seq": 123, "dx": 12, "dy": -4 }
+{ "type": "pointer.move", "seq": 123, "dx": 12, "dy": -4, "inputContext": "trackpad" }
 { "type": "pointer.button", "seq": 124, "button": "left", "action": "click" }
 { "type": "pointer.button", "button": "left", "action": "down" }
 { "type": "pointer.button", "button": "left", "action": "up" }
 { "type": "pointer.wheel", "seq": 125, "dx": 0, "dy": -18 }
 { "type": "pointer.zoom", "seq": 126, "direction": "in" }
-{ "type": "keyboard.text", "seq": 127, "text": "Hello" }
+{ "type": "keyboard.text", "seq": 127, "text": "Hello", "inputContext": "dictation" }
 { "type": "keyboard.special", "seq": 128, "key": "Enter", "modifiers": ["Control"] }
 ```
 
@@ -882,6 +965,31 @@ Zoom `in` means spread/pinch-out; `out` means pinch-in. Keyboard text cannot be
 empty, but whitespace is valid. Single-letter virtual keys use
 `keyboard.special`. Pointer and wheel `dx`/`dy` are finite values from -5000
 through 5000. `Undo` and `Redo` map to Ctrl+Z/Ctrl+Y.
+
+`capabilities.inputContextV1: true` advertises an additive functional field on
+pointer, Screen pointer, keyboard, and audio/volume commands. Its closed values
+are `trackpad`, `keyboard`, `dictation`, `media-controls`, `presentation`,
+`custom-screens`, `screen-view`, and `gyro-mouse`. Unknown values, `null`, or an
+`inputContext` on any other message violate the exact message schema. The new
+PWA includes it only after the host advertises support, so old hosts receive the
+old exact shape. New hosts accept omission from old or cached PWAs and do not
+guess ambiguous feature categories. Relay movement coalescing preserves the
+field and combines adjacent relative movements only when their contexts match.
+The capability describes protocol support regardless of telemetry consent; the
+host recorder remains a no-op while disabled.
+
+When present, the context must also match the functional command owner:
+
+| Command family | Allowed `inputContext` values |
+|---|---|
+| `pointer.*` | `trackpad`, `keyboard`, `presentation`, `custom-screens`, `screen-view`, `gyro-mouse` |
+| `screen.pointer.*` | `screen-view` |
+| `keyboard.text` | `keyboard`, `dictation`, `screen-view` |
+| `keyboard.special` | `keyboard`, `media-controls`, `presentation`, `custom-screens`, `screen-view` |
+| `audio.*` | `media-controls`, `custom-screens` |
+
+Omission remains valid for old/cached clients. A closed value on the wrong
+command family is a protocol error rather than a telemetry hint to reinterpret.
 
 ### Input acknowledgements
 
@@ -1406,7 +1514,8 @@ snapshot.
 
 ## Power and session
 
-`gestureDebug` defaults false. `inputAck` signals ack/error support. Clients
+`gestureDebug` defaults false. `inputAck` signals ack/error support and
+`inputContextV1` signals the optional closed input-source field. Clients
 must not expose/send operations whose capability is absent or false.
 
 ```json

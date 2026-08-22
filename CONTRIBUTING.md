@@ -39,7 +39,13 @@ tools** when a toggle is needed. Do not add a global alpha-feature switch.
 
 ## Release model
 
-Voltura Air is distributed as freeware. Do not add licensing, payment, trial, telemetry, account, or cloud-relay behavior unless it has been explicitly accepted for the project.
+Voltura Air is distributed as freeware. Do not add licensing, payment, trial,
+account, or cloud-relay behavior unless it has been explicitly accepted for the
+project. Usage statistics are limited to the consent-gated closed catalog in
+[the privacy policy](PRIVACY.md#optional-usage-statistics). Any new metric,
+field, identity use, destination, retention change, or producer requires an
+explicit product, privacy, security, protocol, and no-lag review; do not add a
+generic telemetry event or property API.
 
 ## License of contributions
 

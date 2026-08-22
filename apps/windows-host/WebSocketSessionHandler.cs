@@ -2,6 +2,7 @@ using System.Net.WebSockets;
 using System.Security.Cryptography;
 using System.Text.Json;
 using VolturaAir.Host.Features.PhoneWebcam;
+using VolturaAir.Host.Features.UsageTelemetry;
 
 namespace VolturaAir.Host;
 
@@ -26,6 +27,7 @@ internal sealed class WebSocketSessionHandler(
     CustomScreenCommandHandler customScreenCommands,
     ScreenViewCommandHandler screenViewCommands,
     PhoneWebcamCommandHandler phoneWebcamCommands,
+    IUsageTelemetryRecorder usageTelemetry,
     IAppLogWriter appLog,
     Action<ControllerSocketClosedEventArgs> reportSocketClosed)
 {
@@ -35,13 +37,18 @@ internal sealed class WebSocketSessionHandler(
 
     internal event EventHandler? StatusRefreshRequested;
 
-    public async Task HandleAsync(WebSocket socket, string rateLimitKey, CancellationToken cancellationToken)
+    public async Task HandleAsync(
+        WebSocket socket,
+        string rateLimitKey,
+        UsageConnectionMethod connectionMethod,
+        CancellationToken cancellationToken)
     {
         var authenticated = false;
         var authenticatedClientId = string.Empty;
         PendingReconnect? pendingReconnect = null;
         PairingBootstrapPending? pendingPairing = null;
         IDisposable? activeConnection = null;
+        using var usageSession = new UsageTelemetrySession(usageTelemetry);
         var buffer = new byte[WebSocketTransport.MaxMessageBytes];
         using var receiveTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         receiveTimeout.CancelAfter(PairingHandshakeTimeout);
@@ -169,12 +176,18 @@ internal sealed class WebSocketSessionHandler(
 
                     authenticated = true;
                     authenticatedClientId = authentication.ClientId;
+                    if (usageTelemetry.SessionRegistry is { } sessionRegistry)
+                    {
+                        _ = usageSession.TryRegister(sessionRegistry);
+                    }
                     transport.Register(authentication.ClientId, socket);
                     activeConnection = pairingManager.TrackConnection(authentication.ClientId);
+                    var connectionRecordingToken = usageTelemetry.CurrentRecordingToken;
                     await transport.SendAsync(
                         socket,
                         statusFactory.CreatePairAccepted(authentication.ClientId),
                         cancellationToken);
+                    _ = usageTelemetry.TryRecordConnection(connectionMethod, connectionRecordingToken);
                     continue;
                 }
 
@@ -196,7 +209,16 @@ internal sealed class WebSocketSessionHandler(
                 }
 
                 commandLog.Received(authenticatedClientId, type!, root, inputCommand);
-                if (!await DispatchAuthenticatedAsync(socket, authenticatedClientId, type!, root, inputCommand, cancellationToken))
+                var recordingToken = usageTelemetry.CurrentRecordingToken;
+                if (!await DispatchAuthenticatedAsync(
+                    socket,
+                    authenticatedClientId,
+                    type!,
+                    root,
+                    inputCommand,
+                    usageSession,
+                    recordingToken,
+                    cancellationToken))
                 {
                     break;
                 }
@@ -450,6 +472,8 @@ internal sealed class WebSocketSessionHandler(
         string type,
         JsonElement root,
         ValidatedInputCommand? inputCommand,
+        UsageTelemetrySession usageSession,
+        UsageTelemetryRecordingToken recordingToken,
         CancellationToken cancellationToken)
     {
         switch (type)
@@ -490,6 +514,11 @@ internal sealed class WebSocketSessionHandler(
                         ProtocolMessageFields.GetString(root, "orientation")));
                 return true;
             case "custom.screen.get":
+                if (usageSession.NeedsRecord(UsageFeature.CustomScreens, recordingToken) &&
+                    statusFactory.CanUseCustomScreen(clientId, ProtocolMessageFields.GetString(root, "screenId")))
+                {
+                    usageSession.RecordOnce(UsageFeature.CustomScreens, recordingToken);
+                }
                 await customScreenCommands.GetAsync(
                     socket,
                     clientId,
@@ -498,6 +527,11 @@ internal sealed class WebSocketSessionHandler(
                     cancellationToken);
                 return true;
             case "custom.screen.invoke":
+                if (usageSession.NeedsRecord(UsageFeature.CustomScreens, recordingToken) &&
+                    statusFactory.CanUseCustomScreen(clientId, ProtocolMessageFields.GetString(root, "screenId")))
+                {
+                    usageSession.RecordOnce(UsageFeature.CustomScreens, recordingToken);
+                }
                 await customScreenCommands.InvokeAsync(
                     socket,
                     clientId,
@@ -518,6 +552,11 @@ internal sealed class WebSocketSessionHandler(
                     cancellationToken);
                 return true;
             case "screen.view.start":
+                if (usageSession.NeedsRecord(UsageFeature.ScreenViewing, recordingToken) &&
+                    statusFactory.CanViewScreen(clientId))
+                {
+                    usageSession.RecordOnce(UsageFeature.ScreenViewing, recordingToken);
+                }
                 await screenViewCommands.StartAsync(
                     socket,
                     clientId,
@@ -564,6 +603,11 @@ internal sealed class WebSocketSessionHandler(
                     cancellationToken);
                 return true;
             case "phone.webcam.start":
+                if (usageSession.NeedsRecord(UsageFeature.PhoneWebcam, recordingToken) &&
+                    statusFactory.CanUsePhoneWebcam(clientId))
+                {
+                    usageSession.RecordOnce(UsageFeature.PhoneWebcam, recordingToken);
+                }
                 await phoneWebcamCommands.StartAsync(
                     socket,
                     clientId,
@@ -608,9 +652,19 @@ internal sealed class WebSocketSessionHandler(
                 await awakeCommands.HandleAsync(socket, clientId, ProtocolMessageFields.GetString(root, "operationId"), root.GetProperty("enabled").GetBoolean(), cancellationToken);
                 return true;
             case "presentation.command":
+                if (usageSession.NeedsRecord(UsageFeature.Presentation, recordingToken) &&
+                    statusFactory.CanControlPresentations(clientId))
+                {
+                    usageSession.RecordOnce(UsageFeature.Presentation, recordingToken);
+                }
                 await presentationCommands.HandleAsync(socket, clientId, root, cancellationToken);
                 return true;
             case "presentation.powerpoint.refresh":
+                if (usageSession.NeedsRecord(UsageFeature.Presentation, recordingToken) &&
+                    statusFactory.CanControlPresentations(clientId))
+                {
+                    usageSession.RecordOnce(UsageFeature.Presentation, recordingToken);
+                }
                 await presentationCommands.HandlePowerPointRefreshAsync(
                     socket,
                     clientId,
@@ -618,6 +672,11 @@ internal sealed class WebSocketSessionHandler(
                     cancellationToken);
                 return true;
             case "presentation.powerpoint.launch":
+                if (usageSession.NeedsRecord(UsageFeature.Presentation, recordingToken) &&
+                    statusFactory.CanControlPresentations(clientId))
+                {
+                    usageSession.RecordOnce(UsageFeature.Presentation, recordingToken);
+                }
                 await presentationLauncher.HandleAsync(
                     socket,
                     clientId,
@@ -626,9 +685,19 @@ internal sealed class WebSocketSessionHandler(
                     cancellationToken);
                 return true;
             case "presentation.report.save":
+                if (usageSession.NeedsRecord(UsageFeature.Presentation, recordingToken) &&
+                    statusFactory.CanControlPresentations(clientId))
+                {
+                    usageSession.RecordOnce(UsageFeature.Presentation, recordingToken);
+                }
                 await presentationReports.HandleAsync(socket, clientId, root, cancellationToken);
                 return true;
             case "presentation.session":
+                if (usageSession.NeedsRecord(UsageFeature.Presentation, recordingToken) &&
+                    statusFactory.CanControlPresentations(clientId))
+                {
+                    usageSession.RecordOnce(UsageFeature.Presentation, recordingToken);
+                }
                 await presentationSessions.HandleAsync(socket, clientId, root, cancellationToken);
                 return true;
             case "remote.launch":
@@ -652,6 +721,13 @@ internal sealed class WebSocketSessionHandler(
                 await clipboardCommands.HandleAsync(socket, clientId, ProtocolMessageFields.GetString(root, "operationId"), cancellationToken);
                 return true;
             case "file.session.open":
+                if (usageSession.NeedsRecord(UsageFeature.Files, recordingToken) &&
+                    statusFactory.CanBrowseFiles(clientId))
+                {
+                    usageSession.RecordOnce(UsageFeature.Files, recordingToken);
+                }
+                await fileManagerCommands.HandleAsync(socket, clientId, type, root, cancellationToken);
+                return true;
             case "file.page.get":
             case "file.navigate":
             case "file.refresh":
@@ -670,7 +746,14 @@ internal sealed class WebSocketSessionHandler(
 
         if (IsAudioMessage(type))
         {
-            await HandleAudioMessageAsync(socket, clientId, type, root, cancellationToken);
+            await HandleAudioMessageAsync(
+                socket,
+                clientId,
+                type,
+                root,
+                usageSession,
+                recordingToken,
+                cancellationToken);
             return true;
         }
 
@@ -685,10 +768,12 @@ internal sealed class WebSocketSessionHandler(
 
             if (command.Kind is InputCommandKind.ScreenPointerMove or InputCommandKind.ScreenPointerButton or InputCommandKind.ScreenPointerWheel)
             {
+                usageSession.RecordInputCommand(command.Kind, command.Context, recordingToken);
                 await screenViewCommands.HandlePointerAsync(socket, clientId, command, cancellationToken);
                 return true;
             }
 
+            usageSession.RecordInputCommand(command.Kind, command.Context, recordingToken);
             if (await inputCommands.HandleAsync(socket, command, clientId, cancellationToken))
             {
                 return true;
@@ -730,16 +815,26 @@ internal sealed class WebSocketSessionHandler(
         string clientId,
         string type,
         JsonElement root,
+        UsageTelemetrySession usageSession,
+        UsageTelemetryRecordingToken recordingToken,
         CancellationToken cancellationToken)
     {
         var action = type == "audio.mute.toggle" ? "toggle_mute" : "set_volume";
         var outcome = "blocked";
-        if (statusFactory.CanControlVolume(clientId) &&
-            AudioMessageRouter.TryHandle(root, audioController, out var audioState) &&
-            audioState is not null)
+        if (statusFactory.CanControlVolume(clientId))
         {
-            await SendAudioStateAsync(socket, audioState, cancellationToken);
-            outcome = "executed";
+            if (ClientMessageValidator.TryGetOptionalInputContext(root, out var inputContext) &&
+                inputContext == InputCommandContext.MediaControls)
+            {
+                usageSession.RecordOnce(UsageFeature.MediaControls, recordingToken);
+            }
+
+            if (AudioMessageRouter.TryHandle(root, audioController, out var audioState) &&
+                audioState is not null)
+            {
+                await SendAudioStateAsync(socket, audioState, cancellationToken);
+                outcome = "executed";
+            }
         }
 
         commandLog.Outcome(clientId, type, action, outcome);

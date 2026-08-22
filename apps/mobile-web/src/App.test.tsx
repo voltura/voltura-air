@@ -399,7 +399,7 @@ describe("App header and mode navigation", () => {
 
     expect(screen.getByRole("dialog").textContent).toContain("Administrator app active");
     fireEvent.click(screen.getByRole("button", { name: "Show desktop" }));
-    expect(send).toHaveBeenCalledWith({ type: "keyboard.special", key: "D", modifiers: ["Win"] });
+    expect(send).toHaveBeenCalledWith({ type: "keyboard.special", inputContext: "keyboard", key: "D", modifiers: ["Win"] });
 
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -974,6 +974,33 @@ describe("App header and mode navigation", () => {
     expect(send).toHaveBeenCalledExactlyOnceWith({ type: "remote.launch", action: "startOrActivateKodi" });
   });
 
+  it("omits feature context for ambiguous non-media Remote shortcuts", () => {
+    const send = vi.fn();
+    mockConnection({ send });
+    render(<App />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Remote" }).at(-1)!);
+    fireEvent.click(screen.getByRole("button", { name: "Browser back" }));
+
+    expect(send).toHaveBeenCalledExactlyOnceWith({ type: "keyboard.special", key: "BrowserBack", modifiers: undefined });
+  });
+
+  it("labels the Remote mini trackpad as trackpad input", () => {
+    const send = vi.fn();
+    mockConnection({ send });
+    render(<App />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Remote" }).at(-1)!);
+    fireEvent.keyDown(screen.getByRole("button", { name: "Mini trackpad" }), { key: "Enter" });
+
+    expect(send).toHaveBeenCalledExactlyOnceWith({
+      type: "pointer.button",
+      inputContext: "trackpad",
+      button: "left",
+      action: "click"
+    });
+  });
+
   it("does not launch a remote app when its confirmation is cancelled", () => {
     const send = vi.fn();
     localStorage.setItem("voltura-air.remoteSettings.client-a.pc-a", JSON.stringify({ mode: "youtube" }));
@@ -1475,13 +1502,13 @@ describe("Text transfer feedback", () => {
 
     fireEvent.touchStart(editor, { targetTouches: [{ identifier: 1, clientX: 10, clientY: 10 }] });
     fireEvent.touchEnd(editor, { targetTouches: [] });
-    expect(send).toHaveBeenCalledExactlyOnceWith({ type: "pointer.button", button: "left", action: "click" });
+    expect(send).toHaveBeenCalledExactlyOnceWith({ type: "pointer.button", inputContext: "trackpad", button: "left", action: "click" });
 
     send.mockClear();
     fireEvent.click(screen.getByRole("button", { name: "Left" }));
     fireEvent.click(screen.getByRole("button", { name: "Right" }));
-    expect(send).toHaveBeenNthCalledWith(1, { type: "pointer.button", button: "left", action: "click" });
-    expect(send).toHaveBeenNthCalledWith(2, { type: "pointer.button", button: "right", action: "click" });
+    expect(send).toHaveBeenNthCalledWith(1, { type: "pointer.button", inputContext: "trackpad", button: "left", action: "click" });
+    expect(send).toHaveBeenNthCalledWith(2, { type: "pointer.button", inputContext: "trackpad", button: "right", action: "click" });
 
     send.mockClear();
     fireEvent.click(screen.getByRole("button", { name: "Use device keyboard" }));

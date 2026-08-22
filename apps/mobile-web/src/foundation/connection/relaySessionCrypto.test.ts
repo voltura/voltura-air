@@ -57,6 +57,33 @@ describe("RelayEncryptedChannel", () => {
     expect(JSON.parse((await host.decryptText(frames[1]!))!)).toEqual({ type: "pointer.move", seq: 7, dx: 6, dy: 2 });
   });
 
+  it("preserves matching input context and never merges different contexts", async () => {
+    const device = RelayEncryptedChannel.create(secret, transcript);
+    const host = RelayEncryptedChannel.createHostForConformance(secret, transcript);
+    const frames: ArrayBuffer[] = [];
+
+    const barrier = device.send((frame) => { frames.push(frame); }, JSON.stringify({ type: "health.ping" }));
+    const first = device.send((frame) => { frames.push(frame); }, JSON.stringify({ type: "pointer.move", inputContext: "trackpad", dx: 2, dy: 3 }));
+    const second = device.send((frame) => { frames.push(frame); }, JSON.stringify({ type: "pointer.move", inputContext: "trackpad", dx: 4, dy: -1 }));
+    const third = device.send((frame) => { frames.push(frame); }, JSON.stringify({ type: "pointer.move", inputContext: "gyro-mouse", dx: 1, dy: 1 }));
+    await Promise.all([barrier, first, second, third]);
+
+    expect(frames).toHaveLength(3);
+    expect(await host.decryptText(frames[0]!)).toBe(JSON.stringify({ type: "health.ping" }));
+    expect(JSON.parse((await host.decryptText(frames[1]!))!)).toEqual({
+      type: "pointer.move",
+      inputContext: "trackpad",
+      dx: 6,
+      dy: 2
+    });
+    expect(JSON.parse((await host.decryptText(frames[2]!))!)).toEqual({
+      type: "pointer.move",
+      inputContext: "gyro-mouse",
+      dx: 1,
+      dy: 1
+    });
+  });
+
   it("rejects queue growth instead of accumulating stale commands", async () => {
     const device = RelayEncryptedChannel.create(secret, transcript);
     const sends = Array.from({ length: 40 }, (_, index) => device.send(

@@ -21,6 +21,7 @@ function createSender(bufferedAmount = 0) {
     rescheduleHealthCheckRef: { current: rescheduleHealthCheck },
     socketRef: { current: socket },
     supportsInputAckRef: { current: true },
+    supportsInputContextV1Ref: { current: true },
     supportsVolumeControlRef: { current: false }
   };
   const hook = renderHook(() => useConnectionSender(options));
@@ -32,6 +33,23 @@ afterEach(() => {
 });
 
 describe("connection sender movement flow control", () => {
+  it("includes input context only when the host advertises v1 support", () => {
+    const supported = createSender();
+    act(() => {
+      supported.hook.result.current.send({ type: "keyboard.text", text: "hello", inputContext: "dictation" });
+    });
+    expect(JSON.parse(vi.mocked(supported.socket.send).mock.calls[0]![0] as string))
+      .toMatchObject({ type: "keyboard.text", inputContext: "dictation" });
+
+    const legacy = createSender();
+    legacy.options.supportsInputContextV1Ref.current = false;
+    act(() => {
+      legacy.hook.result.current.send({ type: "keyboard.text", text: "hello", inputContext: "dictation" });
+    });
+    expect(JSON.parse(vi.mocked(legacy.socket.send).mock.calls[0]![0] as string))
+      .toEqual({ type: "keyboard.text", seq: 1, text: "hello" });
+  });
+
   it("bounds movement queued behind an acknowledgement barrier", () => {
     vi.spyOn(Date, "now").mockReturnValue(1_000);
     const { hook, options, socket } = createSender();

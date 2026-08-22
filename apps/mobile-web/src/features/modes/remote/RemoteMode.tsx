@@ -4,6 +4,7 @@ import "./remote-power.css";
 import type {
   AppLaunchActionSummary,
   AudioStateMessage,
+  InputContext,
   PowerCapabilities,
   SystemPowerAction,
   SystemPowerResultMessage,
@@ -38,7 +39,7 @@ interface RemoteModeProps {
   powerCapabilities: PowerCapabilities | null;
   urlOpenCapability?: UrlOpenCapability | undefined;
   urlOpenResult: UrlOpenResultMessage | null;
-  sendSpecial: (key: string, modifiers?: string[]) => void;
+  sendSpecial: (key: string, modifiers?: string[], inputContext?: InputContext) => void;
   onUtilityPanelOpenChange?: (isOpen: boolean) => void;
 }
 
@@ -79,7 +80,11 @@ export function RemoteMode({
     onUtilityPanelOpenChange?.(showUtilityPanel);
   }, [onUtilityPanelOpenChange, showUtilityPanel]);
 
-  const sendShortcut = (shortcut: RemoteShortcut) => {
+  const sendShortcut = (shortcut: RemoteShortcut, inputContext?: InputContext) => {
+    if (inputContext) {
+      sendSpecial(shortcut.key, shortcut.modifiers, inputContext);
+      return;
+    }
     if (shortcut.modifiers) {
       sendSpecial(shortcut.key, shortcut.modifiers);
     } else {
@@ -87,21 +92,21 @@ export function RemoteMode({
     }
   };
 
-  const sendPrevious = () => { sendShortcut(shortcuts.previous); };
-  const sendPlayPause = () => { sendShortcut(shortcuts.playPause); };
-  const sendNext = () => { sendShortcut(shortcuts.next); };
-  const sendSeekBackward = () => { sendShortcut(shortcuts.seekBackward); };
-  const sendSeekForward = () => { sendShortcut(shortcuts.seekForward); };
-  const sendVolumeDown = () => { sendShortcut(shortcuts.volumeDown); };
-  const sendMute = () => { sendShortcut(shortcuts.mute); };
-  const sendVolumeUp = () => { sendShortcut(shortcuts.volumeUp); };
+  const sendPrevious = () => { sendShortcut(shortcuts.previous, "media-controls"); };
+  const sendPlayPause = () => { sendShortcut(shortcuts.playPause, "media-controls"); };
+  const sendNext = () => { sendShortcut(shortcuts.next, "media-controls"); };
+  const sendSeekBackward = () => { sendShortcut(shortcuts.seekBackward, "media-controls"); };
+  const sendSeekForward = () => { sendShortcut(shortcuts.seekForward, "media-controls"); };
+  const sendVolumeDown = () => { sendShortcut(shortcuts.volumeDown, "media-controls"); };
+  const sendMute = () => { sendShortcut(shortcuts.mute, "media-controls"); };
+  const sendVolumeUp = () => { sendShortcut(shortcuts.volumeUp, "media-controls"); };
   const sendBack = () => { sendShortcut(shortcuts.back); };
   const sendAppFullscreen = () => { sendShortcut(shortcuts.appFullscreen); };
   const sendBrowserFullscreen = () => { sendShortcut(shortcuts.browserFullscreen); };
-  const sendSpace = () => { sendShortcut(shortcuts.space); };
-  const sendStopPlayback = () => shortcuts.stop && sendShortcut(shortcuts.stop);
-  const sendInfo = () => shortcuts.info && sendShortcut(shortcuts.info);
-  const sendSubtitles = () => shortcuts.subtitles && sendShortcut(shortcuts.subtitles);
+  const sendSpace = () => { sendShortcut(shortcuts.space, "media-controls"); };
+  const sendStopPlayback = () => shortcuts.stop && sendShortcut(shortcuts.stop, "media-controls");
+  const sendInfo = () => shortcuts.info && sendShortcut(shortcuts.info, "media-controls");
+  const sendSubtitles = () => shortcuts.subtitles && sendShortcut(shortcuts.subtitles, "media-controls");
   const sendPowerMenu = () => shortcuts.powerMenu && sendShortcut(shortcuts.powerMenu);
   const utilityPanelId = "remote-utility-panel";
 

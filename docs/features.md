@@ -258,6 +258,46 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   pairing credentials. Diagnostics provides filters, copy, folder, delete, and
   session-only automatic refresh.
 
+### Usage statistics
+
+- Usage statistics are optional and off until explicitly allowed. A normal
+  installer shows equal **Allow usage statistics** and **Do not allow** actions
+  only when the installed choice is unset. The safe choice has initial keyboard
+  focus and ordinary Next navigation stays disabled until one action is
+  activated. Silent installation leaves the choice unset/off. An existing
+  Allow or Do not allow choice survives upgrades and reinstalls and skips the
+  page; an upgrade from a version without a choice prompts once.
+- The installer holds an unset choice only in memory and saves the single
+  installed-consent registry value after the verified install transaction
+  commits. Cancel, rollback, or pre-commit health failure writes nothing. A
+  failed write leaves statistics off and directs the user to Diagnostics. The
+  installer never creates the telemetry identifier.
+- Installed execution is selected only when the normalized host executable
+  directory exactly matches the existing uninstall entry's `InstallLocation`.
+  Every other execution is portable. Installed and portable choices and random
+  identifiers are separate. A portable copy starts off without a first-run
+  popup and preserves a later explicit choice for that Windows account.
+- **Diagnostics → Usage statistics** is separate from Application log. It shows
+  On/Off, the applicable installed/portable profile, collected categories,
+  prohibited categories, the privacy policy, and one serialized Enable/Disable
+  action. It never displays the identifier. Enable is effective only after a
+  new identifier and Allow are durably saved. Disable becomes locally effective
+  first, cancels and clears all telemetry work, saves Do not allow, and removes
+  the identifier. Save or identifier-cleanup failures remain visible with an
+  exact retry instruction.
+- While allowed, the Windows host counts one telemetry-active start per consent-enabled local-identifier lifetime (normally once per process; disabling discards that lifetime, and re-enabling starts a new unlinkable one),
+  successful authenticated sessions by Standard Local, Enhanced Direct, or
+  Relay, and at most one use per authenticated session in each consent-enabled
+  identifier lifetime of Trackpad, Keyboard, Dictation, Media controls,
+  Presentation, Custom screens, Files, Screen
+  viewing, Phone webcam, and Gyro mouse. These are feature-using sessions, not
+  clicks or guaranteed downstream outcomes. The closed content exclusions and
+  server retention are owned by the [privacy policy](../PRIVACY.md#optional-usage-statistics).
+- The PWA has no telemetry endpoint, identifier, consent state, queue, or
+  persistence. It sends only capability-gated functional input context through
+  the existing authenticated PC connection. Telemetry is a no-op when disabled
+  and never delays input, media, UI, rendering, or connection processing.
+
 ### Custom screens
 
 - The Windows editor creates reusable, explicitly saved control screens and

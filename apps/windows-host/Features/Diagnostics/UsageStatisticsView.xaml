@@ -1,0 +1,72 @@
+<UserControl x:Class="VolturaAir.Host.Features.Diagnostics.UsageStatisticsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="clr-namespace:VolturaAir.Host.Ui">
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto">
+        <ui:SpacingStackPanel Spacing="{DynamicResource SpaceMd}">
+            <TextBlock Text="Optional. Voltura Air works the same either way."
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource MutedTextBrush}" />
+
+            <Border Padding="{DynamicResource InsetMd}"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="{DynamicResource RadiusMedium}">
+                <ui:SpacingStackPanel Spacing="{DynamicResource SpaceSm}">
+                    <TextBlock x:Name="StateText"
+                               FontSize="16"
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource TextBrush}" />
+                    <TextBlock x:Name="ProfileText"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource MutedTextBrush}" />
+                    <TextBlock x:Name="TransitionStatusText"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource DangerBrush}"
+                               Visibility="Collapsed"
+                               AutomationProperties.LiveSetting="Polite" />
+                </ui:SpacingStackPanel>
+            </Border>
+
+            <Border Padding="{DynamicResource InsetMd}"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="{DynamicResource RadiusMedium}">
+                <ui:SpacingStackPanel Spacing="{DynamicResource SpaceSm}">
+                    <TextBlock Text="Shared when on"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextBrush}" />
+                    <TextBlock Text="Random ID, app version, host starts, connection type, and use of Trackpad, Keyboard, Dictation, Media controls, Presentation, Custom screens, Files, Screen viewing, Phone webcam, and Gyro mouse."
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource MutedTextBrush}" />
+                </ui:SpacingStackPanel>
+            </Border>
+
+            <Border Padding="{DynamicResource InsetMd}"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="{DynamicResource RadiusMedium}">
+                <ui:SpacingStackPanel Spacing="{DynamicResource SpaceSm}">
+                    <TextBlock Text="Never shared"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextBrush}" />
+                    <TextBlock Text="Text, files, URLs, names, keys, coordinates, credentials, or screen, camera, and audio content."
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource MutedTextBrush}" />
+                </ui:SpacingStackPanel>
+            </Border>
+
+            <ui:SpacingStackPanel Orientation="Horizontal"
+                                  Spacing="{DynamicResource SpaceSm}">
+                <Button x:Name="ChangeStateButton"
+                        Style="{DynamicResource PrimaryButtonStyle}" />
+                <Button x:Name="PrivacyButton"
+                        Content="Privacy" />
+            </ui:SpacingStackPanel>
+        </ui:SpacingStackPanel>
+    </ScrollViewer>
+</UserControl>

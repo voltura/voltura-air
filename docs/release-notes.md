@@ -6,6 +6,12 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.0.5
+
+- Added optional, privacy-preserving **Usage statistics**. New and upgrading users are asked to allow or decline. Portable versions default to off.
+- When enabled, the Windows host sends a random installation ID, app version, connection methods, and basic feature-use counts. It never sends personal content, text, files, URLs, credentials, screen, camera, or audio data.
+- Change your choice anytime under **Diagnostics → Usage statistics**. Turning it off stops collection immediately and deletes unsent data and the local identifier. No account is required.
+
 ## v1.0.4
 
 - Improved **View PC screen** quality. It now keeps Windows text clearer on

@@ -144,6 +144,28 @@ shows a local review, removes device assignments, and generates new local IDs
 before saving. Imported application actions may refer to approved applications
 that exist only on the author's PC and remain subject to local host permissions.
 
+The optional Usage statistics ingest endpoint is public and spoofable; an
+open-source host cannot safely embed an authentication secret. Telemetry is
+therefore directional product evidence only, never billing, entitlement,
+security, or exact-user truth. The endpoint accepts one exact 4 KiB JSON schema,
+uses fixed prepared statements, deduplicates batch UUIDs, and rate-limits by
+domain-separated installation and transient source-IP HMACs plus a service-wide
+daily cap. It ignores User-Agent and stores neither raw UUIDs, IP addresses,
+request bodies, nor event history. The shared catalog database credential is a
+known blast-radius limitation; purpose-built PHP files, telemetry-only tables,
+fixed SQL, and the absence of a generic query or cleanup entry point contain it.
+
+The aggregate Usage statistics dashboard reuses the existing Custom Screens
+administrator role, session, CSRF, layout, and theme. It never selects or
+renders installation hashes. Destructive actions require an exact preview,
+recheck the preview counts under the deletion transaction, require explicit
+confirmation and a second submit, and commit at most 1,000 rows against a fixed
+telemetry-table allow-list. Automatic cleanup is lease-controlled, indexed, and
+bounded to 500 rows per telemetry table per pass. Ingest code does not load the
+administrator cleanup owner. Host telemetry logs contain only approved counter
+names/counts and fixed delivery outcomes; UUIDs, endpoint URLs, bodies, source
+addresses, and input content are excluded.
+
 When testing or deploying:
 
 - Download only from the official product page or official GitHub releases.

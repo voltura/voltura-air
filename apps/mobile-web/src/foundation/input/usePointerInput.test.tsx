@@ -50,4 +50,49 @@ describe("usePointerInput", () => {
 
     expect(send).not.toHaveBeenCalled();
   });
+
+  it("keeps trackpad and Gyro movement in separate contextual batches", () => {
+    const send = vi.fn();
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", vi.fn((callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    }));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const { result } = renderHook(() => usePointerInput({
+      send,
+      state: "paired",
+      trackpadSettings: defaultTrackpadSettings,
+      inputContext: "trackpad"
+    }));
+
+    act(() => {
+      result.current.emit({ type: "pointer.move", dx: 2, dy: 3 });
+      result.current.emit({ type: "pointer.move", inputContext: "gyro-mouse", dx: 4, dy: 5 });
+    });
+    act(() => { frames.at(-1)?.(0); });
+
+    expect(send.mock.calls).toEqual([
+      [{ type: "pointer.move", inputContext: "trackpad", dx: 2, dy: 3 }],
+      [{ type: "pointer.move", inputContext: "gyro-mouse", dx: 4, dy: 5 }]
+    ]);
+  });
+
+  it("lets a functional owner override the context of a special key", () => {
+    const send = vi.fn();
+    const { result } = renderHook(() => usePointerInput({
+      send,
+      state: "paired",
+      trackpadSettings: defaultTrackpadSettings,
+      inputContext: "keyboard"
+    }));
+
+    act(() => { result.current.sendSpecial("MediaPlayPause", undefined, "media-controls"); });
+
+    expect(send).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      type: "keyboard.special",
+      key: "MediaPlayPause",
+      inputContext: "media-controls"
+    }));
+  });
 });

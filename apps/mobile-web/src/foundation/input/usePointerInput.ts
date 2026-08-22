@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, type TouchEvent } from "react";
 import type { ConnectionState } from "../connection/connectionTypes";
 import { GestureRecognizer, touchesFromList, type TrackpadSettings, type TwoFingerMode } from "./gestures";
-import type { ClientMessage, KeyboardSpecialMessage } from "../protocol/messages";
+import type { ClientMessage, InputContext, KeyboardSpecialMessage } from "../protocol/messages";
 import { triggerHapticFeedback } from "./hapticFeedback";
 
 interface PointerInputOptions {
@@ -9,13 +9,32 @@ interface PointerInputOptions {
   state: ConnectionState;
   trackpadSettings: TrackpadSettings;
   twoFingerMode?: TwoFingerMode;
+  inputContext?: InputContext | null;
 }
 
-export function usePointerInput({ send, state, trackpadSettings, twoFingerMode = "scroll" }: PointerInputOptions) {
+interface PendingPointerDelta {
+  dx: number;
+  dy: number;
+  inputContext: InputContext | null;
+}
+
+type PointerEmission = Extract<ClientMessage, { type:
+  | "pointer.move"
+  | "pointer.button"
+  | "pointer.wheel"
+  | "pointer.zoom"
+  | "keyboard.text"
+  | "keyboard.special"
+  | "audio.mute.toggle"
+  | "audio.volume.set"
+  | "system.sleep"
+}>;
+
+export function usePointerInput({ send, state, trackpadSettings, twoFingerMode = "scroll", inputContext = "trackpad" }: PointerInputOptions) {
   const recognizerRef = useRef(new GestureRecognizer());
   const pointerFrameRef = useRef<number | null>(null);
-  const pendingPointerMoveRef = useRef<{ dx: number; dy: number } | null>(null);
-  const pendingPointerWheelRef = useRef<{ dx: number; dy: number } | null>(null);
+  const pendingPointerMoveRef = useRef<PendingPointerDelta | null>(null);
+  const pendingPointerWheelRef = useRef<PendingPointerDelta | null>(null);
   const sendRef = useRef(send);
   const stateRef = useRef(state);
 
@@ -50,11 +69,21 @@ export function usePointerInput({ send, state, trackpadSettings, twoFingerMode =
     }
 
     if (move && (move.dx !== 0 || move.dy !== 0)) {
-      sendRef.current({ type: "pointer.move", dx: roundDelta(move.dx), dy: roundDelta(move.dy) });
+      sendRef.current({
+        type: "pointer.move",
+        ...(move.inputContext === null ? {} : { inputContext: move.inputContext }),
+        dx: roundDelta(move.dx),
+        dy: roundDelta(move.dy)
+      });
     }
 
     if (wheel && (wheel.dx !== 0 || wheel.dy !== 0)) {
-      sendRef.current({ type: "pointer.wheel", dx: roundDelta(wheel.dx), dy: roundDelta(wheel.dy) });
+      sendRef.current({
+        type: "pointer.wheel",
+        ...(wheel.inputContext === null ? {} : { inputContext: wheel.inputContext }),
+        dx: roundDelta(wheel.dx),
+        dy: roundDelta(wheel.dy)
+      });
     }
   };
 
@@ -75,27 +104,33 @@ export function usePointerInput({ send, state, trackpadSettings, twoFingerMode =
     pointerFrameRef.current = null;
   };
 
-  const emit = (payload: ClientMessage) => {
-    if (state !== "paired" && payload.type !== "pair.hello") {
+  const emit = (payload: PointerEmission) => {
+    if (state !== "paired") {
       return;
     }
 
-    if (payload.type === "pointer.move") {
-      const current = pendingPointerMoveRef.current ?? { dx: 0, dy: 0 };
-      pendingPointerMoveRef.current = { dx: current.dx + payload.dx, dy: current.dy + payload.dy };
-      schedulePointerDeltaFlush();
-      return;
-    }
-
-    if (payload.type === "pointer.wheel") {
-      const current = pendingPointerWheelRef.current ?? { dx: 0, dy: 0 };
-      pendingPointerWheelRef.current = { dx: current.dx + payload.dx, dy: current.dy + payload.dy };
+    if (payload.type === "pointer.move" || payload.type === "pointer.wheel") {
+      const pendingRef = payload.type === "pointer.move" ? pendingPointerMoveRef : pendingPointerWheelRef;
+      const contextualInput = payload.inputContext ?? inputContext;
+      let pending = pendingRef.current;
+      if (pending && pending.inputContext !== contextualInput) {
+        flushPendingPointerDeltas();
+        pending = null;
+      }
+      pendingRef.current = pending
+        ? { dx: pending.dx + payload.dx, dy: pending.dy + payload.dy, inputContext: pending.inputContext }
+        : { dx: payload.dx, dy: payload.dy, inputContext: contextualInput };
       schedulePointerDeltaFlush();
       return;
     }
 
     flushPendingPointerDeltas();
-    send(payload);
+    if (payload.type === "system.sleep") {
+      send(payload);
+      return;
+    }
+    const contextualInput = payload.inputContext ?? inputContext;
+    send(contextualInput === null ? payload : { ...payload, inputContext: contextualInput });
   };
 
   const onTouchStart = (event: TouchEvent<HTMLDivElement>) => {
@@ -122,8 +157,13 @@ export function usePointerInput({ send, state, trackpadSettings, twoFingerMode =
     cancel();
   };
 
-  const sendSpecial = (key: string, modifiers?: string[]) => {
-    emit({ type: "keyboard.special", key, modifiers } satisfies KeyboardSpecialMessage);
+  const sendSpecial = (key: string, modifiers?: string[], context?: InputContext) => {
+    emit({
+      type: "keyboard.special",
+      key,
+      modifiers,
+      ...(context ? { inputContext: context } : {}),
+    } satisfies KeyboardSpecialMessage);
   };
 
   const sendText = (text: string) => {

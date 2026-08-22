@@ -15,13 +15,13 @@ describe("RemoteMode repeatable controls", () => {
   });
 
   it.each([
-    ["Seek backward", "ArrowLeft"],
-    ["Seek forward", "ArrowRight"],
-    ["D-pad up", "ArrowUp"],
-    ["D-pad left", "ArrowLeft"],
-    ["D-pad right", "ArrowRight"],
-    ["D-pad down", "ArrowDown"]
-  ] as const)("repeats %s until release", (buttonName, key) => {
+    ["Seek backward", "ArrowLeft", true],
+    ["Seek forward", "ArrowRight", true],
+    ["D-pad up", "ArrowUp", false],
+    ["D-pad left", "ArrowLeft", false],
+    ["D-pad right", "ArrowRight", false],
+    ["D-pad down", "ArrowDown", false]
+  ] as const)("repeats %s until release", (buttonName, key, isMediaControl) => {
     const sendSpecial = vi.fn();
     renderRemote({ sendSpecial });
 
@@ -36,9 +36,10 @@ describe("RemoteMode repeatable controls", () => {
     fireEvent.click(button, { detail: 1 });
 
     expect(sendSpecial).toHaveBeenCalledTimes(3);
-    expect(sendSpecial).toHaveBeenNthCalledWith(1, key);
-    expect(sendSpecial).toHaveBeenNthCalledWith(2, key);
-    expect(sendSpecial).toHaveBeenNthCalledWith(3, key);
+    const expectedArguments = isMediaControl ? [key, undefined, "media-controls"] : [key];
+    expect(sendSpecial).toHaveBeenNthCalledWith(1, ...expectedArguments);
+    expect(sendSpecial).toHaveBeenNthCalledWith(2, ...expectedArguments);
+    expect(sendSpecial).toHaveBeenNthCalledWith(3, ...expectedArguments);
   });
 
   it("repeats volume key presses until release", () => {
@@ -56,9 +57,9 @@ describe("RemoteMode repeatable controls", () => {
     fireEvent.click(button, { detail: 1 });
 
     expect(sendSpecial).toHaveBeenCalledTimes(3);
-    expect(sendSpecial).toHaveBeenNthCalledWith(1, "VolumeUp");
-    expect(sendSpecial).toHaveBeenNthCalledWith(2, "VolumeUp");
-    expect(sendSpecial).toHaveBeenNthCalledWith(3, "VolumeUp");
+    expect(sendSpecial).toHaveBeenNthCalledWith(1, "VolumeUp", undefined, "media-controls");
+    expect(sendSpecial).toHaveBeenNthCalledWith(2, "VolumeUp", undefined, "media-controls");
+    expect(sendSpecial).toHaveBeenNthCalledWith(3, "VolumeUp", undefined, "media-controls");
   });
 
   it("repeats YouTube volume shortcuts until release", () => {
@@ -76,9 +77,9 @@ describe("RemoteMode repeatable controls", () => {
     fireEvent.click(button, { detail: 1 });
 
     expect(sendSpecial).toHaveBeenCalledTimes(3);
-    expect(sendSpecial).toHaveBeenNthCalledWith(1, "ArrowDown");
-    expect(sendSpecial).toHaveBeenNthCalledWith(2, "ArrowDown");
-    expect(sendSpecial).toHaveBeenNthCalledWith(3, "ArrowDown");
+    expect(sendSpecial).toHaveBeenNthCalledWith(1, "ArrowDown", undefined, "media-controls");
+    expect(sendSpecial).toHaveBeenNthCalledWith(2, "ArrowDown", undefined, "media-controls");
+    expect(sendSpecial).toHaveBeenNthCalledWith(3, "ArrowDown", undefined, "media-controls");
   });
 
   it("stops repeating on focus loss and does not swallow the next click", () => {
@@ -119,6 +120,6 @@ describe("RemoteMode repeatable controls", () => {
     fireEvent.pointerUp(button, { pointerId: 1 });
     fireEvent.click(button, { detail: 1 });
 
-    expect(sendSpecial).toHaveBeenCalledExactlyOnceWith("MediaPlayPause");
+    expect(sendSpecial).toHaveBeenCalledExactlyOnceWith("MediaPlayPause", undefined, "media-controls");
   });
 });

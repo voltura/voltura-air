@@ -26,6 +26,7 @@ interface ConnectionSenderOptions {
   rescheduleHealthCheckRef: RefObject<(() => void) | null>;
   socketRef: RefObject<ControllerSocket | null>;
   supportsInputAckRef: RefObject<boolean>;
+  supportsInputContextV1Ref: RefObject<boolean>;
   supportsVolumeControlRef: RefObject<boolean>;
 }
 
@@ -40,6 +41,7 @@ export function useConnectionSender(options: ConnectionSenderOptions) {
     rescheduleHealthCheckRef,
     socketRef,
     supportsInputAckRef,
+    supportsInputContextV1Ref,
     supportsVolumeControlRef
   } = options;
 
@@ -66,12 +68,16 @@ export function useConnectionSender(options: ConnectionSenderOptions) {
 
     let sequence: number | undefined;
     let payloadToSend: ClientMessage = payload;
+    if (!supportsInputContextV1Ref.current && "inputContext" in payload) {
+      payloadToSend = { ...payload };
+      delete payloadToSend.inputContext;
+    }
     if (supportsInputAckRef.current &&
       shouldTrackInputAck(payload, now, lastMovementAckAtRef.current) &&
       (!isMovement || pendingMovementAck === null)) {
       sequence = nextInputSequenceRef.current;
       nextInputSequenceRef.current = sequence >= Number.MAX_SAFE_INTEGER ? 1 : sequence + 1;
-      payloadToSend = { ...payload, seq: sequence };
+      payloadToSend = { ...payloadToSend, seq: sequence } as ClientMessage;
       pendingInputAcksRef.current.set(sequence, Date.now());
       trimPendingInputAcks(pendingInputAcksRef.current);
       if (isMovement) {
@@ -98,7 +104,7 @@ export function useConnectionSender(options: ConnectionSenderOptions) {
       }
       reconnectRef.current?.();
     }
-  }, [lastMovementAckAtRef, lastUserActivityAtRef, nextInputSequenceRef, pendingInputAcksRef, pendingMovementAckRef, reconnectRef, rescheduleHealthCheckRef, socketRef, supportsInputAckRef]);
+  }, [lastMovementAckAtRef, lastUserActivityAtRef, nextInputSequenceRef, pendingInputAcksRef, pendingMovementAckRef, reconnectRef, rescheduleHealthCheckRef, socketRef, supportsInputAckRef, supportsInputContextV1Ref]);
 
   const requestAudioState = useCallback(() => {
     const socket = socketRef.current;

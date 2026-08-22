@@ -5,24 +5,31 @@ namespace VolturaAir.Host.Features.Diagnostics;
 
 public partial class DiagnosticsPageView : WpfUserControl
 {
-    internal DiagnosticsPageView(Func<System.Windows.UIElement> showApplicationLog, Func<System.Windows.UIElement> showSystemDetails)
+    internal DiagnosticsPageView(
+        Func<System.Windows.UIElement> showApplicationLog,
+        Func<System.Windows.UIElement> showSystemDetails,
+        Func<System.Windows.UIElement> showUsageStatistics)
     {
         InitializeComponent();
-        WireSegmentPair(ApplicationLogButton, SystemDetailsButton);
+        var segments = new[] { ApplicationLogButton, SystemDetailsButton, UsageStatisticsButton };
+        WireSegments(segments);
         ApplicationLogButton.Click += (_, _) => ViewContent.Content = showApplicationLog();
         SystemDetailsButton.Click += (_, _) => ViewContent.Content = showSystemDetails();
+        UsageStatisticsButton.Click += (_, _) => ViewContent.Content = showUsageStatistics();
         ViewContent.Content = showApplicationLog();
     }
 
-    private static void WireSegmentPair(WpfToggleButton first, WpfToggleButton second)
+    private static void WireSegments(IReadOnlyList<WpfToggleButton> segments)
     {
-        first.Click += (_, _) => SetSelected(first, second);
-        second.Click += (_, _) => SetSelected(second, first);
-    }
-
-    private static void SetSelected(WpfToggleButton selected, WpfToggleButton other)
-    {
-        selected.IsChecked = true;
-        other.IsChecked = false;
+        foreach (var segment in segments)
+        {
+            segment.Click += (_, _) =>
+            {
+                foreach (var candidate in segments)
+                {
+                    candidate.IsChecked = ReferenceEquals(candidate, segment);
+                }
+            };
+        }
     }
 }

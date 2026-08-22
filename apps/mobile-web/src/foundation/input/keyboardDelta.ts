@@ -1,8 +1,10 @@
-import type { ClientMessage, KeyboardSpecialMessage } from "../protocol/messages";
+import type { KeyboardSpecialMessage, KeyboardTextMessage } from "../protocol/messages";
+
+type KeyboardInputMessage = KeyboardSpecialMessage | KeyboardTextMessage;
 
 export const liveKeyboardSentinel = "\u2060";
 
-export function getKeyboardDeltaMessages(previous: string, next: string): ClientMessage[] {
+export function getKeyboardDeltaMessages(previous: string, next: string): KeyboardInputMessage[] {
   if (previous === next) {
     return [];
   }
@@ -23,7 +25,7 @@ export function getKeyboardDeltaMessages(previous: string, next: string): Client
 
   const removedCount = previous.length - prefixLength - suffixLength;
   const insertedText = next.slice(prefixLength, next.length - suffixLength);
-  const messages: ClientMessage[] = [];
+  const messages: KeyboardInputMessage[] = [];
 
   for (let index = 0; index < removedCount; index += 1) {
     messages.push({ type: "keyboard.special", key: "Backspace" });
@@ -61,8 +63,8 @@ export function getEmptyDeleteMessage(inputTypeOrKey: string, currentText: strin
   return null;
 }
 
-function textToMessages(text: string, preferShortcutKeys: boolean): ClientMessage[] {
-  const messages: ClientMessage[] = [];
+function textToMessages(text: string, preferShortcutKeys: boolean): KeyboardInputMessage[] {
+  const messages: KeyboardInputMessage[] = [];
   let buffer = "";
 
   for (const character of text) {

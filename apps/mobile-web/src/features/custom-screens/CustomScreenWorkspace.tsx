@@ -106,7 +106,7 @@ export function CustomScreenWorkspace({
     onTouchEnd,
     onTouchMove,
     onTouchStart
-  } = usePointerInput({ send, state, trackpadSettings });
+  } = usePointerInput({ send, state, trackpadSettings, inputContext: "custom-screens" });
   const gyroSurfaceEnabled = definition?.sections.some(section =>
     section.kind === "trackpad" &&
     section.trackpadGyroControl &&
@@ -119,7 +119,7 @@ export function CustomScreenWorkspace({
     activationRequest: gyroActivationRequest,
     connected: state === "paired",
     enabledSurface: gyroSurfaceEnabled,
-    onMove: (dx, dy) => { emit({ type: "pointer.move", dx, dy }); },
+    onMove: (dx, dy) => { emit({ type: "pointer.move", inputContext: "gyro-mouse", dx, dy }); },
     onSelectedChange: onGyroSelectedChange,
     onStop: cancel,
     sensitivity: trackpadSettings.gyroSensitivity,

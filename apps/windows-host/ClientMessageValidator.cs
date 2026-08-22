@@ -115,17 +115,17 @@ internal static class ClientMessageValidator
             ["file.job.control"] = Fields("type", "operationId", "jobId", "action"),
             ["file.job.reorder"] = Fields("type", "operationId", "jobId", "direction"),
             ["file.job.conflict.resolve"] = Fields("type", "operationId", "jobId", "resolution", "applyToAll"),
-            ["audio.mute.toggle"] = Fields("type"),
-            ["audio.volume.set"] = Fields("type", "volume"),
-            ["pointer.move"] = Fields("type", "seq", "dx", "dy"),
-            ["pointer.button"] = Fields("type", "seq", "button", "action"),
-            ["pointer.wheel"] = Fields("type", "seq", "dx", "dy"),
-            ["pointer.zoom"] = Fields("type", "seq", "direction"),
-            ["screen.pointer.move"] = Fields("type", "seq", "displayId", "x", "y"),
-            ["screen.pointer.button"] = Fields("type", "seq", "displayId", "x", "y", "button", "action"),
-            ["screen.pointer.wheel"] = Fields("type", "seq", "displayId", "x", "y", "dx", "dy"),
-            ["keyboard.text"] = Fields("type", "seq", "text"),
-            ["keyboard.special"] = Fields("type", "seq", "key", "modifiers")
+            ["audio.mute.toggle"] = Fields("type", "inputContext"),
+            ["audio.volume.set"] = Fields("type", "volume", "inputContext"),
+            ["pointer.move"] = Fields("type", "seq", "dx", "dy", "inputContext"),
+            ["pointer.button"] = Fields("type", "seq", "button", "action", "inputContext"),
+            ["pointer.wheel"] = Fields("type", "seq", "dx", "dy", "inputContext"),
+            ["pointer.zoom"] = Fields("type", "seq", "direction", "inputContext"),
+            ["screen.pointer.move"] = Fields("type", "seq", "displayId", "x", "y", "inputContext"),
+            ["screen.pointer.button"] = Fields("type", "seq", "displayId", "x", "y", "button", "action", "inputContext"),
+            ["screen.pointer.wheel"] = Fields("type", "seq", "displayId", "x", "y", "dx", "dy", "inputContext"),
+            ["keyboard.text"] = Fields("type", "seq", "text", "inputContext"),
+            ["keyboard.special"] = Fields("type", "seq", "key", "modifiers", "inputContext")
         }.ToFrozenDictionary(StringComparer.Ordinal);
     private const int MaxClientIdLength = 128;
     private const int MaxDeviceNameLength = 120;
@@ -385,8 +385,11 @@ internal static class ClientMessageValidator
                 TryGetRequiredString(root, "jobId", MaxCredentialLength, allowEmpty: false, out _) &&
                 TryGetRequiredString(root, "resolution", 16, allowEmpty: false, out var resolution) && resolution is "replace" or "skip" or "cancel" &&
                 root.TryGetProperty("applyToAll", out var applyToAll) && applyToAll.ValueKind is JsonValueKind.True or JsonValueKind.False,
-            "audio.mute.toggle" => true,
-            "audio.volume.set" => TryGetNumber(root, "volume", 0, 100, out _),
+            "audio.mute.toggle" => TryGetOptionalInputContext(root, out var muteContext) &&
+                IsInputContextAllowed(type, muteContext),
+            "audio.volume.set" => TryGetNumber(root, "volume", 0, 100, out _) &&
+                TryGetOptionalInputContext(root, out var volumeContext) &&
+                IsInputContextAllowed(type, volumeContext),
             "pointer.move" or "pointer.button" or "pointer.wheel" or "pointer.zoom" or
                 "screen.pointer.move" or "screen.pointer.button" or "screen.pointer.wheel" or
                 "keyboard.text" or "keyboard.special" =>
@@ -410,7 +413,9 @@ internal static class ClientMessageValidator
     private static bool TryDecodeInputMessageFields(JsonElement root, string type, out ValidatedInputCommand command)
     {
         command = default;
-        if (!TryGetOptionalSequence(root, out var sequence))
+        if (!TryGetOptionalSequence(root, out var sequence) ||
+            !TryGetOptionalInputContext(root, out var inputContext) ||
+            !IsInputContextAllowed(type, inputContext))
         {
             return false;
         }
@@ -424,7 +429,7 @@ internal static class ClientMessageValidator
                     return false;
                 }
 
-                command = new ValidatedInputCommand(InputCommandKind.PointerMove, sequence, Dx: moveDx, Dy: moveDy);
+                command = new ValidatedInputCommand(InputCommandKind.PointerMove, sequence, Dx: moveDx, Dy: moveDy, Context: inputContext);
                 return true;
             case "pointer.button":
                 if (!TryGetRequiredString(root, "button", MaxMetadataLength, allowEmpty: false, out var button) ||
@@ -435,7 +440,7 @@ internal static class ClientMessageValidator
                     return false;
                 }
 
-                command = new ValidatedInputCommand(InputCommandKind.PointerButton, sequence, Button: button, Action: buttonAction);
+                command = new ValidatedInputCommand(InputCommandKind.PointerButton, sequence, Button: button, Action: buttonAction, Context: inputContext);
                 return true;
             case "pointer.wheel":
                 if (!TryGetPointerDelta(root, "dx", out var wheelDx) ||
@@ -444,7 +449,7 @@ internal static class ClientMessageValidator
                     return false;
                 }
 
-                command = new ValidatedInputCommand(InputCommandKind.PointerWheel, sequence, Dx: wheelDx, Dy: wheelDy);
+                command = new ValidatedInputCommand(InputCommandKind.PointerWheel, sequence, Dx: wheelDx, Dy: wheelDy, Context: inputContext);
                 return true;
             case "pointer.zoom":
                 if (!TryGetRequiredString(root, "direction", MaxMetadataLength, allowEmpty: false, out var direction) ||
@@ -453,7 +458,7 @@ internal static class ClientMessageValidator
                     return false;
                 }
 
-                command = new ValidatedInputCommand(InputCommandKind.PointerZoom, sequence, Action: direction);
+                command = new ValidatedInputCommand(InputCommandKind.PointerZoom, sequence, Action: direction, Context: inputContext);
                 return true;
             case "screen.pointer.move":
             case "screen.pointer.button":
@@ -467,7 +472,7 @@ internal static class ClientMessageValidator
 
                 if (type == "screen.pointer.move")
                 {
-                    command = new ValidatedInputCommand(InputCommandKind.ScreenPointerMove, sequence, DisplayId: displayId, X: x, Y: y);
+                    command = new ValidatedInputCommand(InputCommandKind.ScreenPointerMove, sequence, DisplayId: displayId, X: x, Y: y, Context: inputContext);
                     return true;
                 }
 
@@ -488,7 +493,8 @@ internal static class ClientMessageValidator
                         Action: directAction,
                         DisplayId: displayId,
                         X: x,
-                        Y: y);
+                        Y: y,
+                        Context: inputContext);
                     return true;
                 }
 
@@ -505,7 +511,8 @@ internal static class ClientMessageValidator
                     Dy: directWheelDy,
                     DisplayId: displayId,
                     X: x,
-                    Y: y);
+                    Y: y,
+                    Context: inputContext);
                 return true;
             case "keyboard.text":
                 if (!TryGetRequiredString(root, "text", TextTransferLimits.MaxTextLength, allowEmpty: false, out var text))
@@ -513,7 +520,7 @@ internal static class ClientMessageValidator
                     return false;
                 }
 
-                command = new ValidatedInputCommand(InputCommandKind.KeyboardText, sequence, Text: text);
+                command = new ValidatedInputCommand(InputCommandKind.KeyboardText, sequence, Text: text, Context: inputContext);
                 return true;
             case "keyboard.special":
                 if (!TryGetRequiredString(root, "key", MaxKeyLength, allowEmpty: false, out var key) ||
@@ -522,11 +529,67 @@ internal static class ClientMessageValidator
                     return false;
                 }
 
-                command = new ValidatedInputCommand(InputCommandKind.KeyboardSpecial, sequence, Key: key, ModifierValues: modifiers);
+                command = new ValidatedInputCommand(InputCommandKind.KeyboardSpecial, sequence, Key: key, ModifierValues: modifiers, Context: inputContext);
                 return true;
             default:
                 return false;
         }
+    }
+
+    internal static bool TryGetOptionalInputContext(JsonElement root, out InputCommandContext? context)
+    {
+        context = null;
+        if (!root.TryGetProperty("inputContext", out var property))
+        {
+            return true;
+        }
+
+        if (property.ValueKind != JsonValueKind.String)
+        {
+            return false;
+        }
+
+        context = property.GetString() switch
+        {
+            "trackpad" => InputCommandContext.Trackpad,
+            "keyboard" => InputCommandContext.Keyboard,
+            "dictation" => InputCommandContext.Dictation,
+            "media-controls" => InputCommandContext.MediaControls,
+            "presentation" => InputCommandContext.Presentation,
+            "custom-screens" => InputCommandContext.CustomScreens,
+            "screen-view" => InputCommandContext.ScreenView,
+            "gyro-mouse" => InputCommandContext.GyroMouse,
+            _ => null
+        };
+        return context is not null;
+    }
+
+    private static bool IsInputContextAllowed(string type, InputCommandContext? context)
+    {
+        if (context is null)
+        {
+            return true;
+        }
+
+        return type switch
+        {
+            "audio.mute.toggle" or "audio.volume.set" =>
+                context is InputCommandContext.MediaControls or InputCommandContext.CustomScreens,
+            "pointer.move" or "pointer.button" or "pointer.wheel" or "pointer.zoom" =>
+                context is InputCommandContext.Trackpad or InputCommandContext.Keyboard or
+                    InputCommandContext.Presentation or InputCommandContext.CustomScreens or
+                    InputCommandContext.ScreenView or InputCommandContext.GyroMouse,
+            "screen.pointer.move" or "screen.pointer.button" or "screen.pointer.wheel" =>
+                context is InputCommandContext.ScreenView,
+            "keyboard.text" =>
+                context is InputCommandContext.Keyboard or InputCommandContext.Dictation or
+                    InputCommandContext.ScreenView,
+            "keyboard.special" =>
+                context is InputCommandContext.Keyboard or InputCommandContext.MediaControls or
+                    InputCommandContext.Presentation or InputCommandContext.CustomScreens or
+                    InputCommandContext.ScreenView,
+            _ => false
+        };
     }
 
     private static bool IsValidAppLaunchActionId(string actionId)

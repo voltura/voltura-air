@@ -50,6 +50,8 @@ performs startup, rollback, and shutdown.
 | Custom-screen definitions, editing, assignment, and invocation | `CustomScreenStore`, `CustomScreenService`, `Features/CustomScreens`, and `CustomScreenCommandHandler` |
 | Settings and persisted data | Their focused settings/store types; `HostSettingsJsonValue` supplies only the shared bounded exact-shape registry-JSON boundary |
 | Logs and Diagnostics reads | `AppLog`, file store, and per-view refresh session |
+| Usage-statistics consent, identity, counters, sender, and Diagnostics state | `UsageStatisticsSettings`, `UsageTelemetryService`, typed recorder, session-owned feature bitset, and `Features/Diagnostics/UsageStatisticsController` |
+| Usage-statistics ingest, storage, aggregate administration, and cleanup | `apps/public-site/telemetry` plus the existing Custom Screens administrator/session/CSRF/layout owner |
 | Tray, main window, and WPF pages | Tray context, `MainWindow`, and `Features/<feature>` |
 
 `MainWindow` owns only shell composition, navigation, visibility, and
@@ -71,6 +73,7 @@ rollback and shutdown release composition-owned resources in reverse order.
 | Phone webcam | The coordinator owns one expiring offer or active phone producer. The peer owns receive-only H.264 and optional Opus RTP plus ICE/TURN resources; duration-bounded pipelines own depacketization, Media Foundation/Concentus decode, and exact-endpoint WASAPI output. The Windows page may explicitly own one duration-bounded `CABLE Output`-to-default-speakers monitor while an audio track is active. The feature owns one latest decoded frame and authenticated versioned pipe; the Frame Server media source owns fixed 1920 x 1080 NV12 consumer output. Stop, hiding, revocation, loss, removal, and shutdown release their complete ownership chains. |
 | Native input, Awake, and simulated activity | Input is decoded once and dispatched in order. Native calls have bounded callers; late completion reconciles before more work. Awake uses `IAwakeService`, never power-plan changes or elevation. Optional simulated activity owns one fixed-delay loop while enabled, probes input availability without waiting, releases the input gate before its one-event native call, and is disposed before the shared injector. |
 | Logs and files | Producers use bounded non-blocking queues. Filesystem work stays off input/UI loops. Stores validate bounds and content, replace atomically, and preserve the last complete state. |
+| Usage statistics | While disabled there is no accumulator, channel, worker, timer, or HTTP work. While enabled the runtime owns one fixed saturating accumulator, one capacity-one batch channel, separate scheduler/sender tasks, one in-flight retrying batch, five-second cancellable HTTPS attempts, and no shutdown flush. Disable publishes the cached false state before cancellation and clears every unsent owner. |
 | WPF and tray | Dispatcher work is owned and bounded. Timers, hooks, subscriptions, icons, windows, and refresh sessions are released on unload/shutdown. |
 | Mobile effects | Each effect releases sockets, listeners, timers, pointer capture, animation frames, and speech events it acquires. |
 | Mobile pairing QR capture | The pairing feature owns one temporary camera stream and one lazy decoder worker per active scan. Live input is a centered capacity-one frame at a bounded cadence; cancellation, success, hiding, track loss, replacement, or unmount stops every track, timer, listener, and worker. Photo capture uses the same worker and pairing-link parser without retaining frames. |
@@ -81,6 +84,32 @@ native resource, or network activity while disabled. Hot input/render paths use
 cached settings and event-driven updates, not registry reads or polling.
 Simulated-activity success and busy skips perform no persistence, logging, UI,
 or network work; remote input never enters its timer, state, or failure paths.
+
+Usage statistics follows that optional-feature rule without introducing an
+event bus or analytics SDK. `WpfHostRuntime` owns one service and disposes it
+after admitted controller sessions stop. Producers capture one immutable enabled-
+generation token, use a session-local fixed bitset bound to that generation, and
+perform saturating integer increments only when the service still owns that exact
+generation. Work paused across disable/re-enable is dropped instead of crossing
+into the replacement identity. After making recording unavailable, Disable
+synchronously clears every live session bitset through a fixed connection-bounded
+registry before the transition completes; sessions use no reset subscription.
+Producers never log, allocate a per-event record, await, or touch the Windows registry, disk, HTTP,
+database, UI, or the Application-log queue. The scheduler atomically replaces
+the current accumulator and uses `TryWrite`; a full channel drops the sealed
+snapshot locally. HTTP delay and retry therefore cannot delay command or media
+processing. The PWA supplies only capability-gated functional input context on
+the existing authenticated transport and owns no telemetry identity or sender.
+
+The fixed first-party PHP endpoint validates the complete version-1 batch,
+derives domain-separated HMAC keys, applies installation/source/service bounds,
+and commits deduplication plus daily upsert in one MariaDB transaction. Public
+ingest never loads administrator cleanup or starts a catalog session. The
+aggregate dashboard instead reuses the existing administrator, role, session,
+CSRF, theme, and layout and issues only fixed telemetry-table queries. Automatic
+retention is lease-controlled and bounded per table; manual deletion requires a
+preview whose counts are rechecked under the deletion transaction, commits at
+most 1,000 rows, and cannot address catalog tables.
 
 Direct LAN and Relay converge on the same `WebSocketSessionHandler` and
 `PairingManager`. In Relay mode a persistent routing key derives an opaque route

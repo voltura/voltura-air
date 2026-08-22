@@ -38,6 +38,21 @@ npm run dev
 
 Run one side with `npm run dev:web` or `npm run dev:host`.
 
+The local site initializer owns the ignored PHP 8.5/MariaDB configuration and
+applies the additive telemetry schema independently from the fresh Custom
+Screens catalog schema:
+
+```powershell
+npm run site:dev:init
+npm run site:check
+npm run test:site-telemetry-integration
+```
+
+The telemetry integration command is mandatory before a telemetry release. It
+uses uniquely identifiable local fixtures, exercises success/failure/rollback,
+rate, retention, dashboard, and cleanup boundaries, and removes its fixtures
+without clearing catalog data. It never reaches the hosted one.com database.
+
 Automated tests, screenshot capture, `dev:ui`, and temporary hosts use loopback,
 disposable pairing/settings, and `--isolated-test-mode`; they never access
 production settings or run beside the normal host. `npm run test:ui` is the
@@ -57,6 +72,9 @@ Run the smallest relevant checks:
 | Host source structure | Add `npm run host:ownership:check` |
 | Shared host lifecycle, native/resource, registry/persistence, network, or protocol boundary | Focused production-path boundary tests; full `npm run test:host` only when broad/shared |
 | Interaction/transport hot path | Prove delayed media, analytics, logging, persistence, and UI work cannot hold command/input processing; test bounded overload rather than latency growth |
+| Usage statistics host/protocol | Focused consent/identity/sender/session/protocol tests, including blocked sender and cancellation; mobile capability/coalescing tests; warning-free host/mobile build |
+| Usage statistics PHP/MariaDB/dashboard | `npm run site:check`, static site telemetry tests, then mandatory `npm run test:site-telemetry-integration` against the configured local database; cover rollback and catalog sentinels |
+| Usage statistics installer | Both package variants plus consent static/transaction tests; verify unset upgrade, existing decision, silent mode, Deny focus, cancellation, write failure, and final real installer matrix |
 | Secure Direct controller transport | Focused Relay signaling/Origin tests, mobile lifecycle/parser tests, host admission/native-boundary tests, bundle/size gates, then real-device private-LAN setup and signaling-loss validation; preserve the selected transport without automatic fallback |
 | Gyro or motion input | Focused motion mapping, permission, hook cleanup, Trackpad, and app-navigation tests; mobile check/build as scoped; then real sensor, orientation, visibility, and permission validation over HTTPS |
 | Screen viewing | Fake-capture `TestServer` protocol/crypto/cleanup tests, mobile parser/renderer tests, bundle/size gates, then Windows preflight and `npm run dev:quick`; real phone/Wi-Fi viewing remains user acceptance |

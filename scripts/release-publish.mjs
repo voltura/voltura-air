@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -101,7 +102,7 @@ async function assertGitStatePathAbsent(name) {
 function getReleaseArguments(tag, repository) {
   return [
     "release", "view", tag, "--repo", repository,
-    "--json", "tagName,isDraft,isPrerelease,targetCommitish,url,assets"
+    "--json", "tagName,name,body,isDraft,isPrerelease,targetCommitish,url,assets"
   ];
 }
 
@@ -187,9 +188,21 @@ ${releaseNotesEndMarker}
 `;
 }
 
-function auditReleaseArtifacts(release, expectedCommit, expectedNames, expectedDraft, expectedArtifacts = null) {
+export function auditReleaseArtifacts(
+  release,
+  expectedCommit,
+  expectedNames,
+  expectedDraft,
+  expectedArtifacts = null,
+  expectedReleaseMetadata = null
+) {
   if (!release || release.isDraft !== expectedDraft || release.targetCommitish !== expectedCommit) {
     throw new Error(`${expectedDraft ? "Draft" : "Published"} release audit failed: release state or target commit does not match.`);
+  }
+  if (expectedReleaseMetadata &&
+      (release.name !== expectedReleaseMetadata.releaseTitle ||
+       createHash("sha256").update(release.body ?? "", "utf8").digest("hex") !== expectedReleaseMetadata.releaseBodySha256)) {
+    throw new Error(`${expectedDraft ? "Draft" : "Published"} release title or body does not match the packaged checkpoint.`);
   }
   const actualNames = release.assets.map((asset) => asset.name).sort();
   if (actualNames.join("|") !== [...expectedNames].sort().join("|")) {
@@ -215,8 +228,21 @@ function getReleaseHashes(release, expectedNames) {
   });
 }
 
-export function auditDraft(release, expectedCommit, expectedNames, expectedArtifacts = null) {
-  auditReleaseArtifacts(release, expectedCommit, expectedNames, true, expectedArtifacts);
+export function auditDraft(
+  release,
+  expectedCommit,
+  expectedNames,
+  expectedArtifacts = null,
+  expectedReleaseMetadata = null
+) {
+  auditReleaseArtifacts(
+    release,
+    expectedCommit,
+    expectedNames,
+    true,
+    expectedArtifacts,
+    expectedReleaseMetadata
+  );
 }
 
 async function performStep(progress, title, detail, action) {
@@ -238,7 +264,11 @@ export async function runLocalRelease(args = process.argv.slice(2), options = {}
   return withReleaseLock(() => runLocalReleaseUnlocked(args, options));
 }
 
-async function runLocalReleaseUnlocked(args = process.argv.slice(2), { progress, publishLatest = false } = {}) {
+async function runLocalReleaseUnlocked(args = process.argv.slice(2), {
+  progress,
+  publishLatest = false,
+  retainCheckpoint = false
+} = {}) {
   const releaseProgress = progress ?? createReleaseProgress({ totalSteps: 5 });
   const { version: explicitVersion } = parseReleaseArguments(args);
   let releaseContext;
@@ -323,6 +353,14 @@ async function runLocalReleaseUnlocked(args = process.argv.slice(2), { progress,
     const releaseNotes = await readFile(notesPath, "utf8");
     const notes = getReleaseNotesSection(releaseNotes, targetVersion);
     const notices = getGeneralReleaseNotices(releaseNotes);
+    const releaseTitle = `Voltura Air ${targetTag}`;
+    const releaseBody = buildReleaseBody({
+      notes,
+      notices,
+      version: targetVersion,
+      latestTag: latest.tag,
+      repository
+    });
     const targetTagExists = targetTag === currentTag ? currentTagExists : remoteTagExists(targetTag);
     const targetReleaseBeforeBuild = targetTag === currentTag
       ? currentRelease
@@ -350,7 +388,7 @@ async function runLocalReleaseUnlocked(args = process.argv.slice(2), { progress,
         throw new Error(`Draft '${targetTag}' cannot be resumed without its verified packaged checkpoint.`);
       }
       try {
-        auditDraft(targetReleaseBeforeBuild, startingCommit, assetNames, checkpoint.artifacts);
+        auditDraft(targetReleaseBeforeBuild, startingCommit, assetNames, checkpoint.artifacts, checkpoint);
         resumePhase = "drafted";
       } catch (error) {
         resumePhase = "packaged";
@@ -367,6 +405,8 @@ async function runLocalReleaseUnlocked(args = process.argv.slice(2), { progress,
       notes,
       notices,
       repository,
+      releaseBody,
+      releaseTitle,
       resumePhase,
       startingCommit,
       targetReleaseBeforeBuild,
@@ -415,12 +455,14 @@ async function runLocalReleaseUnlocked(args = process.argv.slice(2), { progress,
           throw new Error(`Repository changed during final release packaging: ${finalStatus}`);
         }
         await assertReleaseAssets(assetPaths);
-        await writeReleaseCheckpoint({
+        releaseContext.checkpoint = await writeReleaseCheckpoint({
           repositoryRoot,
           version: releaseContext.targetVersion,
           commit: releaseCommit,
           phase: "packaged",
-          assetPaths
+          assetPaths,
+          releaseTitle: releaseContext.releaseTitle,
+          releaseBody: releaseContext.releaseBody
         });
       } else {
         console.log(`Reusing the verified artifacts already packaged from commit ${releaseCommit}.`);
@@ -428,25 +470,25 @@ async function runLocalReleaseUnlocked(args = process.argv.slice(2), { progress,
 
       checked("git", ["push", "origin", "main"]);
       bodyPath = path.join(repositoryRoot, "artifacts", "publish", `release-notes-${releaseContext.targetTag}.md`);
-      await writeFile(bodyPath, buildReleaseBody({
-        notes: releaseContext.notes,
-        notices: releaseContext.notices,
-        version: releaseContext.targetVersion,
-        latestTag: releaseContext.latest.tag,
-        repository: releaseContext.repository
-      }), "utf8");
+      await writeFile(bodyPath, releaseContext.releaseBody, "utf8");
     });
 
     await performStep(releaseProgress, "Creating and auditing the GitHub release", "Uploading the exact ZIP and installer set, then verifying GitHub metadata and digests.", () => {
       if (releaseContext.resumePhase === "published") {
-        auditReleaseArtifacts(getRelease(releaseContext.targetTag, releaseContext.repository), releaseCommit, assetNames, false);
+        auditReleaseArtifacts(
+          getRelease(releaseContext.targetTag, releaseContext.repository),
+          releaseCommit,
+          assetNames,
+          false,
+          releaseContext.checkpoint?.artifacts,
+          releaseContext.checkpoint);
         return;
       }
       const existingDraft = releaseContext.targetReleaseBeforeBuild;
       if (existingDraft === null) {
         const createArgs = [
           "release", "create", releaseContext.targetTag, "--repo", releaseContext.repository,
-          "--target", releaseCommit, "--title", `Voltura Air ${releaseContext.targetTag}`,
+          "--target", releaseCommit, "--title", releaseContext.releaseTitle,
           "--draft", "--fail-on-no-commits", "--notes-file", bodyPath
         ];
         if (releaseContext.targetSemver.prerelease.length > 0) createArgs.push("--prerelease");
@@ -454,12 +496,17 @@ async function runLocalReleaseUnlocked(args = process.argv.slice(2), { progress,
         checked("gh", createArgs);
       } else if (releaseContext.resumePhase !== "drafted") {
         checked("gh", ["release", "edit", releaseContext.targetTag, "--repo", releaseContext.repository,
-          "--title", `Voltura Air ${releaseContext.targetTag}`, "--notes-file", bodyPath]);
+          "--title", releaseContext.releaseTitle, "--notes-file", bodyPath]);
         checked("gh", ["release", "upload", releaseContext.targetTag, "--repo", releaseContext.repository,
           "--clobber", ...assetPaths]);
       }
       const auditedDraft = getRelease(releaseContext.targetTag, releaseContext.repository);
-      auditDraft(auditedDraft, releaseCommit, assetNames);
+      auditDraft(
+        auditedDraft,
+        releaseCommit,
+        assetNames,
+        releaseContext.checkpoint?.artifacts,
+        releaseContext.checkpoint);
     });
 
     await performStep(
@@ -479,10 +526,15 @@ async function runLocalReleaseUnlocked(args = process.argv.slice(2), { progress,
     );
 
     const finalRelease = getRelease(releaseContext.targetTag, releaseContext.repository);
-    auditReleaseArtifacts(finalRelease, releaseCommit, assetNames, !publishLatest,
-      releaseContext.checkpoint?.phase === "packaged" ? releaseContext.checkpoint.artifacts : null);
+    auditReleaseArtifacts(
+      finalRelease,
+      releaseCommit,
+      assetNames,
+      !publishLatest,
+      releaseContext.checkpoint?.phase === "packaged" ? releaseContext.checkpoint.artifacts : null,
+      releaseContext.checkpoint?.phase === "packaged" ? releaseContext.checkpoint : null);
     const hashes = getReleaseHashes(finalRelease, assetNames);
-    if (publishLatest) {
+    if (publishLatest && !retainCheckpoint) {
       await rm(getReleaseCheckpointPath(repositoryRoot, releaseContext.targetVersion), { force: true });
     }
     const url = `https://github.com/${releaseContext.repository}/releases/tag/${releaseContext.targetTag}`;
@@ -505,9 +557,11 @@ async function runLocalReleaseUnlocked(args = process.argv.slice(2), { progress,
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const cliArgs = process.argv.slice(2);
   const publishLatest = cliArgs[0] === "--publish-latest";
-  const releaseArgs = publishLatest ? cliArgs.slice(1) : cliArgs;
+  const publishArgs = publishLatest ? cliArgs.slice(1) : cliArgs;
+  const retainCheckpoint = publishArgs[0] === "--retain-checkpoint";
+  const releaseArgs = retainCheckpoint ? publishArgs.slice(1) : publishArgs;
   const progress = createReleaseProgress({ totalSteps: 5 });
-  runLocalRelease(releaseArgs, { progress, publishLatest }).then((result) => {
+  runLocalRelease(releaseArgs, { progress, publishLatest, retainCheckpoint }).then((result) => {
     for (const hash of result.hashes) {
       console.log(hash);
     }

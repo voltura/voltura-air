@@ -38,6 +38,9 @@
 !define POSTAL_ADDRESS "Voltura AB, H${U+00E4}stholmsv${U+00E4}gen 33, SE-131 71 Nacka, Sweden"
 !define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\Voltura Air"
 !define RUN_KEY "Software\Microsoft\Windows\CurrentVersion\Run"
+!define SETTINGS_KEY "Software\VolturaAir"
+!define USAGE_CONSENT_VALUE "UsageStatisticsInstalledConsent"
+!define USAGE_ID_VALUE "UsageStatisticsInstalledId"
 
 !ifdef TEST_NO_INSTALLER_COMPRESSION
 !define INSTALLER_TEST_SUFFIX "-test-uncompressed"
@@ -56,6 +59,7 @@
 !endif
 
 !include "MUI2.nsh"
+!include "nsDialogs.nsh"
 !include "LogicLib.nsh"
 !include "WinMessages.nsh"
 
@@ -109,6 +113,7 @@ VIAddVersionKey "Comments" "Developer: ${DEVELOPER}; Website: ${PRODUCT_URL}; Em
 !define MUI_PAGE_CUSTOMFUNCTION_SHOW FinishInstallerWindowActivation
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_COMPONENTS
+Page custom UsageStatisticsPageCreate UsageStatisticsPageLeave
 !insertmacro MUI_PAGE_INSTFILES
 !define MUI_PAGE_CUSTOMFUNCTION_SHOW ConfigureVbCableFinishOption
 !insertmacro MUI_PAGE_FINISH
@@ -130,6 +135,13 @@ Var MaintenanceInstallerRollback
 Var MaintenanceInstallerPrepared
 Var MaintenanceInstallerHadPrevious
 Var MaintenanceInstallerSizeKb
+Var UsageConsentChoice
+Var UsageConsentPromptRequired
+Var UsageConsentPage
+Var UsageConsentStatus
+Var UsageConsentAllowButton
+Var UsageConsentDenyButton
+Var UsageConsentStateUnknown
 
 Function OpenVbCableWebsite
   ExecShell "open" "${VB_CABLE_URL}"
@@ -192,6 +204,21 @@ Function FinishInstallerWindowActivation
 FunctionEnd
 
 Function .onInit
+  StrCpy $UsageConsentChoice 0
+  StrCpy $UsageConsentPromptRequired 0
+  StrCpy $UsageConsentStateUnknown 0
+  IfSilent usage_consent_init_done
+  ClearErrors
+  ReadRegDWORD $0 HKCU "${SETTINGS_KEY}" "${USAGE_CONSENT_VALUE}"
+  IfErrors usage_consent_prompt
+  ${If} $0 == 1
+    Goto usage_consent_init_done
+  ${ElseIf} $0 == 2
+    Goto usage_consent_init_done
+  ${EndIf}
+usage_consent_prompt:
+  StrCpy $UsageConsentPromptRequired 1
+usage_consent_init_done:
   InitPluginsDir
   SetOutPath "$PLUGINSDIR"
   File /oname=${INSTALL_TRANSACTION_SCRIPT} "${__FILEDIR__}\InstallTransaction.ps1"
@@ -204,6 +231,119 @@ Function .onInit
     Abort "Installer transaction recovery failed."
   ${EndIf}
   Call ConfigureInstalledWebcamSelection
+FunctionEnd
+
+Function UsageStatisticsPageCreate
+  ${If} $UsageConsentPromptRequired != 1
+    Abort
+  ${EndIf}
+
+  nsDialogs::Create 1018
+  Pop $UsageConsentPage
+  ${If} $UsageConsentPage == error
+    Abort
+  ${EndIf}
+
+  !insertmacro MUI_HEADER_TEXT "Usage statistics" "Optional. Voltura Air works the same either way."
+  ${NSD_CreateLabel} 0 0 100% 18u "Share basic usage counts to help improve Voltura Air."
+  Pop $0
+  ${NSD_CreateLabel} 0 24u 100% 34u "Includes a random ID, app version, connection type, and feature-use counts. Never includes text, files, screen, camera, audio, keys, or coordinates."
+  Pop $0
+  ${NSD_CreateLabel} 0 62u 100% 16u "Change this later in Diagnostics."
+  Pop $0
+  ${NSD_CreateButton} 0 84u 48% 28u "Allow usage statistics"
+  Pop $UsageConsentAllowButton
+  ${NSD_OnClick} $UsageConsentAllowButton UsageStatisticsAllowClicked
+  ${NSD_CreateButton} 52% 84u 48% 28u "Do not allow"
+  Pop $UsageConsentDenyButton
+  ${NSD_OnClick} $UsageConsentDenyButton UsageStatisticsDenyClicked
+  ${NSD_CreateLabel} 0 118u 100% 16u ""
+  Pop $UsageConsentStatus
+
+  GetDlgItem $0 $HWNDPARENT 1
+  EnableWindow $0 0
+  SendMessage $HWNDPARENT ${WM_NEXTDLGCTL} $UsageConsentDenyButton 1
+  nsDialogs::Show
+FunctionEnd
+
+Function UsageStatisticsAllowClicked
+  StrCpy $UsageConsentChoice 1
+  ${NSD_SetText} $UsageConsentStatus "Allow usage statistics selected."
+  GetDlgItem $0 $HWNDPARENT 1
+  EnableWindow $0 1
+FunctionEnd
+
+Function UsageStatisticsDenyClicked
+  StrCpy $UsageConsentChoice 2
+  ${NSD_SetText} $UsageConsentStatus "Do not allow selected."
+  GetDlgItem $0 $HWNDPARENT 1
+  EnableWindow $0 1
+FunctionEnd
+
+Function UsageStatisticsPageLeave
+  ${If} $UsageConsentChoice == 0
+    MessageBox MB_ICONEXCLAMATION "Choose Allow usage statistics or Do not allow before continuing."
+    Abort
+  ${EndIf}
+FunctionEnd
+
+Function PersistUsageStatisticsConsent
+  ${If} $UsageConsentChoice == 0
+    Return
+  ${EndIf}
+
+  ; Never activate an identifier left behind by an unset or malformed state.
+  ; The host creates a fresh identifier only after the verified Allow write.
+  ${If} $UsageConsentChoice == 1
+    ClearErrors
+    ReadRegStr $0 HKCU "${SETTINGS_KEY}" "${USAGE_ID_VALUE}"
+    IfErrors usage_consent_identity_absent
+    ClearErrors
+    DeleteRegValue HKCU "${SETTINGS_KEY}" "${USAGE_ID_VALUE}"
+    IfErrors usage_consent_write_failed
+    ClearErrors
+    ReadRegStr $0 HKCU "${SETTINGS_KEY}" "${USAGE_ID_VALUE}"
+    IfErrors usage_consent_identity_absent
+    Goto usage_consent_write_failed
+  ${EndIf}
+
+usage_consent_identity_absent:
+  ; The page only runs for an unset or malformed value. Commit exactly the
+  ; selected DWORD once, then fail closed if verification fails.
+  ClearErrors
+  WriteRegDWORD HKCU "${SETTINGS_KEY}" "${USAGE_CONSENT_VALUE}" $UsageConsentChoice
+  IfErrors usage_consent_write_failed
+  ClearErrors
+  ReadRegDWORD $0 HKCU "${SETTINGS_KEY}" "${USAGE_CONSENT_VALUE}"
+  IfErrors usage_consent_write_failed
+  ${If} $0 == $UsageConsentChoice
+    Return
+  ${EndIf}
+
+usage_consent_write_failed:
+  ; Prefer an explicit durable Denied value. If that cannot be verified, remove
+  ; the consent value and distinguish a verified absence from an unknown state.
+  ClearErrors
+  WriteRegDWORD HKCU "${SETTINGS_KEY}" "${USAGE_CONSENT_VALUE}" 2
+  IfErrors usage_consent_delete_fallback
+  ReadRegDWORD $0 HKCU "${SETTINGS_KEY}" "${USAGE_CONSENT_VALUE}"
+  IfErrors usage_consent_delete_fallback
+  ${If} $0 == 2
+    Goto usage_consent_warn_off
+  ${EndIf}
+usage_consent_delete_fallback:
+  ClearErrors
+  DeleteRegValue HKCU "${SETTINGS_KEY}" "${USAGE_CONSENT_VALUE}"
+  ClearErrors
+  ReadRegDWORD $0 HKCU "${SETTINGS_KEY}" "${USAGE_CONSENT_VALUE}"
+  IfErrors usage_consent_warn_off
+  Goto usage_consent_warn_unknown
+usage_consent_warn_off:
+  MessageBox MB_ICONEXCLAMATION "Voltura Air was installed, but setup could not save your Usage statistics choice. Usage statistics remain off. Retry under Diagnostics > Usage statistics after setup."
+  Return
+usage_consent_warn_unknown:
+  StrCpy $UsageConsentStateUnknown 1
+  MessageBox MB_ICONSTOP "Voltura Air was installed, but setup could not verify the Usage statistics registry state. Setup will not start Voltura Air. When you start it manually, go directly to Diagnostics > Usage statistics and explicitly turn the setting off or on."
 FunctionEnd
 
 Function un.onInit
@@ -444,6 +584,10 @@ phone_webcam_clear:
 FunctionEnd
 
 Function ConfigureVbCableFinishOption
+  ${If} $UsageConsentStateUnknown == 1
+    SendMessage $mui.FinishPage.Run ${BM_SETCHECK} ${BST_UNCHECKED} 0
+    EnableWindow $mui.FinishPage.Run 0
+  ${EndIf}
   SectionGetFlags ${SEC_PHONE_WEBCAM} $0
   IntOp $0 $0 & ${SF_SELECTED}
   ${If} $0 == 0
@@ -608,6 +752,7 @@ Section -FinalizeInstall
     MessageBox MB_ICONSTOP "Voltura Air was installed, but setup could not finish transaction cleanup. Run setup again to recover it."
     Abort "Installer transaction cleanup failed."
   ${EndIf}
+  Call PersistUsageStatisticsConsent
   Delete "$MaintenanceInstallerRollback"
 SectionEnd
 

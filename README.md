@@ -179,6 +179,13 @@ Voltura Air is freeware from Voltura AB and is open source under the
 [MIT License](LICENSE). It can be used without payment, registration, trial
 limits, or feature locks.
 
+Optional **Usage statistics** are off until explicitly allowed. When allowed,
+only the Windows host sends a random installation identifier, its version, and
+coarse host-start, successful-connection, and feature-using-session counts to
+Voltura-operated infrastructure. The mobile web app does not send telemetry,
+and normal local or remote control does not require statistics or an account.
+The choice can be changed under **Diagnostics → Usage statistics**.
+
 Release binaries are not code-signed. Windows can therefore show an
 unknown-publisher or Microsoft Defender SmartScreen warning. Download only from
 the [official product page](https://voltura.se/air/) or the

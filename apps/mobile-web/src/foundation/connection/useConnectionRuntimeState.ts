@@ -42,6 +42,7 @@ export function useConnectionRuntimeState(
   const [hostStatus, setHostStatus] = useState<HostStatusMetadata | null>(null);
   const supportsVolumeControlRef = useRef(false);
   const supportsInputAckRef = useRef(false);
+  const supportsInputContextV1Ref = useRef(false);
 
   const clearRuntimeState = useCallback(() => {
     pendingInputAcksRef.current.clear();
@@ -64,11 +65,13 @@ export function useConnectionRuntimeState(
     setHostStatus(null);
     supportsVolumeControlRef.current = false;
     supportsInputAckRef.current = false;
+    supportsInputContextV1Ref.current = false;
   }, [pendingInputAcksRef, pendingMovementAckRef]);
 
   const updateCapabilities = useCallback((capabilities: ServerCapabilities | undefined, connected = true) => {
     const nextSupportsVolumeControl = connected && hasVolumeCapability(capabilities);
     const nextSupportsInputAck = connected && hasInputAckCapability(capabilities);
+    const nextSupportsInputContextV1 = connected && capabilities?.inputContextV1 === true;
     setSupportsGestureDebug(connected && hasGestureDebugCapability(capabilities));
     setSupportsSleep(connected && hasSleepCapability(capabilities));
     setSupportsVolumeControl(nextSupportsVolumeControl);
@@ -85,6 +88,7 @@ export function useConnectionRuntimeState(
     setAwakeCapability(connected ? getAwakeCapability(capabilities) : null);
     supportsVolumeControlRef.current = nextSupportsVolumeControl;
     supportsInputAckRef.current = nextSupportsInputAck;
+    supportsInputContextV1Ref.current = nextSupportsInputContextV1;
     if (!nextSupportsVolumeControl) {
       setAudioState(null);
     }
@@ -117,6 +121,7 @@ export function useConnectionRuntimeState(
     setHostStatus,
     supportsGestureDebug,
     supportsInputAckRef,
+    supportsInputContextV1Ref,
     supportsRemoteLaunch,
     supportsTextTransfer,
     supportsSleep,

@@ -13,6 +13,18 @@ internal enum InputCommandKind
     KeyboardSpecial
 }
 
+internal enum InputCommandContext
+{
+    Trackpad,
+    Keyboard,
+    Dictation,
+    MediaControls,
+    Presentation,
+    CustomScreens,
+    ScreenView,
+    GyroMouse
+}
+
 internal readonly record struct ValidatedInputCommand(
     InputCommandKind Kind,
     long? Sequence = null,
@@ -25,7 +37,8 @@ internal readonly record struct ValidatedInputCommand(
     double Y = 0,
     string? Text = null,
     string? Key = null,
-    string[]? ModifierValues = null)
+    string[]? ModifierValues = null,
+    InputCommandContext? Context = null)
 {
     public string Type => Kind switch
     {

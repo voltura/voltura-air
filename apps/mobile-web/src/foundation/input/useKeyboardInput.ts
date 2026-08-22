@@ -7,9 +7,9 @@ import {
   getKeyboardDeltaMessages,
   liveKeyboardSentinel
 } from "./keyboardDelta";
-import type { ClientMessage } from "../protocol/messages";
+import type { KeyboardSpecialMessage, KeyboardTextMessage } from "../protocol/messages";
 
-export function useKeyboardInput(emit: (payload: ClientMessage) => void) {
+export function useKeyboardInput(emit: (payload: KeyboardTextMessage | KeyboardSpecialMessage) => void) {
   const [keyboardText, setKeyboardText] = useState("");
   const [liveKeyboard, setLiveKeyboard] = useState(() => loadLiveKeyboardDefault());
   const committedKeyboardTextRef = useRef("");

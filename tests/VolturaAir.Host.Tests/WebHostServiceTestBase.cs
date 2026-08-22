@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.TestHost;
 using System.Text.Json.Nodes;
 using VolturaAir.Host;
 using VolturaAir.Host.Features.PhoneWebcam;
+using VolturaAir.Host.Features.UsageTelemetry;
 
 namespace VolturaAir.Host.Tests;
 
@@ -178,7 +179,8 @@ public abstract class WebHostServiceTestBase : IsolatedHostSettingsTest
             IScreenViewCaptureSource? screenViewCapture = null,
             IPhoneWebcamFeature? phoneWebcamFeature = null,
             IPhoneWebcamWebRtcPeerFactory? phoneWebcamPeerFactory = null,
-            IScreenViewWebRtcPeerFactory? screenViewPeerFactory = null)
+            IScreenViewWebRtcPeerFactory? screenViewPeerFactory = null,
+            IUsageTelemetryRecorder? usageTelemetry = null)
         {
             var store = new TempPairingStore();
             var inputInjector = new FakeInputInjector();
@@ -206,7 +208,8 @@ public abstract class WebHostServiceTestBase : IsolatedHostSettingsTest
                 screenViewCapture: screenViewCapture,
                 phoneWebcamFeature: phoneWebcamFeature,
                 phoneWebcamPeerFactory: phoneWebcamPeerFactory,
-                screenViewPeerFactory: screenViewPeerFactory);
+                screenViewPeerFactory: screenViewPeerFactory,
+                usageTelemetry: usageTelemetry);
             await webHost.StartAsync();
             return new WebHostFixture(store, inputInjector, manager, webHost);
         }

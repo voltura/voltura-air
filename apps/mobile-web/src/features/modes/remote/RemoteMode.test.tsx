@@ -3,6 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 import { defaultRemoteSettings } from "../../../foundation/settings/remoteSettings";
 import { RemoteMode } from "./RemoteMode";
 import { renderRemote } from "./remoteModeTestUtils";
+
+const mediaControlButtons = new Set([
+  "Previous track", "Play or pause", "Next track", "Seek backward", "Seek forward",
+  "Space", "Volume down", "Mute PC", "Volume up", "Stop playback", "Info", "Toggle subtitles"
+]);
+
 describe("RemoteMode", () => {
   it.each([
     ["Previous track", "MediaPreviousTrack", undefined],
@@ -35,6 +41,11 @@ describe("RemoteMode", () => {
     renderRemote({ sendSpecial });
 
     fireEvent.click(screen.getByRole("button", { name: buttonName }));
+
+    if (mediaControlButtons.has(buttonName)) {
+      expect(sendSpecial).toHaveBeenCalledExactlyOnceWith(key, modifiers, "media-controls");
+      return;
+    }
 
     if (modifiers) {
       expect(sendSpecial).toHaveBeenCalledExactlyOnceWith(key, modifiers);
@@ -102,12 +113,8 @@ describe("RemoteMode", () => {
 
     fireEvent.click(screen.getByRole("button", { name: buttonName }));
 
-    if (modifiers) {
-      expect(sendSpecial).toHaveBeenCalledExactlyOnceWith(key, modifiers);
-      return;
-    }
-
-    expect(sendSpecial).toHaveBeenCalledExactlyOnceWith(key);
+    expect(mediaControlButtons.has(buttonName)).toBe(true);
+    expect(sendSpecial).toHaveBeenCalledExactlyOnceWith(key, modifiers, "media-controls");
   });
 
   it.each([
@@ -131,6 +138,11 @@ describe("RemoteMode", () => {
     renderRemote({ remoteSettings: { ...defaultRemoteSettings, navigationRing: true, mode: "kodi" }, sendSpecial });
 
     fireEvent.click(screen.getByRole("button", { name: buttonName }));
+
+    if (mediaControlButtons.has(buttonName)) {
+      expect(sendSpecial).toHaveBeenCalledExactlyOnceWith(key, modifiers, "media-controls");
+      return;
+    }
 
     if (modifiers) {
       expect(sendSpecial).toHaveBeenCalledExactlyOnceWith(key, modifiers);

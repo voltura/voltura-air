@@ -3,7 +3,8 @@
 Voltura Air defaults to direct operation between a Windows PC and paired
 devices on the same local network. An optional Cloud relay connection method is
 available and does not require a Voltura account. Voltura AB does not provide
-advertising or product-behavior analytics for Voltura Air.
+advertising. Voltura Air provides optional, consent-gated first-party usage
+statistics as described below.
 The separate Custom screens community library has an optional account system
 for people who choose to submit, rate, or manage shared screens.
 
@@ -22,6 +23,8 @@ The Windows host stores in the current Windows user's registry, application-data
 directory, and Windows key store:
 
 - host settings and permissions;
+- separate installed and portable Usage statistics choices, plus a random
+  identifier for the applicable profile only while that choice is allowed;
 - paired-device identifiers and names;
 - the public reconnect key registered by each paired browser;
 - a persistent P-256 PC identity private key in the current user's Windows key
@@ -167,6 +170,81 @@ The full installer includes those runtimes and does not require that download.
 Opening a website, support link, or external application at the user's request
 is governed by the privacy practices of that destination.
 
+## Optional usage statistics
+
+Usage statistics are off unless the current Windows user explicitly chooses
+**Allow usage statistics**. An interactive installation or upgrade asks once
+when the installed choice is unset; **Do not allow** has initial focus and
+silent installation cannot grant consent. Portable copies have a separate
+choice and start off without a first-run prompt. Both choices can be changed
+under **Diagnostics → Usage statistics**. They do not affect pairing, local
+control, Enhanced Direct, Relay, or any product feature.
+
+After Allow, the Windows host creates one random UUID for that installed or
+portable profile. The UUID is unrelated to paired-device, catalog, Relay, or
+account identities. The host sends it over HTTPS to the fixed first-party
+endpoint with the Voltura Air version and closed aggregate counters for:
+
+- one telemetry-active start per consent-enabled local-identifier lifetime (normally once per Windows-host process; disabling discards that lifetime, and re-enabling starts a new unlinkable one);
+- successful authenticated Standard Local, Enhanced Direct, and Relay
+  controller sessions; and
+- feature-using sessions for Trackpad, Keyboard, Dictation, Media controls,
+  Presentation, Custom screens, Files, Screen viewing, Phone webcam, and Gyro
+  mouse. Each feature is counted at most once per authenticated controller
+  session in each consent-enabled identifier lifetime, not once per click or as
+  proof that downstream work succeeded.
+
+The mobile PWA never makes a telemetry HTTP request, stores no telemetry UUID,
+and has no telemetry consent state. It adds a closed functional input-context
+value to existing authenticated controller commands only when the connected
+host advertises support, allowing the host to distinguish coarse feature use.
+Older hosts receive the unchanged command shape. The context contains no input
+content.
+
+Usage statistics never contain typed or dictated text, clipboard or file
+contents or names, URLs, device or screen names, keys, pointer coordinates,
+credentials, proofs, pairing or reconnect identifiers, screen or camera
+content, audio, crash reports, performance timings, OS, hardware, browser or
+device data, session duration, or individual button presses. The service does
+not store request JSON, raw UUIDs, raw IP addresses, or User-Agent values.
+
+The receiving PHP service immediately derives a domain-separated HMAC-SHA-256
+pseudonym from the UUID using a server-side secret. Daily rows contain that
+binary pseudonym, the received host version, UTC receipt date, and approved
+counters. Separate operational rows contain the random batch ID paired with the
+installation pseudonym for deduplication; domain-separated installation/source
+rate-bucket HMACs with their window and bounded request count; delivery-health
+totals; and one non-identifying cleanup-lease timestamp. The raw UUID exists in
+the HTTPS request because it is needed to derive the pseudonym but is never
+logged. A source IP is processed only into its short-lived HMAC rate bucket for
+abuse prevention; that bucket does not appear in the dashboard. Shared database
+credentials are contained by fixed prepared statements and telemetry-only tables
+and cleanup operations.
+
+Daily aggregate and server-recorded delivery-health rows are retained for 180
+days. Batch-deduplication and installation/source rate-bucket rows are retained
+for 24 hours. Ingest and administrator access acquire a lease and delete only
+bounded chunks, so physical cleanup resumes on the next access after complete
+service inactivity; dashboard queries exclude data beyond the aggregate
+retention window even while deletion catches up. An authenticated existing
+Custom Screens administrator can also preview and run bounded retention,
+date-cutoff, or delete-all operations against telemetry tables only.
+
+Turning Usage statistics off changes the host's cached state first, cancels
+telemetry workers and network work, discards every unsent in-memory count and
+batch, saves **Do not allow**, and removes the local UUID. A cleanup failure is
+shown rather than hidden and is retried on a later action or startup. Re-enabling
+creates an unlinkable replacement UUID and never reuses a stale one. Previously
+accepted daily aggregates cannot be identified and deleted from a local UUID;
+they remain until normal retention or administrator cleanup.
+
+The public ingest endpoint is necessarily spoofable because Voltura Air is open
+source and embeds no trusted client secret. Rate limits, strict schemas,
+deduplication, service-wide caps, and directional dashboard wording limit that
+risk. Its results are product signals about active opted-in installations, not
+anonymous data, total installation counts, billing records, security evidence,
+or exact user truth.
+
 ## Optional diagnostic logging
 
 Application logging on the Windows host is off by default. When enabled, logs
@@ -182,6 +260,12 @@ Safe Relay entries may record the connection method, official/custom endpoint
 type, state, selected quality, automatic Data Saver, quota warning/block, and a
 bounded failure code. They never record the endpoint, route, credential, IP
 address, SDP, command, text, coordinate, or screen content.
+When Usage statistics are allowed, safe lifecycle and delivery entries may add
+only the approved metric names and bounded aggregate counts, destination
+category, result category, and bounded HTTP status code/class. They never add
+the UUID or pseudonym, endpoint URL, request or response body, IP address,
+User-Agent, or any prohibited content. Telemetry producers never write logs;
+only the independent telemetry worker does, through this existing bounded log.
 Log retention is configurable from 1 to 30 days and defaults to 2 days. Logs are
 stored locally and can be viewed or deleted from Voltura Air Diagnostics.
 
@@ -199,7 +283,9 @@ policies.
 Users can remove paired-device access from the Windows host and forget saved PCs
 from the mobile interface. Clearing the browser's site data removes all Voltura
 Air data stored in that browser. Application logs can be deleted from
-Diagnostics.
+Diagnostics. Disabling **Usage statistics** there removes the applicable local
+telemetry UUID and discards unsent data; accepted server aggregates follow the
+separate retention and administrator-cleanup rules above.
 
 Saved presentation reports can be renamed, exported, emailed, or deleted from
 the Windows **Presentations** page. Removing a paired device does not remove its

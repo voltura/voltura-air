@@ -1,5 +1,6 @@
 using Microsoft.Win32;
 using VolturaAir.Host.Features.PhoneWebcam;
+using VolturaAir.Host.Features.UsageTelemetry;
 
 namespace VolturaAir.Host;
 
@@ -14,6 +15,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
     private readonly IAsyncDisposable _presentationEmailDraftCleanup;
     private readonly IAsyncDisposable? _phoneWebcamFeature;
     private readonly WebHostService _webHost;
+    private readonly UsageTelemetryService _usageTelemetry;
     private readonly WpfTrayApplicationContext _trayContext;
     private readonly IAppLog _appLog;
     private readonly SessionSwitchEventHandler? _screenViewSessionSwitch;
@@ -29,6 +31,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         IAsyncDisposable presentationEmailDraftCleanup,
         IAsyncDisposable? phoneWebcamFeature,
         WebHostService webHost,
+        UsageTelemetryService usageTelemetry,
         PairingManager pairingManager,
         MainWindow mainWindow,
         WpfTrayApplicationContext trayContext,
@@ -44,6 +47,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         _presentationEmailDraftCleanup = presentationEmailDraftCleanup;
         _phoneWebcamFeature = phoneWebcamFeature;
         _webHost = webHost;
+        _usageTelemetry = usageTelemetry;
         PairingManager = pairingManager;
         MainWindow = mainWindow;
         _trayContext = trayContext;
@@ -90,6 +94,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         ISystemPowerController? powerController = null;
         IAwakeService? awakeService = null;
         WebHostService? webHost = null;
+        UsageTelemetryService? usageTelemetry = null;
         PointerHighlightForegroundMonitor? pointerHighlightForegroundMonitor = null;
         MainWindow? mainWindow = null;
         WpfTrayApplicationContext? trayContext = null;
@@ -130,6 +135,11 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
             awakeService = isolatedTestMode
                 ? new NoOpAwakeService()
                 : await AwakeService.CreateWindowsAsync(appLog);
+            usageTelemetry = new UsageTelemetryService(
+                CreateUsageStatisticsSettings(isolatedTestMode),
+                appLog,
+                new UsageTelemetryServiceOptions { NetworkAllowed = !isolatedTestMode });
+            await usageTelemetry.InitializeAsync();
             webHost = new WebHostService(
                 pairingManager,
                 inputDispatcher,
@@ -152,7 +162,8 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 screenViewCapture: null,
                 phoneWebcamFeature: phoneWebcam,
                 phoneWebcamPeerFactory: null,
-                screenViewPeerFactory: null);
+                screenViewPeerFactory: null,
+                usageTelemetry: usageTelemetry);
             EventHandler cursorOverridesRevoked = (_, _) => webHost.RevokeCursorOverrides();
             cursorOverrides.OverridesRevoked += cursorOverridesRevoked;
 
@@ -201,6 +212,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 activitySimulationService: activitySimulationService,
                 cursorOverrides: cursorOverrides,
                 appLog: appLog,
+                usageStatistics: usageTelemetry,
                 phoneWebcam: phoneWebcam,
                 requestRestart: requestRestart);
 #if DEBUG
@@ -223,6 +235,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 presentationEmailDraftCleanup,
                 phoneWebcamFeature,
                 webHost,
+                usageTelemetry,
                 pairingManager,
                 mainWindow,
                 trayContext,
@@ -253,6 +266,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 appLog,
                 "presentation_email_draft_cleanup");
             await TryDisposeAsync(phoneWebcamFeature, appLog, "phone_webcam_feature");
+            await TryDisposeAsync(usageTelemetry, appLog, "usage_telemetry");
 
             if (cursorOverrides is not null)
             {
@@ -291,6 +305,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
             appLog,
             "presentation_email_draft_cleanup");
         await TryDisposeAsync(_phoneWebcamFeature, appLog, "phone_webcam_feature");
+        await TryDisposeAsync(_usageTelemetry, appLog, "usage_telemetry");
         _cursorOverrides.OverridesRevoked -= _cursorOverridesRevoked;
         TryDispose(_cursorOverrides, appLog, "cursor_overrides");
         TryDispose(_inputInjector, appLog, "input_injector");
@@ -303,6 +318,9 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         SessionSwitchReason.SessionLogoff or
         SessionSwitchReason.ConsoleDisconnect or
         SessionSwitchReason.RemoteDisconnect;
+
+    internal static IUsageStatisticsSettings CreateUsageStatisticsSettings(bool isolatedTestMode) =>
+        isolatedTestMode ? new IsolatedUsageStatisticsSettings() : new UsageStatisticsSettings();
 
     private static void TryCloseWindow(MainWindow? mainWindow, IAppLog appLog)
     {

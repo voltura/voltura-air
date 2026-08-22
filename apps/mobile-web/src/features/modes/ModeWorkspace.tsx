@@ -124,7 +124,12 @@ export function ModeWorkspace({
   const [trackpadTwoFingerMode, setTrackpadTwoFingerMode] = useState<TwoFingerMode>("scroll");
   const [textTransferDraft, setTextTransferDraft] = useState("");
   const effectiveTrackpadTwoFingerMode = trackpadSettings.zoomGestures ? trackpadTwoFingerMode : "scroll";
+  const inputContext = tab === "remote"
+    ? null
+    : tab === "keyboard" ? "keyboard"
+    : tab === "presentation" || tab === "dictation" ? tab : "trackpad";
   const { cancel, emit, onTouchCancel, onTouchEnd, onTouchMove, onTouchStart, sendSpecial, sendText, sleepPc } = usePointerInput({
+    inputContext,
     send: connection.send,
     state: connection.state,
     trackpadSettings,
@@ -134,7 +139,7 @@ export function ModeWorkspace({
     activationRequest: gyroActivationRequest,
     connected: connection.state === "paired",
     enabledSurface: tab === "trackpad" || (tab === "presentation" && isPresentationTrackpadOpen),
-    onMove: (dx, dy) => { emit({ type: "pointer.move", dx, dy }); },
+    onMove: (dx, dy) => { emit({ type: "pointer.move", inputContext: "gyro-mouse", dx, dy }); },
     onSelectedChange: onGyroSelectedChange,
     onStop: cancel,
     sensitivity: trackpadSettings.gyroSensitivity,
@@ -164,7 +169,7 @@ export function ModeWorkspace({
 
   const toggleMute = () => {
     if (connection.supportsVolumeControl) {
-      emit({ type: "audio.mute.toggle" });
+      emit({ type: "audio.mute.toggle", inputContext: "media-controls" });
     }
   };
 
@@ -178,7 +183,7 @@ export function ModeWorkspace({
       source: connection.audioState,
       value: { type: "audio.state", volume: nextVolume, muted: false }
     });
-    emit({ type: "audio.volume.set", volume: nextVolume });
+    emit({ type: "audio.volume.set", inputContext: "media-controls", volume: nextVolume });
   };
 
   return (
@@ -256,7 +261,7 @@ export function ModeWorkspace({
         onActivationRequestHandled: onPresentationActivationRequestHandled,
         onCommand: connection.requestPresentationCommand,
         onSessionCommand: connection.requestPresentationSession,
-        onMute: () => { sendSpecial("VolumeMute"); },
+        onMute: () => { sendSpecial("VolumeMute", undefined, "media-controls"); },
         onPowerAction: connection.requestPowerAction,
         onPowerPointRefresh: connection.requestPowerPointRefresh,
         onPowerPointLaunch: connection.requestPowerPointLaunch,
@@ -264,8 +269,8 @@ export function ModeWorkspace({
         onSaveReport: connection.requestPresentationReportSave,
         onSessionActiveChange: onPresentationSessionActiveChange,
         onTrackpadOpenChange: setIsPresentationTrackpadOpen,
-        onVolumeDown: () => { sendSpecial("VolumeDown"); },
-        onVolumeUp: () => { sendSpecial("VolumeUp"); }
+        onVolumeDown: () => { sendSpecial("VolumeDown", undefined, "media-controls"); },
+        onVolumeUp: () => { sendSpecial("VolumeUp", undefined, "media-controls"); }
       }}
       remoteMode={{
         appLaunchActions: connection.hostStatus?.appLaunchActions ?? [],
@@ -277,8 +282,10 @@ export function ModeWorkspace({
           pendingAwakeChange: connection.pendingAwakeChange
         },
         isConnected: connection.state === "paired",
-        onPointerButtonClick: (button) => { emit({ type: "pointer.button", button, action: "click" }); },
-        onPointerMove: (dx, dy) => { emit({ type: "pointer.move", dx, dy }); },
+        onPointerButtonClick: (button) => {
+          emit({ type: "pointer.button", inputContext: "trackpad", button, action: "click" });
+        },
+        onPointerMove: (dx, dy) => { emit({ type: "pointer.move", inputContext: "trackpad", dx, dy }); },
         onPowerAction: connection.requestPowerAction,
         onAppLaunch: connection.requestAppLaunch,
         onUrlOpen: connection.requestUrlOpen,

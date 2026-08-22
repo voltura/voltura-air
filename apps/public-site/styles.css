@@ -22,6 +22,188 @@
   -webkit-font-smoothing: antialiased;
 }
 
+.telemetry-section {
+  margin-top: 28px;
+  padding: clamp(18px, 3vw, 28px);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(23, 29, 33, 0.84);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.18);
+}
+
+.telemetry-section > :first-child {
+  margin-top: 0;
+}
+
+.telemetry-section > h2 {
+  margin-bottom: 8px;
+  font-size: 1.4rem;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.telemetry-section p,
+.telemetry-submit-status {
+  color: var(--muted);
+}
+
+.telemetry-ranges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.telemetry-ranges a {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.telemetry-ranges a[aria-current="page"] {
+  border-color: var(--accent);
+  background: var(--accent-strong);
+}
+
+.telemetry-total {
+  margin: 8px 0 0;
+  color: var(--text) !important;
+  font-size: 2rem;
+  font-weight: 800;
+}
+
+.telemetry-cleanup form fieldset {
+  min-width: 0;
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.telemetry-cleanup form legend {
+  margin-bottom: 12px;
+  color: var(--text);
+  font-weight: 800;
+}
+
+.catalog-page .telemetry-cleanup form label.telemetry-cleanup-choice {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  color: var(--text);
+}
+
+.catalog-page .telemetry-cleanup input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  margin: 1px 0 0;
+  padding: 0;
+  accent-color: var(--accent);
+}
+
+.catalog-page .telemetry-cleanup form label.telemetry-cleanup-confirm {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+}
+
+.catalog-page .telemetry-cleanup input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--accent);
+}
+
+.catalog-page .telemetry-cleanup form label.telemetry-cleanup-date {
+  max-width: 360px;
+  margin-left: 30px;
+}
+
+.telemetry-table-wrap {
+  overflow-x: auto;
+  margin-top: 12px;
+}
+
+.telemetry-table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.telemetry-table-wrap th,
+.telemetry-table-wrap td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.telemetry-table-wrap thead th {
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.telemetry-notice {
+  max-width: 760px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.telemetry-cleanup-preview {
+  margin-top: 20px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.telemetry-maintenance {
+  margin-top: 28px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(23, 29, 33, 0.84);
+}
+
+.telemetry-maintenance > summary {
+  padding: 18px 22px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.telemetry-maintenance[open] > summary {
+  border-bottom: 1px solid var(--border);
+}
+
+.telemetry-maintenance-content {
+  padding: 0 22px 22px;
+}
+
+.telemetry-maintenance .telemetry-section {
+  box-shadow: none;
+}
+
+.telemetry-submit-status {
+  align-self: center;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 880px) {
+}
+
+@media (max-width: 560px) {
+}
+
 * {
   box-sizing: border-box;
 }
@@ -875,6 +1057,7 @@ footer a:hover {
 }
 
 .catalog-page .catalog-sort-option {
+  appearance: none;
   width: 100%;
   display: block;
   border: 0;
@@ -885,13 +1068,21 @@ footer a:hover {
   color: var(--text);
   font-weight: 400;
   box-shadow: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .catalog-page .catalog-sort-option:hover,
 .catalog-page .catalog-sort-option:focus-visible,
+.catalog-page .catalog-sort-option:active,
 .catalog-page .catalog-sort-option[aria-selected="true"] {
   background: var(--accent-strong);
   color: #fff;
+}
+
+.catalog-page .catalog-sort-option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .catalog-page textarea {

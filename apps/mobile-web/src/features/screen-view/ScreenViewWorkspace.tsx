@@ -85,7 +85,7 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
   const disconnectedRecoveryRef = useRef<number | undefined>(undefined);
   const stopQualityMonitorRef = useRef<(() => void) | null>(null);
   const qualitySampleRef = useRef<ScreenViewQualitySample | null>(null);
-  const pointerInput = usePointerInput({ send, state, trackpadSettings, twoFingerMode: "scroll" });
+  const pointerInput = usePointerInput({ send, state, trackpadSettings, twoFingerMode: "scroll", inputContext: "screen-view" });
   const viewTransformRef = useRef(viewTransform);
   const pinchRef = useRef<(ScreenViewPinchStart & { mode: "local" | "remote" }) | null>(null);
   const suppressPointerUntilClearRef = useRef(false);
@@ -104,7 +104,7 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
   }
 
   function sendDirectButton(button: "left" | "right", action: "down" | "up", point: NormalizedScreenPoint) {
-    if (selected) {send({ type: "screen.pointer.button", displayId: selected, ...point, button, action });}
+    if (selected) {send({ type: "screen.pointer.button", inputContext: "screen-view", displayId: selected, ...point, button, action });}
   }
 
   function releaseDirectButtons(point = lastDirectPointRef.current) {
@@ -152,7 +152,7 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
       directMoveFrameRef.current = undefined;
       const next = pendingDirectMoveRef.current;
       pendingDirectMoveRef.current = null;
-      if (next && directPointerActiveRef.current && selected) {send({ type: "screen.pointer.move", displayId: selected, ...next });}
+      if (next && directPointerActiveRef.current && selected) {send({ type: "screen.pointer.move", inputContext: "screen-view", displayId: selected, ...next });}
     });
   }
 
@@ -189,7 +189,7 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
     const dx = Math.trunc(accumulatedX);
     const dy = Math.trunc(accumulatedY);
     directWheelRemainderRef.current = { dx: accumulatedX - dx, dy: accumulatedY - dy };
-    if (dx !== 0 || dy !== 0) {send({ type: "screen.pointer.wheel", displayId: selected, ...point, dx, dy });}
+    if (dx !== 0 || dy !== 0) {send({ type: "screen.pointer.wheel", inputContext: "screen-view", displayId: selected, ...point, dx, dy });}
   }
 
   function onDirectContextMenu(event: ReactMouseEvent<HTMLDivElement>) {
@@ -239,7 +239,7 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
       if (!message) {return;}
       event.preventDefault();
       event.stopPropagation();
-      send(message);
+      send({ ...message, inputContext: "screen-view" });
     };
     const onMouseUp = (event: MouseEvent) => {
       const button = directMouseButton(event.button);
@@ -832,7 +832,7 @@ export default function ScreenViewWorkspace({ activePc, browserPreviewState, cap
         {qualityText && <p className="screen-view-quality" aria-hidden="true">{qualityText}</p>}
       </div>
       <div className="screen-view-actions">
-        <button type="button" disabled={!viewing} onClick={() => send({ type: "pointer.button", button: "left", action: "click" })}><MousePointer2 /> Click</button>
+        <button type="button" disabled={!viewing} onClick={() => send({ type: "pointer.button", inputContext: "screen-view", button: "left", action: "click" })}><MousePointer2 /> Click</button>
         <button type="button" disabled={!viewing} onClick={onOpenKeyboard}><Keyboard /> Keys</button>
         {streaming ? <button type="button" className="danger" onClick={stop}><Square /> Stop</button> : <button type="button" className="primary" disabled={!selected || !capability.canView || capability.requiresRepair || blockingStopRef.current !== null} onClick={() => start()}><MonitorUp /> Start</button>}
       </div>

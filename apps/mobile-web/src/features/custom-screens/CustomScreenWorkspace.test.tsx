@@ -398,9 +398,9 @@ describe("CustomScreenWorkspace", () => {
     const slider = screen.getByRole<HTMLInputElement>("slider", { name: "PC volume" });
     expect(slider.value).toBe("42");
     fireEvent.change(slider, { target: { value: "67" } });
-    expect(send).toHaveBeenCalledWith({ type: "audio.volume.set", volume: 67 });
+    expect(send).toHaveBeenCalledWith({ type: "audio.volume.set", inputContext: "custom-screens", volume: 67 });
     fireEvent.click(screen.getByRole("button", { name: "Mute PC" }));
-    expect(send).toHaveBeenCalledWith({ type: "audio.mute.toggle" });
+    expect(send).toHaveBeenCalledWith({ type: "audio.mute.toggle", inputContext: "custom-screens" });
   });
 
   it("expands and collapses collapsible sections with a required header", () => {
@@ -502,10 +502,10 @@ describe("CustomScreenWorkspace", () => {
     fireEvent.pointerUp(leftClick, { button: 0, pointerId: 8 });
     expect(send).toHaveBeenNthCalledWith(
       1,
-      { type: "pointer.button", button: "left", action: "down" });
+      { type: "pointer.button", inputContext: "custom-screens", button: "left", action: "down" });
     expect(send).toHaveBeenNthCalledWith(
       2,
-      { type: "pointer.button", button: "left", action: "up" });
+      { type: "pointer.button", inputContext: "custom-screens", button: "left", action: "up" });
 
     fireEvent.click(screen.getByRole("button", { name: "Expand Pointer" }));
     expect(layout.classList.contains("is-fullscreen")).toBe(true);
@@ -567,6 +567,7 @@ describe("CustomScreenWorkspace", () => {
     fireEvent.pointerUp(surface, { button: 0, isPrimary: true, pointerId: 31 });
     expect(send).toHaveBeenCalledWith({
       type: "pointer.button",
+      inputContext: "custom-screens",
       button: "left",
       action: "click"
     });
@@ -578,8 +579,8 @@ describe("CustomScreenWorkspace", () => {
     fireEvent.pointerUp(rightClick, { button: 0, pointerId: 33 });
     fireEvent.pointerUp(surface, { button: 0, isPrimary: true, pointerId: 32 });
     expect(send.mock.calls).toEqual([
-      [{ type: "pointer.button", button: "right", action: "down" }],
-      [{ type: "pointer.button", button: "right", action: "up" }]
+      [{ type: "pointer.button", inputContext: "custom-screens", button: "right", action: "down" }],
+      [{ type: "pointer.button", inputContext: "custom-screens", button: "right", action: "up" }]
     ]);
 
     vi.useFakeTimers();

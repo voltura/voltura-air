@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { copyFile, link, mkdtemp, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -38,18 +39,203 @@ import {
 } from "../../scripts/release-tools.mjs";
 
 const requiredNotices = `${freewareNotice}\n\n${unsignedReleaseNotice}`;
+const auditedReleaseTitle = "Voltura Air v1.0.5";
+const auditedReleaseBody = "Reviewed release body.\n";
+const auditedReleaseMetadata = {
+  releaseTitle: auditedReleaseTitle,
+  releaseBodySha256: createHash("sha256").update(auditedReleaseBody, "utf8").digest("hex")
+};
 const localReleaseSource = await readFile(new URL("../../scripts/release-publish.mjs", import.meta.url), "utf8");
 const prepareReleaseSource = await readFile(new URL("../../scripts/prepare-release.ps1", import.meta.url), "utf8");
 const prepareReleaseWrapperSource = await readFile(new URL("../../scripts/prepare-release.mjs", import.meta.url), "utf8");
 const releaseLockSource = await readFile(new URL("../../scripts/release-lock.mjs", import.meta.url), "utf8");
+const releaseVerifierSource = await readFile(new URL("../../scripts/verify-release-draft.mjs", import.meta.url), "utf8");
 import { restoreGithubActions } from "../../scripts/restore-github-actions.mjs";
 import { resolveSynchronizedRelease } from "../../scripts/sync-release-notes.mjs";
+import {
+  assertPreparedPublishedRelease,
+  assertPreparedReleaseDraft,
+  publishPreparedReleaseDraft,
+} from "../../scripts/verify-release-draft.mjs";
 
 test("release commands accept at most one explicit version", () => {
   assert.deepEqual(parseReleaseArguments([]), { version: null });
   assert.deepEqual(parseReleaseArguments(["0.8.0"]), { version: "0.8.0" });
   assert.throws(() => parseReleaseArguments(["0.8.0", "extra"]), /Usage/u);
   assert.throws(() => parseReleaseArguments(["latest"]), /semantic versioning/u);
+});
+
+test("production draft verification binds release assets to the packaged checkpoint", () => {
+  const artifacts = [
+    { name: "VolturaAir-1.0.5-win-x64.zip", size: 10, sha256: "a".repeat(64) },
+    { name: "VolturaAir-Setup-1.0.5-win-x64.exe", size: 20, sha256: "b".repeat(64) },
+    { name: "VolturaAir-Setup-1.0.5-win-x64-full.exe", size: 30, sha256: "c".repeat(64) },
+  ];
+  const release = {
+    tagName: "v1.0.5",
+    name: auditedReleaseTitle,
+    body: auditedReleaseBody,
+    isDraft: true,
+    isPrerelease: false,
+    targetCommitish: "d".repeat(40),
+    assets: artifacts.map((artifact) => ({
+      name: artifact.name,
+      size: artifact.size,
+      digest: `sha256:${artifact.sha256}`,
+    })),
+  };
+  const input = {
+    version: "1.0.5",
+    commit: "d".repeat(40),
+    checkpoint: { phase: "packaged", artifacts, ...auditedReleaseMetadata },
+    release,
+    assetNames: artifacts.map((artifact) => artifact.name),
+  };
+  assert.doesNotThrow(() => assertPreparedReleaseDraft(input));
+  assert.throws(
+    () => assertPreparedReleaseDraft({ ...input, release: { ...release, targetCommitish: "e".repeat(40) } }),
+    /target commit/u,
+  );
+});
+
+test("audited publication refuses a changed or deleted draft before any GitHub mutation", () => {
+  const artifacts = [
+    { name: "VolturaAir-1.0.5-win-x64.zip", size: 10, sha256: "a".repeat(64) },
+    { name: "VolturaAir-Setup-1.0.5-win-x64.exe", size: 20, sha256: "b".repeat(64) },
+    { name: "VolturaAir-Setup-1.0.5-win-x64-full.exe", size: 30, sha256: "c".repeat(64) },
+  ];
+  const commit = "d".repeat(40);
+  const release = {
+    tagName: "v1.0.5",
+    name: auditedReleaseTitle,
+    body: auditedReleaseBody,
+    isDraft: true,
+    isPrerelease: false,
+    targetCommitish: commit,
+    assets: artifacts.map((artifact) => ({
+      name: artifact.name,
+      size: artifact.size,
+      digest: `sha256:${artifact.sha256}`,
+    })),
+  };
+  const input = {
+    version: "1.0.5",
+    commit,
+    checkpoint: { phase: "packaged", artifacts, ...auditedReleaseMetadata },
+    release,
+    assetNames: artifacts.map((artifact) => artifact.name),
+  };
+  const calls = [];
+  const execute = (command, args) => {
+    calls.push([command, args]);
+    if (args[0] === "api") {
+      return JSON.stringify({ tag_name: "v1.0.5", draft: false, target_commitish: commit });
+    }
+    return "";
+  };
+
+  assert.throws(
+    () => publishPreparedReleaseDraft({
+      ...input,
+      release: {
+        ...release,
+        assets: release.assets.map((asset, index) => index === 0
+          ? { ...asset, digest: `sha256:${"f".repeat(64)}` }
+          : asset),
+      },
+    }, execute),
+    /packaged checkpoint/u,
+  );
+  assert.throws(
+    () => publishPreparedReleaseDraft({ ...input, release: null }, execute),
+    /unexpected release metadata/u,
+  );
+  assert.throws(
+    () => publishPreparedReleaseDraft({
+      ...input,
+      release: { ...release, name: "Changed release title" },
+    }, execute),
+    /title or body/u,
+  );
+  assert.throws(
+    () => publishPreparedReleaseDraft({
+      ...input,
+      release: { ...release, body: "Changed release body." },
+    }, execute),
+    /title or body/u,
+  );
+  assert.deepEqual(calls, []);
+
+  publishPreparedReleaseDraft(input, execute);
+  assert.deepEqual(calls, [
+    ["gh", ["release", "edit", "v1.0.5", "--repo", "voltura/voltura-air", "--draft=false", "--latest"]],
+    ["gh", ["api", "repos/voltura/voltura-air/releases/latest"]],
+  ]);
+  assert.doesNotMatch(releaseVerifierSource, /"release", "(?:create|upload)"|--clobber/u);
+});
+
+test("published production resume requires exact packaged assets and GitHub Latest", () => {
+  const artifacts = [
+    { name: "VolturaAir-1.0.5-win-x64.zip", size: 10, sha256: "a".repeat(64) },
+    { name: "VolturaAir-Setup-1.0.5-win-x64.exe", size: 20, sha256: "b".repeat(64) },
+    { name: "VolturaAir-Setup-1.0.5-win-x64-full.exe", size: 30, sha256: "c".repeat(64) },
+  ];
+  const commit = "d".repeat(40);
+  const release = {
+    tagName: "v1.0.5",
+    name: auditedReleaseTitle,
+    body: auditedReleaseBody,
+    isDraft: false,
+    isPrerelease: false,
+    targetCommitish: commit,
+    assets: artifacts.map((artifact) => ({
+      name: artifact.name,
+      size: artifact.size,
+      digest: `sha256:${artifact.sha256}`,
+    })),
+  };
+  const input = {
+    version: "1.0.5",
+    commit,
+    taggedCommit: commit,
+    checkpoint: { phase: "packaged", artifacts, ...auditedReleaseMetadata },
+    release,
+    latest: { tag_name: "v1.0.5", draft: false, target_commitish: commit },
+    assetNames: artifacts.map((artifact) => artifact.name),
+  };
+  assert.doesNotThrow(() => assertPreparedPublishedRelease(input));
+  assert.throws(
+    () => assertPreparedPublishedRelease({ ...input, taggedCommit: "e".repeat(40) }),
+    /tag .*reviewed commit/u,
+  );
+  assert.throws(
+    () => assertPreparedPublishedRelease({
+      ...input,
+      release: { ...release, assets: release.assets.slice(1) },
+    }),
+    /assets do not match/u,
+  );
+  assert.throws(
+    () => assertPreparedPublishedRelease({
+      ...input,
+      release: {
+        ...release,
+        assets: release.assets.map((asset, index) => index === 0 ? { ...asset, digest: `sha256:${"f".repeat(64)}` } : asset),
+      },
+    }),
+    /packaged checkpoint/u,
+  );
+  assert.throws(
+    () => assertPreparedPublishedRelease({ ...input, latest: { ...input.latest, tag_name: "v1.0.4" } }),
+    /not GitHub Latest/u,
+  );
+  assert.throws(
+    () => assertPreparedPublishedRelease({
+      ...input,
+      release: { ...release, body: "Changed after publication." },
+    }),
+    /title or body/u,
+  );
 });
 
 test("release publication prepares all public site outputs before staging", () => {
@@ -101,14 +287,25 @@ test("release checkpoints are exact to version, commit, phase, and artifact set"
     { name: "a.zip", size: 10, sha256: "a".repeat(64) },
     { name: "b.exe", size: 20, sha256: "b".repeat(64) }
   ];
+  const releaseMetadata = {
+    releaseTitle: "Voltura Air v0.9.5",
+    releaseBodySha256: "c".repeat(64)
+  };
   assert.deepEqual(validateReleaseCheckpoint({
-    schema: 1, version: "0.9.5", commit: "abc123", phase: "packaged", artifacts
-  }, context), { phase: "packaged", artifacts });
+    schema: 2, version: "0.9.5", commit: "abc123", phase: "packaged", artifacts, ...releaseMetadata
+  }, context), { phase: "packaged", artifacts, ...releaseMetadata });
   assert.equal(validateReleaseCheckpoint({
-    schema: 1, version: "0.9.5", commit: "other", phase: "packaged", artifacts
+    schema: 2, version: "0.9.5", commit: "other", phase: "packaged", artifacts, ...releaseMetadata
   }, context), null);
   assert.equal(validateReleaseCheckpoint({
-    schema: 1, version: "0.9.5", commit: "abc123", phase: "packaged", artifacts: artifacts.slice(1)
+    schema: 2, version: "0.9.5", commit: "abc123", phase: "packaged", artifacts: artifacts.slice(1), ...releaseMetadata
+  }, context), null);
+  assert.equal(validateReleaseCheckpoint({
+    schema: 1, version: "0.9.5", commit: "abc123", phase: "packaged", artifacts, ...releaseMetadata
+  }, context), null);
+  assert.equal(validateReleaseCheckpoint({
+    schema: 2, version: "0.9.5", commit: "abc123", phase: "packaged", artifacts,
+    ...releaseMetadata, releaseBodySha256: "invalid"
   }, context), null);
 });
 
@@ -120,7 +317,15 @@ test("packaged checkpoints verify local bytes but can audit a published release 
     const assetPaths = getReleaseAssetPaths(root, version, "win-x64");
     await mkdir(path.dirname(assetPaths[0]), { recursive: true });
     await Promise.all(assetPaths.map((assetPath, index) => writeFile(assetPath, `artifact-${index}`)));
-    await writeReleaseCheckpoint({ repositoryRoot: root, version, commit, phase: "packaged", assetPaths });
+    await writeReleaseCheckpoint({
+      repositoryRoot: root,
+      version,
+      commit,
+      phase: "packaged",
+      assetPaths,
+      releaseTitle: "Voltura Air v0.9.5",
+      releaseBody: "Reviewed body.\n"
+    });
     assert.equal((await readReleaseCheckpoint({ repositoryRoot: root, version, commit, assetPaths }))?.phase, "packaged");
 
     await rm(assetPaths[0]);
@@ -137,6 +342,16 @@ test("release failures restore tracked release changes and checkpoints skip comp
   assert.match(localReleaseSource, /restoreCleanTrackedTree\(releaseCommit \?\? releaseContext\.startingCommit\)/u);
   assert.match(localReleaseSource, /phase: "packaged"/u);
   assert.match(localReleaseSource, /audited .* release already contains the final artifacts/u);
+});
+
+test("production orchestration can retain and then remove an audited published checkpoint", () => {
+  assert.match(localReleaseSource, /const retainCheckpoint = publishArgs\[0\] === "--retain-checkpoint"/u);
+  assert.match(localReleaseSource, /publishLatest && !retainCheckpoint/u);
+  assert.match(localReleaseSource, /rm\(getReleaseCheckpointPath/u);
+  assert.match(releaseVerifierSource, /const removeCheckpoint = publishedArgs\[0\] === "--remove-checkpoint"/u);
+  const publishedAudit = releaseVerifierSource.indexOf("assertPreparedPublishedRelease");
+  const checkpointRemoval = releaseVerifierSource.lastIndexOf("await rm(getReleaseCheckpointPath");
+  assert.ok(checkpointRemoval > publishedAudit, "checkpoint removal must follow the published release audit");
 });
 
 test("release failure cleanup restores its exact commit and removes generated untracked files", () => {
@@ -703,12 +918,25 @@ test("release body and draft audit require the exact local artifact set", () => 
 
   const names = ["portable.zip", "small.exe", "full.exe"];
   const release = {
+    name: "Voltura Air v0.7.4",
+    body,
     isDraft: true,
     targetCommitish: "abc123",
     assets: names.map((name) => ({ name, size: 10, digest: "sha256:valid" }))
   };
   const expectedArtifacts = names.map((name) => ({ name, size: 10, sha256: "valid" }));
-  assert.doesNotThrow(() => auditDraft(release, "abc123", names, expectedArtifacts));
+  const expectedMetadata = {
+    releaseTitle: release.name,
+    releaseBodySha256: createHash("sha256").update(body, "utf8").digest("hex")
+  };
+  assert.doesNotThrow(() => auditDraft(release, "abc123", names, expectedArtifacts, expectedMetadata));
+  assert.throws(() => auditDraft(
+    { ...release, body: "Changed" },
+    "abc123",
+    names,
+    expectedArtifacts,
+    expectedMetadata
+  ), /title or body/u);
   assert.throws(() => auditDraft({ ...release, targetCommitish: "other" }, "abc123", names), /target commit/u);
   assert.throws(() => auditDraft({ ...release, assets: release.assets.slice(1) }, "abc123", names), /expected set/u);
   assert.throws(() => auditDraft({

@@ -191,3 +191,16 @@ if (toast) {
     setTimeout(() => toast.remove(), 180);
   }, 2400);
 }
+
+for (const form of document.querySelectorAll("form[data-loading-label]")) {
+  form.addEventListener("submit", () => {
+    const status = form.querySelector("[data-submit-status]");
+    if (status) {
+      status.textContent = form.dataset.loadingLabel;
+      status.hidden = false;
+    }
+    for (const button of form.querySelectorAll("button[type='submit'], input[type='submit']")) {
+      button.disabled = true;
+    }
+  });
+}

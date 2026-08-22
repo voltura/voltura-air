@@ -856,7 +856,7 @@ export function App() {
             dismissed={isInputRecoveryDialogDismissed}
             onDismiss={() => { setInputRecoveryDialog((current) => ({ ...current, dismissed: true })); }}
             onOpen={() => { setInputRecoveryDialog((current) => ({ ...current, dismissed: false })); }}
-            onShowDesktop={() => { send({ type: "keyboard.special", key: "D", modifiers: ["Win"] }); }}
+            onShowDesktop={() => { send({ type: "keyboard.special", inputContext: "keyboard", key: "D", modifiers: ["Win"] }); }}
           />
         )}
 

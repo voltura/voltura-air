@@ -41,7 +41,7 @@ export function CustomScreenVolumeSlider({
       source: audioState,
       value: { type: "audio.state", volume: nextVolume, muted: false }
     });
-    send({ type: "audio.volume.set", volume: nextVolume });
+    send({ type: "audio.volume.set", inputContext: "custom-screens", volume: nextVolume });
   };
 
   return (
@@ -54,7 +54,7 @@ export function CustomScreenVolumeSlider({
         aria-label={current.muted ? "Unmute PC" : "Mute PC"}
         className="icon-button"
         disabled={!interactive}
-        onClick={() => { send({ type: "audio.mute.toggle" }); }}
+        onClick={() => { send({ type: "audio.mute.toggle", inputContext: "custom-screens" }); }}
         title={current.muted ? "Unmute PC" : "Mute PC"}
         type="button"
       >

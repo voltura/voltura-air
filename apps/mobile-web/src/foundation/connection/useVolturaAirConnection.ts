@@ -74,12 +74,12 @@ export function useVolturaAirConnection() {
   const pendingMovementAckRef = useRef<PendingMovementAck | null>(null);
   const {
     audioState, awakeCapability, clipboardReadPermission, clearRuntimeState, customScreensCapability, fileManagerCapability, hostStatus, phoneWebcamCapability, powerCapabilities, presentationCapability, screenViewCapability, setAudioState,
-    setHostStatus, supportsGestureDebug, supportsInputAckRef, supportsRemoteLaunch, supportsSleep, supportsTextTransfer,
+    setHostStatus, supportsGestureDebug, supportsInputAckRef, supportsInputContextV1Ref, supportsRemoteLaunch, supportsSleep, supportsTextTransfer,
     supportsVolumeControl, supportsVolumeControlRef, updateCapabilities, updateHostStatus, urlOpenCapability
   } = useConnectionRuntimeState(pendingInputAcksRef, pendingMovementAckRef);
   const { requestAudioState, send } = useConnectionSender({
     lastMovementAckAtRef, lastUserActivityAtRef, nextInputSequenceRef, pendingInputAcksRef, pendingMovementAckRef,
-    reconnectRef, rescheduleHealthCheckRef, socketRef, supportsInputAckRef, supportsVolumeControlRef
+    reconnectRef, rescheduleHealthCheckRef, socketRef, supportsInputAckRef, supportsInputContextV1Ref, supportsVolumeControlRef
   });
   const { awakeResult, completeAwakeChange: completeAwakeChangeState, pendingAwakeChange, requestAwakeChange } = useAwakeControl(state, send);
   const { completePowerAction: completePowerActionState, pendingPowerAction, powerActionResult, requestPowerAction } = usePowerControl(state, send);

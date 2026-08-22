@@ -18,6 +18,9 @@
             <ToggleButton x:Name="SystemDetailsButton"
                           Content="System details"
                           Style="{DynamicResource SegmentButtonStyle}" />
+            <ToggleButton x:Name="UsageStatisticsButton"
+                          Content="Usage statistics"
+                          Style="{DynamicResource SegmentButtonStyle}" />
         </ui:SpacingStackPanel>
 
         <ContentControl x:Name="ViewContent"

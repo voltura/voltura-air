@@ -241,6 +241,20 @@ try {
         throw 'The development catalog uses a superseded schema. Clear the development database explicitly, then rerun site:dev:init.'
     }
 
+    # Telemetry is an additive schema with its own idempotent lifecycle. It is
+    # deliberately independent from the catalog's fresh-schema-only contract.
+    $telemetrySchema = Get-Content -LiteralPath (Join-Path $repoRoot 'apps\public-site\telemetry\schema.sql') -Raw
+    $telemetrySchemaResult = Invoke-MariaDb $maria $databaseArguments $telemetrySchema
+    if ($telemetrySchemaResult.ExitCode -ne 0) { throw 'Could not apply the additive development telemetry schema.' }
+    $telemetryTablesResult = Invoke-MariaDb $maria $databaseArguments 'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN ("air_telemetry_daily", "air_telemetry_batches", "air_telemetry_rate_buckets", "air_telemetry_ingest_daily", "air_telemetry_maintenance");'
+    if ($telemetryTablesResult.ExitCode -ne 0 -or [int]$telemetryTablesResult.Output.Trim() -ne 5) {
+        throw 'The additive development telemetry schema is incomplete.'
+    }
+    $telemetryColumnsResult = Invoke-MariaDb $maria $databaseArguments 'SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND ((table_name = "air_telemetry_daily" AND column_name IN ("activity_date", "installation_hash", "host_version", "host_starts", "connections_standard_local", "connections_enhanced_direct", "connections_relay", "features_trackpad", "features_keyboard", "features_dictation", "features_media_controls", "features_presentation", "features_custom_screens", "features_files", "features_screen_viewing", "features_phone_webcam", "features_gyro_mouse", "first_received_at", "last_received_at")) OR (table_name = "air_telemetry_maintenance" AND column_name IN ("singleton_id", "next_cleanup_at")));'
+    if ($telemetryColumnsResult.ExitCode -ne 0 -or [int]$telemetryColumnsResult.Output.Trim() -ne 21) {
+        throw 'The additive development telemetry schema has missing required columns.'
+    }
+
 } finally {
     $env:MYSQL_PWD = $previousPassword
     $rootPassword = $null

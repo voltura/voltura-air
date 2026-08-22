@@ -556,6 +556,7 @@ function air_screen_layout(
         echo '<a href="upload.php#submissions" aria-label="View my custom screen submissions" title="View my custom screen submissions">My submissions</a>';
         if (($user['role'] ?? '') === 'admin') {
             echo '<a href="admin.php" aria-label="Moderate custom screens" title="Moderate custom screens">Moderate screens</a>';
+            echo '<a href="telemetry.php" aria-label="View opted-in usage statistics" title="View opted-in usage statistics">Usage statistics</a>';
         }
         echo '<form class="catalog-signout" method="post" action="logout.php"><input type="hidden" name="csrf" value="' . air_screen_h(air_screen_csrf()) . '"><button type="submit" aria-label="Sign out from Voltura Air Custom Screens portal" title="Sign out from Voltura Air Custom Screens portal">Sign out</button></form>';
     } else {

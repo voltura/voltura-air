@@ -9,6 +9,7 @@ internal sealed class DiagnosticsPageController(
     IWorkstationLockPolicy workstationLockPolicy,
     IAppLog appLog,
     ApplicationLogController applicationLog,
+    UsageStatisticsController usageStatistics,
     HostClipboardFeedback clipboard,
     Action<string> viewTitleChanged)
 {
@@ -24,6 +25,11 @@ internal sealed class DiagnosticsPageController(
             {
                 viewTitleChanged("System details");
                 return CreateSystemDetailsView();
+            },
+            () =>
+            {
+                viewTitleChanged("Usage statistics");
+                return usageStatistics.CreateView();
             });
     }
 

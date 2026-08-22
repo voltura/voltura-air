@@ -11,6 +11,7 @@ using VolturaAir.Host.Features.Diagnostics;
 using VolturaAir.Host.Features.Preferences;
 using VolturaAir.Host.Features.PhoneWebcam;
 using VolturaAir.Host.Features.Presentations;
+using VolturaAir.Host.Features.UsageTelemetry;
 using VolturaAir.Host.Ui;
 using WpfSize = System.Windows.Size;
 
@@ -52,6 +53,7 @@ public partial class MainWindow : Window
         ISystemPowerController? powerController = null,
         ICursorOverrideController? cursorOverrides = null,
         IAppLog? appLog = null,
+        IUsageStatisticsControl? usageStatistics = null,
         IPhoneWebcamFeature? phoneWebcam = null,
         IClipboardTextWriter? clipboardTextWriter = null,
         Action? requestRestart = null)
@@ -146,12 +148,15 @@ public partial class MainWindow : Window
             new AppLogVisualFactory(_visuals),
             clipboard,
             _toasts);
+        var usageStatisticsController = new UsageStatisticsController(
+            usageStatistics ?? NullUsageStatisticsControl.Instance);
         _diagnosticsPage = new DiagnosticsPageController(
             pairingManager,
             webHost,
             effectiveLockPolicy,
             effectiveAppLog,
             applicationLog,
+            usageStatisticsController,
             clipboard,
             SetDiagnosticsTitle);
 

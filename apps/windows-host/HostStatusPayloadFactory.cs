@@ -74,6 +74,8 @@ internal sealed class HostStatusPayloadFactory(
     public bool CanUseRemoteInput(string clientId) => GetEffectivePermissions(clientId).AllowRemoteInput;
     public bool CanControlVolume(string clientId) => GetEffectivePermissions(clientId).AllowVolumeControl;
     public bool CanControlPresentations(string clientId) => GetEffectivePermissions(clientId).AllowPresentationControl;
+    public bool CanUseCustomScreen(string clientId, string screenId) =>
+        customScreenService.Find(screenId)?.AssignedClientIds.Contains(clientId, StringComparer.Ordinal) == true;
     internal PowerPointAutomationSnapshot GetPowerPointSnapshot() => getPowerPointSnapshot();
     public bool CanLaunchRemoteApps(string clientId) => GetEffectivePermissions(clientId).AllowRemoteAppLaunch;
     public bool CanOpenUrls(string clientId) => GetEffectivePermissions(clientId).AllowUrlOpen;
@@ -122,6 +124,7 @@ internal sealed class HostStatusPayloadFactory(
         clipboardRead = permissions.AllowClipboardRead,
         gestureDebug = AppDeveloperSettings.EnableGestureDebug(),
         inputAck = true,
+        inputContextV1 = true,
         enhancedCapabilities = new { enabled = enhancedCapabilitiesEnabled?.Invoke() == true },
         screenView = new
         {

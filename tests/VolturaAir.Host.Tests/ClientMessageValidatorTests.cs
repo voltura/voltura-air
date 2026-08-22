@@ -161,6 +161,58 @@ public sealed class ClientMessageValidatorTests
     }
 
     [Theory]
+    [InlineData("""{ "type": "pointer.move", "dx": 1, "dy": 2, "inputContext": "trackpad" }""", "Trackpad")]
+    [InlineData("""{ "type": "keyboard.special", "key": "Enter", "inputContext": "keyboard" }""", "Keyboard")]
+    [InlineData("""{ "type": "keyboard.text", "text": "private", "inputContext": "dictation" }""", "Dictation")]
+    [InlineData("""{ "type": "keyboard.special", "key": "MediaPlayPause", "inputContext": "media-controls" }""", "MediaControls")]
+    [InlineData("""{ "type": "pointer.button", "button": "left", "action": "click", "inputContext": "presentation" }""", "Presentation")]
+    [InlineData("""{ "type": "pointer.button", "button": "left", "action": "click", "inputContext": "custom-screens" }""", "CustomScreens")]
+    [InlineData("""{ "type": "pointer.move", "dx": 1, "dy": 2, "inputContext": "screen-view" }""", "ScreenView")]
+    [InlineData("""{ "type": "pointer.move", "dx": 1, "dy": 2, "inputContext": "gyro-mouse" }""", "GyroMouse")]
+    public void DecodesClosedInputContexts(string json, string expected)
+    {
+        using var document = JsonDocument.Parse(json);
+        var type = document.RootElement.GetProperty("type").GetString()!;
+
+        Assert.True(ClientMessageValidator.TryDecodeInputMessage(document.RootElement, type, out var command));
+        Assert.Equal(expected, command.Context?.ToString());
+    }
+
+    [Theory]
+    [InlineData("""{ "type": "pointer.move", "dx": 1, "dy": 2, "inputContext": "dictation" }""")]
+    [InlineData("""{ "type": "keyboard.text", "text": "private", "inputContext": "gyro-mouse" }""")]
+    [InlineData("""{ "type": "keyboard.special", "key": "Enter", "inputContext": "trackpad" }""")]
+    [InlineData("""{ "type": "screen.pointer.move", "displayId": "display-1", "x": 0.5, "y": 0.5, "inputContext": "trackpad" }""")]
+    public void RejectsInputContextsThatDoNotMatchTheCommandKind(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        var type = document.RootElement.GetProperty("type").GetString()!;
+
+        Assert.False(ClientMessageValidator.TryDecodeInputMessage(document.RootElement, type, out _));
+    }
+
+    [Fact]
+    public void RejectsAudioContextThatDoesNotDescribeItsFunctionalSource()
+    {
+        using var document = JsonDocument.Parse(
+            """{ "type": "audio.mute.toggle", "inputContext": "keyboard" }""");
+
+        Assert.False(ClientMessageValidator.IsValidAuthenticatedMessage(
+            document.RootElement,
+            "audio.mute.toggle"));
+    }
+
+    [Theory]
+    [InlineData("unknown")]
+    [InlineData("")]
+    public void RejectsUnknownInputContexts(string inputContext)
+    {
+        using var document = JsonDocument.Parse($$"""{ "type": "pointer.move", "dx": 1, "dy": 2, "inputContext": "{{inputContext}}" }""");
+
+        Assert.False(ClientMessageValidator.TryDecodeInputMessage(document.RootElement, "pointer.move", out _));
+    }
+
+    [Theory]
     [InlineData("""{ "type": "screen.pointer.move", "seq": 7, "displayId": "display-1", "x": 0.25, "y": 1 }""", true)]
     [InlineData("""{ "type": "screen.pointer.button", "displayId": "display-1", "x": 0, "y": 0, "button": "right", "action": "down" }""", true)]
     [InlineData("""{ "type": "screen.pointer.wheel", "displayId": "display-1", "x": 1, "y": 0.5, "dx": 0, "dy": -12 }""", true)]

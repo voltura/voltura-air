@@ -20,17 +20,26 @@ export function getReleaseCheckpointPath(repositoryRoot, version) {
 }
 
 export function validateReleaseCheckpoint(checkpoint, { version, commit, expectedNames }) {
-  if (!checkpoint || checkpoint.schema !== 1 || checkpoint.version !== version || checkpoint.commit !== commit) {
+  if (!checkpoint || checkpoint.schema !== 2 || checkpoint.version !== version || checkpoint.commit !== commit) {
     return null;
   }
   if (checkpoint.phase !== "packaged" || !Array.isArray(checkpoint.artifacts)) return null;
+  if (typeof checkpoint.releaseTitle !== "string" || checkpoint.releaseTitle.length === 0 ||
+      !/^[a-f0-9]{64}$/u.test(checkpoint.releaseBodySha256 ?? "")) {
+    return null;
+  }
 
   const actualNames = checkpoint.artifacts.map((artifact) => artifact?.name).sort();
   if (actualNames.join("|") !== [...expectedNames].sort().join("|") || checkpoint.artifacts.some((artifact) =>
     !Number.isSafeInteger(artifact?.size) || artifact.size <= 0 || !/^[a-f0-9]{64}$/u.test(artifact?.sha256 ?? ""))) {
     return null;
   }
-  return { phase: "packaged", artifacts: checkpoint.artifacts };
+  return {
+    phase: "packaged",
+    artifacts: checkpoint.artifacts,
+    releaseTitle: checkpoint.releaseTitle,
+    releaseBodySha256: checkpoint.releaseBodySha256
+  };
 }
 
 export async function readReleaseCheckpoint({ repositoryRoot, version, commit, assetPaths, verifyArtifacts = true }) {
@@ -56,7 +65,19 @@ export async function readReleaseCheckpoint({ repositoryRoot, version, commit, a
   return validated;
 }
 
-export async function writeReleaseCheckpoint({ repositoryRoot, version, commit, phase, assetPaths = [] }) {
+export async function writeReleaseCheckpoint({
+  repositoryRoot,
+  version,
+  commit,
+  phase,
+  assetPaths = [],
+  releaseTitle,
+  releaseBody
+}) {
+  if (phase !== "packaged" || typeof releaseTitle !== "string" || releaseTitle.length === 0 ||
+      typeof releaseBody !== "string" || releaseBody.length === 0) {
+    throw new Error("Packaged release checkpoints require the exact release title and body.");
+  }
   const checkpointPath = getReleaseCheckpointPath(repositoryRoot, version);
   await mkdir(path.dirname(checkpointPath), { recursive: true });
   const artifacts = [];
@@ -66,7 +87,22 @@ export async function writeReleaseCheckpoint({ repositoryRoot, version, commit, 
       artifacts.push({ name: path.basename(assetPath), size: file.size, sha256: await sha256(assetPath) });
     }
   }
+  const releaseBodySha256 = createHash("sha256").update(releaseBody, "utf8").digest("hex");
+  const checkpoint = {
+    schema: 2,
+    version,
+    commit,
+    phase,
+    artifacts,
+    releaseTitle,
+    releaseBodySha256
+  };
   const pendingPath = `${checkpointPath}.pending`;
-  await writeFile(pendingPath, `${JSON.stringify({ schema: 1, version, commit, phase, artifacts }, null, 2)}\n`, "utf8");
+  await writeFile(pendingPath, `${JSON.stringify(checkpoint, null, 2)}\n`, "utf8");
   await rename(pendingPath, checkpointPath);
+  return validateReleaseCheckpoint(checkpoint, {
+    version,
+    commit,
+    expectedNames: assetPaths.map((assetPath) => path.basename(assetPath))
+  });
 }

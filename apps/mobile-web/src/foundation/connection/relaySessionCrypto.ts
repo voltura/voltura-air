@@ -212,6 +212,7 @@ function mergeRelativeMovement(currentText: string, nextText: string): string | 
     const current = JSON.parse(currentText) as unknown;
     const next = JSON.parse(nextText) as unknown;
     if (!isRelativeMovement(current) || !isRelativeMovement(next) || current.type !== next.type ||
+        current.inputContext !== next.inputContext ||
         (current.seq !== undefined && next.seq !== undefined)) {
       return null;
     }
@@ -226,6 +227,7 @@ function mergeRelativeMovement(currentText: string, nextText: string): string | 
     return JSON.stringify({
       type: current.type,
       ...(current.seq !== undefined || next.seq !== undefined ? { seq: current.seq ?? next.seq } : {}),
+      ...(current.inputContext === undefined ? {} : { inputContext: current.inputContext }),
       dx,
       dy
     });
@@ -234,12 +236,13 @@ function mergeRelativeMovement(currentText: string, nextText: string): string | 
   }
 }
 
-function isRelativeMovement(value: unknown): value is { type: "pointer.move" | "pointer.wheel"; seq?: number; dx: number; dy: number } {
+function isRelativeMovement(value: unknown): value is { type: "pointer.move" | "pointer.wheel"; seq?: number; inputContext?: string; dx: number; dy: number } {
   if (!isRecord(value)) {return false;}
-  const expectedFieldCount = value.seq === undefined ? 3 : 4;
+  const expectedFieldCount = 3 + (value.seq === undefined ? 0 : 1) + (value.inputContext === undefined ? 0 : 1);
   return Object.keys(value).length === expectedFieldCount &&
     (value.type === "pointer.move" || value.type === "pointer.wheel") &&
     (value.seq === undefined || Number.isSafeInteger(value.seq)) &&
+    (value.inputContext === undefined || typeof value.inputContext === "string") &&
     Number.isSafeInteger(value.dx) && Number.isSafeInteger(value.dy);
 }
 

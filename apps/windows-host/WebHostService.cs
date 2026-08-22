@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging;
 using VolturaAir.Host.Features.PhoneWebcam;
+using VolturaAir.Host.Features.UsageTelemetry;
 
 namespace VolturaAir.Host;
 
@@ -16,7 +17,7 @@ public sealed class WebHostService : IAsyncDisposable
     internal static readonly TimeSpan PairingHandshakeTimeout = WebSocketSessionHandler.PairingHandshakeTimeout;
     internal static readonly TimeSpan AuthenticatedInactivityTimeout = WebSocketSessionHandler.AuthenticatedInactivityTimeout;
     internal const int MaxWebSocketMessageBytes = WebSocketTransport.MaxMessageBytes;
-    private const int MaxConcurrentWebSocketSessions = 64;
+    private const int MaxConcurrentWebSocketSessions = UsageTelemetrySessionRegistry.Capacity;
 
     private readonly ISystemPowerController _powerController;
     private readonly IAwakeService _awakeService;
@@ -114,6 +115,7 @@ public sealed class WebHostService : IAsyncDisposable
             screenViewCapture,
             null,
             null,
+            null,
             null)
     {
     }
@@ -140,7 +142,8 @@ public sealed class WebHostService : IAsyncDisposable
         IScreenViewCaptureSource? screenViewCapture,
         IPhoneWebcamFeature? phoneWebcamFeature,
         IPhoneWebcamWebRtcPeerFactory? phoneWebcamPeerFactory,
-        IScreenViewWebRtcPeerFactory? screenViewPeerFactory)
+        IScreenViewWebRtcPeerFactory? screenViewPeerFactory,
+        IUsageTelemetryRecorder? usageTelemetry = null)
     {
         _configureWebHost = configureWebHost;
 
@@ -376,6 +379,7 @@ public sealed class WebHostService : IAsyncDisposable
             customScreenCommands,
             _screenViewCommands,
             _phoneWebcamCommands,
+            usageTelemetry ?? NullUsageTelemetryRecorder.Instance,
             _appLog,
             args => ControllerSocketClosed?.Invoke(this, args));
         _statusBroadcaster = new HostStatusBroadcaster(
@@ -412,7 +416,7 @@ public sealed class WebHostService : IAsyncDisposable
                 secureIdentity,
                 secureBindAddress,
                 () => TryAcquireControllerSession(),
-                HandleAdmittedSessionAsync,
+                HandleEnhancedDirectSessionAsync,
                 _appLog);
         }
         _sessionHandler.StatusRefreshRequested += (_, _) => _statusBroadcaster.Queue();
@@ -562,7 +566,11 @@ public sealed class WebHostService : IAsyncDisposable
             }
 
             using var socket = await context.WebSockets.AcceptWebSocketAsync();
-            await HandleAdmittedSessionAsync(socket, WebHostNetwork.GetRateLimitKey(context), context.RequestAborted);
+            await HandleAdmittedSessionAsync(
+                socket,
+                WebHostNetwork.GetRateLimitKey(context),
+                UsageConnectionMethod.StandardLocal,
+                context.RequestAborted);
         });
 
         MapCustomScreenPreview(app);
@@ -717,11 +725,21 @@ public sealed class WebHostService : IAsyncDisposable
             return;
         }
 
-        await HandleAdmittedSessionAsync(socket, rateLimitKey, cancellationToken);
+        await HandleAdmittedSessionAsync(socket, rateLimitKey, UsageConnectionMethod.Relay, cancellationToken);
     }
 
-    private Task HandleAdmittedSessionAsync(WebSocket socket, string rateLimitKey, CancellationToken cancellationToken) =>
-        _sessionHandler.HandleAsync(socket, rateLimitKey, cancellationToken);
+    private Task HandleEnhancedDirectSessionAsync(
+        WebSocket socket,
+        string rateLimitKey,
+        CancellationToken cancellationToken) =>
+        HandleAdmittedSessionAsync(socket, rateLimitKey, UsageConnectionMethod.EnhancedDirect, cancellationToken);
+
+    private Task HandleAdmittedSessionAsync(
+        WebSocket socket,
+        string rateLimitKey,
+        UsageConnectionMethod connectionMethod,
+        CancellationToken cancellationToken) =>
+        _sessionHandler.HandleAsync(socket, rateLimitKey, connectionMethod, cancellationToken);
 
     private ControllerSessionLease? TryAcquireControllerSession() =>
         _webSocketSessionSlots.Wait(0) ? new ControllerSessionLease(_webSocketSessionSlots) : null;

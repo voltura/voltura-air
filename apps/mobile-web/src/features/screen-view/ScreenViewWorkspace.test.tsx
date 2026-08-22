@@ -848,9 +848,9 @@ describe("ScreenViewWorkspace", () => {
     expect(send.mock.calls.map(([message]) => message).filter((message) =>
       message.type === "keyboard.text" || message.type === "keyboard.special"
     )).toEqual([
-      { type: "keyboard.text", text: "a" },
-      { type: "keyboard.special", key: "Escape" },
-      { type: "keyboard.special", key: "c", modifiers: ["Control"] }
+      { type: "keyboard.text", inputContext: "screen-view", text: "a" },
+      { type: "keyboard.special", inputContext: "screen-view", key: "Escape" },
+      { type: "keyboard.special", inputContext: "screen-view", key: "c", modifiers: ["Control"] }
     ]);
     expect(mouse.getAttribute("aria-pressed")).toBe("true");
 

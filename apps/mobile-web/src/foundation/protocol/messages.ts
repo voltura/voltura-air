@@ -71,6 +71,7 @@ export interface ServerCapabilities {
   awake?: AwakeCapability;
   gestureDebug?: boolean;
   inputAck?: boolean;
+  inputContextV1?: boolean;
   clipboardRead?: boolean;
   presentation?: PresentationCapability;
   power?: PowerCapabilities;
@@ -84,6 +85,16 @@ export interface ServerCapabilities {
   phoneWebcam?: PhoneWebcamCapability | null;
   fileManager?: FileManagerCapability | null;
 }
+
+export type InputContext =
+  | "trackpad"
+  | "keyboard"
+  | "dictation"
+  | "media-controls"
+  | "presentation"
+  | "custom-screens"
+  | "screen-view"
+  | "gyro-mouse";
 
 export interface FileManagerCapability {
   canBrowse: boolean;
@@ -646,6 +657,7 @@ export interface InputErrorMessage {
 
 export interface PointerMoveMessage {
   type: "pointer.move";
+  inputContext?: InputContext;
   seq?: number;
   dx: number;
   dy: number;
@@ -653,6 +665,7 @@ export interface PointerMoveMessage {
 
 export interface PointerButtonMessage {
   type: "pointer.button";
+  inputContext?: InputContext;
   seq?: number;
   button: "left" | "right";
   action: "down" | "up" | "click";
@@ -660,6 +673,7 @@ export interface PointerButtonMessage {
 
 export interface PointerWheelMessage {
   type: "pointer.wheel";
+  inputContext?: InputContext;
   seq?: number;
   dx: number;
   dy: number;
@@ -667,6 +681,7 @@ export interface PointerWheelMessage {
 
 export interface ScreenPointerMoveMessage {
   type: "screen.pointer.move";
+  inputContext?: InputContext;
   seq?: number;
   displayId: string;
   x: number;
@@ -675,6 +690,7 @@ export interface ScreenPointerMoveMessage {
 
 export interface ScreenPointerButtonMessage {
   type: "screen.pointer.button";
+  inputContext?: InputContext;
   seq?: number;
   displayId: string;
   x: number;
@@ -685,6 +701,7 @@ export interface ScreenPointerButtonMessage {
 
 export interface ScreenPointerWheelMessage {
   type: "screen.pointer.wheel";
+  inputContext?: InputContext;
   seq?: number;
   displayId: string;
   x: number;
@@ -695,18 +712,21 @@ export interface ScreenPointerWheelMessage {
 
 export interface PointerZoomMessage {
   type: "pointer.zoom";
+  inputContext?: InputContext;
   seq?: number;
   direction: "in" | "out";
 }
 
 export interface KeyboardTextMessage {
   type: "keyboard.text";
+  inputContext?: InputContext;
   seq?: number;
   text: string;
 }
 
 export interface KeyboardSpecialMessage {
   type: "keyboard.special";
+  inputContext?: InputContext;
   seq?: number;
   key: string;
   modifiers?: string[] | undefined;
@@ -966,10 +986,12 @@ export interface ClipboardGetResultMessage {
 
 export interface AudioMuteToggleMessage {
   type: "audio.mute.toggle";
+  inputContext?: InputContext;
 }
 
 export interface AudioVolumeSetMessage {
   type: "audio.volume.set";
+  inputContext?: InputContext;
   volume: number;
 }
 

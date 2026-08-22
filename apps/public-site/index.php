@@ -77,11 +77,10 @@
           <h1>Voltura Air</h1>
           <p class="tagline">Turn your phone into the remote and webcam your PC is missing.</p>
           <p class="lede">
-            Control your PC with trackpad, keyboard, presentation and media remotes,
-            file and text tools, practical PC actions, and live screen viewing with direct
-            control from another computer. Use your phone as a Windows webcam with optional
-            audio. Pair by QR code&mdash;no account or phone app required. Connect over Direct
-            LAN or an optional end-to-end encrypted Cloud relay.
+            Control your PC with trackpad, keyboard, media and presentation remotes, file/text tools, and live screen control.
+            Use your phone as a Windows webcam with optional audio.
+            Pair by QR code&mdash;no account or phone app required.
+            Connect over LAN or optional end-to-end encrypted cloud relay."
           </p>
           <div class="actions">
             <a class="button primary" href="https://github.com/voltura/voltura-air/releases/latest">Download for Windows</a>

@@ -19,7 +19,7 @@ networks that block inbound PC connections.
   unlock Gyro on supported phones and tablets.
 - View one selected Windows display live on a paired phone, tablet, or browser
   over Direct LAN or the optional Cloud relay, with encrypted video, responsive
-  cursor movement, scrolling, and up to 5x local zoom. Direct viewing adapts up
+  cursor movement, scrolling, and up to 10× local zoom. Direct viewing adapts up
   to the display, hardware, receiving device, and network capabilities; Relay
   offers High, Standard, and Data saver quality choices under the existing usage
   protections.

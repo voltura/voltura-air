@@ -145,7 +145,7 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   starts capture only after its video track and event channel connect.
 - One-finger movement controls the relative pointer. The compact two-finger
   switch defaults to **Zoom**, where spread/pinch locally magnifies the mirror
-  from 1x to 5x around the
+  from 1× to 10× around the
   gesture midpoint and two-finger drag pans locally. Switching modes preserves
   the current magnification and position. In **Scroll**, two-finger drag scrolls
   the PC; the separate scale action returns the mirror to 1x. A compact corner

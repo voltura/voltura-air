@@ -130,7 +130,7 @@ H.264 encoder feed an aspect-preserving adaptive WebRTC stream using direct LAN
 ICE or Relay-only TURN, up to 60 frames per second within the negotiated codec,
 hardware, receiver, and network capabilities. The browser must support H.264
 WebRTC playback. Pinch/spread
-magnifies the local mirror up to 5x, and two-finger drag pans while magnified.
+magnifies the local mirror up to 10×, and two-finger drag pans while magnified.
 UAC/secure desktop, protected content,
 lock/session loss, display removal, or duplication loss stops/pauses the
 mirror; development and tests never substitute a real capture source in

@@ -25,6 +25,17 @@ describe("screen view pinch transform", () => {
     expect(transformed).toEqual({ scale: 2, x: -200, y: -150 });
   });
 
+  it("clamps excessive pinch zoom at ten times", () => {
+    const transformed = updateScreenViewPinch({
+      distance: 100,
+      midpointX: 200,
+      midpointY: 150,
+      transform: identityScreenViewTransform
+    }, 2_000, 200, 150, 400, 300);
+
+    expect(transformed).toEqual({ scale: 10, x: -1_800, y: -1_350 });
+  });
+
   it("uses midpoint movement to pan a magnified view", () => {
     const transformed = updateScreenViewPinch({
       distance: 100,

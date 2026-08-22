@@ -12,7 +12,7 @@ export interface ScreenViewPinchStart {
 }
 
 export const identityScreenViewTransform: ScreenViewTransform = { scale: 1, x: 0, y: 0 };
-export const maxScreenViewScale = 5;
+export const maxScreenViewScale = 10;
 
 export interface NormalizedScreenPoint {
   x: number;

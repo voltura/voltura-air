@@ -27,9 +27,12 @@ Presentations, Phone webcam, Connection, Preferences, and Diagnostics. Closing h
 window to the notification area. The first close explains that paired devices
 remain active and that the tray icon reopens or exits.
 
-The startup window appears immediately and remains for its configured minimum.
-It keeps compact dimensions unless startup fails; error actions remain outside
-the fallback scroller.
+The topmost startup window appears immediately and is rendered before startup
+initialization continues. A non-blocking 1.5-second minimum-display timer runs
+concurrently with initialization; on success it closes after both readiness and
+the timer complete. Startup errors remain visible immediately. It keeps compact
+dimensions unless startup fails; error actions remain outside the fallback
+scroller.
 
 Tray menus provide quick access and common presets; Preferences owns complete
 configuration. Both operate on service-owned state. Submenu arrows and checked

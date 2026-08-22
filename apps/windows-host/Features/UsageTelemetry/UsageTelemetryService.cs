@@ -232,7 +232,7 @@ internal sealed class UsageTelemetryService : IUsageTelemetryRecorder, IUsageSta
                 return new UsageStatisticsTransitionResult(true, true, true);
             }
 
-            await StopWorkerAsync().ConfigureAwait(false);
+            await StopWorkerAsync(flushOnShutdown: false).ConfigureAwait(false);
             var denied = await Task.Run(_settings.DenyAndDeleteIdentity, cancellationToken).ConfigureAwait(false);
             SetState(!denied.Succeeded
                 ? UsageStatisticsRuntimeState.OffChoiceNotSaved
@@ -264,7 +264,7 @@ internal sealed class UsageTelemetryService : IUsageTelemetryRecorder, IUsageSta
         await _transitionGate.WaitAsync().ConfigureAwait(false);
         try
         {
-            await StopWorkerAsync().ConfigureAwait(false);
+            await StopWorkerAsync(flushOnShutdown: true).ConfigureAwait(false);
         }
         finally
         {
@@ -308,7 +308,7 @@ internal sealed class UsageTelemetryService : IUsageTelemetryRecorder, IUsageSta
         WriteLifecycleLog("worker_start", "enabled");
     }
 
-    private async Task StopWorkerAsync()
+    private async Task StopWorkerAsync(bool flushOnShutdown)
     {
         var worker = Interlocked.Exchange(ref _worker, null);
         SetState(UsageStatisticsRuntimeState.Off);
@@ -336,6 +336,10 @@ internal sealed class UsageTelemetryService : IUsageTelemetryRecorder, IUsageSta
             {
                 queuedBatchesRemoved++;
             }
+            if (flushOnShutdown)
+            {
+                await FlushAccumulatorOnShutdownAsync(worker).ConfigureAwait(false);
+            }
             worker.Accumulator.Clear();
             worker.Cancellation.Dispose();
             if (queuedBatchesRemoved != 0)
@@ -344,6 +348,27 @@ internal sealed class UsageTelemetryService : IUsageTelemetryRecorder, IUsageSta
             }
             WriteLifecycleLog("worker_stop", "cancelled");
         }
+    }
+
+    private async Task FlushAccumulatorOnShutdownAsync(UsageTelemetryWorker worker)
+    {
+        var snapshot = worker.Accumulator.Seal(
+            worker.InstallationId,
+            _options.BatchIdFactory(),
+            AppVersion.Display);
+        if (snapshot.Overflowed)
+        {
+            WriteDeliveryLog("counter_saturated", "local_limit", snapshot.Batch);
+        }
+
+        if (!snapshot.Batch.HasCounts)
+        {
+            return;
+        }
+
+        // Shutdown makes one bounded attempt and deliberately does not enter the retry schedule.
+        var result = await SendOnceAsync(snapshot.Batch, CancellationToken.None).ConfigureAwait(false);
+        WriteDeliveryLog(result.LogOutcome, result.StatusCode, snapshot.Batch);
     }
 
     private async Task RunSchedulerAsync(UsageTelemetryWorker worker)

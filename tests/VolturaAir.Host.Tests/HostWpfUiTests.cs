@@ -28,6 +28,7 @@ public sealed partial class HostUiLayoutTests : IsolatedHostSettingsTest
             var window = new StartupWindow();
             try
             {
+                Assert.True(window.Topmost);
                 Assert.Equal(520, window.Width);
                 Assert.Equal(360, window.Height);
                 window.Show();

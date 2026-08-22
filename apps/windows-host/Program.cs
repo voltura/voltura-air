@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Threading;
 using System.Runtime.InteropServices;
 using Forms = System.Windows.Forms;
 using WpfApplication = System.Windows.Application;
@@ -9,6 +10,7 @@ namespace VolturaAir.Host;
 internal static class Program
 {
     private const int DevelopmentRestartExitCode = 23;
+    private static readonly TimeSpan StartupWindowMinimumDisplayDuration = TimeSpan.FromMilliseconds(1500);
     private static readonly TimeSpan PhoneMicrophoneProbeTimeout = TimeSpan.FromSeconds(5);
     private static WpfHostRuntime? s_runtime;
     private static IDisposable? s_isolatedSettingsScope;
@@ -75,11 +77,15 @@ internal static class Program
                 startupWindow.Show();
             }
 
-            _ = app.Dispatcher.InvokeAsync(() => InitializeAsync(
-                startupWindow,
-                args,
-                shutdownCoordinator.RequestShutdown,
-                () => RequestRestart(shutdownCoordinator.RequestShutdown)));
+            var minimumSplashDisplayTask = CreateStartupMinimumDisplayTask(!offscreenSiteScreenshot);
+            _ = app.Dispatcher.InvokeAsync(
+                () => InitializeAsync(
+                    startupWindow,
+                    minimumSplashDisplayTask,
+                    args,
+                    shutdownCoordinator.RequestShutdown,
+                    () => RequestRestart(shutdownCoordinator.RequestShutdown)),
+                DispatcherPriority.ContextIdle);
             app.Run();
         }
         finally
@@ -114,6 +120,22 @@ internal static class Program
         }
     }
 
+    internal static Task CreateStartupMinimumDisplayTask(bool splashVisible)
+    {
+        return splashVisible
+            ? Task.Delay(StartupWindowMinimumDisplayDuration)
+            : Task.CompletedTask;
+    }
+
+    internal static async Task<T> AwaitStartupReadinessAsync<T>(
+        Func<Task<T>> initialize,
+        Task minimumSplashDisplayTask)
+    {
+        var result = await initialize();
+        await minimumSplashDisplayTask;
+        return result;
+    }
+
     private static void RunInstallerHealthCheck(string[] args)
     {
         if (!args.Contains("--isolated-test-mode", StringComparer.OrdinalIgnoreCase))
@@ -137,11 +159,11 @@ internal static class Program
 
     private static async Task InitializeAsync(
         StartupWindow startupWindow,
+        Task minimumSplashDisplayTask,
         string[] args,
         Action requestShutdown,
         Action requestRestart)
     {
-        var startedAt = DateTimeOffset.UtcNow;
         try
         {
             var isolatedTestMode = args.Contains("--isolated-test-mode", StringComparer.OrdinalIgnoreCase);
@@ -155,7 +177,9 @@ internal static class Program
 #if DEBUG
             ConfigureSiteScreenshotSettings(args);
 #endif
-            s_runtime = await WpfHostRuntime.StartAsync(args, requestShutdown, requestRestart);
+            s_runtime = await AwaitStartupReadinessAsync(
+                () => WpfHostRuntime.StartAsync(args, requestShutdown, requestRestart),
+                minimumSplashDisplayTask);
 #if DEBUG
             var requestedSiteScreenshotOutput = GetOption(args, "--site-screenshot-output");
             if (!string.IsNullOrWhiteSpace(requestedSiteScreenshotOutput))
@@ -165,12 +189,6 @@ internal static class Program
                 return;
             }
 #endif
-            var remaining = TimeSpan.FromMilliseconds(1500) - (DateTimeOffset.UtcNow - startedAt);
-            if (remaining > TimeSpan.Zero)
-            {
-                await Task.Delay(remaining);
-            }
-
             startupWindow.Close();
             var catalogImportRequest = CatalogImportRequestStore.TryTake();
             if (catalogImportRequest is not null)

@@ -9,6 +9,7 @@
         MinHeight="300"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
+        Topmost="True"
         ShowInTaskbar="True"
         Background="{DynamicResource WindowBrush}">
     <Window.Resources>

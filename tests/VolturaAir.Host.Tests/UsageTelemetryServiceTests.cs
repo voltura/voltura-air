@@ -68,6 +68,67 @@ public sealed class UsageTelemetryServiceTests
     }
 
     [Fact]
+    public async Task ShutdownFlushesTheCurrentAggregateOnce()
+    {
+        var handler = new RecordingHandler(_ => Accepted());
+        await using var service = CreateService(EnabledSettings(), handler);
+        await service.InitializeAsync();
+
+        service.RecordFeature(UsageFeature.GyroMouse);
+        await service.DisposeAsync();
+
+        await handler.WaitForCountAsync(1);
+        using var document = JsonDocument.Parse(handler.Bodies.Single());
+        var root = document.RootElement;
+        Assert.Equal(1, root.GetProperty("hostStarts").GetInt32());
+        Assert.Equal(1, root.GetProperty("features").GetProperty("gyroMouse").GetInt32());
+        Assert.Single(handler.Bodies);
+    }
+
+    [Fact]
+    public async Task ShutdownFlushMakesOneBoundedAttemptWithoutRetrying()
+    {
+        var log = new RecordingAppLog();
+        var handler = new RecordingHandler(async (_, cancellationToken) =>
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return Accepted();
+        });
+        await using var service = CreateService(
+            EnabledSettings(),
+            handler,
+            retryDelays: [TimeSpan.FromMinutes(1)],
+            appLog: log,
+            requestTimeout: TimeSpan.FromMilliseconds(25));
+        await service.InitializeAsync();
+
+        service.RecordFeature(UsageFeature.GyroMouse);
+        await service.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Single(handler.Bodies);
+        Assert.Contains(log.Entries, entry =>
+            entry.Action == "usage_statistics_delivery" && entry.Outcome == "timeout");
+        Assert.DoesNotContain(log.Entries, entry => entry.Outcome == "retry_exhausted");
+    }
+
+    [Fact]
+    public async Task DisableDiscardsUnsealedCountersWithoutSending()
+    {
+        var settings = EnabledSettings();
+        var handler = new RecordingHandler(_ => Accepted());
+        await using var service = CreateService(settings, handler);
+        await service.InitializeAsync();
+
+        service.RecordFeature(UsageFeature.GyroMouse);
+        var result = await service.SetEnabledAsync(false);
+
+        Assert.False(result.EffectiveEnabled);
+        Assert.True(result.Saved);
+        Assert.Empty(handler.Bodies);
+        Assert.Null(settings.State.InstallationId);
+    }
+
+    [Fact]
     public async Task RetryReusesTheBatchIdAndNeverBlocksProducers()
     {
         var releaseFirstRequest = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

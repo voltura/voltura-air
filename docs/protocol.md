@@ -148,8 +148,11 @@ It reuses one batch UUID for the initial attempt and retries after 1, 5, and 15
 minutes. Each HTTPS attempt has a five-second timeout and reads at most 1 KiB.
 Only `202` with the exact accepted body completes the batch. `429`, transport
 errors, timeouts, malformed success, and `5xx` use the remaining schedule;
-other `4xx` responses permanently reject that batch. Disable and shutdown
-cancel requests and backoff without a flush.
+other `4xx` responses permanently reject that batch. Disable cancels requests
+and backoff and discards unsent data without a flush. During graceful Windows
+host shutdown, the host seals the active in-memory accumulator and makes one
+final five-second HTTPS attempt without the retry schedule; a failed final
+attempt is discarded. Crashes or power loss can still lose unsent counters.
 
 `GET https://voltura.se/air/telemetry/v1/health.php` returns `204` only when the
 configuration, PDO connection, required telemetry columns, and maintenance row

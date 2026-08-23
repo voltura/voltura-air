@@ -450,6 +450,7 @@ async function runLocalReleaseUnlocked(args = process.argv.slice(2), {
 
       if (releaseContext.resumePhase !== "packaged") {
         checked("npm", ["run", "package:win"]);
+        checked("node", ["scripts/sign-update-manifest.mjs", releaseContext.targetVersion, path.join(repositoryRoot, "artifacts", "publish")]);
         const finalStatus = checked("git", ["status", "--porcelain=v1", "--untracked-files=all"], { captureOutput: true });
         if (finalStatus) {
           throw new Error(`Repository changed during final release packaging: ${finalStatus}`);

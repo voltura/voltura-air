@@ -1,6 +1,7 @@
 using Microsoft.Win32;
 using VolturaAir.Host.Features.PhoneWebcam;
 using VolturaAir.Host.Features.UsageTelemetry;
+using VolturaAir.Host.Features.Updates;
 
 namespace VolturaAir.Host;
 
@@ -16,6 +17,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
     private readonly IAsyncDisposable? _phoneWebcamFeature;
     private readonly WebHostService _webHost;
     private readonly UsageTelemetryService _usageTelemetry;
+    private readonly UpdateService _updates;
     private readonly WpfTrayApplicationContext _trayContext;
     private readonly IAppLog _appLog;
     private readonly SessionSwitchEventHandler? _screenViewSessionSwitch;
@@ -32,6 +34,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         IAsyncDisposable? phoneWebcamFeature,
         WebHostService webHost,
         UsageTelemetryService usageTelemetry,
+        UpdateService updates,
         PairingManager pairingManager,
         MainWindow mainWindow,
         WpfTrayApplicationContext trayContext,
@@ -48,6 +51,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         _phoneWebcamFeature = phoneWebcamFeature;
         _webHost = webHost;
         _usageTelemetry = usageTelemetry;
+        _updates = updates;
         PairingManager = pairingManager;
         MainWindow = mainWindow;
         _trayContext = trayContext;
@@ -56,10 +60,9 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
     }
 
     public PairingManager PairingManager { get; }
-
     public MainWindow MainWindow { get; }
 
-    public static async Task<WpfHostRuntime> StartAsync(string[] args, Action requestShutdown, Action requestRestart)
+    public static async Task<WpfHostRuntime> StartAsync(string[] args, Action requestShutdown, Action requestRestart, Action<string>? requestUpdate = null)
     {
         var isolatedTestMode = HasOption(args, "--isolated-test-mode");
 #if DEBUG
@@ -95,6 +98,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         IAwakeService? awakeService = null;
         WebHostService? webHost = null;
         UsageTelemetryService? usageTelemetry = null;
+        UpdateService? updates = null;
         PointerHighlightForegroundMonitor? pointerHighlightForegroundMonitor = null;
         MainWindow? mainWindow = null;
         WpfTrayApplicationContext? trayContext = null;
@@ -103,6 +107,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
         try
         {
             pairingManager = new PairingManager(new PairingStore(pairingStoreRoot));
+            updates = new UpdateService(pairingManager, args, requestUpdate);
             inputInjector = new SendInputInjector();
             activitySimulationService = new ActivitySimulationService(
                 isolatedTestMode ? NoOpActivityPulseSender.Instance : inputInjector,
@@ -214,7 +219,8 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 appLog: appLog,
                 usageStatistics: usageTelemetry,
                 phoneWebcam: phoneWebcam,
-                requestRestart: requestRestart);
+                requestRestart: requestRestart,
+                updates: updates);
 #if DEBUG
             WritePairingUrlIfRequested(args, mainWindow.PairingUrl);
 #endif
@@ -224,7 +230,8 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 pairingManager,
                 awakeService,
                 requestShutdown,
-                activitySimulationService: activitySimulationService);
+                activitySimulationService: activitySimulationService,
+                updates: updates);
             return new WpfHostRuntime(
                 inputInjector,
                 activitySimulationService,
@@ -236,6 +243,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 phoneWebcamFeature,
                 webHost,
                 usageTelemetry,
+                updates,
                 pairingManager,
                 mainWindow,
                 trayContext,
@@ -267,6 +275,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 "presentation_email_draft_cleanup");
             await TryDisposeAsync(phoneWebcamFeature, appLog, "phone_webcam_feature");
             await TryDisposeAsync(usageTelemetry, appLog, "usage_telemetry");
+            await TryDisposeAsync(updates, appLog, "updates");
 
             if (cursorOverrides is not null)
             {
@@ -306,6 +315,7 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
             "presentation_email_draft_cleanup");
         await TryDisposeAsync(_phoneWebcamFeature, appLog, "phone_webcam_feature");
         await TryDisposeAsync(_usageTelemetry, appLog, "usage_telemetry");
+        await TryDisposeAsync(_updates, appLog, "updates");
         _cursorOverrides.OverridesRevoked -= _cursorOverridesRevoked;
         TryDispose(_cursorOverrides, appLog, "cursor_overrides");
         TryDispose(_inputInjector, appLog, "input_injector");

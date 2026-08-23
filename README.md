@@ -136,6 +136,8 @@ explicitly monitor `CABLE Output` through the default speakers for end-to-end te
 Use headphones or keep the phone away from the speakers while testing to avoid
 acoustic echo or feedback.
 
+Installed stable builds check GitHub Releases at most once a day and automatically stage a newer release by default. Installation is always explicit from the **Update** button or tray menu; startup never installs or requests UAC. The first updater-capable version must be installed manually.
+
 ## Connect
 
 1. Install or extract Voltura Air and start it on the PC.

@@ -17,6 +17,7 @@ internal static class Program
     private static int s_activationRequested;
     private static int s_activationDispatchPending;
     private static int s_restartRequested;
+    private static Action? s_postShutdownLaunch;
 
     [STAThread]
     private static void Main(string[] args)
@@ -84,7 +85,8 @@ internal static class Program
                     minimumSplashDisplayTask,
                     args,
                     shutdownCoordinator.RequestShutdown,
-                    () => RequestRestart(shutdownCoordinator.RequestShutdown)),
+                    () => RequestRestart(shutdownCoordinator.RequestShutdown),
+                    installer => RequestUpdateInstall(installer, shutdownCoordinator.RequestShutdown)),
                 DispatcherPriority.ContextIdle);
             app.Run();
         }
@@ -98,6 +100,7 @@ internal static class Program
         {
             RestartCurrentProcess();
         }
+        Interlocked.Exchange(ref s_postShutdownLaunch, null)?.Invoke();
     }
 
     internal static async Task<int> GetPhoneMicrophoneStatusExitCodeAsync(
@@ -162,7 +165,8 @@ internal static class Program
         Task minimumSplashDisplayTask,
         string[] args,
         Action requestShutdown,
-        Action requestRestart)
+        Action requestRestart,
+        Action<string> requestUpdate)
     {
         try
         {
@@ -178,7 +182,7 @@ internal static class Program
             ConfigureSiteScreenshotSettings(args);
 #endif
             s_runtime = await AwaitStartupReadinessAsync(
-                () => WpfHostRuntime.StartAsync(args, requestShutdown, requestRestart),
+                () => WpfHostRuntime.StartAsync(args, requestShutdown, requestRestart, requestUpdate),
                 minimumSplashDisplayTask);
 #if DEBUG
             var requestedSiteScreenshotOutput = GetOption(args, "--site-screenshot-output");
@@ -398,6 +402,29 @@ internal static class Program
         {
             requestShutdown();
         }
+    }
+
+    private static void RequestUpdateInstall(string installer, Action requestShutdown)
+    {
+        if (Interlocked.CompareExchange(
+            ref s_postShutdownLaunch,
+            () =>
+            {
+                try
+                {
+                    if (System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = installer,
+                        Arguments = "/S /AUTOUPDATE",
+                        UseShellExecute = false
+                    }) is null) RestartCurrentProcess();
+                }
+                catch (System.ComponentModel.Win32Exception)
+                {
+                    RestartCurrentProcess();
+                }
+            },
+            null) is null) requestShutdown();
     }
 
     private static bool IsDevelopmentHostSupervisor() =>

@@ -27,6 +27,8 @@ Presentations, Phone webcam, Connection, Preferences, and Diagnostics. Closing h
 window to the notification area. The first close explains that paired devices
 remain active and that the tray icon reopens or exits.
 
+The updater contributes one stateful tray item above **Open product page** and a collapsed **Update** accent button first above navigation only when a verified installer is ready. Both surfaces share the update feature state; neither polls or owns update work.
+
 The topmost startup window appears immediately and is rendered before startup
 initialization continues. A non-blocking 1.5-second minimum-display timer runs
 concurrently with initialization; on success it closes after both readiness and

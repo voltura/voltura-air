@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Windows.Threading;
 using DrawingFontStyle = System.Drawing.FontStyle;
 using Forms = System.Windows.Forms;
+using VolturaAir.Host.Features.Updates;
 
 namespace VolturaAir.Host;
 
@@ -26,6 +27,8 @@ internal sealed class WpfTrayApplicationContext : IDisposable
     private readonly TrayConnectionFeedbackController _connectionFeedbackController;
     private readonly OwnedDispatcherAction _connectionChangedAction;
     private readonly Action<string, string, Forms.ToolTipIcon>? _notificationSink;
+    private readonly UpdateService? _updates;
+    private Forms.ToolStripMenuItem? _updateItem;
     private bool _hadActiveController;
     private Forms.ToolStripMenuItem? _screenViewingItem;
     private Forms.ToolStripMenuItem? _blockScreenViewingItem;
@@ -41,7 +44,8 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         IAwakeService awakeService,
         Action requestShutdown,
         Action<string, string, Forms.ToolTipIcon>? notificationSink = null,
-        IActivitySimulationService? activitySimulationService = null)
+        IActivitySimulationService? activitySimulationService = null,
+        UpdateService? updates = null)
     {
         _mainWindow = mainWindow;
         _dispatcher = mainWindow.Dispatcher;
@@ -49,6 +53,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _webHost = webHost;
         _requestShutdown = requestShutdown;
         _notificationSink = notificationSink;
+        _updates = updates;
         _hadActiveController = pairingManager.HasActiveController;
         _connectionChangedAction = new OwnedDispatcherAction(_dispatcher, HandleConnectionChanged);
 #pragma warning disable CA2000 // The inert fallback owns no resources; production composition always supplies the runtime-owned service.
@@ -88,6 +93,11 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         ApplyMenuTheme();
         AppThemeSettings.Changed += OnAppThemeChanged;
         _connectionFeedbackController.Start();
+        if (_updates is not null)
+        {
+            _updates.StateChanged += OnUpdateStateChanged;
+            ApplyUpdateState();
+        }
     }
 
     internal void RequestExit()
@@ -118,6 +128,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _mainWindow.HiddenToTray -= OnMainWindowHiddenToTray;
         _connectionChangedAction.Dispose();
         _connectionFeedbackController.Dispose();
+        _updates?.StateChanged -= OnUpdateStateChanged;
         _awakeMenuController.Dispose();
         _trayIcon.Visible = false;
         _components.Dispose();
@@ -125,6 +136,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _blockScreenViewingItem?.Dispose();
         _screenViewingItem?.Dispose();
         _phoneWebcamItem?.Dispose();
+        _updateItem?.Dispose();
         _trayMenu.Dispose();
 
         foreach (var icon in _trayIcons.Values.Distinct())
@@ -157,6 +169,15 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _trayMenu.Items.Add("Devices", null, (_, _) => RunProtected(() => _mainWindow.ShowPage(HostPage.Devices)));
         _trayMenu.Items.Add("Preferences", null, (_, _) => RunProtected(() => _mainWindow.ShowPage(HostPage.Preferences)));
         _trayMenu.Items.Add(_awakeMenuController.MenuItem);
+        if (_updates?.IsUpdateEligible == true)
+        {
+            _updateItem = new Forms.ToolStripMenuItem();
+            _updateItem.Click += async (_, _) =>
+            {
+                if (_updates is not null) await RunProtectedAsync(() => _updates.State == UpdateState.Ready ? _updates.ApplyAsync() : _updates.CheckForUpdatesAsync(manual: true));
+            };
+            _trayMenu.Items.Add(_updateItem);
+        }
         _trayMenu.Items.Add("Open product page", null, (_, _) => RunProtected(ProductWebsite.Open));
         _trayMenu.Items.Add("Browse custom screens", null, (_, _) => RunProtected(ProductWebsite.OpenCustomScreenLibrary));
         _trayMenu.Items.Add(new Forms.ToolStripSeparator());
@@ -172,6 +193,22 @@ internal sealed class WpfTrayApplicationContext : IDisposable
                 ApplyMenuTheme();
             }
         });
+    }
+
+    private void OnUpdateStateChanged(object? sender, EventArgs e) => _ = _dispatcher.BeginInvoke(ApplyUpdateState);
+
+    private void ApplyUpdateState()
+    {
+        if (_disposed || _updateItem is null || _updates is null) return;
+        var version = _updates.TargetVersion;
+        (_updateItem.Text, _updateItem.Enabled) = _updates.State switch
+        {
+            UpdateState.Checking => ("Checking for updates…", false),
+            UpdateState.WaitingForDevices => ($"Waiting to download version {version}…", false),
+            UpdateState.Downloading => ($"Downloading version {version}…", false),
+            UpdateState.Ready => ($"Install version {version} and restart", true),
+            _ => ("Check for updates", true)
+        };
     }
 
     private void ApplyMenuTheme()

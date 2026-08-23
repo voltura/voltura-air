@@ -82,6 +82,7 @@ rollback and shutdown release composition-owned resources in reverse order.
 Optional features allocate no feature-specific worker, timer, subscription,
 native resource, or network activity while disabled. Hot input/render paths use
 cached settings and event-driven updates, not registry reads or polling.
+The installed-host update feature owns one cancellable delayed check and the fixed local pending directory. It uses GitHub's latest-release metadata plus a pinned RSA public key to verify the exact manifest before streaming an installer; it is absent for portable, isolated, screenshot, health-check, development, and opted-out runs.
 Simulated-activity success and busy skips perform no persistence, logging, UI,
 or network work; remote input never enters its timer, state, or failure paths.
 

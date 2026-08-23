@@ -12,6 +12,7 @@ using VolturaAir.Host.Features.Preferences;
 using VolturaAir.Host.Features.PhoneWebcam;
 using VolturaAir.Host.Features.Presentations;
 using VolturaAir.Host.Features.UsageTelemetry;
+using VolturaAir.Host.Features.Updates;
 using VolturaAir.Host.Ui;
 using WpfSize = System.Windows.Size;
 
@@ -38,6 +39,7 @@ public partial class MainWindow : Window
     private readonly OwnedDispatcherAction _deviceProfileChangedAction;
     private readonly OwnedDispatcherAction _themeChangedAction;
     private readonly OwnedDispatcherAction _awakeStateChangedAction;
+    private readonly UpdateService? _updates;
     private bool _pageNeedsRefresh = true;
     private bool _allowClose;
 
@@ -56,10 +58,12 @@ public partial class MainWindow : Window
         IUsageStatisticsControl? usageStatistics = null,
         IPhoneWebcamFeature? phoneWebcam = null,
         IClipboardTextWriter? clipboardTextWriter = null,
-        Action? requestRestart = null)
+        Action? requestRestart = null,
+        UpdateService? updates = null)
     {
         _pairingManager = pairingManager;
         _awakeService = awakeService ?? webHost.AwakeService;
+        _updates = updates;
         var effectiveLockPolicy = workstationLockPolicy ?? webHost.WorkstationLockPolicy;
 #pragma warning disable CA2000 // The inert fallback owns no resources; production composition always supplies the runtime-owned service.
         var effectiveActivitySimulationService = activitySimulationService ?? new InertActivitySimulationService();
@@ -194,6 +198,11 @@ public partial class MainWindow : Window
         WpfTheme.TrackAccessibilityChanges(this, RefreshAfterSystemThemeChange);
 
         _pairingManager.ConnectionChanged += OnConnectionChanged;
+        if (_updates is not null)
+        {
+            _updates.StateChanged += OnUpdateStateChanged;
+            RefreshUpdateButton();
+        }
         _pairingManager.DeviceProfileChanged += OnDeviceProfileChanged;
         _pairingManager.PairingCodeInvalidated += OnPairingCodeInvalidated;
         AppThemeSettings.Changed += OnThemeChanged;
@@ -309,6 +318,7 @@ public partial class MainWindow : Window
     {
         _customScreensPage.ClosePreviews();
         _pairingManager.ConnectionChanged -= OnConnectionChanged;
+        _updates?.StateChanged -= OnUpdateStateChanged;
         _pairingManager.DeviceProfileChanged -= OnDeviceProfileChanged;
         _pairingManager.PairingCodeInvalidated -= OnPairingCodeInvalidated;
         AppThemeSettings.Changed -= OnThemeChanged;
@@ -427,6 +437,25 @@ public partial class MainWindow : Window
     }
 
     private void OnConnectionChanged(object? sender, EventArgs e) => _connectionChangedAction.Queue();
+
+    private void OnUpdateStateChanged(object? sender, EventArgs e) => _ = Dispatcher.BeginInvoke(RefreshUpdateButton);
+
+    private void RefreshUpdateButton()
+    {
+        var version = _updates?.TargetVersion;
+        var ready = _updates?.State == UpdateState.Ready && !string.IsNullOrWhiteSpace(version);
+        UpdateButton.Visibility = ready ? Visibility.Visible : Visibility.Collapsed;
+        UpdateButton.ToolTip = ready ? $"Install version {version} and restart Voltura Air. Windows may request administrator approval." : null;
+    }
+
+    private async void OnUpdateClicked(object sender, RoutedEventArgs e)
+    {
+        if (_updates is not null)
+        {
+            if (_updates.State == UpdateState.Ready) await _updates.ApplyAsync();
+            else await _updates.CheckForUpdatesAsync(manual: true);
+        }
+    }
 
     private void HandleConnectionChanged()
     {

@@ -69,6 +69,7 @@
                 </ui:SpacingStackPanel>
 
                 <ui:SpacingStackPanel Grid.Row="2" Spacing="{DynamicResource SpaceSm}">
+                    <Button x:Name="UpdateButton" Content="Update" Style="{StaticResource PrimaryButtonStyle}" Visibility="Collapsed" Click="OnUpdateClicked" />
                     <Button x:Name="ConnectNavButton" Content="Connect" Style="{StaticResource MenuButtonStyle}" Click="OnConnectNavClicked" />
                     <Button x:Name="DevicesNavButton" Content="Devices" Style="{StaticResource MenuButtonStyle}" Click="OnDevicesNavClicked" />
                     <Button x:Name="CustomScreensNavButton" Content="Custom screens" Style="{StaticResource MenuButtonStyle}" Click="OnCustomScreensNavClicked" />

@@ -174,9 +174,7 @@ browser-local unless a cross-device workflow justifies host ownership.
 | Candidate | Decision boundary |
 | --- | --- |
 | Demo video/GIF | Isolated capture, captions, privacy-safe content, and licensed media. |
-| Update notification | Choose manual, opt-in periodic, or disabled-by-default checks with privacy and failure behavior. |
 | Code signing | Certificate, cost, key custody, CI signing, timestamps, renewal, revocation, and asset coverage. |
-| Automatic update | Integrity, signing, consent, rollback, recovery, privacy, and ownership. |
 | Microsoft Store | Packaging, signing, account, policy, update channel, and demonstrated benefit. |
 
 ## Research-gated capabilities

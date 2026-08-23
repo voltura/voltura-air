@@ -31,6 +31,7 @@ Development: [setup](setup.md). Wire detail: [protocol](protocol.md).
   leaves the host running.
 - Light, dark, system, Windows High Contrast, per-user installation, portable
   ZIP, and installer packages are supported.
+- Eligible installed stable builds can automatically stage a signed newer GitHub Release; the user explicitly installs it from the shared tray/sidebar update action. Portable and development runs do not check for updates.
 - Connect shows a short-lived QR code, refresh countdown, **New code**, and
   **Copy link**. Mobile can reconnect to saved PCs or enter a host manually.
 - Adapter and port selection are automatic by default. Connection allows a

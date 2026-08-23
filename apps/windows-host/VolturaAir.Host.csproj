@@ -28,6 +28,7 @@
 
   <ItemGroup>
     <None Update="relay-service.json" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="Features\Updates\update-signing-public.pem" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.Web.WebView2" />
     <PackageReference Include="Concentus" />

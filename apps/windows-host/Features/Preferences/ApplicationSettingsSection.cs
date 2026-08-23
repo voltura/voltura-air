@@ -38,6 +38,13 @@ internal sealed class ApplicationSettingsSection(
         showOnDisconnect.Checked += (_, _) => AppNotificationSettings.SetShowPairingWindowOnDisconnect(true);
         showOnDisconnect.Unchecked += (_, _) => AppNotificationSettings.SetShowPairingWindowOnDisconnect(false);
         toggles.Children.Add(showOnDisconnect);
+
+        var automaticUpdates = preferenceVisuals.Register(
+            visuals.CreateCheckBox("Automatically download updates", AppUpdateSettings.AutomaticUpdateDownloadsEnabled()));
+        automaticUpdates.Checked += (_, _) => AppUpdateSettings.SetAutomaticUpdateDownloadsEnabled(true);
+        automaticUpdates.Unchecked += (_, _) => AppUpdateSettings.SetAutomaticUpdateDownloadsEnabled(false);
+        toggles.Children.Add(automaticUpdates);
+        parent.Children.Add(visuals.CreateMutedText("Checks GitHub at most once a day. You choose when to install a downloaded update. Windows may request administrator approval."));
         AddLoggingSettings(parent);
     }
 

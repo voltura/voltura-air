@@ -155,6 +155,16 @@ flowchart LR
 
 ## Windows installer promotion boundary
 
+## Signed automatic-update boundary
+
+```mermaid
+flowchart LR
+  GitHub[GitHub Release assets] --> Manifest[raw manifest plus signature]
+  Manifest --> Verify[pinned RSA public key]
+  Verify --> Pending[owned pending installer]
+  Pending --> Explicit[explicit install and restart]
+```
+
 ```mermaid
 flowchart LR
   Payload["Complete embedded payload\nSHA-256 manifest"] --> Stage["Unique sibling staging\nextract + verify"]

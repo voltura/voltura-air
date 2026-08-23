@@ -62,6 +62,7 @@
 !include "nsDialogs.nsh"
 !include "LogicLib.nsh"
 !include "WinMessages.nsh"
+!include "FileFunc.nsh"
 
 Unicode true
 Name "${APP_NAME}"
@@ -142,6 +143,7 @@ Var UsageConsentStatus
 Var UsageConsentAllowButton
 Var UsageConsentDenyButton
 Var UsageConsentStateUnknown
+Var AutoUpdate
 
 Function OpenVbCableWebsite
   ExecShell "open" "${VB_CABLE_URL}"
@@ -204,6 +206,16 @@ Function FinishInstallerWindowActivation
 FunctionEnd
 
 Function .onInit
+  StrCpy $AutoUpdate 0
+  ClearErrors
+  ${GetOptions} $CMDLINE "/AUTOUPDATE" $0
+  IfErrors auto_update_missing
+  IfSilent auto_update_silent
+  MessageBox MB_ICONSTOP "/AUTOUPDATE is valid only with /S."
+  Abort "/AUTOUPDATE requires /S."
+auto_update_silent:
+  StrCpy $AutoUpdate 1
+auto_update_missing:
   StrCpy $UsageConsentChoice 0
   StrCpy $UsageConsentPromptRequired 0
   StrCpy $UsageConsentStateUnknown 0
@@ -759,10 +771,25 @@ SectionEnd
 Function .onInstSuccess
   IfRebootFlag 0 success_without_reboot
   SetErrorLevel 3010
+  ${If} $AutoUpdate == 1
+    MessageBox MB_ICONINFORMATION "Restart Windows to finish updating Voltura Air"
+  ${EndIf}
   Return
 
 success_without_reboot:
+  ${If} $AutoUpdate == 1
+    Exec '"$INSTDIR\${EXE_NAME}" --updated'
+  ${EndIf}
   SetErrorLevel 0
+FunctionEnd
+
+Function .onInstFailed
+  ${If} $AutoUpdate == 1
+    IfRebootFlag update_failed_done
+    IfFileExists "$INSTDIR\${EXE_NAME}" 0 update_failed_done
+    Exec '"$INSTDIR\${EXE_NAME}" --update-failed'
+  ${EndIf}
+update_failed_done:
 FunctionEnd
 
 Section "Uninstall"

@@ -11,7 +11,9 @@ export function getReleaseAssetPaths(repositoryRoot, version, runtime) {
   return [
     path.join(publishRoot, `VolturaAir-${version}-${runtime}.zip`),
     path.join(publishRoot, `VolturaAir-Setup-${version}-${runtime}.exe`),
-    path.join(publishRoot, `VolturaAir-Setup-${version}-${runtime}-full.exe`)
+    path.join(publishRoot, `VolturaAir-Setup-${version}-${runtime}-full.exe`),
+    path.join(publishRoot, `VolturaAir-Update-${version}.json`),
+    path.join(publishRoot, `VolturaAir-Update-${version}.sig`)
   ];
 }
 

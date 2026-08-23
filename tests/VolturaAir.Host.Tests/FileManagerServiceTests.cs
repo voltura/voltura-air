@@ -84,6 +84,20 @@ public sealed class FileManagerServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task DirectoryEnumerationStopsAtThePanelBudget()
+    {
+        var left = CreateDirectory("left");
+        var right = CreateDirectory("right");
+        for (var index = 0; index < FileManagerProtocol.MaxEnumeratedEntriesPerPanel + 1; index++)
+            File.WriteAllText(Path.Combine(left, $"file-{index:D4}.txt"), "x");
+
+        await using var service = CreateService(left, right, out _);
+        var session = service.OpenSession("client-a");
+
+        Assert.Equal(FileManagerProtocol.MaxEnumeratedEntriesPerPanel, session.Left.TotalCount);
+    }
+
+    [Fact]
     public async Task ContinuationsAreSingleUseAndOldRevisionsAreRejected()
     {
         var left = CreateDirectory("left");

@@ -10,11 +10,11 @@ public sealed class RelayDeviceSessionsTests
     {
         var entered = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var sessions = new RelayDeviceSessions(async (_, _, _) =>
+        var sessions = new RelayDeviceSessions(async (_, _, _, _) =>
         {
             entered.TrySetResult(null);
             await release.Task;
-        }, () => Assert.Fail("The session handler should not fail."), _ => { });
+        }, () => Assert.Fail("The session handler should not fail."), _ => { }, _ => { });
         using var socket = CreateSocket();
 
         Assert.True(sessions.TryStart(Guid.NewGuid(), socket, [], CancellationToken.None));
@@ -32,11 +32,11 @@ public sealed class RelayDeviceSessionsTests
     {
         var entered = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
         var sessionId = Guid.NewGuid();
-        var sessions = new RelayDeviceSessions(async (_, _, cancellationToken) =>
+        var sessions = new RelayDeviceSessions(async (_, _, _, cancellationToken) =>
         {
             entered.TrySetResult(null);
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
-        }, () => Assert.Fail("Cancellation should not be logged as a failure."), _ => { });
+        }, () => Assert.Fail("Cancellation should not be logged as a failure."), _ => { }, _ => { });
         using var socket = CreateSocket();
 
         Assert.True(sessions.TryStart(sessionId, socket, [], CancellationToken.None));
@@ -53,13 +53,12 @@ public sealed class RelayDeviceSessionsTests
         var entered = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
         Guid? closeRequested = null;
         var sessionId = Guid.NewGuid();
-        var sessions = new RelayDeviceSessions(async (webSocket, rateLimitKey, cancellationToken) =>
+        var sessions = new RelayDeviceSessions(async (webSocket, _, _, cancellationToken) =>
         {
-            _ = rateLimitKey;
             entered.TrySetResult(null);
             var buffer = new byte[32];
             _ = await webSocket.ReceiveAsync(buffer, cancellationToken);
-        }, () => Assert.Fail("A rejected relay frame should close cleanly."), id => closeRequested = id);
+        }, () => Assert.Fail("A rejected relay frame should close cleanly."), _ => { }, id => closeRequested = id);
         using var socket = CreateSocket(sessionId);
 
         Assert.True(sessions.TryStart(sessionId, socket, [], CancellationToken.None));
@@ -78,11 +77,11 @@ public sealed class RelayDeviceSessionsTests
         var release = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
         var closeRequested = new TaskCompletionSource<Guid>(TaskCreationOptions.RunContinuationsAsynchronously);
         var sessionId = Guid.NewGuid();
-        var sessions = new RelayDeviceSessions(async (_, _, _) =>
+        var sessions = new RelayDeviceSessions(async (_, _, _, _) =>
         {
             entered.TrySetResult(null);
             await release.Task;
-        }, () => Assert.Fail("A queue overload should close cleanly."), id => closeRequested.TrySetResult(id));
+        }, () => Assert.Fail("A queue overload should close cleanly."), _ => { }, id => closeRequested.TrySetResult(id));
         using var socket = CreateSocket(sessionId);
 
         Assert.True(sessions.TryStart(sessionId, socket, [], CancellationToken.None));
@@ -105,7 +104,11 @@ public sealed class RelayDeviceSessionsTests
     public async Task RejectsDuplicateAndOverCapacitySessions()
     {
         var release = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var sessions = new RelayDeviceSessions((_, _, _) => release.Task, () => Assert.Fail("The session handler should not fail."), _ => { });
+        var sessions = new RelayDeviceSessions((_, _, authenticated, _) =>
+        {
+            authenticated();
+            return release.Task;
+        }, () => Assert.Fail("The session handler should not fail."), _ => { }, _ => { });
         var sockets = new List<RelayVirtualWebSocket>();
         try
         {

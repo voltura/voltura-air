@@ -234,7 +234,7 @@ public sealed class RelayHostConnectionTests
             new Uri("wss://relay.example.com"),
             SupportsTurn: true),
         RelayRoutingIdentity.CreateEphemeral(),
-        (_, _, _) => Task.CompletedTask,
+        (_, _, _, _) => Task.CompletedTask,
         NullAppLog.Instance,
         new FixedTimeProvider(new DateTimeOffset(2026, 8, 3, 20, 0, 0, TimeSpan.Zero)));
 

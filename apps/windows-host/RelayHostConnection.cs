@@ -66,7 +66,7 @@ internal sealed class RelayHostConnection : IAsyncDisposable
     public RelayHostConnection(
         RelayEndpointDescriptor endpoint,
         RelayRoutingIdentity identity,
-        Func<WebSocket, string, CancellationToken, Task> handleSession,
+        Func<WebSocket, string, Action, CancellationToken, Task> handleSession,
         IAppLogWriter log,
         TimeProvider? timeProvider = null)
     {
@@ -77,6 +77,7 @@ internal sealed class RelayHostConnection : IAsyncDisposable
         _devices = new RelayDeviceSessions(
             handleSession,
             () => log.Write(new AppLogEntry("relay_state", "windows_host", Action: "device_session_failed", Outcome: "failed", Code: "handler")),
+            QueueDeviceAuthenticated,
             QueueDeviceClose);
     }
 
@@ -429,6 +430,22 @@ internal sealed class RelayHostConnection : IAsyncDisposable
             }
         }
         if (abort) Volatile.Read(ref _runtime).Socket?.Abort();
+    }
+
+    private void QueueDeviceAuthenticated(Guid sessionId)
+    {
+        _ = SendDeviceAuthenticatedAsync(sessionId, _shutdown.Token);
+    }
+
+    private async Task SendDeviceAuthenticatedAsync(Guid sessionId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await SendEnvelopeAsync(new RelayEnvelope(RelayEnvelopeKind.Authenticated, sessionId, []), cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is WebSocketException or ObjectDisposedException or OperationCanceledException)
+        {
+        }
     }
 
     private async Task RunDeviceCloseSenderAsync(CancellationToken cancellationToken)

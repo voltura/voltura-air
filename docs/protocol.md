@@ -33,9 +33,10 @@ or TURN server is configured. Public, loopback, wrong-interface, malformed, or
 unverifiable selected addresses remain rejected. Relay mode never uses this
 controller DataChannel.
 
-An unauthenticated relay host candidate never owns the route. It has ten
-seconds to prove the routing key and is replaced by a newer candidate; only the
-authenticated socket blocks another host. A device Connected envelope carries
+An unauthenticated relay host candidate never owns the route. A bounded set of
+candidates has ten seconds to prove the routing key; the first valid proof
+claims the route and the other candidates are closed. Only the authenticated
+socket blocks another host. A device Connected envelope carries
 a 16-byte route-scoped source key derived by the relay for host pairing-rate
 isolation. Hosts accept an empty payload from earlier relay adapters and isolate
 that connection by session ID; other Connected payload lengths are rejected.

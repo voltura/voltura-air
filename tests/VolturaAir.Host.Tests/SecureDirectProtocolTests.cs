@@ -33,23 +33,21 @@ public sealed class SecureDirectProtocolTests
     [InlineData("missing-dll")]
     [InlineData("missing-entry-point")]
     [InlineData("bad-image")]
-    public void NativePeerStartupFailureRejectsOnlyTheSessionAndReleasesAdmission(string failure)
+    public void NativePeerStartupFailureRejectsOnlyTheSession(string failure)
     {
-        var admission = new TrackingDisposable();
         var failures = 0;
         var sessions = new SecureDirectSessions(
             IPAddress.Parse("192.168.1.10"),
-            () => admission,
-            (_, _, _) => Task.CompletedTask,
+            (_, _, _, _) => Task.CompletedTask,
             (_, _) => Task.CompletedTask,
             () => failures++,
+            _ => { },
             _ => throw CreateNativeStartupException(failure));
 
         var started = sessions.TryStart(Guid.NewGuid(), new byte[16], CancellationToken.None);
 
         Assert.False(started);
         Assert.Equal(1, failures);
-        Assert.True(admission.Disposed);
     }
 
     private static Exception CreateNativeStartupException(string failure) => failure switch
@@ -74,11 +72,5 @@ public sealed class SecureDirectProtocolTests
             Encoding.UTF8.GetBytes("{\"type\":\"secure.answer\",\"sdp\":\"v=0\",\"extra\":true}"),
             "secure.answer",
             out _));
-    }
-
-    private sealed class TrackingDisposable : IDisposable
-    {
-        internal bool Disposed { get; private set; }
-        public void Dispose() => Disposed = true;
     }
 }

@@ -39,6 +39,22 @@ peaks, text, or audio in logs. Browser dictation must remain independent.
 
 ## Control and personalization
 
+### Mobile app gaps
+
+Mouse and keyboard control, media playback controls, and Files for Windows PC or
+mapped-drive storage are implemented. The following capabilities from the broader
+mobile-app list are not implemented:
+
+| Missing capability | Possible direction |
+| --- | --- |
+| Phone storage access / PC-device transfer | Let the user explicitly copy one file at a time between the paired PC and phone storage. Start with iPhone validation; treat Android as a later compatibility target until a real Android device is available for testing. Use the detailed **PC and device file transfer** candidate below; do not begin with sync, backup, batches, or archives. |
+| System information and diagnostics | Consider a read-only, user-invoked mobile view of selected host information and diagnostic state. Define privacy, permission, redaction, bounds, and failure behavior first. |
+| Running-process management | Consider a bounded process list with explicit, safe actions only after defining identity, elevation, confirmation, stale results, and cancellation behavior. |
+| Terminal or shell access | Keep this research-gated until authentication, command policy, output limits, working-directory restrictions, lifetime, privacy, and audit behavior are defined. |
+| PC screenshots | Consider an explicit action to capture a selected PC display or current view and deliver it to the mobile app, with permission, size, transient-storage, and cleanup limits. |
+| Clipboard synchronization | One-shot clipboard reads and writes are supported, but continuous or background synchronization is not. Any future sharing must remain explicit, foreground, and privacy-bounded. |
+| Reusable custom macros | Custom Screens provide individual configured actions, not a general multi-step macro runner. Consider bounded workflows only with explicit confirmation, cancellation, and no arbitrary code execution. |
+
 ### HTTPS-enabled controller opportunities
 
 Secure Direct and Gyro mouse provide an HTTPS controller, direct WebRTC data
@@ -158,7 +174,6 @@ browser-local unless a cross-device workflow justifies host ownership.
 | Candidate | Decision boundary |
 | --- | --- |
 | Demo video/GIF | Isolated capture, captions, privacy-safe content, and licensed media. |
-| FAQ | Add only when recurring support demand justifies maintenance. |
 | Update notification | Choose manual, opt-in periodic, or disabled-by-default checks with privacy and failure behavior. |
 | Code signing | Certificate, cost, key custody, CI signing, timestamps, renewal, revocation, and asset coverage. |
 | Automatic update | Integrity, signing, consent, rollback, recovery, privacy, and ownership. |

@@ -194,6 +194,12 @@ internal static class CustomScreenValidator
         var ids = new HashSet<string>(StringComparer.Ordinal);
         foreach (var screen in screens)
         {
+            if (screen is null)
+            {
+                error = "A screen collection contains a null screen.";
+                return false;
+            }
+
             if (!ids.Add(screen.Id))
             {
                 error = "Screen IDs must be unique.";
@@ -232,6 +238,12 @@ internal static class CustomScreenValidator
         var buttonCount = 0;
         foreach (var section in screen.Sections)
         {
+            if (section is null)
+            {
+                error = "A screen contains a null section.";
+                return false;
+            }
+
             if (!sectionIds.Add(section.Id) ||
                 !ValidId(section.Id) ||
                 !ValidText(section.Name, CustomScreenLimits.MaxSectionNameLength) ||
@@ -270,6 +282,12 @@ internal static class CustomScreenValidator
 
             foreach (var button in section.Buttons)
             {
+                if (button is null)
+                {
+                    error = "A section contains a null button.";
+                    return false;
+                }
+
                 if (button.Row is < 0 or > CustomScreenLimits.MaxButtonRows ||
                     button.Row > section.RowLimit)
                 {

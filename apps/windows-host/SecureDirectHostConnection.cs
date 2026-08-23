@@ -25,14 +25,17 @@ internal sealed class SecureDirectHostConnection : IAsyncDisposable
         RelayEndpointDescriptor endpoint,
         RelayRoutingIdentity identity,
         IPAddress bindAddress,
-        Func<IDisposable?> acquireAdmission,
-        Func<WebSocket, string, CancellationToken, Task> handleSession,
+        Func<WebSocket, string, Action, CancellationToken, Task> handleSession,
         IAppLogWriter log)
     {
         _endpoint = endpoint;
         _identity = identity;
-        _sessions = new SecureDirectSessions(bindAddress, acquireAdmission, handleSession, SendEnvelopeAsync,
-            () => log.Write(new AppLogEntry("secure_direct", "windows_host", Action: "device_session_failed", Outcome: "failed", Code: "handler")));
+        _sessions = new SecureDirectSessions(
+            bindAddress,
+            handleSession,
+            SendEnvelopeAsync,
+            () => log.Write(new AppLogEntry("secure_direct", "windows_host", Action: "device_session_failed", Outcome: "failed", Code: "handler")),
+            QueueDeviceAuthenticated);
     }
 
     internal string RouteId => _identity.RouteId;
@@ -109,6 +112,22 @@ internal sealed class SecureDirectHostConnection : IAsyncDisposable
         await _sendGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try { await socket.SendAsync(bytes, WebSocketMessageType.Binary, true, cancellationToken).ConfigureAwait(false); }
         finally { _sendGate.Release(); }
+    }
+
+    private void QueueDeviceAuthenticated(Guid sessionId)
+    {
+        _ = SendDeviceAuthenticatedAsync(sessionId, _shutdown.Token);
+    }
+
+    private async Task SendDeviceAuthenticatedAsync(Guid sessionId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await SendEnvelopeAsync(new RelayEnvelope(RelayEnvelopeKind.Authenticated, sessionId, []), cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is WebSocketException or ObjectDisposedException or OperationCanceledException)
+        {
+        }
     }
 
     private Uri CreateHostUri() => new UriBuilder(_endpoint.WebSocketBase)

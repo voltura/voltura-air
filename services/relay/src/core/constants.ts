@@ -6,6 +6,10 @@ export const maximumRelayPayloadBytes = maximumInnerMessageBytes + relayEncrypti
 export const maximumDevicesPerRoom = 64;
 export const maximumControlMessageBytes = 4 * 1024;
 export const maximumBufferedBytes = 256 * 1024;
+export const maximumPendingHostCandidates = 4;
+export const maximumPendingHostCandidatesPerSource = 2;
+export const maximumPendingDevicesPerRoom = 8;
+export const maximumPendingDevicesPerSource = 2;
 export const relayHostTranscriptPrefix = "VolturaAir relay host:v1";
 
 export const relayClose = {

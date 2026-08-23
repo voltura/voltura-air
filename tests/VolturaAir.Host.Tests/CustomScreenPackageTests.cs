@@ -6,6 +6,24 @@ namespace VolturaAir.Host.Tests;
 public sealed class CustomScreenPackageTests
 {
     [Fact]
+    public void ValidatorRejectsNullScreensSectionsAndButtons()
+    {
+        Assert.False(CustomScreenValidator.TryValidateCollection(
+            new CustomScreenDefinition[] { null! },
+            out _));
+
+        var source = CustomScreenService.CreateDraft();
+        Assert.False(CustomScreenValidator.TryValidate(
+            source with { Sections = new CustomScreenSection[] { null! } },
+            out _));
+
+        var section = source.Sections[0];
+        Assert.False(CustomScreenValidator.TryValidate(
+            source with { Sections = [section with { Buttons = new CustomScreenButton[] { null! } }] },
+            out _));
+    }
+
+    [Fact]
     public void SerializeAndReadStripsAssignmentsAndRegeneratesIds()
     {
         var source = CustomScreenService.CreateDraft() with { AssignedClientIds = ["phone-a"] };

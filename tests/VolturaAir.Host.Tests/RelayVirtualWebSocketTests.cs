@@ -52,6 +52,19 @@ public sealed class RelayVirtualWebSocketTests
     }
 
     [Fact]
+    public async Task DoesNotDeliverQueuedFramesAfterAbort()
+    {
+        using var socket = new RelayVirtualWebSocket(Guid.NewGuid(), new string('r', 22), (_, _) => Task.CompletedTask);
+        Assert.True(socket.TryReceive(Encoding.UTF8.GetBytes("{}"), isBinary: false));
+
+        socket.Abort();
+        var received = await socket.ReceiveAsync(new byte[32], CancellationToken.None);
+
+        Assert.Equal(WebSocketMessageType.Close, received.MessageType);
+        Assert.Equal(0, received.Count);
+    }
+
+    [Fact]
     public async Task SendsOneDeviceCloseEnvelopeWhenTheHostClosesTheSession()
     {
         var sent = new List<RelayEnvelope>();

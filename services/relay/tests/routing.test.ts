@@ -82,6 +82,7 @@ describe("relay envelopes", () => {
     expect(binary?.kind).toBe(relayEnvelopeKind.binary);
     expect(closeDevice?.kind).toBe(relayEnvelopeKind.closeDevice);
     expect(closeDevice?.payload).toHaveLength(0);
+    expect(decodeEnvelope(new Uint8Array([...encodeEnvelope(session, new Uint8Array(), relayEnvelopeKind.closeDevice), 1]))).toBeNull();
   });
 
   it("allows only the fixed encryption overhead above a 64 KiB application frame", () => {

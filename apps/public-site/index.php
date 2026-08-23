@@ -61,6 +61,7 @@
         <a href="./screens/">Custom screens</a>
         <a href="#setup">Setup</a>
         <a href="#trust">Privacy</a>
+        <a href="#faq">FAQ</a>
         <a href="#source">Develop</a>
         <a href="#download">Download</a>
       </nav>
@@ -401,6 +402,69 @@
             <li>Keep pairing, permissions, settings, and saved reports on your devices.</li>
           </ul>
           <p><a href="https://github.com/voltura/voltura-air/blob/main/PRIVACY.md">Read the privacy policy</a></p>
+        </div>
+      </section>
+
+      <section id="faq" class="faq-section" aria-labelledby="faq-heading">
+        <div class="section-heading">
+          <p class="eyebrow">FAQ</p>
+          <h2 id="faq-heading">Frequently asked questions</h2>
+        </div>
+        <div class="faq-list">
+          <details class="faq-item">
+            <summary>Do I need to install an app on my phone?</summary>
+            <div class="faq-answer">
+              <p>No. Install Voltura Air on Windows. Your phone, tablet, or computer uses a browser-based app that can optionally be added to the home screen&mdash;no phone app-store installation or Voltura account is required.</p>
+            </div>
+          </details>
+          <details class="faq-item">
+            <summary>How do I pair a device?</summary>
+            <div class="faq-answer">
+              <p>Start Voltura Air, open Connect, and scan the short-lived QR code. Direct uses the same Wi-Fi or LAN; optional Cloud relay connects both devices outward.</p>
+            </div>
+          </details>
+          <details class="faq-item">
+            <summary>Can I pair more than one device?</summary>
+            <div class="faq-answer">
+              <p>Yes. Each paired device has its own remembered relationship and permission settings. Devices can be removed from the Windows host at any time.</p>
+            </div>
+          </details>
+          <details class="faq-item">
+            <summary>Can I use Voltura Air outside my home network?</summary>
+            <div class="faq-answer">
+              <p>Yes, through optional Cloud relay. It avoids an incoming PC firewall exception, but Voltura Air is not a general public-internet remote-control service.</p>
+            </div>
+          </details>
+          <details class="faq-item">
+            <summary>Does my data leave my network?</summary>
+            <div class="faq-answer">
+              <p>Standard Local uses no cloud service. Enhanced Direct uses Voltura.se for setup, then established control stays on the selected private LAN. Cloud relay carries end-to-end encrypted commands and screen media.</p>
+            </div>
+          </details>
+          <details class="faq-item">
+            <summary>Do I have to pair again every time?</summary>
+            <div class="faq-answer">
+              <p>No. A paired browser can reconnect until the device is removed or its browser data is cleared.</p>
+            </div>
+          </details>
+          <details class="faq-item">
+            <summary>Which operating systems are supported?</summary>
+            <div class="faq-answer">
+              <p>The host requires Windows 11. The controlling device can be a phone, tablet, or browser-capable computer; some enhanced features require HTTPS.</p>
+            </div>
+          </details>
+          <details class="faq-item">
+            <summary>Is Voltura Air free and open source?</summary>
+            <div class="faq-answer">
+              <p>Yes. It has no account, subscription, trial, or feature locks, and its source is available under the MIT License.</p>
+            </div>
+          </details>
+          <details class="faq-item">
+            <summary>Can Voltura Air wake a sleeping PC?</summary>
+            <div class="faq-answer">
+              <p>No. It cannot control or wake a sleeping, shut-down, or unreachable PC.</p>
+            </div>
+          </details>
         </div>
       </section>
 

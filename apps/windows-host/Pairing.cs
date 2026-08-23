@@ -13,6 +13,7 @@ public sealed class PairingManager
     private readonly Lock _gate = new();
     private readonly PairingTokenAuthority _tokens = new();
     private readonly PairedDeviceRegistry _devices;
+    private readonly Dictionary<string, long> _pairingEpochs = new(StringComparer.Ordinal);
 
     public PairingManager(PairingStore store)
         : this(store, ScreenViewHostIdentity.OpenCurrentUser(), ownsHostIdentity: true)
@@ -261,6 +262,7 @@ public sealed class PairingManager
 
             if (replacesExistingClient)
             {
+                InvalidatePairingLocked(clientId);
                 revokedClientId = clientId;
             }
 
@@ -365,6 +367,10 @@ public sealed class PairingManager
     {
         lock (_gate)
         {
+            foreach (var clientId in _devices.GetDevices().Select(device => device.ClientId))
+            {
+                InvalidatePairingLocked(clientId);
+            }
             _devices.Clear();
             _tokens.Invalidate();
         }
@@ -383,6 +389,40 @@ public sealed class PairingManager
 
         ConnectionChanged?.Invoke(this, EventArgs.Empty);
         return new ConnectionScope(this, clientId);
+    }
+
+    internal bool TryTrackConnection(
+        string clientId,
+        Action registerTransport,
+        out IDisposable? connection,
+        out long pairingEpoch,
+        DateTimeOffset? now = null)
+    {
+        lock (_gate)
+        {
+            if (_devices.Find(clientId) is null)
+            {
+                connection = null;
+                pairingEpoch = 0;
+                return false;
+            }
+
+            pairingEpoch = GetPairingEpochLocked(clientId);
+            registerTransport();
+            _devices.AddConnection(clientId, now ?? DateTimeOffset.UtcNow);
+            connection = new ConnectionScope(this, clientId);
+        }
+
+        ConnectionChanged?.Invoke(this, EventArgs.Empty);
+        return true;
+    }
+
+    internal bool IsCurrentPairing(string clientId, long pairingEpoch)
+    {
+        lock (_gate)
+        {
+            return _devices.Find(clientId) is not null && GetPairingEpochLocked(clientId) == pairingEpoch;
+        }
     }
 
     public IReadOnlyList<PairedDeviceStatus> GetDevices()
@@ -537,6 +577,10 @@ public sealed class PairingManager
         lock (_gate)
         {
             removedClientIds = _devices.CleanUpDuplicateDevices();
+            foreach (var clientId in removedClientIds)
+            {
+                InvalidatePairingLocked(clientId);
+            }
         }
 
         foreach (var clientId in removedClientIds)
@@ -558,6 +602,10 @@ public sealed class PairingManager
         lock (_gate)
         {
             removed = _devices.DisconnectDevice(clientId);
+            if (removed)
+            {
+                InvalidatePairingLocked(clientId);
+            }
         }
 
         if (removed)
@@ -662,6 +710,11 @@ public sealed class PairingManager
 
         ConnectionChanged?.Invoke(this, EventArgs.Empty);
     }
+
+    private long GetPairingEpochLocked(string clientId) => _pairingEpochs.GetValueOrDefault(clientId);
+
+    private void InvalidatePairingLocked(string clientId) =>
+        _pairingEpochs[clientId] = GetPairingEpochLocked(clientId) + 1;
 
     private sealed class ConnectionScope(PairingManager manager, string clientId) : IDisposable
     {

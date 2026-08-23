@@ -1381,7 +1381,7 @@ describe("useVolturaAirConnection", () => {
     expect(result.current.pairedPcs).toEqual([active, inactive]);
 
     act(() => { result.current.forgetPc(inactive.id); });
-    await waitFor(() => { expect(result.current.pairedPcs).toEqual([active]); });
+    await waitFor(() => { expect(result.current.pairedPcs).toEqual([active, inactive]); });
     expect(runtimeSnapshot()).toEqual(expectedRuntime);
     expect(
       localStorage.getItem(`voltura-air.reconnect-key.client-a.${inactive.id}`),
@@ -1390,16 +1390,22 @@ describe("useVolturaAirConnection", () => {
     expect(getSocket(1).url).toBe("ws://pc-b.local:51395/ws");
     dispatchSocketEvent(getSocket(1), "error");
     await waitFor(() => {
+      expect(result.current.pairedPcs).toEqual([active, inactive]);
       expect(
         localStorage.getItem(`voltura-air.reconnect-key.client-a.${inactive.id}`),
-      ).toBeNull();
+      ).not.toBeNull();
     });
 
     act(() => { result.current.forgetPc(inactive.id); });
+    await waitFor(() => { expect(MockWebSocket.instances).toHaveLength(3); });
+    dispatchSocketEvent(getSocket(2), "error");
+    await waitFor(() => { expect(result.current.pairedPcs).toEqual([active, inactive]); });
     expect(runtimeSnapshot()).toEqual(expectedRuntime);
-    expect(result.current.pairedPcs).toEqual([active]);
+    expect(
+      localStorage.getItem(`voltura-air.reconnect-key.client-a.${inactive.id}`),
+    ).not.toBeNull();
     expect(socket.close).not.toHaveBeenCalled();
-    expect(MockWebSocket.instances).toHaveLength(2);
+    expect(MockWebSocket.instances).toHaveLength(3);
   });
 
   it("forgets the active PC while retaining another saved profile", async () => {

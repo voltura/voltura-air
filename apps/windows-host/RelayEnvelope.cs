@@ -6,7 +6,8 @@ internal enum RelayEnvelopeKind : byte
     Connected = 1,
     Disconnected = 2,
     Binary = 3,
-    CloseDevice = 4
+    CloseDevice = 4,
+    Authenticated = 5
 }
 
 internal sealed record RelayEnvelope(RelayEnvelopeKind Kind, Guid SessionId, byte[] Payload)
@@ -19,7 +20,7 @@ internal sealed record RelayEnvelope(RelayEnvelopeKind Kind, Guid SessionId, byt
     public byte[] Encode()
     {
         if (Payload.Length > MaximumPayloadBytes ||
-            Kind == RelayEnvelopeKind.CloseDevice && Payload.Length != 0)
+            (Kind is RelayEnvelopeKind.Disconnected or RelayEnvelopeKind.CloseDevice or RelayEnvelopeKind.Authenticated) && Payload.Length != 0)
         {
             throw new ArgumentOutOfRangeException(nameof(Payload));
         }
@@ -36,7 +37,8 @@ internal sealed record RelayEnvelope(RelayEnvelopeKind Kind, Guid SessionId, byt
     {
         envelope = null;
         if (value.Length < HeaderLength || value.Length > MaximumEncodedBytes ||
-            value[0] != Version || value[1] > (byte)RelayEnvelopeKind.CloseDevice)
+            value[0] != Version || value[1] > (byte)RelayEnvelopeKind.Authenticated ||
+            ((value[1] is (byte)RelayEnvelopeKind.Disconnected or (byte)RelayEnvelopeKind.CloseDevice or (byte)RelayEnvelopeKind.Authenticated) && value.Length != HeaderLength))
         {
             return false;
         }

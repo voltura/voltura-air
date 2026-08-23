@@ -15,6 +15,7 @@ namespace VolturaAir.Host;
 internal static class FileManagerProtocol
 {
     public const int PageSize = 100;
+    public const int MaxEnumeratedEntriesPerPanel = 4096;
     public const int MaxSelectionItems = 512;
     public const int MaxNameLength = 255;
 }
@@ -348,11 +349,18 @@ internal sealed class FileManagerService : IAsyncDisposable
         public object Gate { get; } = new();
     }
 
-    private sealed class FileJob(long sequence, string ownerClientId, string operation, string[] sources, string? destination, string? rename, bool clearClipboard)
+    private sealed class ClientAuthorizationState
+    {
+        public object Gate { get; } = new();
+        public long Generation { get; set; }
+    }
+
+    private sealed class FileJob(long sequence, string ownerClientId, long authorizationGeneration, string operation, string[] sources, string? destination, string? rename, bool clearClipboard)
     {
         public long Sequence { get; set; } = sequence;
         public string Id { get; } = Guid.NewGuid().ToString("N");
         public string OwnerClientId { get; } = ownerClientId;
+        public long AuthorizationGeneration { get; } = authorizationGeneration;
         public string Operation { get; } = operation;
         public string[] Sources { get; } = sources;
         public string? Destination { get; } = destination;
@@ -399,6 +407,7 @@ internal sealed class FileManagerService : IAsyncDisposable
     private readonly string? _initialLeftPath;
     private readonly string? _initialRightPath;
     private readonly ConcurrentDictionary<string, ClientSession> _sessions = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, ClientAuthorizationState> _authorizations = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, FileJob> _jobs = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, FileJobSnapshot[]> _interruptedJobs = new(StringComparer.Ordinal);
     private readonly Lock _queueGate = new();
@@ -461,9 +470,9 @@ internal sealed class FileManagerService : IAsyncDisposable
             new PanelState("right", rightPath));
         AddTargets(session);
         cancellationToken.ThrowIfCancellationRequested();
-        RefreshPanel(session.Left, hideProtectedItems);
+        RefreshPanel(session.Left, hideProtectedItems, CancellationToken.None);
         cancellationToken.ThrowIfCancellationRequested();
-        RefreshPanel(session.Right, hideProtectedItems);
+        RefreshPanel(session.Right, hideProtectedItems, CancellationToken.None);
         cancellationToken.ThrowIfCancellationRequested();
         var snapshot = new FileManagerSessionSnapshot(
             session.Id,
@@ -489,7 +498,7 @@ internal sealed class FileManagerService : IAsyncDisposable
         }
     }
 
-    public bool TryNavigate(string clientId, string sessionId, string panelName, string revision, string targetId, out FileManagerPanelPage? page, out string code)
+    public bool TryNavigate(string clientId, string sessionId, string panelName, string revision, string targetId, out FileManagerPanelPage? page, out string code, CancellationToken cancellationToken = default)
     {
         page = null;
         if (!TryGetPanel(clientId, sessionId, panelName, out var session, out var panel)) { code = "session-expired"; return false; }
@@ -497,7 +506,7 @@ internal sealed class FileManagerService : IAsyncDisposable
         {
             var hideProtectedItems = _hideProtectedItems(clientId);
             if (panel.Revision != revision) { code = "stale-panel"; return false; }
-            if (!MatchesPanel(panel, hideProtectedItems)) { code = "stale-panel"; return false; }
+            if (!MatchesPanel(panel, hideProtectedItems, cancellationToken)) { code = "stale-panel"; return false; }
             string? target = null;
             if (targetId == "parent") target = Directory.GetParent(panel.Path)?.FullName;
             else if (session.Targets.TryGetValue(targetId, out var known)) target = known;
@@ -508,7 +517,7 @@ internal sealed class FileManagerService : IAsyncDisposable
             try
             {
                 targetPath = Path.GetFullPath(target);
-                targetEntries = ReadPanelEntries(targetPath, hideProtectedItems);
+                targetEntries = ReadPanelEntries(targetPath, hideProtectedItems, cancellationToken);
             }
             catch (Exception ex) when (IsFileBoundaryFailure(ex))
             {
@@ -524,7 +533,7 @@ internal sealed class FileManagerService : IAsyncDisposable
         }
     }
 
-    public bool TryRefresh(string clientId, string sessionId, string panelName, out FileManagerPanelPage? page, out string code)
+    public bool TryRefresh(string clientId, string sessionId, string panelName, out FileManagerPanelPage? page, out string code, CancellationToken cancellationToken = default)
     {
         page = null;
         if (!TryGetPanel(clientId, sessionId, panelName, out var session, out var panel)) { code = "session-expired"; return false; }
@@ -532,7 +541,7 @@ internal sealed class FileManagerService : IAsyncDisposable
         {
             try
             {
-                RefreshPanel(panel, _hideProtectedItems(clientId));
+                RefreshPanel(panel, _hideProtectedItems(clientId), cancellationToken);
                 page = BuildPage(session, panel, 0);
                 code = "accepted";
                 return true;
@@ -608,16 +617,24 @@ internal sealed class FileManagerService : IAsyncDisposable
 
     public (bool Succeeded, string? Code, string Message) SetClipboard(string clientId, string sessionId, string panelName, string revision, FileManagerSelection selection, bool move)
     {
+        var authorizationGeneration = CaptureAuthorizationGeneration(clientId);
         if (!TryResolveSelection(clientId, sessionId, panelName, revision, selection, out var paths, out var code))
             return (false, code, code == "stale-panel" ? "The folder changed. Refresh it and try again." : "The selection is unavailable.");
-        return _platform.SetFileClipboard(paths, move);
+        (bool Succeeded, string? Code, string Message) result = default;
+        return TryRunAuthorized(clientId, authorizationGeneration, () => result = _platform.SetFileClipboard(paths, move))
+            ? result
+            : (false, "permission-revoked", "File permission was revoked on the PC.");
     }
 
     public (bool Succeeded, string? Code, string Message) Open(string clientId, string sessionId, string panelName, string revision, string entryId)
     {
-        return TryResolveEntry(clientId, sessionId, panelName, revision, entryId, out var entry, out var code)
-            ? _platform.OpenWithShell(entry!.Path)
-            : (false, code, "The selected item is unavailable.");
+        var authorizationGeneration = CaptureAuthorizationGeneration(clientId);
+        if (!TryResolveEntry(clientId, sessionId, panelName, revision, entryId, out var entry, out var code))
+            return (false, code, "The selected item is unavailable.");
+        (bool Succeeded, string? Code, string Message) result = default;
+        return TryRunAuthorized(clientId, authorizationGeneration, () => result = _platform.OpenWithShell(entry!.Path))
+            ? result
+            : (false, "permission-revoked", "File permission was revoked on the PC.");
     }
 
     public (bool Succeeded, string? Code, string Message, FileJobSnapshot? Job) CreateJob(
@@ -631,6 +648,7 @@ internal sealed class FileManagerService : IAsyncDisposable
         string? newName,
         string? destinationRevision)
     {
+        var authorizationGeneration = CaptureAuthorizationGeneration(clientId);
         string[] paths;
         string? destination = null;
         var clearClipboard = false;
@@ -685,17 +703,29 @@ internal sealed class FileManagerService : IAsyncDisposable
         if (operation is "copy" or "move" && destination is not null && paths.Any(source => IsUnsafeDestination(source, destination)))
             return (false, "invalid-destination", "Choose a destination outside the selected items.", null);
 
-        var job = new FileJob(Interlocked.Increment(ref _jobSequence), clientId, operation, paths, destination, newName, clearClipboard);
-        lock (_queueGate)
+        var job = new FileJob(Interlocked.Increment(ref _jobSequence), clientId, authorizationGeneration, operation, paths, destination, newName, clearClipboard);
+        var admitted = false;
+        lock (GetAuthorizationState(clientId).Gate)
         {
-            if (_jobs.Values.Count(candidate => !IsTerminalJob(candidate.State)) >= 32)
+            if (GetAuthorizationState(clientId).Generation != authorizationGeneration)
             {
                 job.Cancellation.Dispose();
-                return (false, "queue-full", "The file-operation queue is full. Try again later.", null);
+                return (false, "permission-revoked", "File permission was revoked on the PC.", null);
             }
-            _jobs[job.Id] = job;
-            _pendingJobs.Add(job);
+
+            lock (_queueGate)
+            {
+                if (_jobs.Values.Count(candidate => !IsTerminalJob(candidate.State)) >= 32)
+                {
+                    job.Cancellation.Dispose();
+                    return (false, "queue-full", "The file-operation queue is full. Try again later.", null);
+                }
+                _jobs[job.Id] = job;
+                _pendingJobs.Add(job);
+                admitted = true;
+            }
         }
+        if (!admitted) return (false, "permission-revoked", "File permission was revoked on the PC.", null);
         _queueSignal.Release();
         Publish(job);
         return (true, null, "File operation queued.", Snapshot(job));
@@ -806,6 +836,13 @@ internal sealed class FileManagerService : IAsyncDisposable
     public void RevokeClient(string clientId, bool closeSession)
     {
         if (closeSession) _sessions.TryRemove(clientId, out _);
+
+        var authorization = GetAuthorizationState(clientId);
+        lock (authorization.Gate)
+        {
+            authorization.Generation++;
+        }
+
         foreach (var job in _jobs.Values.Where(candidate => candidate.OwnerClientId == clientId && candidate.State is not (FileJobState.Completed or FileJobState.Failed or FileJobState.Canceled)))
         {
             ControlJob(clientId, job.Id, "cancel");
@@ -863,7 +900,10 @@ internal sealed class FileManagerService : IAsyncDisposable
                 job.State = FileJobState.Running;
                 Publish(job);
                 await ExecuteJobAsync(job).ConfigureAwait(false);
-                if (job.ClearClipboard) _platform.ClearFileClipboardIfMatches(job.Sources);
+                if (job.ClearClipboard)
+                {
+                    TryRunAuthorized(job.OwnerClientId, job.AuthorizationGeneration, () => _platform.ClearFileClipboardIfMatches(job.Sources));
+                }
                 job.State = FileJobState.Completed;
                 job.Message = $"{job.Operation} completed.";
             }
@@ -906,7 +946,8 @@ internal sealed class FileManagerService : IAsyncDisposable
                 await AwaitReadyAsync(job).ConfigureAwait(false);
                 job.CurrentName = Path.GetFileName(source);
                 Publish(job);
-                _platform.Recycle(source);
+                ThrowIfAuthorizationRevoked(job);
+                ExecuteAuthorized(job, () => _platform.Recycle(source));
                 job.ItemsCompleted++;
             }
             return;
@@ -918,7 +959,7 @@ internal sealed class FileManagerService : IAsyncDisposable
             if (string.Equals(source, destination, StringComparison.OrdinalIgnoreCase) && !string.Equals(source, destination, StringComparison.Ordinal))
             {
                 await AwaitReadyAsync(job).ConfigureAwait(false);
-                CommitCaseOnlyRename(job, source, destination, Directory.Exists(source));
+                ExecuteAuthorized(job, () => CommitCaseOnlyRename(job, source, destination, Directory.Exists(source)));
                 job.ItemsCompleted = 1;
                 return;
             }
@@ -930,7 +971,7 @@ internal sealed class FileManagerService : IAsyncDisposable
                 await AwaitReadyAsync(job).ConfigureAwait(false);
             }
             await AwaitReadyAsync(job).ConfigureAwait(false);
-            CommitPreparedPath(job, source, destination, Directory.Exists(source));
+            ExecuteAuthorized(job, () => CommitPreparedPath(job, source, destination, Directory.Exists(source)));
             job.ItemsCompleted = 1;
             return;
         }
@@ -944,13 +985,16 @@ internal sealed class FileManagerService : IAsyncDisposable
             if (job.Operation == "move" && SameVolume(source, destination) && !Directory.Exists(destination) && !File.Exists(destination))
             {
                 var sourceSize = job.PreparedSizes.GetValueOrDefault(source);
-                if (Directory.Exists(source)) Directory.Move(source, destination); else File.Move(source, destination);
+                ExecuteAuthorized(job, () =>
+                {
+                    if (Directory.Exists(source)) Directory.Move(source, destination); else File.Move(source, destination);
+                });
                 job.BytesCompleted += sourceSize;
             }
             else
             {
                 var copied = await CopyEntryAsync(job, source, destination).ConfigureAwait(false);
-                if (copied && job.Operation == "move") DeleteSource(source);
+                if (copied && job.Operation == "move") ExecuteAuthorized(job, () => DeleteSource(source));
             }
             job.ItemsCompleted++;
             Publish(job);
@@ -977,7 +1021,7 @@ internal sealed class FileManagerService : IAsyncDisposable
                 job.TemporaryPaths.TryRemove(temporaryDirectory, out _);
                 throw new IOException("The partial-copy recovery journal could not be saved.");
             }
-            Directory.CreateDirectory(temporaryDirectory);
+            ExecuteAuthorized(job, () => Directory.CreateDirectory(temporaryDirectory));
             try
             {
                 foreach (var child in Directory.EnumerateFileSystemEntries(source))
@@ -985,10 +1029,13 @@ internal sealed class FileManagerService : IAsyncDisposable
                     await AwaitReadyAsync(job).ConfigureAwait(false);
                     await CopyEntryAsync(job, child, Path.Combine(temporaryDirectory, Path.GetFileName(child))).ConfigureAwait(false);
                 }
-                Directory.SetLastWriteTimeUtc(temporaryDirectory, Directory.GetLastWriteTimeUtc(source));
-                File.SetAttributes(temporaryDirectory, File.GetAttributes(source));
+                ExecuteAuthorized(job, () =>
+                {
+                    Directory.SetLastWriteTimeUtc(temporaryDirectory, Directory.GetLastWriteTimeUtc(source));
+                    File.SetAttributes(temporaryDirectory, File.GetAttributes(source));
+                });
                 await AwaitReadyAsync(job).ConfigureAwait(false);
-                CommitPreparedPath(job, temporaryDirectory, destination, directory: true);
+                ExecuteAuthorized(job, () => CommitPreparedPath(job, temporaryDirectory, destination, directory: true));
                 return true;
             }
             finally
@@ -1005,28 +1052,34 @@ internal sealed class FileManagerService : IAsyncDisposable
             job.TemporaryPaths.TryRemove(temporary, out _);
             throw new IOException("The partial-copy recovery journal could not be saved.");
         }
-        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+        ExecuteAuthorized(job, () => Directory.CreateDirectory(Path.GetDirectoryName(destination)!));
         try
         {
             const int bufferSize = 1024 * 1024;
-            await using (var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize, FileOptions.Asynchronous | FileOptions.SequentialScan))
-            await using (var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, bufferSize, FileOptions.Asynchronous | FileOptions.SequentialScan))
+            await using var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize, FileOptions.Asynchronous | FileOptions.SequentialScan);
+            FileStream? output = null;
+            ExecuteAuthorized(job, () => output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, bufferSize, FileOptions.Asynchronous | FileOptions.SequentialScan));
+            var outputStream = output ?? throw new IOException("The temporary file could not be opened.");
+            await using (outputStream)
             {
                 var buffer = new byte[bufferSize];
                 int read;
                 while ((read = await input.ReadAsync(buffer, job.Cancellation.Token).ConfigureAwait(false)) > 0)
                 {
                     await AwaitReadyAsync(job).ConfigureAwait(false);
-                    await output.WriteAsync(buffer.AsMemory(0, read), job.Cancellation.Token).ConfigureAwait(false);
+                    await outputStream.WriteAsync(buffer.AsMemory(0, read), job.Cancellation.Token).ConfigureAwait(false);
                     job.BytesCompleted += read;
                     Publish(job);
                 }
-                await output.FlushAsync(job.Cancellation.Token).ConfigureAwait(false);
+                await outputStream.FlushAsync(job.Cancellation.Token).ConfigureAwait(false);
             }
             await AwaitReadyAsync(job).ConfigureAwait(false);
-            CommitPreparedPath(job, temporary, destination, directory: false);
-            File.SetLastWriteTimeUtc(destination, File.GetLastWriteTimeUtc(source));
-            File.SetAttributes(destination, File.GetAttributes(source));
+            ExecuteAuthorized(job, () => CommitPreparedPath(job, temporary, destination, directory: false));
+            ExecuteAuthorized(job, () =>
+            {
+                File.SetLastWriteTimeUtc(destination, File.GetLastWriteTimeUtc(source));
+                File.SetAttributes(destination, File.GetAttributes(source));
+            });
             return true;
         }
         finally
@@ -1051,12 +1104,49 @@ internal sealed class FileManagerService : IAsyncDisposable
         return result;
     }
 
-    private static async Task AwaitReadyAsync(FileJob job)
+    private async Task AwaitReadyAsync(FileJob job)
     {
         job.Cancellation.Token.ThrowIfCancellationRequested();
         await job.PauseGate.WaitAsync(job.Cancellation.Token).ConfigureAwait(false);
         job.Cancellation.Token.ThrowIfCancellationRequested();
+        ThrowIfAuthorizationRevoked(job);
         if (job.State == FileJobState.Paused) job.State = job.ResumeState;
+    }
+
+    private ClientAuthorizationState GetAuthorizationState(string clientId) =>
+        _authorizations.GetOrAdd(clientId, static _ => new ClientAuthorizationState());
+
+    private long CaptureAuthorizationGeneration(string clientId)
+    {
+        var authorization = GetAuthorizationState(clientId);
+        lock (authorization.Gate) return authorization.Generation;
+    }
+
+    private bool TryRunAuthorized(string clientId, long generation, Action action)
+    {
+        var authorization = GetAuthorizationState(clientId);
+        lock (authorization.Gate)
+        {
+            if (authorization.Generation != generation) return false;
+            action();
+            return true;
+        }
+    }
+
+    private void ExecuteAuthorized(FileJob job, Action action)
+    {
+        if (!TryRunAuthorized(job.OwnerClientId, job.AuthorizationGeneration, action))
+        {
+            throw new OperationCanceledException(job.Cancellation.Token);
+        }
+    }
+
+    private void ThrowIfAuthorizationRevoked(FileJob job)
+    {
+        if (CaptureAuthorizationGeneration(job.OwnerClientId) != job.AuthorizationGeneration)
+        {
+            throw new OperationCanceledException(job.Cancellation.Token);
+        }
     }
 
     private void Publish(FileJob job)
@@ -1237,16 +1327,19 @@ internal sealed class FileManagerService : IAsyncDisposable
         return panel is not null;
     }
 
-    private static void RefreshPanel(PanelState panel, bool hideProtectedItems)
+    private static void RefreshPanel(PanelState panel, bool hideProtectedItems, CancellationToken cancellationToken = default)
     {
-        ReplacePanelEntries(panel, ReadPanelEntries(panel.Path, hideProtectedItems));
+        ReplacePanelEntries(panel, ReadPanelEntries(panel.Path, hideProtectedItems, cancellationToken));
     }
 
-    private static List<EntryState> ReadPanelEntries(string path, bool hideProtectedItems)
+    private static List<EntryState> ReadPanelEntries(string path, bool hideProtectedItems, CancellationToken cancellationToken = default)
     {
         var entries = new List<EntryState>();
+        var inspected = 0;
         foreach (var childPath in Directory.EnumerateFileSystemEntries(path))
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (++inspected > FileManagerProtocol.MaxEnumeratedEntriesPerPanel) break;
             try
             {
                 FileSystemInfo info = Directory.Exists(childPath) ? new DirectoryInfo(childPath) : new FileInfo(childPath);
@@ -1408,11 +1501,11 @@ internal sealed class FileManagerService : IAsyncDisposable
         panel.Entries = [.. ordered];
     }
 
-    private static bool MatchesPanel(PanelState panel, bool hideProtectedItems)
+    private static bool MatchesPanel(PanelState panel, bool hideProtectedItems, CancellationToken cancellationToken = default)
     {
         try
         {
-            var current = ReadPanelEntries(panel.Path, hideProtectedItems);
+            var current = ReadPanelEntries(panel.Path, hideProtectedItems, cancellationToken);
             return string.Equals(panel.Signature, ComputeSignature(current), StringComparison.Ordinal);
         }
         catch (Exception ex) when (IsFileBoundaryFailure(ex))
@@ -1434,7 +1527,7 @@ internal sealed class FileManagerService : IAsyncDisposable
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString())));
     }
 
-    private static async Task<long> CalculateSizeAsync(FileJob job, string path)
+    private async Task<long> CalculateSizeAsync(FileJob job, string path)
     {
         try
         {

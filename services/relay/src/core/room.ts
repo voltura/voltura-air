@@ -1,5 +1,5 @@
 import { encodeEnvelope, sessionIdKey } from "./envelope";
-import { maximumBufferedBytes, maximumDevicesPerRoom, maximumRelayPayloadBytes, relayClose } from "./constants";
+import { maximumBufferedBytes, maximumDevicesPerRoom, maximumPendingDevicesPerRoom, maximumPendingDevicesPerSource, maximumRelayPayloadBytes, relayClose } from "./constants";
 import { consumeRelayRate, type RelayRateRole, type RelayRateState } from "./rateLimit";
 
 export interface RelaySocket {
@@ -10,7 +10,7 @@ export interface RelaySocket {
 
 export class RelayRoom {
   private host: RelaySocket | null = null;
-  private readonly devices = new Map<string, { socket: RelaySocket; sessionId: Uint8Array }>();
+  private readonly devices = new Map<string, { socket: RelaySocket; sessionId: Uint8Array; sourceKey?: Uint8Array; authenticated: boolean }>();
   private readonly rateStates = new WeakMap<RelaySocket, RelayRateState>();
 
   get deviceCount(): number { return this.devices.size; }
@@ -32,13 +32,35 @@ export class RelayRoom {
     this.devices.clear();
   }
 
-  attachDevice(socket: RelaySocket, sessionId: Uint8Array): boolean {
+  attachDevice(socket: RelaySocket, sessionId: Uint8Array, sourceKey?: Uint8Array): boolean {
     const key = sessionIdKey(sessionId);
-    if (!this.host || this.devices.size >= maximumDevicesPerRoom || this.devices.has(key)) {
+    const pending = [...this.devices.values()].filter((device) => !device.authenticated);
+    const pendingForSource = sourceKey
+      ? pending.filter((device) => device.sourceKey?.every((value, index) => value === sourceKey[index]) && device.sourceKey.length === sourceKey.length)
+      : [];
+    const authenticated = this.devices.size - pending.length;
+    const maximumDevices = sourceKey === undefined ? maximumDevicesPerRoom : maximumDevicesPerRoom + maximumPendingDevicesPerRoom;
+    if (!this.host || authenticated >= maximumDevicesPerRoom || this.devices.size >= maximumDevices ||
+        (sourceKey !== undefined && (pending.length >= maximumPendingDevicesPerRoom || pendingForSource.length >= maximumPendingDevicesPerSource)) || this.devices.has(key)) {
       socket.close(this.host ? relayClose.overloaded : relayClose.unavailable, this.host ? "Room is full" : "Host unavailable");
       return false;
     }
-    this.devices.set(key, { socket, sessionId: sessionId.slice() });
+    const device = { socket, sessionId: sessionId.slice(), authenticated: false } as {
+      socket: RelaySocket;
+      sessionId: Uint8Array;
+      sourceKey?: Uint8Array;
+      authenticated: boolean;
+    };
+    if (sourceKey) device.sourceKey = sourceKey.slice();
+    device.authenticated = sourceKey === undefined;
+    this.devices.set(key, device);
+    return true;
+  }
+
+  markDeviceAuthenticated(sessionId: Uint8Array): boolean {
+    const device = this.devices.get(sessionIdKey(sessionId));
+    if (!device) return false;
+    device.authenticated = true;
     return true;
   }
 

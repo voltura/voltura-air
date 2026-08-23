@@ -534,6 +534,7 @@ h2 {
 .comparison-section,
 .screen-section,
 .content-section,
+.faq-section,
 .download-band {
   padding: 72px 0;
 }
@@ -554,6 +555,7 @@ h2 {
 
 .feature-band article,
 .content-section,
+.faq-section,
 .download-band {
   border-top: 1px solid var(--border);
   padding-top: 22px;
@@ -579,6 +581,61 @@ figcaption {
 
 .comparison-section {
   border-top: 1px solid var(--border);
+}
+
+.faq-list {
+  border-top: 1px solid var(--border);
+}
+
+.faq-item {
+  border-bottom: 1px solid var(--border);
+}
+
+.faq-item > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 18px 0;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 1.05rem;
+  font-weight: 800;
+  list-style: none;
+}
+
+.faq-item > summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq-item > summary::after {
+  flex: 0 0 auto;
+  color: var(--accent);
+  content: "+";
+  font-size: 1.45rem;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.faq-item[open] > summary::after {
+  content: "−";
+}
+
+.faq-item > summary:focus-visible {
+  border-radius: 3px;
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.faq-answer {
+  max-width: 820px;
+  padding: 0 44px 18px 0;
+}
+
+.faq-answer p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
 }
 
 .comparison-heading {
@@ -754,8 +811,17 @@ figcaption {
 @media (forced-colors: active) {
   .comparison-scroll:focus-visible,
   .comparison-sources summary:focus-visible,
-  .comparison-sources a:focus-visible {
+  .comparison-sources a:focus-visible,
+  .faq-item > summary:focus-visible {
     outline-color: Highlight;
+  }
+
+  .faq-item > summary::after {
+    color: ButtonText;
+  }
+
+  .faq-item[open] > summary::after {
+    color: Highlight;
   }
 
   .comparison-table .comparison-voltura {

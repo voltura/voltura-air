@@ -64,22 +64,34 @@ internal sealed class FileManagerCommandHandler : IAsyncDisposable
                     out var nextCode), nextPage, nextCode, cancellationToken);
                 return;
             case "file.navigate":
-                await SendPanelResultAsync(socket, type, operationId, _service.TryNavigate(
-                    clientId,
-                    String(root, "sessionId"),
-                    String(root, "panel"),
-                    String(root, "revision"),
-                    String(root, "targetId"),
-                    out var navigationPage,
-                    out var navigationCode), navigationPage, navigationCode, cancellationToken);
+                var navigation = await Task.Run(() =>
+                {
+                    var succeeded = _service.TryNavigate(
+                        clientId,
+                        String(root, "sessionId"),
+                        String(root, "panel"),
+                        String(root, "revision"),
+                        String(root, "targetId"),
+                        out var page,
+                        out var code,
+                        cancellationToken);
+                    return (Succeeded: succeeded, Page: page, Code: code);
+                }, cancellationToken);
+                await SendPanelResultAsync(socket, type, operationId, navigation.Succeeded, navigation.Page, navigation.Code, cancellationToken);
                 return;
             case "file.refresh":
-                await SendPanelResultAsync(socket, type, operationId, _service.TryRefresh(
-                    clientId,
-                    String(root, "sessionId"),
-                    String(root, "panel"),
-                    out var refreshPage,
-                    out var refreshCode), refreshPage, refreshCode, cancellationToken);
+                var refresh = await Task.Run(() =>
+                {
+                    var succeeded = _service.TryRefresh(
+                        clientId,
+                        String(root, "sessionId"),
+                        String(root, "panel"),
+                        out var page,
+                        out var code,
+                        cancellationToken);
+                    return (Succeeded: succeeded, Page: page, Code: code);
+                }, cancellationToken);
+                await SendPanelResultAsync(socket, type, operationId, refresh.Succeeded, refresh.Page, refresh.Code, cancellationToken);
                 return;
             case "file.sort":
                 await SendPanelResultAsync(socket, type, operationId, _service.TrySort(
@@ -92,22 +104,26 @@ internal sealed class FileManagerCommandHandler : IAsyncDisposable
                     out var sortCode), sortPage, sortCode, cancellationToken);
                 return;
             case "file.properties.get":
-                var propertiesSucceeded = _service.TryGetProperties(
-                    clientId,
-                    String(root, "sessionId"),
-                    String(root, "panel"),
-                    String(root, "revision"),
-                    String(root, "entryId"),
-                    out var properties,
-                    out var propertiesCode);
+                var properties = await Task.Run(() =>
+                {
+                    var succeeded = _service.TryGetProperties(
+                        clientId,
+                        String(root, "sessionId"),
+                        String(root, "panel"),
+                        String(root, "revision"),
+                        String(root, "entryId"),
+                        out var value,
+                        out var code);
+                    return (Succeeded: succeeded, Value: value, Code: code);
+                }, cancellationToken);
                 await _transport.SendAsync(socket, new
                 {
                     type = "file.properties.get.result",
                     operationId,
-                    succeeded = propertiesSucceeded,
-                    code = propertiesSucceeded ? null : propertiesCode,
-                    message = propertiesSucceeded ? "Properties loaded." : "The selected item is unavailable.",
-                    properties
+                    succeeded = properties.Succeeded,
+                    code = properties.Succeeded ? null : properties.Code,
+                    message = properties.Succeeded ? "Properties loaded." : "The selected item is unavailable.",
+                    properties = properties.Value
                 }, cancellationToken);
                 return;
             case "file.clipboard.set":
@@ -117,17 +133,17 @@ internal sealed class FileManagerCommandHandler : IAsyncDisposable
                     await SendResultAsync(socket, type, operationId, false, "permission-denied", "Change files is disabled for this device on the PC.", cancellationToken);
                     return;
                 }
-                var clipboard = _service.SetClipboard(
+                var clipboard = await Task.Run(() => _service.SetClipboard(
                     clientId,
                     String(root, "sessionId"),
                     String(root, "panel"),
                     String(root, "revision"),
                     ReadSelection(root),
-                    String(root, "effect") == "move");
+                    String(root, "effect") == "move"), cancellationToken);
                 await SendResultAsync(socket, type, operationId, clipboard.Succeeded, clipboard.Code, clipboard.Message, cancellationToken);
                 return;
             case "file.open":
-                var opened = _service.Open(clientId, String(root, "sessionId"), String(root, "panel"), String(root, "revision"), String(root, "entryId"));
+                var opened = await Task.Run(() => _service.Open(clientId, String(root, "sessionId"), String(root, "panel"), String(root, "revision"), String(root, "entryId")), cancellationToken);
                 await SendResultAsync(socket, type, operationId, opened.Succeeded, opened.Code, opened.Message, cancellationToken);
                 return;
             case "file.jobs.get":
@@ -172,7 +188,7 @@ internal sealed class FileManagerCommandHandler : IAsyncDisposable
                     await SendResultAsync(socket, type, operationId, false, "permission-denied", "Change files is disabled for this device on the PC.", cancellationToken);
                     return;
                 }
-                var created = _service.CreateJob(
+                var created = await Task.Run(() => _service.CreateJob(
                     clientId,
                     String(root, "sessionId"),
                     String(root, "panel"),
@@ -181,7 +197,7 @@ internal sealed class FileManagerCommandHandler : IAsyncDisposable
                     String(root, "operation"),
                     OptionalString(root, "destinationPanel"),
                     OptionalString(root, "newName"),
-                    OptionalString(root, "destinationRevision"));
+                    OptionalString(root, "destinationRevision")), cancellationToken);
                 await _transport.SendAsync(socket, new
                 {
                     type = "file.job.create.result",

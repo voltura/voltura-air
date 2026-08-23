@@ -152,6 +152,11 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
             return;
         }
 
+        foreach (var relaySocket in sockets.OfType<RelayVirtualWebSocket>())
+        {
+            relaySocket.Abort();
+        }
+
         lock (_closeTasksGate)
         {
             if (Volatile.Read(ref _disposeState) != 0)
@@ -233,6 +238,10 @@ internal sealed class HostStatusBroadcaster : IAsyncDisposable
         {
             try
             {
+                if (socket is RelayVirtualWebSocket)
+                {
+                    continue;
+                }
                 await WebSocketTransport.CloseAsync(socket, "Device disconnected", cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is WebSocketException or ObjectDisposedException or OperationCanceledException)

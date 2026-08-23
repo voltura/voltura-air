@@ -2,16 +2,32 @@ using System.Net.WebSockets;
 
 namespace VolturaAir.Host;
 
-internal sealed class RelayDeviceSessions(
-    Func<WebSocket, string, CancellationToken, Task> handleSession,
-    Action sessionFailed,
-    Action<Guid> requestClose)
+internal sealed class RelayDeviceSessions
 {
-    private const int MaximumSessions = 64;
+    private const int MaximumAuthenticatedSessions = 64;
+    private const int MaximumPendingSessions = 8;
+    private readonly Func<WebSocket, string, Action, CancellationToken, Task> _handleSession;
+    private readonly Action _sessionFailed;
+    private readonly Action<Guid> _deviceAuthenticated;
+    private readonly Action<Guid> _requestClose;
     private readonly Lock _gate = new();
     private readonly Dictionary<Guid, Session> _active = [];
     private readonly Dictionary<Guid, Session> _routable = [];
     private int _drainCount;
+    private int _pendingCount;
+    private int _authenticatedCount;
+
+    internal RelayDeviceSessions(
+        Func<WebSocket, string, Action, CancellationToken, Task> handleSession,
+        Action sessionFailed,
+        Action<Guid> deviceAuthenticated,
+        Action<Guid> requestClose)
+    {
+        _handleSession = handleSession;
+        _sessionFailed = sessionFailed;
+        _deviceAuthenticated = deviceAuthenticated;
+        _requestClose = requestClose;
+    }
 
     internal int Count
     {
@@ -31,10 +47,13 @@ internal sealed class RelayDeviceSessions(
         Session session;
         lock (_gate)
         {
-            if (_drainCount != 0 || _active.Count >= MaximumSessions || _active.ContainsKey(sessionId)) return false;
+            if (_drainCount != 0 || _authenticatedCount >= MaximumAuthenticatedSessions ||
+                _active.Count >= MaximumAuthenticatedSessions + MaximumPendingSessions ||
+                _pendingCount >= MaximumPendingSessions || _active.ContainsKey(sessionId)) return false;
             session = new Session(sessionId, socket, rateLimitKey, ownerCancellationToken);
             _active.Add(sessionId, session);
             _routable.Add(sessionId, session);
+            _pendingCount++;
         }
 
         _ = RunAsync(session);
@@ -47,7 +66,7 @@ internal sealed class RelayDeviceSessions(
         lock (_gate) _routable.TryGetValue(sessionId, out session);
         if (session is null) return false;
         if (session.Socket.TryReceive(payload, isBinary)) return true;
-        session.CloseFromHost(requestClose);
+        session.CloseFromHost(_requestClose);
         return true;
     }
 
@@ -86,18 +105,18 @@ internal sealed class RelayDeviceSessions(
     {
         try
         {
-            await handleSession(session.Socket, session.RateLimitKey, session.Cancellation.Token);
+            await _handleSession(session.Socket, session.RateLimitKey, () => MarkAuthenticated(session.Id), session.Cancellation.Token);
         }
         catch (OperationCanceledException) when (session.Cancellation.IsCancellationRequested)
         {
         }
         catch (Exception)
         {
-            sessionFailed();
+            _sessionFailed();
         }
         finally
         {
-            session.CloseFromHost(requestClose);
+            session.CloseFromHost(_requestClose);
             lock (_gate)
             {
                 if (_routable.TryGetValue(session.Id, out var routed) && ReferenceEquals(routed, session))
@@ -106,16 +125,33 @@ internal sealed class RelayDeviceSessions(
                 }
             }
 
-            session.Dispose();
-            session.Completion.TrySetResult(null);
             lock (_gate)
             {
                 if (_active.TryGetValue(session.Id, out var active) && ReferenceEquals(active, session))
                 {
+                    if (session.Authenticated) _authenticatedCount--; else _pendingCount--;
                     _active.Remove(session.Id);
                 }
             }
+            session.Dispose();
+            session.Completion.TrySetResult(null);
         }
+    }
+
+    private void MarkAuthenticated(Guid sessionId)
+    {
+        var marked = false;
+        lock (_gate)
+        {
+            if (_active.TryGetValue(sessionId, out var session) && !session.Authenticated)
+            {
+                session.Authenticated = true;
+                _pendingCount--;
+                _authenticatedCount++;
+                marked = true;
+            }
+        }
+        if (marked) _deviceAuthenticated(sessionId);
     }
 
     internal static bool TryCreateRateLimitKey(Guid sessionId, ReadOnlySpan<byte> relaySourceKey, out string rateLimitKey)
@@ -147,6 +183,7 @@ internal sealed class RelayDeviceSessions(
             CancellationTokenSource.CreateLinkedTokenSource(ownerCancellationToken);
         internal TaskCompletionSource<object?> Completion { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal bool Authenticated { get; set; }
 
         internal void Stop()
         {

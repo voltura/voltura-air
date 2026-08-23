@@ -41,13 +41,17 @@ internal sealed class WebSocketSessionHandler(
         WebSocket socket,
         string rateLimitKey,
         UsageConnectionMethod connectionMethod,
-        CancellationToken cancellationToken)
+        Func<IDisposable?>? acquireAuthenticatedAdmission = null,
+        Action? authenticatedCallback = null,
+        CancellationToken cancellationToken = default)
     {
         var authenticated = false;
         var authenticatedClientId = string.Empty;
+        var authenticatedPairingEpoch = 0L;
         PendingReconnect? pendingReconnect = null;
         PairingBootstrapPending? pendingPairing = null;
         IDisposable? activeConnection = null;
+        IDisposable? authenticatedAdmission = null;
         using var usageSession = new UsageTelemetrySession(usageTelemetry);
         var buffer = new byte[WebSocketTransport.MaxMessageBytes];
         using var receiveTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -88,6 +92,12 @@ internal sealed class WebSocketSessionHandler(
                 using var document = receivedDocument;
                 var root = document.RootElement;
                 var type = ClientMessageValidator.TryReadType(root, out var messageType) ? messageType : null;
+
+                if (authenticated && !pairingManager.IsCurrentPairing(authenticatedClientId, authenticatedPairingEpoch))
+                {
+                    await CloseAuthenticatedAsync(socket, authenticatedClientId, "Device disconnected", WebSocketCloseStatus.PolicyViolation, cancellationToken);
+                    break;
+                }
 
                 if (!authenticated)
                 {
@@ -174,14 +184,32 @@ internal sealed class WebSocketSessionHandler(
                         }
                     }
 
+                    authenticatedAdmission = acquireAuthenticatedAdmission?.Invoke();
+                    if (acquireAuthenticatedAdmission is not null && authenticatedAdmission is null)
+                    {
+                        await RejectPairingAsync(socket, "session-limit", cancellationToken);
+                        break;
+                    }
+
+                    if (!pairingManager.TryTrackConnection(
+                        authentication.ClientId,
+                        () => transport.Register(authentication.ClientId, socket),
+                        out activeConnection,
+                        out authenticatedPairingEpoch))
+                    {
+                        authenticatedAdmission?.Dispose();
+                        authenticatedAdmission = null;
+                        await RejectPairingAsync(socket, "device-revoked", cancellationToken);
+                        break;
+                    }
+
                     authenticated = true;
                     authenticatedClientId = authentication.ClientId;
+                    authenticatedCallback?.Invoke();
                     if (usageTelemetry.SessionRegistry is { } sessionRegistry)
                     {
                         _ = usageSession.TryRegister(sessionRegistry);
                     }
-                    transport.Register(authentication.ClientId, socket);
-                    activeConnection = pairingManager.TrackConnection(authentication.ClientId);
                     var connectionRecordingToken = usageTelemetry.CurrentRecordingToken;
                     await transport.SendAsync(
                         socket,
@@ -205,6 +233,12 @@ internal sealed class WebSocketSessionHandler(
                 else if (type is null || !ClientMessageValidator.IsValidAuthenticatedMessage(root, type))
                 {
                     await CloseAuthenticatedAsync(socket, authenticatedClientId, "Invalid message", WebSocketCloseStatus.PolicyViolation, cancellationToken);
+                    break;
+                }
+
+                if (!pairingManager.IsCurrentPairing(authenticatedClientId, authenticatedPairingEpoch))
+                {
+                    await CloseAuthenticatedAsync(socket, authenticatedClientId, "Device disconnected", WebSocketCloseStatus.PolicyViolation, cancellationToken);
                     break;
                 }
 
@@ -254,6 +288,7 @@ internal sealed class WebSocketSessionHandler(
             }
 
             activeConnection?.Dispose();
+            authenticatedAdmission?.Dispose();
         }
     }
 

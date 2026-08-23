@@ -139,6 +139,9 @@ describe("Secure Direct room", () => {
     const { room, context, host, routeId } = await authenticatedRoom();
     for (let index = 0; index < maximumDevicesPerRoom; index += 1) {
       expect((await room.fetch(internalRequest("secure-device", routeId))).status).toBe(101);
+      const connected = decodeSentEnvelope(host.sent.pop());
+      await room.webSocketMessage(host as unknown as WebSocket,
+        Uint8Array.from(encodeEnvelope(connected.sessionId, new Uint8Array(), relayEnvelopeKind.authenticated)).buffer);
     }
     expect((await room.fetch(internalRequest("secure-device", routeId))).status).toBe(503);
     expect(host.readyState).toBe(TestSocket.OPEN);
@@ -184,6 +187,29 @@ describe("Secure Direct room", () => {
 });
 
 describe("Worker route isolation", () => {
+  it("keeps bounded pending Relay hosts until the first valid proof", async () => {
+    const keys = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+    const publicKey = encodeBase64Url(new Uint8Array(await crypto.subtle.exportKey("raw", keys.publicKey)));
+    const routeId = await deriveRouteId(publicKey);
+    const context = new TestContext();
+    const room = new worker.RelayRoomObject(context as never, {} as never);
+
+    expect((await room.fetch(relayHostRequest(routeId, "203.0.113.1"))).status).toBe(101);
+    expect((await room.fetch(relayHostRequest(routeId, "203.0.113.2"))).status).toBe(101);
+    const [first, second] = context.getWebSockets("host") as [TestSocket, TestSocket];
+    await room.webSocketMessage(first as unknown as WebSocket,
+      JSON.stringify({ type: "relay.host.hello", routeId, publicKey }));
+    const challenge = JSON.parse(first.sent.pop() as string) as { challenge: string };
+    const signature = encodeBase64Url(new Uint8Array(await crypto.subtle.sign(
+      { name: "ECDSA", hash: "SHA-256" }, keys.privateKey,
+      Uint8Array.from(createHostTranscript(routeId, challenge.challenge)).buffer)));
+    await room.webSocketMessage(first as unknown as WebSocket,
+      JSON.stringify({ type: "relay.host.proof", signature }));
+
+    expect(JSON.parse(first.sent.pop() as string)).toEqual({ type: "relay.host.accepted", protocol: 1 });
+    expect(second.closeCode).toBe(relayClose.conflict);
+  });
+
   it("rejects oversized Relay host authentication before parsing", async () => {
     const context = new TestContext();
     const room = new worker.RelayRoomObject(context as never, {} as never);
@@ -240,6 +266,13 @@ async function authenticatedRoom() {
 function internalRequest(role: "secure-host" | "secure-device", routeId: string): Request {
   const source = role === "secure-device" ? `&source=${"B".repeat(22)}` : "";
   return { url: `https://relay.internal/secure-connect?role=${role}&route=${routeId}${source}` } as Request;
+}
+
+function relayHostRequest(routeId: string, source: string): Request {
+  return {
+    url: `https://relay.internal/connect?role=host&route=${routeId}`,
+    headers: new Headers({ "CF-Connecting-IP": source })
+  } as Request;
 }
 
 function decodeSentEnvelope(value: string | ArrayBuffer | Uint8Array | undefined) {

@@ -12,6 +12,10 @@ import {
   maximumDevicesPerRoom,
   maximumBufferedBytes,
   maximumControlMessageBytes,
+  maximumPendingDevicesPerRoom,
+  maximumPendingDevicesPerSource,
+  maximumPendingHostCandidates,
+  maximumPendingHostCandidatesPerSource,
   maximumRelayPayloadBytes,
   isTurnRequestTimestampFresh,
   processHostAuthentication,
@@ -26,6 +30,7 @@ import { parsePort, validateOptionalTurnPublicIp } from "./configuration";
 
 interface HostState {
   socket: WebSocket;
+  source: string;
   authenticated: boolean;
   authenticationExpiresAt: number;
   authenticationTimer?: NodeJS.Timeout;
@@ -33,8 +38,8 @@ interface HostState {
   challenge?: string;
   rate?: RelayRateState;
 }
-interface DeviceState { socket: WebSocket; sessionId: Uint8Array; sourceKey: Uint8Array; rate?: RelayRateState }
-interface RoomState { host?: HostState; pendingHost?: HostState; devices: Map<string, DeviceState> }
+interface DeviceState { socket: WebSocket; sessionId: Uint8Array; sourceKey: Uint8Array; authenticated: boolean; rate?: RelayRateState }
+interface RoomState { host?: HostState; pendingHosts: Set<HostState>; devices: Map<string, DeviceState> }
 
 const rooms = new Map<string, RoomState>();
 const port = parsePort(process.env.RELAY_PORT);
@@ -73,16 +78,21 @@ async function handleUpgrade(
   const role = match[1] as "host" | "device";
   const routeId = match[2]!;
   if (!routeIdPattern.test(routeId) || (role === "device" && request.headers.origin !== allowedOrigin)) { socket.destroy(); return; }
-  const room = rooms.get(routeId) ?? { devices: new Map<string, DeviceState>() };
-  if ((role === "host" && !canAcceptHostCandidate(room.host?.authenticated === true)) ||
-      (role === "device" && (!room.host?.authenticated || room.devices.size >= maximumDevicesPerRoom))) { socket.destroy(); return; }
-  const forwardedSource = request.headers["x-forwarded-for"];
-  const source = typeof forwardedSource === "string" && forwardedSource.length <= 128
-    ? forwardedSource
-    : `unknown:${crypto.randomUUID()}`;
-  const sourceKey = role === "device" ? await deriveRelaySourceKey(routeId, source) : undefined;
+  const source = request.socket.remoteAddress ?? "unknown";
+  const room = rooms.get(routeId) ?? { pendingHosts: new Set<HostState>(), devices: new Map<string, DeviceState>() };
+  if (role === "host" && (!canAcceptHostCandidate(room.host?.authenticated === true) ||
+      pendingHostCount(room) >= maximumPendingHostCandidates ||
+      pendingHostCount(room, source) >= maximumPendingHostCandidatesPerSource)) { socket.destroy(); return; }
+  if (role === "device" && !room.host?.authenticated) { socket.destroy(); return; }
   rooms.set(routeId, room);
-  sockets.handleUpgrade(request, socket, head, (webSocket) => attach(webSocket, role, routeId, room, sourceKey));
+  const sourceKey = role === "device" ? await deriveRelaySourceKey(routeId, source) : undefined;
+  const pendingDevices = role === "device" ? pendingDeviceCount(room) : 0;
+  if (role === "device" && (!room.host?.authenticated ||
+      room.devices.size - pendingDevices >= maximumDevicesPerRoom ||
+      room.devices.size >= maximumDevicesPerRoom + maximumPendingDevicesPerRoom ||
+      pendingDevices >= maximumPendingDevicesPerRoom ||
+      pendingDeviceCount(room, sourceKey) >= maximumPendingDevicesPerSource)) { socket.destroy(); return; }
+  sockets.handleUpgrade(request, socket, head, (webSocket) => attach(webSocket, role, routeId, room, source, sourceKey));
 }
 
 server.listen(port, "0.0.0.0", () => process.stdout.write(`Voltura Air relay listening on ${port}\n`));
@@ -92,18 +102,19 @@ function attach(
   role: "host" | "device",
   routeId: string,
   room: RoomState,
+  source: string,
   sourceKey?: Uint8Array
 ): void {
   if (role === "host") {
-    if (room.pendingHost) room.pendingHost.socket.close(relayClose.conflict, "Superseded host authentication");
     const host: HostState = {
       socket,
+      source,
       authenticated: false,
       authenticationExpiresAt: Date.now() + hostAuthenticationTimeoutMs
     };
-    room.pendingHost = host;
+    room.pendingHosts.add(host);
     host.authenticationTimer = setTimeout(() => {
-      if (room.pendingHost === host && !host.authenticated) socket.close(relayClose.unauthorized, "Host authentication timed out");
+      if (room.pendingHosts.has(host) && !host.authenticated) socket.close(relayClose.unauthorized, "Host authentication timed out");
     }, hostAuthenticationTimeoutMs);
     host.authenticationTimer.unref();
     socket.on("message", (data, binary) => {
@@ -117,8 +128,13 @@ function attach(
       host.rate = rate.state;
       if (!rate.allowed) return socket.close(relayClose.overloaded, "Relay rate limit exceeded");
       const envelope = decodeEnvelope(bytes);
-      if (!envelope || (envelope.kind !== relayEnvelopeKind.text && envelope.kind !== relayEnvelopeKind.binary && envelope.kind !== relayEnvelopeKind.closeDevice)) return socket.close(relayClose.invalid, "Invalid relay envelope");
-      if (envelope.kind === relayEnvelopeKind.closeDevice && envelope.payload.length !== 0) return socket.close(relayClose.invalid, "Invalid device close envelope");
+      if (!envelope || (envelope.kind !== relayEnvelopeKind.text && envelope.kind !== relayEnvelopeKind.binary && envelope.kind !== relayEnvelopeKind.closeDevice && envelope.kind !== relayEnvelopeKind.authenticated)) return socket.close(relayClose.invalid, "Invalid relay envelope");
+      if ((envelope.kind === relayEnvelopeKind.closeDevice || envelope.kind === relayEnvelopeKind.authenticated) && envelope.payload.length !== 0) return socket.close(relayClose.invalid, "Invalid relay control envelope");
+      if (envelope.kind === relayEnvelopeKind.authenticated) {
+        const device = room.devices.get(key(envelope.sessionId));
+        if (device) device.authenticated = true;
+        return;
+      }
       const device = room.devices.get(key(envelope.sessionId));
       if (device && device.socket.readyState === NodeWebSocket.OPEN) {
         if (envelope.kind === relayEnvelopeKind.closeDevice) {
@@ -132,7 +148,7 @@ function attach(
     });
     socket.on("close", () => {
       if (host.authenticationTimer) clearTimeout(host.authenticationTimer);
-      if (room.pendingHost === host) delete room.pendingHost;
+      room.pendingHosts.delete(host);
       if (room.host === host) {
         delete room.host;
         for (const device of room.devices.values()) device.socket.close(relayClose.unavailable, "Host disconnected");
@@ -145,7 +161,7 @@ function attach(
 
   if (!sourceKey || sourceKey.length !== 16) return socket.close(relayClose.invalid, "Relay source identity unavailable");
   const sessionId = crypto.getRandomValues(new Uint8Array(16));
-  const device: DeviceState = { socket, sessionId, sourceKey };
+  const device: DeviceState = { socket, sessionId, sourceKey, authenticated: false };
   room.devices.set(key(sessionId), device);
   sendBounded(room.host!.socket, encodeEnvelope(sessionId, sourceKey, relayEnvelopeKind.connected));
   socket.on("message", (data, binary) => {
@@ -186,7 +202,9 @@ async function authenticateHost(
   } else {
     host.authenticated = true;
     room.host = host;
-    delete room.pendingHost;
+    room.pendingHosts.delete(host);
+    for (const pending of room.pendingHosts) pending.socket.close(relayClose.conflict, "Host authentication superseded");
+    room.pendingHosts.clear();
     delete host.challenge;
     if (host.authenticationTimer) clearTimeout(host.authenticationTimer);
     delete host.authenticationTimer;
@@ -197,13 +215,25 @@ async function authenticateHost(
 function canUseHostCandidate(room: RoomState, host: HostState): boolean {
   return canClaimHostCandidate(
     room.host?.authenticated === true,
-    room.pendingHost === host,
+    room.pendingHosts.has(host),
     host.socket.readyState === NodeWebSocket.OPEN,
     host.authenticationExpiresAt);
 }
 
+function pendingDeviceCount(room: RoomState, sourceKey?: Uint8Array): number {
+  return [...room.devices.values()].filter((device) => {
+    if (device.authenticated) return false;
+    if (!sourceKey) return true;
+    return device.sourceKey.length === sourceKey.length && device.sourceKey.every((value, index) => value === sourceKey[index]);
+  }).length;
+}
+
+function pendingHostCount(room: RoomState, source?: string): number {
+  return [...room.pendingHosts].filter((host) => source === undefined || host.source === source).length;
+}
+
 function removeEmptyRoom(routeId: string, room: RoomState): void {
-  if (!room.host && !room.pendingHost && room.devices.size === 0) rooms.delete(routeId);
+  if (!room.host && room.pendingHosts.size === 0 && room.devices.size === 0) rooms.delete(routeId);
 }
 
 function toBytes(data: RawData): Uint8Array {

@@ -415,7 +415,6 @@ public sealed class WebHostService : IAsyncDisposable
                 RelayEndpointDescriptor.Official(),
                 secureIdentity,
                 secureBindAddress,
-                () => TryAcquireControllerSession(),
                 HandleEnhancedDirectSessionAsync,
                 _appLog);
         }
@@ -566,11 +565,11 @@ public sealed class WebHostService : IAsyncDisposable
             }
 
             using var socket = await context.WebSockets.AcceptWebSocketAsync();
-            await HandleAdmittedSessionAsync(
+            await _sessionHandler.HandleAsync(
                 socket,
                 WebHostNetwork.GetRateLimitKey(context),
                 UsageConnectionMethod.StandardLocal,
-                context.RequestAborted);
+                cancellationToken: context.RequestAborted);
         });
 
         MapCustomScreenPreview(app);
@@ -712,34 +711,46 @@ public sealed class WebHostService : IAsyncDisposable
         Port,
         WebSocketUrl);
 
-    private async Task HandleRelaySessionAsync(WebSocket socket, string rateLimitKey, CancellationToken cancellationToken)
-    {
-        using var admission = TryAcquireControllerSession();
-        if (admission is null)
-        {
-            await WebSocketTransport.CloseAsync(
-                socket,
-                "Relay session limit reached",
-                WebSocketCloseStatus.EndpointUnavailable,
-                cancellationToken);
-            return;
-        }
-
-        await HandleAdmittedSessionAsync(socket, rateLimitKey, UsageConnectionMethod.Relay, cancellationToken);
-    }
+    private Task HandleRelaySessionAsync(
+        WebSocket socket,
+        string rateLimitKey,
+        Action authenticated,
+        CancellationToken cancellationToken) =>
+        HandleAdmittedSessionAsync(
+            socket,
+            rateLimitKey,
+            UsageConnectionMethod.Relay,
+            TryAcquireControllerSession,
+            authenticated,
+            cancellationToken);
 
     private Task HandleEnhancedDirectSessionAsync(
         WebSocket socket,
         string rateLimitKey,
+        Action authenticated,
         CancellationToken cancellationToken) =>
-        HandleAdmittedSessionAsync(socket, rateLimitKey, UsageConnectionMethod.EnhancedDirect, cancellationToken);
+        HandleAdmittedSessionAsync(
+            socket,
+            rateLimitKey,
+            UsageConnectionMethod.EnhancedDirect,
+            TryAcquireControllerSession,
+            authenticated,
+            cancellationToken);
 
     private Task HandleAdmittedSessionAsync(
         WebSocket socket,
         string rateLimitKey,
         UsageConnectionMethod connectionMethod,
+        Func<IDisposable?> acquireAdmission,
+        Action authenticated,
         CancellationToken cancellationToken) =>
-        _sessionHandler.HandleAsync(socket, rateLimitKey, connectionMethod, cancellationToken);
+        _sessionHandler.HandleAsync(
+            socket,
+            rateLimitKey,
+            connectionMethod,
+            acquireAdmission,
+            authenticated,
+            cancellationToken);
 
     private ControllerSessionLease? TryAcquireControllerSession() =>
         _webSocketSessionSlots.Wait(0) ? new ControllerSessionLease(_webSocketSessionSlots) : null;

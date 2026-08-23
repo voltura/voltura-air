@@ -130,6 +130,13 @@ test("quick development rebuilds the host-served client without validation", () 
   assert.doesNotMatch(hostProject, /SkipCursorWatchdogBuild/u);
 });
 
+test("cursor watchdog development payload uses incremental build inputs", () => {
+  const target = hostProject.match(/<Target Name="BuildCursorWatchdog"[\s\S]*?<\/Target>/u)?.[0] ?? "";
+
+  assert.match(target, /Inputs="[^"]*build-cursor-watchdog\.ps1;[^"]*VolturaAir\.CursorWatchdog\.c;[^"]*\$\(MSBuildProjectFullPath\);[^"]*VolturaAir\.ico"/u);
+  assert.match(target, /Outputs="\$\(OutDir\)VolturaAir\.CursorWatchdog\.exe"/u);
+});
+
 test("full maintenance stops the host before deleting locked build outputs", () => {
   assert.equal(packageJson.scripts.clean, undefined);
 

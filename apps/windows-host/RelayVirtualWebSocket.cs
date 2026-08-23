@@ -14,7 +14,7 @@ internal sealed class RelayVirtualWebSocket(
         SingleReader = true,
         SingleWriter = true
     });
-    private WebSocketState _state = WebSocketState.Open;
+    private int _state = (int)WebSocketState.Open;
     private WebSocketCloseStatus? _closeStatus;
     private string? _closeStatusDescription;
     private byte[]? _remainder;
@@ -25,7 +25,7 @@ internal sealed class RelayVirtualWebSocket(
     public override WebSocketCloseStatus? CloseStatus => _closeStatus;
     public override string? CloseStatusDescription => _closeStatusDescription;
     public override string SubProtocol => string.Empty;
-    public override WebSocketState State => _state;
+    public override WebSocketState State => (WebSocketState)Volatile.Read(ref _state);
     public string RouteId => routeId;
 
     public bool TryReceive(byte[] payload, bool isBinary)
@@ -47,7 +47,7 @@ internal sealed class RelayVirtualWebSocket(
             Abort();
             return false;
         }
-        if (_state != WebSocketState.Open || payload.Length > WebSocketTransport.MaxMessageBytes || !_receive.Writer.TryWrite(payload))
+        if (State != WebSocketState.Open || payload.Length > WebSocketTransport.MaxMessageBytes || !_receive.Writer.TryWrite(payload))
         {
             Abort();
             return false;
@@ -58,7 +58,7 @@ internal sealed class RelayVirtualWebSocket(
 
     public void CompleteFromRelay()
     {
-        if (_state == WebSocketState.Open) _state = WebSocketState.CloseReceived;
+        Interlocked.CompareExchange(ref _state, (int)WebSocketState.CloseReceived, (int)WebSocketState.Open);
         _closeStatus = WebSocketCloseStatus.EndpointUnavailable;
         _closeStatusDescription = "Relay device disconnected";
         _receive.Writer.TryComplete();
@@ -66,7 +66,7 @@ internal sealed class RelayVirtualWebSocket(
 
     public override void Abort()
     {
-        _state = WebSocketState.Aborted;
+        Interlocked.Exchange(ref _state, (int)WebSocketState.Aborted);
         _receive.Writer.TryComplete();
     }
 
@@ -75,7 +75,7 @@ internal sealed class RelayVirtualWebSocket(
         if (Interlocked.Exchange(ref _closeStarted, 1) != 0) return;
         _closeStatus = closeStatus;
         _closeStatusDescription = statusDescription;
-        _state = WebSocketState.Closed;
+        Interlocked.Exchange(ref _state, (int)WebSocketState.Closed);
         _receive.Writer.TryComplete();
         await send(new RelayEnvelope(RelayEnvelopeKind.CloseDevice, sessionId, []), cancellationToken).ConfigureAwait(false);
     }
@@ -98,6 +98,11 @@ internal sealed class RelayVirtualWebSocket(
 
     public override async Task<WebSocketReceiveResult> ReceiveAsync(ArraySegment<byte> buffer, CancellationToken cancellationToken)
     {
+        if (State != WebSocketState.Open)
+        {
+            return new WebSocketReceiveResult(0, WebSocketMessageType.Close, true, CloseStatus, CloseStatusDescription);
+        }
+
         if (_remainder is null)
         {
             try
@@ -111,6 +116,12 @@ internal sealed class RelayVirtualWebSocket(
             }
         }
 
+        if (State != WebSocketState.Open)
+        {
+            _remainder = null;
+            return new WebSocketReceiveResult(0, WebSocketMessageType.Close, true, CloseStatus, CloseStatusDescription);
+        }
+
         var count = Math.Min(buffer.Count, _remainder.Length - _remainderOffset);
         _remainder.AsSpan(_remainderOffset, count).CopyTo(buffer.AsSpan());
         _remainderOffset += count;
@@ -121,7 +132,7 @@ internal sealed class RelayVirtualWebSocket(
 
     public override Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken)
     {
-        if (_state != WebSocketState.Open || messageType != WebSocketMessageType.Text || !endOfMessage)
+        if (State != WebSocketState.Open || messageType != WebSocketMessageType.Text || !endOfMessage)
         {
             throw new WebSocketException(WebSocketError.InvalidMessageType);
         }
@@ -129,4 +140,5 @@ internal sealed class RelayVirtualWebSocket(
         var payload = _crypto is null ? [.. buffer] : _crypto.Encrypt(buffer);
         return send(new RelayEnvelope(_crypto is null ? RelayEnvelopeKind.Text : RelayEnvelopeKind.Binary, sessionId, payload), cancellationToken);
     }
+
 }

@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using Forms = System.Windows.Forms;
 using WpfApplication = System.Windows.Application;
 using VolturaAir.Host.Features.PhoneWebcam;
+using VolturaAir.Host.Features.Updates;
 
 namespace VolturaAir.Host;
 
@@ -410,7 +411,7 @@ internal static class Program
             ref s_postShutdownLaunch,
             () =>
             {
-                TryLaunchUpdateInstaller(
+                UpdateProcessLauncher.TryLaunchInstaller(
                     () => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                     {
                         FileName = installer,
@@ -420,22 +421,6 @@ internal static class Program
                     () => RestartCurrentProcess("--update-failed"));
             },
             null) is null) requestShutdown();
-    }
-
-    internal static bool TryLaunchUpdateInstaller(
-        Func<System.Diagnostics.Process?> launch,
-        Action relaunchCurrentHost)
-    {
-        try
-        {
-            if (launch() is not null) return true;
-        }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or FileNotFoundException or UnauthorizedAccessException)
-        {
-        }
-
-        relaunchCurrentHost();
-        return false;
     }
 
     private static bool IsDevelopmentHostSupervisor() =>
@@ -456,7 +441,7 @@ internal static class Program
                 FileName = executable,
                 UseShellExecute = false
             };
-            foreach (var argument in BuildRestartArguments(
+            foreach (var argument in UpdateProcessLauncher.BuildRestartArguments(
                          Environment.GetCommandLineArgs().Skip(1),
                          updateOutcomeArgument))
             {
@@ -469,15 +454,6 @@ internal static class Program
         {
             Console.Error.WriteLine("Voltura Air restart failed: {0}", ex.Message);
         }
-    }
-
-    internal static string[] BuildRestartArguments(IEnumerable<string> currentArguments, string? updateOutcomeArgument)
-    {
-        var arguments = currentArguments.Where(argument =>
-            !argument.Equals("--updated", StringComparison.OrdinalIgnoreCase) &&
-            !argument.Equals("--update-failed", StringComparison.OrdinalIgnoreCase)).ToList();
-        if (updateOutcomeArgument is not null) arguments.Add(updateOutcomeArgument);
-        return [.. arguments];
     }
 
     private static async ValueTask DisposeRuntimeAsync()

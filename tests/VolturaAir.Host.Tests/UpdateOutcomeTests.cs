@@ -13,12 +13,12 @@ public sealed class UpdateOutcomeTests
 
         Assert.Equal(
             ["--minimized", "--update-failed"],
-            Program.BuildRestartArguments(
+            UpdateProcessLauncher.BuildRestartArguments(
                 ["--updated", "--minimized", "--update-failed"],
                 "--update-failed"));
         Assert.Equal(
             ["--minimized"],
-            Program.BuildRestartArguments(["--updated", "--minimized"], null));
+            UpdateProcessLauncher.BuildRestartArguments(["--updated", "--minimized"], null));
     }
 
     [Fact]
@@ -26,10 +26,10 @@ public sealed class UpdateOutcomeTests
     {
         var relaunches = 0;
 
-        Assert.False(Program.TryLaunchUpdateInstaller(
+        Assert.False(UpdateProcessLauncher.TryLaunchInstaller(
             static () => null,
             () => relaunches++));
-        Assert.False(Program.TryLaunchUpdateInstaller(
+        Assert.False(UpdateProcessLauncher.TryLaunchInstaller(
             static () => throw new InvalidOperationException("start failed"),
             () => relaunches++));
 

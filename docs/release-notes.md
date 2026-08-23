@@ -8,7 +8,7 @@ create one. Keep the shared notices in
 
 ## v1.0.7
 
-- ...
+- Added direct device dictation on supported devices. Tap the microphone in Dictation to speak without opening the on-screen keyboard; recognition is handled by the browser/OS rather than the PC, and Voltura Air sends only the recognized text.
 
 ## v1.0.6
 

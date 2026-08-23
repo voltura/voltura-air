@@ -653,8 +653,10 @@ Diagnostics copies redact tokens, private keys, challenges, and proofs.
 
 ### Dictation and text transfer
 
-- Dictation uses browser speech recognition when available, lets users
-  edit final text, and sends it through the normal Windows text path.
+- Dictation uses browser speech recognition when available. Each new final
+  result is sent through the normal Windows text path and remains visible in
+  the editable field; devices without browser speech recognition can use their
+  keyboard's dictation in the field instead.
 - **Send text to PC** handles up to 4,096 characters. Destinations include the
   focused app, clipboard only, configured fresh document/app targets, a new
   text draft, or an email draft. Windows focus determines the target; delivery

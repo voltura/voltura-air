@@ -426,6 +426,10 @@
   line-height: 1.35;
 }
 
+.dictation-status p.dictation-feedback.error {
+  color: var(--danger);
+}
+
 .dictation-mode.speech-unavailable .dictation-status > svg,
 .dictation-mode.speech-unavailable .dictation-status strong {
   color: var(--muted);
@@ -453,6 +457,10 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+}
+
+.dictation-mode.speech-unavailable .dictation-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .dictation-actions button {

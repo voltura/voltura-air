@@ -157,7 +157,7 @@ export function ModeWorkspace({
     setKeyboardText,
     setLiveTyping
   } = useKeyboardInput(emit);
-  const { canUseSpeech, dictationText, isListening, setDictationText, startSpeech, stopSpeech } = useSpeechDictation();
+  const { canUseSpeech, dictationText, isListening, setDictationText, speechError, startSpeech, stopSpeech } = useSpeechDictation(sendText, tab === "dictation");
   const { requestAudioState, state: connectionState, supportsVolumeControl } = connection;
 
   useEffect(() => {
@@ -300,7 +300,7 @@ export function ModeWorkspace({
         onUtilityPanelOpenChange: onRemoteUtilityPanelOpenChange,
         sendSpecial
       }}
-      dictationMode={{ canUseSpeech, dictationText, isListening, sendText, setDictationText, startSpeech, stopSpeech }}
+      dictationMode={{ canUseSpeech, dictationText, isListening, sendText, setDictationText, speechError, startSpeech, stopSpeech }}
       textTransferMode={{
         clearAfterSending: appSettings.clearTextAfterSending,
         clientId: connection.clientId,

@@ -6,10 +6,13 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.0.8
+
+- Added support for secure automatic updates. This version must be installed manually; future releases can be downloaded securely from GitHub Releases and installed when you choose.
+
 ## v1.0.7
 
 - Added direct device dictation on supported devices. Tap the microphone in Dictation and start speaking—no need to open the on-screen keyboard. Speech recognition happens on your device, and Voltura Air sends only the recognized text to your PC.
-- Added support for secure automatic updates. This version must be installed manually; future releases can be downloaded securely from GitHub Releases and installed when you choose.
 
 ## v1.0.6
 

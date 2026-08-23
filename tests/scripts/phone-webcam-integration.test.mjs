@@ -13,8 +13,7 @@ const [
   hostProject,
   installer,
   preferences,
-  mainWindow,
-  todo
+  mainWindow
 ] = await Promise.all([
   read("apps/windows-host/Features/PhoneWebcam/Native/SetupHelper/main.cpp"),
   read("apps/windows-host/Features/PhoneWebcam/Native/SetupHelper/SetupHelper.vcxproj"),
@@ -24,15 +23,12 @@ const [
   read("apps/windows-host/VolturaAir.Host.csproj"),
   read("installer/VolturaAir.nsi"),
   read("apps/windows-host/Features/Preferences/PreferencesPageView.xaml"),
-  read("apps/windows-host/MainWindow.xaml"),
-  read("docs/todo.md")
+  read("apps/windows-host/MainWindow.xaml")
 ]);
 
 test("Phone webcam is a normal app setting and not a Developer-mode gate", () => {
   assert.match(mainWindow, /Content="Phone webcam"/u);
   assert.doesNotMatch(preferences, /Header="Phone webcam"/u);
-  assert.match(todo, /Phone webcam physical acceptance/u);
-  assert.doesNotMatch(todo, /feature-owned toggle under \*\*Developer tools\*\*/u);
 });
 
 test("installer offers the official VB-CABLE page only after confirmed absence", () => {

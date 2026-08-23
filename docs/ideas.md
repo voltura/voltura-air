@@ -158,9 +158,7 @@ browser-local unless a cross-device workflow justifies host ownership.
 | Candidate | Decision boundary |
 | --- | --- |
 | Demo video/GIF | Isolated capture, captions, privacy-safe content, and licensed media. |
-| Comparison table | Verifiable current facts and primary sources for named alternatives. |
 | FAQ | Add only when recurring support demand justifies maintenance. |
-| Release checksums | Generate and verify one checksum file against every asset. |
 | Update notification | Choose manual, opt-in periodic, or disabled-by-default checks with privacy and failure behavior. |
 | Code signing | Certificate, cost, key custody, CI signing, timestamps, renewal, revocation, and asset coverage. |
 | Automatic update | Integrity, signing, consent, rollback, recovery, privacy, and ownership. |

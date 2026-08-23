@@ -546,9 +546,10 @@ function air_screen_layout(
     bool $showCatalogBackLink = true): void
 {
     $user = air_screen_user();
+    $stylesheetVersion = filemtime(__DIR__ . '/../styles.css') ?: 0;
     echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">';
     echo '<title>' . air_screen_h($title) . ' - Voltura Air</title><meta name="theme-color" content="#101418">';
-    echo '<link rel="icon" href="../assets/voltura-air-icon.svg" type="image/svg+xml"><link rel="icon" href="../favicon-32.png" sizes="32x32" type="image/png"><link rel="icon" href="../favicon-16.png" sizes="16x16" type="image/png"><link rel="icon" href="../favicon.ico" sizes="any"><link rel="apple-touch-icon" href="../apple-touch-icon.png"><link rel="stylesheet" href="../styles.css"><script src="preview.js" defer></script><script src="tag-editor.js" defer></script></head><body class="catalog-page">';
+    echo '<link rel="icon" href="../assets/voltura-air-icon.svg" type="image/svg+xml"><link rel="icon" href="../favicon-32.png" sizes="32x32" type="image/png"><link rel="icon" href="../favicon-16.png" sizes="16x16" type="image/png"><link rel="icon" href="../favicon.ico" sizes="any"><link rel="apple-touch-icon" href="../apple-touch-icon.png"><link rel="stylesheet" href="../styles.css?v=' . $stylesheetVersion . '"><script src="preview.js" defer></script><script src="tag-editor.js" defer></script></head><body class="catalog-page">';
     echo '<header class="site-header"><a class="brand" href="../" aria-label="Voltura Air home"><img src="../assets/voltura-air-icon.svg" alt="" width="36" height="36"><span>Voltura Air</span></a><nav aria-label="Site navigation">';
     echo '<a href="../#features">Features</a><a href="../#compare">Compare</a><a href="../#screens">Screenshots</a><a href="./" aria-current="page">Custom screens</a><a href="../#setup">Setup</a><a href="../#trust">Privacy</a><a href="../#source">Develop</a><a href="../#download">Download</a>';
     if ($user) {

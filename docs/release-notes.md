@@ -6,6 +6,12 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.0.6
+
+- Increased max zoom for **View PC screen** to 10x.
+- Increased speed of host startup and initial connection for clients.
+- Sends unsent telemetry on host close.
+
 ## v1.0.5
 
 - Added optional, privacy-preserving **Usage statistics**. New and upgrading users are asked to allow or decline. Portable versions default to off.

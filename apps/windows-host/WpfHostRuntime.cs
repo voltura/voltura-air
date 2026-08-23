@@ -231,7 +231,8 @@ internal sealed class WpfHostRuntime : IAsyncDisposable
                 awakeService,
                 requestShutdown,
                 activitySimulationService: activitySimulationService,
-                updates: updates);
+                updates: updates,
+                updateStartupOutcome: UpdateService.GetStartupOutcome(args));
             return new WpfHostRuntime(
                 inputInjector,
                 activitySimulationService,

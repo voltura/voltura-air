@@ -5,6 +5,68 @@ namespace VolturaAir.Host.Tests;
 public sealed class UpdateServiceTests : IsolatedHostSettingsTest
 {
     [Fact]
+    public void EligibilityUsesInstalledDirectoryAndQuotedModifyPath()
+    {
+        using var install = new UpdateTemporaryDirectory();
+        using var maintenance = new UpdateTemporaryDirectory();
+        var modifyInstaller = Path.Combine(maintenance.Path, "VolturaAir-Modify.exe");
+        File.WriteAllBytes(modifyInstaller, []);
+
+        Assert.True(UpdateService.IsInstalledHost(
+            install.Path,
+            install.Path,
+            $"\"{modifyInstaller}\"",
+            out var selected));
+        Assert.Equal(modifyInstaller, selected);
+        Assert.False(UpdateService.IsInstalledHost(null, install.Path, modifyInstaller, out _));
+        Assert.False(UpdateService.IsInstalledHost(install.Path, maintenance.Path, modifyInstaller, out _));
+        Assert.False(UpdateService.IsInstalledHost(install.Path, install.Path, Path.Combine(maintenance.Path, "missing.exe"), out _));
+        Assert.Equal(
+            "VolturaAir-Setup-1.0.10-win-x64.exe",
+            UpdateService.SelectInstallerName(new Version(1, 0, 10), "VolturaAir-Setup.exe"));
+        Assert.Equal(
+            "VolturaAir-Setup-1.0.10-win-x64-full.exe",
+            UpdateService.SelectInstallerName(new Version(1, 0, 10), "VolturaAir-Setup-full.exe"));
+    }
+
+    [Theory]
+    [InlineData("--isolated-test-mode")]
+    [InlineData("--site-screenshot-mode")]
+    [InlineData("--installer-health-check")]
+    public void SpecialModesAreIneligible(string argument)
+    {
+        Assert.True(UpdateService.IsSpecialExecution([argument], developmentSupervisor: false));
+        Assert.True(UpdateService.IsSpecialExecution([], developmentSupervisor: true));
+    }
+
+    [Fact]
+    public async Task DisabledAndIneligibleServicesCreateNoIdleWorkOrNetworkClient()
+    {
+        AppUpdateSettings.SetAutomaticUpdateDownloadsEnabled(false);
+        using var store = new TempPairingStore();
+        var clientCreations = 0;
+        await using var disabled = new UpdateService(
+            new PairingManager(store.Store),
+            [],
+            eligibleOverride: true,
+            clientFactory: () =>
+            {
+                clientCreations++;
+                return new System.Net.Http.HttpClient();
+            });
+
+        Assert.False(disabled.HasNetworkClient);
+        Assert.False(disabled.HasPairingSubscription);
+        Assert.False(disabled.HasScheduledWork);
+        Assert.Equal(0, clientCreations);
+
+        await using var ineligible = new UpdateService(new PairingManager(store.Store), [], eligibleOverride: false);
+        Assert.False(ineligible.HasNetworkClient);
+        Assert.False(ineligible.HasPairingSubscription);
+        Assert.False(ineligible.HasScheduledWork);
+    }
+
+    [Fact]
     public async Task RapidAutomaticDownloadChangesKeepOneScheduledWorker()
     {
         AppUpdateSettings.SetAutomaticUpdateDownloadsEnabled(true);
@@ -12,11 +74,12 @@ public sealed class UpdateServiceTests : IsolatedHostSettingsTest
         var running = 0;
         var maximumRunning = 0;
 
-        Task Schedule(CancellationToken cancellationToken)
+        async Task Schedule(CancellationToken cancellationToken)
         {
             var current = Interlocked.Increment(ref running);
             UpdateMaximum(ref maximumRunning, current);
-            return WaitForCancellationAsync(cancellationToken);
+            try { await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken); }
+            finally { Interlocked.Decrement(ref running); }
         }
 
         await using var updates = new UpdateService(
@@ -28,98 +91,20 @@ public sealed class UpdateServiceTests : IsolatedHostSettingsTest
         await Task.WhenAll(Enumerable.Range(0, 12).Select(index => Task.Run(() =>
             AppUpdateSettings.SetAutomaticUpdateDownloadsEnabled(index % 2 == 0))));
         AppUpdateSettings.SetAutomaticUpdateDownloadsEnabled(true);
-        await WaitUntilAsync(() => Volatile.Read(ref running) == 1);
+        await UpdateTestSupport.WaitUntilAsync(() => Volatile.Read(ref running) == 1);
         await Task.Delay(200, TestContext.Current.CancellationToken);
 
         Assert.Equal(1, Volatile.Read(ref maximumRunning));
-
-        async Task WaitForCancellationAsync(CancellationToken cancellationToken)
-        {
-            try { await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken); }
-            finally { Interlocked.Decrement(ref running); }
-        }
     }
 
     [Fact]
     public async Task MetadataReadStopsAtTheConfiguredCap()
     {
         await using var stream = new MemoryStream(new byte[17]);
-
-        await Assert.ThrowsAsync<IOException>(() => UpdatePackageStager.ReadCappedAsync(stream, 16, TestContext.Current.CancellationToken));
-    }
-
-    [Fact]
-    public async Task PublishFailureAfterVerifiedNewerDownloadLeavesReadyUpdateUntouched()
-    {
-        using var directory = new TemporaryDirectory();
-        var existingManifest = "existing manifest"u8.ToArray();
-        var existingSignature = "existing signature"u8.ToArray();
-        var existingInstaller = "existing installer"u8.ToArray();
-        var newerInstaller = "new installer"u8.ToArray();
-        var manifestPath = Path.Combine(directory.Path, "manifest.json");
-        var signaturePath = Path.Combine(directory.Path, "VolturaAir-Update-1.0.0.sig");
-        var installerPath = Path.Combine(directory.Path, "VolturaAir-Setup-1.0.0-win-x64.exe");
-        await File.WriteAllBytesAsync(manifestPath, existingManifest, TestContext.Current.CancellationToken);
-        await File.WriteAllBytesAsync(signaturePath, existingSignature, TestContext.Current.CancellationToken);
-        await File.WriteAllBytesAsync(installerPath, existingInstaller, TestContext.Current.CancellationToken);
-        Directory.CreateDirectory(Path.Combine(directory.Path, "manifest.json.pending"));
-
-        using var store = new TempPairingStore();
-        using var handler = new RecordingHandler(attempt => attempt switch
-        {
-            1 => RedirectToDownload(),
-            2 => new System.Net.Http.HttpResponseMessage(global::System.Net.HttpStatusCode.OK)
-            {
-                Content = new System.Net.Http.ByteArrayContent(newerInstaller)
-            },
-            _ => throw new InvalidOperationException("Unexpected update request.")
-        });
-        using var client = new System.Net.Http.HttpClient(handler);
-        var state = UpdateState.Ready;
-        var stager = new UpdatePackageStager(
-            client,
-            new PairingManager(store.Store),
-            static () => "VolturaAir-Setup-2.0.0-win-x64.exe",
-            static (_, _) => true,
-            (next, _) => state = next);
-
-        var packageType = typeof(UpdatePackageStager).GetNestedType(
-            "Package",
-            System.Reflection.BindingFlags.NonPublic) ?? throw new InvalidOperationException("Package type was not found.");
-        var package = Activator.CreateInstance(
-            packageType,
-            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic,
-            binder: null,
-            args: [
-                "VolturaAir-Setup-2.0.0-win-x64.exe",
-                "https://github.com/voltura/voltura-air/releases/download/v2.0.0/VolturaAir-Setup-2.0.0-win-x64.exe",
-                new Version(2, 0, 0),
-                (long)newerInstaller.Length,
-                Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(newerInstaller)).ToLowerInvariant()],
-            culture: null) ?? throw new InvalidOperationException("Package could not be created.");
-        var stage = (Task)(typeof(UpdatePackageStager).GetMethod(
-            "DownloadAndPublishAsync",
-            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.Invoke(
-                stager,
-                [package, Array.Empty<byte>(), Array.Empty<byte>(), directory.Path, TestContext.Current.CancellationToken])
-            ?? throw new InvalidOperationException("Staging method was not found."));
-
-        await stage;
-
-        Assert.Equal(UpdateState.Idle, state);
-        Assert.Equal(existingManifest, await File.ReadAllBytesAsync(manifestPath, TestContext.Current.CancellationToken));
-        Assert.Equal(existingSignature, await File.ReadAllBytesAsync(signaturePath, TestContext.Current.CancellationToken));
-        Assert.Equal(existingInstaller, await File.ReadAllBytesAsync(installerPath, TestContext.Current.CancellationToken));
-        Assert.Equal(newerInstaller, await File.ReadAllBytesAsync(Path.Combine(directory.Path, "VolturaAir-Setup-2.0.0-win-x64.exe"), TestContext.Current.CancellationToken));
-        Assert.True(File.Exists(Path.Combine(directory.Path, "VolturaAir-Update-2.0.0.sig")));
-        Assert.False(File.Exists(Path.Combine(directory.Path, "VolturaAir-Setup-2.0.0-win-x64.exe.partial")));
-
-        static System.Net.Http.HttpResponseMessage RedirectToDownload()
-        {
-            var response = new System.Net.Http.HttpResponseMessage(global::System.Net.HttpStatusCode.Found);
-            response.Headers.Location = new Uri("https://objects.githubusercontent.com/voltura-air-update-test");
-            return response;
-        }
+        await Assert.ThrowsAsync<IOException>(() => UpdatePackageStager.ReadCappedAsync(
+            stream,
+            16,
+            TestContext.Current.CancellationToken));
     }
 
     private static void UpdateMaximum(ref int maximum, int current)
@@ -128,32 +113,6 @@ public sealed class UpdateServiceTests : IsolatedHostSettingsTest
         {
             var observed = Volatile.Read(ref maximum);
             if (current <= observed || Interlocked.CompareExchange(ref maximum, current, observed) == observed) return;
-        }
-    }
-
-    private static async Task WaitUntilAsync(Func<bool> condition)
-    {
-        var timeout = DateTime.UtcNow + TimeSpan.FromSeconds(5);
-        while (!condition())
-        {
-            if (DateTime.UtcNow >= timeout) throw new TimeoutException("Scheduled worker did not settle.");
-            await Task.Delay(20, TestContext.Current.CancellationToken);
-        }
-    }
-
-    private sealed class TemporaryDirectory : IDisposable
-    {
-        internal TemporaryDirectory()
-        {
-            Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"VolturaAir-UpdateTests-{Guid.NewGuid():N}");
-            Directory.CreateDirectory(Path);
-        }
-
-        internal string Path { get; }
-
-        public void Dispose()
-        {
-            Directory.Delete(Path, recursive: true);
         }
     }
 }

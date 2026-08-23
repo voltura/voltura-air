@@ -45,7 +45,8 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         Action requestShutdown,
         Action<string, string, Forms.ToolTipIcon>? notificationSink = null,
         IActivitySimulationService? activitySimulationService = null,
-        UpdateService? updates = null)
+        UpdateService? updates = null,
+        UpdateStartupOutcome updateStartupOutcome = UpdateStartupOutcome.None)
     {
         _mainWindow = mainWindow;
         _dispatcher = mainWindow.Dispatcher;
@@ -96,8 +97,10 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         if (_updates is not null)
         {
             _updates.StateChanged += OnUpdateStateChanged;
+            _updates.NotificationRequested += OnUpdateNotificationRequested;
             ApplyUpdateState();
         }
+        ShowStartupOutcome(updateStartupOutcome);
     }
 
     internal void RequestExit()
@@ -129,6 +132,7 @@ internal sealed class WpfTrayApplicationContext : IDisposable
         _connectionChangedAction.Dispose();
         _connectionFeedbackController.Dispose();
         _updates?.StateChanged -= OnUpdateStateChanged;
+        _updates?.NotificationRequested -= OnUpdateNotificationRequested;
         _awakeMenuController.Dispose();
         _trayIcon.Visible = false;
         _components.Dispose();
@@ -196,6 +200,41 @@ internal sealed class WpfTrayApplicationContext : IDisposable
     }
 
     private void OnUpdateStateChanged(object? sender, EventArgs e) => _ = _dispatcher.BeginInvoke(ApplyUpdateState);
+
+    private void OnUpdateNotificationRequested(object? sender, UpdateNotificationEventArgs e) => _ = _dispatcher.BeginInvoke(() =>
+    {
+        if (_disposed) return;
+        var (title, message, icon) = e.Kind switch
+        {
+            UpdateNotificationKind.UpToDate => ("Updates", $"Voltura Air {e.Version} is up to date.", Forms.ToolTipIcon.Info),
+            UpdateNotificationKind.WaitingForDevices => ("Updates", $"Version {e.Version} found. Download starts when devices disconnect.", Forms.ToolTipIcon.Info),
+            UpdateNotificationKind.Ready => ("Update ready", $"Version {e.Version} is ready to install.", Forms.ToolTipIcon.Info),
+            UpdateNotificationKind.InvalidStagedUpdate => ("Update unavailable", "The downloaded update couldn't be verified. Check for updates again.", Forms.ToolTipIcon.Warning),
+            UpdateNotificationKind.InstallFailed => ("Update failed", "Couldn't start the update installer. Voltura Air is still running. Try again.", Forms.ToolTipIcon.Warning),
+            _ => ("Updates", "Couldn't check for updates. Try again later.", Forms.ToolTipIcon.Warning)
+        };
+        ShowNotification(title, message, icon);
+    });
+
+    private void ShowStartupOutcome(UpdateStartupOutcome outcome)
+    {
+        switch (outcome)
+        {
+            case UpdateStartupOutcome.Updated:
+                var version = typeof(WpfTrayApplicationContext).Assembly.GetName().Version;
+                ShowNotification(
+                    "Voltura Air updated",
+                    $"Updated to version {version?.Major}.{version?.Minor}.{version?.Build}.",
+                    Forms.ToolTipIcon.Info);
+                break;
+            case UpdateStartupOutcome.Failed:
+                ShowNotification(
+                    "Update failed",
+                    "Voltura Air is still available. Try installing the update again from the tray menu.",
+                    Forms.ToolTipIcon.Warning);
+                break;
+        }
+    }
 
     private void ApplyUpdateState()
     {

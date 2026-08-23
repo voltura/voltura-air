@@ -4,139 +4,228 @@ using System.Text.Json;
 
 namespace VolturaAir.Host.Features.Updates;
 
+internal enum UpdateStageStatus { Ready, Deferred, Cancelled, Failed }
+
+internal sealed record UpdateReadyPackage(
+    Version Version,
+    string InstallerName,
+    string SignatureName,
+    long Size,
+    string Hash);
+
+internal readonly record struct UpdateStageResult(UpdateStageStatus Status, UpdateReadyPackage? ReadyPackage = null);
+
 /// <summary>Owns the bounded, authenticated remote-package-to-pending-directory transition.</summary>
 internal sealed class UpdatePackageStager(
     System.Net.Http.HttpClient client,
     PairingManager pairingManager,
-    Func<string> selectInstallerName,
+    string installerName,
     Func<byte[], byte[], bool> verifyManifest,
-    Action<UpdateState, string?> setState)
+    string pendingDirectory)
 {
-    private const long MaxManifestBytes = 16 * 1024;
-    private const long MaxSignatureBytes = 4 * 1024;
+    internal const long MaxManifestBytes = 16 * 1024;
+    internal const long MaxSignatureBytes = 4 * 1024;
     private const long MaxInstallerBytes = 200L * 1024 * 1024;
 
-    internal async Task StageAsync(JsonElement releaseAssets, Version version, CancellationToken cancellationToken)
-    {
-        if (!TryFindReleaseAssets(releaseAssets, version, out var assets))
-        {
-            setState(UpdateState.Idle, null);
-            return;
-        }
-
-        var manifest = await DownloadSmallAsync(assets.ManifestUrl, MaxManifestBytes, cancellationToken).ConfigureAwait(false);
-        var signature = await DownloadSmallAsync(assets.SignatureUrl, MaxSignatureBytes, cancellationToken).ConfigureAwait(false);
-        if (!verifyManifest(manifest, signature) || !TryReadPackage(manifest, assets, version, out var package))
-        {
-            setState(UpdateState.Idle, null);
-            return;
-        }
-
-        if (pairingManager.HasActiveController)
-        {
-            setState(UpdateState.WaitingForDevices, version.ToString());
-            return;
-        }
-
-        var pendingDirectory = GetPendingDirectory();
-        if (new DriveInfo(Path.GetPathRoot(pendingDirectory)!).AvailableFreeSpace < package.Size + 32L * 1024 * 1024)
-        {
-            setState(UpdateState.Idle, null);
-            return;
-        }
-
-        setState(UpdateState.Downloading, version.ToString());
-        await DownloadAndPublishAsync(package, manifest, signature, pendingDirectory, cancellationToken).ConfigureAwait(false);
-    }
-
-    private bool TryFindReleaseAssets(JsonElement releaseAssets, Version version, out ReleaseAssets assets)
-    {
-        var prefix = $"VolturaAir-Update-{version}";
-        var allAssets = releaseAssets.EnumerateArray().ToArray();
-        var manifest = FindAsset(allAssets, prefix + ".json");
-        var signature = FindAsset(allAssets, prefix + ".sig");
-
-        if (manifest.ValueKind == JsonValueKind.Undefined || signature.ValueKind == JsonValueKind.Undefined)
-        {
-            assets = default;
-            return false;
-        }
-
-        var installerName = selectInstallerName();
-        var installer = FindAsset(allAssets, installerName);
-        if (installer.ValueKind == JsonValueKind.Undefined)
-        {
-            assets = default;
-            return false;
-        }
-
-        assets = new ReleaseAssets(
-            manifest.GetProperty("browser_download_url").GetString(),
-            signature.GetProperty("browser_download_url").GetString(),
-            installer.GetProperty("browser_download_url").GetString(),
-            installerName);
-        return true;
-    }
-
-    private static JsonElement FindAsset(IEnumerable<JsonElement> assets, string name) =>
-        assets.SingleOrDefault(asset => asset.GetProperty("name").GetString() == name);
-
-    private static bool TryReadPackage(byte[] manifest, ReleaseAssets assets, Version version, out Package package)
-    {
-        using var document = JsonDocument.Parse(manifest);
-        var root = document.RootElement;
-        var manifestPackage = FindAsset(root.GetProperty("assets").EnumerateArray(), assets.InstallerName);
-
-        if (root.GetProperty("schema").GetInt32() != 1 ||
-            root.GetProperty("version").GetString() != version.ToString() ||
-            manifestPackage.ValueKind == JsonValueKind.Undefined)
-        {
-            package = default;
-            return false;
-        }
-
-        var size = manifestPackage.GetProperty("size").GetInt64();
-        var hash = manifestPackage.GetProperty("sha256").GetString();
-        if (size <= 0 || size > MaxInstallerBytes || string.IsNullOrWhiteSpace(hash))
-        {
-            package = default;
-            return false;
-        }
-
-        package = new Package(assets.InstallerName, assets.InstallerUrl, version, size, hash);
-        return true;
-    }
-
-    private async Task DownloadAndPublishAsync(
-        Package package,
-        byte[] manifest,
-        byte[] signature,
-        string pendingDirectory,
+    internal async Task<UpdateStageResult> StageAsync(
+        JsonElement releaseAssets,
+        Version version,
         CancellationToken cancellationToken)
     {
-        var partial = Path.Combine(pendingDirectory, package.Name + ".partial");
         try
         {
-            await DownloadInstallerAsync(package, partial, cancellationToken).ConfigureAwait(false);
-            Publish(package, partial, manifest, signature, pendingDirectory);
-            setState(UpdateState.Ready, null);
+            if (!TryFindReleaseAssets(releaseAssets, version, installerName, out var assets))
+            {
+                return new(UpdateStageStatus.Failed);
+            }
+
+            if (pairingManager.HasActiveController)
+            {
+                return new(UpdateStageStatus.Deferred);
+            }
+
+            var manifest = await DownloadSmallAsync(assets.Manifest.Url, MaxManifestBytes, cancellationToken).ConfigureAwait(false);
+            var signature = await DownloadSmallAsync(assets.Signature.Url, MaxSignatureBytes, cancellationToken).ConfigureAwait(false);
+            if (!verifyManifest(manifest, signature) ||
+                !TryReadPackage(manifest, assets.Installer, version, installerName, out var package))
+            {
+                return new(UpdateStageStatus.Failed);
+            }
+
+            if (pairingManager.HasActiveController)
+            {
+                return new(UpdateStageStatus.Deferred);
+            }
+
+            return await DownloadAndPublishAsync(
+                package,
+                assets.Installer.Url,
+                manifest,
+                signature,
+                cancellationToken).ConfigureAwait(false);
         }
-        catch
+        catch (OperationCanceledException)
         {
-            TryDelete(partial);
-            setState(UpdateState.Idle, null);
+            return new(pairingManager.HasActiveController ? UpdateStageStatus.Deferred : UpdateStageStatus.Cancelled);
+        }
+        catch (Exception ex) when (ex is IOException or JsonException or CryptographicException or UnauthorizedAccessException)
+        {
+            return new(UpdateStageStatus.Failed);
         }
     }
 
-    private async Task DownloadInstallerAsync(Package package, string partial, CancellationToken cancellationToken)
+    internal static bool TryFindReleaseAssets(
+        JsonElement releaseAssets,
+        Version version,
+        string selectedInstallerName,
+        out ReleaseAssets assets)
     {
-        await using var source = await OpenAssetAsync(package.Url, cancellationToken).ConfigureAwait(false);
-        await using var destination = new FileStream(partial, FileMode.Create, FileAccess.Write, FileShare.None, 65536, useAsync: true);
+        assets = default;
+        if (releaseAssets.ValueKind != JsonValueKind.Array)
+        {
+            return false;
+        }
+
+        var allAssets = releaseAssets.EnumerateArray().ToArray();
+        var prefix = $"VolturaAir-Update-{version.ToString(3)}";
+        if (!TryFindSingleAsset(allAssets, prefix + ".json", out var manifest) ||
+            !TryFindSingleAsset(allAssets, prefix + ".sig", out var signature) ||
+            !TryFindSingleAsset(allAssets, selectedInstallerName, out var installer) ||
+            !TryReadReleaseAsset(manifest, requireSize: false, out var manifestAsset) ||
+            !TryReadReleaseAsset(signature, requireSize: false, out var signatureAsset) ||
+            !TryReadReleaseAsset(installer, requireSize: true, out var installerAsset))
+        {
+            return false;
+        }
+
+        assets = new(manifestAsset, signatureAsset, installerAsset);
+        return true;
+    }
+
+    internal static bool TryReadPackage(
+        byte[] manifest,
+        ReleaseAsset apiInstaller,
+        Version expectedVersion,
+        string selectedInstallerName,
+        out UpdateReadyPackage package)
+    {
+        package = null!;
+        using var document = JsonDocument.Parse(manifest);
+        var root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object ||
+            !root.TryGetProperty("schema", out var schema) ||
+            !schema.TryGetInt32(out var schemaValue) ||
+            schemaValue != 1 ||
+            !root.TryGetProperty("version", out var versionElement) ||
+            versionElement.GetString() != expectedVersion.ToString(3) ||
+            !root.TryGetProperty("assets", out var manifestAssets) ||
+            manifestAssets.ValueKind != JsonValueKind.Array ||
+            !TryFindSingleAsset(manifestAssets.EnumerateArray(), selectedInstallerName, out var selected) ||
+            !selected.TryGetProperty("size", out var sizeElement) ||
+            !sizeElement.TryGetInt64(out var size) ||
+            !selected.TryGetProperty("sha256", out var hashElement))
+        {
+            return false;
+        }
+
+        var hash = hashElement.GetString();
+        if (!string.Equals(apiInstaller.Name, selectedInstallerName, StringComparison.Ordinal) ||
+            size <= 0 || size > MaxInstallerBytes || size != apiInstaller.Size || !IsLowerSha256(hash))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(apiInstaller.Digest) &&
+            !string.Equals(apiInstaller.Digest, $"sha256:{hash}", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        package = new(
+            expectedVersion,
+            selectedInstallerName,
+            $"VolturaAir-Update-{expectedVersion.ToString(3)}.sig",
+            size,
+            hash!);
+        return true;
+    }
+
+    internal static bool TryReadRestoredPackage(
+        byte[] manifest,
+        string selectedInstallerName,
+        out UpdateReadyPackage package)
+    {
+        package = null!;
+        using var document = JsonDocument.Parse(manifest);
+        var root = document.RootElement;
+        if (!root.TryGetProperty("version", out var versionElement) ||
+            !UpdateService.TryParseVersion(versionElement.GetString(), requireVPrefix: false, out var version))
+        {
+            return false;
+        }
+
+        var apiAsset = new ReleaseAsset(null, selectedInstallerName, ReadManifestSize(root, selectedInstallerName), null);
+        return apiAsset.Size > 0 && TryReadPackage(manifest, apiAsset, version, selectedInstallerName, out package);
+    }
+
+    private async Task<UpdateStageResult> DownloadAndPublishAsync(
+        UpdateReadyPackage package,
+        string? installerUrl,
+        byte[] manifest,
+        byte[] signature,
+        CancellationToken cancellationToken)
+    {
+        var safePending = GetSafePendingDirectory();
+        Directory.CreateDirectory(safePending);
+        if (new DriveInfo(Path.GetPathRoot(safePending)!).AvailableFreeSpace < package.Size + 32L * 1024 * 1024)
+        {
+            return new(UpdateStageStatus.Failed);
+        }
+
+        var partial = Path.Combine(safePending, package.InstallerName + ".partial");
+        var installer = Path.Combine(safePending, package.InstallerName);
+        var signaturePath = Path.Combine(safePending, package.SignatureName);
+        var pendingManifest = Path.Combine(safePending, "manifest.json.pending");
+        try
+        {
+            await DownloadInstallerAsync(package, installerUrl, partial, cancellationToken).ConfigureAwait(false);
+            File.Move(partial, installer, overwrite: true);
+            await File.WriteAllBytesAsync(signaturePath, signature, cancellationToken).ConfigureAwait(false);
+            await File.WriteAllBytesAsync(pendingManifest, manifest, cancellationToken).ConfigureAwait(false);
+            File.Move(pendingManifest, Path.Combine(safePending, "manifest.json"), overwrite: true);
+            CleanupSupersededFiles(safePending, package);
+            return new(UpdateStageStatus.Ready, package);
+        }
+        catch (OperationCanceledException)
+        {
+            CleanupFailedCandidate(partial, installer, signaturePath, pendingManifest);
+            return new(pairingManager.HasActiveController ? UpdateStageStatus.Deferred : UpdateStageStatus.Cancelled);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            CleanupFailedCandidate(partial, installer, signaturePath, pendingManifest);
+            return new(UpdateStageStatus.Failed);
+        }
+    }
+
+    private async Task DownloadInstallerAsync(
+        UpdateReadyPackage package,
+        string? installerUrl,
+        string partial,
+        CancellationToken cancellationToken)
+    {
+        await using var source = await OpenAssetAsync(installerUrl, cancellationToken).ConfigureAwait(false);
+        await using var destination = new FileStream(
+            partial,
+            FileMode.Create,
+            FileAccess.Write,
+            FileShare.None,
+            65536,
+            useAsync: true);
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         var buffer = new byte[65536];
         long received = 0;
         int read;
-
         while ((read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
         {
             if (pairingManager.HasActiveController) throw new OperationCanceledException(cancellationToken);
@@ -146,20 +235,11 @@ internal sealed class UpdatePackageStager(
             await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
         }
 
-        if (received != package.Size ||
-            !string.Equals(Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant(), package.Hash, StringComparison.Ordinal))
+        var actualHash = Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+        if (received != package.Size || !string.Equals(actualHash, package.Hash, StringComparison.Ordinal))
         {
             throw new IOException("Update package hash mismatch.");
         }
-    }
-
-    private static void Publish(Package package, string partial, byte[] manifest, byte[] signature, string pendingDirectory)
-    {
-        File.Move(partial, Path.Combine(pendingDirectory, package.Name), overwrite: true);
-        File.WriteAllBytes(Path.Combine(pendingDirectory, $"VolturaAir-Update-{package.Version}.sig"), signature);
-        var pendingManifest = Path.Combine(pendingDirectory, "manifest.json.pending");
-        File.WriteAllBytes(pendingManifest, manifest);
-        File.Move(pendingManifest, Path.Combine(pendingDirectory, "manifest.json"), overwrite: true);
     }
 
     private async Task<byte[]> DownloadSmallAsync(string? url, long cap, CancellationToken cancellationToken)
@@ -219,22 +299,100 @@ internal sealed class UpdatePackageStager(
         }
     }
 
-    private static string GetPendingDirectory()
+    private string GetSafePendingDirectory()
     {
-        var updates = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Voltura Air", "Updates");
-        var pending = Path.Combine(updates, "pending");
-        Directory.CreateDirectory(pending);
+        var pending = Path.GetFullPath(pendingDirectory);
+        var updatesRoot = Path.GetFullPath(Path.GetDirectoryName(pending) ?? throw new IOException("Invalid update path."));
+        if (!IsWithin(pending, updatesRoot)) throw new IOException("Invalid update path.");
         return pending;
     }
 
-    private static void TryDelete(string path)
+    private static bool TryFindSingleAsset(IEnumerable<JsonElement> assets, string name, out JsonElement asset)
     {
-        try { File.Delete(path); }
-        catch (IOException) { }
+        var matches = assets.Where(item =>
+            item.ValueKind == JsonValueKind.Object &&
+            item.TryGetProperty("name", out var itemName) &&
+            itemName.GetString() == name).Take(2).ToArray();
+        asset = matches.Length == 1 ? matches[0] : default;
+        return matches.Length == 1;
     }
 
-    private readonly record struct ReleaseAssets(string? ManifestUrl, string? SignatureUrl, string? InstallerUrl, string InstallerName);
-    private readonly record struct Package(string Name, string? Url, Version Version, long Size, string Hash);
+    private static bool TryReadReleaseAsset(JsonElement element, bool requireSize, out ReleaseAsset asset)
+    {
+        asset = default;
+        if (!element.TryGetProperty("name", out var nameElement) ||
+            !element.TryGetProperty("browser_download_url", out var urlElement))
+        {
+            return false;
+        }
+
+        var name = nameElement.GetString();
+        var url = urlElement.GetString();
+        long size = 0;
+        if (requireSize && (!element.TryGetProperty("size", out var sizeElement) || !sizeElement.TryGetInt64(out size)))
+        {
+            return false;
+        }
+
+        var digest = element.TryGetProperty("digest", out var digestElement) && digestElement.ValueKind != JsonValueKind.Null
+            ? digestElement.GetString()
+            : null;
+        asset = new(url, name ?? string.Empty, size, digest);
+        return !string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(url);
+    }
+
+    private static long ReadManifestSize(JsonElement root, string selectedInstallerName)
+    {
+        if (!root.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array ||
+            !TryFindSingleAsset(assets.EnumerateArray(), selectedInstallerName, out var selected) ||
+            !selected.TryGetProperty("size", out var size) || !size.TryGetInt64(out var value))
+        {
+            return 0;
+        }
+
+        return value;
+    }
+
+    private static bool IsLowerSha256(string? value) =>
+        value is { Length: 64 } && value.All(character => character is >= '0' and <= '9' or >= 'a' and <= 'f');
+
+    private void CleanupFailedCandidate(params string[] paths)
+    {
+        foreach (var path in paths) TryDeleteOwned(path);
+    }
+
+    private void CleanupSupersededFiles(string safePending, UpdateReadyPackage package)
+    {
+        var keep = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            Path.Combine(safePending, "manifest.json"),
+            Path.Combine(safePending, package.InstallerName),
+            Path.Combine(safePending, package.SignatureName)
+        };
+        foreach (var path in Directory.EnumerateFiles(safePending))
+        {
+            var name = Path.GetFileName(path);
+            var updaterOwned = name.EndsWith(".partial", StringComparison.OrdinalIgnoreCase) ||
+                name == "manifest.json.pending" ||
+                name.StartsWith("VolturaAir-Setup-", StringComparison.OrdinalIgnoreCase) ||
+                name.StartsWith("VolturaAir-Update-", StringComparison.OrdinalIgnoreCase);
+            if (updaterOwned && !keep.Contains(path)) TryDeleteOwned(path);
+        }
+    }
+
+    private void TryDeleteOwned(string path)
+    {
+        var fullPath = Path.GetFullPath(path);
+        if (!IsWithin(fullPath, GetSafePendingDirectory())) return;
+        try { File.Delete(fullPath); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+    }
+
+    private static bool IsWithin(string path, string root) =>
+        path.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+
+    internal readonly record struct ReleaseAsset(string? Url, string Name, long Size, string? Digest);
+    internal readonly record struct ReleaseAssets(ReleaseAsset Manifest, ReleaseAsset Signature, ReleaseAsset Installer);
 
     private sealed class ResponseStream(Stream stream, System.Net.Http.HttpResponseMessage response) : Stream
     {

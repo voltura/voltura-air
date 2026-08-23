@@ -410,27 +410,38 @@ internal static class Program
             ref s_postShutdownLaunch,
             () =>
             {
-                try
-                {
-                    if (System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                TryLaunchUpdateInstaller(
+                    () => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                     {
                         FileName = installer,
                         Arguments = "/S /AUTOUPDATE",
                         UseShellExecute = false
-                    }) is null) RestartCurrentProcess();
-                }
-                catch (System.ComponentModel.Win32Exception)
-                {
-                    RestartCurrentProcess();
-                }
+                    }),
+                    () => RestartCurrentProcess("--update-failed"));
             },
             null) is null) requestShutdown();
+    }
+
+    internal static bool TryLaunchUpdateInstaller(
+        Func<System.Diagnostics.Process?> launch,
+        Action relaunchCurrentHost)
+    {
+        try
+        {
+            if (launch() is not null) return true;
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or FileNotFoundException or UnauthorizedAccessException)
+        {
+        }
+
+        relaunchCurrentHost();
+        return false;
     }
 
     private static bool IsDevelopmentHostSupervisor() =>
         string.Equals(Environment.GetEnvironmentVariable("VOLTURA_AIR_DEV_HOST"), "1", StringComparison.Ordinal);
 
-    private static void RestartCurrentProcess()
+    private static void RestartCurrentProcess(string? updateOutcomeArgument = null)
     {
         var executable = Environment.ProcessPath;
         if (string.IsNullOrWhiteSpace(executable))
@@ -445,7 +456,9 @@ internal static class Program
                 FileName = executable,
                 UseShellExecute = false
             };
-            foreach (var argument in Environment.GetCommandLineArgs().Skip(1))
+            foreach (var argument in BuildRestartArguments(
+                         Environment.GetCommandLineArgs().Skip(1),
+                         updateOutcomeArgument))
             {
                 startInfo.ArgumentList.Add(argument);
             }
@@ -456,6 +469,15 @@ internal static class Program
         {
             Console.Error.WriteLine("Voltura Air restart failed: {0}", ex.Message);
         }
+    }
+
+    internal static string[] BuildRestartArguments(IEnumerable<string> currentArguments, string? updateOutcomeArgument)
+    {
+        var arguments = currentArguments.Where(argument =>
+            !argument.Equals("--updated", StringComparison.OrdinalIgnoreCase) &&
+            !argument.Equals("--update-failed", StringComparison.OrdinalIgnoreCase)).ToList();
+        if (updateOutcomeArgument is not null) arguments.Add(updateOutcomeArgument);
+        return [.. arguments];
     }
 
     private static async ValueTask DisposeRuntimeAsync()

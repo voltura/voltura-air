@@ -1,33 +1,37 @@
-using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
-using Microsoft.Win32;
 
 namespace VolturaAir.Host.Features.Updates;
 
-internal enum UpdateState { Idle, Checking, WaitingForDevices, Downloading, Ready }
-
-/// <summary>
-/// The only owner of GitHub release discovery and the staged installer. It deliberately
-/// has no background work unless this is an installed, opted-in production host.
-/// </summary>
-internal sealed class UpdateService : IAsyncDisposable
+/// <summary>Owns installed-host update discovery, staging, restore, and apply.</summary>
+internal sealed partial class UpdateService : IAsyncDisposable
 {
     private const string ReleaseUrl = "https://api.github.com/repos/voltura/voltura-air/releases/latest";
     private const long MaxMetadataBytes = 256 * 1024;
     private readonly PairingManager _pairingManager;
     private readonly bool _eligible;
-    private readonly CancellationTokenSource _shutdown = new();
-    private readonly SemaphoreSlim _singleFlight = new(1, 1);
-    private readonly System.Net.Http.HttpClient _client;
-    private readonly System.Net.Http.HttpClientHandler _handler;
+    private readonly string? _modifyInstaller;
+    private readonly string _pendingDirectory;
+    private readonly Version _currentVersion;
     private readonly Action<string>? _requestApply;
     private readonly Func<CancellationToken, Task> _scheduleAutomaticWork;
+    private readonly Func<System.Net.Http.HttpClient> _clientFactory;
+    private readonly Func<byte[], byte[], bool> _verifyManifest;
     private readonly EventHandler _connectionChanged;
+    private readonly SemaphoreSlim _singleFlight = new(1, 1);
     private readonly System.Threading.Lock _settingsTransitionLock = new();
+    private readonly System.Threading.Lock _stateLock = new();
+    private System.Net.Http.HttpClient? _client;
+    private CancellationTokenSource? _shutdown;
+    private CancellationTokenSource? _automaticCancellation;
+    private CancellationTokenSource? _candidateCancellation;
     private Task? _scheduled;
     private Task _settingsTransition = Task.CompletedTask;
-    private CancellationTokenSource? _automaticCancellation;
+    private TaskCompletionSource? _controllerAvailable;
+    private DeferredCandidate? _deferred;
+    private UpdateReadyPackage? _ready;
+    private bool _pairingSubscribed;
+    private int _resumeQueued;
     private int _disposed;
 
     internal UpdateService(
@@ -35,38 +39,311 @@ internal sealed class UpdateService : IAsyncDisposable
         string[] args,
         Action<string>? requestApply = null,
         bool? eligibleOverride = null,
-        Func<CancellationToken, Task>? scheduleAutomaticWork = null)
+        Func<CancellationToken, Task>? scheduleAutomaticWork = null,
+        Func<System.Net.Http.HttpClient>? clientFactory = null,
+        string? modifyInstallerOverride = null,
+        string? pendingDirectoryOverride = null,
+        Version? currentVersionOverride = null,
+        Func<byte[], byte[], bool>? manifestVerifier = null)
     {
         _pairingManager = pairingManager;
         _requestApply = requestApply;
-        _connectionChanged = (_, _) =>
-        {
-            if (State == UpdateState.WaitingForDevices && !_pairingManager.HasActiveController)
-            {
-                _ = CheckForUpdatesAsync(manual: false, _shutdown.Token);
-            }
-        };
-        _pairingManager.ConnectionChanged += _connectionChanged;
-        AppUpdateSettings.Changed += OnSettingsChanged;
-        _eligible = eligibleOverride ?? IsEligible(args, Environment.ProcessPath, out _);
-        _handler = new System.Net.Http.HttpClientHandler { AllowAutoRedirect = false, UseCookies = false };
-        _client = new System.Net.Http.HttpClient(_handler, disposeHandler: false)
-        {
-            Timeout = TimeSpan.FromSeconds(20)
-        };
-        _client.DefaultRequestHeaders.UserAgent.Add(new System.Net.Http.Headers.ProductInfoHeaderValue("VolturaAir", "1"));
+        _eligible = eligibleOverride ?? IsEligible(args, Environment.ProcessPath, out modifyInstallerOverride);
+        _modifyInstaller = modifyInstallerOverride;
+        _pendingDirectory = pendingDirectoryOverride ?? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Voltura Air",
+            "Updates",
+            "pending");
+        _currentVersion = currentVersionOverride ?? CurrentVersion();
+        _clientFactory = clientFactory ?? CreateClient;
+        _verifyManifest = manifestVerifier ?? VerifyManifest;
         _scheduleAutomaticWork = scheduleAutomaticWork ?? ScheduleAsync;
-        RestoreReadyState();
-        if (_eligible && AppUpdateSettings.AutomaticUpdateDownloadsEnabled())
+        _connectionChanged = OnConnectionChanged;
+
+        if (!_eligible)
         {
-            StartAutomaticWork();
+            return;
         }
+
+        RestoreReadyState();
+        AppUpdateSettings.Changed += OnSettingsChanged;
+        if (AppUpdateSettings.AutomaticUpdateDownloadsEnabled()) StartAutomaticWork();
     }
 
     internal event EventHandler? StateChanged;
+    internal event EventHandler<UpdateNotificationEventArgs>? NotificationRequested;
     internal UpdateState State { get; private set; } = UpdateState.Idle;
     internal string? TargetVersion { get; private set; }
     internal bool IsUpdateEligible => _eligible;
+    internal bool HasNetworkClient => _client is not null;
+    internal bool HasPairingSubscription => _pairingSubscribed;
+    internal bool HasScheduledWork => _scheduled is not null;
+
+    internal async Task CheckForUpdatesAsync(bool manual, CancellationToken cancellationToken = default)
+    {
+        if (!_eligible || (!manual && !AppUpdateSettings.AutomaticUpdateDownloadsEnabled())) return;
+        if (!manual)
+        {
+            EnsurePairingSubscription();
+            await WaitForNoControllerAsync(cancellationToken).ConfigureAwait(false);
+        }
+        await _singleFlight.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await CheckCoreAsync(manual, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || !manual)
+        {
+            RestorePresentation();
+        }
+        catch (Exception ex) when (ex is System.Net.Http.HttpRequestException or JsonException or IOException or CryptographicException or InvalidOperationException)
+        {
+            RestorePresentation();
+            ReportManualResult(manual, UpdateNotificationKind.CheckFailed);
+        }
+        finally
+        {
+            ReleasePairingSubscriptionIfIdle();
+            ReleaseClientIfIdle(ownsSingleFlight: true);
+            _singleFlight.Release();
+        }
+    }
+
+    internal async Task ApplyAsync(CancellationToken cancellationToken = default)
+    {
+        if (_ready is null || _requestApply is null) return;
+        _deferred = null;
+        await CancelCandidateAsync().ConfigureAwait(false);
+        await _singleFlight.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var ready = _ready;
+            if (ready is null) return;
+            string installer;
+            try
+            {
+                installer = await ValidateReadyForApplyAsync(ready, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is IOException or JsonException or CryptographicException or InvalidOperationException)
+            {
+                DeletePendingDirectory();
+                _ready = null;
+                SetState(UpdateState.Idle, null);
+                Notify(UpdateNotificationKind.InvalidStagedUpdate);
+                return;
+            }
+
+            try { _requestApply(installer); }
+            catch (Exception ex) when (ex is IOException or InvalidOperationException or System.ComponentModel.Win32Exception)
+            {
+                Notify(UpdateNotificationKind.InstallFailed);
+            }
+        }
+        finally
+        {
+            _singleFlight.Release();
+            ReleasePairingSubscriptionIfIdle();
+        }
+    }
+
+    private async Task CheckCoreAsync(bool manual, CancellationToken cancellationToken)
+    {
+        ShowWorkingState(UpdateState.Checking, null);
+        AppUpdateSettings.SetLastUpdateCheckAttemptUtc(DateTimeOffset.UtcNow);
+        using var response = await GetClient().GetAsync(
+            ReleaseUrl,
+            System.Net.Http.HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            RestorePresentation();
+            ReportManualResult(manual, UpdateNotificationKind.CheckFailed);
+            return;
+        }
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        var metadata = await UpdatePackageStager.ReadCappedAsync(stream, MaxMetadataBytes, cancellationToken).ConfigureAwait(false);
+        using var document = JsonDocument.Parse(metadata);
+        var root = document.RootElement;
+        if (!TryReadLatestRelease(root, out var candidate, out var assets))
+        {
+            RestorePresentation();
+            ReportManualResult(manual, UpdateNotificationKind.CheckFailed);
+            return;
+        }
+
+        var newestKnown = _ready is not null && _ready.Version > _currentVersion ? _ready.Version : _currentVersion;
+        if (candidate <= newestKnown)
+        {
+            RestorePresentation();
+            ReportManualResult(manual, UpdateNotificationKind.UpToDate, _currentVersion.ToString(3));
+            return;
+        }
+
+        var deferred = new DeferredCandidate(candidate, assets.Clone());
+        if (_pairingManager.HasActiveController)
+        {
+            DeferCandidate(deferred, manual);
+            return;
+        }
+
+        await StageCandidateAsync(deferred, manual, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task StageCandidateAsync(
+        DeferredCandidate candidate,
+        bool manual,
+        CancellationToken cancellationToken)
+    {
+        if (_pairingManager.HasActiveController)
+        {
+            DeferCandidate(candidate, manual);
+            return;
+        }
+
+        _deferred = null;
+        EnsurePairingSubscription();
+        ShowWorkingState(UpdateState.Downloading, candidate.Version.ToString(3));
+        var installerName = SelectInstallerName(candidate.Version);
+        using var candidateCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            GetShutdownToken());
+        lock (_stateLock) { _candidateCancellation = candidateCancellation; }
+        UpdateStageResult result;
+        try
+        {
+            var stager = new UpdatePackageStager(
+                GetClient(),
+                _pairingManager,
+                installerName,
+                _verifyManifest,
+                _pendingDirectory);
+            result = await stager.StageAsync(candidate.Assets, candidate.Version, candidateCancellation.Token).ConfigureAwait(false);
+        }
+        finally
+        {
+            lock (_stateLock)
+            {
+                if (ReferenceEquals(_candidateCancellation, candidateCancellation)) _candidateCancellation = null;
+            }
+        }
+
+        switch (result.Status)
+        {
+            case UpdateStageStatus.Ready when result.ReadyPackage is not null:
+                var firstReady = _ready is null;
+                _ready = result.ReadyPackage;
+                SetState(UpdateState.Ready, _ready.Version.ToString(3));
+                if (firstReady) Notify(UpdateNotificationKind.Ready, _ready.Version.ToString(3));
+                break;
+            case UpdateStageStatus.Deferred:
+                DeferCandidate(candidate, manual);
+                break;
+            case UpdateStageStatus.Failed:
+                RestorePresentation();
+                ReportManualResult(manual, UpdateNotificationKind.CheckFailed);
+                break;
+            default:
+                RestorePresentation();
+                break;
+        }
+    }
+
+    private void DeferCandidate(DeferredCandidate candidate, bool manual)
+    {
+        _deferred = candidate;
+        EnsurePairingSubscription();
+        ShowWorkingState(UpdateState.WaitingForDevices, candidate.Version.ToString(3));
+        ReportManualResult(manual, UpdateNotificationKind.WaitingForDevices, candidate.Version.ToString(3));
+    }
+
+    private void OnConnectionChanged(object? sender, EventArgs e)
+    {
+        if (_pairingManager.HasActiveController)
+        {
+            CancellationTokenSource? cancellation;
+            lock (_stateLock) { cancellation = _candidateCancellation; }
+            if (cancellation is not null) _ = cancellation.CancelAsync();
+            return;
+        }
+
+        TaskCompletionSource? available;
+        lock (_stateLock)
+        {
+            available = _controllerAvailable;
+            _controllerAvailable = null;
+        }
+        available?.TrySetResult();
+        QueueDeferredResume();
+    }
+
+    private void QueueDeferredResume()
+    {
+        if (_deferred is null || _pairingManager.HasActiveController ||
+            Interlocked.CompareExchange(ref _resumeQueued, 1, 0) != 0)
+        {
+            return;
+        }
+
+        _ = ResumeDeferredAsync();
+    }
+
+    private async Task ResumeDeferredAsync()
+    {
+        try
+        {
+            await _singleFlight.WaitAsync(GetShutdownToken()).ConfigureAwait(false);
+            try
+            {
+                var candidate = _deferred;
+                if (candidate is not null && !_pairingManager.HasActiveController)
+                {
+                    await StageCandidateAsync(candidate, manual: false, GetShutdownToken()).ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                ReleaseClientIfIdle(ownsSingleFlight: true);
+                _singleFlight.Release();
+            }
+        }
+        catch (OperationCanceledException) { }
+        finally
+        {
+            Interlocked.Exchange(ref _resumeQueued, 0);
+            ReleasePairingSubscriptionIfIdle();
+            if (_deferred is not null && !_pairingManager.HasActiveController) QueueDeferredResume();
+        }
+    }
+
+    private async Task ScheduleAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested && AppUpdateSettings.AutomaticUpdateDownloadsEnabled())
+        {
+            var last = AppUpdateSettings.LastUpdateCheckAttemptUtc();
+            var wait = last is null
+                ? TimeSpan.FromMinutes(2)
+                : TimeSpan.FromHours(24) - (DateTimeOffset.UtcNow - last.Value);
+            if (wait > TimeSpan.Zero) await Task.Delay(wait, cancellationToken).ConfigureAwait(false);
+            await WaitForNoControllerAsync(cancellationToken).ConfigureAwait(false);
+            await CheckForUpdatesAsync(manual: false, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private async Task WaitForNoControllerAsync(CancellationToken cancellationToken)
+    {
+        while (_pairingManager.HasActiveController)
+        {
+            TaskCompletionSource available;
+            lock (_stateLock)
+            {
+                if (!_pairingManager.HasActiveController) return;
+                available = _controllerAvailable = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            }
+            await available.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
 
     private void OnSettingsChanged(object? sender, EventArgs e)
     {
@@ -80,23 +357,16 @@ internal sealed class UpdateService : IAsyncDisposable
     private async Task RestartAfterAsync(Task previous)
     {
         try { await previous.ConfigureAwait(false); }
-        catch (OperationCanceledException) when (_shutdown.IsCancellationRequested) { }
-        await RestartAutomaticWorkAsync().ConfigureAwait(false);
-    }
-
-    private async Task RestartAutomaticWorkAsync()
-    {
-        try
-        {
-            await StopAutomaticWorkAsync().ConfigureAwait(false);
-            if (_eligible && AppUpdateSettings.AutomaticUpdateDownloadsEnabled()) StartAutomaticWork();
-        }
-        catch (OperationCanceledException) when (_shutdown.IsCancellationRequested) { }
+        catch (OperationCanceledException) { }
+        await StopAutomaticWorkAsync().ConfigureAwait(false);
+        if (Volatile.Read(ref _disposed) == 0 && AppUpdateSettings.AutomaticUpdateDownloadsEnabled()) StartAutomaticWork();
     }
 
     private void StartAutomaticWork()
     {
-        _automaticCancellation = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
+        if (!_eligible || _automaticCancellation is not null) return;
+        EnsurePairingSubscription();
+        _automaticCancellation = CancellationTokenSource.CreateLinkedTokenSource(GetShutdownToken());
         _scheduled = _scheduleAutomaticWork(_automaticCancellation.Token);
     }
 
@@ -106,153 +376,123 @@ internal sealed class UpdateService : IAsyncDisposable
         var scheduled = _scheduled;
         _automaticCancellation = null;
         _scheduled = null;
-        if (cancellation is null) return;
-
-        await cancellation.CancelAsync().ConfigureAwait(false);
-        if (scheduled is not null)
+        if (cancellation is not null)
         {
-            try { await scheduled.ConfigureAwait(false); }
-            catch (OperationCanceledException) { }
+            await cancellation.CancelAsync().ConfigureAwait(false);
+            if (scheduled is not null)
+            {
+                try { await scheduled.ConfigureAwait(false); }
+                catch (OperationCanceledException) { }
+            }
+            cancellation.Dispose();
         }
-
-        cancellation.Dispose();
+        ReleasePairingSubscriptionIfIdle();
+        ReleaseClientIfIdle();
     }
 
-    internal static bool IsEligible(string[] args, string? processPath, out string? modifyInstaller)
+    private void EnsurePairingSubscription()
     {
-        modifyInstaller = null;
-        if (args.Any(arg => arg.Equals("--isolated-test-mode", StringComparison.OrdinalIgnoreCase) ||
-                            arg.Equals("--site-screenshot-mode", StringComparison.OrdinalIgnoreCase) ||
-                            arg.Equals("--installer-health-check", StringComparison.OrdinalIgnoreCase)) ||
-            string.IsNullOrWhiteSpace(processPath)) return false;
-        using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\Voltura Air", writable: false);
-        var installLocation = key?.GetValue("InstallLocation") as string;
-        if (string.IsNullOrWhiteSpace(installLocation) || !string.Equals(Path.GetFullPath(installLocation), Path.GetFullPath(AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar)), StringComparison.OrdinalIgnoreCase)) return false;
-        var candidate = Path.Combine(Path.GetDirectoryName(installLocation) ?? string.Empty, "VolturaAir-Modify.exe");
-        if (!File.Exists(candidate)) return false;
-        modifyInstaller = candidate;
-        return true;
+        lock (_stateLock)
+        {
+            if (_pairingSubscribed) return;
+            _pairingManager.ConnectionChanged += _connectionChanged;
+            _pairingSubscribed = true;
+        }
     }
 
-    internal async Task CheckForUpdatesAsync(bool manual, CancellationToken cancellationToken = default)
+    private void ReleasePairingSubscriptionIfIdle()
     {
-        if (!_eligible || (!manual && !AppUpdateSettings.AutomaticUpdateDownloadsEnabled())) return;
-        await _singleFlight.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
+        lock (_stateLock)
         {
-            SetState(UpdateState.Checking, null);
-            AppUpdateSettings.SetLastUpdateCheckAttemptUtc(DateTimeOffset.UtcNow);
-            using var response = await _client.GetAsync(ReleaseUrl, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode) { SetState(UpdateState.Idle, null); return; }
-            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-            var metadata = await UpdatePackageStager.ReadCappedAsync(stream, MaxMetadataBytes, cancellationToken).ConfigureAwait(false);
-            using var document = JsonDocument.Parse(metadata);
-            var root = document.RootElement;
-            if (root.GetProperty("prerelease").GetBoolean() || root.GetProperty("draft").GetBoolean()) { SetState(UpdateState.Idle, null); return; }
-            var tag = root.GetProperty("tag_name").GetString();
-            if (!TryParseVersion(tag, out var candidate) || candidate <= CurrentVersion()) { SetState(UpdateState.Idle, null); return; }
-            TargetVersion = candidate.ToString();
-            if (_pairingManager.HasActiveController) { SetState(UpdateState.WaitingForDevices, TargetVersion); return; }
-            await new UpdatePackageStager(_client, _pairingManager, SelectInstallerName, VerifyManifest, SetState)
-                .StageAsync(root.GetProperty("assets"), candidate, cancellationToken)
-                .ConfigureAwait(false);
+            if (!_pairingSubscribed || _automaticCancellation is not null || _candidateCancellation is not null || _deferred is not null)
+            {
+                return;
+            }
+            _pairingManager.ConnectionChanged -= _connectionChanged;
+            _pairingSubscribed = false;
         }
-        catch (OperationCanceledException) when (!manual) { SetState(UpdateState.Idle, null); }
-        catch (System.Net.Http.HttpRequestException) { SetState(UpdateState.Idle, null); }
-        catch (JsonException) { SetState(UpdateState.Idle, null); }
-        finally { _singleFlight.Release(); }
     }
 
-    internal async Task ApplyAsync(CancellationToken cancellationToken = default)
+    private async Task CancelCandidateAsync()
     {
-        if (State != UpdateState.Ready || string.IsNullOrWhiteSpace(TargetVersion) || _requestApply is null) return;
-        await _singleFlight.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            var pending = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Voltura Air", "Updates", "pending");
-            var manifest = await File.ReadAllBytesAsync(Path.Combine(pending, "manifest.json"), cancellationToken).ConfigureAwait(false);
-            var signature = await File.ReadAllBytesAsync(Path.Combine(pending, $"VolturaAir-Update-{TargetVersion}.sig"), cancellationToken).ConfigureAwait(false);
-            if (!VerifyManifest(manifest, signature)) throw new IOException("The staged update could not be verified.");
-            using var document = JsonDocument.Parse(manifest);
-            var asset = document.RootElement.GetProperty("assets").EnumerateArray().Single(item => item.GetProperty("name").GetString() == SelectInstallerName());
-            var file = Path.Combine(pending, asset.GetProperty("name").GetString()!);
-            await using var installer = File.OpenRead(file);
-            if (!File.Exists(file) || new FileInfo(file).Length != asset.GetProperty("size").GetInt64() ||
-                !string.Equals(Convert.ToHexString(await SHA256.HashDataAsync(installer, cancellationToken)).ToLowerInvariant(), asset.GetProperty("sha256").GetString(), StringComparison.Ordinal))
-                throw new IOException("The staged update could not be verified.");
-            _requestApply(file);
-        }
-        catch (Exception ex) when (ex is IOException or JsonException or CryptographicException)
-        {
-            try { Directory.Delete(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Voltura Air", "Updates", "pending"), recursive: true); } catch (IOException) { }
-            SetState(UpdateState.Idle, null);
-        }
-        finally { _singleFlight.Release(); }
-    }
-
-    private async Task ScheduleAsync(CancellationToken cancellationToken)
-    {
-        while (!cancellationToken.IsCancellationRequested && AppUpdateSettings.AutomaticUpdateDownloadsEnabled())
-        {
-            var last = AppUpdateSettings.LastUpdateCheckAttemptUtc();
-            var wait = last is null ? TimeSpan.FromMinutes(2) : TimeSpan.FromHours(24) - (DateTimeOffset.UtcNow - last.Value);
-            if (wait > TimeSpan.Zero) await Task.Delay(wait, cancellationToken).ConfigureAwait(false);
-            await CheckForUpdatesAsync(false, cancellationToken).ConfigureAwait(false);
-        }
+        CancellationTokenSource? cancellation;
+        lock (_stateLock) { cancellation = _candidateCancellation; }
+        if (cancellation is not null) await cancellation.CancelAsync().ConfigureAwait(false);
     }
 
     private void RestoreReadyState()
     {
-        var manifest = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Voltura Air", "Updates", "pending", "manifest.json");
-        if (!File.Exists(manifest)) return;
-        // A full signature/hash verification is always performed immediately before apply.
-        try
+        if (!TryRestoreReadyPackage(_pendingDirectory, SelectInstallerName, _verifyManifest, out var ready) ||
+            ready.Version <= _currentVersion)
         {
-            var bytes = File.ReadAllBytes(manifest);
-            using var document = JsonDocument.Parse(bytes);
-            TargetVersion = document.RootElement.GetProperty("version").GetString();
-            var signature = File.ReadAllBytes(Path.Combine(Path.GetDirectoryName(manifest)!, $"VolturaAir-Update-{TargetVersion}.sig"));
-            if (!VerifyManifest(bytes, signature)) return;
-            if (!string.IsNullOrWhiteSpace(TargetVersion) && TryParseVersion(TargetVersion, out _)) SetState(UpdateState.Ready, TargetVersion);
+            return;
         }
-        catch (Exception ex) when (ex is JsonException or IOException or CryptographicException) { }
+        _ready = ready;
+        SetState(UpdateState.Ready, ready.Version.ToString(3));
     }
 
-    private string SelectInstallerName() => $"VolturaAir-Setup-{TargetVersion}-win-x64{(FileVersionInfo.GetVersionInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Voltura Air", "VolturaAir-Modify.exe")).OriginalFilename?.Contains("-full", StringComparison.OrdinalIgnoreCase) == true ? "-full" : string.Empty)}.exe";
-    private static bool VerifyManifest(byte[] manifest, byte[] signature)
+    private void ShowWorkingState(UpdateState state, string? version)
     {
-        using var rsa = RSA.Create(); using var stream = typeof(UpdateService).Assembly.GetManifestResourceStream("VolturaAir.Host.Features.Updates.update-signing-public.pem");
-        if (stream is null) return false; using var reader = new StreamReader(stream); rsa.ImportFromPem(reader.ReadToEnd()); return rsa.VerifyData(manifest, signature, HashAlgorithmName.SHA256, RSASignaturePadding.Pss);
+        if (_ready is null) SetState(state, version);
     }
 
+    private void RestorePresentation()
+    {
+        SetState(_ready is null ? UpdateState.Idle : UpdateState.Ready, _ready?.Version.ToString(3));
+    }
 
     private void SetState(UpdateState state, string? version)
     {
         State = state;
-        TargetVersion = version ?? TargetVersion;
+        TargetVersion = version;
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private static Version CurrentVersion() => Version.TryParse(typeof(UpdateService).Assembly.GetName().Version?.ToString(), out var version) ? version : new Version(0, 0, 0);
-    private static bool TryParseVersion(string? value, out Version version)
+    private void ReportManualResult(bool manual, UpdateNotificationKind kind, string? version = null)
     {
-        version = new Version(0, 0, 0);
-        if (!Version.TryParse(value?.TrimStart('v'), out var parsed) || parsed is null || parsed.Build < 0) return false;
-        version = parsed;
-        return true;
+        if (manual) Notify(kind, version);
     }
+
+    private void Notify(UpdateNotificationKind kind, string? version = null) =>
+        NotificationRequested?.Invoke(this, new UpdateNotificationEventArgs(kind, version));
+
+    private void ReleaseClientIfIdle(bool ownsSingleFlight = false)
+    {
+        if (AppUpdateSettings.AutomaticUpdateDownloadsEnabled() ||
+            (!ownsSingleFlight && _singleFlight.CurrentCount == 0) ||
+            _deferred is not null)
+        {
+            return;
+        }
+
+        Interlocked.Exchange(ref _client, null)?.Dispose();
+    }
+
+    private CancellationToken GetShutdownToken() => (_shutdown ??= new()).Token;
 
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
-        _pairingManager.ConnectionChanged -= _connectionChanged;
-        AppUpdateSettings.Changed -= OnSettingsChanged;
+        if (_eligible) AppUpdateSettings.Changed -= OnSettingsChanged;
         Task settingsTransition;
         lock (_settingsTransitionLock) { settingsTransition = _settingsTransition; }
         try { await settingsTransition.ConfigureAwait(false); }
-        catch (OperationCanceledException) when (_shutdown.IsCancellationRequested) { }
+        catch (OperationCanceledException) { }
+        _deferred = null;
         await StopAutomaticWorkAsync().ConfigureAwait(false);
-        await _shutdown.CancelAsync();
-        _client.Dispose(); _handler.Dispose(); _singleFlight.Dispose(); _shutdown.Dispose();
+        await CancelCandidateAsync().ConfigureAwait(false);
+        if (_shutdown is not null) await _shutdown.CancelAsync().ConfigureAwait(false);
+        lock (_stateLock)
+        {
+            if (_pairingSubscribed)
+            {
+                _pairingManager.ConnectionChanged -= _connectionChanged;
+                _pairingSubscribed = false;
+            }
+        }
+        _client?.Dispose();
+        _candidateCancellation?.Dispose();
+        _singleFlight.Dispose();
+        _shutdown?.Dispose();
     }
 }

@@ -6,6 +6,10 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.0.9
+
+- Fixed installed Voltura Air hosts so **Check for updates** appears in the tray menu before **Open product page**. If you use v1.0.8, install v1.0.9 manually once because v1.0.8 could not activate its updater.
+
 ## v1.0.8
 
 - Added support for secure automatic updates. This version must be installed manually; future releases can be downloaded securely from GitHub Releases and installed when you choose.

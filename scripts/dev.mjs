@@ -1,5 +1,6 @@
 import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { getMobileQuickBuildPaths, readGeneratedWebBuildId } from "./build-mobile-quick.mjs";
 import { readPreferredClientPort, stopChild, stopExistingHost, stopWindowsNodeListenersOnDevPorts } from "./dev-shared.mjs";
 import { createDevProgress } from "./dev-progress.mjs";
 
@@ -7,9 +8,11 @@ const clientPort = readPreferredClientPort();
 const quickStart = process.argv.includes("--quick");
 const childEnv = {
   ...process.env,
-  VOLTURA_AIR_CLIENT_PORT: String(clientPort),
-  VOLTURA_AIR_WEB_BUILD_ID: process.env.VOLTURA_AIR_WEB_BUILD_ID?.trim() || randomUUID()
+  VOLTURA_AIR_CLIENT_PORT: String(clientPort)
 };
+if (!quickStart) {
+  childEnv.VOLTURA_AIR_WEB_BUILD_ID = process.env.VOLTURA_AIR_WEB_BUILD_ID?.trim() || randomUUID();
+}
 if (quickStart) {
   childEnv.VOLTURA_AIR_USE_VITE_CLIENT = "0";
   delete childEnv.VOLTURA_AIR_CLIENT_URL;
@@ -21,8 +24,15 @@ const quickProgress = quickStart ? createDevProgress({ totalSteps: 3 }) : null;
 const quickStartedAt = Date.now();
 
 if (quickStart) {
-  quickProgress.start("Building mobile client", "Rebuilding current mobile sources without validation.");
+  quickProgress.start("Building mobile client", "Building changed mobile sources without validation when needed.");
   runCommand("npm", ["run", "build:quick", "--workspace", "apps/mobile-web"], childEnv);
+  try {
+    const { outputDirectory } = getMobileQuickBuildPaths(process.cwd(), childEnv);
+    childEnv.VOLTURA_AIR_WEB_BUILD_ID = readGeneratedWebBuildId(outputDirectory);
+  } catch (error) {
+    console.error("The mobile quick build did not produce a usable web build ID:", error);
+    process.exit(1);
+  }
   quickProgress.complete();
 } else {
   runCommand("npm", ["run", "build", "--workspace", "apps/mobile-web"], childEnv);

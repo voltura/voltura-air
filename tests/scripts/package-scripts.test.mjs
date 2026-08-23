@@ -103,11 +103,13 @@ test("the production mobile build enforces its measured JavaScript budget", () =
 
 test("quick development rebuilds the host-served client without validation", () => {
   assert.equal(packageJson.scripts["dev:quick"], "node scripts/dev.mjs --quick");
-  assert.equal(mobilePackageJson.scripts["build:quick"], "vite build");
+  assert.equal(mobilePackageJson.scripts["build:quick"], "node ../../scripts/build-mobile-quick.mjs");
   assert.match(devScript, /process\.argv\.includes\("--quick"\)/u);
   assert.match(devScript, /childEnv\.VOLTURA_AIR_USE_VITE_CLIENT = "0"/u);
   assert.doesNotMatch(devScript, /SKIP_CURSOR_WATCHDOG/u);
   assert.match(devScript, /delete childEnv\.VOLTURA_AIR_CLIENT_URL/u);
+  assert.match(devScript, /getMobileQuickBuildPaths/u);
+  assert.match(devScript, /readGeneratedWebBuildId/u);
   assert.match(devScript, /if \(quickStart\)[\s\S]*runCommand\("npm", \["run", "build:quick"/u);
   assert.match(devScript, /quickProgress\.start\("Building mobile client"/u);
   assert.match(devScript, /quickProgress\.start\("Preparing development ports"/u);

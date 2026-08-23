@@ -24,7 +24,7 @@ npm run dev:quick
 
 Use that two-command preflight only when launching or replacing the validation
 host. It stops the current host, then `dev:quick` performs an unchecked fast
-mobile bundle and incremental host build. It intentionally uses normal
+mobile bundle when its inputs changed and an incremental host build. It intentionally uses normal
 production settings so the human validates real device/configuration behavior.
 Restart the flow after source edits. It does not replace the risk-appropriate
 checks below.

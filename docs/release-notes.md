@@ -6,6 +6,10 @@ concise, observable user-facing changes. `npm run release:full` and
 create one. Keep the shared notices in
 `## General notices` unchanged; the release command includes them automatically.
 
+## v1.0.7
+
+- ...
+
 ## v1.0.6
 
 - Increased max zoom for **View PC screen** to 10x.
